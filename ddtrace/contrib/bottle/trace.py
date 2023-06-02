@@ -13,6 +13,7 @@ from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanKind
 from ...ext import SpanTypes
+from ...internal.schema import schematize_url_operation
 from ...internal.utils.formats import asbool
 
 
@@ -46,7 +47,7 @@ class TracePlugin(object):
             )
 
             with self.tracer.trace(
-                "bottle.request",
+                schematize_url_operation("bottle.request", protocol="http", direction="inbound"),
                 service=self.service,
                 resource=resource,
                 span_type=SpanTypes.WEB,

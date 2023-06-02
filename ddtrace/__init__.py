@@ -1,3 +1,8 @@
+import sys
+
+
+LOADED_MODULES = frozenset(sys.modules.keys())
+
 from ddtrace.internal.module import ModuleWatchdog
 
 
@@ -15,6 +20,12 @@ from ._logger import configure_ddtrace_logger
 
 # configure ddtrace logger before other modules log
 configure_ddtrace_logger()  # noqa: E402
+
+from ddtrace.internal import telemetry
+
+
+telemetry.install_excepthook()
+
 from ._monkey import patch  # noqa: E402
 from ._monkey import patch_all  # noqa: E402
 from .internal.utils.deprecations import DDTraceDeprecationWarning  # noqa: E402

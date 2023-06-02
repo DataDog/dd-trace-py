@@ -27,7 +27,6 @@ def _set_waf_updates_metric(info):
     try:
         tags = {
             "waf_version": version(),
-            "lib_language": "python",
         }
         if info and info.version:
             tags["event_rules_version"] = info.version
@@ -46,7 +45,6 @@ def _set_waf_init_metric(info):
     try:
         tags = {
             "waf_version": version(),
-            "lib_language": "python",
         }
         if info and info.version:
             tags["event_rules_version"] = info.version

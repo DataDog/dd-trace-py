@@ -1,7 +1,6 @@
 import abc
 import binascii
 from collections import defaultdict
-from json import loads
 import logging
 import os
 import sys
@@ -17,7 +16,6 @@ import tenacity
 
 import ddtrace
 from ddtrace import config
-from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
 from ddtrace.vendor.dogstatsd import DogStatsd
 
 from .. import agent
@@ -25,10 +23,11 @@ from .. import compat
 from .. import periodic
 from .. import service
 from ...constants import KEEP_SPANS_RATE_KEY
-from ...internal.telemetry import telemetry_metrics_writer
-from ...internal.telemetry import telemetry_writer
+from ...internal.serverless import in_gcp_function
+from ...internal.telemetry import telemetry_lifecycle_writer
 from ...internal.utils.formats import asbool
 from ...internal.utils.formats import parse_tags_str
+from ...internal.utils.http import Response
 from ...internal.utils.time import StopWatch
 from ...sampler import BasePrioritySampler
 from ...sampler import BaseSampler
@@ -54,6 +53,11 @@ if TYPE_CHECKING:  # pragma: no cover
 log = get_logger(__name__)
 
 LOG_ERR_INTERVAL = 60
+
+
+class NoEncodableSpansError(Exception):
+    pass
+
 
 # The window size should be chosen so that the look-back period is
 # greater-equal to the agent API's timeout. Although most tracers have a
@@ -96,77 +100,6 @@ def _human_size(nbytes):
         i += 1
     f = ("%.2f" % nbytes).rstrip("0").rstrip(".")
     return "%s%s" % (f, suffixes[i])
-
-
-class Response(object):
-    """
-    Custom API Response object to represent a response from calling the API.
-
-    We do this to ensure we know expected properties will exist, and so we
-    can call `resp.read()` and load the body once into an instance before we
-    close the HTTPConnection used for the request.
-    """
-
-    __slots__ = ["status", "body", "reason", "msg"]
-
-    def __init__(self, status=None, body=None, reason=None, msg=None):
-        self.status = status
-        self.body = body
-        self.reason = reason
-        self.msg = msg
-
-    @classmethod
-    def from_http_response(cls, resp):
-        """
-        Build a ``Response`` from the provided ``HTTPResponse`` object.
-
-        This function will call `.read()` to consume the body of the ``HTTPResponse`` object.
-
-        :param resp: ``HTTPResponse`` object to build the ``Response`` from
-        :type resp: ``HTTPResponse``
-        :rtype: ``Response``
-        :returns: A new ``Response``
-        """
-        return cls(
-            status=resp.status,
-            body=resp.read(),
-            reason=getattr(resp, "reason", None),
-            msg=getattr(resp, "msg", None),
-        )
-
-    def get_json(self):
-        """Helper to parse the body of this request as JSON"""
-        try:
-            body = self.body
-            if not body:
-                log.debug("Empty reply from Datadog Agent, %r", self)
-                return
-
-            if not isinstance(body, str) and hasattr(body, "decode"):
-                body = body.decode("utf-8")
-
-            if hasattr(body, "startswith") and body.startswith("OK"):
-                # This typically happens when using a priority-sampling enabled
-                # library with an outdated agent. It still works, but priority sampling
-                # will probably send too many traces, so the next step is to upgrade agent.
-                log.debug(
-                    "Cannot parse Datadog Agent response. "
-                    "This occurs because Datadog agent is out of date or DATADOG_PRIORITY_SAMPLING=false is set"
-                )
-                return
-
-            return loads(body)
-        except (ValueError, TypeError):
-            log.debug("Unable to parse Datadog Agent JSON response: %r", body, exc_info=True)
-
-    def __repr__(self):
-        return "{0}(status={1!r}, body={2!r}, reason={3!r}, msg={4!r})".format(
-            self.__class__.__name__,
-            self.status,
-            self.body,
-            self.reason,
-            self.msg,
-        )
 
 
 class TraceWriter(six.with_metaclass(abc.ABCMeta)):
@@ -290,9 +223,8 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         self._log_error_payloads = asbool(os.environ.get("_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", False))
         self._reuse_connections = get_writer_reuse_connections() if reuse_connections is None else reuse_connections
 
-    @property
-    def _intake_endpoint(self):
-        return "{}/{}".format(self.intake_url, self._endpoint)
+    def _intake_endpoint(self, client=None):
+        return "{}/{}".format(self._intake_url(client), client.ENDPOINT if client else self._endpoint)
 
     @property
     def _endpoint(self):
@@ -301,6 +233,11 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
     @property
     def _encoder(self):
         return self._clients[0].encoder
+
+    def _intake_url(self, client=None):
+        if client and hasattr(client, "_intake_url"):
+            return client._intake_url
+        return self.intake_url
 
     def _metrics_dist(self, name, count=1, tags=None):
         self._metrics[name]["count"] += count
@@ -347,7 +284,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         with self._conn_lck:
             if self._conn is None:
                 log.debug("creating new intake connection to %s with timeout %d", self.intake_url, self._timeout)
-                self._conn = get_connection(self.intake_url, self._timeout)
+                self._conn = get_connection(self._intake_url(client), self._timeout)
             try:
                 log.debug("Sending request: %s %s %s %s", self.HTTP_METHOD, client.ENDPOINT, data, headers)
                 self._conn.request(
@@ -363,7 +300,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                     log_level = logging.WARNING
                 else:
                     log_level = logging.DEBUG
-                log.log(log_level, "sent %s in %.5fs to %s", _human_size(len(data)), t, self._intake_endpoint)
+                log.log(log_level, "sent %s in %.5fs to %s", _human_size(len(data)), t, self._intake_endpoint(client))
             except Exception:
                 # Always reset the connection when an exception occurs
                 self._reset_connection()
@@ -375,11 +312,16 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 if not self._reuse_connections:
                     self._reset_connection()
 
-    def _get_finalized_headers(self, count):
-        return self._headers.copy()
+    def _get_finalized_headers(self, count, client):
+        # type: (int, WriterClientBase) -> dict
+        headers = self._headers.copy()
+        headers.update({"Content-Type": client.encoder.content_type})  # type: ignore[attr-defined]
+        if hasattr(client, "_headers"):
+            headers.update(client._headers)
+        return headers
 
     def _send_payload(self, payload, count, client):
-        headers = self._get_finalized_headers(count)
+        headers = self._get_finalized_headers(count, client)
 
         self._metrics_dist("http.requests")
 
@@ -393,7 +335,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         if response.status not in (404, 415) and response.status >= 400:
             msg = "failed to send traces to intake at %s: HTTP error status %s, reason %s"
             log_args = (
-                self._intake_endpoint,
+                self._intake_endpoint(client),
                 response.status,
                 response.reason,
             )
@@ -457,6 +399,8 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             )
             self._metrics_dist("buffer.dropped.traces", 1, tags=["reason:full"])
             self._metrics_dist("buffer.dropped.bytes", payload_size, tags=["reason:full"])
+        except NoEncodableSpansError:
+            self._metrics_dist("buffer.dropped.traces", 1, tags=["reason:incompatible"])
         else:
             self._metrics_dist("buffer.accepted.traces", 1)
             self._metrics_dist("buffer.accepted.spans", len(spans))
@@ -493,7 +437,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 log.error(
                     "failed to send, dropping %d traces to intake at %s after %d retries (%s)",
                     n_traces,
-                    self._intake_endpoint,
+                    self._intake_endpoint(client),
                     e.last_attempt.attempt_number,
                     e.last_attempt.exception(),
                 )
@@ -571,7 +515,7 @@ class AgentWriter(HTTPWriter):
         #      as a safety precaution.
         #      https://docs.python.org/3/library/sys.html#sys.platform
         is_windows = sys.platform.startswith("win") or sys.platform.startswith("cygwin")
-        default_api_version = "v0.4" if is_windows else "v0.5"
+        default_api_version = "v0.4" if (is_windows or in_gcp_function()) else "v0.5"
 
         self._api_version = (
             api_version
@@ -651,7 +595,7 @@ class AgentWriter(HTTPWriter):
 
     @property
     def _agent_endpoint(self):
-        return self._intake_endpoint
+        return self._intake_endpoint(client=None)
 
     def _downgrade(self, payload, response, client):
         if client.ENDPOINT == "v0.5/traces":
@@ -706,21 +650,12 @@ class AgentWriter(HTTPWriter):
     def start(self):
         super(AgentWriter, self).start()
         try:
-            # instrumentation telemetry writer should be enabled/started after the global tracer and configs
-            # are initialized
-            if asbool(os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED", True)):
-                telemetry_writer.enable()
-
-            if config._telemetry_metrics_enabled:
-                telemetry_metrics_writer.enable()
-
-            # appsec remote config should be enabled/started after the global tracer and configs
-            # are initialized
-            enable_appsec_rc()
+            telemetry_lifecycle_writer.enable()
         except service.ServiceStatusError:
             pass
 
-    def _get_finalized_headers(self, count):
-        headers = self._headers.copy()
+    def _get_finalized_headers(self, count, client):
+        # type: (int, WriterClientBase) -> dict
+        headers = super(AgentWriter, self)._get_finalized_headers(count, client)
         headers["X-Datadog-Trace-Count"] = str(count)
         return headers

@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+from json import loads
 import logging
 import re
 from typing import Any
@@ -14,14 +15,23 @@ import six
 
 from ddtrace.constants import USER_ID_KEY
 from ddtrace.internal import compat
+from ddtrace.internal.compat import parse
 from ddtrace.internal.constants import W3C_TRACESTATE_ORIGIN_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_SAMPLING_PRIORITY_KEY
+from ddtrace.internal.http import HTTPConnection
+from ddtrace.internal.http import HTTPSConnection
 from ddtrace.internal.sampling import SAMPLING_DECISION_TRACE_TAG_KEY
+from ddtrace.internal.uds import UDSHTTPConnection
 from ddtrace.internal.utils.cache import cached
+
+
+ConnectionType = Union[HTTPSConnection, HTTPConnection, UDSHTTPConnection]
 
 
 _W3C_TRACESTATE_INVALID_CHARS_REGEX_VALUE = re.compile(r",|;|~|[^\x20-\x7E]+")
 _W3C_TRACESTATE_INVALID_CHARS_REGEX_KEY = re.compile(r",| |=|[^\x20-\x7E]+")
+
+DEFAULT_TIMEOUT = 2.0
 
 
 Connector = Callable[[], ContextManager[compat.httplib.HTTPConnection]]
@@ -125,28 +135,11 @@ def connector(url, **kwargs):
         ...     conn.request("GET", "/")
         ...     ...
     """
-    scheme = "http"
-    if "://" in url:
-        scheme, _, authority = url.partition("://")
-    else:
-        authority = url
-
-    try:
-        Connection = {
-            "http": compat.httplib.HTTPConnection,
-            "https": compat.httplib.HTTPSConnection,
-            "unix": compat.httplib.HTTPConnection,
-        }[scheme]
-    except KeyError:
-        raise ValueError("Unsupported scheme: %s" % scheme)
-
-    host, _, _port = authority.partition(":")
-    port = int(_port) if _port else None
 
     @contextmanager
     def _connector_context():
         # type: () -> Generator[Union[compat.httplib.HTTPConnection, compat.httplib.HTTPSConnection], None, None]
-        connection = Connection(host, port, **kwargs)
+        connection = get_connection(url, **kwargs)
         yield connection
         connection.close()
 
@@ -209,3 +202,112 @@ def w3c_encode_tag(args):
     tag_val = pattern.sub(replacement, tag_val)
     # replace = with ~ if it wasn't already replaced by the regex
     return tag_val.replace("=", "~")
+
+
+class Response(object):
+    """
+    Custom API Response object to represent a response from calling the API.
+
+    We do this to ensure we know expected properties will exist, and so we
+    can call `resp.read()` and load the body once into an instance before we
+    close the HTTPConnection used for the request.
+    """
+
+    __slots__ = ["status", "body", "reason", "msg"]
+
+    def __init__(self, status=None, body=None, reason=None, msg=None):
+        self.status = status
+        self.body = body
+        self.reason = reason
+        self.msg = msg
+
+    @classmethod
+    def from_http_response(cls, resp):
+        """
+        Build a ``Response`` from the provided ``HTTPResponse`` object.
+
+        This function will call `.read()` to consume the body of the ``HTTPResponse`` object.
+
+        :param resp: ``HTTPResponse`` object to build the ``Response`` from
+        :type resp: ``HTTPResponse``
+        :rtype: ``Response``
+        :returns: A new ``Response``
+        """
+        return cls(
+            status=resp.status,
+            body=resp.read(),
+            reason=getattr(resp, "reason", None),
+            msg=getattr(resp, "msg", None),
+        )
+
+    def get_json(self):
+        """Helper to parse the body of this request as JSON"""
+        try:
+            body = self.body
+            if not body:
+                log.debug("Empty reply from Datadog Agent, %r", self)
+                return
+
+            if not isinstance(body, str) and hasattr(body, "decode"):
+                body = body.decode("utf-8")
+
+            if hasattr(body, "startswith") and body.startswith("OK"):
+                # This typically happens when using a priority-sampling enabled
+                # library with an outdated agent. It still works, but priority sampling
+                # will probably send too many traces, so the next step is to upgrade agent.
+                log.debug(
+                    "Cannot parse Datadog Agent response. "
+                    "This occurs because Datadog agent is out of date or DATADOG_PRIORITY_SAMPLING=false is set"
+                )
+                return
+
+            return loads(body)
+        except (ValueError, TypeError):
+            log.debug("Unable to parse Datadog Agent JSON response: %r", body, exc_info=True)
+
+    def __repr__(self):
+        return "{0}(status={1!r}, body={2!r}, reason={3!r}, msg={4!r})".format(
+            self.__class__.__name__,
+            self.status,
+            self.body,
+            self.reason,
+            self.msg,
+        )
+
+
+def get_connection(url, timeout=DEFAULT_TIMEOUT):
+    # type: (str, float) -> ConnectionType
+    """Return an HTTP connection to the given URL."""
+    parsed = verify_url(url)
+    hostname = parsed.hostname or ""
+    path = parsed.path or "/"
+
+    if parsed.scheme == "https":
+        return HTTPSConnection.with_base_path(hostname, parsed.port, base_path=path, timeout=timeout)
+    elif parsed.scheme == "http":
+        return HTTPConnection.with_base_path(hostname, parsed.port, base_path=path, timeout=timeout)
+    elif parsed.scheme == "unix":
+        return UDSHTTPConnection(path, hostname, parsed.port, timeout=timeout)
+
+    raise ValueError("Unsupported protocol '%s'" % parsed.scheme)
+
+
+def verify_url(url):
+    # type: (str) -> parse.ParseResult
+    """Validates that the given URL can be used as an intake
+    Returns a parse.ParseResult.
+    Raises a ``ValueError`` if the URL cannot be used as an intake
+    """
+    parsed = parse.urlparse(url)
+    schemes = ("http", "https", "unix")
+    if parsed.scheme not in schemes:
+        raise ValueError(
+            "Unsupported protocol '%s' in intake URL '%s'. Must be one of: %s"
+            % (parsed.scheme, url, ", ".join(schemes))
+        )
+    elif parsed.scheme in ["http", "https"] and not parsed.hostname:
+        raise ValueError("Invalid hostname in intake URL '%s'" % url)
+    elif parsed.scheme == "unix" and not parsed.path:
+        raise ValueError("Invalid file path in intake URL '%s'" % url)
+
+    return parsed

@@ -14,6 +14,7 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib.sqlite3.patch import TracedSQLiteCursor
 from ddtrace.contrib.sqlite3.patch import patch
 from ddtrace.contrib.sqlite3.patch import unpatch
+from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
@@ -333,10 +334,10 @@ class TestSQLite(TracerTestCase):
             span = spans[0]
             self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_app_service(self):
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_app_service_v0(self):
         """
-        When a user specifies a service for the app
+        v0: When a user specifies a service for the app
             The sqlite3 integration should not use it.
         """
         # Ensure that the service name was configured
@@ -355,8 +356,32 @@ class TestSQLite(TracerTestCase):
         span = spans[0]
         assert span.service != "mysvc"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SQLITE_SERVICE="my-svc"))
-    def test_user_specified_service(self):
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_app_service_v1(self):
+        """
+        v1: When a user specifies a service for the app
+            The sqlite3 integration should use it.
+        """
+        # Ensure that the service name was configured
+        from ddtrace import config
+
+        assert config.service == "mysvc"
+
+        q = "select * from sqlite_master"
+        connection = self._given_a_traced_connection(self.tracer)
+        cursor = connection.execute(q)
+        cursor.fetchall()
+
+        spans = self.get_spans()
+
+        self.assertEqual(len(spans), 1)
+        span = spans[0]
+        assert span.service == "mysvc"
+
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(DD_SQLITE_SERVICE="my-svc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0")
+    )
+    def test_user_specified_service_v0(self):
         q = "select * from sqlite_master"
         connection = self._given_a_traced_connection(self.tracer)
         cursor = connection.execute(q)
@@ -367,6 +392,60 @@ class TestSQLite(TracerTestCase):
         self.assertEqual(len(spans), 1)
         span = spans[0]
         assert span.service == "my-svc"
+
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(DD_SQLITE_SERVICE="my-svc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1")
+    )
+    def test_user_specified_service_v1(self):
+        q = "select * from sqlite_master"
+        connection = self._given_a_traced_connection(self.tracer)
+        cursor = connection.execute(q)
+        cursor.fetchall()
+
+        spans = self.get_spans()
+
+        self.assertEqual(len(spans), 1)
+        span = spans[0]
+        assert span.service == "my-svc"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_unspecified_service_v1(self):
+        q = "select * from sqlite_master"
+        connection = self._given_a_traced_connection(self.tracer)
+        cursor = connection.execute(q)
+        cursor.fetchall()
+
+        spans = self.get_spans()
+
+        self.assertEqual(len(spans), 1)
+        span = spans[0]
+        assert span.service == DEFAULT_SPAN_SERVICE_NAME
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_span_name_v0_schema(self):
+        q = "select * from sqlite_master"
+        connection = self._given_a_traced_connection(self.tracer)
+        cursor = connection.execute(q)
+        cursor.fetchall()
+
+        spans = self.get_spans()
+
+        self.assertEqual(len(spans), 1)
+        span = spans[0]
+        assert span.name == "sqlite.query"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_span_name_v1_schema(self):
+        q = "select * from sqlite_master"
+        connection = self._given_a_traced_connection(self.tracer)
+        cursor = connection.execute(q)
+        cursor.fetchall()
+
+        spans = self.get_spans()
+
+        self.assertEqual(len(spans), 1)
+        span = spans[0]
+        assert span.name == "sqlite.query"
 
     def test_context_manager(self):
         conn = self._given_a_traced_connection(self.tracer)

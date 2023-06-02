@@ -11,6 +11,7 @@ from ddtrace.ext import kafka as kafkax
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import MESSAGING_SYSTEM
+from ddtrace.internal.datastreams.processor import PROPAGATION_KEY
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.pin import Pin
@@ -39,9 +40,9 @@ class TracedProducer(confluent_kafka.Producer):
 
 
 class TracedConsumer(confluent_kafka.Consumer):
-    def __init__(self, config):
-        super(TracedConsumer, self).__init__(config)
-        self._group_id = config["group.id"]
+    def __init__(self, config, *args, **kwargs):
+        super(TracedConsumer, self).__init__(config, *args, **kwargs)
+        self._group_id = config.get("group.id", "")
 
     def poll(self, timeout=1):
         return super(TracedConsumer, self).poll(timeout)
@@ -79,13 +80,19 @@ def traced_produce(func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
 
-    topic = get_argument_value(args, kwargs, 0, "topic")
+    topic = get_argument_value(args, kwargs, 0, "topic") or ""
     try:
         value = get_argument_value(args, kwargs, 1, "value")
     except ArgumentError:
         value = None
     message_key = kwargs.get("key", "")
     partition = kwargs.get("partition", -1)
+    if config._data_streams_enabled:
+        # inject data streams context
+        headers = kwargs.get("headers", {})
+        pathway = pin.tracer.data_streams_processor.set_checkpoint(["direction:out", "topic:" + topic, "type:kafka"])
+        headers[PROPAGATION_KEY] = pathway.encode()
+        kwargs["headers"] = headers
 
     with pin.tracer.trace(
         kafkax.PRODUCE,
@@ -123,6 +130,12 @@ def traced_poll(func, instance, args, kwargs):
         span.set_tag_str(kafkax.RECEIVED_MESSAGE, str(message is not None))
         span.set_tag_str(kafkax.GROUP_ID, instance._group_id)
         if message is not None:
+            if config._data_streams_enabled:
+                headers = {header[0]: header[1] for header in (message.headers() or [])}
+                ctx = pin.tracer.data_streams_processor.decode_pathway(headers.get(PROPAGATION_KEY, None))
+                ctx.set_checkpoint(
+                    ["direction:in", "group:" + instance._group_id, "topic:" + message.topic(), "type:kafka"]
+                )
             message_key = message.key() or ""
             message_offset = message.offset() or -1
             span.set_tag_str(kafkax.TOPIC, message.topic())

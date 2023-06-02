@@ -45,7 +45,7 @@ LIBDDWAF_DOWNLOAD_DIR = os.path.join(HERE, os.path.join("ddtrace", "appsec", "dd
 
 CURRENT_OS = platform.system()
 
-LIBDDWAF_VERSION = "1.9.0"
+LIBDDWAF_VERSION = "1.11.0"
 
 
 def verify_libddwaf_checksum(sha256_filename, filename, current_os):
@@ -337,7 +337,6 @@ setup(
         "enum34; python_version<'3.4'",
         "funcsigs>=1.0.0; python_version=='2.7'",
         "typing; python_version<'3.5'",
-        "packaging>=17.1",
         "protobuf>=3; python_version>='3.7'",
         "protobuf>=3,<4.0; python_version=='3.6'",
         "protobuf>=3,<3.18; python_version<'3.6'",
@@ -345,7 +344,8 @@ setup(
         "attrs>=20; python_version>'2.7'",
         "attrs>=20,<22; python_version=='2.7'",
         "contextlib2<1.0; python_version=='2.7'",
-        "cattrs",
+        "cattrs<1.1; python_version<='3.6'",
+        "cattrs; python_version>='3.7'",
         "six>=1.12.0",
         "typing_extensions",
         "importlib_metadata; python_version<'3.8'",

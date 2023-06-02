@@ -15,6 +15,7 @@ mongo_image: &mongo_image mongo:3.6
 httpbin_image: &httpbin_image kennethreitz/httpbin@sha256:2c7abc4803080c22928265744410173b6fea3b898872c01c5fd0f0f9df4a59fb
 vertica_image: &vertica_image sumitchawla/vertica:latest
 rabbitmq_image: &rabbitmq_image rabbitmq:3.7-alpine
+testagent_image: &testagent_image ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:latest
 
 parameters:
   coverage:
@@ -75,7 +76,7 @@ commands:
     description: "Install riot"
     steps:
       # Make sure we install and run riot on Python 3
-      - run: pip3 install riot==0.17.2
+      - run: pip3 install riot==0.17.3
 
   save_pip_cache:
     description: "Save pip cache directory"
@@ -145,9 +146,9 @@ commands:
                   DD_TRACE_AGENT_URL: http://localhost:9126
                   RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
                 command: |
-                  mv .riot .ddriot
                   # Sort the hashes to ensure a consistent ordering/division between each node
                   riot list --hash-only '<<parameters.pattern>>' | sort | circleci tests split | xargs -n 1 -I {} ./scripts/ddtest riot -v run --exitfirst --pass-env -s {} $([[ << pipeline.parameters.coverage >> == false ]] && echo '--no-cov' )
+                  ./scripts/check-diff ".riot/requirements/" "Changes detected after running riot. Consider deleting changed files, running scripts/compile-and-prune-test-requirements and committing the result."
       - unless:
           condition:
               << parameters.snapshot >>
@@ -166,6 +167,7 @@ commands:
                 command: |
                   # Sort the hashes to ensure a consistent ordering/division between each node
                   riot list --hash-only '<<parameters.pattern>>' | sort | circleci tests split | xargs -n 1 -I {} riot -v run --exitfirst --pass-env -s {} $([[ << pipeline.parameters.coverage >> == false ]] && echo '--no-cov' )
+                  ./scripts/check-diff ".riot/requirements/" "Changes detected after running riot. Consider deleting changed files, running scripts/compile-and-prune-test-requirements and committing the result."
       - save_pip_cache
       - when:
           condition:
@@ -218,6 +220,13 @@ postgres_server: &postgres_server
     - POSTGRES_USER=postgres
     - POSTGRES_DB=postgres
 
+testagent: &testagent
+  image: *testagent_image
+  environment:
+    - LOG_LEVEL=WARNING
+    - SNAPSHOT_DIR=/snapshots
+    - SNAPSHOT_CI=1
+
 jobs:
   pre_check:
     executor: python310
@@ -237,6 +246,9 @@ jobs:
           name: "Mypy check"
           command: riot run -s mypy
       - run:
+          name: "cython-lint check"
+          command: riot run -s cython-lint
+      - run:
           name: "Codespell check"
           command: riot run -s codespell
       - run:
@@ -248,6 +260,9 @@ jobs:
       - run:
           name: "Run scripts/*.py tests"
           command: riot run -s scripts
+      - run:
+          name: "Running security analysis checks with bandit"
+          command: riot -v run -s bandit
 
   ccheck:
     executor: cimg_base
@@ -372,6 +387,14 @@ jobs:
       - run_test:
           pattern: "debugger"
 
+  openai:
+    <<: *machine_executor
+    parallelism: 4
+    steps:
+      - run_test:
+          pattern: 'openai'
+          snapshot: true
+
   opentracer:
     <<: *contrib_job
     steps:
@@ -411,9 +434,9 @@ jobs:
           environment:
             RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
           command: |
-            mv .riot .ddriot
             # Sort the hashes to ensure a consistent ordering/division between each node
             riot list --hash-only 'integration-latest' | sort | circleci tests split | xargs -n 1 -I {} ./scripts/ddtest riot -v run --pass-env -s {}
+            ./scripts/check-diff ".riot/requirements/" "Changes detected after running riot. Consider deleting changed files, running scripts/compile-and-prune-test-requirements and committing the result."
 
   integration_testagent:
     <<: *machine_executor
@@ -459,6 +482,9 @@ jobs:
 
   stdlib:
     <<: *contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+      - *testagent
     parallelism: 4
     steps:
       - run_test:
@@ -474,6 +500,9 @@ jobs:
 
   pylons:
     <<: *contrib_job_small
+    docker:
+      - image: *ddtrace_dev_image
+      - *testagent
     steps:
       - run_test:
           pattern: 'pylons'
@@ -489,18 +518,27 @@ jobs:
 
   asgi:
     <<: *contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+      - *testagent
     steps:
       - run_test:
           pattern: 'asgi$'
 
   tornado:
     <<: *contrib_job_small
+    docker:
+      - image: *ddtrace_dev_image
+      - *testagent
     steps:
       - run_test:
           pattern: 'tornado'
 
   bottle:
     <<: *contrib_job_small
+    docker:
+      - image: *ddtrace_dev_image
+      - *testagent
     steps:
       - run_test:
           pattern: 'bottle'
@@ -515,6 +553,7 @@ jobs:
         environment:
           - MAX_HEAP_SIZE=512M
           - HEAP_NEWSIZE=256M
+      - *testagent
     steps:
       - run_test:
           wait: cassandra
@@ -527,6 +566,7 @@ jobs:
       - image: *ddtrace_dev_image
       - image: redis:4.0-alpine
       - image: *rabbitmq_image
+      - *testagent
     steps:
       - run_test:
           pattern: 'celery'
@@ -543,6 +583,7 @@ jobs:
     docker:
       - image: *ddtrace_dev_image
       - image: *consul_image
+      - *testagent
     steps:
       - run_test:
           pattern: 'consul'
@@ -564,6 +605,9 @@ jobs:
 
   falcon:
     <<: *contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+      - *testagent
     steps:
       - run_test:
           pattern: 'falcon'
@@ -573,7 +617,7 @@ jobs:
     parallelism: 2
     steps:
       - run_test:
-          pattern: 'django$'
+          pattern: 'django($|_celery)'
           snapshot: true
           docker_services: "memcached redis postgres"
 
@@ -613,6 +657,9 @@ jobs:
 
   gevent:
     <<: *contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+      - *testagent
     steps:
       - run_test:
           pattern: 'gevent'
@@ -640,18 +687,12 @@ jobs:
 
   gunicorn:
     <<: *machine_executor
+    parallelism: 6
     steps:
-      - attach_workspace:
-          at: .
-      - checkout
-      - start_docker_services:
-          services: ddagent
-      - run:
-          environment:
-            RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
-          command: |
-            mv .riot .ddriot
-            ./scripts/ddtest riot -v run --pass-env -s 'gunicorn'
+      - run_test:
+          pattern: "gunicorn"
+          snapshot: true
+          docker_services: 'ddagent'
 
   httplib:
     <<: *machine_executor
@@ -679,6 +720,9 @@ jobs:
 
   molten:
     <<: *contrib_job_small
+    docker:
+      - image: *ddtrace_dev_image
+      - *testagent
     steps:
       - run_test:
           pattern: 'molten'
@@ -688,6 +732,7 @@ jobs:
     docker:
       - image: *ddtrace_dev_image
       - *mysql_server
+      - *testagent
     steps:
       - run_test:
           wait: mysql
@@ -698,6 +743,7 @@ jobs:
     docker:
       - image: *ddtrace_dev_image
       - *mysql_server
+      - *testagent
     steps:
       - run_test:
           wait: mysql
@@ -708,6 +754,7 @@ jobs:
     docker:
       - image: *ddtrace_dev_image
       - *mysql_server
+      - *testagent
     steps:
       - run_test:
           wait: mysql
@@ -718,6 +765,7 @@ jobs:
     docker:
       - image: *ddtrace_dev_image
       - image: *memcached_image
+      - *testagent
     steps:
       - run_test:
           pattern: 'pylibmc'
@@ -745,6 +793,7 @@ jobs:
     docker:
       - image: *ddtrace_dev_image
       - image: *memcached_image
+      - *testagent
     steps:
       - run_test:
           pattern: "pymemcache"
@@ -762,12 +811,16 @@ jobs:
     docker:
       - image: *ddtrace_dev_image
       - image: *mongo_image
+      - *testagent
     steps:
       - run_test:
           pattern: "pymongo"
 
   pynamodb:
     <<: *contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+      - *testagent
     steps:
       - run_test:
           pattern: "pynamodb"
@@ -776,6 +829,7 @@ jobs:
     <<: *contrib_job_small
     docker:
       - image: *ddtrace_dev_image
+      - *testagent
     steps:
       - run_test:
           pattern: 'pyodbc'
@@ -791,6 +845,7 @@ jobs:
     <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
+      - *testagent
       - *httpbin_local
     steps:
       - run_test:
@@ -824,6 +879,7 @@ jobs:
     <<: *contrib_job_small
     docker:
       - image: *ddtrace_dev_image
+      - *testagent
       - *postgres_server
       - *mysql_server
     steps:
@@ -854,6 +910,7 @@ jobs:
     docker:
       - image: *ddtrace_dev_image
       - image: *moto_image
+      - *testagent
     steps:
        - run_test:
           pattern: 'aiobotocore'
@@ -872,6 +929,7 @@ jobs:
     docker:
       - image: *ddtrace_dev_image
       - *postgres_server
+      - *testagent
     steps:
       - run_test:
           wait: postgres
@@ -937,6 +995,7 @@ jobs:
     <<: *contrib_job_small
     docker:
       - image: *ddtrace_dev_image
+      - *testagent
       - image: *vertica_image
         environment:
           - VP_TEST_USER=dbadmin
@@ -968,6 +1027,7 @@ jobs:
     docker:
       - image: *ddtrace_dev_image
       - image: *rabbitmq_image
+      - *testagent
     steps:
       - run_test:
           wait: rabbitmq
@@ -982,18 +1042,27 @@ jobs:
 
   jinja2:
     <<: *contrib_job_small
+    docker:
+      - image: *ddtrace_dev_image
+      - *testagent
     steps:
       - run_test:
           pattern: 'jinja2'
 
   mako:
     <<: *contrib_job_small
+    docker:
+      - image: *ddtrace_dev_image
+      - *testagent
     steps:
       - run_test:
           pattern: 'mako'
 
   algoliasearch:
     <<: *contrib_job_small
+    docker:
+      - image: *ddtrace_dev_image
+      - *testagent
     steps:
       - run_test:
           pattern: 'algoliasearch'
@@ -1072,6 +1141,7 @@ requires_tests: &requires_tests
     - mongoengine
     - mysqlconnector
     - mysqlpython
+    - openai
     - opentracer
     - opentelemetry
     - psycopg
@@ -1171,6 +1241,7 @@ workflows:
       - mongoengine: *requires_base_venvs
       - mysqlconnector: *requires_base_venvs
       - mysqlpython: *requires_base_venvs
+      - openai: *requires_base_venvs
       - opentracer: *requires_base_venvs
       - opentelemetry: *requires_base_venvs
       - psycopg: *requires_base_venvs

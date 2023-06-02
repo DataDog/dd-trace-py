@@ -10,13 +10,13 @@
     "error": 0,
     "meta": {
       "_dd.appsec.event_rules.version": "rules_good",
-      "_dd.appsec.waf.version": "1.9.0",
+      "_dd.appsec.waf.version": "1.11.0",
       "_dd.p.dm": "-0",
       "_dd.runtime_family": "python",
       "component": "flask",
       "flask.endpoint": "checkuser",
       "flask.url_rule": "/checkuser/<user_id>",
-      "flask.version": "2.2.3",
+      "flask.version": "2.3.2",
       "flask.view_args.user_id": "111111",
       "http.client_ip": "127.0.0.1",
       "http.method": "GET",
@@ -25,10 +25,10 @@
       "http.route": "/checkuser/<user_id>",
       "http.status_code": "200",
       "http.url": "http://0.0.0.0:8000/checkuser/111111",
-      "http.useragent": "python-requests/2.28.1",
+      "http.useragent": "python-requests/2.28.2",
       "language": "python",
       "network.client.ip": "127.0.0.1",
-      "runtime-id": "c922bf9db0b3431db68863d2588b590b",
+      "runtime-id": "01439d06d9724eba85e66c15279dd206",
       "span.kind": "server"
     },
     "metrics": {
@@ -36,16 +36,16 @@
       "_dd.appsec.enabled": 1.0,
       "_dd.appsec.event_rules.error_count": 0,
       "_dd.appsec.event_rules.loaded": 5,
-      "_dd.appsec.waf.duration": 25.037999999999997,
-      "_dd.appsec.waf.duration_ext": 193.8343048095703,
+      "_dd.appsec.waf.duration": 19.708000000000002,
+      "_dd.appsec.waf.duration_ext": 130.17654418945312,
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 3225395
+      "process_id": 1415
     },
-    "duration": 1242288,
-    "start": 1678179796572759052
+    "duration": 2637000,
+    "start": 1683732566450252000
   },
      {
        "name": "flask.application",
@@ -62,8 +62,8 @@
          "flask.url_rule": "/checkuser/<user_id>",
          "flask.view_args.user_id": "111111"
        },
-       "duration": 589428,
-       "start": 1678179796573217208
+       "duration": 1748000,
+       "start": 1683732566450688000
      },
         {
           "name": "flask.preprocess_request",
@@ -77,8 +77,8 @@
           "meta": {
             "component": "flask"
           },
-          "duration": 20578,
-          "start": 1678179796573416462
+          "duration": 27000,
+          "start": 1683732566450961000
         },
         {
           "name": "flask.dispatch_request",
@@ -92,8 +92,8 @@
           "meta": {
             "component": "flask"
           },
-          "duration": 85015,
-          "start": 1678179796573465533
+          "duration": 454000,
+          "start": 1683732566451179000
         },
            {
              "name": "tests.contrib.flask.app.checkuser",
@@ -107,8 +107,8 @@
              "meta": {
                "component": "flask"
              },
-             "duration": 49608,
-             "start": 1678179796573494095
+             "duration": 284000,
+             "start": 1683732566451225000
            },
         {
           "name": "flask.process_response",
@@ -122,8 +122,8 @@
           "meta": {
             "component": "flask"
           },
-          "duration": 12393,
-          "start": 1678179796573586790
+          "duration": 21000,
+          "start": 1683732566451786000
         },
         {
           "name": "flask.do_teardown_request",
@@ -137,8 +137,8 @@
           "meta": {
             "component": "flask"
           },
-          "duration": 11508,
-          "start": 1678179796573760435
+          "duration": 24000,
+          "start": 1683732566452138000
         },
         {
           "name": "flask.do_teardown_appcontext",
@@ -152,8 +152,8 @@
           "meta": {
             "component": "flask"
           },
-          "duration": 7539,
-          "start": 1678179796573790588
+          "duration": 19000,
+          "start": 1683732566452299000
         },
      {
        "name": "flask.response",
@@ -167,6 +167,6 @@
        "meta": {
          "component": "flask"
        },
-       "duration": 175067,
-       "start": 1678179796573813644
+       "duration": 207000,
+       "start": 1683732566452562000
      }]]

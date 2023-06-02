@@ -357,7 +357,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert resp.status_code == 200
 
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
-    def test_flask_full_sqli_iast_path_header(self):
+    def test_flask_full_sqli_iast_http_request_path_parameter(self):
         @self.app.route("/sqli/<string:param_str>/", methods=["GET", "POST"])
         def test_sqli(param_str):
             import sqlite3
@@ -397,6 +397,259 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             }
             assert loaded["vulnerabilities"][0]["location"]["path"] == "tests/contrib/flask/test_flask_appsec.py"
             assert loaded["vulnerabilities"][0]["location"]["line"] == 369
+
+    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    def test_flask_full_sqli_iast_enabled_http_request_header_getitem(self):
+        @self.app.route("/sqli/<string:param_str>/", methods=["GET", "POST"])
+        def test_sqli(param_str):
+            import sqlite3
+
+            from flask import request
+
+            from ddtrace.appsec.iast._ast.aspects import add_aspect
+
+            con = sqlite3.connect(":memory:")
+            cur = con.cursor()
+
+            cur.execute(add_aspect("SELECT 1 FROM ", request.headers["User-Agent"]))
+
+            return "OK", 200
+
+        with override_global_config(
+            dict(
+                _iast_enabled=True,
+            )
+        ), override_env(IAST_ENV):
+            oce.reconfigure()
+            from ddtrace.appsec.iast._taint_tracking import setup
+
+            setup(bytes.join, bytearray.join)
+
+            self._aux_appsec_prepare_tracer(iast_enabled=True)
+            resp = self.client.post(
+                "/sqli/sqlite_master/", data={"name": "test"}, headers={"User-Agent": "sqlite_master"}
+            )
+            assert resp.status_code == 200
+
+            root_span = self.pop_spans()[0]
+            assert root_span.get_metric(IAST.ENABLED) == 1.0
+
+            loaded = json.loads(root_span.get_tag(IAST.JSON))
+            assert loaded["sources"] == [
+                {"origin": "http.request.header", "name": "User-Agent", "value": "sqlite_master"}
+            ]
+            assert loaded["vulnerabilities"][0]["type"] == "SQL_INJECTION"
+            assert loaded["vulnerabilities"][0]["evidence"] == {
+                "valueParts": [{"value": "SELECT 1 FROM "}, {"value": "sqlite_master", "source": 0}]
+            }
+            assert loaded["vulnerabilities"][0]["location"]["path"] == "tests/contrib/flask/test_flask_appsec.py"
+            assert loaded["vulnerabilities"][0]["location"]["line"] == 414
+
+    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    def test_flask_full_sqli_iast_disabled_http_request_header_getitem(self):
+        @self.app.route("/sqli/<string:param_str>/", methods=["GET", "POST"])
+        def test_sqli(param_str):
+            import sqlite3
+
+            from flask import request
+
+            from ddtrace.appsec.iast._ast.aspects import add_aspect
+
+            con = sqlite3.connect(":memory:")
+            cur = con.cursor()
+
+            cur.execute(add_aspect("SELECT 1 FROM ", request.headers["User-Agent"]))
+
+            return "OK", 200
+
+        with override_global_config(
+            dict(
+                _iast_enabled=False,
+            )
+        ), override_env(IAST_ENV):
+            oce.reconfigure()
+            from ddtrace.appsec.iast._taint_tracking import setup
+
+            setup(bytes.join, bytearray.join)
+
+            self._aux_appsec_prepare_tracer(iast_enabled=False)
+            resp = self.client.post(
+                "/sqli/sqlite_master/", data={"name": "test"}, headers={"User-Agent": "sqlite_master"}
+            )
+            assert resp.status_code == 200
+
+            root_span = self.pop_spans()[0]
+            assert root_span.get_metric(IAST.ENABLED) is None
+
+            assert root_span.get_tag(IAST.JSON) is None
+
+    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    def test_flask_full_sqli_iast_enabled_http_request_header_name_keys(self):
+        @self.app.route("/sqli/<string:param_str>/", methods=["GET", "POST"])
+        def test_sqli(param_str):
+            import sqlite3
+
+            from flask import request
+
+            from ddtrace.appsec.iast._ast.aspects import add_aspect
+
+            con = sqlite3.connect(":memory:")
+            cur = con.cursor()
+
+            # Test to consume request.header.keys twice
+            _ = [k for k in request.headers.keys() if k == "Master"][0]
+            header_name = [k for k in request.headers.keys() if k == "Master"][0]
+
+            cur.execute(add_aspect("SELECT 1 FROM sqlite_", header_name))
+
+            return "OK", 200
+
+        with override_global_config(
+            dict(
+                _iast_enabled=True,
+            )
+        ), override_env(IAST_ENV):
+            oce.reconfigure()
+            from ddtrace.appsec.iast._taint_tracking import setup
+
+            setup(bytes.join, bytearray.join)
+
+            self._aux_appsec_prepare_tracer(iast_enabled=True)
+            resp = self.client.post("/sqli/sqlite_master/", data={"name": "test"}, headers={"master": "not_user_agent"})
+            assert resp.status_code == 200
+
+            root_span = self.pop_spans()[0]
+            assert root_span.get_metric(IAST.ENABLED) == 1.0
+
+            loaded = json.loads(root_span.get_tag(IAST.JSON))
+            assert loaded["sources"] == [{"origin": "http.request.header.name", "name": "Master", "value": "Master"}]
+            assert loaded["vulnerabilities"][0]["type"] == "SQL_INJECTION"
+            assert loaded["vulnerabilities"][0]["evidence"] == {
+                "valueParts": [{"value": "SELECT 1 FROM sqlite_"}, {"value": "Master", "source": 0}]
+            }
+            assert loaded["vulnerabilities"][0]["location"]["path"] == "tests/contrib/flask/test_flask_appsec.py"
+            assert loaded["vulnerabilities"][0]["location"]["line"] == 503
+
+    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    def test_flask_full_sqli_iast_disabled_http_request_header_name_keys(self):
+        @self.app.route("/sqli/<string:param_str>/", methods=["GET", "POST"])
+        def test_sqli(param_str):
+            import sqlite3
+
+            from flask import request
+
+            from ddtrace.appsec.iast._ast.aspects import add_aspect
+
+            con = sqlite3.connect(":memory:")
+            cur = con.cursor()
+
+            header_name = [k for k in request.headers.keys() if k == "Master"][0]
+
+            cur.execute(add_aspect("SELECT 1 FROM sqlite_", header_name))
+
+            return "OK", 200
+
+        with override_global_config(
+            dict(
+                _iast_enabled=False,
+            )
+        ), override_env(IAST_ENV):
+            oce.reconfigure()
+            from ddtrace.appsec.iast._taint_tracking import setup
+
+            setup(bytes.join, bytearray.join)
+
+            self._aux_appsec_prepare_tracer(iast_enabled=False)
+            resp = self.client.post("/sqli/sqlite_master/", data={"name": "test"}, headers={"master": "not_user_agent"})
+            assert resp.status_code == 200
+
+            root_span = self.pop_spans()[0]
+            assert root_span.get_metric(IAST.ENABLED) is None
+
+            assert root_span.get_tag(IAST.JSON) is None
+
+    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    def test_flask_full_sqli_iast_enabled_http_request_header_values(self):
+        @self.app.route("/sqli/<string:param_str>/", methods=["GET", "POST"])
+        def test_sqli(param_str):
+            import sqlite3
+
+            from flask import request
+
+            from ddtrace.appsec.iast._ast.aspects import add_aspect
+
+            con = sqlite3.connect(":memory:")
+            cur = con.cursor()
+
+            header = [k for k in request.headers.values() if k == "master"][0]
+
+            cur.execute(add_aspect("SELECT 1 FROM sqlite_", header))
+
+            return "OK", 200
+
+        with override_global_config(
+            dict(
+                _iast_enabled=True,
+            )
+        ), override_env(IAST_ENV):
+            oce.reconfigure()
+            from ddtrace.appsec.iast._taint_tracking import setup
+
+            setup(bytes.join, bytearray.join)
+
+            self._aux_appsec_prepare_tracer(iast_enabled=True)
+            resp = self.client.post("/sqli/sqlite_master/", data={"name": "test"}, headers={"user-agent": "master"})
+            assert resp.status_code == 200
+
+            root_span = self.pop_spans()[0]
+            assert root_span.get_metric(IAST.ENABLED) == 1.0
+
+            loaded = json.loads(root_span.get_tag(IAST.JSON))
+            assert loaded["sources"] == [{"origin": "http.request.header", "name": "User-Agent", "value": "master"}]
+            assert loaded["vulnerabilities"][0]["type"] == "SQL_INJECTION"
+            assert loaded["vulnerabilities"][0]["evidence"] == {
+                "valueParts": [{"value": "SELECT 1 FROM sqlite_"}, {"value": "master", "source": 0}]
+            }
+            assert loaded["vulnerabilities"][0]["location"]["path"] == "tests/contrib/flask/test_flask_appsec.py"
+            assert loaded["vulnerabilities"][0]["location"]["line"] == 586
+
+    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    def test_flask_full_sqli_iast_disabled_http_request_header_values(self):
+        @self.app.route("/sqli/<string:param_str>/", methods=["GET", "POST"])
+        def test_sqli(param_str):
+            import sqlite3
+
+            from flask import request
+
+            from ddtrace.appsec.iast._ast.aspects import add_aspect
+
+            con = sqlite3.connect(":memory:")
+            cur = con.cursor()
+
+            header = [k for k in request.headers.values() if k == "master"][0]
+
+            cur.execute(add_aspect("SELECT 1 FROM sqlite_", header))
+
+            return "OK", 200
+
+        with override_global_config(
+            dict(
+                _iast_enabled=False,
+            )
+        ), override_env(IAST_ENV):
+            oce.reconfigure()
+            from ddtrace.appsec.iast._taint_tracking import setup
+
+            setup(bytes.join, bytearray.join)
+
+            self._aux_appsec_prepare_tracer(iast_enabled=False)
+            resp = self.client.post("/sqli/sqlite_master/", data={"name": "test"}, headers={"user-agent": "master"})
+            assert resp.status_code == 200
+
+            root_span = self.pop_spans()[0]
+            assert root_span.get_metric(IAST.ENABLED) is None
+
+            assert root_span.get_tag(IAST.JSON) is None
 
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
     def test_flask_simple_iast_path_header_and_querystring_tainted(self):
@@ -499,6 +752,171 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             if hasattr(resp, "text"):
                 # not all flask versions have r.text
                 assert resp.text == "select%20from%20table"
+
+    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    def test_flask_full_sqli_iast_enabled_http_request_cookies_value(self):
+        @self.app.route("/sqli/cookies/", methods=["GET", "POST"])
+        def test_sqli():
+            import sqlite3
+
+            from flask import request
+
+            from ddtrace.appsec.iast._ast.aspects import add_aspect
+
+            con = sqlite3.connect(":memory:")
+            cur = con.cursor()
+
+            cur.execute(add_aspect("SELECT 1 FROM ", request.cookies.get("test-cookie1")))
+
+            return "OK", 200
+
+        with override_global_config(
+            dict(
+                _iast_enabled=True,
+            )
+        ), override_env(IAST_ENV):
+            oce.reconfigure()
+            from ddtrace.appsec.iast._taint_tracking import setup
+
+            setup(bytes.join, bytearray.join)
+
+            self._aux_appsec_prepare_tracer(iast_enabled=True)
+            self.client.set_cookie("localhost", "test-cookie1", "sqlite_master")
+            resp = self.client.post("/sqli/cookies/")
+            assert resp.status_code == 200
+
+            root_span = self.pop_spans()[0]
+            assert root_span.get_metric(IAST.ENABLED) == 1.0
+
+            loaded = json.loads(root_span.get_tag(IAST.JSON))
+            assert loaded["sources"] == [
+                {"origin": "http.request.cookie.value", "name": "test-cookie1", "value": "sqlite_master"}
+            ]
+            assert loaded["vulnerabilities"][0]["type"] == "SQL_INJECTION"
+            assert loaded["vulnerabilities"][0]["evidence"] == {
+                "valueParts": [{"value": "SELECT 1 FROM "}, {"value": "sqlite_master", "source": 0}]
+            }
+            assert loaded["vulnerabilities"][0]["location"]["path"] == "tests/contrib/flask/test_flask_appsec.py"
+            assert loaded["vulnerabilities"][0]["location"]["line"] == 769
+
+    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    def test_flask_full_sqli_iast_disabled_http_request_cookies_value(self):
+        @self.app.route("/sqli/cookies/", methods=["GET", "POST"])
+        def test_sqli():
+            import sqlite3
+
+            from flask import request
+
+            from ddtrace.appsec.iast._ast.aspects import add_aspect
+
+            con = sqlite3.connect(":memory:")
+            cur = con.cursor()
+
+            cur.execute(add_aspect("SELECT 1 FROM ", request.cookies.get("test-cookie1")))
+
+            return "OK", 200
+
+        with override_global_config(
+            dict(
+                _iast_enabled=False,
+            )
+        ):
+            from ddtrace.appsec.iast._taint_tracking import setup
+
+            setup(bytes.join, bytearray.join)
+
+            self._aux_appsec_prepare_tracer(iast_enabled=False)
+            self.client.set_cookie("localhost", "test-cookie1", "sqlite_master")
+            resp = self.client.post("/sqli/cookies/")
+            assert resp.status_code == 200
+
+            root_span = self.pop_spans()[0]
+            assert root_span.get_metric(IAST.ENABLED) is None
+
+            assert root_span.get_tag(IAST.JSON) is None
+
+    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    def test_flask_full_sqli_iast_enabled_http_request_cookies_name(self):
+        @self.app.route("/sqli/cookies/", methods=["GET", "POST"])
+        def test_sqli():
+            import sqlite3
+
+            from flask import request
+
+            from ddtrace.appsec.iast._ast.aspects import add_aspect
+
+            con = sqlite3.connect(":memory:")
+            cur = con.cursor()
+            key = [x for x in request.cookies.keys() if x == "sqlite_master"][0]
+            cur.execute(add_aspect("SELECT 1 FROM ", key))
+
+            return "OK", 200
+
+        with override_global_config(
+            dict(
+                _iast_enabled=True,
+            )
+        ), override_env(IAST_ENV):
+            oce.reconfigure()
+            from ddtrace.appsec.iast._taint_tracking import setup
+
+            setup(bytes.join, bytearray.join)
+
+            self._aux_appsec_prepare_tracer(iast_enabled=True)
+            self.client.set_cookie("localhost", "sqlite_master", "sqlite_master2")
+            resp = self.client.post("/sqli/cookies/")
+            assert resp.status_code == 200
+
+            root_span = self.pop_spans()[0]
+            assert root_span.get_metric(IAST.ENABLED) == 1.0
+
+            loaded = json.loads(root_span.get_tag(IAST.JSON))
+            assert loaded["sources"] == [
+                {"origin": "http.request.cookie.name", "name": "sqlite_master", "value": "sqlite_master"}
+            ]
+            assert loaded["vulnerabilities"][0]["type"] == "SQL_INJECTION"
+            assert loaded["vulnerabilities"][0]["evidence"] == {
+                "valueParts": [{"value": "SELECT 1 FROM "}, {"value": "sqlite_master", "source": 0}]
+            }
+            assert loaded["vulnerabilities"][0]["location"]["path"] == "tests/contrib/flask/test_flask_appsec.py"
+            assert loaded["vulnerabilities"][0]["location"]["line"] == 851
+
+    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    def test_flask_full_sqli_iast_disabled_http_request_cookies_name(self):
+        @self.app.route("/sqli/cookies/", methods=["GET", "POST"])
+        def test_sqli():
+            import sqlite3
+
+            from flask import request
+
+            from ddtrace.appsec.iast._ast.aspects import add_aspect
+
+            con = sqlite3.connect(":memory:")
+            cur = con.cursor()
+
+            key = [x for x in request.cookies.keys() if x == "sqlite_master"][0]
+            cur.execute(add_aspect("SELECT 1 FROM ", key))
+
+            return "OK", 200
+
+        with override_global_config(
+            dict(
+                _iast_enabled=False,
+            )
+        ):
+            from ddtrace.appsec.iast._taint_tracking import setup
+
+            setup(bytes.join, bytearray.join)
+
+            self._aux_appsec_prepare_tracer(iast_enabled=False)
+            self.client.set_cookie("localhost", "sqlite_master", "sqlite_master3")
+            resp = self.client.post("/sqli/cookies/")
+            assert resp.status_code == 200
+
+            root_span = self.pop_spans()[0]
+            assert root_span.get_metric(IAST.ENABLED) is None
+
+            assert root_span.get_tag(IAST.JSON) is None
 
     def test_request_suspicious_request_block_match_query_value(self):
         @self.app.route("/index.html")

@@ -10,6 +10,36 @@ from six.moves import _thread
 from ddtrace import _threading as ddtrace_threading
 
 
+IF UNAME_SYSNAME == "Linux":
+    from cpython cimport PyLong_FromLong
+
+    from ddtrace.internal.module import ModuleWatchdog
+    from ddtrace.internal.wrapping import wrap
+
+    cdef extern from "<sys/syscall.h>" nogil:
+        int __NR_gettid
+        long syscall(long number, ...)
+
+    @ModuleWatchdog.after_module_imported("threading")
+    def native_id_hook(threading):
+        def bootstrap_wrapper(f, args, kwargs):
+            try:
+                return f(*args, **kwargs)
+            finally:
+                (self,) = args
+                if not hasattr(self, "native_id"):
+                    self.native_id = PyLong_FromLong(syscall(__NR_gettid))
+        IF PY_MAJOR_VERSION == 2:
+            wrap(threading.Thread._Thread__bootstrap.__func__, bootstrap_wrapper)
+        ELSE:
+            wrap(threading.Thread._bootstrap, bootstrap_wrapper)
+
+        # Assign the native thread to the main thread as well
+        current_thread = threading.current_thread()
+        if not hasattr(current_thread, "native_id"):
+            current_thread.native_id = PyLong_FromLong(syscall(__NR_gettid))
+
+
 cpdef get_thread_by_id(thread_id):
     # Do not force-load the threading module if it's not already loaded
     threading = sys.modules.get("threading", ddtrace_threading)
@@ -22,10 +52,10 @@ cpdef get_thread_by_id(thread_id):
         # starting or dying.
         try:
             return threading_mod._active[thread_id]
-        except KeyError:
+        except (KeyError, AttributeError):
             try:
                 return threading_mod._limbo[thread_id]
-            except KeyError:
+            except (KeyError, AttributeError):
                 pass
 
     return None

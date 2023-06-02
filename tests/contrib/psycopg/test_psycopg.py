@@ -12,6 +12,7 @@ from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.psycopg.patch import patch
 from ddtrace.contrib.psycopg.patch import unpatch
+from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.internal.utils.version import parse_version
 from tests.contrib.config import POSTGRES_CONFIG
 from tests.opentracer.utils import init_tracer
@@ -135,6 +136,15 @@ class PsycopgCore(TracerTestCase):
         assert_is_measured(root)
         self.assertIsNone(root.get_tag("sql.query"))
         self.reset()
+
+    def test_psycopg3_connection_with_string(self):
+        # Regression test for DataDog/dd-trace-py/issues/5926
+        configs_arr = ["{}={}".format(k, v) for k, v in POSTGRES_CONFIG.items()]
+        configs_arr.append("options='-c statement_timeout=1000 -c lock_timeout=250'")
+        conn = psycopg.connect(" ".join(configs_arr))
+
+        Pin.get_from(conn).clone(service="postgres", tracer=self.tracer).onto(conn)
+        self.assert_conn_is_traced(conn, "postgres")
 
     def test_opentracing_propagation(self):
         # ensure OpenTracing plays well with our integration
@@ -341,10 +351,10 @@ class PsycopgCore(TracerTestCase):
         query_span = spans[0]
         assert query_span.name == "postgres.query"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_user_specified_app_service(self):
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_user_specified_app_service_v0(self):
         """
-        When a user specifies a service for the app
+        v0: When a user specifies a service for the app
             The psycopg integration should not use it.
         """
         # Ensure that the service name was configured
@@ -359,14 +369,81 @@ class PsycopgCore(TracerTestCase):
         self.assertEqual(len(spans), 1)
         assert spans[0].service != "mysvc"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_PSYCOPG_SERVICE="mysvc"))
-    def test_user_specified_service(self):
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_user_specified_app_service_v1(self):
+        """
+        v0: When a user specifies a service for the app
+            The psycopg integration should use it.
+        """
+        # Ensure that the service name was configured
+        from ddtrace import config
+
+        assert config.service == "mysvc"
+
         conn = self._get_conn()
         conn.cursor().execute("""select 'blah'""")
 
         spans = self.get_spans()
         self.assertEqual(len(spans), 1)
         assert spans[0].service == "mysvc"
+
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(DD_PSYCOPG_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0")
+    )
+    def test_user_specified_service_v0(self):
+        conn = self._get_conn()
+        conn.cursor().execute("""select 'blah'""")
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 1)
+        assert spans[0].service == "mysvc"
+
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(DD_PSYCOPG_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1")
+    )
+    def test_user_specified_service_v1(self):
+        conn = self._get_conn()
+        conn.cursor().execute("""select 'blah'""")
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 1)
+        assert spans[0].service == "mysvc"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_unspecified_service_v0(self):
+        conn = self._get_conn()
+        conn.cursor().execute("""select 'blah'""")
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 1)
+        assert spans[0].service == "postgres"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_unspecified_service_v1(self):
+        conn = self._get_conn()
+        conn.cursor().execute("""select 'blah'""")
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 1)
+        assert spans[0].service == DEFAULT_SPAN_SERVICE_NAME
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_span_name_v0_schema(self):
+        conn = self._get_conn()
+        conn.cursor().execute("""select 'blah'""")
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 1)
+        assert spans[0].name == "postgres.query"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_span_name_v1_schema(self):
+        conn = self._get_conn()
+        conn.cursor().execute("""select 'blah'""")
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 1)
+        assert spans[0].name == "postgresql.query"
 
     def test_contextmanager_connection(self):
         service = "fo"
@@ -438,3 +515,53 @@ class PsycopgCore(TracerTestCase):
             ),
             (("foo",), ("bar",)),
         )
+
+    def test_patch_and_unpatch_several_times(self):
+        """Patches and unpatches module sequentially to ensure proper functionality"""
+
+        def execute_query_and_get_spans(n_spans):
+            query = SQL("""select 'one' as x""")
+            cur = self._get_conn().execute(query)
+
+            rows = cur.fetchall()
+            assert len(rows) == 1, rows
+            spans = self.pop_spans()
+            self.assertEqual(len(spans), n_spans)
+
+        execute_query_and_get_spans(1)
+        unpatch()
+        execute_query_and_get_spans(0)
+        patch()
+        execute_query_and_get_spans(1)
+        unpatch()
+        execute_query_and_get_spans(0)
+        patch()
+        patch()
+        execute_query_and_get_spans(1)
+        unpatch()
+        unpatch()
+        execute_query_and_get_spans(0)
+
+    def test_connection_instance_method_patch(self):
+        """Checks whether connection instance method connect works as intended"""
+
+        other_conn = self._get_conn()
+        conn = psycopg.Connection(other_conn.pgconn)
+        connection = conn.connect(**POSTGRES_CONFIG)
+
+        pin = Pin.get_from(connection)
+        if pin:
+            pin.clone(service="postgres", tracer=self.tracer).onto(connection)
+
+        query = SQL("""select 'one' as x""")
+        cur = connection.execute(query)
+
+        rows = cur.fetchall()
+        assert len(rows) == 1, rows
+        assert rows[0][0] == "one"
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 1)
+
+        query_span = spans[0]
+        assert query_span.name == "postgres.query"

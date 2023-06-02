@@ -18,6 +18,7 @@ from ddtrace.contrib.cassandra.patch import unpatch
 from ddtrace.contrib.cassandra.session import SERVICE
 from ddtrace.ext import cassandra as cassx
 from ddtrace.ext import net
+from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.contrib.config import CASSANDRA_CONFIG
 from tests.opentracer.utils import init_tracer
 from tests.utils import DummyTracer
@@ -469,10 +470,10 @@ class TestCassandraConfig(TracerTestCase):
         Pin.get_from(self.cluster).clone(tracer=self.tracer).onto(self.cluster)
         self.session = self.cluster.connect(self.TEST_KEYSPACE)
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_user_specified_service(self):
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_user_specified_service_v0(self):
         """
-        When a user specifies a service for the app
+        v0: When a user specifies a service for the app
             The cassandra integration should not use it.
         """
         # Ensure that the service name was configured
@@ -486,3 +487,65 @@ class TestCassandraConfig(TracerTestCase):
         assert len(spans) == 1
         query = spans[0]
         assert query.service != "mysvc"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_user_specified_service_v1(self):
+        """
+        v1: When a user specifies a service for the app
+            The cassandra integration should use it.
+        """
+        # Ensure that the service name was configured
+        from ddtrace import config
+
+        assert config.service == "mysvc"
+
+        self.session.execute(self.TEST_QUERY)
+        spans = self.pop_spans()
+        assert spans
+        assert len(spans) == 1
+        query = spans[0]
+        assert query.service == "mysvc"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_unspecified_service_v1(self):
+        """
+        v1: When a user does not specify a service for the app
+            dd-trace-py should default to internal.schema.DEFAULT_SPAN_SERVICE_NAME
+        """
+        # Ensure that the service name was configured
+        from ddtrace import config
+
+        assert config.service == DEFAULT_SPAN_SERVICE_NAME
+
+        self.session.execute(self.TEST_QUERY)
+        spans = self.pop_spans()
+        assert spans
+        assert len(spans) == 1
+        query = spans[0]
+        assert query.service == DEFAULT_SPAN_SERVICE_NAME
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_span_name_v0_schema(self):
+        """
+        When a user specifies a service for the app
+            The cassandra integration should not use it.
+        """
+        self.session.execute(self.TEST_QUERY)
+        spans = self.pop_spans()
+        assert spans
+        assert len(spans) == 1
+        query = spans[0]
+        assert query.name == "cassandra.query"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_span_name_v1_schema(self):
+        """
+        When a user specifies a service for the app
+            The cassandra integration should not use it.
+        """
+        self.session.execute(self.TEST_QUERY)
+        spans = self.pop_spans()
+        assert spans
+        assert len(spans) == 1
+        query = spans[0]
+        assert query.name == "cassandra.query"

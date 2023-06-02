@@ -15,11 +15,14 @@ from ddtrace import Tracer
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.internal import agent
+from ddtrace.internal import compat
 from ddtrace.internal.ci_visibility.constants import AGENTLESS_ENDPOINT
+from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import EVP_PROXY_AGENT_ENDPOINT
+from ddtrace.internal.ci_visibility.constants import EVP_SUBDOMAIN_HEADER_EVENT_VALUE
 from ddtrace.internal.ci_visibility.constants import EVP_SUBDOMAIN_HEADER_NAME
-from ddtrace.internal.ci_visibility.constants import EVP_SUBDOMAIN_HEADER_VALUE
 from ddtrace.internal.ci_visibility.recorder import CIVisibility
+from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import MsgpackEncoderV03 as Encoder
 from ddtrace.internal.runtime import container
@@ -325,7 +328,7 @@ def test_metrics_partial_flush_disabled(encoding, monkeypatch):
 def test_single_trace_too_large(encoding, monkeypatch):
     monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
     # setting writer interval to 5 seconds so that buffer can fit larger traces
-    monkeypatch.setenv("DD_TRACE_WRITER_INTERVAL_SECONDS", "5.0")
+    monkeypatch.setenv("DD_TRACE_WRITER_INTERVAL_SECONDS", "10.0")
 
     t = Tracer()
     assert t._partial_flush_enabled is True
@@ -337,14 +340,17 @@ def test_single_trace_too_large(encoding, monkeypatch):
                     # Need to make the strings unique so that the v0.5 encoding doesn’t compress the data
                     s.set_tag(key + str(i), key + str(i))
         t.shutdown()
-        log.warning.assert_any_call(
-            "trace buffer (%s traces %db/%db) cannot fit trace of size %db, dropping (writer status: %s)",
-            AnyInt(),
-            AnyInt(),
-            AnyInt(),
-            AnyInt(),
-            AnyStr(),
-        )
+        assert (
+            mock.call(
+                "trace buffer (%s traces %db/%db) cannot fit trace of size %db, dropping (writer status: %s)",
+                AnyInt(),
+                AnyInt(),
+                AnyInt(),
+                AnyInt(),
+                AnyStr(),
+            )
+            in log.warning.mock_calls
+        ), log.mock_calls
         log.error.assert_not_called()
 
 
@@ -533,7 +539,8 @@ def test_civisibility_intake_with_evp_available():
             assert CIVisibility._instance.tracer._writer._endpoint == EVP_PROXY_AGENT_ENDPOINT
             assert CIVisibility._instance.tracer._writer.intake_url == agent.get_trace_url()
             assert (
-                CIVisibility._instance.tracer._writer._headers[EVP_SUBDOMAIN_HEADER_NAME] == EVP_SUBDOMAIN_HEADER_VALUE
+                CIVisibility._instance.tracer._writer._headers[EVP_SUBDOMAIN_HEADER_NAME]
+                == EVP_SUBDOMAIN_HEADER_EVENT_VALUE
             )
             CIVisibility.disable()
 
@@ -580,6 +587,8 @@ def test_bad_payload():
     t = Tracer()
 
     class BadEncoder:
+        content_type = ""
+
         def __len__(self):
             return 0
 
@@ -614,6 +623,8 @@ def test_bad_payload_log_payload(monkeypatch):
     t = Tracer()
 
     class BadEncoder:
+        content_type = ""
+
         def __len__(self):
             return 0
 
@@ -649,6 +660,8 @@ def test_bad_payload_log_payload_non_bytes(monkeypatch):
     t = Tracer()
 
     class BadEncoder:
+        content_type = ""
+
         def __len__(self):
             return 0
 
@@ -986,3 +999,34 @@ def test_no_warnings():
     out, err, _, _ = call_program("ddtrace-run", sys.executable, "-Wall", "-c", "'import ddtrace'", env=env)
     assert out == b"", out
     assert err == b"", err
+
+
+def test_civisibility_event_endpoints():
+    with override_env(dict(DD_API_KEY="foobar.baz")):
+        with override_global_config({"_ci_visibility_code_coverage_enabled": True}):
+            t = Tracer()
+            t.configure(writer=CIVisibilityWriter(reuse_connections=True))
+            t._writer._conn = mock.MagicMock()
+            with mock.patch("ddtrace.internal.writer.Response.from_http_response") as from_http_response:
+                from_http_response.return_value.status = 200
+                s = t.trace("operation", service="svc-no-cov")
+                s.finish()
+                span = t.trace("operation2", service="my-svc2")
+                span.set_tag(
+                    COVERAGE_TAG_NAME,
+                    '{"files": [{"filename": "test_cov.py", "segments": [[5, 0, 5, 0, -1]]}, '
+                    + '{"filename": "test_module.py", "segments": [[2, 0, 2, 0, -1]]}]}',
+                )
+                span.finish()
+                conn = t._writer._conn
+                t.shutdown()
+            assert conn.request.call_count == (2 if compat.PY3 else 1)
+            assert conn.request.call_args_list[0].args[1] == "api/v2/citestcycle"
+            assert (
+                b"svc-no-cov" in conn.request.call_args_list[0].args[2]
+            ), "requests to the cycle endpoint should include non-coverage spans"
+            if compat.PY3:
+                assert conn.request.call_args_list[1].args[1] == "api/v2/citestcov"
+                assert (
+                    b"svc-no-cov" not in conn.request.call_args_list[1].args[2]
+                ), "requests to the coverage endpoint should not include non-coverage spans"
