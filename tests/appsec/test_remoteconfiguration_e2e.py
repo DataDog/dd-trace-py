@@ -256,7 +256,7 @@ def _multi_requests(client, debug_mode=False):
     return results
 
 
-def _request_200(client, debug_mode=False, max_retries=20, sleep_time=1):
+def _request_200(client, debug_mode=False, max_retries=7, sleep_time=1):
     """retry until it gets at least 2 successful checks"""
     time.sleep(sleep_time)
     previous = False
@@ -273,7 +273,7 @@ def _request_200(client, debug_mode=False, max_retries=20, sleep_time=1):
     assert False, "request_200 failed, max_retries=%d, sleep_time=%f" % (max_retries, sleep_time)
 
 
-def _request_403(client, debug_mode=False, max_retries=20, sleep_time=1):
+def _request_403(client, debug_mode=False, max_retries=7, sleep_time=1):
     """retry until it gets at least 2 successful checks"""
     time.sleep(sleep_time)
     previous = False
