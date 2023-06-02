@@ -1091,8 +1091,20 @@ class AnyFloat(object):
 
 def call_program(*args, **kwargs):
     timeout = kwargs.pop("timeout", None)
+    env = kwargs.pop("env", None)
+    if "PYTHONPATH" in os.environ:
+        # hacky fix: Ensures the pythonpath set by riot is set in subprocesses
+        if env is None:
+            env = {"PYTHONPATH": os.environ["PYTHONPATH"]}
+        elif "PYTHONPATH" not in env:
+            env["PYTHONPATH"] = os.environ["PYTHONPATH"]
+        else:
+            env["PYTHONPATH"] = os.pathsep.join((env["PYTHONPATH"], os.environ["PYTHONPATH"]))
+
     close_fds = sys.platform != "win32"
-    subp = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=close_fds, **kwargs)
+    subp = subprocess.Popen(
+        args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=close_fds, env=env, **kwargs
+    )
     if PY2:
         # Python 2 doesn't support timeout
         stdout, stderr = subp.communicate()
