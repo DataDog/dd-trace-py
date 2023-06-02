@@ -1,6 +1,7 @@
 from collections import defaultdict
 from contextlib import contextmanager
 import logging
+import threading
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -92,28 +93,31 @@ def get_item(data_key):
 class EventHub:
     def __init__(self):
         self._listeners = defaultdict(list)
+        self._dispatch_lock = threading.Lock()
 
     def has_listeners(self, event_id):
         return event_id in self._listeners
 
     def on(self, event_id, callback):
-        self._listeners[event_id].append(callback)
+        with self._dispatch_lock:
+            self._listeners[event_id].append(callback)
 
     def dispatch(self, event_id: str, args: List[Any]):
-        log.debug("Dispatching event %s", event_id)
-        results = []
-        exceptions = []
-        for listener in self._listeners.get(event_id, []):
-            log.debug("Calling listener %s", listener)
-            result = None
-            exception = None
-            try:
-                result = listener(*args)
-            except Exception as exc:
-                exception = exc
-            results.append(result)
-            exceptions.append(exception)
-        return results, exceptions
+        with self._dispatch_lock:
+            log.debug("Dispatching event %s", event_id)
+            results = []
+            exceptions = []
+            for listener in self._listeners.get(event_id, []):
+                log.debug("Calling listener %s", listener)
+                result = None
+                exception = None
+                try:
+                    result = listener(*args)
+                except Exception as exc:
+                    exception = exc
+                results.append(result)
+                exceptions.append(exception)
+            return results, exceptions
 
 
 _event_hub = EventHub()
