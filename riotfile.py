@@ -246,6 +246,7 @@ venv = Venv(
                 "pycryptodome": latest,
                 "cryptography": latest,
                 "astunparse": latest,
+                "importlib_metadata": "<=6.0",
             },
             env={
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
@@ -319,13 +320,16 @@ venv = Venv(
         Venv(
             name="telemetry",
             command="pytest {cmdargs} tests/telemetry/",
-            pys=select_pys(),
+            # otel doesn't support python 2.7 and has changes in 3.5
+            pys=select_pys(min_version="3.7"),
             pkgs={
                 # httpretty v1.0 drops python 2.7 support
                 "requests": latest,
                 "gunicorn": latest,
                 "flask": "<=2.2.3",
                 "httpretty": "==0.9.7",
+                "opentelemetry-api": latest,
+                "opentracing": latest,
             },
         ),
         Venv(
