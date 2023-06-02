@@ -256,41 +256,18 @@ def _multi_requests(client, debug_mode=False):
     return results
 
 
-def _request_200(client, debug_mode=False, max_retries=20, sleep_time=1):
-    """retry until it gets at least 2 successful checks"""
-    time.sleep(sleep_time)
-    previous = False
-    for _ in range(max_retries):
-        results = _multi_requests(client, debug_mode)
-        check = all(response.status_code == 200 and response.content == b"OK" for response in results)
-        if check:
-            if previous:
-                return
-            previous = True
-        else:
-            previous = False
-        time.sleep(sleep_time)
-    assert False, "request_200 failed, max_retries=%d, sleep_time=%f" % (max_retries, sleep_time)
+def _request_200(client, debug_mode=False):
+    results = _multi_requests(client, debug_mode)
+    for response in results:
+        assert response.status_code == 200
+        assert response.content == b"OK"
 
 
-def _request_403(client, debug_mode=False, max_retries=20, sleep_time=1):
-    """retry until it gets at least 2 successful checks"""
-    time.sleep(sleep_time)
-    previous = False
-    for _ in range(max_retries):
-        results = _multi_requests(client, debug_mode)
-        check = all(
-            response.status_code == 403 and response.content.startswith(b'{"errors": [{"title": "You\'ve been blocked"')
-            for response in results
-        )
-        if check:
-            if previous:
-                return
-            previous = True
-        else:
-            previous = False
-        time.sleep(sleep_time)
-    assert False, "request_403 failed, max_retries=%d, sleep_time=%f" % (max_retries, sleep_time)
+def _request_403(client, debug_mode=False):
+    results = _multi_requests(client, debug_mode)
+    for response in results:
+        assert response.status_code == 403
+        assert response.content.startswith(b'{"errors": [{"title": "You\'ve been blocked"')
 
 
 @pytest.mark.skipif(
@@ -304,6 +281,8 @@ def test_load_testing_appsec_ip_blocking_gunicorn_rc_disabled():
         _request_200(gunicorn_client)
 
         _block_ip(token)
+
+        time.sleep(1)
 
         _request_200(gunicorn_client)
 
@@ -322,9 +301,15 @@ def test_load_testing_appsec_ip_blocking_gunicorn_block():
 
         _block_ip(token)
 
+        _request_200(gunicorn_client)
+
+        time.sleep(3)
+
         _request_403(gunicorn_client)
 
         _unblock_ip(token)
+
+        time.sleep(1)
 
         _request_200(gunicorn_client)
 
@@ -339,13 +324,19 @@ def test_load_testing_appsec_ip_blocking_gunicorn_block_and_kill_child_worker():
 
         _block_ip(token)
 
+        time.sleep(3)
+
         _request_403(gunicorn_client)
 
         os.kill(int(pid), signal.SIGTERM)
 
+        time.sleep(3)
+
         _request_403(gunicorn_client)
 
         _unblock_ip(token)
+
+        time.sleep(1)
 
         _request_200(gunicorn_client)
 
@@ -362,16 +353,24 @@ def test_load_testing_appsec_1click_and_ip_blocking_gunicorn_block_and_kill_chil
 
         _1_click_activation(token)
 
+        time.sleep(1)
+
         _block_ip_with_1_click_activation(token)
 
         # _request_200(gunicorn_client, debug_mode=False)
+
+        time.sleep(2)
 
         _request_403(gunicorn_client, debug_mode=False)
 
         os.kill(int(pid), signal.SIGTERM)
 
+        time.sleep(3)
+
         _request_403(gunicorn_client, debug_mode=False)
 
         _unblock_ip(token)
+
+        time.sleep(1)
 
         _request_200(gunicorn_client, debug_mode=False)
