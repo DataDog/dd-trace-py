@@ -94,3 +94,28 @@ To initialize the pre-commit hook script to run in your development branch, run 
 
     $ rm .git/hooks/pre-commit
 
+
+Release Branch Maintenance
+==========================
+
+Fix PRs
+-------
+
+Fix PRs are prefixed with fix and are generally prompted by a bug reported by a user of the library. For this kind of PRs, the backporting decision should work as follows.
+The user reports a bug against the X release. If X is no longer maintained, ask the user to upgrade to a maintained version Y. The fix should then be backported down to release Y, if the bug is not already fixed there. Otherwise, if X is still maintained, it should be backported down to release X.
+
+CI PRs
+------
+
+These PRs are generally opened to fix or improve the current status of the CI. As a general rule, these PRs should all be backported to all the maintained release branches, mutatis mutandis.
+
+New features
+------------
+
+New features introduced by feat PRs should not need a backport, unless there is a strong user request for a backport on an earlier release branch.
+
+Chore and documentation PRs
+---------------------------
+
+These are PRs that do not fall into any of the previous categories. In general there should be no need to backport these PRs.
+
