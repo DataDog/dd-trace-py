@@ -13,6 +13,7 @@
 - [ ] No unnecessary changes are introduced.
 - [ ] Description motivates each change.
 - [ ] Avoids breaking [API](https://ddtrace.readthedocs.io/en/stable/versioning.html#interfaces) changes unless absolutely necessary.
+- [ ] Backport labels are set and Changes(s) will backported to all supported release lines [release policy](https://ddtrace.readthedocs.io/en/latest/versioning.html).
 - [ ] Testing strategy adequately addresses listed risk(s).
 - [ ] Change is maintainable (easy to change, telemetry, documentation).
 - [ ] Release note makes sense to a user of the library.
