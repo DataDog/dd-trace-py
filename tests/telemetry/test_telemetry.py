@@ -44,11 +44,12 @@ def test_telemetry_enabled_on_first_tracer_flush(test_agent_session, ddtrace_run
     # Ensure telemetry events were sent to the agent (snapshot ensures one trace was generated)
     events = test_agent_session.get_events()
     assert len(events) == 5
-    assert events[0]["request_type"] == "generate-metrics"
-    assert events[1]["request_type"] == "app-integrations-change"
-    assert events[2]["request_type"] == "app-closing"
-    assert events[3]["request_type"] == "app-dependencies-loaded"
-    assert events[4]["request_type"] == "app-started"
+    events.sort(key=lambda x: (x["request_type"], x["seq_id"]), reverse=False)
+    assert events[0]["request_type"] == "app-closing"
+    assert events[1]["request_type"] == "app-dependencies-loaded"
+    assert events[2]["request_type"] == "app-integrations-change"
+    assert events[3]["request_type"] == "app-started"
+    assert events[4]["request_type"] == "generate-metrics"
 
 
 def test_enable_fork(test_agent_session, run_python_code_in_subprocess):
@@ -195,12 +196,11 @@ tracer.trace("hello").finish()
 
     # Same runtime id is used
     assert events[0]["runtime_id"] == events[1]["runtime_id"]
-    assert events[0]["request_type"] == "generate-metrics"
-    assert events[1]["request_type"] == "app-closing"
-    assert events[2]["request_type"] == "app-dependencies-loaded"
-    assert events[3]["request_type"] == "app-started"
-    assert events[3]["payload"]["error"]["code"] == 1
-    assert "error applying processor FailingFilture()" in events[3]["payload"]["error"]["message"]
+
+    app_started_events = [event for event in events if event["request_type"] == "app-started"]
+    assert len(app_started_events) == 1
+    assert app_started_events[0]["payload"]["error"]["code"] == 1
+    assert "error applying processor FailingFilture()" in app_started_events[0]["payload"]["error"]["message"]
 
 
 def test_app_started_error_unhandled_exception(test_agent_session, run_python_code_in_subprocess):
@@ -258,13 +258,10 @@ tracer.trace("test").finish()
         == events[3]["runtime_id"]
         == events[4]["runtime_id"]
     )
-    assert events[0]["request_type"] == "generate-metrics"
-    assert events[1]["request_type"] == "app-integrations-change"
-    assert events[2]["request_type"] == "app-closing"
-    assert events[3]["request_type"] == "app-dependencies-loaded"
-    assert events[4]["request_type"] == "app-started"
+    integrations_events = [event for event in events if event["request_type"] == "app-integrations-change"]
 
+    assert len(integrations_events) == 1
     assert (
-        events[1]["payload"]["integrations"][0]["error"]
+        integrations_events[0]["payload"]["integrations"][0]["error"]
         == "failed to import ddtrace module 'ddtrace.contrib.sqlite3' when patching on import"
     )

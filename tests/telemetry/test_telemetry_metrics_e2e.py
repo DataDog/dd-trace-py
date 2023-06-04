@@ -8,7 +8,6 @@ import time
 import pytest
 import tenacity
 
-from ddtrace.internal.telemetry import telemetry_metrics_writer
 from tests.webclient import Client
 
 
@@ -107,187 +106,112 @@ def test_telemetry_metrics_enabled_on_gunicorn_child_process(test_agent_session)
     assert events[3]["payload"]["series"][0]["metric"] == "test_metric"
 
 
-@pytest.mark.skipif(sys.version_info < (3, 7), reason="OpenTelemetry dropped support for python<=3.6")
-def test_span_creation_and_finished_metrics(test_agent_session):
-    assert len(test_agent_session.get_events()) == 0
+def test_span_creation_and_finished_metrics_datadog(test_agent_metrics_session, ddtrace_run_python_code_in_subprocess):
+    code = """
+from ddtrace import tracer
+for _ in range(10):
+    with tracer.trace('span1'):
+        pass
+"""
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code)
+    assert status == 0, stderr
+    events = test_agent_metrics_session.get_events()
 
-    gen_spans(20, "datadog")
-    metrics = get_metrics()
+    metrics = get_metrics_from_events(events)
     assert len(metrics) == 2
-    assert metrics[0]["metric"] == "datadog.span_created"
-    assert metrics[0]["points"][0][1] == 20
-    assert metrics[1]["metric"] == "datadog.span_finished"
-    assert metrics[1]["points"][0][1] == 20
-
-    gen_spans(13, "datadog")
-    metrics = get_metrics()
-    assert metrics[0]["metric"] == "datadog.span_created"
-    assert metrics[0]["points"][0][1] == 33
-    assert metrics[1]["metric"] == "datadog.span_finished"
-    assert metrics[1]["points"][0][1] == 33
-
-    gen_spans(20, "datadog")
-    gen_spans(15, "datadog")
-    metrics = get_metrics()
-    assert metrics[0]["metric"] == "datadog.span_created"
-    assert metrics[0]["points"][0][1] == 68
-    assert metrics[1]["metric"] == "datadog.span_finished"
-    assert metrics[1]["points"][0][1] == 68
-    # send metrics to agent
-    telemetry_metrics_writer.periodic()
-    time.sleep(1.0)
-    events = test_agent_session.get_events()
-    # we only have the metrics event because app-started and app-dependencies-loaded have not sent yet
-    assert len(events) == 1
-    assert events[0]["payload"]["series"][0]["metric"] == "datadog.span_created"
-    assert events[0]["payload"]["series"][0]["points"][0][1] == 68
-    assert events[0]["payload"]["series"][1]["metric"] == "datadog.span_finished"
-    assert events[0]["payload"]["series"][1]["points"][0][1] == 68
-
-    gen_spans(15, "otel")
-    metrics = get_metrics()
-    assert len(metrics) == 2
-    assert metrics[0]["metric"] == "otel.span_created"
-    assert metrics[0]["points"][0][1] == 15
-
-    assert metrics[1]["metric"] == "otel.span_finished"
-    assert metrics[1]["points"][0][1] == 15
-
-    telemetry_metrics_writer.periodic()
-    time.sleep(1.0)
-    events = test_agent_session.get_events()
-    assert len(events) == 2
-    assert events[0]["payload"]["series"][0]["metric"] == "otel.span_created"
-    assert events[0]["payload"]["series"][0]["points"][0][1] == 15
-    assert events[0]["payload"]["series"][1]["metric"] == "otel.span_finished"
-    assert events[0]["payload"]["series"][1]["points"][0][1] == 15
-
-    gen_spans(20, "opentracing")
-    metrics = get_metrics()
-    assert len(metrics) == 2
-    assert metrics[0]["metric"] == "opentracing.span_created"
-    assert metrics[1]["metric"] == "opentracing.span_finished"
-
-    telemetry_metrics_writer.periodic()
-    time.sleep(1.0)
-    events = test_agent_session.get_events()
-    assert len(events) == 3
-    assert events[0]["payload"]["series"][0]["metric"] == "opentracing.span_created"
-    assert events[0]["payload"]["series"][0]["points"][0][1] == 20
-    assert events[0]["payload"]["series"][1]["metric"] == "opentracing.span_finished"
-    assert events[0]["payload"]["series"][1]["points"][0][1] == 20
-    telemetry_metrics_writer.periodic()
-
-    gen_spans(10, "datadog")
-    gen_spans(11, "otel")
-    gen_spans(12, "opentracing")
-    metrics = get_metrics()
-    assert len(metrics) == 6
     assert metrics[0]["metric"] == "datadog.span_created"
     assert metrics[0]["points"][0][1] == 10
     assert metrics[1]["metric"] == "datadog.span_finished"
     assert metrics[1]["points"][0][1] == 10
 
-    assert metrics[2]["metric"] == "otel.span_created"
-    assert metrics[2]["points"][0][1] == 11
-    assert metrics[3]["metric"] == "otel.span_finished"
-    assert metrics[3]["points"][0][1] == 11
 
-    assert metrics[4]["metric"] == "opentracing.span_created"
-    assert metrics[4]["points"][0][1] == 12
-    assert metrics[5]["metric"] == "opentracing.span_finished"
-    assert metrics[5]["points"][0][1] == 12
+@pytest.mark.skipif(sys.version_info < (3, 7), reason="OpenTelemetry dropped support for python<=3.6")
+def test_span_creation_and_finished_metrics_otel(test_agent_metrics_session, ddtrace_run_python_code_in_subprocess):
+    code = """
+import opentelemetry
 
-    telemetry_metrics_writer.periodic()
-    time.sleep(1.0)
-    events = test_agent_session.get_events()
+ot = opentelemetry.trace.get_tracer(__name__)
+for _ in range(9):
+    with ot.start_span('span'):
+        pass
+"""
+    env = os.environ.copy()
+    env["DD_TRACE_OTEL_ENABLED"] = "true"
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    assert status == 0, stderr
+    events = test_agent_metrics_session.get_events()
 
-    assert len(events) == 4
-    assert events[0]["payload"]["series"][0]["metric"] == "datadog.span_created"
-    assert events[0]["payload"]["series"][0]["points"][0][1] == 10
-    assert events[0]["payload"]["series"][1]["metric"] == "datadog.span_finished"
-    assert events[0]["payload"]["series"][1]["points"][0][1] == 10
+    metrics = get_metrics_from_events(events)
+    assert len(metrics) == 2
+    assert metrics[0]["metric"] == "otel.span_created"
+    assert metrics[0]["points"][0][1] == 9
+    assert metrics[1]["metric"] == "otel.span_finished"
+    assert metrics[1]["points"][0][1] == 9
 
-    assert events[0]["payload"]["series"][2]["metric"] == "otel.span_created"
-    assert events[0]["payload"]["series"][2]["points"][0][1] == 11
-    assert events[0]["payload"]["series"][3]["metric"] == "otel.span_finished"
-    assert events[0]["payload"]["series"][3]["points"][0][1] == 11
 
-    assert events[0]["payload"]["series"][4]["metric"] == "opentracing.span_created"
-    assert events[0]["payload"]["series"][4]["points"][0][1] == 12
-    assert events[0]["payload"]["series"][5]["metric"] == "opentracing.span_finished"
-    assert events[0]["payload"]["series"][5]["points"][0][1] == 12
+def test_span_creation_and_finished_metrics_opentracing(
+    test_agent_metrics_session, ddtrace_run_python_code_in_subprocess
+):
+    code = """
+from ddtrace.opentracer import Tracer
+
+ot = Tracer()
+for _ in range(9):
+    with ot.start_span('span'):
+        pass
+"""
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code)
+    assert status == 0, stderr
+    events = test_agent_metrics_session.get_events()
+
+    metrics = get_metrics_from_events(events)
+    assert len(metrics) == 2
+    assert metrics[0]["metric"] == "opentracing.span_created"
+    assert metrics[0]["points"][0][1] == 9
+    assert metrics[1]["metric"] == "opentracing.span_finished"
+    assert metrics[1]["points"][0][1] == 9
 
 
 @pytest.mark.skipif(sys.version_info < (3, 7), reason="OpenTelemetry dropped support for python<=3.6")
-def test_span_creation_no_finish(test_agent_session):
-    assert len(test_agent_session.get_events()) == 0
+def test_span_creation_no_finish(test_agent_metrics_session, ddtrace_run_python_code_in_subprocess):
 
-    gen_spans(1, "datadog", finish=False)
-    gen_spans(2, "otel", finish=False)
-    gen_spans(3, "opentracing", finish=False)
+    code = """
+import ddtrace
+import opentelemetry
+from ddtrace import opentracer
 
-    metrics = get_metrics()
+ddtracer = ddtrace.tracer
+otel = opentelemetry.trace.get_tracer(__name__)
+ot = opentracer.Tracer()
+
+for _ in range(4):
+    ot.start_span('ot_span')
+    otel.start_span('otel_span')
+    ddtracer.trace("ddspan")
+"""
+    env = os.environ.copy()
+    env["DD_TRACE_OTEL_ENABLED"] = "true"
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    assert status == 0, stderr
+
+    events = test_agent_metrics_session.get_events()
+    metrics = get_metrics_from_events(events)
     assert len(metrics) == 3
+
     assert metrics[0]["metric"] == "datadog.span_created"
-    assert metrics[0]["points"][0][1] == 1
-
-    assert metrics[1]["metric"] == "otel.span_created"
-    assert metrics[1]["points"][0][1] == 2
-
-    assert metrics[2]["metric"] == "opentracing.span_created"
-    assert metrics[2]["points"][0][1] == 3
-
-    telemetry_metrics_writer.periodic()
-    time.sleep(1.0)
-    events = test_agent_session.get_events()
-
-    assert len(events) == 1
-    assert events[0]["payload"]["series"][0]["metric"] == "datadog.span_created"
-    assert events[0]["payload"]["series"][0]["points"][0][1] == 1
-
-    assert events[0]["payload"]["series"][1]["metric"] == "otel.span_created"
-    assert events[0]["payload"]["series"][1]["points"][0][1] == 2
-
-    assert events[0]["payload"]["series"][2]["metric"] == "opentracing.span_created"
-    assert events[0]["payload"]["series"][2]["points"][0][1] == 3
+    assert metrics[0]["points"][0][1] == 4
+    assert metrics[1]["metric"] == "opentracing.span_created"
+    assert metrics[1]["points"][0][1] == 4
+    assert metrics[2]["metric"] == "otel.span_created"
+    assert metrics[2]["points"][0][1] == 4
 
 
-def gen_spans(num, span_type, finish=True):
-    from ddtrace import tracer as datadog_tracer
-
-    if span_type == "datadog":
-        for i in range(num):
-            s = datadog_tracer.start_span("test." + str(i))
-            if finish:
-                s.finish()
-
-    if span_type == "otel":
-        from ddtrace.opentelemetry._trace import Tracer as OtelTracer
-
-        tracer = OtelTracer(datadog_tracer)
-        for i in range(num):
-            s = tracer.start_span("test." + str(i))
-            if finish:
-                s.end()
-
-    if span_type == "opentracing":
-        from ddtrace.opentracer.tracer import Tracer as OpenTracer
-
-        tracer = OpenTracer(datadog_tracer)
-        for i in range(num):
-            s = tracer.start_span("test." + str(i))
-            if finish:
-                s.finish()
-
-
-def get_metrics():
-    namespace_metrics = telemetry_metrics_writer._namespace.get()
-
-    metrics = [
-        m.to_dict()
-        for payload_type, namespaces in namespace_metrics.items()
-        for namespace, metrics in namespaces.items()
-        for m in metrics.values()
-    ]
+def get_metrics_from_events(events):
+    metrics = []
+    for event in events:
+        if event["request_type"] == "generate-metrics":
+            # Note - this helper function does not aggregate metrics across payloads
+            for series in event["payload"]["series"]:
+                metrics.append(series)
+    metrics.sort(key=lambda x: (x["metric"], x["tags"]), reverse=False)
     return metrics

@@ -71,6 +71,7 @@ class Span(object):
         "service",
         "name",
         "_resource",
+        "_span_api",
         "span_id",
         "trace_id",
         "parent_id",
@@ -104,6 +105,7 @@ class Span(object):
         start=None,  # type: Optional[int]
         context=None,  # type: Optional[Context]
         on_finish=None,  # type: Optional[List[Callable[[Span], None]]]
+        span_api=None,  # type: Optional[str]
     ):
         # type: (...) -> None
         """
@@ -140,6 +142,7 @@ class Span(object):
         self.service = service
         self._resource = [resource or name]
         self.span_type = span_type
+        self._span_api = span_api
 
         # tags / metadata
         self._meta = {}  # type: _MetaDictType
