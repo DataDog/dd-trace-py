@@ -8,10 +8,7 @@ import time
 import pytest
 import tenacity
 
-from ddtrace import tracer as datadog_tracer
 from ddtrace.internal.telemetry import telemetry_metrics_writer
-from ddtrace.opentelemetry._trace import Tracer as OtelTracer
-from ddtrace.opentracer.tracer import Tracer as OpenTracer
 from tests.webclient import Client
 
 
@@ -110,6 +107,7 @@ def test_telemetry_metrics_enabled_on_gunicorn_child_process(test_agent_session)
     assert events[3]["payload"]["series"][0]["metric"] == "test_metric"
 
 
+@pytest.mark.skipif(sys.version_info < (3, 7), reason="OpenTelemetry dropped support for python<=3.6")
 def test_span_creation_and_finished_metrics(test_agent_session):
     assert len(test_agent_session.get_events()) == 0
 
@@ -221,6 +219,7 @@ def test_span_creation_and_finished_metrics(test_agent_session):
     assert events[0]["payload"]["series"][5]["points"][0][1] == 12
 
 
+@pytest.mark.skipif(sys.version_info < (3, 7), reason="OpenTelemetry dropped support for python<=3.6")
 def test_span_creation_no_finish(test_agent_session):
     assert len(test_agent_session.get_events()) == 0
 
@@ -255,14 +254,17 @@ def test_span_creation_no_finish(test_agent_session):
 
 
 def gen_spans(num, span_type, finish=True):
-    tracer = datadog_tracer
+    from ddtrace import tracer as datadog_tracer
+
     if span_type == "datadog":
         for i in range(num):
-            s = tracer.start_span("test." + str(i))
+            s = datadog_tracer.start_span("test." + str(i))
             if finish:
                 s.finish()
 
     if span_type == "otel":
+        from ddtrace.opentelemetry._trace import Tracer as OtelTracer
+
         tracer = OtelTracer(datadog_tracer)
         for i in range(num):
             s = tracer.start_span("test." + str(i))
@@ -270,7 +272,9 @@ def gen_spans(num, span_type, finish=True):
                 s.end()
 
     if span_type == "opentracing":
-        tracer = OpenTracer(dd_tracer=datadog_tracer)
+        from ddtrace.opentracer.tracer import Tracer as OpenTracer
+
+        tracer = OpenTracer(datadog_tracer)
         for i in range(num):
             s = tracer.start_span("test." + str(i))
             if finish:

@@ -183,12 +183,19 @@ class SpanAggregator(SpanProcessor):
 
     def on_span_start(self, span):
         # type: (Span) -> None
+        span_api = span._get_ctx_item(SPAN_API_KEY) or SPAN_API_DATADOG
+        metric = "{}.span_created".format(span_api)
+        telemetry_metrics_writer.add_count_metric("tracers", metric)
         with self._lock:
             trace = self._traces[span.trace_id]
             trace.spans.append(span)
 
     def on_span_finish(self, span):
         # type: (Span) -> None
+        span_api = span._get_ctx_item(SPAN_API_KEY) or SPAN_API_DATADOG
+        metric = "{}.span_finished".format(span_api)
+        telemetry_metrics_writer.add_count_metric("tracer", metric)
+
         with self._lock:
             trace = self._traces[span.trace_id]
             trace.num_finished += 1
@@ -281,17 +288,3 @@ class SpanSamplingProcessor(SpanProcessor):
                     if config._trace_compute_stats:
                         span.set_metric(SAMPLING_PRIORITY_KEY, USER_KEEP)
                     break
-
-
-@attr.s
-class SpanTelemetryProcessor(SpanProcessor):
-    def on_span_start(self, span):
-        # type: (Span) -> None
-        pass
-
-    def on_span_finish(self, span):
-        # type: (Span) -> None
-        span_api = span._get_ctx_item(SPAN_API_KEY) or SPAN_API_DATADOG
-        metric = "{}.span_created".format(span_api)
-
-        telemetry_metrics_writer.add_count_metric("tracer", metric)

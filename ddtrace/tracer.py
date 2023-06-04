@@ -38,7 +38,6 @@ from .internal.logger import hasHandlers
 from .internal.processor import SpanProcessor
 from .internal.processor.trace import SpanAggregator
 from .internal.processor.trace import SpanSamplingProcessor
-from .internal.processor.trace import SpanTelemetryProcessor
 from .internal.processor.trace import TopLevelSpanProcessor
 from .internal.processor.trace import TraceProcessor
 from .internal.processor.trace import TraceSamplingProcessor
@@ -147,7 +146,7 @@ def _default_span_processors_factory(
     trace_processors += trace_filters
 
     span_processors = []  # type: List[SpanProcessor]
-    span_processors += [TopLevelSpanProcessor(), SpanTelemetryProcessor()]
+    span_processors += [TopLevelSpanProcessor()]
 
     if appsec_enabled:
         appsec_processor = _start_appsec_processor()
