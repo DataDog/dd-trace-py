@@ -43,11 +43,12 @@ def test_telemetry_enabled_on_first_tracer_flush(test_agent_session, ddtrace_run
     assert stderr == b""
     # Ensure telemetry events were sent to the agent (snapshot ensures one trace was generated)
     events = test_agent_session.get_events()
-    assert len(events) == 4
-    assert events[0]["request_type"] == "app-integrations-change"
-    assert events[1]["request_type"] == "app-closing"
-    assert events[2]["request_type"] == "app-dependencies-loaded"
-    assert events[3]["request_type"] == "app-started"
+    assert len(events) == 5
+    assert events[0]["request_type"] == "generate-metrics"
+    assert events[1]["request_type"] == "app-integrations-change"
+    assert events[2]["request_type"] == "app-closing"
+    assert events[3]["request_type"] == "app-dependencies-loaded"
+    assert events[4]["request_type"] == "app-started"
 
 
 def test_enable_fork(test_agent_session, run_python_code_in_subprocess):
@@ -190,18 +191,16 @@ tracer.trace("hello").finish()
 
     events = test_agent_session.get_events()
 
-    assert len(events) == 3
+    assert len(events) == 4
 
     # Same runtime id is used
     assert events[0]["runtime_id"] == events[1]["runtime_id"]
-    assert events[0]["request_type"] == "app-closing"
-    assert events[1]["request_type"] == "app-dependencies-loaded"
-    assert events[2]["request_type"] == "app-started"
-    assert events[2]["payload"]["error"]["code"] == 1
-    assert (
-        "ddtrace/internal/processor/trace.py/trace.py:225: error applying processor FailingFilture()"
-        in events[2]["payload"]["error"]["message"]
-    )
+    assert events[0]["request_type"] == "generate-metrics"
+    assert events[1]["request_type"] == "app-closing"
+    assert events[2]["request_type"] == "app-dependencies-loaded"
+    assert events[3]["request_type"] == "app-started"
+    assert events[3]["payload"]["error"]["code"] == 1
+    assert "error applying processor FailingFilture()" in events[3]["payload"]["error"]["message"]
 
 
 def test_app_started_error_unhandled_exception(test_agent_session, run_python_code_in_subprocess):
@@ -249,15 +248,23 @@ tracer.trace("test").finish()
     assert expected_stderr in stderr
 
     events = test_agent_session.get_events()
-    assert len(events) == 4
+
+    assert len(events) == 5
     # Same runtime id is used
-    assert events[0]["runtime_id"] == events[1]["runtime_id"] == events[2]["runtime_id"] == events[3]["runtime_id"]
-    assert events[0]["request_type"] == "app-integrations-change"
-    assert events[1]["request_type"] == "app-closing"
-    assert events[2]["request_type"] == "app-dependencies-loaded"
-    assert events[3]["request_type"] == "app-started"
+    assert (
+        events[0]["runtime_id"]
+        == events[1]["runtime_id"]
+        == events[2]["runtime_id"]
+        == events[3]["runtime_id"]
+        == events[4]["runtime_id"]
+    )
+    assert events[0]["request_type"] == "generate-metrics"
+    assert events[1]["request_type"] == "app-integrations-change"
+    assert events[2]["request_type"] == "app-closing"
+    assert events[3]["request_type"] == "app-dependencies-loaded"
+    assert events[4]["request_type"] == "app-started"
 
     assert (
-        events[0]["payload"]["integrations"][0]["error"]
+        events[1]["payload"]["integrations"][0]["error"]
         == "failed to import ddtrace module 'ddtrace.contrib.sqlite3' when patching on import"
     )

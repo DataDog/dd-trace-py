@@ -5,6 +5,7 @@ start: &base
   ltags: 0
   nmetrics: 0
   finishspan: false
+  telemetry: false
 add-tags:
   <<: *base
   ntags: 100
@@ -15,3 +16,7 @@ add-metrics:
 start-finish:
   <<: *base
   finishspan: true
+start-finish-telemetry:
+  <<: *base
+  finishspan: true
+  telemetry: true
