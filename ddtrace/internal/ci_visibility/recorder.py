@@ -17,6 +17,7 @@ from ddtrace.ext import test
 from ddtrace.internal import atexit
 from ddtrace.internal import compat
 from ddtrace.internal.agent import get_connection
+from ddtrace.internal.agent import get_trace_url
 from ddtrace.internal.ci_visibility.filters import TraceCiVisibilityFilter
 from ddtrace.internal.compat import JSONDecodeError
 from ddtrace.internal.compat import parse
@@ -149,7 +150,7 @@ class CIVisibility(Service):
         }
 
         if self._requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS:
-            url = EVP_PROXY_AGENT_BASE_PATH + SETTING_ENDPOINT
+            url = get_trace_url() + EVP_PROXY_AGENT_BASE_PATH + SETTING_ENDPOINT
             _headers = {EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_API_VALUE}
         elif self._requests_mode == REQUESTS_MODE.AGENTLESS_EVENTS:
             url = "https://api." + self._dd_site + SETTING_ENDPOINT
