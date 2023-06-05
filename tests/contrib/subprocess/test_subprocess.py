@@ -5,6 +5,7 @@ import sys
 import pytest
 
 from ddtrace import Pin
+from ddtrace import config
 from ddtrace.appsec._constants import COMMANDS
 from ddtrace.contrib.subprocess.patch import SubprocessCmdLine
 from ddtrace.contrib.subprocess.patch import patch
@@ -13,8 +14,9 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal import _context
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import PY3
-from tests.utils import override_global_config, override_config, override_env
-from ddtrace import config
+from tests.utils import override_config
+from tests.utils import override_env
+from tests.utils import override_global_config
 
 
 @pytest.fixture(autouse=True)
@@ -144,8 +146,7 @@ def test_argument_scrubing(cmdline_obj, arguments):
 
 
 def test_argument_scrubing_user():
-    with override_config("subprocess", dict(
-            subexec_sensitive_users_wildcars=["*custom_scrub*", "*myscrub*"])):
+    with override_config("subprocess", dict(subexec_sensitive_users_wildcars=["*custom_scrub*", "*myscrub*"])):
         cmdline_obj = SubprocessCmdLine(
             [
                 "binary",

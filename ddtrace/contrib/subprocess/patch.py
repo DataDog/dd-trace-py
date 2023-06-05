@@ -31,8 +31,9 @@ log = get_logger(__name__)
 config._add(
     "subprocess",
     dict(
-        subexec_sensitive_users_wildcars=os.getenv(
-            "DD_APPSEC_SUBPROCESS_EXEC_SENSITIVE_WILDCARDS", default="").split(",")
+        subexec_sensitive_users_wildcars=os.getenv("DD_APPSEC_SUBPROCESS_EXEC_SENSITIVE_WILDCARDS", default="").split(
+            ","
+        )
     ),
 )
 
