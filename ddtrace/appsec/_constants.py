@@ -148,7 +148,7 @@ class LOGIN_EVENTS_MODE(object):
     DISABLED: automatic login events are disabled.
     SAFE: automatic login events are enabled but will only store non-PII fields (id, pk uid...)
     EXTENDED: automatic login events are enabled and will store potentially PII fields (username,
-        email, ...).
+    email, ...).
     SDK: manually issued login events using the SDK.
     """
 
