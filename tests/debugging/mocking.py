@@ -2,6 +2,7 @@ import atexit
 from collections import Counter
 from contextlib import contextmanager
 import json
+from time import sleep
 from typing import Any
 
 from ddtrace.debugging._config import config
@@ -11,7 +12,12 @@ from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
 from ddtrace.debugging._probe.remoteconfig import _filter_by_env_and_version
 from ddtrace.debugging._signal.collector import SignalCollector
 from ddtrace.debugging._uploader import LogsIntakeUploaderV1
+from ddtrace.internal.compat import monotonic
 from tests.debugging.probe.test_status import DummyProbeStatusLogger
+
+
+class PayloadWaitTimeout(Exception):
+    pass
 
 
 class MockLogsIntakeUploaderV1(LogsIntakeUploaderV1):
@@ -21,6 +27,16 @@ class MockLogsIntakeUploaderV1(LogsIntakeUploaderV1):
 
     def _write(self, payload):
         self.queue.append(payload.decode())
+
+    def wait_for_payloads(self, cond=lambda _: bool(_), timeout=1.0):
+        end = monotonic() + timeout
+
+        while not cond(self.queue):
+            if monotonic() > end:
+                raise PayloadWaitTimeout(cond, timeout)
+            sleep(0.05)
+
+        return self.payloads
 
     @property
     def payloads(self):
