@@ -1,0 +1,61 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '0'
+      User-Agent:
+      - OpenAI/v1 PythonBindings/0.27.7
+      X-OpenAI-Client-User-Agent:
+      - '{"bindings_version": "0.27.7", "httplib": "requests", "lang": "python", "lang_version":
+        "3.10.5", "platform": "macOS-13.4-arm64-arm-64bit", "publisher": "openai",
+        "uname": "Darwin 22.5.0 Darwin Kernel Version 22.5.0: Mon Apr 24 20:52:24
+        PDT 2023; root:xnu-8796.121.2~5/RELEASE_ARM64_T6000 arm64"}'
+    method: DELETE
+    uri: https://api.openai.com/v1/models/babbage%3Aft-datadog%3Adummy-fine-tune-model-2023-06-01-23-15-52
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAACiWMwQqAIBBE732F7LkFM+rg32i7iZEJsR4i+ve0LsPwhnl3pxRkv/EiYBWkTLxD
+        32CkBrzz3gW2qyA5cZSDpZLShWs8GKXU+D5otBlRz6gHrGWYcDK/p44s3GRyFu6eFy86lityAAAA
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 7d0a3b189f2343df-EWR
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Thu, 01 Jun 2023 20:33:18 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      access-control-allow-origin:
+      - '*'
+      alt-svc:
+      - h3=":443"; ma=86400
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '598'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      x-request-id:
+      - f6160964d0dc7577e21ca86a29548277
+    status:
+      code: 200
+      message: OK
+version: 1

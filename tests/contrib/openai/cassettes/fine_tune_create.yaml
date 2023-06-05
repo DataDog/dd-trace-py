@@ -1,0 +1,70 @@
+interactions:
+- request:
+    body: '{"training_file": "file-llDq0Q9la7EBTScAowIotxxc", "n_epochs": 4, "prompt_loss_weight":
+      0.01, "model": "babbage", "suffix": "dummy-fine-tune-model", "batch_size": 5,
+      "learning_rate_multiplier": 0.05, "compute_classification_metrics": false}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '240'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - OpenAI/v1 PythonBindings/0.27.7
+      X-OpenAI-Client-User-Agent:
+      - '{"bindings_version": "0.27.7", "httplib": "requests", "lang": "python", "lang_version":
+        "3.10.5", "platform": "macOS-13.4-arm64-arm-64bit", "publisher": "openai",
+        "uname": "Darwin 22.5.0 Darwin Kernel Version 22.5.0: Mon Apr 24 20:52:24
+        PDT 2023; root:xnu-8796.121.2~5/RELEASE_ARM64_T6000 arm64"}'
+    method: POST
+    uri: https://api.openai.com/v1/fine-tunes
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA4STX2+bMBTF3/kUFs+lChEEylvbdGon7U+VqppUTZbBN+DU2Mw2IUmV717ZZmHK
+        NvX1/I7NueeatwChUJYbqExYoHDNBESmFxBeWMCoE020Xa5eH7/vV3F6r8Sm/Tz/MQzlbGDe1uw7
+        UB1RpNVhgd4ChBAKBYZOVo1VkgsvlcRUDdbsAGGB0lHslGw7g7nUGg/A6sYGmV3O4pFzIEowUWNF
+        DOC254Z1nIHyrjRA6OhCSFUTwQ7EMCmwDy5VHX1bJYdKL7/m+lN+l9/SZld/eb15TnzyVlLg1lqS
+        siT1OLZRhLlPrhkHO8CLi+IHO+uL+zNOH+tiHCLOl79mj1ecZHc3T6vqWg4P0ux21WTuetVJDX+3
+        7qi9RJDW4X0vXJLLjZaCT55yb1y6OMkWV9lJrhQQAxQTmzBe5EmSZGkWn7g2xPT2nK2+Aq2BhmcQ
+        UzCEcWsSPecOHgOEfrp6toQz6ns+FeSJAt1zc66eB0oXi3k+nzvWd/S/7I+gICgTtd+ObQvbtij+
+        vT4b0jHYgjAfbGzsOnLeaXIOW/8UmFjLSW5Ba/swChTe+jnQ6YoCffRr/HMh44xTq8ExeAcAAP//
+        AwDFbZKdiAMAAA==
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 7d0b4d1fca3d8c99-EWR
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Thu, 01 Jun 2023 23:40:22 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      access-control-allow-origin:
+      - '*'
+      alt-svc:
+      - h3=":443"; ma=86400
+      openai-processing-ms:
+      - '121'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      x-request-id:
+      - d8506720ee0c9b0d6a9d0df19b0a8907
+    status:
+      code: 200
+      message: OK
+version: 1

@@ -1049,6 +1049,185 @@ async def test_file_adownload(api_key_in_env, request_api_key, openai, openai_vc
 
 
 @pytest.mark.parametrize("api_key_in_env", [True, False])
+def test_fine_tune_list(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
+    if not hasattr(openai, "FineTune"):
+        pytest.skip("fine tunes not supported for this version of openai")
+    with snapshot_context(
+        token="tests.contrib.openai.test_openai.test_fine_tune_list",
+        ignores=["meta.http.useragent"],
+    ):
+        with openai_vcr.use_cassette("fine_tune_list.yaml"):
+            openai.FineTune.list(
+                api_key=request_api_key,
+            )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("api_key_in_env", [True, False])
+async def test_fine_tune_alist(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
+    if not hasattr(openai, "FineTune"):
+        pytest.skip("fine tunes not supported for this version of openai")
+    with snapshot_context(
+        token="tests.contrib.openai.test_openai.test_fine_tune_list",
+        ignores=["meta.http.useragent"],
+    ):
+        with openai_vcr.use_cassette("fine_tune_alist.yaml"):
+            await openai.FineTune.alist(
+                api_key=request_api_key,
+            )
+
+
+@pytest.mark.parametrize("api_key_in_env", [True, False])
+def test_fine_tune_create(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
+    if not hasattr(openai, "FineTune"):
+        pytest.skip("fine tunes not supported for this version of openai")
+    with snapshot_context(
+        token="tests.contrib.openai.test_openai.test_fine_tune_create",
+        ignores=["meta.http.useragent"],
+    ):
+        with openai_vcr.use_cassette("fine_tune_create.yaml"):
+            openai.FineTune.create(
+                training_file="file-llDq0Q9la7EBTScAowIotxxc",
+                n_epochs=4,
+                prompt_loss_weight=0.01,
+                model="babbage",
+                suffix="dummy-fine-tune-model",
+                batch_size=5,
+                learning_rate_multiplier=0.05,
+                compute_classification_metrics=False,
+                api_key=request_api_key,
+            )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("api_key_in_env", [True, False])
+async def test_fine_tune_acreate(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
+    if not hasattr(openai, "FineTune"):
+        pytest.skip("fine tunes not supported for this version of openai")
+    with snapshot_context(
+        token="tests.contrib.openai.test_openai.test_fine_tune_acreate",
+        ignores=["meta.http.useragent"],
+    ):
+        with openai_vcr.use_cassette("fine_tune_acreate.yaml"):
+            await openai.FineTune.acreate(
+                training_file="file-llDq0Q9la7EBTScAowIotxxc",
+                n_epochs=4,
+                prompt_loss_weight=0.01,
+                model="babbage",
+                suffix="dummy-fine-tune-model",
+                batch_size=5,
+                learning_rate_multiplier=0.05,
+                compute_classification_metrics=False,
+                api_key=request_api_key,
+            )
+
+
+@pytest.mark.parametrize("api_key_in_env", [True, False])
+def test_fine_tune_retrieve(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
+    if not hasattr(openai, "FineTune"):
+        pytest.skip("fine tunes not supported for this version of openai")
+    with snapshot_context(
+        token="tests.contrib.openai.test_openai.test_fine_tune_retrieve",
+        ignores=["meta.http.useragent"],
+    ):
+        with openai_vcr.use_cassette("fine_tune_retrieve.yaml"):
+            openai.FineTune.retrieve(
+                id="ft-sADEaavxRFrjOQ65XkQKm0zM",
+                api_key=request_api_key,
+            )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("api_key_in_env", [True, False])
+async def test_fine_tune_aretrieve(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
+    if not hasattr(openai, "FineTune"):
+        pytest.skip("fine tunes not supported for this version of openai")
+    with snapshot_context(
+        token="tests.contrib.openai.test_openai.test_fine_tune_retrieve",
+        ignores=["meta.http.useragent"],
+    ):
+        with openai_vcr.use_cassette("fine_tune_aretrieve.yaml"):
+            await openai.FineTune.aretrieve(
+                id="ft-sADEaavxRFrjOQ65XkQKm0zM",
+                api_key=request_api_key,
+            )
+
+
+@pytest.mark.parametrize("api_key_in_env", [True, False])
+def test_fine_tune_cancel(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
+    if not hasattr(openai, "FineTune"):
+        pytest.skip("fine tunes not supported for this version of openai")
+    with snapshot_context(
+        token="tests.contrib.openai.test_openai.test_fine_tune_cancel",
+        ignores=["meta.http.useragent"],
+    ):
+        with openai_vcr.use_cassette("fine_tune_cancel.yaml"):
+            openai.FineTune.cancel(
+                id="ft-N6ggcFNqJNuREixR9ShDWzST",
+                api_key=request_api_key,
+            )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("api_key_in_env", [True, False])
+async def test_fine_tune_acancel(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
+    if not hasattr(openai, "FineTune"):
+        pytest.skip("fine tunes not supported for this version of openai")
+    with snapshot_context(
+        token="tests.contrib.openai.test_openai.test_fine_tune_acancel",
+        ignores=["meta.http.useragent"],
+    ):
+        with openai_vcr.use_cassette("fine_tune_acancel.yaml"):
+            await openai.FineTune.acancel(
+                id="ft-bN1JASRDOPzKeN7zQ8aJ7hVF",
+                api_key=request_api_key,
+            )
+
+
+@pytest.mark.parametrize("api_key_in_env", [True, False])
+def test_fine_tune_delete(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
+    if not hasattr(openai, "Model"):
+        pytest.skip("model not supported for this version of openai")
+    with snapshot_context(
+        token="tests.contrib.openai.test_openai.test_fine_tune_delete",
+        ignores=["meta.http.useragent"],
+    ):
+        with openai_vcr.use_cassette("fine_tune_delete.yaml"):
+            openai.Model.delete(
+                sid="babbage:ft-datadog:dummy-fine-tune-model-2023-06-01-23-15-52",
+                api_key=request_api_key,
+            )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("api_key_in_env", [True, False])
+async def test_fine_tune_adelete(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
+    if not hasattr(openai, "Model"):
+        pytest.skip("model not supported for this version of openai")
+    with snapshot_context(
+        token="tests.contrib.openai.test_openai.test_fine_tune_delete",
+        ignores=["meta.http.useragent"],
+    ):
+        with openai_vcr.use_cassette("fine_tune_adelete.yaml"):
+            await openai.Model.adelete(
+                sid="babbage:ft-datadog:dummy-fine-tune-model-2023-06-01-23-15-52",
+                api_key=request_api_key,
+            )
+
+
+@pytest.mark.parametrize("api_key_in_env", [True, False])
+def test_fine_tune_list_events(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
+    if not hasattr(openai, "FineTune"):
+        pytest.skip("fine tunes not supported for this version of openai")
+    with snapshot_context(
+        token="tests.contrib.openai.test_openai.test_fine_tune_list_events",
+        ignores=["meta.http.useragent"],
+    ):
+        with openai_vcr.use_cassette("fine_tune_list_events.yaml"):
+            openai.FineTune.list_events(id="ft-N6ggcFNqJNuREixR9ShDWzST", api_key=request_api_key, stream=False)
+
+
+@pytest.mark.parametrize("api_key_in_env", [True, False])
 def test_create_moderation(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "Moderation"):
         pytest.skip("moderation not supported for this version of openai")

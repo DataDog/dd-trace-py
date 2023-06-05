@@ -9,8 +9,8 @@ from .utils import _format_openai_api_key
 
 class _EndpointHook:
     # Assume base arg signature follows openai.EngineAPIResource.create(...)
-    _request_arg_params = ["cls", "api_key", "api_base", "api_type", "request_id", "api_version", "organization"]
-    _request_kwarg_params = []
+    _request_arg_params = ("cls", "api_key", "api_base", "api_type", "request_id", "api_version", "organization")
+    _request_kwarg_params = ()
     _prompt_completion = False
     ENDPOINT_NAME = "openai"
     REQUEST_TYPE = ""
@@ -144,7 +144,7 @@ class _BaseCompletionHook(_EndpointHook):
 
 
 class _CompletionHook(_BaseCompletionHook):
-    _request_kwarg_params = [
+    _request_kwarg_params = (
         "model",
         "suffix",
         "max_tokens",
@@ -160,7 +160,7 @@ class _CompletionHook(_BaseCompletionHook):
         "best_of",
         "logit_bias",
         "user",
-    ]
+    )
     ENDPOINT_NAME = "/completions"
     REQUEST_TYPE = "POST"
     OPERATION_ID = "createCompletion"
@@ -216,7 +216,7 @@ class _CompletionHook(_BaseCompletionHook):
 
 
 class _ChatCompletionHook(_BaseCompletionHook):
-    _request_kwarg_params = [
+    _request_kwarg_params = (
         "model",
         "temperature",
         "top_p",
@@ -228,7 +228,7 @@ class _ChatCompletionHook(_BaseCompletionHook):
         "frequency_penalty",
         "logit_bias",
         "user",
-    ]
+    )
     ENDPOINT_NAME = "/chat/completions"
     REQUEST_TYPE = "POST"
     OPERATION_ID = "createChatCompletion"
@@ -292,7 +292,7 @@ class _ChatCompletionHook(_BaseCompletionHook):
 
 
 class _EmbeddingHook(_EndpointHook):
-    _request_kwarg_params = ["model", "user"]
+    _request_kwarg_params = ("model", "user")
     _prompt_completion = False
     ENDPOINT_NAME = "/embeddings"
     REQUEST_TYPE = "POST"
@@ -329,7 +329,7 @@ class _ListHook(_EndpointHook):
     Hook for openai.ListableAPIResource, which is used by Model.list, File.list, and FineTune.list.
     """
 
-    _request_arg_params = ["cls", "api_key", "request_id", "api_version", "organization", "api_base", "api_type"]
+    _request_arg_params = ("cls", "api_key", "request_id", "api_version", "organization", "api_base", "api_type")
     _prompt_completion = False
     ENDPOINT_NAME = None
     REQUEST_TYPE = "GET"
@@ -354,7 +354,7 @@ class _ListHook(_EndpointHook):
 class _RetrieveHook(_EndpointHook):
     """Hook for openai.APIResource, which is used by Model.retrieve, File.retrieve, and FineTune.retrieve."""
 
-    _request_arg_params = ["cls", "id", "api_key", "request_id", "request_timeout"]
+    _request_arg_params = ("cls", "id", "api_key", "request_id", "request_timeout")
     _prompt_completion = False
     ENDPOINT_NAME = None
     REQUEST_TYPE = "GET"
@@ -375,6 +375,7 @@ class _RetrieveHook(_EndpointHook):
         response_attrs = (
             "id",
             "owned_by",
+            "model",
             "parent",
             "root",
             "bytes",
@@ -384,7 +385,7 @@ class _RetrieveHook(_EndpointHook):
             "fine_tuned_model",
             "status",
             "status_details",
-            "updated_at ",
+            "updated_at",
         )
         for resp_attr in response_attrs:
             if resp_attr in resp:
@@ -393,20 +394,20 @@ class _RetrieveHook(_EndpointHook):
             for k, v in resp.get("permission", [])[0].items():
                 if k != "object":
                     span.set_tag("openai.response.permission.%s" % k, _format_bool(v))
-        if resp.get("hyperparams"):
-            set_flattened_tags(
-                span, [("openai.response.hyperparams.%s" % k, v) for k, v in resp.get("hyperparams", {}).items()]
-            )
+        for k, v in resp.get("hyperparams", {}).items():
+            span.set_tag("openai.response.hyperparams.%s" % k, v)
         for resp_attr in ("result_files", "training_files", "validation_files"):
             if resp_attr in resp:
                 span.set_tag("openai.response.%s_count" % resp_attr, len(resp.get(resp_attr, [])))
+        if resp.get("events"):
+            span.set_metric("openai.response.events_count", len(resp.get("events", [])))
         return resp
 
 
 class _DeleteHook(_EndpointHook):
     """Hook for openai.DeletableAPIResource, which is used by File.delete, and Model.delete."""
 
-    _request_arg_params = ["cls", "sid", "api_type", "api_version"]
+    _request_arg_params = ("cls", "sid", "api_type", "api_version")
     _prompt_completion = False
     ENDPOINT_NAME = None
     REQUEST_TYPE = "DELETE"
@@ -434,12 +435,12 @@ class _DeleteHook(_EndpointHook):
 
 
 class _EditHook(_EndpointHook):
-    _request_kwarg_params = [
+    _request_kwarg_params = (
         "model",
         "n",
         "temperature",
         "top_p",
-    ]
+    )
     _prompt_completion = True
     ENDPOINT_NAME = "/edits"
     REQUEST_TYPE = "POST"
@@ -523,28 +524,28 @@ class _ImageHook(_EndpointHook):
 
 
 class _ImageCreateHook(_ImageHook):
-    _request_arg_params = ["cls", "api_key", "api_base", "api_type", "api_version", "organization"]
-    _request_kwarg_params = ["prompt", "n", "size", "response_format", "user"]
+    _request_arg_params = ("cls", "api_key", "api_base", "api_type", "api_version", "organization")
+    _request_kwarg_params = ("prompt", "n", "size", "response_format", "user")
     ENDPOINT_NAME = "/images/generations"
     OPERATION_ID = "createImage"
 
 
 class _ImageEditHook(_ImageHook):
-    _request_arg_params = ["cls", "image", "mask", "api_key", "api_base", "api_type", "api_version", "organization"]
-    _request_kwarg_params = ["prompt", "n", "size", "response_format", "user"]
+    _request_arg_params = ("cls", "image", "mask", "api_key", "api_base", "api_type", "api_version", "organization")
+    _request_kwarg_params = ("prompt", "n", "size", "response_format", "user")
     ENDPOINT_NAME = "/images/edits"
     OPERATION_ID = "createImageEdit"
 
 
 class _ImageVariationHook(_ImageHook):
-    _request_arg_params = ["cls", "image", "api_key", "api_base", "api_type", "api_version", "organization"]
-    _request_kwarg_params = ["n", "size", "response_format", "user"]
+    _request_arg_params = ("cls", "image", "api_key", "api_base", "api_type", "api_version", "organization")
+    _request_kwarg_params = ("n", "size", "response_format", "user")
     ENDPOINT_NAME = "/images/variations"
     OPERATION_ID = "createImageVariation"
 
 
 class _BaseAudioHook(_EndpointHook):
-    _request_arg_params = ["cls", "model", "file", "api_key", "api_base", "api_type", "api_version", "organization"]
+    _request_arg_params = ("cls", "model", "file", "api_key", "api_base", "api_type", "api_version", "organization")
     _prompt_completion = True
     ENDPOINT_NAME = "/audio"
     REQUEST_TYPE = "POST"
@@ -584,28 +585,28 @@ class _BaseAudioHook(_EndpointHook):
 
 
 class _AudioTranscriptionHook(_BaseAudioHook):
-    _request_kwarg_params = [
+    _request_kwarg_params = (
         "prompt",
         "response_format",
         "temperature",
         "language",
-    ]
+    )
     ENDPOINT_NAME = "/audio/transcriptions"
     OPERATION_ID = "createTranscription"
 
 
 class _AudioTranslationHook(_BaseAudioHook):
-    _request_kwarg_params = [
+    _request_kwarg_params = (
         "prompt",
         "response_format",
         "temperature",
-    ]
+    )
     ENDPOINT_NAME = "/audio/translations"
     OPERATION_ID = "createTranslation"
 
 
 class _ModerationHook(_EndpointHook):
-    _request_arg_params = ["cls", "input", "model", "api_key"]
+    _request_arg_params = ("cls", "input", "model", "api_key")
     _prompt_completion = False
     ENDPOINT_NAME = "/moderations"
     REQUEST_TYPE = "POST"
@@ -642,7 +643,7 @@ class _BaseFileHook(_EndpointHook):
 
 
 class _FileCreateHook(_BaseFileHook):
-    _request_arg_params = [
+    _request_arg_params = (
         "cls",
         "file",
         "purpose",
@@ -653,7 +654,7 @@ class _FileCreateHook(_BaseFileHook):
         "api_version",
         "organization",
         "user_provided_filename",
-    ]
+    )
     REQUEST_TYPE = "POST"
     OPERATION_ID = "createFile"
 
@@ -671,7 +672,7 @@ class _FileCreateHook(_BaseFileHook):
 
 
 class _FileDownloadHook(_BaseFileHook):
-    _request_arg_params = ["cls", "id", "api_key", "api_base", "api_type", "api_version", "organization"]
+    _request_arg_params = ("cls", "id", "api_key", "api_base", "api_type", "api_version", "organization")
     REQUEST_TYPE = "GET"
     OPERATION_ID = "downloadFile"
 
@@ -694,33 +695,26 @@ class _BaseFineTuneHook(_EndpointHook):
     def _post_response(self, pin, integration, span, args, kwargs, resp, error):
         if not resp:
             return
+        resp_params = ("id", "model", "fine_tuned_model", "status")
+        for resp_param in resp_params:
+            span.set_tag("openai.response.%s" % resp_param, resp.get(resp_param, ""))
+        span.set_metric("openai.response.created_at", resp.get("created_at", 0))
+        span.set_metric("openai.response.updated_at", resp.get("updated_at", 0))
+        span.set_metric("openai.response.events_count", len(resp.get("events", [])))
+        span.set_metric("openai.response.result_files_count", len(resp.get("result_files", [])))
+        span.set_metric("openai.response.training_files_count", len(resp.get("training_files", [])))
+        span.set_metric("openai.response.validation_files_count", len(resp.get("validation_files", [])))
+        for k, v in resp.get("hyperparams", {}).items():
+            span.set_tag("openai.response.hyperparams.%s" % k, v)
 
-        for k, v in resp.items():
-            if isinstance(v, dict):
-                set_flattened_tags(
-                    span, [("openai.response.%s.%s" % (k, dict_k), dict_v) for dict_k, dict_v in v.items()]
-                )
-            elif isinstance(v, list):
-                for idx, list_obj in enumerate(v):
-                    if isinstance(list_obj, dict):
-                        set_flattened_tags(
-                            span,
-                            [
-                                ("openai.response.%s.%d.%s" % (k, idx, dict_k), dict_v)
-                                for dict_k, dict_v in list_obj.items()
-                            ],
-                        )
-                    else:
-                        span.set_tag("openai.response.%s.%d" % (k, idx), list_obj)
-            else:
-                span.set_tag("openai.response.%s" % k, integration.trunc(str(v)))
         return resp
 
 
 class _FineTuneCreateHook(_BaseFineTuneHook):
-    _request_kwarg_params = [
+    _request_kwarg_params = (
         "training_file",
         "validation_file",
+        "model",
         "n_epochs",
         "batch_size",
         "learning_rate_multiplier",
@@ -728,12 +722,16 @@ class _FineTuneCreateHook(_BaseFineTuneHook):
         "compute_classification_metrics",
         "classification_n_classes",
         "classification_positive_class",
-        "classification_betas",
         "suffix",
-    ]
+    )
     ENDPOINT_NAME = "/fine-tunes"
     REQUEST_TYPE = "POST"
     OPERATION_ID = "createFineTune"
+
+    def _pre_response(self, pin, integration, span, args, kwargs):
+        if "classification_betas" in kwargs:
+            span.set_tag("openai.request.classification_betas_count", len(kwargs.get("classification_betas", [])))
+        return
 
 
 class _FineTuneCancelHook(_BaseFineTuneHook):
@@ -744,7 +742,8 @@ class _FineTuneCancelHook(_BaseFineTuneHook):
 
 
 class _FineTuneListEventsHook(_BaseFineTuneHook):
-    _request_arg_params = ["cls", "id"]
+    _request_arg_params = ("cls", "id")
+    _request_kwarg_params = ("stream",)
     ENDPOINT_NAME = "/fine-tunes/events"
     REQUEST_TYPE = "GET"
     OPERATION_ID = "listFineTuneEvents"
