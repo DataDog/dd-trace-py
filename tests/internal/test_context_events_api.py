@@ -6,6 +6,7 @@ import unittest
 import mock
 
 from ddtrace.internal import core
+from ddtrace.internal.compat import PY3
 
 
 class TestContextEventsApi(unittest.TestCase):
@@ -89,7 +90,7 @@ class TestContextEventsApi(unittest.TestCase):
             _results["results"] = core.dispatch(event_name, [])[0]
 
         def make_listener(delay: float):
-            def listener(results: Dict):
+            def listener():
                 def _listen():
                     time.sleep(delay)
                     return 42
@@ -101,7 +102,7 @@ class TestContextEventsApi(unittest.TestCase):
         dispatcher_results = dict()
 
         dispatcher_thread = threading.Thread(target=dispatcher, args=(dispatcher_results,))
-        listener_thread_slow = threading.Thread(target=make_listener(2))
+        listener_thread_slow = threading.Thread(target=make_listener(1))
         listener_thread_fast = threading.Thread(target=make_listener(0))
 
         listener_thread_slow.start()
@@ -136,7 +137,7 @@ class TestContextEventsApi(unittest.TestCase):
         assert core.current_context is core.root_context
         with core.context_with_data("foobar") as context:
             assert core.current_context is context
-            assert context.parents[0] == core.root_context
+            assert context.parent == core.root_context
         assert core.current_context is core.root_context
 
     def test_core_context_with_data(self):
@@ -176,6 +177,22 @@ class TestContextEventsApi(unittest.TestCase):
         assert results[thread_context_id][data_key] == data_value
         assert results[thread_nested_context_id]["_id"] == thread_nested_context_id
         assert results[thread_nested_context_id]["parent"] == thread_context_id
+
+    if PY3:
+
+        async def test_core_context_data_concurrent_safety(self):
+            data_key = "banana"
+
+            async def make_context(_results):
+                with core.context_with_data("foo"):
+                    _results[data_key] = core.get_item(data_key)
+
+            results = dict()
+
+            with core.context_with_data("bar", **{data_key: "wrong"}):
+                await make_context(results)
+
+            assert results[data_key] is None
 
     def test_core_context_with_data_inheritance(self):
         data_key = "my.cool.data"

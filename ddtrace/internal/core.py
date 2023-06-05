@@ -10,7 +10,14 @@ from typing import Optional
 from typing import Tuple
 
 
+try:
+    import contextvars
+except ImportError:
+    import ddtrace.vendor.contextvars as contextvars  # type: ignore
+
+
 log = logging.getLogger(__name__)
+_CONTEXT_DATA = contextvars.ContextVar("ExecutionContext_var", default=dict())
 
 
 class ExecutionContext:
@@ -20,7 +27,8 @@ class ExecutionContext:
         self._children = []
         if parent is not None:
             self.addParent(parent)
-        self._data = {}
+        self._data = _CONTEXT_DATA.get()
+        self._data = dict()
         self._update_data(kwargs)
 
     @property
