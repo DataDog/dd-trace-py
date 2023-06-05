@@ -101,7 +101,7 @@ Release Branch Maintenance
 Fix PRs
 -------
 
-These PRs are generally opened to fix a bug reported by a user of the library. Fix  PRs should be backported to all impacted and maintained release lines.
+These PRs are generally opened to fix a bug reported by a user of the library. Fix  PRs should be backported to all impacted and maintained release branches.
 
 CI PRs
 ------
