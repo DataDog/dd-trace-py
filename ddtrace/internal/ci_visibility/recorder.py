@@ -16,6 +16,7 @@ from ddtrace.ext import ci
 from ddtrace.ext import test
 from ddtrace.internal import atexit
 from ddtrace.internal import compat
+from ddtrace.internal._rand import rand64bits as _rand64bits
 from ddtrace.internal.agent import get_connection
 from ddtrace.internal.agent import get_trace_url
 from ddtrace.internal.ci_visibility.filters import TraceCiVisibilityFilter
@@ -24,6 +25,7 @@ from ddtrace.internal.compat import parse
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
 from ddtrace.internal.writer.writer import Response
+from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.settings import IntegrationConfig
 
 from .. import agent
@@ -89,6 +91,7 @@ class CIVisibility(Service):
         self._tags = ci.tags(cwd=_get_git_repo())  # type: Dict[str, str]
         self._service = service
         self._codeowners = None
+        self._trace_id = str(_rand64bits())
 
         int_service = None
         if self.config is not None:
@@ -125,7 +128,10 @@ class CIVisibility(Service):
                 log.warning("Cannot start git client if mode is not agentless or evp proxy")
             else:
                 self._git_client = CIVisibilityGitClient(
-                    api_key=self._api_key or "", app_key=self._app_key, requests_mode=self._requests_mode
+                    api_key=self._api_key or "",
+                    app_key=self._app_key,
+                    requests_mode=self._requests_mode,
+                    dd_trace_id=self._trace_id,
                 )
         try:
             from ddtrace.internal.codeowners import Codeowners
@@ -148,6 +154,7 @@ class CIVisibility(Service):
         _headers = {
             "dd-api-key": self._api_key,
             "dd-application-key": self._app_key,
+            HTTP_HEADER_TRACE_ID: self._trace_id,
             "Content-Type": "application/json",
         }
 
@@ -194,15 +201,23 @@ class CIVisibility(Service):
             requests_mode = self._requests_mode
 
         if requests_mode == REQUESTS_MODE.AGENTLESS_EVENTS:
-            headers = {"dd-api-key": self._api_key}
+            headers = {
+                "dd-api-key": self._api_key,
+                HTTP_HEADER_TRACE_ID: self._trace_id,
+            }
             writer = CIVisibilityWriter(
                 headers=headers,
+                trace_id=self._trace_id,
             )
         elif requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS:
             writer = CIVisibilityWriter(
                 intake_url=agent.get_trace_url(),
-                headers={EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_EVENT_VALUE},
+                headers={
+                    EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_EVENT_VALUE,
+                    HTTP_HEADER_TRACE_ID: self._trace_id,
+                },
                 use_evp=True,
+                trace_id=self._trace_id,
             )
         if writer is not None:
             self.tracer.configure(writer=writer)

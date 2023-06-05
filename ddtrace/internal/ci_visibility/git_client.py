@@ -88,7 +88,7 @@ class CIVisibilityGitClient(object):
         if rev_list:
             with cls._build_packfiles(rev_list, cwd=cwd) as packfiles_prefix:
                 cls._upload_packfiles(
-                    requests_mode, base_url, repo_url, packfiles_prefix, serializer, _response, cwd=cwd
+                    requests_mode, base_url, repo_url, packfiles_prefix, serializer, trace_id, _response, cwd=cwd
                 )
 
     @classmethod
@@ -112,7 +112,7 @@ class CIVisibilityGitClient(object):
         return result
 
     @classmethod
-    def _do_request(cls, requests_mode, base_url, endpoint, payload, serializer, trace_id, headers=None, trace_id=None):
+    def _do_request(cls, requests_mode, base_url, endpoint, payload, serializer, trace_id, headers=None):
         # type: (int, str, str, str, CIVisibilityGitClientSerializerV1, str, Optional[dict]) -> Response
         url = "{}/repository{}".format(base_url, endpoint)
         _headers = {
@@ -121,7 +121,10 @@ class CIVisibilityGitClient(object):
             HTTP_HEADER_TRACE_ID: trace_id,
         }
         if requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS:
-            _headers = {EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_API_VALUE}
+            _headers = {
+                EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_API_VALUE,
+                HTTP_HEADER_TRACE_ID: trace_id,
+            }
         if headers is not None:
             _headers.update(headers)
         try:
@@ -170,7 +173,7 @@ class CIVisibilityGitClient(object):
     def retry_request(cls, *args, **kwargs):
         return tenacity.Retrying(
             wait=tenacity.wait_random_exponential(
-                multiplier=(0.618 / (1.618**cls.RETRY_ATTEMPTS) / 2),
+                multiplier=(0.618 / (1.618 ** cls.RETRY_ATTEMPTS) / 2),
                 exp_base=1.618,
             ),
             stop=tenacity.stop_after_attempt(cls.RETRY_ATTEMPTS),

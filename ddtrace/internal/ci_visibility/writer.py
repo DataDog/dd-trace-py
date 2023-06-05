@@ -5,6 +5,7 @@ from typing import Optional
 
 import ddtrace
 from ddtrace import config
+from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.vendor.dogstatsd import DogStatsd
 
 from .. import agent
@@ -87,7 +88,9 @@ class CIVisibilityWriter(HTTPWriter):
         reuse_connections=None,  # type: Optional[bool]
         headers=None,  # type: Optional[Dict[str, str]]
         use_evp=False,  # type: bool
+        trace_id='',  # type: str
     ):
+        self._trace_id = trace_id
         if use_evp:
             intake_url = agent.get_trace_url()
             intake_cov_url = agent.get_trace_url()
@@ -98,17 +101,29 @@ class CIVisibilityWriter(HTTPWriter):
             intake_url = "%s.%s" % (AGENTLESS_BASE_URL, os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE))
             intake_cov_url = "%s.%s" % (AGENTLESS_COVERAGE_BASE_URL, os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE))
 
+        if headers is None:
+            headers = {
+                HTTP_HEADER_TRACE_ID: self._trace_id,
+            }
+
         clients = (
             [CIVisibilityProxiedEventClient()] if use_evp else [CIVisibilityAgentlessEventClient()]
         )  # type: List[WriterClientBase]
         if coverage_enabled():
-            clients.append(
-                CIVisibilityProxiedCoverageClient(
-                    intake_url=intake_cov_url, headers={EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_COVERAGE_VALUE}
+            if use_evp:
+                headers[EVP_SUBDOMAIN_HEADER_NAME] = EVP_SUBDOMAIN_HEADER_COVERAGE_VALUE
+                clients.append(
+                    CIVisibilityProxiedCoverageClient(
+                        intake_url=intake_cov_url,
+                        headers=headers,
+                    )
                 )
-                if use_evp
-                else CIVisibilityAgentlessCoverageClient(intake_url=intake_cov_url)
-            )
+            else:
+                clients.append(
+                    CIVisibilityAgentlessCoverageClient(
+                        intake_url=intake_cov_url,
+                    )
+                )
 
         super(CIVisibilityWriter, self).__init__(
             intake_url=intake_url,
