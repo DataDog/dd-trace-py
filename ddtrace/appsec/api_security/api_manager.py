@@ -1,3 +1,5 @@
+import base64
+import gzip
 from typing import TYPE_CHECKING
 
 from ddtrace._tracing._limits import MAX_SPAN_META_VALUE_LEN
@@ -130,20 +132,22 @@ class APIManager(Service):
             if value is _sentinel:
                 continue
             json_serialized = ()
+            b64_gzip_content = b""
             try:
                 if transform is not None:
                     value = transform(value)
                 json_serialized = get_json_schema(value)
-                if len(json_serialized) >= MAX_SPAN_META_VALUE_LEN:
+                b64_gzip_content = base64.b64encode(gzip.compress(json_serialized))
+                if len(b64_gzip_content) >= MAX_SPAN_META_VALUE_LEN:
                     raise TooLarge
-                root._meta[meta_name] = json_serialized
+                root._meta[meta_name] = b64_gzip_content
             except Exception as e:
                 self._schema_meter.increment("errors", tags={"exc": e.__class__.__name__, "address": address})
                 self._log_limiter.limit(
                     log.warning,
                     "Failed to get schema from %r [schema length=%d]:\n%s",
                     address,
-                    len(json_serialized),
+                    len(b64_gzip_content),
                     repr(value)[:256],
                     exc_info=True,
                 )
