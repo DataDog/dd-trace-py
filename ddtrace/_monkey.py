@@ -88,7 +88,6 @@ PATCH_MODULES = {
     "tornado": False,
     "openai": True,
     "subprocess": True,
-    "os": True,
 }
 
 
