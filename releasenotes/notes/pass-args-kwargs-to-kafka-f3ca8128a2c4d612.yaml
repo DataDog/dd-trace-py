@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    kafka: Fixes ``TypeError`` raised when arbitrary keyword arguments are passed to ``confluent_kafka.Consumer``

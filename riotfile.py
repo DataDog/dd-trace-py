@@ -240,6 +240,9 @@ venv = Venv(
             pys=select_pys(),
             command="pytest {cmdargs} tests/appsec",
             pkgs={
+                "requests": latest,
+                "gunicorn": latest,
+                "flask": latest,
                 "pycryptodome": latest,
                 "cryptography": latest,
                 "astunparse": latest,
@@ -366,6 +369,35 @@ venv = Venv(
                         # https://www.attrs.org/en/22.2.0/changelog.html#id1
                         Venv(pys=["3.6"], pkgs={"attrs": "<22.2.0"}),
                         Venv(pys=select_pys(min_version="3.7")),
+                    ],
+                ),
+            ],
+        ),
+        Venv(
+            name="datastreams",
+            command="pytest --no-cov {cmdargs} tests/datastreams/",
+            pkgs={"msgpack": [latest]},
+            venvs=[
+                Venv(
+                    name="datastreams-latest",
+                    env={
+                        "AGENT_VERSION": "latest",
+                    },
+                    venvs=[
+                        Venv(pys=select_pys(max_version="3.5")),
+                        Venv(
+                            pkgs={
+                                "six": "==1.12.0",
+                            },
+                            venvs=[
+                                # DEV: attrs marked Python 3.6 as deprecated in 22.2.0,
+                                #      this logs a warning and causes these tests to fail
+                                # https://www.attrs.org/en/22.2.0/changelog.html#id1
+                                Venv(pys="3.6", pkgs={"attrs": "<22.2.0"}),
+                                Venv(pys="3.7"),
+                            ],
+                        ),
+                        Venv(pys=select_pys(min_version="3.8")),
                     ],
                 ),
             ],
@@ -2247,7 +2279,10 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.7", max_version="3.9"),
                     pkgs={
-                        "sanic": ["~=21.3", "~=21.12"],
+                        "sanic": [
+                            "~=21.3",
+                            "~=21.12",
+                        ],
                         "sanic-testing": "~=0.8.3",
                     },
                 ),
@@ -2262,7 +2297,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.7", max_version="3.10"),
                     pkgs={
-                        "sanic": ["~=22.3", "~=22.12"],
+                        "sanic": ["~=22.3", "~=22.12", latest],
                         "sanic-testing": "~=22.3.0",
                     },
                 ),
@@ -2270,7 +2305,7 @@ venv = Venv(
                     # sanic added support for Python 3.11 in 22.12.0
                     pys="3.11",
                     pkgs={
-                        "sanic": "~=22.12.0",
+                        "sanic": ["~=22.12.0", latest],
                         "sanic-testing": "~=22.3.0",
                     },
                 ),
@@ -2723,6 +2758,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/molten",
             pys=select_pys(min_version="3.6"),
             pkgs={
+                "cattrs": ["<23.1.1"],
                 "molten": [">=1.0,<1.1", latest],
             },
         ),
@@ -2743,6 +2779,10 @@ venv = Venv(
         ),
         Venv(
             name="kafka",
+            env={
+                "_DD_TRACE_STATS_WRITER_INTERVAL": "1000000000",
+                "DD_DATA_STREAMS_ENABLED": "true",
+            },
             venvs=[
                 Venv(
                     command="pytest {cmdargs} tests/contrib/kafka",

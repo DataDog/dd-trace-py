@@ -103,11 +103,12 @@ else:
     assert err == b""
 
 
+@pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
 @pytest.mark.snapshot(async_mode=False)
-def test_configure_global_service_name_env(ddtrace_run_python_code_in_subprocess):
+def test_configure_global_service_name_env(ddtrace_run_python_code_in_subprocess, schema_version):
     """
-    When only setting DD_SERVICE
-        The value from DD_SERVICE is used
+    default/v0/v1 schemas: When only setting DD_SERVICE
+        The value from DD_SERVICE is used for all schemas
     """
     code = """
 import asyncio
@@ -126,6 +127,38 @@ else:
     """
     env = os.environ.copy()
     env["DD_SERVICE"] = "global-service-name"
+    if schema_version is not None:
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
+    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
+    assert status == 0, err
+    assert err == b""
+
+
+@pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
+@pytest.mark.snapshot(async_mode=False)
+def test_unspecified_service_name_env(ddtrace_run_python_code_in_subprocess, schema_version):
+    """
+    default (v0 schema): When only setting DD_SERVICE
+        The value from DD_SERVICE is used
+    """
+    code = """
+import asyncio
+import sys
+import aiohttp
+from tests.contrib.aiohttp.test_aiohttp_client import URL_200
+async def test():
+    async with aiohttp.ClientSession() as session:
+        async with session.get(URL_200) as resp:
+            pass
+
+if sys.version_info >= (3, 7, 0):
+    asyncio.run(test())
+else:
+    asyncio.get_event_loop().run_until_complete(test())
+    """
+    env = os.environ.copy()
+    if schema_version is not None:
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, err
     assert err == b""

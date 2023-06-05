@@ -30,7 +30,7 @@ else:
     UNICODE_ENDPOINT = u"üŋïĉóđē"
 
 
-class TestApp:
+class StubApp:
     """Sample request handler class."""
 
     def __init__(self):
@@ -94,4 +94,4 @@ if __name__ == "__main__":
     # CherryPy always starts with app.root when trying to map request URIs
     # to objects, so we need to mount a request handler root. A request
     # to '/' will be mapped to HelloWorld().index().
-    cherrypy.quickstart(TestApp(), config=testconf)
+    cherrypy.quickstart(StubApp(), config=testconf)
