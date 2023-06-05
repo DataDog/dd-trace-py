@@ -35,6 +35,8 @@ from .internal import hostname
 from .internal.dogstatsd import get_dogstatsd_client
 from .internal.logger import get_logger
 from .internal.logger import hasHandlers
+from .internal.peer_service.processor import PEER_SERVICE_ENABLED
+from .internal.peer_service.processor import PeerServiceProcessor
 from .internal.processor import SpanProcessor
 from .internal.processor.trace import SpanAggregator
 from .internal.processor.trace import SpanSamplingProcessor
@@ -136,6 +138,7 @@ def _default_span_processors_factory(
     single_span_sampling_rules,  # type: List[SpanSamplingRule]
     agent_url,  # type: str
     profiling_span_processor,  # type: EndpointCallCounterProcessor
+    peer_service_enabled,  # type: bool
 ):
     # type: (...) -> Tuple[List[SpanProcessor], Optional[Any], List[SpanProcessor]]
     # FIXME: type should be AppsecSpanProcessor but we have a cyclic import here
@@ -175,6 +178,9 @@ def _default_span_processors_factory(
 
     if single_span_sampling_rules:
         span_processors.append(SpanSamplingProcessor(single_span_sampling_rules))
+
+    if peer_service_enabled:
+        span_processors.append(PeerServiceProcessor())
 
     # These need to run after all the other processors
     deferred_processors = [
@@ -262,6 +268,7 @@ class Tracer(object):
         self._appsec_processor = None
         self._iast_enabled = config._iast_enabled
         self._endpoint_call_counter_span_processor = EndpointCallCounterProcessor()
+        self._peer_service_enabled = PEER_SERVICE_ENABLED
         self._span_processors, self._appsec_processor, self._deferred_processors = _default_span_processors_factory(
             self._filters,
             self._writer,
@@ -273,6 +280,7 @@ class Tracer(object):
             self._single_span_sampling_rules,
             self._agent_url,
             self._endpoint_call_counter_span_processor,
+            self._peer_service_enabled,
         )
         if config._data_streams_enabled:
             # Inline the import to avoid pulling in ddsketch or protobuf
@@ -515,6 +523,7 @@ class Tracer(object):
                 self._single_span_sampling_rules,
                 self._agent_url,
                 self._endpoint_call_counter_span_processor,
+                self._peer_service_enabled,
             )
 
         if context_provider is not None:
@@ -564,6 +573,7 @@ class Tracer(object):
             self._single_span_sampling_rules,
             self._agent_url,
             self._endpoint_call_counter_span_processor,
+            self._peer_service_enabled,
         )
 
         self._new_process = True

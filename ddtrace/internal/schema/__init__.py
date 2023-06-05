@@ -34,6 +34,7 @@ schematize_url_operation = _SPAN_ATTRIBUTE_TO_FUNCTION[__schema_version]["url_op
 
 __all__ = [
     "DEFAULT_SPAN_SERVICE_NAME",
+    "SCHEMA_VERSION",
     "schematize_service_name",
     "schematize_database_operation",
     "schematize_cache_operation",
