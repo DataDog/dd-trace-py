@@ -21,6 +21,7 @@
       "openai.request.model": "whisper-1",
       "openai.request.prompt": "and when I've given up,",
       "openai.request.response_format": "text",
+      "openai.request.user": "ddtrace-test",
       "openai.response.text": "when I've had enough of running after.\\n",
       "openai.user.api_key": "sk-...key>",
       "runtime-id": "4fcef2d554164afba532cc2998492162"

@@ -72,6 +72,7 @@ def request_api_key(api_key_in_env, openai_api_key):
 
 @pytest.fixture
 def openai_api_key():
+    return "<not-a-real-key>"
     return os.getenv("OPENAI_API_KEY", "<not-a-real-key>")
 
 
@@ -225,9 +226,7 @@ def test_patching(openai):
 def test_model_list(api_key_in_env, request_api_key, openai, openai_vcr, mock_metrics, snapshot_tracer):
     with snapshot_context(token="tests.contrib.openai.test_openai.test_model_list", ignores=["meta.http.useragent"]):
         with openai_vcr.use_cassette("model_list.yaml"):
-            openai.Model.list(
-                api_key=request_api_key,
-            )
+            openai.Model.list(api_key=request_api_key, user="ddtrace-test")
 
 
 @pytest.mark.asyncio
@@ -235,9 +234,7 @@ def test_model_list(api_key_in_env, request_api_key, openai, openai_vcr, mock_me
 async def test_model_alist(api_key_in_env, request_api_key, openai, openai_vcr, mock_metrics, snapshot_tracer):
     with snapshot_context(token="tests.contrib.openai.test_openai.test_model_list", ignores=["meta.http.useragent"]):
         with openai_vcr.use_cassette("model_alist.yaml"):
-            await openai.Model.alist(
-                api_key=request_api_key,
-            )
+            await openai.Model.alist(api_key=request_api_key, user="ddtrace-test")
 
 
 @pytest.mark.parametrize("api_key_in_env", [True, False])
@@ -246,10 +243,7 @@ def test_model_retrieve(api_key_in_env, request_api_key, openai, openai_vcr, moc
         token="tests.contrib.openai.test_openai.test_model_retrieve", ignores=["meta.http.useragent"]
     ):
         with openai_vcr.use_cassette("model_retrieve.yaml"):
-            openai.Model.retrieve(
-                "curie",
-                api_key=request_api_key,
-            )
+            openai.Model.retrieve("curie", api_key=request_api_key, user="ddtrace-test")
 
 
 @pytest.mark.asyncio
@@ -259,10 +253,7 @@ async def test_model_aretrieve(api_key_in_env, request_api_key, openai, openai_v
         token="tests.contrib.openai.test_openai.test_model_retrieve", ignores=["meta.http.useragent"]
     ):
         with openai_vcr.use_cassette("model_aretrieve.yaml"):
-            await openai.Model.aretrieve(
-                "curie",
-                api_key=request_api_key,
-            )
+            await openai.Model.aretrieve("curie", api_key=request_api_key, user="ddtrace-test")
 
 
 @pytest.mark.parametrize("api_key_in_env", [True, False])
@@ -277,6 +268,7 @@ def test_completion(api_key_in_env, request_api_key, openai, openai_vcr, mock_me
                 n=2,
                 stop=".",
                 max_tokens=10,
+                user="ddtrace-test",
             )
 
         assert resp["object"] == "text_completion"
@@ -359,6 +351,7 @@ async def test_acompletion(
                 temperature=0.8,
                 n=1,
                 max_tokens=150,
+                user="ddtrace-test",
             )
         assert resp["object"] == "text_completion"
         assert resp["choices"] == [
@@ -463,7 +456,9 @@ def test_logs_completions(openai_vcr, openai, ddtrace_config_openai, mock_logs, 
     Also ensure the logs have the correct tagging including the trace-logs correlation tagging.
     """
     with openai_vcr.use_cassette("completion.yaml"):
-        openai.Completion.create(model="ada", prompt="Hello world", temperature=0.8, n=2, stop=".", max_tokens=10)
+        openai.Completion.create(
+            model="ada", prompt="Hello world", temperature=0.8, n=2, stop=".", max_tokens=10, user="ddtrace-test"
+        )
     span = mock_tracer.pop_traces()[0][0]
     trace_id, span_id = span.trace_id, span.span_id
 
@@ -505,7 +500,9 @@ def test_global_tags(openai_vcr, ddtrace_config_openai, openai, mock_metrics, mo
     """
     with override_global_config(dict(service="test-svc", env="staging", version="1234")):
         with openai_vcr.use_cassette("completion.yaml"):
-            openai.Completion.create(model="ada", prompt="Hello world", temperature=0.8, n=2, stop=".", max_tokens=10)
+            openai.Completion.create(
+                model="ada", prompt="Hello world", temperature=0.8, n=2, stop=".", max_tokens=10, user="ddtrace-test"
+            )
 
     span = mock_tracer.pop_traces()[0][0]
     assert span.service == "test-svc"
@@ -562,6 +559,7 @@ def test_chat_completion(api_key_in_env, request_api_key, openai, openai_vcr, sn
                 ],
                 top_p=0.9,
                 n=2,
+                user="ddtrace-test",
             )
 
 
@@ -569,7 +567,9 @@ def test_chat_completion(api_key_in_env, request_api_key, openai, openai_vcr, sn
 def test_enable_metrics(openai, openai_vcr, ddtrace_config_openai, mock_metrics, mock_tracer):
     """Ensure the metrics_enabled configuration works."""
     with openai_vcr.use_cassette("completion.yaml"):
-        openai.Completion.create(model="ada", prompt="Hello world", temperature=0.8, n=2, stop=".", max_tokens=10)
+        openai.Completion.create(
+            model="ada", prompt="Hello world", temperature=0.8, n=2, stop=".", max_tokens=10, user="ddtrace-test"
+        )
     if ddtrace_config_openai["metrics_enabled"]:
         assert mock_metrics.mock_calls
     else:
@@ -596,6 +596,7 @@ async def test_achat_completion(api_key_in_env, request_api_key, openai, openai_
                 ],
                 top_p=0.9,
                 n=2,
+                user="ddtrace-test",
             )
 
 
@@ -612,6 +613,7 @@ def test_edit(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_trac
                 instruction="fix spelling mistakes",
                 n=3,
                 temperature=0.2,
+                user="ddtrace-test",
             )
 
 
@@ -629,6 +631,7 @@ async def test_aedit(api_key_in_env, request_api_key, openai, openai_vcr, snapsh
                 instruction="fix spelling mistakes",
                 n=3,
                 top_p=0.3,
+                user="ddtrace-test",
             )
 
 
@@ -644,6 +647,7 @@ def test_image_create(api_key_in_env, request_api_key, openai, openai_vcr, snaps
                 n=1,
                 size="256x256",
                 response_format="url",
+                user="ddtrace-test",
             )
 
 
@@ -660,6 +664,7 @@ async def test_image_acreate(api_key_in_env, request_api_key, openai, openai_vcr
                 n=1,
                 size="256x256",
                 response_format="url",
+                user="ddtrace-test",
             )
 
 
@@ -680,6 +685,7 @@ def test_image_edit(api_key_in_env, request_api_key, openai, openai_vcr, snapsho
                 prompt="A sunlit indoor lounge area with a pool containing a flamingo",
                 size="256x256",
                 response_format="url",
+                user="ddtrace-test",
             )
 
 
@@ -701,6 +707,7 @@ async def test_image_aedit(api_key_in_env, request_api_key, openai, openai_vcr, 
                 prompt="A sunlit indoor lounge area with a pool containing a flamingo",
                 size="256x256",
                 response_format="url",
+                user="ddtrace-test",
             )
 
 
@@ -719,6 +726,7 @@ def test_image_variation(api_key_in_env, request_api_key, openai, openai_vcr, sn
                 n=1,
                 size="256x256",
                 response_format="url",
+                user="ddtrace-test",
             )
 
 
@@ -738,6 +746,7 @@ async def test_image_avariation(api_key_in_env, request_api_key, openai, openai_
                 n=1,
                 size="256x256",
                 response_format="url",
+                user="ddtrace-test",
             )
 
 
@@ -755,6 +764,7 @@ def test_image_edit_binary_input(openai, openai_vcr, snapshot_tracer):
             prompt="A sunlit indoor lounge area with a pool containing a flamingo",
             size="256x256",
             response_format="url",
+            user="ddtrace-test",
         )
 
 
@@ -764,7 +774,11 @@ def test_image_b64_json_response(openai, openai_vcr, snapshot_tracer):
         pytest.skip("image not supported for this version of openai")
     with openai_vcr.use_cassette("image_create_b64_json.yaml"):
         openai.Image.create(
-            prompt="sleepy capybara with monkey on top", n=1, size="256x256", response_format="b64_json"
+            prompt="sleepy capybara with monkey on top",
+            n=1,
+            size="256x256",
+            response_format="b64_json",
+            user="ddtrace-test",
         )
 
 
@@ -774,7 +788,9 @@ def test_embedding(api_key_in_env, request_api_key, openai, openai_vcr, snapshot
         pytest.skip("embedding not supported for this version of openai")
     with snapshot_context(token="tests.contrib.openai.test_openai.test_embedding", ignores=["meta.http.useragent"]):
         with openai_vcr.use_cassette("embedding.yaml"):
-            openai.Embedding.create(api_key=request_api_key, input="hello world", model="text-embedding-ada-002")
+            openai.Embedding.create(
+                api_key=request_api_key, input="hello world", model="text-embedding-ada-002", user="ddtrace-test"
+            )
 
 
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
@@ -782,7 +798,9 @@ def test_embedding_string_array(openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "Embedding"):
         pytest.skip("embedding not supported for this version of openai")
     with openai_vcr.use_cassette("embedding_string_array.yaml"):
-        openai.Embedding.create(input=["hello world", "hello again"], model="text-embedding-ada-002")
+        openai.Embedding.create(
+            input=["hello world", "hello again"], model="text-embedding-ada-002", user="ddtrace-test"
+        )
 
 
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
@@ -790,7 +808,7 @@ def test_embedding_token_array(openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "Embedding"):
         pytest.skip("embedding not supported for this version of openai")
     with openai_vcr.use_cassette("embedding_token_array.yaml"):
-        openai.Embedding.create(input=[1111, 2222, 3333], model="text-embedding-ada-002")
+        openai.Embedding.create(input=[1111, 2222, 3333], model="text-embedding-ada-002", user="ddtrace-test")
 
 
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
@@ -799,7 +817,9 @@ def test_embedding_array_of_token_arrays(openai, openai_vcr, snapshot_tracer):
         pytest.skip("embedding not supported for this version of openai")
     with openai_vcr.use_cassette("embedding_array_of_token_arrays.yaml"):
         openai.Embedding.create(
-            input=[[1111, 2222, 3333], [4444, 5555, 6666], [7777, 8888, 9999]], model="text-embedding-ada-002"
+            input=[[1111, 2222, 3333], [4444, 5555, 6666], [7777, 8888, 9999]],
+            model="text-embedding-ada-002",
+            user="ddtrace-test",
         )
 
 
@@ -810,7 +830,9 @@ async def test_aembedding(api_key_in_env, request_api_key, openai, openai_vcr, s
         pytest.skip("embedding not supported for this version of openai")
     with snapshot_context(token="tests.contrib.openai.test_openai.test_aembedding", ignores=["meta.http.useragent"]):
         with openai_vcr.use_cassette("embedding_async.yaml"):
-            await openai.Embedding.acreate(api_key=request_api_key, input="hello world", model="text-embedding-ada-002")
+            await openai.Embedding.acreate(
+                api_key=request_api_key, input="hello world", model="text-embedding-ada-002", user="ddtrace-test"
+            )
 
 
 @pytest.mark.parametrize("api_key_in_env", [True, False])
@@ -832,6 +854,7 @@ def test_transcribe(api_key_in_env, request_api_key, openai, openai_vcr, snapsho
                 prompt="what's that over there?",
                 temperature=0.3,
                 language="en",
+                user="ddtrace-test",
             )
 
 
@@ -855,6 +878,7 @@ async def test_atranscribe(api_key_in_env, request_api_key, openai, openai_vcr, 
                 prompt="what's that over there?",
                 temperature=0.7,
                 language="en",
+                user="ddtrace-test",
             )
 
 
@@ -875,6 +899,7 @@ def test_translate(api_key_in_env, request_api_key, openai, openai_vcr, snapshot
                 model="whisper-1",
                 response_format="verbose_json",
                 prompt="and when I've given up,",
+                user="ddtrace-test",
             )
 
 
@@ -896,6 +921,7 @@ async def test_atranslate(api_key_in_env, request_api_key, openai, openai_vcr, s
                 model="whisper-1",
                 response_format="text",
                 prompt="and when I've given up,",
+                user="ddtrace-test",
             )
 
 
@@ -908,9 +934,7 @@ def test_file_list(api_key_in_env, request_api_key, openai, openai_vcr, snapshot
         ignores=["meta.http.useragent"],
     ):
         with openai_vcr.use_cassette("file_list.yaml"):
-            openai.File.list(
-                api_key=request_api_key,
-            )
+            openai.File.list(api_key=request_api_key, user="ddtrace-test")
 
 
 @pytest.mark.asyncio
@@ -923,9 +947,7 @@ async def test_file_alist(api_key_in_env, request_api_key, openai, openai_vcr, s
         ignores=["meta.http.useragent"],
     ):
         with openai_vcr.use_cassette("file_alist.yaml"):
-            await openai.File.alist(
-                api_key=request_api_key,
-            )
+            await openai.File.alist(api_key=request_api_key, user="ddtrace-test")
 
 
 @pytest.mark.parametrize("api_key_in_env", [True, False])
@@ -975,6 +997,7 @@ def test_file_delete(api_key_in_env, request_api_key, openai, openai_vcr, snapsh
             openai.File.delete(
                 sid="file-l48KgWVF75Tz2HLqLrcUdBPi",
                 api_key=request_api_key,
+                user="ddtrace-test",
             )
 
 
@@ -991,6 +1014,7 @@ async def test_file_adelete(api_key_in_env, request_api_key, openai, openai_vcr,
             await openai.File.adelete(
                 sid="file-EArCuhXNtaTrFoPEKAmrVbnQ",
                 api_key=request_api_key,
+                user="ddtrace-test",
             )
 
 
@@ -1006,6 +1030,7 @@ def test_file_retrieve(api_key_in_env, request_api_key, openai, openai_vcr, snap
             openai.File.retrieve(
                 id="file-Aeh42OWPtbWgt7gfUjXBVFAF",
                 api_key=request_api_key,
+                user="ddtrace-test",
             )
 
 
@@ -1022,6 +1047,7 @@ async def test_file_aretrieve(api_key_in_env, request_api_key, openai, openai_vc
             await openai.File.aretrieve(
                 id="file-Aeh42OWPtbWgt7gfUjXBVFAF",
                 api_key=request_api_key,
+                user="ddtrace-test",
             )
 
 
@@ -1068,6 +1094,7 @@ def test_fine_tune_list(api_key_in_env, request_api_key, openai, openai_vcr, sna
         with openai_vcr.use_cassette("fine_tune_list.yaml"):
             openai.FineTune.list(
                 api_key=request_api_key,
+                user="ddtrace-test",
             )
 
 
@@ -1083,6 +1110,7 @@ async def test_fine_tune_alist(api_key_in_env, request_api_key, openai, openai_v
         with openai_vcr.use_cassette("fine_tune_alist.yaml"):
             await openai.FineTune.alist(
                 api_key=request_api_key,
+                user="ddtrace-test",
             )
 
 
@@ -1143,6 +1171,7 @@ def test_fine_tune_retrieve(api_key_in_env, request_api_key, openai, openai_vcr,
             openai.FineTune.retrieve(
                 id="ft-sADEaavxRFrjOQ65XkQKm0zM",
                 api_key=request_api_key,
+                user="ddtrace-test",
             )
 
 
@@ -1159,6 +1188,7 @@ async def test_fine_tune_aretrieve(api_key_in_env, request_api_key, openai, open
             await openai.FineTune.aretrieve(
                 id="ft-sADEaavxRFrjOQ65XkQKm0zM",
                 api_key=request_api_key,
+                user="ddtrace-test",
             )
 
 
@@ -1174,6 +1204,7 @@ def test_fine_tune_cancel(api_key_in_env, request_api_key, openai, openai_vcr, s
             openai.FineTune.cancel(
                 id="ft-N6ggcFNqJNuREixR9ShDWzST",
                 api_key=request_api_key,
+                user="ddtrace-test",
             )
 
 
@@ -1190,6 +1221,7 @@ async def test_fine_tune_acancel(api_key_in_env, request_api_key, openai, openai
             await openai.FineTune.acancel(
                 id="ft-bN1JASRDOPzKeN7zQ8aJ7hVF",
                 api_key=request_api_key,
+                user="ddtrace-test",
             )
 
 
@@ -1205,6 +1237,7 @@ def test_fine_tune_delete(api_key_in_env, request_api_key, openai, openai_vcr, s
             openai.Model.delete(
                 sid="babbage:ft-datadog:dummy-fine-tune-model-2023-06-01-23-15-52",
                 api_key=request_api_key,
+                user="ddtrace-test",
             )
 
 
@@ -1221,6 +1254,7 @@ async def test_fine_tune_adelete(api_key_in_env, request_api_key, openai, openai
             await openai.Model.adelete(
                 sid="babbage:ft-datadog:dummy-fine-tune-model-2023-06-01-23-15-52",
                 api_key=request_api_key,
+                user="ddtrace-test",
             )
 
 
@@ -1233,7 +1267,9 @@ def test_fine_tune_list_events(api_key_in_env, request_api_key, openai, openai_v
         ignores=["meta.http.useragent"],
     ):
         with openai_vcr.use_cassette("fine_tune_list_events.yaml"):
-            openai.FineTune.list_events(id="ft-N6ggcFNqJNuREixR9ShDWzST", api_key=request_api_key, stream=False)
+            openai.FineTune.list_events(
+                id="ft-N6ggcFNqJNuREixR9ShDWzST", api_key=request_api_key, stream=False, user="ddtrace-test"
+            )
 
 
 @pytest.mark.parametrize("api_key_in_env", [True, False])
@@ -1347,6 +1383,7 @@ def test_chat_completion_stream(openai, openai_vcr, mock_metrics, snapshot_trace
                 {"role": "user", "content": "Who won the world series in 2020?"},
             ],
             stream=True,
+            user="ddtrace-test",
         )
         span = snapshot_tracer.current_span()
         chunks = [c for c in resp]
@@ -1388,6 +1425,7 @@ async def test_chat_completion_async_stream(openai, openai_vcr, mock_metrics, sn
                 {"role": "user", "content": "Who is the captain of the toronto maple leafs?"},
             ],
             stream=True,
+            user="ddtrace-test",
         )
         span = snapshot_tracer.current_span()
         chunks = [c async for c in resp]

@@ -330,6 +330,7 @@ class _ListHook(_EndpointHook):
     """
 
     _request_arg_params = ("cls", "api_key", "request_id", "api_version", "organization", "api_base", "api_type")
+    _request_kwarg_params = ("user",)
     _prompt_completion = False
     ENDPOINT_NAME = None
     REQUEST_TYPE = "GET"
@@ -355,6 +356,7 @@ class _RetrieveHook(_EndpointHook):
     """Hook for openai.APIResource, which is used by Model.retrieve, File.retrieve, and FineTune.retrieve."""
 
     _request_arg_params = ("cls", "id", "api_key", "request_id", "request_timeout")
+    _request_kwarg_params = ("user",)
     _prompt_completion = False
     ENDPOINT_NAME = None
     REQUEST_TYPE = "GET"
@@ -408,6 +410,7 @@ class _DeleteHook(_EndpointHook):
     """Hook for openai.DeletableAPIResource, which is used by File.delete, and Model.delete."""
 
     _request_arg_params = ("cls", "sid", "api_type", "api_version")
+    _request_kwarg_params = ("user",)
     _prompt_completion = False
     ENDPOINT_NAME = None
     REQUEST_TYPE = "DELETE"
@@ -440,6 +443,7 @@ class _EditHook(_EndpointHook):
         "n",
         "temperature",
         "top_p",
+        "user",
     )
     _prompt_completion = True
     ENDPOINT_NAME = "/edits"
@@ -590,6 +594,7 @@ class _AudioTranscriptionHook(_BaseAudioHook):
         "response_format",
         "temperature",
         "language",
+        "user",
     )
     ENDPOINT_NAME = "/audio/transcriptions"
     OPERATION_ID = "createTranscription"
@@ -600,6 +605,7 @@ class _AudioTranslationHook(_BaseAudioHook):
         "prompt",
         "response_format",
         "temperature",
+        "user",
     )
     ENDPOINT_NAME = "/audio/translations"
     OPERATION_ID = "createTranslation"
@@ -735,7 +741,8 @@ class _FineTuneCreateHook(_BaseFineTuneHook):
 
 
 class _FineTuneCancelHook(_BaseFineTuneHook):
-    _request_arg_params = ["cls", "id", "api_key", "api_type", "request_id", "api_version"]
+    _request_arg_params = ("cls", "id", "api_key", "api_type", "request_id", "api_version")
+    _request_kwarg_params = ("user",)
     ENDPOINT_NAME = "/fine-tunes/cancel"
     REQUEST_TYPE = "POST"
     OPERATION_ID = "cancelFineTune"
@@ -743,7 +750,7 @@ class _FineTuneCancelHook(_BaseFineTuneHook):
 
 class _FineTuneListEventsHook(_BaseFineTuneHook):
     _request_arg_params = ("cls", "id")
-    _request_kwarg_params = ("stream",)
+    _request_kwarg_params = ("stream", "user")
     ENDPOINT_NAME = "/fine-tunes/events"
     REQUEST_TYPE = "GET"
     OPERATION_ID = "listFineTuneEvents"

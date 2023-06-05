@@ -30,6 +30,7 @@
       "openai.request.messages.3.role": "user",
       "openai.request.method": "POST",
       "openai.request.model": "gpt-3.5-turbo",
+      "openai.request.user": "ddtrace-test",
       "openai.response.choices.0.finish_reason": "stop",
       "openai.response.choices.0.message.content": "The 2020 World Series was played in Arlington, Texas at Globe Life Field.",
       "openai.response.choices.0.message.name": "None",

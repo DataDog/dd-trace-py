@@ -18,6 +18,7 @@
       "openai.request.id": "ft-N6ggcFNqJNuREixR9ShDWzST",
       "openai.request.method": "GET",
       "openai.request.stream": "False",
+      "openai.request.user": "ddtrace-test",
       "openai.user.api_key": "sk-...key>",
       "runtime-id": "bc786460a6d248c69ea71d573329c26f"
     },

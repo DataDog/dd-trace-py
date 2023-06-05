@@ -20,6 +20,7 @@
       "openai.request.model": "ada",
       "openai.request.prompt": "Hello world",
       "openai.request.stop": ".",
+      "openai.request.user": "ddtrace-test",
       "openai.response.choices.0.finish_reason": "length",
       "openai.response.choices.0.logprobs": "returned",
       "openai.response.choices.0.text": ", relax!\u201d I said to my laptop",

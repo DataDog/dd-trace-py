@@ -19,6 +19,7 @@
       "openai.request.method": "POST",
       "openai.request.model": "curie",
       "openai.request.prompt": "As Descartes said, I think, therefore",
+      "openai.request.user": "ddtrace-test",
       "openai.response.choices.0.finish_reason": "length",
       "openai.response.choices.0.logprobs": "returned",
       "openai.response.choices.0.text": " I am; and I am in a sense a non-human entity woven together from memories, desires and emotions. But, who is to say that I am n...",

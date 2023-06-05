@@ -20,6 +20,7 @@
       "openai.request.prompt": "sleepy capybara with monkey on top",
       "openai.request.response_format": "url",
       "openai.request.size": "256x256",
+      "openai.request.user": "ddtrace-test",
       "openai.response.images.0.url": "https://oaidalleapiprodscus.blob.core.windows.net/private/org-OS4zcsDN8sF8E8CdhxgMkBV4/user-uYJDLWPStCQHcYnk3EXTJvGk/img-ZLW2TDa...",
       "openai.user.api_key": "sk-...key>",
       "runtime-id": "c03cff36c0d341c9908d8ddc480ceed3"

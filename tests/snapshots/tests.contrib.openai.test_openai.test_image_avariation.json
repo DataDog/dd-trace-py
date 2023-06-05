@@ -20,6 +20,7 @@
       "openai.request.method": "POST",
       "openai.request.response_format": "url",
       "openai.request.size": "256x256",
+      "openai.request.user": "ddtrace-test",
       "openai.response.images.0.url": "https://oaidalleapiprodscus.blob.core.windows.net/private/org-OS4zcsDN8sF8E8CdhxgMkBV4/user-uYJDLWPStCQHcYnk3EXTJvGk/img-kU6j7Q7...",
       "openai.user.api_key": "sk-...key>",
       "runtime-id": "478dad56e5ee4e02b846728086e4420e"

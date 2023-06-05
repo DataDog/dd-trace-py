@@ -20,6 +20,7 @@
       "openai.request.instruction": "fix spelling mistakes",
       "openai.request.method": "POST",
       "openai.request.model": "text-davinci-edit-001",
+      "openai.request.user": "ddtrace-test",
       "openai.response.choices.0.text": "this is a spelling mistake.\\n",
       "openai.response.choices.1.text": "this is a spelling mistake.\\n",
       "openai.response.choices.2.text": "this is a spelling mistake.\\n",

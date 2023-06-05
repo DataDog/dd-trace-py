@@ -16,6 +16,7 @@
       "openai.api_type": "open_ai",
       "openai.request.endpoint": "/fine-tunes",
       "openai.request.method": "GET",
+      "openai.request.user": "ddtrace-test",
       "openai.user.api_key": "sk-...key>",
       "runtime-id": "8e292b69ace04158a16bbe599dba8b14"
     },

@@ -17,6 +17,7 @@
       "openai.organization.name": "datadog-4",
       "openai.request.endpoint": "/files",
       "openai.request.method": "GET",
+      "openai.request.user": "ddtrace-test",
       "openai.user.api_key": "sk-...key>",
       "runtime-id": "a271e6bf495f45e5bece0c4d16ae305a"
     },

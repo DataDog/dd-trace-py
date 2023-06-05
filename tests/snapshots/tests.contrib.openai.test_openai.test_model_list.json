@@ -16,6 +16,7 @@
       "openai.api_type": "open_ai",
       "openai.request.endpoint": "/models",
       "openai.request.method": "GET",
+      "openai.request.user": "ddtrace-test",
       "openai.user.api_key": "sk-...key>",
       "runtime-id": "d16efe5948f64f2aaba8411d6653c56c"
     },

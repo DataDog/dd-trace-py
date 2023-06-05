@@ -22,6 +22,7 @@
       "openai.request.model": "whisper-1",
       "openai.request.prompt": "what's that over there?",
       "openai.request.response_format": "verbose_json",
+      "openai.request.user": "ddtrace-test",
       "openai.response.language": "english",
       "openai.response.text": "Look at all those chickens!",
       "openai.user.api_key": "sk-...key>",

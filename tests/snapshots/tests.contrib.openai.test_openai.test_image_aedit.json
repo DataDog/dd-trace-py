@@ -22,6 +22,7 @@
       "openai.request.prompt": "A sunlit indoor lounge area with a pool containing a flamingo",
       "openai.request.response_format": "url",
       "openai.request.size": "256x256",
+      "openai.request.user": "ddtrace-test",
       "openai.response.images.0.url": "https://oaidalleapiprodscus.blob.core.windows.net/private/org-OS4zcsDN8sF8E8CdhxgMkBV4/user-uYJDLWPStCQHcYnk3EXTJvGk/img-UfuJdvX...",
       "openai.user.api_key": "sk-...key>",
       "runtime-id": "892a43f5861a411f9cc03dc576921389"
