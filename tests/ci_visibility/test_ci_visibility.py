@@ -249,7 +249,7 @@ def test_git_client_worker_evp_proxy(_do_request, git_repo):
                 CIVisibility.enable(tracer=dummy_tracer, service="test-service")
                 assert CIVisibility._instance._git_client is not None
                 assert CIVisibility._instance._git_client._worker is not None
-                assert CIVisibility._instance._git_client._base_url == "evp_proxy/v2/api/v2/git"
+                assert CIVisibility._instance._git_client._base_url == "http://localhost:8126/evp_proxy/v2/api/v2/git"
                 CIVisibility.disable()
     shutdown_timeout = dummy_tracer.SHUTDOWN_TIMEOUT
     assert (
@@ -392,9 +392,9 @@ def test_civisibilitywriter_coverage_evp_proxy_url():
         dummy_writer = DummyCIVisibilityWriter(use_evp=True)
 
         test_client = dummy_writer._clients[0]
-        assert test_client.ENDPOINT == "evp_proxy/v2/api/v2/citestcycle"
+        assert test_client.ENDPOINT == "/evp_proxy/v2/api/v2/citestcycle"
         cov_client = dummy_writer._clients[1]
-        assert cov_client.ENDPOINT == "evp_proxy/v2/api/v2/citestcov"
+        assert cov_client.ENDPOINT == "/evp_proxy/v2/api/v2/citestcov"
 
         with mock.patch("ddtrace.internal.writer.writer.get_connection") as _get_connection:
             dummy_writer._put("", {}, cov_client)
