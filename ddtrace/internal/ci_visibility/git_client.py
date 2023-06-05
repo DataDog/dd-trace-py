@@ -16,6 +16,7 @@ from ddtrace.ext.git import get_rev_list_excluding_commits
 from ddtrace.internal.agent import get_trace_url
 from ddtrace.internal.compat import JSONDecodeError
 from ddtrace.internal.logger import get_logger
+from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 
 from .. import compat
 from ..utils.http import Response
@@ -46,10 +47,12 @@ class CIVisibilityGitClient(object):
         app_key,
         requests_mode=REQUESTS_MODE.AGENTLESS_EVENTS,
         base_url="",
+        dd_trace_id=None,
     ):
-        # type: (str, str, int, str) -> None
+        # type: (str, str, int, str, Optional[str]) -> None
         self._serializer = CIVisibilityGitClientSerializerV1(api_key, app_key)
         self._worker = None  # type: Optional[Thread]
+        self._trace_id = dd_trace_id
         self._response = RESPONSE
         self._requests_mode = requests_mode
         if self._requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS:
@@ -62,7 +65,7 @@ class CIVisibilityGitClient(object):
         if self._worker is None:
             self._worker = Thread(
                 target=CIVisibilityGitClient._run_protocol,
-                args=(self._serializer, self._requests_mode, self._base_url, self._response),
+                args=(self._serializer, self._requests_mode, self._base_url, self._trace_id, self._response),
                 kwargs={"cwd": cwd},
             )
             self._worker.start()
@@ -74,11 +77,13 @@ class CIVisibilityGitClient(object):
             self._worker = None
 
     @classmethod
-    def _run_protocol(cls, serializer, requests_mode, base_url, _response, cwd=None):
-        # type: (CIVisibilityGitClientSerializerV1, int, str, Optional[Response], Optional[str]) -> None
+    def _run_protocol(cls, serializer, requests_mode, base_url, trace_id, _response, cwd=None):
+        # type: (CIVisibilityGitClientSerializerV1, int, str, str, Optional[Response], Optional[str]) -> None
         repo_url = cls._get_repository_url(cwd=cwd)
         latest_commits = cls._get_latest_commits(cwd=cwd)
-        backend_commits = cls._search_commits(requests_mode, base_url, repo_url, latest_commits, serializer, _response)
+        backend_commits = cls._search_commits(
+            requests_mode, base_url, repo_url, latest_commits, serializer, trace_id, _response
+        )
         rev_list = cls._get_filtered_revisions(backend_commits, cwd=cwd)
         if rev_list:
             with cls._build_packfiles(rev_list, cwd=cwd) as packfiles_prefix:
@@ -97,18 +102,24 @@ class CIVisibilityGitClient(object):
         return extract_latest_commits(cwd=cwd)
 
     @classmethod
-    def _search_commits(cls, requests_mode, base_url, repo_url, latest_commits, serializer, _response):
-        # type: (int, str, str, list[str], CIVisibilityGitClientSerializerV1, Optional[Response]) -> list[str]
+    def _search_commits(cls, requests_mode, base_url, repo_url, latest_commits, serializer, trace_id, _response):
+        # type: (int, str, str, list[str], CIVisibilityGitClientSerializerV1, str, Optional[Response]) -> list[str]
         payload = serializer.search_commits_encode(repo_url, latest_commits)
-        response = _response or cls.retry_request(requests_mode, base_url, "/search_commits", payload, serializer)
+        response = _response or cls.retry_request(
+            requests_mode, base_url, "/search_commits", payload, serializer, trace_id
+        )
         result = serializer.search_commits_decode(response.body)
         return result
 
     @classmethod
-    def _do_request(cls, requests_mode, base_url, endpoint, payload, serializer, headers=None):
-        # type: (int, str, str, str, CIVisibilityGitClientSerializerV1, Optional[dict]) -> Response
+    def _do_request(cls, requests_mode, base_url, endpoint, payload, serializer, trace_id, headers=None, trace_id=None):
+        # type: (int, str, str, str, CIVisibilityGitClientSerializerV1, str, Optional[dict]) -> Response
         url = "{}/repository{}".format(base_url, endpoint)
-        _headers = {"dd-api-key": serializer.api_key, "dd-application-key": serializer.app_key}
+        _headers = {
+            "dd-api-key": serializer.api_key,
+            "dd-application-key": serializer.app_key,
+            HTTP_HEADER_TRACE_ID: trace_id,
+        }
         if requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS:
             _headers = {EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_API_VALUE}
         if headers is not None:
@@ -134,8 +145,10 @@ class CIVisibilityGitClient(object):
         return build_git_packfiles(revisions, cwd=cwd)
 
     @classmethod
-    def _upload_packfiles(cls, requests_mode, base_url, repo_url, packfiles_prefix, serializer, _response, cwd=None):
-        # type: (int, str, str, str, CIVisibilityGitClientSerializerV1, Optional[Response], Optional[str]) -> bool
+    def _upload_packfiles(
+        cls, requests_mode, base_url, repo_url, packfiles_prefix, serializer, trace_id, _response, cwd=None
+    ):
+        # type: (int, str, str, str, CIVisibilityGitClientSerializerV1, str, Optional[Response], Optional[str]) -> bool
         sha = extract_commit_sha(cwd=cwd)
         parts = packfiles_prefix.split("/")
         directory = "/".join(parts[:-1])
@@ -147,7 +160,7 @@ class CIVisibilityGitClient(object):
             content_type, payload = serializer.upload_packfile_encode(repo_url, sha, file_path)
             headers = {"Content-Type": content_type}
             response = _response or cls.retry_request(
-                requests_mode, base_url, "/packfile", payload, serializer, headers=headers
+                requests_mode, base_url, "/packfile", payload, serializer, trace_id, headers=headers
             )
             if response.status != 204:
                 return False
@@ -157,7 +170,7 @@ class CIVisibilityGitClient(object):
     def retry_request(cls, *args, **kwargs):
         return tenacity.Retrying(
             wait=tenacity.wait_random_exponential(
-                multiplier=(0.618 / (1.618 ** cls.RETRY_ATTEMPTS) / 2),
+                multiplier=(0.618 / (1.618**cls.RETRY_ATTEMPTS) / 2),
                 exp_base=1.618,
             ),
             stop=tenacity.stop_after_attempt(cls.RETRY_ATTEMPTS),
