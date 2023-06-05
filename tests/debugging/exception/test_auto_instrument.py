@@ -49,7 +49,7 @@ class ExceptionDebuggingTestCase(TracerTestCase):
             snapshots = {str(s.uuid): s for s in d.test_queue}
 
             for n, span in enumerate(self.spans):
-                assert span.get_tag("error.debug.info-captured") == "true"
+                assert span.get_tag("error.debug-info-captured") == "true"
 
                 exc_id = span.get_tag("_dd.debug.error.exception-id")
 

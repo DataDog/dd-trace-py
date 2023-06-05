@@ -116,5 +116,5 @@ class SpanExceptionProcessor(SpanProcessor):
 
             _tb = _tb.tb_next
 
-        span.set_tag_str("error.debug.info-captured", "true")
+        span.set_tag_str("error.debug-info-captured", "true")
         span.set_tag_str("_dd.debug.error.exception-id", str(exc_id))
