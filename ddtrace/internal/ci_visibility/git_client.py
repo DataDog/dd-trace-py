@@ -13,6 +13,7 @@ from ddtrace.ext.git import extract_commit_sha
 from ddtrace.ext.git import extract_latest_commits
 from ddtrace.ext.git import extract_remote_url
 from ddtrace.ext.git import get_rev_list_excluding_commits
+from ddtrace.internal.agent import get_trace_url
 from ddtrace.internal.compat import JSONDecodeError
 from ddtrace.internal.logger import get_logger
 
@@ -52,7 +53,7 @@ class CIVisibilityGitClient(object):
         self._response = RESPONSE
         self._requests_mode = requests_mode
         if self._requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS:
-            self._base_url = EVP_PROXY_AGENT_BASE_PATH + GIT_API_BASE_PATH
+            self._base_url = get_trace_url() + EVP_PROXY_AGENT_BASE_PATH + GIT_API_BASE_PATH
         elif self._requests_mode == REQUESTS_MODE.AGENTLESS_EVENTS:
             self._base_url = "https://api.{}{}".format(os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE), GIT_API_BASE_PATH)
 
