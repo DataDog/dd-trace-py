@@ -6,9 +6,9 @@ import pytest
 
 from ddtrace import Pin
 from ddtrace.appsec._constants import COMMANDS
-from ddtrace.appsec._patch_subprocess_executions import SubprocessCmdLine
-from ddtrace.appsec._patch_subprocess_executions import _patch
-from ddtrace.appsec._patch_subprocess_executions import _unpatch
+from ddtrace.contrib.subprocess.patch import SubprocessCmdLine
+from ddtrace.contrib.subprocess.patch import patch
+from ddtrace.contrib.subprocess.patch import unpatch
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import _context
 from ddtrace.internal.compat import PY2
@@ -22,7 +22,7 @@ def auto_unpatch():
     yield
     SubprocessCmdLine._clear_cache()
     try:
-        _unpatch()
+        unpatch()
     except AttributeError:
         # Tests with appsec disabled or that didn't patch
         pass
@@ -56,29 +56,29 @@ for allowed in SubprocessCmdLine.ENV_VARS_ALLOWLIST:
     "cmdline_obj,full_list,env_vars,binary,arguments",
     [
         (
-            SubprocessCmdLine(["FOO=bar", "BAR=baz", "dir", "-li", "/"], shell=True),
-            ["FOO=?", "BAR=?", "dir", "-li", "/"],
-            ["FOO=?", "BAR=?"],
-            "dir",
-            ["-li", "/"],
+                SubprocessCmdLine(["FOO=bar", "BAR=baz", "dir", "-li", "/"], shell=True),
+                ["FOO=?", "BAR=?", "dir", "-li", "/"],
+                ["FOO=?", "BAR=?"],
+                "dir",
+                ["-li", "/"],
         ),
         (
-            SubprocessCmdLine(["FOO=bar", "BAR=baz", "dir", "-li", "/dir with spaces", "OTHER=any"], shell=True),
-            ["FOO=?", "BAR=?", "dir", "-li", "/dir with spaces", "OTHER=any"],
-            ["FOO=?", "BAR=?"],
-            "dir",
-            ["-li", "/dir with spaces", "OTHER=any"],
+                SubprocessCmdLine(["FOO=bar", "BAR=baz", "dir", "-li", "/dir with spaces", "OTHER=any"], shell=True),
+                ["FOO=?", "BAR=?", "dir", "-li", "/dir with spaces", "OTHER=any"],
+                ["FOO=?", "BAR=?"],
+                "dir",
+                ["-li", "/dir with spaces", "OTHER=any"],
         ),
         (
-            SubprocessCmdLine(["FOO=bar", "lower=baz", "dir", "-li", "/", "OTHER=any"], shell=True),
-            ["FOO=?", "lower=baz", "dir", "-li", "/", "OTHER=any"],
-            ["FOO=?"],
-            "lower=baz",
-            ["dir", "-li", "/", "OTHER=any"],
+                SubprocessCmdLine(["FOO=bar", "lower=baz", "dir", "-li", "/", "OTHER=any"], shell=True),
+                ["FOO=?", "lower=baz", "dir", "-li", "/", "OTHER=any"],
+                ["FOO=?"],
+                "lower=baz",
+                ["dir", "-li", "/", "OTHER=any"],
         ),
     ]
     + allowed_envvars_fixture_list,
-)
+    )
 def test_shellcmdline(cmdline_obj, full_list, env_vars, binary, arguments):
     assert cmdline_obj.as_list() == full_list
     assert cmdline_obj.env_vars == env_vars
@@ -112,29 +112,29 @@ def test_binary_arg_scrubbing(cmdline_obj, full_list, arguments):
     "cmdline_obj,arguments",
     [
         (
-            SubprocessCmdLine(
-                ["binary", "-a", "-b1", "-c=foo", "-d bar", "--long1=long1value", "--long2 long2value"],
-                shell=False,
-            ),
-            ["-a", "-b1", "-c=foo", "-d bar", "--long1=long1value", "--long2 long2value"],
+                SubprocessCmdLine(
+                    ["binary", "-a", "-b1", "-c=foo", "-d bar", "--long1=long1value", "--long2 long2value"],
+                    shell=False,
+                ),
+                ["-a", "-b1", "-c=foo", "-d bar", "--long1=long1value", "--long2 long2value"],
         ),
         (
-            SubprocessCmdLine(
-                [
-                    "binary",
-                    "-a",
-                    "-passwd=SCRUB",
-                    "-passwd",
-                    "SCRUB",
-                    "-d bar",
-                    "--apikey=SCRUB",
-                    "-efoo",
-                    "/auth_tokenSCRUB",
-                    "--secretSCRUB",
-                ],
-                shell=False,
-            ),
-            ["-a", "?", "-passwd", "?", "-d bar", "?", "-efoo", "?", "?"],
+                SubprocessCmdLine(
+                    [
+                        "binary",
+                        "-a",
+                        "-passwd=SCRUB",
+                        "-passwd",
+                        "SCRUB",
+                        "-d bar",
+                        "--apikey=SCRUB",
+                        "-efoo",
+                        "/auth_tokenSCRUB",
+                        "--secretSCRUB",
+                    ],
+                    shell=False,
+                ),
+                ["-a", "?", "-passwd", "?", "-d bar", "?", "-efoo", "?", "?"],
         ),
     ],
 )
@@ -164,10 +164,10 @@ def test_argument_scrubing_user():
     "cmdline_obj,expected_str,expected_list,truncated",
     [
         (
-            SubprocessCmdLine(["dir", "-A" + "loremipsum" * 40, "-B"]),
-            'dir -Aloremipsumloremipsumloremipsuml "4kB argument truncated by 329 characters"',
-            ["dir", "-Aloremipsumloremipsumloremipsuml", "4kB argument truncated by 329 characters"],
-            True,
+                SubprocessCmdLine(["dir", "-A" + "loremipsum" * 40, "-B"]),
+                'dir -Aloremipsumloremipsumloremipsuml "4kB argument truncated by 329 characters"',
+                ["dir", "-Aloremipsumloremipsumloremipsuml", "4kB argument truncated by 329 characters"],
+                True,
         ),
         (SubprocessCmdLine("dir -A -B -C"), "dir -A -B -C", ["dir", "-A", "-B", "-C"], False),
     ],
@@ -194,7 +194,7 @@ def test_truncation(cmdline_obj, expected_str, expected_list, truncated):
 
 def test_ossystem(tracer):
     with override_global_config(dict(_appsec_enabled=True)):
-        _patch()
+        patch()
         Pin.get_from(os).clone(tracer=tracer).onto(os)
         with tracer.trace("ossystem_test"):
             ret = os.system("dir -l /")
@@ -215,7 +215,7 @@ def test_ossystem(tracer):
 @pytest.mark.skipif(sys.platform != "linux", reason="Only for Linux")
 def test_fork(tracer):
     with override_global_config(dict(_appsec_enabled=True)):
-        _patch()
+        patch()
         Pin.get_from(os).clone(tracer=tracer).onto(os)
         with tracer.trace("ossystem_test"):
             pid = os.fork()
@@ -235,7 +235,7 @@ def test_fork(tracer):
 
 def test_unpatch(tracer):
     with override_global_config(dict(_appsec_enabled=True)):
-        _patch()
+        patch()
         Pin.get_from(os).clone(tracer=tracer).onto(os)
         with tracer.trace("os.system"):
             ret = os.system("dir -l /")
@@ -247,7 +247,7 @@ def test_unpatch(tracer):
         span = spans[1]
         assert span.get_tag(COMMANDS.SHELL) == "dir -l /"
 
-    _unpatch()
+    unpatch()
     with override_global_config(dict(_appsec_enabled=True)):
         Pin.get_from(os).clone(tracer=tracer).onto(os)
         with tracer.trace("os.system_unpatch"):
@@ -263,13 +263,13 @@ def test_unpatch(tracer):
         assert not span.get_tag(COMMANDS.EXIT_CODE)
         assert not span.get_tag(COMMANDS.COMPONENT)
 
-    assert not getattr(os, "_datadog_patch", False)
-    assert not getattr(subprocess, "_datadog_patch", False)
+    assert not getattr(os, "_datadogpatch", False)
+    assert not getattr(subprocess, "_datadogpatch", False)
 
 
 def test_ossystem_noappsec(tracer):
     with override_global_config(dict(_appsec_enabled=False)):
-        _patch()
+        patch()
         assert not hasattr(os.system, "__wrapped__")
         assert not hasattr(os._spawnvef, "__wrapped__")
         assert not hasattr(subprocess.Popen.__init__, "__wrapped__")
@@ -278,7 +278,7 @@ def test_ossystem_noappsec(tracer):
 @pytest.mark.skipif(PY2, reason="Python3 specific test (pins into subprocess)")
 def test_py3ospopen(tracer):
     with override_global_config(dict(_appsec_enabled=True)):
-        _patch()
+        patch()
         Pin.get_from(subprocess).clone(tracer=tracer).onto(subprocess)
         with tracer.trace("os.popen"):
             pipe = os.popen("dir -li /")
@@ -300,7 +300,7 @@ def test_py3ospopen(tracer):
 @pytest.mark.skipif(PY3, reason="Python2 specific tests")
 def test_py2ospopen(tracer):
     with override_global_config(dict(_appsec_enabled=True)):
-        _patch()
+        patch()
         Pin.get_from(os).clone(tracer=tracer).onto(os)
         for func in [os.popen, os.popen2, os.popen3]:
             with tracer.trace("os.popen"):
@@ -348,7 +348,7 @@ _PARAMS_ENV = _PARAMS + [{"fooenv": "bar"}]  # type: ignore
 )
 def test_osspawn_variants(tracer, function, mode, arguments):
     with override_global_config(dict(_appsec_enabled=True)):
-        _patch()
+        patch()
         Pin.get_from(os).clone(tracer=tracer).onto(os)
 
         if "_" in function.__name__:
@@ -387,7 +387,7 @@ def test_osspawn_variants(tracer, function, mode, arguments):
 
 def test_subprocess_init_shell_true(tracer):
     with override_global_config(dict(_appsec_enabled=True)):
-        _patch()
+        patch()
         Pin.get_from(subprocess).clone(tracer=tracer).onto(subprocess)
         with tracer.trace("subprocess.Popen.init", span_type=SpanTypes.SYSTEM):
             subp = subprocess.Popen(["dir", "-li", "/"], shell=True)
@@ -407,7 +407,7 @@ def test_subprocess_init_shell_true(tracer):
 
 def test_subprocess_init_shell_false(tracer):
     with override_global_config(dict(_appsec_enabled=True)):
-        _patch()
+        patch()
         Pin.get_from(subprocess).clone(tracer=tracer).onto(subprocess)
         with tracer.trace("subprocess.Popen.init", span_type=SpanTypes.SYSTEM):
             subp = subprocess.Popen(["dir", "-li", "/"], shell=False)
@@ -424,7 +424,7 @@ def test_subprocess_init_shell_false(tracer):
 def test_subprocess_wait_shell_false(tracer):
     args = ["dir", "-li", "/"]
     with override_global_config(dict(_appsec_enabled=True)):
-        _patch()
+        patch()
         Pin.get_from(subprocess).clone(tracer=tracer).onto(subprocess)
         with tracer.trace("subprocess.Popen.init", span_type=SpanTypes.SYSTEM) as span:
             subp = subprocess.Popen(args=args, shell=False)
@@ -437,7 +437,7 @@ def test_subprocess_wait_shell_false(tracer):
 
 def test_subprocess_wait_shell_true(tracer):
     with override_global_config(dict(_appsec_enabled=True)):
-        _patch()
+        patch()
         Pin.get_from(subprocess).clone(tracer=tracer).onto(subprocess)
         with tracer.trace("subprocess.Popen.init", span_type=SpanTypes.SYSTEM) as span:
             subp = subprocess.Popen(args=["dir", "-li", "/"], shell=True)
@@ -449,7 +449,7 @@ def test_subprocess_wait_shell_true(tracer):
 @pytest.mark.skipif(PY2, reason="Python2 does not have subprocess.run")
 def test_subprocess_run(tracer):
     with override_global_config(dict(_appsec_enabled=True)):
-        _patch()
+        patch()
         Pin.get_from(subprocess).clone(tracer=tracer).onto(subprocess)
         with tracer.trace("subprocess.Popen.wait"):
             result = subprocess.run(["dir", "-l", "/"], shell=True)
@@ -470,7 +470,7 @@ def test_subprocess_run(tracer):
 
 def test_subprocess_communicate(tracer):
     with override_global_config(dict(_appsec_enabled=True)):
-        _patch()
+        patch()
         Pin.get_from(subprocess).clone(tracer=tracer).onto(subprocess)
         with tracer.trace("subprocess.Popen.wait"):
             subp = subprocess.Popen(args=["dir", "-li", "/"], shell=True)

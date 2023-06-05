@@ -29,7 +29,7 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 
-def _patch():
+def patch():
     # type: () -> List[str]
     patched = []  # type: List[str]
     if not config._appsec_enabled:
@@ -290,7 +290,7 @@ class SubprocessCmdLine(object):
         return str_res
 
 
-def _unpatch():
+def unpatch():
     # type: () -> None
     trace_utils.unwrap(os, "system")
     trace_utils.unwrap(os, "_spawnvef")

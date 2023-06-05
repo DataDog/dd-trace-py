@@ -18,6 +18,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import List
     from typing import Union
 
+
 log = get_logger(__name__)
 
 # Default set of modules to automatically patch or not
@@ -201,11 +202,6 @@ def patch_all(**patch_modules):
 
     patch(raise_errors=False, **modules)
     patch_iast(**IAST_PATCH)
-    if config._appsec_enabled:
-        patched_modules = patch_appsec_subprocess_executions()
-        with _LOCK:
-            for patched in patched_modules:
-                _PATCHED_MODULES.add(patched)
 
 
 def patch_iast(**patch_modules):
@@ -221,13 +217,6 @@ def patch_iast(**patch_modules):
             when_imported("hashlib")(
                 _on_import_factory(module, prefix="ddtrace.appsec.iast.taint_sinks", raise_errors=False)
             )
-
-
-def patch_appsec_subprocess_executions():
-    # type: () -> List[str]
-    from .appsec._patch_subprocess_executions import _patch
-
-    return _patch()
 
 
 def patch(raise_errors=True, patch_modules_prefix=DEFAULT_MODULES_PREFIX, **patch_modules):
