@@ -958,7 +958,6 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         # value .git must be blocked
         with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
             self._aux_appsec_prepare_tracer()
-
             resp = self.client.get("/.git")
             assert resp.status_code == 403
             assert get_response_body(resp) == constants.APPSEC_BLOCKED_RESPONSE_JSON
@@ -981,6 +980,15 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             resp = self.client.get("/.git")
             assert resp.status_code == 200
             assert get_response_body(resp) == "git file"
+        # we must block with uri.raw not containing scheme or netloc
+        with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
+            self._aux_appsec_prepare_tracer()
+            resp = self.client.get("/we_should_block")
+            assert resp.status_code == 403
+            assert get_response_body(resp) == constants.APPSEC_BLOCKED_RESPONSE_JSON
+            root_span = self.pop_spans()[0]
+            loaded = json.loads(root_span.get_tag(APPSEC.JSON))
+            assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-010"]
 
     def test_request_suspicious_request_block_match_body(self):
         @self.app.route("/index.html", methods=["POST", "GET"])
