@@ -5,7 +5,6 @@ import sys
 import pytest
 
 from ddtrace import Pin
-from ddtrace import config
 from ddtrace.appsec._constants import COMMANDS
 from ddtrace.contrib.subprocess.patch import SubprocessCmdLine
 from ddtrace.contrib.subprocess.patch import patch
@@ -15,7 +14,6 @@ from ddtrace.internal import _context
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import PY3
 from tests.utils import override_config
-from tests.utils import override_env
 from tests.utils import override_global_config
 
 
