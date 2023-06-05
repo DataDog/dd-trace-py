@@ -101,11 +101,10 @@ Release Branch Maintenance
 Fix PRs
 -------
 
-These PRs are generally opened to fix a bug reported by a user of the library. The backporting decision should work as follows:
-- The user reports a bug against the X release
- - If X is still maintained, it should be backported down to release X.
- - If X is no longer maintained, ask the user to upgrade to a maintained version Y. If the bug exists on version Y, the fix should then be backported down to release Y.
- - In all cases the fix should be backported to all impacted and maintained release lines.
+These PRs are generally opened to fix a bug reported by a user of the library. Fix  PRs should be backported to all impacted and maintained release lines. The backporting decision should work as follows:
+- Say a user reports a bug against the X release:
+ * If X is still maintained, it should be backported down to release X.
+ * If X is no longer maintained, ask the user to upgrade to a maintained version Y. If the bug exists on version Y, the fix should then be backported down to release Y.
 
 CI PRs
 ------
