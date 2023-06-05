@@ -10,8 +10,9 @@ from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
-from ...ext import SpanKind, net
+from ...ext import SpanKind
 from ...ext import SpanTypes
+from ...ext import net
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
 from .utils import attach_span
