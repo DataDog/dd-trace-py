@@ -18,8 +18,8 @@
       "openai.request.endpoint": "/files",
       "openai.request.method": "DELETE",
       "openai.request.sid": "file-l48KgWVF75Tz2HLqLrcUdBPi",
-      "openai.response.id": "file-l48KgWVF75Tz2HLqLrcUdBPi",
       "openai.response.deleted": "True",
+      "openai.response.id": "file-l48KgWVF75Tz2HLqLrcUdBPi",
       "openai.user.api_key": "sk-...key>",
       "runtime-id": "6adb8c989dd24acbbac807dcfe437783"
     },

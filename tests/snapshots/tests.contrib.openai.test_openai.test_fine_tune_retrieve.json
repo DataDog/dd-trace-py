@@ -18,8 +18,8 @@
       "openai.request.id": "ft-sADEaavxRFrjOQ65XkQKm0zM",
       "openai.request.method": "GET",
       "openai.response.fine_tuned_model": "None",
-      "openai.response.model": "babbage",
       "openai.response.id": "ft-sADEaavxRFrjOQ65XkQKm0zM",
+      "openai.response.model": "babbage",
       "openai.response.status": "cancelled",
       "openai.user.api_key": "sk-...key>",
       "runtime-id": "3261bd1cc85045f19584567679ff2b60"
@@ -38,8 +38,8 @@
       "openai.response.hyperparams.prompt_loss_weight": 0.01,
       "openai.response.result_files_count": 0,
       "openai.response.training_files_count": 1,
-      "openai.response.validation_files_count": 0,
       "openai.response.updated_at": 1685663003,
+      "openai.response.validation_files_count": 0,
       "process_id": 1441
     },
     "duration": 165381000,
