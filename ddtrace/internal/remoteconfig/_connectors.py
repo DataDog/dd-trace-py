@@ -63,7 +63,7 @@ class PublisherSubscriberConnector(object):
         return {}
 
     def write(self, metadata, config_raw):
-        # type: (Any, Dict[str, Any]) -> None
+        # type: (Any, Any) -> None
         last_checksum = self._hash_config(config_raw)
         if last_checksum != self.checksum:
             data_len = len(self.data.value)
