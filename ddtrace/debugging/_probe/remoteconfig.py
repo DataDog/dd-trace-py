@@ -25,7 +25,12 @@ from ddtrace.debugging._probe.model import MetricFunctionProbe
 from ddtrace.debugging._probe.model import MetricLineProbe
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.model import ProbeType
+from ddtrace.debugging._probe.model import SpanDecoration
+from ddtrace.debugging._probe.model import SpanDecorationFunctionProbe
+from ddtrace.debugging._probe.model import SpanDecorationLineProbe
+from ddtrace.debugging._probe.model import SpanDecorationTag
 from ddtrace.debugging._probe.model import SpanFunctionProbe
+from ddtrace.debugging._probe.model import StringTemplate
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
 from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisher
@@ -208,6 +213,33 @@ class SpanProbeFactory(ProbeFactory):
         )
 
 
+class SpanDecorationProbeFactory(ProbeFactory):
+    __line_class__ = SpanDecorationLineProbe
+    __function_class__ = SpanDecorationFunctionProbe
+
+    @classmethod
+    def update_args(cls, args, attribs):
+        args.update(
+            target_span=attribs["targetSpan"],
+            decorations=[
+                SpanDecoration(
+                    when=_compile_expression(d.get("when")),
+                    tags=[
+                        SpanDecorationTag(
+                            name=t["name"],
+                            value=StringTemplate(
+                                template=t["value"].get("template"),
+                                segments=[_compile_segment(segment) for segment in t["value"].get("segments", [])],
+                            ),
+                        )
+                        for t in d.get("tags", [])
+                    ],
+                )
+                for d in attribs["decorations"]
+            ],
+        )
+
+
 def build_probe(attribs):
     # type: (Dict[str, Any]) -> Probe
     """
@@ -227,10 +259,12 @@ def build_probe(attribs):
 
     if _type == ProbeType.LOG_PROBE:
         return LogProbeFactory.build(args, attribs)
-    elif _type == ProbeType.METRIC_PROBE:
+    if _type == ProbeType.METRIC_PROBE:
         return MetricProbeFactory.build(args, attribs)
-    elif _type == ProbeType.SPAN_PROBE:
+    if _type == ProbeType.SPAN_PROBE:
         return SpanProbeFactory.build(args, attribs)
+    if _type == ProbeType.SPAN_DECORATE_PROBE:
+        return SpanDecorationProbeFactory.build(args, attribs)
 
     raise ValueError("Unsupported probe type: %s" % _type)
 
