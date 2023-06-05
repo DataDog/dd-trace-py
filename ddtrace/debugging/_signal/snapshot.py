@@ -11,6 +11,7 @@ import attr
 from ddtrace.debugging import safety
 from ddtrace.debugging._expressions import DDExpressionEvaluationError
 from ddtrace.debugging._probe.model import CaptureLimits
+from ddtrace.debugging._probe.model import DEFAULT_CAPTURE_LIMITS
 from ddtrace.debugging._probe.model import FunctionLocationMixin
 from ddtrace.debugging._probe.model import LineLocationMixin
 from ddtrace.debugging._probe.model import LiteralTemplateSegment
@@ -30,7 +31,6 @@ from ddtrace.internal.utils.time import HourGlass
 
 
 CAPTURE_TIME_BUDGET = 0.2  # seconds
-DEFAULT_CAPTURE_LIMITS = CaptureLimits()
 
 
 def _capture_context(

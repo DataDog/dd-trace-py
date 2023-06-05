@@ -553,7 +553,7 @@ class Tracer(object):
 
         # Re-create the background writer thread
         self._writer = self._writer.recreate()
-        self._span_processors, self._appsec_processor = self._deferred_processors = _default_span_processors_factory(
+        self._span_processors, self._appsec_processor, self._deferred_processors = _default_span_processors_factory(
             self._filters,
             self._writer,
             self._partial_flush_enabled,
