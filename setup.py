@@ -109,6 +109,22 @@ class CleanLibraries(CleanCommand):
 
 
 class BuildExtWithUpx(BuildExtCommand):
+    """
+    Compresses all compiled artifacts with UPX.  This decreases distribution
+    size without forcing the end-user to decompress.
+
+    DEV: Use the DD_SKIP_UPX environment variable to suppress UPX compression.
+         You may want to try doing this if you encounter a related issue in
+         native code (e.g., cython artifacts):
+           * if you encounter segfaults
+             - and want to rule out UPX as a cause
+             - make segfault analysis more straightforward
+           * if you get build-time errors
+             - CantPackException
+             - "this parameter is incorrect" on Windows
+             - ELF header complaints on Linux
+    """
+
     upx_addresses = {
         "x86_64": "https://github.com/upx/upx/releases/download/v4.0.2/upx-4.0.2-amd64_linux.tar.xz",
         "aarch64": "https://github.com/upx/upx/releases/download/v4.0.2/upx-4.0.2-arm64_linux.tar.xz",
