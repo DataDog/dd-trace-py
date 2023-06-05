@@ -101,7 +101,7 @@ Release Branch Maintenance
 Fix PRs
 -------
 
-Fix PRs are prefixed with fix and are generally prompted by a bug reported by a user of the library. For this kind of PRs, the backporting decision should work as follows.
+Fix PRs are prefixed with [`fix`](https://www.conventionalcommits.org/en/v1.0.0/#specification) and are generally prompted by a bug reported by a user of the library. For this kind of PRs, the backporting decision should work as follows.
 The user reports a bug against the X release. If X is no longer maintained, ask the user to upgrade to a maintained version Y. The fix should then be backported down to release Y, if the bug is not already fixed there. Otherwise, if X is still maintained, it should be backported down to release X.
 
 CI PRs
