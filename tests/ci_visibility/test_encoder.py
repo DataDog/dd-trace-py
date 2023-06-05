@@ -142,6 +142,30 @@ def test_encode_traces_civisibility_v2_coverage():
     assert payload_per_line[10] == b"--%s--" % boundary
 
 
+def test_encode_traces_civisibility_v2_coverage_empty_traces():
+    coverage_data = {
+        "files": [
+            {"filename": "test_cov.py", "segments": [[5, 0, 5, 0, -1]]},
+            {"filename": "test_module.py", "segments": [[2, 0, 2, 0, -1]]},
+        ]
+    }
+    coverage_json = json.dumps(coverage_data)
+    coverage_span = Span(name=b"client.testing", span_id=0xAAAAAA, span_type="test", service="foo")
+    coverage_span.set_tag(COVERAGE_TAG_NAME, coverage_json)
+    coverage_span.set_tag(SUITE_ID, "12345")
+    coverage_span.set_tag(SESSION_ID, "67890")
+    traces = []
+
+    encoder = CIVisibilityCoverageEncoderV02(0, 0)
+    for trace in traces:
+        encoder.put(trace)
+    payload = encoder._build_data(traces)
+    assert payload is None
+
+    complete_payload = encoder.encode()
+    assert complete_payload is None
+
+
 @contextlib.contextmanager
 def _patch_dummy_writer():
     original = ddtrace.internal.ci_visibility.recorder.CIVisibilityWriter
@@ -174,6 +198,10 @@ class PytestEncodingTestCase(TracerTestCase):
     def subprocess_run(self, *args):
         """Execute test script with test tracer."""
         return self.testdir.runpytest_subprocess(*args)
+
+    def teardown(self):
+        if CIVisibility.enabled:
+            CIVisibility.disable()
 
     def test_event_payload(self):
         """Test that a pytest test case will generate a test event, but with:
