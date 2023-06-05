@@ -34,6 +34,8 @@ from ddtrace.debugging._probe.model import LogLineProbe
 from ddtrace.debugging._probe.model import MetricFunctionProbe
 from ddtrace.debugging._probe.model import MetricLineProbe
 from ddtrace.debugging._probe.model import Probe
+from ddtrace.debugging._probe.model import SpanDecorationFunctionProbe
+from ddtrace.debugging._probe.model import SpanDecorationLineProbe
 from ddtrace.debugging._probe.model import SpanFunctionProbe
 from ddtrace.debugging._probe.registry import ProbeRegistry
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
@@ -46,6 +48,7 @@ from ddtrace.debugging._signal.model import LogSignal
 from ddtrace.debugging._signal.model import Signal
 from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.debugging._signal.tracing import DynamicSpan
+from ddtrace.debugging._signal.tracing import SpanDecoration
 from ddtrace.debugging._uploader import LogsIntakeUploaderV1
 from ddtrace.internal import atexit
 from ddtrace.internal import compat
@@ -300,6 +303,12 @@ class Debugger(Service):
                     thread=threading.current_thread(),
                     trace_context=self._tracer.current_trace_context(),
                 )
+            elif isinstance(probe, SpanDecorationLineProbe):
+                signal = SpanDecoration(
+                    probe=probe,
+                    frame=actual_frame,
+                    thread=threading.current_thread(),
+                )
             else:
                 log.error("Unsupported probe type: %r", type(probe))
                 return
@@ -360,6 +369,13 @@ class Debugger(Service):
                         thread=thread,
                         args=allargs,
                         trace_context=trace_context,
+                    )
+                elif isinstance(probe, SpanDecorationFunctionProbe):
+                    signal = SpanDecoration(
+                        probe=probe,
+                        frame=actual_frame,
+                        thread=thread,
+                        args=allargs,
                     )
                 else:
                     log.error("Unsupported probe type: %s", type(probe))
