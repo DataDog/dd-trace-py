@@ -1,4 +1,5 @@
 from celery import registry
+from celery.utils import nodenames
 
 from ddtrace import Pin
 from ddtrace import config
@@ -9,7 +10,7 @@ from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
-from ...ext import SpanKind
+from ...ext import SpanKind, net
 from ...ext import SpanTypes
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
@@ -124,6 +125,8 @@ def trace_before_publish(*args, **kwargs):
     span.set_tag_str(c.TASK_TAG_KEY, c.TASK_APPLY_ASYNC)
     span.set_tag_str("celery.id", task_id)
     set_tags_from_context(span, kwargs)
+    if kwargs.get("headers") is not None:
+        set_tags_from_context(span, kwargs["headers"])
 
     # Note: adding tags from `traceback` or `state` calls will make an
     # API call to the backend for the properties so we should rely
@@ -156,6 +159,11 @@ def trace_after_publish(*args, **kwargs):
     if span is None:
         return
     else:
+        nodename = span.get_tag("celery.hostname")
+        if nodename is not None:
+            _, host = nodenames.nodesplit(nodename)
+            span.set_tag_str(net.TARGET_HOST, host)
+
         span.finish()
         detach_span(task, task_id, is_publish=True)
 
