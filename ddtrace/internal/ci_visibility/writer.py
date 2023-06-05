@@ -88,7 +88,7 @@ class CIVisibilityWriter(HTTPWriter):
         reuse_connections=None,  # type: Optional[bool]
         headers=None,  # type: Optional[Dict[str, str]]
         use_evp=False,  # type: bool
-        trace_id='',  # type: str
+        trace_id="",  # type: str
     ):
         self._trace_id = trace_id
         if use_evp:
@@ -122,6 +122,7 @@ class CIVisibilityWriter(HTTPWriter):
                 clients.append(
                     CIVisibilityAgentlessCoverageClient(
                         intake_url=intake_cov_url,
+                        headers=headers,
                     )
                 )
 
