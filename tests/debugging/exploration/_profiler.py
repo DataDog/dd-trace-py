@@ -11,6 +11,7 @@ from debugging.utils import create_snapshot_function_probe
 
 from ddtrace.debugging._function.discovery import FunctionDiscovery
 from ddtrace.debugging._probe.model import FunctionLocationMixin
+from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.internal.module import origin
 
 
@@ -69,6 +70,12 @@ class DeterministicProfiler(ExplorationDebugger):
     def on_disable(cls):
         # type: () -> None
         cls.report_func_calls()
+
+    @classmethod
+    def on_snapshot(cls, snapshot):
+        # type: (Snapshot) -> None
+        if config.profiler.delete_probes:
+            cls.delete_probe(snapshot.probe)
 
 
 if config.profiler.enabled:
