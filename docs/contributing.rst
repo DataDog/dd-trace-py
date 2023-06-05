@@ -112,7 +112,7 @@ These PRs are generally opened to fix or improve the current status of the CI. A
 New features
 ------------
 
-New features introduced by feat PRs should not need a backport, unless there is a strong user request for a backport on an earlier release branch.
+New features introduced by feat PRs should not be backported.
 
 Chore and documentation PRs
 ---------------------------
