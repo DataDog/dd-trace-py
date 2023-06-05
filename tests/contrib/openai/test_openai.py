@@ -1413,7 +1413,7 @@ async def test_chat_completion_async_stream(openai, openai_vcr, mock_metrics, sn
 
 
 @pytest.mark.snapshot(ignores=["meta.http.useragent"], async_mode=False)
-def test_integration_sync(ddtrace_run_python_code_in_subprocess):
+def test_integration_sync(openai_api_key, ddtrace_run_python_code_in_subprocess):
     """OpenAI uses requests for its synchronous requests.
 
     Running in a subprocess with ddtrace-run should produce traces
@@ -1425,7 +1425,7 @@ def test_integration_sync(ddtrace_run_python_code_in_subprocess):
         pypath.append(env["PYTHONPATH"])
     env.update(
         {
-            "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY", "<not-real>"),
+            "OPENAI_API_KEY": openai_api_key,
             "PYTHONPATH": ":".join(pypath),
             # Disable metrics because the test agent doesn't support metrics
             "DD_OPENAI_METRICS_ENABLED": "false",
@@ -1449,7 +1449,7 @@ with get_openai_vcr().use_cassette("completion_2.yaml"):
 
 
 @pytest.mark.snapshot(ignores=["meta.http.useragent"], async_mode=False)
-def test_integration_async(ddtrace_run_python_code_in_subprocess):
+def test_integration_async(openai_api_key, ddtrace_run_python_code_in_subprocess):
     """OpenAI uses requests for its synchronous requests.
 
     Running in a subprocess with ddtrace-run should produce traces
@@ -1464,7 +1464,7 @@ def test_integration_async(ddtrace_run_python_code_in_subprocess):
         pypath.append(env["PYTHONPATH"])
     env.update(
         {
-            "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY", "<not-real>"),
+            "OPENAI_API_KEY": openai_api_key,
             "PYTHONPATH": ":".join(pypath),
             # Disable metrics because the test agent doesn't support metrics
             "DD_OPENAI_METRICS_ENABLED": "false",
