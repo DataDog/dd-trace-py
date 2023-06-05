@@ -24,7 +24,7 @@ log = get_logger(__name__)
 
 
 def _track_user_login_common(tracer, user_id, success, metadata=None, login_events_mode=LOGIN_EVENTS_MODE.SDK):
-    # type: (Tracer, str, bool, Optional[dict], LOGIN_EVENTS_MODE) -> Optional[Span]
+    # type: (Tracer, str, bool, Optional[dict], str) -> Optional[Span]
 
     span = tracer.current_root_span()
     if span:
@@ -65,7 +65,7 @@ def track_user_login_success_event(
     propagate=False,
     login_events_mode=LOGIN_EVENTS_MODE.SDK,
 ):
-    # type: (Tracer, str, Optional[dict], Optional[str], Optional[str], Optional[str], Optional[str], Optional[str], bool, LOGIN_EVENTS_MODE) -> None # noqa: E501
+    # type: (Tracer, str, Optional[dict], Optional[str], Optional[str], Optional[str], Optional[str], Optional[str], bool, str) -> None # noqa: E501
     """
     Add a new login success tracking event. The parameters after metadata (name, email,
     scope, role, session_id, propagate) will be passed to the `set_user` function that will be called
@@ -87,7 +87,7 @@ def track_user_login_success_event(
 
 
 def track_user_login_failure_event(tracer, user_id, exists, metadata=None, login_events_mode=LOGIN_EVENTS_MODE.SDK):
-    # type: (Tracer, str, bool, Optional[dict]) -> None
+    # type: (Tracer, str, bool, Optional[dict], str) -> None
     """
     Add a new login failure tracking event.
     :param tracer: tracer instance to use
