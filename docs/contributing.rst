@@ -106,7 +106,7 @@ These PRs are generally opened to fix a bug reported by a user of the library. F
 CI PRs
 ------
 
-These PRs are generally opened to fix or improve the current status of the CI. As a general rule, these PRs should all be backported to all the maintained release branches, mutatis mutandis.
+These PRs are generally opened to fix or improve the current status of the CI. As a general rule, these PRs should all be backported to all the maintained release branches.
 
 New features
 ------------
