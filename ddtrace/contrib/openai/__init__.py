@@ -1,16 +1,18 @@
 """
 The OpenAI integration instruments the OpenAI Python library to emit metrics,
-traces, and logs (logs are disabled by default) for requests made to the
-completions, chat completions, and embeddings endpoints.
+traces, and logs (logs are disabled by default) for requests made to the models,
+completions, chat completions, edits, images, embeddings, audio, files, fine-tunes,
+and moderations endpoints.
 
 All metrics, logs, and traces submitted from the OpenAI integration are tagged by:
 
 - ``service``, ``env``, ``version``: see the `Unified Service Tagging docs <https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging>`_.
-- ``endpoint``: OpenAI API endpoint used in the request.
-- ``model``: OpenAI model used in the request.
+- ``openai.request.endpoint``: OpenAI API endpoint used in the request.
+- ``openai.request.method``: HTTP method type used in the request.
+- ``openai.request.model``: OpenAI model used in the request.
 - ``openai.organization.name``: OpenAI organization name used in the request.
 - ``openai.organization.id``: OpenAI organization ID used in the request (when available).
-- ``openai.api_key``: OpenAI API key used to make the request (obfuscated to match the OpenAI UI representation ``sk-...XXXX`` where ``XXXX`` is the last 4 digits of the key).
+- ``openai.user.api_key``: OpenAI API key used to make the request (obfuscated to match the OpenAI UI representation ``sk-...XXXX`` where ``XXXX`` is the last 4 digits of the key).
 
 
 Metrics

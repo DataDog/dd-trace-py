@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    openai: Adds support for metrics, logs, and traces for the models, edits, images, audio, files, fine-tunes, and
+      moderations endpoints. See `the docs <https://ddtrace.readthedocs.io/en/stable/integrations.html#openai>`_
+      for more information.
