@@ -18,6 +18,7 @@ from ddtrace import patch
 from ddtrace.contrib.openai.patch import unpatch
 from ddtrace.contrib.openai.utils import _est_tokens
 from ddtrace.filters import TraceFilter
+from ddtrace.internal.utils.version import parse_version
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
 from tests.utils import override_config
@@ -816,6 +817,8 @@ async def test_aembedding(api_key_in_env, request_api_key, openai, openai_vcr, s
 def test_transcribe(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "Audio"):
         pytest.skip("audio not supported for this version of openai")
+    if api_key_in_env is False and parse_version(openai.version.VERSION) < (0, 27, 3):
+        pytest.skip("API keys could not be supplied in the request before openai==0.27.3")
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_transcribe",
         ignores=["meta.http.useragent", "meta.openai.request.file"],
@@ -837,6 +840,8 @@ def test_transcribe(api_key_in_env, request_api_key, openai, openai_vcr, snapsho
 async def test_atranscribe(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "Audio"):
         pytest.skip("audio not supported for this version of openai")
+    if api_key_in_env is False and parse_version(openai.version.VERSION) < (0, 27, 3):
+        pytest.skip("API keys could not be supplied in the request before openai==0.27.3")
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_atranscribe",
         ignores=["meta.http.useragent", "meta.openai.request.file"],
@@ -857,6 +862,8 @@ async def test_atranscribe(api_key_in_env, request_api_key, openai, openai_vcr, 
 def test_translate(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "Audio"):
         pytest.skip("audio not supported for this version of openai")
+    if api_key_in_env is False and parse_version(openai.version.VERSION) < (0, 27, 3):
+        pytest.skip("API keys could not be supplied in the request before openai==0.27.3")
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_translate",
         ignores=["meta.http.useragent", "meta.openai.request.file"],
@@ -876,6 +883,8 @@ def test_translate(api_key_in_env, request_api_key, openai, openai_vcr, snapshot
 async def test_atranslate(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "Audio"):
         pytest.skip("audio not supported for this version of openai")
+    if api_key_in_env is False and parse_version(openai.version.VERSION) < (0, 27, 3):
+        pytest.skip("API keys could not be supplied in the request before openai==0.27.3")
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_atranslate",
         ignores=["meta.http.useragent", "meta.openai.request.file"],
