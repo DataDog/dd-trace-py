@@ -12,7 +12,7 @@ Full grammar:
     value_source            =>  <literal> | <operation>
     literal                 =>  <number> | true | false | "string"
     number                  =>  0 | ([1-9][0-9]*\.[0-9]+)
-    identifier              =>  [a-zA-Z][a-zA-Z0-9_]*
+    identifier              =>  <str.isidentifier>
     arg_predicate           =>  {"<arg_predicate_type>": [<argument_list>]}
     arg_predicate_type      =>  eq | ne | gt | ge | lt | le | any | all | and | or
                                 | startsWith | endsWith | contains | matches
@@ -44,8 +44,6 @@ from ddtrace.internal.compat import PYTHON_VERSION_INFO as PY
 
 
 DDASTType = Union[Dict[str, Any], Dict[str, List[Any]], Any]
-
-IDENT_RE = re.compile(r"[a-zA-Z][a-zA-Z0-9_]*")
 
 
 def _make_function(ast, args, name):
@@ -245,14 +243,15 @@ def _compile_arg_operation(ast):
         )
 
     if _type == "getmember":
-        v, atr = args
+        v, attr = args
+        if not isinstance(attr, str) or not attr.isidentifier():
+            raise ValueError("Invalid identifier: %r" % attr)
+
         cv = _compile_predicate(v)
         if not cv:
             return None
-        if not isinstance(atr, str) or not IDENT_RE.match(atr):
-            return None
 
-        return _call_function(object.__getattribute__, cv, [Instr("LOAD_CONST", atr)])
+        return _call_function(object.__getattribute__, cv, [Instr("LOAD_CONST", attr)])
 
     if _type == "index":
         v, i = args
