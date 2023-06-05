@@ -115,14 +115,14 @@ def extract_remote_url(cwd=None):
 
 
 def extract_latest_commits(cwd=None):
-    latest_commits = _git_subprocess_cmd(["log", "--format=%H", "-n", "1000" '--since="1 month ago"'], cwd=cwd)
+    latest_commits = _git_subprocess_cmd(["log", "--format=%H", "-n", "1000" '--since="1 week ago"'], cwd=cwd)
     return latest_commits.split("\n") if latest_commits else []
 
 
 def get_rev_list_excluding_commits(commit_shas, cwd=None):
     command = ["rev-list", "--objects", "--filter=blob:none"]
     if extract_git_version(cwd=cwd) >= (2, 23, 0):
-        command.append('--since="1 month ago"')
+        command.append('--since="1 week ago"')
         command.append("--no-object-names")
     command.append("HEAD")
     exclusions = ["^%s" % sha for sha in commit_shas]
