@@ -28,6 +28,14 @@ from ddtrace.internal.logger import get_logger
 
 log = get_logger(__name__)
 
+config._add(
+    "subprocess",
+    dict(
+        subexec_sensitive_users_wildcars=os.getenv(
+            "DD_APPSEC_SUBPROCESS_EXEC_SENSITIVE_WILDCARDS", default="").split(",")
+    ),
+)
+
 
 def patch():
     # type: () -> List[str]
@@ -205,7 +213,7 @@ class SubprocessCmdLine(object):
         deque_args = collections.deque(self.arguments)
         while deque_args:
             current = deque_args[0]
-            for sensitive in self.SENSITIVE_WORDS_WILDCARDS + config._subexec_sensitive_user_wildcards:
+            for sensitive in self.SENSITIVE_WORDS_WILDCARDS + config.subprocess.subexec_sensitive_users_wildcars:
                 if fnmatch(current, sensitive):
                     is_sensitive = True
                     break
