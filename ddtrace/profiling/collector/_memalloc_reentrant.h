@@ -14,10 +14,8 @@ extern Py_tss_t memalloc_reentrant_key;
 extern int memalloc_reentrant_key;
 #endif
 
-
 /* Any non-NULL pointer can be used */
 #define _MEMALLOC_REENTRANT_VALUE Py_True
-
 
 static inline void
 memalloc_set_reentrant(bool reentrant)
