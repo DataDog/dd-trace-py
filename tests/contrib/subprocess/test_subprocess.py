@@ -56,29 +56,29 @@ for allowed in SubprocessCmdLine.ENV_VARS_ALLOWLIST:
     "cmdline_obj,full_list,env_vars,binary,arguments",
     [
         (
-                SubprocessCmdLine(["FOO=bar", "BAR=baz", "dir", "-li", "/"], shell=True),
-                ["FOO=?", "BAR=?", "dir", "-li", "/"],
-                ["FOO=?", "BAR=?"],
-                "dir",
-                ["-li", "/"],
+            SubprocessCmdLine(["FOO=bar", "BAR=baz", "dir", "-li", "/"], shell=True),
+            ["FOO=?", "BAR=?", "dir", "-li", "/"],
+            ["FOO=?", "BAR=?"],
+            "dir",
+            ["-li", "/"],
         ),
         (
-                SubprocessCmdLine(["FOO=bar", "BAR=baz", "dir", "-li", "/dir with spaces", "OTHER=any"], shell=True),
-                ["FOO=?", "BAR=?", "dir", "-li", "/dir with spaces", "OTHER=any"],
-                ["FOO=?", "BAR=?"],
-                "dir",
-                ["-li", "/dir with spaces", "OTHER=any"],
+            SubprocessCmdLine(["FOO=bar", "BAR=baz", "dir", "-li", "/dir with spaces", "OTHER=any"], shell=True),
+            ["FOO=?", "BAR=?", "dir", "-li", "/dir with spaces", "OTHER=any"],
+            ["FOO=?", "BAR=?"],
+            "dir",
+            ["-li", "/dir with spaces", "OTHER=any"],
         ),
         (
-                SubprocessCmdLine(["FOO=bar", "lower=baz", "dir", "-li", "/", "OTHER=any"], shell=True),
-                ["FOO=?", "lower=baz", "dir", "-li", "/", "OTHER=any"],
-                ["FOO=?"],
-                "lower=baz",
-                ["dir", "-li", "/", "OTHER=any"],
+            SubprocessCmdLine(["FOO=bar", "lower=baz", "dir", "-li", "/", "OTHER=any"], shell=True),
+            ["FOO=?", "lower=baz", "dir", "-li", "/", "OTHER=any"],
+            ["FOO=?"],
+            "lower=baz",
+            ["dir", "-li", "/", "OTHER=any"],
         ),
     ]
     + allowed_envvars_fixture_list,
-    )
+)
 def test_shellcmdline(cmdline_obj, full_list, env_vars, binary, arguments):
     assert cmdline_obj.as_list() == full_list
     assert cmdline_obj.env_vars == env_vars
@@ -112,29 +112,29 @@ def test_binary_arg_scrubbing(cmdline_obj, full_list, arguments):
     "cmdline_obj,arguments",
     [
         (
-                SubprocessCmdLine(
-                    ["binary", "-a", "-b1", "-c=foo", "-d bar", "--long1=long1value", "--long2 long2value"],
-                    shell=False,
-                ),
-                ["-a", "-b1", "-c=foo", "-d bar", "--long1=long1value", "--long2 long2value"],
+            SubprocessCmdLine(
+                ["binary", "-a", "-b1", "-c=foo", "-d bar", "--long1=long1value", "--long2 long2value"],
+                shell=False,
+            ),
+            ["-a", "-b1", "-c=foo", "-d bar", "--long1=long1value", "--long2 long2value"],
         ),
         (
-                SubprocessCmdLine(
-                    [
-                        "binary",
-                        "-a",
-                        "-passwd=SCRUB",
-                        "-passwd",
-                        "SCRUB",
-                        "-d bar",
-                        "--apikey=SCRUB",
-                        "-efoo",
-                        "/auth_tokenSCRUB",
-                        "--secretSCRUB",
-                    ],
-                    shell=False,
-                ),
-                ["-a", "?", "-passwd", "?", "-d bar", "?", "-efoo", "?", "?"],
+            SubprocessCmdLine(
+                [
+                    "binary",
+                    "-a",
+                    "-passwd=SCRUB",
+                    "-passwd",
+                    "SCRUB",
+                    "-d bar",
+                    "--apikey=SCRUB",
+                    "-efoo",
+                    "/auth_tokenSCRUB",
+                    "--secretSCRUB",
+                ],
+                shell=False,
+            ),
+            ["-a", "?", "-passwd", "?", "-d bar", "?", "-efoo", "?", "?"],
         ),
     ],
 )
@@ -164,10 +164,10 @@ def test_argument_scrubing_user():
     "cmdline_obj,expected_str,expected_list,truncated",
     [
         (
-                SubprocessCmdLine(["dir", "-A" + "loremipsum" * 40, "-B"]),
-                'dir -Aloremipsumloremipsumloremipsuml "4kB argument truncated by 329 characters"',
-                ["dir", "-Aloremipsumloremipsumloremipsuml", "4kB argument truncated by 329 characters"],
-                True,
+            SubprocessCmdLine(["dir", "-A" + "loremipsum" * 40, "-B"]),
+            'dir -Aloremipsumloremipsumloremipsuml "4kB argument truncated by 329 characters"',
+            ["dir", "-Aloremipsumloremipsumloremipsuml", "4kB argument truncated by 329 characters"],
+            True,
         ),
         (SubprocessCmdLine("dir -A -B -C"), "dir -A -B -C", ["dir", "-A", "-B", "-C"], False),
     ],
