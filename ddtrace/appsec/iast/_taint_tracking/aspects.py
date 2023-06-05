@@ -97,7 +97,7 @@ def bytearray_aspect(*args, **kwargs):
 
 def modulo_aspect(candidate_text, candidate_tuple):
     # type: (Any, Any) -> Any
-    if isinstance(candidate_text, (str, bytes, bytearray)):
+    if not isinstance(candidate_text, (str, bytes, bytearray)):
         return candidate_text % candidate_tuple
 
     try:
@@ -137,7 +137,7 @@ def format_aspect(
     *args,  # type: List[Any]
     **kwargs  # type: Dict[str, Any]
 ):  # type: (...) -> str
-    if isinstance(candidate_text, (str, bytes, bytearray)):
+    if not isinstance(candidate_text, (str, bytes, bytearray)):
         return candidate_text.format(*args, **kwargs)
 
     try:
@@ -168,7 +168,7 @@ def format_aspect(
 
 # TODO: add tests
 def format_map_aspect(candidate_text, *args, **kwargs):  # type: (str, Any, Any) -> str
-    if isinstance(candidate_text, (str, bytes, bytearray)):
+    if not isinstance(candidate_text, (str, bytes, bytearray)):
         return candidate_text.format_map(*args, **kwargs)
 
     try:
@@ -220,7 +220,7 @@ def format_value_aspect(
 
     if format_spec:
         # Apply formatting
-        new_text = aspect_format("{:%s}" % format_spec, new_text)  # type:ignore
+        new_text = format_aspect("{:%s}" % format_spec, new_text)  # type:ignore
     else:
         new_text = str(new_text)
 

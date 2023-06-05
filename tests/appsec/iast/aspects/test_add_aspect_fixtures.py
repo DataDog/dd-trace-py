@@ -85,7 +85,7 @@ class TestOperatorAddReplacement(object):
 
         assert result == "AB"
         # TODO: migrate aspect title
-        # assert len(get_tainted_ranges(result)) == 2
+        assert len(get_tainted_ranges(result)) == 2
 
     def test_string_operator_add_one_tainted_mixed_bytearray_bytes(self):  # type: () -> None
         from ddtrace.appsec.iast._taint_tracking import setup

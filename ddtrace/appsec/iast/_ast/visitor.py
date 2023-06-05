@@ -45,6 +45,8 @@ class AstVisitor(ast.NodeTransformer):
                 "capitalize": "ddtrace_aspects.capitalize_aspect",
                 "casefold": "ddtrace_aspects.casefold_aspect",
                 "translate": "ddtrace_aspects.translate_aspect",
+                "format": "ddtrace_aspects.format_aspect",
+                "format_map": "ddtrace_aspects.format_map_aspect",
             },
             # Replacement functions for modules
             "module_functions": {
@@ -56,6 +58,7 @@ class AstVisitor(ast.NodeTransformer):
             "operators": {
                 ast.Add: "ddtrace_aspects.add_aspect",
                 "FORMAT_VALUE": "ddtrace_aspects.format_value_aspect",
+                ast.Mod: "ddtrace_aspects.modulo_aspect",
             },
             "excluded_from_patching": {
                 # Key: module being patched
@@ -85,6 +88,7 @@ class AstVisitor(ast.NodeTransformer):
         self._aspect_operators = self._aspects_spec["operators"]
         self._aspect_methods = self._aspects_spec["stringalike_methods"]
         self._aspect_modules = self._aspects_spec["module_functions"]
+        self._aspect_format_value = self._aspects_spec["operators"]["FORMAT_VALUE"]
         self.excluded_functions = self._aspects_spec["excluded_from_patching"].get(self.module_name, {})
 
         self.dont_patch_these_functionsdefs = set()
@@ -213,6 +217,29 @@ class AstVisitor(ast.NodeTransformer):
 
         return insert_position
 
+    def _none_constant(self, from_node, ctx=ast.Load()):  # type: (Any, Any) -> Any
+        if PY30_37:
+            return ast.NameConstant(lineno=from_node.lineno, col_offset=from_node.col_offset, value=None)
+
+        if PY2:
+            return ast.Name(id="None", lineno=from_node.lineno, col_offset=from_node.col_offset, ctx=ctx)
+
+        # 3.8+
+        return ast.Constant(  # type: ignore[name-defined]
+            lineno=from_node.lineno,
+            col_offset=from_node.col_offset,
+            end_lineno=from_node.end_lineno,
+            end_col_offset=from_node.end_col_offset,
+            value=None,
+            kind=None,
+        )
+
+    def _call_node(self, from_node, func, args):  # type: (Any, Any, ListType[Any]) -> Any
+        if PY2:
+            return self._node(ast.Call, from_node, func=func, args=args, starargs=None, kwargs=None, keywords=[])
+
+        return self._node(ast.Call, from_node, func=func, args=args, keywords=[])
+
     def visit_Module(self, module_node):
         # type: (ast.Module) -> Any
         """
@@ -317,4 +344,34 @@ class AstVisitor(ast.NodeTransformer):
             self.ast_modified = True
             return ast.Call(self._attr_node(call_node, aspect), [call_node.left, call_node.right], [])
 
+        return call_node
+
+    def visit_FormattedValue(self, fmt_value_node):  # type: (FormattedValue) -> Any
+        """
+        Visit a FormattedValue node which are the constituent atoms for the
+        JoinedStr which are used to implement f-strings.
+        """
+
+        self.generic_visit(fmt_value_node)
+
+        if hasattr(fmt_value_node, "value") and self._is_node_constant_or_binop(fmt_value_node.value):
+            return fmt_value_node
+
+        func_name_node = self._attr_node(fmt_value_node, self._aspect_format_value)
+
+        options_int = self._node(
+            ast.Constant,  # type: ignore[name-defined]
+            fmt_value_node,
+            value=fmt_value_node.conversion,
+            kind=None,
+        )
+
+        format_spec = fmt_value_node.format_spec if fmt_value_node.format_spec else self._none_constant(fmt_value_node)
+        call_node = self._call_node(
+            fmt_value_node,
+            func=func_name_node,
+            args=[fmt_value_node.value, options_int, format_spec],
+        )
+
+        self.ast_modified = True
         return call_node

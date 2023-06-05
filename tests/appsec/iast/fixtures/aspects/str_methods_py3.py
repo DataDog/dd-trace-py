@@ -1,8 +1,8 @@
 ## Python 3 only functions (syntax errors on Python 2)
-from hdiv_agent.commons.project_types import Any
-from hdiv_agent.commons.project_types import List
-from hdiv_agent.commons.project_types import Optional
-from hdiv_agent.commons.project_types import Tuple
+from typing import Any
+from typing import List
+from typing import Optional
+from typing import Tuple
 
 
 def do_fmt_value(a):  # type: (str) -> str

@@ -28,11 +28,11 @@ from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import Source  #
 from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import TagMappingMode  # noqa: F401
 from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import TaintRange  # noqa: F401
 from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import (
-    is_notinterned_notfasttainted_unicode,  # noqa: F401
-)  # noqa: F401
-from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import (  # noqa: F401
-    set_fast_tainted_if_notinterned_unicode,  # noqa: F401
-)  # noqa: F401
+    is_notinterned_notfasttainted_unicode,
+)  # noqa: F401; noqa: F401
+from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import (
+    set_fast_tainted_if_notinterned_unicode,
+)  # noqa: F401; noqa: F401; noqa: F401
 from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import are_all_text_all_ranges  # noqa: F401
 from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import get_range_by_hash  # noqa: F401
 from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import get_ranges  # noqa: F401
