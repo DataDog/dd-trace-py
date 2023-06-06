@@ -3,7 +3,6 @@ from typing import Iterable
 
 import pymemcache
 from pymemcache.client.base import Client
-from pymemcache.client.hash import HashClient
 from pymemcache.exceptions import MemcacheClientError
 from pymemcache.exceptions import MemcacheIllegalInputError
 from pymemcache.exceptions import MemcacheServerError
