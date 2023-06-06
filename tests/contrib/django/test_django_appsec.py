@@ -1152,8 +1152,9 @@ def test_django_tainted_iast_disabled_sqli_http_cookies_value(client, test_spans
 
 @pytest.mark.django_db
 def test_django_login_events_disabled_explicitly(client, test_spans, tracer):
-    with override_global_config(dict(_appsec_enabled=True)), \
-            override_env({APPSEC.AUTOMATIC_USER_EVENTS_TRACKING: "disabled"}):
+    with override_global_config(dict(_appsec_enabled=True)), override_env(
+        {APPSEC.AUTOMATIC_USER_EVENTS_TRACKING: "disabled"}
+    ):
         test_user = User.objects.create(username="fred")
         test_user.set_password("secret")
         test_user.save()
@@ -1185,8 +1186,9 @@ def test_django_login_events_disabled_noappsec(client, test_spans, tracer):
 # TODO: test custom user defined field
 @pytest.mark.django_db
 def test_django_login_sucess_extended(client, test_spans, tracer):
-    with override_global_config(dict(_appsec_enabled=True)), \
-            override_env({APPSEC.AUTOMATIC_USER_EVENTS_TRACKING: "extended"}):
+    with override_global_config(dict(_appsec_enabled=True)), override_env(
+        {APPSEC.AUTOMATIC_USER_EVENTS_TRACKING: "extended"}
+    ):
         test_user = User.objects.create(username="fred")
         test_user.set_password("secret")
         test_user.save()
@@ -1201,8 +1203,9 @@ def test_django_login_sucess_extended(client, test_spans, tracer):
 
 @pytest.mark.django_db
 def test_django_login_sucess_safe(client, test_spans, tracer):
-    with override_global_config(dict(_appsec_enabled=True)), \
-            override_env({APPSEC.AUTOMATIC_USER_EVENTS_TRACKING: "safe"}):
+    with override_global_config(dict(_appsec_enabled=True)), override_env(
+        {APPSEC.AUTOMATIC_USER_EVENTS_TRACKING: "safe"}
+    ):
         test_user = User.objects.create(username="fred2")
         test_user.set_password("secret")
         test_user.save()
@@ -1233,8 +1236,9 @@ def test_django_login_sucess_safe(client, test_spans, tracer):
 
 @pytest.mark.django_db
 def test_django_login_failure_user_doesnt_exists(client, test_spans, tracer):
-    with override_global_config(dict(_appsec_enabled=True)), \
-            override_env({APPSEC.AUTOMATIC_USER_EVENTS_TRACKING: "enabled"}):
+    with override_global_config(dict(_appsec_enabled=True)), override_env(
+        {APPSEC.AUTOMATIC_USER_EVENTS_TRACKING: "enabled"}
+    ):
         assert not get_user(client).is_authenticated
         client.login(username="missing", password="secret2")
         assert not get_user(client).is_authenticated
