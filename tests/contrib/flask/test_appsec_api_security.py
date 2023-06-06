@@ -1,6 +1,7 @@
 import base64
 import gzip
 import json
+import sys
 
 from flask import request
 import pytest
@@ -34,6 +35,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         # Hack: need to pass an argument to configure so that the processors are recreated
         self.tracer.configure(api_version="v0.4")
 
+    @pytest.mark.skipif((sys.version_info.major, sys.version_info.minor) < (3, 7), reason="python<3.7 not supported")
     def test_api_content(self):
         @self.app.route("/response-header/", methods=["POST"])
         def specific_reponse():
