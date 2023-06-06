@@ -15,7 +15,7 @@
       "openai.api_base": "https://api.openai.com/v1",
       "openai.api_type": "open_ai",
       "openai.request.compute_classification_metrics": "False",
-      "openai.request.endpoint": "/fine-tunes",
+      "openai.request.endpoint": "/v1/fine-tunes",
       "openai.request.method": "POST",
       "openai.request.model": "babbage",
       "openai.request.suffix": "dummy-fine-tune-model",

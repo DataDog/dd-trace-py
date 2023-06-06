@@ -15,7 +15,7 @@
       "openai.api_base": "https://api.openai.com/v1",
       "openai.api_type": "open_ai",
       "openai.organization.name": "datadog-4",
-      "openai.request.endpoint": "/edits",
+      "openai.request.endpoint": "/v1/edits",
       "openai.request.input": "thsi si a spelilgn imstkae.",
       "openai.request.instruction": "fix spelling mistakes",
       "openai.request.method": "POST",

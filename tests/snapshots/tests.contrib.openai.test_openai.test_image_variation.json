@@ -15,7 +15,7 @@
       "openai.api_base": "https://api.openai.com/v1",
       "openai.api_type": "open_ai",
       "openai.organization.name": "datadog-4",
-      "openai.request.endpoint": "/images/variations",
+      "openai.request.endpoint": "/v1/images/variations",
       "openai.request.image": "/dd-trace-py/tests/contrib/openai/test_data/image.png",
       "openai.request.method": "POST",
       "openai.request.response_format": "url",

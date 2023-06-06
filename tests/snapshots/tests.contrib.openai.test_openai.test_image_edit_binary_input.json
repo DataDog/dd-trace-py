@@ -15,7 +15,7 @@
       "openai.api_base": "https://api.openai.com/v1",
       "openai.api_type": "open_ai",
       "openai.organization.name": "datadog-4",
-      "openai.request.endpoint": "/images/edits",
+      "openai.request.endpoint": "/v1/images/edits",
       "openai.request.image": "",
       "openai.request.method": "POST",
       "openai.request.prompt": "A sunlit indoor lounge area with a pool containing a flamingo",

@@ -14,7 +14,7 @@
       "language": "python",
       "openai.api_base": "https://api.openai.com/v1",
       "openai.api_type": "open_ai",
-      "openai.request.endpoint": "/files",
+      "openai.request.endpoint": "/v1/files/*/content",
       "openai.request.file_id": "file-xC22NUuYBkXvzRt2fLREcGde",
       "openai.request.method": "GET",
       "openai.user.api_key": "sk-...key>",

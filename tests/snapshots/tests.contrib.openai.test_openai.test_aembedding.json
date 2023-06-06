@@ -15,7 +15,7 @@
       "openai.api_base": "https://api.openai.com/v1",
       "openai.api_type": "open_ai",
       "openai.organization.name": "datadog-4",
-      "openai.request.endpoint": "/embeddings",
+      "openai.request.endpoint": "/v1/embeddings",
       "openai.request.input": "hello world",
       "openai.request.method": "POST",
       "openai.request.model": "text-embedding-ada-002",

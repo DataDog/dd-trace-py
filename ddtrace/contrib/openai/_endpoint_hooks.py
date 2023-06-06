@@ -7,6 +7,9 @@ from .utils import _format_bool
 from .utils import _format_openai_api_key
 
 
+API_VERSION = "v1"
+
+
 class _EndpointHook:
     # Assume base arg signature follows openai.EngineAPIResource.create(...)
     _request_arg_params = ("cls", "api_key", "api_base", "api_type", "request_id", "api_version", "organization")
@@ -20,8 +23,8 @@ class _EndpointHook:
         """Set base-level openai tags, as well as request params from args and kwargs."""
         endpoint = self.ENDPOINT_NAME
         if endpoint is None:
-            endpoint = "/%s" % args[0].OBJECT_NAME
-        span.set_tag_str("openai.request.endpoint", endpoint)
+            endpoint = "%s" % args[0].OBJECT_NAME
+        span.set_tag_str("openai.request.endpoint", "/%s/%s" % (API_VERSION, endpoint))
         span.set_tag_str("openai.request.method", self.REQUEST_TYPE)
 
         base_level_tag_args = ("api_base", "api_type", "api_version")
@@ -163,7 +166,7 @@ class _CompletionHook(_BaseCompletionHook):
         "logit_bias",
         "user",
     )
-    ENDPOINT_NAME = "/completions"
+    ENDPOINT_NAME = "completions"
     REQUEST_TYPE = "POST"
     OPERATION_ID = "createCompletion"
 
@@ -231,7 +234,7 @@ class _ChatCompletionHook(_BaseCompletionHook):
         "logit_bias",
         "user",
     )
-    ENDPOINT_NAME = "/chat/completions"
+    ENDPOINT_NAME = "chat/completions"
     REQUEST_TYPE = "POST"
     OPERATION_ID = "createChatCompletion"
 
@@ -296,7 +299,7 @@ class _ChatCompletionHook(_BaseCompletionHook):
 class _EmbeddingHook(_EndpointHook):
     _request_kwarg_params = ("model", "user")
     _prompt_completion = False
-    ENDPOINT_NAME = "/embeddings"
+    ENDPOINT_NAME = "embeddings"
     REQUEST_TYPE = "POST"
     OPERATION_ID = "createEmbedding"
 
@@ -339,11 +342,12 @@ class _ListHook(_EndpointHook):
     OPERATION_ID = "list"
 
     def _pre_response(self, pin, integration, span, args, kwargs):
-        if span.get_tag("openai.request.endpoint") == "/models":
+        endpoint = span.get_tag("openai.request.endpoint")
+        if endpoint.endswith("/models"):
             span.resource = "listModels"
-        elif span.get_tag("openai.request.endpoint") == "/files":
+        elif endpoint.endswith("/files"):
             span.resource = "listFiles"
-        elif span.get_tag("openai.request.endpoint") == "/fine-tunes":
+        elif endpoint.endswith("/fine-tunes"):
             span.resource = "listFineTunes"
         return
 
@@ -365,15 +369,17 @@ class _RetrieveHook(_EndpointHook):
     OPERATION_ID = "retrieve"
 
     def _pre_response(self, pin, integration, span, args, kwargs):
-        if span.get_tag("openai.request.endpoint") == "/models":
+        endpoint = span.get_tag("openai.request.endpoint")
+        if endpoint.endswith("/models"):
             span.resource = "retrieveModel"
             span.set_tag("openai.request.model", args[1])
-        elif span.get_tag("openai.request.endpoint") == "/files":
+        elif endpoint.endswith("/files"):
             span.resource = "retrieveFile"
             span.set_tag("openai.request.file_id", args[1])
-        elif span.get_tag("openai.request.endpoint") == "/fine-tunes":
+        elif endpoint.endswith("/fine-tunes"):
             span.resource = "retrieveFineTune"
             span.set_tag("openai.request.fine_tune_id", args[1])
+        span.set_tag_str("openai.request.endpoint", "%s/*" % endpoint)
         return
 
     def _post_response(self, pin, integration, span, args, kwargs, resp, error):
@@ -422,12 +428,14 @@ class _DeleteHook(_EndpointHook):
     OPERATION_ID = "delete"
 
     def _pre_response(self, pin, integration, span, args, kwargs):
-        if span.get_tag("openai.request.endpoint") == "/models":
+        endpoint = span.get_tag("openai.request.endpoint")
+        if endpoint.endswith("/models"):
             span.resource = "deleteModel"
             span.set_tag("openai.request.model", args[1])
-        elif span.get_tag("openai.request.endpoint") == "/files":
+        elif endpoint.endswith("/files"):
             span.resource = "deleteFile"
             span.set_tag("openai.request.file_id", args[1])
+        span.set_tag_str("openai.request.endpoint", "%s/*" % endpoint)
         return
 
     def _post_response(self, pin, integration, span, args, kwargs, resp, error):
@@ -453,7 +461,7 @@ class _EditHook(_EndpointHook):
         "user",
     )
     _prompt_completion = True
-    ENDPOINT_NAME = "/edits"
+    ENDPOINT_NAME = "edits"
     REQUEST_TYPE = "POST"
     OPERATION_ID = "createEdit"
 
@@ -494,7 +502,7 @@ class _EditHook(_EndpointHook):
 
 class _ImageHook(_EndpointHook):
     _prompt_completion = True
-    ENDPOINT_NAME = "/images"
+    ENDPOINT_NAME = "images"
     REQUEST_TYPE = "POST"
 
     def _pre_response(self, pin, integration, span, args, kwargs):
@@ -537,28 +545,28 @@ class _ImageHook(_EndpointHook):
 class _ImageCreateHook(_ImageHook):
     _request_arg_params = ("cls", "api_key", "api_base", "api_type", "api_version", "organization")
     _request_kwarg_params = ("prompt", "n", "size", "response_format", "user")
-    ENDPOINT_NAME = "/images/generations"
+    ENDPOINT_NAME = "images/generations"
     OPERATION_ID = "createImage"
 
 
 class _ImageEditHook(_ImageHook):
     _request_arg_params = ("cls", "image", "mask", "api_key", "api_base", "api_type", "api_version", "organization")
     _request_kwarg_params = ("prompt", "n", "size", "response_format", "user")
-    ENDPOINT_NAME = "/images/edits"
+    ENDPOINT_NAME = "images/edits"
     OPERATION_ID = "createImageEdit"
 
 
 class _ImageVariationHook(_ImageHook):
     _request_arg_params = ("cls", "image", "api_key", "api_base", "api_type", "api_version", "organization")
     _request_kwarg_params = ("n", "size", "response_format", "user")
-    ENDPOINT_NAME = "/images/variations"
+    ENDPOINT_NAME = "images/variations"
     OPERATION_ID = "createImageVariation"
 
 
 class _BaseAudioHook(_EndpointHook):
     _request_arg_params = ("cls", "model", "filename", "api_key", "api_base", "api_type", "api_version", "organization")
     _prompt_completion = True
-    ENDPOINT_NAME = "/audio"
+    ENDPOINT_NAME = "audio"
     REQUEST_TYPE = "POST"
 
     def _pre_response(self, pin, integration, span, args, kwargs):
@@ -603,7 +611,7 @@ class _AudioTranscriptionHook(_BaseAudioHook):
         "language",
         "user",
     )
-    ENDPOINT_NAME = "/audio/transcriptions"
+    ENDPOINT_NAME = "audio/transcriptions"
     OPERATION_ID = "createTranscription"
 
 
@@ -614,14 +622,14 @@ class _AudioTranslationHook(_BaseAudioHook):
         "temperature",
         "user",
     )
-    ENDPOINT_NAME = "/audio/translations"
+    ENDPOINT_NAME = "audio/translations"
     OPERATION_ID = "createTranslation"
 
 
 class _ModerationHook(_EndpointHook):
     _request_arg_params = ("cls", "input", "model", "api_key")
     _prompt_completion = False
-    ENDPOINT_NAME = "/moderations"
+    ENDPOINT_NAME = "moderations"
     REQUEST_TYPE = "POST"
     OPERATION_ID = "createModeration"
 
@@ -649,7 +657,7 @@ class _ModerationHook(_EndpointHook):
 
 class _BaseFileHook(_EndpointHook):
     _prompt_completion = False
-    ENDPOINT_NAME = "/files"
+    ENDPOINT_NAME = "files"
 
     def _pre_response(self, pin, integration, span, args, kwargs):
         return
@@ -677,7 +685,7 @@ class _FileCreateHook(_BaseFileHook):
         span.set_tag_str("openai.response.id", resp.get("id", ""))
         span.set_tag("openai.response.bytes", resp.get("bytes", ""))
         span.set_tag("openai.response.created_at", resp.get("created_at", ""))
-        span.set_tag_str("openai.response.filename", integration.trunc(resp.get("filename", "")))
+        span.set_tag_str("openai.response.filename", resp.get("filename", ""))
         span.set_tag_str("openai.response.purpose", resp.get("purpose", ""))
         span.set_tag_str("openai.response.status", resp.get("status", ""))
         span.set_tag("openai.response.status_details", resp.get("status_details", ""))
@@ -688,6 +696,7 @@ class _FileDownloadHook(_BaseFileHook):
     _request_arg_params = ("cls", None, "api_key", "api_base", "api_type", "api_version", "organization")
     REQUEST_TYPE = "GET"
     OPERATION_ID = "downloadFile"
+    ENDPOINT_NAME = "files/*/content"
 
     def _pre_response(self, pin, integration, span, args, kwargs):
         span.set_tag("openai.request.file_id", args[1])
@@ -737,7 +746,7 @@ class _FineTuneCreateHook(_BaseFineTuneHook):
         "classification_positive_class",
         "suffix",
     )
-    ENDPOINT_NAME = "/fine-tunes"
+    ENDPOINT_NAME = "fine-tunes"
     REQUEST_TYPE = "POST"
     OPERATION_ID = "createFineTune"
 
@@ -750,7 +759,7 @@ class _FineTuneCreateHook(_BaseFineTuneHook):
 class _FineTuneCancelHook(_BaseFineTuneHook):
     _request_arg_params = ("cls", None, "api_key", "api_type", "request_id", "api_version")
     _request_kwarg_params = ("user",)
-    ENDPOINT_NAME = "/fine-tunes/cancel"
+    ENDPOINT_NAME = "fine-tunes/*/cancel"
     REQUEST_TYPE = "POST"
     OPERATION_ID = "cancelFineTune"
 
@@ -762,7 +771,7 @@ class _FineTuneCancelHook(_BaseFineTuneHook):
 class _FineTuneListEventsHook(_BaseFineTuneHook):
     _request_arg_params = ("cls", None)
     _request_kwarg_params = ("stream", "user")
-    ENDPOINT_NAME = "/fine-tunes/events"
+    ENDPOINT_NAME = "fine-tunes/*/events"
     REQUEST_TYPE = "GET"
     OPERATION_ID = "listFineTuneEvents"
 

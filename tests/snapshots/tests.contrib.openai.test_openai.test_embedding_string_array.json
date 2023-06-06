@@ -15,7 +15,7 @@
       "openai.api_base": "https://api.openai.com/v1",
       "openai.api_type": "open_ai",
       "openai.organization.name": "user-uyjdlwpstcqhcynk3extjvgk",
-      "openai.request.endpoint": "/embeddings",
+      "openai.request.endpoint": "/v1/embeddings",
       "openai.request.input.0": "hello world",
       "openai.request.input.1": "hello again",
       "openai.request.method": "POST",

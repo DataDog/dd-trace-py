@@ -15,7 +15,7 @@
       "openai.api_base": "https://api.openai.com/v1",
       "openai.api_type": "open_ai",
       "openai.organization.name": "datadog-4",
-      "openai.request.endpoint": "/completions",
+      "openai.request.endpoint": "/v1/completions",
       "openai.request.method": "POST",
       "openai.request.model": "curie",
       "openai.request.prompt": "As Descartes said, I think, therefore",

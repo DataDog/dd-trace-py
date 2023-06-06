@@ -15,7 +15,7 @@
       "openai.api_base": "https://api.openai.com/v1",
       "openai.api_type": "open_ai",
       "openai.organization.name": "datadog-4",
-      "openai.request.endpoint": "/moderations",
+      "openai.request.endpoint": "/v1/moderations",
       "openai.request.input": "that group of loud children annoy me.",
       "openai.request.method": "POST",
       "openai.request.model": "text-moderation-latest",

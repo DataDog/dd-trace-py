@@ -17,7 +17,7 @@
       "language": "python",
       "openai.api_base": "https://api.openai.com/v1",
       "openai.api_type": "open_ai",
-      "openai.request.endpoint": "/completions",
+      "openai.request.endpoint": "/v1/completions",
       "openai.request.method": "POST",
       "openai.request.prompt": "",
       "openai.user.api_key": "sk-...key>",

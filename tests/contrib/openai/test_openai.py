@@ -282,7 +282,7 @@ def test_completion(api_key_in_env, request_api_key, openai, openai_vcr, mock_me
             "env:",
             "service:",
             "openai.request.model:ada",
-            "openai.request.endpoint:/completions",
+            "openai.request.endpoint:/v1/completions",
             "openai.request.method:POST",
             "openai.organization.id:",
             "openai.organization.name:datadog-4",
@@ -376,7 +376,7 @@ async def test_acompletion(
             "env:",
             "service:",
             "openai.request.model:curie",
-            "openai.request.endpoint:/completions",
+            "openai.request.endpoint:/v1/completions",
             "openai.request.method:POST",
             "openai.organization.id:",
             "openai.organization.name:datadog-4",
@@ -473,7 +473,7 @@ def test_logs_completions(openai_vcr, openai, ddtrace_config_openai, mock_logs, 
                     "ddsource": "openai",
                     "service": "",
                     "status": "info",
-                    "ddtags": "env:,version:,openai.request.endpoint:/completions,openai.request.method:POST,openai.request.model:ada,openai.organization.name:datadog-4,openai.user.api_key:sk-...key>",  # noqa: E501
+                    "ddtags": "env:,version:,openai.request.endpoint:/v1/completions,openai.request.method:POST,openai.request.model:ada,openai.organization.name:datadog-4,openai.user.api_key:sk-...key>",  # noqa: E501
                     "dd.trace_id": str(trace_id),
                     "dd.span_id": str(span_id),
                     "prompt": "Hello world",
@@ -508,7 +508,7 @@ def test_global_tags(openai_vcr, ddtrace_config_openai, openai, mock_metrics, mo
     assert span.get_tag("env") == "staging"
     assert span.get_tag("version") == "1234"
     assert span.get_tag("openai.request.model") == "ada"
-    assert span.get_tag("openai.request.endpoint") == "/completions"
+    assert span.get_tag("openai.request.endpoint") == "/v1/completions"
     assert span.get_tag("openai.request.method") == "POST"
     assert span.get_tag("openai.organization.name") == "datadog-4"
     assert span.get_tag("openai.user.api_key") == "sk-...key>"
@@ -519,7 +519,7 @@ def test_global_tags(openai_vcr, ddtrace_config_openai, openai, mock_metrics, mo
             "env:staging",
             "version:1234",
             "openai.request.model:ada",
-            "openai.request.endpoint:/completions",
+            "openai.request.endpoint:/v1/completions",
             "openai.request.method:POST",
             "openai.organization.name:datadog-4",
             "openai.user.api_key:sk-...key>",
@@ -535,7 +535,7 @@ def test_global_tags(openai_vcr, ddtrace_config_openai, openai, mock_metrics, mo
         assert log["service"] == "test-svc"
         assert (
             log["ddtags"]
-            == "env:staging,version:1234,openai.request.endpoint:/completions,openai.request.method:POST,openai.request.model:ada,openai.organization.name:datadog-4,openai.user.api_key:sk-...key>"  # noqa: E501
+            == "env:staging,version:1234,openai.request.endpoint:/v1/completions,openai.request.method:POST,openai.request.model:ada,openai.organization.name:datadog-4,openai.user.api_key:sk-...key>"  # noqa: E501
         )
 
 
@@ -1326,7 +1326,7 @@ def test_completion_stream(openai, openai_vcr, mock_metrics, mock_tracer):
         "env:",
         "service:",
         "openai.request.model:ada",
-        "openai.request.endpoint:/completions",
+        "openai.request.endpoint:/v1/completions",
         "openai.request.method:POST",
         "openai.organization.id:",
         "openai.organization.name:user-f23xvdxbrssd56y1ghcjdcue",
@@ -1357,7 +1357,7 @@ async def test_completion_async_stream(openai, openai_vcr, mock_metrics, mock_tr
         "env:",
         "service:",
         "openai.request.model:ada",
-        "openai.request.endpoint:/completions",
+        "openai.request.endpoint:/v1/completions",
         "openai.request.method:POST",
         "openai.organization.id:",
         "openai.organization.name:datadog-4",
@@ -1395,7 +1395,7 @@ def test_chat_completion_stream(openai, openai_vcr, mock_metrics, snapshot_trace
         "env:",
         "service:",
         "openai.request.model:gpt-3.5-turbo",
-        "openai.request.endpoint:/chat/completions",
+        "openai.request.endpoint:/v1/chat/completions",
         "openai.request.method:POST",
         "openai.organization.id:",
         "openai.organization.name:user-f23xvdxbrssd56y1ghcjdcue",
@@ -1440,7 +1440,7 @@ async def test_chat_completion_async_stream(openai, openai_vcr, mock_metrics, sn
         "env:",
         "service:",
         "openai.request.model:gpt-3.5-turbo",
-        "openai.request.endpoint:/chat/completions",
+        "openai.request.endpoint:/v1/chat/completions",
         "openai.request.method:POST",
         "openai.organization.id:",
         "openai.organization.name:datadog-4",
@@ -1646,10 +1646,9 @@ def test_completion_truncation(openai, openai_vcr, mock_tracer):
     limit = ddtrace.config.openai["span_char_limit"]
     for trace in traces:
         for span in trace:
-            if span.get_tag("openai.request.endpoint") == "/completions":
-                prompt = span.get_tag("openai.request.prompt")
-                completion = span.get_tag("openai.response.choices.0.text")
-                # +3 for the ellipsis
+            if span.get_tag("openai.request.endpoint").endswith("/chat/completions"):
+                prompt = span.get_tag("openai.request.messages.0.content")
+                completion = span.get_tag("openai.response.choices.0.message.content")
                 assert len(prompt) <= limit + 3
                 assert len(completion) <= limit + 3
                 if "..." in prompt:
@@ -1657,8 +1656,9 @@ def test_completion_truncation(openai, openai_vcr, mock_tracer):
                 if "..." in completion:
                     assert len(completion.replace("...", "")) == limit
             else:
-                prompt = span.get_tag("openai.request.messages.0.content")
-                completion = span.get_tag("openai.response.choices.0.message.content")
+                prompt = span.get_tag("openai.request.prompt")
+                completion = span.get_tag("openai.response.choices.0.text")
+                # +3 for the ellipsis
                 assert len(prompt) <= limit + 3
                 assert len(completion) <= limit + 3
                 if "..." in prompt:
