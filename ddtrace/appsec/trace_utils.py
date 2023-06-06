@@ -77,7 +77,7 @@ def track_user_login_success_event(
     propagate=False,
     login_events_mode=LOGIN_EVENTS_MODE.SDK,
 ):
-    # type: (Tracer, str, Optional[dict], Optional[str], Optional[str], Optional[str], Optional[str], Optional[str], bool, str) -> None # noqa: E501
+    # type: (Tracer, str, Optional[dict], Optional[str], Optional[str], Optional[str], Optional[str], Optional[str], Optional[str], bool, str) -> None # noqa: E501
     """
     Add a new login success tracking event. The parameters after metadata (name, email,
     scope, role, session_id, propagate) will be passed to the `set_user` function that will be called
