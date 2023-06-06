@@ -34,6 +34,8 @@ from ddtrace.debugging._probe.model import LogLineProbe
 from ddtrace.debugging._probe.model import MetricFunctionProbe
 from ddtrace.debugging._probe.model import MetricLineProbe
 from ddtrace.debugging._probe.model import Probe
+from ddtrace.debugging._probe.model import SpanDecorationFunctionProbe
+from ddtrace.debugging._probe.model import SpanDecorationLineProbe
 from ddtrace.debugging._probe.model import SpanFunctionProbe
 from ddtrace.debugging._probe.registry import ProbeRegistry
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
@@ -46,6 +48,7 @@ from ddtrace.debugging._signal.model import LogSignal
 from ddtrace.debugging._signal.model import Signal
 from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.debugging._signal.tracing import DynamicSpan
+from ddtrace.debugging._signal.tracing import SpanDecoration
 from ddtrace.debugging._uploader import LogsIntakeUploaderV1
 from ddtrace.internal import atexit
 from ddtrace.internal import compat
@@ -300,6 +303,12 @@ class Debugger(Service):
                     thread=threading.current_thread(),
                     trace_context=self._tracer.current_trace_context(),
                 )
+            elif isinstance(probe, SpanDecorationLineProbe):
+                signal = SpanDecoration(
+                    probe=probe,
+                    frame=actual_frame,
+                    thread=threading.current_thread(),
+                )
             else:
                 log.error("Unsupported probe type: %r", type(probe))
                 return
@@ -360,6 +369,13 @@ class Debugger(Service):
                         thread=thread,
                         args=allargs,
                         trace_context=trace_context,
+                    )
+                elif isinstance(probe, SpanDecorationFunctionProbe):
+                    signal = SpanDecoration(
+                        probe=probe,
+                        frame=actual_frame,
+                        thread=thread,
+                        args=allargs,
                     )
                 else:
                     log.error("Unsupported probe type: %s", type(probe))
@@ -427,19 +443,23 @@ class Debugger(Service):
             failed = self._function_store.inject_hooks(
                 function, [(self._dd_debugger_hook, cast(LineProbe, probe).line, probe) for probe in probes]
             )
+
             for probe in probes:
                 if probe.probe_id in failed:
                     self._probe_registry.set_error(probe, "Failed to inject")
-                    log.error("[%s][P: %s] Failed to inject %r", os.getpid(), os.getppid(), probe)
                 else:
                     self._probe_registry.set_installed(probe)
-                    log.debug(
-                        "[%s][P: %s] Injected probes %r in %r",
-                        os.getpid(),
-                        os.getppid(),
-                        [probe.probe_id for probe in probes],
-                        function,
-                    )
+
+            if failed:
+                log.error("[%s][P: %s] Failed to inject probes %r", os.getpid(), os.getppid(), failed)
+
+            log.debug(
+                "[%s][P: %s] Injected probes %r in %r",
+                os.getpid(),
+                os.getppid(),
+                [probe.probe_id for probe in probes if probe.probe_id not in failed],
+                function,
+            )
 
     def _inject_probes(self, probes):
         # type: (List[LineProbe]) -> None
