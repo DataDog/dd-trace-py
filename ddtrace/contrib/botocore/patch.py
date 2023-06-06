@@ -323,6 +323,8 @@ def patch():
 
     wrapt.wrap_function_wrapper("botocore.client", "BaseClient._make_api_call", patched_api_call)
     Pin(service="aws").onto(botocore.client.BaseClient)
+    wrapt.wrap_function_wrapper("botocore.parsers", "ResponseParser.parse", patched_lib_fn)
+    Pin(service="aws").onto(botocore.parsers.ResponseParser)
     _PATCHED_SUBMODULES.clear()
 
 
@@ -330,6 +332,7 @@ def unpatch():
     _PATCHED_SUBMODULES.clear()
     if getattr(botocore.client, "_datadog_patch", False):
         setattr(botocore.client, "_datadog_patch", False)
+        unwrap(botocore.parsers.ResponseParser, "parse")
         unwrap(botocore.client.BaseClient, "_make_api_call")
 
 
@@ -340,6 +343,14 @@ def patch_submodules(submodules):
     elif isinstance(submodules, list):
         submodules = [sub_module.lower() for sub_module in submodules]
         _PATCHED_SUBMODULES.update(submodules)
+
+
+def patched_lib_fn(original_func, instance, args, kwargs):
+    pin = Pin.get_from(instance)
+    if not pin or not pin.enabled():
+        return original_func(*args, **kwargs)
+    with pin.tracer.trace("{}.{}".format(original_func.__module__, original_func.__name__)):
+        return original_func(*args, **kwargs)
 
 
 def patched_api_call(original_func, instance, args, kwargs):
