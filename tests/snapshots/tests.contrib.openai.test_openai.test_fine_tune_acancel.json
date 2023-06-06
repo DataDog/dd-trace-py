@@ -15,7 +15,7 @@
       "openai.api_base": "https://api.openai.com/v1",
       "openai.api_type": "open_ai",
       "openai.request.endpoint": "/fine-tunes/cancel",
-      "openai.request.id": "ft-bN1JASRDOPzKeN7zQ8aJ7hVF",
+      "openai.request.fine_tune_id": "ft-bN1JASRDOPzKeN7zQ8aJ7hVF",
       "openai.request.method": "POST",
       "openai.request.user": "ddtrace-test",
       "openai.response.fine_tuned_model": "None",

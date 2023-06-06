@@ -25,26 +25,28 @@ class _EndpointHook:
         span.set_tag_str("openai.request.method", self.REQUEST_TYPE)
 
         base_level_tag_args = ("api_base", "api_type", "api_version")
-        for idx, arg in enumerate(self._request_arg_params[1:], 1):
-            if idx >= len(args):
-                break
-            if args[idx] is None:
-                continue
-            if arg in base_level_tag_args:
-                span.set_tag("openai.%s" % arg, args[idx] or "")
-            elif arg == "organization":
-                span.set_tag_str("openai.organization.id", args[idx])
-            elif arg == "api_key":
-                span.set_tag_str("openai.user.api_key", _format_openai_api_key(args[idx]))
-            elif (
-                self._prompt_completion is True and integration.is_pc_sampled_span
-            ) or self._prompt_completion is False:
-                if hasattr(args[idx], "name"):  # For file pointer args
-                    span.set_tag_str("openai.request.%s" % arg, integration.trunc(args[idx].name))
-                elif isinstance(args[idx], bytes):  # For binary file data
-                    span.set_tag_str("openai.request.%s" % arg, "")
-                else:
-                    span.set_tag("openai.request.%s" % arg, integration.trunc(args[idx]))
+
+        if self._request_arg_params and len(self._request_arg_params) > 1:
+            for idx, arg in enumerate(self._request_arg_params[1:], 1):
+                if idx >= len(args):
+                    break
+                if arg is None or args[idx] is None:
+                    continue
+                if arg in base_level_tag_args:
+                    span.set_tag("openai.%s" % arg, args[idx] or "")
+                elif arg == "organization":
+                    span.set_tag_str("openai.organization.id", args[idx])
+                elif arg == "api_key":
+                    span.set_tag_str("openai.user.api_key", _format_openai_api_key(args[idx]))
+                elif (
+                    self._prompt_completion is True and integration.is_pc_sampled_span
+                ) or self._prompt_completion is False:
+                    if hasattr(args[idx], "name"):  # For file pointer args
+                        span.set_tag_str("openai.request.%s" % arg, integration.trunc(args[idx].name))
+                    elif isinstance(args[idx], bytes):  # For binary file data
+                        span.set_tag_str("openai.request.%s" % arg, "")
+                    else:
+                        span.set_tag("openai.request.%s" % arg, integration.trunc(args[idx]))
         for kw_attr in self._request_kwarg_params:
             if kw_attr in kwargs:
                 if isinstance(kwargs[kw_attr], dict):
@@ -355,7 +357,7 @@ class _ListHook(_EndpointHook):
 class _RetrieveHook(_EndpointHook):
     """Hook for openai.APIResource, which is used by Model.retrieve, File.retrieve, and FineTune.retrieve."""
 
-    _request_arg_params = ("cls", "id", "api_key", "request_id", "request_timeout")
+    _request_arg_params = ("cls", None, "api_key", "request_id", "request_timeout")
     _request_kwarg_params = ("user",)
     _prompt_completion = False
     ENDPOINT_NAME = None
@@ -365,10 +367,13 @@ class _RetrieveHook(_EndpointHook):
     def _pre_response(self, pin, integration, span, args, kwargs):
         if span.get_tag("openai.request.endpoint") == "/models":
             span.resource = "retrieveModel"
+            span.set_tag("openai.request.model", args[1])
         elif span.get_tag("openai.request.endpoint") == "/files":
             span.resource = "retrieveFile"
+            span.set_tag("openai.request.file_id", args[1])
         elif span.get_tag("openai.request.endpoint") == "/fine-tunes":
             span.resource = "retrieveFineTune"
+            span.set_tag("openai.request.fine_tune_id", args[1])
         return
 
     def _post_response(self, pin, integration, span, args, kwargs, resp, error):
@@ -409,7 +414,7 @@ class _RetrieveHook(_EndpointHook):
 class _DeleteHook(_EndpointHook):
     """Hook for openai.DeletableAPIResource, which is used by File.delete, and Model.delete."""
 
-    _request_arg_params = ("cls", "sid", "api_type", "api_version")
+    _request_arg_params = ("cls", None, "api_type", "api_version")
     _request_kwarg_params = ("user",)
     _prompt_completion = False
     ENDPOINT_NAME = None
@@ -419,8 +424,10 @@ class _DeleteHook(_EndpointHook):
     def _pre_response(self, pin, integration, span, args, kwargs):
         if span.get_tag("openai.request.endpoint") == "/models":
             span.resource = "deleteModel"
+            span.set_tag("openai.request.model", args[1])
         elif span.get_tag("openai.request.endpoint") == "/files":
             span.resource = "deleteFile"
+            span.set_tag("openai.request.file_id", args[1])
         return
 
     def _post_response(self, pin, integration, span, args, kwargs, resp, error):
@@ -549,7 +556,7 @@ class _ImageVariationHook(_ImageHook):
 
 
 class _BaseAudioHook(_EndpointHook):
-    _request_arg_params = ("cls", "model", "file", "api_key", "api_base", "api_type", "api_version", "organization")
+    _request_arg_params = ("cls", "model", "filename", "api_key", "api_base", "api_type", "api_version", "organization")
     _prompt_completion = True
     ENDPOINT_NAME = "/audio"
     REQUEST_TYPE = "POST"
@@ -651,7 +658,7 @@ class _BaseFileHook(_EndpointHook):
 class _FileCreateHook(_BaseFileHook):
     _request_arg_params = (
         "cls",
-        "file",
+        "filename",
         "purpose",
         "model",
         "api_key",
@@ -678,9 +685,12 @@ class _FileCreateHook(_BaseFileHook):
 
 
 class _FileDownloadHook(_BaseFileHook):
-    _request_arg_params = ("cls", "id", "api_key", "api_base", "api_type", "api_version", "organization")
+    _request_arg_params = ("cls", None, "api_key", "api_base", "api_type", "api_version", "organization")
     REQUEST_TYPE = "GET"
     OPERATION_ID = "downloadFile"
+
+    def _pre_response(self, pin, integration, span, args, kwargs):
+        span.set_tag("openai.request.file_id", args[1])
 
     def _post_response(self, pin, integration, span, args, kwargs, resp, error):
         if not resp:
@@ -694,9 +704,6 @@ class _FileDownloadHook(_BaseFileHook):
 
 class _BaseFineTuneHook(_EndpointHook):
     _prompt_completion = False
-
-    def _pre_response(self, pin, integration, span, args, kwargs):
-        return
 
     def _post_response(self, pin, integration, span, args, kwargs, resp, error):
         if not resp:
@@ -741,19 +748,27 @@ class _FineTuneCreateHook(_BaseFineTuneHook):
 
 
 class _FineTuneCancelHook(_BaseFineTuneHook):
-    _request_arg_params = ("cls", "id", "api_key", "api_type", "request_id", "api_version")
+    _request_arg_params = ("cls", None, "api_key", "api_type", "request_id", "api_version")
     _request_kwarg_params = ("user",)
     ENDPOINT_NAME = "/fine-tunes/cancel"
     REQUEST_TYPE = "POST"
     OPERATION_ID = "cancelFineTune"
 
+    def _pre_response(self, pin, integration, span, args, kwargs):
+        span.set_tag("openai.request.fine_tune_id", args[1])
+        return
+
 
 class _FineTuneListEventsHook(_BaseFineTuneHook):
-    _request_arg_params = ("cls", "id")
+    _request_arg_params = ("cls", None)
     _request_kwarg_params = ("stream", "user")
     ENDPOINT_NAME = "/fine-tunes/events"
     REQUEST_TYPE = "GET"
     OPERATION_ID = "listFineTuneEvents"
+
+    def _pre_response(self, pin, integration, span, args, kwargs):
+        span.set_tag("openai.request.fine_tune_id", args[1])
+        return
 
     def _post_response(self, pin, integration, span, args, kwargs, resp, error):
         if not resp:

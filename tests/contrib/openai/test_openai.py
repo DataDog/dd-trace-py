@@ -72,7 +72,6 @@ def request_api_key(api_key_in_env, openai_api_key):
 
 @pytest.fixture
 def openai_api_key():
-    return "<not-a-real-key>"
     return os.getenv("OPENAI_API_KEY", "<not-a-real-key>")
 
 
@@ -843,7 +842,7 @@ def test_transcribe(api_key_in_env, request_api_key, openai, openai_vcr, snapsho
         pytest.skip("API keys could not be supplied in the request before openai==0.27.3")
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_transcribe",
-        ignores=["meta.http.useragent", "meta.openai.request.file"],
+        ignores=["meta.http.useragent", "meta.openai.request.filename"],
     ):
         with openai_vcr.use_cassette("transcribe.yaml"):
             openai.Audio.transcribe(
@@ -867,7 +866,7 @@ async def test_atranscribe(api_key_in_env, request_api_key, openai, openai_vcr, 
         pytest.skip("API keys could not be supplied in the request before openai==0.27.3")
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_atranscribe",
-        ignores=["meta.http.useragent", "meta.openai.request.file"],
+        ignores=["meta.http.useragent", "meta.openai.request.filename"],
     ):
         with openai_vcr.use_cassette("atranscribe.yaml"):
             await openai.Audio.atranscribe(
@@ -890,7 +889,7 @@ def test_translate(api_key_in_env, request_api_key, openai, openai_vcr, snapshot
         pytest.skip("API keys could not be supplied in the request before openai==0.27.3")
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_translate",
-        ignores=["meta.http.useragent", "meta.openai.request.file"],
+        ignores=["meta.http.useragent", "meta.openai.request.filename"],
     ):
         with openai_vcr.use_cassette("translate.yaml"):
             openai.Audio.translate(
@@ -912,7 +911,7 @@ async def test_atranslate(api_key_in_env, request_api_key, openai, openai_vcr, s
         pytest.skip("API keys could not be supplied in the request before openai==0.27.3")
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_atranslate",
-        ignores=["meta.http.useragent", "meta.openai.request.file"],
+        ignores=["meta.http.useragent", "meta.openai.request.filename"],
     ):
         with openai_vcr.use_cassette("atranslate.yaml"):
             await openai.Audio.atranslate(
@@ -956,7 +955,7 @@ def test_file_create(api_key_in_env, request_api_key, openai, openai_vcr, snapsh
         pytest.skip("file not supported for this version of openai")
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_file_create",
-        ignores=["meta.http.useragent", "meta.openai.request.file"],
+        ignores=["meta.http.useragent", "meta.openai.request.filename"],
     ):
         with openai_vcr.use_cassette("file_create.yaml"):
             openai.File.create(
@@ -974,7 +973,7 @@ async def test_file_acreate(api_key_in_env, request_api_key, openai, openai_vcr,
         pytest.skip("file not supported for this version of openai")
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_file_acreate",
-        ignores=["meta.http.useragent", "meta.openai.request.file"],
+        ignores=["meta.http.useragent", "meta.openai.request.filename"],
     ):
         with openai_vcr.use_cassette("file_acreate.yaml"):
             await openai.File.acreate(

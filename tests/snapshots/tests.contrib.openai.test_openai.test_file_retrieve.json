@@ -16,7 +16,7 @@
       "openai.api_type": "open_ai",
       "openai.organization.name": "datadog-4",
       "openai.request.endpoint": "/files",
-      "openai.request.id": "file-Aeh42OWPtbWgt7gfUjXBVFAF",
+      "openai.request.file_id": "file-Aeh42OWPtbWgt7gfUjXBVFAF",
       "openai.request.method": "GET",
       "openai.request.user": "ddtrace-test",
       "openai.response.filename": "compiled_results.csv",
