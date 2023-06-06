@@ -3,7 +3,7 @@ Trace queries to aws api done via botocore client
 """
 import base64
 import collections
-import json
+import jsong
 import os
 import typing
 from typing import Any
@@ -29,6 +29,7 @@ from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...ext import aws
 from ...ext import http
+from ...internal.datastreams.processor import PROPAGATION_KEY
 from ...internal.constants import COMPONENT
 from ...internal.logger import get_logger
 from ...internal.utils import get_argument_value
@@ -136,7 +137,7 @@ def inject_trace_to_sqs_or_sns_batch_message(params, span, endpoint=None):
         inject_trace_data_to_message_attributes(trace_data, entry, endpoint)
 
 
-def inject_trace_to_sqs_or_sns_message(params, span, endpoint=None):
+def inject_trace_to_sqs_or_sns_message(params, span, endpoint=None, data_streams_context=None):
     # type: (Any, Span, Optional[str]) -> None
     """
     :params: contains the params for the current botocore action
@@ -147,6 +148,8 @@ def inject_trace_to_sqs_or_sns_message(params, span, endpoint=None):
     """
     trace_data = {}
     HTTPPropagator.inject(span.context, trace_data)
+    if data_streams_context is not None:
+        trace_data[PROPAGATION_KEY] = data_streams_context
 
     inject_trace_data_to_message_attributes(trace_data, params, endpoint)
 
@@ -376,7 +379,33 @@ def patched_api_call(original_func, instance, args, kwargs):
                     if endpoint_name == "lambda" and operation == "Invoke":
                         inject_trace_to_client_context(params, span)
                     if endpoint_name == "sqs" and operation == "SendMessage":
-                        inject_trace_to_sqs_or_sns_message(params, span, endpoint_name)
+                        data_streams_context = None
+
+                        #check if data streams enabled
+                        if config._data_streams_enabled:
+                            #extract queue name
+                            queue_url = params['QueueUrl']
+                            queue_name = queue_url[queue_url.rfind("/") + 1:]
+
+                            #create data_streams_context
+                            pathway = pin.tracer.data_streams_processor.set_checkpoint(["direction:out", "topic:" + queue_name, "type:sns"])
+                            encoded_pathway = pathway.encode()
+                            binary_pathway = base64.b64encode(encoded_pathway)
+                            data_streams_context = binary_pathway.decode('utf-8')
+
+                            """
+                            #following are sample code to DECODE the above data_streams_context
+                            
+                            reverse_bp = data_streams_context.encode('utf-8')
+                            print(reverse_bp)
+                            reverse_ep = base64.b64decode(reverse_bp)
+                            print(reverse_ep)
+                            reverse_path = pin.tracer.data_streams_processor.decode_pathway(reverse_ep)
+                            print(reverse_path)
+                            """
+
+                        inject_trace_to_sqs_or_sns_message(params, span, endpoint_name, data_streams_context)
+
                     if endpoint_name == "sqs" and operation == "SendMessageBatch":
                         inject_trace_to_sqs_or_sns_batch_message(params, span, endpoint_name)
                     if endpoint_name == "events" and operation == "PutEvents":
