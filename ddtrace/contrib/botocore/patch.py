@@ -117,7 +117,7 @@ def inject_trace_data_to_message_attributes(trace_data, entry, endpoint=None):
         log.warning("skipping trace injection, max number (10) of MessageAttributes exceeded")
 
 
-def inject_trace_to_sqs_or_sns_batch_message(params, span, endpoint=None):
+def inject_trace_to_sqs_or_sns_batch_message(params, span, endpoint=None, data_streams_context=None):
     # type: (Any, Span, Optional[str]) -> None
     """
     :params: contains the params for the current botocore action
@@ -128,6 +128,9 @@ def inject_trace_to_sqs_or_sns_batch_message(params, span, endpoint=None):
     """
     trace_data = {}
     HTTPPropagator.inject(span.context, trace_data)
+
+    if data_streams_context is not None:
+        trace_data[PROPAGATION_KEY] = data_streams_context
 
     # An entry here is an SNS or SQS record, and depending on how it was published,
     # it could either show up under Entries (in case of PutRecords),
@@ -388,7 +391,7 @@ def patched_api_call(original_func, instance, args, kwargs):
                             queue_name = queue_url[queue_url.rfind("/") + 1:]
 
                             #create data_streams_context
-                            pathway = pin.tracer.data_streams_processor.set_checkpoint(["direction:out", "topic:" + queue_name, "type:sns"])
+                            pathway = pin.tracer.data_streams_processor.set_checkpoint(["direction:out", "topic:" + queue_name, "type:sqs"])
                             data_streams_context = pathway.encode_b64()
                             """
                             #how to reverse:
@@ -398,7 +401,20 @@ def patched_api_call(original_func, instance, args, kwargs):
                         inject_trace_to_sqs_or_sns_message(params, span, endpoint_name, data_streams_context)
 
                     if endpoint_name == "sqs" and operation == "SendMessageBatch":
-                        inject_trace_to_sqs_or_sns_batch_message(params, span, endpoint_name)
+                        data_streams_context = None
+
+                        #check if data streams enabled
+                        if config._data_streams_enabled:
+                            #extract queue name
+                            queue_url = params['QueueUrl']
+                            queue_name = queue_url[queue_url.rfind("/") + 1:]
+
+                            #create data_streams_context
+                            pathway = pin.tracer.data_streams_processor.set_checkpoint(["direction:out", "topic:" + queue_name, "type:sqs"])
+                            data_streams_context = pathway.encode_b64()
+
+                        inject_trace_to_sqs_or_sns_batch_message(params, span, endpoint_name, data_streams_context)
+
                     if endpoint_name == "events" and operation == "PutEvents":
                         inject_trace_to_eventbridge_detail(params, span)
                     if endpoint_name == "kinesis" and (operation == "PutRecord" or operation == "PutRecords"):
