@@ -144,7 +144,7 @@ def test_argument_scrubing(cmdline_obj, arguments):
 
 
 def test_argument_scrubing_user():
-    with override_config("subprocess", dict(subexec_sensitive_users_wildcars=["*custom_scrub*", "*myscrub*"])):
+    with override_config("subprocess", dict(sensitive_wildcards=["*custom_scrub*", "*myscrub*"])):
         cmdline_obj = SubprocessCmdLine(
             [
                 "binary",
