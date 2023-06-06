@@ -1,6 +1,6 @@
-import socket
 from collections import Counter
 import os
+import socket
 import subprocess
 from time import sleep
 
