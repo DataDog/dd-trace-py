@@ -2,12 +2,14 @@
 import time
 
 import psycopg
+from psycopg import AsyncCursor
 from psycopg.sql import Literal
 from psycopg.sql import SQL
 
 from ddtrace import Pin
 from ddtrace.contrib.psycopg.patch import patch
 from ddtrace.contrib.psycopg.patch import unpatch
+from ddtrace.internal.utils.version import parse_version
 from tests.contrib.asyncio.utils import AsyncioTestCase
 from tests.contrib.asyncio.utils import mark_asyncio
 from tests.contrib.config import POSTGRES_CONFIG
@@ -15,13 +17,21 @@ from tests.opentracer.utils import init_tracer
 from tests.utils import assert_is_measured
 
 
+PSYCOPG_VERSION = parse_version(psycopg.__version__)
 TEST_PORT = POSTGRES_CONFIG["port"]
+
+if PSYCOPG_VERSION >= (3, 1):
+    from psycopg import AsyncClientCursor
+else:
+    AsyncClientCursor = None
 
 
 class PsycopgCore(AsyncioTestCase):
 
     # default service
     TEST_SERVICE = "postgres"
+
+    CURSOR_FACTORY = AsyncCursor
 
     def setUp(self):
         super(PsycopgCore, self).setUp()
@@ -34,8 +44,10 @@ class PsycopgCore(AsyncioTestCase):
         unpatch()
 
     async def _get_conn(self, service=None):
-        print(POSTGRES_CONFIG)
-        conn = await psycopg.AsyncConnection.connect(**POSTGRES_CONFIG)
+        kwargs = POSTGRES_CONFIG.copy()
+        if self.CURSOR_FACTORY == AsyncClientCursor and AsyncClientCursor is not None:
+            kwargs["cursor_factory"] = self.CURSOR_FACTORY
+        conn = await psycopg.AsyncConnection.connect(**kwargs)
         pin = Pin.get_from(conn)
         if pin:
             pin.clone(service=service, tracer=self.tracer).onto(conn)
@@ -83,7 +95,7 @@ class PsycopgCore(AsyncioTestCase):
         start = time.time()
         cursor = db.cursor()
         res = await cursor.execute(q)  # execute now returns the cursor
-        self.assertEqual(psycopg.AsyncCursor, type(res))
+        self.assertEqual(self.CURSOR_FACTORY or AsyncCursor, type(res))
         rows = await res.fetchall()
         end = time.time()
 
@@ -332,3 +344,15 @@ class PsycopgCore(AsyncioTestCase):
         rows = await cur.fetchall()
         assert len(rows) == 1, rows
         assert rows[0][0] == "one"
+
+
+class PsycopgCoreClientCursor(PsycopgCore):
+    CURSOR_FACTORY = AsyncClientCursor
+
+    # string-based connection parameters do not support ClientCursor
+    def test_psycopg3_connection_with_string(self):
+        pass
+
+    def assert_conn_is_traced(self, db, service):
+        assert self.CURSOR_FACTORY == AsyncClientCursor
+        return super(PsycopgCoreClientCursor, self).assert_conn_is_traced(db, service)

@@ -3,6 +3,7 @@ import time
 
 import mock
 import psycopg
+from psycopg import Cursor
 from psycopg.sql import Composed
 from psycopg.sql import Identifier
 from psycopg.sql import Literal
@@ -24,11 +25,18 @@ from tests.utils import snapshot
 PSYCOPG_VERSION = parse_version(psycopg.__version__)
 TEST_PORT = POSTGRES_CONFIG["port"]
 
+if PSYCOPG_VERSION >= (3, 1):
+    from psycopg import ClientCursor
+else:
+    ClientCursor = None
+
 
 class PsycopgCore(TracerTestCase):
 
     # default service
     TEST_SERVICE = "postgres"
+
+    CURSOR_FACTORY = Cursor
 
     def setUp(self):
         super(PsycopgCore, self).setUp()
@@ -41,7 +49,10 @@ class PsycopgCore(TracerTestCase):
         unpatch()
 
     def _get_conn(self, service=None):
-        conn = psycopg.connect(**POSTGRES_CONFIG)
+        kwargs = POSTGRES_CONFIG.copy()
+        if self.CURSOR_FACTORY == ClientCursor and ClientCursor is not None:
+            kwargs["cursor_factory"] = self.CURSOR_FACTORY
+        conn = psycopg.connect(**kwargs)
         pin = Pin.get_from(conn)
         if pin:
             pin.clone(service=service, tracer=self.tracer).onto(conn)
@@ -89,7 +100,7 @@ class PsycopgCore(TracerTestCase):
         start = time.time()
         cursor = db.cursor()
         res = cursor.execute(q)  # execute now returns the cursor
-        self.assertEqual(psycopg.Cursor, type(res))
+        self.assertEqual(self.CURSOR_FACTORY or Cursor, type(res))
         rows = res.fetchall()
         end = time.time()
 
@@ -565,3 +576,15 @@ class PsycopgCore(TracerTestCase):
 
         query_span = spans[0]
         assert query_span.name == "postgres.query"
+
+
+class PsycopgCoreClientCursor(PsycopgCore):
+    CURSOR_FACTORY = ClientCursor
+
+    # string-based connection parameters do not support ClientCursor
+    def test_psycopg3_connection_with_string(self):
+        pass
+
+    def assert_conn_is_traced(self, db, service):
+        assert self.CURSOR_FACTORY == ClientCursor
+        return super(PsycopgCoreClientCursor, self).assert_conn_is_traced(db, service)
