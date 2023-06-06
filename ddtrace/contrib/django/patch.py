@@ -11,18 +11,11 @@ from inspect import getmro
 from inspect import isclass
 from inspect import isfunction
 import os
-import sys
-
-from django.contrib.auth import get_user
-from django.contrib.auth.models import AnonymousUser
-from django.core.exceptions import PermissionDenied
-from django.http import HttpResponseForbidden
 
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec import utils as appsec_utils
-from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec.iast._patch import if_iast_taint_returned_object_for
 from ddtrace.appsec.iast._util import _is_iast_enabled
@@ -695,7 +688,7 @@ def _find_in_user_model(user, possible_fields):
 
 
 def _get_userid(user):
-    user_login = getattr(user, config._user_model_login_field)
+    user_login = getattr(user, config._user_model_login_field, None)
     if user_login:
         return user_login
 
@@ -703,7 +696,7 @@ def _get_userid(user):
 
 
 def _get_username(user):
-    username = getattr(user, config._user_model_name_field)
+    username = getattr(user, config._user_model_name_field, None)
     if username:
         return username
 
@@ -718,7 +711,7 @@ def _get_username(user):
 
 
 def _get_user_email(user):
-    email = getattr(user, config._user_model_email_field)
+    email = getattr(user, config._user_model_email_field, None)
     if email:
         return email
 
@@ -771,18 +764,21 @@ def _get_user_info(user):
     return user_id, user_extra_info
 
 
+# JJJ uncomment tryexcept
 @trace_utils.with_traced_module
 def traced_login(django, pin, func, instance, args, kwargs):
     func(*args, **kwargs)
 
-    try:
+    # try:
+    if True:
+        mode = config._automatic_login_events_mode
         request = get_argument_value(args, kwargs, 0, "request")
         user = get_argument_value(args, kwargs, 1, "user")
 
-        if not config._appsec_enabled or config._automatic_login_events_mode == "disabled":
+        if not config._appsec_enabled or mode == "disabled":
             return
 
-        if user and not isinstance(user, AnonymousUser):
+        if user and str(user) != "AnonymousUser":
             user_id, user_extra = _get_user_info(user)
             if not user_id:
                 log.debug(
@@ -799,50 +795,52 @@ def traced_login(django, pin, func, instance, args, kwargs):
                         user_id=user_id,
                         session_id=session_key,
                         propagate=True,
+                        login_events_mode=mode,
                         **user_extra,
                     )
                     return
 
                 # Login failed but the user exists
-                track_user_login_failure_event(pin.tracer, user_id=user_id, exists=True)
+                track_user_login_failure_event(pin.tracer, user_id=user_id, exists=True, login_events_mode=mode)
         else:
             # Login failed and the user is unknown
             if user:
-                if config._automatic_login_events_mode == "extended":
+                if mode == "extended":
                     user_id = _get_username(user)
                 else:  # safe mode
                     user_id = _find_in_user_model(user, _POSSIBLE_USER_ID_FIELDS)
                 if not user_id:
                     user_id = "AnonymousUser"
 
-                track_user_login_failure_event(pin.tracer, user_id=user_id, exists=False)
-    except Exception:
-        log.debug("Error while trying to trace Django login", exc_info=True)
+                track_user_login_failure_event(pin.tracer, user_id=user_id, exists=False, login_events_mode=mode)
+    # except Exception:
+    #     log.debug("Error while trying to trace Django login", exc_info=True)
 
 
+# JJJ TODO uncomment try except
 @trace_utils.with_traced_module
 def traced_authenticate(django, pin, func, instance, args, kwargs):
     result_user = func(*args, **kwargs)
-    try:
-        if not config._appsec_enabled or config._automatic_login_events_mode == "disabled":
+    if True:
+        # try:
+        mode = config._automatic_login_events_mode
+        if not config._appsec_enabled or mode == "disabled":
             return result_user
 
-        userid_list = (
-            _POSSIBLE_USER_ID_FIELDS if config._automatic_login_events_mode == "safe" else _POSSIBLE_LOGIN_FIELDS
-        )
+        userid_list = _POSSIBLE_USER_ID_FIELDS if mode == "safe" else _POSSIBLE_LOGIN_FIELDS
 
         for possible_key in userid_list:
             if possible_key in kwargs:
                 user_id = kwargs[possible_key]
                 break
         else:
-            user_id = None
+            user_id = "missing"
 
         if not result_user:
             with pin.tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
-                track_user_login_failure_event(pin.tracer, user_id=user_id, exists=False)
-    except Exception:
-        log.debug("Error while trying to trace Django authenticate", exc_info=True)
+                track_user_login_failure_event(pin.tracer, user_id=user_id, exists=False, login_events_mode=mode)
+    # except Exception:
+    #     log.debug("Error while trying to trace Django authenticate", exc_info=True)
 
     return result_user
 

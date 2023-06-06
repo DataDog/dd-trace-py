@@ -23,8 +23,10 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 
-def _track_user_login_common(tracer, user_id, success, metadata=None, login_events_mode=LOGIN_EVENTS_MODE.SDK):
-    # type: (Tracer, str, bool, Optional[dict], str) -> Optional[Span]
+def _track_user_login_common(
+    tracer, user_id, success, metadata=None, login_events_mode=LOGIN_EVENTS_MODE.SDK, login=None, name=None, email=None
+):
+    # type: (Tracer, str, bool, Optional[dict], str, Optional[str], Optional[str], Optional[str]) -> Optional[Span]
 
     span = tracer.current_root_span()
     if span:
@@ -40,7 +42,16 @@ def _track_user_login_common(tracer, user_id, success, metadata=None, login_even
 
         if metadata is not None:
             for k, v in six.iteritems(metadata):
-                span.set_tag_str("%s.%s.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX, success_str, k), str(v))
+                span.set_tag_str("%s.%s" % (tag_prefix, k), str(v))
+
+        if login:
+            span.set_tag_str("%s.login" % tag_prefix, login)
+
+        if email:
+            span.set_tag_str("%s.email" % tag_prefix, email)
+
+        if name:
+            span.set_tag_str("%s.username" % tag_prefix, name)
 
         span.set_tag_str(constants.MANUAL_KEEP_KEY, "true")
         return span
@@ -57,6 +68,7 @@ def track_user_login_success_event(
     tracer,
     user_id,
     metadata=None,
+    login=None,
     name=None,
     email=None,
     scope=None,
@@ -78,7 +90,7 @@ def track_user_login_success_event(
     :param metadata: a dictionary with additional metadata information to be stored with the event
     """
 
-    span = _track_user_login_common(tracer, user_id, True, metadata, login_events_mode)
+    span = _track_user_login_common(tracer, user_id, True, metadata, login_events_mode, login, name, email)
     if not span:
         return
 

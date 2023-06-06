@@ -1152,9 +1152,7 @@ def test_django_tainted_iast_disabled_sqli_http_cookies_value(client, test_spans
 
 @pytest.mark.django_db
 def test_django_login_events_disabled_explicitly(client, test_spans, tracer):
-    with override_global_config(dict(_appsec_enabled=True)), override_env(
-        {APPSEC.AUTOMATIC_USER_EVENTS_TRACKING: "disabled"}
-    ):
+    with override_global_config(dict(_appsec_enabled=True, _automatic_login_events_mode="disabled")):
         test_user = User.objects.create(username="fred")
         test_user.set_password("secret")
         test_user.save()
@@ -1169,7 +1167,7 @@ def test_django_login_events_disabled_explicitly(client, test_spans, tracer):
 
 @pytest.mark.django_db
 def test_django_login_events_disabled_noappsec(client, test_spans, tracer):
-    with override_global_config(dict(_appsec_enabled=False)):
+    with override_global_config(dict(_appsec_enabled=False, _automatic_login_events_mode="safe")):
         test_user = User.objects.create(username="fred")
         test_user.set_password("secret")
         test_user.save()
@@ -1182,14 +1180,10 @@ def test_django_login_events_disabled_noappsec(client, test_spans, tracer):
         assert "No span found for filter" in str(excl_info.value)
 
 
-# TODO: test additional fields for default values
-# TODO: test custom user defined field
 @pytest.mark.django_db
 def test_django_login_sucess_extended(client, test_spans, tracer):
-    with override_global_config(dict(_appsec_enabled=True)), override_env(
-        {APPSEC.AUTOMATIC_USER_EVENTS_TRACKING: "extended"}
-    ):
-        test_user = User.objects.create(username="fred")
+    with override_global_config(dict(_appsec_enabled=True, _automatic_login_events_mode="extended")):
+        test_user = User.objects.create(username="fred", first_name="Fred", email="fred@test.com")
         test_user.set_password("secret")
         test_user.save()
         assert not get_user(client).is_authenticated
@@ -1199,13 +1193,15 @@ def test_django_login_sucess_extended(client, test_spans, tracer):
         assert login_span
         assert login_span.get_tag(user.ID) == "fred"
         assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.track") == "true"
+        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.auto.mode") == "extended"
+        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.login") == "fred"
+        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.email") == "fred@test.com"
+        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.username") == "Fred"
 
 
 @pytest.mark.django_db
 def test_django_login_sucess_safe(client, test_spans, tracer):
-    with override_global_config(dict(_appsec_enabled=True)), override_env(
-        {APPSEC.AUTOMATIC_USER_EVENTS_TRACKING: "safe"}
-    ):
+    with override_global_config(dict(_appsec_enabled=True, _automatic_login_events_mode="safe")):
         test_user = User.objects.create(username="fred2")
         test_user.set_password("secret")
         test_user.save()
@@ -1216,29 +1212,12 @@ def test_django_login_sucess_safe(client, test_spans, tracer):
         assert login_span
         assert login_span.get_tag(user.ID) == "1"
         assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.track") == "true"
-
-
-# FIXME: find a way to test this case (currently the test client uses authenticate before
-# login which means always get the "does not exist" result)
-# @pytest.mark.django_db
-# def test_django_login_failure_user_exists(client, test_spans, tracer):
-#     test_user = User.objects.create(username="fred")
-#     test_user.set_password("secret")
-#     test_user.save()
-#     assert not get_user(client).is_authenticated
-#     client.login(username="fred", password="secret2")
-#     assert not get_user(client).is_authenticated
-#     login_span = test_spans.find_span(name="django.contrib.auth.login")
-#     assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".failure.track") == "true"
-#     assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".failure." + user.ID) == "fred"
-#     assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".failure." + user.EXISTS) == "true"
+        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.auto.mode") == "safe"
 
 
 @pytest.mark.django_db
 def test_django_login_failure_user_doesnt_exists(client, test_spans, tracer):
-    with override_global_config(dict(_appsec_enabled=True)), override_env(
-        {APPSEC.AUTOMATIC_USER_EVENTS_TRACKING: "enabled"}
-    ):
+    with override_global_config(dict(_appsec_enabled=True, _automatic_login_events_mode="extended")):
         assert not get_user(client).is_authenticated
         client.login(username="missing", password="secret2")
         assert not get_user(client).is_authenticated
@@ -1246,8 +1225,22 @@ def test_django_login_failure_user_doesnt_exists(client, test_spans, tracer):
         assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".failure.track") == "true"
         assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".failure." + user.ID) == "missing"
         assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".failure." + user.EXISTS) == "false"
+        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".failure.auto.mode") == "extended"
 
 
-# TODO:
-# test for custom userid field (e.g. email)
-# test for the additional fields retrieved if used
+@pytest.mark.django_db
+def test_django_login_sucess_safe_but_user_set_login(client, test_spans, tracer):
+    with override_global_config(
+        dict(_appsec_enabled=True, _user_model_login_field="username", _automatic_login_events_mode="safe")
+    ):
+        test_user = User.objects.create(username="fred2")
+        test_user.set_password("secret")
+        test_user.save()
+        assert not get_user(client).is_authenticated
+        client.login(username="fred2", password="secret")
+        assert get_user(client).is_authenticated
+        login_span = test_spans.find_span(name="django.contrib.auth.login")
+        assert login_span
+        assert login_span.get_tag(user.ID) == "fred2"
+        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.track") == "true"
+        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.auto.mode") == "safe"
