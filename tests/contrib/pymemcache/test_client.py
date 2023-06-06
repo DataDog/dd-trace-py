@@ -309,6 +309,17 @@ class PymemcacheHashClientTestCase(PymemcacheClientTestCaseMixin):
 
         self.check_spans(2, ["add", "delete"], ["add key", "delete key"])
 
+    def test_service_name_override_hashclient(self):
+        client = self.make_client([b"STORED\r\n", b"VALUE key 0 5\r\nvalue\r\nEND\r\n"])
+        Pin.override(client, service="testsvcname")
+        client.set(b"key", b"value", noreply=False)
+        result = client.get(b"key")
+        assert _str(result) == "value"
+
+        spans = self.get_spans()
+        self.assertEqual(spans[0].service, "testsvcname")
+        self.assertEqual(spans[1].service, "testsvcname")
+
 
 class PymemcacheClientConfiguration(TracerTestCase):
     """Ensure that pymemache can be configured properly."""

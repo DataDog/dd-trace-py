@@ -8,6 +8,7 @@ from ddtrace.pin import _DD_PIN_NAME
 from ddtrace.pin import _DD_PIN_PROXY_NAME
 
 from .client import WrappedClient
+from .client import WrappedHashClient
 
 
 _Client = pymemcache.client.base.Client
@@ -24,7 +25,7 @@ def patch():
 
     setattr(pymemcache.client, "_datadog_patch", True)
     setattr(pymemcache.client.base, "Client", WrappedClient)
-    setattr(pymemcache.client.hash, "Client", WrappedClient)
+    setattr(pymemcache.client.hash, "HashClient", WrappedHashClient)
     if _HashClient_client_class:
         pymemcache.client.hash.HashClient.client_class = WrappedClient
 
@@ -39,7 +40,7 @@ def unpatch():
         return
     setattr(pymemcache.client, "_datadog_patch", False)
     setattr(pymemcache.client.base, "Client", _Client)
-    setattr(pymemcache.client.hash, "Client", _hash_Client)
+    setattr(pymemcache.client.hash, "HashClient", _hash_Client)
     if _HashClient_client_class:
         pymemcache.client.hash.HashClient.client_class = _HashClient_client_class
 
