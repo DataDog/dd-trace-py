@@ -48,27 +48,27 @@ def patch():
 
     if not getattr(os, "_datadog_patch", False):
         Pin().onto(os)
-        trace_utils.wrap(os, "system", traced_ossystem(os))
-        trace_utils.wrap(os, "fork", traced_fork(os))
+        trace_utils.wrap(os, "system", _traced_ossystem(os))
+        trace_utils.wrap(os, "fork", _traced_fork(os))
 
         # all os.spawn* variants eventually use this one:
-        trace_utils.wrap(os, "_spawnvef", traced_osspawn(os))
+        trace_utils.wrap(os, "_spawnvef", _traced_osspawn(os))
 
         if PY2:
             # note: popen* uses subprocess in Python3, which we already wrap below, but not in
             # Python2
-            trace_utils.wrap(os, "popen", traced_py2popen(os))
-            trace_utils.wrap(os, "popen2", traced_py2popen(os))
-            trace_utils.wrap(os, "popen3", traced_py2popen(os))
-            trace_utils.wrap(os, "popen4", traced_py2popen(os))
+            trace_utils.wrap(os, "popen", _traced_py2popen(os))
+            trace_utils.wrap(os, "popen2", _traced_py2popen(os))
+            trace_utils.wrap(os, "popen3", _traced_py2popen(os))
+            trace_utils.wrap(os, "popen4", _traced_py2popen(os))
         patched.append("os")
 
     if not getattr(subprocess, "_datadog_patch", False):
         Pin().onto(subprocess)
         # We store the parameters on __init__ in the context and set the tags on wait
         # (where all the Popen objects eventually arrive, unless killed before it)
-        trace_utils.wrap(subprocess, "Popen.__init__", traced_subprocess_init(subprocess))
-        trace_utils.wrap(subprocess, "Popen.wait", traced_subprocess_wait(subprocess))
+        trace_utils.wrap(subprocess, "Popen.__init__", _traced_subprocess_init(subprocess))
+        trace_utils.wrap(subprocess, "Popen.wait", _traced_subprocess_wait(subprocess))
 
         setattr(os, "_datadog_patch", True)
         setattr(subprocess, "_datadog_patch", True)
@@ -319,7 +319,7 @@ def unpatch():
 
 
 @trace_utils.with_traced_module
-def traced_ossystem(module, pin, wrapped, instance, args, kwargs):
+def _traced_ossystem(module, pin, wrapped, instance, args, kwargs):
     try:
         shellcmd = SubprocessCmdLine(args[0], shell=True)  # nosec
 
@@ -339,7 +339,7 @@ def traced_ossystem(module, pin, wrapped, instance, args, kwargs):
 
 
 @trace_utils.with_traced_module
-def traced_fork(module, pin, wrapped, instance, args, kwargs):
+def _traced_fork(module, pin, wrapped, instance, args, kwargs):
     try:
         with pin.tracer.trace(COMMANDS.SPAN_NAME, resource="fork", span_type=SpanTypes.SYSTEM) as span:
             span.set_tag(COMMANDS.EXEC, ["os.fork"])
@@ -354,7 +354,7 @@ def traced_fork(module, pin, wrapped, instance, args, kwargs):
 
 
 @trace_utils.with_traced_module
-def traced_osspawn(module, pin, wrapped, instance, args, kwargs):
+def _traced_osspawn(module, pin, wrapped, instance, args, kwargs):
     try:
         mode, file, func_args, _, _ = args
         shellcmd = SubprocessCmdLine(func_args, shell=False)
@@ -378,7 +378,7 @@ def traced_osspawn(module, pin, wrapped, instance, args, kwargs):
 
 
 @trace_utils.with_traced_module
-def traced_py2popen(module, pin, wrapped, instance, args, kwargs):
+def _traced_py2popen(module, pin, wrapped, instance, args, kwargs):
     try:
         command = args[0]
         subcmd = SubprocessCmdLine(command, shell=False)
@@ -397,7 +397,7 @@ def traced_py2popen(module, pin, wrapped, instance, args, kwargs):
 
 
 @trace_utils.with_traced_module
-def traced_subprocess_init(module, pin, wrapped, instance, args, kwargs):
+def _traced_subprocess_init(module, pin, wrapped, instance, args, kwargs):
     try:
         cmd_args = args[0] if len(args) else kwargs["args"]
         cmd_args_list = shlex.split(cmd_args) if isinstance(cmd_args, str) else cmd_args
@@ -422,7 +422,7 @@ def traced_subprocess_init(module, pin, wrapped, instance, args, kwargs):
 
 
 @trace_utils.with_traced_module
-def traced_subprocess_wait(module, pin, wrapped, instance, args, kwargs):
+def _traced_subprocess_wait(module, pin, wrapped, instance, args, kwargs):
     try:
         binary = _context.get_item("subprocess_popen_binary")
 
