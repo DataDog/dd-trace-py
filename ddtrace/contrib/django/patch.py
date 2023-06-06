@@ -339,8 +339,10 @@ def traced_process_exception(django, name, resource=None):
 
 @trace_utils.with_traced_module
 def traced_load_middleware(django, pin, func, instance, args, kwargs):
-    """Patches django.core.handlers.base.BaseHandler.load_middleware to instrument all
-    middlewares."""
+    """
+    Patches django.core.handlers.base.BaseHandler.load_middleware to instrument all
+    middlewares.
+    """
     settings_middleware = []
     # Gather all the middleware
     if getattr(django.conf.settings, "MIDDLEWARE", None):
@@ -782,8 +784,8 @@ def traced_login(django, pin, func, instance, args, kwargs):
             user_id, user_extra = _get_user_info(user)
             if not user_id:
                 log.debug(
-                    "Automatic Login Events Tracking: "
-                    "Could not determine user id field user for the %s user Model" % type(user)
+                    "Automatic Login Events Tracking: " "Could not determine user id field user for the %s user Model",
+                    type(user),
                 )
                 return
 
@@ -896,7 +898,9 @@ def _patch(django):
         if django.VERSION >= (3, 1):
             # Have to inline this import as the module contains syntax incompatible with Python
             # 3.5 and below
-            from ._asgi import traced_get_response_async
+            from ._asgi import traced_get_response_async  # noqa: F401
+
+            trace_utils.wrap(m, "BaseHandler.get_response_async", traced_get_response_async(django))
 
     @when_imported("django.contrib.auth")
     def _(m):
