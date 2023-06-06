@@ -18,6 +18,7 @@ from ddtrace.internal import compat
 from ddtrace.internal import gitmetadata
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.utils.formats import parse_tags_str
+from ddtrace.internal.utils.retry import RetryError
 from ddtrace.profiling import exporter
 from ddtrace.profiling.exporter import http
 
@@ -216,7 +217,7 @@ def test_export_server_down():
         max_retry_delay=2,
         endpoint_call_counter_span_processor=_get_span_processor(),
     )
-    with pytest.raises(http.UploadFailed) as t:
+    with pytest.raises(RetryError) as t:
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
     e = t.value.last_attempt.exception()
     assert isinstance(e, (IOError, OSError))
@@ -231,7 +232,7 @@ def test_export_timeout(endpoint_test_timeout_server):
         max_retry_delay=2,
         endpoint_call_counter_span_processor=_get_span_processor(),
     )
-    with pytest.raises(http.UploadFailed) as t:
+    with pytest.raises(RetryError) as t:
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
     e = t.value.last_attempt.exception()
     assert isinstance(e, socket.timeout)
@@ -246,7 +247,7 @@ def test_export_reset(endpoint_test_reset_server):
         max_retry_delay=2,
         endpoint_call_counter_span_processor=_get_span_processor(),
     )
-    with pytest.raises(http.UploadFailed) as t:
+    with pytest.raises(RetryError) as t:
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
     e = t.value.last_attempt.exception()
     if six.PY3:

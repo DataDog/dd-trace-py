@@ -214,6 +214,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         self._send_payload_with_backoff = fibonacci_backoff_with_jitter(  # type ignore[assignment]
             attempts=self.RETRY_ATTEMPTS,
             initial_wait=0.618 * self.interval / (1.618 ** self.RETRY_ATTEMPTS) / 2,
+            until=lambda result: isinstance(result, Response),
         )(self._send_payload)
 
         self._log_error_payloads = asbool(os.environ.get("_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", False))
@@ -423,12 +424,12 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
 
         try:
             self._send_payload_with_backoff(encoded, n_traces, client)
-        except Exception as e:
+        except Exception:
             self._metrics_dist("http.errors", tags=["type:err"])
             self._metrics_dist("http.dropped.bytes", len(encoded))
             self._metrics_dist("http.dropped.traces", n_traces)
             if raise_exc:
-                raise e
+                six.reraise(*sys.exc_info())
             else:
                 log.error(
                     "failed to send, dropping %d traces to intake at %s after %d retries",
@@ -641,6 +642,7 @@ class AgentWriter(HTTPWriter):
                         )
                 except ValueError:
                     log.error("sample_rate is negative, cannot update the rate samplers")
+        return response
 
     def start(self):
         super(AgentWriter, self).start()

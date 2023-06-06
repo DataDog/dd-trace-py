@@ -101,7 +101,7 @@ class CIVisibilityGitClient(object):
         return result
 
     @classmethod
-    @fibonacci_backoff_with_jitter(attempts=5)
+    @fibonacci_backoff_with_jitter(attempts=5, until=lambda result: isinstance(result, Response))
     def _do_request(cls, requests_mode, base_url, endpoint, payload, serializer, headers=None):
         # type: (int, str, str, str, CIVisibilityGitClientSerializerV1, Optional[dict]) -> Response
         url = "{}/repository{}".format(base_url, endpoint)

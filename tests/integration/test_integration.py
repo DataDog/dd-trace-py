@@ -27,7 +27,6 @@ from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import MsgpackEncoderV03 as Encoder
 from ddtrace.internal.runtime import container
 from ddtrace.internal.writer import AgentWriter
-from tests.utils import AnyExc
 from tests.utils import AnyFloat
 from tests.utils import AnyInt
 from tests.utils import AnyStr
@@ -157,11 +156,10 @@ def test_uds_wrong_socket_path(encoding, monkeypatch):
         t.shutdown()
     calls = [
         mock.call(
-            "failed to send, dropping %d traces to intake at %s after %d retries (%s)",
+            "failed to send, dropping %d traces to intake at %s after %d retries",
             1,
             "unix:///tmp/ddagent/nosockethere/{}/traces".format(encoding if encoding else "v0.5"),
             3,
-            AnyExc(),
         )
     ]
     log.error.assert_has_calls(calls)
@@ -388,11 +386,10 @@ def test_trace_bad_url(encoding, monkeypatch):
 
     calls = [
         mock.call(
-            "failed to send, dropping %d traces to intake at %s after %d retries (%s)",
+            "failed to send, dropping %d traces to intake at %s after %d retries",
             1,
             "http://bad:1111/{}/traces".format(encoding if encoding else "v0.5"),
             3,
-            AnyExc(),
         )
     ]
     log.error.assert_has_calls(calls)
