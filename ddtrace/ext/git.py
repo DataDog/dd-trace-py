@@ -227,8 +227,28 @@ def extract_user_git_metadata(env=None):
 def build_git_packfiles(revisions, cwd=None):
     # type: (str, Optional[str]) -> Generator
     basename = str(random.randint(1, 1000000))
-    with TemporaryDirectory() as tempdir:
-        prefix = "{tempdir}/{basename}".format(tempdir=tempdir, basename=basename)
+    try:
+        with TemporaryDirectory() as tempdir:
+            prefix = "{tempdir}/{basename}".format(tempdir=tempdir, basename=basename)
+            _git_subprocess_cmd(
+                "pack-objects --compression=9 --max-pack-size=3m %s" % prefix, cwd=cwd, std_in=revisions.encode("utf-8")
+            )
+            yield prefix
+    except ValueError:
+        # The generation of pack files in the temporary folder (`TemporaryDirectory()`)
+        # sometimes fails in certain CI setups with the error message
+        # `unable to rename temporary pack file: Invalid cross-device link`.
+        # The reason why is unclear.
+        #
+        # A workaround is to attempt to generate the pack files in `cwd`.
+        # While this works most of the times, it's not ideal since it affects the git status.
+        # This workaround is intended to be temporary.
+        #
+        # TODO: fix issue and remove workaround.
+        if not cwd:
+            cwd = os.getcwd()
+
+        prefix = "{tempdir}/{basename}".format(tempdir=cwd, basename=basename)
         _git_subprocess_cmd(
             "pack-objects --compression=9 --max-pack-size=3m %s" % prefix, cwd=cwd, std_in=revisions.encode("utf-8")
         )
