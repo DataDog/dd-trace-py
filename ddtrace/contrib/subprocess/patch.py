@@ -17,8 +17,8 @@ import six
 
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace.appsec._constants import COMMANDS
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib.subprocess.constants import COMMANDS
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import _context
 from ddtrace.internal.compat import PY2

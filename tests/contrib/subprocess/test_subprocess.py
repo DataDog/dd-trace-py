@@ -5,7 +5,7 @@ import sys
 import pytest
 
 from ddtrace import Pin
-from ddtrace.appsec._constants import COMMANDS
+from ddtrace.contrib.subprocess.constants import COMMANDS
 from ddtrace.contrib.subprocess.patch import SubprocessCmdLine
 from ddtrace.contrib.subprocess.patch import patch
 from ddtrace.contrib.subprocess.patch import unpatch
