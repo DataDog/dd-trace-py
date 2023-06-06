@@ -136,11 +136,12 @@ class BuildExtWithUPX(BuildExtCommand):
         return os.path.isfile(BuildExtWithUPX.upx)
 
     def compress_shared_objects(self):
+        # In a later patch, this will use platform-appropriate suffixes
         sofiles = glob.glob("**/*.so", recursive=True)
         for so in sofiles:
             try:
                 # -f because some sofiles may be non-exec at this point
-                subprocess.check_call([BuildExtWithUPX.upx, "--lzma", "-f", so])
+                subprocess.check_call([BuildExtWithUPX.upx, "--lzma", "-f", "-q", so])
                 print("Compressed " + so + " with upx")
             except subprocess.CalledProcessError:
                 print("Failed to compress " + so + " with upx")
@@ -148,13 +149,7 @@ class BuildExtWithUPX(BuildExtCommand):
     def run(self):
         BuildExtCommand.run(self)
         if not UPX_SKIP and self.download_upx():
-            print("=========================================================================")
-            print("Applying UPX")
             self.compress_shared_objects()
-        else:
-            print("=========================================================================")
-            print("Skipping UPX")
-            print("Path is: " + BuildExtWithUPX.upx)
 
 
 class LibraryDownload:
@@ -184,14 +179,12 @@ class LibraryDownload:
         # Decompress.  Use subprocess because xz isn't well-supported through
         # tarfile on 2.7
         # Ignores suffixes, as the only consumer doesn't need them
-        print("Trying to untar " + filename + " into " + archive_dir)
         try:
             os.makedirs(archive_dir)
             subprocess.check_call(["tar", "-xJf", filename, "-C", archive_dir])
-            print("Renaming " + archive_dir + " to " + arch_dir)
             os.rename(os.path.join(HERE, archive_dir), arch_dir)
         except subprocess.CalledProcessError:
-            print("Some kind of error extracting files")
+            print("extracting files from tar.xz archive")
             pass
 
     @classmethod
@@ -236,7 +229,6 @@ class LibraryDownload:
                 archive_name,
             )
 
-            print("================================================================================================")
             try:
                 filename, http_response = urlretrieve(download_address, archive_name)
             except HTTPError as e:
