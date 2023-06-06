@@ -79,14 +79,8 @@ jobs:
       - name: Run APPSEC_RATE_LIMITER
         run: ./run.sh APPSEC_RATE_LIMITER
 
-      - name: Run APPSEC_IP_BLOCKING
-        run: ./run.sh APPSEC_IP_BLOCKING
-
-      - name: Run APPSEC_IP_BLOCKING
-        run: ./run.sh APPSEC_IP_BLOCKING
-
-      - name: Run APPSEC_IP_BLOCKING_MAXED
-        run: ./run.sh APPSEC_IP_BLOCKING_MAXED
+      - name: Run APPSEC_BLOCKING_FULL_DENYLIST
+        run: ./run.sh APPSEC_BLOCKING_FULL_DENYLIST
 
       - name: Run APPSEC_REQUEST_BLOCKING
         run: ./run.sh APPSEC_REQUEST_BLOCKING
