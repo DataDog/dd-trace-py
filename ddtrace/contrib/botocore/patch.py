@@ -3,7 +3,7 @@ Trace queries to aws api done via botocore client
 """
 import base64
 import collections
-import jsong
+import json
 import os
 import typing
 from typing import Any
