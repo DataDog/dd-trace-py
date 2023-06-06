@@ -5,7 +5,7 @@ import pytest
 from ddtrace import constants
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import LOGIN_EVENTS_MODE
-from ddtrace.appsec.trace_utils import block_request_if_user_blocked
+from ddtrace.appsec.trace_utils import block_request_if_user_blocked, track_user_signup_event
 from ddtrace.appsec.trace_utils import should_block_user
 from ddtrace.appsec.trace_utils import track_custom_event
 from ddtrace.appsec.trace_utils import track_user_login_failure_event

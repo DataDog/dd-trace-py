@@ -672,7 +672,7 @@ def traced_get_asgi_application(django, pin, func, instance, args, kwargs):
     return TraceMiddleware(func(*args, **kwargs), integration_config=config.django, span_modifier=django_asgi_modifier)
 
 
-# TODO: try...except, this should never fail, only log
+# TODO JJJ: try...except, this should never fail, only log
 @trace_utils.with_traced_module
 def traced_login(django, pin, func, instance, args, kwargs):
     request = get_argument_value(args, kwargs, 0, "request")

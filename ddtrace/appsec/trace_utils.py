@@ -105,14 +105,21 @@ def track_user_login_failure_event(tracer, user_id, exists, metadata=None, login
     span.set_tag_str("%s.failure.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX, user.EXISTS), exists_str)
 
 
-def track_user_signup_event(tracer, user_id, success):
-    # type: (Tracer, str, bool) -> None
+def track_user_signup_event(tracer, user_id, success, login_events_mode=LOGIN_EVENTS_MODE.SDK):
+    # type: (Tracer, str, bool, str) -> None
     span = tracer.current_root_span()
     if span:
         success_str = "true" if success else "false"
         span.set_tag_str(APPSEC.USER_SIGNUP_EVENT, success_str)
         span.set_tag_str(user.ID, user_id)
         span.set_tag_str(constants.MANUAL_KEEP_KEY, "true")
+
+        # This is used to mark if the call was done from the SDK of the automatic login events
+        if login_events_mode == LOGIN_EVENTS_MODE.SDK:
+            span.set_tag_str("%s.sdk" % APPSEC.USER_SIGNUP_EVENT, "true")
+        else:
+            span.set_tag_str("%s.auto.mode" % APPSEC.USER_SIGNUP_EVENT, str(login_events_mode))
+
         return
     else:
         log.warning(
