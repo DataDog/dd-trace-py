@@ -16,6 +16,7 @@ from ddsketch import LogCollapsingLowestDenseDDSketch
 from ddsketch.pb.proto import DDSketchProto
 import six
 import tenacity
+import base64
 
 import ddtrace
 from ddtrace import config
@@ -260,6 +261,12 @@ class DataStreamsProcessor(PeriodicService):
         except (EOFError, TypeError):
             return self.new_pathway()
 
+    def decode_pathway_b64(self, data):
+        binary_pathway = data.encode('utf-8')
+        encoded_pathway = base64.b64decode(binary_pathway)
+        data_streams_context = self.decode_pathway(encoded_pathway)
+        return data_streams_context
+
     def new_pathway(self):
         # type: () -> DataStreamsCtx
         now_sec = time.time()
@@ -297,6 +304,12 @@ class DataStreamsCtx:
             + encode_var_int_64(int(self.pathway_start_sec * 1e3))
             + encode_var_int_64(int(self.current_edge_start_sec * 1e3))
         )
+
+    def encode_b64(self):
+        encoded_pathway = self.encode()
+        binary_pathway = base64.b64encode(encoded_pathway)
+        data_streams_context = binary_pathway.decode('utf-8')
+        return data_streams_context
 
     def _compute_hash(self, tags, parent_hash):
         if six.PY3:
