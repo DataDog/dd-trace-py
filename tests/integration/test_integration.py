@@ -26,6 +26,7 @@ from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import MsgpackEncoderV03 as Encoder
 from ddtrace.internal.runtime import container
+from ddtrace.internal.utils.http import Response
 from ddtrace.internal.writer import AgentWriter
 from tests.utils import AnyFloat
 from tests.utils import AnyInt
@@ -1005,6 +1006,7 @@ def test_civisibility_event_endpoints():
             t.configure(writer=CIVisibilityWriter(reuse_connections=True))
             t._writer._conn = mock.MagicMock()
             with mock.patch("ddtrace.internal.writer.Response.from_http_response") as from_http_response:
+                from_http_response.return_value.__class__ = Response
                 from_http_response.return_value.status = 200
                 s = t.trace("operation", service="svc-no-cov")
                 s.finish()
