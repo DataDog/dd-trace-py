@@ -104,7 +104,6 @@ def cleanup_loaded_modules():
             "atexit",
             "copyreg",  # pickling issues for tracebacks with gevent
             "ddtrace",
-            "asyncio",
             "concurrent",
             "typing",
             "re",  # referenced by the typing module

@@ -468,3 +468,47 @@ def test_no_args():
     p.wait()
     assert p.returncode == 1
     assert six.b("usage:") in p.stdout.read()
+
+
+MODULES_TO_CHECK = ["asyncio"]
+MODULES_TO_CHECK_PARAMS = dict(
+    DD_TRACE_ENABLED=["1", "0"],
+    DD_PROFILING_ENABLED=["1", "0"],
+    DD_DYNAMIC_INSTRUMENTATION_ENABLED=["1", "0"],
+)
+
+
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    env=dict(MODULES_TO_CHECK=",".join(MODULES_TO_CHECK)),
+    parametrize=MODULES_TO_CHECK_PARAMS,
+    err=None,
+)
+def test_ddtrace_run_imports():
+    import os
+    import sys
+
+    MODULES_TO_CHECK = os.environ["MODULES_TO_CHECK"].split(",")
+
+    for module in MODULES_TO_CHECK:
+        assert module not in sys.modules, module
+
+
+@pytest.mark.subprocess(
+    env=dict(MODULES_TO_CHECK=",".join(MODULES_TO_CHECK)),
+    parametrize=MODULES_TO_CHECK_PARAMS,
+    err=None,
+)
+def test_ddtrace_auto_imports():
+    import os
+    import sys
+
+    MODULES_TO_CHECK = os.environ["MODULES_TO_CHECK"].split(",")
+
+    for module in MODULES_TO_CHECK:
+        assert module not in sys.modules, module
+
+    import ddtrace.auto  # noqa: F401
+
+    for module in MODULES_TO_CHECK:
+        assert module not in sys.modules, module
