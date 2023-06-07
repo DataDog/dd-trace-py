@@ -99,9 +99,12 @@ class BaseReplacement(object):
                     start = context.position
                     if start != end:
                         assert isinstance(id_evidence, str)
+
                         ranges_append(
                             TaintRange(
-                                start, end - start, Source(name=id_evidence, value="bar", origin=OriginType.PARAMETER)
+                                start,
+                                end - start,
+                                Source(name=id_evidence, value=new_text[start:], origin=OriginType.PARAMETER),
                             )
                         )
         set_ranges(new_text, tuple(ranges))

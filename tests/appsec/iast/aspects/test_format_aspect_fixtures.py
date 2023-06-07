@@ -130,12 +130,12 @@ class TestOperatorFormatReplacement(BaseReplacement):
     def test_format_when_texts_tainted_and_contain_escape_sequences_then_result_uncorrupted(self):
         # type: () -> None
         self._assert_format_result(
-            taint_escaped_template=":+-<input1>template ::++--<input0>my_code<input0>--++::" "<input1>-+: {}",
-            taint_escaped_parameter=":+-<input2>parameter<input2>-+: " "::++--<input0>my_code<input0>--++::",
-            expected_result="template :+-<input0>my_code<input0>-+: parameter " ":+-<input0>my_code<input0>-+:",
-            escaped_expected_result=":+-<input1>template :+-<input0>my_code<input0>-+:<input1>-+: "
+            taint_escaped_template=":+-<input1>template ::++--<0>my_code<0>--++::" "<input1>-+: {}",
+            taint_escaped_parameter=":+-<input2>parameter<input2>-+: " "::++--<0>my_code<0>--++::",
+            expected_result="template :+-<0>my_code<0>-+: parameter " ":+-<0>my_code<0>-+:",
+            escaped_expected_result=":+-<input1>template :+-<0>my_code<0>-+:<input1>-+: "
             ":+-<input2>parameter<input2>-+: "
-            ":+-<input0>my_code<input0>-+:",
+            ":+-<0>my_code<0>-+:",
         )
 
     def test_format_when_parameter_value_already_present_in_template_then_range_is_correct(self):
@@ -198,3 +198,19 @@ class TestOperatorFormatReplacement(BaseReplacement):
         string_input = create_taint_range_with_format(":+--12-+:34 {} {} {} {test_kwarg} {test_var}")
         res = mod.do_args_kwargs_4(string_input, 6, test_var=1)  # pylint: disable=no-member
         assert as_formatted_evidence(res) == ":+--12-+:34 1 2 6 3 1"
+
+    def test_format_when_tainted_template_range_special_then_tainted_result(self):  # type: () -> None
+        self._assert_format_result(
+            taint_escaped_template=":+-<input1>{:<15s}<input1>-+: parameter",
+            taint_escaped_parameter="parameter",
+            expected_result="parameter       parameter",
+            escaped_expected_result=":+-<input1>parameter      <input1>-+: parameter",
+        )
+
+    def test_format_when_tainted_template_range_special_template_then_tainted_result(self):  # type: () -> None
+        self._assert_format_result(
+            taint_escaped_template="{:<25s} parameter",
+            taint_escaped_parameter="a:+-<input2>aaaa<input2>-+:a",
+            expected_result="aaaaaa parameter",
+            escaped_expected_result="a:+-<input2>aaaa<input2>-+:a parameter",
+        )

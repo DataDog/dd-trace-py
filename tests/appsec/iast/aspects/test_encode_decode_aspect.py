@@ -111,19 +111,12 @@ def test_encode_and_add_aspect(infix, args, kwargs, should_be_tainted, prefix, s
     if should_be_tainted:
         assert len(get_tainted_ranges(main_string))
     ok, res = catch_all(ddtrace_aspects.encode_aspect, (main_string,) + args, kwargs)
-    print(ok)
-    print("RES")
-    print(catch_all(main_string.__class__.encode, (main_string,) + args, kwargs))
+
     assert (ok, res) == catch_all(main_string.__class__.encode, (main_string,) + args, kwargs)
     if should_be_tainted and ok:
         list_ranges = get_tainted_ranges(res)
         assert len(list_ranges) == 1
-        print("RANGES")
-        print(list_ranges)
-        print("len(prefix.encode(*args, **kwargs)")
-        print(len(prefix.encode(*args, **kwargs)))
-        print("len(infix.encode(*args, **kwargs))")
-        print(len(infix.encode(*args, **kwargs)))
+
         assert list_ranges[0].start == len(prefix.encode(*args, **kwargs))
         len_infix = len(infix.encode(*args, **kwargs))
         assert list_ranges[0].length == len_infix

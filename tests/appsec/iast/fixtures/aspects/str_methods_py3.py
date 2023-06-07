@@ -1,4 +1,5 @@
 ## Python 3 only functions (syntax errors on Python 2)
+import string
 from typing import Any
 from typing import List
 from typing import Optional
@@ -54,7 +55,6 @@ class URLPattern:
     def match(self, path):  # type: (str) -> Optional[Tuple[str, str, str], bool]
         global COUNTER
         COUNTER = COUNTER + 1
-        print(COUNTER)
         if COUNTER > 4:
             return False
         return path, path, path

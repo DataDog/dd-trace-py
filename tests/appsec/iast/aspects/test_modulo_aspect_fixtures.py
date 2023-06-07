@@ -156,14 +156,16 @@ class TestOperatorModuloReplacement(BaseReplacement):
             escaped_expected_result=":+-<input1>template 3.14<input1>-+:",
         )
 
-    def test_modulo_when_texts_tainted_and_contain_escape_sequences_then_result_uncorrupted(self):  # type: () -> None
+    def test_modulo_when_texts_tainted_and_contain_escape_sequences_then_result_uncorrupted(
+        self,
+    ):  # type: () -> None
         self._assert_modulo_result(
-            taint_escaped_template=":+-<input1>template ::++--<input0>my_code<input0>--++::" "<input1>-+: %s",
-            taint_escaped_parameter=":+-<input2>parameter<input2>-+: " "::++--<input0>my_code<input0>--++::",
-            expected_result="template :+-<input0>my_code<input0>-+: parameter " ":+-<input0>my_code<input0>-+:",
-            escaped_expected_result=":+-<input1>template :+-<input0>my_code<input0>-+:<input1>-+: "
+            taint_escaped_template=":+-<input1>template ::++--<0>my_code<0>--++::" "<input1>-+: %s",
+            taint_escaped_parameter=":+-<input2>parameter<input2>-+: " "::++--<0>my_code<0>--++::",
+            expected_result="template :+-<0>my_code<0>-+: parameter " ":+-<0>my_code<0>-+:",
+            escaped_expected_result=":+-<input1>template :+-<0>my_code<0>-+:<input1>-+: "
             ":+-<input2>parameter<input2>-+: "
-            ":+-<input0>my_code<input0>-+:",
+            ":+-<0>my_code<0>-+:",
         )
 
     def test_modulo_when_parameter_value_already_present_in_template_then_range_is_correct(self):  # type: () -> None

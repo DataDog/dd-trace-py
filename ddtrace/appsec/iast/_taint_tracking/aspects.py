@@ -21,9 +21,12 @@ from ddtrace.appsec.iast._taint_tracking import _convert_escaped_text_to_tainted
 from ddtrace.appsec.iast._taint_tracking import are_all_text_all_ranges  # noqa: F401
 from ddtrace.appsec.iast._taint_tracking import as_formatted_evidence  # noqa: F401
 from ddtrace.appsec.iast._taint_tracking import common_replace  # noqa: F401
+from ddtrace.appsec.iast._taint_tracking import get_ranges
 from ddtrace.appsec.iast._taint_tracking import get_tainted_ranges
 from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
 from ddtrace.appsec.iast._taint_tracking import parse_params  # noqa: F401
+from ddtrace.appsec.iast._taint_tracking import shift_taint_range
+from ddtrace.appsec.iast._taint_tracking import shift_taint_ranges
 from ddtrace.appsec.iast._taint_tracking import taint_pyobject
 from ddtrace.appsec.iast._taint_tracking import taint_pyobject_with_ranges
 from ddtrace.appsec.iast._taint_tracking._native import aspects  # noqa: F401
@@ -74,7 +77,7 @@ def bytearray_extend_aspect(op1, op2):
 def bytes_aspect(*args, **kwargs):
     # type: (Any, Any) -> bytes
     result = builtin_bytes(*args, **kwargs)
-    if isinstance(args[0], (str, bytes, bytearray)) and is_pyobject_tainted(args[0]):
+    if isinstance(args[0], TEXT_TYPES) and is_pyobject_tainted(args[0]):
         result = taint_pyobject(result, Source("bytes_aspect", result, 0))
 
     return result
@@ -83,7 +86,7 @@ def bytes_aspect(*args, **kwargs):
 def bytearray_aspect(*args, **kwargs):
     # type: (Any, Any) -> bytearray
     result = builtin_bytearray(*args, **kwargs)
-    if isinstance(args[0], (str, bytes, bytearray)) and is_pyobject_tainted(args[0]):
+    if isinstance(args[0], TEXT_TYPES) and is_pyobject_tainted(args[0]):
         result = taint_pyobject(result, Source("bytearray_aspect", result, 0))
 
     return result
@@ -97,7 +100,7 @@ def bytearray_aspect(*args, **kwargs):
 
 def modulo_aspect(candidate_text, candidate_tuple):
     # type: (Any, Any) -> Any
-    if not isinstance(candidate_text, (str, bytes, bytearray)):
+    if not isinstance(candidate_text, TEXT_TYPES):
         return candidate_text % candidate_tuple
 
     try:
@@ -131,72 +134,122 @@ def modulo_aspect(candidate_text, candidate_tuple):
         return candidate_text % candidate_tuple
 
 
-# TODO: add tests
+def build_string_aspect(*args):  # type: (List[Any]) -> str
+    return join_aspect("", args)
+
+
+def ljust_aspect(candidate_text, *args, **kwargs):
+    # type: (Any, Any, Any) -> str
+    if not isinstance(candidate_text, TEXT_TYPES):
+        return candidate_text.ljust(*args, **kwargs)
+
+    ranges_new = get_ranges(candidate_text)
+    fillchar = parse_params(1, "fillchar", " ", *args, **kwargs)
+    fillchar_ranges = get_ranges(fillchar)
+    if ranges_new is None or (not ranges_new and not fillchar_ranges):
+        return candidate_text.ljust(*args, **kwargs)
+
+    if fillchar_ranges:
+        # Can only be one char, so we create one range to cover from the start to the end
+        assert isinstance(ranges_new, list)
+        ranges_new = ranges_new + [shift_taint_range(fillchar_ranges[0], len(candidate_text))]
+
+    res = candidate_text.ljust(parse_params(0, "width", None, *args, **kwargs), fillchar)
+    taint_pyobject_with_ranges(res, ranges_new)
+    return res
+
+
+def zfill_aspect(candidate_text, *args, **kwargs):
+    # type: (Any, Any, Any) -> str
+    return candidate_text.zfill(*args, **kwargs)
+
+
 def format_aspect(
     candidate_text,  # type: str
     *args,  # type: List[Any]
     **kwargs  # type: Dict[str, Any]
 ):  # type: (...) -> str
-    if not isinstance(candidate_text, (str, bytes, bytearray)):
+    if not isinstance(candidate_text, TEXT_TYPES):
         return candidate_text.format(*args, **kwargs)
 
-    try:
-        params = tuple(args) + tuple(kwargs.values())
-        ranges_orig, candidate_text_ranges = are_all_text_all_ranges(candidate_text, params)
-        if not ranges_orig:
-            return candidate_text.format(*args, **kwargs)
-
-        new_template = as_formatted_evidence(
-            candidate_text, candidate_text_ranges, tag_mapping_function=TagMappingMode.Mapper
-        )
-        fun = (
-            lambda arg: as_formatted_evidence(arg, tag_mapping_function=TagMappingMode.Mapper)
-            if isinstance(arg, TEXT_TYPES)
-            else arg
-        )
-        new_args = map(fun, args)  # type: ignore[arg-type]
-        new_kwargs = {key: fun(value) for key, value in iteritems(kwargs)}
-        # invert_dict(range_guid_map)
-        return _convert_escaped_text_to_tainted_text(
-            new_template.format(*new_args, **new_kwargs),  # type: ignore[union-attr]
-            ranges_orig=ranges_orig,
-        )
-
-    except Exception as exc:
+    # try:
+    params = tuple(args) + tuple(kwargs.values())
+    ranges_orig, candidate_text_ranges = are_all_text_all_ranges(candidate_text, params)
+    if not ranges_orig:
         return candidate_text.format(*args, **kwargs)
+
+    new_template = as_formatted_evidence(
+        candidate_text, candidate_text_ranges, tag_mapping_function=TagMappingMode.Mapper
+    )
+    fun = (
+        lambda arg: as_formatted_evidence(arg, tag_mapping_function=TagMappingMode.Mapper)
+        if isinstance(arg, TEXT_TYPES)
+        else arg
+    )
+    # new_args = map(fun, args)  # type: ignore[arg-type]
+    new_args = list(map(fun, args))  # type: ignore[arg-type]
+    # new_kwargs = {key: fun(value) for key, value in iteritems(kwargs)}
+    new_kwargs = {key: fun(value) for key, value in iteritems(kwargs)}
+    # invert_dict(range_guid_map)
+
+    # import string
+    #
+    # class MyFormatter(string.Formatter):
+    #     def format_field(self, value, format_spec):
+    #         r = r'(([\s\S])?([<>=\^]))?([\+\- ])?([#])?([0])?(\d)*([,])?((\.)(\d)*)?([sbcdoxXneEfFgGn%])?'
+    #
+    #         from collections import namedtuple as nt
+    #         FormatSpec = nt('FormatSpec', 'fill align sign alt zero_padding width comma decimal precision type')
+    #
+    #         import re
+    #         spec = FormatSpec(*re.fullmatch(r, format_spec).group(2, 3, 4, 5, 6, 7, 8, 10, 11, 12))
+    #         spec = spec._replace(width=str(int(spec.width) + 26))
+    #
+    #         return super(MyFormatter, self).format(value + '    ', ''.join(s for s in spec if s is not None))
+    #
+    # fmt = MyFormatter()
+    # print(fmt.format(new_template, *new_args, **new_kwargs))
+
+    return _convert_escaped_text_to_tainted_text(
+        new_template.format(*new_args, **new_kwargs),  # type: ignore[union-attr]
+        ranges_orig=ranges_orig,
+    )
+    #
+    # except Exception as exc:
+    #     return candidate_text.format(*args, **kwargs)
 
 
 # TODO: add tests
 def format_map_aspect(candidate_text, *args, **kwargs):  # type: (str, Any, Any) -> str
-    if not isinstance(candidate_text, (str, bytes, bytearray)):
+    if not isinstance(candidate_text, TEXT_TYPES):
         return candidate_text.format_map(*args, **kwargs)
 
-    try:
-        mapping = parse_params(0, "mapping", None, *args, **kwargs)
-        mapping_tuple = tuple(mapping if not isinstance(mapping, dict) else mapping.values())
-        ranges_orig, candidate_text_ranges = are_all_text_all_ranges(
-            candidate_text,
-            args + mapping_tuple,
-        )
-        if not ranges_orig:
-            return candidate_text.format_map(*args, **kwargs)
-
-        return _convert_escaped_text_to_tainted_text(
-            as_formatted_evidence(
-                candidate_text, candidate_text_ranges, tag_mapping_function=TagMappingMode.Mapper
-            ).format_map(
-                {
-                    key: as_formatted_evidence(value, tag_mapping_function=TagMappingMode.Mapper)
-                    if isinstance(value, TEXT_TYPES)
-                    else value
-                    for key, value in iteritems(mapping)
-                }
-            ),
-            ranges_orig=ranges_orig,
-        )
-
-    except Exception as exc:
+    # try:
+    mapping = parse_params(0, "mapping", None, *args, **kwargs)
+    mapping_tuple = tuple(mapping if not isinstance(mapping, dict) else mapping.values())
+    ranges_orig, candidate_text_ranges = are_all_text_all_ranges(
+        candidate_text,
+        args + mapping_tuple,
+    )
+    if not ranges_orig:
         return candidate_text.format_map(*args, **kwargs)
+
+    return _convert_escaped_text_to_tainted_text(
+        as_formatted_evidence(
+            candidate_text, candidate_text_ranges, tag_mapping_function=TagMappingMode.Mapper
+        ).format_map(
+            {
+                key: as_formatted_evidence(value, tag_mapping_function=TagMappingMode.Mapper)
+                if isinstance(value, TEXT_TYPES)
+                else value
+                for key, value in iteritems(mapping)
+            }
+        ),
+        ranges_orig=ranges_orig,
+    )
+    #
+    # except Exception as exc:
+    #     return candidate_text.format_map(*args, **kwargs)
 
 
 # TODO: add tests
@@ -225,14 +278,14 @@ def format_value_aspect(
         new_text = str(new_text)
 
     # FIXME: can we return earlier here?
-    if isinstance(new_text, (str, bytes, bytearray)):
+    if not isinstance(new_text, TEXT_TYPES):
         return new_text
 
     ranges_new = get_tainted_ranges(new_text) if isinstance(element, TEXT_TYPES) else ()
     if not ranges_new:
         return new_text
 
-    taint_pyobject(new_text, ranges_new)
+    taint_pyobject_with_ranges(new_text, ranges_new)
     return new_text
 
 

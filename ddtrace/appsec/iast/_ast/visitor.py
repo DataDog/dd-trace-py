@@ -47,6 +47,8 @@ class AstVisitor(ast.NodeTransformer):
                 "translate": "ddtrace_aspects.translate_aspect",
                 "format": "ddtrace_aspects.format_aspect",
                 "format_map": "ddtrace_aspects.format_map_aspect",
+                "zfill": "ddtrace_aspects.zfill_aspect",
+                "ljust": "ddtrace_aspects.ljust_aspect",
             },
             # Replacement functions for modules
             "module_functions": {
@@ -59,6 +61,7 @@ class AstVisitor(ast.NodeTransformer):
                 ast.Add: "ddtrace_aspects.add_aspect",
                 "FORMAT_VALUE": "ddtrace_aspects.format_value_aspect",
                 ast.Mod: "ddtrace_aspects.modulo_aspect",
+                "BUILD_STRING": "ddtrace_aspects.build_string_aspect",
             },
             "excluded_from_patching": {
                 # Key: module being patched
@@ -89,6 +92,7 @@ class AstVisitor(ast.NodeTransformer):
         self._aspect_methods = self._aspects_spec["stringalike_methods"]
         self._aspect_modules = self._aspects_spec["module_functions"]
         self._aspect_format_value = self._aspects_spec["operators"]["FORMAT_VALUE"]
+        self._aspect_build_string = self._aspects_spec["operators"]["BUILD_STRING"]
         self.excluded_functions = self._aspects_spec["excluded_from_patching"].get(self.module_name, {})
 
         self.dont_patch_these_functionsdefs = set()
@@ -371,6 +375,35 @@ class AstVisitor(ast.NodeTransformer):
             fmt_value_node,
             func=func_name_node,
             args=[fmt_value_node.value, options_int, format_spec],
+        )
+
+        self.ast_modified = True
+        return call_node
+
+    def visit_JoinedStr(self, joinedstr_node):  # type: (JoinedStr) -> Any
+        """
+        Replaced the JoinedStr AST node with a Call to the replacement function. Most of
+        the work inside fstring is done by visit_FormattedValue above.
+        """
+        self.generic_visit(joinedstr_node)
+
+        if all(
+            map(
+                lambda x: isinstance(x, ast.FormattedValue) or self._is_node_constant_or_binop(x),
+                joinedstr_node.values,
+            )
+        ):
+            return joinedstr_node
+
+        func_name_node = self._attr_node(
+            joinedstr_node,
+            self._aspect_build_string,
+            ctx=ast.Load(),
+        )
+        call_node = self._call_node(
+            joinedstr_node,
+            func=func_name_node,
+            args=joinedstr_node.values,
         )
 
         self.ast_modified = True

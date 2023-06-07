@@ -183,6 +183,22 @@ _convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, TaintRang
     return result_new_id;
 }
 
+unsigned long int
+getNum(std::string s)
+{
+    unsigned int n = -1;
+    try {
+        n = std::stoul(s, nullptr, 10);
+        if (errno != 0) {
+            std::cout << "ERROR" << '\n';
+        }
+    } catch (std::exception& e) {
+        // throw std::invalid_argument("Value is too big");
+        std::cout << "Invalid value: " << s << '\n';
+    }
+    return n;
+}
+
 template<class StrType>
 std::tuple<StrType, TaintRangeRefs>
 _convert_escaped_text_to_taint_text_impl(const StrType& taint_escaped_text, TaintRangeRefs ranges_orig)
@@ -215,7 +231,7 @@ _convert_escaped_text_to_taint_text_impl(const StrType& taint_escaped_text, Tain
         }
         if (element.rfind(startswith_element, 0) == 0) {
             id_evidence = element.substr(4, element.length() - 5);
-            auto range_by_id = get_range_by_hash(stoul(id_evidence), optional_ranges_orig);
+            auto range_by_id = get_range_by_hash(getNum(id_evidence), optional_ranges_orig);
             if (range_by_id == nullptr) {
                 result += element;
                 length = py::len(StrType(element));
@@ -237,7 +253,7 @@ _convert_escaped_text_to_taint_text_impl(const StrType& taint_escaped_text, Tain
                 if (start != end) {
                     id_evidence = get<0>(previous_context);
                     const shared_ptr<TaintRange>& original_range =
-                      get_range_by_hash(std::stoul(id_evidence), optional_ranges_orig);
+                      get_range_by_hash(getNum(id_evidence), optional_ranges_orig);
                     ranges.emplace_back(make_shared<TaintRange>(TaintRange(start, length, original_range->source)));
                 }
                 latest_end = end;
@@ -247,7 +263,7 @@ _convert_escaped_text_to_taint_text_impl(const StrType& taint_escaped_text, Tain
             context_stack.push_back({ id_evidence, start });
         } else {
             id_evidence = element.substr(1, element.length() - 5);
-            auto range_by_id = get_range_by_hash(stoul(id_evidence), optional_ranges_orig);
+            auto range_by_id = get_range_by_hash(getNum(id_evidence), optional_ranges_orig);
             if (range_by_id == nullptr) {
                 result += element;
                 length = py::len(StrType(element));
@@ -268,8 +284,8 @@ _convert_escaped_text_to_taint_text_impl(const StrType& taint_escaped_text, Tain
             if (start != end) {
                 id_evidence = get<0>(context);
                 const shared_ptr<TaintRange>& original_range =
-                  get_range_by_hash(stoul(id_evidence), optional_ranges_orig);
-                ranges.emplace_back(make_shared<TaintRange>(TaintRange(start, length, original_range->source)));
+                  get_range_by_hash(getNum(id_evidence), optional_ranges_orig);
+                ranges.emplace_back(make_shared<TaintRange>(TaintRange(start, end - start, original_range->source)));
             }
             latest_end = end;
         }

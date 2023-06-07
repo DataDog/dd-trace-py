@@ -829,6 +829,11 @@ def do_join(s, iterable):
     return s.join(iterable)
 
 
+def do_join_args_kwargs(s, *args, **kwargs):
+    # type: (str, Iterable) -> str
+    return s.join(*args, **kwargs)
+
+
 def do_join_tuple(mystring):  # type: (str) -> str
     mystring = mystring
     gen = tuple(mystring + _ for _ in ["1", "2", "3"])

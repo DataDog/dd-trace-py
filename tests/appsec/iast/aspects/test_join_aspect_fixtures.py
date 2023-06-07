@@ -318,28 +318,27 @@ class TestOperatorJoinReplacement(object):
         assert result[ranges[1].start : (ranges[1].start + ranges[1].length)] == "abc"
         assert result[ranges[2].start : (ranges[2].start + ranges[2].length)] == "abc"
 
-    def test_string_join_yield(self):
+    def test_string_join_args_kwargs(self):
         # type: () -> None
         from ddtrace.appsec.iast._taint_tracking import setup
 
         setup(bytes.join, bytearray.join)
         # Not tainted
-        base_string = "abcde"
-        result = mod.do_join_generator_2(base_string)
-        assert result == "xabcdeyabcdez"
+        base_string = "-abcde-"
+        result = mod.do_join_args_kwargs(base_string, ("f", "g"))
+        assert result == "f-abcde-g"
 
         # Tainted
         tainted_base_string = taint_pyobject(
-            pyobject="abcde",
+            pyobject="-abcde-",
             source_name="joiner",
             source_value="foo",
             source_origin=OriginType.PARAMETER,
-            start=0,
-            len_pyobject=3,
+            start=1,
+            len_pyobject=5,
         )
-        result = mod.do_join_generator_2(tainted_base_string)
-        assert result == "xabcdeyabcdez"
+        result = mod.do_join_args_kwargs(tainted_base_string, ("f", "g"))
+        assert result == "f-abcde-g"
 
         ranges = get_tainted_ranges(result)
-        assert result[ranges[0].start : (ranges[0].start + ranges[0].length)] == "abc"
-        assert result[ranges[1].start : (ranges[1].start + ranges[1].length)] == "abc"
+        assert result[ranges[0].start : (ranges[0].start + ranges[0].length)] == "abcde"

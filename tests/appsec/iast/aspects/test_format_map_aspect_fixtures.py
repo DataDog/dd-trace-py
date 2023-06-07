@@ -29,6 +29,8 @@ class TestOperatorFormatMapReplacement(BaseReplacement):
         result = mod.do_format_map(template, mapping)
 
         assert result == expected_result
+        ranges = get_ranges(result)
+
         assert as_formatted_evidence(result, tag_mapping_function=None) == escaped_expected_result
 
     @pytest.mark.skipif(not hasattr("", "format_map"), reason="Method format_map not supported")
@@ -143,12 +145,12 @@ class TestOperatorFormatMapReplacement(BaseReplacement):
         self,
     ):  # type: () -> None
         self._assert_format_map_result(
-            taint_escaped_template=":+-<input1>template ::++--<input0>my_code<input0>--++::" "<input1>-+: {key}",
-            taint_escaped_mapping={"key": ":+-<input2>parameter<input2>-+: " "::++--<input0>my_code<input0>--++::"},
-            expected_result="template :+-<input0>my_code<input0>-+: parameter " ":+-<input0>my_code<input0>-+:",
-            escaped_expected_result=":+-<input1>template :+-<input0>my_code<input0>-+:<input1>-+: "
+            taint_escaped_template=":+-<input1>template ::++--<0>my_code<0>--++::" "<input1>-+: {key}",
+            taint_escaped_mapping={"key": ":+-<input2>parameter<input2>-+: " "::++--<0>my_code<0>--++::"},
+            expected_result="template :+-<0>my_code<0>-+: parameter " ":+-<0>my_code<0>-+:",
+            escaped_expected_result=":+-<input1>template :+-<0>my_code<0>-+:<input1>-+: "
             ":+-<input2>parameter<input2>-+: "
-            ":+-<input0>my_code<input0>-+:",
+            ":+-<0>my_code<0>-+:",
         )
 
     @pytest.mark.skipif(not hasattr("", "format_map"), reason="Method format_map not supported")

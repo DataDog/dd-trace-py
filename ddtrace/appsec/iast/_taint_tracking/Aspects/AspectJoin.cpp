@@ -9,10 +9,8 @@ aspect_join(PyObject* sep, PyObject* result, PyObject* iterable_elements, TaintR
     size_t len_iterable{ 0 };
     auto GetElement = PyList_GetItem;
     if (PyList_Check(iterable_elements)) {
-        py::print("It's a list");
         len_iterable = PyList_Size(iterable_elements);
     } else if (PyTuple_Check(iterable_elements)) {
-        py::print("It's a tuple");
         len_iterable = PyTuple_Size(iterable_elements);
         GetElement = PyTuple_GetItem;
     }
@@ -89,7 +87,7 @@ api_join_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
     PyObject* arg0 = args[1];
 
     if (PyIter_Check(arg0) or PyIter_Check(arg0) or PySet_Check(arg0) or PyFrozenSet_Check(arg0)) {
-        PyObject *iterator = PyObject_GetIter(arg0);
+        PyObject* iterator = PyObject_GetIter(arg0);
 
         if (iterator != NULL) {
             PyObject* item;
