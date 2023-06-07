@@ -19,8 +19,8 @@ from ddtrace.internal import compat
 from ddtrace.internal.ci_visibility.constants import AGENTLESS_ENDPOINT
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import EVP_PROXY_AGENT_ENDPOINT
+from ddtrace.internal.ci_visibility.constants import EVP_SUBDOMAIN_HEADER_EVENT_VALUE
 from ddtrace.internal.ci_visibility.constants import EVP_SUBDOMAIN_HEADER_NAME
-from ddtrace.internal.ci_visibility.constants import EVP_SUBDOMAIN_HEADER_VALUE
 from ddtrace.internal.ci_visibility.recorder import CIVisibility
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.encoding import JSONEncoder
@@ -328,7 +328,7 @@ def test_metrics_partial_flush_disabled(encoding, monkeypatch):
 def test_single_trace_too_large(encoding, monkeypatch):
     monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
     # setting writer interval to 5 seconds so that buffer can fit larger traces
-    monkeypatch.setenv("DD_TRACE_WRITER_INTERVAL_SECONDS", "5.0")
+    monkeypatch.setenv("DD_TRACE_WRITER_INTERVAL_SECONDS", "10.0")
 
     t = Tracer()
     assert t._partial_flush_enabled is True
@@ -340,14 +340,19 @@ def test_single_trace_too_large(encoding, monkeypatch):
                     # Need to make the strings unique so that the v0.5 encoding doesn’t compress the data
                     s.set_tag(key + str(i), key + str(i))
         t.shutdown()
-        log.warning.assert_any_call(
-            "trace buffer (%s traces %db/%db) cannot fit trace of size %db, dropping (writer status: %s)",
-            AnyInt(),
-            AnyInt(),
-            AnyInt(),
-            AnyInt(),
-            AnyStr(),
-        )
+        assert (
+            mock.call(
+                "trace buffer (%s traces %db/%db) cannot fit trace of size %db, dropping (writer status: %s)",
+                AnyInt(),
+                AnyInt(),
+                AnyInt(),
+                AnyInt(),
+                AnyStr(),
+            )
+            in log.warning.mock_calls
+        ), log.mock_calls[
+            :20
+        ]  # limits number of logs, this test could generate hundreds of thousands of logs.
         log.error.assert_not_called()
 
 
@@ -536,7 +541,8 @@ def test_civisibility_intake_with_evp_available():
             assert CIVisibility._instance.tracer._writer._endpoint == EVP_PROXY_AGENT_ENDPOINT
             assert CIVisibility._instance.tracer._writer.intake_url == agent.get_trace_url()
             assert (
-                CIVisibility._instance.tracer._writer._headers[EVP_SUBDOMAIN_HEADER_NAME] == EVP_SUBDOMAIN_HEADER_VALUE
+                CIVisibility._instance.tracer._writer._headers[EVP_SUBDOMAIN_HEADER_NAME]
+                == EVP_SUBDOMAIN_HEADER_EVENT_VALUE
             )
             CIVisibility.disable()
 

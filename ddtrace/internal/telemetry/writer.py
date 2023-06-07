@@ -35,7 +35,6 @@ from .data import get_application
 from .data import get_dependencies
 from .data import get_host_info
 from .metrics import MetricTagType
-from .metrics import MetricType
 from .metrics_namespaces import MetricNamespace
 from .metrics_namespaces import NamespaceMetricType
 
@@ -219,15 +218,16 @@ class TelemetryBase(PeriodicService):
             return
 
         atexit.unregister(self.stop)
-        self.stop()
+        self.stop(join=False)
 
     def _restart_sequence(self):
         self._sequence = itertools.count(1)
 
-    def _stop_service(self, *args, **kwargs):
+    def _stop_service(self, join=True, *args, **kwargs):
         # type: (...) -> None
         super(TelemetryBase, self)._stop_service(*args, **kwargs)
-        self.join()
+        if join:
+            self.join(timeout=2)
 
 
 class TelemetryLogsMetricsWriter(TelemetryBase):
@@ -273,38 +273,61 @@ class TelemetryLogsMetricsWriter(TelemetryBase):
         """
         Queues gauge metric
         """
-        self._add_metric(TELEMETRY_METRIC_TYPE_GAUGE, namespace, name, value, tags)
+        if self.enable():
+            with self._lock:
+                self._namespace._add_metric(
+                    TELEMETRY_METRIC_TYPE_GAUGE,
+                    namespace,
+                    name,
+                    value,
+                    tags,
+                    interval=self.interval,
+                )
 
     def add_rate_metric(self, namespace, name, value=1.0, tags={}):
         # type: (str,str, float, MetricTagType) -> None
         """
         Queues rate metric
         """
-        self._add_metric(TELEMETRY_METRIC_TYPE_RATE, namespace, name, value, tags)
+        if self.enable():
+            with self._lock:
+                self._namespace._add_metric(
+                    TELEMETRY_METRIC_TYPE_RATE,
+                    namespace,
+                    name,
+                    value,
+                    tags,
+                    interval=self.interval,
+                )
 
     def add_count_metric(self, namespace, name, value=1.0, tags={}):
         # type: (str,str, float, MetricTagType) -> None
         """
         Queues count metric
         """
-        self._add_metric(TELEMETRY_METRIC_TYPE_COUNT, namespace, name, value, tags)
+        if self.enable():
+            with self._lock:
+                self._namespace._add_metric(
+                    TELEMETRY_METRIC_TYPE_COUNT,
+                    namespace,
+                    name,
+                    value,
+                    tags,
+                )
 
     def add_distribution_metric(self, namespace, name, value=1.0, tags={}):
         # type: (str,str, float, MetricTagType) -> None
         """
         Queues distributions metric
         """
-        self._add_metric(TELEMETRY_METRIC_TYPE_DISTRIBUTIONS, namespace, name, value, tags)
-
-    def _add_metric(self, metric_type, namespace, name, value=1.0, tags={}):
-        # type: (MetricType, str,str, float, MetricTagType) -> None
-        """
-        Queues metric
-        """
         if self.enable():
             with self._lock:
                 self._namespace._add_metric(
-                    metric_type, namespace, name, value, tags, interval=_get_heartbeat_interval_or_default()
+                    TELEMETRY_METRIC_TYPE_DISTRIBUTIONS,
+                    namespace,
+                    name,
+                    value,
+                    tags,
                 )
 
     def periodic(self):
