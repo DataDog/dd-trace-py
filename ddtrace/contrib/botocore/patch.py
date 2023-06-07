@@ -458,9 +458,16 @@ def patched_api_call(original_func, instance, args, kwargs):
                 queue_url = params['QueueUrl']
                 queue_name = queue_url[queue_url.rfind("/") + 1:]
 
-                #modify args to fetch the _datadog data
-                #TODO: check whether _datadog is already part of MessageAttributeNames
-                args = (args[0], {**args[1], 'MessageAttributeNames': ['_datadog']})
+                #if needed, modify args to fetch the _datadog data
+
+                query_status = None
+                if 'MessageAttributeNames' not in args[1]:
+                    query_status = "NoMessageAttributeNames"
+                    args = (args[0], {**args[1], 'MessageAttributeNames': ['_datadog']})
+                elif '_datadog' not in args[1]['MessageAttributeNames']:
+                    query_status = "NoDatadog"
+                    args = (args[0], {**args[1], 'MessageAttributeNames': args[1]['MessageAttributeNames'] + ['_datadog']})
+
                 result = original_func(*args, **kwargs)
                 _set_response_metadata_tags(span, result)
                 pathway = json.loads(
@@ -471,6 +478,23 @@ def patched_api_call(original_func, instance, args, kwargs):
                     ["direction:in", "topic:" + queue_name, "type:sqs"]
                 )
                 #TODO: take out the _datadog information if it wasn't explicitly requested by the user
+
+                if query_status == "NoMessageAttributeNames":
+                    if 'Messages' in result:
+                        messages = result['Messages']
+                        for message in messages:
+                            if 'MessageAttributes' in message:
+                                del message['MessageAttributes']
+
+                elif query_status == "NoDatadog":
+                    if 'Messages' in result:
+                        messages = result['Messages']
+                        for message in messages:
+                            if 'MessageAttributes' in message:
+                                attributes = message['MessageAttributes']
+                                if '_datadog' in attributes:
+                                    del attributes['_datadog']
+
                 return result
 
             else:
