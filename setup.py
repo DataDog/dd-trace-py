@@ -56,8 +56,8 @@ LIBDATADOG_PROF_VERSION = "v2.1.0"
 
 UPX_VERSION = "v4.0.2"
 
-# Suppress UPX compression during debug builds or when specified
-UPX_SKIP = DEBUG_COMPILE or "DD_SKIP_UPX" in os.environ
+# Enable UPX compression when specified
+UPX_ENABLE = DEBUG_COMPILE or "DD_UPX_ENABLE" in os.environ
 
 def verify_checksum_from_file(sha256_filename, filename):
     # sha256 File format is ``checksum`` followed by two whitespaces, then ``filename`` then ``\n``
@@ -145,7 +145,7 @@ class BuildExtWithUPX(BuildExtCommand):
 
     def run(self):
         BuildExtCommand.run(self)
-        if not UPX_SKIP and self.download_upx():
+        if UPX_ENABLE and self.download_upx():
             self.compress_shared_objects()
 
 
