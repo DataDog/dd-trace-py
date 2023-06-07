@@ -59,6 +59,7 @@ UPX_VERSION = "v4.0.2"
 # Enable UPX compression when specified
 UPX_ENABLE = DEBUG_COMPILE or "DD_UPX_ENABLE" in os.environ
 
+
 def verify_checksum_from_file(sha256_filename, filename):
     # sha256 File format is ``checksum`` followed by two whitespaces, then ``filename`` then ``\n``
     expected_checksum, expected_filename = list(filter(None, open(sha256_filename, "r").read().strip().split(" ")))
