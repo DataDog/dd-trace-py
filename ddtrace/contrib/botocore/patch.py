@@ -477,7 +477,6 @@ def patched_api_call(original_func, instance, args, kwargs):
                 ctx.set_checkpoint(
                     ["direction:in", "topic:" + queue_name, "type:sqs"]
                 )
-                #TODO: take out the _datadog information if it wasn't explicitly requested by the user
 
                 if query_status == "NoMessageAttributeNames":
                     if 'Messages' in result:
@@ -494,6 +493,8 @@ def patched_api_call(original_func, instance, args, kwargs):
                                 attributes = message['MessageAttributes']
                                 if '_datadog' in attributes:
                                     del attributes['_datadog']
+                                if not attributes:
+                                    del message['MessageAttributes']
 
                 return result
 
