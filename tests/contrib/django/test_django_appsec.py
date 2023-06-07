@@ -1226,7 +1226,6 @@ def test_django_login_sucess_safe(client, test_spans, tracer):
 @pytest.mark.django_db
 def test_django_login_failure_user_doesnt_exists(client, test_spans, tracer):
     from django.contrib.auth import get_user
-    from django.contrib.auth.models import User
 
     with override_global_config(dict(_appsec_enabled=True, _automatic_login_events_mode="extended")):
         assert not get_user(client).is_authenticated
