@@ -38,8 +38,9 @@ def _aux_appsec_get_root_span(
     return test_spans.spans[0], response
 
 
-def test_request_suspicious_request_block_match_path_params(client, test_spans, tracer):
-    # value AiKfOeRcvG45 must be blocked
+def test_api_security(client, test_spans, tracer):
+    import django
+
     with override_global_config(dict(_appsec_enabled=True, _api_security_enabled=True)), override_env(
         dict(DD_APPSEC_RULES=RULES_SRB)
     ):
@@ -69,6 +70,17 @@ def test_request_suspicious_request_block_match_path_params(client, test_spans, 
                 [
                     {
                         "Content-Type": [8],
+                        "X-Content-Type-Options": [8],
+                        "Referrer-Policy": [8],
+                        "X-Frame-Options": [8],
+                        "Content-Length": [8],
+                    }
+                ]
+                if django.__version__ < "4.0.0"
+                else [
+                    {
+                        "Content-Type": [8],
+                        "Cross-Origin-Opener-Policy": [8],
                         "X-Content-Type-Options": [8],
                         "Referrer-Policy": [8],
                         "X-Frame-Options": [8],

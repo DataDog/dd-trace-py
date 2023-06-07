@@ -758,7 +758,7 @@ def wrap_wsgi_environ(wrapped, _instance, args, kwargs):
 
         return wrapped(
             *((LazyTaintDict(args[0], origins=(IAST.HTTP_REQUEST_HEADER_NAME, IAST.HTTP_REQUEST_HEADER)),) + args[1:]),
-            **kwargs,
+            **kwargs
         )
 
     return wrapped(*args, **kwargs)
