@@ -185,6 +185,9 @@ class TestContextEventsApi(unittest.TestCase):
 
             async def make_context(_results):
                 with core.context_with_data("foo"):
+                    # XXX if another async task creates a new context here, get_item on the next line
+                    # might see that context's data rather than its task-local data
+                    # adjust this test to catch this case
                     _results[data_key] = core.get_item(data_key)
 
             results = dict()
