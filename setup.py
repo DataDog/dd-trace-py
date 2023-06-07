@@ -40,7 +40,6 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 
 DEBUG_COMPILE = "DD_COMPILE_DEBUG" in os.environ
 
-
 IS_PYSTON = hasattr(sys, "pyston_version_info")
 
 LIBDDWAF_DOWNLOAD_DIR = os.path.join(HERE, os.path.join("ddtrace", "appsec", "ddwaf", "libddwaf"))
@@ -59,7 +58,6 @@ UPX_VERSION = "v4.0.2"
 
 # Suppress UPX compression during debug builds or when specified
 UPX_SKIP = DEBUG_COMPILE or "DD_SKIP_UPX" in os.environ
-
 
 def verify_checksum_from_file(sha256_filename, filename):
     # sha256 File format is ``checksum`` followed by two whitespaces, then ``filename`` then ``\n``
@@ -129,7 +127,6 @@ class BuildExtWithUPX(BuildExtCommand):
         upx_root = os.path.join(base_path, platform.machine())
         upx_file = next(glob.iglob(os.path.join(upx_root, "**/upx"), recursive=True))
         upx_dest = os.path.join(base_path, "upx")
-        print("FILE: " + upx_file)
         shutil.move(upx_file, upx_dest)
         shutil.rmtree(upx_root)
         BuildExtWithUPX.upx = upx_dest
