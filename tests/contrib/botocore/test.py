@@ -92,7 +92,7 @@ class BotocoreTest(TracerTestCase):
 
         ec2.describe_instances()
 
-        spans = self.get_spans()
+        spans = [span for span in self.get_spans() if span.name.endswith(".command")]
         assert spans == []
 
         s3 = self.session.create_client("s3", region_name="us-west-2")
@@ -790,9 +790,9 @@ class BotocoreTest(TracerTestCase):
 
             spans = self.get_spans()
             assert spans
-            span = spans[0]
+            span = [span for span in spans if span.name.endswith(".command")][0]
 
-            assert len(spans) == 1
+            assert len(spans) == 3
             assert span.get_tag("aws.region") == "us-west-2"
             assert span.get_tag("region") == "us-west-2"
             assert span.get_tag("aws_service") == "lambda"
@@ -840,9 +840,9 @@ class BotocoreTest(TracerTestCase):
 
             spans = self.get_spans()
             assert spans
-            span = spans[0]
+            span = [span for span in spans if span.name.endswith(".command")][0]
 
-            assert len(spans) == 1
+            assert len(spans) == 3
             assert span.get_tag("aws.region") == "us-west-2"
             assert span.get_tag("region") == "us-west-2"
             assert span.get_tag("aws.operation") == "Invoke"
@@ -888,9 +888,9 @@ class BotocoreTest(TracerTestCase):
 
             spans = self.get_spans()
             assert spans
-            span = spans[0]
+            span = [span for span in spans if span.name.endswith(".command")][0]
 
-            assert len(spans) == 1
+            assert len(spans) == 3
             assert span.get_tag("aws.region") == "us-west-2"
             assert span.get_tag("region") == "us-west-2"
             assert span.get_tag("aws.operation") == "Invoke"
@@ -932,9 +932,9 @@ class BotocoreTest(TracerTestCase):
 
             spans = self.get_spans()
             assert spans
-            span = spans[0]
+            span = [span for span in spans if span.name.endswith(".command")][0]
 
-            assert len(spans) == 1
+            assert len(spans) == 3
             assert span.get_tag("aws.region") == "us-west-2"
             assert span.get_tag("region") == "us-west-2"
             assert span.get_tag("aws.operation") == "Invoke"
@@ -980,8 +980,8 @@ class BotocoreTest(TracerTestCase):
 
         spans = self.get_spans()
         assert spans
-        span = spans[0]
-        assert len(spans) == 1
+        span = [span for span in spans if span.name.endswith(".command")][0]
+        assert len(spans) == 3
         assert span.get_tag("aws.region") == "us-west-2"
         assert span.get_tag("region") == "us-west-2"
         assert span.get_tag("aws.operation") == "Invoke"
