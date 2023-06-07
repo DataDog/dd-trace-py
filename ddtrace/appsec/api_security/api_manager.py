@@ -95,6 +95,7 @@ class APIManager(Service):
         route = env.waf_addresses.get(SPAN_DATA_NAMES.REQUEST_ROUTE)
         # Framework is not fully supported
         if not method or not route:
+            log.debug("unsupported groupkey for api security [method %s] [route %s]", bool(method), bool(route))
             return False
         # WAF has triggered, always collect schemas
         results = env.telemetry.get(_WAF_RESULTS)
@@ -130,6 +131,7 @@ class APIManager(Service):
             _sentinel = object()
             value = env.waf_addresses.get(address, _sentinel)
             if value is _sentinel:
+                log.debug("no value for %s", address)
                 continue
             json_serialized = ()
             b64_gzip_content = b""

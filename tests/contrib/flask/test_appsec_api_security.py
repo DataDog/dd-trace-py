@@ -90,5 +90,12 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert resp.status_code == 200
             root_span = self.pop_spans()[0]
             assert not config._api_security_enabled
-            value = root_span.get_tag("_dd.schema.req.body")
-            assert value is None
+            for name in [
+                "_dd.schema.req.body",
+                "_dd.schema.req.headers",
+                "_dd.schema.req.query",
+                "_dd.schema.req.params",
+                "_dd.schema.res.headers",
+            ]:
+                value = root_span.get_tag(name)
+                assert value is None
