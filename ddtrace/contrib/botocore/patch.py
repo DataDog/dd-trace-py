@@ -75,6 +75,7 @@ config._add(
         "operations": collections.defaultdict(Config._HTTPServerConfig),
         "tag_no_params": asbool(os.getenv("DD_AWS_TAG_NO_PARAMS", default=False)),
         "tag_all_params": asbool(os.getenv("DD_AWS_TAG_ALL_PARAMS", default=False)),
+        "instrument_internals": asbool(os.getenv("DD_BOTOCORE_INSTRUMENT_INTERNALS", default=False)),
     },
 )
 
@@ -347,7 +348,7 @@ def patch_submodules(submodules):
 
 def patched_lib_fn(original_func, instance, args, kwargs):
     pin = Pin.get_from(instance)
-    if not pin or not pin.enabled():
+    if not pin or not pin.enabled() or not config.botocore["instrument_internals"]:
         return original_func(*args, **kwargs)
     with pin.tracer.trace("{}.{}".format(original_func.__module__, original_func.__name__)) as span:
         span.set_tag_str(COMPONENT, config.botocore.integration_name)

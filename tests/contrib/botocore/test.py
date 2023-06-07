@@ -148,14 +148,15 @@ class BotocoreTest(TracerTestCase):
         ddb = self.session.create_client("dynamodb", region_name="us-west-2")
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(ddb)
 
-        ddb.create_table(
-            TableName="foobar",
-            AttributeDefinitions=[{"AttributeName": "myattr", "AttributeType": "S"}],
-            KeySchema=[{"AttributeName": "myattr", "KeyType": "HASH"}],
-            BillingMode="PAY_PER_REQUEST",
-        )
-        ddb.put_item(TableName="foobar", Item={"myattr": {"S": "baz"}})
-        ddb.get_item(TableName="foobar", Key={"myattr": {"S": "baz"}})
+        with self.override_config("botocore", dict(instrument_internals=True)):
+            ddb.create_table(
+                TableName="foobar",
+                AttributeDefinitions=[{"AttributeName": "myattr", "AttributeType": "S"}],
+                KeySchema=[{"AttributeName": "myattr", "KeyType": "HASH"}],
+                BillingMode="PAY_PER_REQUEST",
+            )
+            ddb.put_item(TableName="foobar", Item={"myattr": {"S": "baz"}})
+            ddb.get_item(TableName="foobar", Key={"myattr": {"S": "baz"}})
 
         spans = self.get_spans()
         assert spans
