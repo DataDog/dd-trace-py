@@ -301,6 +301,7 @@ class PymemcacheHashClientTestCase(PymemcacheClientTestCaseMixin):
 
     def test_service_name_override_hashclient(self):
         client = self.make_client([b"STORED\r\n", b"VALUE key 0 5\r\nvalue\r\nEND\r\n"])
+        assert len(client.clients) == 1
         for _c in client.clients.values():
             Pin.override(_c, service="testsvcname")
         client.set(b"key", b"value", noreply=False)
@@ -308,6 +309,7 @@ class PymemcacheHashClientTestCase(PymemcacheClientTestCaseMixin):
         assert _str(result) == "value"
 
         spans = self.get_spans()
+        assert len(spans) == 2
         self.assertEqual(spans[0].service, "testsvcname")
         self.assertEqual(spans[1].service, "testsvcname")
 
