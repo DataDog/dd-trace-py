@@ -57,6 +57,35 @@ def test_api_security(client, test_spans, tracer):
 
         assert config._api_security_enabled
 
+        headers_schema = {
+            "2": [
+                {
+                    "Content-Type": [8],
+                    "Content-Length": [8],
+                    "X-Frame-Options": [8],
+                }
+            ],
+            "3": [
+                {
+                    "Content-Type": [8],
+                    "X-Content-Type-Options": [8],
+                    "Referrer-Policy": [8],
+                    "X-Frame-Options": [8],
+                    "Content-Length": [8],
+                }
+            ],
+            "4": [
+                {
+                    "Content-Type": [8],
+                    "Cross-Origin-Opener-Policy": [8],
+                    "X-Content-Type-Options": [8],
+                    "Referrer-Policy": [8],
+                    "X-Frame-Options": [8],
+                    "Content-Length": [8],
+                }
+            ],
+        }
+
         for name, expected_value in [
             ("_dd.schema.req.body", [{"key": [8], "ids": [[[4]], {"len": 4}]}]),
             (
@@ -65,29 +94,7 @@ def test_api_security(client, test_spans, tracer):
             ),
             ("_dd.schema.req.query", [{"x": [[[8]], {"len": 1}]}]),
             ("_dd.schema.req.params", [{"year": [4], "month": [8]}]),
-            (
-                "_dd.schema.res.headers",
-                [
-                    {
-                        "Content-Type": [8],
-                        "X-Content-Type-Options": [8],
-                        "Referrer-Policy": [8],
-                        "X-Frame-Options": [8],
-                        "Content-Length": [8],
-                    }
-                ]
-                if django.__version__ < "4.0.0"
-                else [
-                    {
-                        "Content-Type": [8],
-                        "Cross-Origin-Opener-Policy": [8],
-                        "X-Content-Type-Options": [8],
-                        "Referrer-Policy": [8],
-                        "X-Frame-Options": [8],
-                        "Content-Length": [8],
-                    }
-                ],
-            ),
+            ("_dd.schema.res.headers", headers_schema[django.__version__[0]]),
             # ("_dd.schema.res.body", [{"ids": [[[4]], {"len": 4}], "key": [8], "validate": [2], "value": [8]}]),
         ]:
             value = root_span.get_tag(name)
