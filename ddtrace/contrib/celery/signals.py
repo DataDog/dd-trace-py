@@ -127,6 +127,7 @@ def trace_before_publish(*args, **kwargs):
     span.set_tag_str("celery.id", task_id)
     set_tags_from_context(span, kwargs)
     if kwargs.get("headers") is not None:
+        # required to extract hostname from origin header on `celery>=4.0`
         set_tags_from_context(span, kwargs["headers"])
 
     # Note: adding tags from `traceback` or `state` calls will make an
