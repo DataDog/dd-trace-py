@@ -1,9 +1,5 @@
-# -*- coding: utf-8 -*-
-import json
 import logging
 
-from django.contrib.auth import get_user
-from django.contrib.auth.models import User
 import mock
 import pytest
 
@@ -1152,6 +1148,9 @@ def test_django_tainted_iast_disabled_sqli_http_cookies_value(client, test_spans
 
 @pytest.mark.django_db
 def test_django_login_events_disabled_explicitly(client, test_spans, tracer):
+    from django.contrib.auth import get_user
+    from django.contrib.auth.models import User
+
     with override_global_config(dict(_appsec_enabled=True, _automatic_login_events_mode="disabled")):
         test_user = User.objects.create(username="fred")
         test_user.set_password("secret")
@@ -1167,6 +1166,9 @@ def test_django_login_events_disabled_explicitly(client, test_spans, tracer):
 
 @pytest.mark.django_db
 def test_django_login_events_disabled_noappsec(client, test_spans, tracer):
+    from django.contrib.auth import get_user
+    from django.contrib.auth.models import User
+
     with override_global_config(dict(_appsec_enabled=False, _automatic_login_events_mode="safe")):
         test_user = User.objects.create(username="fred")
         test_user.set_password("secret")
@@ -1182,6 +1184,9 @@ def test_django_login_events_disabled_noappsec(client, test_spans, tracer):
 
 @pytest.mark.django_db
 def test_django_login_sucess_extended(client, test_spans, tracer):
+    from django.contrib.auth import get_user
+    from django.contrib.auth.models import User
+
     with override_global_config(dict(_appsec_enabled=True, _automatic_login_events_mode="extended")):
         test_user = User.objects.create(username="fred", first_name="Fred", email="fred@test.com")
         test_user.set_password("secret")
@@ -1201,6 +1206,9 @@ def test_django_login_sucess_extended(client, test_spans, tracer):
 
 @pytest.mark.django_db
 def test_django_login_sucess_safe(client, test_spans, tracer):
+    from django.contrib.auth import get_user
+    from django.contrib.auth.models import User
+
     with override_global_config(dict(_appsec_enabled=True, _automatic_login_events_mode="safe")):
         test_user = User.objects.create(username="fred2")
         test_user.set_password("secret")
@@ -1217,6 +1225,9 @@ def test_django_login_sucess_safe(client, test_spans, tracer):
 
 @pytest.mark.django_db
 def test_django_login_failure_user_doesnt_exists(client, test_spans, tracer):
+    from django.contrib.auth import get_user
+    from django.contrib.auth.models import User
+
     with override_global_config(dict(_appsec_enabled=True, _automatic_login_events_mode="extended")):
         assert not get_user(client).is_authenticated
         client.login(username="missing", password="secret2")
@@ -1230,6 +1241,9 @@ def test_django_login_failure_user_doesnt_exists(client, test_spans, tracer):
 
 @pytest.mark.django_db
 def test_django_login_sucess_safe_but_user_set_login(client, test_spans, tracer):
+    from django.contrib.auth import get_user
+    from django.contrib.auth.models import User
+
     with override_global_config(
         dict(_appsec_enabled=True, _user_model_login_field="username", _automatic_login_events_mode="safe")
     ):
