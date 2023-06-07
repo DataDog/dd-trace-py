@@ -97,10 +97,6 @@ class CountMetric(Metric):
 
     metric_type = TELEMETRY_METRIC_TYPE_COUNT
 
-    def __init__(self, namespace, name, tags, common, interval=None):
-        super(CountMetric, self).__init__(namespace, name, tags, common, interval)
-        self.interval = None
-
     def add_point(self, value=1.0):
         # type: (float) -> None
         """adds timestamped data point associated with a metric"""
@@ -154,10 +150,6 @@ class DistributionMetric(Metric):
     """
 
     metric_type = TELEMETRY_METRIC_TYPE_DISTRIBUTIONS
-
-    def __init__(self, namespace, name, tags, common, interval=None):
-        super(DistributionMetric, self).__init__(namespace, name, tags, common, interval)
-        self.interval = None
 
     def add_point(self, value=1.0):
         # type: (float) -> None
