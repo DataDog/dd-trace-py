@@ -67,7 +67,14 @@ def test_app_started_event(telemetry_lifecycle_writer, test_agent_session, mock_
 
     # validate request body
     payload = {
-        "configuration": [],
+        # Xinyuan's code start
+        "configuration": [
+            {
+                "name": "data_streams_enabled",
+                "value": "False",
+            }
+        ],
+        # Xinyuan's code end
         "error": {
             "code": 0,
             "message": "",

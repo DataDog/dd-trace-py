@@ -428,7 +428,14 @@ class TelemetryWriter(TelemetryBase):
             # app-started events should only be sent by the main process
             return
         payload = {
-            "configuration": [],
+            # Xinyuan's code start
+            "configuration": [
+                {
+                    "name": "data_streams_enabled",
+                    "value": str(config._data_streams_enabled),
+                }
+            ],
+            # Xinyuan's code end
             "error": {
                 "code": self._error[0],
                 "message": self._error[1],
