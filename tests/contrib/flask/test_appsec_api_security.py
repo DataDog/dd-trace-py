@@ -69,7 +69,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
                 ("_dd.schema.req.query", [{"extended": [8]}]),
                 ("_dd.schema.req.params", [{"str_param": [8]}]),
                 ("_dd.schema.res.headers", [{"Content-Type": [8], "Content-Length": [8], "extended": [8]}]),
-                # ("_dd.schema.res.body", [{"ids": [[[4]], {"len": 4}], "key": [8], "validate": [2], "value": [8]}]),
+                ("_dd.schema.res.body", [{"ids": [[[4]], {"len": 4}], "key": [8], "validate": [2], "value": [8]}]),
             ]:
                 value = root_span.get_tag(name)
                 assert value
@@ -96,6 +96,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
                 "_dd.schema.req.query",
                 "_dd.schema.req.params",
                 "_dd.schema.res.headers",
+                "_dd.schema.res.body",
             ]:
                 value = root_span.get_tag(name)
                 assert value is None
