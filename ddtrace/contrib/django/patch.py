@@ -899,8 +899,6 @@ def _patch(django):
 
     @when_imported("django.contrib.auth")
     def _(m):
-        import django.contrib.auth
-
         trace_utils.wrap(m, "login", traced_login(django))
         trace_utils.wrap(m, "authenticate", traced_authenticate(django))
 
