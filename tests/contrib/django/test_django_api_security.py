@@ -58,6 +58,13 @@ def test_api_security(client, test_spans, tracer):
         assert config._api_security_enabled
 
         headers_schema = {
+            "1": [
+                {
+                    "Content-Type": [8],
+                    "Content-Length": [8],
+                    "X-Frame-Options": [8],
+                }
+            ],
             "2": [
                 {
                     "Content-Type": [8],
@@ -95,7 +102,7 @@ def test_api_security(client, test_spans, tracer):
             ("_dd.schema.req.query", [{"x": [[[8]], {"len": 1}]}]),
             ("_dd.schema.req.params", [{"year": [4], "month": [8]}]),
             ("_dd.schema.res.headers", headers_schema[django.__version__[0]]),
-            # ("_dd.schema.res.body", [{"ids": [[[4]], {"len": 4}], "key": [8], "validate": [2], "value": [8]}]),
+            ("_dd.schema.res.body", [{"year": [4], "month": [8]}]),
         ]:
             value = root_span.get_tag(name)
             assert value, name
