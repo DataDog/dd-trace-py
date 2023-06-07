@@ -740,7 +740,7 @@ def _get_user_info(user):
     In extended mode, try to also get the username (which will be the returned user_id),
     email and name.
 
-    Since the Django Authentication model supports plugable users models
+    Since the Django Authentication model supports pluggable users models
     there is some heuristic involved in extracted this field, through it should
     work well for the most common case with the default User model.
     """
