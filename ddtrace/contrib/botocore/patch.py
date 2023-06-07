@@ -391,15 +391,17 @@ def patched_api_call(original_func, instance, args, kwargs):
                             queue_name = queue_url[queue_url.rfind("/") + 1:]
 
                             #create data_streams_context
-                            pathway = pin.tracer.data_streams_processor.set_checkpoint(["direction:out", "topic:" + queue_name, "type:sqs"])
+                            pathway = pin.tracer.data_streams_processor.set_checkpoint(
+                                ["direction:out", "topic:" + queue_name, "type:sqs"]
+                            )
                             data_streams_context = pathway.encode_b64()
                             """
                             #how to reverse:
                             decoded_pathway = pin.tracer.data_streams_processor.decode_pathway(data_streams_context)
                             """
-
-                        inject_trace_to_sqs_or_sns_message(params, span, endpoint_name, data_streams_context)
-
+                        inject_trace_to_sqs_or_sns_message(
+                            params, span, endpoint_name, data_streams_context
+                        )
                     if endpoint_name == "sqs" and operation == "SendMessageBatch":
                         data_streams_context = None
 
@@ -410,10 +412,14 @@ def patched_api_call(original_func, instance, args, kwargs):
                             queue_name = queue_url[queue_url.rfind("/") + 1:]
 
                             #create data_streams_context
-                            pathway = pin.tracer.data_streams_processor.set_checkpoint(["direction:out", "topic:" + queue_name, "type:sqs"])
+                            pathway = pin.tracer.data_streams_processor.set_checkpoint(
+                                ["direction:out", "topic:" + queue_name, "type:sqs"]
+                            )
                             data_streams_context = pathway.encode_b64()
 
-                        inject_trace_to_sqs_or_sns_batch_message(params, span, endpoint_name, data_streams_context)
+                        inject_trace_to_sqs_or_sns_batch_message(
+                            params, span, endpoint_name, data_streams_context
+                        )
 
                     if endpoint_name == "events" and operation == "PutEvents":
                         inject_trace_to_eventbridge_detail(params, span)
@@ -448,10 +454,30 @@ def patched_api_call(original_func, instance, args, kwargs):
         span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.botocore.get_analytics_sample_rate())
 
         try:
-            result = original_func(*args, **kwargs)
-            _set_response_metadata_tags(span, result)
+            if endpoint_name == "sqs" and operation == "ReceiveMessage" and config._data_streams_enabled:
+                queue_url = params['QueueUrl']
+                queue_name = queue_url[queue_url.rfind("/") + 1:]
 
-            return result
+                #modify args to fetch the _datadog data
+                #TODO: check whether _datadog is already part of MessageAttributeNames
+                args = (args[0], {**args[1], 'MessageAttributeNames': ['_datadog']})
+                result = original_func(*args, **kwargs)
+                _set_response_metadata_tags(span, result)
+                pathway = json.loads(
+                    result['Messages'][0]['MessageAttributes']['_datadog']['StringValue']
+                )['dd-pathway-ctx']
+                ctx = pin.tracer.data_streams_processor.decode_pathway_b64(pathway)
+                ctx.set_checkpoint(
+                    ["direction:in", "topic:" + queue_name, "type:sqs"]
+                )
+                #TODO: take out the _datadog information if it wasn't explicitly requested by the user
+                return result
+
+            else:
+                result = original_func(*args, **kwargs)
+                _set_response_metadata_tags(span, result)
+                return result
+
         except botocore.exceptions.ClientError as e:
             # `ClientError.response` contains the result, so we can still grab response metadata
             _set_response_metadata_tags(span, e.response)
