@@ -83,6 +83,14 @@ Configuration
 
     Default: ``False``
 
+.. py:data:: ddtrace.config.botocore['instrument_internals']
+
+    This opts into collecting spans for some internal functions, including ``parsers.ResponseParser.parse``.
+
+    Can also be enabled with the ``DD_BOTOCORE_INSTRUMENT_INTERNALS`` environment variable.
+
+    Default: ``False``
+
 
 Example::
 
