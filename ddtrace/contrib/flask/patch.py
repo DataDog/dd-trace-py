@@ -295,8 +295,7 @@ def patch():
     _w("flask", "Flask.add_url_rule", traced_add_url_rule)
     _w("flask", "Flask.endpoint", traced_endpoint)
 
-    if config._api_security_enabled:
-        _w("flask", "Flask.finalize_request", traced_finalize_request)
+    _w("flask", "Flask.finalize_request", traced_finalize_request)
 
     if flask_version >= (2, 0, 0):
         _w("flask", "Flask.register_error_handler", traced_register_error_handler)
@@ -446,8 +445,7 @@ def unpatch():
         "templating._render",
     ]
 
-    if config._api_security_enabled:
-        props.append("Flask.finalize_request")
+    props.append("Flask.finalize_request")
 
     if flask_version >= (2, 0, 0):
         props.append("Flask.register_error_handler")
@@ -509,7 +507,7 @@ def traced_finalize_request(wrapped, instance, args, kwargs):
     Wrapper for flask.app.Flask.finalize_request
     """
     rv = wrapped(*args, **kwargs)
-    if config._appsec_enabled and getattr(rv, "is_sequence", False):
+    if config._api_security_enabled and config._appsec_enabled and getattr(rv, "is_sequence", False):
         # start_response was not called yet, set the HTTP response headers earlier
         _asm_request_context.set_headers_response(list(rv.headers))
         _asm_request_context.set_body_response(rv.response)
