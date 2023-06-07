@@ -349,7 +349,9 @@ def test_single_trace_too_large(encoding, monkeypatch):
                 AnyStr(),
             )
             in log.warning.mock_calls
-        ), log.mock_calls
+        ), log.mock_calls[
+            :20
+        ]  # limits number of logs, this test could generate hundreds of thousands of logs.
         log.error.assert_not_called()
 
 
