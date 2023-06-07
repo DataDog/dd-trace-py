@@ -92,7 +92,7 @@ class BotocoreTest(TracerTestCase):
 
         ec2.describe_instances()
 
-        spans = [span for span in self.get_spans() if span.name.endswith(".command")]
+        spans = self.get_spans()
         assert spans == []
 
         s3 = self.session.create_client("s3", region_name="us-west-2")
