@@ -47,7 +47,7 @@ def test_service_names_import_and_v0():
 
 @pytest.mark.subprocess(
     env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"),
-    parametrize={"DD_TRACE_REMOVE_CLIENT_SERVICE_NAMES_ENABLED": ["False", "True"]},
+    parametrize={"DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED": ["False", "True"]},
 )
 def test_service_name_imports_v1():
     from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
@@ -71,11 +71,11 @@ def test_service_name_imports_v1():
 
 
 @pytest.mark.subprocess(
-    env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0", DD_TRACE_REMOVE_CLIENT_SERVICE_NAMES_ENABLED="True")
+    env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0", DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED="True")
 )
 def test_service_name_import_with_client_service_names_enabled_v0():
     """
-    Service name parameters are flipped when DD_TRACE_REMOVE_CLIENT_SERVICE_NAMES_ENABLED is True for v0
+    Service name parameters are flipped when DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED is True for v0
     """
     from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
     from ddtrace.internal.schema import schematize_cache_operation
