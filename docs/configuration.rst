@@ -501,7 +501,7 @@ The following environment variables for the tracer are supported:
       default: ""
       description: |
          Sets the field of the authentication user model to user for retrieving the user's email. This will be used in the
-         automatic user login events feture (see ``DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING`` above). Use it only if the automatic
+         automatic user login events feature (see ``DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING`` above). Use it only if the automatic
          inference doesn't work. Please note that the email field will only be retrieved if you set the mode to ``extended``.
       version_added:
          v1.15.0:
@@ -511,7 +511,7 @@ The following environment variables for the tracer are supported:
       default: ""
       description: |
          Sets the field of the authentication user model to user for retrieving the user's name. This will be used in the
-         automatic user login events feture (see ``DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING`` above). Use it only if the automatic
+         automatic user login events feature (see ``DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING`` above). Use it only if the automatic
          inference doesn't work. Please note that the name field will only be retrieved if you set the mode to ``extended``.
       version_added:
          v1.15.0:
