@@ -95,7 +95,7 @@ def _update_map_block(varkwargsname, lineno):
             Instr("CALL_FUNCTION", 1, lineno=lineno),
             Instr("POP_TOP", lineno=lineno),
         ]
-    elif PY > (3, 11):
+    elif PY >= (3, 12):
         return [
             Instr("COPY", 1, lineno=lineno),
             Instr("LOAD_METHOD", "update", lineno=lineno),
@@ -121,7 +121,7 @@ def _call_return_block(arg, lineno):
             Instr("CALL_FUNCTION", arg, lineno=lineno),
             Instr("RETURN_VALUE", lineno=lineno),
         ]
-    elif PY > (3, 11):
+    elif PY >= (3, 12):
         return [
             Instr("CALL", arg, lineno=lineno),
             Instr("RETURN_VALUE", lineno=lineno),

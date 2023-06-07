@@ -55,7 +55,7 @@ def _inject_hook(code, hook, lineno, arg):
                 Instr("POP_TOP", lineno=lineno),
             ]
         )
-    elif PY > (3, 11):
+    elif PY >= (3, 12):
         code[i:i] = Bytecode(
             [
                 Instr("PUSH_NULL", lineno=lineno),
@@ -83,7 +83,7 @@ def _inject_hook(code, hook, lineno, arg):
 _INJECT_HOOK_OPCODES = ["PUSH_NULL", "LOAD_CONST", "LOAD_CONST", "PRECALL", "CALL", "POP_TOP"]
 if PY < (3, 11):
     _INJECT_HOOK_OPCODES = ["LOAD_CONST", "LOAD_CONST", "CALL_FUNCTION", "POP_TOP"]
-elif PY > (3, 11):
+elif PY >= (3, 12):
     _INJECT_HOOK_OPCODES = ["PUSH_NULL", "LOAD_CONST", "LOAD_CONST", "CALL", "POP_TOP"]
 
 _INJECT_HOOK_OPCODE_POS = 0 if PY < (3, 11) else 1
