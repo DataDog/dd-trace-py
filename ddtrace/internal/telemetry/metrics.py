@@ -40,8 +40,7 @@ class Metric(six.with_metaclass(abc.ABCMeta)):
         self.is_common_to_all_tracers = common
         self.interval = interval
         self.namespace = namespace.lower()
-        self._tags = {}  # type: MetricTagType
-        self.set_tags(tags)
+        self._tags = {k.lower(): str(v).lower() for k, v in tags.items()}
         self._count = 0.0
         self._points = []  # type: List
 
@@ -62,18 +61,6 @@ class Metric(six.with_metaclass(abc.ABCMeta)):
         # type: (float) -> None
         """adds timestamped data point associated with a metric"""
         pass
-
-    def set_tags(self, tags):
-        # type: (MetricTagType) -> None
-        """sets a metrics tag"""
-        if tags:
-            for k, v in iter(tags.items()):
-                self.set_tag(k, v)
-
-    def set_tag(self, name, value):
-        # type: (str, Any) -> None
-        """sets a metrics tag. name and values should be lowercase"""
-        self._tags[str(name).lower()] = str(value).lower()
 
     def to_dict(self):
         # type: () -> Dict
