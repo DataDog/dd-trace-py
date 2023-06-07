@@ -2538,11 +2538,24 @@ venv = Venv(
             env={"SKLEARN_ALLOW_DEPRECATED_SKLEARN_PACKAGE_INSTALL": "True"},
             pys=select_pys(min_version="3.8"),
             pkgs={
-                "openai[embeddings]": ["==0.26.5", "==0.27.2", "==0.27.3", "==0.27.4", latest],
                 "vcrpy": "==4.2.1",
                 "urllib3": "~=1.26",  # vcrpy errors with urllib3 2.x https://github.com/kevin1024/vcrpy/issues/688
                 "pytest-asyncio": latest,
             },
+            venvs=[
+                Venv(
+                    pkgs={
+                        "openai[embeddings]": ["==0.27.2", latest],
+                    },
+                ),
+                Venv(
+                    pkgs={
+                        # openai[embeddings] broken install with sklearn was never fixed on 0.26
+                        "openai": "==0.26.5",  # https://github.com/openai/openai-python/issues/210
+                        "scikit-learn": "==1.2.2",
+                    },
+                ),
+            ],
         ),
         Venv(
             name="opentracer",
@@ -2758,6 +2771,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/molten",
             pys=select_pys(min_version="3.6"),
             pkgs={
+                "cattrs": ["<23.1.1"],
                 "molten": [">=1.0,<1.1", latest],
             },
         ),
