@@ -33,13 +33,13 @@ def _assert_metric(
     expected_body_sorted = expected_body["payload"]["series"]
     for metric in expected_body_sorted:
         metric["tags"].sort()
-    expected_body_sorted.sort(key=lambda x: (x["metric"], x["tags"]), reverse=False)
+    expected_body_sorted.sort(key=lambda x: (x["metric"], x["tags"], x.get("type")), reverse=False)
 
     events.sort(key=lambda x: x["seq_id"], reverse=True)
     result_event = events[0]["payload"]["series"]
     for metric in result_event:
         metric["tags"].sort()
-    result_event.sort(key=lambda x: (x["metric"], x["tags"]), reverse=False)
+    result_event.sort(key=lambda x: (x["metric"], x["tags"], x.get("type")), reverse=False)
 
     assert result_event == expected_body_sorted
 
