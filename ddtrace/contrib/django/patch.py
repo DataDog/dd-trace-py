@@ -766,13 +766,11 @@ def _get_user_info(user):
     return user_id, user_extra_info
 
 
-# JJJ uncomment tryexcept
 @trace_utils.with_traced_module
 def traced_login(django, pin, func, instance, args, kwargs):
     func(*args, **kwargs)
 
-    # try:
-    if True:
+    try:
         mode = config._automatic_login_events_mode
         request = get_argument_value(args, kwargs, 0, "request")
         user = get_argument_value(args, kwargs, 1, "user")
@@ -815,16 +813,14 @@ def traced_login(django, pin, func, instance, args, kwargs):
                     user_id = "AnonymousUser"
 
                 track_user_login_failure_event(pin.tracer, user_id=user_id, exists=False, login_events_mode=mode)
-    # except Exception:
-    #     log.debug("Error while trying to trace Django login", exc_info=True)
+    except Exception:
+        log.debug("Error while trying to trace Django login", exc_info=True)
 
 
-# JJJ TODO uncomment try except
 @trace_utils.with_traced_module
 def traced_authenticate(django, pin, func, instance, args, kwargs):
     result_user = func(*args, **kwargs)
-    if True:
-        # try:
+    try:
         mode = config._automatic_login_events_mode
         if not config._appsec_enabled or mode == "disabled":
             return result_user
@@ -841,8 +837,8 @@ def traced_authenticate(django, pin, func, instance, args, kwargs):
         if not result_user:
             with pin.tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
                 track_user_login_failure_event(pin.tracer, user_id=user_id, exists=False, login_events_mode=mode)
-    # except Exception:
-    #     log.debug("Error while trying to trace Django authenticate", exc_info=True)
+    except Exception:
+        log.debug("Error while trying to trace Django authenticate", exc_info=True)
 
     return result_user
 
