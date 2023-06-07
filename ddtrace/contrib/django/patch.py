@@ -892,9 +892,8 @@ def _patch(django):
 
         trace_utils.wrap(m, "BaseHandler.get_response", traced_get_response(django))
         if django.VERSION >= (3, 1):
-            # Have to inline this import as the module contains syntax incompatible with Python
-            # 3.5 and below
-            from ._asgi import traced_get_response_async  # noqa: F401
+            # Have to inline this import as the module contains syntax incompatible with Python 3.5 and below
+            from ._asgi import traced_get_response_async
 
             trace_utils.wrap(m, "BaseHandler.get_response_async", traced_get_response_async(django))
 
@@ -905,25 +904,8 @@ def _patch(django):
         trace_utils.wrap(m, "login", traced_login(django))
         trace_utils.wrap(m, "authenticate", traced_authenticate(django))
 
-    # if "django.contrib.auth.authenticate" not in sys.modules:
-    #     import django.contrib.auth
-    #     trace_utils.wrap(django, "contrib.auth.login", traced_login(django))
-    #     trace_utils.wrap(django, "contrib.auth.authenticate", traced_authenticate(django))
-
-    import django.core.handlers.base
-
-    trace_utils.wrap(django, "core.handlers.base.BaseHandler.get_response", traced_get_response(django))
-    if hasattr(django.core.handlers.base.BaseHandler, "get_response_async"):
-        # Have to inline this import as the module contains syntax incompatible with Python 3.5
-        # and below
-        from ._asgi import traced_get_response_async
-
-        trace_utils.wrap(django.core.handlers.base, "BaseHandler.get_response_async", traced_get_response_async(django))
-
-    # Only wrap get_asgi_application if get_response_async exists. Otherwise we will effectively
-    # double-patch
-    # because get_response and get_asgi_application will be used. We must rely on the version
-    # instead of coalescing
+    # Only wrap get_asgi_application if get_response_async exists. Otherwise we will effectively double-patch
+    # because get_response and get_asgi_application will be used. We must rely on the version instead of coalescing
     # with the previous patching hook because of circular imports within `django.core.asgi`.
     if django.VERSION >= (3, 1):
         when_imported("django.core.asgi")(
@@ -990,6 +972,8 @@ def _unpatch(django):
     trace_utils.unwrap(django.template.base.Template, "render")
     trace_utils.unwrap(django.conf.urls.static, "static")
     trace_utils.unwrap(django.conf.urls, "url")
+    trace_utils.unwrap(django.contrib.auth.login, "login")
+    trace_utils.unwrap(django.contrib.auth.authenticate, "authenticate")
     if django.VERSION >= (2, 0, 0):
         trace_utils.unwrap(django.urls, "path")
         trace_utils.unwrap(django.urls, "re_path")
