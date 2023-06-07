@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 import django
 from django.db import connection
 from django.http import HttpResponse
+from django.http import JsonResponse
 
 from ddtrace import tracer
 from ddtrace.appsec import _asm_request_context
@@ -38,7 +39,7 @@ def include_view(request):
 
 
 def path_params_view(request, year, month):
-    return HttpResponse(status=200)
+    return JsonResponse({"year": year, "month": month})
 
 
 def body_view(request):

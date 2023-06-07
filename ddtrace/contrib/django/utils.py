@@ -395,6 +395,10 @@ def _after_request_tags(pin, span, request, response):
                 peer_ip=_context.get_item("http.request.remote_ip", span=span),
                 headers_are_case_sensitive=_context.get_item("http.request.headers_case_sensitive", span=span),
             )
+
+            if config._appsec_enabled and config._api_security_enabled:
+                _asm_request_context.set_body_response(response.content)
+
     finally:
         if span.resource == REQUEST_DEFAULT_RESOURCE:
             span.resource = request.method
