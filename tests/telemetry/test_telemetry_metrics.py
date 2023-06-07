@@ -220,17 +220,17 @@ def test_send_appsec_rate_metric(telemetry_metrics_writer, test_agent_metrics_se
         expected_series = [
             {
                 "common": True,
-                "interval": 60,
+                "interval": 10,
                 "metric": "test-metric",
-                "points": [[1642544540, 0.016666666666666666]],
+                "points": [[1642544540, 0.1]],
                 "tags": ["hi:hello", "name:candy"],
                 "type": "rate",
             },
             {
                 "common": True,
-                "interval": 60,
+                "interval": 10,
                 "metric": "test-metric",
-                "points": [[1642544540, 0.03333333333333333]],
+                "points": [[1642544540, 0.2]],
                 "tags": [],
                 "type": "rate",
             },
@@ -250,7 +250,7 @@ def test_send_appsec_gauge_metric(telemetry_metrics_writer, test_agent_metrics_s
         expected_series = [
             {
                 "common": True,
-                "interval": 60,
+                "interval": 10,
                 "metric": "test-metric",
                 "points": [[1642544540, 5.0]],
                 "tags": ["hi:hello", "name:candy"],
@@ -258,7 +258,7 @@ def test_send_appsec_gauge_metric(telemetry_metrics_writer, test_agent_metrics_s
             },
             {
                 "common": True,
-                "interval": 60,
+                "interval": 10,
                 "metric": "test-metric",
                 "points": [[1642544540, 5.0]],
                 "tags": ["a:b"],
@@ -266,7 +266,7 @@ def test_send_appsec_gauge_metric(telemetry_metrics_writer, test_agent_metrics_s
             },
             {
                 "common": True,
-                "interval": 60,
+                "interval": 10,
                 "metric": "test-metric",
                 "points": [[1642544540, 6.0]],
                 "tags": [],
