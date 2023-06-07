@@ -1,21 +1,23 @@
 import os
-from unittest import mock
 
+import mock
 import pytest
 
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind
-from ddtrace.internal.peer_service import _is_enabled
-from ddtrace.internal.peer_service.processor import PEER_SERVICE_SOURCE_TAG
-from ddtrace.internal.peer_service.processor import PEER_SERVICE_TAG
-from ddtrace.internal.peer_service.processor import PRIORITIZED_PEER_SERVICE_DATA_SOURCES
-from ddtrace.internal.peer_service.processor import PeerServiceProcessor
+from ddtrace.internal.processor.trace import PeerServiceProcessor
+from ddtrace.settings.peer_service import PeerServiceConfig
 from ddtrace.span import Span
 
 
 @pytest.fixture
-def processor():
-    return PeerServiceProcessor()
+def peer_service_config():
+    return PeerServiceConfig()
+
+
+@pytest.fixture
+def processor(peer_service_config):
+    return PeerServiceProcessor(peer_service_config)
 
 
 @pytest.fixture
@@ -29,48 +31,48 @@ def test_span():
 
 
 @pytest.mark.parametrize("span_kind", [SpanKind.CLIENT, SpanKind.PRODUCER])
-@mock.patch("ddtrace.internal.peer_service.processor.PEER_SERVICE_ENABLED", True)
-def test_processing_peer_service_exists(processor, test_span, span_kind):
+def test_processing_peer_service_exists(processor, test_span, span_kind, peer_service_config):
+    processor.enabled = True
     test_span.set_tag(SPAN_KIND, span_kind)
-    test_span.set_tag(PEER_SERVICE_TAG, "fake_peer_service")
+    test_span.set_tag(peer_service_config.tag_name, "fake_peer_service")
     test_span.set_tag("out.host", "fake_falue")  # Should not show up
     processor.on_span_finish(test_span)
 
-    assert test_span.get_tag(PEER_SERVICE_TAG) == "fake_peer_service"
-    assert test_span.get_tag(PEER_SERVICE_SOURCE_TAG) == "peer.service"
+    assert test_span.get_tag(peer_service_config.tag_name) == "fake_peer_service"
+    assert test_span.get_tag(peer_service_config.source_tag_name) == "peer.service"
 
 
 @pytest.mark.parametrize("span_kind", [SpanKind.SERVER, SpanKind.CONSUMER])
-@mock.patch("ddtrace.internal.peer_service.processor.PEER_SERVICE_ENABLED", True)
-def test_nothing_happens_for_server_and_consumer(processor, test_span, span_kind):
+def test_nothing_happens_for_server_and_consumer(processor, test_span, span_kind, peer_service_config):
+    processor.enabled = True
     test_span.set_tag(SPAN_KIND, span_kind)
-    test_span.set_tag(PEER_SERVICE_TAG, "fake_peer_service")
+    test_span.set_tag(peer_service_config.tag_name, "fake_peer_service")
     processor.on_span_finish(test_span)
 
-    assert test_span.get_tag(PEER_SERVICE_TAG) == "fake_peer_service"
-    assert test_span.get_tag(PEER_SERVICE_SOURCE_TAG) is None
+    assert test_span.get_tag(peer_service_config.tag_name) == "fake_peer_service"
+    assert test_span.get_tag(peer_service_config.source_tag_name) is None
 
 
-@pytest.mark.parametrize("data_source", PRIORITIZED_PEER_SERVICE_DATA_SOURCES)
-@mock.patch("ddtrace.internal.peer_service.processor.PEER_SERVICE_ENABLED", True)
-def test_existing_data_sources(processor, test_span, data_source):
+@pytest.mark.parametrize("data_source", PeerServiceConfig.prioritized_data_sources)
+def test_existing_data_sources(processor, test_span, data_source, peer_service_config):
+    processor.enabled = True
     test_span.set_tag(SPAN_KIND, SpanKind.CLIENT)
     test_span.set_tag(data_source, "test_value")
 
     processor.on_span_finish(test_span)
 
-    assert test_span.get_tag(PEER_SERVICE_TAG) == "test_value"
-    assert test_span.get_tag(PEER_SERVICE_SOURCE_TAG) == data_source
+    assert test_span.get_tag(peer_service_config.tag_name) == "test_value"
+    assert test_span.get_tag(peer_service_config.source_tag_name) == data_source
 
 
-@pytest.mark.parametrize("data_source", PRIORITIZED_PEER_SERVICE_DATA_SOURCES)
-@mock.patch("ddtrace.internal.peer_service.processor.PEER_SERVICE_ENABLED", False)
-def test_disabled_peer_service(processor, test_span, data_source):
+@pytest.mark.parametrize("data_source", PeerServiceConfig.prioritized_data_sources)
+def test_disabled_peer_service(processor, test_span, data_source, peer_service_config):
+    processor.enabled = False
     test_span.set_tag(data_source, "test_value")
     processor.on_span_finish(test_span)
 
-    assert test_span.get_tag(PEER_SERVICE_TAG) is None
-    assert test_span.get_tag(PEER_SERVICE_SOURCE_TAG) is None
+    assert test_span.get_tag(peer_service_config.tag_name) is None
+    assert test_span.get_tag(peer_service_config.source_tag_name) is None
 
 
 @pytest.mark.parametrize(
@@ -84,21 +86,20 @@ def test_disabled_peer_service(processor, test_span, data_source):
 )
 def fake_peer_service_enablement(span, schema_peer_enabled):
     schema_version, env_enabled, expected = schema_peer_enabled
-    _is_enabled.cache_clear()  # Clear the functools.lru_cacue value
 
     with mock.patch.dict(os.environ, {"DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED": env_enabled}):
         with mock.patch("ddtrace.internal.schema.SCHEMA_VERSION", schema_version):
-            assert _is_enabled() == expected
+            assert PeerServiceConfig().enabled == expected
 
 
 @pytest.mark.subprocess(env=dict(DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED="True"), ddtrace_run=True)
 def test_tracer_hooks():
     from ddtrace.constants import SPAN_KIND
     from ddtrace.ext import SpanKind
-    from ddtrace.internal.peer_service.processor import PEER_SERVICE_SOURCE_TAG
-    from ddtrace.internal.peer_service.processor import PEER_SERVICE_TAG
+    from ddtrace.settings.peer_service import PeerServiceConfig
     from tests.utils import DummyTracer
 
+    peer_service_config = PeerServiceConfig()
     tracer = DummyTracer()
     span = tracer.trace(
         "test",
@@ -111,5 +112,5 @@ def test_tracer_hooks():
 
     span.finish()
 
-    assert span.get_tag(PEER_SERVICE_TAG) == "test_value"
-    assert span.get_tag(PEER_SERVICE_SOURCE_TAG) == "out.host"
+    assert span.get_tag(peer_service_config.tag_name) == "test_value"
+    assert span.get_tag(peer_service_config.source_tag_name) == "out.host"
