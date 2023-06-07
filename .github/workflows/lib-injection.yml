@@ -51,6 +51,8 @@ jobs:
           'dd-lib-python-init-test-django',
           'dd-lib-python-init-test-django-gunicorn',
           'dd-lib-python-init-test-django-uvicorn',
+          'dd-lib-python-init-test-django-no-perms',
+          'dd-lib-python-init-test-django-pre-installed',
         ]
       fail-fast: false
     steps:
@@ -66,13 +68,13 @@ jobs:
             --network=test-inject \
             -p 8126:8126 \
             ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:v1.7.2
-      - name: Prepare the volume
+      - name: Prepare the volume to mimic what the init container will provide
         run: |
           cd lib-injection
-          mkdir -p lib-injection/ddtrace_pkgs
-          cp sitecustomize.py lib-injection/
+          mkdir -p datadog_init/ddtrace_pkgs datadog_init/site-packages datadog_init/tmp
+          cp sitecustomize.py datadog_init/
           ./dl_wheels.py \
-            --ddtrace-version=v1.10 \
+            --ddtrace-version=v1.13 \
             --python-version=3.11 \
             --python-version=3.10 \
             --python-version=3.9 \
@@ -80,7 +82,7 @@ jobs:
             --python-version=3.7 \
             --arch x86_64 \
             --platform manylinux2014 \
-            --output-dir ddtrace_pkgs \
+            --output-dir datadog_init/ddtrace_pkgs \
             --verbose
       - name: Build test app
         run: |
@@ -93,9 +95,9 @@ jobs:
             --name ${{ matrix.variant }} \
             --network test-inject \
             -p 18080:18080 \
-            -e PYTHONPATH=/lib-injection \
+            -e PYTHONPATH=/datadog_init \
             -e DD_TRACE_AGENT_URL=http://testagent:8126 \
-            -v $PWD/lib-injection:/lib-injection \
+            -v $PWD/lib-injection/datadog_init:/datadog_init \
             ${{matrix.variant}}
           # Wait for the app to start
           sleep 20
@@ -110,3 +112,7 @@ jobs:
         run: |
           N=$(curl http://localhost:8126/test/traces | jq -r -e 'length')
           [[ $N == "1" ]]
+      - name: Output app logs (LOOK HERE IF THE JOB FAILS)
+        if: success() || failure()
+        run: |
+          docker logs ${{ matrix.variant }}
