@@ -349,7 +349,9 @@ def patched_lib_fn(original_func, instance, args, kwargs):
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
         return original_func(*args, **kwargs)
-    with pin.tracer.trace("{}.{}".format(original_func.__module__, original_func.__name__)):
+    with pin.tracer.trace("{}.{}".format(original_func.__module__, original_func.__name__)) as span:
+        span.set_tag_str(COMPONENT, config.botocore.integration_name)
+        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
         return original_func(*args, **kwargs)
 
 

@@ -7,6 +7,7 @@ import zipfile
 
 import botocore.exceptions
 import botocore.session
+from moto import mock_dynamodb
 from moto import mock_ec2
 from moto import mock_events
 from moto import mock_kinesis
@@ -33,7 +34,6 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib.botocore.patch import patch
 from ddtrace.contrib.botocore.patch import patch_submodules
 from ddtrace.contrib.botocore.patch import unpatch
-from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.utils.version import parse_version
@@ -142,6 +142,39 @@ class BotocoreTest(TracerTestCase):
         assert spans
         span = spans[0]
         assert span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 0.5
+
+    @mock_dynamodb
+    def test_dynamodb_put_get(self):
+        ddb = self.session.create_client("dynamodb", region_name="us-west-2")
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(ddb)
+
+        ddb.create_table(
+            TableName="foobar",
+            AttributeDefinitions=[{"AttributeName": "myattr", "AttributeType": "S"}],
+            KeySchema=[{"AttributeName": "myattr", "KeyType": "HASH"}],
+            BillingMode="PAY_PER_REQUEST",
+        )
+        ddb.put_item(TableName="foobar", Item={"myattr": {"S": "baz"}})
+        ddb.get_item(TableName="foobar", Key={"myattr": {"S": "baz"}})
+
+        spans = self.get_spans()
+        assert spans
+        span = spans[0]
+        assert len(spans) == 6
+        assert_is_measured(span)
+        assert span.get_tag("aws.operation") == "CreateTable"
+        assert span.get_tag("component") == "botocore"
+        assert span.get_tag("span.kind"), "client"
+        assert_span_http_status_code(span, 200)
+        assert span.service == "test-botocore-tracing.dynamodb"
+        assert span.resource == "dynamodb.createtable"
+
+        span = spans[1]
+        assert span.name == "botocore.parsers.parse"
+        assert span.get_tag("component") == "botocore"
+        assert span.get_tag("span.kind"), "client"
+        assert span.service == "test-botocore-tracing.dynamodb"
+        assert span.resource == "botocore.parsers.parse"
 
     @mock_s3
     def test_s3_client(self):
