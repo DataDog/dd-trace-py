@@ -1,7 +1,8 @@
+from collections import deque
 from itertools import count
 import sys
 from threading import current_thread
-from types import FrameType
+from types import TracebackType
 import typing as t
 import uuid
 
@@ -16,16 +17,54 @@ from ddtrace.internal.processor import SpanProcessor
 from ddtrace.span import Span
 
 
+def unwind_exception_chain(
+    exc,  # type: t.Optional[BaseException]
+    tb,  # type: t.Optional[TracebackType]
+):
+    # type: (...) -> t.Tuple[t.Deque[t.Tuple[BaseException, t.Optional[TracebackType]]], t.Optional[uuid.UUID]]
+    """Unwind the exception chain and assign it an ID."""
+    chain = deque()  # type: t.Deque[t.Tuple[BaseException, t.Optional[TracebackType]]]
+
+    while exc is not None:
+        chain.append((exc, tb))
+
+        try:
+            if exc.__cause__ is not None:
+                exc = exc.__cause__
+            elif exc.__context__ is not None and not exc.__suppress_context__:
+                exc = exc.__context__
+            else:
+                exc = None
+        except AttributeError:
+            # Python 2 doesn't have exception chaining
+            break
+
+        tb = getattr(exc, "__traceback__", None)
+
+    exc_id = None
+    if chain:
+        # If the chain is not trivial we generate an ID for the whole chain and
+        # store it on the outermost exception, if not already generated.
+        exc, _ = chain[-1]
+        try:
+            exc_id = exc._dd_exc_id  # type: ignore[attr-defined]
+        except AttributeError:
+            exc._dd_exc_id = exc_id = uuid.uuid4()  # type: ignore[attr-defined]
+
+    return chain, exc_id
+
+
 @attr.s
 class SpanExceptionProbe(LogLineProbe):
     @classmethod
-    def build(cls, exc_id, frame):
-        # type: (uuid.UUID, FrameType) -> SpanExceptionProbe
+    def build(cls, exc_id, tb):
+        # type: (uuid.UUID, TracebackType) -> SpanExceptionProbe
         _exc_id = str(exc_id)
+        frame = tb.tb_frame
         filename = frame.f_code.co_filename
-        line = frame.f_lineno
-        fn = frame.f_code.co_name
-        message = "exception info for %s, in %s, line %d (exception ID %s)" % (fn, filename, line, exc_id)
+        line = tb.tb_lineno
+        name = frame.f_code.co_name
+        message = "exception info for %s, in %s, line %d (exception ID %s)" % (name, filename, line, _exc_id)
 
         return cls(
             probe_id=_exc_id,
@@ -72,49 +111,59 @@ class SpanExceptionProcessor(SpanProcessor):
             return
 
         _, exc, _tb = sys.exc_info()
-        if _tb is None or _tb.tb_frame is None:
-            # If we don't have a traceback there isn't much we can do
+
+        chain, exc_id = unwind_exception_chain(exc, _tb)
+        if not chain or exc_id is None:
+            # No exceptions to capture
             return
 
-        seq = count(1)
-        try:
-            exc_id = exc._dd_exc_id  # type: ignore[union-attr]
-        except AttributeError:
-            # We haven't seen this exception before so we generate an ID for it
-            exc._dd_exc_id = exc_id = uuid.uuid4()  # type: ignore[union-attr]
+        seq = count(1)  # 1-based sequence number
 
-        # DEV: We go from the handler up to the root exception
-        while _tb:
-            frame = _tb.tb_frame
-            code = frame.f_code
-            seq_nr = next(seq)
+        while chain:
+            exc, _tb = chain.pop()  # LIFO: reverse the chain
 
-            try:
-                snapshot_id = frame.f_locals["_dd_debug_snapshot_id"]
-            except KeyError:
-                # We don't have a snapshot for the frame so we create one
-                snapshot = SpanExceptionSnapshot(
-                    probe=SpanExceptionProbe.build(exc_id, frame),
-                    frame=frame,
-                    thread=current_thread(),
-                    trace_context=span,
-                    exc_id=exc_id,
-                )
+            if _tb is None or _tb.tb_frame is None:
+                # If we don't have a traceback there isn't much we can do
+                continue
 
-                # Capture
-                snapshot.line()
+            # DEV: We go from the handler up to the root exception
+            while _tb and _tb.tb_frame:
+                frame = _tb.tb_frame
+                code = frame.f_code
+                seq_nr = next(seq)
 
-                self.collector.push(snapshot)
+                # TODO: Check if it is user code; if not, skip. We still
+                #       generate a sequence number.
 
-                frame.f_locals["_dd_debug_snapshot_id"] = snapshot_id = snapshot.uuid
+                try:
+                    snapshot_id = frame.f_locals["_dd_debug_snapshot_id"]
+                except KeyError:
+                    # We don't have a snapshot for the frame so we create one
+                    snapshot = SpanExceptionSnapshot(
+                        probe=SpanExceptionProbe.build(exc_id, _tb),
+                        frame=frame,
+                        thread=current_thread(),
+                        trace_context=span,
+                        exc_id=exc_id,
+                    )
 
-            # Add correlation tags on the span
-            span.set_tag_str("_dd.debug.error.%d.snapshot.id" % seq_nr, snapshot_id)
-            span.set_tag_str("_dd.debug.error.%d.function" % seq_nr, code.co_name)
-            span.set_tag_str("_dd.debug.error.%d.file" % seq_nr, code.co_filename)
-            span.set_tag_str("_dd.debug.error.%d.line" % seq_nr, str(frame.f_lineno))
+                    # Capture
+                    snapshot.line()
 
-            _tb = _tb.tb_next
+                    # Collect
+                    self.collector.push(snapshot)
 
-        span.set_tag_str("error.debug-info-captured", "true")
-        span.set_tag_str("_dd.debug.error.exception-id", str(exc_id))
+                    # Memoize
+                    frame.f_locals["_dd_debug_snapshot_id"] = snapshot_id = snapshot.uuid
+
+                # Add correlation tags on the span
+                span.set_tag_str("_dd.debug.error.%d.snapshot.id" % seq_nr, snapshot_id)
+                span.set_tag_str("_dd.debug.error.%d.function" % seq_nr, code.co_name)
+                span.set_tag_str("_dd.debug.error.%d.file" % seq_nr, code.co_filename)
+                span.set_tag_str("_dd.debug.error.%d.line" % seq_nr, str(_tb.tb_lineno))
+
+                # Move up the stack
+                _tb = _tb.tb_next
+
+            span.set_tag_str("error.debug-info-captured", "true")
+            span.set_tag_str("_dd.debug.error.exception-id", str(exc_id))
