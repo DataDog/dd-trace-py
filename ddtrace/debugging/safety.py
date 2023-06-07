@@ -5,10 +5,8 @@ from typing import Any
 from typing import Dict
 from typing import Iterator
 from typing import Tuple
-from typing import Type
 
 from ddtrace.internal.safety import get_slots
-from ddtrace.internal.utils.cache import cached
 
 
 GetSetDescriptor = type(type.__dict__["__dict__"])  # type: ignore[index]
@@ -60,20 +58,16 @@ def safe_getitem(obj, index):
     raise TypeError("Type is not indexable collection " + str(type(obj)))
 
 
-@cached()
-def _has_safe_dict(_type):
-    # type: (Type) -> bool
-    try:
-        return type(object.__getattribute__(_type, "__dict__").get("__dict__")) is GetSetDescriptor
-    except AttributeError:
-        return False
-
-
 def _safe_dict(o):
     # type: (Any) -> Dict[str, Any]
-    if _has_safe_dict(type(o)):
-        return object.__getattribute__(o, "__dict__")
-    raise AttributeError("No safe __dict__ attribute")
+    try:
+        __dict__ = object.__getattribute__(o, "__dict__")
+        if type(__dict__) is dict:
+            return __dict__
+    except Exception:
+        pass  # nosec
+
+    raise AttributeError("No safe __dict__")
 
 
 def get_fields(obj):

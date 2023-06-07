@@ -1,5 +1,6 @@
 from typing import Any
 from typing import Dict
+from typing import Optional
 
 from ddtrace.internal.telemetry.constants import TELEMETRY_METRIC_TYPE_COUNT
 from ddtrace.internal.telemetry.constants import TELEMETRY_METRIC_TYPE_DISTRIBUTIONS
@@ -61,8 +62,8 @@ class MetricNamespace:
             return True
         return False
 
-    def _add_metric(self, metric_type, namespace, name, value=1.0, tags={}, interval=10.0):
-        # type: (MetricType, str,str, float, MetricTagType, float) -> None
+    def _add_metric(self, metric_type, namespace, name, value=1.0, tags={}, interval=None):
+        # type: (MetricType, str,str, float, MetricTagType, Optional[float]) -> None
         """
         Telemetry Metrics are stored in DD dashboards, check the metrics in datadoghq.com/metric/explorer.
         The metric will store in dashboard as "dd.instrumentation_telemetry_data." + namespace + "." + name
