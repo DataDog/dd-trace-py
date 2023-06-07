@@ -47,7 +47,6 @@ from ...appsec._constants import WAF_CONTEXT_NAMES
 from ...internal.utils import get_argument_value
 from ..trace_utils import _get_request_header_user_agent
 from ..trace_utils import _set_url_tag
-from .compat import user_is_authenticated
 
 
 log = get_logger(__name__)
@@ -788,7 +787,7 @@ def traced_login(django, pin, func, instance, args, kwargs):
                 return
 
             with pin.tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
-                if user_is_authenticated(user):
+                if user.is_authenticated():
                     session_key = getattr(request, "session_key", None)
                     track_user_login_success_event(
                         pin.tracer,
