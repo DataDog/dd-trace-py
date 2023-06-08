@@ -182,11 +182,11 @@ class _OpenAIIntegration:
             return
         tags = self._metrics_tags(span)
         tags.append("openai.estimated:false")
-        for token_type in ["prompt", "completion", "total"]:
+        for token_type in ("prompt", "completion", "total"):
             num_tokens = usage.get(token_type + "_tokens")
             if not num_tokens:
                 continue
-            span.set_tag("openai.response.usage.%s_tokens" % token_type, num_tokens)
+            span.set_metric("openai.response.usage.%s_tokens" % token_type, num_tokens)
             self._statsd.distribution("tokens.%s" % token_type, num_tokens, tags=tags)
 
     def trunc(self, text):
@@ -527,7 +527,7 @@ def _patched_convert(openai, integration):
         val = val._headers
         if val.get("openai-organization"):
             org_name = val.get("openai-organization")
-            span.set_tag("openai.organization.name", org_name)
+            span.set_tag_str("openai.organization.name", org_name)
 
         # Gauge total rate limit
         if val.get("x-ratelimit-limit-requests"):

@@ -126,7 +126,7 @@ venv = Venv(
         Venv(
             pys=["3"],
             pkgs={
-                "flake8": "==3.8.4",
+                "flake8": ">=3.8,<3.9",
                 "flake8-blind-except": latest,
                 "flake8-builtins": latest,
                 "flake8-docstrings": latest,

@@ -31,10 +31,3 @@ def _format_openai_api_key(openai_api_key):
     if not openai_api_key:
         return None
     return "sk-...%s" % openai_api_key[-4:]
-
-
-def _format_bool(v):
-    """Convert boolean inputs to 1/0. Otherwise, return the same input"""
-    if isinstance(v, bool):
-        return int(v)
-    return v
