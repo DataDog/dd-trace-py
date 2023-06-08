@@ -9,7 +9,6 @@ from ddtrace.pin import _DD_PIN_PROXY_NAME
 
 from .client import WrappedClient
 from .client import WrappedHashClient
-from .client import WrappedPooledClient
 
 
 _Client = pymemcache.client.base.Client
