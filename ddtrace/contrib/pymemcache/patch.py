@@ -17,9 +17,6 @@ _hash_Client = pymemcache.client.hash.Client
 _HashClient_client_class = None
 if hasattr(pymemcache.client.hash.HashClient, "client_class"):
     _HashClient_client_class = pymemcache.client.hash.HashClient.client_class
-_PooledClient_client_class = None
-if hasattr(pymemcache.client.base.PooledClient, "client_class"):
-    _PooledClient_client_class = pymemcache.client.base.PooledClient.client_class
 
 
 def patch():
@@ -28,14 +25,10 @@ def patch():
 
     setattr(pymemcache.client, "_datadog_patch", True)
     setattr(pymemcache.client.base, "Client", WrappedClient)
-    # setattr(pymemcache.client.base, "PooledClient", WrappedPooledClient)
     setattr(pymemcache.client.hash, "Client", WrappedClient)
     setattr(pymemcache.client.hash, "HashClient", WrappedHashClient)
-    # setattr(pymemcache.client.hash, "PooledClient", WrappedPooledClient)
     if _HashClient_client_class:
         pymemcache.client.hash.HashClient.client_class = WrappedClient
-    if _PooledClient_client_class:
-        pymemcache.client.base.PooledClient.client_class = WrappedClient
 
     # Create a global pin with default configuration for our pymemcache clients
     service = schematize_service_name(memcachedx.SERVICE)
@@ -51,8 +44,6 @@ def unpatch():
     setattr(pymemcache.client.hash, "Client", _hash_Client)
     if _HashClient_client_class:
         pymemcache.client.hash.HashClient.client_class = _HashClient_client_class
-    if _PooledClient_client_class:
-        pymemcache.client.hash.PooledClient.client_class = _PooledClient_client_class
 
     # Remove any pins that may exist on the pymemcache reference
     setattr(pymemcache, _DD_PIN_NAME, None)

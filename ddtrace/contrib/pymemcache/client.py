@@ -64,9 +64,6 @@ class WrappedClient(wrapt.ObjectProxy):
         # attach the pin onto this instance
         pin.onto(self)
 
-    def _connect(self, *args, **kwargs):
-        return self.__wrapped__._connect(*args, **kwargs)
-
     def set(self, *args, **kwargs):
         return self._traced_cmd("set", *args, **kwargs)
 
