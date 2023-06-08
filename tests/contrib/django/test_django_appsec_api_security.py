@@ -2,6 +2,9 @@
 import base64
 import gzip
 import json
+import sys
+
+import pytest
 
 from ddtrace import config
 from tests.appsec.test_processor import RULES_SRB
@@ -38,6 +41,7 @@ def _aux_appsec_get_root_span(
     return test_spans.spans[0], response
 
 
+@pytest.mark.skipif(sys.version_info.major < 3)
 def test_api_security(client, test_spans, tracer):
     import django
 
