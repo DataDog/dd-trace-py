@@ -129,14 +129,13 @@ def inject_trace_to_sqs_or_sns_batch_message(params, span, endpoint=None, data_s
     trace_data = {}
     HTTPPropagator.inject(span.context, trace_data)
 
-    if data_streams_context is not None:
-        trace_data[PROPAGATION_KEY] = data_streams_context
-
     # An entry here is an SNS or SQS record, and depending on how it was published,
     # it could either show up under Entries (in case of PutRecords),
     # or PublishBatchRequestEntries (in case of PublishBatch).
     entries = params.get("Entries", params.get("PublishBatchRequestEntries", []))
     for entry in entries:
+        if data_streams_context is not None:
+            trace_data[PROPAGATION_KEY] = data_streams_context[json.dumps(entry).encode()]
         inject_trace_data_to_message_attributes(trace_data, entry, endpoint)
 
 
@@ -412,10 +411,13 @@ def patched_api_call(original_func, instance, args, kwargs):
                             queue_name = queue_url[queue_url.rfind("/") + 1:]
 
                             #create data_streams_context
-                            pathway = pin.tracer.data_streams_processor.set_checkpoint(
-                                ["direction:out", "topic:" + queue_name, "type:sqs"]
-                            )
-                            data_streams_context = pathway.encode_b64()
+                            entries = params.get("Entries", params.get("PublishBatchRequestEntries", []))
+                            data_streams_context = {}
+                            for entry in entries:
+                                pathway = pin.tracer.data_streams_processor.set_checkpoint(
+                                    ["direction:out", "topic:" + queue_name, "type:sqs"]
+                                )
+                                data_streams_context[json.dumps(entry).encode()] = pathway.encode_b64()
 
                         inject_trace_to_sqs_or_sns_batch_message(
                             params, span, endpoint_name, data_streams_context
@@ -470,21 +472,23 @@ def patched_api_call(original_func, instance, args, kwargs):
 
                 result = original_func(*args, **kwargs)
                 _set_response_metadata_tags(span, result)
-                try:
-                    pathway = json.loads(
-                        result['Messages'][0]['MessageAttributes']['_datadog']['StringValue']
-                    )['dd-pathway-ctx']
-                    #TODO: potentially deal with the case where you
-                    # need to remove _datadog info from result
-                    # even when dd-pathway-ctx isn't there
-                except:
-                    result = original_func(*args, **kwargs)
-                    _set_response_metadata_tags(span, result)
-                    return result
-                ctx = pin.tracer.data_streams_processor.decode_pathway_b64(pathway)
-                ctx.set_checkpoint(
-                    ["direction:in", "topic:" + queue_name, "type:sqs"]
-                )
+
+                for message in result['Messages']:
+                    try:
+                        #TODO: potentially deal with the case where you
+                        # need to remove _datadog info from result
+                        # even when dd-pathway-ctx isn't there
+                        pathway = json.loads(
+                            message['MessageAttributes']['_datadog']['StringValue']
+                        )['dd-pathway-ctx']
+
+                        ctx = pin.tracer.data_streams_processor.decode_pathway_b64(pathway)
+                        ctx.set_checkpoint(
+                            ["direction:in", "topic:" + queue_name, "type:sqs"]
+                        )
+
+                    except:
+                        return result
 
                 if query_status == "NoMessageAttributeNames":
                     if 'Messages' in result:
