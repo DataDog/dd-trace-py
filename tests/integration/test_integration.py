@@ -23,8 +23,8 @@ from ddtrace.internal.ci_visibility.recorder import CIVisibility
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import MsgpackEncoderV03 as Encoder
 from ddtrace.internal.runtime import container
+from ddtrace.internal.utils.http import Response
 from ddtrace.internal.writer import AgentWriter
-from tests.utils import AnyExc
 from tests.utils import AnyFloat
 from tests.utils import AnyInt
 from tests.utils import AnyStr
@@ -154,11 +154,10 @@ def test_uds_wrong_socket_path(encoding, monkeypatch):
         t.shutdown()
     calls = [
         mock.call(
-            "failed to send, dropping %d traces to intake at %s after %d retries (%s)",
+            "failed to send, dropping %d traces to intake at %s after %d retries",
             1,
             "unix:///tmp/ddagent/nosockethere/{}/traces".format(encoding if encoding else "v0.5"),
             3,
-            AnyExc(),
         )
     ]
     log.error.assert_has_calls(calls)
@@ -382,11 +381,10 @@ def test_trace_bad_url(encoding, monkeypatch):
 
     calls = [
         mock.call(
-            "failed to send, dropping %d traces to intake at %s after %d retries (%s)",
+            "failed to send, dropping %d traces to intake at %s after %d retries",
             1,
             "http://bad:1111/{}/traces".format(encoding if encoding else "v0.5"),
             3,
-            AnyExc(),
         )
     ]
     log.error.assert_has_calls(calls)
@@ -666,10 +664,10 @@ def test_bad_payload_log_payload_non_bytes(monkeypatch):
             # False
             # >>> isinstance(u"", bytes)
             # False
-            return u"bad_payload"
+            return "bad_payload"
 
         def encode_traces(self, traces):
-            return u"bad_payload"
+            return "bad_payload"
 
     for client in t._writer._clients:
         client.encoder = BadEncoder()
