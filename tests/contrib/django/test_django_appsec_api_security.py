@@ -41,7 +41,7 @@ def _aux_appsec_get_root_span(
     return test_spans.spans[0], response
 
 
-@pytest.mark.skipif(sys.version_info.major < 3)
+@pytest.mark.skipif(sys.version_info.major < 3, reason="Python 2 not supported for api security")
 def test_api_security(client, test_spans, tracer):
     import django
 
