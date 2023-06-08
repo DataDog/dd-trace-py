@@ -48,15 +48,15 @@ class Context(object):
     ]
 
     def __init__(
-            self,
-            trace_id=None,  # type: Optional[int]
-            span_id=None,  # type: Optional[int]
-            dd_origin=None,  # type: Optional[str]
-            sampling_priority=None,  # type: Optional[float]
-            meta=None,  # type: Optional[_MetaDictType]
-            metrics=None,  # type: Optional[_MetricDictType]
-            lock=None,  # type: Optional[threading.RLock],
-            baggage=None,
+        self,
+        trace_id=None,  # type: Optional[int]
+        span_id=None,  # type: Optional[int]
+        dd_origin=None,  # type: Optional[str]
+        sampling_priority=None,  # type: Optional[float]
+        meta=None,  # type: Optional[_MetaDictType]
+        metrics=None,  # type: Optional[_MetricDictType]
+        lock=None,  # type: Optional[threading.RLock],
+        baggage=None,
     ):
         self._meta = meta if meta is not None else {}  # type: _MetaDictType
         self._metrics = metrics if metrics is not None else {}  # type: _MetricDictType
