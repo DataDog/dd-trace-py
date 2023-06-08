@@ -16,6 +16,7 @@ from .internal.constants import W3C_TRACESTATE_KEY
 from .internal.logger import get_logger
 from .internal.utils.http import w3c_get_dd_list_member as _w3c_get_dd_list_member
 
+
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Tuple
 
