@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fixes an issue where filtered /proc/<pid>/status lines (such as on Google
+    Cloud Run, but possibly on other managed environments) causes ddtrace to
+    throw an exception while harvesting runtime metrics.
