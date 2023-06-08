@@ -104,7 +104,7 @@ class DDLoggerTestCase(BaseTestCase):
     def test_get_logger_children(self):
         """
         When using `get_logger` to get a logger
-            We appropriately assgin children loggers
+            We appropriately assign children loggers
 
         DEV: This test case is to ensure we are calling `manager._fixupChildren(logger)`
         """
