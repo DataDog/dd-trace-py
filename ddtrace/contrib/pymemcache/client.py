@@ -144,62 +144,14 @@ class WrappedClient(wrapt.ObjectProxy):
         method = getattr(self.__wrapped__, method_name)
         p = Pin.get_from(self)
 
-        # if the pin does not exist or is not enabled, shortcut
-        if not p or not p.enabled():
+        def _do_run():
             return method(*args, **kwargs)
 
-        with p.tracer.trace(
-            schematize_cache_operation(memcachedx.CMD, cache_provider="memcached"),
-            service=p.service,
-            resource=method_name,
-            span_type=SpanTypes.CACHE,
-        ) as span:
-            span.set_tag_str(COMPONENT, config.pymemcache.integration_name)
-            span.set_tag_str(db.SYSTEM, memcachedx.DBMS_NAME)
+        # if the pin does not exist or is not enabled, shortcut
+        if not p or not p.enabled():
+            return _do_run()
 
-            # set span.kind to the type of operation being performed
-            span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
-
-            span.set_tag(SPAN_MEASURED_KEY)
-            # set analytics sample rate
-            span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.pymemcache.get_analytics_sample_rate())
-
-            # try to set relevant tags, catch any exceptions so we don't mess
-            # with the application
-            try:
-                span.set_tags(p.tags)
-                vals = _get_query_string(args)
-                query = "{}{}{}".format(method_name, " " if vals else "", vals)
-                span.set_tag_str(memcachedx.QUERY, query)
-            except Exception:
-                log.debug("Error setting relevant pymemcache tags")
-
-            try:
-                result = method(*args, **kwargs)
-
-                if method_name == "get_many" or method_name == "gets_many":
-                    # gets_many returns a map of key -> (value, cas), else an empty dict if no matches
-                    # get many returns a map with values, else an empty map if no matches
-                    span.set_metric(
-                        db.ROWCOUNT, sum(1 for doc in result if doc) if result and isinstance(result, Iterable) else 0
-                    )
-                elif method_name == "get":
-                    # get returns key or None
-                    span.set_metric(db.ROWCOUNT, 1 if result else 0)
-                elif method_name == "gets":
-                    # gets returns a tuple of (None, None) if key not found, else tuple of (key, index)
-                    span.set_metric(db.ROWCOUNT, 1 if result[0] else 0)
-                return result
-            except (
-                MemcacheClientError,
-                MemcacheServerError,
-                MemcacheUnknownCommandError,
-                MemcacheUnknownError,
-                MemcacheIllegalInputError,
-            ):
-                (typ, val, tb) = sys.exc_info()
-                span.set_exc_info(typ, val, tb)
-                reraise(typ, val, tb)
+        return _trace(_do_run, p, method_name, *args, **kwargs)
 
 
 class WrappedHashClient(wrapt.ObjectProxy):
