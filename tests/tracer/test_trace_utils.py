@@ -23,6 +23,7 @@ from ddtrace.contrib import trace_utils
 from ddtrace.contrib.trace_utils import _get_request_header_client_ip
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
+from ddtrace.ext import net
 from ddtrace.internal import _context
 from ddtrace.internal.compat import six
 from ddtrace.internal.compat import stringify
@@ -309,11 +310,11 @@ def test_ext_service(int_config, pin, config_val, default, expected):
 @pytest.mark.parametrize("appsec_enabled", [False, True])
 @pytest.mark.parametrize("span_type", [SpanTypes.WEB, SpanTypes.HTTP, None])
 @pytest.mark.parametrize(
-    "method,url,status_code,status_msg,query,request_headers,response_headers,uri,path_params,cookies",
+    "method,url,status_code,status_msg,query,request_headers,response_headers,uri,path_params,cookies,target_host",
     [
-        ("GET", "http://localhost/", 0, None, None, None, None, None, None, None),
-        ("GET", "http://localhost/", 200, "OK", None, None, None, None, None, None),
-        (None, None, None, None, None, None, None, None, None, None),
+        ("GET", "http://localhost/", 0, None, None, None, None, None, None, None, "localhost"),
+        ("GET", "http://localhost/", 200, "OK", None, None, None, None, None, None, "localhost"),
+        (None, None, None, None, None, None, None, None, None, None, None),
         (
             "GET",
             "http://localhost/",
@@ -325,6 +326,7 @@ def test_ext_service(int_config, pin, config_val, default, expected):
             "http://localhost/",
             None,
             None,
+            "localhost",
         ),
         (
             "GET",
@@ -337,12 +339,13 @@ def test_ext_service(int_config, pin, config_val, default, expected):
             "http://localhost/search?q=test+query&q2=val",
             {"id": "val", "name": "vlad"},
             None,
+            "localhost",
         ),
-        ("GET", "http://user:pass@localhost/", 0, None, None, None, None, None, None, None),
-        ("GET", "http://user@localhost/", 0, None, None, None, None, None, None, None),
-        ("GET", "http://user:pass@localhost/api?q=test", 0, None, None, None, None, None, None, None),
-        ("GET", "http://localhost/api@test", 0, None, None, None, None, None, None, None),
-        ("GET", "http://localhost/?api@test", 0, None, None, None, None, None, None, None),
+        ("GET", "http://user:pass@localhost/", 0, None, None, None, None, None, None, None, None),
+        ("GET", "http://user@localhost/", 0, None, None, None, None, None, None, None, None),
+        ("GET", "http://user:pass@localhost/api?q=test", 0, None, None, None, None, None, None, None, None),
+        ("GET", "http://localhost/api@test", 0, None, None, None, None, None, None, None, None),
+        ("GET", "http://localhost/?api@test", 0, None, None, None, None, None, None, None, None),
     ],
 )
 def test_set_http_meta(
@@ -350,6 +353,7 @@ def test_set_http_meta(
     int_config,
     method,
     url,
+    target_host,
     status_code,
     status_msg,
     query,
@@ -370,6 +374,7 @@ def test_set_http_meta(
             int_config,
             method=method,
             url=url,
+            target_host=target_host,
             status_code=status_code,
             status_msg=status_msg,
             query=query,
@@ -383,6 +388,11 @@ def test_set_http_meta(
         assert span.get_tag(http.METHOD) == method
     else:
         assert http.METHOD not in span.get_tags()
+
+    if target_host is not None:
+        assert span.get_tag(net.TARGET_HOST) == target_host
+    else:
+        assert net.TARGET_HOST not in span.get_tags()
 
     if url is not None:
         if url.startswith("http://user"):
