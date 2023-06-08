@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    The 1.15.0 version has a bug that arises when Remote Config receives both kinds of actions (removing target file 
+    configurations and loading new target file configurations) simultaneously, as the load action overrides the remove
+    action. This error occurs if someone creates and removes Dynamic Instrumentation Probes rapidly, within a time 
+    interval shorter than the Remote Config interval (5s). To fix this issue, this update appends all new configurations
+    and configurations to remove, and dispatches them at the end of the RC request.
