@@ -266,16 +266,6 @@ class PymemcacheClientTestCase(PymemcacheClientTestCaseMixin):
 class PymemcacheHashClientTestCase(PymemcacheClientTestCaseMixin):
     """Tests for a patched pymemcache.client.hash.HashClient."""
 
-    def make_client_pool(self, hostname, mock_socket_values, serializer=None, **kwargs):
-        mock_client = pymemcache.client.base.Client(hostname, serializer=serializer, **kwargs)
-        tracer = DummyTracer()
-        Pin.override(mock_client, tracer=tracer)
-
-        mock_client.sock = MockSocket(mock_socket_values)
-        client = pymemcache.client.base.PooledClient(hostname, serializer=serializer)
-        client.client_pool = pymemcache.pool.ObjectPool(lambda: mock_client)
-        return mock_client
-
     def make_client(self, mock_socket_values, **kwargs):
         from pymemcache.client.hash import HashClient
 
@@ -308,6 +298,20 @@ class PymemcacheHashClientTestCase(PymemcacheClientTestCaseMixin):
         assert result is True
 
         self.check_spans(2, ["add", "delete"], ["add key", "delete key"])
+
+    def test_service_name_override_hashclient(self):
+        client = self.make_client([b"STORED\r\n", b"VALUE key 0 5\r\nvalue\r\nEND\r\n"])
+        assert len(client.clients) == 1
+        for _c in client.clients.values():
+            Pin.override(_c, service="testsvcname")
+        client.set(b"key", b"value", noreply=False)
+        result = client.get(b"key")
+        assert _str(result) == "value"
+
+        spans = self.get_spans()
+        assert len(spans) == 2
+        self.assertEqual(spans[0].service, "testsvcname")
+        self.assertEqual(spans[1].service, "testsvcname")
 
 
 class PymemcacheClientConfiguration(TracerTestCase):
