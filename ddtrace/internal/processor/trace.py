@@ -60,6 +60,7 @@ class TraceProcessor(six.with_metaclass(abc.ABCMeta)):
         """
         pass
 
+
 @attr.s
 class TraceBaggageProcessor(TraceProcessor):
     def process_trace(self, trace):

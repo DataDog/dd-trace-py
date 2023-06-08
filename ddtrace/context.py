@@ -40,14 +40,7 @@ class Context(object):
     boundaries.
     """
 
-    __slots__ = [
-        "trace_id",
-        "span_id",
-        "_lock",
-        "_meta",
-        "_metrics",
-        "_baggage"
-    ]
+    __slots__ = ["trace_id", "span_id", "_lock", "_meta", "_metrics", "_baggage"]
 
     def __init__(
         self,
@@ -100,8 +93,12 @@ class Context(object):
         # type: (Span) -> Context
         """Return a shallow copy of the context with the given span."""
         return self.__class__(
-            trace_id=span.trace_id, span_id=span.span_id, meta=self._meta, metrics=self._metrics, lock=self._lock,
-            baggage=self._baggage
+            trace_id=span.trace_id,
+            span_id=span.span_id,
+            meta=self._meta,
+            metrics=self._metrics,
+            lock=self._lock,
+            baggage=self._baggage,
         )
 
     def _update_tags(self, span):
@@ -218,7 +215,6 @@ class Context(object):
     def baggage(self):
         # type: () -> Dict[str, Any]
         return self._baggage
-
 
     def set_baggage_item(self, key, value):
         # type: (str, Any) -> None
