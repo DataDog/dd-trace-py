@@ -22,7 +22,6 @@ from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounter
 from ddtrace.internal.processor.trace import SpanAggregator
 from ddtrace.internal.processor.trace import SpanProcessor
 from ddtrace.internal.processor.trace import SpanSamplingProcessor
-from ddtrace.internal.processor.trace import TraceBaggageProcessor
 from ddtrace.internal.processor.trace import TraceProcessor
 from ddtrace.internal.processor.trace import TraceTagsProcessor
 from ddtrace.internal.processor.truncator import DEFAULT_SERVICE_NAME
@@ -93,41 +92,6 @@ def test_aggregator_single_span():
     mock_proc1.process_trace.assert_called_with([span])
     mock_proc2.process_trace.assert_called_with([span])
     assert writer.pop() == [span]
-
-
-def test_trace_baggage_processor():
-    """TraceProcessor returns spans"""
-    trace_processors = TraceBaggageProcessor()
-    # Trace contains no spans
-    trace = []
-    assert trace_processors.process_trace(trace) == trace
-
-    span1 = Span(name="test.span1")
-    span1.set_baggage_item("item1", "123")
-
-    span2 = Span(name="test.span2", context=span1.context)
-    span2.set_baggage_item("item2", "456")
-
-    span3 = Span(name="test.span3", context=span2.context)
-    span3.set_baggage_item("item3", "789")
-
-    trace = [span1, span2, span3]
-
-    # Test return value contains all spans in the argument
-    assert trace_processors.process_trace(trace[:]) == trace
-
-    assert span1.get_baggage_item("item1") == "123"
-    assert span2.get_baggage_item("item1") == "123"
-    assert span3.get_baggage_item("item1") == "123"
-
-    assert span2.get_baggage_item("item2") == "456"
-    assert span3.get_baggage_item("item2") == "456"
-
-    assert span3.get_baggage_item("item3") == "789"
-
-    assert span1.get_baggage_item("item2") is None
-    assert span1.get_baggage_item("item3") is None
-    assert span2.get_baggage_item("item3") is None
 
 
 def test_aggregator_bad_processor():
