@@ -95,15 +95,15 @@ class SpanTestCase(TracerTestCase):
         assert len(s.get_metrics()) == 0
 
     def test_set_baggage_item(self):
-        s = Span(tracer=None, name="test.span")
+        s = Span(name="test.span")
         s.set_baggage_item("custom.key", "123")
         assert s.get_baggage_item("custom.key") == "123"
 
     def test_baggage_propagation(self):
-        span1 = Span(tracer=None, name="test.span1")
+        span1 = Span(name="test.span1")
         span1.set_baggage_item("item1", "123")
 
-        span2 = Span(tracer=None, name="test.span2", context=span1.context)
+        span2 = Span(name="test.span2", context=span1.context)
         span2.set_baggage_item("item2", "456")
 
         assert span2.get_baggage_item("item1") == "123"
