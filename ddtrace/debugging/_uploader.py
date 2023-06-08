@@ -1,8 +1,6 @@
 import os
 from typing import Optional
 
-import tenacity
-
 from ddtrace.debugging._config import config
 from ddtrace.debugging._encoding import BufferedEncoder
 from ddtrace.debugging._metrics import metrics
@@ -11,6 +9,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import AwakeablePeriodicService
 from ddtrace.internal.runtime import container
 from ddtrace.internal.utils.http import connector
+from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 
 
 log = get_logger(__name__)
@@ -46,14 +45,12 @@ class LogsIntakeUploaderV1(AwakeablePeriodicService):
         if config._tags_in_qs and config.tags:
             self.ENDPOINT += "?ddtags=" + config.tags
         self._connect = connector(config._intake_url, timeout=config.upload_timeout)
-        self._retry_upload = tenacity.Retrying(
-            # Retry RETRY_ATTEMPTS times within the first half of the processing
-            # interval, using a Fibonacci policy with jitter
-            wait=tenacity.wait_random_exponential(
-                multiplier=0.618 * self.interval / (1.618 ** self.RETRY_ATTEMPTS) / 2, exp_base=1.618
-            ),
-            stop=tenacity.stop_after_attempt(self.RETRY_ATTEMPTS),
-        )
+
+        # Make it retryable
+        self._write_with_backoff = fibonacci_backoff_with_jitter(
+            initial_wait=0.618 * self.interval / (1.618 ** self.RETRY_ATTEMPTS) / 2,
+            attempts=self.RETRY_ATTEMPTS,
+        )(self._write)
 
         log.debug(
             "Logs intake uploader initialized (url: %s, endpoint: %s, interval: %f)",
@@ -63,7 +60,7 @@ class LogsIntakeUploaderV1(AwakeablePeriodicService):
         )
 
     def _write(self, payload):
-        # type: (str) -> None
+        # type: (bytes) -> None
         try:
             with self._connect() as conn:
                 conn.request(
@@ -95,10 +92,11 @@ class LogsIntakeUploaderV1(AwakeablePeriodicService):
         count = self._encoder.count
         if count:
             payload = self._encoder.encode()
-            try:
-                self._retry_upload(self._write, payload)
-                meter.distribution("batch.cardinality", count)
-            except Exception:
-                log.debug("Cannot upload logs payload", exc_info=True)
+            if payload is not None:
+                try:
+                    self._write_with_backoff(payload)
+                    meter.distribution("batch.cardinality", count)
+                except Exception:
+                    log.debug("Cannot upload logs payload", exc_info=True)
 
     on_shutdown = periodic
