@@ -444,13 +444,15 @@ class Span(object):
     def set_baggage_item(self, key, value):
         # type: (str, Any) -> Span
         """Sets a baggage item in the span context of this span.
-        Baggage is used to propagate state between spans."""
+        Baggage is used to propagate state between spans.
+        """
         self._context = self.context.with_baggage_item(key, value)
         return self
 
     def get_baggage_item(self, key):
         # type: (str) -> Optional[str]
-        """Gets a baggage item from the span context of this span."""
+        """Gets a baggage item from the span context of this span.
+        """
         return self.context.get_baggage_item(key)
 
     def get_metrics(self):
