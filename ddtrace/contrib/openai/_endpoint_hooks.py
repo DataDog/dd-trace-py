@@ -308,12 +308,14 @@ class _EmbeddingHook(_EndpointHook):
         Embedding endpoint allows multiple inputs, each of which we specify a request tag for, so have to
         manually set them in _pre_response().
         """
-        text_input = kwargs.get("input")
-        if isinstance(text_input, list) and not isinstance(text_input[0], int):
-            for idx, inp in enumerate(text_input):
+        embedding_input = kwargs.get("input", "")
+        if not integration.is_pc_sampled_span(span):
+            return        
+        if isinstance(embedding_input, list) and not isinstance(embedding_input[0], int):
+            for idx, inp in enumerate(embedding_input):
                 span.set_tag_str("openai.request.input.%d" % idx, integration.trunc(str(inp)))
         else:
-            span.set_tag("openai.request.input", text_input)
+            span.set_tag("openai.request.input", embedding_input)
         return
 
     def _post_response(self, pin, integration, span, args, kwargs, resp, error):
