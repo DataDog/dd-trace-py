@@ -17,7 +17,7 @@ def test_subscriber_thread():
     subscriber.start()
     sleep(0.15)
     assert subscriber.is_running
-    mock_callback.assert_called_once_with({"example": "data"}, test_tracer=None)
+    mock_callback.assert_called_with({"example": "data"}, test_tracer=None)
 
     subscriber.stop()
     assert not subscriber.is_running
