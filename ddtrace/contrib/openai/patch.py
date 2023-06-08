@@ -623,18 +623,19 @@ class _ChatCompletionHook(_BaseCompletionHook):
         return self._handle_response(pin, span, integration, resp)
 
 
-class _EmbeddingHook(_EndpointHook):
+class _EmbeddingHook(_BaseCompletionHook):
+    _request_tag_attrs = ["model", "user"]
+
     def handle_request(self, pin, integration, span, args, kwargs):
-        for kw_attr in ["model", "input", "user"]:
-            if kw_attr in kwargs:
-                if kw_attr == "input" and integration.is_pc_sampled_span(span):
-                    if isinstance(kwargs["input"], list):
-                        for idx, inp in enumerate(kwargs["input"]):
-                            span.set_tag_str("openai.request.input.%d" % idx, integration.trunc(str(inp)))
-                    else:
-                        span.set_tag("openai.request.%s" % kw_attr, kwargs[kw_attr])
-                else:
-                    span.set_tag("openai.request.%s" % kw_attr, kwargs[kw_attr])
+        embedding_input = kwargs.get("input", "")
+        if integration.is_pc_sampled_span(span):
+            if isinstance(embedding_input, list):
+                for idx, inp in enumerate(embedding_input):
+                    span.set_tag_str("openai.request.input.%d" % idx, integration.trunc(str(inp)))
+            else:
+                span.set_tag("openai.request.input", embedding_input)
+
+        self._record_request(span, kwargs)
 
         resp, error = yield
 
@@ -642,8 +643,6 @@ class _EmbeddingHook(_EndpointHook):
             if "data" in resp:
                 span.set_tag("openai.response.data.num-embeddings", len(resp["data"]))
                 span.set_tag("openai.response.data.embedding-length", len(resp["data"][0]["embedding"]))
-            if "object" in kwargs:
-                span.set_tag("openai.response.%s" % kw_attr, kwargs[kw_attr])
             integration.record_usage(span, resp.get("usage"))
         return resp
 
