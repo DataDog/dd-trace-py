@@ -1,5 +1,8 @@
 # 3p
+import mock
 import pymemcache
+from pymemcache.client.base import Client
+from pymemcache.client.base import PooledClient
 from pymemcache.exceptions import MemcacheClientError
 from pymemcache.exceptions import MemcacheIllegalInputError
 from pymemcache.exceptions import MemcacheServerError
@@ -271,7 +274,20 @@ class PymemcacheHashClientTestCase(PymemcacheClientTestCaseMixin):
 
         tracer = DummyTracer()
         Pin.override(pymemcache, tracer=tracer)
+        # here, pymemcache._datadog_pin is set and has service=memcached and a dummy tracer
         self.client = HashClient([(TEST_HOST, TEST_PORT)], **kwargs)
+        # here, self.client.client_class is WrappedClient
+        # and self.client.clients["foo"] is PooledClient (huh?)
+        #   that's because pymemcache snaps to PooledClient when use_pooling
+        # and self.client.clients["foo"].client_class is WrappedClient
+
+        class _mockclient(Client):  # xxx this should maybe be a subclass of WrappedClient
+            def _connect(self):
+                self.sock = MockSocket(list(mock_socket_values))
+
+        inner_client = self.client.clients["{}:{}".format(TEST_HOST, TEST_PORT)]
+        # here, inner_client is WrappedPooledClient and has a pin
+        inner_client.client_class = _mockclient
         for _c in self.client.clients.values():
             _c.sock = MockSocket(list(mock_socket_values))
         return self.client
@@ -312,6 +328,15 @@ class PymemcacheHashClientTestCase(PymemcacheClientTestCaseMixin):
         assert len(spans) == 2
         self.assertEqual(spans[0].service, "testsvcname")
         self.assertEqual(spans[1].service, "testsvcname")
+
+    def test_service_name_override_hashclient_pooling(self):
+        client = self.make_client([b""], use_pooling=True)
+        Pin.override(client, service="testsvcname")
+        client.set(b"key", b"value")
+        assert len(client.clients) == 1
+        spans = self.get_spans()
+        assert len(spans) == 1
+        self.assertEqual(spans[0].service, "testsvcname")
 
 
 class PymemcacheClientConfiguration(TracerTestCase):
