@@ -46,10 +46,9 @@ def test_processing_peer_service_exists(processor, test_span, span_kind, peer_se
 def test_nothing_happens_for_server_and_consumer(processor, test_span, span_kind, peer_service_config):
     processor.enabled = True
     test_span.set_tag(SPAN_KIND, span_kind)
-    test_span.set_tag(peer_service_config.tag_name, "fake_peer_service")
+    test_span.set_tag("out.host", "fake_host")
     processor.on_span_finish(test_span)
 
-    assert test_span.get_tag(peer_service_config.tag_name) == "fake_peer_service"
     assert test_span.get_tag(peer_service_config.source_tag_name) is None
 
 
