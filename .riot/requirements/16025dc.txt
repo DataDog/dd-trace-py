@@ -15,7 +15,7 @@ opentracing==2.4.0
 packaging==20.9
 pathlib2==2.3.7.post1
 pluggy==0.13.1
-protobuf==3.19.6
+protobuf==3.18.3
 py==1.11.0
 pyparsing==2.4.7
 pytest-cov==2.12.1

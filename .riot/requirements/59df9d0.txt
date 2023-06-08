@@ -16,7 +16,7 @@ mock==5.0.1
 opentracing==2.4.0
 packaging==23.0
 pluggy==1.0.0
-protobuf==3.12.4
+protobuf==3.18.3
 psutil==5.9.4
 pygments==2.14.0
 pytest==7.2.2

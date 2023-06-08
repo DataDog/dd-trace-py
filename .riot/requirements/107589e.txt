@@ -14,7 +14,7 @@ mock==5.0.2
 opentracing==2.4.0
 packaging==21.3
 pluggy==1.0.0
-protobuf==3.19.6
+protobuf==3.18.3
 py==1.11.0
 py-cpuinfo==8.0.0
 pyparsing==3.0.9
