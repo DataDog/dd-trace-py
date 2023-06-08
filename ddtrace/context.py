@@ -50,7 +50,7 @@ class Context(object):
         sampling_priority=None,  # type: Optional[float]
         meta=None,  # type: Optional[_MetaDictType]
         metrics=None,  # type: Optional[_MetricDictType]
-        lock=None,  # type: Optional[threading.RLock],
+        lock=None,  # type: Optional[threading.RLock]
         baggage=None,
     ):
         self._meta = meta if meta is not None else {}  # type: _MetaDictType
