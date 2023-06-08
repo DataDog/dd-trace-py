@@ -60,6 +60,21 @@ class TraceProcessor(six.with_metaclass(abc.ABCMeta)):
         """
         pass
 
+@attr.s
+class TraceBaggageProcessor(TraceProcessor):
+    def process_trace(self, trace):
+        # type: (List[Span]) -> Optional[List[Span]]
+        if not trace:
+            return trace
+
+        for span in trace:
+            ctx = span._context
+            if not ctx:
+                continue
+
+            ctx._update_baggage_items(span)
+
+        return trace
 
 @attr.s
 class TraceSamplingProcessor(TraceProcessor):

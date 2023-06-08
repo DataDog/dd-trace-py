@@ -43,6 +43,7 @@ log = get_logger(__name__)
 
 # HTTP headers one should set for distributed tracing.
 # These are cross-language (eg: Python, Go and other implementations should honor these)
+HTTP_BAGGAGE_PREFIX = "ot-baggage-"
 HTTP_HEADER_TRACE_ID = "x-datadog-trace-id"
 HTTP_HEADER_PARENT_ID = "x-datadog-parent-id"
 HTTP_HEADER_SAMPLING_PRIORITY = "x-datadog-sampling-priority"
@@ -822,6 +823,10 @@ class HTTPPropagator(object):
             log.debug("tried to inject invalid context %r", span_context)
             return
 
+        if span_context.baggage is not None:
+            for key in span_context.baggage:
+                headers[HTTP_BAGGAGE_PREFIX + key] = span_context.baggage[key]
+
         if PROPAGATION_STYLE_DATADOG in config._propagation_style_inject:
             _DatadogMultiHeader._inject(span_context, headers)
         if PROPAGATION_STYLE_B3 in config._propagation_style_inject:
@@ -862,6 +867,10 @@ class HTTPPropagator(object):
                 propagator = _PROP_STYLES[prop_style]
                 context = propagator._extract(normalized_headers)  # type: ignore
                 if context is not None:
+                    for key, value in normalized_headers.items():
+                        if key.startswith(HTTP_BAGGAGE_PREFIX):
+                            context.set_baggage_item(key.removeprefix(HTTP_BAGGAGE_PREFIX), value)
+
                     return context
 
         except Exception:

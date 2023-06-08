@@ -16,6 +16,7 @@ from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.propagation.http import HTTP_HEADER_ORIGIN
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
+from ddtrace.propagation.http import HTTP_BAGGAGE_PREFIX
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.propagation.http import _HTTP_HEADER_B3_FLAGS
 from ddtrace.propagation.http import _HTTP_HEADER_B3_SAMPLED
@@ -36,6 +37,7 @@ NOT_SET = object()
 def test_inject(tracer):
     meta = {"_dd.p.test": "value", "_dd.p.other": "value", "something": "value"}
     ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics", meta=meta)
+    ctx.set_baggage_item("key1", "val1")
     tracer.context_provider.activate(ctx)
     with tracer.trace("global_root_span") as span:
         headers = {}
@@ -45,6 +47,7 @@ def test_inject(tracer):
         assert int(headers[HTTP_HEADER_PARENT_ID]) == span.span_id
         assert int(headers[HTTP_HEADER_SAMPLING_PRIORITY]) == span.context.sampling_priority
         assert headers[HTTP_HEADER_ORIGIN] == span.context.dd_origin
+        assert headers[HTTP_BAGGAGE_PREFIX + "key1"] == "val1"
         # The ordering is non-deterministic, so compare as a list of tags
         tags = set(headers[_HTTP_HEADER_TAGS].split(","))
         assert tags == set(["_dd.p.test=value", "_dd.p.other=value"])
@@ -252,6 +255,7 @@ def test_extract(tracer):
         "x-datadog-sampling-priority": "1",
         "x-datadog-origin": "synthetics",
         "x-datadog-tags": "_dd.p.test=value,any=tag",
+        "ot-baggage-key1": "value1"
     }
 
     context = HTTPPropagator.extract(headers)
@@ -272,6 +276,7 @@ def test_extract(tracer):
             assert child_span.parent_id != 5678
             assert child_span.context.sampling_priority == 1
             assert child_span.context.dd_origin == "synthetics"
+            assert child_span.get_baggage_item("key1") == "value1"
             assert child_span.context._meta == {
                 "_dd.origin": "synthetics",
                 "_dd.p.test": "value",

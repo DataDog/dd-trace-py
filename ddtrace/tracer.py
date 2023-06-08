@@ -39,6 +39,7 @@ from .internal.processor import SpanProcessor
 from .internal.processor.trace import SpanAggregator
 from .internal.processor.trace import SpanSamplingProcessor
 from .internal.processor.trace import TopLevelSpanProcessor
+from .internal.processor.trace import TraceBaggageProcessor
 from .internal.processor.trace import TraceProcessor
 from .internal.processor.trace import TraceSamplingProcessor
 from .internal.processor.trace import TraceTagsProcessor
@@ -143,6 +144,7 @@ def _default_span_processors_factory(
     trace_processors = []  # type: List[TraceProcessor]
     trace_processors += [TraceTagsProcessor()]
     trace_processors += [TraceSamplingProcessor(compute_stats_enabled)]
+    trace_processors += [TraceBaggageProcessor()]
     trace_processors += trace_filters
 
     span_processors = []  # type: List[SpanProcessor]
