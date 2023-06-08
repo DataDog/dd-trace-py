@@ -90,4 +90,4 @@ class PSUtilRuntimeMetricCollector(RuntimeMetricCollector):
 
                 metrics[metric] = value
 
-            return metrics.items()
+            return list(metrics.items())
