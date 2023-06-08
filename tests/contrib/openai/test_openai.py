@@ -956,6 +956,27 @@ def test_completion_truncation(openai, openai_vcr, mock_tracer):
     [
         dict(
             _api_key="<not-real-but-it's-something>",
+            span_prompt_completion_sample_rate=0,
+        )
+    ],
+)
+def test_embedding_unsampled_prompt_completion(openai, openai_vcr, ddtrace_config_openai, mock_logs, mock_tracer):
+    if not hasattr(openai, "Embedding"):
+        pytest.skip("embedding not supported for this version of openai")
+    with openai_vcr.use_cassette("embedding.yaml"):
+        openai.Embedding.create(input="hello world", model="text-embedding-ada-002")
+    logs = mock_logs.enqueue.call_count
+    traces = mock_tracer.pop_traces()
+    assert len(traces) == 1
+    assert traces[0][0].get_tag("openai.request.input") is None
+    assert logs == 0
+
+
+@pytest.mark.parametrize(
+    "ddtrace_config_openai",
+    [
+        dict(
+            _api_key="<not-real-but-it's-something>",
             logs_enabled=True,
             log_prompt_completion_sample_rate=r,
         )
