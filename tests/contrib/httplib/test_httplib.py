@@ -163,6 +163,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         assert span.get_tag("http.method") == "GET"
         assert span.get_tag("component") == "httplib"
         assert span.get_tag("span.kind") == "client"
+        assert span.get_tag("out.host") == "localhost"
         assert span.get_tag("http.url") == URL_200 + fqs
         assert_span_http_status_code(span, 200)
         if config.httplib.trace_query_string:
@@ -211,6 +212,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         assert span.get_tag("http.method") == "GET"
         assert span.get_tag("component") == "httplib"
         assert span.get_tag("span.kind") == "client"
+        assert span.get_tag("out.host") == "icanhazdadjoke.com"
         assert_span_http_status_code(span, 200)
         assert span.get_tag("http.url") == "https://icanhazdadjoke.com/j/R7UfaahVfFd"
 
@@ -238,6 +240,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         assert span.get_tag("http.method") == "POST"
         assert span.get_tag("component") == "httplib"
         assert span.get_tag("span.kind") == "client"
+        assert span.get_tag("out.host") == "localhost"
         assert_span_http_status_code(span, 200)
         assert span.get_tag("http.url") == URL_200
 
@@ -265,6 +268,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         assert span.get_tag("http.method") == "GET"
         assert span.get_tag("component") == "httplib"
         assert span.get_tag("span.kind") == "client"
+        assert span.get_tag("out.host") == "localhost"
         assert_span_http_status_code(span, 200)
         assert span.get_tag("http.url") == URL_200 + qs
 
@@ -297,6 +301,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         self.assertEqual(span.get_tag("http.method"), "GET")
         self.assertEqual(span.get_tag("component"), "httplib")
         self.assertEqual(span.get_tag("span.kind"), "client")
+        self.assertEqual(span.get_tag("out.host"), "localhost")
         assert_span_http_status_code(span, 500)
         self.assertEqual(span.get_tag("http.url"), URL_500)
 
@@ -329,6 +334,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         self.assertEqual(span.get_tag("http.method"), "GET")
         self.assertEqual(span.get_tag("component"), "httplib")
         self.assertEqual(span.get_tag("span.kind"), "client")
+        self.assertEqual(span.get_tag("out.host"), "localhost")
         assert_span_http_status_code(span, 404)
         self.assertEqual(span.get_tag("http.url"), URL_404)
 
@@ -453,6 +459,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         self.assertEqual(span.get_tag("http.method"), "GET")
         self.assertEqual(span.get_tag("component"), "httplib")
         self.assertEqual(span.get_tag("span.kind"), "client")
+        self.assertEqual(span.get_tag("out.host"), "icanhazdadjoke.com")
         assert_span_http_status_code(span, 200)
         self.assertEqual(span.get_tag("http.url"), url)
 
@@ -483,6 +490,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         self.assertEqual(span.get_tag("http.url"), URL_200)
         self.assertEqual(span.get_tag("component"), "httplib")
         self.assertEqual(span.get_tag("span.kind"), "client")
+        self.assertEqual(span.get_tag("out.host"), "localhost")
 
     def test_urllib_request_opener(self):
         """
@@ -510,6 +518,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         self.assertEqual(span.get_tag("http.url"), URL_200)
         self.assertEqual(span.get_tag("component"), "httplib")
         self.assertEqual(span.get_tag("span.kind"), "client")
+        self.assertEqual(span.get_tag("out.host"), "localhost")
 
     def test_httplib_request_get_request_ot(self):
         """OpenTracing version of test with same name."""
@@ -598,6 +607,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         self.assertEqual(span.get_tag("http.url"), "http://DNE:80/status/500")
         self.assertEqual(span.get_tag("component"), "httplib")
         self.assertEqual(span.get_tag("span.kind"), "client")
+        self.assertEqual(span.get_tag("out.host"), "DNE")
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_schematization_httplib_service_name_default(self):
@@ -806,6 +816,7 @@ if PY2:
             self.assertEqual(span.get_tag("http.url"), URL_200)
             self.assertEqual(span.get_tag("component"), "httplib")
             self.assertEqual(span.get_tag("span.kind"), "client")
+            self.assertEqual(span.get_tag("out.host"), "localhost")
 
         def test_urllib_request_https(self):
             """
@@ -844,3 +855,4 @@ if PY2:
             self.assertEqual(span.get_tag("http.url"), url)
             self.assertEqual(span.get_tag("component"), "httplib")
             self.assertEqual(span.get_tag("span.kind"), "client")
+            self.assertEqual(span.get_tag("out.host"), "icanhazdadjoke.com")
