@@ -23,7 +23,6 @@ from ddtrace.internal.ci_visibility.recorder import CIVisibility
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import MsgpackEncoderV03 as Encoder
 from ddtrace.internal.runtime import container
-from ddtrace.internal.utils.http import Response
 from ddtrace.internal.writer import AgentWriter
 from tests.utils import AnyFloat
 from tests.utils import AnyInt
@@ -664,10 +663,10 @@ def test_bad_payload_log_payload_non_bytes(monkeypatch):
             # False
             # >>> isinstance(u"", bytes)
             # False
-            return "bad_payload"
+            return u"bad_payload"
 
         def encode_traces(self, traces):
-            return "bad_payload"
+            return u"bad_payload"
 
     for client in t._writer._clients:
         client.encoder = BadEncoder()
