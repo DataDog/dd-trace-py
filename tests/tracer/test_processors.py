@@ -93,6 +93,7 @@ def test_aggregator_single_span():
     mock_proc2.process_trace.assert_called_with([span])
     assert writer.pop() == [span]
 
+
 def test_trace_tags_processor():
     """TraceProcessor returns spans"""
     trace_processors = TraceBaggageProcessor()
