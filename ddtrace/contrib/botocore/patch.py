@@ -470,9 +470,17 @@ def patched_api_call(original_func, instance, args, kwargs):
 
                 result = original_func(*args, **kwargs)
                 _set_response_metadata_tags(span, result)
-                pathway = json.loads(
-                    result['Messages'][0]['MessageAttributes']['_datadog']['StringValue']
-                )['dd-pathway-ctx']
+                try:
+                    pathway = json.loads(
+                        result['Messages'][0]['MessageAttributes']['_datadog']['StringValue']
+                    )['dd-pathway-ctx']
+                    #TODO: potentially deal with the case where you
+                    # need to remove _datadog info from result
+                    # even when dd-pathway-ctx isn't there
+                except:
+                    result = original_func(*args, **kwargs)
+                    _set_response_metadata_tags(span, result)
+                    return result
                 ctx = pin.tracer.data_streams_processor.decode_pathway_b64(pathway)
                 ctx.set_checkpoint(
                     ["direction:in", "topic:" + queue_name, "type:sqs"]
