@@ -133,6 +133,7 @@ def _wrap_urlopen(func, instance, args, kwargs):
                 integration_config=config.urllib3,
                 method=request_method,
                 url=request_url,
+                target_host=instance.host,
                 status_code=None if response is None else response.status,
                 query=parsed_uri.query,
                 request_headers=request_headers,
