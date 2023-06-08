@@ -267,6 +267,7 @@ def test_extract(tracer):
         assert span.parent_id == 5678
         assert span.context.sampling_priority == 1
         assert span.context.dd_origin == "synthetics"
+        assert span.get_baggage_item("key1") == "value1"
         assert span.context._meta == {
             "_dd.origin": "synthetics",
             "_dd.p.test": "value",
