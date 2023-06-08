@@ -16,6 +16,7 @@
       "http.status_msg": "OK",
       "http.url": "http://localhost:8001/status/200",
       "language": "python",
+      "out.host": "localhost",
       "runtime-id": "190046d5f5024712a5fbc3c5095b6308",
       "span.kind": "client"
     },
