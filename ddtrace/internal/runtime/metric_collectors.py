@@ -67,9 +67,9 @@ class PSUtilRuntimeMetricCollector(RuntimeMetricCollector):
         self.stored_values = {key: 0 for key in self.delta_funs.keys()}
 
     def collect_fn(self, keys):
-        metrics = {}
-
         with self.proc.oneshot():
+            metrics = {}
+
             # Populate metrics for which we compute delta values
             for metric, func in self.delta_funs.items():
                 try:
@@ -77,9 +77,9 @@ class PSUtilRuntimeMetricCollector(RuntimeMetricCollector):
                 except Exception:
                     value = 0
 
-            delta = value - self.stored_values.get(metric, 0)
-            self.stored_values[metric] = value
-            metrics[metric] = delta
+                delta = value - self.stored_values.get(metric, 0)
+                self.stored_values[metric] = value
+                metrics[metric] = delta
 
             # Populate metrics that just take instantaneous reading
             for metric, fun in self.abs_funs.items():
@@ -88,6 +88,6 @@ class PSUtilRuntimeMetricCollector(RuntimeMetricCollector):
                 except Exception:
                     value = 0
 
-            metrics[metric] = value
+                metrics[metric] = value
 
             return metrics
