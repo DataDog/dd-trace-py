@@ -38,6 +38,7 @@
          "http.status_code": "200",
          "http.status_msg": "OK",
          "http.url": "http://localhost:8001/status/200",
+         "out.host": "localhost",
          "span.kind": "client"
        },
        "duration": 7148000,
