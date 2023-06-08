@@ -50,19 +50,19 @@ class PSUtilRuntimeMetricCollector(RuntimeMetricCollector):
     """
 
     required_modules = ["ddtrace.vendor.psutil"]
-    metric_funs = dict(
-        CPU_TIME_SYS=lambda p: p.cpu_times().system,
-        CPU_TIME_USER=lambda p: p.cpu_times().user,
-        CPU_PERCENT=lambda p: p.cpu_percent(),
-        CTX_SWITCH_VOLUNTARY=lambda p: p.num_ctx_switches().voluntary,
-        CTX_SWITCH_INVOLTUNARY=lambda p: p.num_ctx_switches().involuntary,
-        THREAD_COUNT=lambda p: p.num_threads(),
-        MEM_RSS=lambda p: p.memory_info().rss,
-    )
-    stored_values = {key 0 for key in metric_funs.keys()}
+    metric_funs = {
+        CPU_TIME_SYS:lambda p: p.cpu_times().system,
+        CPU_TIME_USER:lambda p: p.cpu_times().user,
+        CPU_PERCENT:lambda p: p.cpu_percent(),
+        CTX_SWITCH_VOLUNTARY:lambda p: p.num_ctx_switches().voluntary,
+        CTX_SWITCH_INVOLUNTARY:lambda p: p.num_ctx_switches().involuntary,
+        THREAD_COUNT:lambda p: p.num_threads(),
+        MEM_RSS:lambda p: p.memory_info().rss,
+    }
 
     def _on_modules_load(self):
         self.proc = self.modules["ddtrace.vendor.psutil"].Process(os.getpid())
+        self.stored_values = {key: 0 for key in self.metric_funs.keys()}
 
     def collect_fn(self, keys):
         # only return time deltas
@@ -70,13 +70,13 @@ class PSUtilRuntimeMetricCollector(RuntimeMetricCollector):
 
         with self.proc.oneshot():
             for metric, func in self.metric_funs.items():
-            try:
-                value = func(proc)
-            except Exception:
-                value = 0
+                try:
+                    value = func(self.proc)
+                except Exception:
+                    value = 0
 
-            delta = value - stored_values.get(metric, 0)
-            stored_values[metric] = total_value
+            delta = value - self.stored_values.get(metric, 0)
+            self.stored_values[metric] = value
             metrics[metric] = delta
 
             return metrics
