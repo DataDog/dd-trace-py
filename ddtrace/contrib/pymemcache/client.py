@@ -174,63 +174,71 @@ class WrappedHashClient(wrapt.ObjectProxy):
         pin.onto(self)
 
     def set(self, key, *args, **kwargs):
-        return self._choose_impl("set", key, False, *args, **kwargs)
+        return self._ensure_traced("set", key, False, *args, **kwargs)
 
     def add(self, key, *args, **kwargs):
-        return self._choose_impl("add", key, False, *args, **kwargs)
+        return self._ensure_traced("add", key, False, *args, **kwargs)
 
     def replace(self, key, *args, **kwargs):
-        return self._choose_impl("replace", key, False, *args, **kwargs)
+        return self._ensure_traced("replace", key, False, *args, **kwargs)
 
     def append(self, key, *args, **kwargs):
-        return self._choose_impl("append", key, False, *args, **kwargs)
+        return self._ensure_traced("append", key, False, *args, **kwargs)
 
     def prepend(self, key, *args, **kwargs):
-        return self._choose_impl("prepend", key, False, *args, **kwargs)
+        return self._ensure_traced("prepend", key, False, *args, **kwargs)
 
     def cas(self, key, *args, **kwargs):
-        return self._choose_impl("cas", key, False, *args, **kwargs)
+        return self._ensure_traced("cas", key, False, *args, **kwargs)
 
     def get(self, key, *args, **kwargs):
-        return self._choose_impl("get", key, None, *args, **kwargs)
+        return self._ensure_traced("get", key, None, *args, **kwargs)
 
     def gets(self, key, *args, **kwargs):
-        return self._choose_impl("gets", key, None, *args, **kwargs)
+        return self._ensure_traced("gets", key, None, *args, **kwargs)
 
     def delete(self, key, *args, **kwargs):
-        return self._choose_impl("delete", key, False, *args, **kwargs)
+        return self._ensure_traced("delete", key, False, *args, **kwargs)
 
     def incr(self, key, *args, **kwargs):
-        return self._choose_impl("incr", key, False, *args, **kwargs)
+        return self._ensure_traced("incr", key, False, *args, **kwargs)
 
     def decr(self, key, *args, **kwargs):
-        return self._choose_impl("decr", key, False, *args, **kwargs)
+        return self._ensure_traced("decr", key, False, *args, **kwargs)
 
     def touch(self, key, *args, **kwargs):
-        return self._choose_impl("touch", key, False, *args, **kwargs)
+        return self._ensure_traced("touch", key, False, *args, **kwargs)
 
-    def _choose_impl(self, cmd, key, default_val, *args, **kwargs):
-        client = self._get_client(key)
-        if isinstance(client, PooledClient):
-            return self._traced_cmd(cmd, key, default_val, *args, **kwargs)
+    def _ensure_traced(self, cmd, key, default_val, *args, **kwargs):
+        """
+        PooledClient creates Client instances dynamically on request, which means
+        those Client instances aren't affected by the wrappers applied in patch().
+        We handle this case here by calling trace() before running the command,
+        specifically when the client that will be used for the command is a
+        PooledClient.
+
+        To avoid double-tracing when the key's client is not a PooledClient, we
+        proxy the call to the __wrapped__ Client instance.
+        """
+        client_for_key = self._get_client(key)
+        if isinstance(client_for_key, PooledClient):
+            return self._traced_cmd(cmd, client_for_key, key, default_val, *args, **kwargs)
         else:
             return getattr(self.__wrapped__, cmd)(key, *args, **kwargs)
 
-    def _traced_cmd(self, cmd, key, default_val, *args, **kwargs):
-        client = self._get_client(key)
-
+    def _traced_cmd(self, cmd, client, key, default_val, *args, **kwargs):
         if client is None:
             return default_val
 
         func = getattr(client, cmd)
         args = list(args)
         args.insert(0, key)
+
         p = Pin.get_from(self)
 
         def _do_run():
             return self._safely_run_func(client, func, default_val, *args, **kwargs)
 
-        # if the pin does not exist or is not enabled, shortcut
         if not p or not p.enabled():
             return _do_run()
 
