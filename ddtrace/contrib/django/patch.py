@@ -788,6 +788,7 @@ def traced_login(django, pin, func, instance, args, kwargs):
 
             with pin.tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
                 from ddtrace.contrib.django.compat import user_is_authenticated
+
                 if user_is_authenticated(user):
                     session_key = getattr(request, "session_key", None)
                     track_user_login_success_event(
