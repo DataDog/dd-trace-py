@@ -55,7 +55,7 @@ class Context(object):
     ):
         self._meta = meta if meta is not None else {}  # type: _MetaDictType
         self._metrics = metrics if metrics is not None else {}  # type: _MetricDictType
-        self._baggage = baggage if baggage is not None else {}  # type: Dict[str, Any]
+        self._baggage = baggage if baggage is not None else {}  # type: dict[str, str]
 
         self.trace_id = trace_id  # type: Optional[int]
         self.span_id = span_id  # type: Optional[int]
@@ -213,7 +213,7 @@ class Context(object):
 
     @property
     def baggage(self):
-        # type: () -> Dict[str, Any]
+        # type: () -> dict[str, str]
         return self._baggage
 
     def set_baggage_item(self, key, value):

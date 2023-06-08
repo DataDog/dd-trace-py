@@ -22,6 +22,7 @@ from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounter
 from ddtrace.internal.processor.trace import SpanAggregator
 from ddtrace.internal.processor.trace import SpanProcessor
 from ddtrace.internal.processor.trace import SpanSamplingProcessor
+from ddtrace.internal.processor.trace import TraceBaggageProcessor
 from ddtrace.internal.processor.trace import TraceProcessor
 from ddtrace.internal.processor.trace import TraceTagsProcessor
 from ddtrace.internal.processor.truncator import DEFAULT_SERVICE_NAME
