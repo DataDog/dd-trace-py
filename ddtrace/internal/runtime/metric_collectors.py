@@ -64,13 +64,19 @@ class PSUtilRuntimeMetricCollector(RuntimeMetricCollector):
         with self.proc.oneshot():
             # only return time deltas
             # TODO[tahir]: better abstraction for metrics based on last value
-            cpu_time_sys_total = self.proc.cpu_times().system
-            cpu_time_user_total = self.proc.cpu_times().user
+            try:
+                cpu_time_sys_total = self.proc.cpu_times().system
+                cpu_time_user_total = self.proc.cpu_times().user
+            except:
+                cpu_time_sys_total = cpu_time_user_total = 0
             cpu_time_sys = cpu_time_sys_total - self.stored_value["CPU_TIME_SYS_TOTAL"]
             cpu_time_user = cpu_time_user_total - self.stored_value["CPU_TIME_USER_TOTAL"]
 
-            ctx_switch_voluntary_total = self.proc.num_ctx_switches().voluntary
-            ctx_switch_involuntary_total = self.proc.num_ctx_switches().involuntary
+            try:
+                ctx_switch_voluntary_total = self.proc.num_ctx_switches().voluntary
+                ctx_switch_involuntary_total = self.proc.num_ctx_switches().involuntary
+            except:
+                ctx_switch_voluntary_total = ctx_switch_involuntary_total = 0
             ctx_switch_voluntary = ctx_switch_voluntary_total - self.stored_value["CTX_SWITCH_VOLUNTARY_TOTAL"]
             ctx_switch_involuntary = ctx_switch_involuntary_total - self.stored_value["CTX_SWITCH_INVOLUNTARY_TOTAL"]
 
