@@ -64,17 +64,7 @@ class Span(OpenTracingSpan):
     def set_baggage_item(self, key, value):
         # type: (str, Any) -> Span
         """Sets a baggage item in the span context of this span.
-
         Baggage is used to propagate state between spans.
-
-        :param key: baggage item key
-        :type key: str
-
-        :param value: baggage item value
-        :type value: a type that can be compat.stringify()'d
-
-        :rtype: Span
-        :return: itself for chaining calls
         """
         new_ctx = self.context.with_baggage_item(key, value)
         with self._lock:
