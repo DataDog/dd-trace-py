@@ -62,7 +62,7 @@ class MetricNamespace:
             return True
         return False
 
-    def _add_metric(self, metric_type, namespace, name, value=1.0, tags={}, interval=None):
+    def _add_metric(self, metric_type, namespace, name, value=1.0, tags=tuple(), interval=None):
         # type: (MetricType, str,str, float, MetricTagType, Optional[float]) -> None
         """
         Telemetry Metrics are stored in DD dashboards, check the metrics in datadoghq.com/metric/explorer.

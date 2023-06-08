@@ -47,12 +47,12 @@ def _assert_generate_metrics(metrics_result, is_rule_triggered=False, is_blocked
     assert len(generate_metrics) == 2, "Expected 2 generate_metrics"
     for metric_id, metric in generate_metrics.items():
         if metric.name == "waf.requests":
-            assert metric._tags["rule_triggered"] == str(is_rule_triggered).lower()
-            assert metric._tags["request_blocked"] == str(is_blocked_request).lower()
+            assert ("rule_triggered", str(is_rule_triggered).lower()) in metric._tags
+            assert ("request_blocked", str(is_blocked_request).lower()) in metric._tags
             # assert metric._tags["request_truncated"] is False
-            assert metric._tags["waf_timeout"] == "false"
-            assert len(metric._tags["waf_version"]) > 0
-            assert len(metric._tags["event_rules_version"]) > 0
+            assert ("waf_timeout", "false") in metric._tags
+            assert ("waf_version", version()) in metric._tags
+            assert any("event_rules_version" in k for k, v in metric._tags)
         elif metric.name == "waf.init":
             assert len(metric._points) == 1
         else:

@@ -25,11 +25,13 @@ def _set_waf_error_metric(msg, stack_trace, info):
 
 def _set_waf_updates_metric(info):
     try:
-        tags = {
-            "waf_version": version(),
-        }
         if info and info.version:
-            tags["event_rules_version"] = info.version
+            tags = (
+                ("event_rules_version", info.version),
+                ("waf_version", version()),
+            )
+        else:
+            tags = (("waf_version", version()),)
 
         telemetry_metrics_writer.add_count_metric(
             TELEMETRY_NAMESPACE_TAG_APPSEC,
@@ -43,11 +45,18 @@ def _set_waf_updates_metric(info):
 
 def _set_waf_init_metric(info):
     try:
-        tags = {
-            "waf_version": version(),
-        }
         if info and info.version:
-            tags["event_rules_version"] = info.version
+            tags = (
+                ("event_rules_version", info.version),
+                ("waf_version", version()),
+            )
+        else:
+            tags = (
+                (
+                    "waf_version",
+                    version(),
+                ),
+            )
 
         telemetry_metrics_writer.add_count_metric(
             TELEMETRY_NAMESPACE_TAG_APPSEC,
@@ -70,16 +79,24 @@ def _set_waf_request_metrics():
             # is_truncation = any((result.truncation for result in list_results))
             has_info = any(list_result_info)
 
-            tags_request = {
-                "waf_version": version(),
-                "rule_triggered": is_triggered,
-                "request_blocked": is_blocked,
-                "waf_timeout": is_timeout,
-                # "request_truncated": is_truncation,
-            }
-
             if has_info and list_result_info[0].version:
-                tags_request["event_rules_version"] = list_result_info[0].version
+                tags_request = (
+                    (
+                        "event_rules_version",
+                        list_result_info[0].version,
+                    ),
+                    ("waf_version", version()),
+                    ("rule_triggered", str(is_triggered).lower()),
+                    ("request_blocked", str(is_blocked).lower()),
+                    ("waf_timeout", str(is_timeout).lower()),
+                )
+            else:
+                tags_request = (
+                    ("waf_version", version()),
+                    ("rule_triggered", str(is_triggered).lower()),
+                    ("request_blocked", str(is_blocked).lower()),
+                    ("waf_timeout", str(is_timeout).lower()),
+                )
 
             telemetry_metrics_writer.add_count_metric(
                 TELEMETRY_NAMESPACE_TAG_APPSEC,
