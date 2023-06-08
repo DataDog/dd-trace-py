@@ -255,7 +255,7 @@ def test_extract(tracer):
         "x-datadog-sampling-priority": "1",
         "x-datadog-origin": "synthetics",
         "x-datadog-tags": "_dd.p.test=value,any=tag",
-        "ot-baggage-key1": "value1"
+        "ot-baggage-key1": "value1",
     }
 
     context = HTTPPropagator.extract(headers)
