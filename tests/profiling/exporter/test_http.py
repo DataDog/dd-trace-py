@@ -216,11 +216,8 @@ def test_export_server_down():
         max_retry_delay=2,
         endpoint_call_counter_span_processor=_get_span_processor(),
     )
-    with pytest.raises(http.UploadFailed) as t:
+    with pytest.raises(EnvironmentError):
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
-    e = t.value.last_attempt.exception()
-    assert isinstance(e, (IOError, OSError))
-    assert str(t.value).startswith("[Errno ") or str(t.value).startswith("[WinError ")
 
 
 def test_export_timeout(endpoint_test_timeout_server):
@@ -231,11 +228,8 @@ def test_export_timeout(endpoint_test_timeout_server):
         max_retry_delay=2,
         endpoint_call_counter_span_processor=_get_span_processor(),
     )
-    with pytest.raises(http.UploadFailed) as t:
+    with pytest.raises((TimeoutError, socket.timeout) if six.PY3 else socket.error):
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
-    e = t.value.last_attempt.exception()
-    assert isinstance(e, socket.timeout)
-    assert str(t.value) == "timed out"
 
 
 def test_export_reset(endpoint_test_reset_server):
@@ -246,14 +240,8 @@ def test_export_reset(endpoint_test_reset_server):
         max_retry_delay=2,
         endpoint_call_counter_span_processor=_get_span_processor(),
     )
-    with pytest.raises(http.UploadFailed) as t:
+    with pytest.raises(ConnectionResetError if six.PY3 else http_client.BadStatusLine):
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
-    e = t.value.last_attempt.exception()
-    if six.PY3:
-        assert isinstance(e, ConnectionResetError)
-    else:
-        assert isinstance(e, http_client.BadStatusLine)
-        assert str(e) == "No status line received - the server has closed the connection"
 
 
 def test_export_404_agent(endpoint_test_unknown_server):
