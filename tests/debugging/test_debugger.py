@@ -638,7 +638,7 @@ def test_probe_status_logging(monkeypatch, remote_config_worker):
     RemoteConfigClient.request = request
     assert remoteconfig_poller.status == ServiceStatus.STOPPED
     try:
-        with rcm_endpoint(), debugger(diagnostics_interval=0.5) as d:
+        with rcm_endpoint(), debugger(diagnostics_interval=0.5, enabled=True) as d:
             d.add_probes(
                 create_snapshot_line_probe(
                     probe_id="line-probe-ok",
@@ -693,7 +693,7 @@ def test_probe_status_logging_reemit_on_modify(monkeypatch, remote_config_worker
     RemoteConfigClient.request = request
     assert remoteconfig_poller.status == ServiceStatus.STOPPED
     try:
-        with rcm_endpoint(), debugger(diagnostics_interval=0.3) as d:
+        with rcm_endpoint(), debugger(diagnostics_interval=0.3, enabled=True) as d:
             d.add_probes(
                 create_snapshot_line_probe(
                     version=1,

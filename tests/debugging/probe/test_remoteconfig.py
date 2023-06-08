@@ -107,7 +107,7 @@ def test_poller_env_version(env, version, expected, remote_config_worker, mock_c
         )
 
         adapter = ProbeRCAdapter(None, callback)
-        remoteconfig_poller.register("TEST", adapter)
+        remoteconfig_poller.register("TEST", adapter, skip_enabled=True)
         adapter.append_and_publish({"test": random.randint(0, 11111111)}, "", config_metadata())
         remoteconfig_poller._poll_data()
 
@@ -539,7 +539,7 @@ def test_modified_probe_events(remote_config_worker, mock_config):
     try:
         adapter = ProbeRCAdapter(None, cb)
         # Wait to allow the next call to the adapter to generate a status event
-        remoteconfig_poller.register("TEST", adapter)
+        remoteconfig_poller.register("TEST", adapter, skip_enabled=True)
         sleep(0.5)
         adapter.append_and_publish({"test": 5}, "", metadata)
         remoteconfig_poller._poll_data()
