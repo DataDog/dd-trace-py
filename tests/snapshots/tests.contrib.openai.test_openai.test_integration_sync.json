@@ -53,6 +53,7 @@
          "http.status_code": "200",
          "http.url": "https://api.openai.com/v1/completions",
          "http.useragent": "OpenAI/v1 PythonBindings/0.27.6",
+         "out.host": "api.openai.com",
          "span.kind": "client"
        },
        "metrics": {
