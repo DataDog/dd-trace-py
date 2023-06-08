@@ -115,6 +115,7 @@ class Context(object):
     def _update_baggage_items(self, span):
         with self._lock:
             span._meta.update(self._baggage)
+
     @property
     def sampling_priority(self):
         # type: () -> Optional[NumericType]
@@ -212,10 +213,12 @@ class Context(object):
             else:
                 value = str(base64.b64encode(bytes(value)))
             self._meta[USER_ID_KEY] = value
+
     @property
     def baggage(self):
         # type: () -> Dict[str, Any]
         return self._baggage
+
 
     def set_baggage_item(self, key, value):
         # type: (str, Any) -> None
