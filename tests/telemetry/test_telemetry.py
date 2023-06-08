@@ -200,7 +200,7 @@ tracer.trace("hello").finish()
     assert events[2]["request_type"] == "app-started"
     assert events[2]["payload"]["error"]["code"] == 1
     pattern = re.compile(
-        ".*ddtrace/internal/processor/trace.py/trace.py:\d+: error applying processor FailingFilture()"
+        ".*ddtrace/internal/processor/trace.py/trace.py:[0-9]+: error applying processor FailingFilture()"
     )
     assert pattern.match(events[2]["payload"]["error"]["message"]), events[2]["payload"]["error"]["message"]
 
