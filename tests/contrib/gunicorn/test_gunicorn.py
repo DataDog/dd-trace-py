@@ -6,12 +6,12 @@ import sys
 import time
 from typing import Dict
 from typing import NamedTuple
-from typing import Optional  # noqa
+from typing import Optional
 
 import pytest
-import tenacity
 
 from ddtrace.internal import compat
+from ddtrace.internal.utils.retry import RetryError  # noqa
 from tests.webclient import Client
 
 
@@ -126,7 +126,7 @@ def gunicorn_server(gunicorn_server_settings, tmp_path):
             print("Waiting for server to start")
             client.wait(max_tries=100, delay=0.1)
             print("Server started")
-        except tenacity.RetryError:
+        except RetryError:
             raise TimeoutError("Server failed to start, see stdout and stderr logs")
         time.sleep(SERVICE_INTERVAL)
         yield server_process, client
