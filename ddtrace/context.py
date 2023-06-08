@@ -109,7 +109,6 @@ class Context(object):
             for metric in self._metrics:
                 span._metrics.setdefault(metric, self._metrics[metric])
 
-
     @property
     def sampling_priority(self):
         # type: () -> Optional[NumericType]
