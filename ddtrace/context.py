@@ -248,10 +248,10 @@ class Context(object):
         if isinstance(other, Context):
             with self._lock:
                 return (
-                        self.trace_id == other.trace_id
-                        and self.span_id == other.span_id
-                        and self._meta == other._meta
-                        and self._metrics == other._metrics
+                    self.trace_id == other.trace_id
+                    and self.span_id == other.span_id
+                    and self._meta == other._meta
+                    and self._metrics == other._metrics
                 )
         return False
 
