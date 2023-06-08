@@ -386,9 +386,8 @@ class RemoteConfigClient(object):
         if callback not in list_callbacks and not any(filter(lambda x: x is callback, list_callbacks)):
             list_callbacks.append(callback)
 
-    def _remove_previously_applied_configurations(self, applied_configs, client_configs, targets):
-        # type: (AppliedConfigType, TargetsType, TargetsType) -> None
-        list_callbacks = []  # type: List[PubSub]
+    def _remove_previously_applied_configurations(self, list_callbacks, applied_configs, client_configs, targets):
+        # type: (List[PubSub], AppliedConfigType, TargetsType, TargetsType) -> None
         for target, config in self._applied_configs.items():
             if target in client_configs and targets.get(target) == config:
                 # The configuration has not changed.
@@ -408,12 +407,8 @@ class RemoteConfigClient(object):
                     log.debug("error while removing product %s config %r", config.product_name, config)
                     continue
 
-        for callback_to_dispach in list_callbacks:
-            callback_to_dispach.publish()
-
-    def _load_new_configurations(self, applied_configs, client_configs, payload):
-        # type: (AppliedConfigType, TargetsType, AgentPayload) -> None
-        list_callbacks = []  # type: List[PubSub]
+    def _load_new_configurations(self, list_callbacks, applied_configs, client_configs, payload):
+        # type: (List[PubSub], AppliedConfigType, TargetsType, AgentPayload) -> None
         for target, config in client_configs.items():
             callback = self._products.get(config.product_name)
             if callback:
@@ -438,9 +433,6 @@ class RemoteConfigClient(object):
                 else:
                     config.apply_state = 2  # Acknowledged (applied)
                     applied_configs[target] = config
-
-        for callback_to_dispach in list_callbacks:
-            callback_to_dispach.publish()
 
     def _add_apply_config_to_cache(self):
         if self._applied_configs:
@@ -477,10 +469,14 @@ class RemoteConfigClient(object):
                     "target file %s not exists in client_config and signed targets" % (target.path,)
                 )
 
+    def _publish_configuration(self, list_callbacks):
+        # type: (List[PubSub]) -> None
+        for callback_to_dispach in list_callbacks:
+            callback_to_dispach.publish()
+
     def _process_response(self, data):
         # type: (Mapping[str, Any]) -> None
         try:
-            # log.debug("response payload: %r", data)
             payload = self.converter.structure_attrs_fromdict(data, AgentPayload)
         except Exception:
             log.debug("invalid agent payload received: %r", data, exc_info=True)
@@ -506,10 +502,13 @@ class RemoteConfigClient(object):
 
         # 2. Remove previously applied configurations
         applied_configs = dict()  # type: AppliedConfigType
-        self._remove_previously_applied_configurations(applied_configs, client_configs, targets)
+        list_callbacks = []  # type: List[PubSub]
+        self._remove_previously_applied_configurations(list_callbacks, applied_configs, client_configs, targets)
 
         # 3. Load new configurations
-        self._load_new_configurations(applied_configs, client_configs, payload)
+        self._load_new_configurations(list_callbacks, applied_configs, client_configs, payload)
+
+        self._publish_configuration(list_callbacks)
 
         self._last_targets_version = last_targets_version
         self._applied_configs = applied_configs

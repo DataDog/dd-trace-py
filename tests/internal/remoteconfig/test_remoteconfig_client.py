@@ -52,7 +52,9 @@ def test_load_new_configurations_update_applied_configs(mock_extract_target_file
     rc_client = RemoteConfigClient()
     rc_client.register_product("ASM_FEATURES", mock_callback)
 
-    rc_client._load_new_configurations(applied_configs, client_configs, payload=payload)
+    list_callbacks = []
+    rc_client._load_new_configurations(list_callbacks, applied_configs, client_configs, payload=payload)
+    rc_client._publish_configuration(list_callbacks)
 
     mock_extract_target_file.assert_called_with(payload, "mock/ASM_FEATURES", mock_config)
     mock_callback.append.assert_called_once_with(mock_config_content, "mock/ASM_FEATURES", mock_config)
@@ -96,8 +98,12 @@ def test_load_new_configurations_dispatch_applied_configs(mock_extract_target_fi
     rc_client.register_product("ASM_DATA", asm_callback)
     rc_client.register_product("ASM_FEATURES", asm_callback)
     asm_callback.start_subscriber()
-    rc_client._load_new_configurations(applied_configs, client_configs, payload=payload)
+
+    list_callbacks = []
+    rc_client._load_new_configurations(list_callbacks, applied_configs, client_configs, payload=payload)
+    rc_client._publish_configuration(list_callbacks)
     time.sleep(0.5)
+
     mock_callback.assert_called_once_with({"metadata": {}, "config": expected_results, "shared_data_counter": ANY})
     assert applied_configs == client_configs
     rc_client._products = {}
@@ -117,7 +123,9 @@ def test_load_new_configurations_config_exists(mock_extract_target_file):
     rc_client.register_product("ASM_FEATURES", mock_callback)
     rc_client._applied_configs = {"mock/ASM_FEATURES": mock_config}
 
-    rc_client._load_new_configurations(applied_configs, client_configs, payload=payload)
+    list_callbacks = []
+    rc_client._load_new_configurations(list_callbacks, applied_configs, client_configs, payload=payload)
+    rc_client._publish_configuration(list_callbacks)
 
     mock_extract_target_file.assert_not_called()
     mock_callback.assert_not_called()
@@ -137,7 +145,9 @@ def test_load_new_configurations_error_extract_target_file(mock_extract_target_f
     rc_client = RemoteConfigClient()
     rc_client.register_product("ASM_FEATURES", mock_callback)
 
-    rc_client._load_new_configurations(applied_configs, client_configs, payload=payload)
+    list_callbacks = []
+    rc_client._load_new_configurations(list_callbacks, applied_configs, client_configs, payload=payload)
+    rc_client._publish_configuration(list_callbacks)
 
     mock_extract_target_file.assert_called_with(payload, "mock/ASM_FEATURES", mock_config)
     mock_callback.assert_not_called()
@@ -163,7 +173,9 @@ def test_load_new_configurations_error_callback(mock_extract_target_file):
     rc_client = RemoteConfigClient()
     rc_client.register_product("ASM_FEATURES", exception_callback)
 
-    rc_client._load_new_configurations(applied_configs, client_configs, payload=payload)
+    list_callbacks = []
+    rc_client._load_new_configurations(list_callbacks, applied_configs, client_configs, payload=payload)
+    rc_client._publish_configuration(list_callbacks)
 
     mock_extract_target_file.assert_called_with(payload, "mock/ASM_FEATURES", mock_config)
 

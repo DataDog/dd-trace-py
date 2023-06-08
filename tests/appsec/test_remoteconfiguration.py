@@ -222,8 +222,9 @@ def test_load_new_configurations_dispatch_applied_configs(
                 tuf_version=5,
             ),
         }
-
-        remoteconfig_poller._client._load_new_configurations({}, client_configs, payload=payload)
+        list_callbacks = []
+        remoteconfig_poller._client._load_new_configurations(list_callbacks, {}, client_configs, payload=payload)
+        remoteconfig_poller._client._publish_configuration(list_callbacks)
         remoteconfig_poller._poll_data()
         mock_appsec_rules_data.assert_called_with({"asm": {"enabled": True}, "data": [{"test": "data"}]}, None)
 
@@ -262,8 +263,10 @@ def test_load_new_configurations_empty_config(
                 tuf_version=5,
             ),
         }
+        list_callbacks = []
+        remoteconfig_poller._client._load_new_configurations(list_callbacks, {}, client_configs, payload=payload)
+        remoteconfig_poller._client._publish_configuration(list_callbacks)
 
-        remoteconfig_poller._client._load_new_configurations({}, client_configs, payload=payload)
         remoteconfig_poller._poll_data()
         mock_appsec_rules_data.assert_called_with({"asm": {"enabled": True}, "data": []}, None)
 
@@ -307,7 +310,9 @@ def test_load_new_configurations_remove_config_and_dispatch_applied_configs(
     mock_preprocess_results_appsec_1click_activation.return_value = {"asm": {"enabled": False}}
 
     remoteconfig_poller._client._applied_configs = client_configs
-    remoteconfig_poller._client._remove_previously_applied_configurations({}, {}, [])
+    list_callbacks = []
+    remoteconfig_poller._client._remove_previously_applied_configurations(list_callbacks, {}, {}, [])
+    remoteconfig_poller._client._publish_configuration(list_callbacks)
 
     remoteconfig_poller._poll_data()
 
@@ -322,7 +327,8 @@ def test_load_new_configurations_remove_config_and_dispatch_applied_configs(
     # applied_config = self._applied_configs.get(target)
     # if applied_config == config:
     #     continue
-    remoteconfig_poller._client._load_new_configurations({}, client_configs, payload=payload)
+    remoteconfig_poller._client._load_new_configurations(list_callbacks, {}, client_configs, payload=payload)
+    remoteconfig_poller._client._publish_configuration(list_callbacks)
     remoteconfig_poller._poll_data()
     mock_appsec_rules_data.assert_not_called()  # ({"asm": {"enabled": False}}, None)
     mock_appsec_1click_activation.assert_not_called()  # ({"asm": {"enabled": False}}, None)
@@ -358,11 +364,13 @@ def test_load_new_configurations_remove_config_and_dispatch_applied_configs_erro
             tuf_version=5,
         ),
     }
-
+    list_callbacks = []
     remoteconfig_poller._client._applied_configs = client_configs
-    remoteconfig_poller._client._remove_previously_applied_configurations({}, {}, [])
+    remoteconfig_poller._client._remove_previously_applied_configurations(list_callbacks, {}, {}, [])
+    remoteconfig_poller._client._publish_configuration(list_callbacks)
 
-    remoteconfig_poller._client._load_new_configurations({}, client_configs, payload=payload)
+    remoteconfig_poller._client._load_new_configurations(list_callbacks, {}, client_configs, payload=payload)
+    remoteconfig_poller._client._publish_configuration(list_callbacks)
 
 
 @pytest.mark.skipif(sys.version_info[:2] < (3, 6), reason="Mock return order is different in python <= 3.5")
@@ -407,8 +415,9 @@ def test_load_multiple_targets_file_same_product(
                 tuf_version=5,
             ),
         }
-
-        remoteconfig_poller._client._load_new_configurations({}, client_configs, payload=payload)
+        list_callbacks = []
+        remoteconfig_poller._client._load_new_configurations(list_callbacks, {}, client_configs, payload=payload)
+        remoteconfig_poller._client._publish_configuration(list_callbacks)
         remoteconfig_poller._poll_data()
         mock_appsec_rules_data.assert_called_with({"asm": {"enabled": True}, "data": [{"a": 1}, {"b": 2}]}, None)
 
@@ -485,18 +494,26 @@ def test_load_new_config_and_remove_targets_file_same_product(
                 tuf_version=5,
             )
         }
-        remoteconfig_poller._client._remove_previously_applied_configurations({}, first_config, {})
-
-        remoteconfig_poller._client._load_new_configurations(applied_configs, first_config, payload=payload)
+        list_callbacks = []
+        remoteconfig_poller._client._remove_previously_applied_configurations(list_callbacks, {}, first_config, {})
+        remoteconfig_poller._client._load_new_configurations(
+            list_callbacks, applied_configs, first_config, payload=payload
+        )
+        remoteconfig_poller._client._publish_configuration(list_callbacks)
         remoteconfig_poller._client._applied_configs = applied_configs
         remoteconfig_poller._poll_data()
+
         mock_appsec_rules_data.assert_not_called()  # ({"asm": {"enabled": True}, "data": [{"a": 1}, {"b": 2}]}, None)
         mock_appsec_rules_data.reset_mock()
 
-        remoteconfig_poller._client._remove_previously_applied_configurations({}, second_config, target_file)
-
-        remoteconfig_poller._client._load_new_configurations({}, second_config, payload=payload)
+        list_callbacks = []
+        remoteconfig_poller._client._remove_previously_applied_configurations(
+            list_callbacks, {}, second_config, target_file
+        )
+        remoteconfig_poller._client._load_new_configurations(list_callbacks, {}, second_config, payload=payload)
+        remoteconfig_poller._client._publish_configuration(list_callbacks)
         remoteconfig_poller._poll_data()
+
         mock_appsec_rules_data.assert_called_with({"asm": {"enabled": True}, "data": [{"a": 1}]}, None)
 
 
@@ -567,18 +584,26 @@ def test_fullpath_appsec_rules_data(mock_update_rules, remote_config_worker, tra
                 tuf_version=5,
             )
         }
-        remoteconfig_poller._client._remove_previously_applied_configurations({}, first_config, {})
-
-        remoteconfig_poller._client._load_new_configurations(applied_configs, first_config, payload=payload)
+        list_callbacks = []
+        remoteconfig_poller._client._remove_previously_applied_configurations(list_callbacks, {}, first_config, {})
+        remoteconfig_poller._client._load_new_configurations(
+            list_callbacks, applied_configs, first_config, payload=payload
+        )
         remoteconfig_poller._client._applied_configs = applied_configs
+        remoteconfig_poller._client._publish_configuration(list_callbacks)
         remoteconfig_poller._poll_data()
+
         mock_update_rules.assert_called_with({"exclusions": [{"a": 1}, {"b": 2}]})
         mock_update_rules.reset_mock()
 
-        remoteconfig_poller._client._remove_previously_applied_configurations({}, second_config, target_file)
-
-        remoteconfig_poller._client._load_new_configurations({}, second_config, payload=payload)
+        list_callbacks = []
+        remoteconfig_poller._client._remove_previously_applied_configurations(
+            list_callbacks, {}, second_config, target_file
+        )
+        remoteconfig_poller._client._load_new_configurations(list_callbacks, {}, second_config, payload=payload)
+        remoteconfig_poller._client._publish_configuration(list_callbacks)
         remoteconfig_poller._poll_data()
+
         mock_update_rules.assert_called_with({"exclusions": [{"a": 1}]})
 
 
@@ -633,18 +658,26 @@ def test_fullpath_appsec_rules_data_empty_data(mock_update_rules, remote_config_
                 tuf_version=5,
             )
         }
-        remoteconfig_poller._client._remove_previously_applied_configurations({}, first_config, {})
-
-        remoteconfig_poller._client._load_new_configurations(applied_configs, first_config, payload=payload)
+        list_callbacks = []
+        remoteconfig_poller._client._remove_previously_applied_configurations(list_callbacks, {}, first_config, {})
+        remoteconfig_poller._client._load_new_configurations(
+            list_callbacks, applied_configs, first_config, payload=payload
+        )
         remoteconfig_poller._client._applied_configs = applied_configs
+        remoteconfig_poller._client._publish_configuration(list_callbacks)
         remoteconfig_poller._poll_data(tracer)
+
         mock_update_rules.assert_called_with({"exclusions": [{"t": 1}]})
         mock_update_rules.reset_mock()
 
-        remoteconfig_poller._client._remove_previously_applied_configurations({}, second_config, target_file)
-
-        remoteconfig_poller._client._load_new_configurations({}, second_config, payload=payload)
+        list_callbacks = []
+        remoteconfig_poller._client._remove_previously_applied_configurations(
+            list_callbacks, {}, second_config, target_file
+        )
+        remoteconfig_poller._client._load_new_configurations(list_callbacks, {}, second_config, payload=payload)
+        remoteconfig_poller._client._publish_configuration(list_callbacks)
         remoteconfig_poller._poll_data(tracer)
+
         mock_update_rules.assert_not_called()
 
 
@@ -696,18 +729,26 @@ def test_fullpath_appsec_rules_data_add_delete_file(mock_update_rules, remote_co
                 tuf_version=5,
             )
         }
-        remoteconfig_poller._client._remove_previously_applied_configurations({}, first_config, {})
-
-        remoteconfig_poller._client._load_new_configurations(applied_configs, first_config, payload=payload)
+        list_callbacks = []
+        remoteconfig_poller._client._remove_previously_applied_configurations(list_callbacks, {}, first_config, {})
+        remoteconfig_poller._client._load_new_configurations(
+            list_callbacks, applied_configs, first_config, payload=payload
+        )
         remoteconfig_poller._client._applied_configs = applied_configs
+        remoteconfig_poller._client._publish_configuration(list_callbacks)
+
         remoteconfig_poller._poll_data(tracer)
         mock_update_rules.assert_called_with({"exclusions": [{"b": 1}]})
         mock_update_rules.reset_mock()
 
-        remoteconfig_poller._client._remove_previously_applied_configurations({}, second_config, target_file)
-
-        remoteconfig_poller._client._load_new_configurations({}, second_config, payload=second_payload)
+        list_callbacks = []
+        remoteconfig_poller._client._remove_previously_applied_configurations(
+            list_callbacks, {}, second_config, target_file
+        )
+        remoteconfig_poller._client._load_new_configurations(list_callbacks, {}, second_config, payload=second_payload)
+        remoteconfig_poller._client._publish_configuration(list_callbacks)
         remoteconfig_poller._poll_data(tracer)
+
         mock_update_rules.assert_called_with({"exclusions": []})
 
 
@@ -773,11 +814,15 @@ def test_load_new_empty_config_and_remove_targets_file_same_product(
             ),
         }
 
-        remoteconfig_poller._client._remove_previously_applied_configurations({}, first_config, {})
-
-        remoteconfig_poller._client._load_new_configurations(applied_configs, first_config, payload=payload)
+        list_callbacks = []
+        remoteconfig_poller._client._remove_previously_applied_configurations(list_callbacks, {}, first_config, {})
+        remoteconfig_poller._client._load_new_configurations(
+            list_callbacks, applied_configs, first_config, payload=payload
+        )
+        remoteconfig_poller._client._publish_configuration(list_callbacks)
         remoteconfig_poller._client._applied_configs = {}
         remoteconfig_poller._poll_data()
+
         mock_appsec_rules_data.assert_called_with(
             {"asm": {"enabled": True}, "data": [{"x": 1}], "data2": [{"y": 2}]}, None
         )
@@ -791,8 +836,11 @@ def test_load_new_empty_config_and_remove_targets_file_same_product(
             ]
         )
 
-        remoteconfig_poller._client._load_new_configurations({}, second_config, payload=payload)
+        list_callbacks = []
+        remoteconfig_poller._client._load_new_configurations(list_callbacks, {}, second_config, payload=payload)
+        remoteconfig_poller._client._publish_configuration(list_callbacks)
         remoteconfig_poller._poll_data()
+
         mock_appsec_rules_data.assert_called_with({"asm": {"enabled": True}, "data": [{"x": 1}], "data2": []}, None)
 
 
