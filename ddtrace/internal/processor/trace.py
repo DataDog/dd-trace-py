@@ -297,7 +297,7 @@ class PeerServiceProcessor(SpanProcessor):
             return
 
         if span.get_tag(self._config.tag_name):  # If the tag already exists, assume it is user generated
-            span.set_tag(self._config.source_tag_name, self._config.tag_name)
+            span.set_tag_str(self._config.source_tag_name, self._config.tag_name)
             return
 
         if span.get_tag(SPAN_KIND) not in self._config.enabled_span_kinds:
@@ -306,6 +306,6 @@ class PeerServiceProcessor(SpanProcessor):
         for data_source in self._config.prioritized_data_sources:
             peer_service_definition = span.get_tag(data_source)
             if peer_service_definition:
-                span.set_tag(self._config.tag_name, peer_service_definition)
-                span.set_tag(self._config.source_tag_name, data_source)
+                span.set_tag_str(self._config.tag_name, peer_service_definition)
+                span.set_tag_str(self._config.source_tag_name, data_source)
                 return
