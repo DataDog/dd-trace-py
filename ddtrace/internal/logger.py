@@ -47,7 +47,8 @@ def get_logger(name):
             placeholder = logger
             logger = DDLogger(name=name)
             manager.loggerDict[name] = logger
-            # DEV: `_fixupChildren` and `_fixupParents` have been around for awhile, but add the `hasattr` guard... just in case.
+            # DEV: `_fixupChildren` and `_fixupParents` have been around for awhile,
+            # DEV: but add the `hasattr` guard... just in case.
             if hasattr(manager, "_fixupChildren"):
                 manager._fixupChildren(placeholder, logger)
             if hasattr(manager, "_fixupParents"):
