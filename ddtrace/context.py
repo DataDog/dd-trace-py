@@ -109,9 +109,6 @@ class Context(object):
             for metric in self._metrics:
                 span._metrics.setdefault(metric, self._metrics[metric])
 
-    def _update_baggage_items(self, span):
-        with self._lock:
-            span._meta.update(self._baggage)
 
     @property
     def sampling_priority(self):
