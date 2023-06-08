@@ -174,40 +174,47 @@ class WrappedHashClient(wrapt.ObjectProxy):
         pin.onto(self)
 
     def set(self, key, *args, **kwargs):
-        return self._traced_cmd("set", key, False, *args, **kwargs)
+        return self._choose_impl("set", key, False, *args, **kwargs)
 
     def add(self, key, *args, **kwargs):
-        return self._traced_cmd("add", key, False, *args, **kwargs)
+        return self._choose_impl("add", key, False, *args, **kwargs)
 
     def replace(self, key, *args, **kwargs):
-        return self._traced_cmd("replace", key, False, *args, **kwargs)
+        return self._choose_impl("replace", key, False, *args, **kwargs)
 
     def append(self, key, *args, **kwargs):
-        return self._traced_cmd("append", key, False, *args, **kwargs)
+        return self._choose_impl("append", key, False, *args, **kwargs)
 
     def prepend(self, key, *args, **kwargs):
-        return self._traced_cmd("prepend", key, False, *args, **kwargs)
+        return self._choose_impl("prepend", key, False, *args, **kwargs)
 
     def cas(self, key, *args, **kwargs):
-        return self._traced_cmd("cas", key, False, *args, **kwargs)
+        return self._choose_impl("cas", key, False, *args, **kwargs)
 
     def get(self, key, *args, **kwargs):
-        return self._traced_cmd("get", key, None, *args, **kwargs)
+        return self._choose_impl("get", key, None, *args, **kwargs)
 
     def gets(self, key, *args, **kwargs):
-        return self._traced_cmd("gets", key, None, *args, **kwargs)
+        return self._choose_impl("gets", key, None, *args, **kwargs)
 
     def delete(self, key, *args, **kwargs):
-        return self._traced_cmd("delete", key, False, *args, **kwargs)
+        return self._choose_impl("delete", key, False, *args, **kwargs)
 
     def incr(self, key, *args, **kwargs):
-        return self._traced_cmd("incr", key, False, *args, **kwargs)
+        return self._choose_impl("incr", key, False, *args, **kwargs)
 
     def decr(self, key, *args, **kwargs):
-        return self._traced_cmd("decr", key, False, *args, **kwargs)
+        return self._choose_impl("decr", key, False, *args, **kwargs)
 
     def touch(self, key, *args, **kwargs):
-        return self._traced_cmd("touch", key, False, *args, **kwargs)
+        return self._choose_impl("touch", key, False, *args, **kwargs)
+
+    def _choose_impl(self, cmd, key, default_val, *args, **kwargs):
+        client = self._get_client(key)
+        if isinstance(client, PooledClient):
+            return self._traced_cmd(cmd, key, default_val, *args, **kwargs)
+        else:
+            return getattr(self.__wrapped__, cmd)(key, *args, **kwargs)
 
     def _traced_cmd(self, cmd, key, default_val, *args, **kwargs):
         client = self._get_client(key)
