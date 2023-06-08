@@ -76,6 +76,7 @@ class TraceBaggageProcessor(TraceProcessor):
 
         return trace
 
+
 @attr.s
 class TraceSamplingProcessor(TraceProcessor):
     """Processor that keeps traces that have sampled spans. If all spans
