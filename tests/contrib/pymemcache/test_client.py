@@ -274,22 +274,16 @@ class PymemcacheHashClientTestCase(PymemcacheClientTestCaseMixin):
 
         tracer = DummyTracer()
         Pin.override(pymemcache, tracer=tracer)
-        # here, pymemcache._datadog_pin is set and has service=memcached and a dummy tracer
         self.client = HashClient([(TEST_HOST, TEST_PORT)], **kwargs)
-        # here, self.client.client_class is WrappedClient
-        # and self.client.clients["foo"] is PooledClient (huh?)
-        #   that's because pymemcache snaps to PooledClient when use_pooling
-        # and self.client.clients["foo"].client_class is WrappedClient
 
-        class _mockclient(Client):  # xxx this should maybe be a subclass of WrappedClient
+        class _MockClient(Client):
             def _connect(self):
                 self.sock = MockSocket(list(mock_socket_values))
 
-        inner_client = self.client.clients["{}:{}".format(TEST_HOST, TEST_PORT)]
-        # here, inner_client is WrappedPooledClient and has a pin
-        inner_client.client_class = _mockclient
-        for _c in self.client.clients.values():
-            _c.sock = MockSocket(list(mock_socket_values))
+        for inner_client in self.client.clients.values():
+            inner_client.client_class = _MockClient
+            inner_client.sock = MockSocket(list(mock_socket_values))
+
         return self.client
 
     def test_patched_hash_client(self):
