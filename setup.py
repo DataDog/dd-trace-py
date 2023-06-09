@@ -56,8 +56,8 @@ LIBDATADOG_PROF_VERSION = "v2.1.0"
 
 UPX_VERSION = "v4.0.2"
 
-# Enable UPX compression when specified
-UPX_ENABLE = DEBUG_COMPILE or "DD_UPX_ENABLE" in os.environ
+# Disable UPX compression when specified
+UPX_ENABLE = os.getenv('DD_UPX_ENABLE', 'yes').lower() in ['false', 'no'] and not DEBUG_COMPILE
 
 
 def verify_checksum_from_file(sha256_filename, filename):
@@ -135,7 +135,11 @@ class BuildExtWithUPX(BuildExtCommand):
 
     def compress_shared_objects(self):
         # In a later patch, this will use platform-appropriate suffixes
+        # TODO[sanchda]: our pre-distribution testing apparatus needs to inspect cython
+        #                sofiles, so deploying upx early is a cause for failure.  Need
+        #                to align on a strategy.
         sofiles = glob.glob("**/*.so", recursive=True)
+        sofiles = [s for s in sofiles if 'cpython' not in s]
         for so in sofiles:
             try:
                 # -f because some sofiles may be non-exec at this point
