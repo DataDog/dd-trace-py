@@ -83,6 +83,9 @@ The following data is collected in span tags with a default sampling rate of ``1
 - Prompt inputs and completions for the ``completions`` endpoint.
 - Message inputs and completions for the ``chat.completions`` endpoint.
 - Embedding inputs for the ``embeddings`` endpoint.
+- Edit inputs, instructions, and completions for the ``edits`` endpoint.
+- Image input filenames and completion URLs for the ``images`` endpoint.
+- Audio input filenames and completions for the ``audio`` endpoint.
 
 Prompt and message inputs and completions can also be emitted as log data.
 Logs are **not** emitted by default. When logs are enabled they are sampled at ``0.1``.

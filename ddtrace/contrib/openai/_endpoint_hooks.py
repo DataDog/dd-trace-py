@@ -77,6 +77,7 @@ class _BaseCompletionHook(_EndpointHook):
     """
     Share streamed response handling logic between Completion and ChatCompletion endpoints.
     """
+
     _request_arg_params = ("api_key", "api_base", "api_type", "request_id", "api_version", "organization")
 
     def _handle_response(self, pin, span, integration, resp):
@@ -534,10 +535,10 @@ class _ImageHook(_EndpointHook):
                 attrs_dict.update({"prompt": kwargs.get("prompt", "")})
             if "image" in self._request_kwarg_params:
                 image = args[1] or ""
-                attrs_dict.update({"image": getattr(image, "name", "")})
+                attrs_dict.update({"image": getattr(image, "name", "").split("/")[-1]})
             if "mask" in self._request_kwarg_params:
                 mask = args[2] or ""
-                attrs_dict.update({"mask": getattr(mask, "name", "")})
+                attrs_dict.update({"mask": getattr(mask, "name", "").split("/")[-1]})
             attrs_dict.update({"choices": resp.get("data", [])})
             integration.log(
                 span, "info" if error is None else "error", "sampled %s" % self.OPERATION_ID, attrs=attrs_dict
@@ -699,9 +700,6 @@ class _ModerationHook(_EndpointHook):
 class _BaseFileHook(_EndpointHook):
     ENDPOINT_NAME = "files"
 
-    def _record_request(self, pin, integration, span, args, kwargs):
-        super()._record_request(pin, integration, span, args, kwargs)
-
 
 class _FileCreateHook(_BaseFileHook):
     _request_arg_params = (
@@ -825,7 +823,6 @@ class _FineTuneCancelHook(_BaseFineTuneHook):
 
 
 class _FineTuneListEventsHook(_BaseFineTuneHook):
-    _request_arg_params = (None)
     _request_kwarg_params = ("stream", "user")
     ENDPOINT_NAME = "fine-tunes/*/events"
     HTTP_METHOD_TYPE = "GET"
