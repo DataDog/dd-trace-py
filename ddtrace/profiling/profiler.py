@@ -112,8 +112,6 @@ class _ProfilerInstance(service.Service):
     tags = attr.ib(factory=dict, type=typing.Dict[str, str])
     env = attr.ib(factory=lambda: os.environ.get("DD_ENV"))
     version = attr.ib(factory=lambda: os.environ.get("DD_VERSION"))
-    export_libdd_enabled = attr.ib(type=bool, default=config.export.libdd_enabled)
-    export_py_enabled = attr.ib(type=bool, default=config.export.py_enabled)
     tracer = attr.ib(default=ddtrace.tracer)
     api_key = attr.ib(factory=lambda: os.environ.get("DD_API_KEY"), type=Optional[str])
     agentless = attr.ib(type=bool, default=config.agentless)
@@ -131,6 +129,8 @@ class _ProfilerInstance(service.Service):
     _lambda_function_name = attr.ib(
         init=False, factory=lambda: os.environ.get("AWS_LAMBDA_FUNCTION_NAME"), type=Optional[str]
     )
+    _export_libdd_enabled = attr.ib(type=bool, default=config.export.libdd_enabled)
+    _export_py_enabled = attr.ib(type=bool, default=config.export.py_enabled)
 
     ENDPOINT_TEMPLATE = "https://intake.profile.{}"
 
@@ -171,7 +171,7 @@ class _ProfilerInstance(service.Service):
         if self.endpoint_collection_enabled:
             endpoint_call_counter_span_processor.enable()
 
-        if self.export_libdd_enabled:
+        if self._export_libdd_enabled:
             ddup.init(
                 env=self.env,
                 service=self.service,
@@ -181,7 +181,7 @@ class _ProfilerInstance(service.Service):
                 url=endpoint,
             )
 
-        if self.export_py_enabled:
+        if self._export_py_enabled:
             return [
                 http.PprofHTTPExporter(
                     service=self.service,
@@ -220,8 +220,6 @@ class _ProfilerInstance(service.Service):
                 r,
                 tracer=self.tracer,
                 endpoint_collection_enabled=self.endpoint_collection_enabled,
-                export_libdd_enabled=self.export_libdd_enabled,
-                export_py_enabled=self.export_py_enabled,
             ),  # type: ignore[call-arg]
             threading.ThreadingLockCollector(r, tracer=self.tracer),
         ]
@@ -251,7 +249,7 @@ class _ProfilerInstance(service.Service):
 
         exporters = self._build_default_exporters()
 
-        if exporters or self.export_libdd_enabled:
+        if exporters or self._export_libdd_enabled:
             if self._lambda_function_name is None:
                 scheduler_class = scheduler.Scheduler
             else:
@@ -260,8 +258,6 @@ class _ProfilerInstance(service.Service):
                 recorder=r,
                 exporters=exporters,
                 before_flush=self._collectors_snapshot,
-                export_libdd_enabled=self.export_libdd_enabled,
-                export_py_enabled=self.export_py_enabled,
             )
 
     def _collectors_snapshot(self):
@@ -331,4 +327,4 @@ class _ProfilerInstance(service.Service):
                 col.join()
 
     def visible_events(self):
-        return self.export_py_enabled
+        return self._export_py_enabled

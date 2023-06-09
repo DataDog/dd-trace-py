@@ -21,11 +21,11 @@ class Scheduler(periodic.PeriodicService):
     recorder = attr.ib()
     exporters = attr.ib()
     before_flush = attr.ib(default=None, eq=False)
-    export_libdd_enabled = attr.ib(type=bool, default=config.export.libdd_enabled)
-    export_py_enabled = attr.ib(type=bool, default=config.export.py_enabled)
     _interval = attr.ib(type=float, default=config.upload_interval)
     _configured_interval = attr.ib(init=False)
     _last_export = attr.ib(init=False, default=None, eq=False)
+    _export_libdd_enabled = attr.ib(type=bool, default=config.export.libdd_enabled)
+    _export_py_enabled = attr.ib(type=bool, default=config.export.py_enabled)
 
     def __attrs_post_init__(self):
         # Copy the value to use it later since we're going to adjust the real interval
@@ -42,10 +42,10 @@ class Scheduler(periodic.PeriodicService):
     def flush(self):
         """Flush events from recorder to exporters."""
         LOG.debug("Flushing events")
-        if self.export_libdd_enabled:
+        if self._export_libdd_enabled:
             ddup.upload()
 
-        if not self.export_py_enabled:
+        if not self._export_py_enabled:
             # If we're not using the Python profiler, then stop now
             # But set these fields for compatibility
             start = self._last_export
