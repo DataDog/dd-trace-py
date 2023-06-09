@@ -16,6 +16,7 @@
       "http.url": "http://localhost:8001/status/200",
       "http.useragent": "python-httpx/x.xx.x",
       "language": "python",
+      "out.host": "localhost",
       "runtime-id": "6f9d8b39083d4c69b64e0c0adb09dd7e",
       "span.kind": "client"
     },
