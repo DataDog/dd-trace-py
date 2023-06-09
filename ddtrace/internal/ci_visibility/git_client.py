@@ -164,16 +164,18 @@ class CIVisibilityGitClient(object):
         parts = packfiles_prefix.split("/")
         directory = "/".join(parts[:-1])
         rand = parts[-1]
-        for filename in glob(directory + "/" + rand + "." + PACK_EXTENSION):
+        for filename in glob(directory + "/" + rand + "*" + PACK_EXTENSION):
             # if not filename.startswith(rand) or not filename.endswith(PACK_EXTENSION):
             #     continue
             file_path = os.path.join(directory, filename)
+            log.warning("uploading file path: %s", file_path)
             content_type, payload = serializer.upload_packfile_encode(repo_url, sha, file_path)
             headers = {"Content-Type": content_type}
             response = _response or cls.retry_request(
                 requests_mode, base_url, "/packfile", payload, serializer, trace_id, headers=headers
             )
             if response.status != 204:
+                log.warning("Upload failed: status code %d , filename: %s", response.status, filename)
                 return False
         return True
 
