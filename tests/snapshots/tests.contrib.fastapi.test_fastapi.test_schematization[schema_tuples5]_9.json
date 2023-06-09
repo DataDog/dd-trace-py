@@ -10,12 +10,15 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "_dd.peer.service.source": "out.host",
       "component": "httpx",
       "http.method": "GET",
       "http.status_code": "200",
       "http.url": "http://testserver/sub-app/hello/name",
       "http.useragent": "testclient",
       "language": "python",
+      "out.host": "testserver",
+      "peer.service": "testserver",
       "runtime-id": "aa292bf058f7477089812476b69c24be",
       "span.kind": "client"
     },
