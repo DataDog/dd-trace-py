@@ -251,7 +251,7 @@ class TelemetryLogsMetricsWriter(TelemetryBase):
         return config._telemetry_metrics_enabled and super(TelemetryLogsMetricsWriter, self).enable(start_worker_thread)
 
     def add_log(self, level, message, stack_trace="", tags={}):
-        # type: (str, str, str, MetricTagType) -> None
+        # type: (str, str, str, Dict) -> None
         """
         Queues log. This event is meant to send library logs to Datadog’s backend through the Telemetry intake.
         This will make support cycles easier and ensure we know about potentially silent issues in libraries.
@@ -268,7 +268,7 @@ class TelemetryLogsMetricsWriter(TelemetryBase):
                 data["stack_trace"] = stack_trace
             self._logs.append(data)
 
-    def add_gauge_metric(self, namespace, name, value, tags=tuple()):
+    def add_gauge_metric(self, namespace, name, value, tags=None):
         # type: (str,str, float, MetricTagType) -> None
         """
         Queues gauge metric
@@ -283,7 +283,7 @@ class TelemetryLogsMetricsWriter(TelemetryBase):
                 self.interval,
             )
 
-    def add_rate_metric(self, namespace, name, value=1.0, tags=tuple()):
+    def add_rate_metric(self, namespace, name, value=1.0, tags=None):
         # type: (str,str, float, MetricTagType) -> None
         """
         Queues rate metric
@@ -298,7 +298,7 @@ class TelemetryLogsMetricsWriter(TelemetryBase):
                 self.interval,
             )
 
-    def add_count_metric(self, namespace, name, value=1.0, tags=tuple()):
+    def add_count_metric(self, namespace, name, value=1.0, tags=None):
         # type: (str,str, float, MetricTagType) -> None
         """
         Queues count metric
@@ -312,7 +312,7 @@ class TelemetryLogsMetricsWriter(TelemetryBase):
                 tags,
             )
 
-    def add_distribution_metric(self, namespace, name, value=1.0, tags=tuple()):
+    def add_distribution_metric(self, namespace, name, value=1.0, tags=None):
         # type: (str,str, float, MetricTagType) -> None
         """
         Queues distributions metric

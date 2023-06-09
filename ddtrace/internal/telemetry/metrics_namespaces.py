@@ -45,7 +45,7 @@ class MetricNamespace:
         self._metrics_data = {
             TELEMETRY_TYPE_GENERATE_METRICS: defaultdict(dict),
             TELEMETRY_TYPE_DISTRIBUTION: defaultdict(dict),
-        }  # type: Dict[str, Dict[str, Dict]]
+        }  # type: Dict[str, Dict[str, Dict[int, Metric]]]
 
     def flush(self):
         # type: () -> Dict
@@ -57,7 +57,7 @@ class MetricNamespace:
             }
             return namespace_metrics
 
-    def add_metric(self, metric_type, namespace, name, value=1.0, tags=tuple(), interval=None):
+    def add_metric(self, metric_type, namespace, name, value=1.0, tags=None, interval=None):
         # type: (str, str, str, float, MetricTagType, Optional[float]) -> None
         """
         Telemetry Metrics are stored in DD dashboards, check the metrics in datadoghq.com/metric/explorer.

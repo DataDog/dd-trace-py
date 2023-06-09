@@ -14,7 +14,7 @@ from ddtrace.internal.telemetry.constants import TELEMETRY_METRIC_TYPE_GAUGE
 from ddtrace.internal.telemetry.constants import TELEMETRY_METRIC_TYPE_RATE
 
 
-MetricTagType = Tuple[Tuple[str, str], ...]
+MetricTagType = Optional[Tuple[Tuple[str, str], ...]]
 
 
 class Metric(six.with_metaclass(abc.ABCMeta)):
@@ -67,7 +67,7 @@ class Metric(six.with_metaclass(abc.ABCMeta)):
             "type": self.metric_type,
             "common": self.is_common_to_all_tracers,
             "points": self._points,
-            "tags": ["{}:{}".format(k, v).lower() for k, v in self._tags],
+            "tags": ["{}:{}".format(k, v).lower() for k, v in self._tags] if self._tags else [],
         }
         if self.interval is not None:
             data["interval"] = int(self.interval)
