@@ -7,15 +7,13 @@ from confluent_kafka import KafkaException
 from confluent_kafka import admin as kafka_admin
 import pytest
 import six
-from tenacity import Retrying
-from tenacity import stop_after_attempt
-from tenacity import wait_random
 
 from ddtrace import Pin
 from ddtrace import tracer as dd_tracer
 from ddtrace.contrib.kafka.patch import patch
 from ddtrace.contrib.kafka.patch import unpatch
 from ddtrace.filters import TraceFilter
+from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from tests.contrib.config import KAFKA_CONFIG
 from tests.utils import override_config
 
@@ -223,35 +221,31 @@ def _generate_in_subprocess(random_topic):
     ddtrace.tracer.configure(settings={"FILTERS": [KafkaConsumerPollFilter()]})
     patch()
 
-    producer = None
-    consumer = None
-    published = False
-    subscribed = False
-    # Retry the Kafka commands several times, as Kafka may return connection refused
-    for attempt in Retrying(stop=stop_after_attempt(5), wait=wait_random(min=1, max=2)):
-        with attempt:
-            producer = producer or confluent_kafka.Producer({"bootstrap.servers": "localhost:29092"})
-            consumer = confluent_kafka.Consumer(
-                {
-                    "bootstrap.servers": "localhost:29092",
-                    "group.id": "test_group",
-                    "auto.offset.reset": "earliest",
-                }
-            )
-            ddtrace.Pin.override(producer, tracer=ddtrace.tracer)
-            ddtrace.Pin.override(consumer, tracer=ddtrace.tracer)
-            if not subscribed:
-                consumer.subscribe([random_topic])
-                subscribed = True
-            if not published:
-                producer.produce(random_topic, PAYLOAD, key="test_key")
-                producer.flush()
-                published = True
-            message = None
-            while message is None:
-                message = consumer.poll(1.0)
-            unpatch()
-            consumer.close()
+    producer = confluent_kafka.Producer({"bootstrap.servers": "localhost:29092"})
+    consumer = confluent_kafka.Consumer(
+        {
+            "bootstrap.servers": "localhost:29092",
+            "group.id": "test_group",
+            "auto.offset.reset": "earliest",
+        }
+    )
+    ddtrace.Pin.override(producer, tracer=ddtrace.tracer)
+    ddtrace.Pin.override(consumer, tracer=ddtrace.tracer)
+
+    # We run all of these commands with retry attempts because the kafka-confluent API
+    # sys.exits on connection failures, which causes the test to fail. We want to retry
+    # until the connection is established. Connection failures are somewhat common.
+    fibonacci_backoff_with_jitter(5)(consumer.subscribe)([random_topic])
+    fibonacci_backoff_with_jitter(5)(producer.produce)(random_topic, PAYLOAD, key="test_key")
+    fibonacci_backoff_with_jitter(5, until=lambda result: isinstance(result, int))(producer.flush)()
+    message = None
+    while message is None:
+        message = fibonacci_backoff_with_jitter(5, until=lambda result: not isinstance(result, Exception))(
+            consumer.poll
+        )(1.0)
+
+    unpatch()
+    consumer.close()
 
 
 @pytest.mark.snapshot(
