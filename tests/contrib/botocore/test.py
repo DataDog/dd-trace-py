@@ -737,6 +737,58 @@ class BotocoreTest(TracerTestCase):
         assert spans
         assert len(spans) == 1
 
+    @mock_sqs
+    def test_data_streams_sqs(self):
+        # DEV: Only test deprecated behavior because this inspect span tags for MessageAttributes
+        pytest.set_trace()
+        with self.override_config("botocore", dict(tag_all_params=True)):
+            sqs = self.session.create_client("sqs", region_name="us-east-1", endpoint_url="http://localhost:4566")
+            queue = sqs.create_queue(QueueName="test")
+            Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sqs)
+            print("hello")
+            message_attributes = {
+                "one": {"DataType": "String", "StringValue": "one"},
+                "two": {"DataType": "String", "StringValue": "two"},
+                "three": {"DataType": "String", "StringValue": "three"},
+                "four": {"DataType": "String", "StringValue": "four"},
+                "five": {"DataType": "String", "StringValue": "five"},
+                "six": {"DataType": "String", "StringValue": "six"},
+                "seven": {"DataType": "String", "StringValue": "seven"},
+                "eight": {"DataType": "String", "StringValue": "eight"},
+                "nine": {"DataType": "String", "StringValue": "nine"},
+            }
+
+
+            """
+            sqs.send_message(QueueUrl=queue["QueueUrl"], MessageBody="world", MessageAttributes=message_attributes)
+
+            response = sqs.receive_message(
+                QueueUrl=queue["QueueUrl"],
+                MessageAttributeNames=["_datadog"],
+                WaitTimeSeconds=2,
+            )
+
+            
+            assert len(buckets) == 1
+            _, first = list(buckets.items())[0]
+            assert first[("direction:out,topic:test_topic,type:kafka", 7591950451013596431, 0)].full_pathway_latency._count >= 1
+            assert first[("direction:out,topic:test_topic,type:kafka", 7591950451013596431, 0)].edge_latency._count >= 1
+            assert (
+                first[
+                    ("direction:in,group:test_group,topic:test_topic,type:kafka", 17357311454188123272, 7591950451013596431)
+                ].full_pathway_latency._count
+                >= 1
+            )
+            assert (
+                first[
+                    ("direction:in,group:test_group,topic:test_topic,type:kafka", 17357311454188123272, 7591950451013596431)
+                ].edge_latency._count
+                >= 1
+            )
+
+            sqs.delete_queue(QueueUrl=queue["QueueUrl"])
+            """
+
     @mock_lambda
     def test_lambda_client(self):
         # DEV: No lambda params tagged so we only check no ClientContext
