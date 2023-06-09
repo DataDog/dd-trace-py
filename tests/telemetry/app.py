@@ -20,7 +20,7 @@ def metrics_view():
         "test_metric",
         1.0,
     )
-    namespace_metrics = telemetry_metrics_writer._namespace.get()
+    namespace_metrics = telemetry_metrics_writer._namespace._metrics_data
     metrics = [
         m.to_dict()
         for payload_type, namespaces in namespace_metrics.items()
