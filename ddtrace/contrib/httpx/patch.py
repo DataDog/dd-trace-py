@@ -101,6 +101,7 @@ def _set_span_meta(span, request, response):
         config.httpx,
         method=request.method,
         url=_url_to_str(request.url),
+        target_host=request.url.host,
         status_code=response.status_code if response else None,
         query=request.url.query,
         request_headers=request.headers,
@@ -111,7 +112,7 @@ def _set_span_meta(span, request, response):
 async def _wrapped_async_send(
     wrapped,  # type: BoundFunctionWrapper
     instance,  # type: httpx.AsyncClient
-    args,  # type: typing.Tuple[httpx.Request],
+    args,  # type: typing.Tuple[httpx.Request]
     kwargs,  # type: typing.Dict[typing.Str, typing.Any]
 ):
     # type: (...) -> typing.Coroutine[None, None, httpx.Response]
