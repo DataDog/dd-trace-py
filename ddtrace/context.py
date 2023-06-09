@@ -219,6 +219,20 @@ class Context(object):
         """
         self._baggage[key] = value
 
+    def with_baggage_item(self, key, value):
+        # type: (str, Any) -> Context
+        """Returns a copy of this span with a new baggage item.
+        Useful for instantiating new child span contexts.
+        """
+        new_baggage = dict(self._baggage)
+        new_baggage[key] = value
+
+        ctx = self.__class__(trace_id=self.trace_id, span_id=self.span_id)
+        ctx._meta = self._meta
+        ctx._metrics = self._metrics
+        ctx._baggage = new_baggage
+        return ctx
+
     def get_baggage_item(self, key):
         # type: (str) -> Optional[Any]
         """Gets a baggage item in this span context."""
