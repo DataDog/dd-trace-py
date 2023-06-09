@@ -446,7 +446,7 @@ class Span(object):
         """Sets a baggage item in the span context of this span.
         Baggage is used to propagate state between spans.
         """
-        self._context = self.context.set_baggage_item(key, value)
+        self._context = self.context.with_baggage_item(key, value)
         return self
 
     def get_baggage_item(self, key):
