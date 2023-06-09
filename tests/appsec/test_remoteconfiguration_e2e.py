@@ -9,15 +9,14 @@ import signal
 import subprocess
 import sys
 import time
-from typing import Optional  # noqa
 import uuid
 
 import pytest
-import tenacity
 
 from ddtrace import tracer
 from ddtrace.internal.compat import httplib
 from ddtrace.internal.compat import parse
+from ddtrace.internal.utils.retry import RetryError
 from ddtrace.vendor import psutil
 from tests.webclient import Client
 
@@ -60,7 +59,7 @@ def gunicorn_server(appsec_enabled="true", remote_configuration_enabled="true", 
             print("Waiting for server to start")
             client.wait(max_tries=100, delay=0.1)
             print("Server started")
-        except tenacity.RetryError:
+        except RetryError:
             raise AssertionError(
                 "Server failed to start, see stdout and stderr logs"
                 "\n=== Captured STDOUT ===\n%s=== End of captured STDOUT ==="
@@ -256,18 +255,41 @@ def _multi_requests(client, debug_mode=False):
     return results
 
 
-def _request_200(client, debug_mode=False):
-    results = _multi_requests(client, debug_mode)
-    for response in results:
-        assert response.status_code == 200
-        assert response.content == b"OK"
+def _request_200(client, debug_mode=False, max_retries=7, sleep_time=1):
+    """retry until it gets at least 2 successful checks"""
+    time.sleep(sleep_time)
+    previous = False
+    for _ in range(max_retries):
+        results = _multi_requests(client, debug_mode)
+        check = all(response.status_code == 200 and response.content == b"OK" for response in results)
+        if check:
+            if previous:
+                return
+            previous = True
+        else:
+            previous = False
+        time.sleep(sleep_time)
+    assert False, "request_200 failed, max_retries=%d, sleep_time=%f" % (max_retries, sleep_time)
 
 
-def _request_403(client, debug_mode=False):
-    results = _multi_requests(client, debug_mode)
-    for response in results:
-        assert response.status_code == 403
-        assert response.content.startswith(b'{"errors": [{"title": "You\'ve been blocked"')
+def _request_403(client, debug_mode=False, max_retries=7, sleep_time=1):
+    """retry until it gets at least 2 successful checks"""
+    time.sleep(sleep_time)
+    previous = False
+    for _ in range(max_retries):
+        results = _multi_requests(client, debug_mode)
+        check = all(
+            response.status_code == 403 and response.content.startswith(b'{"errors": [{"title": "You\'ve been blocked"')
+            for response in results
+        )
+        if check:
+            if previous:
+                return
+            previous = True
+        else:
+            previous = False
+        time.sleep(sleep_time)
+    assert False, "request_403 failed, max_retries=%d, sleep_time=%f" % (max_retries, sleep_time)
 
 
 @pytest.mark.skipif(
@@ -281,8 +303,6 @@ def test_load_testing_appsec_ip_blocking_gunicorn_rc_disabled():
         _request_200(gunicorn_client)
 
         _block_ip(token)
-
-        time.sleep(1)
 
         _request_200(gunicorn_client)
 
@@ -301,18 +321,11 @@ def test_load_testing_appsec_ip_blocking_gunicorn_block():
 
         _block_ip(token)
 
+        _request_403(gunicorn_client)
+
+        _unblock_ip(token)
+
         _request_200(gunicorn_client)
-        # TODO: this test doesn't work
-        #  we're working to fix it in https://github.com/DataDog/dd-trace-py/pull/5464
-        # time.sleep(1)
-        #
-        # _request_403(gunicorn_client)
-        #
-        # _unblock_ip(token)
-        #
-        # time.sleep(1)
-        #
-        # _request_200(gunicorn_client)
 
 
 @pytest.mark.skipif(list(sys.version_info[:2]) != [3, 10], reason="Run this tests in python 3.10")
@@ -325,25 +338,15 @@ def test_load_testing_appsec_ip_blocking_gunicorn_block_and_kill_child_worker():
 
         _block_ip(token)
 
-        # _request_200(gunicorn_client)
-        # TODO: this test doesn't work
-        #  we're working to fix it in https://github.com/DataDog/dd-trace-py/pull/5464
+        _request_403(gunicorn_client)
 
-        # time.sleep(1)
-        #
-        # _request_403(gunicorn_client)
+        os.kill(int(pid), signal.SIGTERM)
 
-        # os.kill(int(pid), signal.SIGTERM)
-        #
-        # time.sleep(2)
-        #
-        # _request_403(gunicorn_client)
-        #
-        # _unblock_ip(token)
-        #
-        # time.sleep(1)
-        #
-        # _request_200(gunicorn_client)
+        _request_403(gunicorn_client)
+
+        _unblock_ip(token)
+
+        _request_200(gunicorn_client)
 
 
 @pytest.mark.skipif(list(sys.version_info[:2]) != [3, 10], reason="Run this tests in python 3.10")
@@ -358,26 +361,16 @@ def test_load_testing_appsec_1click_and_ip_blocking_gunicorn_block_and_kill_chil
 
         _1_click_activation(token)
 
-        time.sleep(1)
-
         _block_ip_with_1_click_activation(token)
 
         # _request_200(gunicorn_client, debug_mode=False)
-
-        time.sleep(2)
 
         _request_403(gunicorn_client, debug_mode=False)
 
         os.kill(int(pid), signal.SIGTERM)
 
-        # TODO: this test doesn't work
-        #  we're working to fix it in https://github.com/DataDog/dd-trace-py/pull/5464
-        # time.sleep(3)
+        _request_403(gunicorn_client, debug_mode=False)
 
-        # _request_403(gunicorn_client, debug_mode=False)
+        _unblock_ip(token)
 
-        # _unblock_ip(token)
-        #
-        # time.sleep(1)
-        #
-        # _request_200(gunicorn_client, debug_mode=False)
+        _request_200(gunicorn_client, debug_mode=False)

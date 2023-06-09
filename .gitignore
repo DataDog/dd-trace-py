@@ -135,3 +135,6 @@ ddtrace/_version.py
 
 # Benchmarks
 artifacts/
+
+# IAST cpp
+ddtrace/appsec/iast/_taint_tracking/cmake-build-debug/*

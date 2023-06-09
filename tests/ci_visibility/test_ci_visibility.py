@@ -249,7 +249,7 @@ def test_git_client_worker_evp_proxy(_do_request, git_repo):
                 CIVisibility.enable(tracer=dummy_tracer, service="test-service")
                 assert CIVisibility._instance._git_client is not None
                 assert CIVisibility._instance._git_client._worker is not None
-                assert CIVisibility._instance._git_client._base_url == "evp_proxy/v2/api/v2/git"
+                assert CIVisibility._instance._git_client._base_url == "http://localhost:8126/evp_proxy/v2/api/v2/git"
                 CIVisibility.disable()
     shutdown_timeout = dummy_tracer.SHUTDOWN_TIMEOUT
     assert (
@@ -340,17 +340,42 @@ def test_git_client_build_packfiles(git_repo):
     assert not os.path.isdir(directory)
 
 
+@mock.patch("ddtrace.ext.git.TemporaryDirectory")
+def test_git_client_build_packfiles_temp_dir_value_error(_temp_dir_mock, git_repo):
+    _temp_dir_mock.side_effect = ValueError("Invalid cross-device link")
+    found_rand = found_idx = found_pack = False
+    with CIVisibilityGitClient._build_packfiles("%s\n" % TEST_SHA, cwd=git_repo) as packfiles_path:
+        assert packfiles_path
+        parts = packfiles_path.split("/")
+        directory = "/".join(parts[:-1])
+        rand = parts[-1]
+        assert os.path.isdir(directory)
+        for filename in os.listdir(directory):
+            if rand in filename:
+                found_rand = True
+                if filename.endswith(".idx"):
+                    found_idx = True
+                elif filename.endswith(".pack"):
+                    found_pack = True
+            if found_rand and found_idx and found_pack:
+                break
+        else:
+            pytest.fail()
+    # CWD is not a temporary dir, so no deleted after using it.
+    assert os.path.isdir(directory)
+
+
 def test_git_client_upload_packfiles(git_repo):
     serializer = CIVisibilityGitClientSerializerV1("foo", "bar")
     remote_url = "git@github.com:test-repo-url.git"
     with CIVisibilityGitClient._build_packfiles("%s\n" % TEST_SHA, cwd=git_repo) as packfiles_path:
-        with mock.patch("ddtrace.internal.ci_visibility.git_client.CIVisibilityGitClient.retry_request") as rr:
+        with mock.patch("ddtrace.internal.ci_visibility.git_client.CIVisibilityGitClient._do_request") as dr:
             CIVisibilityGitClient._upload_packfiles(
                 REQUESTS_MODE.AGENTLESS_EVENTS, "", remote_url, packfiles_path, serializer, None, cwd=git_repo
             )
-            assert rr.call_count == 1
-            call_args = rr.call_args_list[0][0]
-            call_kwargs = rr.call_args.kwargs
+            assert dr.call_count == 1
+            call_args = dr.call_args_list[0][0]
+            call_kwargs = dr.call_args.kwargs
             assert call_args[0] == REQUESTS_MODE.AGENTLESS_EVENTS
             assert call_args[1] == ""
             assert call_args[2] == "/packfile"
@@ -392,9 +417,9 @@ def test_civisibilitywriter_coverage_evp_proxy_url():
         dummy_writer = DummyCIVisibilityWriter(use_evp=True)
 
         test_client = dummy_writer._clients[0]
-        assert test_client.ENDPOINT == "evp_proxy/v2/api/v2/citestcycle"
+        assert test_client.ENDPOINT == "/evp_proxy/v2/api/v2/citestcycle"
         cov_client = dummy_writer._clients[1]
-        assert cov_client.ENDPOINT == "evp_proxy/v2/api/v2/citestcov"
+        assert cov_client.ENDPOINT == "/evp_proxy/v2/api/v2/citestcov"
 
         with mock.patch("ddtrace.internal.writer.writer.get_connection") as _get_connection:
             dummy_writer._put("", {}, cov_client)

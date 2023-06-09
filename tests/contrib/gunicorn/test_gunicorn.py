@@ -6,12 +6,12 @@ import sys
 import time
 from typing import Dict
 from typing import NamedTuple
-from typing import Optional  # noqa
+from typing import Optional
 
 import pytest
-import tenacity
 
 from ddtrace.internal import compat
+from ddtrace.internal.utils.retry import RetryError  # noqa
 from tests.webclient import Client
 
 
@@ -64,7 +64,7 @@ def _gunicorn_settings_factory(
         env["_DD_TEST_IMPORT_AUTO"] = str(import_auto_in_app)
     env["DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE"] = "1" if enable_module_cloning else "0"
     env["DD_REMOTE_CONFIGURATION_ENABLED"] = str(True)
-    env["DD_REMOTECONFIG_POLL_INTERVAL_SECONDS"] = str(SERVICE_INTERVAL)
+    env["DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS"] = str(SERVICE_INTERVAL)
     env["DD_PROFILING_UPLOAD_INTERVAL"] = str(SERVICE_INTERVAL)
     env["DD_TRACE_DEBUG"] = str(debug_mode)
     return GunicornServerSettings(
@@ -126,7 +126,7 @@ def gunicorn_server(gunicorn_server_settings, tmp_path):
             print("Waiting for server to start")
             client.wait(max_tries=100, delay=0.1)
             print("Server started")
-        except tenacity.RetryError:
+        except RetryError:
             raise TimeoutError("Server failed to start, see stdout and stderr logs")
         time.sleep(SERVICE_INTERVAL)
         yield server_process, client
