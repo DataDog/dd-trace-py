@@ -868,7 +868,7 @@ class HTTPPropagator(object):
                 context = propagator._extract(normalized_headers)  # type: ignore
                 if context is not None:
                     for key, value in normalized_headers.items():
-                        if key.startswith(HTTP_BAGGAGE_PREFIX):
+                        if key[: len(HTTP_BAGGAGE_PREFIX)] == HTTP_BAGGAGE_PREFIX:
                             context.set_baggage_item(key[len(HTTP_BAGGAGE_PREFIX) :], value)
 
                     return context
