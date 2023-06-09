@@ -6,8 +6,8 @@ import sys
 import time
 
 import pytest
-import tenacity
 
+from ddtrace.internal.utils.retry import RetryError
 from tests.webclient import Client
 
 
@@ -47,7 +47,7 @@ def gunicorn_server(telemetry_metrics_enabled="true", token=None):
             print("Waiting for server to start")
             client.wait(max_tries=100, delay=0.1)
             print("Server started")
-        except tenacity.RetryError:
+        except RetryError:
             raise AssertionError(
                 "Server failed to start, see stdout and stderr logs"
                 "\n=== Captured STDOUT ===\n%s=== End of captured STDOUT ==="
