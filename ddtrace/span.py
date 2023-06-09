@@ -450,7 +450,7 @@ class Span(object):
         return self
 
     def get_baggage_item(self, key):
-        # type: (str) -> Optional[str]
+        # type: (str) -> Optional[Any]
         """Gets a baggage item from the span context of this span."""
         return self.context.get_baggage_item(key)
 
