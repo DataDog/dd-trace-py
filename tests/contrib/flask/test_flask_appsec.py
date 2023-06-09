@@ -16,6 +16,7 @@ from ddtrace.ext import http
 from ddtrace.internal import _context
 from ddtrace.internal import constants
 from ddtrace.internal.compat import urlencode
+from tests.appsec.test_processor import RULES_BAD_VERSION
 from tests.appsec.test_processor import RULES_GOOD_PATH
 from tests.appsec.test_processor import RULES_SRB
 from tests.appsec.test_processor import RULES_SRB_METHOD
@@ -1204,3 +1205,16 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             resp = self.client.get("/response-header/")
             assert resp.status_code == 200
             assert get_response_body(resp) == "Foo bar baz"
+
+    def test_request_invalid_rule_file(self):
+        @self.app.route("/response-header/")
+        def specific_reponse():
+            resp = Response("Foo bar baz", 200)
+            resp.headers["Content-Disposition"] = 'attachment;"'
+            return resp
+
+        with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_BAD_VERSION)):
+            self._aux_appsec_prepare_tracer()
+            resp = self.client.get("/response-header/")
+            # it must not completely fail on an invalid rule file
+            assert resp.status_code == 200
