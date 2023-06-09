@@ -10,6 +10,7 @@ import six
 
 from ddtrace import config
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
+from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import USER_KEEP
 from ddtrace.internal import gitmetadata
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
@@ -278,3 +279,33 @@ class SpanSamplingProcessor(SpanProcessor):
                     if config._trace_compute_stats:
                         span.set_metric(SAMPLING_PRIORITY_KEY, USER_KEEP)
                     break
+
+
+class PeerServiceProcessor(SpanProcessor):
+    def __init__(self, peer_service_config):
+        self._config = peer_service_config
+        self.enabled = self._config.enabled
+
+    def on_span_start(self, span):
+        """
+        We don't do anything on span start
+        """
+        pass
+
+    def on_span_finish(self, span):
+        if not self.enabled:
+            return
+
+        if span.get_tag(self._config.tag_name):  # If the tag already exists, assume it is user generated
+            span.set_tag_str(self._config.source_tag_name, self._config.tag_name)
+            return
+
+        if span.get_tag(SPAN_KIND) not in self._config.enabled_span_kinds:
+            return
+
+        for data_source in self._config.prioritized_data_sources:
+            peer_service_definition = span.get_tag(data_source)
+            if peer_service_definition:
+                span.set_tag_str(self._config.tag_name, peer_service_definition)
+                span.set_tag_str(self._config.source_tag_name, data_source)
+                return
