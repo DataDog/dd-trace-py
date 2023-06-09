@@ -1,0 +1,31 @@
+{
+  "version": "1.0",
+  "metadata": {
+    "rules_version": "1.0"
+  },
+  "rules": [
+    {
+      "id": "activate",
+      "name": "Activate security rule to avoid sampling",
+      "tags": {
+        "type": "lfi",
+        "category": "attack_attempt"
+      },
+      "conditions": [
+        {
+          "parameters": {
+            "inputs": [
+              {
+                "address": "server.request.uri.raw"
+              }
+            ],
+            "regex": "api_match"
+          },
+          "operator": "match_regex"
+        }
+      ],
+      "transformers": [],
+      "on_match": []
+    }
+  ]
+}
