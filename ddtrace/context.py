@@ -219,7 +219,6 @@ class Context(object):
         """
         self._baggage[key] = value
 
-
     def get_baggage_item(self, key):
         # type: (str) -> Optional[Any]
         """Gets a baggage item in this span context."""
