@@ -2860,14 +2860,12 @@ venv = Venv(
                     venvs=[
                         Venv(
                             pkgs={
-                                "tenacity": latest,
                                 "protobuf": latest,
                             }
                         ),
                         # Minimum requirements
                         Venv(
                             pkgs={
-                                "tenacity": "==5.0.1",
                                 "protobuf": "==3.0.0",
                             }
                         ),
@@ -2908,14 +2906,12 @@ venv = Venv(
                             venvs=[
                                 Venv(
                                     pkgs={
-                                        "tenacity": latest,
                                         "protobuf": latest,
                                     },
                                 ),
                                 # Minimum requirements
                                 Venv(
                                     pkgs={
-                                        "tenacity": "==5.0.1",
                                         "protobuf": "==3.8.0",
                                     },
                                 ),
@@ -2947,14 +2943,12 @@ venv = Venv(
                             venvs=[
                                 Venv(
                                     pkgs={
-                                        "tenacity": latest,
                                         "protobuf": latest,
                                     },
                                 ),
                                 # Minimum requirements
                                 Venv(
                                     pkgs={
-                                        "tenacity": "==6.0.0",
                                         "protobuf": "==3.8.0",
                                     },
                                 ),
@@ -2986,14 +2980,12 @@ venv = Venv(
                             venvs=[
                                 Venv(
                                     pkgs={
-                                        "tenacity": latest,
                                         "protobuf": latest,
                                     },
                                 ),
                                 # Minimum requirements
                                 Venv(
                                     pkgs={
-                                        "tenacity": "==7.0.0",
                                         "protobuf": "==3.19.0",
                                     },
                                 ),
@@ -3025,14 +3017,12 @@ venv = Venv(
                             venvs=[
                                 Venv(
                                     pkgs={
-                                        "tenacity": latest,
                                         "protobuf": latest,
                                     },
                                 ),
                                 # Minimum requirements
                                 Venv(
                                     pkgs={
-                                        "tenacity": "==8.0.0",
                                         "protobuf": "==3.19.0",
                                     },
                                 ),
@@ -3064,14 +3054,12 @@ venv = Venv(
                             venvs=[
                                 Venv(
                                     pkgs={
-                                        "tenacity": latest,
                                         "protobuf": latest,
                                     },
                                 ),
                                 # Minimum requirements
                                 Venv(
                                     pkgs={
-                                        "tenacity": "==8.2.0",
                                         "protobuf": "==4.22.0",
                                     },
                                 ),

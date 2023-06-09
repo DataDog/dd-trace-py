@@ -21,6 +21,7 @@ from ddtrace import Pin
 from ddtrace import config
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
+from ddtrace.ext import net
 from ddtrace.ext import user
 from ddtrace.internal import _context
 from ddtrace.internal.compat import ip_is_global
@@ -422,6 +423,7 @@ def set_http_meta(
     integration_config,  # type: IntegrationConfig
     method=None,  # type: Optional[str]
     url=None,  # type: Optional[str]
+    target_host=None,  # type: Optional[str]
     status_code=None,  # type: Optional[Union[int, str]]
     status_msg=None,  # type: Optional[str]
     query=None,  # type: Optional[str]
@@ -460,6 +462,9 @@ def set_http_meta(
     if url is not None:
         url = _sanitized_url(url)
         _set_url_tag(integration_config, span, url, query)
+
+    if target_host is not None:
+        span.set_tag_str(net.TARGET_HOST, target_host)
 
     if status_code is not None:
         try:

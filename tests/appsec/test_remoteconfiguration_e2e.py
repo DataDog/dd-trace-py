@@ -9,15 +9,14 @@ import signal
 import subprocess
 import sys
 import time
-from typing import Optional  # noqa
 import uuid
 
 import pytest
-import tenacity
 
 from ddtrace import tracer
 from ddtrace.internal.compat import httplib
 from ddtrace.internal.compat import parse
+from ddtrace.internal.utils.retry import RetryError
 from ddtrace.vendor import psutil
 from tests.webclient import Client
 
@@ -60,7 +59,7 @@ def gunicorn_server(appsec_enabled="true", remote_configuration_enabled="true", 
             print("Waiting for server to start")
             client.wait(max_tries=100, delay=0.1)
             print("Server started")
-        except tenacity.RetryError:
+        except RetryError:
             raise AssertionError(
                 "Server failed to start, see stdout and stderr logs"
                 "\n=== Captured STDOUT ===\n%s=== End of captured STDOUT ==="
