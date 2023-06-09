@@ -77,11 +77,3 @@ class DynamicInstrumentationConfig(En):
         help_type="Integer",
         help="Interval in seconds for periodically emitting probe diagnostic messages",
     )
-
-    exception_debugging = En.v(
-        bool,
-        "exception_debugging.enabled",
-        default=False,
-        help_type="Boolean",
-        help="Enable automatic capturing of exception debugging information",
-    )

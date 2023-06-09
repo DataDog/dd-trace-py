@@ -1,16 +1,8 @@
-from contextlib import contextmanager
-
 import pytest
 
 import ddtrace
-from tests.debugging.mocking import debugger
+from tests.debugging.mocking import exception_debugging
 from tests.utils import TracerTestCase
-
-
-@contextmanager
-def auto_instrument():
-    with debugger(exception_debugging=True) as d:
-        yield d
 
 
 class ExceptionDebuggingTestCase(TracerTestCase):
@@ -39,7 +31,7 @@ class ExceptionDebuggingTestCase(TracerTestCase):
                 sh = 3
                 b(foo << sh)
 
-        with auto_instrument() as d:
+        with exception_debugging() as d:
             with pytest.raises(ValueError):
                 c()
 

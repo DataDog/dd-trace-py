@@ -18,7 +18,8 @@ from typing import cast
 from six import PY3
 
 import ddtrace
-from ddtrace.debugging._config import config
+from ddtrace.debugging._config import di_config
+from ddtrace.debugging._config import ed_config
 from ddtrace.debugging._encoding import BatchJsonEncoder
 from ddtrace.debugging._encoding import LogSignalJsonEncoder
 from ddtrace.debugging._function.discovery import FunctionDiscovery
@@ -185,7 +186,7 @@ class Debugger(Service):
 
         cls.__watchdog__.install()
 
-        if config.metrics:
+        if di_config.metrics:
             metrics.enable()
 
         cls._instance = debugger = cls()
@@ -220,7 +221,7 @@ class Debugger(Service):
         cls._instance = None
 
         cls.__watchdog__.uninstall()
-        if config.metrics:
+        if di_config.metrics:
             metrics.disable()
 
         log.debug("%s disabled", cls.__name__)
@@ -230,7 +231,7 @@ class Debugger(Service):
         super(Debugger, self).__init__()
 
         self._tracer = tracer or ddtrace.tracer
-        service_name = config.service_name
+        service_name = di_config.service_name
 
         self._encoder = BatchJsonEncoder(
             item_encoders={
@@ -248,18 +249,18 @@ class Debugger(Service):
 
         log_limiter = RateLimiter(limit_rate=1.0, raise_on_exceed=False)
         self._global_rate_limiter = RateLimiter(
-            limit_rate=config.global_rate_limit,  # TODO: Make it configurable. Note that this is per-process!
+            limit_rate=di_config.global_rate_limit,  # TODO: Make it configurable. Note that this is per-process!
             on_exceed=lambda: log_limiter.limit(log.warning, "Global rate limit exceeded"),
             call_once=True,
             raise_on_exceed=False,
         )
 
-        if config.exception_debugging:
+        if ed_config.enabled:
             from ddtrace.debugging._exception.auto_instrument import SpanExceptionProcessor
 
             SpanExceptionProcessor(collector=self._collector).register()
 
-        if config.enabled:
+        if di_config.enabled:
             # TODO: this is only temporary and will be reverted once the DD_REMOTE_CONFIGURATION_ENABLED variable
             #  has been removed
             if asbool(os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", True)) is False:
@@ -647,7 +648,7 @@ class Debugger(Service):
     def _on_configuration(self, event, probes):
         # type: (ProbePollerEventType, Iterable[Probe]) -> None
         log.debug("[%s][P: %s] Received poller event %r with probes %r", os.getpid(), os.getppid(), event, probes)
-        if len(list(probes)) + len(self._probe_registry) > config.max_probes:
+        if len(list(probes)) + len(self._probe_registry) > di_config.max_probes:
             log.warning("Too many active probes. Ignoring new ones.")
             return
 
