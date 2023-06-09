@@ -10,6 +10,7 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "_dd.peer.service.source": "out.host",
       "component": "httpx",
       "http.method": "GET",
       "http.status_code": "200",
@@ -17,6 +18,7 @@
       "http.useragent": "python-httpx/x.xx.x",
       "language": "python",
       "out.host": "localhost",
+      "peer.service": "localhost",
       "runtime-id": "af42544f532343e6bbd42753ebb3440e",
       "span.kind": "client"
     },
