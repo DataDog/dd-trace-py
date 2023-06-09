@@ -1,11 +1,8 @@
-import pytest
-
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_APPSEC
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_TRACER
 from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_DISTRIBUTION
 from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_GENERATE_METRICS
 from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_LOGS
-from ddtrace.internal.telemetry.metrics_namespaces import TelemetryTypeError
 from ddtrace.internal.utils.version import _pep440_to_semver
 from tests.telemetry.test_writer import _get_request_body
 from tests.utils import override_global_config
@@ -36,13 +33,13 @@ def _assert_metric(
     expected_body_sorted = expected_body["payload"]["series"]
     for metric in expected_body_sorted:
         metric["tags"].sort()
-    expected_body_sorted.sort(key=lambda x: (x["metric"], x["tags"]), reverse=False)
+    expected_body_sorted.sort(key=lambda x: (x["metric"], x["tags"], x.get("type")), reverse=False)
 
     events.sort(key=lambda x: x["seq_id"], reverse=True)
     result_event = events[0]["payload"]["series"]
     for metric in result_event:
         metric["tags"].sort()
-    result_event.sort(key=lambda x: (x["metric"], x["tags"]), reverse=False)
+    result_event.sort(key=lambda x: (x["metric"], x["tags"], x.get("type")), reverse=False)
 
     assert result_event == expected_body_sorted
 
@@ -155,9 +152,7 @@ def test_send_metric_datapoint_equal_type_different_tags_yields_multiple_series(
         _assert_metric(test_agent_metrics_session, expected_series)
 
 
-def test_send_metric_datapoint_equal_tags_different_type_throws_error(
-    telemetry_metrics_writer, test_agent_metrics_session, mock_time
-):
+def test_send_metric_datapoint_with_different_types(telemetry_metrics_writer, test_agent_metrics_session, mock_time):
     """Check metrics datapoints and the aggregations by datapoint ID.
     A datapoint ID is at least: a metric name, a metric value, and the time at which the value was collected.
     But in Datadog, a datapoint also includes tags, which declare all the various scopes the datapoint belongs to
@@ -165,13 +160,20 @@ def test_send_metric_datapoint_equal_tags_different_type_throws_error(
     """
     with override_global_config(dict(_telemetry_metrics_enabled=True)):
         telemetry_metrics_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 1, {"a": "b"})
-        with pytest.raises(TelemetryTypeError) as e:
-            telemetry_metrics_writer.add_gauge_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 1, {"a": "b"})
+        telemetry_metrics_writer.add_gauge_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 1, {"a": "b"})
 
-            assert e.value.args[0] == (
-                'Error: metric with name "test-metric" and type "count" '
-                'exists. You can\'t create a new metric with this name an type "gauge"'
-            )
+        expected_series = [
+            {"common": True, "metric": "test-metric", "points": [[1642544540, 1.0]], "tags": ["a:b"], "type": "count"},
+            {
+                "common": True,
+                "metric": "test-metric",
+                "points": [[1642544540, 1.0]],
+                "tags": ["a:b"],
+                "type": "gauge",
+                "interval": 10,
+            },
+        ]
+        _assert_metric(test_agent_metrics_session, expected_series)
 
 
 def test_send_tracers_count_metric(telemetry_metrics_writer, test_agent_metrics_session, mock_time):
