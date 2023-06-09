@@ -16,7 +16,7 @@
       "openai.api_type": "open_ai",
       "openai.organization.name": "datadog-4",
       "openai.request.endpoint": "/v1/audio/translations",
-      "openai.request.filename": "/dd-trace-py/tests/contrib/openai/test_data/french_audio.mp3",
+      "openai.request.filename": "french_audio.mp3",
       "openai.request.method": "POST",
       "openai.request.model": "whisper-1",
       "openai.request.prompt": "and when I've given up,",

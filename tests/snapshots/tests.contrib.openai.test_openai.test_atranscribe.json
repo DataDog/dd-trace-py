@@ -16,7 +16,7 @@
       "openai.api_type": "open_ai",
       "openai.organization.name": "datadog-4",
       "openai.request.endpoint": "/v1/audio/transcriptions",
-      "openai.request.filename": "/dd-trace-py/tests/contrib/openai/test_data/english_audio.mp3",
+      "openai.request.filename": "english_audio.mp3",
       "openai.request.language": "en",
       "openai.request.method": "POST",
       "openai.request.model": "whisper-1",

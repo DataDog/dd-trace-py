@@ -16,7 +16,7 @@
       "openai.api_type": "open_ai",
       "openai.organization.name": "datadog-4",
       "openai.request.endpoint": "/v1/files",
-      "openai.request.filename": "/dd-trace-py/tests/contrib/openai/test_data/training_data.jsonl",
+      "openai.request.filename": "training_data.jsonl",
       "openai.request.method": "POST",
       "openai.request.purpose": "fine-tune",
       "openai.request.user_provided_filename": "dummy_training_file.jsonl",
