@@ -81,15 +81,22 @@ class CIVisibilityGitClient(object):
         # type: (CIVisibilityGitClientSerializerV1, int, str, str, Optional[Response], Optional[str]) -> None
         repo_url = cls._get_repository_url(cwd=cwd)
         latest_commits = cls._get_latest_commits(cwd=cwd)
+        log.warning("%d latest commits", len(latest_commits))
         backend_commits = cls._search_commits(
             requests_mode, base_url, repo_url, latest_commits, serializer, trace_id, _response
         )
+        log.warning("Backend commits found")
         rev_list = cls._get_filtered_revisions(backend_commits, cwd=cwd)
         if rev_list:
+            log.warning("Found %d new commits", len(rev_list))
             with cls._build_packfiles(rev_list, cwd=cwd) as packfiles_prefix:
+                log.warning("Uploading commits")
                 cls._upload_packfiles(
                     requests_mode, base_url, repo_url, packfiles_prefix, serializer, trace_id, _response, cwd=cwd
                 )
+                log.warning("Uploaded commits")
+        else:
+            log.warning("No new commits to upload found")
 
     @classmethod
     def _get_repository_url(cls, cwd=None):
