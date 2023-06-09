@@ -16,6 +16,7 @@
       "http.url": "http://testserver/sub-app/hello/name",
       "http.useragent": "testclient",
       "language": "python",
+      "out.host": "testserver",
       "runtime-id": "536df4fc0b554c3e84b35e5d58a8f7d4",
       "span.kind": "client"
     },
