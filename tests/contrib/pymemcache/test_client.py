@@ -1,8 +1,6 @@
 # 3p
-import mock
 import pymemcache
 from pymemcache.client.base import Client
-from pymemcache.client.base import PooledClient
 from pymemcache.exceptions import MemcacheClientError
 from pymemcache.exceptions import MemcacheIllegalInputError
 from pymemcache.exceptions import MemcacheServerError
