@@ -10,12 +10,9 @@ from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...ext import consul as consulx
-<<<<<<< HEAD
 from ...ext import net
-=======
 from ...internal.schema import schematize_service_name
 from ...internal.schema import schematize_url_operation
->>>>>>> 0fa36fe95 (chore(service naming): multiple contribs - consul)
 from ...internal.utils import get_argument_value
 from ...internal.utils.wrappers import unwrap as _u
 from ...pin import Pin
