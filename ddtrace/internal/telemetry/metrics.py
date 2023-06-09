@@ -51,7 +51,7 @@ class Metric(six.with_metaclass(abc.ABCMeta)):
         return hash((name, namespace, tags, metric_type))
 
     def __hash__(self):
-        return hash(self.get_id(self.name, self.namespace, self._tags, self.metric_type))
+        return self.get_id(self.name, self.namespace, self._tags, self.metric_type)
 
     @abc.abstractmethod
     def add_point(self, value=1.0):
