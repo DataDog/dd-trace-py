@@ -209,7 +209,7 @@ class Context(object):
 
     @property
     def baggage(self):
-        # type: () -> dict[str, str]
+        # type: () -> dict[str, Any]
         return self._baggage
 
     def set_baggage_item(self, key, value):
