@@ -8,6 +8,7 @@ from typing import Tuple  # noqa
 
 import tenacity
 
+from glob import glob
 from ddtrace.ext.git import build_git_packfiles
 from ddtrace.ext.git import extract_commit_sha
 from ddtrace.ext.git import extract_latest_commits
@@ -163,9 +164,9 @@ class CIVisibilityGitClient(object):
         parts = packfiles_prefix.split("/")
         directory = "/".join(parts[:-1])
         rand = parts[-1]
-        for filename in os.listdir(directory):
-            if not filename.startswith(rand) or not filename.endswith(PACK_EXTENSION):
-                continue
+        for filename in glob(directory + "/" + rand + "." + PACK_EXTENSION):
+            # if not filename.startswith(rand) or not filename.endswith(PACK_EXTENSION):
+            #     continue
             file_path = os.path.join(directory, filename)
             content_type, payload = serializer.upload_packfile_encode(repo_url, sha, file_path)
             headers = {"Content-Type": content_type}
