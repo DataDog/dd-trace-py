@@ -10,6 +10,7 @@ from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...ext import consul as consulx
+from ...ext import net
 from ...internal.utils import get_argument_value
 from ...internal.utils.wrappers import unwrap as _u
 from ...pin import Pin
@@ -54,6 +55,8 @@ def wrap_function(name):
 
         with pin.tracer.trace(consulx.CMD, service=pin.service, resource=resource, span_type=SpanTypes.HTTP) as span:
             span.set_tag_str(COMPONENT, config.consul.integration_name)
+
+            span.set_tag_str(net.TARGET_HOST, instance.agent.http.host)
 
             # set span.kind to the type of request being performed
             span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
