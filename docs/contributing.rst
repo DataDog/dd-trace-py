@@ -94,3 +94,27 @@ To initialize the pre-commit hook script to run in your development branch, run 
 
     $ rm .git/hooks/pre-commit
 
+
+Release Branch Maintenance
+==========================
+
+Fix PRs
+-------
+
+These PRs are generally opened to fix a bug reported by a user of the library. Fix PRs should be backported to all impacted and maintained release branches.
+
+CI PRs
+------
+
+These PRs are generally opened to fix or improve the current status of the CI. As a general rule, these PRs should all be backported to all the maintained release branches.
+
+New features
+------------
+
+New features introduced by feat PRs should not be backported.
+
+Chore and documentation PRs
+---------------------------
+
+These are PRs that do not fall into any of the previous categories. In general there should be no need to backport these PRs.
+
