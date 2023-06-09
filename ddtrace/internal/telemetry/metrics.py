@@ -4,7 +4,6 @@ import time
 from typing import Dict
 from typing import List
 from typing import Optional
-from typing import Text
 from typing import Tuple
 
 import six
@@ -15,7 +14,6 @@ from ddtrace.internal.telemetry.constants import TELEMETRY_METRIC_TYPE_GAUGE
 from ddtrace.internal.telemetry.constants import TELEMETRY_METRIC_TYPE_RATE
 
 
-MetricType = Text
 MetricTagType = Tuple[Tuple[str, str], ...]
 
 
@@ -25,7 +23,7 @@ class Metric(six.with_metaclass(abc.ABCMeta)):
     """
 
     metric_type = ""
-    _points = []  # type: List[Tuple[float, float]]
+    __slots__ = ["namespace", "name", "_tags", "is_common_to_all_tracers", "interval", "_points", "_count"]
 
     def __init__(self, namespace, name, tags, common, interval=None):
         # type: (str, str, MetricTagType, bool, Optional[float]) -> None
@@ -36,23 +34,24 @@ class Metric(six.with_metaclass(abc.ABCMeta)):
         common: set to True if a metric is common to all tracers, false if it is python specific
         interval: field set for gauge and rate metrics, any field set is ignored for count metrics (in secs)
         """
-        self.name = name
+        self.name = name.lower()
         self.is_common_to_all_tracers = common
         self.interval = interval
         self.namespace = namespace
         self._tags = tags
         self._count = 0.0
-        self._points = []  # type: List[float]
+        self._points = []  # type: List
 
-    @property
-    def id(self):
+    @classmethod
+    def get_id(cls, name, namespace, tags, metric_type):
+        # type: (str, str, MetricTagType, str) -> int
         """
         https://www.datadoghq.com/blog/the-power-of-tagged-metrics/#whats-a-metric-tag
         """
-        return hash((self.name, self._tags))
+        return hash((name, namespace, tags, metric_type))
 
     def __hash__(self):
-        return self.id
+        return hash(self.get_id(self.name, self.namespace, self._tags, self.metric_type))
 
     @abc.abstractmethod
     def add_point(self, value=1.0):
@@ -86,11 +85,10 @@ class CountMetric(Metric):
     def add_point(self, value=1.0):
         # type: (float) -> None
         """adds timestamped data point associated with a metric"""
-        timestamp = time.time()
-        if len(self._points) == 0:
-            self._points = [[timestamp, float(value)]]  # type: ignore
+        if self._points:
+            self._points[0][1] += value
         else:
-            self._points[0][1] += float(value)  # type: ignore
+            self._points = [[time.time(), value]]
 
 
 class GaugeMetric(Metric):
@@ -106,8 +104,7 @@ class GaugeMetric(Metric):
     def add_point(self, value=1.0):
         # type: (float) -> None
         """adds timestamped data point associated with a metric"""
-        timestamp = time.time()
-        self._points = [(timestamp, float(value))]
+        self._points = [(time.time(), value)]
 
 
 class RateMetric(Metric):
@@ -123,10 +120,9 @@ class RateMetric(Metric):
         """Example:
         https://github.com/DataDog/datadogpy/blob/ee5ac16744407dcbd7a3640ee7b4456536460065/datadog/threadstats/metrics.py#L181
         """
-        timestamp = time.time()
         self._count += value
-        rate = (self._count / float(self.interval)) if self.interval else 0.0
-        self._points = [(timestamp, rate)]
+        rate = (self._count / self.interval) if self.interval else 0.0
+        self._points = [(time.time(), rate)]
 
 
 class DistributionMetric(Metric):
@@ -142,7 +138,7 @@ class DistributionMetric(Metric):
         """Example:
         https://github.com/DataDog/datadogpy/blob/ee5ac16744407dcbd7a3640ee7b4456536460065/datadog/threadstats/metrics.py#L181
         """
-        self._points.append(float(value))  # type: ignore
+        self._points.append(value)
 
     def to_dict(self):
         # type: () -> Dict
