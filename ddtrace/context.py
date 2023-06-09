@@ -51,11 +51,11 @@ class Context(object):
         meta=None,  # type: Optional[_MetaDictType]
         metrics=None,  # type: Optional[_MetricDictType]
         lock=None,  # type: Optional[threading.RLock]
-        baggage=None,
+        baggage=None,  # type: dict[str, Any]
     ):
         self._meta = meta if meta is not None else {}  # type: _MetaDictType
         self._metrics = metrics if metrics is not None else {}  # type: _MetricDictType
-        self._baggage = baggage if baggage is not None else {}  # type: dict[str, str]
+        self._baggage = baggage if baggage is not None else {}  # type: dict[str, Any]
 
         self.trace_id = trace_id  # type: Optional[int]
         self.span_id = span_id  # type: Optional[int]
