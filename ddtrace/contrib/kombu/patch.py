@@ -7,6 +7,7 @@ from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.vendor import wrapt
 
 # project
@@ -98,7 +99,7 @@ def traced_receive(func, instance, args, kwargs):
     trace_utils.activate_distributed_headers(pin.tracer, request_headers=message.headers, override=True)
 
     with pin.tracer.trace(
-        schematize_messaging_operation(kombux.RECEIVE_NAME, provider="kombu", direction="process"),
+        schematize_messaging_operation(kombux.RECEIVE_NAME, provider="kombu", direction=SpanDirection.PROCESS),
         service=pin.service,
         span_type=SpanTypes.WORKER,
     ) as s:
@@ -126,7 +127,7 @@ def traced_publish(func, instance, args, kwargs):
         return func(*args, **kwargs)
 
     with pin.tracer.trace(
-        schematize_messaging_operation(kombux.PUBLISH_NAME, provider="kombu", direction="outbound"),
+        schematize_messaging_operation(kombux.PUBLISH_NAME, provider="kombu", direction=SpanDirection.OUTBOUND),
         service=pin.service,
         span_type=SpanTypes.WORKER,
     ) as s:

@@ -17,6 +17,7 @@ from ddtrace import Span
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_url_operation
+from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.vendor import wrapt
 
 from .. import trace_utils
@@ -182,7 +183,7 @@ def _create_span(pin, handler_call_details, method_kind):
     trace_utils.activate_distributed_headers(tracer, int_config=config.grpc_aio_server, request_headers=headers)
 
     span = tracer.trace(
-        schematize_url_operation("grpc", protocol="grpc", direction="inbound"),
+        schematize_url_operation("grpc", protocol="grpc", direction=SpanDirection.INBOUND),
         span_type=SpanTypes.GRPC,
         service=trace_utils.int_service(pin, config.grpc_aio_server),
         resource=handler_call_details.method,

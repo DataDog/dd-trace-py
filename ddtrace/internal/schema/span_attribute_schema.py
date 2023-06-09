@@ -1,3 +1,12 @@
+from enum import Enum
+
+
+class SpanDirection(Enum):
+    INBOUND = "inbound"
+    OUTBOUND = "outbound"
+    PROCESSING = "processing"
+
+
 def service_name_v0(v0_service_name):
     return v0_service_name
 
@@ -49,11 +58,11 @@ def cloud_messaging_operation_v0(v0_operation, cloud_provider=None, cloud_servic
 
 
 def cloud_messaging_operation_v1(v0_operation, cloud_provider=None, cloud_service=None, direction=None):
-    if direction == "inbound":
+    if direction == SpanDirection.INBOUND:
         return "{}.{}.receive".format(cloud_provider, cloud_service)
-    elif direction == "outbound":
+    elif direction == SpanDirection.OUTBOUND:
         return "{}.{}.send".format(cloud_provider, cloud_service)
-    elif direction == "processing":
+    elif direction == SpanDirection.PROCESSING:
         return "{}.{}.process".format(cloud_provider, cloud_service)
 
 
@@ -62,11 +71,11 @@ def messaging_operation_v0(v0_operation, provider=None, service=None, direction=
 
 
 def messaging_operation_v1(v0_operation, provider=None, direction=None):
-    if direction == "inbound":
+    if direction == SpanDirection.INBOUND:
         return "{}.receive".format(provider)
-    elif direction == "outbound":
+    elif direction == SpanDirection.OUTBOUND:
         return "{}.send".format(provider)
-    elif direction == "process":
+    elif direction == SpanDirection.PROCESSING:
         return "{}.process".format(provider)
 
 
@@ -75,16 +84,15 @@ def url_operation_v0(v0_operation, protocol=None, direction=None):
 
 
 def url_operation_v1(v0_operation, protocol=None, direction=None):
-    acceptable_directions = {"inbound", "outbound"}
     acceptable_protocols = {"http", "grpc", "graphql"}
-    assert direction in acceptable_directions, "You must specify a direction as one of {}. You specified {}".format(
-        acceptable_directions, direction
+    assert direction in SpanDirection, "You must specify a direction as one of {}. You specified {}".format(
+        list(SpanDirection), direction
     )
     assert protocol in acceptable_protocols, "You must specify a protocol as one of {}. You specified {}.".format(
         acceptable_protocols, protocol
     )
 
-    server_or_client = {"inbound": "server", "outbound": "client"}[direction]
+    server_or_client = {SpanDirection.INBOUND: "server", SpanDirection.OUTBOUND: "client"}[direction]
     return "{}.{}.request".format(protocol, server_or_client)
 
 

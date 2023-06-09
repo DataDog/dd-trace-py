@@ -3,6 +3,8 @@ import re
 import sys
 from typing import TYPE_CHECKING
 
+from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Callable
@@ -191,7 +193,7 @@ def _traced_query(func, args, kwargs):
     resource = _get_source_str(source)
 
     with pin.tracer.trace(
-        name=schematize_url_operation("graphql.request", protocol="graphql", direction="inbound"),
+        name=schematize_url_operation("graphql.request", protocol="graphql", direction=SpanDirection.INBOUND),
         resource=resource,
         service=trace_utils.int_service(pin, config.graphql),
         span_type=SpanTypes.GRAPHQL,

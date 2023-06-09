@@ -8,6 +8,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal.compat import stringify
 from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.vendor import wrapt
 
 from . import constants
@@ -178,7 +179,7 @@ class _ClientInterceptor(
         tracer = self._pin.tracer
 
         span = tracer.trace(
-            schematize_url_operation("grpc", protocol="grpc", direction="outbound"),
+            schematize_url_operation("grpc", protocol="grpc", direction=SpanDirection.OUTBOUND),
             span_type=SpanTypes.GRPC,
             service=trace_utils.ext_service(self._pin, config.grpc),
             resource=client_call_details.method,

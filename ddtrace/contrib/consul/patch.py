@@ -2,6 +2,7 @@ import consul
 
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -56,7 +57,7 @@ def wrap_function(name):
         resource = name.upper()
 
         with pin.tracer.trace(
-            schematize_url_operation(consulx.CMD, protocol="http", direction="outbound"),
+            schematize_url_operation(consulx.CMD, protocol="http", direction=SpanDirection.OUTBOUND),
             service=pin.service,
             resource=resource,
             span_type=SpanTypes.HTTP,

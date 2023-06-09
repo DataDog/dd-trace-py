@@ -18,6 +18,7 @@ import botocore.client
 import botocore.exceptions
 
 from ddtrace import config
+from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.settings.config import Config
 from ddtrace.vendor import debtcollector
 from ddtrace.vendor import wrapt
@@ -390,36 +391,42 @@ def patched_api_call(original_func, instance, args, kwargs):
                     if endpoint_name == "sqs" and operation == "SendMessage":
                         inject_trace_to_sqs_or_sns_message(params, span, endpoint_name)
                         span.name = schematize_cloud_messaging_operation(
-                            trace_operation, cloud_provider="aws", cloud_service="sqs", direction="outbound"
+                            trace_operation, cloud_provider="aws", cloud_service="sqs", direction=SpanDirection.OUTBOUND
                         )
                     if endpoint_name == "sqs" and operation == "SendMessageBatch":
                         inject_trace_to_sqs_or_sns_batch_message(params, span, endpoint_name)
                         span.name = schematize_cloud_messaging_operation(
-                            trace_operation, cloud_provider="aws", cloud_service="sqs", direction="outbound"
+                            trace_operation, cloud_provider="aws", cloud_service="sqs", direction=SpanDirection.OUTBOUND
                         )
                     if endpoint_name == "sqs" and operation == "ReceiveMessage":
                         span.name = schematize_cloud_messaging_operation(
-                            trace_operation, cloud_provider="aws", cloud_service="sqs", direction="inbound"
+                            trace_operation, cloud_provider="aws", cloud_service="sqs", direction=SpanDirection.INBOUND
                         )
                     if endpoint_name == "events" and operation == "PutEvents":
                         inject_trace_to_eventbridge_detail(params, span)
                         span.name = schematize_cloud_messaging_operation(
-                            trace_operation, cloud_provider="aws", cloud_service="events", direction="outbound"
+                            trace_operation,
+                            cloud_provider="aws",
+                            cloud_service="events",
+                            direction=SpanDirection.OUTBOUND,
                         )
                     if endpoint_name == "kinesis" and (operation == "PutRecord" or operation == "PutRecords"):
                         inject_trace_to_kinesis_stream(params, span)
                         span.name = schematize_cloud_messaging_operation(
-                            trace_operation, cloud_provider="aws", cloud_service="kinesis", direction="outbound"
+                            trace_operation,
+                            cloud_provider="aws",
+                            cloud_service="kinesis",
+                            direction=SpanDirection.OUTBOUND,
                         )
                     if endpoint_name == "sns" and operation == "Publish":
                         inject_trace_to_sqs_or_sns_message(params, span, endpoint_name)
                         span.name = schematize_cloud_messaging_operation(
-                            trace_operation, cloud_provider="aws", cloud_service="sns", direction="outbound"
+                            trace_operation, cloud_provider="aws", cloud_service="sns", direction=SpanDirection.OUTBOUND
                         )
                     if endpoint_name == "sns" and operation == "PublishBatch":
                         inject_trace_to_sqs_or_sns_batch_message(params, span, endpoint_name)
                         span.name = schematize_cloud_messaging_operation(
-                            trace_operation, cloud_provider="aws", cloud_service="sns", direction="outbound"
+                            trace_operation, cloud_provider="aws", cloud_service="sns", direction=SpanDirection.OUTBOUND
                         )
                 except Exception:
                     log.warning("Unable to inject trace context", exc_info=True)

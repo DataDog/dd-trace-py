@@ -11,6 +11,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
+from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.pin import Pin
 from ddtrace.vendor import wrapt
@@ -198,7 +199,7 @@ def _create_sanic_request_span(request):
     trace_utils.activate_distributed_headers(ddtrace.tracer, int_config=config.sanic, request_headers=headers)
 
     span = pin.tracer.trace(
-        schematize_url_operation("sanic.request", protocol="http", direction="inbound"),
+        schematize_url_operation("sanic.request", protocol="http", direction=SpanDirection.INBOUND),
         service=trace_utils.int_service(None, config.sanic),
         resource=resource,
         span_type=SpanTypes.WEB,

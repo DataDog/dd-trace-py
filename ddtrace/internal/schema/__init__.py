@@ -2,6 +2,7 @@ import os
 
 from ddtrace.internal.utils.formats import asbool
 
+from .span_attribute_schema import SpanDirection
 from .span_attribute_schema import _DEFAULT_SPAN_SERVICE_NAMES
 from .span_attribute_schema import _SPAN_ATTRIBUTE_TO_FUNCTION
 
@@ -41,6 +42,7 @@ schematize_url_operation = _SPAN_ATTRIBUTE_TO_FUNCTION[SCHEMA_VERSION]["url_oper
 __all__ = [
     "DEFAULT_SPAN_SERVICE_NAME",
     "SCHEMA_VERSION",
+    "SpanDirection",
     "schematize_cache_operation",
     "schematize_cloud_api_operation",
     "schematize_cloud_faas_operation",
