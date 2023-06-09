@@ -29,6 +29,11 @@ FEATURES = {
     "transparent_events": False,
 }
 
+# These are flags indicating the enablement of the profiler.  This is handled at the level of
+# a global rather than a passed parameter because this is a time of transition
+cdef bint use_libdd = False
+cdef bint use_py = True
+
 
 IF UNAME_SYSNAME == "Linux":
     FEATURES['cpu-time'] = True
@@ -294,7 +299,7 @@ cdef collect_threads(thread_id_ignore_list, thread_time, thread_span_links) with
 
 
 
-cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_time, thread_span_links, collect_endpoint, export_libdd_enabled, export_py_enabled):
+cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_time, thread_span_links, collect_endpoint):
     # Do not use `threading.enumerate` to not mess with locking (gevent!)
     thread_id_ignore_list = {
         thread_id
@@ -331,7 +336,7 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
                 continue
             frames, nframes = _traceback.pyframe_to_frames(task_pyframes, max_nframes)
 
-            if export_libdd_enabled and nframes:
+            if use_libdd and nframes:
                 ddup.start_sample(nframes)
                 ddup.push_walltime(wall_time, 1)
                 ddup.push_threadinfo(thread_id, thread_native_id, thread_name)
@@ -342,7 +347,7 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
                     ddup.push_frame(frame[2], frame[0], 0, frame[1])
                 ddup.flush_sample()
 
-            if export_py_enabled and nframes:
+            if use_py and nframes:
                 stack_events.append(
                     stack_event.StackSampleEvent(
                         thread_id=thread_id,
@@ -358,7 +363,7 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
 
         frames, nframes = _traceback.pyframe_to_frames(thread_pyframes, max_nframes)
 
-        if export_libdd_enabled and nframes:
+        if use_libdd and nframes:
             ddup.start_sample(nframes)
             ddup.push_cputime(cpu_time, 1)
             ddup.push_walltime(wall_time, 1)
@@ -369,7 +374,7 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
             ddup.push_span(span, collect_endpoint)
             ddup.flush_sample()
 
-        if export_py_enabled and nframes:
+        if use_py and nframes:
             event = stack_event.StackSampleEvent(
                 thread_id=thread_id,
                 thread_native_id=thread_native_id,
@@ -390,7 +395,7 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
 
             frames, nframes = _traceback.traceback_to_frames(exc_traceback, max_nframes)
 
-            if export_libdd_enabled and nframes:
+            if use_libdd and nframes:
                 ddup.start_sample(nframes)
                 ddup.push_threadinfo(thread_id, thread_native_id, thread_name)
                 ddup.push_exceptioninfo(exc_type, 1)
@@ -400,7 +405,7 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
                 ddup.push_span(span, collect_endpoint)
                 ddup.flush_sample()
 
-            if export_py_enabled and nframes:
+            if use_py and nframes:
                 exc_event = stack_event.StackExceptionSampleEvent(
                     thread_id=thread_id,
                     thread_name=thread_name,
@@ -477,8 +482,6 @@ class StackCollector(collector.PeriodicCollector):
     ignore_profiler = attr.ib(type=bool, default=config.ignore_profiler)
     endpoint_collection_enabled = attr.ib(default=None)
     tracer = attr.ib(default=None)
-    export_libdd_enabled = attr.ib(type=bool, default=config.export.libdd_enabled)
-    export_py_enabled= attr.ib(type=bool, default=config.export.py_enabled)
     _thread_time = attr.ib(init=False, repr=False, eq=False)
     _last_wall_time = attr.ib(init=False, repr=False, eq=False, type=int)
     _thread_span_links = attr.ib(default=None, init=False, repr=False, eq=False)
@@ -495,6 +498,8 @@ class StackCollector(collector.PeriodicCollector):
         if self.tracer is not None:
             self._thread_span_links = _ThreadSpanLinks()
             self.tracer.context_provider._on_activate(self._thread_span_links.link_span)
+        use_libdd = config.export.libdd_enabled
+        use_py = config.export.py_enabled
 
     def _start_service(self):
         # type: (...) -> None
@@ -526,8 +531,6 @@ class StackCollector(collector.PeriodicCollector):
             wall_time,
             self._thread_span_links,
             self.endpoint_collection_enabled,
-            export_libdd_enabled=self.export_libdd_enabled,
-            export_py_enabled=self.export_py_enabled,
         )
 
         used_wall_time_ns = compat.monotonic_ns() - now
