@@ -4,6 +4,8 @@ import os
 import typing
 from typing import List
 from typing import Optional
+from typing import Type
+from typing import Union
 
 import attr
 
@@ -121,7 +123,7 @@ class _ProfilerInstance(service.Service):
 
     _recorder = attr.ib(init=False, default=None)
     _collectors = attr.ib(init=False, default=None)
-    _scheduler = attr.ib(init=False, default=None, type=Type[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]])
+    _scheduler = attr.ib(init=False, default=None, type=Union[scheduler.Scheduler, scheduler.ServerlessScheduler])
     _lambda_function_name = attr.ib(
         init=False, factory=lambda: os.environ.get("AWS_LAMBDA_FUNCTION_NAME"), type=Optional[str]
     )
@@ -246,6 +248,7 @@ class _ProfilerInstance(service.Service):
         exporters = self._build_default_exporters()
 
         if exporters or self._export_libdd_enabled:
+            scheduler_class: Type[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]]
             if self._lambda_function_name is None:
                 scheduler_class = scheduler.Scheduler
             else:
