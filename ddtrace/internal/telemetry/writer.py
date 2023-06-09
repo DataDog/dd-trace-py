@@ -251,7 +251,7 @@ class TelemetryLogsMetricsWriter(TelemetryBase):
         return config._telemetry_metrics_enabled and super(TelemetryLogsMetricsWriter, self).enable(start_worker_thread)
 
     def add_log(self, level, message, stack_trace="", tags={}):
-        # type: (str, str, str, Dict) -> None
+        # type: (str, str, str, MetricTagType) -> None
         """
         Queues log. This event is meant to send library logs to Datadog’s backend through the Telemetry intake.
         This will make support cycles easier and ensure we know about potentially silent issues in libraries.
