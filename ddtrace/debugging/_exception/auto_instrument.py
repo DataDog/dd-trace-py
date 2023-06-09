@@ -14,7 +14,15 @@ from ddtrace.debugging._signal.collector import SignalCollector
 from ddtrace.debugging._signal.snapshot import DEFAULT_CAPTURE_LIMITS
 from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.internal.processor import SpanProcessor
+from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLimiter
+from ddtrace.internal.rate_limiter import RateLimitExceeded
 from ddtrace.span import Span
+
+
+GLOBAL_RATE_LIMITER = RateLimiter(
+    limit_rate=1,  # one trace per second
+    raise_on_exceed=False,
+)
 
 
 def unwind_exception_chain(
@@ -96,6 +104,33 @@ class SpanExceptionSnapshot(Snapshot):
         return data
 
 
+def can_capture(span):
+    # type: (Span) -> bool
+    # We determine if we should capture the exception information from the span
+    # by looking at its local root. If we have budget to capture, we mark the
+    # root as "info captured" and return True. If we don't have budget, we mark
+    # the root as "info not captured" and return False. If the root is already
+    # marked, we return the mark.
+    root = span._local_root
+    if root is None:
+        return False
+
+    info_captured = root.get_tag("error.debug-info-captured")
+
+    if info_captured == "false":
+        return False
+
+    if info_captured == "true":
+        return True
+
+    if info_captured is None:
+        result = GLOBAL_RATE_LIMITER.limit() is not RateLimitExceeded
+        root.set_tag_str("error.debug-info-captured", str(result).lower())
+        return result
+
+    raise ValueError("unexpected value for error.debug-info-captured: %r" % info_captured)
+
+
 @attr.s
 class SpanExceptionProcessor(SpanProcessor):
     collector = attr.ib(type=SignalCollector)
@@ -106,8 +141,8 @@ class SpanExceptionProcessor(SpanProcessor):
 
     def on_span_finish(self, span):
         # type: (Span) -> None
-        if not span.error:
-            # No error to capture
+        if not (span.error and can_capture(span)):
+            # No error or budget to capture
             return
 
         _, exc, _tb = sys.exc_info()
