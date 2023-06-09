@@ -10,10 +10,12 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "_dd.peer.service.source": "out.host",
       "component": "yaaredis",
       "db.system": "redis",
       "language": "python",
       "out.host": "localhost",
+      "peer.service": "localhost",
       "redis.command": "FLUSHALL",
       "runtime-id": "6512d363c3094051ae21a945fbfcf82b",
       "span.kind": "client"
@@ -44,10 +46,12 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "_dd.peer.service.source": "out.host",
       "component": "yaaredis",
       "db.system": "redis",
       "language": "python",
       "out.host": "localhost",
+      "peer.service": "localhost",
       "redis.command": "GET cheese",
       "runtime-id": "6512d363c3094051ae21a945fbfcf82b",
       "span.kind": "client"
