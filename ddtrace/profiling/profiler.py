@@ -124,7 +124,7 @@ class _ProfilerInstance(service.Service):
     _scheduler = attr.ib(
         init=False,
         default=None,
-        type=scheduler.Scheduler,
+        type=Type[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]]
     )
     _lambda_function_name = attr.ib(
         init=False, factory=lambda: os.environ.get("AWS_LAMBDA_FUNCTION_NAME"), type=Optional[str]
