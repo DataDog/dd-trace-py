@@ -3,7 +3,6 @@ from typing import Any
 from typing import Callable
 from typing import Iterable
 from typing import Optional
-from typing import Type
 
 import pymemcache
 from pymemcache.client.base import Client
@@ -44,7 +43,7 @@ _HashClient = HashClient
 
 
 class _WrapperBase(wrapt.ObjectProxy):
-    def __init__(self, wrapped_class: Type, *args, **kwargs):
+    def __init__(self, wrapped_class, *args, **kwargs):
         c = wrapped_class(*args, **kwargs)
         super(_WrapperBase, self).__init__(c)
 
