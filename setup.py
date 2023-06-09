@@ -60,7 +60,6 @@ UPX_VERSION = "v4.0.2"
 UPX_ENABLE = os.getenv("DD_UPX_ENABLE", "yes").lower() in ["false", "no"] and not DEBUG_COMPILE
 
 
-
 def verify_checksum_from_file(sha256_filename, filename):
     # sha256 File format is ``checksum`` followed by two whitespaces, then ``filename`` then ``\n``
     expected_checksum, expected_filename = list(filter(None, open(sha256_filename, "r").read().strip().split(" ")))
