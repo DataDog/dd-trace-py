@@ -1,5 +1,9 @@
 import sys
+from typing import Any
+from typing import Callable
 from typing import Iterable
+from typing import Optional
+from typing import Type
 
 import pymemcache
 from pymemcache.client.base import Client
@@ -40,7 +44,7 @@ _HashClient = HashClient
 
 
 class _WrapperBase(wrapt.ObjectProxy):
-    def __init__(self, wrapped_class, *args, **kwargs):
+    def __init__(self, wrapped_class: Type, *args, **kwargs):
         c = wrapped_class(*args, **kwargs)
         super(_WrapperBase, self).__init__(c)
 
@@ -57,7 +61,7 @@ class _WrapperBase(wrapt.ObjectProxy):
         # attach the pin onto this instance
         pin.onto(self)
 
-    def _trace_function_as_command(self, func, cmd, *args, **kwargs):
+    def _trace_function_as_command(self, func: Callable, cmd: str, *args, **kwargs):
         p = Pin.get_from(self)
 
         if not p or not p.enabled():
@@ -146,7 +150,7 @@ class WrappedClient(_WrapperBase):
         """set_multi is an alias for set_many"""
         return self._traced_cmd("get_many", *args, **kwargs)
 
-    def _traced_cmd(self, command, *args, **kwargs):
+    def _traced_cmd(self, command: str, *args, **kwargs):
         return self._trace_function_as_command(
             lambda *_args, **_kwargs: getattr(self.__wrapped__, command)(*_args, **_kwargs), command, *args, **kwargs
         )
@@ -164,7 +168,7 @@ class WrappedHashClient(_WrapperBase):
     patch() function.
     """
 
-    def _ensure_traced(self, cmd, key, default_val, *args, **kwargs):
+    def _ensure_traced(self, cmd: str, key: str, default_val: Optional[Any], *args, **kwargs):
         """
         PooledClient creates Client instances dynamically on request, which means
         those Client instances aren't affected by the wrappers applied in patch().
@@ -221,7 +225,9 @@ class WrappedHashClient(_WrapperBase):
     def touch(self, key, *args, **kwargs):
         return self._ensure_traced("touch", key, False, *args, **kwargs)
 
-    def _traced_cmd(self, command, client, key, default_val, *args, **kwargs):
+    def _traced_cmd(
+        self, command: str, client: Optional[Client], key: str, default_val: Optional[Any], *args, **kwargs
+    ):
         # NB this function mimics the logic of HashClient._run_cmd, tracing the call to _safely_run_func
         if client is None:
             return default_val
