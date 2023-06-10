@@ -34,7 +34,7 @@ packaging==23.1
 pandas==2.0.2
 pandas-stubs==2.0.2.230605
 pillow==9.5.0
-plotly==5.14.1
+plotly==5.15.0
 pluggy==1.0.0
 pyparsing==3.0.9
 pytest==7.3.1
