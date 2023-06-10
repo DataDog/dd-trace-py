@@ -248,14 +248,10 @@ class _ProfilerInstance(service.Service):
         exporters = self._build_default_exporters()
 
         if exporters or self._export_libdd_enabled:
-            if self._lambda_function_name is None:
-                scheduler_class = (
-                    scheduler.Scheduler
-                )  # type: Type[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]]
-            else:
-                scheduler_class = (
-                    scheduler.ServerlessScheduler
-                )  # type: Type[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]]
+            scheduler_class = (
+                scheduler.ServerlessScheduler if self._lambda_function_name else scheduler.Scheduler
+            )  # type: (Type[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]])
+
             self._scheduler = scheduler_class(
                 recorder=r,
                 exporters=exporters,
