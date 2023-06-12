@@ -91,7 +91,7 @@ def _add_api_param_span_tags(span, endpoint_name, params):
     elif endpoint_name == "sqs":
         queue_name = params.get("QueueName", "")
         queue_url = params.get("QueueUrl")
-        if queue_url and (queue_url.startswith("sqs:") or queue_url.startswith("https:")):
+        if queue_url and (queue_url.startswith("sqs:") or queue_url.startswith("http")):
             # example queue_url: https://sqs.sa-east-1.amazonaws.com/12345678/queuename
             queue_name = queue_url.split("/")[-1]
             aws_account = queue_url.split("/")[-2]
