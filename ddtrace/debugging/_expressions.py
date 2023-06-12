@@ -45,6 +45,20 @@ from ddtrace.internal.compat import PYTHON_VERSION_INFO as PY
 
 DDASTType = Union[Dict[str, Any], Dict[str, List[Any]], Any]
 
+if PY < (3, 0):
+    IDENT_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
+
+    def _is_identifier(name):
+        # type: (str) -> bool
+        return isinstance(name, str) and IDENT_RE.match(name) is not None
+
+
+else:
+
+    def _is_identifier(name):
+        # type: (str) -> bool
+        return isinstance(name, str) and name.isidentifier()
+
 
 def _make_function(ast, args, name):
     # type: (DDASTType, Tuple[str,...], str) -> FunctionType
@@ -244,7 +258,7 @@ def _compile_arg_operation(ast):
 
     if _type == "getmember":
         v, attr = args
-        if not isinstance(attr, str) or not attr.isidentifier():
+        if not _is_identifier(attr):
             raise ValueError("Invalid identifier: %r" % attr)
 
         cv = _compile_predicate(v)
