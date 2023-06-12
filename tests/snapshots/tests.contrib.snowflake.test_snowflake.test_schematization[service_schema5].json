@@ -1,0 +1,40 @@
+[[
+  {
+    "name": "sql.query",
+    "service": "mysvc",
+    "resource": "select current_version();",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.peer.service.source": "db.name",
+      "component": "snowflake",
+      "db.application": "PythonConnector",
+      "db.name": "mock-db-name",
+      "db.schema": "mock-schema-name",
+      "db.system": "snowflake",
+      "db.user": "mock-user",
+      "db.warehouse": "mock-warehouse-name",
+      "language": "python",
+      "out.host": "mock-account.snowflakecomputing.com",
+      "peer.service": "mock-db-name",
+      "runtime-id": "9aa53cd0a11f47efa567bf420f836065",
+      "sfqid": "mocksfqid-29244a72-90a0-4309-9168-9dcf67721f6d",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "db.row_count": 1,
+      "network.destination.port": 443,
+      "process_id": 1608
+    },
+    "duration": 620583,
+    "start": 1685475284096672043
+  }]]
