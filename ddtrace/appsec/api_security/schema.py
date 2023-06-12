@@ -1,6 +1,7 @@
 import enum
 from typing import TYPE_CHECKING
 
+from ddtrace.appsec.api_security.classifier import metadata
 from ddtrace.internal.compat import to_unicode
 
 
@@ -126,7 +127,9 @@ def _build_type(obj, depth, cache, max_depth=MAX_DEPTH, max_girth=MAX_GIRTH, max
     else:
         typename = type(obj).__name__
         type_base = getattr(Type_Base, typename, Type_Base.Unknown)
-        return cache.get_id(type_base.value), [type_base.value]
+        metadata_list = metadata(obj) if isinstance(obj, str) else []
+        res_type = [type_base.value, {"type": metadata_list}] if metadata_list else [type_base.value]
+        return (cache.get_id(type_base.value), res_type)
 
 
 def build_schema(obj, **kwargs):
