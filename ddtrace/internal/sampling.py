@@ -78,6 +78,7 @@ SPAN_SAMPLING_JSON_SCHEMA = {
         "type": "object",
         "anyOf": [
             {"properties": {"service": {"type": "string"}}, "required": ["service"]},
+            {"properties": {"resource": {"type": "string"}}, "required": ["resource"]},
             {"properties": {"name": {"type": "string"}}, "required": ["name"]},
             {"properties": {"tags": {"type": "object"}}, "required": ["tags"]},
         ],

@@ -142,15 +142,20 @@ def test_single_span_rules_do_not_tag_if_tracer_samples_via_env():
 def test_sampling_rule_init_config_multiple_sampling_rule_json_via_file(tmpdir):
     file = tmpdir.join("rules.json")
     file.write(
-        '[{"service":"xy?","name":"a*c"}, \
-            {"sample_rate":0.5,"service":"my-service","name":"my-name", "max_per_second":"20"}]'
+        '[{"service":"xy?","name":"a*c", "resource":"test_resource", "tags":{"test_key":"test_value"}}, \
+            {"sample_rate":0.5,"service":"my-service", "name":"my-name", "max_per_second":"20"}]'
     )
 
     with override_env(dict(DD_SPAN_SAMPLING_RULES_FILE=str(file))):
         sampling_rules = _get_file_json()
         assert sampling_rules == [
-            {"service": "xy?", "name": "a*c"},
-            {"sample_rate": 0.5, "service": "my-service", "name": "my-name", "max_per_second": "20"},
+            {"service": "xy?", "name": "a*c", "resource": "test_resource", "tags": {"test_key": "test_value"}},
+            {
+                "sample_rate": 0.5,
+                "service": "my-service",
+                "name": "my-name",
+                "max_per_second": "20",
+            },
         ]
 
 
@@ -188,7 +193,21 @@ def test_default_to_env_if_both_env_and_file_config(tmpdir, caplog):
         assert len(sampling_rules) == 1
 
 
-def test_tag_rules_sample_span_via_env():
+def test_resource_rule_sample_span_via_env():
+    """Test that single span sampling tags are applied to spans that should get sampled when envars set"""
+    with override_env(dict(DD_SPAN_SAMPLING_RULES='[{"resource":"test_resource"}]')):
+        sampling_rules = get_span_sampling_rules()
+        assert sampling_rules[0]._resource_matcher.pattern == "test_resource"
+        tracer = Tracer()
+        tracer.configure(writer=DummyWriter())
+
+        span = traced_function(tracer)
+        assert span.resource == "test_resource"
+
+        assert_sampling_decision_tags(span)
+
+
+def test_tag_rule_sample_span_via_env():
     """Test that single span sampling tags are applied to spans that should get sampled when envars set"""
     with override_env(dict(DD_SPAN_SAMPLING_RULES='[{"tags":{"test_key":"test_value"}}]')):
         sampling_rules = get_span_sampling_rules()
@@ -202,8 +221,31 @@ def test_tag_rules_sample_span_via_env():
         assert_sampling_decision_tags(span)
 
 
+def test_tag_rules_sample_span_via_env():
+    """Test that single span sampling tags are applied to spans that should get sampled when envars set"""
+    with override_env(
+        dict(DD_SPAN_SAMPLING_RULES='[{"tags":{"test_key":"test_value"}}, {"tags":{"test_not_match":"test_value"}} ]')
+    ):
+        sampling_rules = get_span_sampling_rules()
+        assert sampling_rules[0]._tag_value_matchers["test_key"].pattern == "test_value"
+        assert sampling_rules[1]._tag_value_matchers["test_not_match"].pattern == "test_value"
+
+        tracer = Tracer()
+        tracer.configure(writer=DummyWriter())
+
+        span = traced_function(tracer)
+        assert span.get_tag("test_key") == "test_value"
+
+        assert_sampling_decision_tags(span)
+
+
 def traced_function(
-    tracer, name="test_name", service="test_service", tags={"test_key": "test_value"}, trace_sampling=False
+    tracer,
+    name="test_name",
+    resource="test_resource",
+    service="test_service",
+    tags={"test_key": "test_value"},
+    trace_sampling=False,
 ):
     with tracer.trace(name) as span:
         # If the trace sampler samples the trace, then we shouldn't add the span sampling tags
@@ -217,6 +259,7 @@ def traced_function(
                 span.set_tag(k, v)
 
         span.service = service
+        span.resource = resource
     return span
 
 

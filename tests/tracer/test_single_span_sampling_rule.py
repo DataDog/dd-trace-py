@@ -107,6 +107,28 @@ def test_single_span_rule_match_only_tag():
     assert_sampling_decision_tags(span)
 
 
+def test_single_span_rule_match_only_tags():
+    rule = SpanSamplingRule(
+        sample_rate=1.0, max_per_second=-1, tags={"test_tag": "test_value", "test_tag2": "test_value2"}
+    )
+    span = traced_function(rule, tags={"test_tag": "test_value", "test_tag2": "test_value2"})
+    assert_sampling_decision_tags(span)
+
+
+def test_single_span_rule_match_one_tag_not_other_for_rule():
+    rule = SpanSamplingRule(
+        sample_rate=1.0, max_per_second=-1, tags={"test_tag": "test_value", "test_tag2": "test_value2"}
+    )
+    span = traced_function(rule, tags={"test_tag": "test_value"})
+    assert_sampling_decision_tags(span, sample_rate=None, mechanism=None, limit=None)
+
+
+def test_single_span_rule_match_one_tag_not_other_for_span():
+    rule = SpanSamplingRule(sample_rate=1.0, max_per_second=-1, tags={"test_tag": "test_value"})
+    span = traced_function(rule, tags={"test_tag": "test_value", "test_tag2": "test_value2"})
+    assert_sampling_decision_tags(span)
+
+
 def test_single_span_rule_no_match_only_tag():
     rule = SpanSamplingRule(sample_rate=1.0, max_per_second=-1, tags={"test_ta": "test_val"})
     span = traced_function(rule, tags={"test_tag": "test_value"})
