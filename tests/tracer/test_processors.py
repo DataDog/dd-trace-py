@@ -374,11 +374,8 @@ def test_span_normalizator():
     assert span.span_type == "x" * MAX_TYPE_LENGTH
 
 
-def test_span_creation_metrics():
+def test_span_creation_metrics(tracer):
     """Test that telemetry metrics are queued on span finish"""
-    tracer = DummyTracer()
-    assert any(isinstance(sp, SpanAggregator) for sp in tracer._span_processors)
-
     with mock.patch("ddtrace.internal.processor.trace.telemetry_metrics_writer.add_count_metric") as mock_tm:
         span = tracer.trace("span")
         mock_tm.assert_called_once_with("tracers", "datadog.span_created")
