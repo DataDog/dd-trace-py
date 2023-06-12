@@ -486,14 +486,6 @@ class TelemetryWriter(TelemetryBase):
         }
         self.add_event(payload, "app-integrations-change")
 
-    def _app_configuration_changed_event(self, integrations):
-        # type: (List[Dict]) -> None
-        """Adds a Telemetry event which sends a list of configured integrations to the agent"""
-        payload = {
-            "integrations": integrations,
-        }
-        self.add_event(payload, "app-integrations-change")
-
     def _app_dependencies_loaded_event(self):
         # type: () -> None
         """Adds a Telemetry event which sends a list of installed python packages to the agent"""
