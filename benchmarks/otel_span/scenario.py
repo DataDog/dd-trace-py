@@ -39,6 +39,7 @@ class OtelSpan(bm.Scenario):
         config._telemetry_enabled = config._telemetry_metrics_enabled = self.telemetry
         # Recreate span processors and configure global tracer to avoid sending traces to the agent
         utils.drop_traces(tracer)
+        utils.drop_telemetry_events()
 
         def _(loops):
             for _ in range(loops):
