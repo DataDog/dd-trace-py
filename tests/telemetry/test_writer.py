@@ -1,3 +1,4 @@
+import os
 import time
 from typing import Any
 from typing import Dict
@@ -65,22 +66,80 @@ def test_app_started_event(telemetry_lifecycle_writer, test_agent_session, mock_
     events = test_agent_session.get_events()
     assert len(events) == 1
 
-    # validate request body
     payload = {
-        # Xinyuan's code start
         "configuration": [
             {
                 "name": "data_streams_enabled",
                 "value": "False",
-            }
+            },
+            {
+                "name": "appsec_enabled",
+                "value": "False",
+            },
+            {
+                "name": "propagation_style_inject",
+                "value": ["tracecontext", "datadog"],
+            },
+            {
+                "name": "propagation_style_extract",
+                "value": ["tracecontext", "datadog"],
+            },
         ],
-        # Xinyuan's code end
         "error": {
             "code": 0,
             "message": "",
         },
     }
     assert events[0] == _get_request_body(payload, "app-started")
+
+
+def test_app_started_event_configuration_override(
+    telemetry_lifecycle_writer, test_agent_session, run_python_code_in_subprocess
+):
+    """asserts that default configuration value is changed and queues a valid telemetry request which is then sent by periodic()"""
+    code = """
+from ddtrace.internal.telemetry import telemetry_lifecycle_writer
+      
+telemetry_lifecycle_writer.enable()
+telemetry_lifecycle_writer.reset_queues()
+telemetry_lifecycle_writer._app_started_event()
+telemetry_lifecycle_writer.periodic()
+telemetry_lifecycle_writer.disable()
+    """
+
+    env = os.environ.copy()
+    # Change configuration default values
+    env["DD_DATA_STREAMS_ENABLED"] = "true"
+    env["DD_TRACE_PROPAGATION_STYLE_EXTRACT"] = "b3multi"
+    env["DD_TRACE_PROPAGATION_STYLE_INJECT"] = "datadog"
+
+    _, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
+
+    assert status == 0, stderr
+    assert stderr == b""
+
+    events = test_agent_session.get_events()
+
+    configuration = [
+        {
+            "name": "data_streams_enabled",
+            "value": "True",
+        },
+        {
+            "name": "appsec_enabled",
+            "value": "False",
+        },
+        {
+            "name": "propagation_style_inject",
+            "value": ["datadog"],
+        },
+        {
+            "name": "propagation_style_extract",
+            "value": ["b3multi"],
+        },
+    ]
+
+    assert events[0]["payload"]["configuration"] == configuration
 
 
 def test_app_dependencies_loaded_event(telemetry_lifecycle_writer, test_agent_session, mock_time):

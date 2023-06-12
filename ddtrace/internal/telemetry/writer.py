@@ -433,7 +433,19 @@ class TelemetryWriter(TelemetryBase):
                 {
                     "name": "data_streams_enabled",
                     "value": str(config._data_streams_enabled),
-                }
+                },
+                {
+                    "name": "appsec_enabled",
+                    "value": str(config._appsec_enabled),
+                },
+                {
+                    "name": "propagation_style_inject",
+                    "value": list(config._propagation_style_inject),
+                },
+                {
+                    "name": "propagation_style_extract",
+                    "value": list(config._propagation_style_extract),
+                },
             ],
             # Xinyuan's code end
             "error": {
@@ -467,6 +479,14 @@ class TelemetryWriter(TelemetryBase):
         self.add_event(payload, "app-closing")
 
     def _app_integrations_changed_event(self, integrations):
+        # type: (List[Dict]) -> None
+        """Adds a Telemetry event which sends a list of configured integrations to the agent"""
+        payload = {
+            "integrations": integrations,
+        }
+        self.add_event(payload, "app-integrations-change")
+
+    def _app_configuration_changed_event(self, integrations):
         # type: (List[Dict]) -> None
         """Adds a Telemetry event which sends a list of configured integrations to the agent"""
         payload = {
