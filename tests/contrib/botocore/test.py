@@ -739,7 +739,6 @@ class BotocoreTest(TracerTestCase):
 
     @mock_sqs
     def test_data_streams_sqs(self):
-        # DEV: Only test deprecated behavior because this inspect span tags for MessageAttributes
         with self.override_config("botocore", dict(tag_all_params=True)):
             sqs = self.session.create_client("sqs", region_name="us-east-1", endpoint_url="http://localhost:4566")
             queue = sqs.create_queue(QueueName="test")
@@ -788,7 +787,6 @@ class BotocoreTest(TracerTestCase):
 
     @mock_sqs
     def test_data_streams_sqs_batch(self):
-        # DEV: Only test deprecated behavior because this inspect span tags for MessageAttributes
         with self.override_config("botocore", dict(tag_all_params=True)):
             sqs = self.session.create_client("sqs", region_name="us-east-1", endpoint_url="http://localhost:4566")
             queue = sqs.create_queue(QueueName="test")
@@ -841,6 +839,35 @@ class BotocoreTest(TracerTestCase):
             )
 
             sqs.delete_queue(QueueUrl=queue["QueueUrl"])
+
+    @mock_sqs
+    def test_data_streams_sqs_no_attributes_requested(self):
+        pytest.set_trace()
+        with self.override_config("botocore", dict(tag_all_params=True)):
+            sqs = self.session.create_client("sqs", region_name="us-east-1", endpoint_url="http://localhost:4566")
+            queue = sqs.create_queue(QueueName="test")
+
+            sqs.send_message(QueueUrl=queue["QueueUrl"], MessageBody="world")
+            response = sqs.receive_message(
+                QueueUrl=queue["QueueUrl"],
+                MaxNumberOfMessages=1,
+                WaitTimeSeconds=2,
+                AttributeNames=[
+                    'All',
+                ],
+            )
+            assert 'MessageAttributes' not in response['Messages'][0]
+
+            sqs.delete_queue(QueueUrl=queue["QueueUrl"])
+
+    """
+    @mock_sqs
+    def test_data_streams_sqs_no_attributes_in_response(self):
+
+    @mock_sqs
+    def test_data_streams_sqs_max_attributes_requested(self):
+
+    """
 
     @mock_lambda
     def test_lambda_client(self):
