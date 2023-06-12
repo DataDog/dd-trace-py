@@ -52,6 +52,7 @@ class TestConsulPatch(TracerTestCase):
             consulx.CMD: "PUT",
             "component": "consul",
             "span.kind": "client",
+            "out.host": "127.0.0.1",
         }
         for k, v in tags.items():
             assert span.get_tag(k) == v
@@ -76,6 +77,7 @@ class TestConsulPatch(TracerTestCase):
             consulx.CMD: "GET",
             "component": "consul",
             "span.kind": "client",
+            "out.host": "127.0.0.1",
         }
         for k, v in tags.items():
             assert span.get_tag(k) == v
@@ -100,6 +102,7 @@ class TestConsulPatch(TracerTestCase):
             consulx.CMD: "DELETE",
             "component": "consul",
             "span.kind": "client",
+            "out.host": "127.0.0.1",
         }
         for k, v in tags.items():
             assert span.get_tag(k) == v
@@ -124,6 +127,7 @@ class TestConsulPatch(TracerTestCase):
             consulx.KEY: key,
             "component": "consul",
             "span.kind": "client",
+            "out.host": "127.0.0.1",
         }
         for k, v in tags.items():
             assert span.get_tag(k) == v
