@@ -5,6 +5,7 @@ import six
 
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.vendor import wrapt
 
 from .. import trace_utils
@@ -24,7 +25,7 @@ from ..trace_utils import unwrap as _u
 
 
 span_name = "httplib.request" if PY2 else "http.client.request"
-span_name = schematize_url_operation(span_name, protocol="http", direction="outbound")
+span_name = schematize_url_operation(span_name, protocol="http", direction=SpanDirection.OUTBOUND)
 
 log = get_logger(__name__)
 
@@ -146,7 +147,9 @@ def _wrap_putrequest(func, instance, args, kwargs):
         sanitized_url = parse.urlunparse(
             (parsed.scheme, parsed.netloc, parsed.path, parsed.params, None, parsed.fragment)  # drop query
         )
-        trace_utils.set_http_meta(span, config.httplib, method=method, url=sanitized_url, query=parsed.query)
+        trace_utils.set_http_meta(
+            span, config.httplib, method=method, url=sanitized_url, target_host=instance.host, query=parsed.query
+        )
 
         # set analytics sample rate
         span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.httplib.get_analytics_sample_rate())

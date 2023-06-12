@@ -12,6 +12,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_url_operation
+from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
 from .. import trace_utils
 from ...appsec._constants import WAF_CONTEXT_NAMES
@@ -136,7 +137,7 @@ class TraceMiddleware:
 
         resource = " ".join((scope["method"], scope["path"]))
         operation_name = self.integration_config.get("request_span_name", "asgi.request")
-        operation_name = schematize_url_operation(operation_name, direction="inbound", protocol="http")
+        operation_name = schematize_url_operation(operation_name, direction=SpanDirection.INBOUND, protocol="http")
 
         with _asm_request_context.asm_request_context_manager(ip, headers):
             span = self.tracer.trace(

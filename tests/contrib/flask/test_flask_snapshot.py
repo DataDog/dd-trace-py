@@ -8,9 +8,9 @@ from typing import Generator
 from typing import List
 
 import pytest
-import tenacity
 
 from ddtrace.contrib.flask.patch import flask_version
+from ddtrace.internal.utils.retry import RetryError
 from tests.webclient import Client
 
 
@@ -72,7 +72,7 @@ def flask_client(flask_command, flask_port, flask_wsgi_application, flask_env_ar
         # Wait for the server to start up
         try:
             client.wait()
-        except tenacity.RetryError:
+        except RetryError:
             # process failed
             stdout = proc.stdout.read()
             stderr = proc.stderr.read()
