@@ -47,9 +47,9 @@ class PublisherSubscriberConnector(object):
         self.shared_data_counter = 0
 
     @staticmethod
-    def _hash_config(config_raw):
-        # type: (SharedDataType) -> int
-        return hash(str(config_raw))
+    def _hash_config(config_raw, metadata_raw):
+        # type: (Any, Any) -> int
+        return hash(str(config_raw) + str(metadata_raw))
 
     def read(self):
         # type: () -> SharedDataType
@@ -64,7 +64,7 @@ class PublisherSubscriberConnector(object):
 
     def write(self, metadata, config_raw):
         # type: (Any, Any) -> None
-        last_checksum = self._hash_config(config_raw)
+        last_checksum = self._hash_config(config_raw, metadata)
         if last_checksum != self.checksum:
             data_len = len(self.data.value)
             if data_len >= (SHARED_MEMORY_SIZE - 1000):

@@ -18,7 +18,7 @@ def test_django_celery_gevent_startup():
     about Django settings.
     """
     try:
-        call_program(
+        out, err, retcode, _ = call_program(
             "ddtrace-run",
             "celery",
             "-A",
@@ -34,4 +34,4 @@ def test_django_celery_gevent_startup():
         assert "celery@" in out, "Celery started correctly"
         assert "DJANGO_SETTINGS_MODULE" not in err, "No Django lazy objects"
     else:
-        assert False, "Celery was started without errors"
+        assert retcode == 0, "Celery was finished with errors: %s" % err.decode("utf-8")

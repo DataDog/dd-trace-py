@@ -142,6 +142,23 @@ class PRODUCTS(object):
 
 
 @six.add_metaclass(Constant_Class)  # required for python2/3 compatibility
+class LOGIN_EVENTS_MODE(object):
+    """
+    string identifier for the mode of the user login events. Can be:
+    DISABLED: automatic login events are disabled.
+    SAFE: automatic login events are enabled but will only store non-PII fields (id, pk uid...)
+    EXTENDED: automatic login events are enabled and will store potentially PII fields (username,
+    email, ...).
+    SDK: manually issued login events using the SDK.
+    """
+
+    DISABLED = "disabled"
+    SAFE = "safe"
+    EXTENDED = "extended"
+    SDK = "sdk"
+
+
+@six.add_metaclass(Constant_Class)  # required for python2/3 compatibility
 class DEFAULT(object):
     ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
     RULES = os.path.join(ROOT_DIR, "rules.json")

@@ -82,6 +82,12 @@ class ExplorationConfig(En):
             default=True,
             help="Whether to enable the exploration deterministic profiler",
         )
+        delete_probes = En.v(
+            bool,
+            "delete_function_probes",
+            default=False,
+            help="Whether to delete function probes after they are triggered",
+        )
 
     class CoverageConfig(En):
         __item__ = "coverage"

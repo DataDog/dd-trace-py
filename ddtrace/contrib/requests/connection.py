@@ -70,6 +70,7 @@ def _wrap_send(func, instance, args, kwargs):
 
     url = request.url
     hostname = _extract_hostname(url)
+    host_without_port = hostname.split(":")[0] if hostname is not None else None
 
     cfg = config.get_from(instance)
     service = None
@@ -123,6 +124,7 @@ def _wrap_send(func, instance, args, kwargs):
                     response_headers=response_headers,
                     method=request.method.upper(),
                     url=request.url,
+                    target_host=host_without_port,
                     status_code=status,
                     query=_extract_query_string(url),
                 )
