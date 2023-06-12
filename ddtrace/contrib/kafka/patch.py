@@ -124,7 +124,7 @@ def traced_poll(func, instance, args, kwargs):
         return func(*args, **kwargs)
 
     with pin.tracer.trace(
-        schematize_messaging_operation(kafkax.CONSUME, provider="kafka", direction=SpanDirection.PROCESS),
+        schematize_messaging_operation(kafkax.CONSUME, provider="kafka", direction=SpanDirection.PROCESSING),
         service=trace_utils.ext_service(pin, config.kafka),
         span_type=SpanTypes.WORKER,
     ) as span:
