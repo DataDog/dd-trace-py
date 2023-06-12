@@ -13,10 +13,14 @@ def assert_sampling_decision_tags(span, sample_rate=1.0, mechanism=SamplingMecha
     assert span.get_metric(_SINGLE_SPAN_SAMPLING_MAX_PER_SEC) == limit
 
 
-def traced_function(rule, name="test_name", service="test_service"):
+def traced_function(rule, name="test_name", service="test_service", resource="test_resource", tags=None):
     tracer = DummyTracer()
     with tracer.trace(name) as span:
         span.service = service
+        span.resource = resource
+        if tags:
+            for k, v in tags.items():
+                span.set_tag(k, v)
         if rule.match(span):
             rule.sample(span)
     return span
@@ -94,6 +98,61 @@ def test_single_span_rule_match_only_name():
     rule = SpanSamplingRule(name="test_name", sample_rate=1.0, max_per_second=-1)
     span = traced_function(rule)
 
+    assert_sampling_decision_tags(span)
+
+
+def test_single_span_rule_match_only_tag():
+    rule = SpanSamplingRule(sample_rate=1.0, max_per_second=-1, tags={"test_tag": "test_value"})
+    span = traced_function(rule, tags={"test_tag": "test_value"})
+    assert_sampling_decision_tags(span)
+
+
+def test_single_span_rule_no_match_only_tag():
+    rule = SpanSamplingRule(sample_rate=1.0, max_per_second=-1, tags={"test_ta": "test_val"})
+    span = traced_function(rule, tags={"test_tag": "test_value"})
+    assert_sampling_decision_tags(span, sample_rate=None, mechanism=None, limit=None)
+
+
+def test_single_span_rule_match_only_tag_value_wildcard():
+    rule = SpanSamplingRule(sample_rate=1.0, max_per_second=-1, tags={"test_tag": "test_valu?"})
+    span = traced_function(rule, tags={"test_tag": "test_value"})
+    assert_sampling_decision_tags(span)
+
+
+def test_single_span_rule_match_service_not_tag():
+    rule = SpanSamplingRule(service="test_service", sample_rate=1.0, max_per_second=-1, tags={"test_ta": "test_val"})
+    span = traced_function(rule, tags={"test_tag": "test_value"})
+    assert_sampling_decision_tags(span, sample_rate=None, mechanism=None, limit=None)
+
+
+def test_single_span_rule_match_resource():
+    rule = SpanSamplingRule(resource="test_resource", sample_rate=1.0, max_per_second=-1)
+    span = traced_function(rule, resource="test_resource")
+    assert_sampling_decision_tags(span)
+
+
+def test_single_span_rule_no_match_only_resource():
+    rule = SpanSamplingRule(resource="test_res", sample_rate=1.0, max_per_second=-1)
+    span = traced_function(rule, resource="test_resource")
+    assert_sampling_decision_tags(span, sample_rate=None, mechanism=None, limit=None)
+
+
+def test_single_span_rule_match_service_not_resource():
+    rule = SpanSamplingRule(resource="test_resource", service="tes_ser", sample_rate=1.0, max_per_second=-1)
+    span = traced_function(rule, resource="test_resource")
+    assert_sampling_decision_tags(span, sample_rate=None, mechanism=None, limit=None)
+
+
+def test_single_span_rule_match_all():
+    rule = SpanSamplingRule(
+        service="test_service",
+        name="test_name",
+        resource="test_resource",
+        sample_rate=1.0,
+        max_per_second=-1,
+        tags={"test_tag": "test_value"},
+    )
+    span = traced_function(rule, tags={"test_tag": "test_value"})
     assert_sampling_decision_tags(span)
 
 
