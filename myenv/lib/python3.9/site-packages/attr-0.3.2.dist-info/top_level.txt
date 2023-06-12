@@ -1,2 +1,0 @@
-attr
-dry_attr
