@@ -143,6 +143,10 @@ class BotocoreTest(TracerTestCase):
         span = spans[0]
         assert span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 0.5
 
+    @pytest.mark.skipif(
+        PYTHON_VERSION_INFO < (3, 6),
+        reason="Skipping for older py versions whose latest supported moto versions don't have the right dynamodb api",
+    )
     @mock_dynamodb
     def test_dynamodb_put_get(self):
         ddb = self.session.create_client("dynamodb", region_name="us-west-2")
