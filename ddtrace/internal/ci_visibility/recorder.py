@@ -221,6 +221,7 @@ class CIVisibility(Service):
             )
         if writer is not None:
             self.tracer.configure(writer=writer)
+            self.tracer.enabled = True
 
     def _agent_evp_proxy_is_available(self):
         # type: () -> bool

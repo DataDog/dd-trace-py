@@ -1,6 +1,7 @@
 from itertools import groupby
 import json
 import os
+from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
@@ -86,7 +87,17 @@ def _lines(coverage, context):
     if not coverage._collector or not coverage._collector.data:
         return {}
 
-    data = cast(Dict[str, Set[int]], coverage._collector.data)
+    if compat.PY2:
+        iter_values = coverage._collector.data.itervalues
+    else:
+        iter_values = coverage._collector.data.values
+
+    first_value = type(next(iter_values()))
+    if isinstance(first_value, dict):
+        data = {k: v.keys() for k, v in cast(Dict[str, Dict[int, Any]], coverage._collector.data)}
+    else:
+        data = cast(Dict[str, Set[int]], coverage._collector.data)
+
     return {
         filename: segments(lines_covered) for filename, lines_covered in data.items() if "site-packages" not in filename
     }
