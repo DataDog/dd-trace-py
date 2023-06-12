@@ -15,15 +15,10 @@ from ddtrace.internal.telemetry.metrics import DistributionMetric
 from ddtrace.internal.telemetry.metrics import GaugeMetric
 from ddtrace.internal.telemetry.metrics import Metric
 from ddtrace.internal.telemetry.metrics import MetricTagType
-from ddtrace.internal.telemetry.metrics import MetricType
 from ddtrace.internal.telemetry.metrics import RateMetric
 
 
 NamespaceMetricType = Dict[str, Dict[str, Dict[str, Any]]]
-
-
-class TelemetryTypeError(Exception):
-    pass
 
 
 class MetricNamespace:
@@ -46,7 +41,7 @@ class MetricNamespace:
         self._metrics_data = {
             TELEMETRY_TYPE_GENERATE_METRICS: defaultdict(dict),
             TELEMETRY_TYPE_DISTRIBUTION: defaultdict(dict),
-        }  # type: Dict[str, Dict[str, Dict]]
+        }  # type: Dict[str, Dict[str, Dict[int, Metric]]]
 
     def flush(self):
         # type: () -> Dict
@@ -58,8 +53,8 @@ class MetricNamespace:
             }
             return namespace_metrics
 
-    def add_metric(self, metric_type, namespace, name, value=1.0, tags={}, interval=None):
-        # type: (MetricType, str,str, float, MetricTagType, Optional[float]) -> None
+    def add_metric(self, metric_type, namespace, name, value=1.0, tags=None, interval=None):
+        # type: (str, str, str, float, MetricTagType, Optional[float]) -> None
         """
         Telemetry Metrics are stored in DD dashboards, check the metrics in datadoghq.com/metric/explorer.
         The metric will store in dashboard as "dd.instrumentation_telemetry_data." + namespace + "." + name
