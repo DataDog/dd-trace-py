@@ -99,7 +99,7 @@ def traced_receive(func, instance, args, kwargs):
     trace_utils.activate_distributed_headers(pin.tracer, request_headers=message.headers, override=True)
 
     with pin.tracer.trace(
-        schematize_messaging_operation(kombux.RECEIVE_NAME, provider="kombu", direction=SpanDirection.PROCESS),
+        schematize_messaging_operation(kombux.RECEIVE_NAME, provider="kombu", direction=SpanDirection.PROCESSING),
         service=pin.service,
         span_type=SpanTypes.WORKER,
     ) as s:
