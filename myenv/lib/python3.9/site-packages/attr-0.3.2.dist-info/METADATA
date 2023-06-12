@@ -1,0 +1,43 @@
+Metadata-Version: 2.1
+Name: attr
+Version: 0.3.2
+Summary: Simple decorator to set attributes of target function or class in a DRY way.
+Home-page: https://github.com/denis-ryzhkov/attr
+Author: Denis Ryzhkov
+Author-email: denisr@denisr.com
+License: MIT
+Platform: UNKNOWN
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 2.7
+Classifier: Programming Language :: Python :: 3
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+License-File: LICENSE
+
+
+
+Usage example::
+
+    # Django proposes:
+    def my_calculated_field(...
+    my_calculated_field.short_description = 'Field'
+    my_calculated_field.admin_order_field = 'real_field'
+
+    # DRY:
+    @attr(short_description='Field', admin_order_field='real_field')
+    def my_calculated_field(...
+
+Get it::
+
+    sudo pip install attr
+    from attr import attr
+
+New popular `attrs.org <http://attrs.org>`_ used by `pytest.org <https://pytest.org>`_ defines another "attr" package that shadows this "attr" module.
+
+Please use "dry_attr" alias to unshadow it::
+
+    from dry_attr import attr
+    from dry_attr import dry_attr
+
+
+

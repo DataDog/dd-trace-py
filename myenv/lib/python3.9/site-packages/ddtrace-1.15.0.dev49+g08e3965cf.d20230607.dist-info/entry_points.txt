@@ -1,0 +1,9 @@
+[console_scripts]
+ddtrace-run = ddtrace.commands.ddtrace_run:main
+
+[opentelemetry_context]
+ddcontextvars_context = ddtrace.opentelemetry._context:DDRuntimeContext
+
+[pytest11]
+ddtrace = ddtrace.contrib.pytest.plugin
+ddtrace.pytest_bdd = ddtrace.contrib.pytest_bdd.plugin
