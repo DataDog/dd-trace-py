@@ -11,6 +11,7 @@ from typing import Union
 
 from ...internal import atexit
 from ...internal import forksafe
+from ...internal.compat import parse
 from ...settings import _config as config
 from ..agent import get_connection
 from ..agent import get_trace_url
@@ -66,7 +67,7 @@ class _TelemetryClient:
 
     @property
     def url(self):
-        return "%s/%s" % (self._agent_url, self._endpoint)
+        return parse.urljoin(self._agent_url, self._endpoint)
 
     def send_event(self, request):
         # type: (Dict) -> Optional[httplib.HTTPResponse]
