@@ -93,9 +93,7 @@ def test_app_started_event(telemetry_lifecycle_writer, test_agent_session, mock_
     assert events[0] == _get_request_body(payload, "app-started")
 
 
-def test_app_started_event_configuration_override(
-    telemetry_lifecycle_writer, test_agent_session, run_python_code_in_subprocess
-):
+def test_app_started_event_configuration_override(test_agent_session, run_python_code_in_subprocess):
     """asserts that default configuration value is changed and queues a valid telemetry request which is then sent by periodic()"""
     code = """
 from ddtrace.internal.telemetry import telemetry_lifecycle_writer
