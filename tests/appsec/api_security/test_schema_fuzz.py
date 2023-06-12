@@ -71,6 +71,24 @@ def test_limits(obj, res):
     assert equal_without_meta(build_schema(obj, max_depth=2, max_girth=1, max_types_in_array=1), res)
 
 
+@pytest.mark.skipif(sys.version_info[:2] < (3, 6), reason="dict iteration order is different in python <= 3.5")
+@pytest.mark.parametrize(
+    "obj, res",
+    [
+        ("0F325B9A", [8, {"Type": "hex"}]),
+        ("lettersAndLETTERS", [8, {"Type": "alpha"}]),
+        ("louis.the.king@testserver.fr", [8, {"PII": "Email", "Type": "ascii"}]),
+        ("dGhpcyBpcyBhIHRlc3Q=", [8, {"Type": "base64"}]),
+        (
+            "-----BEGIN PGP PRIVATE KEY BLOCK-----anything-----END PGP " "PRIVATE KEY BLOCK-----",
+            [8, {"Confidential": "PGP Private Key Block", "Type": "ascii"}],
+        ),
+    ],
+)
+def test_metadata(obj, res):
+    assert build_schema(obj) == res
+
+
 if __name__ == "__main__":
     import atheris
 

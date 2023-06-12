@@ -7,6 +7,7 @@ import sys
 import pytest
 
 from ddtrace import config
+from tests.appsec.api_security.test_schema_fuzz import equal_without_meta
 from tests.appsec.test_processor import RULES_SRB
 from tests.utils import override_env
 from tests.utils import override_global_config
@@ -111,4 +112,4 @@ def test_api_security(client, test_spans, tracer):
             value = root_span.get_tag(name)
             assert value, name
             api = json.loads(gzip.decompress(base64.b64decode(value)).decode())
-            assert api == expected_value
+            assert equal_without_meta(api, expected_value)
