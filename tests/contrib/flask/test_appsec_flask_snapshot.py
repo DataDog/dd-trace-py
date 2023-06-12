@@ -9,11 +9,11 @@ from typing import List
 
 import pytest
 import six
-import tenacity
 
 from ddtrace.contrib.flask.patch import flask_version
 from ddtrace.internal.constants import APPSEC_BLOCKED_RESPONSE_HTML
 from ddtrace.internal.constants import APPSEC_BLOCKED_RESPONSE_JSON
+from ddtrace.internal.utils.retry import RetryError
 from tests.appsec.test_processor import RULES_GOOD_PATH
 from tests.appsec.test_processor import _BLOCKED_IP
 from tests.contrib.flask.test_flask_appsec import _ALLOWED_USER
@@ -81,7 +81,7 @@ def flask_client(flask_command, flask_port, flask_wsgi_application, flask_env_ar
         # Wait for the server to start up
         try:
             client.wait()
-        except tenacity.RetryError:
+        except RetryError:
             # process failed
             stdout = proc.stdout.read()
             stderr = proc.stderr.read()

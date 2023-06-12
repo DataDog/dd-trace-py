@@ -1,11 +1,8 @@
 import json
 from multiprocessing import Process
 import os
-from typing import Callable  # noqa
 from typing import Optional  # noqa
 from typing import Tuple  # noqa
-
-import tenacity
 
 from ddtrace.ext.git import build_git_packfiles
 from ddtrace.ext.git import extract_commit_sha
@@ -13,6 +10,7 @@ from ddtrace.ext.git import extract_latest_commits
 from ddtrace.ext.git import extract_remote_url
 from ddtrace.ext.git import get_rev_list_excluding_commits
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 
 from .. import compat
 from ..utils.http import Response
@@ -31,8 +29,6 @@ PACK_EXTENSION = ".pack"
 
 
 class CIVisibilityGitClient(object):
-    RETRY_ATTEMPTS = 5
-
     def __init__(
         self,
         api_key,
@@ -86,11 +82,12 @@ class CIVisibilityGitClient(object):
     def _search_commits(cls, base_url, repo_url, latest_commits, serializer, _response):
         # type: (str, str, list[str], CIVisibilityGitClientSerializerV1, Optional[Response]) -> list[str]
         payload = serializer.search_commits_encode(repo_url, latest_commits)
-        response = _response or cls.retry_request(base_url, "/search_commits", payload, serializer)
+        response = _response or cls._do_request(base_url, "/search_commits", payload, serializer)
         result = serializer.search_commits_decode(response.body)
         return result
 
     @classmethod
+    @fibonacci_backoff_with_jitter(attempts=5, until=lambda result: isinstance(result, Response))
     def _do_request(cls, base_url, endpoint, payload, serializer, headers=None):
         # type: (str, str, str, CIVisibilityGitClientSerializerV1, Optional[dict]) -> Response
         url = "{}/repository{}".format(base_url, endpoint)
@@ -129,21 +126,10 @@ class CIVisibilityGitClient(object):
             file_path = os.path.join(directory, filename)
             content_type, payload = serializer.upload_packfile_encode(repo_url, sha, file_path)
             headers = {"Content-Type": content_type}
-            response = _response or cls.retry_request(base_url, "/packfile", payload, serializer, headers=headers)
+            response = _response or cls._do_request(base_url, "/packfile", payload, serializer, headers=headers)
             if response.status != 204:
                 return False
         return True
-
-    @classmethod
-    def retry_request(cls, *args, **kwargs):
-        return tenacity.Retrying(
-            wait=tenacity.wait_random_exponential(
-                multiplier=(0.618 / (1.618 ** cls.RETRY_ATTEMPTS) / 2),
-                exp_base=1.618,
-            ),
-            stop=tenacity.stop_after_attempt(cls.RETRY_ATTEMPTS),
-            retry=tenacity.retry_if_exception_type((compat.httplib.HTTPException, OSError, IOError)),
-        )(cls._do_request, *args, **kwargs)
 
 
 class CIVisibilityGitClientSerializerV1(object):
