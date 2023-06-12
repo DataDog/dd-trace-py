@@ -21,10 +21,6 @@ from ddtrace.internal.telemetry.metrics import RateMetric
 NamespaceMetricType = Dict[str, Dict[str, Dict[str, Any]]]
 
 
-class TelemetryTypeError(Exception):
-    pass
-
-
 class MetricNamespace:
     metric_class = {
         TELEMETRY_METRIC_TYPE_COUNT: CountMetric,
