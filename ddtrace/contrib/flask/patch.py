@@ -16,6 +16,7 @@ from ddtrace.appsec.iast._util import _is_iast_enabled
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
 from ...appsec import _asm_request_context
 from ...appsec import utils
@@ -128,7 +129,7 @@ def taint_request_init(wrapped, instance, args, kwargs):
 
 
 class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
-    _request_span_name = schematize_url_operation("flask.request", protocol="http", direction="inbound")
+    _request_span_name = schematize_url_operation("flask.request", protocol="http", direction=SpanDirection.INBOUND)
     _application_span_name = "flask.application"
     _response_span_name = "flask.response"
 

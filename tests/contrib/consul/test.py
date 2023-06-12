@@ -5,6 +5,7 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.consul.patch import patch
 from ddtrace.contrib.consul.patch import unpatch
 from ddtrace.ext import consul as consulx
+from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.vendor.wrapt import BoundFunctionWrapper
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
@@ -195,3 +196,124 @@ class TestConsulPatch(TracerTestCase):
             assert len(spans) == 1
             span = spans[0]
             assert span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
+
+
+class TestSchematization(TracerTestCase):
+    def setUp(self):
+        super(TestSchematization, self).setUp()
+        patch()
+        c = consul.Consul(
+            host=CONSUL_CONFIG["host"],
+            port=CONSUL_CONFIG["port"],
+        )
+        Pin.override(consul.Consul, tracer=self.tracer)
+        Pin.override(consul.Consul.KV, tracer=self.tracer)
+        self.c = c
+
+    def tearDown(self):
+        unpatch()
+        super(TestSchematization, self).tearDown()
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    def test_schematize_service_name_default(self):
+        key = "test/put/consul"
+        value = "test_value"
+
+        self.c.kv.put(key, value)
+
+        spans = self.get_spans()
+        assert len(spans) == 1
+        span = spans[0]
+
+        assert span.service == "consul"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_schematize_service_name_v0(self):
+        key = "test/put/consul"
+        value = "test_value"
+
+        self.c.kv.put(key, value)
+
+        spans = self.get_spans()
+        assert len(spans) == 1
+        span = spans[0]
+
+        assert span.service == "consul"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_schematize_service_name_v1(self):
+        key = "test/put/consul"
+        value = "test_value"
+
+        self.c.kv.put(key, value)
+
+        spans = self.get_spans()
+        assert len(spans) == 1
+        span = spans[0]
+
+        assert span.service == "mysvc"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict())
+    def test_schematize_unspecified_service_name_default(self):
+        key = "test/put/consul"
+        value = "test_value"
+
+        self.c.kv.put(key, value)
+
+        spans = self.get_spans()
+        assert len(spans) == 1
+        span = spans[0]
+
+        assert span.service == "consul"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_schematize_unspecified_service_name_v0(self):
+        key = "test/put/consul"
+        value = "test_value"
+
+        self.c.kv.put(key, value)
+
+        spans = self.get_spans()
+        assert len(spans) == 1
+        span = spans[0]
+
+        assert span.service == "consul"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_schematize_unspecified_service_name_v1(self):
+        key = "test/put/consul"
+        value = "test_value"
+
+        self.c.kv.put(key, value)
+
+        spans = self.get_spans()
+        assert len(spans) == 1
+        span = spans[0]
+
+        assert span.service == DEFAULT_SPAN_SERVICE_NAME
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_schematize_operation_name_v0(self):
+        key = "test/put/consul"
+        value = "test_value"
+
+        self.c.kv.put(key, value)
+
+        spans = self.get_spans()
+        assert len(spans) == 1
+        span = spans[0]
+
+        assert span.name == consulx.CMD
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_schematize_operation_name_v1(self):
+        key = "test/put/consul"
+        value = "test_value"
+
+        self.c.kv.put(key, value)
+
+        spans = self.get_spans()
+        assert len(spans) == 1
+        span = spans[0]
+
+        assert span.name == "http.client.request"

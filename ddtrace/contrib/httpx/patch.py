@@ -16,6 +16,7 @@ from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_url_operation
+from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.version import parse_version
@@ -122,7 +123,7 @@ async def _wrapped_async_send(
     if not pin or not pin.enabled():
         return await wrapped(*args, **kwargs)
 
-    operation_name = schematize_url_operation("http.request", protocol="http", direction="outbound")
+    operation_name = schematize_url_operation("http.request", protocol="http", direction=SpanDirection.OUTBOUND)
     with pin.tracer.trace(operation_name, service=_get_service_name(pin, req), span_type=SpanTypes.HTTP) as span:
         span.set_tag_str(COMPONENT, config.httpx.integration_name)
 
@@ -151,7 +152,7 @@ def _wrapped_sync_send(
 
     req = get_argument_value(args, kwargs, 0, "request")
 
-    operation_name = schematize_url_operation("http.request", protocol="http", direction="outbound")
+    operation_name = schematize_url_operation("http.request", protocol="http", direction=SpanDirection.OUTBOUND)
     with pin.tracer.trace(operation_name, service=_get_service_name(pin, req), span_type=SpanTypes.HTTP) as span:
         span.set_tag_str(COMPONENT, config.httpx.integration_name)
 

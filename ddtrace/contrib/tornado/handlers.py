@@ -2,6 +2,7 @@ from tornado.web import HTTPError
 
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -37,7 +38,7 @@ def execute(func, handler, args, kwargs):
 
         # store the request span in the request so that it can be used later
         request_span = tracer.trace(
-            schematize_url_operation("tornado.request", protocol="http", direction="inbound"),
+            schematize_url_operation("tornado.request", protocol="http", direction=SpanDirection.INBOUND),
             service=service,
             span_type=SpanTypes.WEB,
         )
