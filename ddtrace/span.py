@@ -39,6 +39,7 @@ from .internal.compat import numeric_types
 from .internal.compat import stringify
 from .internal.compat import time_ns
 from .internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
+from .internal.constants import SPAN_API_DATADOG
 from .internal.logger import get_logger
 from .internal.sampling import SamplingMechanism
 from .internal.sampling import update_sampling_decision
@@ -105,7 +106,7 @@ class Span(object):
         start=None,  # type: Optional[int]
         context=None,  # type: Optional[Context]
         on_finish=None,  # type: Optional[List[Callable[[Span], None]]]
-        span_api=None,  # type: Optional[str]
+        span_api=SPAN_API_DATADOG,  # type: str
     ):
         # type: (...) -> None
         """

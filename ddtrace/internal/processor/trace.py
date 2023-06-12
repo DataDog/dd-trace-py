@@ -183,17 +183,18 @@ class SpanAggregator(SpanProcessor):
 
     def on_span_start(self, span):
         # type: (Span) -> None
-        metric = "{}.span_created".format(span._span_api)
-        telemetry_metrics_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, metric)
         with self._lock:
             trace = self._traces[span.trace_id]
             trace.spans.append(span)
+        telemetry_metrics_writer.add_count_metric(
+            TELEMETRY_NAMESPACE_TAG_TRACER, "span_created", tags=(("integration_name", span._span_api),)
+        )
 
     def on_span_finish(self, span):
         # type: (Span) -> None
-        metric = "{}.span_finished".format(span._span_api)
-        telemetry_metrics_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, metric)
-
+        telemetry_metrics_writer.add_count_metric(
+            TELEMETRY_NAMESPACE_TAG_TRACER, "span_finished", tags=(("integration_name", span._span_api),)
+        )
         with self._lock:
             trace = self._traces[span.trace_id]
             trace.num_finished += 1
