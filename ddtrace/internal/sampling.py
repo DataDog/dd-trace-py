@@ -175,7 +175,7 @@ class SpanSamplingRule:
         self._name_matcher = GlobMatcher(name) if name is not None else None
         self._resource_matcher = GlobMatcher(resource) if resource is not None else None
 
-        self._tag_value_matchers = {k: GlobMatcher(v) for k, v in tags.items()} if tags is not None else []
+        self._tag_value_matchers = {k: GlobMatcher(v) for k, v in tags.items()} if tags is not None else {}
 
     def sample(self, span):
         # type: (Span) -> bool
