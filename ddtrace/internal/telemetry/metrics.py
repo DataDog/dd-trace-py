@@ -146,6 +146,6 @@ class DistributionMetric(Metric):
         data = {
             "metric": self.name,
             "points": self._points,
-            "tags": self._tags,
+            "tags": ["{}:{}".format(k, v).lower() for k, v in self._tags] if self._tags else [],
         }
         return data

@@ -386,7 +386,7 @@ def test_send_log_metric_simple_tags(telemetry_metrics_writer, test_agent_metric
                 "level": "WARNING",
                 "message": "test error 1",
                 "tracer_time": 1642544540,
-                "tags": ["a:b", "c:d"],
+                "tags": "a:b,c:d",
             },
         ]
 
@@ -403,7 +403,7 @@ def test_send_multiple_log_metric(telemetry_metrics_writer, test_agent_metrics_s
                 "message": "test error 1",
                 "stack_trace": "Traceback:\nValueError",
                 "tracer_time": 1642544540,
-                "tags": ["a:b"],
+                "tags": "a:b",
             },
         ]
 
