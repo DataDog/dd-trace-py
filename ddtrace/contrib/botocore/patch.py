@@ -475,9 +475,6 @@ def patched_api_call(original_func, instance, args, kwargs):
 
                 for message in result['Messages']:
                     try:
-                        #TODO: potentially deal with the case where you
-                        # need to remove _datadog info from result
-                        # even when dd-pathway-ctx isn't there
                         pathway = json.loads(
                             message['MessageAttributes']['_datadog']['StringValue']
                         )['dd-pathway-ctx']
@@ -489,24 +486,6 @@ def patched_api_call(original_func, instance, args, kwargs):
 
                     except:
                         return result
-
-                if query_status == "NoMessageAttributeNames":
-                    if 'Messages' in result:
-                        messages = result['Messages']
-                        for message in messages:
-                            if 'MessageAttributes' in message:
-                                del message['MessageAttributes']
-
-                elif query_status == "NoDatadog":
-                    if 'Messages' in result:
-                        messages = result['Messages']
-                        for message in messages:
-                            if 'MessageAttributes' in message:
-                                attributes = message['MessageAttributes']
-                                if '_datadog' in attributes:
-                                    del attributes['_datadog']
-                                if not attributes:
-                                    del message['MessageAttributes']
 
                 return result
 

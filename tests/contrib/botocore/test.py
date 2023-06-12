@@ -841,11 +841,10 @@ class BotocoreTest(TracerTestCase):
             sqs.delete_queue(QueueUrl=queue["QueueUrl"])
 
     @mock_sqs
-    def test_data_streams_sqs_no_attributes_requested(self):
+    def test_data_streams_sqs_header_information(self):
         with self.override_config("botocore", dict(tag_all_params=True)):
             sqs = self.session.create_client("sqs", region_name="us-east-1", endpoint_url="http://localhost:4566")
             queue = sqs.create_queue(QueueName="test")
-
             sqs.send_message(QueueUrl=queue["QueueUrl"], MessageBody="world")
             response = sqs.receive_message(
                 QueueUrl=queue["QueueUrl"],
@@ -855,37 +854,10 @@ class BotocoreTest(TracerTestCase):
                     'All',
                 ],
             )
-            assert 'MessageAttributes' not in response['Messages'][0]
+            assert '_datadog' in response['Messages'][0]['MessageAttributes']
 
             sqs.delete_queue(QueueUrl=queue["QueueUrl"])
 
-    @mock_sqs
-    def test_data_streams_sqs_no_attributes_in_response(self):
-        with self.override_config("botocore", dict(tag_all_params=True)):
-            sqs = self.session.create_client("sqs", region_name="us-east-1", endpoint_url="http://localhost:4566")
-            queue = sqs.create_queue(QueueName="test")
-            Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sqs)
-            message_attributes = {
-                "one": {"DataType": "String", "StringValue": "one"},
-                "two": {"DataType": "String", "StringValue": "two"},
-                "three": {"DataType": "String", "StringValue": "three"},
-                "four": {"DataType": "String", "StringValue": "four"},
-                "five": {"DataType": "String", "StringValue": "five"},
-                "six": {"DataType": "String", "StringValue": "six"},
-                "seven": {"DataType": "String", "StringValue": "seven"},
-                "eight": {"DataType": "String", "StringValue": "eight"},
-                "nine": {"DataType": "String", "StringValue": "nine"},
-            }
-            pytest.set_trace()
-            sqs.send_message(QueueUrl=queue["QueueUrl"], MessageBody="world", MessageAttributes=message_attributes)
-            response = sqs.receive_message(
-                QueueUrl=queue["QueueUrl"],
-                MessageAttributeNames=["ten"],
-                WaitTimeSeconds=2,
-            )
-            assert 'MessageAttributes' not in response['Messages'][0]
-
-            sqs.delete_queue(QueueUrl=queue["QueueUrl"])
     """
     @mock_sqs
     def test_data_streams_sqs_max_attributes_requested(self):
