@@ -347,6 +347,10 @@ class PeerServiceProcessor(SpanProcessor):
         if not self.enabled:
             return
 
+        self._set_span_tag(span)
+        self._remap_peer_service(span)
+
+    def _set_span_tag(self, span):
         if span.get_tag(self._config.tag_name):  # If the tag already exists, assume it is user generated
             span.set_tag_str(self._config.source_tag_name, self._config.tag_name)
             return
@@ -360,3 +364,10 @@ class PeerServiceProcessor(SpanProcessor):
                 span.set_tag_str(self._config.tag_name, peer_service_definition)
                 span.set_tag_str(self._config.source_tag_name, data_source)
                 return
+
+    def _remap_peer_service(self, span):
+        current_peer_service = span.get_tag(self._config.tag_name)
+
+        if current_peer_service in self._config.peer_service_mapping:
+            span.set_tag_str(self._config.remap_tag_name, current_peer_service)
+            span.set_tag_str(self._config.tag_name, self._config.peer_service_mapping[current_peer_service])

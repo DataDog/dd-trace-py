@@ -77,17 +77,17 @@ def test_disabled_peer_service(processor, test_span, data_source, peer_service_c
 @pytest.mark.parametrize(
     "schema_peer_enabled",
     [
-        ("v0", False, False),
-        ("v0", True, True),
-        ("v1", False, True),
-        ("v1", True, True),
+        ("v0", "False", False),
+        ("v0", "True", True),
+        ("v1", "False", True),
+        ("v1", "True", True),
     ],
 )
-def fake_peer_service_enablement(span, schema_peer_enabled):
+def test_peer_service_enablement(schema_peer_enabled):
     schema_version, env_enabled, expected = schema_peer_enabled
 
     with mock.patch.dict(os.environ, {"DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED": env_enabled}):
-        with mock.patch("ddtrace.internal.schema.SCHEMA_VERSION", schema_version):
+        with mock.patch("ddtrace.settings.peer_service.SCHEMA_VERSION", schema_version):
             assert PeerServiceConfig().enabled == expected
 
 
@@ -113,3 +113,17 @@ def test_tracer_hooks():
 
     assert span.get_tag(peer_service_config.tag_name) == "test_value"
     assert span.get_tag(peer_service_config.source_tag_name) == "out.host"
+
+
+def test_peer_service_remap(test_span):
+    with mock.patch.dict(os.environ, {"DD_TRACE_PEER_SERVICE_MAPPING": "fake_peer_service:remapped_service"}):
+        peer_service_config = PeerServiceConfig(enabled=True)
+        processor = PeerServiceProcessor(peer_service_config)
+        processor.enabled = True
+        test_span.set_tag(SPAN_KIND, SpanKind.CLIENT)
+        test_span.set_tag(peer_service_config.tag_name, "fake_peer_service")
+        processor.on_span_finish(test_span)
+
+        assert test_span.get_tag(peer_service_config.tag_name) == "remapped_service"
+        assert test_span.get_tag(peer_service_config.remap_tag_name) == "fake_peer_service"
+        assert test_span.get_tag(peer_service_config.source_tag_name) == "peer.service"
