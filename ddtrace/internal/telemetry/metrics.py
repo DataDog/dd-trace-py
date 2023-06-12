@@ -1,11 +1,10 @@
 # -*- coding: utf-8 -*-
 import abc
 import time
-from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
-from typing import Text
+from typing import Tuple
 
 import six
 
@@ -15,8 +14,7 @@ from ddtrace.internal.telemetry.constants import TELEMETRY_METRIC_TYPE_GAUGE
 from ddtrace.internal.telemetry.constants import TELEMETRY_METRIC_TYPE_RATE
 
 
-MetricType = Text
-MetricTagType = Dict[str, Any]
+MetricTagType = Optional[Tuple[Tuple[str, str], ...]]
 
 
 class Metric(six.with_metaclass(abc.ABCMeta)):
@@ -39,22 +37,21 @@ class Metric(six.with_metaclass(abc.ABCMeta)):
         self.name = name.lower()
         self.is_common_to_all_tracers = common
         self.interval = interval
-        self.namespace = namespace.lower()
-        self._tags = {k.lower(): str(v).lower() for k, v in tags.items()}
+        self.namespace = namespace
+        self._tags = tags
         self._count = 0.0
         self._points = []  # type: List
 
     @classmethod
     def get_id(cls, name, namespace, tags, metric_type):
-        # type: (str, str, Dict[str, Any], str) -> str
+        # type: (str, str, MetricTagType, str) -> int
         """
         https://www.datadoghq.com/blog/the-power-of-tagged-metrics/#whats-a-metric-tag
         """
-        str_tags = str(sorted(tags.items())) if tags else ""
-        return ("%s-%s-%s-%s" % (name, namespace, str_tags, metric_type)).lower()
+        return hash((name, namespace, tags, metric_type))
 
     def __hash__(self):
-        return hash(self.get_id(self.name, self.namespace, self._tags, self.metric_type))
+        return self.get_id(self.name, self.namespace, self._tags, self.metric_type)
 
     @abc.abstractmethod
     def add_point(self, value=1.0):
@@ -70,7 +67,7 @@ class Metric(six.with_metaclass(abc.ABCMeta)):
             "type": self.metric_type,
             "common": self.is_common_to_all_tracers,
             "points": self._points,
-            "tags": ["%s:%s" % (k, v) for k, v in self._tags.items()],
+            "tags": ["{}:{}".format(k, v).lower() for k, v in self._tags] if self._tags else [],
         }
         if self.interval is not None:
             data["interval"] = int(self.interval)
@@ -149,6 +146,6 @@ class DistributionMetric(Metric):
         data = {
             "metric": self.name,
             "points": self._points,
-            "tags": ["%s:%s" % (k, v) for k, v in self._tags.items()],
+            "tags": ["{}:{}".format(k, v).lower() for k, v in self._tags] if self._tags else [],
         }
         return data
