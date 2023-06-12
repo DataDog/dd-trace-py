@@ -858,12 +858,6 @@ class BotocoreTest(TracerTestCase):
 
             sqs.delete_queue(QueueUrl=queue["QueueUrl"])
 
-    """
-    @mock_sqs
-    def test_data_streams_sqs_max_attributes_requested(self):
-
-    """
-
     @mock_lambda
     def test_lambda_client(self):
         # DEV: No lambda params tagged so we only check no ClientContext
