@@ -1,0 +1,88 @@
+[[
+  {
+    "name": "http.request",
+    "service": "mysvc",
+    "resource": "http.request",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "http",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "component": "httpx",
+      "http.method": "GET",
+      "http.status_code": "200",
+      "http.url": "http://testserver/sub-app/hello/name",
+      "http.useragent": "testclient",
+      "language": "python",
+      "out.host": "testserver",
+      "runtime-id": "fe217154c44e4fa580cb7268f5b08019",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 6485
+    },
+    "duration": 1796459,
+    "start": 1685581110258753713
+  },
+     {
+       "name": "fastapi.request",
+       "service": "mysvc",
+       "resource": "GET /sub-app/hello/{name}",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "web",
+       "error": 0,
+       "meta": {
+         "component": "fastapi",
+         "http.method": "GET",
+         "http.route": "/sub-app/hello/{name}",
+         "http.status_code": "200",
+         "http.url": "http://testserver/sub-app/hello/name",
+         "http.useragent": "testclient",
+         "http.version": "1.1",
+         "span.kind": "server"
+       },
+       "duration": 761792,
+       "start": 1685581110259404213
+     },
+        {
+          "name": "fastapi.request",
+          "service": "mysvc",
+          "resource": "GET /hello/{name}",
+          "trace_id": 0,
+          "span_id": 3,
+          "parent_id": 2,
+          "type": "web",
+          "error": 0,
+          "meta": {
+            "component": "fastapi",
+            "http.method": "GET",
+            "http.status_code": "200",
+            "http.url": "http://testserver/sub-app/hello/name",
+            "http.useragent": "testclient",
+            "http.version": "1.1",
+            "span.kind": "server"
+          },
+          "duration": 644833,
+          "start": 1685581110259527005
+        },
+           {
+             "name": "fastapi.serialize_response",
+             "service": "mysvc",
+             "resource": "fastapi.serialize_response",
+             "trace_id": 0,
+             "span_id": 4,
+             "parent_id": 3,
+             "type": "",
+             "error": 0,
+             "duration": 24417,
+             "start": 1685581110260055713
+           }]]
