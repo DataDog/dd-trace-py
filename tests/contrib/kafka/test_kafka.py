@@ -1,3 +1,6 @@
+import logging
+import time
+
 import confluent_kafka
 import pytest
 import six
@@ -61,6 +64,21 @@ def consumer(tracer):
     _consumer.subscribe([TOPIC_NAME])
     yield _consumer
     _consumer.close()
+
+
+def test_consumer_created_with_logger_does_not_raise(tracer):
+    """Test that adding a logger to a Consumer init does not raise any errors."""
+    logger = logging.getLogger()
+    # regression test for DataDog/dd-trace-py/issues/5873
+    consumer = confluent_kafka.Consumer(
+        {
+            "bootstrap.servers": BOOTSTRAP_SERVERS,
+            "group.id": GROUP_ID,
+            "auto.offset.reset": "earliest",
+        },
+        logger=logger,
+    )
+    consumer.close()
 
 
 @pytest.mark.parametrize("tombstone", [False, True])
@@ -154,3 +172,42 @@ def test_analytics_without_rate(producer, consumer):
         message = None
         while message is None:
             message = consumer.poll(1.0)
+
+
+def retry_until_not_none(factory):
+    for i in range(10):
+        x = factory()
+        if x is not None:
+            return x
+        time.sleep(0.1)
+    return None
+
+
+def test_data_streams_kafka(consumer, producer):
+    PAYLOAD = bytes("data streams", encoding="utf-8") if six.PY3 else bytes("data streams")
+    try:
+        del dd_tracer.data_streams_processor._current_context.value
+    except AttributeError:
+        pass
+    producer.produce(TOPIC_NAME, PAYLOAD, key="test_key_2")
+    producer.flush()
+    message = None
+    while message is None or str(message.value()) != str(PAYLOAD):
+        message = consumer.poll(1.0)
+    buckets = dd_tracer.data_streams_processor._buckets
+    assert len(buckets) == 1
+    _, first = list(buckets.items())[0]
+    assert first[("direction:out,topic:test_topic,type:kafka", 7591950451013596431, 0)].full_pathway_latency._count >= 1
+    assert first[("direction:out,topic:test_topic,type:kafka", 7591950451013596431, 0)].edge_latency._count >= 1
+    assert (
+        first[
+            ("direction:in,group:test_group,topic:test_topic,type:kafka", 17357311454188123272, 7591950451013596431)
+        ].full_pathway_latency._count
+        >= 1
+    )
+    assert (
+        first[
+            ("direction:in,group:test_group,topic:test_topic,type:kafka", 17357311454188123272, 7591950451013596431)
+        ].edge_latency._count
+        >= 1
+    )

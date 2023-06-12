@@ -1,3 +1,4 @@
+import os
 from typing import Any
 from typing import Callable
 from typing import List
@@ -6,6 +7,7 @@ from typing import Tuple
 
 from ddtrace.debugging._encoding import BufferedEncoder
 from ddtrace.debugging._metrics import metrics
+from ddtrace.debugging._signal.model import LogSignal
 from ddtrace.debugging._signal.model import Signal
 from ddtrace.debugging._signal.model import SignalState
 from ddtrace.internal._encoding import BufferFull
@@ -81,10 +83,13 @@ class SignalCollector(object):
         # type: (BufferedEncoder) -> None
         self._encoder = encoder
 
-    def _enqueue(self, snapshot):
-        # type: (Any) -> None
+    def _enqueue(self, log_signal):
+        # type: (LogSignal) -> None
         try:
-            self._encoder.put(snapshot)
+            log.debug(
+                "[%s][P: %s] SignalCollector. _encoder (%s) _enqueue signal", os.getpid(), os.getppid(), self._encoder
+            )
+            self._encoder.put(log_signal)
         except BufferFull:
             log.debug("Encoder buffer full")
             meter.increment("encoder.buffer.full")
@@ -93,15 +98,19 @@ class SignalCollector(object):
         # type: (Signal) -> None
         if signal.state == SignalState.SKIP_COND:
             meter.increment("skip", tags={"cause": "cond", "probe_id": signal.probe.probe_id})
-        elif signal.state == SignalState.SKIP_COND_ERROR:
+        elif signal.state in {SignalState.SKIP_COND_ERROR, SignalState.COND_ERROR}:
             meter.increment("skip", tags={"cause": "cond_error", "probe_id": signal.probe.probe_id})
-        elif signal.state == SignalState.COND_ERROR_AND_COMMIT:
-            meter.increment("skip", tags={"cause": "cond_error", "probe_id": signal.probe.probe_id})
-            self._enqueue(signal)
         elif signal.state == SignalState.SKIP_RATE:
             meter.increment("skip", tags={"cause": "rate", "probe_id": signal.probe.probe_id})
-        elif signal.state == SignalState.DONE_AND_COMMIT:
+        elif signal.state == SignalState.DONE:
             meter.increment("signal", tags={"probe_id": signal.probe.probe_id})
+
+        if (
+            isinstance(signal, LogSignal)
+            and signal.state in {SignalState.DONE, SignalState.COND_ERROR}
+            and signal.has_message()
+        ):
+            # This signal emits a log message
             self._enqueue(signal)
 
     def attach(self, signal):

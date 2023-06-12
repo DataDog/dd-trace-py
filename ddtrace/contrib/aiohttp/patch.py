@@ -1,4 +1,5 @@
 import os
+import typing
 
 from yarl import URL
 
@@ -13,6 +14,7 @@ from ddtrace.vendor import wrapt
 from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...internal.compat import parse
+from ...internal.schema import schematize_url_operation
 from ...pin import Pin
 from ...propagation.http import HTTPPropagator
 from ..trace_utils import ext_service
@@ -63,6 +65,20 @@ class _WrappedConnectorClass(wrapt.ObjectProxy):
             return result
 
 
+def extract_info_from_url(url):
+    # type: (str) -> typing.Tuple[str, str]
+    parse_result = parse.urlparse(url)
+    query = parse_result.query
+
+    # Relative URLs don't have a netloc, so we force them
+    if not parse_result.netloc:
+        parse_result = parse.urlparse("//{url}".format(url=url))
+
+    netloc = parse_result.netloc.split("@", 1)[-1]  # Discard auth info
+    netloc = netloc.split(":", 1)[0]  # Discard port information
+    return netloc, query
+
+
 @with_traced_module
 async def _traced_clientsession_request(aiohttp, pin, func, instance, args, kwargs):
     method = get_argument_value(args, kwargs, 0, "method")  # type: str
@@ -71,7 +87,9 @@ async def _traced_clientsession_request(aiohttp, pin, func, instance, args, kwar
     headers = kwargs.get("headers") or {}
 
     with pin.tracer.trace(
-        "aiohttp.request", span_type=SpanTypes.HTTP, service=ext_service(pin, config.aiohttp_client)
+        schematize_url_operation("aiohttp.request", protocol="http", direction="outbound"),
+        span_type=SpanTypes.HTTP,
+        service=ext_service(pin, config.aiohttp_client),
     ) as span:
         if pin._config["distributed_tracing"]:
             HTTPPropagator.inject(span.context, headers)
@@ -85,13 +103,14 @@ async def _traced_clientsession_request(aiohttp, pin, func, instance, args, kwar
         # Params can be included separate of the URL so the URL has to be constructed
         # with the passed params.
         url_str = str(url.update_query(params) if params else url)
-        parsed_url = parse.urlparse(url_str)
+        host, query = extract_info_from_url(url_str)
         set_http_meta(
             span,
             config.aiohttp_client,
             method=method,
             url=str(url),
-            query=parsed_url.query,
+            target_host=host,
+            query=query,
             request_headers=headers,
         )
         resp = await func(*args, **kwargs)  # type: aiohttp.ClientResponse

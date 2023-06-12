@@ -112,7 +112,17 @@ def sqli_http_path_parameter(request, q_http_path_parameter):
 def taint_checking_enabled_view(request):
     if python_supported_by_iast():
         from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
+        from ddtrace.appsec.iast._taint_tracking import taint_ranges_as_evidence_info
+
+        def assert_origin_path(path):  # type: (Any) -> None
+            assert is_pyobject_tainted(path)
+            result = taint_ranges_as_evidence_info(path)
+            assert result[1][0].origin == "http.request.path"
+
     else:
+
+        def assert_origin_path(pyobject):  # type: (Any) -> bool
+            return True
 
         def is_pyobject_tainted(pyobject):  # type: (Any) -> bool
             return True
@@ -123,7 +133,9 @@ def taint_checking_enabled_view(request):
     assert is_pyobject_tainted(request.META["QUERY_STRING"])
     assert is_pyobject_tainted(request.META["HTTP_USER_AGENT"])
     assert is_pyobject_tainted(request.headers["User-Agent"])
-
+    assert_origin_path(request.path_info)
+    assert_origin_path(request.path)
+    assert_origin_path(request.META["PATH_INFO"])
     return HttpResponse(request.META["HTTP_USER_AGENT"], status=200)
 
 

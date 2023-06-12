@@ -192,6 +192,16 @@ venv = Venv(
         ),
         Venv(
             pys=["3"],
+            pkgs={"bandit": latest},
+            venvs=[
+                Venv(
+                    name="bandit",
+                    command="bandit -c pyproject.toml {cmdargs} -r ddtrace/",
+                ),
+            ],
+        ),
+        Venv(
+            pys=["3"],
             pkgs={"ddapm-test-agent": ">=1.2.0"},
             venvs=[
                 Venv(
@@ -230,6 +240,9 @@ venv = Venv(
             pys=select_pys(),
             command="pytest {cmdargs} tests/appsec",
             pkgs={
+                "requests": latest,
+                "gunicorn": latest,
+                "flask": latest,
                 "pycryptodome": latest,
                 "cryptography": latest,
                 "astunparse": latest,
@@ -356,6 +369,35 @@ venv = Venv(
                         # https://www.attrs.org/en/22.2.0/changelog.html#id1
                         Venv(pys=["3.6"], pkgs={"attrs": "<22.2.0"}),
                         Venv(pys=select_pys(min_version="3.7")),
+                    ],
+                ),
+            ],
+        ),
+        Venv(
+            name="datastreams",
+            command="pytest --no-cov {cmdargs} tests/datastreams/",
+            pkgs={"msgpack": [latest]},
+            venvs=[
+                Venv(
+                    name="datastreams-latest",
+                    env={
+                        "AGENT_VERSION": "latest",
+                    },
+                    venvs=[
+                        Venv(pys=select_pys(max_version="3.5")),
+                        Venv(
+                            pkgs={
+                                "six": "==1.12.0",
+                            },
+                            venvs=[
+                                # DEV: attrs marked Python 3.6 as deprecated in 22.2.0,
+                                #      this logs a warning and causes these tests to fail
+                                # https://www.attrs.org/en/22.2.0/changelog.html#id1
+                                Venv(pys="3.6", pkgs={"attrs": "<22.2.0"}),
+                                Venv(pys="3.7"),
+                            ],
+                        ),
+                        Venv(pys=select_pys(min_version="3.8")),
                     ],
                 ),
             ],
@@ -2237,7 +2279,10 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.7", max_version="3.9"),
                     pkgs={
-                        "sanic": ["~=21.3", "~=21.12"],
+                        "sanic": [
+                            "~=21.3",
+                            "~=21.12",
+                        ],
                         "sanic-testing": "~=0.8.3",
                     },
                 ),
@@ -2252,7 +2297,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.7", max_version="3.10"),
                     pkgs={
-                        "sanic": ["~=22.3", "~=22.12"],
+                        "sanic": ["~=22.3", "~=22.12", latest],
                         "sanic-testing": "~=22.3.0",
                     },
                 ),
@@ -2260,7 +2305,7 @@ venv = Venv(
                     # sanic added support for Python 3.11 in 22.12.0
                     pys="3.11",
                     pkgs={
-                        "sanic": "~=22.12.0",
+                        "sanic": ["~=22.12.0", latest],
                         "sanic-testing": "~=22.3.0",
                     },
                 ),
@@ -2412,7 +2457,7 @@ venv = Venv(
         Venv(
             name="dbapi_async",
             command="pytest {cmdargs} tests/contrib/dbapi_async",
-            pys=select_pys(min_version="3.5"),
+            pys=select_pys(min_version="3.6"),
             env={
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
             },
@@ -2421,7 +2466,7 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    pys=["3.5", "3.6", "3.8", "3.9", "3.10"],
+                    pys=["3.6", "3.8", "3.9", "3.10"],
                 ),
                 Venv(pys=["3.11"], pkgs={"attrs": latest}),
             ],
@@ -2493,11 +2538,24 @@ venv = Venv(
             env={"SKLEARN_ALLOW_DEPRECATED_SKLEARN_PACKAGE_INSTALL": "True"},
             pys=select_pys(min_version="3.8"),
             pkgs={
-                "openai[embeddings]": ["==0.26.5", "==0.27.2", "==0.27.3", "==0.27.4", latest],
                 "vcrpy": "==4.2.1",
                 "urllib3": "~=1.26",  # vcrpy errors with urllib3 2.x https://github.com/kevin1024/vcrpy/issues/688
                 "pytest-asyncio": latest,
             },
+            venvs=[
+                Venv(
+                    pkgs={
+                        "openai[embeddings]": ["==0.27.2", latest],
+                    },
+                ),
+                Venv(
+                    pkgs={
+                        # openai[embeddings] broken install with sklearn was never fixed on 0.26
+                        "openai": "==0.26.5",  # https://github.com/openai/openai-python/issues/210
+                        "scikit-learn": "==1.2.2",
+                    },
+                ),
+            ],
         ),
         Venv(
             name="opentracer",
@@ -2713,6 +2771,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/molten",
             pys=select_pys(min_version="3.6"),
             pkgs={
+                "cattrs": ["<23.1.1"],
                 "molten": [">=1.0,<1.1", latest],
             },
         ),
@@ -2733,6 +2792,10 @@ venv = Venv(
         ),
         Venv(
             name="kafka",
+            env={
+                "_DD_TRACE_STATS_WRITER_INTERVAL": "1000000000",
+                "DD_DATA_STREAMS_ENABLED": "true",
+            },
             venvs=[
                 Venv(
                     command="pytest {cmdargs} tests/contrib/kafka",
@@ -2794,14 +2857,12 @@ venv = Venv(
                     venvs=[
                         Venv(
                             pkgs={
-                                "tenacity": latest,
                                 "protobuf": latest,
                             }
                         ),
                         # Minimum requirements
                         Venv(
                             pkgs={
-                                "tenacity": "==5.0.1",
                                 "protobuf": "==3.0.0",
                             }
                         ),
@@ -2842,14 +2903,12 @@ venv = Venv(
                             venvs=[
                                 Venv(
                                     pkgs={
-                                        "tenacity": latest,
                                         "protobuf": latest,
                                     },
                                 ),
                                 # Minimum requirements
                                 Venv(
                                     pkgs={
-                                        "tenacity": "==5.0.1",
                                         "protobuf": "==3.8.0",
                                     },
                                 ),
@@ -2881,14 +2940,12 @@ venv = Venv(
                             venvs=[
                                 Venv(
                                     pkgs={
-                                        "tenacity": latest,
                                         "protobuf": latest,
                                     },
                                 ),
                                 # Minimum requirements
                                 Venv(
                                     pkgs={
-                                        "tenacity": "==6.0.0",
                                         "protobuf": "==3.8.0",
                                     },
                                 ),
@@ -2920,14 +2977,12 @@ venv = Venv(
                             venvs=[
                                 Venv(
                                     pkgs={
-                                        "tenacity": latest,
                                         "protobuf": latest,
                                     },
                                 ),
                                 # Minimum requirements
                                 Venv(
                                     pkgs={
-                                        "tenacity": "==7.0.0",
                                         "protobuf": "==3.19.0",
                                     },
                                 ),
@@ -2959,14 +3014,12 @@ venv = Venv(
                             venvs=[
                                 Venv(
                                     pkgs={
-                                        "tenacity": latest,
                                         "protobuf": latest,
                                     },
                                 ),
                                 # Minimum requirements
                                 Venv(
                                     pkgs={
-                                        "tenacity": "==8.0.0",
                                         "protobuf": "==3.19.0",
                                     },
                                 ),
@@ -2998,14 +3051,12 @@ venv = Venv(
                             venvs=[
                                 Venv(
                                     pkgs={
-                                        "tenacity": latest,
                                         "protobuf": latest,
                                     },
                                 ),
                                 # Minimum requirements
                                 Venv(
                                     pkgs={
-                                        "tenacity": "==8.2.0",
                                         "protobuf": "==4.22.0",
                                     },
                                 ),

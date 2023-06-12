@@ -139,10 +139,12 @@ def if_iast_taint_returned_object_for(origin, wrapped, instance, args, kwargs):
 
     if _is_iast_enabled():
         try:
+            from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
             from ddtrace.appsec.iast._taint_tracking import taint_pyobject
 
-            name = str(args[0]) if len(args) else "http.request.body"
-            return taint_pyobject(value, Input_info(name, value, origin))
+            if not is_pyobject_tainted(value):
+                name = str(args[0]) if len(args) else "http.request.body"
+                return taint_pyobject(value, Input_info(name, value, origin))
         except Exception:
             log.debug("Unexpected exception while tainting pyobject", exc_info=True)
     return value

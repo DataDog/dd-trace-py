@@ -17,6 +17,7 @@ from ddtrace.contrib.grpc import constants
 from ddtrace.contrib.grpc import patch
 from ddtrace.contrib.grpc import unpatch
 from ddtrace.contrib.grpc.patch import _unpatch_server
+from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.utils import TracerTestCase
 from tests.utils import snapshot
 
@@ -38,6 +39,93 @@ class GrpcTestCase(TracerTestCase):
         Pin.override(constants.GRPC_PIN_MODULE_SERVER, tracer=self.tracer)
         Pin.override(constants.GRPC_PIN_MODULE_CLIENT, tracer=self.tracer)
         self._start_server()
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_user_specified_service_v1(self):
+        with grpc.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel:
+            stub = HelloStub(channel)
+            stub.SayHello(HelloRequest(name="propogator"))
+
+        spans = self.get_spans_with_sync_and_assert(size=2)
+        client_span, server_span = spans
+        assert client_span.service == "mysvc"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_user_specified_service_v0(self):
+        from ddtrace import config
+
+        assert config.service == "mysvc"
+        with grpc.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel:
+            stub = HelloStub(channel)
+            stub.SayHello(HelloRequest(name="propogator"))
+
+        spans = self.get_spans_with_sync_and_assert(size=2)
+        client_span, server_span = spans
+        assert spans[0].service == "grpc-client"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_unspecified_service_v1(self):
+        with grpc.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel:
+            stub = HelloStub(channel)
+            stub.SayHello(HelloRequest(name="propogator"))
+
+        spans = self.get_spans_with_sync_and_assert(size=2)
+        client_span, server_span = spans
+        assert spans[0].service == DEFAULT_SPAN_SERVICE_NAME
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_unspecified_service_v0(self):
+        with grpc.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel:
+            stub = HelloStub(channel)
+            stub.SayHello(HelloRequest(name="propogator"))
+
+        spans = self.get_spans_with_sync_and_assert(size=2)
+        client_span, server_span = spans
+        assert client_span.service == "grpc-client"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_GRPC_SERVICE="mygrpc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_client_service_name_config_env_override_v0(self):
+        with grpc.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel:
+            stub = HelloStub(channel)
+            stub.SayHello(HelloRequest(name="propogator"))
+
+        spans = self.get_spans_with_sync_and_assert(size=2)
+        client_span, server_span = spans
+        assert spans[0].service == "mygrpc"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_GRPC_SERVICE="mygrpc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_client_service_name_config_env_override_v1(self):
+        with grpc.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel:
+            stub = HelloStub(channel)
+            stub.SayHello(HelloRequest(name="propogator"))
+
+        spans = self.get_spans_with_sync_and_assert(size=2)
+        client_span, server_span = spans
+        assert client_span.service == "mygrpc"
+
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(DD_SERVICE="mysvc", DD_GRPC_SERVICE="mygrpc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1")
+    )
+    def test_service_precedence_v1(self):
+        with grpc.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel:
+            stub = HelloStub(channel)
+            stub.SayHello(HelloRequest(name="propogator"))
+
+        spans = self.get_spans_with_sync_and_assert(size=2)
+        client_span, server_span = spans
+        assert client_span.service == "mygrpc"
+
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(DD_SERVICE="mysvc", DD_GRPC_SERVICE="mygrpc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0")
+    )
+    def test_service_precedence_v0(self):
+        with grpc.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel:
+            stub = HelloStub(channel)
+            stub.SayHello(HelloRequest(name="propogator"))
+
+        spans = self.get_spans_with_sync_and_assert(size=2)
+        client_span, server_span = spans
+        assert client_span.service == "mygrpc"
 
     def tearDown(self):
         self._stop_server()
@@ -512,62 +600,6 @@ class GrpcTestCase(TracerTestCase):
                 stub.SayHelloUnknown(HelloRequest(name="unknown"))
             rpc_error = exception_context.exception
             assert grpc.StatusCode.UNIMPLEMENTED == rpc_error.code()
-
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_app_service_name(self):
-        """
-        When a service name is specified by the user
-            It should be used for grpc server spans
-            It should be included in grpc client spans
-        """
-        # Ensure that the service name was configured
-        from ddtrace import config
-
-        assert config.service == "mysvc"
-
-        channel1 = grpc.insecure_channel("localhost:%d" % (_GRPC_PORT))
-        stub1 = HelloStub(channel1)
-        stub1.SayHello(HelloRequest(name="test"))
-        channel1.close()
-
-        # DEV: make sure we have two spans before proceeding
-        spans = self.get_spans_with_sync_and_assert(size=2)
-
-        self._check_server_span(spans[1], "mysvc", "SayHello", "unary")
-        self._check_client_span(spans[0], "grpc-client", "SayHello", "unary")
-
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_service_name_config_override(self):
-        """
-        When a service name is specified by the user in config.grpc{_server}
-            It should be used in grpc client spans
-            It should be used in grpc server spans
-        """
-        with self.override_config("grpc", dict(service_name="myclientsvc")):
-            with self.override_config("grpc_server", dict(service_name="myserversvc")):
-                channel1 = grpc.insecure_channel("localhost:%d" % (_GRPC_PORT))
-                stub1 = HelloStub(channel1)
-                stub1.SayHello(HelloRequest(name="test"))
-                channel1.close()
-
-        spans = self.get_spans_with_sync_and_assert(size=2)
-
-        self._check_server_span(spans[1], "myserversvc", "SayHello", "unary")
-        self._check_client_span(spans[0], "myclientsvc", "SayHello", "unary")
-
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_GRPC_SERVICE="myclientsvc"))
-    def test_client_service_name_config_env_override(self):
-        """
-        When a service name is specified by the user in the DD_GRPC_SERVICE env var
-            It should be used in grpc client spans
-        """
-        channel1 = grpc.insecure_channel("localhost:%d" % (_GRPC_PORT))
-        stub1 = HelloStub(channel1)
-        stub1.SayHello(HelloRequest(name="test"))
-        channel1.close()
-
-        spans = self.get_spans_with_sync_and_assert(size=2)
-        self._check_client_span(spans[0], "myclientsvc", "SayHello", "unary")
 
 
 class _HelloServicer(HelloServicer):

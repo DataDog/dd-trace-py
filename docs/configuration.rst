@@ -368,6 +368,11 @@ The following environment variables for the tracer are supported:
      default: True
      description: Prevents large payloads being sent to APM.
 
+   DD_TRACE_PARTIAL_FLUSH_MIN_SPANS:
+     type: Integer
+     default: 500
+     description: Maximum number of spans sent per trace per payload when ``DD_TRACE_PARTIAL_FLUSH_ENABLED=True``.
+
    DD_APPSEC_ENABLED:
      type: Boolean
      default: False

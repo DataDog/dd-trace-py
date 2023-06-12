@@ -30,6 +30,7 @@ from ddtrace.ext import user
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import binary_type
 from ddtrace.internal.compat import string_type
+from ddtrace.internal.schema.span_attribute_schema import _DEFAULT_SPAN_SERVICE_NAMES
 from ddtrace.propagation._utils import get_wsgi_header
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
@@ -490,6 +491,30 @@ def test_request_view(client, test_spans):
         resource="tests.contrib.django.views.index",
         error=0,
     )
+
+
+def test_class_views_resource_names(client, test_spans):
+    """
+    When making a request to a Django app and DD_DJANGO_USE_HANDLER_RESOURCE_FORMAT=True
+        The resource name of the django.request span should contain the name of the view
+    """
+    with override_config("django", dict(use_handler_resource_format=True)):
+        # Send a request to a endpoint with a class based view
+        resp = client.get("/simple/")
+        assert resp.status_code == 200
+        assert resp.content == b""
+
+    view_spans = list(test_spans.filter_spans(name="django.view"))
+    assert len(view_spans) == 1
+    # Assert span properties
+    view_span = view_spans[0]
+    view_span.assert_matches(
+        name="django.view", service="django", resource="tests.contrib.django.views.BasicView", error=0
+    )
+    # Get request span
+    request_span = list(test_spans.filter_spans(name="django.request"))[0]
+    # Ensure resource name contains the view
+    assert view_span.resource in request_span.resource
 
 
 def test_lambda_based_view(client, test_spans):
@@ -1458,6 +1483,91 @@ def test_service_can_be_overridden(client, test_spans):
 
     span = spans[0]
     assert span.service == "test-service"
+
+
+@pytest.mark.parametrize("global_service_name", [None, "mysvc"])
+@pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
+def test_schematized_default_service_name(ddtrace_run_python_code_in_subprocess, schema_version, global_service_name):
+    expected_service_name = {
+        None: global_service_name or "django",
+        "v0": global_service_name or "django",
+        "v1": global_service_name or _DEFAULT_SPAN_SERVICE_NAMES["v1"],
+    }[schema_version]
+    code = """
+import pytest
+import sys
+
+import django
+
+from tests.contrib.django.conftest import *
+from tests.utils import override_config
+
+def test(client, test_spans):
+    response = client.get("/")
+    assert response.status_code == 200
+
+    spans = test_spans.get_spans()
+    assert len(spans) > 0
+
+    span = spans[0]
+    assert span.service == "{}"
+
+if __name__ == "__main__":
+    sys.exit(pytest.main(["-x", __file__]))
+    """.format(
+        expected_service_name
+    )
+
+    env = os.environ.copy()
+    if schema_version is not None:
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
+    if global_service_name is not None:
+        env["DD_SERVICE"] = global_service_name
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(
+        code,
+        env=env,
+    )
+    assert status == 0, (out, err)
+
+
+@pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
+def test_schematized_operation_name(ddtrace_run_python_code_in_subprocess, schema_version):
+    expected_operation_name = {None: "django.request", "v0": "django.request", "v1": "http.server.request"}[
+        schema_version
+    ]
+    code = """
+import pytest
+import sys
+
+import django
+
+from tests.contrib.django.conftest import *
+from tests.utils import override_config
+
+def test(client, test_spans):
+    response = client.get("/")
+    assert response.status_code == 200
+
+    spans = test_spans.get_spans()
+    assert len(spans) > 0
+
+    span = spans[0]
+    assert span.name == "{}"
+
+if __name__ == "__main__":
+    sys.exit(pytest.main(["-x", __file__]))
+    """.format(
+        expected_operation_name
+    )
+
+    env = os.environ.copy()
+    if schema_version is not None:
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(
+        code,
+        env=env,
+    )
+    assert status == 0, (out, err)
 
 
 @pytest.mark.django_db

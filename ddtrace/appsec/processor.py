@@ -23,6 +23,7 @@ from ddtrace.appsec._metrics import _set_waf_request_metrics
 from ddtrace.appsec._metrics import _set_waf_updates_metric
 from ddtrace.appsec.ddwaf import DDWaf
 from ddtrace.appsec.ddwaf import version
+from ddtrace.appsec.utils import _appsec_rc_file_is_not_static
 from ddtrace.constants import MANUAL_KEEP_KEY
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.constants import RUNTIME_FAMILY
@@ -197,6 +198,8 @@ class AppSecSpanProcessor(SpanProcessor):
     def _update_rules(self, new_rules):
         # type: (Dict[str, Any]) -> bool
         result = False
+        if not _appsec_rc_file_is_not_static():
+            return result
         try:
             result = self._ddwaf.update_rules(new_rules)
             _set_waf_updates_metric(self._ddwaf.info)
@@ -345,7 +348,11 @@ class AppSecSpanProcessor(SpanProcessor):
                     _set_headers(span, headers_req, kind=kind)
 
             if waf_results and waf_results.data:
-                span.set_tag_str(APPSEC.JSON, '{"triggers":%s}' % (waf_results.data,))
+                span.set_tag_str(
+                    APPSEC.JSON,
+                    '{"triggers":%s}'
+                    % (json.dumps(waf_results.data, sort_keys=True, indent=2, separators=(",", ": ")),),
+                )
             if blocked:
                 span.set_tag(APPSEC.BLOCKED, "true")
                 _set_waf_request_metrics()

@@ -13,8 +13,8 @@ import ddtrace
 from ddtrace import Pin
 from ddtrace import Span
 from ddtrace import patch
-from ddtrace.contrib.openai import _patch
 from ddtrace.contrib.openai.patch import unpatch
+from ddtrace.contrib.openai.utils import _est_tokens
 from ddtrace.filters import TraceFilter
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
@@ -50,6 +50,23 @@ def openai_vcr():
 
 
 @pytest.fixture
+def api_key_in_env():
+    return True
+
+
+@pytest.fixture
+def request_api_key(api_key_in_env, openai_api_key):
+    """
+    OpenAI allows both using an env var or a specified param for the API key, so this fixture specifies the API key
+    (or None) to be used in the actual request param. If the API key is set as an env var, this should return None
+    to make sure the env var will be used.
+    """
+    if api_key_in_env:
+        return None
+    return openai_api_key
+
+
+@pytest.fixture
 def openai_api_key():
     return os.getenv("OPENAI_API_KEY", "<not-a-real-key>")
 
@@ -60,10 +77,11 @@ def openai_organization():
 
 
 @pytest.fixture
-def openai(openai_api_key, openai_organization):
+def openai(openai_api_key, openai_organization, api_key_in_env):
     import openai
 
-    openai.api_key = openai_api_key
+    if api_key_in_env:
+        openai.api_key = openai_api_key
     openai.organization = openai_organization
     yield openai
     # Since unpatching doesn't work (see the unpatch() function),
@@ -115,9 +133,10 @@ def ddtrace_config_openai():
 
 
 @pytest.fixture
-def patch_openai(ddtrace_config_openai, openai_api_key, openai_organization):
+def patch_openai(ddtrace_config_openai, openai_api_key, openai_organization, api_key_in_env):
     with override_config("openai", ddtrace_config_openai):
-        openai.api_key = openai_api_key
+        if api_key_in_env:
+            openai.api_key = openai_api_key
         openai.organization = openai_organization
         patch(openai=True)
         yield
@@ -199,10 +218,11 @@ def test_patching(openai):
 
 
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
-def test_completion(openai, openai_vcr, mock_metrics, snapshot_tracer):
+@pytest.mark.parametrize("api_key_in_env", [True, False])
+def test_completion(api_key_in_env, request_api_key, openai, openai_vcr, mock_metrics, snapshot_tracer):
     with openai_vcr.use_cassette("completion.yaml"):
         resp = openai.Completion.create(
-            model="ada", prompt="Hello world", temperature=0.8, n=2, stop=".", max_tokens=10
+            api_key=request_api_key, model="ada", prompt="Hello world", temperature=0.8, n=2, stop=".", max_tokens=10
         )
 
     assert resp["object"] == "text_completion"
@@ -272,10 +292,18 @@ def test_completion(openai, openai_vcr, mock_metrics, snapshot_tracer):
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
-async def test_acompletion(openai, openai_vcr, mock_metrics, mock_logs, snapshot_tracer):
+@pytest.mark.parametrize("api_key_in_env", [True, False])
+async def test_acompletion(
+    api_key_in_env, request_api_key, openai, openai_vcr, mock_metrics, mock_logs, snapshot_tracer
+):
     with openai_vcr.use_cassette("completion_async.yaml"):
         resp = await openai.Completion.acreate(
-            model="curie", prompt="As Descartes said, I think, therefore", temperature=0.8, n=1, max_tokens=150
+            api_key=request_api_key,
+            model="curie",
+            prompt="As Descartes said, I think, therefore",
+            temperature=0.8,
+            n=1,
+            max_tokens=150,
         )
     assert resp["object"] == "text_completion"
     assert resp["choices"] == [
@@ -458,12 +486,14 @@ def test_global_tags(openai_vcr, ddtrace_config_openai, openai, mock_metrics, mo
 
 
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
-def test_chat_completion(openai, openai_vcr, snapshot_tracer):
+@pytest.mark.parametrize("api_key_in_env", [True, False])
+def test_chat_completion(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "ChatCompletion"):
         pytest.skip("ChatCompletion not supported for this version of openai")
 
     with openai_vcr.use_cassette("chat_completion.yaml"):
         openai.ChatCompletion.create(
+            api_key=request_api_key,
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": "You are a helpful assistant."},
@@ -489,11 +519,13 @@ def test_enable_metrics(openai, openai_vcr, ddtrace_config_openai, mock_metrics,
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
-async def test_achat_completion(openai, openai_vcr, snapshot_tracer):
+@pytest.mark.parametrize("api_key_in_env", [True, False])
+async def test_achat_completion(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "ChatCompletion"):
         pytest.skip("ChatCompletion not supported for this version of openai")
     with openai_vcr.use_cassette("chat_completion_async.yaml"):
         await openai.ChatCompletion.acreate(
+            api_key=request_api_key,
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": "You are a helpful assistant."},
@@ -507,20 +539,48 @@ async def test_achat_completion(openai, openai_vcr, snapshot_tracer):
 
 
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
-def test_embedding(openai, openai_vcr, snapshot_tracer):
+@pytest.mark.parametrize("api_key_in_env", [True, False])
+def test_embedding(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "Embedding"):
         pytest.skip("embedding not supported for this version of openai")
     with openai_vcr.use_cassette("embedding.yaml"):
-        openai.Embedding.create(input="hello world", model="text-embedding-ada-002")
+        openai.Embedding.create(api_key=request_api_key, input="hello world", model="text-embedding-ada-002")
+
+
+@pytest.mark.snapshot(ignores=["meta.http.useragent"])
+def test_embedding_string_array(openai, openai_vcr, snapshot_tracer):
+    if not hasattr(openai, "Embedding"):
+        pytest.skip("embedding not supported for this version of openai")
+    with openai_vcr.use_cassette("embedding.yaml"):
+        openai.Embedding.create(input=["hello world", "hello again"], model="text-embedding-ada-002")
+
+
+@pytest.mark.snapshot(ignores=["meta.http.useragent"])
+def test_embedding_token_array(openai, openai_vcr, snapshot_tracer):
+    if not hasattr(openai, "Embedding"):
+        pytest.skip("embedding not supported for this version of openai")
+    with openai_vcr.use_cassette("embedding.yaml"):
+        openai.Embedding.create(input=[1111, 2222, 3333], model="text-embedding-ada-002")
+
+
+@pytest.mark.snapshot(ignores=["meta.http.useragent"])
+def test_embedding_array_of_token_arrays(openai, openai_vcr, snapshot_tracer):
+    if not hasattr(openai, "Embedding"):
+        pytest.skip("embedding not supported for this version of openai")
+    with openai_vcr.use_cassette("embedding.yaml"):
+        openai.Embedding.create(
+            input=[[1111, 2222, 3333], [4444, 5555, 6666], [7777, 8888, 9999]], model="text-embedding-ada-002"
+        )
 
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
-async def test_aembedding(openai, openai_vcr, snapshot_tracer):
+@pytest.mark.parametrize("api_key_in_env", [True, False])
+async def test_aembedding(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "Embedding"):
         pytest.skip("embedding not supported for this version of openai")
     with openai_vcr.use_cassette("embedding_async.yaml"):
-        await openai.Embedding.acreate(input="hello world", model="text-embedding-ada-002")
+        await openai.Embedding.acreate(api_key=request_api_key, input="hello world", model="text-embedding-ada-002")
 
 
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
@@ -896,6 +956,27 @@ def test_completion_truncation(openai, openai_vcr, mock_tracer):
     [
         dict(
             _api_key="<not-real-but-it's-something>",
+            span_prompt_completion_sample_rate=0,
+        )
+    ],
+)
+def test_embedding_unsampled_prompt_completion(openai, openai_vcr, ddtrace_config_openai, mock_logs, mock_tracer):
+    if not hasattr(openai, "Embedding"):
+        pytest.skip("embedding not supported for this version of openai")
+    with openai_vcr.use_cassette("embedding.yaml"):
+        openai.Embedding.create(input="hello world", model="text-embedding-ada-002")
+    logs = mock_logs.enqueue.call_count
+    traces = mock_tracer.pop_traces()
+    assert len(traces) == 1
+    assert traces[0][0].get_tag("openai.request.input") is None
+    assert logs == 0
+
+
+@pytest.mark.parametrize(
+    "ddtrace_config_openai",
+    [
+        dict(
+            _api_key="<not-real-but-it's-something>",
             logs_enabled=True,
             log_prompt_completion_sample_rate=r,
         )
@@ -920,27 +1001,27 @@ def test_logs_sample_rate(openai, openai_vcr, ddtrace_config_openai, mock_logs, 
 
 def test_est_tokens():
     """Oracle numbers are from https://platform.openai.com/tokenizer (GPT-3)."""
-    est = _patch._est_tokens
-    assert est("") == 0  # oracle: 1
-    assert est("hello") == 1  # oracle: 1
-    assert est("hello, world") == 3  # oracle: 3
-    assert est("hello world") == 2  # oracle: 2
-    assert est("Hello world, how are you?") == 6  # oracle: 7
-    assert est("    hello    ") == 3  # oracle: 8
+    _est_tokens
+    assert _est_tokens("") == 0  # oracle: 1
+    assert _est_tokens("hello") == 1  # oracle: 1
+    assert _est_tokens("hello, world") == 3  # oracle: 3
+    assert _est_tokens("hello world") == 2  # oracle: 2
+    assert _est_tokens("Hello world, how are you?") == 6  # oracle: 7
+    assert _est_tokens("    hello    ") == 3  # oracle: 8
     assert (
-        est(
+        _est_tokens(
             "The GPT family of models process text using tokens, which are common sequences of characters found in text. The models understand the statistical relationships between these tokens, and excel at producing the next token in a sequence of tokens."  # noqa E501
         )
         == 54
     )  # oracle: 44
     assert (
-        est(
+        _est_tokens(
             "You can use the tool below to understand how a piece of text would be tokenized by the API, and the total count of tokens in that piece of text."  # noqa: E501
         )
         == 33
     )  # oracle: 33
     assert (
-        est(
+        _est_tokens(
             "A helpful rule of thumb is that one token generally corresponds to ~4 characters of text for common "
             "English text. This translates to roughly ¾ of a word (so 100 tokens ~= 75 words). If you need a "
             "programmatic interface for tokenizing text, check out our tiktoken package for Python. For JavaScript, "
@@ -951,7 +1032,7 @@ def test_est_tokens():
 
     # Expected to be a disparity since our assumption is based on english words
     assert (
-        est(
+        _est_tokens(
             """Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec hendrerit sapien eu erat imperdiet, in
  maximus elit malesuada. Pellentesque quis gravida purus. Nullam eu eros vitae dui placerat viverra quis a magna. Mauris
  vitae lorem quis neque pharetra congue. Praesent volutpat dui eget nibh auctor, sit amet elementum velit faucibus.
@@ -964,7 +1045,7 @@ def test_est_tokens():
     )  # oracle 281
 
     assert (
-        est(
+        _est_tokens(
             "I want you to act as a linux terminal. I will type commands and you will reply with what the terminal should show. I want you to only reply with the terminal output inside one unique code block, and nothing else. do not write explanations. do not type commands unless I instruct you to do so. When I need to tell you something in English, I will do so by putting text inside curly brackets {like this}. My first command is pwd"  # noqa: E501
         )
         == 97

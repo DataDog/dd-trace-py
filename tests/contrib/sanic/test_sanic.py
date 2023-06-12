@@ -1,4 +1,5 @@
 import asyncio
+import os
 import random
 import re
 
@@ -17,6 +18,7 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
+from ddtrace.internal.schema.span_attribute_schema import _DEFAULT_SPAN_SERVICE_NAMES
 from ddtrace.propagation import http as http_propagation
 from tests.utils import override_config
 from tests.utils import override_http_config
@@ -94,7 +96,7 @@ def app(tracer):
             await response.write("foo,")
             await response.write("bar")
 
-        return stream(sample_streaming_fn, content_type="text/csv")
+        return stream(sample_streaming_fn, content_type="text/csv", headers={})
 
     @app.route("/error400")
     async def error_400(request):
@@ -102,7 +104,9 @@ def app(tracer):
 
     @app.route("/error")
     async def error(request):
-        raise ServerError("Something bad happened", status_code=500)
+        server_error = ServerError("Something bad happened")
+        server_error.status_code = 500
+        raise server_error
 
     @app.route("/invalid")
     async def invalid(request):
@@ -432,3 +436,108 @@ async def test_endpoint_with_numeric_arg(tracer, client, test_spans):
     response = await client.get("/42/count")
     assert _response_status(response) == 200
     assert (await _response_text(response)) == '{"hello":42}'
+
+
+@pytest.mark.parametrize("service_name", [None, "mysvc"])
+@pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
+def test_service_name_schematization(ddtrace_run_python_code_in_subprocess, schema_version, service_name):
+    expected_service_name = {
+        None: service_name or "sanic",
+        "v0": service_name or "sanic",
+        "v1": service_name or _DEFAULT_SPAN_SERVICE_NAMES["v1"],
+    }[schema_version]
+    code = """
+import asyncio
+import pytest
+import sys
+
+# prevent circular import issue
+import sanic
+
+# import fixtures
+from tests.conftest import *
+from tests.contrib.sanic.conftest import *
+from tests.contrib.sanic.test_sanic import app
+from tests.contrib.sanic.test_sanic import client
+from tests.contrib.sanic.test_sanic import integration_config
+from tests.contrib.sanic.test_sanic import integration_http_config
+from tests.contrib.sanic.test_sanic import _response_status
+
+from ddtrace.propagation import http as http_propagation
+
+async def test(client, integration_config, integration_http_config, test_spans):
+    response = await client.get("/hello", params=[("foo", "bar")])
+    assert _response_status(response) == 200
+
+    spans = test_spans.pop_traces()
+    assert len(spans) == 1
+    assert len(spans[0]) == 2
+    request_span = spans[0][0]
+    assert request_span.service == "{}"
+
+if __name__ == "__main__":
+    sys.exit(pytest.main(["-x", __file__]))
+    """.format(
+        expected_service_name
+    )
+
+    env = os.environ.copy()
+    if schema_version is not None:
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
+    if service_name is not None:
+        env["DD_SERVICE"] = service_name
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(
+        code,
+        env=env,
+    )
+    assert status == 0, out or err
+
+
+@pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
+def test_operation_name_schematization(ddtrace_run_python_code_in_subprocess, schema_version):
+    expected_operation_name = {None: "sanic.request", "v0": "sanic.request", "v1": "http.server.request"}[
+        schema_version
+    ]
+    code = """
+import asyncio
+import pytest
+import sys
+
+# prevent circular import issue
+import sanic
+
+# import fixtures
+from tests.conftest import *
+from tests.contrib.sanic.conftest import *
+from tests.contrib.sanic.test_sanic import app
+from tests.contrib.sanic.test_sanic import client
+from tests.contrib.sanic.test_sanic import integration_config
+from tests.contrib.sanic.test_sanic import integration_http_config
+from tests.contrib.sanic.test_sanic import _response_status
+
+from ddtrace.propagation import http as http_propagation
+
+async def test(client, integration_config, integration_http_config, test_spans):
+    response = await client.get("/hello", params=[("foo", "bar")])
+    assert _response_status(response) == 200
+
+    spans = test_spans.pop_traces()
+    assert len(spans) == 1
+    assert len(spans[0]) == 2
+    request_span = spans[0][0]
+    assert request_span.name == "{}"
+
+if __name__ == "__main__":
+    sys.exit(pytest.main(["-x", __file__]))
+    """.format(
+        expected_operation_name
+    )
+
+    env = os.environ.copy()
+    if schema_version is not None:
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(
+        code,
+        env=env,
+    )
+    assert status == 0, out or err

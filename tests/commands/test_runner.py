@@ -157,46 +157,18 @@ class DdtraceRunTest(BaseTestCase):
         """
         DD_PATCH_MODULES overrides the defaults for patch_all()
         """
-        from ddtrace.bootstrap.sitecustomize import EXTRA_PATCHED_MODULES
-        from ddtrace.bootstrap.sitecustomize import update_patched_modules
-
-        orig = EXTRA_PATCHED_MODULES.copy()
-
-        # empty / malformed strings are no-ops
-        with self.override_env(dict(DD_PATCH_MODULES="")):
-            update_patched_modules()
-            assert orig == EXTRA_PATCHED_MODULES
-
-        with self.override_env(dict(DD_PATCH_MODULES=":")):
-            update_patched_modules()
-            assert orig == EXTRA_PATCHED_MODULES
-
-        with self.override_env(dict(DD_PATCH_MODULES=",")):
-            update_patched_modules()
-            assert orig == EXTRA_PATCHED_MODULES
-
-        with self.override_env(dict(DD_PATCH_MODULES=",:")):
-            update_patched_modules()
-            assert orig == EXTRA_PATCHED_MODULES
-
-        # overrides work in either direction
-        with self.override_env(dict(DD_PATCH_MODULES="django:false")):
-            update_patched_modules()
-            assert EXTRA_PATCHED_MODULES["django"] is False
-
-        with self.override_env(dict(DD_PATCH_MODULES="boto:true")):
-            update_patched_modules()
-            assert EXTRA_PATCHED_MODULES["boto"] is True
-
-        with self.override_env(dict(DD_PATCH_MODULES="django:true,boto:false")):
-            update_patched_modules()
-            assert EXTRA_PATCHED_MODULES["boto"] is False
-            assert EXTRA_PATCHED_MODULES["django"] is True
-
-        with self.override_env(dict(DD_PATCH_MODULES="django:false,boto:true")):
-            update_patched_modules()
-            assert EXTRA_PATCHED_MODULES["boto"] is True
-            assert EXTRA_PATCHED_MODULES["django"] is False
+        with self.override_env(
+            env=dict(
+                DD_PATCH_MODULES="flask:true,gevent:true,django:false,boto:true,falcon:false",
+                DD_TRACE_FLASK_ENABLED="false",
+                DD_TRACE_GEVENT_ENABLED="false",
+                DD_TRACE_FALCON_ENABLED="true",
+            )
+        ):
+            out = subprocess.check_output(
+                ["ddtrace-run", "python", "tests/commands/ddtrace_run_patched_modules_overrides.py"],
+            )
+            assert out.startswith(b"Test success"), out
 
     def test_sitecustomize_without_ddtrace_run_command(self):
         # [Regression test]: ensure `sitecustomize` path is removed only if it's

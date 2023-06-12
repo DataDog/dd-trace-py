@@ -260,6 +260,9 @@ jobs:
       - run:
           name: "Run scripts/*.py tests"
           command: riot run -s scripts
+      - run:
+          name: "Running security analysis checks with bandit"
+          command: riot -v run -s bandit
 
   ccheck:
     executor: cimg_base
@@ -684,18 +687,12 @@ jobs:
 
   gunicorn:
     <<: *machine_executor
+    parallelism: 6
     steps:
-      - attach_workspace:
-          at: .
-      - checkout
-      - start_docker_services:
-          services: ddagent
-      - run:
-          environment:
-            RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
-          command: |
-            ./scripts/ddtest riot -v run --pass-env -s 'gunicorn'
-            ./scripts/check-diff ".riot/requirements/" "Changes detected after running riot. Consider deleting changed files, running scripts/compile-and-prune-test-requirements and committing the result."
+      - run_test:
+          pattern: "gunicorn"
+          snapshot: true
+          docker_services: 'ddagent'
 
   httplib:
     <<: *machine_executor

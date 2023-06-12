@@ -11,6 +11,9 @@ import attr
 from ddtrace.debugging import safety
 from ddtrace.debugging._expressions import DDExpressionEvaluationError
 from ddtrace.debugging._probe.model import CaptureLimits
+from ddtrace.debugging._probe.model import DEFAULT_CAPTURE_LIMITS
+from ddtrace.debugging._probe.model import FunctionLocationMixin
+from ddtrace.debugging._probe.model import LineLocationMixin
 from ddtrace.debugging._probe.model import LiteralTemplateSegment
 from ddtrace.debugging._probe.model import LogFunctionProbe
 from ddtrace.debugging._probe.model import LogLineProbe
@@ -19,7 +22,7 @@ from ddtrace.debugging._probe.model import ProbeEvaluateTimingForMethod
 from ddtrace.debugging._probe.model import TemplateSegment
 from ddtrace.debugging._signal import utils
 from ddtrace.debugging._signal.model import EvaluationError
-from ddtrace.debugging._signal.model import Signal
+from ddtrace.debugging._signal.model import LogSignal
 from ddtrace.debugging._signal.model import SignalState
 from ddtrace.debugging._signal.utils import serialize
 from ddtrace.internal.compat import ExcInfoType
@@ -34,7 +37,7 @@ def _capture_context(
     arguments,  # type: List[Tuple[str, Any]]
     _locals,  # type: List[Tuple[str, Any]]
     throwable,  # type: ExcInfoType
-    limits=CaptureLimits(),  # type: CaptureLimits
+    limits=DEFAULT_CAPTURE_LIMITS,  # type: CaptureLimits
 ):
     # type: (...) -> Dict[str, Any]
     with HourGlass(duration=CAPTURE_TIME_BUDGET) as hg:
@@ -59,8 +62,47 @@ def _capture_context(
         }
 
 
+_EMPTY_CAPTURED_CONTEXT = _capture_context([], [], (None, None, None), DEFAULT_CAPTURE_LIMITS)
+
+
+def format_captured_value(value):
+    # type: (Any) -> str
+    v = value.get("value")
+    if v is not None:
+        return v
+    elif value.get("isNull"):
+        return "None"
+
+    es = value.get("elements")
+    if es is not None:
+        return "%s(%s)" % (value["type"], ", ".join(format_captured_value(e) for e in es))
+
+    es = value.get("entries")
+    if es is not None:
+        return "{%s}" % ", ".join(format_captured_value(k) + ": " + format_captured_value(v) for k, v in es)
+
+    fs = value.get("fields")
+    if fs is not None:
+        return "%s(%s)" % (value["type"], ", ".join("%s=%s" % (k, format_captured_value(v)) for k, v in fs.items()))
+
+    return "%s()" % value["type"]
+
+
+def format_message(function, args, retval=None):
+    # type: (str, Dict[str, Any], Optional[Any]) -> str
+    message = "%s(%s)" % (
+        function,
+        ", ".join(("=".join((n, format_captured_value(a))) for n, a in args.items())),
+    )
+
+    if retval is not None:
+        return "\n".join((message, "=".join(("@return", format_captured_value(retval)))))
+
+    return message
+
+
 @attr.s
-class Snapshot(Signal):
+class Snapshot(LogSignal):
     """Raw snapshot.
 
     Used to collect the minimum amount of information from a firing probe.
@@ -70,7 +112,7 @@ class Snapshot(Signal):
     return_capture = attr.ib(type=Optional[dict], default=None)
     line_capture = attr.ib(type=Optional[dict], default=None)
 
-    message = attr.ib(type=Optional[str], default=None)
+    _message = attr.ib(type=Optional[str], default=None)
     duration = attr.ib(type=Optional[int], default=None)  # nanoseconds
 
     def _eval_segment(self, segment, _locals):
@@ -94,7 +136,7 @@ class Snapshot(Signal):
     def _eval_message(self, _locals):
         # type: (Dict[str, Any]) -> None
         probe = cast(LogProbeMixin, self.probe)
-        self.message = "".join([self._eval_segment(s, _locals) for s in probe.segments])
+        self._message = "".join([self._eval_segment(s, _locals) for s in probe.segments])
 
     def enter(self):
         if not isinstance(self.probe, LogFunctionProbe):
@@ -124,7 +166,7 @@ class Snapshot(Signal):
 
         if probe.evaluate_at == ProbeEvaluateTimingForMethod.ENTER:
             self._eval_message(dict(_args))
-            self.state = SignalState.DONE_AND_COMMIT
+            self.state = SignalState.DONE
 
     def exit(self, retval, exc_info, duration):
         if not isinstance(self.probe, LogFunctionProbe):
@@ -139,7 +181,7 @@ class Snapshot(Signal):
             if probe.limiter.limit() is RateLimitExceeded:
                 self.state = SignalState.SKIP_RATE
                 return
-        elif self.state != SignalState.NONE and self.state != SignalState.DONE_AND_COMMIT:
+        elif self.state not in {SignalState.NONE, SignalState.DONE}:
             return
 
         _locals = []
@@ -151,7 +193,7 @@ class Snapshot(Signal):
                 self.args or safety.get_args(self.frame), _locals, exc_info, limits=probe.limits
             )
         self.duration = duration
-        self.state = SignalState.DONE_AND_COMMIT
+        self.state = SignalState.DONE
         if probe.evaluate_at != ProbeEvaluateTimingForMethod.ENTER:
             self._eval_message(dict(_args))
 
@@ -178,4 +220,34 @@ class Snapshot(Signal):
             )
 
         self._eval_message(frame.f_locals)
-        self.state = SignalState.DONE_AND_COMMIT
+        self.state = SignalState.DONE
+
+    @property
+    def message(self):
+        # type: () -> Optional[str]
+        return self._message
+
+    def has_message(self):
+        # type: () -> bool
+        return self._message is not None or bool(self.errors)
+
+    @property
+    def data(self):
+        frame = self.frame
+        probe = self.probe
+
+        captures = None
+        if isinstance(probe, LogProbeMixin) and probe.take_snapshot:
+            if isinstance(probe, LineLocationMixin):
+                captures = {"lines": {probe.line: self.line_capture or _EMPTY_CAPTURED_CONTEXT}}
+            elif isinstance(probe, FunctionLocationMixin):
+                captures = {
+                    "entry": self.entry_capture or _EMPTY_CAPTURED_CONTEXT,
+                    "return": self.return_capture or _EMPTY_CAPTURED_CONTEXT,
+                }
+
+        return {
+            "stack": utils.capture_stack(frame),
+            "captures": captures,
+            "duration": self.duration,
+        }

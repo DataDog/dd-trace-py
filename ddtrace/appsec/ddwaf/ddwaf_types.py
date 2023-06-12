@@ -249,29 +249,19 @@ ddwaf_object._fields_ = [
 ]
 
 
-class ddwaf_result_action(ctypes.Structure):
-    _fields_ = [
-        ("array", ctypes.POINTER(ctypes.c_char_p)),
-        ("size", ctypes.c_uint32),
-    ]
-
-    def __repr__(self):
-        return ", ".join(self.array[i] for i in range(self.size))
-
-
 class ddwaf_result(ctypes.Structure):
     _fields_ = [
         ("timeout", ctypes.c_bool),
-        ("data", ctypes.c_char_p),
-        ("actions", ddwaf_result_action),
+        ("events", ddwaf_object),
+        ("actions", ddwaf_object),
         ("total_runtime", ctypes.c_uint64),
     ]
 
     def __repr__(self):
-        return "total_runtime=%r, data=%r, timeout=%r, action=[%r]" % (
+        return "total_runtime=%r, events=%r, timeout=%r, action=[%r]" % (
             self.total_runtime,
-            self.data,
-            self.timeout,
+            self.events.struct,
+            self.timeout.struct,
             self.actions,
         )
 
@@ -283,18 +273,6 @@ class ddwaf_result(ctypes.Structure):
 
 
 ddwaf_result_p = ctypes.POINTER(ddwaf_result)
-
-
-class ddwaf_ruleset_info(ctypes.Structure):
-    _fields_ = [
-        ("loaded", ctypes.c_uint16),
-        ("failed", ctypes.c_uint16),
-        ("errors", ddwaf_object),
-        ("version", ctypes.c_char_p),
-    ]
-
-
-ddwaf_ruleset_info_p = ctypes.POINTER(ddwaf_ruleset_info)
 
 
 class ddwaf_config_limits(ctypes.Structure):
@@ -399,12 +377,12 @@ ddwaf_log_cb = ctypes.POINTER(
 # Functions Prototypes (creating python counterpart function from C function with )
 #
 
-ddwaf_init = ctypes.CFUNCTYPE(ddwaf_handle, ddwaf_object_p, ddwaf_config_p, ddwaf_ruleset_info_p)(
+ddwaf_init = ctypes.CFUNCTYPE(ddwaf_handle, ddwaf_object_p, ddwaf_config_p, ddwaf_object_p)(
     ("ddwaf_init", ddwaf),
     (
         (1, "ruleset_map"),
         (1, "config", None),
-        (1, "info", None),
+        (1, "diagnostics", None),
     ),
 )
 
@@ -414,12 +392,12 @@ def py_ddwaf_init(ruleset_map, config, info):
     return ddwaf_handle_capsule(ddwaf_init(ruleset_map, config, info))
 
 
-ddwaf_update = ctypes.CFUNCTYPE(ddwaf_handle, ddwaf_handle, ddwaf_object_p, ddwaf_ruleset_info_p)(
+ddwaf_update = ctypes.CFUNCTYPE(ddwaf_handle, ddwaf_handle, ddwaf_object_p, ddwaf_object_p)(
     ("ddwaf_update", ddwaf),
     (
         (1, "handle"),
         (1, "ruleset_map"),
-        (1, "info", None),
+        (1, "diagnostics", None),
     ),
 )
 
@@ -432,12 +410,6 @@ def py_ddwaf_update(handle, ruleset_map, info):
 ddwaf_destroy = ctypes.CFUNCTYPE(None, ddwaf_handle)(
     ("ddwaf_destroy", ddwaf),
     ((1, "handle"),),
-)
-
-
-ddwaf_ruleset_info_free = ctypes.CFUNCTYPE(None, ddwaf_ruleset_info_p)(
-    ("ddwaf_ruleset_info_free", ddwaf),
-    ((1, "info"),),
 )
 
 ddwaf_required_addresses = ctypes.CFUNCTYPE(

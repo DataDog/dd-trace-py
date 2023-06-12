@@ -32,11 +32,11 @@ Example 1: A callback for one or more Remote Configuration Products
 AppSec needs to aggregate different products in the same callback for all child processes.
 
 class AppSecRC(PubSubMergeFirst):
-    __shared_data = ConnectorSharedMemory()
+    __shared_data__ = ConnectorSharedMemory()
 
     def __init__(self, _preprocess_results, callback, name="Default"):
-        self._publisher = self.__publisher_class__(self.__shared_data, _preprocess_results)
-        self._subscriber = self.__subscriber_class__(self.__shared_data, callback, name)
+        self._publisher = self.__publisher_class__(self.__shared_data__, _preprocess_results)
+        self._subscriber = self.__subscriber_class__(self.__shared_data__, callback, name)
 
 asm_callback = AppSecRC(preprocess_1click_activation, appsec_callback, "ASM")
 
@@ -49,11 +49,11 @@ Example 2: One Callback for each product
 DI needs to aggregate different products in the same callback for all child processes.
 
 class DynamicInstrumentationRC(PubSub):
-    __shared_data = ConnectorSharedMemory()
+    __shared_data__ = ConnectorSharedMemory()
 
     def __init__(self, _preprocess_results, callback, name="Default"):
-        self._publisher = self.__publisher_class__(self.__shared_data, _preprocess_results)
-        self._subscriber = self.__subscriber_class__(self.__shared_data, callback, name)
+        self._publisher = self.__publisher_class__(self.__shared_data__, _preprocess_results)
+        self._subscriber = self.__subscriber_class__(self.__shared_data__, callback, name)
 
 di_callback_1 = DynamicInstrumentationRC(callback=di_callback_1, name="ASM")
 di_callback_2 = DynamicInstrumentationRC(callback=di_callback_2, name="ASM")
@@ -80,8 +80,6 @@ log = get_logger(__name__)
 
 
 class PubSub(object):
-    __publisher_class__ = RemoteConfigPublisherBase
-    __subscriber_class__ = RemoteConfigSubscriber
     _shared_data = None  # type: PublisherSubscriberConnector
     _publisher = None  # type: RemoteConfigPublisherBase
     _subscriber = None  # type: RemoteConfigSubscriber
@@ -97,12 +95,19 @@ class PubSub(object):
         self._subscriber._get_data_from_connector_and_exec(test_tracer=test_tracer)
 
     def stop(self):
+        # type: () -> None
         self._subscriber.stop()
 
-    def publish(self, config_content=None, config_metadata=None):
-        # type: (Any, Optional[Any], Optional[Any]) -> None
-        self._publisher.dispatch(config_content, config_metadata, self)
+    def publish(self):
+        # type: () -> None
+        self._publisher.dispatch(self)
 
-    def append(self, config_content, target):
-        # type: (Optional[Any], str) -> None
-        self._publisher.append(target, config_content)
+    def append_and_publish(self, config_content=None, target="", config_metadata=None):
+        # type: (Optional[Any], str, Optional[Any]) -> None
+        """Append data to publisher and send the data to subscriber. It's a shortcut for testing purposes"""
+        self.append(config_content, target, config_metadata)
+        self.publish()
+
+    def append(self, config_content, target, config_metadata):
+        # type: (Optional[Any], str, Optional[Any]) -> None
+        self._publisher.append(config_content, target, config_metadata)

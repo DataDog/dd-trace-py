@@ -6,12 +6,12 @@ import sys
 import time
 from typing import Dict
 from typing import NamedTuple
-from typing import Optional  # noqa
+from typing import Optional
 
 import pytest
-import tenacity
 
 from ddtrace.internal import compat
+from ddtrace.internal.utils.retry import RetryError  # noqa
 from tests.webclient import Client
 
 
@@ -54,6 +54,7 @@ def _gunicorn_settings_factory(
     import_auto_in_postworkerinit=False,  # type: bool
     import_auto_in_app=None,  # type: Optional[bool]
     enable_module_cloning=False,  # type: bool
+    debug_mode=False,  # type: bool
 ):
     # type: (...) -> GunicornServerSettings
     """Factory for creating gunicorn settings with simple defaults if settings are not defined."""
@@ -63,8 +64,9 @@ def _gunicorn_settings_factory(
         env["_DD_TEST_IMPORT_AUTO"] = str(import_auto_in_app)
     env["DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE"] = "1" if enable_module_cloning else "0"
     env["DD_REMOTE_CONFIGURATION_ENABLED"] = str(True)
-    env["DD_REMOTECONFIG_POLL_INTERVAL_SECONDS"] = str(SERVICE_INTERVAL)
+    env["DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS"] = str(SERVICE_INTERVAL)
     env["DD_PROFILING_UPLOAD_INTERVAL"] = str(SERVICE_INTERVAL)
+    env["DD_TRACE_DEBUG"] = str(debug_mode)
     return GunicornServerSettings(
         env=env,
         directory=directory,
@@ -124,7 +126,7 @@ def gunicorn_server(gunicorn_server_settings, tmp_path):
             print("Waiting for server to start")
             client.wait(max_tries=100, delay=0.1)
             print("Server started")
-        except tenacity.RetryError:
+        except RetryError:
             raise TimeoutError("Server failed to start, see stdout and stderr logs")
         time.sleep(SERVICE_INTERVAL)
         yield server_process, client
@@ -151,6 +153,11 @@ SETTINGS_GEVENT_POSTWORKERIMPORT = _gunicorn_settings_factory(
     use_ddtracerun=False,
     import_auto_in_postworkerinit=True,
 )
+SETTINGS_GEVENT_DDTRACERUN_DEBUGMODE_MODULE_CLONE = _gunicorn_settings_factory(
+    worker_class="gevent",
+    debug_mode=True,
+    enable_module_cloning=True,
+)
 
 
 @pytest.mark.skipif(sys.version_info >= (3, 11), reason="Gunicorn is only supported up to 3.10")
@@ -159,7 +166,9 @@ SETTINGS_GEVENT_POSTWORKERIMPORT = _gunicorn_settings_factory(
     [
         SETTINGS_GEVENT_APPIMPORT,
         SETTINGS_GEVENT_POSTWORKERIMPORT,
+        SETTINGS_GEVENT_DDTRACERUN,
         SETTINGS_GEVENT_DDTRACERUN_MODULE_CLONE,
+        SETTINGS_GEVENT_DDTRACERUN_DEBUGMODE_MODULE_CLONE,
     ],
 )
 def test_no_known_errors_occur(gunicorn_server_settings, tmp_path):

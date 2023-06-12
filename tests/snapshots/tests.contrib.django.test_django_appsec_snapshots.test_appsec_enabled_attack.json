@@ -9,9 +9,9 @@
     "type": "web",
     "error": 0,
     "meta": {
-      "_dd.appsec.event_rules.version": "1.7.0",
-      "_dd.appsec.json": "{\"triggers\":[{\"rule\":{\"id\":\"nfd-000-006\",\"name\":\"Detect failed attempt to fetch sensitive files\",\"tags\":{\"type\":\"security_scanner\",\"category\":\"attack_attempt\"}},\"rule_matches\":[{\"operator\":\"match_regex\",\"operator_value\":\"^404$\",\"parameters\":[{\"address\":\"server.response.status\",\"key_path\":[],\"value\":\"404\",\"highlight\":[\"404\"]}]},{\"operator\":\"match_regex\",\"operator_value\":\"\\\\.(cgi|bat|dll|exe|key|cert|crt|pem|der|pkcs|pkcs|pkcs[0-9]*|nsf|jsa|war|java|class|vb|vba|so|git|svn|hg|cvs)([^a-zA-Z0-9_]|$)\",\"parameters\":[{\"address\":\"server.request.uri.raw\",\"key_path\":[],\"value\":\"http://localhost:8000/.git\",\"highlight\":[\".git\"]}]}]}]}",
-      "_dd.appsec.waf.version": "1.9.0",
+      "_dd.appsec.event_rules.version": "1.7.1",
+      "_dd.appsec.json": "{\"triggers\":[\n  {\n    \"rule\": {\n      \"id\": \"nfd-000-006\",\n      \"name\": \"Detect failed attempt to fetch sensitive files\",\n      \"tags\": {\n        \"category\": \"attack_attempt\",\n        \"confidence\": \"1\",\n        \"type\": \"security_scanner\"\n      }\n    },\n    \"rule_matches\": [\n      {\n        \"operator\": \"match_regex\",\n        \"operator_value\": \"^404$\",\n        \"parameters\": [\n          {\n            \"address\": \"server.response.status\",\n            \"highlight\": [\n              \"404\"\n            ],\n            \"key_path\": [],\n            \"value\": \"404\"\n          }\n        ]\n      },\n      {\n        \"operator\": \"match_regex\",\n        \"operator_value\": \"\\\\.(cgi|bat|dll|exe|key|cert|crt|pem|der|pkcs|pkcs|pkcs[0-9]*|nsf|jsa|war|java|class|vb|vba|so|git|svn|hg|cvs)([^a-zA-Z0-9_]|$)\",\n        \"parameters\": [\n          {\n            \"address\": \"server.request.uri.raw\",\n            \"highlight\": [\n              \".git\"\n            ],\n            \"key_path\": [],\n            \"value\": \"/.git\"\n          }\n        ]\n      }\n    ]\n  }\n]}",
+      "_dd.appsec.waf.version": "1.11.0",
       "_dd.origin": "appsec",
       "_dd.p.dm": "-4",
       "_dd.runtime_family": "python",
@@ -27,31 +27,31 @@
       "http.request.headers.accept": "*/*",
       "http.request.headers.accept-encoding": "gzip, deflate",
       "http.request.headers.host": "localhost:8000",
-      "http.request.headers.user-agent": "python-requests/2.28.1",
+      "http.request.headers.user-agent": "python-requests/2.28.2",
       "http.status_code": "404",
       "http.url": "http://localhost:8000/.git",
-      "http.useragent": "python-requests/2.28.1",
+      "http.useragent": "python-requests/2.28.2",
       "http.version": "1.1",
       "language": "python",
       "network.client.ip": "127.0.0.1",
-      "runtime-id": "b51c06180eb9473c90462901d4ad2642",
+      "runtime-id": "8dd74aeb9bb84077ac62f61e06e71bed",
       "span.kind": "server"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.appsec.enabled": 1.0,
-      "_dd.appsec.event_rules.error_count": 0.0,
+      "_dd.appsec.event_rules.error_count": 0,
       "_dd.appsec.event_rules.loaded": 144,
-      "_dd.appsec.waf.duration": 557.024,
-      "_dd.appsec.waf.duration_ext": 984.4303131103516,
+      "_dd.appsec.waf.duration": 210.416,
+      "_dd.appsec.waf.duration_ext": 271.08192443847656,
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 2,
-      "process_id": 2748350
+      "process_id": 493
     },
-    "duration": 23417652,
-    "start": 1676568327932175881
+    "duration": 12027000,
+    "start": 1683732389890102000
   },
      {
        "name": "django.middleware",
@@ -65,8 +65,8 @@
        "meta": {
          "component": "django"
        },
-       "duration": 19043702,
-       "start": 1676568327934414599
+       "duration": 10682000,
+       "start": 1683732389890618000
      },
         {
           "name": "django.middleware",
@@ -80,8 +80,8 @@
           "meta": {
             "component": "django"
           },
-          "duration": 73360,
-          "start": 1676568327934487660
+          "duration": 33000,
+          "start": 1683732389890644000
         },
         {
           "name": "django.middleware",
@@ -95,8 +95,8 @@
           "meta": {
             "component": "django"
           },
-          "duration": 18744590,
-          "start": 1676568327934622038
+          "duration": 10246000,
+          "start": 1683732389890814000
         },
            {
              "name": "django.middleware",
@@ -110,8 +110,8 @@
              "meta": {
                "component": "django"
              },
-             "duration": 3314395,
-             "start": 1676568327934666664
+             "duration": 1447000,
+             "start": 1683732389890836000
            },
            {
              "name": "django.middleware",
@@ -125,8 +125,8 @@
              "meta": {
                "component": "django"
              },
-             "duration": 15015442,
-             "start": 1676568327938048354
+             "duration": 8333000,
+             "start": 1683732389892409000
            },
               {
                 "name": "django.middleware",
@@ -140,8 +140,8 @@
                 "meta": {
                   "component": "django"
                 },
-                "duration": 28625,
-                "start": 1676568327938097573
+                "duration": 12000,
+                "start": 1683732389892432000
               },
               {
                 "name": "django.middleware",
@@ -155,8 +155,8 @@
                 "meta": {
                   "component": "django"
                 },
-                "duration": 14828940,
-                "start": 1676568327938164360
+                "duration": 7949000,
+                "start": 1683732389892560000
               },
                  {
                    "name": "django.middleware",
@@ -170,8 +170,8 @@
                    "meta": {
                      "component": "django"
                    },
-                   "duration": 30422,
-                   "start": 1676568327938200089
+                   "duration": 13000,
+                   "start": 1683732389892581000
                  },
                  {
                    "name": "django.middleware",
@@ -185,8 +185,8 @@
                    "meta": {
                      "component": "django"
                    },
-                   "duration": 14711367,
-                   "start": 1676568327938265998
+                   "duration": 7693000,
+                   "start": 1683732389892709000
                  },
                     {
                       "name": "django.middleware",
@@ -200,8 +200,8 @@
                       "meta": {
                         "component": "django"
                       },
-                      "duration": 102034,
-                      "start": 1676568327938306744
+                      "duration": 50000,
+                      "start": 1683732389892729000
                     },
                     {
                       "name": "django.middleware",
@@ -215,8 +215,8 @@
                       "meta": {
                         "component": "django"
                       },
-                      "duration": 14428106,
-                      "start": 1676568327938450877
+                      "duration": 7263000,
+                      "start": 1683732389892900000
                     },
                        {
                          "name": "django.middleware",
@@ -230,8 +230,8 @@
                          "meta": {
                            "component": "django"
                          },
-                         "duration": 14290726,
-                         "start": 1676568327938490047
+                         "duration": 6991000,
+                         "start": 1683732389892927000
                        },
                           {
                             "name": "django.middleware",
@@ -245,8 +245,8 @@
                             "meta": {
                               "component": "django"
                             },
-                            "duration": 26480,
-                            "start": 1676568327938717420
+                            "duration": 10000,
+                            "start": 1683732389892947000
                           },
                           {
                             "name": "django.middleware",
@@ -260,8 +260,8 @@
                             "meta": {
                               "component": "django"
                             },
-                            "duration": 13846046,
-                            "start": 1676568327938786981
+                            "duration": 6583000,
+                            "start": 1683732389893071000
                           },
                              {
                                "name": "django.middleware",
@@ -275,8 +275,8 @@
                                "meta": {
                                  "component": "django"
                                },
-                               "duration": 13780857,
-                               "start": 1676568327938824338
+                               "duration": 6448000,
+                               "start": 1683732389893089000
                              },
                                 {
                                   "name": "django.middleware",
@@ -290,8 +290,8 @@
                                   "meta": {
                                     "component": "django"
                                   },
-                                  "duration": 13697070,
-                                  "start": 1676568327938859992
+                                  "duration": 6300000,
+                                  "start": 1683732389893107000
                                 },
                                    {
                                      "name": "django.middleware",
@@ -305,8 +305,8 @@
                                      "meta": {
                                        "component": "django"
                                      },
-                                     "duration": 43252,
-                                     "start": 1676568327940380549
+                                     "duration": 18000,
+                                     "start": 1683732389893481000
                                    },
                                    {
                                      "name": "django.middleware",
@@ -320,8 +320,8 @@
                                      "meta": {
                                        "component": "django"
                                      },
-                                     "duration": 25034,
-                                     "start": 1676568327940476054
+                                     "duration": 15000,
+                                     "start": 1683732389893655000
                                    },
                                    {
                                      "name": "django.template.render",
@@ -336,8 +336,8 @@
                                        "component": "django",
                                        "django.template.engine.class": "django.template.engine.Engine"
                                      },
-                                     "duration": 95902,
-                                     "start": 1676568327951433203
+                                     "duration": 32000,
+                                     "start": 1683732389898785000
                                    },
                                    {
                                      "name": "django.middleware",
@@ -351,8 +351,8 @@
                                      "meta": {
                                        "component": "django"
                                      },
-                                     "duration": 27765,
-                                     "start": 1676568327951680362
+                                     "duration": 14000,
+                                     "start": 1683732389898988000
                                    },
                           {
                             "name": "django.middleware",
@@ -366,8 +366,8 @@
                             "meta": {
                               "component": "django"
                             },
-                            "duration": 69043,
-                            "start": 1676568327952689875
+                            "duration": 23000,
+                            "start": 1683732389899784000
                           },
                        {
                          "name": "django.middleware",
@@ -381,8 +381,8 @@
                          "meta": {
                            "component": "django"
                          },
-                         "duration": 39348,
-                         "start": 1676568327952820503
+                         "duration": 17000,
+                         "start": 1683732389900035000
                        },
                     {
                       "name": "django.middleware",
@@ -396,8 +396,8 @@
                       "meta": {
                         "component": "django"
                       },
-                      "duration": 28197,
-                      "start": 1676568327952932661
+                      "duration": 14000,
+                      "start": 1683732389900280000
                     },
               {
                 "name": "django.middleware",
@@ -411,8 +411,8 @@
                 "meta": {
                   "component": "django"
                 },
-                "duration": 21645,
-                "start": 1676568327953025802
+                "duration": 13000,
+                "start": 1683732389900624000
               },
            {
              "name": "django.middleware",
@@ -426,8 +426,8 @@
              "meta": {
                "component": "django"
              },
-             "duration": 239970,
-             "start": 1676568327953096078
+             "duration": 94000,
+             "start": 1683732389900857000
            },
         {
           "name": "django.middleware",
@@ -441,6 +441,6 @@
           "meta": {
             "component": "django"
           },
-          "duration": 34131,
-          "start": 1676568327953406360
+          "duration": 14000,
+          "start": 1683732389901176000
         }]]

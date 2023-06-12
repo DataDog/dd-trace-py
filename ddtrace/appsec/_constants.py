@@ -75,7 +75,7 @@ class IAST(object):
     HTTP_REQUEST_PARAMETER = "http.request.parameter"
     HTTP_REQUEST_PATH = "http.request.path"
     HTTP_REQUEST_PATH_PARAMETER = "http.request.path.parameter"
-    HTTP_REQUEST_QUERYSTRING = "http.request.querystring"
+    HTTP_REQUEST_QUERYSTRING = "http.request.query"
     HTTP_REQUEST_COOKIE_NAME = "http.request.cookie.name"
     HTTP_REQUEST_COOKIE_VALUE = "http.request.cookie.value"
 
@@ -139,6 +139,23 @@ class PRODUCTS(object):
     ASM_DATA = "ASM_DATA"
     ASM_DD = "ASM_DD"
     ASM_FEATURES = "ASM_FEATURES"
+
+
+@six.add_metaclass(Constant_Class)  # required for python2/3 compatibility
+class LOGIN_EVENTS_MODE(object):
+    """
+    string identifier for the mode of the user login events. Can be:
+    DISABLED: automatic login events are disabled.
+    SAFE: automatic login events are enabled but will only store non-PII fields (id, pk uid...)
+    EXTENDED: automatic login events are enabled and will store potentially PII fields (username,
+    email, ...).
+    SDK: manually issued login events using the SDK.
+    """
+
+    DISABLED = "disabled"
+    SAFE = "safe"
+    EXTENDED = "extended"
+    SDK = "sdk"
 
 
 @six.add_metaclass(Constant_Class)  # required for python2/3 compatibility

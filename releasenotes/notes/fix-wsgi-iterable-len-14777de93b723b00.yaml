@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    wsgi: Resolves an issue where accessing the ``__len__`` attribute on traced wsgi middlewares raised a TypeError

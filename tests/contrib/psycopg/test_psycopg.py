@@ -137,6 +137,15 @@ class PsycopgCore(TracerTestCase):
         self.assertIsNone(root.get_tag("sql.query"))
         self.reset()
 
+    def test_psycopg3_connection_with_string(self):
+        # Regression test for DataDog/dd-trace-py/issues/5926
+        configs_arr = ["{}={}".format(k, v) for k, v in POSTGRES_CONFIG.items()]
+        configs_arr.append("options='-c statement_timeout=1000 -c lock_timeout=250'")
+        conn = psycopg.connect(" ".join(configs_arr))
+
+        Pin.get_from(conn).clone(service="postgres", tracer=self.tracer).onto(conn)
+        self.assert_conn_is_traced(conn, "postgres")
+
     def test_opentracing_propagation(self):
         # ensure OpenTracing plays well with our integration
         query = """SELECT 'tracing'"""
@@ -506,3 +515,53 @@ class PsycopgCore(TracerTestCase):
             ),
             (("foo",), ("bar",)),
         )
+
+    def test_patch_and_unpatch_several_times(self):
+        """Patches and unpatches module sequentially to ensure proper functionality"""
+
+        def execute_query_and_get_spans(n_spans):
+            query = SQL("""select 'one' as x""")
+            cur = self._get_conn().execute(query)
+
+            rows = cur.fetchall()
+            assert len(rows) == 1, rows
+            spans = self.pop_spans()
+            self.assertEqual(len(spans), n_spans)
+
+        execute_query_and_get_spans(1)
+        unpatch()
+        execute_query_and_get_spans(0)
+        patch()
+        execute_query_and_get_spans(1)
+        unpatch()
+        execute_query_and_get_spans(0)
+        patch()
+        patch()
+        execute_query_and_get_spans(1)
+        unpatch()
+        unpatch()
+        execute_query_and_get_spans(0)
+
+    def test_connection_instance_method_patch(self):
+        """Checks whether connection instance method connect works as intended"""
+
+        other_conn = self._get_conn()
+        conn = psycopg.Connection(other_conn.pgconn)
+        connection = conn.connect(**POSTGRES_CONFIG)
+
+        pin = Pin.get_from(connection)
+        if pin:
+            pin.clone(service="postgres", tracer=self.tracer).onto(connection)
+
+        query = SQL("""select 'one' as x""")
+        cur = connection.execute(query)
+
+        rows = cur.fetchall()
+        assert len(rows) == 1, rows
+        assert rows[0][0] == "one"
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 1)
+
+        query_span = spans[0]
+        assert query_span.name == "postgres.query"

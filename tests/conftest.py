@@ -17,6 +17,8 @@ import pytest
 from six import PY2
 
 import ddtrace
+from ddtrace.internal.remoteconfig.client import RemoteConfigClient
+from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from tests import utils
 from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
@@ -147,7 +149,7 @@ def unwind_params(params):
         yield None
         return
 
-    for _ in product(*(((k, v) for v in vs) for k, vs in params.items())):
+    for _ in product(*([(k, v) for v in vs] for k, vs in params.items())):
         yield dict(_)
 
 
@@ -365,3 +367,19 @@ def git_repo_empty(tmpdir):
 @pytest.fixture
 def git_repo(git_repo_empty):
     yield utils.git_repo(git_repo_empty)
+
+
+def _stop_remote_config_worker():
+    if remoteconfig_poller._worker:
+        remoteconfig_poller._stop_service()
+        remoteconfig_poller._worker = None
+
+
+@pytest.fixture
+def remote_config_worker():
+    remoteconfig_poller.disable()
+    remoteconfig_poller._client = RemoteConfigClient()
+    try:
+        yield
+    finally:
+        _stop_remote_config_worker()

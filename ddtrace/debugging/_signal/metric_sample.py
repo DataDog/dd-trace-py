@@ -8,18 +8,16 @@ from ddtrace.debugging._probe.model import MetricFunctionProbe
 from ddtrace.debugging._probe.model import MetricProbeKind
 from ddtrace.debugging._probe.model import MetricProbeMixin
 from ddtrace.debugging._probe.model import ProbeEvaluateTimingForMethod
-from ddtrace.debugging._signal.model import Signal
+from ddtrace.debugging._signal.model import LogSignal
 from ddtrace.debugging._signal.model import SignalState
 from ddtrace.internal.metrics import Metrics
 
 
 @attr.s
-class MetricSample(Signal):
+class MetricSample(LogSignal):
     """wrapper for making a metric sample"""
 
     meter = attr.ib(type=Optional[Metrics.Meter], factory=lambda: probe_metrics.get_meter("probe"))
-    message = attr.ib(type=Optional[str], default=None)
-    duration = attr.ib(type=Optional[int], default=None)  # nanoseconds
 
     def enter(self):
         if not isinstance(self.probe, MetricFunctionProbe):
@@ -78,3 +76,11 @@ class MetricSample(Signal):
             self.meter.histogram(probe.name, value, probe.tags)
         elif probe.kind == MetricProbeKind.DISTRIBUTION:
             self.meter.distribution(probe.name, value, probe.tags)
+
+    @property
+    def message(self):
+        return ("Evaluation errors for probe id %s" % self.probe.probe_id) if self.errors else None
+
+    def has_message(self):
+        # type () -> bool
+        return bool(self.errors)

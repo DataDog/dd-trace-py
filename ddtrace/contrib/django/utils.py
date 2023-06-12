@@ -186,7 +186,13 @@ def _set_resolver_tags(pin, span, request):
             # The request quite likely failed (e.g. 404) so we do the resolution anyway.
             resolver = get_resolver(getattr(request, "urlconf", None))
             resolver_match = resolver.resolve(request.path_info)
-        handler = func_name(resolver_match[0])
+
+        if hasattr(resolver_match[0], "view_class"):
+            # In django==4.0, view.__name__ defaults to <module>.views.view
+            # Accessing view.view_class is equired for django>4.0 to get the name of underlying view
+            handler = func_name(resolver_match[0].view_class)
+        else:
+            handler = func_name(resolver_match[0])
 
         route = None
         # In Django >= 2.2.0 we can access the original route or regex pattern

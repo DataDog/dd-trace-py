@@ -29,41 +29,38 @@ class Psycopg3TracedAsyncConnection(dbapi_async.TracedAsyncConnection):
 
         async def patched_execute(*args, **kwargs):
             try:
-                cur = await self.cursor()
+                cur = self.cursor()
                 if kwargs.get("binary", None):
                     cur.format = 1  # set to 1 for binary or 0 if not
-                return cur.execute(*args, **kwargs)
+                return await cur.execute(*args, **kwargs)
             except Exception as ex:
                 raise ex.with_traceback(None)
 
         return await self._trace_method(patched_execute, span_name, {}, *args, **kwargs)
 
 
-async def patched_connect_async(connect_func, _, args, kwargs):
-    traced_conn_cls = Psycopg3TracedAsyncConnection
+def patched_connect_async_factory(psycopg_module):
+    async def patched_connect_async(connect_func, _, args, kwargs):
+        traced_conn_cls = Psycopg3TracedAsyncConnection
 
-    _config = globals()["config"]._config
-    module_name = (
-        connect_func.__module__
-        if len(connect_func.__module__.split(".")) == 1
-        else connect_func.__module__.split(".")[0]
-    )
-    pin = Pin.get_from(_config[module_name].base_module)
+        pin = Pin.get_from(psycopg_module)
 
-    if not pin or not pin.enabled() or not pin._config.trace_connect:
-        conn = await connect_func(*args, **kwargs)
-    else:
-        with pin.tracer.trace(
-            "{}.{}".format(connect_func.__module__, connect_func.__name__),
-            service=ext_service(pin, pin._config),
-            span_type=SpanTypes.SQL,
-        ) as span:
-            span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
-            span.set_tag_str(COMPONENT, pin._config.integration_name)
-            if span.get_tag(db.SYSTEM) is None:
-                span.set_tag_str(db.SYSTEM, pin._config.dbms_name)
-
-            span.set_tag(SPAN_MEASURED_KEY)
+        if not pin or not pin.enabled() or not pin._config.trace_connect:
             conn = await connect_func(*args, **kwargs)
+        else:
+            with pin.tracer.trace(
+                "{}.{}".format(connect_func.__module__, connect_func.__name__),
+                service=ext_service(pin, pin._config),
+                span_type=SpanTypes.SQL,
+            ) as span:
+                span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+                span.set_tag_str(COMPONENT, pin._config.integration_name)
+                if span.get_tag(db.SYSTEM) is None:
+                    span.set_tag_str(db.SYSTEM, pin._config.dbms_name)
 
-    return patch_conn(conn, pin=pin, traced_conn_cls=traced_conn_cls)
+                span.set_tag(SPAN_MEASURED_KEY)
+                conn = await connect_func(*args, **kwargs)
+
+        return patch_conn(conn, pin=pin, traced_conn_cls=traced_conn_cls)
+
+    return patched_connect_async

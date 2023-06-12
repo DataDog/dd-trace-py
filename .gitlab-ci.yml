@@ -1,9 +1,12 @@
 stages:
+  - package
   - deploy
   - benchmarks
   - benchmarks-pr-comment
 
-include: ".gitlab/benchmarks.yml"
+include:
+  - remote: https://gitlab-templates.ddbuild.io/apm/packaging.yml
+  - local: ".gitlab/benchmarks.yml"
 
 variables:
   DOWNSTREAM_BRANCH:
@@ -12,15 +15,31 @@ variables:
   DOWNSTREAM_MBP_BRANCH:
     value: "dd-trace-py"
     description: "Run a specific relenv-microbenchmarking-platform branch downstream"
-
+  PYTHON_PACKAGE_VERSION:
+    description: "Version to build for .deb and .rpm. Must be already published in PyPi"
 
 .common: &common
   tags: [ "runner:main", "size:large" ]
 
+package:
+  extends: .package
+  rules:
+  - if: $PYTHON_PACKAGE_VERSION
+    when: on_success
+  - if: '$CI_COMMIT_TAG =~ /^v.*/'
+    when: on_success
+  script:
+    - ../.gitlab/build-deb-rpm.sh
+
+.release-package:
+  stage: deploy
+  variables:
+    PRODUCT_NAME: auto_inject-python
+
 deploy_to_reliability_env:
   stage: deploy
   rules:
-    - if: $CI_PIPELINE_SOURCE == "scheduled"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
       when: on_success
     - when: manual
       allow_failure: true
@@ -36,7 +55,7 @@ deploy_to_reliability_env:
 deploy_to_di_backend:automatic:
   stage: deploy
   rules:
-    - if: $CI_PIPELINE_SOURCE == "scheduled"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
       when: never
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
       when: on_success

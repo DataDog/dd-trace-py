@@ -9,6 +9,7 @@ from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...ext import http
 from ...internal.compat import stringify
+from ...internal.schema import schematize_url_operation
 from ..asyncio import context_provider
 
 
@@ -43,7 +44,7 @@ async def trace_middleware(app, handler):
 
         # trace the handler
         request_span = tracer.trace(
-            "aiohttp.request",
+            schematize_url_operation("aiohttp.request", protocol="http", direction="inbound"),
             service=service,
             span_type=SpanTypes.WEB,
         )

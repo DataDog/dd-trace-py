@@ -12,14 +12,19 @@ log = get_logger(__name__)
 
 
 class LazyTaintDict(dict):
-    def __init__(self, *args, origins=(0, 0)):
+    def __init__(self, *args, origins=(0, 0), override_pyobject_tainted=False):
         self.origin_key = origins[0]
         self.origin_value = origins[1]
+        self.override_pyobject_tainted = override_pyobject_tainted
         super(LazyTaintDict, self).__init__(*args)
 
     def __getitem__(self, key):
         value = super(LazyTaintDict, self).__getitem__(key)
-        if value and isinstance(value, (str, bytes, bytearray)) and not is_pyobject_tainted(value):
+        if (
+            value
+            and isinstance(value, (str, bytes, bytearray))
+            and (not is_pyobject_tainted(value) or self.override_pyobject_tainted)
+        ):
             try:
                 value = taint_pyobject(value, Input_info(key, value, self.origin_value))
                 super(LazyTaintDict, self).__setitem__(key, value)

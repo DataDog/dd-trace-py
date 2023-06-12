@@ -9,7 +9,7 @@ from ddtrace.debugging._config import config as debugger_config
 import ddtrace.debugging._debugger as _debugger
 from ddtrace.debugging._debugger import Debugger
 from ddtrace.debugging._debugger import DebuggerModuleWatchdog
-from ddtrace.debugging._encoding import SnapshotJsonEncoder
+from ddtrace.debugging._encoding import LogSignalJsonEncoder
 from ddtrace.debugging._function.discovery import FunctionDiscovery
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
@@ -17,17 +17,16 @@ from ddtrace.debugging._signal.collector import SignalCollector
 from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.internal.compat import PY3
 from ddtrace.internal.module import origin
-from ddtrace.internal.remoteconfig import RemoteConfig
+from ddtrace.internal.remoteconfig.worker import RemoteConfigPoller
 
 
-class NoopRemoteConfig(RemoteConfig):
-    @classmethod
-    def register(cls, product, handler):
+class NoopRemoteConfig(RemoteConfigPoller):
+    def register(self, *args, **kwargs):
         pass
 
 
 # Disable remote config as we don't need it for exploration tests
-_debugger.RemoteConfig = NoopRemoteConfig
+_debugger.remoteconfig_poller = NoopRemoteConfig()
 
 try:
     COLS, _ = os.get_terminal_size()
@@ -165,7 +164,7 @@ class NoopProbeStatusLogger(object):
         pass
 
 
-class NoopSnapshotJsonEncoder(SnapshotJsonEncoder):
+class NoopSnapshotJsonEncoder(LogSignalJsonEncoder):
     def encode(self, snapshot):
         # type: (Snapshot) -> bytes
         return b""
@@ -174,7 +173,7 @@ class NoopSnapshotJsonEncoder(SnapshotJsonEncoder):
 class ExplorationSignalCollector(SignalCollector):
     def __init__(self, *args, **kwargs):
         super(ExplorationSignalCollector, self).__init__(*args, **kwargs)
-        encoder_class = SnapshotJsonEncoder if config.encode else NoopSnapshotJsonEncoder
+        encoder_class = LogSignalJsonEncoder if config.encode else NoopSnapshotJsonEncoder
         self._encoder = encoder_class("exploration")
         self._encoder._encoders = {Snapshot: self._encoder}
         self._snapshots = []

@@ -29,7 +29,7 @@ PATCH_MODULES = {
     "asyncio": True,
     "boto": True,
     "botocore": True,
-    "bottle": False,
+    "bottle": True,
     "cassandra": True,
     "celery": True,
     "consul": True,
@@ -73,9 +73,9 @@ PATCH_MODULES = {
     "kombu": False,
     "starlette": True,
     # Ignore some web framework integrations that might be configured explicitly in code
-    "falcon": False,
-    "pylons": False,
-    "pyramid": False,
+    "falcon": True,
+    "pylons": True,
+    "pyramid": True,
     # Auto-enable logging if the environment variable DD_LOGS_INJECTION is true
     "logging": config.logs_injection,
     "pynamodb": True,
@@ -129,8 +129,9 @@ _MODULES_FOR_CONTRIB = {
 }
 
 IAST_PATCH = {
-    "weak_hash": True,
+    "path_traversal": True,
     "weak_cipher": True,
+    "weak_hash": True,
 }
 
 DEFAULT_MODULES_PREFIX = "ddtrace.contrib"
