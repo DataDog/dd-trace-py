@@ -458,15 +458,15 @@ TYPE_REGEXP = [
 
 
 def metadata(value):
-    res = []
+    res = {}
     for elt in CONFIDENTIAL_REGEXP:
         m = re.match(elt["Regex"], value)
         if m:
-            res.append(elt["Description"])
+            res[elt["Category"]] = elt["Description"]
             break
     for elt in TYPE_REGEXP:
         m = re.match(elt["Regex"], value)
         if m:
-            res.append(elt["Description"])
+            res["Type"] = elt["Description"]
             break
     return res
