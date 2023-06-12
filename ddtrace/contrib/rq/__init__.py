@@ -154,7 +154,7 @@ def traced_queue_enqueue_job(rq, pin, func, instance, args, kwargs):
 @trace_utils.with_traced_module
 def traced_queue_fetch_job(rq, pin, func, instance, args, kwargs):
     with pin.tracer.trace(
-        schematize_messaging_operation("rq.queue.fetch_job", provider="rq", direction=SpanDirection.PROCESS),
+        schematize_messaging_operation("rq.queue.fetch_job", provider="rq", direction=SpanDirection.PROCESSING),
         service=trace_utils.int_service(pin, config.rq),
     ) as span:
         span.set_tag_str(COMPONENT, config.rq.integration_name)
@@ -219,7 +219,7 @@ def traced_job_perform(rq, pin, func, instance, args, kwargs):
 def traced_job_fetch_many(rq, pin, func, instance, args, kwargs):
     """Trace rq.Job.fetch_many(...)"""
     with pin.tracer.trace(
-        schematize_messaging_operation("rq.job.fetch_many", provider="rq", direction=SpanDirection.PROCESS),
+        schematize_messaging_operation("rq.job.fetch_many", provider="rq", direction=SpanDirection.PROCESSING),
         service=trace_utils.ext_service(pin, config.rq_worker),
     ) as span:
         span.set_tag_str(COMPONENT, config.rq.integration_name)
