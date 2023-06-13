@@ -722,10 +722,8 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    # celery added support for Python 3.10 in 5.2, no official support for 3.11 yet
-                    # Billiard dependency is incompatible with Python 3.11
-                    # https://github.com/celery/billiard/issues/377
-                    pys="3.10",
+                    # celery added support for Python 3.10 in 5.2
+                    pys=select_pys(min_version="3.10"),
                     env={
                         # https://docs.celeryproject.org/en/v5.0.5/userguide/testing.html#enabling
                         "PYTEST_PLUGINS": "celery.contrib.pytest",
