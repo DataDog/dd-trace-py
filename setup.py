@@ -4,6 +4,7 @@ import platform
 import shutil
 import sys
 import tarfile
+import glob
 
 from setuptools import setup, find_packages, Extension
 from setuptools.command.build_ext import build_ext
@@ -289,44 +290,34 @@ class CleanLibraries(CleanCommand):
         CleanCommand.run(self)
 
 
-class BuildExtCommand(build_ext):
-    def run(self):
-        self.install_iast()
-        build_ext.run(self)
+class CMakeBuild(build_ext):
+    def build_extension(self, ext):
+        tmp_iast_file_path = self.get_ext_fullpath(ext.name)
+        tmp_iast_path = os.path.join(os.path.dirname(tmp_iast_file_path))
+        tmp_filename = tmp_iast_file_path.replace(tmp_iast_path + os.path.sep, "")
 
-    @staticmethod
-    def install_iast():
-        if sys.version_info >= (3, 6, 0):
-            import shutil
-            import subprocess
-            import tempfile
+        if sys.version_info >= (3, 6, 0) and ext.name == "ddtrace.appsec.iast._taint_tracking._native":
+            cmake_list_path = os.path.join(IAST_DIR, "CMakeLists.txt")
+            if os.path.exists(cmake_list_path):
+                import shutil
+                os.makedirs(tmp_iast_path, exist_ok=True)
+                if not os.path.exists(os.path.join(IAST_DIR, tmp_filename)):
 
-            to_build = set()
-            # Detect if any source file sits next to a CMakeLists.txt file
-            if os.path.exists(os.path.join(IAST_DIR, "CMakeLists.txt")):
-                to_build.add(IAST_DIR)
-            if not to_build:
-                # Build the extension as usual
-                return
-
-            try:
-                cmake_command = os.environ.get("CMAKE_COMMAND", "cmake")
-                build_type = "RelWithDebInfo" if DEBUG_COMPILE else "Release"
-                opts = ["-DCMAKE_BUILD_TYPE={}".format(build_type)]
-                if platform.system() == "Windows":
-                    opts.extend(["-A", "x64" if platform.architecture()[0] == "64bit" else "Win32"])
-
-                for source_dir in to_build:
-                    try:
-                        build_dir = tempfile.mkdtemp()
-                        subprocess.check_call([cmake_command, "-S", source_dir, "-B", build_dir] + opts)
-                        subprocess.check_call([cmake_command, "--build", build_dir, "--config", build_type])
-                    finally:
-                        if not DEBUG_COMPILE:
-                            shutil.rmtree(build_dir, ignore_errors=True)
-            except Exception as e:
-                print('WARNING: building extension "%s" failed: %s' % (IAST_DIR, e))
-                raise
+                    import subprocess
+                    cmake_command = os.environ.get("CMAKE_COMMAND", "cmake")
+                    build_type = "RelWithDebInfo" if DEBUG_COMPILE else "Release"
+                    cmake_args = [
+                        "-DCMAKE_LIBRARY_OUTPUT_DIRECTORY={}".format(tmp_iast_path),
+                        "-DPYTHON_EXECUTABLE={}".format(sys.executable),
+                        "-DCMAKE_BUILD_TYPE={}".format(build_type),  # not used on MSVC, but no harm
+                    ]
+                    if platform.system() == "Windows":
+                        cmake_args.extend(["-A", "x64" if platform.architecture()[0] == "64bit" else "Win32"])
+                    subprocess.run([cmake_command, "-S", IAST_DIR, *cmake_args], cwd=tmp_iast_path, check=True)
+                    subprocess.run([cmake_command, "--build", ".", "--config", build_type], cwd=tmp_iast_path, check=True)
+                shutil.move(os.path.join(IAST_DIR, tmp_filename), tmp_iast_file_path)
+        else:
+            build_ext.build_extension(self, ext)
 
 
 long_description = """
@@ -418,6 +409,32 @@ if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
                 extra_compile_args=debug_compile_args,
             )
         )
+        if sys.version_info >= (3, 6, 0):
+            try:
+                from pybind11.setup_helpers import Pybind11Extension
+            except ImportError:
+                from setuptools import Extension as Pybind11Extension
+            ext_modules.append(
+                Pybind11Extension(
+                    "ddtrace.appsec.iast._taint_tracking._native",
+                    # Sort source files for reproducibility
+                    sources=sorted(
+                        glob.glob(
+                            os.path.join("ddtrace", "appsec", "iast", "_taint_tracking", "**", "*.cpp"),
+                            recursive=True,
+                        ) +
+                        glob.glob(
+                            os.path.join("ddtrace", "appsec", "iast", "_taint_tracking", "TaintTracking", "**", "*.cpp"),
+                            recursive=True,
+                        ) +
+                        glob.glob(
+                            os.path.join("ddtrace", "appsec", "iast", "_taint_tracking", "**", "*.hpp"),
+                            recursive=True,
+                        )
+                    ),
+                    extra_compile_args=debug_compile_args + ["-std=c++17"],
+                )
+            )
 else:
     ext_modules = []
 
@@ -453,6 +470,7 @@ setup(
     package_data={
         "ddtrace.appsec": ["rules.json"],
         "ddtrace.appsec.ddwaf": [os.path.join("libddwaf", "*", "lib", "libddwaf.*")],
+        "ddtrace.appsec.iast._taint_tracking": ["CMakeLists.txt"],
     },
     python_requires=">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*",
     zip_safe=False,
@@ -481,7 +499,7 @@ setup(
         "envier",
         "pep562; python_version<'3.7'",
         "opentelemetry-api>=1; python_version>='3.7'",
-        "pybind11",
+        "pybind11~=2.6.1",
         "cmake",
     ]
     + bytecode,
@@ -492,7 +510,7 @@ setup(
     },
     tests_require=["flake8"],
     cmdclass={
-        "build_ext": BuildExtCommand,
+        "build_ext": CMakeBuild,
         "build_py": LibraryDownloader,
         "clean": CleanLibraries,
     },

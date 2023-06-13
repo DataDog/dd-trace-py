@@ -18,7 +18,7 @@ add_compile_definitions($<$<NOT:$<CONFIG:Debug>>:NDEBUG>)
 # -U_FORTIFY_SOURCE to fix a bug in alpine and pybind11
 # https://github.com/pybind/pybind11/issues/1650
 # https://gitlab.alpinelinux.org/alpine/aports/-/issues/8626
-add_compile_options(-fPIC -fexceptions -fvisibility=hidden -pthread -Wall -Wno-unknown-pragmas -U_FORTIFY_SOURCE)
+add_compile_options(-fPIC -fexceptions -fvisibility=hidden -fpermissive -pthread -Wall -Wno-unknown-pragmas -U_FORTIFY_SOURCE)
 
 add_link_options(-ldl -static-libgcc -static-libstdc++)
 

@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools >= 40.6.0", "setuptools_scm[toml] >=4,<6.1", "cython", "pybind11", "cmake"]
+requires = ["setuptools >= 40.6.0", "setuptools_scm[toml] >=4,<6.1", "cython", "pybind11~=2.6.1", "cmake"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools_scm]
