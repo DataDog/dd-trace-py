@@ -164,14 +164,6 @@ class BatchJsonEncoder(BufferedEncoder):
             with self._lock:
                 size = self._buffer.put(encoded)
                 self.count += 1
-                log.debug(
-                    "[%s][P: %s] BatchJsonEncoder (%s) put_encoded. size %s. Count %s",
-                    os.getpid(),
-                    os.getppid(),
-                    self,
-                    self._buffer,
-                    self.count,
-                )
                 return size
         except BufferFull:
             if self._on_full is not None:

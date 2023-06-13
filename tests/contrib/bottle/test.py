@@ -547,7 +547,7 @@ class TraceBottleTest(TracerTestCase):
     def test_unspecified_service_v1_schema(self):
         """
         v1: When a service name is not specified by the user
-            The bottle integration should use "unnamed-python-service" as the service name
+            The bottle integration should use internal.schema.DEFAULT_SERVICE_SPAN as the service name
         """
 
         @self.app.route("/hi/<name>")
