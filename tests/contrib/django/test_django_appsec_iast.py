@@ -49,6 +49,7 @@ TEST_FILE = "tests/contrib/django/django_app/appsec_urls.py"
 
 
 def get_line(label, filename=TEST_FILE):
+    """get the line number after the label comment in source file `filename`"""
     with open(filename, "r") as file_in:
         for nb_line, line in enumerate(file_in):
             if re.search("label " + re.escape(label), line):
@@ -57,6 +58,7 @@ def get_line(label, filename=TEST_FILE):
 
 
 def get_line_and_hash(label, vuln_type, filename=TEST_FILE):
+    """return the line number and the associated vulnerability hash for `label` and source file `filename`"""
     line = get_line(label, filename=filename)
     rep = "Vulnerability(type='%s', location=Location(path='%s', line=%d))" % (vuln_type, filename, line)
     hash_value = zlib.crc32(rep.encode())
