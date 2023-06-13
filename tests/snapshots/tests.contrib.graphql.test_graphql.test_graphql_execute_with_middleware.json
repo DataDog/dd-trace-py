@@ -11,17 +11,17 @@
     "meta": {
       "_dd.p.dm": "-0",
       "language": "python",
-      "runtime-id": "43849ff437e647739117127422bd6a2f"
+      "runtime-id": "d5d6f4aa8b6645ea8db718764bfd0bbc"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 13808
+      "process_id": 14061
     },
-    "duration": 1163792,
-    "start": 1686664336299239794
+    "duration": 938791,
+    "start": 1686665344174631511
   },
      {
        "name": "graphql.parse",
@@ -39,8 +39,8 @@
        "metrics": {
          "_dd.top_level": 1
        },
-       "duration": 131500,
-       "start": 1686664336299534627
+       "duration": 96125,
+       "start": 1686665344174721302
      },
      {
        "name": "graphql.execute",
@@ -61,8 +61,8 @@
          "_dd.measured": 1,
          "_dd.top_level": 1
        },
-       "duration": 487625,
-       "start": 1686664336299725877
+       "duration": 393791,
+       "start": 1686665344174864511
      },
         {
           "name": "graphql.resolve",
@@ -76,8 +76,8 @@
           "meta": {
             "component": "graphql"
           },
-          "duration": 134125,
-          "start": 1686664336300032502
+          "duration": 59125,
+          "start": 1686665344175171177
         },
            {
              "name": "test_middleware",
@@ -88,8 +88,8 @@
              "parent_id": 5,
              "type": "",
              "error": 0,
-             "duration": 10708,
-             "start": 1686664336300053794
+             "duration": 10584,
+             "start": 1686665344175205302
            },
      {
        "name": "graphql.execute",
@@ -110,8 +110,8 @@
          "_dd.measured": 1,
          "_dd.top_level": 1
        },
-       "duration": 122458,
-       "start": 1686664336300263919
+       "duration": 170167,
+       "start": 1686665344175386344
      },
         {
           "name": "graphql.resolve",
@@ -125,8 +125,8 @@
           "meta": {
             "component": "graphql"
           },
-          "duration": 41250,
-          "start": 1686664336300325294
+          "duration": 47125,
+          "start": 1686665344175480552
         },
            {
              "name": "test_middleware",
@@ -137,6 +137,6 @@
              "parent_id": 6,
              "type": "",
              "error": 0,
-             "duration": 9584,
-             "start": 1686664336300345877
+             "duration": 13833,
+             "start": 1686665344175499844
            }]]

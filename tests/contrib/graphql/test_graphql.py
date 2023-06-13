@@ -4,7 +4,6 @@ import graphql
 import pytest
 
 from ddtrace import tracer
-from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib.graphql import patch
 from ddtrace.contrib.graphql import unpatch
 from ddtrace.contrib.graphql.patch import _graphql_version as graphql_version
