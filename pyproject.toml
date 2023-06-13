@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools >= 40.6.0", "setuptools_scm[toml] >=4,<6.1", "cython"]
+requires = ["setuptools >= 40.6.0", "setuptools_scm[toml] >=4,<6.1", "cython", "pybind11", "cmake"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools_scm]
@@ -86,6 +86,10 @@ exclude-modules = '''
   # TODO: resolve slot inheritance issues with profiling
   | ddtrace.profiling.collector
   | ddtrace.appsec.ddwaf.ddwaf_types
+  | ddtrace.appsec.iast._taint_tracking
+  | ddtrace.appsec.iast._ast.aspects
+  | ddtrace.appsec.iast._taint_utils
+  | ddtrace.appsec.iast.taint_sinks.sql_injection
 )
 '''
 

@@ -136,3 +136,5 @@ artifacts/
 
 # IAST cpp
 ddtrace/appsec/iast/_taint_tracking/cmake-build-debug/*
+ddtrace/appsec/iast/_taint_tracking/_deps/*
+ddtrace/appsec/iast/_taint_tracking/CMakeFiles/*

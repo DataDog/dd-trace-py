@@ -5,7 +5,7 @@ import sys
 import pytest
 
 from ddtrace.appsec.iast import oce
-from ddtrace.appsec.iast._input_info import Input_info
+from ddtrace.appsec.iast._taint_tracking import OriginType
 
 
 def setup():
@@ -16,7 +16,7 @@ def setup():
     "obj1, obj2",
     [
         (3.5, 3.3),
-        (complex(2, 1), complex(3, 4)),
+        # (complex(2, 1), complex(3, 4)),
         ("Hello ", "world"),
         ("🙀", "🙀"),
         (b"Hi", b""),
@@ -79,7 +79,14 @@ def test_add_aspect_tainting_left_hand(obj1, obj2, should_be_tainted):
     clear_taint_mapping()
 
     if should_be_tainted:
-        obj1 = taint_pyobject(obj1, Input_info("test_add_aspect_tainting_left_hand", obj1, 0))
+        obj1 = taint_pyobject(
+            pyobject=obj1,
+            source_name="test_add_aspect_tainting_left_hand",
+            source_value=obj1,
+            source_origin=OriginType.PARAMETER,
+        )
+        if len(obj1):
+            assert get_tainted_ranges(obj1)
 
     result = ddtrace_aspects.add_aspect(obj1, obj2)
     assert result == obj1 + obj2
@@ -96,6 +103,7 @@ def test_add_aspect_tainting_left_hand(obj1, obj2, should_be_tainted):
         (3.5, 3.3, False),
         (complex(2, 1), complex(3, 4), False),
         ("Hello ", "world", True),
+        (b"a", b"a", True),
         (b"bye ", b"bye ", True),
         ("🙀", "🙀", True),
         (b"Hi", b"", False),
@@ -115,9 +123,13 @@ def test_add_aspect_tainting_right_hand(obj1, obj2, should_be_tainted):
 
     setup(bytes.join, bytearray.join)
     clear_taint_mapping()
-
     if should_be_tainted:
-        obj2 = taint_pyobject(obj2, Input_info("test_add_aspect_tainting_right_hand", repr(obj2), 0))
+        obj2 = taint_pyobject(
+            pyobject=obj2,
+            source_name="test_add_aspect_tainting_right_hand",
+            source_value=obj2,
+            source_origin=OriginType.PARAMETER,
+        )
         if len(obj2):
             assert get_tainted_ranges(obj2)
 

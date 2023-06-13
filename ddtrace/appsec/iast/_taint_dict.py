@@ -7,12 +7,12 @@ if TYPE_CHECKING:
     from typing import Dict
     from typing import Tuple
 
-    from ddtrace.appsec.iast._input_info import Input_info
+    from ddtrace.appsec.iast._taint_tracking import Source
 
-_IAST_TAINT_DICT = {}  # type: Dict[int, Tuple[Tuple[Input_info, int, int],...]]
+_IAST_TAINT_DICT = {}  # type: Dict[int, Tuple[Tuple[Source, int, int],...]]
 
 
-def get_taint_dict():  # type: () -> Dict[int, Tuple[Tuple[Input_info, int, int],...]]
+def get_taint_dict():  # type: () -> Dict[int, Tuple[Tuple[Source, int, int],...]]
     return _IAST_TAINT_DICT
 
 

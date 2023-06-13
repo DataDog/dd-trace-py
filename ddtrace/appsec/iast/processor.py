@@ -49,7 +49,19 @@ class AppSecIastSpanProcessor(SpanProcessor):
         data = _context.get_item(IAST.CONTEXT_KEY, span=span)
 
         if data:
-            span.set_tag_str(IAST.JSON, json.dumps(attr.asdict(data, filter=lambda attr, x: x is not None)))
+            from ddtrace.appsec.iast._taint_tracking import OriginType  # noqa: F401
+            from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import origin_to_str  # noqa: F401
+
+            class OriginTypeEncoder(json.JSONEncoder):
+                def default(self, obj):
+                    if isinstance(obj, OriginType):
+                        # if the obj is uuid, we simply return the value of uuid
+                        return origin_to_str(obj)
+                    return json.JSONEncoder.default(self, obj)
+
+            span.set_tag_str(
+                IAST.JSON, json.dumps(attr.asdict(data, filter=lambda attr, x: x is not None), cls=OriginTypeEncoder)
+            )
 
             span.set_tag(MANUAL_KEEP_KEY)
             if span.get_tag(ORIGIN_KEY) is None:
