@@ -3,6 +3,12 @@
 # APM Core Python is the default owner of all files
 *                                   @DataDog/apm-core-python
 
+# Framework Integrations
+ddtrace/ext/                        @DataDog/apm-core-python @DataDog/apm-framework-integrations-reviewers-py
+ddtrace/contrib/                    @DataDog/apm-core-python @DataDog/apm-framework-integrations-reviewers-py
+ddtrace/internal/schema/            @DataDog/apm-core-python @DataDog/apm-framework-integrations-reviewers-py
+tests/                              @DataDog/apm-core-python @DataDog/apm-framework-integrations-reviewers-py
+
 # Files which can be approved by anyone
 # DEV: This helps not requiring apm-core-python to review new files added
 #      or files which changes often with most PRs
