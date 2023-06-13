@@ -29,8 +29,8 @@ def _private_debug_exception_tag(name):
     return "_dd.debug.error.%s" % name
 
 
-CAPTURE_TAG = _private_debug_exception_tag("trace-captured")
-DEBUG_INFO_CAPTURED_TAG = "error.debug-info-captured"
+CAPTURE_TAG = _private_debug_exception_tag("trace_captured")
+DEBUG_INFO_CAPTURED_TAG = "error.debug_info_captured"
 
 
 def unwind_exception_chain(
@@ -200,7 +200,7 @@ class SpanExceptionProcessor(SpanProcessor):
                     frame.f_locals["_dd_debug_snapshot_id"] = snapshot_id = snapshot.uuid
 
                 # Add correlation tags on the span
-                span.set_tag_str(_private_debug_exception_tag("%d.snapshot.id" % seq_nr), snapshot_id)
+                span.set_tag_str(_private_debug_exception_tag("%d.snapshot_id" % seq_nr), snapshot_id)
                 span.set_tag_str(_private_debug_exception_tag("%d.function" % seq_nr), code.co_name)
                 span.set_tag_str(_private_debug_exception_tag("%d.file" % seq_nr), code.co_filename)
                 span.set_tag_str(_private_debug_exception_tag("%d.line" % seq_nr), str(_tb.tb_lineno))
@@ -209,4 +209,4 @@ class SpanExceptionProcessor(SpanProcessor):
                 _tb = _tb.tb_next
 
             span.set_tag_str(DEBUG_INFO_CAPTURED_TAG, "true")
-            span.set_tag_str(_private_debug_exception_tag("exception-id"), str(exc_id))
+            span.set_tag_str(_private_debug_exception_tag("exception_id"), str(exc_id))
