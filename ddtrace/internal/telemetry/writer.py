@@ -488,6 +488,37 @@ class TelemetryWriter(TelemetryBase):
         }
         self.add_event(payload, "app-integrations-change")
 
+    # add configuration
+    # def override_configuration(self, configuration_name, patched):
+    #     # type: (str, str) -> None
+
+    #     # Integrations can be patched before the telemetry writer is enabled.
+    #     configuration = {
+    #         "name": configuration_name,
+    #         "value": patched,
+    #     }
+    #     self._integrations_queue.append(integration)
+
+    # app configuration change envent
+    def _app_configurations_changed_event(self, configuration_name, configuration_value):
+        # type: (str, str or list) -> None
+        """Adds a Telemetry event which sends a list of configurations to the agent"""
+        # payload = {
+        #     "configuration": configurations,
+        # }
+        # Loop though all events queue and find the app-started event
+        for e in(0, len(self._events_queue) -1):
+            if self._events_queue[e]["request_type"] == "app-started":
+                payload = self._events_queue[e]["payload"]
+                break
+
+        for c in payload["configuration"]:
+            if c["name"] == configuration_name:
+                c["value"] = configuration_value
+                break
+        
+        self.add_event(payload, "app-configurations-change")    
+
     def _app_dependencies_loaded_event(self):
         # type: () -> None
         """Adds a Telemetry event which sends a list of installed python packages to the agent"""

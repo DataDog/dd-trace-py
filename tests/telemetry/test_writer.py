@@ -201,6 +201,52 @@ def test_add_integration(telemetry_lifecycle_writer, test_agent_session, mock_ti
     }
     assert requests[0]["body"] == _get_request_body(expected_payload, "app-integrations-change")
 
+# New test for app_configurations_changed_event
+def test_configuration_changed_event(telemetry_lifecycle_writer, test_agent_session, mock_time):
+
+    # send app start event:
+    telemetry_lifecycle_writer._app_started_event()
+    
+    new_configuration_name = "data_streams_enabled"
+    new_configuration_value = "True"
+
+    telemetry_lifecycle_writer._app_configurations_changed_event(new_configuration_name, new_configuration_value)
+
+    # force a flash
+    telemetry_lifecycle_writer.periodic()
+
+    requests = test_agent_session.get_requests()
+    assert len(requests) == 2
+    assert requests[0]["headers"]["DD-Telemetry-Request-Type"] == "app-configurations-change"
+
+    events = test_agent_session.get_events()
+    assert len(events) == 2
+
+    payload = {
+        "configuration": [
+                {
+                "name": "data_streams_enabled",
+                "value": "True",
+            },
+            {
+                "name": "appsec_enabled",
+                "value": "False",
+            },
+            {
+                "name": "propagation_style_inject",
+                "value": ["tracecontext", "datadog"],
+            },
+            {
+                "name": "propagation_style_extract",
+                "value": ["tracecontext", "datadog"],
+            },        
+        ],
+        "error": {
+            "code": 0,
+            "message": "",
+        },
+    }
+    assert events[0] == _get_request_body(payload, "app-configurations-change")
 
 def test_add_integration_disabled_writer(telemetry_lifecycle_writer, test_agent_session):
     """asserts that add_integration() does not queue an integration when telemetry is disabled"""
