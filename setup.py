@@ -490,7 +490,7 @@ setup(
         "envier",
         "pep562; python_version<'3.7'",
         "opentelemetry-api>=1; python_version>='3.7'",
-        "pybind11<=2.6.1; python_version>='3.6'",
+        "pybind11~=2.7; python_version>='3.6'",
         "cmake>=3.24.2; python_version>='3.6'",
     ]
     + bytecode,
