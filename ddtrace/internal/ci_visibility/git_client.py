@@ -1,3 +1,4 @@
+from glob import glob
 import json
 import os
 from threading import Thread
@@ -8,7 +9,6 @@ from typing import Tuple  # noqa
 
 import tenacity
 
-from glob import glob
 from ddtrace.ext.git import build_git_packfiles
 from ddtrace.ext.git import extract_commit_sha
 from ddtrace.ext.git import extract_latest_commits
@@ -165,8 +165,6 @@ class CIVisibilityGitClient(object):
         directory = "/".join(parts[:-1])
         rand = parts[-1]
         for filename in glob(directory + "/" + rand + "*" + PACK_EXTENSION):
-            # if not filename.startswith(rand) or not filename.endswith(PACK_EXTENSION):
-            #     continue
             file_path = os.path.join(directory, filename)
             log.warning("uploading file path: %s", file_path)
             content_type, payload = serializer.upload_packfile_encode(repo_url, sha, file_path)
