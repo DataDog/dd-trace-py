@@ -20,8 +20,6 @@ add_compile_definitions($<$<NOT:$<CONFIG:Debug>>:NDEBUG>)
 # https://gitlab.alpinelinux.org/alpine/aports/-/issues/8626
 add_compile_options(-fPIC -fexceptions -fvisibility=hidden -fpermissive -pthread -Wall -Wno-unknown-pragmas -U_FORTIFY_SOURCE)
 
-add_link_options(-ldl -static-libgcc -static-libstdc++)
-
 FetchContent_Declare(
         absl
         URL "https://github.com/abseil/abseil-cpp/archive/refs/tags/20211102.0.zip"
