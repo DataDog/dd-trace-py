@@ -81,12 +81,12 @@ def test_app_started_event(telemetry_lifecycle_writer, test_agent_session, mock_
             {
                 "name": "propagation_style_inject",
                 "origin": "env_var",
-                "value": ["tracecontext", "datadog"],
+                "value": "['tracecontext', 'datadog']",
             },
             {
                 "name": "propagation_style_extract",
                 "origin": "env_var",
-                "value": ["tracecontext", "datadog"],
+                "value": "['tracecontext', 'datadog']",
             },
         ],
         "error": {
@@ -139,12 +139,12 @@ telemetry_lifecycle_writer.disable()
         {
             "name": "propagation_style_inject",
             "origin": "env_var",
-            "value": ["datadog"],
+            "value": "['datadog']",
         },
         {
             "name": "propagation_style_extract",
             "origin": "env_var",
-            "value": ["b3multi"],
+            "value": "['b3multi']",
         },
     ]
 
