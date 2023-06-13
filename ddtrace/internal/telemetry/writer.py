@@ -431,7 +431,7 @@ class TelemetryWriter(TelemetryBase):
             # app-started events should only be sent by the main process
             return
         payload = {
-            # Xinyuan's code start
+            #  List of configurations to be collected
             "configuration": [
                 {
                     "name": "data_streams_enabled",
@@ -450,7 +450,6 @@ class TelemetryWriter(TelemetryBase):
                     "value": list(config._propagation_style_extract),
                 },
             ],
-            # Xinyuan's code end
             "error": {
                 "code": self._error[0],
                 "message": self._error[1],
