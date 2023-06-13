@@ -328,8 +328,8 @@ class PsycopgCore(AsyncioTestCase):
             cur = await conn.execute(query)
             rows = await cur.fetchall()
 
-        assert len(rows) == 1, rows
-        assert rows[0][0] == "one"
+            assert len(rows) == 1, rows
+            assert rows[0][0] == "one"
 
     @mark_asyncio
     async def test_cursor_context_execute(self):
@@ -341,8 +341,8 @@ class PsycopgCore(AsyncioTestCase):
             await cur.execute(query)
             rows = await cur.fetchall()
 
-        assert len(rows) == 1, rows
-        assert rows[0][0] == "one"
+            assert len(rows) == 1, rows
+            assert rows[0][0] == "one"
 
     @mark_asyncio
     async def test_cursor_from_connection_shortcut(self):
