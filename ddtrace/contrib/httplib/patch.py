@@ -5,6 +5,7 @@ import six
 
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.vendor import wrapt
 
 from .. import trace_utils
@@ -24,7 +25,7 @@ from ..trace_utils import unwrap as _u
 
 
 span_name = "httplib.request" if PY2 else "http.client.request"
-span_name = schematize_url_operation(span_name, protocol="http", direction="outbound")
+span_name = schematize_url_operation(span_name, protocol="http", direction=SpanDirection.OUTBOUND)
 
 log = get_logger(__name__)
 

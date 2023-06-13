@@ -7,6 +7,7 @@ from ddtrace import config
 from ddtrace.constants import SPAN_KIND
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.vendor import wrapt
@@ -87,7 +88,7 @@ async def _traced_clientsession_request(aiohttp, pin, func, instance, args, kwar
     headers = kwargs.get("headers") or {}
 
     with pin.tracer.trace(
-        schematize_url_operation("aiohttp.request", protocol="http", direction="outbound"),
+        schematize_url_operation("aiohttp.request", protocol="http", direction=SpanDirection.OUTBOUND),
         span_type=SpanTypes.HTTP,
         service=ext_service(pin, config.aiohttp_client),
     ) as span:
