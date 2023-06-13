@@ -1,5 +1,4 @@
 ---
 fixes:
   - |
-    graphql: This fix resolves an inconsistency in "measured" markings on ``graphql.execute`` spans between
-    dd-trace-py and dd-trace-js.
+    graphql: ``graphql.execute`` spans are now marked as measured.
