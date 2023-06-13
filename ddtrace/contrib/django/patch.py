@@ -37,6 +37,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
+from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.settings.integration import IntegrationConfig
 from ddtrace.vendor import wrapt
@@ -463,7 +464,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
         headers_case_sensitive=django.VERSION < (2, 2),
     ):
         with pin.tracer.trace(
-            schematize_url_operation("django.request", protocol="http", direction="inbound"),
+            schematize_url_operation("django.request", protocol="http", direction=SpanDirection.INBOUND),
             resource=utils.REQUEST_DEFAULT_RESOURCE,
             service=trace_utils.int_service(pin, config.django),
             span_type=SpanTypes.WEB,
@@ -668,7 +669,7 @@ def traced_get_asgi_application(django, pin, func, instance, args, kwargs):
     from ddtrace.contrib.asgi import TraceMiddleware
 
     def django_asgi_modifier(span, scope):
-        span.name = schematize_url_operation("django.request", protocol="http", direction="inbound")
+        span.name = schematize_url_operation("django.request", protocol="http", direction=SpanDirection.INBOUND)
 
     return TraceMiddleware(func(*args, **kwargs), integration_config=config.django, span_modifier=django_asgi_modifier)
 

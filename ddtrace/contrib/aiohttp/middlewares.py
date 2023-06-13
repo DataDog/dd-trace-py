@@ -1,5 +1,6 @@
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -44,7 +45,7 @@ async def trace_middleware(app, handler):
 
         # trace the handler
         request_span = tracer.trace(
-            schematize_url_operation("aiohttp.request", protocol="http", direction="inbound"),
+            schematize_url_operation("aiohttp.request", protocol="http", direction=SpanDirection.INBOUND),
             service=service,
             span_type=SpanTypes.WEB,
         )

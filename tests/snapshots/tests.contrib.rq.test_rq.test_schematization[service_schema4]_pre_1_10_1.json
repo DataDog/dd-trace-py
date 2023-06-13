@@ -1,0 +1,106 @@
+[[
+  {
+    "name": "rq.queue.enqueue_job",
+    "service": "mysvc",
+    "resource": "tests.contrib.rq.jobs.JobClass.__call__",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "component": "rq",
+      "job.func_name": "__call__",
+      "job.id": "0e4e8ddd-a1a7-46d2-b3b9-b4d34ef2ed5e",
+      "language": "python",
+      "queue.name": "q",
+      "runtime-id": "fb665724865c46eeb436a3843fa7bd8a",
+      "span.kind": "producer"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 40637
+    },
+    "duration": 2426000,
+    "start": 1685588655534334000
+  },
+     {
+       "name": "rq.worker.perform_job",
+       "service": "mysvc",
+       "resource": "__call__",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "worker",
+       "error": 1,
+       "meta": {
+         "_dd.p.dm": "-0",
+         "component": "rq",
+         "job.id": "0e4e8ddd-a1a7-46d2-b3b9-b4d34ef2ed5e",
+         "job.origin": "q",
+         "job.status": "failed",
+         "language": "python",
+         "runtime-id": "fb665724865c46eeb436a3843fa7bd8a",
+         "span.kind": "consumer",
+         "traceparent": "00-0000000000000000232511a488e7b7d0-6ed98f0facdcb279-01",
+         "tracestate": "dd=s:1;t.dm:-0"
+       },
+       "metrics": {
+         "_dd.top_level": 1,
+         "_dd.tracer_kr": 1.0,
+         "_sampling_priority_v1": 1,
+         "process_id": 40637
+       },
+       "duration": 4327000,
+       "start": 1685588655573207000
+     },
+        {
+          "name": "rq.job.perform",
+          "service": "mysvc",
+          "resource": "__call__",
+          "trace_id": 0,
+          "span_id": 3,
+          "parent_id": 2,
+          "type": "",
+          "error": 1,
+          "meta": {
+            "component": "rq",
+            "error.message": "__call__() got an unexpected keyword argument 'key'",
+            "error.stack": "Traceback (most recent call last):\n  File \"/root/project/ddtrace/contrib/rq/__init__.py\", line 214, in traced_job_perform\n    return func(*args, **kwargs)\n  File \"/root/project/.riot/venv_py3615_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_rq~180_click712/lib/python3.6/site-packages/rq/job.py\", line 709, in perform\n    self._result = self._execute()\n  File \"/root/project/.riot/venv_py3615_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_rq~180_click712/lib/python3.6/site-packages/rq/job.py\", line 732, in _execute\n    result = self.func(*self.args, **self.kwargs)\nTypeError: __call__() got an unexpected keyword argument 'key'\n",
+            "error.type": "builtins.TypeError",
+            "job.id": "0e4e8ddd-a1a7-46d2-b3b9-b4d34ef2ed5e"
+          },
+          "duration": 1636000,
+          "start": 1685588655573599000
+        }],
+[
+  {
+    "name": "rq.queue.fetch_job",
+    "service": "mysvc",
+    "resource": "rq.queue.fetch_job",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "component": "rq",
+      "job.id": "abc",
+      "language": "python",
+      "runtime-id": "fb665724865c46eeb436a3843fa7bd8a"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 40637
+    },
+    "duration": 498000,
+    "start": 1685588655567993000
+  }]]
