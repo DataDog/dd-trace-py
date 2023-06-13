@@ -13,8 +13,9 @@ class PeerServiceConfig(object):
     enabled_span_kinds = {SpanKind.CLIENT, SpanKind.PRODUCER}
     prioritized_data_sources = ["messaging.kafka.bootstrap.servers", "db.name", "rpc.service", "out.host"]
 
-    def __init__(self, enabled=None):
+    def __init__(self, enabled=None, peer_service_mapping=None):
         self._enabled = enabled
+        self._peer_service_mapping = peer_service_mapping
 
     @property
     def enabled(self):
@@ -26,4 +27,7 @@ class PeerServiceConfig(object):
 
     @property
     def peer_service_mapping(self):
-        return parse_tags_str(os.getenv("DD_TRACE_PEER_SERVICE_MAPPING", default=""))
+        if self._peer_service_mapping is None:
+            self._peer_service_mapping = parse_tags_str(os.getenv("DD_TRACE_PEER_SERVICE_MAPPING", default=""))
+
+        return self._peer_service_mapping
