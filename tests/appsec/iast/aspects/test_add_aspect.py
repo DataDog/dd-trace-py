@@ -5,7 +5,6 @@ import sys
 import pytest
 
 from ddtrace.appsec.iast import oce
-from ddtrace.appsec.iast._taint_tracking import OriginType
 
 
 def setup():
@@ -70,6 +69,7 @@ def test_add_aspect_type_error(obj1, obj2):
 def test_add_aspect_tainting_left_hand(obj1, obj2, should_be_tainted):
     import ddtrace.appsec.iast._ast.aspects as ddtrace_aspects
     from ddtrace.appsec.iast._taint_dict import clear_taint_mapping
+    from ddtrace.appsec.iast._taint_tracking import OriginType
     from ddtrace.appsec.iast._taint_tracking import get_tainted_ranges
     from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
     from ddtrace.appsec.iast._taint_tracking import setup
@@ -116,6 +116,7 @@ def test_add_aspect_tainting_left_hand(obj1, obj2, should_be_tainted):
 def test_add_aspect_tainting_right_hand(obj1, obj2, should_be_tainted):
     import ddtrace.appsec.iast._ast.aspects as ddtrace_aspects
     from ddtrace.appsec.iast._taint_dict import clear_taint_mapping
+    from ddtrace.appsec.iast._taint_tracking import OriginType
     from ddtrace.appsec.iast._taint_tracking import get_tainted_ranges
     from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
     from ddtrace.appsec.iast._taint_tracking import setup
