@@ -4,7 +4,6 @@ import platform
 import shutil
 import sys
 import tarfile
-import glob
 
 from setuptools import setup, find_packages, Extension
 from setuptools.command.build_ext import build_ext
@@ -294,7 +293,9 @@ class CMakeExtension(Extension):
     def __init__(self, name: str, sourcedir: str = "") -> None:
         super().__init__(name, sources=[])
         from pathlib import Path
+
         self.sourcedir = os.fspath(Path(sourcedir).resolve())
+
 
 class CMakeBuild(build_ext):
     def build_extension(self, ext):
@@ -306,10 +307,11 @@ class CMakeBuild(build_ext):
             cmake_list_path = os.path.join(IAST_DIR, "CMakeLists.txt")
             if os.path.exists(cmake_list_path):
                 import shutil
+
                 os.makedirs(tmp_iast_path, exist_ok=True)
                 if not os.path.exists(os.path.join(IAST_DIR, tmp_filename)):
                     import subprocess
-                    import tempfile
+
                     cmake_command = os.environ.get("CMAKE_COMMAND", "cmake")
                     # build_type = "RelWithDebInfo" if DEBUG_COMPILE else "Release"
                     build_type = "RelWithDebInfo"
@@ -324,8 +326,17 @@ class CMakeBuild(build_ext):
                     ]
                     if platform.system() == "Windows":
                         cmake_args.extend(["-A", "x64" if platform.architecture()[0] == "64bit" else "Win32"])
-                    subprocess.run([cmake_command, ] + cmake_args, cwd=tmp_iast_path, check=True)
-                    subprocess.run([cmake_command, "--build", tmp_iast_path, "--config", build_type], cwd=tmp_iast_path, check=True)
+                    subprocess.run(
+                        [
+                            cmake_command,
+                        ]
+                        + cmake_args,
+                        cwd=tmp_iast_path,
+                        check=True,
+                    )
+                    subprocess.run(
+                        [cmake_command, "--build", tmp_iast_path, "--config", build_type], cwd=tmp_iast_path, check=True
+                    )
                 shutil.move(os.path.join(IAST_DIR, tmp_filename), tmp_iast_file_path)
         else:
             build_ext.build_extension(self, ext)
@@ -421,11 +432,7 @@ if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
             )
         )
         if sys.version_info >= (3, 6, 0):
-            ext_modules.append(
-                CMakeExtension(
-                    "ddtrace.appsec.iast._taint_tracking._native"
-                )
-            )
+            ext_modules.append(CMakeExtension("ddtrace.appsec.iast._taint_tracking._native"))
 else:
     ext_modules = []
 
