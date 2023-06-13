@@ -43,7 +43,7 @@ from .writer import CIVisibilityWriter
 
 log = get_logger(__name__)
 
-TEST_LEVEL = "suite"
+TEST_LEVEL = "test"
 
 
 def _extract_repository_name_from_url(repository_url):
@@ -309,7 +309,15 @@ class CIVisibility(Service):
                     self._tests_to_skip[(item["attributes"]["suite"], module)].append("")
 
     def _get_tests_to_skip(self, suite, module):
-        return self._tests_to_skip.get((suite, module), [])
+        keys = self._tests_to_skip.keys()
+        k = (suite, module)
+        if k not in keys:
+            # Fallback to (suite, None) as key
+            # if it exists and (suite, module) doesn't
+            if (suite, None) in keys:
+                k = (suite, None)
+
+        return self._tests_to_skip.get(k, [])
 
     @classmethod
     def enable(cls, tracer=None, config=None, service=None):

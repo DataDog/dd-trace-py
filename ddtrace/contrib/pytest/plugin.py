@@ -320,11 +320,6 @@ def pytest_runtest_protocol(item, nextitem):
     test_suite_span = _extract_span(pytest_module_item)
     if pytest_module_item is not None and test_suite_span is None:
         test_suite_span = _start_test_suite_span(pytest_module_item)
-        # if coverage_enabled(str(item.config.rootdir)) and not (
-        #     _CIVisibility.test_skipping_enabled()
-        #     and _CIVisibility.should_skip(test_suite_span.get_tag(test.SUITE), test_suite_span.get_tag(test.MODULE))
-        # ):
-        #     _coverage_start()
 
     with _CIVisibility._instance.tracer._start_span(
         ddtrace.config.pytest.operation_name,
@@ -384,7 +379,7 @@ def pytest_runtest_protocol(item, nextitem):
         _store_span(item, span)
 
         if _CIVisibility.test_skipping_enabled() and _CIVisibility.should_skip(
-            item.name, test_suite_span.get_tag(test.SUITE), test_suite_span.get_tag(test.MODULE)
+            test_suite_span.get_tag(test.SUITE), test_suite_span.get_tag(test.MODULE), item.name
         ):
             item.add_marker(pytest.mark.skip)
             yield
@@ -401,12 +396,6 @@ def pytest_runtest_protocol(item, nextitem):
         nextitem is None or nextitem_pytest_module_item != pytest_module_item and not test_suite_span.finished
     ):
         _mark_test_status(pytest_module_item, test_suite_span)
-
-        if coverage_enabled(str(item.config.rootdir)) and not (
-            _CIVisibility.test_skipping_enabled()
-            and _CIVisibility.should_skip(test_suite_span.get_tag(test.SUITE), test_suite_span.get_tag(test.MODULE))
-        ):
-            _coverage_end(span)
         test_suite_span.finish()
 
     nextitem_pytest_package_item = _find_pytest_item(nextitem, pytest.Package)

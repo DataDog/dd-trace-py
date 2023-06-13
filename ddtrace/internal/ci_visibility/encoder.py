@@ -173,8 +173,6 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
             for span in trace
             if COVERAGE_TAG_NAME in span.get_tags()
         ]
-        if not normalized_covs:
-            return
         # TODO: Split the events in several payloads as needed to avoid hitting the intake's maximum payload size.
         return msgpack_packb({"version": self.PAYLOAD_FORMAT_VERSION, "coverages": normalized_covs})
 
@@ -185,6 +183,7 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
     def _convert_span(span, dd_origin):
         # type: (Span, str) -> Dict[str, Any]
         return {
+            "span_id": span.span_id,
             "test_session_id": int(span.get_tag(SESSION_ID) or "1"),
             "test_suite_id": int(span.get_tag(SUITE_ID) or "1"),
             "files": json.loads(span.get_tag(COVERAGE_TAG_NAME))["files"],
