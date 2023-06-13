@@ -116,7 +116,9 @@ class CIVisibilityGitClient(object):
         response = _response or cls.retry_request(
             requests_mode, base_url, "/search_commits", payload, serializer, trace_id
         )
-        result = serializer.search_commits_decode(response.body)
+        result = []
+        if response.status < 300:
+            result = serializer.search_commits_decode(response.body)
         return result
 
     @classmethod
