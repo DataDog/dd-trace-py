@@ -175,6 +175,8 @@ class CIVisibilityGitClient(object):
             if response.status != 204:
                 log.warning("Upload failed: status code %d , filename: %s", response.status, filename)
                 return False
+            else:
+                log.debug("Got response: %s %s", response.status, response.reason)
         return True
 
     @classmethod
