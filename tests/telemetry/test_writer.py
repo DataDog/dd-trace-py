@@ -70,18 +70,22 @@ def test_app_started_event(telemetry_lifecycle_writer, test_agent_session, mock_
         "configuration": [
             {
                 "name": "data_streams_enabled",
+                "origin": "env_var",
                 "value": "False",
             },
             {
                 "name": "appsec_enabled",
+                "origin": "env_var",
                 "value": "False",
             },
             {
                 "name": "propagation_style_inject",
+                "origin": "env_var",
                 "value": ["tracecontext", "datadog"],
             },
             {
                 "name": "propagation_style_extract",
+                "origin": "env_var",
                 "value": ["tracecontext", "datadog"],
             },
         ],
@@ -124,18 +128,22 @@ telemetry_lifecycle_writer.disable()
     configuration = [
         {
             "name": "data_streams_enabled",
+            "origin": "env_var",
             "value": "True",
         },
         {
             "name": "appsec_enabled",
+            "origin": "env_var",
             "value": "False",
         },
         {
             "name": "propagation_style_inject",
+            "origin": "env_var",
             "value": ["datadog"],
         },
         {
             "name": "propagation_style_extract",
+            "origin": "env_var",
             "value": ["b3multi"],
         },
     ]
