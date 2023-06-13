@@ -122,13 +122,15 @@ def inject_datadog_data_to_message_attributes(datadog_data, entry, endpoint=None
         log.warning("skipping trace injection, max number (10) of MessageAttributes exceeded")
 
 
-def set_checkpoint_and_get_datadog_data(pin, queue_name):
+def get_pathway(pin, params):
     """
     :pin: patch info for the botocore client
     :queue_name: the name of the queue
 
     Set the data streams monitoring checkpoint and return the encoded pathway
     """
+    queue_url = params["QueueUrl"]
+    queue_name = queue_url[queue_url.rfind("/") + 1 :]
     pathway = pin.tracer.data_streams_processor.set_checkpoint(["direction:out", "topic:" + queue_name, "type:sqs"])
     return pathway.encode_b64()
 
@@ -144,9 +146,6 @@ def inject_datadog_data_to_sqs_or_sns_batch_message(params, span, endpoint=None,
 
     Inject trace headers and DSM info into MessageAttributes for all SQS or SNS records inside a batch
     """
-    if data_streams_enabled:
-        queue_url = params["QueueUrl"]
-        queue_name = queue_url[queue_url.rfind("/") + 1 :]
 
     datadog_data = {}
     HTTPPropagator.inject(span.context, datadog_data)
@@ -157,7 +156,7 @@ def inject_datadog_data_to_sqs_or_sns_batch_message(params, span, endpoint=None,
     entries = params.get("Entries", params.get("PublishBatchRequestEntries", []))
     for entry in entries:
         if data_streams_enabled:
-            datadog_data[PROPAGATION_KEY] = set_checkpoint_and_get_datadog_data(pin, queue_name)
+            datadog_data[PROPAGATION_KEY] = get_pathway(pin, params)
         inject_datadog_data_to_message_attributes(datadog_data, entry, endpoint)
 
 
@@ -176,9 +175,7 @@ def inject_datadog_data_to_sqs_or_sns_message(params, span, endpoint=None, pin=N
     HTTPPropagator.inject(span.context, datadog_data)
 
     if data_streams_enabled:
-        queue_url = params["QueueUrl"]
-        queue_name = queue_url[queue_url.rfind("/") + 1 :]
-        datadog_data[PROPAGATION_KEY] = set_checkpoint_and_get_datadog_data(pin, queue_name)
+        datadog_data[PROPAGATION_KEY] = get_pathway(pin, params)
 
     inject_datadog_data_to_message_attributes(datadog_data, params, endpoint)
 
