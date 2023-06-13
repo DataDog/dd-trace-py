@@ -15,6 +15,7 @@ from ddtrace.contrib.kafka.patch import unpatch
 from ddtrace.filters import TraceFilter
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from tests.contrib.config import KAFKA_CONFIG
+from tests.utils import DummyTracer
 from tests.utils import override_config
 
 
@@ -52,6 +53,13 @@ def kafka_topic(request):
         except KafkaException:
             pass  # The topic likely already exists
     yield topic_name
+
+
+@pytest.fixture
+def dummy_tracer():
+    patch()
+    yield DummyTracer()
+    unpatch()
 
 
 @pytest.fixture
@@ -96,6 +104,29 @@ def test_consumer_created_with_logger_does_not_raise(tracer):
         logger=logger,
     )
     consumer.close()
+
+
+def test_produce_single_server(dummy_tracer, producer, kafka_topic):
+    Pin.override(producer, tracer=dummy_tracer)
+    producer.produce(kafka_topic, PAYLOAD, key=KEY)
+    producer.flush()
+
+    traces = dummy_tracer.pop_traces()
+    assert 1 == len(traces)
+    produce_span = traces[0][0]
+    assert produce_span.get_tag("messaging.kafka.bootstrap.servers") == BOOTSTRAP_SERVERS
+
+
+def test_produce_multiple_servers(dummy_tracer, kafka_topic):
+    producer = confluent_kafka.Producer({"bootstrap.servers": ",".join([BOOTSTRAP_SERVERS] * 3)})
+    Pin.override(producer, tracer=dummy_tracer)
+    producer.produce(kafka_topic, PAYLOAD, key=KEY)
+    producer.flush()
+
+    traces = dummy_tracer.pop_traces()
+    assert 1 == len(traces)
+    produce_span = traces[0][0]
+    assert produce_span.get_tag("messaging.kafka.bootstrap.servers") == ",".join([BOOTSTRAP_SERVERS] * 3)
 
 
 @pytest.mark.parametrize("tombstone", [False, True])
