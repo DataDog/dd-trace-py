@@ -3,6 +3,7 @@ import os
 import molten
 
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.vendor import wrapt
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
@@ -89,7 +90,7 @@ def patch_app_call(wrapped, instance, args, kwargs):
     )
 
     with pin.tracer.trace(
-        schematize_url_operation("molten.request", protocol="http", direction="inbound"),
+        schematize_url_operation("molten.request", protocol="http", direction=SpanDirection.INBOUND),
         service=trace_utils.int_service(pin, config.molten),
         resource=resource,
         span_type=SpanTypes.WEB,
