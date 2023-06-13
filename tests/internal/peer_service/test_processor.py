@@ -129,20 +129,6 @@ def test_peer_service_remap(test_span):
         assert test_span.get_tag(peer_service_config.source_tag_name) == "peer.service"
 
 
-def test_peer_service_remap(test_span):
-    with mock.patch.dict(os.environ, {"DD_TRACE_PEER_SERVICE_MAPPING": "fake_peer_service:remapped_service"}):
-        peer_service_config = PeerServiceConfig(set_defaults_enabled=True)
-        processor = PeerServiceProcessor(peer_service_config)
-        processor._set_defaults_enabled = True
-        test_span.set_tag(SPAN_KIND, SpanKind.CLIENT)
-        test_span.set_tag(peer_service_config.tag_name, "fake_peer_service")
-        processor.on_span_finish(test_span)
-
-        assert test_span.get_tag(peer_service_config.tag_name) == "remapped_service"
-        assert test_span.get_tag(peer_service_config.remap_tag_name) == "fake_peer_service"
-        assert test_span.get_tag(peer_service_config.source_tag_name) == "peer.service"
-
-
 def test_remap_still_happens_when_defaults_disabled(test_span):
     with mock.patch.dict(os.environ, {"DD_TRACE_PEER_SERVICE_MAPPING": "fake_peer_service:remapped_service"}):
         peer_service_config = PeerServiceConfig(set_defaults_enabled=False)
