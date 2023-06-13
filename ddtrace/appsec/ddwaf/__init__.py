@@ -133,7 +133,8 @@ if _DDWAF_LOADED:
                 return False
 
         def _at_request_start(self):
-            # type: () -> ddwaf_context_capsule
+            # type: () -> ddwaf_context_capsule | None
+            ctx = None
             if self._handle:
                 ctx = py_ddwaf_context_init(self._handle)
             if not ctx:

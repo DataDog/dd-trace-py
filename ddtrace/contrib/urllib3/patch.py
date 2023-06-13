@@ -4,6 +4,7 @@ import urllib3
 
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.pin import Pin
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
@@ -99,7 +100,7 @@ def _wrap_urlopen(func, instance, args, kwargs):
         return func(*args, **kwargs)
 
     with pin.tracer.trace(
-        schematize_url_operation("urllib3.request", protocol="http", direction="outbound"),
+        schematize_url_operation("urllib3.request", protocol="http", direction=SpanDirection.OUTBOUND),
         service=trace_utils.ext_service(pin, config.urllib3),
         span_type=SpanTypes.HTTP,
     ) as span:
@@ -133,6 +134,7 @@ def _wrap_urlopen(func, instance, args, kwargs):
                 integration_config=config.urllib3,
                 method=request_method,
                 url=request_url,
+                target_host=instance.host,
                 status_code=None if response is None else response.status,
                 query=parsed_uri.query,
                 request_headers=request_headers,

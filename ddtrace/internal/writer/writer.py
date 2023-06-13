@@ -12,10 +12,10 @@ from typing import TYPE_CHECKING
 from typing import TextIO
 
 import six
-import tenacity
 
 import ddtrace
 from ddtrace import config
+from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.vendor.dogstatsd import DogStatsd
 
 from .. import agent
@@ -210,16 +210,13 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         # the periodic thread of HTTPWriter and other threads that might
         # force a flush with `flush_queue()`.
         self._conn_lck = threading.RLock()  # type: threading.RLock
-        self._retry_upload = tenacity.Retrying(
-            # Retry RETRY_ATTEMPTS times within the first half of the processing
-            # interval, using a Fibonacci policy with jitter
-            wait=tenacity.wait_random_exponential(
-                multiplier=(0.618 * self.interval / (1.618 ** self.RETRY_ATTEMPTS) / 2),
-                exp_base=1.618,
-            ),
-            stop=tenacity.stop_after_attempt(self.RETRY_ATTEMPTS),
-            retry=tenacity.retry_if_exception_type((compat.httplib.HTTPException, OSError, IOError)),
-        )
+
+        self._send_payload_with_backoff = fibonacci_backoff_with_jitter(  # type ignore[assignment]
+            attempts=self.RETRY_ATTEMPTS,
+            initial_wait=0.618 * self.interval / (1.618 ** self.RETRY_ATTEMPTS) / 2,
+            until=lambda result: isinstance(result, Response),
+        )(self._send_payload)
+
         self._log_error_payloads = asbool(os.environ.get("_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", False))
         self._reuse_connections = get_writer_reuse_connections() if reuse_connections is None else reuse_connections
 
@@ -286,7 +283,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 log.debug("creating new intake connection to %s with timeout %d", self.intake_url, self._timeout)
                 self._conn = get_connection(self._intake_url(client), self._timeout)
             try:
-                log.debug("Sending request: %s %s %s %s", self.HTTP_METHOD, client.ENDPOINT, data, headers)
+                log.debug("Sending request: %s %s %s", self.HTTP_METHOD, client.ENDPOINT, headers)
                 self._conn.request(
                     self.HTTP_METHOD,
                     client.ENDPOINT,
@@ -426,20 +423,19 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             return
 
         try:
-            self._retry_upload(self._send_payload, encoded, n_traces, client)
-        except tenacity.RetryError as e:
+            self._send_payload_with_backoff(encoded, n_traces, client)
+        except Exception:
             self._metrics_dist("http.errors", tags=["type:err"])
             self._metrics_dist("http.dropped.bytes", len(encoded))
             self._metrics_dist("http.dropped.traces", n_traces)
             if raise_exc:
-                e.reraise()
+                six.reraise(*sys.exc_info())
             else:
                 log.error(
-                    "failed to send, dropping %d traces to intake at %s after %d retries (%s)",
+                    "failed to send, dropping %d traces to intake at %s after %d retries",
                     n_traces,
                     self._intake_endpoint(client),
-                    e.last_attempt.attempt_number,
-                    e.last_attempt.exception(),
+                    self.RETRY_ATTEMPTS,
                 )
         finally:
             if config.health_metrics_enabled and self.dogstatsd:
@@ -646,6 +642,7 @@ class AgentWriter(HTTPWriter):
                         )
                 except ValueError:
                     log.error("sample_rate is negative, cannot update the rate samplers")
+        return response
 
     def start(self):
         super(AgentWriter, self).start()
