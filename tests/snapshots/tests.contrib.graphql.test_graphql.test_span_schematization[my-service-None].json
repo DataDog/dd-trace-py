@@ -12,7 +12,7 @@
       "_dd.p.dm": "-0",
       "component": "graphql",
       "language": "python",
-      "runtime-id": "1afa7f8428d741b1ac7d245b75f2522e"
+      "runtime-id": "4ba3f7db9c0048259fb57970ceddddeb"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -20,10 +20,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 14080
+      "process_id": 4117
     },
-    "duration": 887334,
-    "start": 1686665359031582628
+    "duration": 770917,
+    "start": 1686682192081067047
   },
      {
        "name": "graphql.parse",
@@ -38,8 +38,8 @@
          "component": "graphql",
          "graphql.source": "query HELLO { hello }"
        },
-       "duration": 72416,
-       "start": 1686665359031764462
+       "duration": 66667,
+       "start": 1686682192081299047
      },
      {
        "name": "graphql.validate",
@@ -54,8 +54,8 @@
          "component": "graphql",
          "graphql.source": "query HELLO { hello }"
        },
-       "duration": 422875,
-       "start": 1686665359031872420
+       "duration": 345083,
+       "start": 1686682192081397214
      },
      {
        "name": "graphql.execute",
@@ -75,6 +75,6 @@
        "metrics": {
          "_dd.measured": 1
        },
-       "duration": 132125,
-       "start": 1686665359032319503
+       "duration": 66750,
+       "start": 1686682192081763255
      }]]

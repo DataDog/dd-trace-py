@@ -173,11 +173,7 @@ def _traced_execute(func, args, kwargs):
     ) as span:
         span.set_tag_str(COMPONENT, config.graphql.integration_name)
 
-        # mark span as measured and set sample rate
         span.set_tag(SPAN_MEASURED_KEY)
-        sample_rate = config.graphql.get_analytics_sample_rate()
-        if sample_rate is not None:
-            span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
 
         _set_span_operation_tags(span, document)
         span.set_tag_str(_GRAPHQL_SOURCE, source_str)
