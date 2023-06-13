@@ -446,12 +446,12 @@ class TelemetryWriter(TelemetryBase):
                 {
                     "name": "propagation_style_inject",
                     "origin": "env_var",
-                    "value": list(config._propagation_style_inject),
+                    "value": config._propagation_style_inject,
                 },
                 {
                     "name": "propagation_style_extract",
                     "origin": "env_var",
-                    "value": list(config._propagation_style_extract),
+                    "value": config._propagation_style_extract,
                 },
             ],
             "error": {
