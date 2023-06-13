@@ -566,6 +566,14 @@ def test_request_suspicious_request_block_match_uri(client, test_spans, tracer):
     with override_global_config(dict(_appsec_enabled=False)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
         _, response = _aux_appsec_get_root_span(client, test_spans, tracer, url="/.git")
         assert response.status_code == 404
+    # we must block with uri.raw not containing scheme or netloc
+    with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
+        root_span, response = _aux_appsec_get_root_span(client, test_spans, tracer, url="/we_should_block")
+        assert response.status_code == 403
+        as_bytes = bytes(APPSEC_BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else APPSEC_BLOCKED_RESPONSE_JSON
+        assert response.content == as_bytes
+        loaded = json.loads(root_span.get_tag(APPSEC.JSON))
+        assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-010"]
 
 
 def test_request_suspicious_request_block_match_path_params(client, test_spans, tracer):

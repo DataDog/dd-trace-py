@@ -396,7 +396,7 @@ class TestMolten(TracerTestCase):
     def test_unspecified_service_v1_schema(self):
         """
         v1: When a service name is not specified by the user
-            The molten integration should use 'unnamed-python-service' as the service name
+            The molten integration should use internal.schema.DEFAULT_SPAN_SERVICE_NAME as the service name
         """
         molten_client()
         spans = self.pop_spans()

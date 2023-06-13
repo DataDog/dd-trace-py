@@ -3,6 +3,7 @@ from typing import Optional
 import ddtrace
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -70,6 +71,7 @@ def _wrap_send(func, instance, args, kwargs):
 
     url = request.url
     hostname = _extract_hostname(url)
+    host_without_port = hostname.split(":")[0] if hostname is not None else None
 
     cfg = config.get_from(instance)
     service = None
@@ -82,7 +84,7 @@ def _wrap_send(func, instance, args, kwargs):
     if service is None:
         service = trace_utils.ext_service(None, config.requests)
 
-    operation_name = schematize_url_operation("requests.request", protocol="http", direction="outbound")
+    operation_name = schematize_url_operation("requests.request", protocol="http", direction=SpanDirection.OUTBOUND)
     with tracer.trace(operation_name, service=service, span_type=SpanTypes.HTTP) as span:
         span.set_tag_str(COMPONENT, config.requests.integration_name)
 
@@ -123,6 +125,7 @@ def _wrap_send(func, instance, args, kwargs):
                     response_headers=response_headers,
                     method=request.method.upper(),
                     url=request.url,
+                    target_host=host_without_port,
                     status_code=status,
                     query=_extract_query_string(url),
                 )

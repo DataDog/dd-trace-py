@@ -2,6 +2,8 @@
 
 import inspect
 
+import pytest
+
 from ddtrace.debugging import safety
 
 
@@ -75,3 +77,14 @@ def test_get_fields_slots():
 
     assert safety.get_fields(A()) == {"a": "a"}
     assert safety.get_fields(B()) == {"a": "a", "b": "b"}
+
+
+def test_safe_dict():
+    # Found in the FastAPI test suite
+    class Foo(object):
+        @property
+        def __dict__(self):
+            raise NotImplementedError()
+
+    with pytest.raises(AttributeError):
+        safety._safe_dict(Foo())
