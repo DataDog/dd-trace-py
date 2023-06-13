@@ -3,6 +3,8 @@ import re
 import sys
 from typing import TYPE_CHECKING
 
+from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Callable
@@ -27,6 +29,8 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.internal.compat import stringify
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
@@ -51,7 +55,7 @@ else:
 config._add(
     "graphql",
     dict(
-        _default_service="graphql",
+        _default_service=schematize_service_name("graphql"),
         resolvers_enabled=asbool(os.getenv("DD_TRACE_GRAPHQL_RESOLVERS_ENABLED", default=False)),
     ),
 )
@@ -189,7 +193,7 @@ def _traced_query(func, args, kwargs):
     resource = _get_source_str(source)
 
     with pin.tracer.trace(
-        name="graphql.request",
+        name=schematize_url_operation("graphql.request", protocol="graphql", direction=SpanDirection.INBOUND),
         resource=resource,
         service=trace_utils.int_service(pin, config.graphql),
         span_type=SpanTypes.GRAPHQL,
