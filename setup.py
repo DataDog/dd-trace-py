@@ -290,6 +290,12 @@ class CleanLibraries(CleanCommand):
         CleanCommand.run(self)
 
 
+class CMakeExtension(Extension):
+    def __init__(self, name: str, sourcedir: str = "") -> None:
+        super().__init__(name, sources=[])
+        from pathlib import Path
+        self.sourcedir = os.fspath(Path(sourcedir).resolve())
+
 class CMakeBuild(build_ext):
     def build_extension(self, ext):
         tmp_iast_file_path = self.get_ext_fullpath(ext.name)
@@ -302,19 +308,24 @@ class CMakeBuild(build_ext):
                 import shutil
                 os.makedirs(tmp_iast_path, exist_ok=True)
                 if not os.path.exists(os.path.join(IAST_DIR, tmp_filename)):
-
                     import subprocess
+                    import tempfile
                     cmake_command = os.environ.get("CMAKE_COMMAND", "cmake")
-                    build_type = "RelWithDebInfo" if DEBUG_COMPILE else "Release"
+                    # build_type = "RelWithDebInfo" if DEBUG_COMPILE else "Release"
+                    build_type = "RelWithDebInfo"
                     cmake_args = [
+                        "-S",
+                        IAST_DIR,
                         "-DCMAKE_LIBRARY_OUTPUT_DIRECTORY={}".format(tmp_iast_path),
-                        "-DPYTHON_EXECUTABLE={}".format(sys.executable),
+                        "-B",
+                        tmp_iast_path,
+                        "-DPython_EXECUTABLE={}".format(sys.executable),
                         "-DCMAKE_BUILD_TYPE={}".format(build_type),  # not used on MSVC, but no harm
-                    ]
+                    ] + debug_compile_args
                     if platform.system() == "Windows":
                         cmake_args.extend(["-A", "x64" if platform.architecture()[0] == "64bit" else "Win32"])
-                    subprocess.run([cmake_command, "-S", IAST_DIR, *cmake_args], cwd=tmp_iast_path, check=True)
-                    subprocess.run([cmake_command, "--build", ".", "--config", build_type], cwd=tmp_iast_path, check=True)
+                    subprocess.run([cmake_command, ] + cmake_args, cwd=tmp_iast_path, check=True)
+                    subprocess.run([cmake_command, "--build", tmp_iast_path, "--config", build_type], cwd=tmp_iast_path, check=True)
                 shutil.move(os.path.join(IAST_DIR, tmp_filename), tmp_iast_file_path)
         else:
             build_ext.build_extension(self, ext)
@@ -410,29 +421,9 @@ if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
             )
         )
         if sys.version_info >= (3, 6, 0):
-            try:
-                from pybind11.setup_helpers import Pybind11Extension
-            except ImportError:
-                from setuptools import Extension as Pybind11Extension
             ext_modules.append(
-                Pybind11Extension(
-                    "ddtrace.appsec.iast._taint_tracking._native",
-                    # Sort source files for reproducibility
-                    sources=sorted(
-                        glob.glob(
-                            os.path.join("ddtrace", "appsec", "iast", "_taint_tracking", "**", "*.cpp"),
-                            recursive=True,
-                        ) +
-                        glob.glob(
-                            os.path.join("ddtrace", "appsec", "iast", "_taint_tracking", "TaintTracking", "**", "*.cpp"),
-                            recursive=True,
-                        ) +
-                        glob.glob(
-                            os.path.join("ddtrace", "appsec", "iast", "_taint_tracking", "**", "*.hpp"),
-                            recursive=True,
-                        )
-                    ),
-                    extra_compile_args=debug_compile_args + ["-std=c++17"],
+                CMakeExtension(
+                    "ddtrace.appsec.iast._taint_tracking._native"
                 )
             )
 else:
@@ -499,8 +490,8 @@ setup(
         "envier",
         "pep562; python_version<'3.7'",
         "opentelemetry-api>=1; python_version>='3.7'",
-        "pybind11~=2.6.1",
-        "cmake",
+        "pybind11<=2.6.1; python_version>='3.6'",
+        "cmake>=3.24.2; python_version>='3.6'",
     ]
     + bytecode,
     extras_require={
