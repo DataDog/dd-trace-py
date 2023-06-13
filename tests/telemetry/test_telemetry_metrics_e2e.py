@@ -100,7 +100,6 @@ def test_telemetry_metrics_enabled_on_gunicorn_child_process(test_agent_session)
         response_content = json.loads(response.content)
         assert response_content["telemetry_metrics_writer_queue"][0]["points"][0][1] == 2.0
     events = test_agent_session.get_events()
-    # need to figure out why this changed
     assert len(events) == 6
     assert events[1]["payload"]["series"][0]["metric"] == "test_metric"
     assert events[3]["payload"]["series"][0]["metric"] == "test_metric"

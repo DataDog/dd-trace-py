@@ -43,6 +43,7 @@ def test_telemetry_enabled_on_first_tracer_flush(test_agent_session, ddtrace_run
     assert status == 0, stderr
     assert stderr == b""
     # Ensure telemetry events were sent to the agent (snapshot ensures one trace was generated)
+    # Note event order is reversed e.g. event[0] is actually the last event
     events = test_agent_session.get_events()
     assert len(events) == 5
     events.sort(key=lambda x: (x["request_type"], x["seq_id"]), reverse=False)
