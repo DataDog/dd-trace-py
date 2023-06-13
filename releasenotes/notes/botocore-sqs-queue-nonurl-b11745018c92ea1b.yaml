@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    botocore: This fix resolves an issue where ddtrace attempted to parse as URLs SQS QueueUrl attributes that
+    were not well-formed URLs.
