@@ -29,8 +29,8 @@ from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...ext import aws
 from ...ext import http
-from ...internal.datastreams.processor import PROPAGATION_KEY
 from ...internal.constants import COMPONENT
+from ...internal.datastreams.processor import PROPAGATION_KEY
 from ...internal.logger import get_logger
 from ...internal.utils import get_argument_value
 from ...internal.utils.formats import asbool
@@ -116,6 +116,7 @@ def inject_datadog_data_to_message_attributes(datadog_data, entry, endpoint=None
         # In the event a record has 10 or more msg attributes we cannot add our _datadog msg attribute
         log.warning("skipping trace injection, max number (10) of MessageAttributes exceeded")
 
+
 def set_checkpoint_and_get_datadog_data(pin, queue_name):
     """
     :pin: patch info for the botocore client
@@ -123,10 +124,9 @@ def set_checkpoint_and_get_datadog_data(pin, queue_name):
 
     Set the data streams monitoring checkpoint and return the encoded pathway
     """
-    pathway = pin.tracer.data_streams_processor.set_checkpoint(
-        ["direction:out", "topic:" + queue_name, "type:sqs"]
-    )
+    pathway = pin.tracer.data_streams_processor.set_checkpoint(["direction:out", "topic:" + queue_name, "type:sqs"])
     return pathway.encode_b64()
+
 
 def inject_datadog_data_to_sqs_or_sns_batch_message(params, span, endpoint=None, pin=None, data_streams_enabled=False):
     # type: (Any, Span, Optional[str]) -> None
@@ -139,10 +139,9 @@ def inject_datadog_data_to_sqs_or_sns_batch_message(params, span, endpoint=None,
 
     Inject trace headers and DSM info into MessageAttributes for all SQS or SNS records inside a batch
     """
-
     if data_streams_enabled:
-        queue_url = params['QueueUrl']
-        queue_name = queue_url[queue_url.rfind("/") + 1:]
+        queue_url = params["QueueUrl"]
+        queue_name = queue_url[queue_url.rfind("/") + 1 :]
 
     datadog_data = {}
     HTTPPropagator.inject(span.context, datadog_data)
@@ -168,13 +167,12 @@ def inject_datadog_data_to_sqs_or_sns_message(params, span, endpoint=None, pin=N
 
     Inject trace headers and DSM info into MessageAttributes for the SQS or SNS record
     """
-
     datadog_data = {}
     HTTPPropagator.inject(span.context, datadog_data)
 
     if data_streams_enabled:
-        queue_url = params['QueueUrl']
-        queue_name = queue_url[queue_url.rfind("/") + 1:]
+        queue_url = params["QueueUrl"]
+        queue_name = queue_url[queue_url.rfind("/") + 1 :]
         datadog_data[PROPAGATION_KEY] = set_checkpoint_and_get_datadog_data(pin, queue_name)
 
     inject_datadog_data_to_message_attributes(datadog_data, params, endpoint)
@@ -383,7 +381,7 @@ def patched_api_call(original_func, instance, args, kwargs):
         return original_func(*args, **kwargs)
 
     with pin.tracer.trace(
-            "{}.command".format(endpoint_name), service="{}.{}".format(pin.service, endpoint_name), span_type=SpanTypes.HTTP
+        "{}.command".format(endpoint_name), service="{}.{}".format(pin.service, endpoint_name), span_type=SpanTypes.HTTP
     ) as span:
         span.set_tag_str(COMPONENT, config.botocore.integration_name)
 
@@ -446,29 +444,28 @@ def patched_api_call(original_func, instance, args, kwargs):
 
         try:
             if endpoint_name == "sqs" and operation == "ReceiveMessage" and config._data_streams_enabled:
-                queue_url = params['QueueUrl']
-                queue_name = queue_url[queue_url.rfind("/") + 1:]
+                queue_url = params["QueueUrl"]
+                queue_name = queue_url[queue_url.rfind("/") + 1 :]
 
-                if 'MessageAttributeNames' not in args[1]:
-                    args = (args[0], {**args[1], 'MessageAttributeNames': ['_datadog']})
-                elif '_datadog' not in args[1]['MessageAttributeNames']:
-                    args = (args[0], {**args[1], 'MessageAttributeNames': args[1]['MessageAttributeNames'] + ['_datadog']})
+                if "MessageAttributeNames" not in args[1]:
+                    args = (args[0], {**args[1], "MessageAttributeNames": ["_datadog"]})
+                elif "_datadog" not in args[1]["MessageAttributeNames"]:
+                    args = (
+                        args[0],
+                        {**args[1], "MessageAttributeNames": args[1]["MessageAttributeNames"] + ["_datadog"]},
+                    )
 
                 result = original_func(*args, **kwargs)
                 _set_response_metadata_tags(span, result)
 
-                for message in result['Messages']:
+                for message in result["Messages"]:
                     try:
-                        pathway = json.loads(
-                            message['MessageAttributes']['_datadog']['StringValue']
-                        )['dd-pathway-ctx']
+                        pathway = json.loads(message["MessageAttributes"]["_datadog"]["StringValue"])["dd-pathway-ctx"]
 
                         ctx = pin.tracer.data_streams_processor.decode_pathway_b64(pathway)
-                        ctx.set_checkpoint(
-                            ["direction:in", "topic:" + queue_name, "type:sqs"]
-                        )
+                        ctx.set_checkpoint(["direction:in", "topic:" + queue_name, "type:sqs"])
 
-                    except:
+                    except Exception:
                         return result
 
                 return result

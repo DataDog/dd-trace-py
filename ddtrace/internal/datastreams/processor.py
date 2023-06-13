@@ -1,4 +1,5 @@
 # coding: utf-8
+import base64
 from collections import defaultdict
 import gzip
 import os
@@ -15,7 +16,6 @@ from typing import Union
 from ddsketch import LogCollapsingLowestDenseDDSketch
 from ddsketch.pb.proto import DDSketchProto
 import six
-import base64
 
 import ddtrace
 from ddtrace import config
@@ -259,7 +259,7 @@ class DataStreamsProcessor(PeriodicService):
             return self.new_pathway()
 
     def decode_pathway_b64(self, data):
-        binary_pathway = data.encode('utf-8')
+        binary_pathway = data.encode("utf-8")
         encoded_pathway = base64.b64decode(binary_pathway)
         data_streams_context = self.decode_pathway(encoded_pathway)
         return data_streams_context
@@ -305,7 +305,7 @@ class DataStreamsCtx:
     def encode_b64(self):
         encoded_pathway = self.encode()
         binary_pathway = base64.b64encode(encoded_pathway)
-        data_streams_context = binary_pathway.decode('utf-8')
+        data_streams_context = binary_pathway.decode("utf-8")
         return data_streams_context
 
     def _compute_hash(self, tags, parent_hash):

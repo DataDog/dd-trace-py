@@ -531,6 +531,7 @@ class DummyTracer(Tracer):
             # Inline the import to avoid pulling in ddsketch or protobuf
             # when importing ddtrace.
             from ddtrace.internal.datastreams.processor import DataStreamsProcessor
+
             self.data_streams_processor = DataStreamsProcessor(self._agent_url)
 
     @property

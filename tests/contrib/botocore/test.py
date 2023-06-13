@@ -772,13 +772,13 @@ class BotocoreTest(TracerTestCase):
             assert first[("direction:out,topic:test,type:sqs", 8588586218407152755, 0)].edge_latency._count >= 1
             assert (
                 first[
-                    ('direction:in,topic:test,type:sqs', 3105195680836794952, 8588586218407152755)
+                    ("direction:in,topic:test,type:sqs", 3105195680836794952, 8588586218407152755)
                 ].full_pathway_latency._count
                 >= 1
             )
             assert (
                 first[
-                    ('direction:in,topic:test,type:sqs', 3105195680836794952, 8588586218407152755)
+                    ("direction:in,topic:test,type:sqs", 3105195680836794952, 8588586218407152755)
                 ].edge_latency._count
                 >= 1
             )
@@ -804,9 +804,9 @@ class BotocoreTest(TracerTestCase):
             }
 
             entries = [
-                {'Id': '1', 'MessageBody': 'Message No. 1', 'MessageAttributes': message_attributes},
-                {'Id': '2', 'MessageBody': 'Message No. 2', 'MessageAttributes': message_attributes},
-                {'Id': '3', 'MessageBody': 'Message No. 3', 'MessageAttributes': message_attributes}
+                {"Id": "1", "MessageBody": "Message No. 1", "MessageAttributes": message_attributes},
+                {"Id": "2", "MessageBody": "Message No. 2", "MessageAttributes": message_attributes},
+                {"Id": "3", "MessageBody": "Message No. 3", "MessageAttributes": message_attributes},
             ]
 
             sqs.send_message_batch(QueueUrl=queue["QueueUrl"], Entries=entries)
@@ -826,16 +826,16 @@ class BotocoreTest(TracerTestCase):
             assert first[("direction:out,topic:test,type:sqs", 8588586218407152755, 0)].full_pathway_latency._count >= 3
             assert first[("direction:out,topic:test,type:sqs", 8588586218407152755, 0)].edge_latency._count >= 3
             assert (
-                    first[
-                        ('direction:in,topic:test,type:sqs', 3105195680836794952, 8588586218407152755)
-                    ].full_pathway_latency._count
-                    >= 3
+                first[
+                    ("direction:in,topic:test,type:sqs", 3105195680836794952, 8588586218407152755)
+                ].full_pathway_latency._count
+                >= 3
             )
             assert (
-                    first[
-                        ('direction:in,topic:test,type:sqs', 3105195680836794952, 8588586218407152755)
-                    ].edge_latency._count
-                    >= 3
+                first[
+                    ("direction:in,topic:test,type:sqs", 3105195680836794952, 8588586218407152755)
+                ].edge_latency._count
+                >= 3
             )
 
             sqs.delete_queue(QueueUrl=queue["QueueUrl"])
@@ -851,10 +851,10 @@ class BotocoreTest(TracerTestCase):
                 MaxNumberOfMessages=1,
                 WaitTimeSeconds=2,
                 AttributeNames=[
-                    'All',
+                    "All",
                 ],
             )
-            assert '_datadog' in response['Messages'][0]['MessageAttributes']
+            assert "_datadog" in response["Messages"][0]["MessageAttributes"]
 
             sqs.delete_queue(QueueUrl=queue["QueueUrl"])
 
