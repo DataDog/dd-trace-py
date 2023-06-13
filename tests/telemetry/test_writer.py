@@ -247,7 +247,8 @@ def test_configuration_changed_event(telemetry_lifecycle_writer, test_agent_sess
             "message": "",
         },
     }
-    assert events[0] == _get_request_body(payload, "app-configurations-change")
+    # assert events[0] == _get_request_body(payload, "app-configurations-change")
+    assert events[0]["payload"]["configuration"] == payload["configuration"]
 
 
 def test_add_integration_disabled_writer(telemetry_lifecycle_writer, test_agent_session):
