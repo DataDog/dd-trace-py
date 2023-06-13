@@ -757,7 +757,7 @@ class BotocoreTest(TracerTestCase):
 
             sqs.send_message(QueueUrl=queue["QueueUrl"], MessageBody="world", MessageAttributes=message_attributes)
 
-            response = sqs.receive_message(
+            sqs.receive_message(
                 QueueUrl=queue["QueueUrl"],
                 MessageAttributeNames=["_datadog"],
                 WaitTimeSeconds=2,
@@ -811,7 +811,7 @@ class BotocoreTest(TracerTestCase):
 
             sqs.send_message_batch(QueueUrl=queue["QueueUrl"], Entries=entries)
 
-            response = sqs.receive_message(
+            sqs.receive_message(
                 QueueUrl=queue["QueueUrl"],
                 MaxNumberOfMessages=3,
                 MessageAttributeNames=["_datadog"],
