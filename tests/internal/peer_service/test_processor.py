@@ -32,7 +32,7 @@ def test_span():
 
 @pytest.mark.parametrize("span_kind", [SpanKind.CLIENT, SpanKind.PRODUCER])
 def test_processing_peer_service_exists(processor, test_span, span_kind, peer_service_config):
-    processor.enabled = True
+    processor._set_defaults_enabled = True
     test_span.set_tag(SPAN_KIND, span_kind)
     test_span.set_tag(peer_service_config.tag_name, "fake_peer_service")
     test_span.set_tag("out.host", "fake_falue")  # Should not show up
@@ -44,7 +44,7 @@ def test_processing_peer_service_exists(processor, test_span, span_kind, peer_se
 
 @pytest.mark.parametrize("span_kind", [SpanKind.SERVER, SpanKind.CONSUMER])
 def test_nothing_happens_for_server_and_consumer(processor, test_span, span_kind, peer_service_config):
-    processor.enabled = True
+    processor._set_defaults_enabled = True
     test_span.set_tag(SPAN_KIND, span_kind)
     test_span.set_tag("out.host", "fake_host")
     processor.on_span_finish(test_span)
@@ -54,7 +54,7 @@ def test_nothing_happens_for_server_and_consumer(processor, test_span, span_kind
 
 @pytest.mark.parametrize("data_source", PeerServiceConfig.prioritized_data_sources)
 def test_existing_data_sources(processor, test_span, data_source, peer_service_config):
-    processor.enabled = True
+    processor._set_defaults_enabled = True
     test_span.set_tag(SPAN_KIND, SpanKind.CLIENT)
     test_span.set_tag(data_source, "test_value")
 
@@ -66,7 +66,7 @@ def test_existing_data_sources(processor, test_span, data_source, peer_service_c
 
 @pytest.mark.parametrize("data_source", PeerServiceConfig.prioritized_data_sources)
 def test_disabled_peer_service(processor, test_span, data_source, peer_service_config):
-    processor.enabled = False
+    processor._set_defaults_enabled = False
     test_span.set_tag(data_source, "test_value")
     processor.on_span_finish(test_span)
 
@@ -88,7 +88,7 @@ def test_peer_service_enablement(schema_peer_enabled):
 
     with mock.patch.dict(os.environ, {"DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED": env_enabled}):
         with mock.patch("ddtrace.settings.peer_service.SCHEMA_VERSION", schema_version):
-            assert PeerServiceConfig().enabled == expected
+            assert PeerServiceConfig().set_defaults_enabled == expected
 
 
 @pytest.mark.subprocess(env=dict(DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED="True"), ddtrace_run=True)
@@ -117,9 +117,9 @@ def test_tracer_hooks():
 
 def test_peer_service_remap(test_span):
     with mock.patch.dict(os.environ, {"DD_TRACE_PEER_SERVICE_MAPPING": "fake_peer_service:remapped_service"}):
-        peer_service_config = PeerServiceConfig(enabled=True)
+        peer_service_config = PeerServiceConfig(set_defaults_enabled=True)
         processor = PeerServiceProcessor(peer_service_config)
-        processor.enabled = True
+        processor._set_defaults_enabled = True
         test_span.set_tag(SPAN_KIND, SpanKind.CLIENT)
         test_span.set_tag(peer_service_config.tag_name, "fake_peer_service")
         processor.on_span_finish(test_span)
@@ -127,3 +127,29 @@ def test_peer_service_remap(test_span):
         assert test_span.get_tag(peer_service_config.tag_name) == "remapped_service"
         assert test_span.get_tag(peer_service_config.remap_tag_name) == "fake_peer_service"
         assert test_span.get_tag(peer_service_config.source_tag_name) == "peer.service"
+
+
+def test_peer_service_remap(test_span):
+    with mock.patch.dict(os.environ, {"DD_TRACE_PEER_SERVICE_MAPPING": "fake_peer_service:remapped_service"}):
+        peer_service_config = PeerServiceConfig(set_defaults_enabled=True)
+        processor = PeerServiceProcessor(peer_service_config)
+        processor._set_defaults_enabled = True
+        test_span.set_tag(SPAN_KIND, SpanKind.CLIENT)
+        test_span.set_tag(peer_service_config.tag_name, "fake_peer_service")
+        processor.on_span_finish(test_span)
+
+        assert test_span.get_tag(peer_service_config.tag_name) == "remapped_service"
+        assert test_span.get_tag(peer_service_config.remap_tag_name) == "fake_peer_service"
+        assert test_span.get_tag(peer_service_config.source_tag_name) == "peer.service"
+
+
+def test_remap_still_happens_when_defaults_disabled(test_span):
+    with mock.patch.dict(os.environ, {"DD_TRACE_PEER_SERVICE_MAPPING": "fake_peer_service:remapped_service"}):
+        peer_service_config = PeerServiceConfig(set_defaults_enabled=False)
+        processor = PeerServiceProcessor(peer_service_config)
+        processor._set_defaults_enabled = False
+        test_span.set_tag(peer_service_config.tag_name, "fake_peer_service")
+        processor.on_span_finish(test_span)
+
+        assert test_span.get_tag(peer_service_config.tag_name) == "remapped_service"
+        assert test_span.get_tag(peer_service_config.remap_tag_name) == "fake_peer_service"

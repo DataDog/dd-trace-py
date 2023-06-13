@@ -13,17 +13,17 @@ class PeerServiceConfig(object):
     enabled_span_kinds = {SpanKind.CLIENT, SpanKind.PRODUCER}
     prioritized_data_sources = ["messaging.kafka.bootstrap.servers", "db.name", "rpc.service", "out.host"]
 
-    def __init__(self, enabled=None, peer_service_mapping=None):
-        self._enabled = enabled
+    def __init__(self, set_defaults_enabled=None, peer_service_mapping=None):
+        self._set_defaults_enabled = set_defaults_enabled
         self._peer_service_mapping = peer_service_mapping
 
     @property
-    def enabled(self):
-        if self._enabled is None:
+    def set_defaults_enabled(self):
+        if self._set_defaults_enabled is None:
             env_enabled = asbool(os.getenv("DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED", default=False))
-            self._enabled = SCHEMA_VERSION == "v1" or (SCHEMA_VERSION == "v0" and env_enabled)
+            self._set_defaults_enabled = SCHEMA_VERSION == "v1" or (SCHEMA_VERSION == "v0" and env_enabled)
 
-        return self._enabled
+        return self._set_defaults_enabled
 
     @property
     def peer_service_mapping(self):

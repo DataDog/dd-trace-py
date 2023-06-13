@@ -335,7 +335,7 @@ class SpanSamplingProcessor(SpanProcessor):
 class PeerServiceProcessor(SpanProcessor):
     def __init__(self, peer_service_config):
         self._config = peer_service_config
-        self.enabled = self._config.enabled
+        self._set_defaults_enabled = self._config.set_defaults_enabled
 
     def on_span_start(self, span):
         """
@@ -344,11 +344,9 @@ class PeerServiceProcessor(SpanProcessor):
         pass
 
     def on_span_finish(self, span):
-        if not self.enabled:
-            return
-
-        self._set_span_tag(span)
-        self._remap_peer_service(span)
+        if self._set_defaults_enabled:
+            self._set_span_tag(span)
+        self._remap_peer_service(span)  # Remap regardless of whether defaults are enabled
 
     def _set_span_tag(self, span):
         if span.get_tag(self._config.tag_name):  # If the tag already exists, assume it is user generated
