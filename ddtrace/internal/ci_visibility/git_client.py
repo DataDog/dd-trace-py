@@ -119,6 +119,8 @@ class CIVisibilityGitClient(object):
         result = []
         if response.status < 300:
             result = serializer.search_commits_decode(response.body)
+        else:
+            log.warning("Search commits response: %s", response.body)
         return result
 
     @classmethod
