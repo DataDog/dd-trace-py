@@ -10,6 +10,7 @@ from ddtrace.contrib.mako import unpatch
 from ddtrace.contrib.mako.constants import DEFAULT_TEMPLATE_NAME
 from ddtrace.internal.compat import StringIO
 from ddtrace.internal.compat import to_unicode
+from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 
@@ -91,21 +92,6 @@ class MakoTest(TracerTestCase):
         self.assertEqual(spans[0].name, "mako.template.render")
         self.assertEqual(spans[0].resource, template_name)
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_user_specified_service(self):
-        """
-        When a service name is specified by the user
-            The mako integration should use it as the service name
-        """
-        tmpl_lookup = TemplateLookup(directories=[TMPL_DIR])
-        t = tmpl_lookup.get_template("template.html")
-        self.assertEqual(t.render(name="mako"), "Hello mako!\n")
-
-        spans = self.pop_spans()
-        self.assertEqual(len(spans), 1)
-
-        assert spans[0].service == "mysvc"
-
     def test_deftemplate(self):
         tmpl_lookup = TemplateLookup(directories=[TMPL_DIR])
         t = tmpl_lookup.get_template("template.html")
@@ -120,3 +106,69 @@ class MakoTest(TracerTestCase):
 
         assert spans[0].resource == "template_html.render_body"
         assert spans[0].get_tag("mako.template_name") == "template_html.render_body"
+
+    def _schema_test_spans(self):
+        tmpl_lookup = TemplateLookup(directories=[TMPL_DIR])
+        t = tmpl_lookup.get_template("template.html")
+        self.assertEqual(t.render(name="mako"), "Hello mako!\n")
+
+        spans = self.pop_spans()
+        self.assertEqual(len(spans), 1)
+
+        return spans
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    def test_schematized_service_name_default(self):
+        """
+        default/v0: When a service name is specified by the user
+            The mako integration should use it as the service name
+        """
+        spans = self._schema_test_spans()
+        assert spans[0].service == "mysvc", "Expected service name to be mysvc, got {}".format(spans[0].service)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_schematized_service_name_v0(self):
+        """
+        default/v0: When a service name is specified by the user
+            The mako integration should use it as the service name
+        """
+        spans = self._schema_test_spans()
+        assert spans[0].service == "mysvc", "Expected service name to be mysvc, got {}".format(spans[0].service)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_schematized_service_name_v1(self):
+        """
+        v1: When a service name is specified by the user
+            The mako integration should use it as the service name
+        """
+        spans = self._schema_test_spans()
+        assert spans[0].service == "mysvc", "Expected service name to be mysvc, got {}".format(spans[0].service)
+
+    @TracerTestCase.run_in_subprocess()
+    def test_schematized_unspecified_service_name_default(self):
+        """
+        When a service name is specified by the user
+            The mako integration should use it as the service name
+        """
+        spans = self._schema_test_spans()
+        assert spans[0].service == "mako", "Expected service name to be mysvc, got {}".format(spans[0].service)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_schematized_unspecified_service_name_v0(self):
+        """
+        v0/default: When a service name is specified by the user
+            The mako integration should use it as the service name
+        """
+        spans = self._schema_test_spans()
+        assert spans[0].service == "mako", "Expected service name to be mysvc, got {}".format(spans[0].service)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_schematized_unspecified_service_name_v1(self):
+        """
+        v1: When a service name is specified by the user
+            The mako integration should use it as the service name
+        """
+        spans = self._schema_test_spans()
+        assert spans[0].service == DEFAULT_SPAN_SERVICE_NAME, "Expected service name to be mysvc, got {}".format(
+            spans[0].service
+        )
