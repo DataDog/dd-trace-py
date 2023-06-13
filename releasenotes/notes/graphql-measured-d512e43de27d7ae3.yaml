@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    graphql: This fix resolves an inconsistency in "measured" markings on ``graphql.execute`` spans between
+    dd-trace-py and dd-trace-js.
