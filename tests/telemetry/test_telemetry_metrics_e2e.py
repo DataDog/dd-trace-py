@@ -118,10 +118,13 @@ for _ in range(10):
     events = test_agent_metrics_session.get_events()
 
     metrics = get_metrics_from_events(events)
-    assert len(metrics) == 1
-    assert metrics[0]["metric"] == "span_finished"
+    assert len(metrics) == 2
+    assert metrics[0]["metric"] == "span_created"
     assert metrics[0]["tags"] == ["integration_name:datadog"]
     assert metrics[0]["points"][0][1] == 10
+    assert metrics[1]["metric"] == "span_finished"
+    assert metrics[1]["tags"] == ["integration_name:datadog"]
+    assert metrics[1]["points"][0][1] == 10
 
 
 @pytest.mark.skipif(sys.version_info < (3, 7), reason="OpenTelemetry dropped support for python<=3.6")
@@ -141,10 +144,13 @@ for _ in range(9):
     events = test_agent_metrics_session.get_events()
 
     metrics = get_metrics_from_events(events)
-    assert len(metrics) == 1
-    assert metrics[0]["metric"] == "span_finished"
+    assert len(metrics) == 2
+    assert metrics[0]["metric"] == "span_created"
     assert metrics[0]["tags"] == ["integration_name:otel"]
     assert metrics[0]["points"][0][1] == 9
+    assert metrics[1]["metric"] == "span_finished"
+    assert metrics[1]["tags"] == ["integration_name:otel"]
+    assert metrics[1]["points"][0][1] == 9
 
 
 def test_span_creation_and_finished_metrics_opentracing(
@@ -163,10 +169,50 @@ for _ in range(9):
     events = test_agent_metrics_session.get_events()
 
     metrics = get_metrics_from_events(events)
-    assert len(metrics) == 1
-    assert metrics[0]["metric"] == "span_finished"
+    assert len(metrics) == 2
+    assert metrics[0]["metric"] == "span_created"
     assert metrics[0]["tags"] == ["integration_name:opentracing"]
     assert metrics[0]["points"][0][1] == 9
+    assert metrics[1]["metric"] == "span_finished"
+    assert metrics[1]["tags"] == ["integration_name:opentracing"]
+    assert metrics[1]["points"][0][1] == 9
+
+
+@pytest.mark.skipif(sys.version_info < (3, 7), reason="OpenTelemetry dropped support for python<=3.6")
+def test_span_creation_no_finish(test_agent_metrics_session, ddtrace_run_python_code_in_subprocess):
+
+    code = """
+import ddtrace
+import opentelemetry
+from ddtrace import opentracer
+
+ddtracer = ddtrace.tracer
+otel = opentelemetry.trace.get_tracer(__name__)
+ot = opentracer.Tracer()
+
+for _ in range(4):
+    ot.start_span('ot_span')
+    otel.start_span('otel_span')
+    ddtracer.trace("ddspan")
+"""
+    env = os.environ.copy()
+    env["DD_TRACE_OTEL_ENABLED"] = "true"
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    assert status == 0, stderr
+
+    events = test_agent_metrics_session.get_events()
+    metrics = get_metrics_from_events(events)
+    assert len(metrics) == 3
+
+    assert metrics[0]["metric"] == "span_created"
+    assert metrics[0]["tags"] == ["integration_name:datadog"]
+    assert metrics[0]["points"][0][1] == 4
+    assert metrics[1]["metric"] == "span_created"
+    assert metrics[1]["tags"] == ["integration_name:opentracing"]
+    assert metrics[1]["points"][0][1] == 4
+    assert metrics[2]["metric"] == "span_created"
+    assert metrics[2]["tags"] == ["integration_name:otel"]
+    assert metrics[2]["points"][0][1] == 4
 
 
 def get_metrics_from_events(events):

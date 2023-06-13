@@ -181,12 +181,27 @@ class SpanAggregator(SpanProcessor):
         repr=False,
     )
     _lock = attr.ib(init=False, factory=threading.Lock, repr=False)
+    _span_api_to_count = attr.ib(
+        init=False,
+        factory=lambda: {
+            "span_created": defaultdict(int),
+            "span_finished": defaultdict(int),
+        },
+        type=Dict[str, DefaultDict],
+    )
 
     def on_span_start(self, span):
         # type: (Span) -> None
         with self._lock:
             trace = self._traces[span.trace_id]
             trace.spans.append(span)
+            self._span_api_to_count["span_created"][span._span_api] += 1
+            if sum(self._span_api_to_count["span_created"].values()) >= 100:
+                for api, count in self._span_api_to_count["span_created"].items():
+                    telemetry_metrics_writer.add_count_metric(
+                        TELEMETRY_NAMESPACE_TAG_TRACER, "span_created", count, tags=(("integration_name", api),)
+                    )
+                self._span_api_to_count["span_created"] = defaultdict(int)
 
     def on_span_finish(self, span):
         # type: (Span) -> None
@@ -218,13 +233,13 @@ class SpanAggregator(SpanProcessor):
                 if len(trace.spans) == 0:
                     del self._traces[span.trace_id]
 
-                span_api_to_count = defaultdict(int)  # type: Dict[str, int]
-                for s in finished:
-                    span_api_to_count[s._span_api] += 1
-                for api, count in span_api_to_count.items():
-                    telemetry_metrics_writer.add_count_metric(
-                        TELEMETRY_NAMESPACE_TAG_TRACER, "span_finished", count, tags=(("integration_name", api),)
-                    )
+                self._span_api_to_count["span_finished"][span._span_api] += num_finished
+                if sum(self._span_api_to_count["span_finished"].values()) >= 100:
+                    for api, count in self._span_api_to_count["span_finished"].items():
+                        telemetry_metrics_writer.add_count_metric(
+                            TELEMETRY_NAMESPACE_TAG_TRACER, "span_finished", count, tags=(("integration_name", api),)
+                        )
+                    self._span_api_to_count["span_finished"] = defaultdict(int)
 
                 spans = finished  # type: Optional[List[Span]]
                 for tp in self._trace_processors:
@@ -251,6 +266,19 @@ class SpanAggregator(SpanProcessor):
             before exiting or :obj:`None` to block until flushing has successfully completed (default: :obj:`None`)
         :type timeout: :obj:`int` | :obj:`float` | :obj:`None`
         """
+        for api, count in self._span_api_to_count["span_created"].items():
+            telemetry_metrics_writer.add_count_metric(
+                TELEMETRY_NAMESPACE_TAG_TRACER, "span_created", count, tags=(("integration_name", api),)
+            )
+        self._span_api_to_count["span_created"] = defaultdict(int)
+
+        for api, count in self._span_api_to_count["span_finished"].items():
+            telemetry_metrics_writer.add_count_metric(
+                TELEMETRY_NAMESPACE_TAG_TRACER, "span_finished", count, tags=(("integration_name", api),)
+            )
+        self._span_api_to_count["span_finished"] = defaultdict(int)
+
+        telemetry_metrics_writer.periodic()
         try:
             self._writer.stop(timeout)
         except ServiceStatusError:
