@@ -10,7 +10,6 @@ from ddtrace import config
 from ddtrace._monkey import patch_iast
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec.iast import oce
-from ddtrace.appsec.iast._util import _is_python_version_supported as python_supported_by_iast
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import urlencode
 from tests.utils import override_global_config
