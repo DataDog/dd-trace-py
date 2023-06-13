@@ -435,18 +435,22 @@ class TelemetryWriter(TelemetryBase):
             "configuration": [
                 {
                     "name": "data_streams_enabled",
+                    "origin": "env_var",
                     "value": str(config._data_streams_enabled),
                 },
                 {
                     "name": "appsec_enabled",
+                    "origin": "env_var",
                     "value": str(config._appsec_enabled),
                 },
                 {
                     "name": "propagation_style_inject",
+                    "origin": "env_var",
                     "value": list(config._propagation_style_inject),
                 },
                 {
                     "name": "propagation_style_extract",
+                    "origin": "env_var",
                     "value": list(config._propagation_style_extract),
                 },
             ],
