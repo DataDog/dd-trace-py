@@ -550,6 +550,22 @@ class BotocoreTest(TracerTestCase):
             assert trace_data_in_message[HTTP_HEADER_PARENT_ID] == str(span.span_id)
 
     @mock_sqs
+    def test_sqs_send_message_non_url_queue(self):
+        with self.override_config("botocore", dict(tag_all_params=True)):
+            sqs = self.session.create_client("sqs", region_name="us-east-1", endpoint_url="http://localhost:4566")
+            queue = sqs.create_queue(QueueName="test")
+            Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sqs)
+
+            sqs.send_message(QueueUrl="test", MessageBody="world")
+            spans = self.get_spans()
+            assert spans
+            span = spans[0]
+            assert len(spans) == 1
+            assert span.get_tag("aws.operation") == "SendMessage"
+            assert span.resource == "sqs.sendmessage"
+            sqs.delete_queue(QueueUrl=queue["QueueUrl"])
+
+    @mock_sqs
     def test_sqs_send_message_distributed_tracing_off(self):
         # DEV: Only test deprecated behavior because this inspect span tags for MessageAttributes
         with self.override_config("botocore", dict(distributed_tracing=False, tag_all_params=True)):
