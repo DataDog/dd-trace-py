@@ -212,9 +212,5 @@ def test_otel_span_creation_metrics(oteltracer):
     with mock.patch("ddtrace.internal.processor.trace.telemetry_metrics_writer.add_count_metric") as mock_tm:
         otelspan = oteltracer.start_span("otel")
         assert otelspan._ddspan._span_api is SPAN_API_OTEL
-        mock_tm.assert_called_once_with("tracers", "span_created", tags=(("integration_name", "otel"),))
-
-        mock_tm.reset_mock()
-
         otelspan.end()
-        mock_tm.assert_called_once_with("tracers", "span_finished", tags=(("integration_name", "otel"),))
+        mock_tm.assert_called_once_with("tracers", "span_finished", 1, tags=(("integration_name", "otel"),))

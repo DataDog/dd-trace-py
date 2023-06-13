@@ -1,6 +1,7 @@
 import abc
 from collections import defaultdict
 import threading
+from typing import Dict
 from typing import Iterable
 from typing import List
 from typing import Optional
@@ -186,15 +187,9 @@ class SpanAggregator(SpanProcessor):
         with self._lock:
             trace = self._traces[span.trace_id]
             trace.spans.append(span)
-        telemetry_metrics_writer.add_count_metric(
-            TELEMETRY_NAMESPACE_TAG_TRACER, "span_created", tags=(("integration_name", span._span_api),)
-        )
 
     def on_span_finish(self, span):
         # type: (Span) -> None
-        telemetry_metrics_writer.add_count_metric(
-            TELEMETRY_NAMESPACE_TAG_TRACER, "span_finished", tags=(("integration_name", span._span_api),)
-        )
         with self._lock:
             trace = self._traces[span.trace_id]
             trace.num_finished += 1
@@ -209,7 +204,6 @@ class SpanAggregator(SpanProcessor):
                             finished.append(s)
                         else:
                             trace.spans.append(s)
-
                 else:
                     finished = trace_spans
 
@@ -223,6 +217,14 @@ class SpanAggregator(SpanProcessor):
 
                 if len(trace.spans) == 0:
                     del self._traces[span.trace_id]
+
+                span_api_to_count = defaultdict(int)  # type: Dict[str, int]
+                for s in finished:
+                    span_api_to_count[s._span_api] += 1
+                for api, count in span_api_to_count.items():
+                    telemetry_metrics_writer.add_count_metric(
+                        TELEMETRY_NAMESPACE_TAG_TRACER, "span_finished", count, tags=(("integration_name", api),)
+                    )
 
                 spans = finished  # type: Optional[List[Span]]
                 for tp in self._trace_processors:

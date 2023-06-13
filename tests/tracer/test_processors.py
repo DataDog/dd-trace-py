@@ -378,10 +378,8 @@ def test_span_creation_metrics(tracer):
     """Test that telemetry metrics are queued on span finish"""
     with mock.patch("ddtrace.internal.processor.trace.telemetry_metrics_writer.add_count_metric") as mock_tm:
         span = tracer.trace("span")
-        mock_tm.assert_called_once_with("tracers", "span_created", tags=(("integration_name", "datadog"),))
-        mock_tm.reset_mock()
         span.finish()
-        mock_tm.assert_called_once_with("tracers", "span_finished", tags=(("integration_name", "datadog"),))
+        mock_tm.assert_called_once_with("tracers", "span_finished", 1, tags=(("integration_name", "datadog"),))
 
 
 def test_single_span_sampling_processor():
