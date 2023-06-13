@@ -507,7 +507,7 @@ class TelemetryWriter(TelemetryBase):
         #     "configuration": configurations,
         # }
         # Loop though all events queue and find the app-started event
-        for e in(0, len(self._events_queue) -1):
+        for e in (0, len(self._events_queue) - 1):
             if self._events_queue[e]["request_type"] == "app-started":
                 payload = self._events_queue[e]["payload"]
                 break
@@ -516,8 +516,8 @@ class TelemetryWriter(TelemetryBase):
             if c["name"] == configuration_name:
                 c["value"] = configuration_value
                 break
-        
-        self.add_event(payload, "app-configurations-change")    
+
+        self.add_event(payload, "app-configurations-change")
 
     def _app_dependencies_loaded_event(self):
         # type: () -> None
