@@ -321,7 +321,7 @@ class CMakeBuild(build_ext):
                         tmp_iast_path,
                         "-DPython_EXECUTABLE={}".format(sys.executable),
                         "-DCMAKE_BUILD_TYPE={}".format(build_type),  # not used on MSVC, but no harm
-                    ] + debug_compile_args
+                    ]
                     if platform.system() == "Windows":
                         cmake_args.extend(["-A", "x64" if platform.architecture()[0] == "64bit" else "Win32"])
                     subprocess.run([cmake_command, ] + cmake_args, cwd=tmp_iast_path, check=True)
