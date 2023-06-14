@@ -319,10 +319,10 @@ class CMakeBuild(build_ext):
                         "-DCMAKE_BUILD_TYPE={}".format(build_type),  # not used on MSVC, but no harm
                     ]
 
-                    if platform.system() == "Windows":
+                    if CURRENT_OS == "Windows":
                         cmake_args.extend(["-A", "x64" if platform.architecture()[0] == "64bit" else "Win32"])
 
-                    if sys.platform.startswith("darwin"):
+                    if CURRENT_OS == "Darwin":
                         # Cross-compile support for macOS - respect ARCHFLAGS if set
                         archs = re.findall(r"-arch (\S+)", os.environ.get("ARCHFLAGS", ""))
                         if archs:
