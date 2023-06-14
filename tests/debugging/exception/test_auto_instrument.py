@@ -41,9 +41,9 @@ class ExceptionDebuggingTestCase(TracerTestCase):
             snapshots = {str(s.uuid): s for s in d.test_queue}
 
             for n, span in enumerate(self.spans):
-                assert span.get_tag("error.debug-info-captured") == "true"
+                assert span.get_tag("error.debug_info_captured") == "true"
 
-                exc_id = span.get_tag("_dd.debug.error.exception-id")
+                exc_id = span.get_tag("_dd.debug.error.exception_id")
 
                 info = {k: v for k, v in enumerate(["c", "b", "a"][n:], start=1)}
 
@@ -51,7 +51,7 @@ class ExceptionDebuggingTestCase(TracerTestCase):
                     fn = info[i]
 
                     # Check that we have all the tags for each snapshot
-                    assert span.get_tag("_dd.debug.error.%d.snapshot.id" % i) in snapshots
+                    assert span.get_tag("_dd.debug.error.%d.snapshot_id" % i) in snapshots
                     assert span.get_tag("_dd.debug.error.%d.file" % i) == __file__, span.get_tag(
                         "_dd.debug.error.%d.file" % i
                     )

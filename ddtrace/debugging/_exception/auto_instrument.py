@@ -24,13 +24,20 @@ GLOBAL_RATE_LIMITER = RateLimiter(
     raise_on_exceed=False,
 )
 
+# used to mark that the span have debug info captured, visible to users
+DEBUG_INFO_TAG = "error.debug_info_captured"
 
-def _private_debug_exception_tag(name):
-    return "_dd.debug.error.%s" % name
+# used to rate limit decision on the entire local trace (stored at the root span)
+CAPTURE_TRACE_TAG = "_dd.debug.error.trace_captured"
 
+# unique exception id
+EXCEPTION_ID_TAG = "_dd.debug.error.exception_id"
 
-CAPTURE_TAG = _private_debug_exception_tag("trace_captured")
-DEBUG_INFO_CAPTURED_TAG = "error.debug_info_captured"
+# link to matching snapshot for every frame in the traceback
+FRAME_SNAPSHOT_ID_TAG = "_dd.debug.error.%d.snapshot_id"
+FRAME_FUNCTION_TAG = "_dd.debug.error.%d.function"
+FRAME_FILE_TAG = "_dd.debug.error.%d.file"
+FRAME_LINE_TAG = "_dd.debug.error.%d.line"
 
 
 def unwind_exception_chain(
@@ -123,7 +130,7 @@ def can_capture(span):
     if root is None:
         return False
 
-    info_captured = root.get_tag(CAPTURE_TAG)
+    info_captured = root.get_tag(CAPTURE_TRACE_TAG)
 
     if info_captured == "false":
         return False
@@ -133,10 +140,10 @@ def can_capture(span):
 
     if info_captured is None:
         result = GLOBAL_RATE_LIMITER.limit() is not RateLimitExceeded
-        root.set_tag_str(CAPTURE_TAG, str(result).lower())
+        root.set_tag_str(CAPTURE_TRACE_TAG, str(result).lower())
         return result
 
-    raise ValueError("unexpected value for %s: %r" % (CAPTURE_TAG, info_captured))
+    raise ValueError("unexpected value for %s: %r" % (CAPTURE_TRACE_TAG, info_captured))
 
 
 @attr.s
@@ -200,13 +207,13 @@ class SpanExceptionProcessor(SpanProcessor):
                     frame.f_locals["_dd_debug_snapshot_id"] = snapshot_id = snapshot.uuid
 
                 # Add correlation tags on the span
-                span.set_tag_str(_private_debug_exception_tag("%d.snapshot_id" % seq_nr), snapshot_id)
-                span.set_tag_str(_private_debug_exception_tag("%d.function" % seq_nr), code.co_name)
-                span.set_tag_str(_private_debug_exception_tag("%d.file" % seq_nr), code.co_filename)
-                span.set_tag_str(_private_debug_exception_tag("%d.line" % seq_nr), str(_tb.tb_lineno))
+                span.set_tag_str(FRAME_SNAPSHOT_ID_TAG % seq_nr, snapshot_id)
+                span.set_tag_str(FRAME_FUNCTION_TAG % seq_nr, code.co_name)
+                span.set_tag_str(FRAME_FILE_TAG % seq_nr, code.co_filename)
+                span.set_tag_str(FRAME_LINE_TAG % seq_nr, str(_tb.tb_lineno))
 
                 # Move up the stack
                 _tb = _tb.tb_next
 
-            span.set_tag_str(DEBUG_INFO_CAPTURED_TAG, "true")
-            span.set_tag_str(_private_debug_exception_tag("exception_id"), str(exc_id))
+            span.set_tag_str(DEBUG_INFO_TAG, "true")
+            span.set_tag_str(EXCEPTION_ID_TAG, str(exc_id))
