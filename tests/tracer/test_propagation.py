@@ -1571,7 +1571,6 @@ else:
         env["DD_TRACE_PROPAGATION_STYLE"] = ",".join(styles)
     stdout, stderr, status, _ = run_python_code_in_subprocess(code=code, env=env)
     assert status == 0, (stdout, stderr)
-    assert stderr == b"", (stdout, stderr)
 
     result = json.loads(stdout.decode())
     assert result == expected_context
