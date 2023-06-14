@@ -349,7 +349,3 @@ def _check_unsupported_pattern(string):
 def is_single_span_sampled(span):
     # type: (Span) -> bool
     return span.get_metric(_SINGLE_SPAN_SAMPLING_MECHANISM) == SamplingMechanism.SPAN_SAMPLING_RULE
-
-
-class Found(Exception):
-    pass
