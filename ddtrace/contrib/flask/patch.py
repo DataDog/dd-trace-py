@@ -272,6 +272,7 @@ def patch():
     Pin().onto(flask.Flask)
     try:
         from ddtrace.appsec.iast._taint_tracking import OriginType
+
         _w(
             "werkzeug.datastructures",
             "Headers.items",
@@ -293,15 +294,14 @@ def patch():
             "Request.get_data",
             functools.partial(if_iast_taint_returned_object_for, OriginType.BODY),
         )
+        if flask_version < (2, 0, 0):
+            _w(
+                "werkzeug._internal",
+                "_DictAccessorProperty.__get__",
+                functools.partial(if_iast_taint_returned_object_for, OriginType.QUERY),
+            )
     except Exception:
         log.debug("Unexpected exception while patch IAST functions", exc_info=True)
-
-    if flask_version < (2, 0, 0):
-        _w(
-            "werkzeug._internal",
-            "_DictAccessorProperty.__get__",
-            functools.partial(if_iast_taint_returned_object_for, OriginType.QUERY),
-        )
 
     # flask.app.Flask methods that have custom tracing (add metadata, wrap functions, etc)
     _w("flask", "Flask.wsgi_app", traced_wsgi_app)
