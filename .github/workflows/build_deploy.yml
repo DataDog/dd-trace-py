@@ -117,6 +117,8 @@ jobs:
           CIBW_BUILD: cp3*
           # Run a smoke test on every supported platform
           CIBW_TEST_COMMAND: python {project}/tests/smoke_test.py
+          # IAST arm on MacOS Repair not supported
+          CIBW_REPAIR_WHEEL_COMMAND_MACOS: ""
           # Testing arm on MacOS is currently not supported by Github
           CIBW_TEST_SKIP: "*-macosx_universal2:arm64"
           # Workaround for Macos 11.0 versioning issue, a.k.a.
