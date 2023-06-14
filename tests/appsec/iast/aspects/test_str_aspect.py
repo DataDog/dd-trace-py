@@ -6,6 +6,7 @@ from tests.appsec.iast.aspects.aspect_utils import BaseReplacement
 from tests.appsec.iast.aspects.aspect_utils import create_taint_range_with_format
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
 
+
 mod = _iast_patched_module("tests.appsec.iast.fixtures.aspects.str_methods")
 
 

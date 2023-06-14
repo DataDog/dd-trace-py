@@ -114,7 +114,7 @@ def is_64_bit_python():
     return sys.maxsize > (1 << 32)
 
 
-class LibraryDownloader:
+class LibraryDownload:
     name = None
     download_dir = None
     version = None
@@ -205,7 +205,7 @@ class LibraryDownloader:
         cls.download_artifacts()
 
 
-class LibDDWafDownload(LibraryDownloader):
+class LibDDWafDownload(LibraryDownload):
     name = "ddwaf"
     download_dir = LIBDDWAF_DOWNLOAD_DIR
     version = LIBDDWAF_VERSION
@@ -221,47 +221,6 @@ class LibDDWafDownload(LibraryDownloader):
     def get_package_name(cls, arch, os):
         archive_dir = "lib%s-%s-%s-%s" % (cls.name, cls.version, os.lower(), arch)
         return archive_dir
-
-
-class IastCompile(LibraryDownload):
-    @classmethod
-    def download_artifacts(cls):
-        import shutil
-        import subprocess
-        import tempfile
-
-        to_build = set()
-        # Detect if any source file sits next to a CMakeLists.txt file
-        if os.path.exists(os.path.join(IAST_DIR, "CMakeLists.txt")):
-            to_build.add(IAST_DIR)
-
-        if not to_build:
-            # Build the extension as usual
-            return
-
-        try:
-            cmake_command = os.environ.get("CMAKE_COMMAND", "cmake")
-            build_type = "RelWithDebInfo" if DEBUG_COMPILE else "Release"
-            opts = ["-DCMAKE_BUILD_TYPE={}".format(build_type)]
-            if platform.system() == "Windows":
-                opts.extend(["-A", "x64" if platform.architecture()[0] == "64bit" else "Win32"])
-            else:
-                opts.extend(["-G", "Ninja"])
-                ninja_command = os.environ.get("NINJA_COMMAND", "")
-                if ninja_command:
-                    opts.append("-DCMAKE_MAKE_PROGRAM={}".format(ninja_command))
-
-            for source_dir in to_build:
-                try:
-                    build_dir = tempfile.mkdtemp()
-                    subprocess.check_call([cmake_command, "-S", source_dir, "-B", build_dir] + opts)
-                    subprocess.check_call([cmake_command, "--build", build_dir, "--config", build_type])
-                finally:
-                    if not DEBUG_COMPILE:
-                        shutil.rmtree(build_dir, ignore_errors=True)
-        except Exception as e:
-            print('WARNING: building extension "%s" failed: %s' % (IAST_DIR, e))
-            raise
 
 
 class LibDatadogDownload(LibraryDownload):
@@ -311,12 +270,11 @@ class LibDatadogDownload(LibraryDownload):
         return []
 
 
-class LibraryInstaller(BuildPyCommand):
+class LibraryDownloader(BuildPyCommand):
     def run(self):
         CleanLibraries.remove_artifacts()
         LibDatadogDownload.run()
         LibDDWafDownload.run()
-        IastCompile.run()
         BuildPyCommand.run(self)
 
 
@@ -481,23 +439,6 @@ else:
     else:
         debug_compile_args = []
 
-PLAT_TO_CMAKE = {
-    "win32": "Win32",
-    "win-amd64": "x64",
-    "win-arm32": "ARM",
-    "win-arm64": "ARM64",
-}
-
-
-# A CMakeExtension needs a sourcedir instead of a file list.
-# The name must be the _single_ output extension from the CMake build.
-# If you need multiple extensions, see scikit-build.
-class CMakeExtension(Extension):
-    def __init__(self, name: str, sourcedir: str = "") -> None:
-        super().__init__(name, sources=[])
-        self.sourcedir = os.fspath(Path(sourcedir).resolve())
-
-
 if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
     ext_modules = [
         Extension(
@@ -628,65 +569,65 @@ setup(
     use_scm_version={"write_to": "ddtrace/_version.py"},
     setup_requires=["setuptools_scm[toml]>=4", "cython"],
     ext_modules=ext_modules
-    # + cythonize(
-    #     [
-    #         Cython.Distutils.Extension(
-    #             "ddtrace.internal._rand",
-    #             sources=["ddtrace/internal/_rand.pyx"],
-    #             language="c",
-    #         ),
-    #         Cython.Distutils.Extension(
-    #             "ddtrace.internal._tagset",
-    #             sources=["ddtrace/internal/_tagset.pyx"],
-    #             language="c",
-    #         ),
-    #         Extension(
-    #             "ddtrace.internal._encoding",
-    #             ["ddtrace/internal/_encoding.pyx"],
-    #             include_dirs=["."],
-    #             libraries=encoding_libraries,
-    #             define_macros=encoding_macros,
-    #         ),
-    #         Cython.Distutils.Extension(
-    #             "ddtrace.profiling.collector.stack",
-    #             sources=["ddtrace/profiling/collector/stack.pyx"],
-    #             language="c",
-    #             extra_compile_args=extra_compile_args,
-    #         ),
-    #         Cython.Distutils.Extension(
-    #             "ddtrace.profiling.collector._traceback",
-    #             sources=["ddtrace/profiling/collector/_traceback.pyx"],
-    #             language="c",
-    #         ),
-    #         Cython.Distutils.Extension(
-    #             "ddtrace.profiling._threading",
-    #             sources=["ddtrace/profiling/_threading.pyx"],
-    #             language="c",
-    #         ),
-    #         Cython.Distutils.Extension(
-    #             "ddtrace.profiling.collector._task",
-    #             sources=["ddtrace/profiling/collector/_task.pyx"],
-    #             language="c",
-    #         ),
-    #         Cython.Distutils.Extension(
-    #             "ddtrace.profiling.exporter.pprof",
-    #             sources=["ddtrace/profiling/exporter/pprof.pyx"],
-    #             language="c",
-    #         ),
-    #         Cython.Distutils.Extension(
-    #             "ddtrace.profiling._build",
-    #             sources=["ddtrace/profiling/_build.pyx"],
-    #             language="c",
-    #         ),
-    #     ],
-    #     compile_time_env={
-    #         "PY_MAJOR_VERSION": sys.version_info.major,
-    #         "PY_MINOR_VERSION": sys.version_info.minor,
-    #         "PY_MICRO_VERSION": sys.version_info.micro,
-    #     },
-    #     force=True,
-    #     annotate=os.getenv("_DD_CYTHON_ANNOTATE") == "1",
-    # )
-    # + get_exts_for("wrapt")
-    # + get_exts_for("psutil"),
+    + cythonize(
+        [
+            Cython.Distutils.Extension(
+                "ddtrace.internal._rand",
+                sources=["ddtrace/internal/_rand.pyx"],
+                language="c",
+            ),
+            Cython.Distutils.Extension(
+                "ddtrace.internal._tagset",
+                sources=["ddtrace/internal/_tagset.pyx"],
+                language="c",
+            ),
+            Extension(
+                "ddtrace.internal._encoding",
+                ["ddtrace/internal/_encoding.pyx"],
+                include_dirs=["."],
+                libraries=encoding_libraries,
+                define_macros=encoding_macros,
+            ),
+            Cython.Distutils.Extension(
+                "ddtrace.profiling.collector.stack",
+                sources=["ddtrace/profiling/collector/stack.pyx"],
+                language="c",
+                extra_compile_args=extra_compile_args,
+            ),
+            Cython.Distutils.Extension(
+                "ddtrace.profiling.collector._traceback",
+                sources=["ddtrace/profiling/collector/_traceback.pyx"],
+                language="c",
+            ),
+            Cython.Distutils.Extension(
+                "ddtrace.profiling._threading",
+                sources=["ddtrace/profiling/_threading.pyx"],
+                language="c",
+            ),
+            Cython.Distutils.Extension(
+                "ddtrace.profiling.collector._task",
+                sources=["ddtrace/profiling/collector/_task.pyx"],
+                language="c",
+            ),
+            Cython.Distutils.Extension(
+                "ddtrace.profiling.exporter.pprof",
+                sources=["ddtrace/profiling/exporter/pprof.pyx"],
+                language="c",
+            ),
+            Cython.Distutils.Extension(
+                "ddtrace.profiling._build",
+                sources=["ddtrace/profiling/_build.pyx"],
+                language="c",
+            ),
+        ],
+        compile_time_env={
+            "PY_MAJOR_VERSION": sys.version_info.major,
+            "PY_MINOR_VERSION": sys.version_info.minor,
+            "PY_MICRO_VERSION": sys.version_info.micro,
+        },
+        force=True,
+        annotate=os.getenv("_DD_CYTHON_ANNOTATE") == "1",
+    )
+    + get_exts_for("wrapt")
+    + get_exts_for("psutil"),
 )

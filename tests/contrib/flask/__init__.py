@@ -35,6 +35,7 @@ class BaseFlaskTestCase(TracerTestCase):
 
         self.app = flask.Flask(__name__, template_folder="test_templates/")
         self.app.test_client_class = DDFlaskTestClient
+        self.app.debug = True
         self.client = self.app.test_client()
         Pin.override(self.app, tracer=self.tracer)
 

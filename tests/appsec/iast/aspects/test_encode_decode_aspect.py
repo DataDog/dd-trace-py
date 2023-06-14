@@ -6,6 +6,7 @@ from ddtrace.appsec.iast import oce
 from ddtrace.appsec.iast._taint_tracking import OriginType
 from ddtrace.appsec.iast._taint_tracking import contexts_reset
 from ddtrace.appsec.iast._taint_tracking import create_context
+from ddtrace.appsec.iast._util import _is_python_version_supported as python_supported_by_iast
 
 
 @pytest.fixture(autouse=True)
@@ -41,7 +42,7 @@ def catch_all(fun, args, kwargs):
 @pytest.mark.parametrize("should_be_tainted", [False, True])
 @pytest.mark.parametrize("prefix", [b"", b"abc", b"\xc3\xa9\xc3\xa7"])
 @pytest.mark.parametrize("suffix", [b"", b"abc", b"\xc3\xa9\xc3\xa7"])
-@pytest.mark.skip(reason="TODO: this tests will enable in the next PR")
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_decode_and_add_aspect(infix, args, kwargs, should_be_tainted, prefix, suffix):
     from ddtrace.appsec.iast._taint_dict import clear_taint_mapping
     from ddtrace.appsec.iast._taint_tracking import OriginType
@@ -92,7 +93,7 @@ def test_decode_and_add_aspect(infix, args, kwargs, should_be_tainted, prefix, s
 @pytest.mark.parametrize("should_be_tainted", [False, True])
 @pytest.mark.parametrize("prefix", ["", "abc", "èôï"])
 @pytest.mark.parametrize("suffix", ["", "abc", "èôï"])
-@pytest.mark.skip(reason="TODO: this tests will enable in the next PR")
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_encode_and_add_aspect(infix, args, kwargs, should_be_tainted, prefix, suffix):
     from ddtrace.appsec.iast._taint_tracking import get_tainted_ranges
     from ddtrace.appsec.iast._taint_tracking import taint_pyobject

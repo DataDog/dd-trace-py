@@ -9,7 +9,6 @@ from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec.iast import oce
-from ddtrace.appsec.iast._taint_tracking import get_tainted_ranges
 from ddtrace.appsec.iast._util import _is_python_version_supported as python_supported_by_iast
 from ddtrace.appsec.trace_utils import block_request_if_user_blocked
 from ddtrace.contrib.sqlite3.patch import patch
@@ -358,7 +357,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             resp = self.client.get("/checkuser/%s" % _ALLOWED_USER, headers={"Accept": "text/html"})
             assert resp.status_code == 200
 
-    @pytest.mark.skip(reason="TODO: this tests will enable in the next PR")
+    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_http_request_path_parameter(self):
         @self.app.route("/sqli/<string:param_str>/", methods=["GET", "POST"])
         def test_sqli(param_str):
@@ -400,7 +399,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert loaded["vulnerabilities"][0]["location"]["path"] == "tests/contrib/flask/test_flask_appsec.py"
             assert loaded["vulnerabilities"][0]["location"]["line"] == 370
 
-    @pytest.mark.skip(reason="TODO: this tests will enable in the next PR")
+    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_enabled_http_request_header_getitem(self):
         @self.app.route("/sqli/<string:param_str>/", methods=["GET", "POST"])
         def test_sqli(param_str):
@@ -485,7 +484,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             assert root_span.get_tag(IAST.JSON) is None
 
-    @pytest.mark.skip(reason="TODO: this tests will enable in the next PR")
+    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_enabled_http_request_header_name_keys(self):
         @self.app.route("/sqli/<string:param_str>/", methods=["GET", "POST"])
         def test_sqli(param_str):
@@ -570,7 +569,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             assert root_span.get_tag(IAST.JSON) is None
 
-    @pytest.mark.skip(reason="TODO: this tests will enable in the next PR")
+    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_enabled_http_request_header_values(self):
         @self.app.route("/sqli/<string:param_str>/", methods=["GET", "POST"])
         def test_sqli(param_str):
@@ -653,7 +652,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             assert root_span.get_tag(IAST.JSON) is None
 
-    @pytest.mark.skip(reason="TODO: this tests will enable in the next PR")
+    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
     def test_flask_simple_iast_path_header_and_querystring_tainted(self):
         @self.app.route("/sqli/<string:param_str>/<int:param_int>/", methods=["GET", "POST"])
         def test_sqli(param_str, param_int):
@@ -778,7 +777,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
                 # not all flask versions have r.text
                 assert resp.text == "select%20from%20table"
 
-    @pytest.mark.skip(reason="TODO: this tests will enable in the next PR")
+    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_enabled_http_request_cookies_value(self):
         @self.app.route("/sqli/cookies/", methods=["GET", "POST"])
         def test_sqli():
@@ -860,7 +859,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             assert root_span.get_tag(IAST.JSON) is None
 
-    @pytest.mark.skip(reason="TODO: this tests will enable in the next PR")
+    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_enabled_http_request_cookies_name(self):
         @self.app.route("/sqli/cookies/", methods=["GET", "POST"])
         def test_sqli():
