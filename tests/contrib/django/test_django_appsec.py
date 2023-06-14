@@ -830,7 +830,7 @@ def test_django_login_sucess_safe_but_user_set_login(client, test_spans, tracer)
     from django.contrib.auth.models import User
 
     with override_global_config(
-            dict(_appsec_enabled=True, _user_model_login_field="username", _automatic_login_events_mode="safe")
+        dict(_appsec_enabled=True, _user_model_login_field="username", _automatic_login_events_mode="safe")
     ):
         test_user = User.objects.create(username="fred2")
         test_user.set_password("secret")
