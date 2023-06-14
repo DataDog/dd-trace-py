@@ -272,6 +272,7 @@ def patch():
     Pin().onto(flask.Flask)
     try:
         from ddtrace.appsec.iast._taint_tracking import OriginType
+
         _w(
             "werkzeug.datastructures",
             "Headers.items",
@@ -301,8 +302,6 @@ def patch():
             )
     except Exception:
         log.debug("Unexpected exception while patch IAST functions", exc_info=True)
-
-
 
     # flask.app.Flask methods that have custom tracing (add metadata, wrap functions, etc)
     _w("flask", "Flask.wsgi_app", traced_wsgi_app)
