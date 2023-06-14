@@ -563,6 +563,8 @@ class Tracer(object):
         # Assume that the services of the child are not necessarily a subset of those
         # of the parent.
         self._services = set()
+        if config.service:
+            self._services.add(config.service)
 
         # Re-create the background writer thread
         self._writer = self._writer.recreate()
