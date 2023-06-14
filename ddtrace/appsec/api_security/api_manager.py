@@ -124,7 +124,7 @@ class APIManager(Service):
         if env.span is None:
             return
         root = env.span._local_root or env.span
-        if not root:
+        if not root or any(meta_name in root._meta for _, meta_name, _ in self.COLLECTED):
             return
 
         root._metrics["_dd.appsec.api_security.enabled"] = 1.0

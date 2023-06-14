@@ -99,12 +99,12 @@ def register(span, span_asm_context=None):
 
 def unregister(span):
     env = _ASM.get()
-    if env.span is span:
+    if env.span_asm_context is not None and env.span is span:
+        env.span_asm_context.__exit__(None, None, None)
+    elif env.span is span:
         # needed for api security flushing information before end of the span
         for function in GLOBAL_CALLBACKS.get(_CONTEXT_CALL, []):
             function(env)
-    if env.span_asm_context is not None and env.span is span:
-        env.span_asm_context.__exit__(None, None, None)
 
 
 class _DataHandler:
@@ -131,7 +131,7 @@ class _DataHandler:
         if self.active:
             env = _ASM.get()
             # assert _CONTEXT_ID.get() == self._id
-            callbacks = env.callbacks.get(_CONTEXT_CALL)
+            callbacks = GLOBAL_CALLBACKS.get(_CONTEXT_CALL, []) + env.callbacks.get(_CONTEXT_CALL)
             if callbacks is not None:
                 for function in callbacks:
                     function(env)
