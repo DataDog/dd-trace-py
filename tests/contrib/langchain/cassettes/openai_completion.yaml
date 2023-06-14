@@ -1,0 +1,92 @@
+interactions:
+- request:
+    body: '{"prompt": ["Can you explain what Descartes meant by ''I think, therefore
+      I am''?"], "model": "text-davinci-003", "temperature": 0.7, "max_tokens": 256,
+      "top_p": 1, "frequency_penalty": 0, "presence_penalty": 0, "n": 1, "logit_bias":
+      {}}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '235'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - OpenAI/v1 PythonBindings/0.27.8
+      X-OpenAI-Client-User-Agent:
+      - '{"bindings_version": "0.27.8", "httplib": "requests", "lang": "python", "lang_version":
+        "3.10.5", "platform": "macOS-13.4-arm64-arm-64bit", "publisher": "openai",
+        "uname": "Darwin 22.5.0 Darwin Kernel Version 22.5.0: Mon Apr 24 20:52:24
+        PDT 2023; root:xnu-8796.121.2~5/RELEASE_ARM64_T6000 arm64"}'
+    method: POST
+    uri: https://api.openai.com/v1/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"cmpl-7Qbl4NOoZUUdAGU49b740aWVdlfJj\",\n  \"object\":
+        \"text_completion\",\n  \"created\": 1686576026,\n  \"model\": \"text-davinci-003\",\n
+        \ \"choices\": [\n    {\n      \"text\": \"\\n\\nDescartes' famous phrase
+        \\\"I think, therefore I am\\\" is a philosophical statement meant to demonstrate
+        that the very act of thinking proves the existence of the thinker. This phrase
+        is the most famous part of Descartes' philosophical work Meditations on First
+        Philosophy. In this work, Descartes attempts to prove the existence of God
+        and the soul. In order to do this, he first sets out to prove the existence
+        of himself. He argues that because he can think, he must exist. This is the
+        basis of his famous phrase, \\\"I think, therefore I am.\\\"\",\n      \"index\":
+        0,\n      \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n    }\n
+        \ ],\n  \"usage\": {\n    \"prompt_tokens\": 17,\n    \"completion_tokens\":
+        120,\n    \"total_tokens\": 137\n  }\n}\n"
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 7d626421981d191b-EWR
+      Cache-Control:
+      - no-cache, must-revalidate
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 12 Jun 2023 13:20:28 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      access-control-allow-origin:
+      - '*'
+      alt-svc:
+      - h3=":443"; ma=86400
+      openai-model:
+      - text-davinci-003
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '2890'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      x-ratelimit-limit-requests:
+      - '3000'
+      x-ratelimit-limit-tokens:
+      - '250000'
+      x-ratelimit-remaining-requests:
+      - '2999'
+      x-ratelimit-remaining-tokens:
+      - '249744'
+      x-ratelimit-reset-requests:
+      - 20ms
+      x-ratelimit-reset-tokens:
+      - 61ms
+      x-request-id:
+      - d4cfe4f09a08817864c693ef738c5aef
+    status:
+      code: 200
+      message: OK
+version: 1

@@ -1,0 +1,13 @@
+from ...internal.utils.importlib import require_modules
+
+
+required_modules = ["langchain"]
+
+with require_modules(required_modules) as missing_modules:
+    if not missing_modules:
+        from . import patch as _patch
+
+        patch = _patch.patch
+        unpatch = _patch.unpatch
+
+        __all__ = ["patch", "unpatch"]

@@ -2767,6 +2767,16 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="langchain",
+            command="pytest {cmdargs} tests/contrib/langchain",
+            pys=select_pys(min_version="3.9"),
+            pkgs={
+                "langchain": latest,
+                "openai": latest,
+                "vcrpy": latest,
+            }
+        ),
+        Venv(
             name="molten",
             command="pytest {cmdargs} tests/contrib/molten",
             pys=select_pys(min_version="3.6"),

@@ -87,6 +87,7 @@ PATCH_MODULES = {
     "aws_lambda": True,  # patch only in AWS Lambda environments
     "tornado": False,
     "openai": True,
+    "langchain": True,
 }
 
 
