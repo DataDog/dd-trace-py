@@ -1110,6 +1110,7 @@ class BotocoreTest(TracerTestCase):
         assert len(spans) == 1
 
     @mock_sqs
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     def test_data_streams_sqs(self):
         with self.override_config("botocore", dict(tag_all_params=True)):
             sqs = self.session.create_client("sqs", region_name="us-east-1", endpoint_url="http://localhost:4566")
@@ -1158,6 +1159,7 @@ class BotocoreTest(TracerTestCase):
             sqs.delete_queue(QueueUrl=queue["QueueUrl"])
 
     @mock_sqs
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     def test_data_streams_sqs_batch(self):
         with self.override_config("botocore", dict(tag_all_params=True)):
             sqs = self.session.create_client("sqs", region_name="us-east-1", endpoint_url="http://localhost:4566")
@@ -1213,6 +1215,7 @@ class BotocoreTest(TracerTestCase):
             sqs.delete_queue(QueueUrl=queue["QueueUrl"])
 
     @mock_sqs
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     def test_data_streams_sqs_header_information(self):
         with self.override_config("botocore", dict(tag_all_params=True)):
             sqs = self.session.create_client("sqs", region_name="us-east-1", endpoint_url="http://localhost:4566")

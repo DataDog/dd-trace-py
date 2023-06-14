@@ -1491,9 +1491,6 @@ venv = Venv(
         Venv(
             name="botocore",
             command="pytest {cmdargs} tests/contrib/botocore",
-            env={
-                "DD_DATA_STREAMS_ENABLED": "true",
-            },
             venvs=[
                 Venv(pys=select_pys(min_version="3.8"), pkgs={"moto[all]": latest, "botocore": latest}),
                 Venv(

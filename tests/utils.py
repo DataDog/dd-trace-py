@@ -528,12 +528,14 @@ class DummyTracer(Tracer):
         super(DummyTracer, self).__init__()
         self._trace_flush_enabled = True
         self.configure(*args, **kwargs)
+        """
         if ddtrace.config._data_streams_enabled:
             # Inline the import to avoid pulling in ddsketch or protobuf
             # when importing ddtrace.
             from ddtrace.internal.datastreams.processor import DataStreamsProcessor
 
             self.data_streams_processor = DataStreamsProcessor(self._agent_url)
+        """
 
     @property
     def agent_url(self):

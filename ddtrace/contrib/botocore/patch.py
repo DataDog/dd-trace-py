@@ -94,10 +94,10 @@ class TraceInjectionDecodingError(Exception):
     pass
 
 
-def inject_datadog_data_to_message_attributes(datadog_data, entry, endpoint=None):
+def inject_trace_data_to_message_attributes(trace_data, entry, endpoint=None):
     # type: (Dict[str, str], Dict[str, Any], Optional[str]) -> None
     """
-    :datadog_data: trace headers and DSM pathway to be stored in the entry's MessageAttributes
+    :trace_data: trace headers and DSM pathway to be stored in the entry's MessageAttributes
     :entry: an SQS or SNS record
     :endpoint: endpoint of message, "sqs" or "sns"
 
@@ -110,12 +110,12 @@ def inject_datadog_data_to_message_attributes(datadog_data, entry, endpoint=None
         if endpoint == "sqs":
             # Use String since changing this to Binary would be a breaking
             # change as other tracers expect this to be a String.
-            entry["MessageAttributes"]["_datadog"] = {"DataType": "String", "StringValue": json.dumps(datadog_data)}
+            entry["MessageAttributes"]["_datadog"] = {"DataType": "String", "StringValue": json.dumps(trace_data)}
         elif endpoint == "sns":
             # Use Binary since SNS subscription filter policies fail silently
             # with JSON strings https://github.com/DataDog/datadog-lambda-js/pull/269
             # AWS will encode our value if it sees "Binary"
-            entry["MessageAttributes"]["_datadog"] = {"DataType": "Binary", "BinaryValue": json.dumps(datadog_data)}
+            entry["MessageAttributes"]["_datadog"] = {"DataType": "Binary", "BinaryValue": json.dumps(trace_data)}
         else:
             log.warning("skipping trace injection, endpoint is not SNS or SQS")
     else:
@@ -136,7 +136,7 @@ def get_pathway(pin, params):
     return pathway.encode_b64()
 
 
-def inject_datadog_data_to_sqs_or_sns_batch_message(params, span, endpoint=None, pin=None, data_streams_enabled=False):
+def inject_trace_to_sqs_or_sns_batch_message(params, span, endpoint=None, pin=None, data_streams_enabled=False):
     # type: (Any, Span, Optional[str]) -> None
     """
     :params: contains the params for the current botocore action
@@ -148,8 +148,8 @@ def inject_datadog_data_to_sqs_or_sns_batch_message(params, span, endpoint=None,
     Inject trace headers and DSM info into MessageAttributes for all SQS or SNS records inside a batch
     """
 
-    datadog_data = {}
-    HTTPPropagator.inject(span.context, datadog_data)
+    trace_data = {}
+    HTTPPropagator.inject(span.context, trace_data)
 
     # An entry here is an SNS or SQS record, and depending on how it was published,
     # it could either show up under Entries (in case of PutRecords),
@@ -157,11 +157,11 @@ def inject_datadog_data_to_sqs_or_sns_batch_message(params, span, endpoint=None,
     entries = params.get("Entries", params.get("PublishBatchRequestEntries", []))
     for entry in entries:
         if data_streams_enabled:
-            datadog_data[PROPAGATION_KEY_BASE_64] = get_pathway(pin, params)
-        inject_datadog_data_to_message_attributes(datadog_data, entry, endpoint)
+            trace_data[PROPAGATION_KEY_BASE_64] = get_pathway(pin, params)
+        inject_trace_data_to_message_attributes(trace_data, entry, endpoint)
 
 
-def inject_datadog_data_to_sqs_or_sns_message(params, span, endpoint=None, pin=None, data_streams_enabled=False):
+def inject_trace_to_sqs_or_sns_message(params, span, endpoint=None, pin=None, data_streams_enabled=False):
     # type: (Any, Span, Optional[str]) -> None
     """
     :params: contains the params for the current botocore action
@@ -172,13 +172,13 @@ def inject_datadog_data_to_sqs_or_sns_message(params, span, endpoint=None, pin=N
 
     Inject trace headers and DSM info into MessageAttributes for the SQS or SNS record
     """
-    datadog_data = {}
-    HTTPPropagator.inject(span.context, datadog_data)
+    trace_data = {}
+    HTTPPropagator.inject(span.context, trace_data)
 
     if data_streams_enabled:
-        datadog_data[PROPAGATION_KEY_BASE_64] = get_pathway(pin, params)
+        trace_data[PROPAGATION_KEY_BASE_64] = get_pathway(pin, params)
 
-    inject_datadog_data_to_message_attributes(datadog_data, params, endpoint)
+    inject_trace_data_to_message_attributes(trace_data, params, endpoint)
 
 
 def inject_trace_to_eventbridge_detail(params, span):
@@ -427,14 +427,14 @@ def patched_api_call(original_func, instance, args, kwargs):
                             trace_operation, cloud_provider="aws", cloud_service="lambda"
                         )
                     if endpoint_name == "sqs" and operation == "SendMessage":
-                        inject_datadog_data_to_sqs_or_sns_message(
+                        inject_trace_to_sqs_or_sns_message(
                             params, span, endpoint_name, pin, config._data_streams_enabled
                         )
                         span.name = schematize_cloud_messaging_operation(
                             trace_operation, cloud_provider="aws", cloud_service="sqs", direction=SpanDirection.OUTBOUND
                         )
                     if endpoint_name == "sqs" and operation == "SendMessageBatch":
-                        inject_datadog_data_to_sqs_or_sns_batch_message(
+                        inject_trace_to_sqs_or_sns_batch_message(
                             params, span, endpoint_name, pin, config._data_streams_enabled
                         )
                         span.name = schematize_cloud_messaging_operation(
@@ -461,12 +461,12 @@ def patched_api_call(original_func, instance, args, kwargs):
                             direction=SpanDirection.OUTBOUND,
                         )
                     if endpoint_name == "sns" and operation == "Publish":
-                        inject_datadog_data_to_sqs_or_sns_message(params, span, endpoint_name)
+                        inject_trace_to_sqs_or_sns_message(params, span, endpoint_name)
                         span.name = schematize_cloud_messaging_operation(
                             trace_operation, cloud_provider="aws", cloud_service="sns", direction=SpanDirection.OUTBOUND
                         )
                     if endpoint_name == "sns" and operation == "PublishBatch":
-                        inject_datadog_data_to_sqs_or_sns_batch_message(params, span, endpoint_name)
+                        inject_trace_to_sqs_or_sns_batch_message(params, span, endpoint_name)
                         span.name = schematize_cloud_messaging_operation(
                             trace_operation, cloud_provider="aws", cloud_service="sns", direction=SpanDirection.OUTBOUND
                         )
@@ -499,10 +499,10 @@ def patched_api_call(original_func, instance, args, kwargs):
                 queue_url = params["QueueUrl"]
                 queue_name = queue_url[queue_url.rfind("/") + 1 :]
 
-                if "MessageAttributeNames" not in args[1]:
-                    args[1].update({"MessageAttributeNames": ["_datadog"]})
-                elif "_datadog" not in args[1]["MessageAttributeNames"]:
-                    args[1].update({"MessageAttributeNames": args[1]["MessageAttributeNames"] + ["_datadog"]})
+                if "MessageAttributeNames" not in params:
+                    params.update({"MessageAttributeNames": ["_datadog"]})
+                elif "_datadog" not in params["MessageAttributeNames"]:
+                    params.update({"MessageAttributeNames": params["MessageAttributeNames"] + ["_datadog"]})
 
                 result = original_func(*args, **kwargs)
                 _set_response_metadata_tags(span, result)
