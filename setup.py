@@ -329,9 +329,9 @@ class CMakeBuild(build_ext):
                         #     "-arch x86_64 -arch arm64" if os.getenv("PLAT").endswith("universal2") else ""
                         # )
                         # archs = re.findall(r"-arch (\S+)", os.environ.get("ARCHFLAGS", default_platforms))
-                        archs = re.findall(r"-arch (\S+)", os.environ.get("ARCHFLAGS", ""))
-                        if archs:
-                            cmake_args += ["-DBUILD_MACOS=ON", "-DCMAKE_OSX_ARCHITECTURES={}".format(";".join(archs))]
+                        # archs = re.findall(r"-arch (\S+)", os.environ.get("ARCHFLAGS", ""))
+                        # if archs:
+                        #     cmake_args += ["-DBUILD_MACOS=ON", "-DCMAKE_OSX_ARCHITECTURES={}".format(";".join(archs))]
 
                     # Set CMAKE_BUILD_PARALLEL_LEVEL to control the parallel build level
                     # across all generators.
