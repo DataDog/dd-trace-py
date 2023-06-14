@@ -142,7 +142,7 @@ def unwind_params(params):
         yield None
         return
 
-    for _ in product(*(((k, v) for v in vs) for k, vs in params.items())):
+    for _ in product(*([(k, v) for v in vs] for k, vs in params.items())):
         yield dict(_)
 
 
