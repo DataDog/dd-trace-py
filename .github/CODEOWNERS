@@ -16,6 +16,14 @@ releasenotes/                       @DataDog/apm-python
 tests/snapshots/                    @DataDog/apm-python
 riotfile.py                         @DataDog/apm-python
 
+# Core
+tests/internal                      @DataDog/apm-core-python
+tests/lib-injection                 @DataDog/apm-core-python
+tests/opentelemetry                 @DataDog/apm-core-python
+tests/opentracer                    @DataDog/apm-core-python
+tests/runtime                       @DataDog/apm-core-python
+tests/tracer                        @DataDog/apm-core-python
+
 # CI App
 ddtrace/contrib/pytest/             @DataDog/apm-core-python @DataDog/ci-app-libraries
 ddtrace/contrib/pytest_bdd/         @DataDog/apm-core-python @DataDog/ci-app-libraries
@@ -55,14 +63,6 @@ tests/profiling                     @DataDog/profiling-python @DataDog/apm-core-
 # Remote Config
 ddtrace/internal/remoteconfig       @DataDog/remote-config @DataDog/apm-core-python
 tests/internal/remoteconfig         @DataDog/remote-config @DataDog/apm-core-python
-
-# Core
-tests/internal                      @DataDog/apm-core-python
-tests/lib-injection                 @DataDog/apm-core-python
-tests/opentelemetry                 @DataDog/apm-core-python
-tests/opentracer                    @DataDog/apm-core-python
-tests/runtime                       @DataDog/apm-core-python
-tests/tracer                        @DataDog/apm-core-python
 
 # Guild
 # Note that core is added here since 2 reviewers are required. The guild isn't
