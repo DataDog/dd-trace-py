@@ -173,6 +173,8 @@ def _traced_execute(func, args, kwargs):
     ) as span:
         span.set_tag_str(COMPONENT, config.graphql.integration_name)
 
+        span.set_tag(SPAN_MEASURED_KEY)
+
         _set_span_operation_tags(span, document)
         span.set_tag_str(_GRAPHQL_SOURCE, source_str)
 
