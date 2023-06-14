@@ -1,5 +1,6 @@
 # 3p
 import pymemcache
+from pymemcache.client.base import Client
 from pymemcache.exceptions import MemcacheClientError
 from pymemcache.exceptions import MemcacheIllegalInputError
 from pymemcache.exceptions import MemcacheServerError
@@ -272,8 +273,15 @@ class PymemcacheHashClientTestCase(PymemcacheClientTestCaseMixin):
         tracer = DummyTracer()
         Pin.override(pymemcache, tracer=tracer)
         self.client = HashClient([(TEST_HOST, TEST_PORT)], **kwargs)
-        for _c in self.client.clients.values():
-            _c.sock = MockSocket(list(mock_socket_values))
+
+        class _MockClient(Client):
+            def _connect(self):
+                self.sock = MockSocket(list(mock_socket_values))
+
+        for inner_client in self.client.clients.values():
+            inner_client.client_class = _MockClient
+            inner_client.sock = MockSocket(list(mock_socket_values))
+
         return self.client
 
     def test_patched_hash_client(self):
@@ -312,6 +320,15 @@ class PymemcacheHashClientTestCase(PymemcacheClientTestCaseMixin):
         assert len(spans) == 2
         self.assertEqual(spans[0].service, "testsvcname")
         self.assertEqual(spans[1].service, "testsvcname")
+
+    def test_service_name_override_hashclient_pooling(self):
+        client = self.make_client([b""], use_pooling=True)
+        Pin.override(client, service="testsvcname")
+        client.set(b"key", b"value")
+        assert len(client.clients) == 1
+        spans = self.get_spans()
+        assert len(spans) == 1
+        self.assertEqual(spans[0].service, "testsvcname")
 
 
 class PymemcacheClientConfiguration(TracerTestCase):
