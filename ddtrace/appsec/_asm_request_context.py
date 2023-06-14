@@ -99,6 +99,10 @@ def unregister(span):
     env = _ASM.get()
     if env.span_asm_context is not None and env.span is span:
         env.span_asm_context.__exit__(None, None, None)
+    elif env.span is span:
+        # needed for api security flushing information before end of the span
+        for function in GLOBAL_CALLBACKS.get(_CONTEXT_CALL, []):
+            function(env)
 
 
 class _DataHandler:
