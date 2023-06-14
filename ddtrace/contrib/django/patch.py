@@ -16,7 +16,6 @@ from ddtrace import Pin
 from ddtrace import config
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec import utils as appsec_utils
-from ddtrace.appsec._constants import IAST
 from ddtrace.appsec.iast._patch import if_iast_taint_returned_object_for
 from ddtrace.appsec.iast._util import _is_iast_enabled
 from ddtrace.constants import SPAN_KIND
@@ -35,6 +34,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
+from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.settings.integration import IntegrationConfig
 from ddtrace.vendor import wrapt
@@ -288,26 +288,36 @@ def traced_func(django, name, resource=None, ignored_excs=None):
 
             # If IAST is enabled and we're wrapping a Django view call, taint the kwargs (view's path parameters)
             if _is_iast_enabled() and args and isinstance(args[0], django.core.handlers.wsgi.WSGIRequest):
-                from ddtrace.appsec.iast._taint_tracking import Source
+                from ddtrace.appsec.iast._taint_tracking import OriginType  # noqa: F401
                 from ddtrace.appsec.iast._taint_tracking import taint_pyobject
                 from ddtrace.appsec.iast._taint_utils import LazyTaintDict
 
                 if not isinstance(args[0].COOKIES, LazyTaintDict):
                     args[0].COOKIES = LazyTaintDict(
-                        args[0].COOKIES, origins=(IAST.HTTP_REQUEST_COOKIE_NAME, IAST.HTTP_REQUEST_COOKIE_VALUE)
+                        args[0].COOKIES, origins=(OriginType.COOKIE_NAME, OriginType.COOKIE)
                     )
-                args[0].path = taint_pyobject(args[0].path, Source("path", args[0].path, IAST.HTTP_REQUEST_PATH))
+                args[0].path = taint_pyobject(
+                    args[0].path, source_name="path", source_value=args[0].path, source_origin=OriginType.PATH
+                )
                 args[0].path_info = taint_pyobject(
-                    args[0].path_info, Source("path", args[0].path, IAST.HTTP_REQUEST_PATH)
+                    args[0].path_info,
+                    source_name="path",
+                    source_value=args[0].path,
+                    source_origin=OriginType.PATH,
                 )
                 args[0].environ["PATH_INFO"] = taint_pyobject(
-                    args[0].environ["PATH_INFO"], Source("path", args[0].path, IAST.HTTP_REQUEST_PATH)
+                    args[0].environ["PATH_INFO"],
+                    source_name="path",
+                    source_value=args[0].path,
+                    source_origin=OriginType.PATH,
                 )
                 if kwargs:
                     try:
 
                         for k, v in kwargs.items():
-                            kwargs[k] = taint_pyobject(v, Source(k, v, IAST.HTTP_REQUEST_PATH_PARAMETER))
+                            kwargs[k] = taint_pyobject(
+                                v, source_name=k, source_value=v, source_origin=OriginType.PATH_PARAMETER
+                            )
                     except Exception:
                         log.debug("IAST: Unexpected exception while tainting path parameters", exc_info=True)
 
@@ -455,7 +465,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
         headers_case_sensitive=django.VERSION < (2, 2),
     ):
         with pin.tracer.trace(
-            schematize_url_operation("django.request", protocol="http", direction="inbound"),
+            schematize_url_operation("django.request", protocol="http", direction=SpanDirection.INBOUND),
             resource=utils.REQUEST_DEFAULT_RESOURCE,
             service=trace_utils.int_service(pin, config.django),
             span_type=SpanTypes.WEB,
@@ -660,7 +670,7 @@ def traced_get_asgi_application(django, pin, func, instance, args, kwargs):
     from ddtrace.contrib.asgi import TraceMiddleware
 
     def django_asgi_modifier(span, scope):
-        span.name = schematize_url_operation("django.request", protocol="http", direction="inbound")
+        span.name = schematize_url_operation("django.request", protocol="http", direction=SpanDirection.INBOUND)
 
     return TraceMiddleware(func(*args, **kwargs), integration_config=config.django, span_modifier=django_asgi_modifier)
 
@@ -696,14 +706,16 @@ def _patch(django):
         )
 
     when_imported("django.core.handlers.wsgi")(lambda m: trace_utils.wrap(m, "WSGIRequest.__init__", wrap_wsgi_environ))
+    if _is_iast_enabled():
+        from ddtrace.appsec.iast._taint_tracking import OriginType  # noqa: F401
 
-    when_imported("django.http.request")(
-        lambda m: trace_utils.wrap(
-            m,
-            "QueryDict.__getitem__",
-            functools.partial(if_iast_taint_returned_object_for, IAST.HTTP_REQUEST_PARAMETER),
+        when_imported("django.http.request")(
+            lambda m: trace_utils.wrap(
+                m,
+                "QueryDict.__getitem__",
+                functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER),
+            )
         )
-    )
 
     @when_imported("django.core.handlers.base")
     def _(m):
@@ -756,11 +768,11 @@ def wrap_wsgi_environ(wrapped, _instance, args, kwargs):
         if not args:
             return wrapped(*args, **kwargs)
 
+        from ddtrace.appsec.iast._taint_tracking import OriginType  # noqa: F401
         from ddtrace.appsec.iast._taint_utils import LazyTaintDict
 
         return wrapped(
-            *((LazyTaintDict(args[0], origins=(IAST.HTTP_REQUEST_HEADER_NAME, IAST.HTTP_REQUEST_HEADER)),) + args[1:]),
-            **kwargs
+            *((LazyTaintDict(args[0], origins=(OriginType.HEADER_NAME, OriginType.HEADER)),) + args[1:]), **kwargs
         )
 
     return wrapped(*args, **kwargs)

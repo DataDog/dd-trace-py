@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-from ddtrace.appsec.iast._taint_tracking import Source
 from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
 from ddtrace.appsec.iast._taint_tracking import taint_pyobject
 from ddtrace.internal.logger import get_logger

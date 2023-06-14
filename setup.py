@@ -3,21 +3,17 @@ import os
 import platform
 import shutil
 import sys
-import tarfile
-import glob
-import os
 import re
-import subprocess
-import sys
-from pathlib import Path
+import tarfile
 
 from setuptools import Extension, setup
 from setuptools.command.build_ext import build_ext
 from setuptools import setup, find_packages, Extension
-from setuptools.command.build_ext import build_ext as BuildExtCommand
+from setuptools.command.build_ext import build_ext
 from setuptools.command.build_py import build_py as BuildPyCommand
 from pkg_resources import get_build_platform
 from distutils.command.clean import clean as CleanCommand
+
 
 try:
     # ORDER MATTERS
@@ -31,14 +27,6 @@ except ImportError:
         "version >=18.\nSee the quickstart documentation for more information:\n"
         "https://ddtrace.readthedocs.io/en/stable/installation_quickstart.html"
     )
-
-try:
-    # ORDER MATTERS
-    # Import this after setuptools or it will fail
-    from pybind11.setup_helpers import Pybind11Extension
-except ImportError:
-    raise ImportError("Failed to import pybind11 modules")
-
 
 if sys.version_info >= (3, 0):
     from urllib.error import HTTPError
@@ -339,10 +327,94 @@ class CleanLibraries(CleanCommand):
     def remove_artifacts():
         shutil.rmtree(LIBDDWAF_DOWNLOAD_DIR, True)
         shutil.rmtree(LIBDATADOG_PROF_DOWNLOAD_DIR, True)
+        shutil.rmtree(os.path.join(IAST_DIR, "*.so"), True)
 
     def run(self):
         CleanLibraries.remove_artifacts()
         CleanCommand.run(self)
+
+
+class CMakeBuild(build_ext):
+    def build_extension(self, ext):
+        tmp_iast_file_path = os.path.abspath(self.get_ext_fullpath(ext.name))
+        tmp_iast_path = os.path.join(os.path.dirname(tmp_iast_file_path))
+        tmp_filename = tmp_iast_file_path.replace(tmp_iast_path + os.path.sep, "")
+
+        if sys.version_info >= (3, 6, 0) and ext.name == "ddtrace.appsec.iast._taint_tracking._native":
+            cmake_list_path = os.path.join(IAST_DIR, "CMakeLists.txt")
+            if os.path.exists(cmake_list_path):
+                import shutil
+
+                os.makedirs(tmp_iast_path, exist_ok=True)
+                if not os.path.exists(os.path.join(IAST_DIR, tmp_filename)):
+                    import subprocess
+
+                    cmake_command = os.environ.get("CMAKE_COMMAND", "cmake")
+                    # build_type = "RelWithDebInfo" if DEBUG_COMPILE else "Release"
+                    build_type = "RelWithDebInfo"
+                    build_args = ["--config", build_type]
+                    cmake_args = [
+                        "-S",
+                        IAST_DIR,
+                        "-DCMAKE_LIBRARY_OUTPUT_DIRECTORY={}".format(tmp_iast_path),
+                        "-B",
+                        tmp_iast_path,
+                        "-DPython_EXECUTABLE={}".format(sys.executable),
+                        "-DCMAKE_BUILD_TYPE={}".format(build_type),  # not used on MSVC, but no harm
+                    ]
+
+                    if CURRENT_OS == "Windows":
+                        cmake_args.extend(["-A", "x64" if platform.architecture()[0] == "64bit" else "Win32"])
+
+                    if CURRENT_OS == "Darwin":
+                        # Cross-compile support for macOS - respect ARCHFLAGS if set
+                        archs = re.findall(r"-arch (\S+)", os.environ.get("ARCHFLAGS", ""))
+                        if archs:
+                            cmake_args += ["-DCMAKE_OSX_ARCHITECTURES={}".format(";".join(archs))]
+
+                    # Set CMAKE_BUILD_PARALLEL_LEVEL to control the parallel build level
+                    # across all generators.
+                    if "CMAKE_BUILD_PARALLEL_LEVEL" not in os.environ:
+                        # self.parallel is a Python 3 only way to set parallel jobs by hand
+                        # using -j in the build_ext call, not supported by pip or PyPA-build.
+                        if hasattr(self, "parallel") and self.parallel:
+                            # CMake 3.12+ only.
+                            build_args += ["-j{}".format(self.parallel)]
+
+                    subprocess.run(
+                        [
+                            cmake_command,
+                        ]
+                        + cmake_args,
+                        cwd=tmp_iast_path,
+                        check=True,
+                    )
+                    subprocess.run(
+                        [
+                            cmake_command,
+                            "--build",
+                            tmp_iast_path,
+                        ]
+                        + build_args,
+                        cwd=tmp_iast_path,
+                        check=True,
+                    )
+                print("IAST TMP FOLDER!!!!")
+                res = os.listdir(tmp_iast_path)
+                print(tmp_iast_path)
+                print(res)
+                print("IAST FOLDER!!!!")
+                res = os.listdir(IAST_DIR)
+                print(IAST_DIR)
+                print(res)
+                if os.path.exists(os.path.join(IAST_DIR, tmp_filename)):
+                    shutil.copy(os.path.join(IAST_DIR, tmp_filename), tmp_iast_file_path)
+                print("IAST TMP FOLDER2!!!!")
+                res = os.listdir(tmp_iast_path)
+                print(tmp_iast_file_path)
+                print(res)
+        else:
+            build_ext.build_extension(self, ext)
 
 
 long_description = """
@@ -451,7 +523,8 @@ if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
                 extra_compile_args=debug_compile_args,
             )
         )
-
+        if sys.version_info >= (3, 6, 0):
+            ext_modules.append(Extension("ddtrace.appsec.iast._taint_tracking._native", sources=[]))
 else:
     ext_modules = []
 
@@ -487,6 +560,7 @@ setup(
     package_data={
         "ddtrace.appsec": ["rules.json"],
         "ddtrace.appsec.ddwaf": [os.path.join("libddwaf", "*", "lib", "libddwaf.*")],
+        "ddtrace.appsec.iast._taint_tracking": ["CMakeLists.txt"],
     },
     python_requires=">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*",
     zip_safe=False,
@@ -515,6 +589,8 @@ setup(
         "envier",
         "pep562; python_version<'3.7'",
         "opentelemetry-api>=1; python_version>='3.7'",
+        "pybind11~=2.7; python_version>='3.6'",
+        "cmake>=3.24.2; python_version>='3.6'",
     ]
     + bytecode,
     extras_require={
@@ -524,8 +600,8 @@ setup(
     },
     tests_require=["flake8"],
     cmdclass={
-        "build_ext": BuildExtCommand,
-        "build_py": LibraryInstaller,
+        "build_ext": CMakeBuild,
+        "build_py": LibraryDownloader,
         "clean": CleanLibraries,
     },
     entry_points={

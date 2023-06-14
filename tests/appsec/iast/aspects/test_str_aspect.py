@@ -1,18 +1,10 @@
 import pytest
 
 from ddtrace.appsec.iast import oce
-from ddtrace.appsec.iast._taint_tracking import OriginType
-from ddtrace.appsec.iast._taint_tracking import Source
-from ddtrace.appsec.iast._taint_tracking import TaintRange
 from ddtrace.appsec.iast._taint_tracking import as_formatted_evidence
-from ddtrace.appsec.iast._taint_tracking import contexts_reset
-from ddtrace.appsec.iast._taint_tracking import create_context
-from ddtrace.appsec.iast._taint_tracking import get_tainted_ranges
-from ddtrace.appsec.iast._taint_tracking import taint_pyobject
 from tests.appsec.iast.aspects.aspect_utils import BaseReplacement
 from tests.appsec.iast.aspects.aspect_utils import create_taint_range_with_format
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
-
 
 mod = _iast_patched_module("tests.appsec.iast.fixtures.aspects.str_methods")
 
@@ -60,6 +52,7 @@ def test_str_aspect(obj, kwargs):
 )
 def test_str_aspect_tainting(obj, kwargs, should_be_tainted):
     from ddtrace.appsec.iast._taint_dict import clear_taint_mapping
+    from ddtrace.appsec.iast._taint_tracking import OriginType
     from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
     from ddtrace.appsec.iast._taint_tracking import setup
     from ddtrace.appsec.iast._taint_tracking import taint_pyobject
@@ -69,10 +62,7 @@ def test_str_aspect_tainting(obj, kwargs, should_be_tainted):
     clear_taint_mapping()
     if should_be_tainted:
         obj = taint_pyobject(
-            pyobject=obj,
-            source_name="test_str_aspect_tainting",
-            source_value=repr(obj),
-            source_origin=OriginType.PARAMETER,
+            obj, source_name="test_str_aspect_tainting", source_value=obj, source_origin=OriginType.PARAMETER
         )
 
     result = ddtrace_aspects.str_aspect(obj, **kwargs)

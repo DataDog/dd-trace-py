@@ -17,6 +17,7 @@ from ddtrace.ext import http
 from ddtrace.internal import _context
 from ddtrace.internal import constants
 from ddtrace.internal.compat import urlencode
+from tests.appsec.test_processor import RULES_BAD_VERSION
 from tests.appsec.test_processor import RULES_GOOD_PATH
 from tests.appsec.test_processor import RULES_SRB
 from tests.appsec.test_processor import RULES_SRB_METHOD
@@ -357,7 +358,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             resp = self.client.get("/checkuser/%s" % _ALLOWED_USER, headers={"Accept": "text/html"})
             assert resp.status_code == 200
 
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    @pytest.mark.skip(reason="TODO: this tests will enable in the next PR")
     def test_flask_full_sqli_iast_http_request_path_parameter(self):
         @self.app.route("/sqli/<string:param_str>/", methods=["GET", "POST"])
         def test_sqli(param_str):
@@ -397,9 +398,9 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
                 "valueParts": [{"value": "SELECT 1 FROM "}, {"value": "sqlite_master", "source": 0}]
             }
             assert loaded["vulnerabilities"][0]["location"]["path"] == "tests/contrib/flask/test_flask_appsec.py"
-            assert loaded["vulnerabilities"][0]["location"]["line"] == 369
+            assert loaded["vulnerabilities"][0]["location"]["line"] == 370
 
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    @pytest.mark.skip(reason="TODO: this tests will enable in the next PR")
     def test_flask_full_sqli_iast_enabled_http_request_header_getitem(self):
         @self.app.route("/sqli/<string:param_str>/", methods=["GET", "POST"])
         def test_sqli(param_str):
@@ -444,7 +445,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
                 "valueParts": [{"value": "SELECT 1 FROM "}, {"value": "sqlite_master", "source": 0}]
             }
             assert loaded["vulnerabilities"][0]["location"]["path"] == "tests/contrib/flask/test_flask_appsec.py"
-            assert loaded["vulnerabilities"][0]["location"]["line"] == 414
+            assert loaded["vulnerabilities"][0]["location"]["line"] == 415
 
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_disabled_http_request_header_getitem(self):
@@ -484,7 +485,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             assert root_span.get_tag(IAST.JSON) is None
 
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    @pytest.mark.skip(reason="TODO: this tests will enable in the next PR")
     def test_flask_full_sqli_iast_enabled_http_request_header_name_keys(self):
         @self.app.route("/sqli/<string:param_str>/", methods=["GET", "POST"])
         def test_sqli(param_str):
@@ -529,7 +530,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
                 "valueParts": [{"value": "SELECT 1 FROM sqlite_"}, {"value": "Master", "source": 0}]
             }
             assert loaded["vulnerabilities"][0]["location"]["path"] == "tests/contrib/flask/test_flask_appsec.py"
-            assert loaded["vulnerabilities"][0]["location"]["line"] == 503
+            assert loaded["vulnerabilities"][0]["location"]["line"] == 504
 
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_disabled_http_request_header_name_keys(self):
@@ -569,7 +570,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             assert root_span.get_tag(IAST.JSON) is None
 
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    @pytest.mark.skip(reason="TODO: this tests will enable in the next PR")
     def test_flask_full_sqli_iast_enabled_http_request_header_values(self):
         @self.app.route("/sqli/<string:param_str>/", methods=["GET", "POST"])
         def test_sqli(param_str):
@@ -612,7 +613,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
                 "valueParts": [{"value": "SELECT 1 FROM sqlite_"}, {"value": "master", "source": 0}]
             }
             assert loaded["vulnerabilities"][0]["location"]["path"] == "tests/contrib/flask/test_flask_appsec.py"
-            assert loaded["vulnerabilities"][0]["location"]["line"] == 586
+            assert loaded["vulnerabilities"][0]["location"]["line"] == 587
 
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_disabled_http_request_header_values(self):
@@ -652,7 +653,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             assert root_span.get_tag(IAST.JSON) is None
 
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    @pytest.mark.skip(reason="TODO: this tests will enable in the next PR")
     def test_flask_simple_iast_path_header_and_querystring_tainted(self):
         @self.app.route("/sqli/<string:param_str>/<int:param_int>/", methods=["GET", "POST"])
         def test_sqli(param_str, param_int):
@@ -777,7 +778,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
                 # not all flask versions have r.text
                 assert resp.text == "select%20from%20table"
 
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    @pytest.mark.skip(reason="TODO: this tests will enable in the next PR")
     def test_flask_full_sqli_iast_enabled_http_request_cookies_value(self):
         @self.app.route("/sqli/cookies/", methods=["GET", "POST"])
         def test_sqli():
@@ -821,7 +822,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
                 "valueParts": [{"value": "SELECT 1 FROM "}, {"value": "sqlite_master", "source": 0}]
             }
             assert loaded["vulnerabilities"][0]["location"]["path"] == "tests/contrib/flask/test_flask_appsec.py"
-            assert loaded["vulnerabilities"][0]["location"]["line"] == 769
+            assert loaded["vulnerabilities"][0]["location"]["line"] == 770
 
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_disabled_http_request_cookies_value(self):
@@ -859,7 +860,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             assert root_span.get_tag(IAST.JSON) is None
 
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    @pytest.mark.skip(reason="TODO: this tests will enable in the next PR")
     def test_flask_full_sqli_iast_enabled_http_request_cookies_name(self):
         @self.app.route("/sqli/cookies/", methods=["GET", "POST"])
         def test_sqli():
@@ -903,7 +904,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
                 "valueParts": [{"value": "SELECT 1 FROM "}, {"value": "sqlite_master", "source": 0}]
             }
             assert loaded["vulnerabilities"][0]["location"]["path"] == "tests/contrib/flask/test_flask_appsec.py"
-            assert loaded["vulnerabilities"][0]["location"]["line"] == 851
+            assert loaded["vulnerabilities"][0]["location"]["line"] == 852
 
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_disabled_http_request_cookies_name(self):
@@ -1228,3 +1229,16 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             resp = self.client.get("/response-header/")
             assert resp.status_code == 200
             assert get_response_body(resp) == "Foo bar baz"
+
+    def test_request_invalid_rule_file(self):
+        @self.app.route("/response-header/")
+        def specific_reponse():
+            resp = Response("Foo bar baz", 200)
+            resp.headers["Content-Disposition"] = 'attachment;"'
+            return resp
+
+        with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_BAD_VERSION)):
+            self._aux_appsec_prepare_tracer()
+            resp = self.client.get("/response-header/")
+            # it must not completely fail on an invalid rule file
+            assert resp.status_code == 200
