@@ -380,12 +380,12 @@ pyexport_initializer(py::module& m)
     m.def("reset_stdlib_paths_and_modules", [] { initializer->reset_stdlib_paths_and_modules(); });
 
     m.def(
-            "create_context", []() { return initializer->create_context(); },
-            py::return_value_policy::reference);
+      "create_context", []() { return initializer->create_context(); }, py::return_value_policy::reference);
     m.def(
-            "get_context", [](const size_t tx_id) { return
-                    initializer->get_context(tx_id); },
-            py::return_value_policy::reference, "tx_id"_a = 0);
+      "get_context",
+      [](const size_t tx_id) { return initializer->get_context(tx_id); },
+      py::return_value_policy::reference,
+      "tx_id"_a = 0);
     m.def("contexts_reset", [] { initializer->contexts_reset(); });
 
     // TODO: Migrate/change this when the new TaintedMap is merged
