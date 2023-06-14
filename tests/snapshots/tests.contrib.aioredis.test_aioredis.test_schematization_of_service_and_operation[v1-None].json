@@ -1,0 +1,72 @@
+[[
+  {
+    "name": "redis.command",
+    "service": "unnamed-python-service",
+    "resource": "SET cheese my-cheese",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "redis",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.peer.service.source": "out.host",
+      "component": "aioredis",
+      "db.system": "redis",
+      "language": "python",
+      "out.host": "127.0.0.1",
+      "peer.service": "127.0.0.1",
+      "redis.command": "SET cheese my-cheese",
+      "runtime-id": "dd4625523e5e480193e28344bc81948b",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "network.destination.port": 6379,
+      "out.redis_db": 0,
+      "process_id": 3718,
+      "redis.args_length": 3
+    },
+    "duration": 660000,
+    "start": 1684870689587616005
+  }],
+[
+  {
+    "name": "redis.command",
+    "service": "unnamed-python-service",
+    "resource": "FLUSHALL",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "redis",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.peer.service.source": "out.host",
+      "component": "aioredis",
+      "db.system": "redis",
+      "language": "python",
+      "out.host": "127.0.0.1",
+      "peer.service": "127.0.0.1",
+      "redis.command": "FLUSHALL",
+      "runtime-id": "dd4625523e5e480193e28344bc81948b",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "network.destination.port": 6379,
+      "out.redis_db": 0,
+      "process_id": 3718,
+      "redis.args_length": 1
+    },
+    "duration": 1494458,
+    "start": 1684870689620479755
+  }]]

@@ -6,6 +6,7 @@ from pyramid.settings import asbool
 import ddtrace
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.vendor import wrapt
 
 from .. import trace_utils
@@ -75,7 +76,7 @@ def trace_tween_factory(handler, registry):
                 tracer, int_config=config.pyramid, request_headers=request.headers, override=distributed_tracing
             )
 
-            span_name = schematize_url_operation("pyramid.request", protocol="http", direction="inbound")
+            span_name = schematize_url_operation("pyramid.request", protocol="http", direction=SpanDirection.INBOUND)
             with tracer.trace(span_name, service=service, resource="404", span_type=SpanTypes.WEB) as span:
                 span.set_tag_str(COMPONENT, config.pyramid.integration_name)
 

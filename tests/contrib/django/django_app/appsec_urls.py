@@ -77,6 +77,7 @@ def checkuser_view(request, user_id):
 
 def sqli_http_request_parameter(request):
     with connection.cursor() as cursor:
+        # label iast_enabled_sqli_http_request_parameter
         cursor.execute(request.GET["q"])
 
     return HttpResponse(request.META["HTTP_USER_AGENT"], status=200)
@@ -86,6 +87,7 @@ def sqli_http_request_header_name(request):
     key = [x for x in request.META.keys() if x == "master"][0]
 
     with connection.cursor() as cursor:
+        # label iast_enabled_sqli_http_request_header_name
         cursor.execute(add_aspect("SELECT 1 FROM sqlite_", key))
 
     return HttpResponse(request.META["master"], status=200)
@@ -95,6 +97,7 @@ def sqli_http_request_header_value(request):
     value = [x for x in request.META.values() if x == "master"][0]
 
     with connection.cursor() as cursor:
+        # label iast_enabled_sqli_http_request_header_value
         cursor.execute(add_aspect("SELECT 1 FROM sqlite_", value))
 
     return HttpResponse(request.META["HTTP_USER_AGENT"], status=200)
@@ -105,6 +108,7 @@ def sqli_http_path_parameter(request, q_http_path_parameter):
 
     with connection.cursor() as cursor:
         query = add_aspect("SELECT 1 from ", q_http_path_parameter)
+        # label iast_enabled_full_sqli_http_path_parameter
         cursor.execute(query)
 
     return HttpResponse(request.META["HTTP_USER_AGENT"], status=200)
@@ -168,6 +172,7 @@ def sqli_http_request_cookie_name(request):
     key = [x for x in request.COOKIES.keys() if x == "master"][0]
 
     with connection.cursor() as cursor:
+        # label iast_enabled_sqli_http_cookies_name
         cursor.execute(add_aspect("SELECT 1 FROM sqlite_", key))
 
     return HttpResponse(request.COOKIES["master"], status=200)
@@ -177,6 +182,7 @@ def sqli_http_request_cookie_value(request):
     value = [x for x in request.COOKIES.values() if x == "master"][0]
 
     with connection.cursor() as cursor:
+        # label iast_enabled_sqli_http_cookies_value
         cursor.execute(add_aspect("SELECT 1 FROM sqlite_", value))
 
     return HttpResponse(request.COOKIES["master"], status=200)
