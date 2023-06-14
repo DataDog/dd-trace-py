@@ -1,9 +1,3 @@
-from django.conf.urls import handler404  # noqa
-from django.conf.urls import handler500
-from django.conf.urls import include
-from django.conf.urls import url
-
-
 # Uncomment the next two lines to enable the admin:
 # from django.contrib import admin
 # admin.autodiscover()

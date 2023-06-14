@@ -4,7 +4,9 @@
 #include <iostream>
 #include <tuple>
 
-PyObject *setup(PyObject *Py_UNUSED(module), PyObject *args);
+PyObject*
+setup(PyObject* Py_UNUSED(module), PyObject* args);
 
-PyObject *new_pyobject_id(PyObject *Py_UNUSED(module), PyObject *args);
+PyObject*
+new_pyobject_id(PyObject* Py_UNUSED(module), PyObject* args);
 #endif //_TAINT_TRACKING_TAINTEDOBJECT_H

@@ -241,19 +241,17 @@ class _ChatCompletionHook(_BaseCompletionHook):
 
 
 class _EmbeddingHook(_EndpointHook):
+    _request_tag_attrs = ["model", "user"]
     _default_name = "embeddings"
 
     def _pre_response(self, pin, integration, span, args, kwargs):
-        for kw_attr in ["model", "input", "user"]:
-            if kw_attr in kwargs:
-                if kw_attr == "input" and integration.is_pc_sampled_span(span):
-                    if isinstance(kwargs["input"], list):
-                        for idx, inp in enumerate(kwargs["input"]):
-                            span.set_tag_str("openai.request.input.%d" % idx, integration.trunc(str(inp)))
-                    else:
-                        span.set_tag("openai.request.%s" % kw_attr, kwargs[kw_attr])
-                else:
-                    span.set_tag("openai.request.%s" % kw_attr, kwargs[kw_attr])
+        embedding_input = kwargs.get("input", "")
+        if integration.is_pc_sampled_span(span):
+            if isinstance(embedding_input, list):
+                for idx, inp in enumerate(embedding_input):
+                    span.set_tag_str("openai.request.input.%d" % idx, integration.trunc(str(inp)))
+            else:
+                span.set_tag("openai.request.input", embedding_input)
         return
 
     def _post_response(self, pin, integration, span, args, kwargs, resp, error):

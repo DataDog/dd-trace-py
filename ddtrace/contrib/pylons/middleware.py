@@ -12,6 +12,7 @@ import xmltodict
 from ddtrace import config as ddconfig
 from ddtrace.internal.compat import iteritems
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -88,7 +89,7 @@ class PylonsTraceMiddleware(object):
             self._tracer, int_config=ddconfig.pylons, request_headers=request.headers
         )
 
-        span_name = schematize_url_operation("pylons.request", protocol="http", direction="inbound")
+        span_name = schematize_url_operation("pylons.request", protocol="http", direction=SpanDirection.INBOUND)
         with self._tracer.trace(span_name, service=self._service, span_type=SpanTypes.WEB) as span:
             span.set_tag_str(COMPONENT, ddconfig.pylons.integration_name)
 
