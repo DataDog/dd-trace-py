@@ -291,7 +291,7 @@ class CleanLibraries(CleanCommand):
 
 class CMakeBuild(build_ext):
     def build_extension(self, ext):
-        tmp_iast_file_path = self.get_ext_fullpath(ext.name)
+        tmp_iast_file_path = os.path.abspath(self.get_ext_fullpath(ext.name))
         tmp_iast_path = os.path.join(os.path.dirname(tmp_iast_file_path))
         tmp_filename = tmp_iast_file_path.replace(tmp_iast_path + os.path.sep, "")
 
@@ -331,7 +331,7 @@ class CMakeBuild(build_ext):
                     )
                 print("IAST TMP FOLDER!!!!")
                 res = os.listdir(tmp_iast_path)
-                print(tmp_iast_file_path)
+                print(tmp_iast_path)
                 print(res)
                 print("IAST FOLDER!!!!")
                 res = os.listdir(IAST_DIR)
