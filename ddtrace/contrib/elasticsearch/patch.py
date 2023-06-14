@@ -3,6 +3,7 @@ from importlib import import_module
 from ddtrace import config
 from ddtrace._tracing import _limits
 from ddtrace.contrib.trace_utils import ext_service
+from ddtrace.ext import net
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
@@ -14,6 +15,7 @@ from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...ext import elasticsearch as metadata
 from ...ext import http
+from ...internal.compat import parse
 from ...internal.compat import urlencode
 from ...internal.schema import schematize_service_name
 from ...internal.utils.wrappers import unwrap as _u
@@ -106,6 +108,12 @@ def _get_perform_request(elasticsearch):
             span.set_tag_str(metadata.METHOD, method)
             span.set_tag_str(metadata.URL, url)
             span.set_tag_str(metadata.PARAMS, encoded_params)
+            for connection in instance.connection_pool.connections:
+                hostname = parse.urlparse(connection.host).hostname
+                if hostname:
+                    span.set_tag_str(net.TARGET_HOST, hostname)
+                    break
+
             if config.elasticsearch.trace_query_string:
                 span.set_tag_str(http.QUERY_STRING, encoded_params)
 
