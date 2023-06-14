@@ -172,7 +172,7 @@ else:
 
 
 if PYTHON_VERSION_INFO[0:2] >= (3, 5):
-    from asyncio import iscoroutinefunction
+    from inspect import iscoroutinefunction
 
     # Execute from a string to get around syntax errors from `yield from`
     # DEV: The idea to do this was stolen from `six`
@@ -181,7 +181,6 @@ if PYTHON_VERSION_INFO[0:2] >= (3, 5):
         textwrap.dedent(
             """
     import functools
-    import asyncio
 
 
     def make_async_decorator(tracer, coro, *params, **kw_params):
