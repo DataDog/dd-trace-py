@@ -6,8 +6,6 @@ import sys
 import re
 import tarfile
 
-from setuptools import Extension, setup
-from setuptools.command.build_ext import build_ext
 from setuptools import setup, find_packages, Extension
 from setuptools.command.build_ext import build_ext
 from setuptools.command.build_py import build_py as BuildPyCommand
@@ -116,7 +114,7 @@ def is_64_bit_python():
     return sys.maxsize > (1 << 32)
 
 
-class LibraryDownload:
+class LibraryDownloader:
     name = None
     download_dir = None
     version = None
@@ -207,7 +205,7 @@ class LibraryDownload:
         cls.download_artifacts()
 
 
-class LibDDWafDownload(LibraryDownload):
+class LibDDWafDownload(LibraryDownloader):
     name = "ddwaf"
     download_dir = LIBDDWAF_DOWNLOAD_DIR
     version = LIBDDWAF_VERSION
