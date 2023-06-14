@@ -67,7 +67,7 @@ def test_send_metric_flush_and_generate_metrics_series_is_restarted(
 ):
     """Check the queue of metrics is empty after run periodic method of PeriodicService"""
     with override_global_config(dict(_telemetry_metrics_enabled=True)):
-        telemetry_metrics_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric2", 1, {"a": "b"})
+        telemetry_metrics_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric2", 1, (("a", "b"),))
         expected_series = [
             {
                 "common": True,
@@ -80,7 +80,7 @@ def test_send_metric_flush_and_generate_metrics_series_is_restarted(
 
         _assert_metric(test_agent_metrics_session, expected_series)
 
-        telemetry_metrics_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric2", 1, {"a": "b"})
+        telemetry_metrics_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric2", 1, (("a", "b"),))
 
         _assert_metric(test_agent_metrics_session, expected_series, seq_id=2)
 
@@ -94,8 +94,8 @@ def test_send_metric_datapoint_equal_type_and_tags_yields_single_series(
     https://www.datadoghq.com/blog/the-power-of-tagged-metrics/#whats-a-metric-tag
     """
     with override_global_config(dict(_telemetry_metrics_enabled=True)):
-        telemetry_metrics_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 2, {"a": "b"})
-        telemetry_metrics_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 3, {"a": "b"})
+        telemetry_metrics_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 2, (("a", "b"),))
+        telemetry_metrics_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 3, (("a", "b"),))
 
         expected_series = [
             {
@@ -119,11 +119,17 @@ def test_send_metric_datapoint_equal_type_different_tags_yields_multiple_series(
     https://www.datadoghq.com/blog/the-power-of-tagged-metrics/#whats-a-metric-tag
     """
     with override_global_config(dict(_telemetry_metrics_enabled=True)):
-        telemetry_metrics_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 4, {"a": "b"})
+        telemetry_metrics_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 4, (("a", "b"),))
         telemetry_metrics_writer.add_count_metric(
-            TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 5, {"a": "b", "c": True}
+            TELEMETRY_NAMESPACE_TAG_TRACER,
+            "test-metric",
+            5,
+            (
+                ("a", "b"),
+                ("c", "True"),
+            ),
         )
-        telemetry_metrics_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 6, {})
+        telemetry_metrics_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 6, tuple())
 
         expected_series = [
             {
@@ -159,8 +165,8 @@ def test_send_metric_datapoint_with_different_types(telemetry_metrics_writer, te
     https://www.datadoghq.com/blog/the-power-of-tagged-metrics/#whats-a-metric-tag
     """
     with override_global_config(dict(_telemetry_metrics_enabled=True)):
-        telemetry_metrics_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 1, {"a": "b"})
-        telemetry_metrics_writer.add_gauge_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 1, {"a": "b"})
+        telemetry_metrics_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 1, (("a", "b"),))
+        telemetry_metrics_writer.add_gauge_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 1, (("a", "b"),))
 
         expected_series = [
             {"common": True, "metric": "test-metric", "points": [[1642544540, 1.0]], "tags": ["a:b"], "type": "count"},
@@ -178,11 +184,17 @@ def test_send_metric_datapoint_with_different_types(telemetry_metrics_writer, te
 
 def test_send_tracers_count_metric(telemetry_metrics_writer, test_agent_metrics_session, mock_time):
     with override_global_config(dict(_telemetry_metrics_enabled=True)):
-        telemetry_metrics_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 1, {"a": "B"})
-        telemetry_metrics_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 1, {"A": "b"})
-        telemetry_metrics_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 1, {})
+        telemetry_metrics_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 1, (("a", "b"),))
+        telemetry_metrics_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 1, (("a", "b"),))
+        telemetry_metrics_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 1, tuple())
         telemetry_metrics_writer.add_count_metric(
-            TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 1, {"hi": "HELLO", "NAME": "CANDY"}
+            TELEMETRY_NAMESPACE_TAG_TRACER,
+            "test-metric",
+            1,
+            (
+                ("hi", "HELLO"),
+                ("NAME", "CANDY"),
+            ),
         )
 
         expected_series = [
@@ -214,10 +226,13 @@ def test_send_tracers_count_metric(telemetry_metrics_writer, test_agent_metrics_
 def test_send_appsec_rate_metric(telemetry_metrics_writer, test_agent_metrics_session, mock_time):
     with override_global_config(dict(_telemetry_metrics_enabled=True)):
         telemetry_metrics_writer.add_rate_metric(
-            TELEMETRY_NAMESPACE_TAG_APPSEC, "test-metric", 1, {"hi": "HELLO", "NAME": "CANDY"}
+            TELEMETRY_NAMESPACE_TAG_APPSEC,
+            "test-metric",
+            1,
+            (("hi", "HELLO"), ("NAME", "CANDY")),
         )
-        telemetry_metrics_writer.add_rate_metric(TELEMETRY_NAMESPACE_TAG_APPSEC, "test-metric", 1, {})
-        telemetry_metrics_writer.add_rate_metric(TELEMETRY_NAMESPACE_TAG_APPSEC, "test-metric", 1, {})
+        telemetry_metrics_writer.add_rate_metric(TELEMETRY_NAMESPACE_TAG_APPSEC, "test-metric", 1, tuple())
+        telemetry_metrics_writer.add_rate_metric(TELEMETRY_NAMESPACE_TAG_APPSEC, "test-metric", 1, tuple())
 
         expected_series = [
             {
@@ -244,10 +259,16 @@ def test_send_appsec_rate_metric(telemetry_metrics_writer, test_agent_metrics_se
 def test_send_appsec_gauge_metric(telemetry_metrics_writer, test_agent_metrics_session, mock_time):
     with override_global_config(dict(_telemetry_metrics_enabled=True)):
         telemetry_metrics_writer.add_gauge_metric(
-            TELEMETRY_NAMESPACE_TAG_APPSEC, "test-metric", 5, {"hi": "HELLO", "NAME": "CANDY"}
+            TELEMETRY_NAMESPACE_TAG_APPSEC,
+            "test-metric",
+            5,
+            (
+                ("hi", "HELLO"),
+                ("NAME", "CANDY"),
+            ),
         )
-        telemetry_metrics_writer.add_gauge_metric(TELEMETRY_NAMESPACE_TAG_APPSEC, "test-metric", 5, {"a": "b"})
-        telemetry_metrics_writer.add_gauge_metric(TELEMETRY_NAMESPACE_TAG_APPSEC, "test-metric", 6, {})
+        telemetry_metrics_writer.add_gauge_metric(TELEMETRY_NAMESPACE_TAG_APPSEC, "test-metric", 5, (("a", "b"),))
+        telemetry_metrics_writer.add_gauge_metric(TELEMETRY_NAMESPACE_TAG_APPSEC, "test-metric", 6, tuple())
 
         expected_series = [
             {
@@ -280,9 +301,9 @@ def test_send_appsec_gauge_metric(telemetry_metrics_writer, test_agent_metrics_s
 
 def test_send_appsec_distributions_metric(telemetry_metrics_writer, test_agent_metrics_session, mock_time):
     with override_global_config(dict(_telemetry_metrics_enabled=True)):
-        telemetry_metrics_writer.add_distribution_metric(TELEMETRY_NAMESPACE_TAG_APPSEC, "test-metric", 4, {})
-        telemetry_metrics_writer.add_distribution_metric(TELEMETRY_NAMESPACE_TAG_APPSEC, "test-metric", 5, {})
-        telemetry_metrics_writer.add_distribution_metric(TELEMETRY_NAMESPACE_TAG_APPSEC, "test-metric", 6, {})
+        telemetry_metrics_writer.add_distribution_metric(TELEMETRY_NAMESPACE_TAG_APPSEC, "test-metric", 4, tuple())
+        telemetry_metrics_writer.add_distribution_metric(TELEMETRY_NAMESPACE_TAG_APPSEC, "test-metric", 5, tuple())
+        telemetry_metrics_writer.add_distribution_metric(TELEMETRY_NAMESPACE_TAG_APPSEC, "test-metric", 6, tuple())
 
         expected_series = [
             {
@@ -304,9 +325,9 @@ def test_send_metric_flush_and_distributions_series_is_restarted(
 ):
     """Check the queue of metrics is empty after run periodic method of PeriodicService"""
     with override_global_config(dict(_telemetry_metrics_enabled=True)):
-        telemetry_metrics_writer.add_distribution_metric(TELEMETRY_NAMESPACE_TAG_APPSEC, "test-metric", 4, {})
-        telemetry_metrics_writer.add_distribution_metric(TELEMETRY_NAMESPACE_TAG_APPSEC, "test-metric", 5, {})
-        telemetry_metrics_writer.add_distribution_metric(TELEMETRY_NAMESPACE_TAG_APPSEC, "test-metric", 6, {})
+        telemetry_metrics_writer.add_distribution_metric(TELEMETRY_NAMESPACE_TAG_APPSEC, "test-metric", 4, tuple())
+        telemetry_metrics_writer.add_distribution_metric(TELEMETRY_NAMESPACE_TAG_APPSEC, "test-metric", 5, tuple())
+        telemetry_metrics_writer.add_distribution_metric(TELEMETRY_NAMESPACE_TAG_APPSEC, "test-metric", 6, tuple())
         expected_series = [
             {
                 "metric": "test-metric",
@@ -330,7 +351,7 @@ def test_send_metric_flush_and_distributions_series_is_restarted(
             }
         ]
 
-        telemetry_metrics_writer.add_distribution_metric(TELEMETRY_NAMESPACE_TAG_APPSEC, "test-metric", 1, {})
+        telemetry_metrics_writer.add_distribution_metric(TELEMETRY_NAMESPACE_TAG_APPSEC, "test-metric", 1, tuple())
 
         _assert_metric(
             test_agent_metrics_session,

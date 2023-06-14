@@ -5,6 +5,7 @@ import yaaredis
 from ddtrace import config
 from ddtrace.vendor import wrapt
 
+from ...internal.schema import schematize_service_name
 from ...internal.utils.formats import CMD_MAX_LEN
 from ...internal.utils.formats import stringify_cache_args
 from ...internal.utils.wrappers import unwrap
@@ -16,7 +17,7 @@ from ..trace_utils_redis import _trace_redis_execute_pipeline
 config._add(
     "yaaredis",
     dict(
-        _default_service="redis",
+        _default_service=schematize_service_name("redis"),
         cmd_max_length=int(os.getenv("DD_YAAREDIS_CMD_MAX_LENGTH", CMD_MAX_LEN)),
     ),
 )
