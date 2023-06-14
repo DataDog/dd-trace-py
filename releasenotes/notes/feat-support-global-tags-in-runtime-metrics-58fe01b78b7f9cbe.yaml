@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    core: Adds support for ``DD_TAGS`` with runtime metrics.

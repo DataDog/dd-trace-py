@@ -230,8 +230,11 @@ class Tracer(object):
         # globally set tags
         self._tags = config.tags.copy()
 
+        # collection of services seen, used for runtime metrics tags
         # a buffer for service info so we don't perpetually send the same things
         self._services = set()  # type: Set[str]
+        if config.service:
+            self._services.add(config.service)
 
         # Runtime id used for associating data collected during runtime to
         # traces
