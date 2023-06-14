@@ -31,7 +31,7 @@ from ...ext import SpanTypes
 from ...ext import aws
 from ...ext import http
 from ...internal.constants import COMPONENT
-from ...internal.datastreams.processor import PROPAGATION_KEY
+from ...internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 from ...internal.logger import get_logger
 from ...internal.schema import schematize_cloud_api_operation
 from ...internal.schema import schematize_cloud_faas_operation
@@ -156,7 +156,7 @@ def inject_datadog_data_to_sqs_or_sns_batch_message(params, span, endpoint=None,
     entries = params.get("Entries", params.get("PublishBatchRequestEntries", []))
     for entry in entries:
         if data_streams_enabled:
-            datadog_data[PROPAGATION_KEY] = get_pathway(pin, params)
+            datadog_data[PROPAGATION_KEY_BASE_64] = get_pathway(pin, params)
         inject_datadog_data_to_message_attributes(datadog_data, entry, endpoint)
 
 
@@ -175,7 +175,7 @@ def inject_datadog_data_to_sqs_or_sns_message(params, span, endpoint=None, pin=N
     HTTPPropagator.inject(span.context, datadog_data)
 
     if data_streams_enabled:
-        datadog_data[PROPAGATION_KEY] = get_pathway(pin, params)
+        datadog_data[PROPAGATION_KEY_BASE_64] = get_pathway(pin, params)
 
     inject_datadog_data_to_message_attributes(datadog_data, params, endpoint)
 
@@ -497,7 +497,9 @@ def patched_api_call(original_func, instance, args, kwargs):
 
                 for message in result["Messages"]:
                     try:
-                        pathway = json.loads(message["MessageAttributes"]["_datadog"]["StringValue"])["dd-pathway-ctx"]
+                        pathway = json.loads(
+                            message["MessageAttributes"]["_datadog"]["StringValue"]
+                        )[PROPAGATION_KEY_BASE_64]
 
                         ctx = pin.tracer.data_streams_processor.decode_pathway_b64(pathway)
                         ctx.set_checkpoint(["direction:in", "topic:" + queue_name, "type:sqs"])

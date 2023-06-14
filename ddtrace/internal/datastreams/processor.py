@@ -66,6 +66,8 @@ https://docs.datadoghq.com/data_streams/
 log = get_logger(__name__)
 
 PROPAGATION_KEY = "dd-pathway-ctx"
+PROPAGATION_KEY_BASE_64 = "dd-pathway-ctx-base64"
+
 """
 PathwayAggrKey uniquely identifies a pathway to aggregate stats on.
 """
