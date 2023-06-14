@@ -322,7 +322,7 @@ class CMakeBuild(build_ext):
                     if CURRENT_OS == "Windows":
                         cmake_args.extend(["-A", "x64" if platform.architecture()[0] == "64bit" else "Win32"])
 
-                    if CURRENT_OS == "Darwin":
+                    if CURRENT_OS == "Darwin" and sys.version_info >= (3, 8, 0):
                         # Cross-compile support for macOS - respect ARCHFLAGS if set
                         # Darwin Universal2 should bundle both architectures
                         default_platforms = (
