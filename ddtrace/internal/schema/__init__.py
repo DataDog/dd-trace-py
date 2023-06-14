@@ -17,7 +17,8 @@ def _validate_schema(version):
         "the value exported in the 'DD_TRACE_SPAN_ATTRIBUTE_SCHEMA' environment variable.",
     )
 
-    assert version in _SPAN_ATTRIBUTE_TO_FUNCTION.keys(), error_message
+    if version not in _SPAN_ATTRIBUTE_TO_FUNCTION.keys():
+        raise ValueError(" ".join(error_message))
 
 
 def _get_schema_version():
