@@ -342,12 +342,13 @@ class CMakeBuild(build_ext):
                             # CMake 3.12+ only.
                             build_args += ["-j{}".format(self.parallel)]
                     cmake_cmd_with_args = [cmake_command] + cmake_args
-                    print("cmake_command!!!!")
+                    print("CMAKE_GENERATOR!!!!")
+                    print(os.environ.get("CMAKE_GENERATOR", ""))
                     print(cmake_cmd_with_args)
                     subprocess.run(cmake_cmd_with_args, cwd=tmp_iast_path, check=True)
 
                     build_command = [cmake_command, "--build", tmp_iast_path] + build_args
-                    print("cmake_command!!!!")
+                    print("build_command!!!!")
                     print(build_command)
                     subprocess.run(build_command, cwd=tmp_iast_path, check=True)
                 print("IAST TMP FOLDER!!!!")
