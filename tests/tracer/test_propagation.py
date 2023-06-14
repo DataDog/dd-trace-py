@@ -1076,6 +1076,17 @@ EXTRACT_FIXTURES = [
         },
     ),
     (
+        "invalid_datadog_negative_trace_id",
+        [PROPAGATION_STYLE_DATADOG],
+        {
+            HTTP_HEADER_TRACE_ID: "-1",
+            HTTP_HEADER_PARENT_ID: "5678",
+            HTTP_HEADER_SAMPLING_PRIORITY: "1",
+            HTTP_HEADER_ORIGIN: "synthetics",
+        },
+        CONTEXT_EMPTY,
+    ),
+    (
         "valid_datadog_explicit_style_wsgi",
         [PROPAGATION_STYLE_DATADOG],
         {get_wsgi_header(name): value for name, value in DATADOG_HEADERS_VALID.items()},
