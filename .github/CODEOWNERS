@@ -56,6 +56,14 @@ tests/profiling                     @DataDog/profiling-python @DataDog/apm-core-
 ddtrace/internal/remoteconfig       @DataDog/remote-config @DataDog/apm-core-python
 tests/internal/remoteconfig         @DataDog/remote-config @DataDog/apm-core-python
 
+# Core
+tests/internal                      @DataDog/apm-core-python
+tests/lib-injection                 @DataDog/apm-core-python
+tests/opentelemetry                 @DataDog/apm-core-python
+tests/opentracer                    @DataDog/apm-core-python
+tests/runtime                       @DataDog/apm-core-python
+tests/tracer                        @DataDog/apm-core-python
+
 # Guild
 # Note that core is added here since 2 reviewers are required. The guild isn't
 # big enough to support if a guild member makes a change which means 2 other
