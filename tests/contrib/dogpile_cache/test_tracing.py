@@ -1,9 +1,12 @@
+import os
+
 import dogpile
 import pytest
 
 from ddtrace import Pin
 from ddtrace.contrib.dogpile_cache.patch import patch
 from ddtrace.contrib.dogpile_cache.patch import unpatch
+from ddtrace.internal.schema.span_attribute_schema import _DEFAULT_SPAN_SERVICE_NAMES
 from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
 from tests.utils import assert_is_measured
@@ -224,3 +227,59 @@ def test_get_or_create_kwarg_only(region):
     """
     assert region.get_or_create(key="key", creator=lambda: 3) == 3
     assert region.get_or_create_multi(keys="keys", creator=lambda *args: [1, 2])
+
+
+@pytest.mark.parametrize(
+    "schema_tuples",
+    [
+        (None, None, None, "dogpile.cache"),
+        (None, "v0", None, "dogpile.cache"),
+        (None, "v1", _DEFAULT_SPAN_SERVICE_NAMES["v1"], "dogpile.command"),
+        ("mysvc", None, "mysvc", "dogpile.cache"),
+        ("mysvc", "v0", "mysvc", "dogpile.cache"),
+        ("mysvc", "v1", "mysvc", "dogpile.command"),
+    ],
+)
+def test_schematization(ddtrace_run_python_code_in_subprocess, schema_tuples):
+    service_override, schema_version, expected_service, expected_operation = schema_tuples
+    code = """
+import pytest
+import sys
+
+# Import early to avoid circular dependencies
+try:
+    import dogpile.cache as dogpile_cache
+    import dogpile.lock as dogpile_lock
+except AttributeError:
+    from dogpile import cache as dogpile_cache
+    from dogpile import lock as dogpile_lock
+
+# Required fixtures
+from tests.contrib.dogpile_cache.test_tracing import tracer
+from tests.contrib.dogpile_cache.test_tracing import test_spans
+from tests.contrib.dogpile_cache.test_tracing import region
+from tests.contrib.dogpile_cache.test_tracing import cleanup
+from tests.contrib.dogpile_cache.test_tracing import single_cache
+
+def test(tracer, single_cache, test_spans):
+    assert single_cache(1) == 2
+    traces = test_spans.pop_traces()
+    spans = traces[0]
+    span = spans[0]
+
+    assert str(span.service) == "{}"
+    assert str(span.name) == "{}"
+
+if __name__ == "__main__":
+    sys.exit(pytest.main(["-x", __file__]))
+    """.format(
+        expected_service, expected_operation
+    )
+    env = os.environ.copy()
+    if service_override:
+        env["DD_SERVICE"] = service_override
+    if schema_version:
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    assert status == 0, out.decode()
+    assert err == b"", err.decode()

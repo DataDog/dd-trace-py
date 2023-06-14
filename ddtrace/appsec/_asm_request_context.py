@@ -5,6 +5,7 @@ from ddtrace import config
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
 from ddtrace.internal import _context
+from ddtrace.internal.compat import parse
 from ddtrace.internal.logger import get_logger
 
 
@@ -142,7 +143,13 @@ def set_value(category, address, value):  # type: (str, str, Any) -> None
 
 
 def set_waf_address(address, value, span=None):  # type: (str, Any, Any) -> None
-    set_value(_WAF_ADDRESSES, address, value)
+    if address == SPAN_DATA_NAMES.REQUEST_URI_RAW:
+        parse_address = parse.urlparse(value)
+        no_scheme = parse.ParseResult("", "", *parse_address[2:])
+        waf_value = parse.urlunparse(no_scheme)
+        set_value(_WAF_ADDRESSES, address, waf_value)
+    else:
+        set_value(_WAF_ADDRESSES, address, value)
     if span is None:
         span = _ASM.get().span
     if span:

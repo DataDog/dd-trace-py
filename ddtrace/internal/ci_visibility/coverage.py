@@ -1,4 +1,5 @@
 import contextlib
+from itertools import groupby
 import json
 import os
 from typing import Iterable
@@ -60,15 +61,16 @@ def cover(span, root=None, **kwargs):
 
 
 def segments(lines):
-    # type: (Iterable[int]) -> Iterable[Tuple[int, int, int, int, int]]
+    # type: (Iterable[int]) -> List[Tuple[int, int, int, int, int]]
     """Extract the relevant report data for a single file."""
+    _segments = []
+    for key, g in groupby(enumerate(sorted(lines)), lambda x: x[1] - x[0]):
+        group = list(g)
+        start = group[0][1]
+        end = group[-1][1]
+        _segments.append((start, 0, end, 0, -1))
 
-    def as_segments(it):
-        # type: (Iterable[int]) -> Tuple[int, int, int, int, int]
-        sequence = list(it)  # type: List[int]
-        return (sequence[0], 0, sequence[-1], 0, -1)
-
-    return [as_segments(sorted(lines))]
+    return _segments
 
 
 def _lines(coverage, context):

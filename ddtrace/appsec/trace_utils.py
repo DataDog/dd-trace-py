@@ -13,6 +13,7 @@ if TYPE_CHECKING:
 from ddtrace import config
 from ddtrace import constants
 from ddtrace.appsec._constants import APPSEC
+from ddtrace.appsec._constants import LOGIN_EVENTS_MODE
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
 from ddtrace.ext import user
 from ddtrace.internal.compat import six
@@ -22,16 +23,25 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 
-def _track_user_login_common(tracer, user_id, success, metadata=None):
-    # type: (Tracer, str, bool, Optional[dict]) -> Optional[Span]
+def _track_user_login_common(tracer, user_id, success, metadata=None, login_events_mode=LOGIN_EVENTS_MODE.SDK):
+    # type: (Tracer, str, bool, Optional[dict], str) -> Optional[Span]
 
     span = tracer.current_root_span()
     if span:
         success_str = "success" if success else "failure"
-        span.set_tag_str("%s.%s.track" % (APPSEC.USER_LOGIN_EVENT_PREFIX, success_str), "true")
+        tag_prefix = "%s.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX, success_str)
+        span.set_tag_str("%s.track" % tag_prefix, "true")
+
+        # This is used to mark if the call was done from the SDK of the automatic login events
+        if login_events_mode == LOGIN_EVENTS_MODE.SDK:
+            span.set_tag_str("%s.sdk" % tag_prefix, "true")
+        else:
+            span.set_tag_str("%s.auto.mode" % tag_prefix, str(login_events_mode))
+
         if metadata is not None:
             for k, v in six.iteritems(metadata):
                 span.set_tag_str("%s.%s.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX, success_str, k), str(v))
+
         span.set_tag_str(constants.MANUAL_KEEP_KEY, "true")
         return span
     else:
@@ -53,8 +63,9 @@ def track_user_login_success_event(
     role=None,
     session_id=None,
     propagate=False,
+    login_events_mode=LOGIN_EVENTS_MODE.SDK,
 ):
-    # type: (Tracer, str, Optional[dict], Optional[str], Optional[str], Optional[str], Optional[str], Optional[str], bool) -> None # noqa: E501
+    # type: (Tracer, str, Optional[dict], Optional[str], Optional[str], Optional[str], Optional[str], Optional[str], bool, str) -> None # noqa: E501
     """
     Add a new login success tracking event. The parameters after metadata (name, email,
     scope, role, session_id, propagate) will be passed to the `set_user` function that will be called
@@ -67,7 +78,7 @@ def track_user_login_success_event(
     :param metadata: a dictionary with additional metadata information to be stored with the event
     """
 
-    span = _track_user_login_common(tracer, user_id, True, metadata)
+    span = _track_user_login_common(tracer, user_id, True, metadata, login_events_mode)
     if not span:
         return
 
@@ -75,8 +86,8 @@ def track_user_login_success_event(
     set_user(tracer, user_id, name, email, scope, role, session_id, propagate)
 
 
-def track_user_login_failure_event(tracer, user_id, exists, metadata=None):
-    # type: (Tracer, str, bool, Optional[dict]) -> None
+def track_user_login_failure_event(tracer, user_id, exists, metadata=None, login_events_mode=LOGIN_EVENTS_MODE.SDK):
+    # type: (Tracer, str, bool, Optional[dict], str) -> None
     """
     Add a new login failure tracking event.
     :param tracer: tracer instance to use
@@ -85,7 +96,7 @@ def track_user_login_failure_event(tracer, user_id, exists, metadata=None):
     :param metadata: a dictionary with additional metadata information to be stored with the event
     """
 
-    span = _track_user_login_common(tracer, user_id, False, metadata)
+    span = _track_user_login_common(tracer, user_id, False, metadata, login_events_mode)
     if not span:
         return
 

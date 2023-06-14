@@ -96,7 +96,9 @@ jobs:
       DD_TESTING_RAISE: true
       DD_DEBUGGER_EXPL_ENCODE: 0  # Disabled to speed up
       DD_DEBUGGER_EXPL_PROFILER_ENABLED: ${{ matrix.expl_profiler }}
+      DD_DEBUGGER_EXPL_PROFILER_DELETE_FUNCTION_PROBES: 1  # Delete to speed up
       DD_DEBUGGER_EXPL_COVERAGE_ENABLED: ${{ matrix.expl_coverage }}
+      DD_DEBUGGER_EXPL_COVERAGE_DELETE_LINE_PROBES: 1  # Delete to speed up
       DD_DEBUGGER_EXPL_CONSERVATIVE: 1
       PYTHONPATH: ../ddtrace/tests/debugging/exploration/:.
     defaults:
