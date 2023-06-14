@@ -1,5 +1,5 @@
 #include "TaintedOps.h"
-#include <iostream>  // JJJ remove
+#include <iostream> // JJJ remove
 
 PyObject* bytes_join = NULL;
 PyObject* bytearray_join = NULL;
