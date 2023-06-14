@@ -329,7 +329,19 @@ class CMakeBuild(build_ext):
                     subprocess.run(
                         [cmake_command, "--build", tmp_iast_path, "--config", build_type], cwd=tmp_iast_path, check=True
                     )
+                print("IAST TMP FOLDER!!!!")
+                res = os.listdir(tmp_iast_path)
+                print(tmp_iast_file_path)
+                print(res)
+                print("IAST FOLDER!!!!")
+                res = os.listdir(IAST_DIR)
+                print(IAST_DIR)
+                print(res)
                 shutil.move(os.path.join(IAST_DIR, tmp_filename), tmp_iast_file_path)
+                print("IAST TMP FOLDER2!!!!")
+                res = os.listdir(tmp_iast_path)
+                print(tmp_iast_file_path)
+                print(res)
         else:
             build_ext.build_extension(self, ext)
 
