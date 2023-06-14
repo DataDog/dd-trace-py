@@ -9,7 +9,7 @@ namespace py = pybind11;
 size_t
 get_pyobject_size(PyObject* obj)
 {
-    size_t len_candidate_text{0};
+    size_t len_candidate_text{ 0 };
     if (PyUnicode_Check(obj)) {
         len_candidate_text = PyUnicode_GET_LENGTH(obj);
     } else if (PyBytes_Check(obj)) {
