@@ -12,6 +12,7 @@ from opentelemetry.trace.span import Span as OtelSpan
 from opentelemetry.trace.span import TraceFlags
 
 import ddtrace
+from ddtrace.internal.constants import SPAN_API_OTEL
 from ddtrace.internal.constants import W3C_TRACESTATE_KEY
 from ddtrace.internal.logger import get_logger
 from ddtrace.opentelemetry._span import Span
@@ -99,7 +100,7 @@ class Tracer(OtelTracer):
                 curr_otel_span,
             )
         # Create a new Datadog span (not activated), then return a valid OTel span
-        dd_span = self._tracer.start_span(name, child_of=dd_active, activate=False)
+        dd_span = self._tracer.start_span(name, child_of=dd_active, activate=False, span_api=SPAN_API_OTEL)
         return Span(
             dd_span,
             kind=kind,
