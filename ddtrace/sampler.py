@@ -15,6 +15,8 @@ from typing import Union
 
 import six
 
+from ddtrace.internal.glob_matching import GlobMatcher
+
 from .constants import AUTO_KEEP
 from .constants import AUTO_REJECT
 from .constants import ENV_KEY
@@ -421,7 +423,8 @@ class SamplingRule(BaseSampler):
                     "SamplingRule(sample_rate={}) must be greater than or equal to 0.0 and less than or equal to 1.0"
                 ).format(sample_rate)
             )
-
+        self._service_matcher = GlobMatcher(service) if service is not None else None
+        self._name_matcher = GlobMatcher(name) if name is not None else None
         self.sample_rate = sample_rate
         self.service = service
         self.name = name
@@ -464,12 +467,19 @@ class SamplingRule(BaseSampler):
                 return False
 
         # Exact match on the values
-        return prop == pattern
+        if prop == pattern:
+            return True
 
     @cachedmethod()
     def _matches(self, key):
         # type: (Tuple[Optional[str], str]) -> bool
         service, name = key
+        # previously we had support for patterns like regex and functions which glob_matches doesn't support
+        try:
+            # import pdb; pdb.set_trace()
+            return self.glob_matches(service, name)
+        except Exception:
+            pass
         for prop, pattern in [(service, self.service), (name, self.name)]:
             if not self._pattern_matches(prop, pattern):
                 return False
@@ -486,9 +496,29 @@ class SamplingRule(BaseSampler):
         :returns: Whether this span matches or not
         :rtype: :obj:`bool`
         """
-        # Our LFU cache expects a single key, convert the
-        # provided Span into a hashable tuple for the cache
         return self._matches((span.service, span.name))
+
+    def glob_matches(self, service, name):
+        # If a span lacks a name and service, we can't match on it
+        if service is None and name is None:
+            return False
+
+        # Default to True, as the rule may not have a name or service rule
+        # For whichever rules it does have, it will attempt to match on them
+        service_match = True
+        name_match = True
+
+        if self._service_matcher:
+            if service is None:
+                return False
+            else:
+                service_match = self._service_matcher.match(service)
+        if self._name_matcher:
+            if name is None:
+                return False
+            else:
+                name_match = self._name_matcher.match(name)
+        return service_match and name_match
 
     def sample(self, span):
         # type: (Span) -> bool
