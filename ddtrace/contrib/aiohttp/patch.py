@@ -1,5 +1,4 @@
 import os
-import typing
 
 from yarl import URL
 
@@ -14,7 +13,6 @@ from ddtrace.vendor import wrapt
 
 from ...ext import SpanKind
 from ...ext import SpanTypes
-from ...internal.compat import parse
 from ...internal.schema import schematize_url_operation
 from ...pin import Pin
 from ...propagation.http import HTTPPropagator
