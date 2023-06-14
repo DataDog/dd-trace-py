@@ -216,14 +216,18 @@ def test_configuration_changed_event(telemetry_lifecycle_writer, test_agent_sess
     # send app start event:
     telemetry_lifecycle_writer._app_started_event()
 
-    configuration = {
-        "name": "appsec_enabled",
-        "value": "True",
-    }
+    configuration = [
+        {
+            "name": "data_streams_enabled",
+            "value": "True",
+        },
+        {
+            "name": "appsec_enabled",
+            "value": "True",
+        },
+    ]
 
     telemetry_lifecycle_writer._app_configurations_changed_event(configuration)
-
-    # force a flash
     telemetry_lifecycle_writer.periodic()
 
     requests = test_agent_session.get_requests()
@@ -237,23 +241,11 @@ def test_configuration_changed_event(telemetry_lifecycle_writer, test_agent_sess
         "configuration": [
             {
                 "name": "data_streams_enabled",
-                "origin": "env_var",
-                "value": "False",
-            },
-            {
-                "name": "appsec_enabled",
-                "origin": "env_var",
                 "value": "True",
             },
             {
-                "name": "propagation_style_inject",
-                "origin": "env_var",
-                "value": ["tracecontext", "datadog"],
-            },
-            {
-                "name": "propagation_style_extract",
-                "origin": "env_var",
-                "value": ["tracecontext", "datadog"],
+                "name": "appsec_enabled",
+                "value": "True",
             },
         ],
         "error": {

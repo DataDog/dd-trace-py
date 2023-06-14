@@ -505,9 +505,10 @@ class TelemetryWriter(TelemetryBase):
 
     # def _app_configurations_changed_event(self, configuration_name, configuration_value):
     def _app_configurations_changed_event(self, configuration):
-        # type: (Dict) -> None
+        # type: (List[Dict]) -> None
         """Adds a Telemetry event which sends a pair of configuration to the agent"""
 
+        config_change_queue = []
         # Loop though all events queue and find the app-started event payload
         for e in (0, len(self._events_queue) - 1):
             if self._events_queue[e]["request_type"] == "app-started":
@@ -515,11 +516,14 @@ class TelemetryWriter(TelemetryBase):
                 break
 
         # Find the configuration value to be changed
-        for c in payload["configuration"]:
-            if c["name"] == configuration["name"]:
-                c["value"] = configuration["value"]
-                break
+        for original_config in payload["configuration"]:
+            for new_config in configuration:
+                if original_config["name"] == new_config["name"] and original_config["value"] != new_config["value"]:
+                    original_config["value"] = new_config["value"]
+                    config_change_queue.append(new_config)
 
+        # Only return configurations that being modified
+        payload["configuration"] = config_change_queue
         self.add_event(payload, "app-configurations-change")
 
     def _app_dependencies_loaded_event(self):
