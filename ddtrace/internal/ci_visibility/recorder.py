@@ -309,7 +309,7 @@ class CIVisibility(Service):
                     self._tests_to_skip[(item["attributes"]["suite"], module)].append("")
 
     def _get_tests_to_skip(self, suite, module):
-        return self._tests_to_skip.get((suite, module), [])
+        return self._tests_to_skip.get((suite, module), self._tests_to_skip.get((suite, None), []))
 
     @classmethod
     def enable(cls, tracer=None, config=None, service=None):

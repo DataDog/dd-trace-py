@@ -1,3 +1,4 @@
+from glob import glob
 import json
 import os
 from threading import Thread
@@ -8,7 +9,6 @@ from typing import Tuple  # noqa
 
 import tenacity
 
-from glob import glob
 from ddtrace.ext.git import build_git_packfiles
 from ddtrace.ext.git import extract_commit_sha
 from ddtrace.ext.git import extract_latest_commits
@@ -102,7 +102,14 @@ class CIVisibilityGitClient(object):
     @classmethod
     def _get_repository_url(cls, cwd=None):
         # type: (Optional[str]) -> str
-        return extract_remote_url(cwd=cwd)
+        result = extract_remote_url(cwd=cwd)
+        if not result.startswith(("http", "git")):
+            from ddtrace.ext import ci
+
+            _tags = ci.tags(cwd=cwd)
+            result = _tags.get(ci.git.REPOSITORY_URL, result)
+
+        return result
 
     @classmethod
     def _get_latest_commits(cls, cwd=None):
@@ -116,7 +123,11 @@ class CIVisibilityGitClient(object):
         response = _response or cls.retry_request(
             requests_mode, base_url, "/search_commits", payload, serializer, trace_id
         )
-        result = serializer.search_commits_decode(response.body)
+        result = []
+        if response.status < 300:
+            result = serializer.search_commits_decode(response.body)
+        else:
+            log.warning("Search commits response: %s", response.body)
         return result
 
     @classmethod
@@ -165,8 +176,6 @@ class CIVisibilityGitClient(object):
         directory = "/".join(parts[:-1])
         rand = parts[-1]
         for filename in glob(directory + "/" + rand + "*" + PACK_EXTENSION):
-            # if not filename.startswith(rand) or not filename.endswith(PACK_EXTENSION):
-            #     continue
             file_path = os.path.join(directory, filename)
             log.warning("uploading file path: %s", file_path)
             content_type, payload = serializer.upload_packfile_encode(repo_url, sha, file_path)
@@ -183,7 +192,7 @@ class CIVisibilityGitClient(object):
     def retry_request(cls, *args, **kwargs):
         return tenacity.Retrying(
             wait=tenacity.wait_random_exponential(
-                multiplier=(0.618 / (1.618 ** cls.RETRY_ATTEMPTS) / 2),
+                multiplier=(0.618 / (1.618**cls.RETRY_ATTEMPTS) / 2),
                 exp_base=1.618,
             ),
             stop=tenacity.stop_after_attempt(cls.RETRY_ATTEMPTS),
