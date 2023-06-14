@@ -45,8 +45,8 @@ def test_appsec_iast_processor():
         assert len(json.loads(result)["vulnerabilities"]) == 1
 
 
-@pytest.mark.skipif(_is_python_version_supported(), reason="Python version not supported by IAST")
 @pytest.mark.parametrize("sampling_rate", ["0.0", "0.5", "1.0"])
+@pytest.mark.skipif(_is_python_version_supported(), reason="Python version not supported by IAST")
 def test_appsec_iast_processor_ensure_span_is_manual_keep(sampling_rate):
     with override_env(dict(DD_TRACE_SAMPLE_RATE=sampling_rate)), override_global_config(dict(_iast_enabled=True)):
         patch_iast(**IAST_PATCH)

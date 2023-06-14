@@ -337,7 +337,8 @@ class CMakeBuild(build_ext):
                 res = os.listdir(IAST_DIR)
                 print(IAST_DIR)
                 print(res)
-                shutil.move(os.path.join(IAST_DIR, tmp_filename), tmp_iast_file_path)
+                if os.path.exists(os.path.join(IAST_DIR, tmp_filename)):
+                    shutil.copy(os.path.join(IAST_DIR, tmp_filename), tmp_iast_file_path)
                 print("IAST TMP FOLDER2!!!!")
                 res = os.listdir(tmp_iast_path)
                 print(tmp_iast_file_path)
