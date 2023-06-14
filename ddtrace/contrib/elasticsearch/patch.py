@@ -3,6 +3,7 @@ from importlib import import_module
 from ddtrace import config
 from ddtrace._tracing import _limits
 from ddtrace.contrib.trace_utils import ext_service
+from ddtrace.contrib.trace_utils import extract_info_from_url
 from ddtrace.ext import net
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
@@ -109,7 +110,7 @@ def _get_perform_request(elasticsearch):
             span.set_tag_str(metadata.URL, url)
             span.set_tag_str(metadata.PARAMS, encoded_params)
             for connection in instance.connection_pool.connections:
-                hostname = parse.urlparse(connection.host).hostname
+                hostname, _ = extract_info_from_url(connection.host)
                 if hostname:
                     span.set_tag_str(net.TARGET_HOST, hostname)
                     break

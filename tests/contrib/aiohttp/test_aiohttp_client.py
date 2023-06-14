@@ -7,7 +7,7 @@ import pytest
 from ddtrace import Pin
 from ddtrace.contrib.aiohttp import patch
 from ddtrace.contrib.aiohttp import unpatch
-from ddtrace.contrib.aiohttp.patch import extract_info_from_url
+from ddtrace.contrib.trace_utils import extract_info_from_url
 from tests.utils import override_http_config
 
 from ..config import HTTPBIN_CONFIG
