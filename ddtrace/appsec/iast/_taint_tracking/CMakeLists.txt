@@ -25,8 +25,11 @@ else()
     # -U_FORTIFY_SOURCE to fix a bug in alpine and pybind11
     # https://github.com/pybind/pybind11/issues/1650
     # https://gitlab.alpinelinux.org/alpine/aports/-/issues/8626
+    message(STATUS "Compile options for Linux/Win")
     add_compile_options(-fPIC -fexceptions -fvisibility=hidden -fpermissive -pthread -Wall -Wno-unknown-pragmas -U_FORTIFY_SOURCE)
-endif()
+endif(BUILD_MACOS)
+unset(BUILD_MACOS CACHE)
+
 FetchContent_Declare(
         absl
         URL "https://github.com/abseil/abseil-cpp/archive/refs/tags/20211102.0.zip"
