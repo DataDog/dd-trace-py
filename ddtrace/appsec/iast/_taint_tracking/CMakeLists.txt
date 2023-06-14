@@ -57,8 +57,8 @@ file(GLOB HEADER_FILES "*.h"
         "TaintTracking/*.h"
         "Utils/*.h"
         )
-#set(Python_USE_STATIC_LIBS FALSE)
-#find_package(Python COMPONENTS Interpreter Development)
+set(Python_USE_STATIC_LIBS FALSE)
+find_package(Python COMPONENTS Interpreter Development)
 # Debug messages
 message(STATUS "PYTHON_LIBRARIES = ${Python_LIBRARIES}")
 message(STATUS "PYTHON_EXECUTABLE = ${Python_EXECUTABLE}")
@@ -66,17 +66,17 @@ message(STATUS "PYTHON_INCLUDE_DIRS = ${Python_INCLUDE_DIRS}")
 message(STATUS "Python_EXECUTABLE = ${Python_EXECUTABLE}")
 
 
-#execute_process(
-#        COMMAND ${Python_EXECUTABLE} -c import\ pybind11\;print\(pybind11.get_cmake_dir\(\)\)
-#        OUTPUT_VARIABLE CMAKE_PREFIX_PATH
-#        RESULT_VARIABLE _pybind11_STATUS
-#        OUTPUT_STRIP_TRAILING_WHITESPACE)
-#if(_pybind11_STATUS EQUAL "0")
-#    message(STATUS "Found pybind11: ${CMAKE_PREFIX_PATH}")
-#else()
-#    message(FATAL_ERROR "pybind11 not found")
-#endif()
-#unset(_pybind11_STATUS)
+execute_process(
+        COMMAND ${Python_EXECUTABLE} -c import\ pybind11\;print\(pybind11.get_cmake_dir\(\)\)
+        OUTPUT_VARIABLE CMAKE_PREFIX_PATH
+        RESULT_VARIABLE _pybind11_STATUS
+        OUTPUT_STRIP_TRAILING_WHITESPACE)
+if(_pybind11_STATUS EQUAL "0")
+    message(STATUS "Found pybind11: ${CMAKE_PREFIX_PATH}")
+else()
+    message(FATAL_ERROR "pybind11 not found")
+endif()
+unset(_pybind11_STATUS)
 
 find_package(pybind11)
 
