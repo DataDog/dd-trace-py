@@ -81,6 +81,7 @@ config._add(
         "operations": collections.defaultdict(Config._HTTPServerConfig),
         "tag_no_params": asbool(os.getenv("DD_AWS_TAG_NO_PARAMS", default=False)),
         "tag_all_params": asbool(os.getenv("DD_AWS_TAG_ALL_PARAMS", default=False)),
+        "instrument_internals": asbool(os.getenv("DD_BOTOCORE_INSTRUMENT_INTERNALS", default=False)),
     },
 )
 
@@ -352,6 +353,8 @@ def patch():
 
     wrapt.wrap_function_wrapper("botocore.client", "BaseClient._make_api_call", patched_api_call)
     Pin(service="aws").onto(botocore.client.BaseClient)
+    wrapt.wrap_function_wrapper("botocore.parsers", "ResponseParser.parse", patched_lib_fn)
+    Pin(service="aws").onto(botocore.parsers.ResponseParser)
     _PATCHED_SUBMODULES.clear()
 
 
@@ -359,6 +362,7 @@ def unpatch():
     _PATCHED_SUBMODULES.clear()
     if getattr(botocore.client, "_datadog_patch", False):
         setattr(botocore.client, "_datadog_patch", False)
+        unwrap(botocore.parsers.ResponseParser, "parse")
         unwrap(botocore.client.BaseClient, "_make_api_call")
 
 
@@ -369,6 +373,16 @@ def patch_submodules(submodules):
     elif isinstance(submodules, list):
         submodules = [sub_module.lower() for sub_module in submodules]
         _PATCHED_SUBMODULES.update(submodules)
+
+
+def patched_lib_fn(original_func, instance, args, kwargs):
+    pin = Pin.get_from(instance)
+    if not pin or not pin.enabled() or not config.botocore["instrument_internals"]:
+        return original_func(*args, **kwargs)
+    with pin.tracer.trace("{}.{}".format(original_func.__module__, original_func.__name__)) as span:
+        span.set_tag_str(COMPONENT, config.botocore.integration_name)
+        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+        return original_func(*args, **kwargs)
 
 
 def patched_api_call(original_func, instance, args, kwargs):

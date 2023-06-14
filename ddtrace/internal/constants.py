@@ -20,6 +20,9 @@ DEFAULT_SERVICE_NAME = "unnamed_python_service"
 COMPONENT = "component"
 HIGHER_ORDER_TRACE_ID_BITS = "_dd.p.tid"
 MAX_UINT_64BITS = (1 << 64) - 1
+SPAN_API_DATADOG = "datadog"
+SPAN_API_OTEL = "otel"
+SPAN_API_OPENTRACING = "opentracing"
 
 APPSEC_BLOCKED_RESPONSE_HTML = """
 <!DOCTYPE html><html lang="en"><head> <meta charset="UTF-8"> <meta name="viewport"
