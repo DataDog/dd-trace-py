@@ -324,7 +324,7 @@ class CMakeBuild(build_ext):
 
                     if CURRENT_OS == "Darwin":
                         # Cross-compile support for macOS - respect ARCHFLAGS if set
-                        archs = re.findall(r"-arch (\S+)", os.environ.get("ARCHFLAGS", ""))
+                        archs = re.findall(r"-arch (\S+)", os.environ.get("ARCHFLAGS", "-arch x86_64 -arch arm64"))
                         if archs:
                             cmake_args += ["-DCMAKE_OSX_ARCHITECTURES={}".format(";".join(archs))]
 
