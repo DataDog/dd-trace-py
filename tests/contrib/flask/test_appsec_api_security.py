@@ -62,15 +62,15 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert config._api_security_enabled
 
             for name, expected_value in [
-                ("_dd.schema.req.body", [{"key": [8], "ids": [[[4]], {"len": 4}]}]),
+                ("_dd.appsec.s.req.body", [{"key": [8], "ids": [[[4]], {"len": 4}]}]),
                 (
-                    "_dd.schema.req.headers",
+                    "_dd.appsec.s.req.headers",
                     [{"User-Agent": [8], "Host": [8], "Content-Type": [8], "Content-Length": [8]}],
                 ),
-                ("_dd.schema.req.query", [{"extended": [8]}]),
-                ("_dd.schema.req.params", [{"str_param": [8]}]),
-                ("_dd.schema.res.headers", [{"Content-Type": [8], "Content-Length": [8], "extended": [8]}]),
-                ("_dd.schema.res.body", [{"ids": [[[4]], {"len": 4}], "key": [8], "validate": [2], "value": [8]}]),
+                ("_dd.appsec.s.req.query", [{"extended": [8]}]),
+                ("_dd.appsec.s.req.params", [{"str_param": [8]}]),
+                ("_dd.appsec.s.res.headers", [{"Content-Type": [8], "Content-Length": [8], "extended": [8]}]),
+                ("_dd.appsec.s.res.body", [{"ids": [[[4]], {"len": 4}], "key": [8], "validate": [2], "value": [8]}]),
             ]:
                 value = root_span.get_tag(name)
                 assert value
@@ -92,12 +92,12 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             root_span = self.pop_spans()[0]
             assert not config._api_security_enabled
             for name in [
-                "_dd.schema.req.body",
-                "_dd.schema.req.headers",
-                "_dd.schema.req.query",
-                "_dd.schema.req.params",
-                "_dd.schema.res.headers",
-                "_dd.schema.res.body",
+                "_dd.appsec.s.req.body",
+                "_dd.appsec.s.req.headers",
+                "_dd.appsec.s.req.query",
+                "_dd.appsec.s.req.params",
+                "_dd.appsec.s.res.headers",
+                "_dd.appsec.s.res.body",
             ]:
                 value = root_span.get_tag(name)
                 assert value is None
