@@ -1,4 +1,4 @@
 ---
 features:
   - |
-    core: Adds support for ``DD_TAGS`` with runtime metrics.
+    core: Apply ``DD_TAGS`` to runtime metrics.
