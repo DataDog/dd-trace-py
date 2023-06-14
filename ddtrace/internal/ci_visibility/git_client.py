@@ -203,6 +203,7 @@ class CIVisibilityGitClientSerializerV1(object):
 
     def search_commits_encode(self, repo_url, latest_commits):
         # type: (str, list[str]) -> str
+        log.warning("repo url: %s", repo_url)
         return json.dumps(
             {"meta": {"repository_url": repo_url}, "data": [{"id": sha, "type": "commit"} for sha in latest_commits]}
         )
