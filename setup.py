@@ -324,7 +324,11 @@ class CMakeBuild(build_ext):
 
                     if CURRENT_OS == "Darwin":
                         # Cross-compile support for macOS - respect ARCHFLAGS if set
-                        archs = re.findall(r"-arch (\S+)", os.environ.get("ARCHFLAGS", "-arch x86_64 -arch arm64"))
+                        # Darwin Universal2 should bundle both architectures
+                        default_platforms = (
+                            "-arch x86_64 -arch arm64" if os.getenv("PLAT").endswith("universal2") else ""
+                        )
+                        archs = re.findall(r"-arch (\S+)", os.environ.get("ARCHFLAGS", default_platforms))
                         if archs:
                             cmake_args += ["-DCMAKE_OSX_ARCHITECTURES={}".format(";".join(archs))]
 
