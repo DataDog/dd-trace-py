@@ -1,5 +1,6 @@
 import base64
 import gzip
+import os
 from typing import TYPE_CHECKING
 
 from ddtrace._tracing._limits import MAX_SPAN_META_VALUE_LEN
@@ -38,6 +39,7 @@ class APIManager(Service):
         (SPAN_DATA_NAMES.RESPONSE_BODY, "_dd.schema.res.body", None),
     ]
     GLOBAL_RATE_LIMIT = 50.0  # requests per seconds
+
     INTERVAL_PER_ROUTE = 15.0  # seconds between requests
 
     _instance = None  # type: Optional[APIManager]
@@ -71,6 +73,10 @@ class APIManager(Service):
     def __init__(self):
         # type: () -> None
         super(APIManager, self).__init__()
+        try:
+            self.INTERVAL_PER_ROUTE = float(os.environ.get("_DD_API_SECURITY_INTERVAL_PER_ROUTE", "15.0"))
+        except BaseException:
+            pass
 
         self._schema_meter = metrics.get_meter("schema")
         self._log_limiter = RateLimiter(limit_rate=1.0, raise_on_exceed=False)
@@ -91,6 +97,8 @@ class APIManager(Service):
         add_context_callback(self._schema_callback, global_callback=True)
 
     def _should_collect_schema(self, env):
+        if self.INTERVAL_PER_ROUTE <= 0.0:
+            return True
         method = env.waf_addresses.get(SPAN_DATA_NAMES.REQUEST_METHOD)
         route = env.waf_addresses.get(SPAN_DATA_NAMES.REQUEST_ROUTE)
         # Framework is not fully supported
