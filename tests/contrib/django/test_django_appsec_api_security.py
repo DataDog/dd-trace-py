@@ -99,15 +99,15 @@ def test_api_security(client, test_spans, tracer):
         }
 
         for name, expected_value in [
-            ("_dd.schema.req.body", [{"key": [8], "ids": [[[4]], {"len": 4}]}]),
+            ("_dd.appsec.s.req.body", [{"key": [8], "ids": [[[4]], {"len": 4}]}]),
             (
-                "_dd.schema.req.headers",
+                "_dd.appsec.s.req.headers",
                 [{"Cookie": [8], "Content-Length": [8], "Content-Type": [8]}],
             ),
-            ("_dd.schema.req.query", [{"x": [[[8]], {"len": 1}]}]),
-            ("_dd.schema.req.params", [{"year": [4], "month": [8]}]),
-            ("_dd.schema.res.headers", headers_schema[django.__version__[0]]),
-            ("_dd.schema.res.body", [{"year": [4], "month": [8]}]),
+            ("_dd.appsec.s.req.query", [{"x": [[[8]], {"len": 1}]}]),
+            ("_dd.appsec.s.req.params", [{"year": [4], "month": [8]}]),
+            ("_dd.appsec.s.res.headers", headers_schema[django.__version__[0]]),
+            ("_dd.appsec.s.res.body", [{"year": [4], "month": [8]}]),
         ]:
             value = root_span.get_tag(name)
             assert value, name

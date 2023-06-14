@@ -31,12 +31,12 @@ class TooLarge(Exception):
 
 class APIManager(Service):
     COLLECTED = [
-        (SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, "_dd.schema.req.headers", dict),
-        (SPAN_DATA_NAMES.REQUEST_QUERY, "_dd.schema.req.query", dict),
-        (SPAN_DATA_NAMES.REQUEST_PATH_PARAMS, "_dd.schema.req.params", dict),
-        (SPAN_DATA_NAMES.REQUEST_BODY, "_dd.schema.req.body", None),
-        (SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, "_dd.schema.res.headers", dict),
-        (SPAN_DATA_NAMES.RESPONSE_BODY, "_dd.schema.res.body", None),
+        (SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, "_dd.appsec.s.req.headers", dict),
+        (SPAN_DATA_NAMES.REQUEST_QUERY, "_dd.appsec.s.req.query", dict),
+        (SPAN_DATA_NAMES.REQUEST_PATH_PARAMS, "_dd.appsec.s.req.params", dict),
+        (SPAN_DATA_NAMES.REQUEST_BODY, "_dd.appsec.s.req.body", None),
+        (SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, "_dd.appsec.s.res.headers", dict),
+        (SPAN_DATA_NAMES.RESPONSE_BODY, "_dd.appsec.s.res.body", None),
     ]
     GLOBAL_RATE_LIMIT = 50.0  # requests per seconds
 
