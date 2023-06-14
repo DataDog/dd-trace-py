@@ -7,6 +7,7 @@ from ddtrace.contrib.asgi.middleware import TraceMiddleware
 from ddtrace.contrib.starlette.patch import get_resource
 from ddtrace.contrib.starlette.patch import traced_handler
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.vendor.debtcollector import removals
@@ -19,7 +20,7 @@ log = get_logger(__name__)
 config._add(
     "fastapi",
     dict(
-        _default_service="fastapi",
+        _default_service=schematize_service_name("fastapi"),
         request_span_name="fastapi.request",
         distributed_tracing=True,
         aggregate_resources=True,
