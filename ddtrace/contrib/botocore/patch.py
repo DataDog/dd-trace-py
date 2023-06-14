@@ -497,9 +497,9 @@ def patched_api_call(original_func, instance, args, kwargs):
 
                 for message in result["Messages"]:
                     try:
-                        pathway = json.loads(
-                            message["MessageAttributes"]["_datadog"]["StringValue"]
-                        )[PROPAGATION_KEY_BASE_64]
+                        pathway = json.loads(message["MessageAttributes"]["_datadog"]["StringValue"])[
+                            PROPAGATION_KEY_BASE_64
+                        ]
 
                         ctx = pin.tracer.data_streams_processor.decode_pathway_b64(pathway)
                         ctx.set_checkpoint(["direction:in", "topic:" + queue_name, "type:sqs"])
