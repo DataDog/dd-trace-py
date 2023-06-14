@@ -52,7 +52,7 @@ struct Source
         this->origin = origin;
     }
 
-    [[nodiscard]] uint get_hash() const;
+    [[nodiscard]] int get_hash() const;
 
     static inline size_t hash(const string& name, const string& value, const OriginType origin)
     {
