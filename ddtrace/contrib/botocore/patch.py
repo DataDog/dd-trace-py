@@ -487,10 +487,8 @@ def patched_api_call(original_func, instance, args, kwargs):
 
                 if "MessageAttributeNames" not in args[1]:
                     args[1].update({"MessageAttributeNames": ["_datadog"]})
-                    args = (args[0], args[1])
                 elif "_datadog" not in args[1]["MessageAttributeNames"]:
                     args[1].update({"MessageAttributeNames": args[1]["MessageAttributeNames"] + ["_datadog"]})
-                    args = (args[0], args[1])
 
                 result = original_func(*args, **kwargs)
                 _set_response_metadata_tags(span, result)
