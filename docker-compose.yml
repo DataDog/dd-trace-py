@@ -148,6 +148,7 @@ services:
             - SNAPSHOT_DIR=/snapshots
             - SNAPSHOT_CI
             - DD_POOL_TRACE_CHECK_FAILURES=true
+            - DD_DISABLE_ERROR_RESPONSES=true
     vertica:
         image: sumitchawla/vertica
         environment:
