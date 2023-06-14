@@ -3,6 +3,7 @@ import os
 import platform
 import shutil
 import sys
+import re
 import tarfile
 
 from setuptools import setup, find_packages, Extension
@@ -307,6 +308,7 @@ class CMakeBuild(build_ext):
                     cmake_command = os.environ.get("CMAKE_COMMAND", "cmake")
                     # build_type = "RelWithDebInfo" if DEBUG_COMPILE else "Release"
                     build_type = "RelWithDebInfo"
+                    build_args = ["--config", build_type]
                     cmake_args = [
                         "-S",
                         IAST_DIR,
@@ -316,8 +318,25 @@ class CMakeBuild(build_ext):
                         "-DPython_EXECUTABLE={}".format(sys.executable),
                         "-DCMAKE_BUILD_TYPE={}".format(build_type),  # not used on MSVC, but no harm
                     ]
+
                     if platform.system() == "Windows":
                         cmake_args.extend(["-A", "x64" if platform.architecture()[0] == "64bit" else "Win32"])
+
+                    if sys.platform.startswith("darwin"):
+                        # Cross-compile support for macOS - respect ARCHFLAGS if set
+                        archs = re.findall(r"-arch (\S+)", os.environ.get("ARCHFLAGS", ""))
+                        if archs:
+                            cmake_args += ["-DCMAKE_OSX_ARCHITECTURES={}".format(";".join(archs))]
+
+                    # Set CMAKE_BUILD_PARALLEL_LEVEL to control the parallel build level
+                    # across all generators.
+                    if "CMAKE_BUILD_PARALLEL_LEVEL" not in os.environ:
+                        # self.parallel is a Python 3 only way to set parallel jobs by hand
+                        # using -j in the build_ext call, not supported by pip or PyPA-build.
+                        if hasattr(self, "parallel") and self.parallel:
+                            # CMake 3.12+ only.
+                            build_args += [f"-j{self.parallel}"]
+
                     subprocess.run(
                         [
                             cmake_command,
@@ -327,7 +346,14 @@ class CMakeBuild(build_ext):
                         check=True,
                     )
                     subprocess.run(
-                        [cmake_command, "--build", tmp_iast_path, "--config", build_type], cwd=tmp_iast_path, check=True
+                        [
+                            cmake_command,
+                            "--build",
+                            tmp_iast_path,
+                        ]
+                        + build_args,
+                        cwd=tmp_iast_path,
+                        check=True,
                     )
                 print("IAST TMP FOLDER!!!!")
                 res = os.listdir(tmp_iast_path)
