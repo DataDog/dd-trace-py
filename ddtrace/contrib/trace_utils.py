@@ -652,7 +652,7 @@ def set_user(tracer, user_id, name=None, email=None, scope=None, role=None, sess
         )
 
 
-def extract_info_from_url(url):
+def extract_netloc_and_query_info_from_url(url):
     # type: (str) -> Tuple[str, str]
     parse_result = parse.urlparse(url)
     query = parse_result.query

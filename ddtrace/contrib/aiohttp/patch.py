@@ -17,7 +17,7 @@ from ...internal.schema import schematize_url_operation
 from ...pin import Pin
 from ...propagation.http import HTTPPropagator
 from ..trace_utils import ext_service
-from ..trace_utils import extract_info_from_url
+from ..trace_utils import extract_netloc_and_query_info_from_url
 from ..trace_utils import set_http_meta
 from ..trace_utils import unwrap
 from ..trace_utils import with_traced_module as with_traced_module_sync
@@ -89,7 +89,7 @@ async def _traced_clientsession_request(aiohttp, pin, func, instance, args, kwar
         # Params can be included separate of the URL so the URL has to be constructed
         # with the passed params.
         url_str = str(url.update_query(params) if params else url)
-        host, query = extract_info_from_url(url_str)
+        host, query = extract_netloc_and_query_info_from_url(url_str)
         set_http_meta(
             span,
             config.aiohttp_client,
