@@ -445,13 +445,11 @@ class TelemetryWriter(TelemetryBase):
                 },
                 {
                     "name": "propagation_style_inject",
-                    "origin": "env_var",
-                    "value": config._propagation_style_inject,
+                    "value": str(config._propagation_style_inject),
                 },
                 {
                     "name": "propagation_style_extract",
-                    "origin": "env_var",
-                    "value": config._propagation_style_extract,
+                    "value": str(config._propagation_style_extract),
                 },
             ],
             "error": {
