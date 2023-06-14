@@ -102,7 +102,14 @@ class CIVisibilityGitClient(object):
     @classmethod
     def _get_repository_url(cls, cwd=None):
         # type: (Optional[str]) -> str
-        return extract_remote_url(cwd=cwd)
+        result = extract_remote_url(cwd=cwd)
+        if not result.startswith(("http", "git")):
+            from ddtrace.ext import ci
+
+            _tags = ci.tags(cwd=None)
+            result = _tags.get(ci.git.REPOSITORY_URL, result)
+
+        return result
 
     @classmethod
     def _get_latest_commits(cls, cwd=None):
