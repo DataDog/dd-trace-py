@@ -340,10 +340,10 @@ class CMakeBuild(build_ext):
                         if hasattr(self, "parallel") and self.parallel:
                             # CMake 3.12+ only.
                             build_args += ["-j{}".format(self.parallel)]
-                    cmake_command = [cmake_command] + cmake_args
+                    cmake_cmd_with_args = [cmake_command] + cmake_args
                     print("cmake_command!!!!")
-                    print(cmake_command)
-                    subprocess.run(cmake_command, cwd=tmp_iast_path, check=True)
+                    print(cmake_cmd_with_args)
+                    subprocess.run(cmake_cmd_with_args, cwd=tmp_iast_path, check=True)
 
                     build_command = [cmake_command, "--build", tmp_iast_path] + build_args
                     print("cmake_command!!!!")
