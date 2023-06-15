@@ -527,8 +527,7 @@ def patched_api_call(original_func, instance, args, kwargs):
                                         if PROPAGATION_KEY_BASE_64 in json.loads(
                                                 message["MessageAttributes"]["_datadog"]["StringValue"]
                                         ):
-                                            pathway = \
-                                            json.loads(message["MessageAttributes"]["_datadog"]["StringValue"])[
+                                            pathway = json.loads(message["MessageAttributes"]["_datadog"]["StringValue"])[
                                                 PROPAGATION_KEY_BASE_64
                                             ]
                                             ctx = pin.tracer.data_streams_processor.decode_pathway_b64(pathway)
