@@ -22,7 +22,7 @@
       "openai.response.id": "modr-7J8n5MruVQiClyY8ywV7Gd5pJFRIQ",
       "openai.response.model": "text-moderation-004",
       "openai.user.api_key": "sk-...key>",
-      "runtime-id": "a686e9e7a020465e9df6531fa234d962"
+      "runtime-id": "da6540c2a7284fd696d49e06e7c612cc"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -45,8 +45,8 @@
       "openai.response.category_scores.violence": 0.95947397,
       "openai.response.category_scores.violence/graphic": 5.8964293e-08,
       "openai.response.flagged": 1,
-      "process_id": 47163
+      "process_id": 93389
     },
-    "duration": 14445000,
-    "start": 1684796392286898000
+    "duration": 2510000,
+    "start": 1686844439402822000
   }]]

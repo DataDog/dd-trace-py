@@ -25,7 +25,7 @@
       "openai.response.language": "english",
       "openai.response.text": "when I've had enough of running after.",
       "openai.user.api_key": "sk-...key>",
-      "runtime-id": "ddda4e82e42541e1937804661f74c46f"
+      "runtime-id": "da6540c2a7284fd696d49e06e7c612cc"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -36,8 +36,8 @@
       "openai.organization.ratelimit.requests.remaining": 49,
       "openai.response.duration": 3.62,
       "openai.response.segments_count": 1,
-      "process_id": 39557
+      "process_id": 93389
     },
-    "duration": 1129777000,
-    "start": 1684794009563846000
+    "duration": 2993000,
+    "start": 1686844437747480000
   }]]

@@ -24,7 +24,7 @@
       "openai.request.stream": "True",
       "openai.request.user": "ddtrace-test",
       "openai.user.api_key": "sk-...key>",
-      "runtime-id": "38719d92e13b410da3bafba0cd9fb73a"
+      "runtime-id": "da6540c2a7284fd696d49e06e7c612cc"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -36,8 +36,8 @@
       "openai.response.usage.completion_tokens": 15,
       "openai.response.usage.prompt_tokens": 8,
       "openai.response.usage.total_tokens": 23,
-      "process_id": 42529
+      "process_id": 93389
     },
-    "duration": 1004302000,
-    "start": 1684539445824420000
+    "duration": 3654000,
+    "start": 1686844439612578000
   }]]

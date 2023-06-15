@@ -18,12 +18,13 @@
       "openai.request.endpoint": "/v1/images/variations",
       "openai.request.image": "image.png",
       "openai.request.method": "POST",
+      "openai.request.n": "1",
       "openai.request.response_format": "url",
       "openai.request.size": "256x256",
       "openai.request.user": "ddtrace-test",
       "openai.response.images.0.url": "https://oaidalleapiprodscus.blob.core.windows.net/private/org-OS4zcsDN8sF8E8CdhxgMkBV4/user-uYJDLWPStCQHcYnk3EXTJvGk/img-qlcbcQQ...",
       "openai.user.api_key": "sk-...key>",
-      "runtime-id": "72d1e04042144c4bb69bcd68bd4cf29b"
+      "runtime-id": "da6540c2a7284fd696d49e06e7c612cc"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -31,11 +32,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "openai.request.n": 1,
       "openai.response.created": 1685642045,
       "openai.response.images_count": 1,
-      "process_id": 34357
+      "process_id": 93389
     },
-    "duration": 8437168000,
-    "start": 1685642037231494000
+    "duration": 2714000,
+    "start": 1686844436927583000
   }]]

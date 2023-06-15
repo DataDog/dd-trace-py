@@ -18,7 +18,7 @@
       "openai.request.file_id": "file-xC22NUuYBkXvzRt2fLREcGde",
       "openai.request.method": "GET",
       "openai.user.api_key": "sk-...key>",
-      "runtime-id": "f0d7ec0aa6df4097b83108aeaa18cd0f"
+      "runtime-id": "da6540c2a7284fd696d49e06e7c612cc"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -27,8 +27,8 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "openai.response.total_bytes": 147697,
-      "process_id": 77945
+      "process_id": 93389
     },
-    "duration": 1007990000,
-    "start": 1685655399655487000
+    "duration": 2340000,
+    "start": 1686844438452333000
   }]]

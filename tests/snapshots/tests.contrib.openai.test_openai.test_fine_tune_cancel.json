@@ -25,7 +25,7 @@
       "openai.response.model": "curie",
       "openai.response.status": "cancelled",
       "openai.user.api_key": "sk-...key>",
-      "runtime-id": "f28baa45eafa420c8d17319bd4f4ec3f"
+      "runtime-id": "da6540c2a7284fd696d49e06e7c612cc"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -41,8 +41,8 @@
       "openai.response.training_files_count": 1,
       "openai.response.updated_at": 1685663725,
       "openai.response.validation_files_count": 0,
-      "process_id": 3445
+      "process_id": 93389
     },
-    "duration": 191944000,
-    "start": 1685663725369587000
+    "duration": 3195000,
+    "start": 1686844439051769000
   }]]

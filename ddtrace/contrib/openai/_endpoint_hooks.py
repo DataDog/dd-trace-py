@@ -48,21 +48,21 @@ class _EndpointHook:
                 if arg is None or args[idx] is None:
                     continue
                 if arg in self._base_level_tag_args:
-                    span.set_tag("openai.%s" % arg, args[idx])
+                    span.set_tag_str("openai.%s" % arg, str(args[idx]))
                 elif arg == "organization":
                     span.set_tag_str("openai.organization.id", args[idx])
                 elif arg == "api_key":
                     span.set_tag_str("openai.user.api_key", _format_openai_api_key(args[idx]))
                 else:
-                    span.set_tag("openai.request.%s" % arg, args[idx])
+                    span.set_tag_str("openai.request.%s" % arg, str(args[idx]))
         for kw_attr in self._request_kwarg_params:
             if kw_attr not in kwargs:
                 continue
             if isinstance(kwargs[kw_attr], dict):
                 for k, v in kwargs[kw_attr].items():
-                    span.set_tag("openai.request.%s.%s" % (kw_attr, k), v)
+                    span.set_tag_str("openai.request.%s.%s" % (kw_attr, k), str(v))
             else:
-                span.set_tag("openai.request.%s" % kw_attr, kwargs[kw_attr])
+                span.set_tag_str("openai.request.%s" % kw_attr, str(kwargs[kw_attr]))
 
     def handle_request(self, pin, integration, span, args, kwargs):
         self._record_request(pin, integration, span, args, kwargs)
@@ -406,7 +406,7 @@ class _RetrieveHook(_EndpointHook):
 
         for resp_attr in self._response_attrs:
             if resp_attr in resp:
-                span.set_tag("openai.response.%s" % resp_attr, resp.get(resp_attr, ""))
+                span.set_tag_str("openai.response.%s" % resp_attr, str(resp.get(resp_attr, "")))
         if resp.get("permission"):
             for k, v in resp.get("permission", [])[0].items():
                 if k == "object":  # object does not contain useful information
@@ -416,12 +416,12 @@ class _RetrieveHook(_EndpointHook):
                 elif isinstance(v, bool) or isinstance(v, int):
                     span.set_metric("openai.response.permission.%s" % k, int(v))
                 else:
-                    span.set_tag("openai.response.permission.%s" % k, v)
+                    span.set_tag_str("openai.response.permission.%s" % k, str(v))
         for k, v in resp.get("hyperparams", {}).items():
-            span.set_tag("openai.response.hyperparams.%s" % k, v)
+            span.set_tag_str("openai.response.hyperparams.%s" % k, str(v))
         for resp_attr in ("result_files", "training_files", "validation_files"):
             if resp_attr in resp:
-                span.set_tag("openai.response.%s_count" % resp_attr, len(resp.get(resp_attr, [])))
+                span.set_metric("openai.response.%s_count" % resp_attr, len(resp.get(resp_attr, [])))
         if resp.get("events"):
             span.set_metric("openai.response.events_count", len(resp.get("events", [])))
         return resp
@@ -767,7 +767,7 @@ class _BaseFineTuneHook(_EndpointHook):
             if isinstance(resp.get(resp_param), str):
                 span.set_tag_str("openai.response.%s" % resp_param, resp.get(resp_param, ""))
             else:
-                span.set_tag("openai.response.%s" % resp_param, resp.get(resp_param, ""))
+                span.set_tag_str("openai.response.%s" % resp_param, str(resp.get(resp_param, "")))
         span.set_metric("openai.response.created_at", resp.get("created_at", 0))
         span.set_metric("openai.response.updated_at", resp.get("updated_at", 0))
         span.set_metric("openai.response.events_count", len(resp.get("events", [])))

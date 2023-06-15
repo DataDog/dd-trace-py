@@ -18,7 +18,7 @@
       "openai.request.method": "GET",
       "openai.request.user": "ddtrace-test",
       "openai.user.api_key": "sk-...key>",
-      "runtime-id": "8e292b69ace04158a16bbe599dba8b14"
+      "runtime-id": "da6540c2a7284fd696d49e06e7c612cc"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -27,8 +27,8 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "openai.response.count": 52,
-      "process_id": 90411
+      "process_id": 93389
     },
-    "duration": 909639000,
-    "start": 1685659699012274000
+    "duration": 42589000,
+    "start": 1686844438593663000
   }]]

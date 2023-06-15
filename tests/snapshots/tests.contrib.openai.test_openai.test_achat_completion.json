@@ -30,6 +30,8 @@
       "openai.request.messages.3.role": "user",
       "openai.request.method": "POST",
       "openai.request.model": "gpt-3.5-turbo",
+      "openai.request.n": "2",
+      "openai.request.top_p": "0.9",
       "openai.request.user": "ddtrace-test",
       "openai.response.choices.0.finish_reason": "stop",
       "openai.response.choices.0.message.content": "The 2020 World Series was played at Globe Life Field in Arlington, Texas.",
@@ -42,7 +44,7 @@
       "openai.response.id": "chatcmpl-76n5iUWrirIDc8ldhMryJtvsL5wef",
       "openai.response.model": "gpt-3.5-turbo-0301",
       "openai.user.api_key": "sk-...key>",
-      "runtime-id": "b67659be84f14d3ebecea3168406238d"
+      "runtime-id": "da6540c2a7284fd696d49e06e7c612cc"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -51,15 +53,13 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "openai.organization.ratelimit.requests.remaining": 3499,
-      "openai.request.n": 2,
-      "openai.request.top_p": 0.9,
       "openai.response.choices_count": 2,
       "openai.response.created": 1681853030,
       "openai.response.usage.completion_tokens": 34,
       "openai.response.usage.prompt_tokens": 57,
       "openai.response.usage.total_tokens": 91,
-      "process_id": 44816
+      "process_id": 93389
     },
-    "duration": 8547000,
-    "start": 1684540130419389000
+    "duration": 1413000,
+    "start": 1686844436397410000
   }]]

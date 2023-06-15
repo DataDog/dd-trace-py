@@ -19,13 +19,15 @@
       "openai.request.file_id": "file-Aeh42OWPtbWgt7gfUjXBVFAF",
       "openai.request.method": "GET",
       "openai.request.user": "ddtrace-test",
+      "openai.response.bytes": "91400",
+      "openai.response.created_at": "1683906271",
       "openai.response.filename": "compiled_results.csv",
       "openai.response.id": "file-Aeh42OWPtbWgt7gfUjXBVFAF",
       "openai.response.purpose": "fine-tune-results",
       "openai.response.status": "processed",
       "openai.response.status_details": "None",
       "openai.user.api_key": "sk-...key>",
-      "runtime-id": "34f6f0f07ae246b992c061c84e4f8456"
+      "runtime-id": "da6540c2a7284fd696d49e06e7c612cc"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -33,10 +35,8 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "openai.response.bytes": 91400,
-      "openai.response.created_at": 1683906271,
-      "process_id": 75990
+      "process_id": 93389
     },
-    "duration": 144283000,
-    "start": 1685654867763643000
+    "duration": 3112000,
+    "start": 1686844438315655000
   }]]

@@ -22,7 +22,7 @@
       "openai.response.deleted": "True",
       "openai.response.id": "file-EArCuhXNtaTrFoPEKAmrVbnQ",
       "openai.user.api_key": "sk-...key>",
-      "runtime-id": "46575e6c8b014630b820ddae1fc6f147"
+      "runtime-id": "da6540c2a7284fd696d49e06e7c612cc"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -30,8 +30,8 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 68598
+      "process_id": 93389
     },
-    "duration": 576281000,
-    "start": 1685651981950402000
+    "duration": 535000,
+    "start": 1686844438250552000
   }]]

@@ -26,7 +26,7 @@
       "openai.response.permission.organization": "*",
       "openai.response.root": "curie",
       "openai.user.api_key": "sk-...key>",
-      "runtime-id": "af2aa246f0224cfb9468e24d25db3c41"
+      "runtime-id": "da6540c2a7284fd696d49e06e7c612cc"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -42,8 +42,8 @@
       "openai.response.permission.allow_view": 1,
       "openai.response.permission.created": 1675106503,
       "openai.response.permission.is_blocking": 0,
-      "process_id": 53341
+      "process_id": 93389
     },
-    "duration": 193806000,
-    "start": 1684542594772435000
+    "duration": 3086000,
+    "start": 1686844435865306000
   }]]

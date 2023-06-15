@@ -24,7 +24,7 @@
       "openai.request.user": "ddtrace-test",
       "openai.response.model": "text-embedding-ada-002-v2",
       "openai.user.api_key": "sk-...key>",
-      "runtime-id": "d7c97490263c4b5db264640a2d629476"
+      "runtime-id": "da6540c2a7284fd696d49e06e7c612cc"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -39,8 +39,8 @@
       "openai.response.embeddings_count": 3,
       "openai.response.usage.prompt_tokens": 9,
       "openai.response.usage.total_tokens": 9,
-      "process_id": 51758
+      "process_id": 93389
     },
-    "duration": 3087000,
-    "start": 1684797696405330000
+    "duration": 3508000,
+    "start": 1686844437459873000
   }]]

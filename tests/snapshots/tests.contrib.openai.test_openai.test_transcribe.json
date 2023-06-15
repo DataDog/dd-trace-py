@@ -22,11 +22,12 @@
       "openai.request.model": "whisper-1",
       "openai.request.prompt": "what's that over there?",
       "openai.request.response_format": "verbose_json",
+      "openai.request.temperature": "0.3",
       "openai.request.user": "ddtrace-test",
       "openai.response.language": "english",
       "openai.response.text": "Look at all those chickens!",
       "openai.user.api_key": "sk-...key>",
-      "runtime-id": "d15d51004ccc44f59ff14e50efce0181"
+      "runtime-id": "da6540c2a7284fd696d49e06e7c612cc"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -35,11 +36,10 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "openai.organization.ratelimit.requests.remaining": 49,
-      "openai.request.temperature": 0.3,
       "openai.response.duration": 2.78,
       "openai.response.segments_count": 1,
-      "process_id": 44315
+      "process_id": 93389
     },
-    "duration": 770626000,
-    "start": 1684795463941451000
+    "duration": 3094000,
+    "start": 1686844437603356000
   }]]

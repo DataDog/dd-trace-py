@@ -18,13 +18,14 @@
       "openai.request.endpoint": "/v1/images/edits",
       "openai.request.image": "",
       "openai.request.method": "POST",
+      "openai.request.n": "1",
       "openai.request.prompt": "A sunlit indoor lounge area with a pool containing a flamingo",
       "openai.request.response_format": "url",
       "openai.request.size": "256x256",
       "openai.request.user": "ddtrace-test",
       "openai.response.images.0.url": "https://oaidalleapiprodscus.blob.core.windows.net/private/org-OS4zcsDN8sF8E8CdhxgMkBV4/user-uYJDLWPStCQHcYnk3EXTJvGk/img-nKdVUNc...",
       "openai.user.api_key": "sk-...key>",
-      "runtime-id": "bee556b7c8ed4a13965f589672ca49a9"
+      "runtime-id": "da6540c2a7284fd696d49e06e7c612cc"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -32,11 +33,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "openai.request.n": 1,
       "openai.response.created": 1685631239,
       "openai.response.images_count": 1,
-      "process_id": 38803
+      "process_id": 93389
     },
-    "duration": 11743000,
-    "start": 1685643165388491000
+    "duration": 2577000,
+    "start": 1686844437221668000
   }]]

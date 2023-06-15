@@ -17,13 +17,14 @@
       "openai.organization.name": "datadog-4",
       "openai.request.endpoint": "/v1/images/generations",
       "openai.request.method": "POST",
+      "openai.request.n": "1",
       "openai.request.prompt": "sleepy capybara with monkey on top",
       "openai.request.response_format": "b64_json",
       "openai.request.size": "256x256",
       "openai.request.user": "ddtrace-test",
       "openai.response.images.0.b64_json": "returned",
       "openai.user.api_key": "sk-...key>",
-      "runtime-id": "0753fdb0f6a547f2a9abb557f04ebe10"
+      "runtime-id": "da6540c2a7284fd696d49e06e7c612cc"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -31,11 +32,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "openai.request.n": 1,
       "openai.response.created": 1685642324,
       "openai.response.images_count": 1,
-      "process_id": 35130
+      "process_id": 93389
     },
-    "duration": 7670987000,
-    "start": 1685642317435611000
+    "duration": 3792000,
+    "start": 1686844437277214000
   }]]
