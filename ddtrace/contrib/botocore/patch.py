@@ -13,7 +13,12 @@ from typing import Optional
 from typing import Set
 from typing import Tuple
 from typing import Union
-from urllib.parse import urlparse
+
+try:
+    from urllib.parse import urlparse
+except ImportError:
+    from urlparse import urlparse
+
 
 import botocore.client
 import botocore.exceptions
