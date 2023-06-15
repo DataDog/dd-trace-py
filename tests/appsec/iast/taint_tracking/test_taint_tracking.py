@@ -5,7 +5,6 @@ import pytest
 
 try:
     from ddtrace.appsec.iast import oce
-    from ddtrace.appsec.iast._ast.aspects import add_aspect
     from ddtrace.appsec.iast._taint_tracking import OriginType
     from ddtrace.appsec.iast._taint_tracking import Source
     from ddtrace.appsec.iast._taint_tracking import setup as taint_tracking_setup

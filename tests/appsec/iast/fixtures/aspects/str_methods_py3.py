@@ -1,9 +1,12 @@
-## Python 3 only functions (syntax errors on Python 2)
-import string
-from typing import Any
-from typing import List
-from typing import Optional
-from typing import Tuple
+# Python 3 only functions (syntax errors on Python 2)
+from typing import TYPE_CHECKING
+
+
+if TYPE_CHECKING:  # pragma: no cover
+    from typing import Any
+    from typing import List
+    from typing import Optional
+    from typing import Tuple
 
 
 def do_fmt_value(a):  # type: (str) -> str

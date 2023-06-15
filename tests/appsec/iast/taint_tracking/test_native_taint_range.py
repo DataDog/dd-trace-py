@@ -2,12 +2,6 @@ import sys
 
 import pytest
 
-from ddtrace.appsec.iast._taint_tracking import OriginType
-from ddtrace.appsec.iast._taint_tracking import Source
-from ddtrace.appsec.iast._taint_tracking import TaintRange
-from ddtrace.appsec.iast._taint_tracking import get_ranges
-from ddtrace.appsec.iast._taint_tracking import set_ranges
-
 
 try:
     from ddtrace.appsec.iast._taint_tracking import OriginType
@@ -42,7 +36,7 @@ def test_source_origin_refcount():
     assert sys.getrefcount(tr_sub.source) - 1 == 1
     del s3
     assert sys.getrefcount(tr_sub.source) - 1 == 1
-    tr_sub2 = TaintRange(1, 2, tr_sub.source)
+    _ = TaintRange(1, 2, tr_sub.source)
     assert sys.getrefcount(tr_sub.source) - 1 == 1
 
 

@@ -9,7 +9,6 @@ LOGGER = get_logger(__name__)
 
 try:
     from ddtrace.appsec.iast import oce
-    from ddtrace.appsec.iast._taint_dict import get_taint_dict
     from ddtrace.appsec.iast._taint_tracking._native import ops  # noqa: F401
     from ddtrace.appsec.iast._taint_tracking._native.aspect_helpers import (
         _convert_escaped_text_to_tainted_text,
@@ -26,10 +25,10 @@ try:
     from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import TaintRange  # noqa: F401
     from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import (
         is_notinterned_notfasttainted_unicode,
-    )  # noqa: F401; noqa: F401
+    )  # noqa: F401
     from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import (
         set_fast_tainted_if_notinterned_unicode,
-    )  # noqa: F401; noqa: F401; noqa: F401
+    )  # noqa: F401
     from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import are_all_text_all_ranges  # noqa: F401
     from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import get_range_by_hash  # noqa: F401
     from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import get_ranges  # noqa: F401
@@ -76,6 +75,8 @@ __all__ = [
     "get_context",
     "create_context",
     "common_replace",
+    "_convert_escaped_text_to_tainted_text",
+    "as_formatted_evidence",
 ]
 
 

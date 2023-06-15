@@ -10,8 +10,22 @@ import random
 import re
 import sys
 import threading
+from typing import TYPE_CHECKING
 
 from six import StringIO
+
+
+if TYPE_CHECKING:  # pragma: no cover
+    from typing import Any
+    from typing import Callable
+    from typing import Dict
+    from typing import Generator
+    from typing import Iterable
+    from typing import List
+    from typing import Optional
+    from typing import Sequence
+    from typing import Text
+    from typing import Tuple
 
 
 def methodcaller(*args, **kwargs):
@@ -140,19 +154,23 @@ def do_decode(s, encoding="utf-8", errors="strict"):  # type: (bytes, str, str) 
     return s.decode(encoding, errors)
 
 
-def do_translate(s, translate_dict):  # type: (str, dict) -> str
+def do_translate(s, translate_dict):
+    # type: (str, dict) -> str
     return s.translate(translate_dict)
 
 
-def do_decode_simple(s):  # type: (bytes, str, str) -> str
+def do_decode_simple(s):
+    # type: (bytes, str, str) -> str
     return s.decode()
 
 
-def do_encode(s, encoding="utf-8", errors="strict"):  # type: (str, str, str) -> bytes
+def do_encode(s, encoding="utf-8", errors="strict"):
+    # type: (str, str, str) -> bytes
     return s.encode(encoding, errors)
 
 
-def do_encode_from_dict(s, encoding="utf-8", errors="strict"):  # type: (str, str, str) -> bytes
+def do_encode_from_dict(s, encoding="utf-8", errors="strict"):
+    # type: (str, str, str) -> bytes
     my_dictionary = {}
     my_dictionary["test"] = s
     return my_dictionary.get("test", "").encode(encoding, errors)
@@ -800,7 +818,7 @@ def do_format_with_named_parameter(
     return template.format(key=value)
 
 
-def mapper(taint_range):  # type: (TaintRange) -> Text
+def mapper(taint_range):  # type: (Any) -> Text
     return taint_range.origin.parameter_name
 
 
@@ -979,18 +997,6 @@ def do_methodcaller(s, func, *args):  # type: (str, str, Any) -> str
     return func_method(s)
 
 
-def do_fake_methodcaller_1(s):  # type: (str) -> str
-    result = methods_aux.methodcaller()
-    result = result + s
-    return result
-
-
-def do_fake_methodcaller_2(s, *args, **kwargs):  # type: (str) -> str
-    result = methods_aux.methodcaller(*args, **kwargs)
-    result = result + s
-    return result
-
-
 def get_http_headers(header_key):  # type: (str) -> bytes
     RANDOM_PORT = 0
     server = StoppableHTTPServer(("127.0.0.1", RANDOM_PORT), WebServerHandler)
@@ -1052,7 +1058,7 @@ def do_add_re_compile():
         "\U000CFFFE\U000CFFFF\U000DFFFE\U000DFFFF\U000EFFFE\U000EFFFF"
         "\U000FFFFE\U000FFFFF\U0010FFFE\U0010FFFF]"
     )  # noqa
-    invalid_unicode_re = re.compile(
+    _ = re.compile(
         invalid_unicode_no_surrogate[:-1] + eval('"\\uD800-\\uDFFF"') + "]"  # pylint:disable=eval-used
     )
 

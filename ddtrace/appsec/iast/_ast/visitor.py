@@ -2,9 +2,14 @@ from _ast import Expr
 from _ast import ImportFrom
 import ast
 import sys
-from typing import Any
+from typing import TYPE_CHECKING
 
 from six import iteritems
+
+
+if TYPE_CHECKING:  # pragma: no cover
+    from typing import Any
+    from typing import List
 
 
 PY2 = sys.version_info[0] < 3
@@ -238,7 +243,7 @@ class AstVisitor(ast.NodeTransformer):
             kind=None,
         )
 
-    def _call_node(self, from_node, func, args):  # type: (Any, Any, ListType[Any]) -> Any
+    def _call_node(self, from_node, func, args):  # type: (Any, Any, List[Any]) -> Any
         if PY2:
             return self._node(ast.Call, from_node, func=func, args=args, starargs=None, kwargs=None, keywords=[])
 
@@ -350,7 +355,7 @@ class AstVisitor(ast.NodeTransformer):
 
         return call_node
 
-    def visit_FormattedValue(self, fmt_value_node):  # type: (FormattedValue) -> Any
+    def visit_FormattedValue(self, fmt_value_node):  # type: (ast.FormattedValue) -> Any
         """
         Visit a FormattedValue node which are the constituent atoms for the
         JoinedStr which are used to implement f-strings.
@@ -380,7 +385,7 @@ class AstVisitor(ast.NodeTransformer):
         self.ast_modified = True
         return call_node
 
-    def visit_JoinedStr(self, joinedstr_node):  # type: (JoinedStr) -> Any
+    def visit_JoinedStr(self, joinedstr_node):  # type: (ast.JoinedStr) -> Any
         """
         Replaced the JoinedStr AST node with a Call to the replacement function. Most of
         the work inside fstring is done by visit_FormattedValue above.

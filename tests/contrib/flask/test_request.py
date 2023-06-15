@@ -1122,7 +1122,7 @@ if __name__ == "__main__":
         env["DD_SERVICE"] = service_name
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, (out, err)
-    assert err == b""
+    assert err == b"", (out, err)
 
 
 @pytest.mark.parametrize("schema_version", [None, "v0", "v1"])

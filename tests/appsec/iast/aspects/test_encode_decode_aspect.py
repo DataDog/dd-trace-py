@@ -44,13 +44,11 @@ def catch_all(fun, args, kwargs):
 @pytest.mark.parametrize("suffix", [b"", b"abc", b"\xc3\xa9\xc3\xa7"])
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_decode_and_add_aspect(infix, args, kwargs, should_be_tainted, prefix, suffix):
-    from ddtrace.appsec.iast._taint_dict import clear_taint_mapping
     from ddtrace.appsec.iast._taint_tracking import OriginType
     from ddtrace.appsec.iast._taint_tracking import get_tainted_ranges
     from ddtrace.appsec.iast._taint_tracking import taint_pyobject
     import ddtrace.appsec.iast._taint_tracking.aspects as ddtrace_aspects
 
-    clear_taint_mapping()
     if should_be_tainted:
         infix = taint_pyobject(
             pyobject=infix,

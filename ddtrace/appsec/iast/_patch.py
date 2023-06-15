@@ -151,7 +151,6 @@ def if_iast_taint_returned_object_for(origin, wrapped, instance, args, kwargs):
 
 def if_iast_taint_yield_tuple_for(origins, wrapped, instance, args, kwargs):
     if _is_iast_enabled():
-        from ddtrace.appsec.iast._taint_tracking import get_tainted_ranges
         from ddtrace.appsec.iast._taint_tracking import taint_pyobject
 
         for key, value in wrapped(*args, **kwargs):
