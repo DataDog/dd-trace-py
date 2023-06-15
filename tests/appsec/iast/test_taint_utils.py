@@ -5,11 +5,10 @@ import pytest
 
 try:
     from ddtrace.appsec.iast import oce
-    from ddtrace.appsec.iast._taint_tracking import OriginType  # noqa: F401
+    from ddtrace.appsec.iast._taint_tracking import OriginType
     from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
     from ddtrace.appsec.iast._taint_tracking import setup as taint_tracking_setup
     from ddtrace.appsec.iast._taint_tracking import taint_pyobject
-    from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import OriginType
     from ddtrace.appsec.iast._taint_utils import LazyTaintDict
     from ddtrace.appsec.iast._taint_utils import check_tainted_args
 except (ImportError, AttributeError):

@@ -42,7 +42,7 @@ def test_common_replace_untainted_wrong_args_method():
     s = "foobar"
     # with pytest.raises(AttributeError):
     with pytest.raises(TypeError):
-        res = common_replace("rjust", s, "10", 35)
+        _ = common_replace("rjust", s, "10", 35)
 
 
 def test_common_replace_tainted_str():

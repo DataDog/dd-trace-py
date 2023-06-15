@@ -28,8 +28,6 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Optional
     from typing import Text
 
-    from ddtrace.appsec.iast._taint_tracking import Source
-
 log = get_logger(__name__)
 
 CWD = os.path.abspath(os.getcwd())
