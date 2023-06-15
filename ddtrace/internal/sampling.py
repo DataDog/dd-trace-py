@@ -78,7 +78,9 @@ SPAN_SAMPLING_JSON_SCHEMA = {
         "type": "object",
         "anyOf": [
             {"properties": {"service": {"type": "string"}}, "required": ["service"]},
+            {"properties": {"resource": {"type": "string"}}, "required": ["resource"]},
             {"properties": {"name": {"type": "string"}}, "required": ["name"]},
+            {"properties": {"tags": {"type": "object"}}, "required": ["tags"]},
         ],
         "properties": {"max_per_second": {"type": "integer"}, "sample_rate": {"type": "number"}},
     },
@@ -144,6 +146,8 @@ class SpanSamplingRule:
     __slots__ = (
         "_service_matcher",
         "_name_matcher",
+        "_resource_matcher",
+        "_tag_value_matchers",
         "_sample_rate",
         "_max_per_second",
         "_sampling_id_threshold",
@@ -157,6 +161,8 @@ class SpanSamplingRule:
         max_per_second,  # type: int
         service=None,  # type: Optional[str]
         name=None,  # type: Optional[str]
+        resource=None,  # type: Optional[str]
+        tags=None,  # type: Optional[dict]
     ):
         self._sample_rate = sample_rate
         self._sampling_id_threshold = self._sample_rate * MAX_SPAN_ID
@@ -167,6 +173,9 @@ class SpanSamplingRule:
         # we need to create matchers for the service and/or name pattern provided
         self._service_matcher = GlobMatcher(service) if service is not None else None
         self._name_matcher = GlobMatcher(name) if name is not None else None
+        self._resource_matcher = GlobMatcher(resource) if resource is not None else None
+
+        self._tag_value_matchers = {k: GlobMatcher(v) for k, v in tags.items()} if tags is not None else {}
 
     def sample(self, span):
         # type: (Span) -> bool
@@ -190,26 +199,51 @@ class SpanSamplingRule:
         """Determines if the span's service and name match the configured patterns"""
         name = span.name
         service = span.service
-        # If a span lacks a name and service, we can't match on it
-        if service is None and name is None:
+        resource = span.resource
+        tags = span.get_tags()
+        # If a span lacks a name, service, resource, and tags, we can't match on it
+        # Dev: originally this was just for name and service to optimize, now I'm not sure it's worth it
+        if service is None and name is None and resource is None and not tags:
             return False
 
-        # Default to True, as the rule may not have a name or service rule
+        # Default to True in the absence of a rule
         # For whichever rules it does have, it will attempt to match on them
         service_match = True
         name_match = True
+        resource_match = True
+        tag_match = True
 
         if self._service_matcher:
             if service is None:
                 return False
             else:
                 service_match = self._service_matcher.match(service)
+
         if self._name_matcher:
             if name is None:
                 return False
             else:
                 name_match = self._name_matcher.match(name)
-        return service_match and name_match
+
+        if self._resource_matcher:
+            if resource is None:
+                return False
+            else:
+                resource_match = self._resource_matcher.match(resource)
+
+        if self._tag_value_matchers:
+            if tags is None:
+                return False
+            else:
+                for tag_key in self._tag_value_matchers.keys():
+                    value = span.get_tag(tag_key)
+                    if value is not None:
+                        tag_match = self._tag_value_matchers[tag_key].match(value)
+                    else:
+                        # if we don't match with all specified tags for a rule, it's not a match
+                        return False
+
+        return service_match and name_match and resource_match and tag_match
 
     def apply_span_sampling_tags(self, span):
         # type: (Span) -> None
@@ -233,6 +267,9 @@ def get_span_sampling_rules():
         sample_rate = rule.get("sample_rate", 1.0)
         service = rule.get("service")
         name = rule.get("name")
+        resource = rule.get("resource")
+
+        tags = rule.get("tags")
         # If max_per_second not specified default to no limit
         max_per_second = rule.get("max_per_second", _SINGLE_SPAN_SAMPLING_MAX_PER_SEC_NO_LIMIT)
         if service:
@@ -242,7 +279,12 @@ def get_span_sampling_rules():
 
         try:
             sampling_rule = SpanSamplingRule(
-                sample_rate=sample_rate, service=service, name=name, max_per_second=max_per_second
+                sample_rate=sample_rate,
+                service=service,
+                name=name,
+                resource=resource,
+                tags=tags,
+                max_per_second=max_per_second,
             )
         except Exception as e:
             raise ValueError("Error creating single span sampling rule {}: {}".format(json.dumps(rule), e))
