@@ -5,7 +5,7 @@ from ddtrace.internal.compat import to_unicode
 
 
 if TYPE_CHECKING:
-    from typing import Any
+    from typing import Any, Callable, Optional
 
 MAX_DEPTH = 20
 MAX_GIRTH = 256
@@ -86,7 +86,7 @@ def create_key(t, meta=None):
 def _build_type(
     obj, depth, cache, max_depth=MAX_DEPTH, max_girth=MAX_GIRTH, max_types_in_array=MAX_TYPES_IN_ARRAY, classifier=None
 ):
-    # type: (Any, int, CacheBank, int, int, int) -> tuple[int, Any]
+    # type: (Any, int, CacheBank, int, int, int, Optional[Callable[[str], Any]]) -> tuple[int, Any]
     if depth >= max_depth:
         return cache.get_id(Type_Base.Unknown.value), [Type_Base.Unknown.value]
     elif isinstance(obj, list):
