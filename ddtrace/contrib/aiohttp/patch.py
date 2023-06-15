@@ -1,5 +1,4 @@
 import os
-import typing
 
 from yarl import URL
 
@@ -14,11 +13,11 @@ from ddtrace.vendor import wrapt
 
 from ...ext import SpanKind
 from ...ext import SpanTypes
-from ...internal.compat import parse
 from ...internal.schema import schematize_url_operation
 from ...pin import Pin
 from ...propagation.http import HTTPPropagator
 from ..trace_utils import ext_service
+from ..trace_utils import extract_netloc_and_query_info_from_url
 from ..trace_utils import set_http_meta
 from ..trace_utils import unwrap
 from ..trace_utils import with_traced_module as with_traced_module_sync
@@ -66,20 +65,6 @@ class _WrappedConnectorClass(wrapt.ObjectProxy):
             return result
 
 
-def extract_info_from_url(url):
-    # type: (str) -> typing.Tuple[str, str]
-    parse_result = parse.urlparse(url)
-    query = parse_result.query
-
-    # Relative URLs don't have a netloc, so we force them
-    if not parse_result.netloc:
-        parse_result = parse.urlparse("//{url}".format(url=url))
-
-    netloc = parse_result.netloc.split("@", 1)[-1]  # Discard auth info
-    netloc = netloc.split(":", 1)[0]  # Discard port information
-    return netloc, query
-
-
 @with_traced_module
 async def _traced_clientsession_request(aiohttp, pin, func, instance, args, kwargs):
     method = get_argument_value(args, kwargs, 0, "method")  # type: str
@@ -104,7 +89,7 @@ async def _traced_clientsession_request(aiohttp, pin, func, instance, args, kwar
         # Params can be included separate of the URL so the URL has to be constructed
         # with the passed params.
         url_str = str(url.update_query(params) if params else url)
-        host, query = extract_info_from_url(url_str)
+        host, query = extract_netloc_and_query_info_from_url(url_str)
         set_http_meta(
             span,
             config.aiohttp_client,
