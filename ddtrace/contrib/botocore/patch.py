@@ -124,6 +124,7 @@ def inject_trace_data_to_message_attributes(trace_data, entry, endpoint=None):
 
 
 def get_pathway(pin, params):
+    # type: (Pin, Any) -> str
     """
     :pin: patch info for the botocore client
     :queue_name: the name of the queue
@@ -137,7 +138,7 @@ def get_pathway(pin, params):
 
 
 def inject_trace_to_sqs_or_sns_batch_message(params, span, endpoint=None, pin=None, data_streams_enabled=False):
-    # type: (Any, Span, Optional[str]) -> None
+    # type: (Any, Span, Optional[str], Optional[Pin], Optional[bool]) -> None
     """
     :params: contains the params for the current botocore action
     :span: the span which provides the trace context to be propagated
@@ -162,7 +163,7 @@ def inject_trace_to_sqs_or_sns_batch_message(params, span, endpoint=None, pin=No
 
 
 def inject_trace_to_sqs_or_sns_message(params, span, endpoint=None, pin=None, data_streams_enabled=False):
-    # type: (Any, Span, Optional[str]) -> None
+    # type: (Any, Span, Optional[str], Optional[Pin], Optional[bool]) -> None
     """
     :params: contains the params for the current botocore action
     :span: the span which provides the trace context to be propagated
