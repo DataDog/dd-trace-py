@@ -14,11 +14,11 @@ from typing import Set
 from typing import Tuple
 from typing import Union
 
+
 try:
     from urllib.parse import urlparse
 except ImportError:
     from urlparse import urlparse
-
 
 import botocore.client
 import botocore.exceptions
