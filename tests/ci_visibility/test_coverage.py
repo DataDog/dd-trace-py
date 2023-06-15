@@ -5,6 +5,7 @@ import pytest
 
 from ddtrace import Tracer
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
+from ddtrace.internal.ci_visibility.coverage import Coverage
 from ddtrace.internal.ci_visibility.coverage import cover
 from ddtrace.internal.ci_visibility.coverage import segments
 
@@ -23,6 +24,7 @@ def test_segments(lines, expected_segments):
     assert segments(lines) == expected_segments
 
 
+@pytest.mark.skipif(Coverage is None, reason="Coverage not available")
 def test_cover():
     tracer = Tracer()
     span = tracer.start_span("cover_span")
