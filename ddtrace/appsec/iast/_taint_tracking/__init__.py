@@ -9,30 +9,27 @@ LOGGER = get_logger(__name__)
 
 
 from ddtrace.appsec.iast import oce
-from ddtrace.appsec.iast._taint_tracking._native import ops  # noqa: F401
-from ddtrace.appsec.iast._taint_tracking._native.aspect_helpers import \
-    _convert_escaped_text_to_tainted_text  # noqa: F401
-from ddtrace.appsec.iast._taint_tracking._native.aspect_helpers import as_formatted_evidence  # noqa: F401
-from ddtrace.appsec.iast._taint_tracking._native.aspect_helpers import common_replace  # noqa: F401
-from ddtrace.appsec.iast._taint_tracking._native.aspect_helpers import parse_params  # noqa: F401
-from ddtrace.appsec.iast._taint_tracking._native.initializer import contexts_reset  # noqa: F401
-from ddtrace.appsec.iast._taint_tracking._native.initializer import create_context  # noqa: F401
-from ddtrace.appsec.iast._taint_tracking._native.initializer import get_context  # noqa: F401
-from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import OriginType  # noqa: F401
-from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import Source  # noqa: F401
-from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import TagMappingMode  # noqa: F401
-from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import TaintRange  # noqa: F401
-from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import \
-    is_notinterned_notfasttainted_unicode  # noqa: F401
-from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import \
-    set_fast_tainted_if_notinterned_unicode  # noqa: F401
-from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import are_all_text_all_ranges  # noqa: F401
-from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import get_range_by_hash  # noqa: F401
-from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import get_ranges  # noqa: F401
-from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import origin_to_str  # noqa: F401
-from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import set_ranges  # noqa: F401
-from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import shift_taint_range  # noqa: F401
-from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import shift_taint_ranges  # noqa: F401
+from ddtrace.appsec.iast._taint_tracking._native import ops
+from ddtrace.appsec.iast._taint_tracking._native.aspect_helpers import _convert_escaped_text_to_tainted_text
+from ddtrace.appsec.iast._taint_tracking._native.aspect_helpers import as_formatted_evidence
+from ddtrace.appsec.iast._taint_tracking._native.aspect_helpers import common_replace
+from ddtrace.appsec.iast._taint_tracking._native.aspect_helpers import parse_params
+from ddtrace.appsec.iast._taint_tracking._native.initializer import contexts_reset
+from ddtrace.appsec.iast._taint_tracking._native.initializer import create_context
+from ddtrace.appsec.iast._taint_tracking._native.initializer import get_context
+from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import OriginType
+from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import Source
+from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import TagMappingMode
+from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import TaintRange
+from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import are_all_text_all_ranges
+from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import get_range_by_hash
+from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import get_ranges
+from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import is_notinterned_notfasttainted_unicode
+from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import origin_to_str
+from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import set_fast_tainted_if_notinterned_unicode
+from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import set_ranges
+from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import shift_taint_range
+from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import shift_taint_ranges
 
 
 setup = ops.setup
