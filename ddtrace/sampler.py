@@ -388,6 +388,8 @@ class SamplingRule(BaseSampler):
         sample_rate,  # type: float
         service=NO_RULE,  # type: Any
         name=NO_RULE,  # type: Any
+        resource=NO_RULE,  # type: Any
+        tags=NO_RULE,  # type: Optional[Dict[str, Any]]
     ):
         # type: (...) -> None
         """
@@ -423,8 +425,13 @@ class SamplingRule(BaseSampler):
                     "SamplingRule(sample_rate={}) must be greater than or equal to 0.0 and less than or equal to 1.0"
                 ).format(sample_rate)
             )
-        self._service_matcher = GlobMatcher(service) if service is not None else None
-        self._name_matcher = GlobMatcher(name) if name is not None else None
+        self._service_matcher = GlobMatcher(service) if service is not None and type(service) is str else None
+        self._name_matcher = GlobMatcher(name) if name is not None and type(name) is str else None
+        self._resource_matcher = GlobMatcher(resource) if resource is not None and type(resource) is str else None
+        self._tag_value_matchers = (
+            {k: GlobMatcher(v) for k, v in tags.items()} if tags is not None and type(tags) is dict else {}
+        )
+
         self.sample_rate = sample_rate
         self.service = service
         self.name = name
@@ -446,7 +453,6 @@ class SamplingRule(BaseSampler):
         #   e.g. ignoring `span.service` vs `span.service == None`
         if pattern is self.NO_RULE:
             return True
-
         # If the pattern is callable (e.g. a function) then call it passing the prop
         #   The expected return value is a boolean so cast the response in case it isn't
         if callable(pattern):
@@ -474,12 +480,6 @@ class SamplingRule(BaseSampler):
     def _matches(self, key):
         # type: (Tuple[Optional[str], str]) -> bool
         service, name = key
-        # previously we had support for patterns like regex and functions which glob_matches doesn't support
-        try:
-            # import pdb; pdb.set_trace()
-            return self.glob_matches(service, name)
-        except Exception:
-            pass
         for prop, pattern in [(service, self.service), (name, self.name)]:
             if not self._pattern_matches(prop, pattern):
                 return False
@@ -496,29 +496,59 @@ class SamplingRule(BaseSampler):
         :returns: Whether this span matches or not
         :rtype: :obj:`bool`
         """
-        return self._matches((span.service, span.name))
+        # glob matching does not support patterns of function or regex
+        if type(self.name) is str and type(self.service) is str:
+            glob_match = self.glob_matches(span)
+        else:
+            glob_match = False
+        # self._matches exists to maintain legacy pattern values such as regex and functions
+        return glob_match or self._matches((span.service, span.name))
 
-    def glob_matches(self, service, name):
-        # If a span lacks a name and service, we can't match on it
-        if service is None and name is None:
-            return False
+    def glob_matches(self, span):
+        # type: (Span) -> bool
+        name = span.name
+        service = span.service
+        resource = span.resource
+        tags = span.get_tags()
 
-        # Default to True, as the rule may not have a name or service rule
+        # Default to True in the absence of a rule
         # For whichever rules it does have, it will attempt to match on them
         service_match = True
         name_match = True
+        resource_match = True
+        tag_match = True
 
         if self._service_matcher:
             if service is None:
                 return False
             else:
                 service_match = self._service_matcher.match(service)
+
         if self._name_matcher:
             if name is None:
                 return False
             else:
                 name_match = self._name_matcher.match(name)
-        return service_match and name_match
+
+        if self._resource_matcher:
+            if resource is None:
+                return False
+            else:
+                resource_match = self._resource_matcher.match(resource)
+
+        if self._tag_value_matchers:
+            if tags is None:
+                return False
+            else:
+                for tag_key in self._tag_value_matchers.keys():
+                    value = span.get_tag(tag_key)
+                    if value is not None:
+                        tag_match = self._tag_value_matchers[tag_key].match(value)
+                    else:
+                        # if we don't match with all specified tags for a rule, it's not a match
+                        return False
+
+        return service_match and name_match and resource_match and tag_match
 
     def sample(self, span):
         # type: (Span) -> bool

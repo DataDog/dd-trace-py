@@ -71,9 +71,11 @@ def assert_sampling_decision_tags(
         assert SAMPLING_DECISION_TRACE_TAG_KEY not in span.context._meta
 
 
-def create_span(tracer=None, name="test.span", service=""):
+def create_span(tracer=None, name="test.span", service="", resource="", tags={}):
     tracer = tracer or DummyTracer()
-    span = tracer.trace(name=name, service=service)
+    span = tracer.trace(name=name, service=service, resource=resource)
+    for k, v in tags.items():
+        span.set_tag(k, v)
     span.finish()
     return span
 
@@ -567,12 +569,12 @@ def test_sampling_rule_matches_service(span, rule, expected):
         # DEV: We are checking if it is a match, not computing sampling rate, sample_rate=0 is not considered
         (
             create_span(
-                name="test.span",
+                name="test.span1",
                 service="my-service",
             ),
             SamplingRule(
                 sample_rate=0,
-                name="test.span",
+                name="test.span1",
                 service=re.compile(r"^my-"),
             ),
             True,
@@ -580,7 +582,7 @@ def test_sampling_rule_matches_service(span, rule, expected):
         # Name doesn't match
         (
             create_span(
-                name="test.span",
+                name="test.spanssss",
                 service="my-service",
             ),
             SamplingRule(
@@ -601,6 +603,46 @@ def test_sampling_rule_matches_service(span, rule, expected):
                 name="test.span",
                 service=re.compile(r"^service-"),
             ),
+            False,
+        ),
+        # Glob name and service matches
+        (
+            create_span(
+                name="test.span",
+                service="my-service",
+            ),
+            SamplingRule(
+                sample_rate=1,
+                name="test.????",
+                service="my-*",
+            ),
+            True,
+        ),
+        # Glob resource matches
+        (
+            create_span(
+                name="test.span",
+                service="my-service",
+                resource="my-resource",
+            ),
+            SamplingRule(
+                sample_rate=1,
+                name="test.span",
+                service="my-service",
+                resource="my-resourc?",
+            ),
+            True,
+        ),
+        # Glob tags match
+        (
+            create_span(name="test.span", service="my-service", tags={"test_key": "test-value"}),
+            SamplingRule(sample_rate=1, name="test.????", service="my-*", tags={"test_key": "test?value"}),
+            True,
+        ),
+        # Glob tags don't match
+        (
+            create_span(name="test.span", service="my-service", tags={"test_key": "test-val"}),
+            SamplingRule(sample_rate=1, name="test.????", service="my-*", tags={"test_key": "test?value"}),
             False,
         ),
     ],

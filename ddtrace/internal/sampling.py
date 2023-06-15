@@ -201,10 +201,6 @@ class SpanSamplingRule:
         service = span.service
         resource = span.resource
         tags = span.get_tags()
-        # If a span lacks a name, service, resource, and tags, we can't match on it
-        # Dev: originally this was just for name and service to optimize, now I'm not sure it's worth it
-        if service is None and name is None and resource is None and not tags:
-            return False
 
         # Default to True in the absence of a rule
         # For whichever rules it does have, it will attempt to match on them
