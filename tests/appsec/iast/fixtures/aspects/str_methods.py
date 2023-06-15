@@ -1061,7 +1061,6 @@ def do_add_re_compile():
     _ = re.compile(invalid_unicode_no_surrogate[:-1] + eval('"\\uD800-\\uDFFF"') + "]")  # pylint:disable=eval-used
 
 
-
 def do_stringio_init(string_input):
     return StringIO(string_input)
 
