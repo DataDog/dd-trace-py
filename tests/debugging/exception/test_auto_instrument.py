@@ -1,19 +1,28 @@
 import pytest
 
 import ddtrace
+import ddtrace.debugging._exception.auto_instrument as auto_instrument
 from ddtrace.internal.compat import PYTHON_VERSION_INFO as PY
 from tests.debugging.mocking import exception_debugging
 from tests.utils import TracerTestCase
+
+
+class MockedRateLimit(object):
+    def limit(self):
+        return None
 
 
 class ExceptionDebuggingTestCase(TracerTestCase):
     def setUp(self):
         super(ExceptionDebuggingTestCase, self).setUp()
         self.backup_tracer = ddtrace.tracer
+        self.backup_rate_limiter = auto_instrument.GLOBAL_RATE_LIMITER
         ddtrace.tracer = self.tracer
+        auto_instrument.GLOBAL_RATE_LIMITER = MockedRateLimit()
 
     def tearDown(self):
         ddtrace.tracer = self.backup_tracer
+        auto_instrument.GLOBAL_RATE_LIMITER = self.backup_rate_limiter
         super(ExceptionDebuggingTestCase, self).tearDown()
 
     def test_debugger_exception_debugging(self):

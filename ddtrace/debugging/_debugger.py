@@ -217,6 +217,9 @@ class Debugger(Service):
         atexit.unregister(cls.disable)
         unregister_post_run_module_hook(cls._on_run_module)
 
+        if cls._instance._span_processor:
+            cls._instance._span_processor.unregister()
+
         cls._instance.stop(join=join)
         cls._instance = None
 
@@ -258,7 +261,8 @@ class Debugger(Service):
         if ed_config.enabled:
             from ddtrace.debugging._exception.auto_instrument import SpanExceptionProcessor
 
-            SpanExceptionProcessor(collector=self._collector).register()
+            self._span_processor = SpanExceptionProcessor(collector=self._collector)
+            self._span_processor.register()
 
         if di_config.enabled:
             # TODO: this is only temporary and will be reverted once the DD_REMOTE_CONFIGURATION_ENABLED variable
