@@ -175,7 +175,7 @@ else:
 
 
 if PYTHON_VERSION_INFO[0:2] >= (3, 5):
-    from asyncio import iscoroutinefunction
+    from inspect import iscoroutinefunction
 
     # Execute from a string to get around syntax errors from `yield from`
     # DEV: The idea to do this was stolen from `six`
@@ -184,7 +184,6 @@ if PYTHON_VERSION_INFO[0:2] >= (3, 5):
         textwrap.dedent(
             """
     import functools
-    import asyncio
 
 
     def make_async_decorator(tracer, coro, *params, **kw_params):
@@ -454,3 +453,33 @@ class TemporaryDirectory(object):
             self._rmdir(path)
         except OSError:
             pass
+
+
+try:
+    from shlex import quote as shquote
+except ImportError:
+    import re
+
+    _find_unsafe = re.compile(r"[^\w@%+=:,./-]").search
+
+    def shquote(s):
+        # type: (str) -> str
+        """Return a shell-escaped version of the string *s*."""
+        if not s:
+            return "''"
+        if _find_unsafe(s) is None:
+            return s
+
+        # use single quotes, and put single quotes into double quotes
+        # the string $'b is then quoted as '$'"'"'b'
+        return "'" + s.replace("'", "'\"'\"'") + "'"
+
+
+try:
+    from shlex import join as shjoin
+except ImportError:
+
+    def shjoin(args):  # type: ignore[misc]
+        # type: (Iterable[str]) -> str
+        """Return a shell-escaped string from *args*."""
+        return " ".join(shquote(arg) for arg in args)

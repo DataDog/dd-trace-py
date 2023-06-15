@@ -14,6 +14,7 @@ import ddtrace
 from ddtrace import Span as DatadogSpan
 from ddtrace import Tracer as DatadogTracer
 from ddtrace.context import Context as DatadogContext
+from ddtrace.internal.constants import SPAN_API_OPENTRACING
 from ddtrace.internal.utils.config import get_application_name
 from ddtrace.settings import ConfigException
 
@@ -294,6 +295,7 @@ class Tracer(opentracing.Tracer):
             child_of=dd_parent,
             service=self._service_name,
             activate=False,
+            span_api=SPAN_API_OPENTRACING,
         )
 
         # set the start time if one is specified
