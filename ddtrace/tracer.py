@@ -180,8 +180,7 @@ def _default_span_processors_factory(
     if single_span_sampling_rules:
         span_processors.append(SpanSamplingProcessor(single_span_sampling_rules))
 
-    if peer_service_processor.enabled:
-        span_processors.append(peer_service_processor)
+    span_processors.append(peer_service_processor)
 
     # These need to run after all the other processors
     deferred_processors = [

@@ -2,7 +2,7 @@
   {
     "name": "openai.request",
     "service": "",
-    "resource": "completions/ada",
+    "resource": "createCompletion",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
@@ -10,21 +10,22 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "api_base": "https://api.openai.com/v1",
       "component": "openai",
       "language": "python",
-      "openai.endpoint": "completions",
-      "openai.model": "ada",
+      "openai.api_base": "https://api.openai.com/v1",
+      "openai.api_type": "open_ai",
       "openai.organization.name": "datadog-4",
-      "openai.organization.ratelimit.requests.remaining": "2999",
-      "openai.organization.ratelimit.tokens.remaining": "249983",
+      "openai.request.endpoint": "/v1/completions",
+      "openai.request.method": "POST",
+      "openai.request.model": "ada",
       "openai.request.prompt": "hello world",
       "openai.response.choices.0.finish_reason": "length",
       "openai.response.choices.0.logprobs": "returned",
       "openai.response.choices.0.text": ",\" a male farrago, or \"voices of the people.\" If",
-      "openai.response.object": "text_completion",
-      "openai.user.api_key": "sk-...eal>",
-      "runtime-id": "e7e8e1729b2748a6811fe03920383ea8"
+      "openai.response.id": "cmpl-76n21v67JBLBTiNAIzghImtsNjBrq",
+      "openai.response.model": "ada",
+      "openai.user.api_key": "sk-...key>",
+      "runtime-id": "a2f9e4b4851a45239f4161d2713e8ef9"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -32,9 +33,12 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "openai.response.choices.num": 1,
-      "process_id": 14817
+      "openai.organization.ratelimit.requests.remaining": 2999,
+      "openai.organization.ratelimit.tokens.remaining": 249983,
+      "openai.response.choices_count": 1,
+      "openai.response.created": 1681852801,
+      "process_id": 93428
     },
-    "duration": 7521000,
-    "start": 1683148557799162000
+    "duration": 8689000,
+    "start": 1686844441125214000
   }]]
