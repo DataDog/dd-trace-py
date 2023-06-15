@@ -234,7 +234,7 @@ class AstVisitor(ast.NodeTransformer):
             return ast.Name(id="None", lineno=from_node.lineno, col_offset=from_node.col_offset, ctx=ctx)
 
         # 3.8+
-        return ast.Constant(  # type: ignore[name-defined]
+        return ast.Constant(
             lineno=from_node.lineno,
             col_offset=from_node.col_offset,
             end_lineno=from_node.end_lineno,
@@ -369,7 +369,7 @@ class AstVisitor(ast.NodeTransformer):
         func_name_node = self._attr_node(fmt_value_node, self._aspect_format_value)
 
         options_int = self._node(
-            ast.Constant,  # type: ignore[name-defined]
+            ast.Constant,
             fmt_value_node,
             value=fmt_value_node.conversion,
             kind=None,

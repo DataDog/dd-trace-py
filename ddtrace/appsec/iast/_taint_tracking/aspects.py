@@ -31,6 +31,7 @@ if TYPE_CHECKING:
     from typing import Dict
     from typing import List
     from typing import Optional
+    from typing import Union
 
 TEXT_TYPES = (str, binary_type, bytearray)
 
@@ -77,7 +78,7 @@ def bytes_aspect(*args, **kwargs):
     # type: (Any, Any) -> bytes
     result = builtin_bytes(*args, **kwargs)
     if isinstance(args[0], TEXT_TYPES) and is_pyobject_tainted(args[0]):
-        result = taint_pyobject(result, Source("bytes_aspect", result, 0))
+        result = taint_pyobject(result, source_name="bytes_aspect", source_value=result)
 
     return result
 
@@ -86,7 +87,7 @@ def bytearray_aspect(*args, **kwargs):
     # type: (Any, Any) -> bytearray
     result = builtin_bytearray(*args, **kwargs)
     if isinstance(args[0], TEXT_TYPES) and is_pyobject_tainted(args[0]):
-        result = taint_pyobject(result, Source("bytearray_aspect", result, 0))
+        result = taint_pyobject(result, source_name="bytearray_aspect", source_value=result)
 
     return result
 
@@ -106,7 +107,7 @@ def modulo_aspect(candidate_text, candidate_tuple):
         if isinstance(candidate_tuple, tuple):
             parameter_list = candidate_tuple
         else:
-            parameter_list = (candidate_tuple,)  # type: ignore
+            parameter_list = (candidate_tuple,)
 
         ranges_orig, candidate_text_ranges = are_all_text_all_ranges(candidate_text, parameter_list)
         if not ranges_orig:
@@ -138,7 +139,7 @@ def build_string_aspect(*args):  # type: (List[Any]) -> str
 
 
 def ljust_aspect(candidate_text, *args, **kwargs):
-    # type: (Any, Any, Any) -> str
+    # type: (Any, Any, Any) -> Union[str, bytes, bytearray]
     if not isinstance(candidate_text, TEXT_TYPES):
         return candidate_text.ljust(*args, **kwargs)
 
@@ -185,9 +186,8 @@ def format_aspect(
         if isinstance(arg, TEXT_TYPES)
         else arg
     )
-    # new_args = map(fun, args)  # type: ignore[arg-type]
-    new_args = list(map(fun, args))  # type: ignore[arg-type]
-    # new_kwargs = {key: fun(value) for key, value in iteritems(kwargs)}
+
+    new_args = list(map(fun, args))
     new_kwargs = {key: fun(value) for key, value in iteritems(kwargs)}
     # invert_dict(range_guid_map)
 
@@ -210,7 +210,7 @@ def format_aspect(
     # print(fmt.format(new_template, *new_args, **new_kwargs))
 
     return _convert_escaped_text_to_tainted_text(
-        new_template.format(*new_args, **new_kwargs),  # type: ignore[union-attr]
+        new_template.format(*new_args, **new_kwargs),
         ranges_orig=ranges_orig,
     )
     #

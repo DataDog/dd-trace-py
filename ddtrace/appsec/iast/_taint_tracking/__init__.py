@@ -40,6 +40,7 @@ if TYPE_CHECKING:
     from typing import Dict
     from typing import List
     from typing import Optional
+    from typing import Text
     from typing import Tuple
     from typing import Union
 
@@ -74,8 +75,8 @@ __all__ = [
 ]
 
 
-def taint_pyobject(pyobject, source_name=None, source_value=None, source_origin=None, start=0, len_pyobject=None):
-    # type: (Any, str, str, OriginType, int, Optional[int]) -> Any
+def taint_pyobject(pyobject, source_name, source_value, source_origin=None, start=0, len_pyobject=None):
+    # type: (Any, Any, Any, OriginType, int, Optional[int]) -> Any
     # Request is not analyzed
     if not oce.request_has_quota:
         return pyobject
