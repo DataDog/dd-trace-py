@@ -1,6 +1,7 @@
 import pytest
 
 import ddtrace
+from ddtrace.internal.compat import PYTHON_VERSION_INFO as PY
 from tests.debugging.mocking import exception_debugging
 from tests.utils import TracerTestCase
 
@@ -65,3 +66,79 @@ class ExceptionDebuggingTestCase(TracerTestCase):
                     )
 
                     assert all(str(s.exc_id) == exc_id for s in snapshots.values())
+
+            # assert all spans use the same exc_id
+            exc_ids = set(span.get_tag("_dd.debug.error.exception_id") for span in self.spans)
+            assert len(exc_ids) == 1
+
+    def test_debugger_exception_chaining(self):
+        def a(v, d=None):
+            with self.trace("a"):
+                if not v:
+                    raise ValueError("hello", v)
+
+        def b_chain(bar):
+            with self.trace("b"):
+                m = 4
+                try:
+                    a(bar % m)
+                except ValueError:
+                    # this would act differently for PY2 and PY3
+                    # PY3 would chain those KeyError to ValueError exc and we will have a single exc_id
+                    # PY2 would not chain those and have 2 exc_ids
+                    raise KeyError("chain it")
+
+        def c(foo=42):
+            with self.trace("c"):
+                sh = 3
+                b_chain(foo << sh)
+
+        with exception_debugging() as d:
+            with pytest.raises(KeyError):
+                c()
+
+            self.assert_span_count(3)
+            assert len(d.test_queue) == 3
+
+            snapshots = {str(s.uuid): s for s in d.test_queue}
+            print(snapshots.keys())
+
+            if PY < (3, 0):
+                stacks = [["c", "b_chain"], ["b_chain"], ["a"]]
+                number_of_exc_ids = 2
+            else:
+                stacks = [["b_chain", "a", "c", "b_chain"], ["b_chain", "a"], ["a"]]
+                number_of_exc_ids = 1
+
+            for n, span in enumerate(self.spans):
+                assert span.get_tag("error.debug_info_captured") == "true"
+
+                exc_id = span.get_tag("_dd.debug.error.exception_id")
+
+                info = {k: v for k, v in enumerate(stacks[n], start=1)}
+
+                print(span._meta["error.stack"], info)
+
+                for i in range(1, len(info) + 1):
+                    fn = info[i]
+
+                    # Check that we have all the tags for each snapshot
+                    assert span.get_tag("_dd.debug.error.%d.snapshot_id" % i) in snapshots
+                    assert span.get_tag("_dd.debug.error.%d.file" % i) == __file__, span.get_tag(
+                        "_dd.debug.error.%d.file" % i
+                    )
+                    assert span.get_tag("_dd.debug.error.%d.function" % i) == fn, "_dd.debug.error.%d.function = %s" % (
+                        i,
+                        span.get_tag("_dd.debug.error.%d.function" % i),
+                    )
+                    assert span.get_tag("_dd.debug.error.%d.line" % i), "_dd.debug.error.%d.line = %s" % (
+                        i,
+                        span.get_tag("_dd.debug.error.%d.line" % i),
+                    )
+
+                    # ensure we point to the right snapshots
+                    assert any(str(s.exc_id) == exc_id for s in snapshots.values())
+
+            # assert number of unique exc_ids based on python version
+            exc_ids = set(span.get_tag("_dd.debug.error.exception_id") for span in self.spans)
+            assert len(exc_ids) == number_of_exc_ids
