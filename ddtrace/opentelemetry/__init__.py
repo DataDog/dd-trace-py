@@ -19,6 +19,7 @@ the ``DD_TRACE_OTEL_ENABLED`` environment variable to True (the default value is
 OpenTelemetry support can be enabled programmatically by setting ``DD_TRACE_OTEL_ENABLED=True``
 and setting the ``ddtrace.opentelemetry.TracerProvider``. These configurations
 must be set before any OpenTelemetry Tracers are initialized::
+
     import os
     # Must be set before ddtrace is imported!
     os.environ["DD_TRACE_OTEL_ENABLED"] = "true"
