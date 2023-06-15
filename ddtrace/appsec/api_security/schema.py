@@ -5,7 +5,9 @@ from ddtrace.internal.compat import to_unicode
 
 
 if TYPE_CHECKING:
-    from typing import Any, Callable, Optional
+    from typing import Any
+    from typing import Callable
+    from typing import Optional
 
 MAX_DEPTH = 20
 MAX_GIRTH = 256
