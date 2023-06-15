@@ -420,6 +420,24 @@ def test_civisibilitywriter_coverage_agentless_url():
             _get_connection.assert_called_once_with("https://citestcov-intake.datadoghq.com", 2.0)
 
 
+def test_civisibilitywriter_coverage_agentless_with_intake_url_param():
+    with override_env(
+        dict(
+            DD_API_KEY="foobar.baz",
+            DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+        )
+    ), mock.patch("ddtrace.internal.ci_visibility.writer.coverage_enabled", return_value=True):
+        dummy_writer = DummyCIVisibilityWriter(intake_url="https://some-url.com")
+        assert dummy_writer.intake_url == "https://some-url.com"
+
+        cov_client = dummy_writer._clients[1]
+        assert cov_client._intake_url == "https://citestcov-intake.datadoghq.com"
+
+        with mock.patch("ddtrace.internal.writer.writer.get_connection") as _get_connection:
+            dummy_writer._put("", {}, cov_client)
+            _get_connection.assert_called_once_with("https://citestcov-intake.datadoghq.com", 2.0)
+
+
 def test_civisibilitywriter_coverage_evp_proxy_url():
     with override_env(
         dict(
