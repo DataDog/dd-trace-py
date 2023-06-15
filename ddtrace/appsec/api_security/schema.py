@@ -1,7 +1,6 @@
 import enum
 from typing import TYPE_CHECKING
 
-from ddtrace.appsec.api_security.classifier import metadata
 from ddtrace.internal.compat import to_unicode
 
 
@@ -84,7 +83,7 @@ def create_key(t, meta=None):
     return t + meta if meta else t
 
 
-def _build_type(obj, depth, cache, max_depth=MAX_DEPTH, max_girth=MAX_GIRTH, max_types_in_array=MAX_TYPES_IN_ARRAY):
+def _build_type(obj, depth, cache, max_depth=MAX_DEPTH, max_girth=MAX_GIRTH, max_types_in_array=MAX_TYPES_IN_ARRAY, classifier=None):
     # type: (Any, int, CacheBank, int, int, int) -> tuple[int, Any]
     if depth >= max_depth:
         return cache.get_id(Type_Base.Unknown.value), [Type_Base.Unknown.value]
@@ -127,7 +126,7 @@ def _build_type(obj, depth, cache, max_depth=MAX_DEPTH, max_girth=MAX_GIRTH, max
     else:
         typename = type(obj).__name__
         type_base = getattr(Type_Base, typename, Type_Base.Unknown)
-        metadata_record = metadata(obj) if isinstance(obj, str) else []
+        metadata_record = classifier(obj) if classifier is not None and isinstance(obj, str) else []
         res_type = [type_base.value, metadata_record] if metadata_record else [type_base.value]
         return (cache.get_id(type_base.value), res_type)
 
