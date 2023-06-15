@@ -13,7 +13,6 @@ from typing import Optional
 from typing import Set
 from typing import Tuple
 from typing import Union
-
 from urllib.parse import urlparse
 
 import botocore.client
@@ -45,6 +44,7 @@ from ...internal.utils.formats import deep_getattr
 from ...pin import Pin
 from ...propagation.http import HTTPPropagator
 from ..trace_utils import unwrap
+
 
 _PATCHED_SUBMODULES = set()  # type: Set[str]
 
@@ -410,9 +410,9 @@ def patched_api_call(original_func, instance, args, kwargs):
         "{}.command".format(endpoint_name), cloud_provider="aws", cloud_service=endpoint_name
     )
     with pin.tracer.trace(
-            trace_operation,
-            service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
-            span_type=SpanTypes.HTTP,
+        trace_operation,
+        service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
+        span_type=SpanTypes.HTTP,
     ) as span:
         span.set_tag_str(COMPONENT, config.botocore.integration_name)
 
@@ -525,23 +525,25 @@ def patched_api_call(original_func, instance, args, kwargs):
                                     if "StringValue" in message["MessageAttributes"]["_datadog"]:
                                         max_attributes_flag = False
                                         if PROPAGATION_KEY_BASE_64 in json.loads(
-                                                message["MessageAttributes"]["_datadog"]["StringValue"]
+                                            message["MessageAttributes"]["_datadog"]["StringValue"]
                                         ):
-                                            pathway = json.loads(message["MessageAttributes"]["_datadog"]["StringValue"])[
-                                                PROPAGATION_KEY_BASE_64
-                                            ]
+                                            pathway = json.loads(
+                                                message["MessageAttributes"]["_datadog"]["StringValue"]
+                                            )[PROPAGATION_KEY_BASE_64]
                                             ctx = pin.tracer.data_streams_processor.decode_pathway_b64(pathway)
                                             ctx.set_checkpoint(["direction:in", "topic:" + queue_name, "type:sqs"])
 
                                         else:
-                                            log.warning("Unable to find data streams context for the message. Data "
-                                                        "streams monitoring was not enabled by the application "
-                                                        "sending the message at the time of the send.")
+                                            log.debug(
+                                                "Unable to find data streams context for the message. Data "
+                                                "streams monitoring was not enabled by the application "
+                                                "sending the message at the time of the send."
+                                            )
                             if max_attributes_flag:
-                                log.warning("Unable to find trace context for the message.")
+                                log.debug("Unable to find trace context for the message.")
 
-                except Exception as ex:
-                    log.exception("Error receiving SQS message with data streams monitoring enabled: %s", ex)
+                except Exception:
+                    log.exception("Error receiving SQS message with data streams monitoring enabled.")
 
                 return result
 
