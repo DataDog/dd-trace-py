@@ -22,6 +22,7 @@ from ddtrace.debugging._config import di_config
 from ddtrace.debugging._config import ed_config
 from ddtrace.debugging._encoding import BatchJsonEncoder
 from ddtrace.debugging._encoding import LogSignalJsonEncoder
+from ddtrace.debugging._exception.auto_instrument import SpanExceptionProcessor
 from ddtrace.debugging._function.discovery import FunctionDiscovery
 from ddtrace.debugging._function.store import FullyNamedWrappedFunction
 from ddtrace.debugging._function.store import FunctionStore
@@ -163,6 +164,7 @@ class DebuggerModuleWatchdog(ModuleWatchdog):
 class Debugger(Service):
     _instance = None  # type: Optional[Debugger]
     _probe_meter = _probe_metrics.get_meter("probe")
+    _span_processor = None  # type: Optional[SpanExceptionProcessor]
 
     __rc_adapter__ = ProbeRCAdapter
     __uploader__ = LogsIntakeUploaderV1
@@ -263,6 +265,8 @@ class Debugger(Service):
 
             self._span_processor = SpanExceptionProcessor(collector=self._collector)
             self._span_processor.register()
+        else:
+            self._span_processor = None
 
         if di_config.enabled:
             # TODO: this is only temporary and will be reverted once the DD_REMOTE_CONFIGURATION_ENABLED variable

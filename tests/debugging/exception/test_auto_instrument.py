@@ -1,28 +1,33 @@
+from contextlib import contextmanager
+
 import pytest
 
 import ddtrace
 import ddtrace.debugging._exception.auto_instrument as auto_instrument
 from ddtrace.internal.compat import PYTHON_VERSION_INFO as PY
+from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLimiter
 from tests.debugging.mocking import exception_debugging
 from tests.utils import TracerTestCase
 
 
-class MockedRateLimit(object):
-    def limit(self):
-        return None
+@contextmanager
+def with_rate_limiter(limiter):
+    original_limiter = auto_instrument.GLOBAL_RATE_LIMITER
+    mocked = auto_instrument.GLOBAL_RATE_LIMITER = limiter
+
+    yield mocked
+
+    auto_instrument.GLOBAL_RATE_LIMITER = original_limiter
 
 
 class ExceptionDebuggingTestCase(TracerTestCase):
     def setUp(self):
         super(ExceptionDebuggingTestCase, self).setUp()
         self.backup_tracer = ddtrace.tracer
-        self.backup_rate_limiter = auto_instrument.GLOBAL_RATE_LIMITER
         ddtrace.tracer = self.tracer
-        auto_instrument.GLOBAL_RATE_LIMITER = MockedRateLimit()
 
     def tearDown(self):
         ddtrace.tracer = self.backup_tracer
-        auto_instrument.GLOBAL_RATE_LIMITER = self.backup_rate_limiter
         super(ExceptionDebuggingTestCase, self).tearDown()
 
     def test_debugger_exception_debugging(self):
@@ -42,8 +47,9 @@ class ExceptionDebuggingTestCase(TracerTestCase):
                 b(foo << sh)
 
         with exception_debugging() as d:
-            with pytest.raises(ValueError):
-                c()
+            with with_rate_limiter(RateLimiter(limit_rate=1, raise_on_exceed=False)):
+                with pytest.raises(ValueError):
+                    c()
 
             self.assert_span_count(3)
             assert len(d.test_queue) == 3
@@ -103,8 +109,13 @@ class ExceptionDebuggingTestCase(TracerTestCase):
                 b_chain(foo << sh)
 
         with exception_debugging() as d:
-            with pytest.raises(KeyError):
-                c()
+            rateLimiter = RateLimiter(
+                limit_rate=1,  # one trace per second
+                raise_on_exceed=False,
+            )
+            with with_rate_limiter(rateLimiter):
+                with pytest.raises(KeyError):
+                    c()
 
             self.assert_span_count(3)
             assert len(d.test_queue) == 3
@@ -151,3 +162,12 @@ class ExceptionDebuggingTestCase(TracerTestCase):
             # assert number of unique exc_ids based on python version
             exc_ids = set(span.get_tag("_dd.debug.error.exception_id") for span in self.spans)
             assert len(exc_ids) == number_of_exc_ids
+
+            # invoke again (should be in less then 1 sec)
+            with with_rate_limiter(rateLimiter):
+                with pytest.raises(KeyError):
+                    c()
+
+            self.assert_span_count(6)
+            # no new snapshots
+            assert len(d.test_queue) == 3
