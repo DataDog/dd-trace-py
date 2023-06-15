@@ -13,7 +13,7 @@ from pkg_resources import get_build_platform
 from distutils.command.clean import clean as CleanCommand
 
 try:
-    # ORDER MATTERS
+    # ORDER MATTERS 
     # Import this after setuptools or it will fail
     from Cython.Build import cythonize  # noqa: I100
     import Cython.Distutils
