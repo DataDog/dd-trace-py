@@ -1,13 +1,17 @@
 import pytest
 
-from ddtrace.appsec.iast._taint_tracking import OriginType
-from ddtrace.appsec.iast._taint_tracking import Source
-from ddtrace.appsec.iast._taint_tracking import TaintRange
-from ddtrace.appsec.iast._taint_tracking import as_formatted_evidence
-from ddtrace.appsec.iast._taint_tracking import common_replace
-from ddtrace.appsec.iast._taint_tracking import get_ranges
-from ddtrace.appsec.iast._taint_tracking import set_ranges
-from ddtrace.appsec.iast._taint_tracking.aspects import _convert_escaped_text_to_tainted_text
+
+try:
+    from ddtrace.appsec.iast._taint_tracking import OriginType
+    from ddtrace.appsec.iast._taint_tracking import Source
+    from ddtrace.appsec.iast._taint_tracking import TaintRange
+    from ddtrace.appsec.iast._taint_tracking import as_formatted_evidence
+    from ddtrace.appsec.iast._taint_tracking import common_replace
+    from ddtrace.appsec.iast._taint_tracking import get_ranges
+    from ddtrace.appsec.iast._taint_tracking import set_ranges
+    from ddtrace.appsec.iast._taint_tracking.aspects import _convert_escaped_text_to_tainted_text
+except (ImportError, AttributeError):
+    pytest.skip("IAST not supported for this Python version", allow_module_level=True)
 
 
 _SOURCE1 = Source(name="name", value="value", origin=OriginType.COOKIE)
