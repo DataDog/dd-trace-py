@@ -543,7 +543,7 @@ def patched_api_call(original_func, instance, args, kwargs):
                                 log.debug("Unable to find trace context for the message.")
 
                 except Exception:
-                    log.exception("Error receiving SQS message with data streams monitoring enabled.")
+                    log.debug("Error receiving SQS message with data streams monitoring enabled", exc_info=True)
 
                 return result
 
