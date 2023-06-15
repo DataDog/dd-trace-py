@@ -1,0 +1,48 @@
+[[
+  {
+    "name": "openai.request",
+    "service": "",
+    "resource": "createEdit",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "component": "openai",
+      "language": "python",
+      "openai.api_base": "https://api.openai.com/v1",
+      "openai.api_type": "open_ai",
+      "openai.organization.name": "datadog-4",
+      "openai.request.endpoint": "/v1/edits",
+      "openai.request.input": "thsi si a spelilgn imstkae.",
+      "openai.request.instruction": "fix spelling mistakes",
+      "openai.request.method": "POST",
+      "openai.request.model": "text-davinci-edit-001",
+      "openai.request.n": "3",
+      "openai.request.temperature": "0.2",
+      "openai.request.user": "ddtrace-test",
+      "openai.response.choices.0.text": "this is a spelling mistake.\\n",
+      "openai.response.choices.1.text": "this is a spelling mistake.\\n",
+      "openai.response.choices.2.text": "this is a spelling mistake.\\n",
+      "openai.user.api_key": "sk-...key>",
+      "runtime-id": "da6540c2a7284fd696d49e06e7c612cc"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "openai.organization.ratelimit.requests.remaining": 19,
+      "openai.response.choices_count": 3,
+      "openai.response.created": 1684789878,
+      "openai.response.usage.completion_tokens": 90,
+      "openai.response.usage.prompt_tokens": 28,
+      "openai.response.usage.total_tokens": 118,
+      "process_id": 93389
+    },
+    "duration": 3261000,
+    "start": 1686844436473658000
+  }]]
