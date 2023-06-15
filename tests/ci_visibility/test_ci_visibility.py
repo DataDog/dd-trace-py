@@ -263,6 +263,18 @@ def test_git_client_get_repository_url(git_repo):
     assert remote_url == "git@github.com:test-repo-url.git"
 
 
+def test_git_client_get_repository_url_env_var_precedence(git_repo):
+    remote_url = CIVisibilityGitClient._get_repository_url(
+        tags={ci.git.REPOSITORY_URL: "https://github.com/Datadog/dd-trace-py"}, cwd=git_repo
+    )
+    assert remote_url == "https://github.com/Datadog/dd-trace-py"
+
+
+def test_git_client_get_repository_url_env_var_precedence_empty_tags(git_repo):
+    remote_url = CIVisibilityGitClient._get_repository_url(tags={}, cwd=git_repo)
+    assert remote_url == "git@github.com:test-repo-url.git"
+
+
 def test_git_client_get_latest_commits(git_repo):
     latest_commits = CIVisibilityGitClient._get_latest_commits(cwd=git_repo)
     assert latest_commits == [TEST_SHA]
