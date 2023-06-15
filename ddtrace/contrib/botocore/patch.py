@@ -540,7 +540,11 @@ def patched_api_call(original_func, instance, args, kwargs):
                                         "sending the message at the time of the send."
                                     )
                             else:
-                                log.debug("Unable to find trace context for the message.")
+                                log.debug(
+                                    "Unable to find trace context for the message. Please ensure that your Datadog "
+                                    "agent is correctly configured on the application sending the message and that "
+                                    "the SQS messages being sent have 9 or less Message Attributes."
+                                )
 
                 except Exception:
                     log.debug("Error receiving SQS message with data streams monitoring enabled", exc_info=True)
