@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import json
+import os
 import re
 import zlib
 
@@ -14,6 +15,10 @@ from ddtrace.appsec.iast._util import _is_python_version_supported as python_sup
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import urlencode
 from tests.utils import override_global_config
+
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+TEST_FILE = BASE_DIR + "/django_app/appsec_urls.py"
 
 
 def _aux_appsec_get_root_span(
@@ -45,12 +50,10 @@ def _aux_appsec_get_root_span(
     return test_spans.spans[0], response
 
 
-TEST_FILE = "tests/contrib/django/django_app/appsec_urls.py"
-
-
 def get_line(label, filename=TEST_FILE):
     """get the line number after the label comment in source file `filename`"""
-    with open(filename, "r") as file_in:
+    abs_filename = os.path.abspath(filename)
+    with open(abs_filename, "r") as file_in:
         for nb_line, line in enumerate(file_in):
             if re.search("label " + re.escape(label), line):
                 return nb_line + 2
@@ -150,6 +153,10 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_request_parameter(clie
 
         vuln_type = "SQL_INJECTION"
         line, hash_value = get_line_and_hash("iast_enabled_sqli_http_request_parameter", vuln_type)
+
+        assert response.status_code == 200
+        assert response.content == b"test/1.2.3"
+
         loaded = json.loads(root_span.get_tag(IAST.JSON))
         assert loaded["sources"] == [
             {"origin": "http.request.parameter", "name": "q", "value": "SELECT 1 FROM sqlite_master"}
@@ -161,9 +168,6 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_request_parameter(clie
         }
         assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
         assert loaded["vulnerabilities"][0]["location"]["line"] == line
-
-        assert response.status_code == 200
-        assert response.content == b"test/1.2.3"
 
 
 @pytest.mark.django_db()
