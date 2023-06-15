@@ -519,27 +519,27 @@ def patched_api_call(original_func, instance, args, kwargs):
                 try:
                     if "Messages" in result:
                         for message in result["Messages"]:
-                            max_attributes_flag = True
-                            if "MessageAttributes" in message:
-                                if "_datadog" in message["MessageAttributes"]:
-                                    if "StringValue" in message["MessageAttributes"]["_datadog"]:
-                                        max_attributes_flag = False
-                                        if PROPAGATION_KEY_BASE_64 in json.loads(
-                                            message["MessageAttributes"]["_datadog"]["StringValue"]
-                                        ):
-                                            pathway = json.loads(
-                                                message["MessageAttributes"]["_datadog"]["StringValue"]
-                                            )[PROPAGATION_KEY_BASE_64]
-                                            ctx = pin.tracer.data_streams_processor.decode_pathway_b64(pathway)
-                                            ctx.set_checkpoint(["direction:in", "topic:" + queue_name, "type:sqs"])
+                            if (
+                                "MessageAttributes" in message
+                                and "_datadog" in message["MessageAttributes"]
+                                and "StringValue" in message["MessageAttributes"]["_datadog"]
+                            ):
+                                if PROPAGATION_KEY_BASE_64 in json.loads(
+                                    message["MessageAttributes"]["_datadog"]["StringValue"]
+                                ):
+                                    pathway = json.loads(message["MessageAttributes"]["_datadog"]["StringValue"])[
+                                        PROPAGATION_KEY_BASE_64
+                                    ]
+                                    ctx = pin.tracer.data_streams_processor.decode_pathway_b64(pathway)
+                                    ctx.set_checkpoint(["direction:in", "topic:" + queue_name, "type:sqs"])
 
-                                        else:
-                                            log.debug(
-                                                "Unable to find data streams context for the message. Data "
-                                                "streams monitoring was not enabled by the application "
-                                                "sending the message at the time of the send."
-                                            )
-                            if max_attributes_flag:
+                                else:
+                                    log.debug(
+                                        "Unable to find data streams context for the message. Data "
+                                        "streams monitoring was not enabled by the application "
+                                        "sending the message at the time of the send."
+                                    )
+                            else:
                                 log.debug("Unable to find trace context for the message.")
 
                 except Exception:
