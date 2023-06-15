@@ -80,11 +80,13 @@ def test_app_started_event(telemetry_lifecycle_writer, test_agent_session, mock_
             },
             {
                 "name": "propagation_style_inject",
-                "value": '["tracecontext", "datadog"]',
+                "origin": "env_var",
+                "value": "['tracecontext', 'datadog']",
             },
             {
                 "name": "propagation_style_extract",
-                "value": '["tracecontext", "datadog"]',
+                "origin": "env_var",
+                "value": "['tracecontext', 'datadog']",
             },
         ],
         "error": {
@@ -136,11 +138,13 @@ telemetry_lifecycle_writer.disable()
         },
         {
             "name": "propagation_style_inject",
-            "value": '["datadog"]',
+            "origin": "env_var",
+            "value": "['datadog']",
         },
         {
             "name": "propagation_style_extract",
-            "value": '["b3multi"]',
+            "origin": "env_var",
+            "value": "['b3multi']",
         },
     ]
 
@@ -214,12 +218,16 @@ def test_configuration_changed_event(telemetry_lifecycle_writer, test_agent_sess
 
     configuration = [
         {
-            "name": "data_streams_enabled",
-            "value": "True",
+            "name": "propagation_style_inject",
+            "value": '["datadog"]',
         },
         {
             "name": "appsec_enabled",
             "value": "True",
+        },
+        {
+            "name": "no_match_configuration",
+            "value": "anything",
         },
     ]
 
@@ -236,8 +244,8 @@ def test_configuration_changed_event(telemetry_lifecycle_writer, test_agent_sess
     payload = {
         "configuration": [
             {
-                "name": "data_streams_enabled",
-                "value": "True",
+                "name": "propagation_style_inject",
+                "value": '["datadog"]',
             },
             {
                 "name": "appsec_enabled",
@@ -249,7 +257,6 @@ def test_configuration_changed_event(telemetry_lifecycle_writer, test_agent_sess
             "message": "",
         },
     }
-    # assert events[0] == _get_request_body(payload, "app-configurations-change")
     assert events[0]["payload"]["configuration"] == payload["configuration"]
 
 

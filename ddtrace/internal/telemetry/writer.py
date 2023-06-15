@@ -445,10 +445,12 @@ class TelemetryWriter(TelemetryBase):
                 },
                 {
                     "name": "propagation_style_inject",
+                    "origin": "env_var",
                     "value": str(config._propagation_style_inject),
                 },
                 {
                     "name": "propagation_style_extract",
+                    "origin": "env_var",
                     "value": str(config._propagation_style_extract),
                 },
             ],
@@ -490,18 +492,7 @@ class TelemetryWriter(TelemetryBase):
         }
         self.add_event(payload, "app-integrations-change")
 
-    # add configuration
-    # def override_configuration(self, configuration_name, patched):
-    #     # type: (str, str) -> None
 
-    #     # Integrations can be patched before the telemetry writer is enabled.
-    #     configuration = {
-    #         "name": configuration_name,
-    #         "value": patched,
-    #     }
-    #     self._integrations_queue.append(integration)
-
-    # def _app_configurations_changed_event(self, configuration_name, configuration_value):
     def _app_configurations_changed_event(self, configuration):
         # type: (List[Dict]) -> None
         """Adds a Telemetry event which sends a pair of configuration to the agent"""
@@ -513,12 +504,17 @@ class TelemetryWriter(TelemetryBase):
                 payload = self._events_queue[e]["payload"]
                 break
 
-        # Find the configuration value to be changed
-        for original_config in payload["configuration"]:
-            for new_config in configuration:
-                if original_config["name"] == new_config["name"] and original_config["value"] != new_config["value"]:
-                    original_config["value"] = new_config["value"]
-                    config_change_queue.append(new_config)
+        """
+        Find the configuration value to be changed. 
+        If the input configuration doesn't collected by 
+        the app start event, it will be ignored
+        """
+        for changed_config in configuration:
+            for original_config in payload["configuration"]:
+            # for new_config in configuration:
+                if original_config["name"] == changed_config["name"] and original_config["value"] != changed_config["value"]:
+                    original_config["value"] = changed_config["value"]
+                    config_change_queue.append(changed_config)
 
         # Only return configurations that being modified
         payload["configuration"] = config_change_queue
