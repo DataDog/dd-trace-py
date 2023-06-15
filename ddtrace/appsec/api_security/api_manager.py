@@ -8,6 +8,7 @@ from ddtrace.appsec._asm_request_context import _WAF_RESULTS
 from ddtrace.appsec._asm_request_context import add_context_callback
 from ddtrace.appsec._asm_request_context import remove_context_callback
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
+from ddtrace.appsec import processor as appsec_processor
 from ddtrace.appsec.api_security.schema import get_json_schema
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.metrics import Metrics
@@ -134,6 +135,14 @@ class APIManager(Service):
                 return
         except Exception:
             self._log_limiter.limit(log.warning, "Failed to sample request for schema generation", exc_info=True)
+
+        # we need the request content type on the span
+        try:
+            headers = env.waf_addresses.get(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, _sentinel)
+            if headers is not _sentinel:
+                appsec_processor._set_headers(root, headers, kind="request")
+        except Exception:
+            self._log_limiter.limit(log.debug, "Failed to enrich request span with headers", exc_info=True)
 
         for address, meta_name, transform in self.COLLECTED:
             _sentinel = object()
