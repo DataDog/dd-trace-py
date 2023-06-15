@@ -1,3 +1,4 @@
 ---
 features:
+  - |
     botocore: Added message attributes to sqs spans to support data streams monitoring.
