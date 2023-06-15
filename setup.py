@@ -333,9 +333,14 @@ class CMakeBuild(build_ext):
                         cmake_cmd_with_args = [cmake_command] + cmake_args
                         subprocess.run(cmake_cmd_with_args, cwd=tmp_iast_path, check=True)
 
-                        build_command = [cmake_command, "--build", tmp_iast_path] + build_args
+                        build_command = [cmake_command, "--build", tmp_iast_path, "--clean-first"] + build_args
                         subprocess.run(build_command, cwd=tmp_iast_path, check=True)
-
+                        shutil.rmtree(os.path.join(tmp_iast_path, "_deps"))
+                        shutil.rmtree(os.path.join(tmp_iast_path, "CMakeFiles"))
+                        os.remove(os.path.join(tmp_iast_path, "Makefile"))
+                        os.remove(os.path.join(tmp_iast_path, "cmake_install.cmake"))
+                        os.remove(os.path.join(tmp_iast_path, "compile_commands.json"))
+                        os.remove(os.path.join(tmp_iast_path, "CMakeCache.txt"))
                     if os.path.exists(os.path.join(IAST_DIR, tmp_filename)):
                         shutil.copy(os.path.join(IAST_DIR, tmp_filename), tmp_iast_file_path)
                 except Exception:
