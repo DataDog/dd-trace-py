@@ -39,7 +39,6 @@ def stats_tracer(sample_rate):
         tracer.shutdown()
 
 
-@pytest.fixture
 class consistent_end_trace(object):
     """
     This class wraps tracer.trace() in order to ensure that the span is finished with consistent end time and duration
@@ -59,6 +58,7 @@ class consistent_end_trace(object):
         self.span.finish(finish_time=1)
 
 
+@pytest.fixture
 def send_once_stats_tracer(stats_tracer):
     """
     This is a variation on the tracer that has the SpanStatsProcessor disabled until we leave the tracer context.
