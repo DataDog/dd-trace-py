@@ -5,8 +5,8 @@
 #    pip-compile --no-annotate --resolver=backtracking .riot/requirements/1ad8e2d.in
 #
 attrs==23.1.0
-coverage[toml]==7.2.5
-docutils==0.20
+coverage[toml]==7.2.7
+docutils==0.20.1
 exceptiongroup==1.1.1
 flake8==3.8.4
 flake8-blind-except==0.2.1
@@ -27,8 +27,8 @@ pycodestyle==2.6.0
 pydocstyle==6.3.0
 pyflakes==2.2.0
 pygments==2.15.1
-pytest==7.3.1
-pytest-cov==4.0.0
+pytest==7.3.2
+pytest-cov==4.1.0
 pytest-mock==3.10.0
 restructuredtext-lint==1.4.0
 snowballstemmer==2.2.0
