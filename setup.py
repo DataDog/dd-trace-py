@@ -3,7 +3,6 @@ import os
 import platform
 import shutil
 import sys
-import re
 import tarfile
 
 from setuptools import setup, find_packages, Extension
