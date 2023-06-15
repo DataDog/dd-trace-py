@@ -173,6 +173,7 @@ class Span(object):
         self._ignored_exceptions = None  # type: Optional[List[Exception]]
         self._local_root = None  # type: Optional[Span]
         self._store = None  # type: Optional[Dict[str, Any]]
+        self._trace_sampling_checked = False  # type: bool
 
     def _ignore_exception(self, exc):
         # type: (Exception) -> None

@@ -264,6 +264,8 @@ class DatadogSampler(RateByServiceSampler):
                 rules = self._parse_rules_from_env_variable(env_sampling_rules)
             else:
                 rules = []
+        if rules:
+            self.rule_decision = [0 for _ in rules]
 
         # Validate that the rules is a list of SampleRules
         for rule in rules:
@@ -334,7 +336,22 @@ class DatadogSampler(RateByServiceSampler):
 
         update_sampling_decision(span.context, SamplingMechanism.TRACE_SAMPLING_RULE, sampled)
 
-    def sample(self, span):
+    def decide_sampling_rule(self, trace):
+        # type: (List[Span]) -> Optional[SamplingRule]
+        for rule in self.rules:
+            for span in trace:
+                if span._trace_sampling_checked:
+                    continue
+            if rule.matches(span):
+                # increment the rule decision counter for this rule
+                self.rule_decision[self.rules.index(rule)] += 1
+                sampler = rule
+                break
+        for index, value in enumerate(self.rule_decision):
+            if value > 0:
+                return self.rules[index]
+
+    def sample(self, trace):
         # type: (Span) -> bool
         """
         Decide whether the provided span should be sampled or not
@@ -348,30 +365,35 @@ class DatadogSampler(RateByServiceSampler):
         """
         # If there are rules defined, then iterate through them and find one that wants to sample
         sampler = None  # type: Optional[Union[SamplingRule, RateLimiter]]
-
+        sampler = self.decide_sampling_rule(trace)
         # Go through all rules and grab the first one that matched
         # DEV: This means rules should be ordered by the user from most specific to least specific
         for rule in self.rules:
             if rule.matches(span):
+                # increment the rule decision counter for this rule
+                self.rule_decision[self.rules.index(rule)] += 1
                 sampler = rule
                 break
         else:
             # No rules matches so use agent based sampling
-            return super(DatadogSampler, self).sample(span)
+            sampler = super(DatadogSampler, self)
 
         # DEV: This should never happen, but since the type is Optional we have to check
         if not sampler:
             raise SamplingError("No sampling rule found for span {!r} from {!r}".format(span, self))
-
-        sampled = sampler.sample(span)
-        self._set_sampler_decision(span, sampler, sampled)
-
-        if sampled:
-            # Ensure all allowed traces adhere to the global rate limit
-            allowed = self.limiter.is_allowed(span.start_ns)
-            if not allowed:
-                self._set_sampler_decision(span, self.limiter, allowed)
-                return False
+        # we need a span to grab the trace id from the run sample
+        first_span = trace[0]
+        sampled = sampler.sample(first_span)
+        for span in trace:
+            self._set_sampler_decision(span, sampler, sampled)
+            if sampled:
+                # Ensure all allowed traces adhere to the global rate limit
+                # DEV: Think about how behavior may change now that we check the limiter against all spans that were
+                # going to be dropped instead of just the root span
+                allowed = self.limiter.is_allowed(span.start_ns)
+                if not allowed:
+                    self._set_sampler_decision(span, self.limiter, allowed)
+                    return False
 
         return sampled
 

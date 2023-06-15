@@ -27,6 +27,7 @@ from ddtrace.internal.writer import TraceWriter
 from ddtrace.span import Span
 from ddtrace.span import _get_64_highest_order_bits_as_hex
 from ddtrace.span import _is_top_level
+from ddtrace.sampler import DatadogSampler
 
 
 try:
@@ -90,8 +91,11 @@ class TraceSamplingProcessor(TraceProcessor):
                     single_spans = [_ for _ in trace if is_single_span_sampled(_)]
 
                     return single_spans or None
+            sampler = DatadogSampler()
+            sampling_rule = sampler.decide_sampling_rule(trace)
 
             for span in trace:
+                sampler._set_sampler_decision(span, sampling_decision)
                 if span.sampled:
                     return trace
 
