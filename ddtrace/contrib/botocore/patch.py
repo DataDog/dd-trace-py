@@ -14,6 +14,8 @@ from typing import Set
 from typing import Tuple
 from typing import Union
 
+from urllib.parse import urlparse
+
 import botocore.client
 import botocore.exceptions
 
@@ -44,7 +46,6 @@ from ...pin import Pin
 from ...propagation.http import HTTPPropagator
 from ..trace_utils import unwrap
 
-
 _PATCHED_SUBMODULES = set()  # type: Set[str]
 
 if typing.TYPE_CHECKING:  # pragma: no cover
@@ -63,14 +64,12 @@ LINE_BREAK = "\n"
 
 log = get_logger(__name__)
 
-
 if os.getenv("DD_AWS_TAG_ALL_PARAMS") is not None:
     debtcollector.deprecate(
         "Using environment variable 'DD_AWS_TAG_ALL_PARAMS' is deprecated",
         message="The botocore integration no longer includes all API parameters by default.",
         removal_version="2.0.0",
     )
-
 
 # Botocore default settings
 config._add(
@@ -123,6 +122,18 @@ def inject_trace_data_to_message_attributes(trace_data, entry, endpoint=None):
         log.warning("skipping trace injection, max number (10) of MessageAttributes exceeded")
 
 
+def get_queue_name(params):
+    # type: (str) -> str
+    """
+    :params: contains the params for the current botocore action
+
+    Return the name of the queue given the params
+    """
+    queue_url = params["QueueUrl"]
+    url = urlparse(queue_url)
+    return url.path.rsplit("/", 1)[-1]
+
+
 def get_pathway(pin, params):
     # type: (Pin, Any) -> str
     """
@@ -131,8 +142,7 @@ def get_pathway(pin, params):
 
     Set the data streams monitoring checkpoint and return the encoded pathway
     """
-    queue_url = params["QueueUrl"]
-    queue_name = queue_url[queue_url.rfind("/") + 1 :]
+    queue_name = get_queue_name(params)
     pathway = pin.tracer.data_streams_processor.set_checkpoint(["direction:out", "topic:" + queue_name, "type:sqs"])
     return pathway.encode_b64()
 
@@ -387,7 +397,6 @@ def patched_lib_fn(original_func, instance, args, kwargs):
 
 
 def patched_api_call(original_func, instance, args, kwargs):
-
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
         return original_func(*args, **kwargs)
@@ -401,9 +410,9 @@ def patched_api_call(original_func, instance, args, kwargs):
         "{}.command".format(endpoint_name), cloud_provider="aws", cloud_service=endpoint_name
     )
     with pin.tracer.trace(
-        trace_operation,
-        service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
-        span_type=SpanTypes.HTTP,
+            trace_operation,
+            service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
+            span_type=SpanTypes.HTTP,
     ) as span:
         span.set_tag_str(COMPONENT, config.botocore.integration_name)
 
@@ -497,8 +506,7 @@ def patched_api_call(original_func, instance, args, kwargs):
 
         try:
             if endpoint_name == "sqs" and operation == "ReceiveMessage" and config._data_streams_enabled:
-                queue_url = params["QueueUrl"]
-                queue_name = queue_url[queue_url.rfind("/") + 1 :]
+                queue_name = get_queue_name(params)
 
                 if "MessageAttributeNames" not in params:
                     params.update({"MessageAttributeNames": ["_datadog"]})
@@ -519,7 +527,8 @@ def patched_api_call(original_func, instance, args, kwargs):
                                         if PROPAGATION_KEY_BASE_64 in json.loads(
                                                 message["MessageAttributes"]["_datadog"]["StringValue"]
                                         ):
-                                            pathway = json.loads(message["MessageAttributes"]["_datadog"]["StringValue"])[
+                                            pathway = \
+                                            json.loads(message["MessageAttributes"]["_datadog"]["StringValue"])[
                                                 PROPAGATION_KEY_BASE_64
                                             ]
                                             ctx = pin.tracer.data_streams_processor.decode_pathway_b64(pathway)
