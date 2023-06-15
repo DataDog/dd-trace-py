@@ -4,6 +4,7 @@ from hypothesis import given
 from hypothesis import strategies as st
 import pytest
 
+from ddtrace.appsec.api_security.classifier import metadata
 from ddtrace.appsec.api_security.schema import build_schema
 
 
@@ -86,7 +87,7 @@ def test_limits(obj, res):
     ],
 )
 def test_metadata(obj, res):
-    assert build_schema(obj) == res
+    assert build_schema(obj, classifier=metadata) == res
 
 
 if __name__ == "__main__":
