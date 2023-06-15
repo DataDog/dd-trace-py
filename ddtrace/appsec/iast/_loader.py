@@ -15,6 +15,7 @@ IS_IAST_ENABLED = _is_iast_enabled()
 def _exec_iast_patched_module(module_watchdog, module):
     patched_source = None
     if IS_IAST_ENABLED:
+        log.debug("IAST enabled")
         try:
             module_path, patched_source = astpatch_module(module)
         except Exception:

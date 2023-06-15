@@ -17,9 +17,7 @@ from ddtrace.internal.compat import urlencode
 from tests.utils import override_global_config
 
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-TEST_FILE = BASE_DIR + "/django_app/appsec_urls.py"
-
+TEST_FILE = "tests/contrib/django/django_app/appsec_urls.py"
 
 def _aux_appsec_get_root_span(
     client,
@@ -52,8 +50,7 @@ def _aux_appsec_get_root_span(
 
 def get_line(label, filename=TEST_FILE):
     """get the line number after the label comment in source file `filename`"""
-    abs_filename = os.path.abspath(filename)
-    with open(abs_filename, "r") as file_in:
+    with open(filename, "r") as file_in:
         for nb_line, line in enumerate(file_in):
             if re.search("label " + re.escape(label), line):
                 return nb_line + 2
@@ -62,6 +59,7 @@ def get_line(label, filename=TEST_FILE):
 
 def get_line_and_hash(label, vuln_type, filename=TEST_FILE):
     """return the line number and the associated vulnerability hash for `label` and source file `filename`"""
+
     line = get_line(label, filename=filename)
     rep = "Vulnerability(type='%s', location=Location(path='%s', line=%d))" % (vuln_type, filename, line)
     hash_value = zlib.crc32(rep.encode())
@@ -162,12 +160,12 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_request_parameter(clie
             {"origin": "http.request.parameter", "name": "q", "value": "SELECT 1 FROM sqlite_master"}
         ]
         assert loaded["vulnerabilities"][0]["type"] == vuln_type
-        assert loaded["vulnerabilities"][0]["hash"] == hash_value
         assert loaded["vulnerabilities"][0]["evidence"] == {
             "valueParts": [{"value": "SELECT 1 FROM sqlite_master", "source": 0}]
         }
         assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
         assert loaded["vulnerabilities"][0]["location"]["line"] == line
+        assert loaded["vulnerabilities"][0]["hash"] == hash_value
 
 
 @pytest.mark.django_db()
