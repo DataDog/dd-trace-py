@@ -150,7 +150,6 @@ def ljust_aspect(candidate_text, *args, **kwargs):
 
     if fillchar_ranges:
         # Can only be one char, so we create one range to cover from the start to the end
-        assert isinstance(ranges_new, list)
         ranges_new = ranges_new + [shift_taint_range(fillchar_ranges[0], len(candidate_text))]
 
     res = candidate_text.ljust(parse_params(0, "width", None, *args, **kwargs), fillchar)
