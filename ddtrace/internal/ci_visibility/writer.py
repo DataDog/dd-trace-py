@@ -88,6 +88,7 @@ class CIVisibilityWriter(HTTPWriter):
         headers=None,  # type: Optional[Dict[str, str]]
         use_evp=False,  # type: bool
     ):
+        intake_cov_url = None
         if use_evp:
             intake_url = agent.get_trace_url()
             intake_cov_url = agent.get_trace_url()
@@ -96,12 +97,13 @@ class CIVisibilityWriter(HTTPWriter):
             intake_cov_url = config._ci_visibility_agentless_url
         if not intake_url:
             intake_url = "%s.%s" % (AGENTLESS_BASE_URL, os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE))
-            intake_cov_url = "%s.%s" % (AGENTLESS_COVERAGE_BASE_URL, os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE))
 
         clients = (
             [CIVisibilityProxiedEventClient()] if use_evp else [CIVisibilityAgentlessEventClient()]
         )  # type: List[WriterClientBase]
         if coverage_enabled():
+            if not intake_cov_url:
+                intake_cov_url = "%s.%s" % (AGENTLESS_COVERAGE_BASE_URL, os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE))
             clients.append(
                 CIVisibilityProxiedCoverageClient(
                     intake_url=intake_cov_url, headers={EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_COVERAGE_VALUE}

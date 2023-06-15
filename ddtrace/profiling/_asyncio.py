@@ -1,6 +1,7 @@
 # -*- encoding: utf-8 -*-
 from functools import partial
 import sys
+from types import ModuleType
 import typing
 
 from ddtrace.internal.compat import PY3
@@ -27,11 +28,10 @@ def _task_get_name(task):
     return "Task-%d" % id(task)
 
 
-@ModuleWatchdog.after_module_imported("asyncio.events")
-def _(ae):
+@ModuleWatchdog.after_module_imported("asyncio")
+def _(asyncio):
+    # type: (ModuleType) -> None
     global THREAD_LINK
-
-    import asyncio
 
     if hasattr(asyncio, "current_task"):
         globals()["current_task"] = asyncio.current_task
@@ -50,7 +50,7 @@ def _(ae):
     if THREAD_LINK is None:
         THREAD_LINK = _threading._ThreadLink()
 
-    @partial(wrap, ae.BaseDefaultEventLoopPolicy.set_event_loop)
+    @partial(wrap, sys.modules["asyncio.events"].BaseDefaultEventLoopPolicy.set_event_loop)
     def _(f, args, kwargs):
         try:
             return f(*args, **kwargs)
