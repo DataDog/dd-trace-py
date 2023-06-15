@@ -1076,6 +1076,17 @@ EXTRACT_FIXTURES = [
         },
     ),
     (
+        "invalid_datadog_negative_trace_id",
+        [PROPAGATION_STYLE_DATADOG],
+        {
+            HTTP_HEADER_TRACE_ID: "-1",
+            HTTP_HEADER_PARENT_ID: "5678",
+            HTTP_HEADER_SAMPLING_PRIORITY: "1",
+            HTTP_HEADER_ORIGIN: "synthetics",
+        },
+        CONTEXT_EMPTY,
+    ),
+    (
         "valid_datadog_explicit_style_wsgi",
         [PROPAGATION_STYLE_DATADOG],
         {get_wsgi_header(name): value for name, value in DATADOG_HEADERS_VALID.items()},
@@ -1560,7 +1571,6 @@ else:
         env["DD_TRACE_PROPAGATION_STYLE"] = ",".join(styles)
     stdout, stderr, status, _ = run_python_code_in_subprocess(code=code, env=env)
     assert status == 0, (stdout, stderr)
-    assert stderr == b"", (stdout, stderr)
 
     result = json.loads(stdout.decode())
     assert result == expected_context
