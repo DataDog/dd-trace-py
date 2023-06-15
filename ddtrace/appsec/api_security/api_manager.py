@@ -24,6 +24,7 @@ if TYPE_CHECKING:
 
 log = get_logger(__name__)
 metrics = Metrics(namespace="datadog.api_security")
+_sentinel = object()
 
 
 class TooLarge(Exception):
@@ -145,7 +146,6 @@ class APIManager(Service):
             self._log_limiter.limit(log.debug, "Failed to enrich request span with headers", exc_info=True)
 
         for address, meta_name, transform in self.COLLECTED:
-            _sentinel = object()
             value = env.waf_addresses.get(address, _sentinel)
             if value is _sentinel:
                 log.debug("no value for %s", address)
