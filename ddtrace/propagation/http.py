@@ -218,7 +218,7 @@ class _DatadogMultiHeader:
         except ValueError:
             trace_id = 0
 
-        if trace_id == 0 or trace_id > _MAX_UINT_64BITS:
+        if trace_id <= 0 or trace_id > _MAX_UINT_64BITS:
             log.warning(
                 "Invalid trace id: %r. `x-datadog-trace-id` must be greater than zero and less than 2**64", trace_id_str
             )
