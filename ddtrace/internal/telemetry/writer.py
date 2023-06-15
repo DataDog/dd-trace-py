@@ -493,7 +493,7 @@ class TelemetryWriter(TelemetryBase):
         self.add_event(payload, "app-integrations-change")
 
 
-    def _app_configurations_changed_event(self, configuration):
+    def _app_client_configuration_changed_event(self, configuration):
         # type: (List[Dict]) -> None
         """Adds a Telemetry event which sends a pair of configuration to the agent"""
 
@@ -518,7 +518,7 @@ class TelemetryWriter(TelemetryBase):
 
         # Only return configurations that being modified
         payload["configuration"] = config_change_queue
-        self.add_event(payload, "app-configurations-change")
+        self.add_event(payload, "app-client-configuration-change")
 
     def _app_dependencies_loaded_event(self):
         # type: () -> None

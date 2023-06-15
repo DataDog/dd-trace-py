@@ -211,7 +211,7 @@ def test_add_integration(telemetry_lifecycle_writer, test_agent_session, mock_ti
 
 
 # New test for app_configurations_changed_event
-def test_configuration_changed_event(telemetry_lifecycle_writer, test_agent_session, mock_time):
+def test_app_client_configuration_changed_event(telemetry_lifecycle_writer, test_agent_session, mock_time):
 
     # send app start event:
     telemetry_lifecycle_writer._app_started_event()
@@ -231,12 +231,12 @@ def test_configuration_changed_event(telemetry_lifecycle_writer, test_agent_sess
         },
     ]
 
-    telemetry_lifecycle_writer._app_configurations_changed_event(configuration)
+    telemetry_lifecycle_writer._app_client_configuration_changed_event(configuration)
     telemetry_lifecycle_writer.periodic()
 
     requests = test_agent_session.get_requests()
     assert len(requests) == 2
-    assert requests[0]["headers"]["DD-Telemetry-Request-Type"] == "app-configurations-change"
+    assert requests[0]["headers"]["DD-Telemetry-Request-Type"] == "app-client-configuration-change"
 
     events = test_agent_session.get_events()
     assert len(events) == 2
