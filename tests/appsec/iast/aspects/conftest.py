@@ -1,12 +1,9 @@
-from types import ModuleType
-
 import pytest
 
 from ddtrace.appsec.iast import oce
 from ddtrace.appsec.iast._ast.ast_patching import astpatch_module
 
 
-# @pytest.fixture
 def _iast_patched_module(module_name):
     module = __import__(module_name, fromlist=[None])
     module_path, patched_source = astpatch_module(module)

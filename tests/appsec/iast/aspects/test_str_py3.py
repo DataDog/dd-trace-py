@@ -1,9 +1,6 @@
 # -*- encoding: utf-8 -*-
-import sys
-
 import pytest
 
-from ddtrace.appsec.iast._ast.ast_patching import _PATCHED_MODULES
 from ddtrace.appsec.iast._taint_tracking import as_formatted_evidence
 from tests.appsec.iast.aspects.aspect_utils import BaseReplacement
 from tests.appsec.iast.aspects.aspect_utils import create_taint_range_with_format

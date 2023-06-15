@@ -2,14 +2,8 @@ from builtins import bytearray as builtin_bytearray
 from builtins import bytes as builtin_bytes
 from builtins import str as builtin_str
 import codecs
-import re
 import sys
-from typing import Any
-from typing import List
-from typing import NamedTuple
 from typing import TYPE_CHECKING
-from typing import Text
-from typing import Union
 
 from six import binary_type
 
@@ -17,23 +11,28 @@ from ddtrace.appsec.iast._taint_tracking import OriginType
 from ddtrace.appsec.iast._taint_tracking import Source
 from ddtrace.appsec.iast._taint_tracking import TagMappingMode
 from ddtrace.appsec.iast._taint_tracking import TaintRange
-from ddtrace.appsec.iast._taint_tracking import _convert_escaped_text_to_tainted_text  # noqa: F401
-from ddtrace.appsec.iast._taint_tracking import are_all_text_all_ranges  # noqa: F401
-from ddtrace.appsec.iast._taint_tracking import as_formatted_evidence  # noqa: F401
-from ddtrace.appsec.iast._taint_tracking import common_replace  # noqa: F401
+from ddtrace.appsec.iast._taint_tracking import _convert_escaped_text_to_tainted_text
+from ddtrace.appsec.iast._taint_tracking import are_all_text_all_ranges
+from ddtrace.appsec.iast._taint_tracking import as_formatted_evidence
+from ddtrace.appsec.iast._taint_tracking import common_replace
 from ddtrace.appsec.iast._taint_tracking import get_ranges
 from ddtrace.appsec.iast._taint_tracking import get_tainted_ranges
 from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
-from ddtrace.appsec.iast._taint_tracking import parse_params  # noqa: F401
+from ddtrace.appsec.iast._taint_tracking import parse_params
 from ddtrace.appsec.iast._taint_tracking import shift_taint_range
-from ddtrace.appsec.iast._taint_tracking import shift_taint_ranges
 from ddtrace.appsec.iast._taint_tracking import taint_pyobject
 from ddtrace.appsec.iast._taint_tracking import taint_pyobject_with_ranges
 from ddtrace.appsec.iast._taint_tracking._native import aspects  # noqa: F401
 from ddtrace.internal.compat import iteritems
 
 
-TEXT_TYPES = (Text, binary_type, bytearray)
+if TYPE_CHECKING:
+    from typing import Any
+    from typing import Dict
+    from typing import List
+    from typing import Optional
+
+TEXT_TYPES = (str, binary_type, bytearray)
 
 _add_aspect = aspects.add_aspect
 _extend_aspect = aspects.extend_aspect
@@ -130,7 +129,7 @@ def modulo_aspect(candidate_text, candidate_tuple):
             ),
             ranges_orig=ranges_orig,
         )
-    except Exception as exc:
+    except Exception:
         return candidate_text % candidate_tuple
 
 

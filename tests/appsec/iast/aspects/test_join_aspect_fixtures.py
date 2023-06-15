@@ -5,7 +5,6 @@ import pytest
 
 try:
     from ddtrace.appsec.iast._taint_tracking import OriginType
-    from ddtrace.appsec.iast._taint_tracking import Source
     from ddtrace.appsec.iast._taint_tracking import contexts_reset
     from ddtrace.appsec.iast._taint_tracking import create_context
     from ddtrace.appsec.iast._taint_tracking import get_tainted_ranges

@@ -1,6 +1,7 @@
 # -*- encoding: utf-8 -*-
 import re
 from typing import Any
+from typing import List
 from typing import NamedTuple
 from typing import Optional
 from typing import Text
@@ -25,14 +26,14 @@ TAINT_FORMAT_CAPTURE_BYTES = br"\:\+-(?:\<(?P<inputid>[0-9a-zA-Z\-]+)\>)?(.+?)(?
 TAINT_FORMAT_PATTERN_BYTES = re.compile(TAINT_FORMAT_CAPTURE_BYTES, re.MULTILINE | re.DOTALL)
 
 
-def create_taint_range_with_format(text_input, fn_origin=""):  # type: (AnyStr, str) -> AnyStr
+def create_taint_range_with_format(text_input, fn_origin=""):  # type: (Any, str) -> Any
     is_bytes = isinstance(text_input, (bytes, bytearray))
     taint_format_capture = TAINT_FORMAT_CAPTURE_BYTES if is_bytes else TAINT_FORMAT_CAPTURE
     taint_format_pattern = TAINT_FORMAT_PATTERN_BYTES if is_bytes else TAINT_FORMAT_PATTERN
 
     text_output = re.sub(  # type: ignore
         taint_format_capture, r"\2", text_input, flags=re.MULTILINE | re.DOTALL
-    )  # type: AnyStr
+    )  # type: Any
     if isinstance(text_input, bytearray):
         text_output = bytearray(text_output)  # type: ignore
 

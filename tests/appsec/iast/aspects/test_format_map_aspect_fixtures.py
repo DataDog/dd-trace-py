@@ -1,6 +1,7 @@
 # -*- encoding: utf-8 -*-
 import math
 from typing import Any
+from typing import Dict
 
 import pytest
 
@@ -29,7 +30,6 @@ class TestOperatorFormatMapReplacement(BaseReplacement):
         result = mod.do_format_map(template, mapping)
 
         assert result == expected_result
-        ranges = get_ranges(result)
 
         assert as_formatted_evidence(result, tag_mapping_function=None) == escaped_expected_result
 

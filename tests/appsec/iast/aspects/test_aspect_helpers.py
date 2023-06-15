@@ -105,15 +105,3 @@ def test_as_formatted_evidence_convert_escaped_text_to_tainted_text():  # type: 
         as_formatted_evidence(s, tag_mapping_function=TagMappingMode.Mapper) == ":+-<1750328947>abcde<1750328947>-+:fgh"
     )
     assert _convert_escaped_text_to_tainted_text(":+-<1750328947>abcde<1750328947>-+:fgh", [ranges]) == "abcdefgh"
-
-
-def test_as_formatted_evidence_convert_escaped_text_to_tainted_text():  # type: () -> None
-    from ddtrace.appsec.iast._taint_tracking import TagMappingMode
-
-    s = "abcdefgh"
-    ranges = _build_sample_range(0, 5, "2")
-    set_ranges(s, (ranges,))
-    assert (
-        as_formatted_evidence(s, tag_mapping_function=TagMappingMode.Mapper) == ":+-<1750328947>abcde<1750328947>-+:fgh"
-    )
-    assert _convert_escaped_text_to_tainted_text(":+-<1750328947>abcde<1750328947>-+:fgh", [ranges]) == "abcdefgh"

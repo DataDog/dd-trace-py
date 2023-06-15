@@ -77,6 +77,7 @@ __all__ = [
     "common_replace",
     "_convert_escaped_text_to_tainted_text",
     "as_formatted_evidence",
+    "parse_params",
 ]
 
 
