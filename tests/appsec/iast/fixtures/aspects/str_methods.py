@@ -1058,9 +1058,8 @@ def do_add_re_compile():
         "\U000CFFFE\U000CFFFF\U000DFFFE\U000DFFFF\U000EFFFE\U000EFFFF"
         "\U000FFFFE\U000FFFFF\U0010FFFE\U0010FFFF]"
     )  # noqa
-    _ = re.compile(
-        invalid_unicode_no_surrogate[:-1] + eval('"\\uD800-\\uDFFF"') + "]"  # pylint:disable=eval-used
-    )
+    _ = re.compile(invalid_unicode_no_surrogate[:-1] + eval('"\\uD800-\\uDFFF"') + "]")  # pylint:disable=eval-used
+
 
 
 def do_stringio_init(string_input):
