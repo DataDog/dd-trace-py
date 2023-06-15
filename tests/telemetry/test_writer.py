@@ -88,6 +88,16 @@ def test_app_started_event(telemetry_lifecycle_writer, test_agent_session, mock_
                 "origin": "env_var",
                 "value": "['tracecontext', 'datadog']",
             },
+            {
+                "name": "ddtrace_run_used",
+                "origin": "default",
+                "value": False,
+            },
+            {
+                "name": "otel_enabled",
+                "origin": "env_var",
+                "value": False,
+            },
         ],
         "error": {
             "code": 0,
@@ -97,7 +107,7 @@ def test_app_started_event(telemetry_lifecycle_writer, test_agent_session, mock_
     assert events[0] == _get_request_body(payload, "app-started")
 
 
-def test_app_started_event_configuration_override(test_agent_session, run_python_code_in_subprocess):
+def test_app_started_event_configuration_override(test_agent_session, ddtrace_run_python_code_in_subprocess):
     """
     asserts that default configuration value
     is changed and queues a valid telemetry request
@@ -117,11 +127,12 @@ telemetry_lifecycle_writer.disable()
     env["DD_DATA_STREAMS_ENABLED"] = "true"
     env["DD_TRACE_PROPAGATION_STYLE_EXTRACT"] = "b3multi"
     env["DD_TRACE_PROPAGATION_STYLE_INJECT"] = "datadog"
+    env["DD_TRACE_OTEL_ENABLED"] = "true"
 
-    _, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
 
     assert status == 0, stderr
-    assert stderr == b""
+    assert stderr == b"", stderr
 
     events = test_agent_session.get_events()
 
@@ -145,6 +156,16 @@ telemetry_lifecycle_writer.disable()
             "name": "propagation_style_extract",
             "origin": "env_var",
             "value": "['b3multi']",
+        },
+        {
+            "name": "ddtrace_run_used",
+            "origin": "default",
+            "value": True,
+        },
+        {
+            "name": "otel_enabled",
+            "origin": "env_var",
+            "value": True,
         },
     ]
 

@@ -453,6 +453,16 @@ class TelemetryWriter(TelemetryBase):
                     "origin": "env_var",
                     "value": str(config._propagation_style_extract),
                 },
+                {
+                    "name": "ddtrace_run_used",
+                    "origin": "default",
+                    "value": config._ddtrace_bootstrapped,
+                },
+                {
+                    "name": "otel_enabled",
+                    "origin": "env_var",
+                    "value": config._otel_enabled,
+                },
             ],
             "error": {
                 "code": self._error[0],
