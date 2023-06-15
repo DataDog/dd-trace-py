@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    tracing: This reports the GRPC package name (optional) and service name in a single `rpc.service` tag
