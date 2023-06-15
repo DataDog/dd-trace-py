@@ -1,4 +1,3 @@
-import sys
 from types import FunctionType
 from typing import Any
 from typing import Callable
