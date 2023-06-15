@@ -508,17 +508,32 @@ def patched_api_call(original_func, instance, args, kwargs):
                 result = original_func(*args, **kwargs)
                 _set_response_metadata_tags(span, result)
 
-                for message in result["Messages"]:
-                    try:
-                        pathway = json.loads(message["MessageAttributes"]["_datadog"]["StringValue"])[
-                            PROPAGATION_KEY_BASE_64
-                        ]
+                try:
+                    if "Messages" in result:
+                        for message in result["Messages"]:
+                            max_attributes_flag = True
+                            if "MessageAttributes" in message:
+                                if "_datadog" in message["MessageAttributes"]:
+                                    if "StringValue" in message["MessageAttributes"]["_datadog"]:
+                                        max_attributes_flag = False
+                                        if PROPAGATION_KEY_BASE_64 in json.loads(
+                                                message["MessageAttributes"]["_datadog"]["StringValue"]
+                                        ):
+                                            pathway = json.loads(message["MessageAttributes"]["_datadog"]["StringValue"])[
+                                                PROPAGATION_KEY_BASE_64
+                                            ]
+                                            ctx = pin.tracer.data_streams_processor.decode_pathway_b64(pathway)
+                                            ctx.set_checkpoint(["direction:in", "topic:" + queue_name, "type:sqs"])
 
-                        ctx = pin.tracer.data_streams_processor.decode_pathway_b64(pathway)
-                        ctx.set_checkpoint(["direction:in", "topic:" + queue_name, "type:sqs"])
+                                        else:
+                                            log.warning("Unable to find data streams context for the message. Data "
+                                                        "streams monitoring was not enabled by the application "
+                                                        "sending the message at the time of the send.")
+                            if max_attributes_flag:
+                                log.warning("Unable to find trace context for the message.")
 
-                    except Exception:
-                        return result
+                except Exception as ex:
+                    log.exception("Error receiving SQS message with data streams monitoring enabled: %s", ex)
 
                 return result
 
