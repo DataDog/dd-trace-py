@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING
 from six import binary_type
 
 from ddtrace.appsec.iast._taint_tracking import OriginType
-from ddtrace.appsec.iast._taint_tracking import Source
 from ddtrace.appsec.iast._taint_tracking import TagMappingMode
 from ddtrace.appsec.iast._taint_tracking import TaintRange
 from ddtrace.appsec.iast._taint_tracking import _convert_escaped_text_to_tainted_text
