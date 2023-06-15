@@ -1,5 +1,5 @@
 # #!/usr/bin/env python3
-
+# flake8: noqa
 from typing import TYPE_CHECKING
 
 from ddtrace.internal.logger import get_logger
