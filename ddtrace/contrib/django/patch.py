@@ -706,7 +706,7 @@ def _patch(django):
         )
 
     when_imported("django.core.handlers.wsgi")(lambda m: trace_utils.wrap(m, "WSGIRequest.__init__", wrap_wsgi_environ))
-    if _is_iast_enabled():
+    try:
         from ddtrace.appsec.iast._taint_tracking import OriginType  # noqa: F401
 
         when_imported("django.http.request")(
@@ -716,6 +716,8 @@ def _patch(django):
                 functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER),
             )
         )
+    except Exception:
+        log.debug("Unexpected exception while patch IAST functions", exc_info=True)
 
     @when_imported("django.core.handlers.base")
     def _(m):
@@ -764,7 +766,7 @@ def _patch(django):
 
 
 def wrap_wsgi_environ(wrapped, _instance, args, kwargs):
-    if _is_iast_enabled():
+    try:
         if not args:
             return wrapped(*args, **kwargs)
 
@@ -774,7 +776,8 @@ def wrap_wsgi_environ(wrapped, _instance, args, kwargs):
         return wrapped(
             *((LazyTaintDict(args[0], origins=(OriginType.HEADER_NAME, OriginType.HEADER)),) + args[1:]), **kwargs
         )
-
+    except Exception:
+        log.debug("Unexpected exception while patch IAST functions", exc_info=True)
     return wrapped(*args, **kwargs)
 
 
