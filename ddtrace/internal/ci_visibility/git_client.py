@@ -1,10 +1,12 @@
 import json
 from multiprocessing import Process
 import os
+from typing import Dict  # noqa
 from typing import List  # noqa
 from typing import Optional  # noqa
 from typing import Tuple  # noqa
 
+from ddtrace.ext import ci
 from ddtrace.ext.git import build_git_packfiles
 from ddtrace.ext.git import extract_commit_sha
 from ddtrace.ext.git import extract_latest_commits
@@ -55,10 +57,11 @@ class CIVisibilityGitClient(object):
 
     def start(self, cwd=None):
         # type: (Optional[str]) -> None
+        self._tags = ci.tags(cwd=cwd)
         if self._worker is None:
             self._worker = Process(
                 target=CIVisibilityGitClient._run_protocol,
-                args=(self._serializer, self._requests_mode, self._base_url, self._response),
+                args=(self._serializer, self._requests_mode, self._base_url, self._tags, self._response),
                 kwargs={"cwd": cwd},
             )
             self._worker.start()
@@ -70,9 +73,9 @@ class CIVisibilityGitClient(object):
             self._worker = None
 
     @classmethod
-    def _run_protocol(cls, serializer, requests_mode, base_url, _response, cwd=None):
-        # type: (CIVisibilityGitClientSerializerV1, int, str, Optional[Response], Optional[str]) -> None
-        repo_url = cls._get_repository_url(cwd=cwd)
+    def _run_protocol(cls, serializer, requests_mode, base_url, _tags={}, _response=None, cwd=None):
+        # type: (CIVisibilityGitClientSerializerV1, int, str, Dict[str, str], Optional[Response], Optional[str]) -> None
+        repo_url = cls._get_repository_url(tags=_tags, cwd=cwd)
         latest_commits = cls._get_latest_commits(cwd=cwd)
         backend_commits = cls._search_commits(requests_mode, base_url, repo_url, latest_commits, serializer, _response)
         rev_list = cls._get_filtered_revisions(backend_commits, cwd=cwd)
@@ -83,9 +86,12 @@ class CIVisibilityGitClient(object):
                 )
 
     @classmethod
-    def _get_repository_url(cls, cwd=None):
-        # type: (Optional[str]) -> str
-        return extract_remote_url(cwd=cwd)
+    def _get_repository_url(cls, tags={}, cwd=None):
+        # type: (Dict[str, str], Optional[str]) -> str
+        result = tags.get(ci.git.REPOSITORY_URL, "")
+        if not result:
+            result = extract_remote_url(cwd=cwd)
+        return result
 
     @classmethod
     def _get_latest_commits(cls, cwd=None):
