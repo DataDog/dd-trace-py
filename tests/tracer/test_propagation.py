@@ -207,7 +207,7 @@ def test_inject_tags_large(tracer):
 
 
 def test_inject_tags_invalid(tracer):
-    # DEV: "=" and "," are not allowed in keys or values 
+    # DEV: "=" and "," are not allowed in keys or values
     meta = {"_dd.p.test": ",value="}
     ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics", meta=meta)
     tracer.context_provider.activate(ctx)
