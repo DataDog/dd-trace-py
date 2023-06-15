@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 import json
-import os
 import re
 import zlib
 
@@ -18,6 +17,7 @@ from tests.utils import override_global_config
 
 
 TEST_FILE = "tests/contrib/django/django_app/appsec_urls.py"
+
 
 def _aux_appsec_get_root_span(
     client,
