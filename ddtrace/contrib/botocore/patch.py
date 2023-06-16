@@ -17,8 +17,13 @@ from typing import Union
 import botocore.client
 import botocore.exceptions
 
+
+try:
+    from urllib.parse import urlparse
+except ImportError:
+    from urlparse import urlparse
+
 from ddtrace import config
-from ddtrace.internal.compat import parse
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.settings.config import Config
 from ddtrace.vendor import debtcollector
@@ -130,7 +135,7 @@ def get_queue_name(params):
     Return the name of the queue given the params
     """
     queue_url = params["QueueUrl"]
-    url = parse.urlparse(queue_url)
+    url = urlparse(queue_url)
     return url.path.rsplit("/", 1)[-1]
 
 
