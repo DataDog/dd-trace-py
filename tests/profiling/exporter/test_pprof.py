@@ -2,7 +2,6 @@ import os
 import platform
 
 import mock
-import pytest
 import six
 
 from ddtrace import ext
