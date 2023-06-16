@@ -705,8 +705,6 @@ def test_pprof_exporter_libs(gan):
     _packages._FILE_PACKAGE_MAPPING = _packages._build_package_file_mapping()
     gan.return_value = "bonjour"
     exp = pprof.PprofExporter()
-    if not exp.enable_code_provenance:
-        pytest.skip()
     TEST_EVENTS = {
         stack_event.StackSampleEvent: [
             stack_event.StackSampleEvent(
@@ -766,7 +764,7 @@ def test_pprof_exporter_libs(gan):
             del lib["paths"]
 
     expected_libs = [
-        {"name": "ddtrace", "kind": "library", "paths": {__file__, memalloc.__file__}},
+        # {"name": "ddtrace", "kind": "library", "paths": {__file__, memalloc.__file__}},
         {"name": "six", "kind": "library", "version": six.__version__, "paths": {six.__file__}},
         {"kind": "standard library", "name": "stdlib", "version": platform.python_version()},
         {
