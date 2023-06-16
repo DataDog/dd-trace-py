@@ -497,7 +497,7 @@ class TelemetryWriter(TelemetryBase):
 
     def _app_client_configuration_changed_event(self, configuration):
         # type: (List[Dict]) -> None
-        """Adds a Telemetry event which sends list of modifed configurations to the agent"""
+        """Adds a Telemetry event which sends list of modified configurations to the agent"""
 
         config_change_queue = []
         # Loop though the events queue and find the app-started event payload
