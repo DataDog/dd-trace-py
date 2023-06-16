@@ -2,6 +2,7 @@ import os
 import platform
 
 import mock
+import pytest
 import six
 
 from ddtrace import ext
@@ -704,6 +705,8 @@ def test_pprof_exporter_libs(gan):
     _packages._FILE_PACKAGE_MAPPING = _packages._build_package_file_mapping()
     gan.return_value = "bonjour"
     exp = pprof.PprofExporter()
+    if not exp.enable_code_provenance:
+        pytest.skip()
     TEST_EVENTS = {
         stack_event.StackSampleEvent: [
             stack_event.StackSampleEvent(
