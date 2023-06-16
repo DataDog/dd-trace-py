@@ -763,7 +763,6 @@ def test_pprof_exporter_libs(gan):
             del lib["paths"]
 
     expected_libs = [
-        # {"name": "ddtrace", "kind": "library", "paths": {__file__, memalloc.__file__}},
         {"name": "six", "kind": "library", "version": six.__version__, "paths": {six.__file__}},
         {"kind": "standard library", "name": "stdlib", "version": platform.python_version()},
         {
@@ -772,6 +771,10 @@ def test_pprof_exporter_libs(gan):
             "version": "<unknown>",
         },
     ]
+    if platform.python_version_tuple() >= (3, 0, 0):
+        expected_libs.append(
+            {"name": "ddtrace", "kind": "library", "paths": {__file__, memalloc.__file__}},
+        )
 
     if six.PY3:
         expected_libs.append(
