@@ -1,7 +1,6 @@
 interactions:
 - request:
-    body: '{"input": "Here is some perfectly innocuous text that follows all OpenAI
-      content policies."}'
+    body: '{"input": "i want to kill them.", "model": "text-moderation-latest"}'
     headers:
       Accept:
       - '*/*'
@@ -10,34 +9,31 @@ interactions:
       Connection:
       - keep-alive
       Content-Length:
-      - '92'
+      - '68'
       Content-Type:
       - application/json
-      Cookie:
-      - _cfuvid=z_X6itPJxPTjTduN0U3MMsBzJjHeKT9Fdq0egODXUAA-1681852797547-0-604800000
       User-Agent:
-      - OpenAI/v1 PythonBindings/0.26.5
+      - OpenAI/v1 PythonBindings/0.27.7
       X-OpenAI-Client-User-Agent:
-      - '{"bindings_version": "0.26.5", "httplib": "requests", "lang": "python", "lang_version":
-        "3.8.13", "platform": "macOS-13.2-arm64-arm-64bit", "publisher": "openai",
-        "uname": "Darwin 22.3.0 Darwin Kernel Version 22.3.0: Thu Jan  5 20:48:54
-        PST 2023; root:xnu-8792.81.2~2/RELEASE_ARM64_T6000 arm64 arm"}'
+      - '{"bindings_version": "0.27.7", "httplib": "requests", "lang": "python", "lang_version":
+        "3.10.5", "platform": "macOS-13.3.1-arm64-arm-64bit", "publisher": "openai",
+        "uname": "Darwin 22.4.0 Darwin Kernel Version 22.4.0: Mon Mar  6 20:59:28
+        PST 2023; root:xnu-8796.101.5~3/RELEASE_ARM64_T6000 arm64"}'
     method: POST
     uri: https://api.openai.com/v1/moderations
   response:
     body:
       string: !!binary |
-        H4sIAAAAAAAAA2xPXU/CMBT9L32mo91t19u9gsYng74aY5px2Ra7TdtiELL/biYKEnw8nznnwNo1
-        K1k3rAM3RS/3q4ft7TJf9vuVf190dnitb+Li7vGezSYTeVayRLvEJxBcaoeeC6HYjAWKW58iK58O
-        bONdXdOalRvnI81Y5RLVQ2gpsvLAIu22zp/ExiU6gY928NRXZyKS3/DGhe4PM8XnXdsPIV60zFMT
-        yCXq276+apzXwb01bfUjjKdVny+xGsLltCKzoCHXyoDIQUogLorfqTpTCpVBDTkoQHPUzssxE5gr
-        CVZrRGthCpuLJzKDXGm0uSwEWm0MEhf26prMCgHGSABjtSqUgKPt+itmKFAZozV++xRxKf/7Dhla
-        KbSySlmptdXEBY7j8/gFAAD//wMATzzG1AkCAAA=
+        H4sIAAAAAAAAA2yPXWuDMBiF/8t7rWnUxCTeFjZW2EV3URhjjKCvGki1JHFrKf734Tpl0l0ezgfP
+        uYKpoIBjX7lY7GTHn91w2JutvbzKy9dBPFb8tHt4edpDNIXQQgEBzyGehNPB9F1MKYMIHPrBBg/F
+        2xVqq5sGKyiCGzCCUgdsemfQQ3EFj+dBWyhqbT1G0OqAc/DT9Ba7ctEebR232h2X9K28OZqud361
+        sQmtQx2wM12zGPPgpnH61Jry1xgXpsuHL3u3BuNEZHmeCIYxFTMgJUKKPEtz9heTEsUVE5kSK1hO
+        0lzINJkW5B10ShKqJKXZzb2Hp4QyqgRlPP3vAidS5SxVP/1xfB+/AQAA//8DAJDYZPbFAQAA
     headers:
       CF-Cache-Status:
       - DYNAMIC
       CF-RAY:
-      - 7b9ff2fccd56c3f0-EWR
+      - 7cb8abb90bbd43dd-EWR
       Connection:
       - keep-alive
       Content-Encoding:
@@ -45,7 +41,7 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Tue, 18 Apr 2023 21:20:00 GMT
+      - Mon, 22 May 2023 22:59:39 GMT
       Server:
       - cloudflare
       Transfer-Encoding:
@@ -55,13 +51,13 @@ interactions:
       openai-organization:
       - datadog-4
       openai-processing-ms:
-      - '635'
+      - '288'
       openai-version:
       - '2020-10-01'
       strict-transport-security:
       - max-age=15724800; includeSubDomains
       x-request-id:
-      - 2b9ad9c9c106f591bd0cbf3c6e83dcdf
+      - 7f9ca630908fc4df7386a31baf0757cd
     status:
       code: 200
       message: OK

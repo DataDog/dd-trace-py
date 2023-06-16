@@ -473,6 +473,7 @@ setup(
     license="BSD",
     packages=find_packages(exclude=["tests*", "benchmarks"]),
     package_data={
+        "ddtrace": ["py.typed"],
         "ddtrace.appsec": ["rules.json"],
         "ddtrace.appsec.ddwaf": [os.path.join("libddwaf", "*", "lib", "libddwaf.*")],
         "ddtrace.appsec.iast._taint_tracking": ["CMakeLists.txt"],
