@@ -32,6 +32,8 @@ tests/contrib/pytest_bdd            @DataDog/apm-core-python @DataDog/ci-app-lib
 ddtrace/ext/ci.py                   @DataDog/apm-core-python @DataDog/ci-app-libraries
 ddtrace/ext/test.py                 @DataDog/apm-core-python @DataDog/ci-app-libraries
 ddtrace/internal/codeowners.py      @DataDog/apm-core-python @datadog/ci-app-libraries
+ddtrace/internal/ci_visibility/     @DataDog/apm-core-python @DataDog/ci-app-libraries
+tests/internal/ci_visibility/       @DataDog/apm-core-python @DataDog/ci-app-libraries
 
 # Debugger
 ddtrace/debugging/                  @DataDog/debugger-python
