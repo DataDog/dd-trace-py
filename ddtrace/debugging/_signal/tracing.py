@@ -107,11 +107,11 @@ class SpanDecoration(LogSignal):
                         tag_value = tag.value.render(_locals, serialize)
                     except DDExpressionEvaluationError as e:
                         span.set_tag_str(
-                            "_dd.%s.evaluation_error" % tag.name, ", ".join([serialize(v) for v in e.args])
+                            "_dd.di.%s.evaluation_error" % tag.name, ", ".join([serialize(v) for v in e.args])
                         )
                     else:
                         span.set_tag_str(tag.name, tag_value if _isinstance(tag_value, str) else serialize(tag_value))
-                        span.set_tag_str("_dd.%s.probe_id" % tag.name, t.cast(Probe, probe).probe_id)
+                        span.set_tag_str("_dd.di.%s.probe_id" % tag.name, t.cast(Probe, probe).probe_id)
 
     def enter(self):
         # type: () -> None
