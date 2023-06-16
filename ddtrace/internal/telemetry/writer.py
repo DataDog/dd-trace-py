@@ -389,7 +389,7 @@ class TelemetryWriter(TelemetryBase):
         # type: () -> None
         super(TelemetryWriter, self).__init__(interval=_get_heartbeat_interval_or_default())
         self._integrations_queue = []  # type: List[Dict]
-        self._configuration_queue = []  # type: List[Dict]
+        self._configuration_queue = [] # type: List[Dict]
         # Currently telemetry only supports reporting a single error.
         # If we'd like to report multiple errors in the future
         # we could hack it in by xor-ing error codes and concatenating strings
@@ -451,7 +451,7 @@ class TelemetryWriter(TelemetryBase):
                 "name": "propagation_style_extract",
                 "origin": "env_var",
                 "value": str(config._propagation_style_extract),
-            },
+            },        
         ]
         self._configuration_queue = configuration
         payload = {
@@ -509,9 +509,8 @@ class TelemetryWriter(TelemetryBase):
         original_config = {}
         for cfg in self._configuration_queue:
             original_config[cfg["name"]] = cfg["value"]
-
         """
-        Find the configuration value to be changed. 
+        Find the list of configuration values to be changed. 
         If the input configuration doesn't collected by 
         the app start event, it will be ignored
         """
