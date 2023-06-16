@@ -516,7 +516,6 @@ class TelemetryWriter(TelemetryBase):
         for changed_config in configuration:
             cfg_name = changed_config["name"]
             if cfg_name in original_config and original_config[cfg_name] != changed_config["value"]:
-                # original_config["value"] = changed_config["value"]
                 config_change_queue.append(changed_config)
 
         # Only return configurations that being modified
