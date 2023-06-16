@@ -1,0 +1,52 @@
+interactions:
+- request:
+    body: '{"input": "that group of loud children annoy me.", "model": "text-moderation-latest"}'
+    headers:
+      Content-Type:
+      - application/json
+      User-Agent:
+      - OpenAI/v1 PythonBindings/0.27.7
+      X-OpenAI-Client-User-Agent:
+      - '{"bindings_version": "0.27.7", "httplib": "requests", "lang": "python", "lang_version":
+        "3.10.5", "platform": "macOS-13.3.1-arm64-arm-64bit", "publisher": "openai",
+        "uname": "Darwin 22.4.0 Darwin Kernel Version 22.4.0: Mon Mar  6 20:59:28
+        PST 2023; root:xnu-8796.101.5~3/RELEASE_ARM64_T6000 arm64"}'
+    method: post
+    uri: https://api.openai.com/v1/moderations
+  response:
+    body:
+      string: '{"id":"modr-7J8eFHDz5c3q2TLRzDG6lvnNq2hG9","model":"text-moderation-004","results":[{"flagged":false,"categories":{"sexual":false,"hate":false,"violence":false,"self-harm":false,"sexual/minors":false,"hate/threatening":false,"violence/graphic":false},"category_scores":{"sexual":2.4510274e-07,"hate":0.0019169124,"violence":7.496696e-06,"self-harm":1.0971589e-11,"sexual/minors":1.5096363e-08,"hate/threatening":4.2987654e-08,"violence/graphic":3.069334e-10}}]}'
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 7cb89e5a2aeb42e7-EWR
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 22 May 2023 22:50:32 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      alt-svc:
+      - h3=":443"; ma=86400, h3-29=":443"; ma=86400
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '564'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      x-request-id:
+      - 38e2b39afe6341fc80f4e3f36ee548c4
+    status:
+      code: 200
+      message: OK
+    url: https://api.openai.com/v1/moderations
+version: 1
