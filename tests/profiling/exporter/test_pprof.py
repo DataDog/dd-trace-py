@@ -5,7 +5,6 @@ import mock
 import six
 
 from ddtrace import ext
-from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.profiling.collector import _lock
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import stack_event
