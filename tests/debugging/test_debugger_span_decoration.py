@@ -63,9 +63,9 @@ class SpanDecorationProbeTestCase(TracerTestCase):
 
             assert span.name == "traceme"
             assert span.get_tag("test.tag") == "42"
-            assert span.get_tag("_dd.test.tag.probe_id") == "span-decoration"
+            assert span.get_tag("_dd.di.test.tag.probe_id") == "span-decoration"
             assert (
-                span.get_tag("_dd.test.bad.evaluation_error")
+                span.get_tag("_dd.di.test.bad.evaluation_error")
                 == "'Failed to evaluate expression \"test\": \\'notathing\\''"
             )
 
@@ -105,9 +105,9 @@ class SpanDecorationProbeTestCase(TracerTestCase):
 
             assert span.name == "traceme"
             assert int(span.get_tag("test.tag"))
-            assert span.get_tag("_dd.test.tag.probe_id") == "span-decoration"
+            assert span.get_tag("_dd.di.test.tag.probe_id") == "span-decoration"
             assert (
-                span.get_tag("_dd.test.bad.evaluation_error")
+                span.get_tag("_dd.di.test.bad.evaluation_error")
                 == "'Failed to evaluate expression \"test\": \\'notathing\\''"
             )
 
@@ -141,7 +141,7 @@ class SpanDecorationProbeTestCase(TracerTestCase):
 
             assert span.name == "traceme"
             assert span.get_tag("test.tag") == "test.value"
-            assert span.get_tag("_dd.test.tag.probe_id") == "span-decoration"
+            assert span.get_tag("_dd.di.test.tag.probe_id") == "span-decoration"
 
     def test_debugger_span_decoration_probe_on_traced_function_active_span(self):
         with debugger() as d:
@@ -168,7 +168,7 @@ class SpanDecorationProbeTestCase(TracerTestCase):
 
             assert span.name == "traceme"
             assert span.get_tag("test.tag") == "test.value"
-            assert span.get_tag("_dd.test.tag.probe_id") == "span-decoration"
+            assert span.get_tag("_dd.di.test.tag.probe_id") == "span-decoration"
 
     def test_debugger_span_decoration_probe_in_traced_function_active_span(self):
         with debugger() as d:
@@ -194,7 +194,7 @@ class SpanDecorationProbeTestCase(TracerTestCase):
 
             assert span.name == "traceme"
             assert span.get_tag("test.tag") == "test.value"
-            assert span.get_tag("_dd.test.tag.probe_id") == "span-decoration"
+            assert span.get_tag("_dd.di.test.tag.probe_id") == "span-decoration"
 
     def test_debugger_span_decoration_probe_in_traced_function_root_span(self):
         with debugger() as d:
@@ -226,8 +226,8 @@ class SpanDecorationProbeTestCase(TracerTestCase):
             else:
                 # String coertions in Python 2 change the value of the string
                 assert parent.get_tag("test.tag") is not None
-            assert parent.get_tag("_dd.test.tag.probe_id") == "span-decoration"
+            assert parent.get_tag("_dd.di.test.tag.probe_id") == "span-decoration"
 
             assert child.name == "traceme"
             assert child.get_tag("test.tag") is None
-            assert child.get_tag("_dd.test.tag.probe_id") is None
+            assert child.get_tag("_dd.di.test.tag.probe_id") is None
