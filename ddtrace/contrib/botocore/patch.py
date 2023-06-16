@@ -15,10 +15,7 @@ from typing import Tuple
 from typing import Union
 
 
-try:
-    from urllib.parse import urlparse
-except ImportError:
-    from urlparse import urlparse
+from ddtrace.internal.compat import parse 
 
 import botocore.client
 import botocore.exceptions
