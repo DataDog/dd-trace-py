@@ -1,0 +1,66 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '0'
+      User-Agent:
+      - OpenAI/v1 PythonBindings/0.27.7
+      X-OpenAI-Client-User-Agent:
+      - '{"bindings_version": "0.27.7", "httplib": "requests", "lang": "python", "lang_version":
+        "3.10.5", "platform": "macOS-13.4-arm64-arm-64bit", "publisher": "openai",
+        "uname": "Darwin 22.5.0 Darwin Kernel Version 22.5.0: Mon Apr 24 20:52:24
+        PDT 2023; root:xnu-8796.121.2~5/RELEASE_ARM64_T6000 arm64"}'
+    method: POST
+    uri: https://api.openai.com/v1/fine-tunes/ft-N6ggcFNqJNuREixR9ShDWzST/cancel
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA7STX2/aMBTF3/MpLD+TCrpAgLe1gLRJY1qptoeqsoxzSdw5duo/FKj47pXtQDS6
+        qU97Pede59zfvXlNEMJq/QTM4inCGy4htU4C7nmDF0G06XJUlmyxfP66dHdzvrubrKrZr8PqPpZV
+        +wZ0QzWtDZ6i1wQhhLAk0ChWeSXrRWlNLauI4QfAUySdEK3eaFU3lghlDHkBXlY+S/+qP2h9AVRL
+        LkuiqQVSO2F5Izjo9pUEoWPIoXRJJT9Qy5UkMbvSZfp9lR2YmS3HZjGej2+Lald++33zM4vha1WA
+        8KXMad7ObTXl4YMbLsBP8BCCxMkugInYE/SWFxeQCjF77v+YCJrPb+5X7LN6+aLsbse64sbpRhl4
+        jz24/hFJ62DvnQxJrp6MkqKrWe9tSDfI8tEkP8tMA7VQEOoTDkbjLMvyYT44+8ZS63yfB8/AGCjw
+        hUkKsJQL0xFG6Jgg9BjwbKngRaR8BhQdDcYJe6leBhqORp/yfrgK7JrivXc9DF4XlFHJQIg2aOBF
+        PK+CnNZ3OicMW5D2g521tNNQ280uYBtPgcuN6uQajKFl2MRtnASdn5iij/6Ov66kJRC59v5D0MWp
+        Ff2J7t9profdlpNj8gYAAP//AwBHMa9kGQQAAA==
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 7d0b632c09b4179d-EWR
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Thu, 01 Jun 2023 23:55:25 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      access-control-allow-origin:
+      - '*'
+      alt-svc:
+      - h3=":443"; ma=86400
+      openai-processing-ms:
+      - '65'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      x-request-id:
+      - 8fa910feb9c9fc35aaf146fc3368b7aa
+    status:
+      code: 200
+      message: OK
+version: 1
