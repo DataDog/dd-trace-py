@@ -5,6 +5,7 @@ import mock
 import six
 
 from ddtrace import ext
+from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.profiling.collector import _lock
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import stack_event
@@ -771,7 +772,7 @@ def test_pprof_exporter_libs(gan):
             "version": "<unknown>",
         },
     ]
-    if platform.python_version_tuple() >= (3, 0, 0):
+    if PYTHON_VERSION_INFO >= (3, 9, 0):
         expected_libs.append(
             {"name": "ddtrace", "kind": "library", "paths": {__file__, memalloc.__file__}},
         )
