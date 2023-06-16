@@ -431,6 +431,7 @@ class TelemetryWriter(TelemetryBase):
         if self._forked:
             # app-started events should only be sent by the main process
             return
+        #  List of configurations to be collected  
         configuration = [
             {
                 "name": "data_streams_enabled",
@@ -455,8 +456,7 @@ class TelemetryWriter(TelemetryBase):
         ]
         self._configuration_queue = configuration
         payload = {
-            #  List of configurations to be collected
-            "configuration": configuration,
+            "configuration": configuration,        
             "error": {
                 "code": self._error[0],
                 "message": self._error[1],
