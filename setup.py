@@ -3,6 +3,7 @@ import os
 import platform
 import shutil
 import sys
+import re
 import tarfile
 
 from setuptools import setup, find_packages, Extension
@@ -322,6 +323,20 @@ class CMakeBuild(build_ext):
                         if CURRENT_OS == "Windows":
                             cmake_args.extend(["-A", "x64" if platform.architecture()[0] == "64bit" else "Win32"])
 
+                        if CURRENT_OS == "Darwin" and sys.version_info >= (3, 8, 0):
+                            # Cross-compile support for macOS - respect ARCHFLAGS if set
+                            # Darwin Universal2 should bundle both architectures
+                            # default_platforms = (
+                            #     "-arch x86_64 -arch arm64" if os.getenv("PLAT").endswith("universal2") else ""
+                            # )
+                            # archs = re.findall(r"-arch (\S+)", os.environ.get("ARCHFLAGS", default_platforms))
+                            archs = re.findall(r"-arch (\S+)", os.environ.get("ARCHFLAGS", ""))
+                            if archs:
+                                cmake_args += [
+                                    "-DBUILD_MACOS=ON",
+                                    "-DCMAKE_OSX_ARCHITECTURES={}".format(";".join(archs)),
+                                ]
+
                         # Set CMAKE_BUILD_PARALLEL_LEVEL to control the parallel build level
                         # across all generators.
                         if "CMAKE_BUILD_PARALLEL_LEVEL" not in os.environ:
@@ -332,8 +347,12 @@ class CMakeBuild(build_ext):
                                 build_args += ["-j{}".format(self.parallel)]
                         cmake_cmd_with_args = [cmake_command] + cmake_args
                         subprocess.run(cmake_cmd_with_args, cwd=tmp_iast_path, check=True)
-
+                        print("CMAKE_GENERATOR!!!!")
+                        print(os.environ.get("CMAKE_GENERATOR", ""))
+                        print(cmake_cmd_with_args)
                         build_command = [cmake_command, "--build", tmp_iast_path, "--clean-first"] + build_args
+                        print("build_command!!!!")
+                        print(build_command)
                         subprocess.run(build_command, cwd=tmp_iast_path, check=True)
                         shutil.rmtree(os.path.join(tmp_iast_path, "_deps"))
                         shutil.rmtree(os.path.join(tmp_iast_path, "CMakeFiles"))
