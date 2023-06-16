@@ -130,7 +130,7 @@ def get_queue_name(params):
     Return the name of the queue given the params
     """
     queue_url = params["QueueUrl"]
-    url = urlparse(queue_url)
+    url = parse.urlparse(queue_url)
     return url.path.rsplit("/", 1)[-1]
 
 
