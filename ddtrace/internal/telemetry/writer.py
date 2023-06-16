@@ -389,6 +389,7 @@ class TelemetryWriter(TelemetryBase):
         # type: () -> None
         super(TelemetryWriter, self).__init__(interval=_get_heartbeat_interval_or_default())
         self._integrations_queue = []  # type: List[Dict]
+        self._configuration_queue = []  # type: List[Dict]
         # Currently telemetry only supports reporting a single error.
         # If we'd like to report multiple errors in the future
         # we could hack it in by xor-ing error codes and concatenating strings
@@ -430,30 +431,32 @@ class TelemetryWriter(TelemetryBase):
         if self._forked:
             # app-started events should only be sent by the main process
             return
+        configuration = [
+            {
+                "name": "data_streams_enabled",
+                "origin": "env_var",
+                "value": str(config._data_streams_enabled),
+            },
+            {
+                "name": "appsec_enabled",
+                "origin": "env_var",
+                "value": str(config._appsec_enabled),
+            },
+            {
+                "name": "propagation_style_inject",
+                "origin": "env_var",
+                "value": str(config._propagation_style_inject),
+            },
+            {
+                "name": "propagation_style_extract",
+                "origin": "env_var",
+                "value": str(config._propagation_style_extract),
+            },
+        ]
+        self._configuration_queue = configuration
         payload = {
             #  List of configurations to be collected
-            "configuration": [
-                {
-                    "name": "data_streams_enabled",
-                    "origin": "env_var",
-                    "value": str(config._data_streams_enabled),
-                },
-                {
-                    "name": "appsec_enabled",
-                    "origin": "env_var",
-                    "value": str(config._appsec_enabled),
-                },
-                {
-                    "name": "propagation_style_inject",
-                    "origin": "env_var",
-                    "value": str(config._propagation_style_inject),
-                },
-                {
-                    "name": "propagation_style_extract",
-                    "origin": "env_var",
-                    "value": str(config._propagation_style_extract),
-                },
-            ],
+            "configuration": configuration,
             "error": {
                 "code": self._error[0],
                 "message": self._error[1],
@@ -492,17 +495,20 @@ class TelemetryWriter(TelemetryBase):
         }
         self.add_event(payload, "app-integrations-change")
 
-
     def _app_client_configuration_changed_event(self, configuration):
         # type: (List[Dict]) -> None
-        """Adds a Telemetry event which sends a pair of configuration to the agent"""
+        """Adds a Telemetry event which sends list of modifed configurations to the agent"""
 
         config_change_queue = []
-        # Loop though all events queue and find the app-started event payload
-        for e in (0, len(self._events_queue) - 1):
-            if self._events_queue[e]["request_type"] == "app-started":
-                payload = self._events_queue[e]["payload"]
+        # Loop though the events queue and find the app-started event payload
+        for e in self._events_queue:
+            if e["request_type"] == "app-started":
+                payload = e["payload"]
                 break
+        # Convert the original configuration to a dic to avoid iterating the whole list
+        original_config = {}
+        for cfg in self._configuration_queue:
+            original_config[cfg["name"]] = cfg["value"]
 
         """
         Find the configuration value to be changed. 
@@ -510,11 +516,10 @@ class TelemetryWriter(TelemetryBase):
         the app start event, it will be ignored
         """
         for changed_config in configuration:
-            for original_config in payload["configuration"]:
-            # for new_config in configuration:
-                if original_config["name"] == changed_config["name"] and original_config["value"] != changed_config["value"]:
-                    original_config["value"] = changed_config["value"]
-                    config_change_queue.append(changed_config)
+            cfg_name = changed_config["name"]
+            if cfg_name in original_config and original_config[cfg_name] != changed_config["value"]:
+                # original_config["value"] = changed_config["value"]
+                config_change_queue.append(changed_config)
 
         # Only return configurations that being modified
         payload["configuration"] = config_change_queue

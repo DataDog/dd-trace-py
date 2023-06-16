@@ -230,7 +230,16 @@ def test_app_client_configuration_changed_event(telemetry_lifecycle_writer, test
             "value": "anything",
         },
     ]
-
+    # config_1 = {
+    #      "name": "appsec_enabled",
+    #      "value": "True",
+    # }
+    # config_2 = {
+    #      "name": "propagation_style_inject",
+    #      "value": '["datadog"]',
+    # }
+    # telemetry_lifecycle_writer._app_client_configuration_changed_event(config_1)
+    # telemetry_lifecycle_writer._app_client_configuration_changed_event(config_2)
     telemetry_lifecycle_writer._app_client_configuration_changed_event(configuration)
     telemetry_lifecycle_writer.periodic()
 
