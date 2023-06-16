@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import itertools
 import os
+import sys
 import time
 from typing import Any
 from typing import Dict
@@ -454,9 +455,14 @@ class TelemetryWriter(TelemetryBase):
                     "value": str(config._propagation_style_extract),
                 },
                 {
-                    "name": "ddtrace_run_used",
+                    "name": "ddtrace_bootstrapped",
                     "origin": "default",
                     "value": config._ddtrace_bootstrapped,
+                },
+                {
+                    "name": "ddtrace_auto_used",
+                    "origin": "default",
+                    "value": "ddtrace.auto" in sys.modules,
                 },
                 {
                     "name": "otel_enabled",

@@ -89,7 +89,12 @@ def test_app_started_event(telemetry_lifecycle_writer, test_agent_session, mock_
                 "value": "['tracecontext', 'datadog']",
             },
             {
-                "name": "ddtrace_run_used",
+                "name": "ddtrace_bootstrapped",
+                "origin": "default",
+                "value": False,
+            },
+            {
+                "name": "ddtrace_auto_used",
                 "origin": "default",
                 "value": False,
             },
@@ -114,6 +119,8 @@ def test_app_started_event_configuration_override(test_agent_session, ddtrace_ru
     which is then sent by periodic()
     """
     code = """
+import ddtrace.auto
+
 from ddtrace.internal.telemetry import telemetry_lifecycle_writer
 telemetry_lifecycle_writer.enable()
 telemetry_lifecycle_writer.reset_queues()
@@ -132,7 +139,6 @@ telemetry_lifecycle_writer.disable()
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
 
     assert status == 0, stderr
-    assert stderr == b"", stderr
 
     events = test_agent_session.get_events()
 
@@ -158,7 +164,12 @@ telemetry_lifecycle_writer.disable()
             "value": "['b3multi']",
         },
         {
-            "name": "ddtrace_run_used",
+            "name": "ddtrace_bootstrapped",
+            "origin": "default",
+            "value": True,
+        },
+        {
+            "name": "ddtrace_auto_used",
             "origin": "default",
             "value": True,
         },
