@@ -5,8 +5,6 @@ import codecs
 import sys
 from typing import TYPE_CHECKING
 
-from six import binary_type
-
 from ddtrace.appsec.iast._taint_tracking import OriginType
 from ddtrace.appsec.iast._taint_tracking import TagMappingMode
 from ddtrace.appsec.iast._taint_tracking import TaintRange
@@ -32,7 +30,7 @@ if TYPE_CHECKING:
     from typing import Optional
     from typing import Union
 
-TEXT_TYPES = (str, binary_type, bytearray)
+TEXT_TYPES = (str, bytes, bytearray)
 
 _add_aspect = aspects.add_aspect
 _extend_aspect = aspects.extend_aspect

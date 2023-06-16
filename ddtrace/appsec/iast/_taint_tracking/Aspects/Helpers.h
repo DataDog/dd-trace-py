@@ -29,6 +29,9 @@ as_formatted_evidence(const StrType& text,
                       const optional<TagMappingMode>& tag_mapping_mode,
                       const optional<const py::dict>& new_ranges);
 
+py::bytearray
+_convert_escaped_text_to_taint_text_ba(const py::bytearray& taint_escaped_text, TaintRangeRefs ranges_orig);
+
 template<class StrType>
 StrType
 _convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, TaintRangeRefs ranges_orig);

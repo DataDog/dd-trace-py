@@ -28,6 +28,9 @@ class AppSecIastSpanProcessor(SpanProcessor):
         if span.span_type != SpanTypes.WEB:
             return
         oce.acquire_request(span)
+        from ddtrace.appsec.iast._taint_tracking import create_context
+
+        create_context()
 
     def on_span_finish(self, span):
         # type: (Span) -> None
@@ -52,6 +55,7 @@ class AppSecIastSpanProcessor(SpanProcessor):
         if data:
             if _is_iast_enabled():
                 from ddtrace.appsec.iast._taint_tracking import OriginType  # noqa: F401
+                from ddtrace.appsec.iast._taint_tracking import contexts_reset  # noqa: F401
                 from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import origin_to_str  # noqa: F401
 
                 class OriginTypeEncoder(json.JSONEncoder):
@@ -65,6 +69,8 @@ class AppSecIastSpanProcessor(SpanProcessor):
                     IAST.JSON,
                     json.dumps(attr.asdict(data, filter=lambda attr, x: x is not None), cls=OriginTypeEncoder),
                 )
+
+                contexts_reset()
 
             span.set_tag(MANUAL_KEEP_KEY)
             if span.get_tag(ORIGIN_KEY) is None:
