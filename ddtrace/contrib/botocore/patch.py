@@ -14,13 +14,11 @@ from typing import Set
 from typing import Tuple
 from typing import Union
 
-
-from ddtrace.internal.compat import parse 
-
 import botocore.client
 import botocore.exceptions
 
 from ddtrace import config
+from ddtrace.internal.compat import parse
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.settings.config import Config
 from ddtrace.vendor import debtcollector

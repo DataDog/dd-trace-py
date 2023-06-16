@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    botocore: This fix resolves an issue where the Datadog tracer attempted to parse as URLs Simple
+    Queue Service ``QueueUrl`` attributes that were not well-formed URLs.
