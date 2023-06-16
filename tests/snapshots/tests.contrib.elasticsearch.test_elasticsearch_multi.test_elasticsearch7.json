@@ -15,6 +15,7 @@
       "elasticsearch.params": "ignore=400",
       "elasticsearch.url": "/ddtrace_index",
       "language": "python",
+      "out.host": "localhost",
       "runtime-id": "3807722d39f54d3bbd1c513c835fc694",
       "span.kind": "client"
     },
@@ -46,6 +47,7 @@
       "elasticsearch.params": "ignore=%5B400%2C+404%5D",
       "elasticsearch.url": "/ddtrace_index",
       "language": "python",
+      "out.host": "localhost",
       "runtime-id": "3807722d39f54d3bbd1c513c835fc694",
       "span.kind": "client"
     },
