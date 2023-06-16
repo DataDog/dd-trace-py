@@ -510,9 +510,8 @@ class TelemetryWriter(TelemetryBase):
         for cfg in self._configuration_queue:
             original_config[cfg["name"]] = cfg["value"]
         """
-        Find the list of configuration values to be changed. 
-        If the input configuration doesn't collected by 
-        the app start event, it will be ignored
+        Find the list of configuration values to be changed.
+        If the input configuration doesn't collected by the app start event, it will be ignored
         """
         for changed_config in configuration:
             cfg_name = changed_config["name"]
