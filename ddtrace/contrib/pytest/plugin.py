@@ -166,18 +166,14 @@ def _start_test_suite_span(item):
     Note that ``item`` is a ``pytest.Module`` object referencing the test file being run.
     """
     test_session_span = _extract_span(item.session)
-    parent_span = test_session_span
-    test_module_span = None
-    if isinstance(item.parent, pytest.Package):
-        test_module_span = _extract_span(item.parent)
-        parent_span = test_module_span
+    test_module_span = _extract_span(_find_pytest_item(item, pytest.Package))
 
     test_suite_span = _CIVisibility._instance.tracer._start_span(
         "pytest.test_suite",
         service=_CIVisibility._instance._service,
         span_type=SpanTypes.TEST,
         activate=True,
-        child_of=parent_span,
+        child_of=test_module_span or test_session_span,
     )
     test_suite_span.set_tag_str(COMPONENT, "pytest")
     test_suite_span.set_tag_str(SPAN_KIND, KIND)
@@ -276,9 +272,7 @@ def _find_pytest_item(item, pytest_item_type):
     Given a `pytest.Item`, traverse upwards until we find a specified `pytest.Package` or `pytest.Module` item,
     or return None.
     """
-    if item is None:
-        return None
-    if pytest_item_type not in [pytest.Package, pytest.Module]:
+    if item is None or pytest_item_type not in (pytest.Package, pytest.Module):
         return None
     parent = item.parent
     while not isinstance(parent, pytest_item_type) and parent is not None:
@@ -311,9 +305,8 @@ def pytest_runtest_protocol(item, nextitem):
     pytest_package_item = _find_pytest_item(pytest_module_item, pytest.Package)
 
     test_module_span = _extract_span(pytest_package_item)
-    if pytest_package_item is not None and test_module_span is None:
-        if test_module_span is None:
-            test_module_span = _start_test_module_span(pytest_package_item)
+    if test_module_span is None and pytest_package_item is not None:
+        test_module_span = _start_test_module_span(pytest_package_item)
 
     test_suite_span = _extract_span(pytest_module_item)
     if pytest_module_item is not None and test_suite_span is None:

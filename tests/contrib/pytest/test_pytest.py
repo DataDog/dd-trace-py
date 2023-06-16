@@ -967,6 +967,8 @@ class PytestTestCase(TracerTestCase):
         test_session_span = spans[2]
         test_a_suite_span = spans[3]
         test_b_suite_span = spans[4]
+        assert test_a_suite_span.get_tag("test.suite") == "test_a.py"
+        assert test_b_suite_span.get_tag("test.suite") == "test_b.py"
         assert test_session_span.get_tag("test.status") == "pass"
         assert test_a_suite_span.get_tag("test.status") == "pass"
         assert test_b_suite_span.get_tag("test.status") == "skip"
