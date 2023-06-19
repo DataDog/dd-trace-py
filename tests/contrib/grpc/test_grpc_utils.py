@@ -7,13 +7,13 @@ from ddtrace.contrib.grpc import utils
 def test_parse_method_path_with_package():
     method_path = "/package.service/method"
     parsed = utils.parse_method_path(method_path)
-    assert parsed == ("package", "service", "method")
+    assert parsed == ("package.service", "package", "service", "method")
 
 
 def test_parse_method_path_without_package():
     method_path = "/service/method"
     parsed = utils.parse_method_path(method_path)
-    assert parsed == (None, "service", "method")
+    assert parsed == ("service", None, "service", "method")
 
 
 @mock.patch("ddtrace.contrib.grpc.utils.log")
@@ -72,6 +72,7 @@ def test_set_grpc_client_meta(host, port, calls):
             "/package.service/method",
             "unary",
             [
+                mock.call("rpc.service", "package.service"),
                 mock.call("grpc.method.path", "/package.service/method"),
                 mock.call("grpc.method.package", "package"),
                 mock.call("grpc.method.service", "service"),
@@ -83,6 +84,7 @@ def test_set_grpc_client_meta(host, port, calls):
             "/service/method",
             "unary",
             [
+                mock.call("rpc.service", "service"),
                 mock.call("grpc.method.path", "/service/method"),
                 mock.call("grpc.method.service", "service"),
                 mock.call("grpc.method.name", "method"),
