@@ -263,6 +263,18 @@ def test_git_client_get_repository_url(git_repo):
     assert remote_url == "git@github.com:test-repo-url.git"
 
 
+def test_git_client_get_repository_url_env_var_precedence(git_repo):
+    remote_url = CIVisibilityGitClient._get_repository_url(
+        tags={ci.git.REPOSITORY_URL: "https://github.com/Datadog/dd-trace-py"}, cwd=git_repo
+    )
+    assert remote_url == "https://github.com/Datadog/dd-trace-py"
+
+
+def test_git_client_get_repository_url_env_var_precedence_empty_tags(git_repo):
+    remote_url = CIVisibilityGitClient._get_repository_url(tags={}, cwd=git_repo)
+    assert remote_url == "git@github.com:test-repo-url.git"
+
+
 def test_git_client_get_latest_commits(git_repo):
     latest_commits = CIVisibilityGitClient._get_latest_commits(cwd=git_repo)
     assert latest_commits == [TEST_SHA]
@@ -399,6 +411,24 @@ def test_civisibilitywriter_coverage_agentless_url():
     ), mock.patch("ddtrace.internal.ci_visibility.writer.coverage_enabled", return_value=True):
         dummy_writer = DummyCIVisibilityWriter()
         assert dummy_writer.intake_url == "https://citestcycle-intake.datadoghq.com"
+
+        cov_client = dummy_writer._clients[1]
+        assert cov_client._intake_url == "https://citestcov-intake.datadoghq.com"
+
+        with mock.patch("ddtrace.internal.writer.writer.get_connection") as _get_connection:
+            dummy_writer._put("", {}, cov_client)
+            _get_connection.assert_called_once_with("https://citestcov-intake.datadoghq.com", 2.0)
+
+
+def test_civisibilitywriter_coverage_agentless_with_intake_url_param():
+    with override_env(
+        dict(
+            DD_API_KEY="foobar.baz",
+            DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+        )
+    ), mock.patch("ddtrace.internal.ci_visibility.writer.coverage_enabled", return_value=True):
+        dummy_writer = DummyCIVisibilityWriter(intake_url="https://some-url.com")
+        assert dummy_writer.intake_url == "https://some-url.com"
 
         cov_client = dummy_writer._clients[1]
         assert cov_client._intake_url == "https://citestcov-intake.datadoghq.com"
