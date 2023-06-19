@@ -59,9 +59,9 @@ file(GLOB HEADER_FILES "*.h"
         )
 set(Python_USE_STATIC_LIBS FALSE)
 find_package(Python COMPONENTS Interpreter Development)
-add_link_options(-ldl -static-libgcc -static-libstdc++)
+# add_link_options(-ldl -static-libgcc -static-libstdc++)
 # PythonLibs is needed for pybind11::embed
-find_package(PythonLibs REQUIRED)
+# find_package(PythonLibs REQUIRED)
 
 # Debug messages
 message(STATUS "PYTHON_LIBRARIES = ${Python_LIBRARIES}")
