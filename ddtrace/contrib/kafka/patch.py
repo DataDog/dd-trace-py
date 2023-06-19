@@ -35,11 +35,13 @@ config._add(
 class TracedProducer(confluent_kafka.Producer):
     def __init__(self, config, *args, **kwargs):
         super(TracedProducer, self).__init__(config, *args, **kwargs)
-        self._dd_bootstrap_servers = (
+        bootstrap_servers = (
             config.get("bootstrap.servers")
             if config.get("bootstrap.servers") is not None
             else config.get("metadata.broker.list")
         )
+        if bootstrap_servers is not None:
+            Pin.override(self, tags={kafkax.HOST_LIST: bootstrap_servers})
 
     def produce(self, topic, value=None, *args, **kwargs):
         super(TracedProducer, self).produce(topic, value, *args, **kwargs)
@@ -112,6 +114,7 @@ def traced_produce(func, instance, args, kwargs):
         service=trace_utils.ext_service(pin, config.kafka),
         span_type=SpanTypes.WORKER,
     ) as span:
+        span.set_tags(pin.tags)
         span.set_tag_str(MESSAGING_SYSTEM, kafkax.SERVICE)
         span.set_tag_str(COMPONENT, config.kafka.integration_name)
         span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
@@ -121,8 +124,6 @@ def traced_produce(func, instance, args, kwargs):
         span.set_tag_str(kafkax.TOMBSTONE, str(value is None))
         span.set_tag(SPAN_MEASURED_KEY)
         rate = config.kafka.get_analytics_sample_rate()
-        if instance._dd_bootstrap_servers is not None:
-            span.set_tag_str(kafkax.HOST_LIST, instance._dd_bootstrap_servers)
         if rate is not None:
             span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, rate)
         return func(*args, **kwargs)
