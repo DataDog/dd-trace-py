@@ -69,10 +69,3 @@ def test_small_schemas(obj, res):
 )
 def test_limits(obj, res):
     assert equal_without_meta(build_schema(obj, max_depth=2, max_girth=1, max_types_in_array=1), res)
-
-
-if __name__ == "__main__":
-    import atheris
-
-    atheris.Setup(sys.argv, atheris.instrument_func(test_build_schema.hypothesis.fuzz_one_input))
-    atheris.Fuzz()
