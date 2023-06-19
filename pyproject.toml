@@ -43,7 +43,7 @@ exclude = '''
   | ddtrace/profiling/collector/stack.pyx$
   | ddtrace/profiling/exporter/pprof_.*_pb2.py$
   | ddtrace/profiling/exporter/pprof.pyx$
-  | ddtrace/vendor/
+  | ddtrace/vendor/*
   | \.eggs
   | \.git
   | \.hg
