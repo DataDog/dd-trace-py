@@ -6,15 +6,11 @@ option(BUILD_MACOS "Build for MacOS" OFF)
 
 project(${APP_NAME})
 
-# set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-
 set(CMAKE_CXX_STANDARD 17)
-# set(CMAKE_CXX_STANDARD_REQUIRED ON)
-# set(CMAKE_CXX_EXTENSIONS OFF)
-# set(ABSL_PROPAGATE_CXX_STD ON)
 
-# For release modes: switch off assertions (more risky but faster). Compiler: -DNDEBUG
-add_compile_definitions($<$<NOT:$<CONFIG:Debug>>:NDEBUG>)
+# -U_FORTIFY_SOURCE to fix a bug in alpine and pybind11
+# https://github.com/pybind/pybind11/issues/1650
+# https://gitlab.alpinelinux.org/alpine/aports/-/issues/8626
 add_compile_options(-fPIC -fexceptions -fvisibility=hidden -fpermissive -pthread -Wall -Wno-unknown-pragmas -U_FORTIFY_SOURCE)
 
 if(BUILD_MACOS)
@@ -22,9 +18,6 @@ if(BUILD_MACOS)
     message(STATUS "Compile options for MacOS")
     add_link_options(-ldl -undefined dynamic_lookup)
 else()
-    # -U_FORTIFY_SOURCE to fix a bug in alpine and pybind11
-    # https://github.com/pybind/pybind11/issues/1650
-    # https://gitlab.alpinelinux.org/alpine/aports/-/issues/8626
     message(STATUS "Compile options for Linux/Win")
 endif(BUILD_MACOS)
 unset(BUILD_MACOS CACHE)
