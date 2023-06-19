@@ -106,6 +106,7 @@ class SPAN_DATA_NAMES(object):
     REQUEST_HEADERS_NO_COOKIES = "http.request.headers"
     REQUEST_HEADERS_NO_COOKIES_CASE = "http.request.headers_case_sensitive"
     REQUEST_URI_RAW = "http.request.uri"
+    REQUEST_ROUTE = "http.request.route"
     REQUEST_METHOD = "http.request.method"
     REQUEST_PATH_PARAMS = "http.request.path_params"
     REQUEST_COOKIES = "http.request.cookies"
@@ -113,6 +114,7 @@ class SPAN_DATA_NAMES(object):
     REQUEST_USER_ID = "usr.id"
     RESPONSE_STATUS = "http.response.status"
     RESPONSE_HEADERS_NO_COOKIES = "http.response.headers"
+    RESPONSE_BODY = "http.response.body"
 
 
 @six.add_metaclass(Constant_Class)  # required for python2/3 compatibility

@@ -45,6 +45,9 @@ _BLOCK_CALL = "block"
 _WAF_RESULTS = "waf_results"
 
 
+GLOBAL_CALLBACKS = {}  # type: dict[str, Any]
+
+
 class ASM_Environment:
     """
     an object of this class contains all asm data (waf and telemetry)
@@ -98,6 +101,10 @@ def unregister(span):
     env = _ASM.get()
     if env.span_asm_context is not None and env.span is span:
         env.span_asm_context.__exit__(None, None, None)
+    elif env.span is span:
+        # needed for api security flushing information before end of the span
+        for function in GLOBAL_CALLBACKS.get(_CONTEXT_CALL, []):
+            function(env)
 
 
 class _DataHandler:
@@ -124,10 +131,10 @@ class _DataHandler:
         if self.active:
             env = _ASM.get()
             # assert _CONTEXT_ID.get() == self._id
-            callbacks = env.callbacks.get(_CONTEXT_CALL)
+            callbacks = GLOBAL_CALLBACKS.get(_CONTEXT_CALL, []) + env.callbacks.get(_CONTEXT_CALL)
             if callbacks is not None:
                 for function in callbacks:
-                    function()
+                    function(env)
                 _ASM.reset(self.token)
             self.active = False
 
@@ -140,6 +147,59 @@ def set_value(category, address, value):  # type: (str, str, Any) -> None
     asm_context_attr = getattr(env, category, None)
     if asm_context_attr is not None:
         asm_context_attr[address] = value
+
+
+def set_headers_response(headers):  # type: (Any) -> None
+    if headers is not None:
+        set_waf_address(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, headers, _ASM.get().span)
+
+
+def set_body_response(body_response):
+    import json
+
+    import xmltodict
+
+    from ddtrace.contrib.trace_utils import _get_header_value_case_insensitive
+
+    if not body_response:
+        return
+
+    if isinstance(body_response, dict):
+        set_waf_address(SPAN_DATA_NAMES.RESPONSE_BODY, body_response)
+        return
+
+    headers = get_waf_address(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES)
+    if not headers:
+        return
+    content_type = _get_header_value_case_insensitive(
+        dict(headers),
+        "content-type",
+    )
+    if not content_type:
+        return
+
+    def access_body(bd):
+        if isinstance(bd, list) and isinstance(bd[0], (str, bytes)):
+            bd = bd[0][:0].join(bd)
+        if getattr(bd, "decode", False):
+            bd = bd.decode("UTF-8", errors="ignore")
+        if len(bd) >= 0x1000000:
+            raise ValueError("response body larger than 16MB")
+        return bd
+
+    req_body = None
+    try:
+        # TODO handle charset
+        if "json" in content_type:
+            req_body = json.loads(access_body(body_response))
+        elif "xml" in content_type:
+            req_body = xmltodict.parse(access_body(body_response))
+        else:
+            return
+    except BaseException:
+        log.debug("Failed to parse response body", exc_info=True)
+    else:
+        set_waf_address(SPAN_DATA_NAMES.RESPONSE_BODY, req_body)
 
 
 def set_waf_address(address, value, span=None):  # type: (str, Any, Any) -> None
@@ -171,10 +231,30 @@ def get_waf_address(address, default=None):  # type: (str, Any) -> Any
     return get_value(_WAF_ADDRESSES, address, default=default)
 
 
-def add_context_callback(function):  # type: (Any) -> None
-    callbacks = get_value(_CALLBACKS, _CONTEXT_CALL)
+def get_waf_addresses(default=None):  # type: (Any) -> Any
+    env = _ASM.get()
+    if not env.active:
+        log.debug("getting WAF addresses with no active asm context")
+        return default
+    return env.waf_addresses
+
+
+def add_context_callback(function, global_callback=False):  # type: (Any, bool) -> None
+    if global_callback:
+        callbacks = GLOBAL_CALLBACKS.setdefault(_CONTEXT_CALL, [])
+    else:
+        callbacks = get_value(_CALLBACKS, _CONTEXT_CALL)
     if callbacks is not None:
         callbacks.append(function)
+
+
+def remove_context_callback(function, global_callback=False):  # type: (Any, bool) -> None
+    if global_callback:
+        callbacks = GLOBAL_CALLBACKS.get(_CONTEXT_CALL)
+    else:
+        callbacks = get_value(_CALLBACKS, _CONTEXT_CALL)
+    if callbacks:
+        callbacks[:] = list([cb for cb in callbacks if cb != function])
 
 
 def set_waf_callback(value):  # type: (Any) -> None
