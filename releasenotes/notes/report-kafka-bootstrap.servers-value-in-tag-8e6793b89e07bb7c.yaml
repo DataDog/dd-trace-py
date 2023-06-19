@@ -3,3 +3,4 @@ features:
   - |
     tracing: This adds the confluent-kafka producer configuration value found in `metadata.broker.list` or
     `bootstrap.servers` to producer spans in the `messaging.kafka.bootstrap.servers` tag
+
