@@ -634,6 +634,60 @@ async def test_aedit(api_key_in_env, request_api_key, openai, openai_vcr, snapsh
             )
 
 
+@pytest.mark.parametrize(
+    "ddtrace_config_openai",
+    [
+        # Default service, env, version
+        dict(
+            _api_key="<not-real-but-it's-something>",
+            logs_enabled=True,
+            log_prompt_completion_sample_rate=1.0,
+        ),
+    ],
+)
+def test_logs_edit(openai_vcr, openai, ddtrace_config_openai, mock_logs, mock_tracer):
+    """Ensure logs are emitted for edit endpoint when configured.
+
+    Also ensure the logs have the correct tagging including the trace-logs correlation tagging.
+    """
+    if not hasattr(openai, "Edit"):
+        pytest.skip("edit not supported for this version of openai")
+    with openai_vcr.use_cassette("edit.yaml"):
+        openai.Edit.create(
+            model="text-davinci-edit-001",
+            input="thsi si a spelilgn imstkae.",
+            instruction="fix spelling mistakes",
+            n=3,
+            temperature=0.2,
+            user="ddtrace-test",
+        )
+    span = mock_tracer.pop_traces()[0][0]
+    trace_id, span_id = span.trace_id, span.span_id
+
+    assert mock_logs.enqueue.call_count == 1
+    mock_logs.assert_has_calls(
+        [
+            mock.call.start(),
+            mock.call.enqueue(
+                {
+                    "timestamp": mock.ANY,
+                    "message": mock.ANY,
+                    "hostname": mock.ANY,
+                    "ddsource": "openai",
+                    "service": "",
+                    "status": "info",
+                    "ddtags": "env:,version:,openai.request.endpoint:/v1/edits,openai.request.method:POST,openai.request.model:text-davinci-edit-001,openai.organization.name:datadog-4,openai.user.api_key:sk-...key>",  # noqa: E501
+                    "dd.trace_id": str(trace_id),
+                    "dd.span_id": str(span_id),
+                    "instruction": "fix spelling mistakes",
+                    "input": "thsi si a spelilgn imstkae.",
+                    "choices": mock.ANY,
+                }
+            ),
+        ]
+    )
+
+
 @pytest.mark.parametrize("api_key_in_env", [True, False])
 def test_image_create(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "Image"):
@@ -665,6 +719,58 @@ async def test_image_acreate(api_key_in_env, request_api_key, openai, openai_vcr
                 response_format="url",
                 user="ddtrace-test",
             )
+
+
+@pytest.mark.parametrize(
+    "ddtrace_config_openai",
+    [
+        # Default service, env, version
+        dict(
+            _api_key="<not-real-but-it's-something>",
+            logs_enabled=True,
+            log_prompt_completion_sample_rate=1.0,
+        ),
+    ],
+)
+def test_logs_image_create(openai_vcr, openai, ddtrace_config_openai, mock_logs, mock_tracer):
+    """Ensure logs are emitted for image endpoints when configured.
+
+    Also ensure the logs have the correct tagging including the trace-logs correlation tagging.
+    """
+    if not hasattr(openai, "Image"):
+        pytest.skip("image not supported for this version of openai")
+    with openai_vcr.use_cassette("image_create.yaml"):
+        openai.Image.create(
+            prompt="sleepy capybara with monkey on top",
+            n=1,
+            size="256x256",
+            response_format="url",
+            user="ddtrace-test",
+        )
+    span = mock_tracer.pop_traces()[0][0]
+    trace_id, span_id = span.trace_id, span.span_id
+
+    assert mock_logs.enqueue.call_count == 1
+    mock_logs.assert_has_calls(
+        [
+            mock.call.start(),
+            mock.call.enqueue(
+                {
+                    "timestamp": mock.ANY,
+                    "message": mock.ANY,
+                    "hostname": mock.ANY,
+                    "ddsource": "openai",
+                    "service": "",
+                    "status": "info",
+                    "ddtags": "env:,version:,openai.request.endpoint:/v1/images/generations,openai.request.method:POST,openai.request.model:,openai.organization.name:datadog-4,openai.user.api_key:sk-...key>",  # noqa: E501
+                    "dd.trace_id": str(trace_id),
+                    "dd.span_id": str(span_id),
+                    "prompt": "sleepy capybara with monkey on top",
+                    "choices": mock.ANY,
+                }
+            ),
+        ]
+    )
 
 
 @pytest.mark.parametrize("api_key_in_env", [True, False])
@@ -710,6 +816,62 @@ async def test_image_aedit(api_key_in_env, request_api_key, openai, openai_vcr, 
             )
 
 
+@pytest.mark.parametrize(
+    "ddtrace_config_openai",
+    [
+        # Default service, env, version
+        dict(
+            _api_key="<not-real-but-it's-something>",
+            logs_enabled=True,
+            log_prompt_completion_sample_rate=1.0,
+        ),
+    ],
+)
+def test_logs_image_edit(openai_vcr, openai, ddtrace_config_openai, mock_logs, mock_tracer):
+    """Ensure logs are emitted for image endpoints when configured.
+
+    Also ensure the logs have the correct tagging including the trace-logs correlation tagging.
+    """
+    if not hasattr(openai, "Image"):
+        pytest.skip("image not supported for this version of openai")
+    with openai_vcr.use_cassette("image_edit.yaml"):
+        openai.Image.create_edit(
+            image=open(os.path.join(os.path.dirname(__file__), "test_data/image.png"), "rb"),
+            mask=open(os.path.join(os.path.dirname(__file__), "test_data/mask.png"), "rb"),
+            n=1,
+            prompt="A sunlit indoor lounge area with a pool containing a flamingo",
+            size="256x256",
+            response_format="url",
+            user="ddtrace-test",
+        )
+    span = mock_tracer.pop_traces()[0][0]
+    trace_id, span_id = span.trace_id, span.span_id
+
+    assert mock_logs.enqueue.call_count == 1
+    mock_logs.assert_has_calls(
+        [
+            mock.call.start(),
+            mock.call.enqueue(
+                {
+                    "timestamp": mock.ANY,
+                    "message": mock.ANY,
+                    "hostname": mock.ANY,
+                    "ddsource": "openai",
+                    "service": "",
+                    "status": "info",
+                    "ddtags": "env:,version:,openai.request.endpoint:/v1/images/edits,openai.request.method:POST,openai.request.model:,openai.organization.name:datadog-4,openai.user.api_key:sk-...key>",  # noqa: E501
+                    "dd.trace_id": str(trace_id),
+                    "dd.span_id": str(span_id),
+                    "prompt": "A sunlit indoor lounge area with a pool containing a flamingo",
+                    "image": "image.png",
+                    "mask": "mask.png",
+                    "choices": mock.ANY,
+                }
+            ),
+        ]
+    )
+
+
 @pytest.mark.parametrize("api_key_in_env", [True, False])
 def test_image_variation(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "Image"):
@@ -747,6 +909,59 @@ async def test_image_avariation(api_key_in_env, request_api_key, openai, openai_
                 response_format="url",
                 user="ddtrace-test",
             )
+
+
+@pytest.mark.parametrize(
+    "ddtrace_config_openai",
+    [
+        # Default service, env, version
+        dict(
+            _api_key="<not-real-but-it's-something>",
+            logs_enabled=True,
+            log_prompt_completion_sample_rate=1.0,
+        ),
+    ],
+)
+def test_logs_image_variation(openai_vcr, openai, ddtrace_config_openai, mock_logs, mock_tracer):
+    """Ensure logs are emitted for image endpoints when configured.
+
+    Also ensure the logs have the correct tagging including the trace-logs correlation tagging.
+    """
+    if not hasattr(openai, "Image"):
+        pytest.skip("image not supported for this version of openai")
+    with openai_vcr.use_cassette("image_variation.yaml"):
+        openai.Image.create_variation(
+            image=open(os.path.join(os.path.dirname(__file__), "test_data/image.png"), "rb"),
+            n=1,
+            size="256x256",
+            response_format="url",
+            user="ddtrace-test",
+        )
+
+    span = mock_tracer.pop_traces()[0][0]
+    trace_id, span_id = span.trace_id, span.span_id
+
+    assert mock_logs.enqueue.call_count == 1
+    mock_logs.assert_has_calls(
+        [
+            mock.call.start(),
+            mock.call.enqueue(
+                {
+                    "timestamp": mock.ANY,
+                    "message": mock.ANY,
+                    "hostname": mock.ANY,
+                    "ddsource": "openai",
+                    "service": "",
+                    "status": "info",
+                    "ddtags": "env:,version:,openai.request.endpoint:/v1/images/variations,openai.request.method:POST,openai.request.model:,openai.organization.name:datadog-4,openai.user.api_key:sk-...key>",  # noqa: E501
+                    "dd.trace_id": str(trace_id),
+                    "dd.span_id": str(span_id),
+                    "image": "image.png",
+                    "choices": mock.ANY,
+                }
+            ),
+        ]
+    )
 
 
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
@@ -881,6 +1096,63 @@ async def test_atranscribe(api_key_in_env, request_api_key, openai, openai_vcr, 
             )
 
 
+@pytest.mark.parametrize(
+    "ddtrace_config_openai",
+    [
+        # Default service, env, version
+        dict(
+            _api_key="<not-real-but-it's-something>",
+            logs_enabled=True,
+            log_prompt_completion_sample_rate=1.0,
+        ),
+    ],
+)
+def test_logs_transcribe(openai_vcr, openai, ddtrace_config_openai, mock_logs, mock_tracer):
+    """Ensure logs are emitted for audio endpoints when configured.
+
+    Also ensure the logs have the correct tagging including the trace-logs correlation tagging.
+    """
+    if not hasattr(openai, "Audio"):
+        pytest.skip("audio not supported for this version of openai")
+    with openai_vcr.use_cassette("transcribe.yaml"):
+        openai.Audio.transcribe(
+            file=open(os.path.join(os.path.dirname(__file__), "test_data/english_audio.mp3"), "rb"),
+            model="whisper-1",
+            response_format="verbose_json",
+            prompt="what's that over there?",
+            temperature=0.3,
+            language="en",
+            user="ddtrace-test",
+        )
+
+    span = mock_tracer.pop_traces()[0][0]
+    trace_id, span_id = span.trace_id, span.span_id
+
+    assert mock_logs.enqueue.call_count == 1
+    mock_logs.assert_has_calls(
+        [
+            mock.call.start(),
+            mock.call.enqueue(
+                {
+                    "timestamp": mock.ANY,
+                    "message": mock.ANY,
+                    "hostname": mock.ANY,
+                    "ddsource": "openai",
+                    "service": "",
+                    "status": "info",
+                    "ddtags": "env:,version:,openai.request.endpoint:/v1/audio/transcriptions,openai.request.method:POST,openai.request.model:whisper-1,openai.organization.name:datadog-4,openai.user.api_key:sk-...key>",  # noqa: E501
+                    "dd.trace_id": str(trace_id),
+                    "dd.span_id": str(span_id),
+                    "file": "english_audio.mp3",
+                    "prompt": "what's that over there?",
+                    "language": "en",
+                    "text": mock.ANY,
+                }
+            ),
+        ]
+    )
+
+
 @pytest.mark.parametrize("api_key_in_env", [True, False])
 def test_translate(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "Audio"):
@@ -922,6 +1194,61 @@ async def test_atranslate(api_key_in_env, request_api_key, openai, openai_vcr, s
                 prompt="and when I've given up,",
                 user="ddtrace-test",
             )
+
+
+@pytest.mark.parametrize(
+    "ddtrace_config_openai",
+    [
+        # Default service, env, version
+        dict(
+            _api_key="<not-real-but-it's-something>",
+            logs_enabled=True,
+            log_prompt_completion_sample_rate=1.0,
+        ),
+    ],
+)
+def test_logs_translate(openai_vcr, openai, ddtrace_config_openai, mock_logs, mock_tracer):
+    """Ensure logs are emitted for audio endpoints when configured.
+
+    Also ensure the logs have the correct tagging including the trace-logs correlation tagging.
+    """
+    if not hasattr(openai, "Audio"):
+        pytest.skip("audio not supported for this version of openai")
+    with openai_vcr.use_cassette("translate.yaml"):
+        openai.Audio.translate(
+            file=open(os.path.join(os.path.dirname(__file__), "test_data/french_audio.mp3"), "rb"),
+            model="whisper-1",
+            response_format="verbose_json",
+            prompt="and when I've given up,",
+            user="ddtrace-test",
+        )
+
+    span = mock_tracer.pop_traces()[0][0]
+    trace_id, span_id = span.trace_id, span.span_id
+
+    assert mock_logs.enqueue.call_count == 1
+    mock_logs.assert_has_calls(
+        [
+            mock.call.start(),
+            mock.call.enqueue(
+                {
+                    "timestamp": mock.ANY,
+                    "message": mock.ANY,
+                    "hostname": mock.ANY,
+                    "ddsource": "openai",
+                    "service": "",
+                    "status": "info",
+                    "ddtags": "env:,version:,openai.request.endpoint:/v1/audio/translations,openai.request.method:POST,openai.request.model:whisper-1,openai.organization.name:datadog-4,openai.user.api_key:sk-...key>",  # noqa: E501
+                    "dd.trace_id": str(trace_id),
+                    "dd.span_id": str(span_id),
+                    "file": "french_audio.mp3",
+                    "prompt": "and when I've given up,",
+                    "language": "",
+                    "text": mock.ANY,
+                }
+            ),
+        ]
+    )
 
 
 @pytest.mark.parametrize("api_key_in_env", [True, False])

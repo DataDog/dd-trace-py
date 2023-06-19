@@ -539,7 +539,6 @@ class _ImageHook(_EndpointHook):
             if "mask" in self._request_kwarg_params:
                 mask = args[2] or ""
                 attrs_dict.update({"mask": getattr(mask, "name", "").split("/")[-1]})
-            attrs_dict.update({"choices": resp.get("data", [])})
             integration.log(
                 span, "info" if error is None else "error", "sampled %s" % self.OPERATION_ID, attrs=attrs_dict
             )
@@ -555,7 +554,7 @@ class _ImageCreateHook(_ImageHook):
 
 class _ImageEditHook(_ImageHook):
     _request_arg_params = (None, None, "api_key", "api_base", "api_type", "api_version", "organization")
-    _request_kwarg_params = ("prompt", "n", "size", "response_format", "user")
+    _request_kwarg_params = ("prompt", "n", "size", "response_format", "user", "image", "mask")
     ENDPOINT_NAME = "images/edits"
     OPERATION_ID = "createImageEdit"
 
@@ -580,7 +579,7 @@ class _ImageEditHook(_ImageHook):
 
 class _ImageVariationHook(_ImageHook):
     _request_arg_params = (None, "api_key", "api_base", "api_type", "api_version", "organization")
-    _request_kwarg_params = ("n", "size", "response_format", "user")
+    _request_kwarg_params = ("n", "size", "response_format", "user", "image")
     ENDPOINT_NAME = "images/variations"
     OPERATION_ID = "createImageVariation"
 
@@ -636,7 +635,9 @@ class _BaseAudioHook(_EndpointHook):
                 "info" if error is None else "error",
                 "sampled %s" % self.OPERATION_ID,
                 attrs={
-                    "file": getattr(file_input, "name", ""),
+                    "file": getattr(file_input, "name", "").split("/")[-1],
+                    "prompt": kwargs.get("prompt", ""),
+                    "language": kwargs.get("language", ""),
                     "text": resp["text"] if isinstance(resp, dict) else resp,
                 },
             )
