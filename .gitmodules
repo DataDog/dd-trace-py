@@ -1,4 +1,0 @@
-[submodule "ddtrace/appsec/iast/_taint_tracking/pybind11"]
-	path = ddtrace/appsec/iast/_taint_tracking/pybind11
-	url = git@github.com:pybind/pybind11.git
-	branch = master

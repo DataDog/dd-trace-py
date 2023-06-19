@@ -90,12 +90,11 @@ jobs:
       matrix:
         include:
          - os: macos-latest
-           archs: arm64
+           archs: universal2
     steps:
       - uses: actions/checkout@v3
         # Include all history and tags
         with:
-          submodules: recursive
           fetch-depth: 0
 
       - uses: actions/setup-python@v4
