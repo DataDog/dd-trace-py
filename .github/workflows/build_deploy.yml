@@ -90,7 +90,7 @@ jobs:
       matrix:
         include:
          - os: macos-latest
-           archs: arm64
+           archs: x86_64 arm64
     steps:
       - uses: actions/checkout@v3
         # Include all history and tags
