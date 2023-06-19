@@ -331,10 +331,12 @@ class CMakeBuild(build_ext):
                     # )
                     # archs = re.findall(r"-arch (\S+)", os.environ.get("ARCHFLAGS", default_platforms))
                     archs = re.findall(r"-arch (\S+)", os.environ.get("ARCHFLAGS", ""))
-                    if archs:
+                    if "arm64" in archs:
                         cmake_args += [
                             "-DBUILD_MACOS=ON",
-                            "-DCMAKE_OSX_ARCHITECTURES={}".format(";".join(archs)),
+                            "-DCMAKE_HOST_SYSTEM_PROCESSOR=arm64",
+                            "-DCMAKE_SYSTEM_PROCESSOR=arm64",
+                            "-DCMAKE_OSX_ARCHITECTURES=arm64",
                         ]
 
                 # Set CMAKE_BUILD_PARALLEL_LEVEL to control the parallel build level

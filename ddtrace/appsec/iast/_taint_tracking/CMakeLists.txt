@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.11...3.22)
+cmake_minimum_required(VERSION 3.19)
 include(FetchContent)
 
 set(APP_NAME _native)
@@ -6,12 +6,12 @@ option(BUILD_MACOS "Build for MacOS" OFF)
 
 project(${APP_NAME})
 
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+# set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
-set(ABSL_PROPAGATE_CXX_STD ON)
+# set(CMAKE_CXX_STANDARD_REQUIRED ON)
+# set(CMAKE_CXX_EXTENSIONS OFF)
+# set(ABSL_PROPAGATE_CXX_STD ON)
 
 # For release modes: switch off assertions (more risky but faster). Compiler: -DNDEBUG
 add_compile_definitions($<$<NOT:$<CONFIG:Debug>>:NDEBUG>)
