@@ -360,8 +360,10 @@ class CMakeBuild(build_ext):
                 shutil.rmtree(os.path.join(tmp_iast_path, "CMakeFiles"))
                 os.remove(os.path.join(tmp_iast_path, "Makefile"))
                 os.remove(os.path.join(tmp_iast_path, "cmake_install.cmake"))
-                os.remove(os.path.join(tmp_iast_path, "compile_commands.json"))
-                os.remove(os.path.join(tmp_iast_path, "CMakeCache.txt"))
+                if os.path.exists(os.path.join(tmp_iast_path, "compile_commands.json")):
+                    os.remove(os.path.join(tmp_iast_path, "compile_commands.json"))
+                if os.path.exists(os.path.join(tmp_iast_path, "CMakeCache.txt")):
+                    os.remove(os.path.join(tmp_iast_path, "CMakeCache.txt"))
                 if os.path.exists(os.path.join(IAST_DIR, tmp_filename)):
                     shutil.copy(os.path.join(IAST_DIR, tmp_filename), tmp_iast_file_path)
                 # except Exception:
