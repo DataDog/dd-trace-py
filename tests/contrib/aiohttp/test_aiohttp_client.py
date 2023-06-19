@@ -7,7 +7,7 @@ import pytest
 from ddtrace import Pin
 from ddtrace.contrib.aiohttp import patch
 from ddtrace.contrib.aiohttp import unpatch
-from ddtrace.contrib.aiohttp.patch import extract_info_from_url
+from ddtrace.contrib.aiohttp.patch import extract_netloc_and_query_info_from_url
 from tests.utils import override_http_config
 
 from ..config import HTTPBIN_CONFIG
@@ -39,7 +39,7 @@ URL_500 = "{}/status/500".format(URL)
 )
 def test_extract_from_urlparse(url, netloc, qs, query_res):
     query_url = url + qs
-    host, query = extract_info_from_url(query_url)
+    host, query = extract_netloc_and_query_info_from_url(query_url)
     if query_res is not None:
         assert query == query_res
     assert host == netloc
