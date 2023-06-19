@@ -322,75 +322,75 @@ def pytest_runtest_protocol(item, nextitem):
     if _CIVisibility.test_skipping_enabled() and _CIVisibility.should_skip(
         item.name, test_suite_span.get_tag(test.SUITE), test_suite_span.get_tag(test.MODULE)
     ):
-        # Replace test body by pytest skip call
-        item.obj = lambda **_: pytest.skip("Skipped by Datadog Intelligent Test Runner")
+        # Skip test
+        item.add_marker(pytest.mark.skip(reason="Skipped by Datadog Intelligent Test Runner"))
         yield
-        return
 
-    with _CIVisibility._instance.tracer._start_span(
-        ddtrace.config.pytest.operation_name,
-        service=_CIVisibility._instance._service,
-        resource=item.nodeid,
-        span_type=SpanTypes.TEST,
-        activate=True,
-    ) as span:
-        span.set_tag_str(COMPONENT, "pytest")
-        span.set_tag_str(SPAN_KIND, KIND)
-        span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
-        span.set_tag_str(_EVENT_TYPE, SpanTypes.TEST)
-        span.set_tag_str(test.NAME, item.name)
-        span.set_tag_str(test.COMMAND, _get_pytest_command(item.config))
-        span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
+    else:
+        with _CIVisibility._instance.tracer._start_span(
+            ddtrace.config.pytest.operation_name,
+            service=_CIVisibility._instance._service,
+            resource=item.nodeid,
+            span_type=SpanTypes.TEST,
+            activate=True,
+        ) as span:
+            span.set_tag_str(COMPONENT, "pytest")
+            span.set_tag_str(SPAN_KIND, KIND)
+            span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
+            span.set_tag_str(_EVENT_TYPE, SpanTypes.TEST)
+            span.set_tag_str(test.NAME, item.name)
+            span.set_tag_str(test.COMMAND, _get_pytest_command(item.config))
+            span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
 
-        if test_module_span is not None:
-            span.set_tag_str(_MODULE_ID, str(test_module_span.span_id))
-            span.set_tag_str(test.MODULE, test_module_span.get_tag(test.MODULE))
-            span.set_tag_str(test.MODULE_PATH, test_module_span.get_tag(test.MODULE_PATH))
+            if test_module_span is not None:
+                span.set_tag_str(_MODULE_ID, str(test_module_span.span_id))
+                span.set_tag_str(test.MODULE, test_module_span.get_tag(test.MODULE))
+                span.set_tag_str(test.MODULE_PATH, test_module_span.get_tag(test.MODULE_PATH))
 
-        if test_suite_span is not None:
-            span.set_tag_str(_SUITE_ID, str(test_suite_span.span_id))
-            test_class_hierarchy = _get_test_class_hierarchy(item)
-            if test_class_hierarchy:
-                span.set_tag_str(test.CLASS_HIERARCHY, test_class_hierarchy)
-            if hasattr(item, "dtest") and isinstance(item.dtest, DocTest):
-                span.set_tag_str(test.SUITE, "{}.py".format(item.dtest.globs["__name__"]))
+            if test_suite_span is not None:
+                span.set_tag_str(_SUITE_ID, str(test_suite_span.span_id))
+                test_class_hierarchy = _get_test_class_hierarchy(item)
+                if test_class_hierarchy:
+                    span.set_tag_str(test.CLASS_HIERARCHY, test_class_hierarchy)
+                if hasattr(item, "dtest") and isinstance(item.dtest, DocTest):
+                    span.set_tag_str(test.SUITE, "{}.py".format(item.dtest.globs["__name__"]))
+                else:
+                    span.set_tag_str(test.SUITE, test_suite_span.get_tag(test.SUITE))
+
+            span.set_tag_str(test.TYPE, SpanTypes.TEST)
+            span.set_tag_str(test.FRAMEWORK_VERSION, pytest.__version__)
+
+            if item.location and item.location[0]:
+                _CIVisibility.set_codeowners_of(item.location[0], span=span)
+
+            # We preemptively set FAIL as a status, because if pytest_runtest_makereport is not called
+            # (where the actual test status is set), it means there was a pytest error
+            span.set_tag_str(test.STATUS, test.Status.FAIL.value)
+
+            # Parameterized test cases will have a `callspec` attribute attached to the pytest Item object.
+            # Pytest docs: https://docs.pytest.org/en/6.2.x/reference.html#pytest.Function
+            if getattr(item, "callspec", None):
+                parameters = {"arguments": {}, "metadata": {}}  # type: Dict[str, Dict[str, str]]
+                for param_name, param_val in item.callspec.params.items():
+                    try:
+                        parameters["arguments"][param_name] = encode_test_parameter(param_val)
+                    except Exception:
+                        parameters["arguments"][param_name] = "Could not encode"
+                        log.warning("Failed to encode %r", param_name, exc_info=True)
+                span.set_tag_str(test.PARAMETERS, json.dumps(parameters))
+
+            markers = [marker.kwargs for marker in item.iter_markers(name="dd_tags")]
+            for tags in markers:
+                span.set_tags(tags)
+            _store_span(item, span)
+
+            if coverage_enabled():
+                from ddtrace.internal.ci_visibility.coverage import cover
+
+                with cover(span, root=str(item.config.rootdir)):
+                    yield
             else:
-                span.set_tag_str(test.SUITE, test_suite_span.get_tag(test.SUITE))
-
-        span.set_tag_str(test.TYPE, SpanTypes.TEST)
-        span.set_tag_str(test.FRAMEWORK_VERSION, pytest.__version__)
-
-        if item.location and item.location[0]:
-            _CIVisibility.set_codeowners_of(item.location[0], span=span)
-
-        # We preemptively set FAIL as a status, because if pytest_runtest_makereport is not called
-        # (where the actual test status is set), it means there was a pytest error
-        span.set_tag_str(test.STATUS, test.Status.FAIL.value)
-
-        # Parameterized test cases will have a `callspec` attribute attached to the pytest Item object.
-        # Pytest docs: https://docs.pytest.org/en/6.2.x/reference.html#pytest.Function
-        if getattr(item, "callspec", None):
-            parameters = {"arguments": {}, "metadata": {}}  # type: Dict[str, Dict[str, str]]
-            for param_name, param_val in item.callspec.params.items():
-                try:
-                    parameters["arguments"][param_name] = encode_test_parameter(param_val)
-                except Exception:
-                    parameters["arguments"][param_name] = "Could not encode"
-                    log.warning("Failed to encode %r", param_name, exc_info=True)
-            span.set_tag_str(test.PARAMETERS, json.dumps(parameters))
-
-        markers = [marker.kwargs for marker in item.iter_markers(name="dd_tags")]
-        for tags in markers:
-            span.set_tags(tags)
-        _store_span(item, span)
-
-        if coverage_enabled():
-            from ddtrace.internal.ci_visibility.coverage import cover
-
-            with cover(span, root=str(item.config.rootdir)):
                 yield
-        else:
-            yield
 
     nextitem_pytest_module_item = _find_pytest_item(nextitem, pytest.Module)
     if test_suite_span is not None and (
