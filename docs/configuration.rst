@@ -4,29 +4,30 @@
  Configuration
 ===============
 
-`ddtrace` can be configured using environment variables.
-Many :ref:`integrations` can also be configured using environment variables,
-see specific integration documentation for more details.
+The `ddtrace` package global settings can be configured using environment variables or the programmatic API.
 
-The following environment variables for the tracer are supported:
+The following priority is used for global configuration settings (lowest to highest):
+
+#. **Default values**
+#. **Environment variables**
+    * Environment variables are read once at startup and cannot be changed after.
+    * If multiple environment variables for a setting exist, the first one listed is used.
+#. **Programmatic overrides**
+    * Some settings cannot be changed at runtime. For example, ``trace_sample_rate`` cannot be changed once the tracer is initialized. The global tracer ``ddtrace.tracer`` is initialized on import of the ``ddtrace`` package configuration affecting traces must be done before importing ``ddtrace``.
+#. **Instance-specific overrides**
+    * For example, ``tracer.trace()`` accepts a ``service`` parameter that overrides the global ``service`` setting.
+
+
+Settings
+--------
+
+.. ddtrace-configuration::
 
 
 .. ddtrace-configuration-options::
    DD_ENV:
      description: |
          Set an application's environment e.g. ``prod``, ``pre-prod``, ``staging``. Added in ``v0.36.0``. See `Unified Service Tagging`_ for more information.
-
-   DD_SERVICE:
-     default: (autodetected)
-     description: |
-         Set the service name to be used for this application. A default is
-         provided for these integrations: :ref:`bottle`, :ref:`flask`, :ref:`grpc`,
-         :ref:`pyramid`, :ref:`pylons`, :ref:`tornado`, :ref:`celery`, :ref:`django` and
-         :ref:`falcon`. Added in ``v0.36.0``. See `Unified Service Tagging`_ for more information.
-
-   DD_SERVICE_MAPPING:
-     description: |
-         Define service name mappings to allow renaming services in traces, e.g. ``postgres:postgresql,defaultdb:postgresql``.
 
    DD_TAGS:
      description: |
@@ -213,11 +214,6 @@ The following environment variables for the tracer are supported:
      type: Boolean
      default: False
      description: Enable or disable start up diagnostic logging.
-
-   DD_TRACE_SAMPLE_RATE:
-     type: Float
-     default: 1.0
-     description: A float, f, 0.0 <= f <= 1.0. f*100% of traces will be sampled.
 
    DD_TRACE_RATE_LIMIT:
      type: int
@@ -468,6 +464,12 @@ The following environment variables for the tracer are supported:
         v1.13.0:
 
 .. _Unified Service Tagging: https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging/
+
+
+Tracing
+-------
+
+The global configuration is frozen for each trace. Global configuration changes will not apply to traces that are already in progress.
 
 
 Profiling

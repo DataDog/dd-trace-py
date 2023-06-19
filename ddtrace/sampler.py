@@ -245,6 +245,8 @@ class DatadogSampler(RateByServiceSampler):
         # Use default sample rate of 1.0
         super(DatadogSampler, self).__init__()
 
+        # TODO: remove env var look ups as the configuration should be passed
+        # to the initializer.
         if default_sample_rate is None:
             sample_rate = os.getenv("DD_TRACE_SAMPLE_RATE")
 
@@ -254,20 +256,21 @@ class DatadogSampler(RateByServiceSampler):
         if rate_limit is None:
             rate_limit = int(os.getenv("DD_TRACE_RATE_LIMIT", default=self.DEFAULT_RATE_LIMIT))
 
-        # Ensure rules is a list
-        self.rules = []  # type: List[SamplingRule]
         if rules is None:
             env_sampling_rules = os.getenv("DD_TRACE_SAMPLING_RULES")
             if env_sampling_rules:
                 rules = self._parse_rules_from_env_variable(env_sampling_rules)
             else:
                 rules = []
+            self.rules = rules
+        else:
+            self.rules = []
+            # Validate that the rules is a list of SampleRules
+            for rule in rules:
+                if not isinstance(rule, SamplingRule):
+                    raise TypeError("Rule {!r} must be a sub-class of type ddtrace.sampler.SamplingRules".format(rule))
+                self.rules.append(rule)
 
-        # Validate that the rules is a list of SampleRules
-        for rule in rules:
-            if not isinstance(rule, SamplingRule):
-                raise TypeError("Rule {!r} must be a sub-class of type ddtrace.sampler.SamplingRules".format(rule))
-        self.rules = rules
         # DEV: Default sampling rule must come last
         if default_sample_rate is not None:
             self.rules.append(SamplingRule(sample_rate=default_sample_rate))
@@ -286,6 +289,7 @@ class DatadogSampler(RateByServiceSampler):
     __repr__ = __str__
 
     def _parse_rules_from_env_variable(self, rules):
+        # type: (str) -> List[SamplingRule]
         sampling_rules = []
         if rules is not None:
             json_rules = []

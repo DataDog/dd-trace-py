@@ -1,9 +1,11 @@
 from copy import deepcopy
 import os
 import re
+from typing import Any
 from typing import List
 from typing import Optional
 from typing import Tuple
+from typing import TypedDict
 
 from ddtrace.appsec._constants import DEFAULT
 from ddtrace.constants import APPSEC_ENV
@@ -141,10 +143,195 @@ def get_error_ranges(error_range_str):
     return error_ranges  # type: ignore[return-value]
 
 
+"""
+Derived values
+agent.py
+cheap copies
+experimental flags
+recompute when inputs change
+serverless
+ci app
+"""
+
+
+class _ConfigResult(TypedDict):
+    value: Any
+    raw: Any
+    source: str
+
+
+class _ConfigSource(object):
+    def get(self):
+        # type: () -> _ConfigResult
+        raise NotImplementedError
+
+
+class _ConfigSourceEnv(_ConfigSource):
+    def __init__(self, name, factory=lambda x: x, examples=None):
+        self.key = name
+        self.factory = factory
+        # self.deprecated = deprecated
+        self.examples = examples or []
+        # TODO: store/cache computed value
+
+    def get(self):
+        # if self.deprecated:
+        #     # TODO: warning
+        #     pass
+        raw = os.environ.get(self.key)
+        value = None
+        if raw is not None:
+            value = self.factory(raw)
+        return {"value": value, "raw": raw, "source": self.key}
+
+
+class _ConfigSourceEnvMulti(_ConfigSource):
+    def __init__(self, *envs, resolver=None):
+        self.envs = envs
+        self.resolver = resolver or self._default_resolver
+
+    @staticmethod
+    def _default_resolver(*envs):
+        """
+        Default is to take the first env var that has a value.
+        """
+        for e in envs:
+            v = e.get()
+            if v["value"] is not None:
+                return v
+        return {
+            "value": None,
+            "raw": None,
+            "source": "env",
+        }
+
+    def get(self):
+        return self.resolver(*self.envs)
+
+
+class _ConfigSourceRemoteConfigV1(_ConfigSource):
+    def __init__(self, key):
+        self.key = key
+        self._value = None
+
+    def set(self, raw, val):
+        self._raw = raw
+        self._value = val
+
+    def get(self):
+        return {
+            "value": self._value,
+            "raw": self._value,
+            "source": "remoteconfig",
+        }
+
+    def clear(self):
+        self._value = None
+
+
+class _ConfigSourceProgrammatic(_ConfigSource):
+    def __init__(self, factory=None):
+        self._value = None
+        self._raw = None
+        self._factory = factory
+
+    def set(self, val):
+        self._raw = val
+        self._value = val
+        if val is not None and self._factory is not None:
+            self._value = self._factory(val)
+
+    def get(self):
+        return {
+            "value": self._value,
+            "raw": self._raw,
+            "source": "user",
+        }
+
+
+# TODO: support for CLI, validators, experimental, deprecated settings
+class _ConfigItem(object):
+    def __init__(
+        self,
+        key,
+        type,
+        default,
+        environ=None,
+        programmatic=None,
+        remoteconfig=None,
+        resolve=None,
+        metadata=None,
+    ):
+        self.key = key
+        self.type = type
+        self._default_factory = default if callable(default) else lambda: default
+        self.environ = environ
+        self.programmatic = programmatic or _ConfigSourceProgrammatic()
+        self.remoteconfig = remoteconfig
+        self.resolve = self._default_resolve if resolve is None else resolve
+        self.metadata = metadata or {
+            "description": "",
+            "version_added": "",
+        }
+
+    @property
+    def default(self):
+        return self._default_factory()
+
+    @staticmethod
+    def _default_resolve(default, environ, programmatic, remoteconfig):
+        for source in (remoteconfig, programmatic, environ):
+            if source is None:
+                continue
+            v = source.get()
+            if v["value"] is not None:
+                return v
+        return {
+            "value": default,
+            "raw": default,
+            "source": "default",
+        }
+
+    def _resolve(self):
+        return self.resolve(
+            self.default,
+            self.environ,
+            self.programmatic,
+            self.remoteconfig,
+        )
+
+    @property
+    def value(self):
+        return self._resolve()["value"]
+
+    @property
+    def source(self):
+        return self._resolve()["source"]
+
+    @property
+    def resolved(self):
+        return self._resolve()
+
+    def copy(self):
+        return self.__class__(
+            self.default,
+            self.environ,
+            self.programmatic,
+            self.remoteconfig,
+        )
+
+    def set(self, val):
+        self.programmatic.set(val)
+
+    def reset(self):
+        self.programmatic.set(None)
+
+
 class Config(object):
     """Configuration object that exposes an API to set and retrieve
-    global settings for each integration. All integrations must use
-    this instance to register their defaults, so that they're public
+    global settings for the library.
+
+    All integrations must use this instance to register their defaults, so that they're public
     available and can be updated by users.
     """
 
@@ -187,9 +374,16 @@ class Config(object):
                     return True
             return False
 
-    def __init__(self):
+    def __init__(self, *cfgs):
+        # Must come before _integration_configs due to __setattr__
+        self._items = {}
+
         # use a dict as underlying storing mechanism
-        self._config = {}
+        self._integration_configs = {}
+        for cfg in cfgs:
+            self._items[cfg.key] = cfg
+
+        self._subscriptions = []
 
         header_tags = parse_tags_str(os.getenv("DD_TRACE_HEADER_TAGS", ""))
         self.http = HttpConfig(header_tags=header_tags)
@@ -216,7 +410,7 @@ class Config(object):
         self.version = os.getenv("DD_VERSION", default=self.tags.get("version"))
         self.http_server = self._HTTPServerConfig()
 
-        self.service_mapping = parse_tags_str(os.getenv("DD_SERVICE_MAPPING", default=""))
+        # self.service_mapping = parse_tags_str(os.getenv("DD_SERVICE_MAPPING", default=""))
 
         # The service tag corresponds to span.service and should not be
         # included in the global tags.
@@ -306,10 +500,13 @@ class Config(object):
         )
 
     def __getattr__(self, name):
-        if name not in self._config:
-            self._config[name] = IntegrationConfig(self, name)
+        if name in self._items:
+            return self._items[name].value
 
-        return self._config[name]
+        if name not in self._integration_configs:
+            self._integration_configs[name] = IntegrationConfig(self, name)
+
+        return self._integration_configs[name]
 
     def get_from(self, obj):
         """Retrieves the configuration for the given object.
@@ -349,9 +546,11 @@ class Config(object):
             # >>> config._add('requests', dict(split_by_domain=False))
             # >>> config.requests['split_by_domain']
             # True
-            self._config[integration] = IntegrationConfig(self, integration, _deepmerge(existing, settings))
+            self._integration_configs[integration] = IntegrationConfig(
+                self, integration, _deepmerge(existing, settings)
+            )
         else:
-            self._config[integration] = IntegrationConfig(self, integration, settings)
+            self._integration_configs[integration] = IntegrationConfig(self, integration, settings)
 
     def trace_headers(self, whitelist):
         """
@@ -395,3 +594,56 @@ class Config(object):
         cls = self.__class__
         integrations = ", ".join(self._config.keys())
         return "{}.{}({})".format(cls.__module__, cls.__name__, integrations)
+
+    def copy(self):
+        c = self.__class__(*self._items.values())
+        return c
+
+    def _update_rc(self, metadata, cfg):
+        # TODO: if version >= 2.0, log warning
+        if not cfg:
+            for cfg_item in self._items.values():
+                cfg_item.remote_config.clear()
+
+        # Keep track of changed items to notify subscribers
+        changed_items = []
+        config = cfg["lib_config"]
+
+        if config["tracing_service_mapping"] is None:
+            self._items["service_mapping"].remoteconfig.clear()
+        else:
+            self._items["service_mapping"].remoteconfig.set(
+                config["tracing_service_mapping"],
+                {m["from_key"]: m["to_name"] for m in config["tracing_service_mapping"]},
+            )
+
+        if config["tracing_sample_rate"]:
+            pass
+
+        self._notify_subscribers(changed_items)
+
+    def _subscribe(self, items, handler):
+        self._subscriptions.append((items, handler))
+
+    def _notify_subscribers(self, changed_items):
+        for sub_items, sub_handler in self._subscriptions:
+            sub_updated_items = [i for i in changed_items if i in sub_items]
+            if sub_updated_items:
+                sub_handler(self, sub_updated_items)
+
+    def __setattr__(self, key, value):
+        if key == "_items":
+            return super(self.__class__, self).__setattr__(key, value)
+        elif key in self._items:
+            self._items[key].set(value)
+            self._notify_subscribers([key])
+            return None
+        else:
+            return super(self.__class__, self).__setattr__(key, value)
+
+    def reset(self):
+        for cfg_item in self._items.values():
+            cfg_item.reset()
+
+    def _resolved_item(self, key):
+        return self._items[key].resolved

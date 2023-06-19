@@ -28,7 +28,8 @@ from docutils import nodes
 from docutils import statemachine
 from docutils.parsers import rst
 import dulwich.repo
-from enchant.tokenize import Filter
+
+# from enchant.tokenize import Filter
 from packaging.version import Version
 from reno import config
 from reno import formatter
@@ -44,11 +45,11 @@ VERSION_TAG_REGEX_STRING = r"^(?:[\w-]+-)?(?P<version>[vV]?\d+(?:\.\d+){0,2}[^\+
 VERSION_TAG_REGEX = re.compile(VERSION_TAG_REGEX_STRING)
 
 
-class VersionTagFilter(Filter):
-    """If a word matches a version tag used for the repository"""
-
-    def _skip(self, word):
-        return VERSION_TAG_REGEX.match(word)
+# class VersionTagFilter(Filter):
+#     """If a word matches a version tag used for the repository"""
+#
+#     def _skip(self, word):
+#         return VERSION_TAG_REGEX.match(word)
 
 
 # append the ddtrace path to syspath
@@ -69,13 +70,13 @@ class VersionTagFilter(Filter):
 extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.extlinks",
-    "reno.sphinxext",
-    "sphinxcontrib.spelling",
+    # "reno.sphinxext",
+    # "sphinxcontrib.spelling",
     "sphinx_copybutton",  # https://sphinx-copybutton.readthedocs.io/
 ]
 
 # Add filters for sphinxcontrib.spelling
-spelling_filters = [VersionTagFilter]
+# spelling_filters = [VersionTagFilter]
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ["_templates"]
@@ -117,7 +118,7 @@ autodoc_member_order = "bysource"
 #
 # This is also used if you do content translation via gettext catalogs.
 # Usually you set "language" from the command line for these cases.
-language = None
+language = "en"
 
 # There are two options for replacing |today|: either, you set today to some
 # non-false value, then it is used:
@@ -737,6 +738,78 @@ class DDTraceConfigurationOptionsDirective(rst.Directive):
         return node.children
 
 
+class DDTraceConfiguration(rst.Directive):
+    has_content = True
+
+    def __init__(self, *args, **kwargs):
+        super(DDTraceConfiguration, self).__init__(*args, **kwargs)
+
+    def run(self):
+        from ddtrace import config
+
+        results = statemachine.ViewList()
+        for cfg in config._items.values():
+            metadata = cfg.metadata
+            var_name = cfg.key
+            if var_name.startswith("_"):
+                # Skip internal options
+                continue
+            var_label = var_name.lower().replace("_", "-")
+            var_type = cfg.type
+            var_default = str(cfg.default)
+            var_description = metadata["description"]
+            var_version_added = metadata["version_added"]
+
+            results.append(".. _`{}`:".format(var_label), "", 0)
+            results.append("", "", 0)
+
+            results.append(".. py:data:: {}".format(var_name), "", 0)
+            results.append("", "", 0)
+            for line in var_description.splitlines():
+                results.append("    " + line.lstrip(), "", 0)
+
+            results.append("", "", 0)
+            results.append("    **Type**: ``{}``".format(var_type), "", 0)
+            results.append("", "", 0)
+            results.append("    **Default**: ``{}``".format(var_default), "", 0)
+            results.append("", "", 0)
+
+            if cfg.environ and hasattr(cfg.environ, "key"):
+                var_env_var = "``%s``" % cfg.environ.key
+                results.append("    **Environment**: {}".format(var_env_var), "", 0)
+                results.append("", "", 0)
+                if cfg.environ.examples:
+                    examples = ", ".join("``{}``".format(ex) for ex in cfg.environ.examples)
+                    results.append("    * Examples: {}".format(examples), "", 0)
+                    results.append("", "", 0)
+            elif cfg.environ and hasattr(cfg.environ, "envs"):
+                results.append("    **Environment**:", "", 0)
+                results.append("", "", 0)
+                for env in cfg.environ.envs:
+                    results.append("    * ``{}``".format(env.key), "", 0)
+                    results.append("", "", 0)
+                    examples = ", ".join("``{}``".format(ex) for ex in env.examples)
+                    results.append("      * Examples: {}".format(examples), "", 0)
+                    results.append("", "", 0)
+
+            results.append("    **Programmatic**: ``ddtrace.config.{}``".format(cfg.key), "", 0)
+            results.append("", "", 0)
+
+            if var_version_added:
+                for version, note in var_version_added.items():
+                    if note:
+                        results.append("    *Changed in version {}*: {}".format(version, note), "", 0)
+                    else:
+                        results.append("    *New in version {}.*".format(version), "", 0)
+                    results.append("", "", 0)
+
+        # Generate the RST nodes to return for rendering
+        node = nodes.section()
+        node.document = self.state.document
+        self.state.nested_parse(results, 0, node)
+        return node.children
+
+
 def asbool(argument):
     return argument.lower() in {"yes", "true", "t", "1", "y", "on"}
 
@@ -768,7 +841,6 @@ class DDEnvierConfigurationDirective(rst.Directive):
             var_name = var_name.replace("``", "")
 
             var_label = var_name.lower().replace("_", "-")
-
             results.append(".. _`{}`:".format(var_label), "", 0)
             results.append("", "", 0)
 
@@ -792,6 +864,7 @@ class DDEnvierConfigurationDirective(rst.Directive):
 
 def setup(app):
     app.add_directive("ddtrace-release-notes", DDTraceReleaseNotesDirective)
+    app.add_directive("ddtrace-configuration", DDTraceConfiguration)
     app.add_directive("ddtrace-configuration-options", DDTraceConfigurationOptionsDirective)
     app.add_directive("ddtrace-envier-configuration", DDEnvierConfigurationDirective)
     metadata_dict = {"version": "1.0.0", "parallel_read_safe": True}
