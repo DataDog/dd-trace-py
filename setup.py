@@ -298,12 +298,12 @@ class CMakeBuild(build_ext):
 
         if sys.version_info >= (3, 6, 0) and ext.name == "ddtrace.appsec.iast._taint_tracking._native":
             cmake_list_path = os.path.join(IAST_DIR, "CMakeLists.txt")
-            # if os.path.exists(cmake_list_path):
-            try:
-                import shutil
+            if os.path.exists(cmake_list_path):
+                try:
+                    import shutil
 
-                os.makedirs(tmp_iast_path, exist_ok=True)
-                if not os.path.exists(os.path.join(IAST_DIR, tmp_filename)):
+                    os.makedirs(tmp_iast_path, exist_ok=True)
+                    # if not os.path.exists(os.path.join(IAST_DIR, tmp_filename)):
                     import subprocess
 
                     cmake_command = os.environ.get("CMAKE_COMMAND", "cmake")
@@ -360,10 +360,10 @@ class CMakeBuild(build_ext):
                     os.remove(os.path.join(tmp_iast_path, "cmake_install.cmake"))
                     os.remove(os.path.join(tmp_iast_path, "compile_commands.json"))
                     os.remove(os.path.join(tmp_iast_path, "CMakeCache.txt"))
-                if os.path.exists(os.path.join(IAST_DIR, tmp_filename)):
-                    shutil.copy(os.path.join(IAST_DIR, tmp_filename), tmp_iast_file_path)
-            except Exception:
-                print("WARNING: Failed to install ddtrace IAST extension")
+                    if os.path.exists(os.path.join(IAST_DIR, tmp_filename)):
+                        shutil.copy(os.path.join(IAST_DIR, tmp_filename), tmp_iast_file_path)
+                except Exception:
+                    print("WARNING: Failed to install ddtrace IAST extension")
         else:
             build_ext.build_extension(self, ext)
 
