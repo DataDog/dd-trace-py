@@ -59,11 +59,17 @@ file(GLOB HEADER_FILES "*.h"
         )
 set(Python_USE_STATIC_LIBS FALSE)
 find_package(Python COMPONENTS Interpreter Development)
+add_link_options(-ldl -static-libgcc -static-libstdc++)
+# PythonLibs is needed for pybind11::embed
+find_package(PythonLibs REQUIRED)
+
 # Debug messages
 message(STATUS "PYTHON_LIBRARIES = ${Python_LIBRARIES}")
 message(STATUS "PYTHON_EXECUTABLE = ${Python_EXECUTABLE}")
 message(STATUS "PYTHON_INCLUDE_DIRS = ${Python_INCLUDE_DIRS}")
 message(STATUS "Python_EXECUTABLE = ${Python_EXECUTABLE}")
+
+
 
 
 execute_process(
@@ -89,3 +95,4 @@ set_target_properties(
 )
 
 target_link_libraries(${APP_NAME} PRIVATE absl::node_hash_map)
+target_link_libraries(${APP_NAME} PRIVATE pybind11::embed)
