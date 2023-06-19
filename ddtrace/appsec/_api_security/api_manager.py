@@ -27,7 +27,7 @@ metrics = Metrics(namespace="datadog.api_security")
 _sentinel = object()
 
 
-class TooLarge(Exception):
+class TooLargeSchemaException(Exception):
     pass
 
 
@@ -158,7 +158,7 @@ class APIManager(Service):
                 json_serialized = get_json_schema(value)
                 b64_gzip_content = base64.b64encode(gzip.compress(json_serialized.encode())).decode()
                 if len(b64_gzip_content) >= MAX_SPAN_META_VALUE_LEN:
-                    raise TooLarge
+                    raise TooLargeSchemaException
                 root._meta[meta_name] = b64_gzip_content
             except Exception as e:
                 self._schema_meter.increment("errors", tags={"exc": e.__class__.__name__, "address": address})
