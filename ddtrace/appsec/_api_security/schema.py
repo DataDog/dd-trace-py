@@ -1,4 +1,5 @@
 import enum
+import json
 from typing import TYPE_CHECKING
 
 from ddtrace.internal.compat import to_unicode
@@ -141,6 +142,4 @@ def build_schema(obj, **kwargs):
 
 
 def get_json_schema(obj, **kwargs):
-    import json
-
     return json.dumps(build_schema(obj, **kwargs), separators=",:")

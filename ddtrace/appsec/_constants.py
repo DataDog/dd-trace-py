@@ -118,6 +118,21 @@ class SPAN_DATA_NAMES(object):
 
 
 @six.add_metaclass(Constant_Class)  # required for python2/3 compatibility
+class API_SECURITY(object):
+    """constants related to API Security"""
+
+    REQUEST_HEADERS_NO_COOKIES = "_dd.appsec.s.req.headers"
+    REQUEST_QUERY = "_dd.appsec.s.req.query"
+    REQUEST_PATH_PARAMS = "_dd.appsec.s.req.params"
+    REQUEST_BODY = "_dd.appsec.s.req.body"
+    RESPONSE_HEADERS_NO_COOKIES = "_dd.appsec.s.res.headers"
+    RESPONSE_BODY = "_dd.appsec.s.res.body"
+    INTERVAL_PER_ROUTE = "_DD_API_SECURITY_INTERVAL_PER_ROUTE"
+    ENABLED = "_dd.appsec.api_security.enabled"
+    MAX_PAYLOAD_SIZE = 0x1000000  # 16MB maximum size
+
+
+@six.add_metaclass(Constant_Class)  # required for python2/3 compatibility
 class WAF_CONTEXT_NAMES(object):
     """string names used by the library for tagging data from requests in context"""
 

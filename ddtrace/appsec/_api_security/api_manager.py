@@ -9,6 +9,7 @@ from ddtrace.appsec._api_security.schema import get_json_schema
 from ddtrace.appsec._asm_request_context import _WAF_RESULTS
 from ddtrace.appsec._asm_request_context import add_context_callback
 from ddtrace.appsec._asm_request_context import remove_context_callback
+from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.metrics import Metrics
@@ -33,12 +34,12 @@ class TooLargeSchemaException(Exception):
 
 class APIManager(Service):
     COLLECTED = [
-        (SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, "_dd.appsec.s.req.headers", dict),
-        (SPAN_DATA_NAMES.REQUEST_QUERY, "_dd.appsec.s.req.query", dict),
-        (SPAN_DATA_NAMES.REQUEST_PATH_PARAMS, "_dd.appsec.s.req.params", dict),
-        (SPAN_DATA_NAMES.REQUEST_BODY, "_dd.appsec.s.req.body", None),
-        (SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, "_dd.appsec.s.res.headers", dict),
-        (SPAN_DATA_NAMES.RESPONSE_BODY, "_dd.appsec.s.res.body", None),
+        (SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, API_SECURITY.REQUEST_HEADERS_NO_COOKIES, dict),
+        (SPAN_DATA_NAMES.REQUEST_QUERY, API_SECURITY.REQUEST_QUERY, dict),
+        (SPAN_DATA_NAMES.REQUEST_PATH_PARAMS, API_SECURITY.REQUEST_PATH_PARAMS, dict),
+        (SPAN_DATA_NAMES.REQUEST_BODY, API_SECURITY.REQUEST_BODY, None),
+        (SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, API_SECURITY.RESPONSE_HEADERS_NO_COOKIES, dict),
+        (SPAN_DATA_NAMES.RESPONSE_BODY, API_SECURITY.RESPONSE_BODY, None),
     ]
     GLOBAL_RATE_LIMIT = 50.0  # requests per seconds
 
@@ -50,33 +51,33 @@ class APIManager(Service):
     def enable(cls):
         # type: () -> None
         if cls._instance is not None:
-            log.info("%s already enabled", cls.__name__)
+            log.debug("%s already enabled", cls.__name__)
             return
 
-        log.info("Enabling %s", cls.__name__)
+        log.debug("Enabling %s", cls.__name__)
         metrics.enable()
         cls._instance = cls()
         cls._instance.start()
-        log.info("%s enabled", cls.__name__)
+        log.debug("%s enabled", cls.__name__)
 
     @classmethod
     def disable(cls):
         # type: () -> None
         if cls._instance is None:
-            log.info("%s not enabled", cls.__name__)
+            log.debug("%s not enabled", cls.__name__)
             return
 
-        log.info("Disabling %s", cls.__name__)
+        log.debug("Disabling %s", cls.__name__)
         cls._instance.stop()
         cls._instance = None
         metrics.disable()
-        log.info("%s disabled", cls.__name__)
+        log.debug("%s disabled", cls.__name__)
 
     def __init__(self):
         # type: () -> None
         super(APIManager, self).__init__()
         try:
-            self.INTERVAL_PER_ROUTE = float(os.environ.get("_DD_API_SECURITY_INTERVAL_PER_ROUTE", "15.0"))
+            self.INTERVAL_PER_ROUTE = float(os.environ.get(API_SECURITY.INTERVAL_PER_ROUTE, "15.0"))
         except BaseException:
             pass
 
@@ -88,7 +89,7 @@ class APIManager(Service):
         )
         self._rate_limiter_by_route = dict()  # type: Dict[str, RateLimiter]
 
-        log.info("%s initialized", self.__class__.__name__)
+        log.debug("%s initialized", self.__class__.__name__)
 
     def _stop_service(self):
         # type: () -> None
@@ -129,7 +130,7 @@ class APIManager(Service):
         if not root or any(meta_name in root._meta for _, meta_name, _ in self.COLLECTED):
             return
 
-        root._metrics["_dd.appsec.api_security.enabled"] = 1.0
+        root._metrics[API_SECURITY.ENABLED] = 1.0
 
         try:
             if not self._should_collect_schema(env) or self._global_rate_limiter.limit() is RateLimitExceeded:

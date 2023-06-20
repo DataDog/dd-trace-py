@@ -4,6 +4,7 @@ import sys
 from typing import TYPE_CHECKING
 
 from ddtrace.appsec import _asm_request_context
+from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.internal.compat import parse
 from ddtrace.internal.compat import to_bytes_py2
@@ -214,7 +215,7 @@ def parse_response_body(raw_body):
             bd = bd[0][:0].join(bd)
         if getattr(bd, "decode", False):
             bd = bd.decode("UTF-8", errors="ignore")
-        if len(bd) >= 0x1000000:
+        if len(bd) >= API_SECURITY.MAX_PAYLOAD_SIZE:
             raise ValueError("response body larger than 16MB")
         return bd
 
