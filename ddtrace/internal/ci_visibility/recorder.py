@@ -278,7 +278,7 @@ class CIVisibility(Service):
 
         for item in parsed["data"]:
             if item["type"] == "test" and "suite" in item["attributes"]:
-                module = item["attributes"].get("module", None)
+                module = item["attributes"]["configurations"].get("test.bundle", None)
                 self._tests_to_skip[(item["attributes"]["suite"], module)].append(item["attributes"]["name"])
 
     def _get_tests_to_skip(self, suite, module):
