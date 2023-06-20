@@ -360,7 +360,7 @@ class CMakeBuild(build_ext):
                 #     os.remove(os.path.join(tmp_iast_path, "CMakeCache.txt"))
                 # if os.path.exists(os.path.join(IAST_DIR, tmp_filename)):
                 print("tmp_iast_file_path!!!!!!!!!!!!!!")
-                res = os.listdir(tmp_iast_file_path)
+                res = os.listdir(tmp_iast_path)
                 print(res)
                 print("IAST_DIR!!!!!!!!!!!!!!")
                 res = os.listdir(IAST_DIR)
