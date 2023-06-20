@@ -27,8 +27,7 @@ class ExecutionContext:
         self._children = []
         if parent is not None:
             self.addParent(parent)
-        # self._data = _CONTEXT_DATA.get()
-        self._data = dict(**kwargs)
+        _CONTEXT_DATA.set(kwargs)
 
     @property
     def parents(self):
@@ -67,10 +66,12 @@ class ExecutionContext:
             current_context = prior_context
 
     def get_item(self, data_key: str) -> Optional[Any]:
-        return self._data.get(data_key)
+        return _CONTEXT_DATA.get().get(data_key)
 
     def set_item(self, data_key: str, data_value: Optional[Any]):
-        self._data[data_key] = data_value
+        data = _CONTEXT_DATA.get()
+        data[data_key] = data_value
+        _CONTEXT_DATA.set(data)
 
 
 root_context = ExecutionContext("root")
