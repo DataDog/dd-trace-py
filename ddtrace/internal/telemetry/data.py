@@ -10,7 +10,6 @@ from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.packages import get_distributions
 from ddtrace.internal.runtime.container import get_container_info
 from ddtrace.internal.utils.cache import cached
-from ddtrace.internal.utils.cache import callonce
 
 from ...settings import _config as config
 from ..hostname import get_hostname
