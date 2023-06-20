@@ -24,10 +24,10 @@ from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.telemetry import telemetry_metrics_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_TRACER
 from ddtrace.internal.writer import TraceWriter
+from ddtrace.sampler import DatadogSampler
 from ddtrace.span import Span
 from ddtrace.span import _get_64_highest_order_bits_as_hex
 from ddtrace.span import _is_top_level
-from ddtrace.sampler import DatadogSampler
 
 
 try:
@@ -81,6 +81,8 @@ class TraceSamplingProcessor(TraceProcessor):
     def process_trace(self, trace):
         # type: (List[Span]) -> Optional[List[Span]]
         if trace:
+            sampler = DatadogSampler()
+            trace = sampler.sample(trace)
             # When stats computation is enabled in the tracer then we can
             # safely drop the traces.
             if self._compute_stats_enabled:
@@ -91,14 +93,10 @@ class TraceSamplingProcessor(TraceProcessor):
                     single_spans = [_ for _ in trace if is_single_span_sampled(_)]
 
                     return single_spans or None
-            sampler = DatadogSampler()
-            sampling_rule = sampler.decide_sampling_rule(trace)
 
             for span in trace:
-                sampler._set_sampler_decision(span, sampling_decision)
                 if span.sampled:
                     return trace
-
             log.debug("dropping trace %d with %d spans", trace[0].trace_id, len(trace))
 
         return None

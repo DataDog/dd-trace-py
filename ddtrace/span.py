@@ -92,6 +92,7 @@ class Span(object):
         "_ignored_exceptions",
         "_on_finish_callbacks",
         "__weakref__",
+        "_trace_sampling_checked",
     ]
 
     def __init__(
@@ -289,6 +290,7 @@ class Span(object):
         :param value: Value to assign for the tag
         :type value: ``stringify``-able value
         """
+        self._trace_sampling_checked = False
 
         if not isinstance(key, six.string_types):
             log.warning("Ignoring tag pair %s:%s. Key must be a string.", key, value)
@@ -372,6 +374,7 @@ class Span(object):
         str in Python 3, with decoding errors in conversion being replaced with
         U+FFFD.
         """
+        self._trace_sampling_checked = False
         try:
             self._meta[key] = ensure_text(value, errors="replace")
         except Exception as e:
@@ -406,6 +409,7 @@ class Span(object):
     def set_metric(self, key, value):
         # type: (_TagNameType, NumericType) -> None
         # This method sets a numeric tag value for the given key.
+        self._trace_sampling_checked = False
 
         # Enforce a specific connstant for `_dd.measured`
         if key == SPAN_MEASURED_KEY:
@@ -477,6 +481,8 @@ class Span(object):
         self._set_exc_tags(exc_type, exc_val, exc_tb)
 
     def _set_exc_tags(self, exc_type, exc_val, exc_tb):
+        self._trace_sampling_checked = False
+
         # get the traceback
         buff = StringIO()
         traceback.print_exception(exc_type, exc_val, exc_tb, file=buff, limit=30)

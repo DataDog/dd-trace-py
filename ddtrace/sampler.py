@@ -158,6 +158,9 @@ class RateByServiceSampler(BasePrioritySampler):
 
     def _set_sampler_decision(self, span, sampler, sampled):
         # type: (Span, RateSampler, bool) -> None
+        import pdb
+
+        pdb.set_trace()
         priority = AUTO_KEEP if sampled else AUTO_REJECT
         self._set_priority(span, priority)
 
@@ -264,8 +267,6 @@ class DatadogSampler(RateByServiceSampler):
                 rules = self._parse_rules_from_env_variable(env_sampling_rules)
             else:
                 rules = []
-        if rules:
-            self.rule_decision = [0 for _ in rules]
 
         # Validate that the rules is a list of SampleRules
         for rule in rules:
@@ -303,8 +304,12 @@ class DatadogSampler(RateByServiceSampler):
                 sample_rate = float(rule["sample_rate"])
                 service = rule.get("service", SamplingRule.NO_RULE)
                 name = rule.get("name", SamplingRule.NO_RULE)
+                resource = rule.get("resource", SamplingRule.NO_RULE)
+                tags = rule.get("tags", SamplingRule.NO_RULE)
                 try:
-                    sampling_rule = SamplingRule(sample_rate=sample_rate, service=service, name=name)
+                    sampling_rule = SamplingRule(
+                        sample_rate=sample_rate, service=service, name=name, resource=resource, tags=tags
+                    )
                 except ValueError as e:
                     raise ValueError("Error creating sampling rule {}: {}".format(json.dumps(rule), e))
                 sampling_rules.append(sampling_rule)
@@ -338,21 +343,26 @@ class DatadogSampler(RateByServiceSampler):
 
     def decide_sampling_rule(self, trace):
         # type: (List[Span]) -> Optional[SamplingRule]
-        for rule in self.rules:
-            for span in trace:
-                if span._trace_sampling_checked:
-                    continue
-            if rule.matches(span):
-                # increment the rule decision counter for this rule
-                self.rule_decision[self.rules.index(rule)] += 1
-                sampler = rule
-                break
-        for index, value in enumerate(self.rule_decision):
+        if not self.rules:
+            return None
+        rule_decision = [0 for _ in self.rules]
+        for span in trace:
+            # don't recheck spans if no new tags have been added
+            if span._trace_sampling_checked:
+                continue
+            for rule in self.rules:
+                if rule.matches(span):
+                    # increment the rule decision counter for this rule
+                    # we want to use whichever rule matches first
+                    rule_decision[self.rules.index(rule)] += 1
+                    break
+        for index, value in enumerate(rule_decision):
             if value > 0:
                 return self.rules[index]
+        return None
 
     def sample(self, trace):
-        # type: (Span) -> bool
+        # type: (List[Span]) -> List[Span]
         """
         Decide whether the provided span should be sampled or not
 
@@ -363,27 +373,19 @@ class DatadogSampler(RateByServiceSampler):
         :returns: Whether the span was sampled or not
         :rtype: :obj:`bool`
         """
-        # If there are rules defined, then iterate through them and find one that wants to sample
+        # If there are rules defined, then iterate through them and find the earliest rule that matches the trace
+        #  e.g. [rule1, rule2, rule3] -> rule1 matches once, rule2 matches twice -> return rule1 because it's earlier
         sampler = None  # type: Optional[Union[SamplingRule, RateLimiter]]
-        sampler = self.decide_sampling_rule(trace)
-        # Go through all rules and grab the first one that matched
-        # DEV: This means rules should be ordered by the user from most specific to least specific
-        for rule in self.rules:
-            if rule.matches(span):
-                # increment the rule decision counter for this rule
-                self.rule_decision[self.rules.index(rule)] += 1
-                sampler = rule
-                break
-        else:
-            # No rules matches so use agent based sampling
-            sampler = super(DatadogSampler, self)
+        rule = self.decide_sampling_rule(trace)
+        sampler = rule if rule is not None else super(DatadogSampler, self)
 
         # DEV: This should never happen, but since the type is Optional we have to check
         if not sampler:
-            raise SamplingError("No sampling rule found for span {!r} from {!r}".format(span, self))
+            raise SamplingError("No sampling rule found for trace {!r} from {!r}".format(trace, self))
         # we need a span to grab the trace id from the run sample
         first_span = trace[0]
         sampled = sampler.sample(first_span)
+        # not sure we need to actually do this for each span if we continue to use context to store sampling decision
         for span in trace:
             self._set_sampler_decision(span, sampler, sampled)
             if sampled:
@@ -395,7 +397,7 @@ class DatadogSampler(RateByServiceSampler):
                     self._set_sampler_decision(span, self.limiter, allowed)
                     return False
 
-        return sampled
+        return trace
 
 
 class SamplingRule(BaseSampler):
@@ -412,6 +414,7 @@ class SamplingRule(BaseSampler):
         name=NO_RULE,  # type: Any
         resource=NO_RULE,  # type: Any
         tags=NO_RULE,  # type: Optional[Dict[str, Any]]
+        target_span="root",  # type: str
     ):
         # type: (...) -> None
         """
@@ -457,6 +460,8 @@ class SamplingRule(BaseSampler):
         self.sample_rate = sample_rate
         self.service = service
         self.name = name
+        # default root
+        self.target_span = target_span
 
     @property
     def sample_rate(self):
@@ -518,6 +523,11 @@ class SamplingRule(BaseSampler):
         :returns: Whether this span matches or not
         :rtype: :obj:`bool`
         """
+        # if we're just interested in root spans and this isn't one, then return False
+        if self.target_span == "root":
+            if span.parent_id is not None:
+                return False
+
         # glob matching does not support patterns of function or regex
         if type(self.name) is str and type(self.service) is str:
             glob_match = self.glob_matches(span)
