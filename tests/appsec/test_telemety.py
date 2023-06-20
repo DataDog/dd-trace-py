@@ -76,7 +76,7 @@ def _assert_distributions_metrics(metrics_result, is_rule_triggered=False, is_bl
 
 
 def test_metrics_when_appsec_doesnt_runs(mock_telemetry_metrics_writer, tracer):
-    with override_global_config(dict(_appsec_enabled=False, _telemetry_metrics_enabled=True)):
+    with override_global_config(dict(_appsec_enabled=False)):
         tracer.configure(api_version="v0.4", appsec_enabled=False)
         mock_telemetry_metrics_writer._namespace.flush()
         with tracer.trace("test", span_type=SpanTypes.WEB) as span:
@@ -90,7 +90,7 @@ def test_metrics_when_appsec_doesnt_runs(mock_telemetry_metrics_writer, tracer):
 
 
 def test_metrics_when_appsec_runs(mock_telemetry_metrics_writer, tracer):
-    with override_global_config(dict(_appsec_enabled=True, _telemetry_metrics_enabled=True)):
+    with override_global_config(dict(_appsec_enabled=True)):
         mock_telemetry_metrics_writer._namespace.flush()
         _enable_appsec(tracer)
         with tracer.trace("test", span_type=SpanTypes.WEB) as span:
@@ -102,9 +102,7 @@ def test_metrics_when_appsec_runs(mock_telemetry_metrics_writer, tracer):
 
 
 def test_metrics_when_appsec_attack(mock_telemetry_metrics_writer, tracer):
-    with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)), override_global_config(
-        dict(_appsec_enabled=True, _telemetry_metrics_enabled=True)
-    ):
+    with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)), override_global_config(dict(_appsec_enabled=True)):
         mock_telemetry_metrics_writer._namespace.flush()
         _enable_appsec(tracer)
         with tracer.trace("test", span_type=SpanTypes.WEB) as span:
@@ -113,9 +111,7 @@ def test_metrics_when_appsec_attack(mock_telemetry_metrics_writer, tracer):
 
 
 def test_metrics_when_appsec_block(mock_telemetry_metrics_writer, tracer):
-    with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)), override_global_config(
-        dict(_appsec_enabled=True, _telemetry_metrics_enabled=True)
-    ):
+    with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)), override_global_config(dict(_appsec_enabled=True)):
         mock_telemetry_metrics_writer._namespace.flush()
         _enable_appsec(tracer)
         with _asm_request_context.asm_request_context_manager(_BLOCKED_IP, {}):
@@ -131,7 +127,7 @@ def test_metrics_when_appsec_block(mock_telemetry_metrics_writer, tracer):
 
 
 def test_log_metric_error_ddwaf_init(mock_logs_telemetry_metrics_writer):
-    with override_global_config(dict(_appsec_enabled=True, _telemetry_metrics_enabled=True)), override_env(
+    with override_global_config(dict(_appsec_enabled=True)), override_env(
         dict(DD_APPSEC_RULES=os.path.join(ROOT_DIR, "rules-with-2-errors.json"))
     ):
         AppSecSpanProcessor()
@@ -144,7 +140,7 @@ def test_log_metric_error_ddwaf_init(mock_logs_telemetry_metrics_writer):
 
 def test_log_metric_error_ddwaf_timeout(mock_logs_telemetry_metrics_writer, tracer):
     with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)), override_global_config(
-        dict(_appsec_enabled=True, _telemetry_metrics_enabled=True, _waf_timeout=0.0)
+        dict(_appsec_enabled=True, _waf_timeout=0.0)
     ):
         _enable_appsec(tracer)
         with _asm_request_context.asm_request_context_manager(_BLOCKED_IP, {}):
@@ -163,7 +159,7 @@ def test_log_metric_error_ddwaf_timeout(mock_logs_telemetry_metrics_writer, trac
 
 @pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
 def test_log_metric_error_ddwaf_update(mock_logs_telemetry_metrics_writer):
-    with override_global_config(dict(_appsec_enabled=True, _telemetry_metrics_enabled=True)):
+    with override_global_config(dict(_appsec_enabled=True)):
         span_processor = AppSecSpanProcessor()
         span_processor._update_rules("{}")
         assert len(mock_logs_telemetry_metrics_writer._logs) == 1
