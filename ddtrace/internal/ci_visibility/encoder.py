@@ -180,8 +180,6 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
             for span in trace
             if COVERAGE_TAG_NAME in span.get_tags()
         ]
-        if not normalized_covs:
-            return None
         # TODO: Split the events in several payloads as needed to avoid hitting the intake's maximum payload size.
         return msgpack_packb({"version": self.PAYLOAD_FORMAT_VERSION, "coverages": normalized_covs})
 
