@@ -1109,6 +1109,130 @@ class BotocoreTest(TracerTestCase):
         assert spans
         assert len(spans) == 1
 
+    @mock_sqs
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
+    def test_data_streams_sqs(self):
+        with self.override_config("botocore", dict(tag_all_params=True)):
+            sqs = self.session.create_client("sqs", region_name="us-east-1", endpoint_url="http://localhost:4566")
+            queue = sqs.create_queue(QueueName="test")
+            Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sqs)
+            message_attributes = {
+                "one": {"DataType": "String", "StringValue": "one"},
+                "two": {"DataType": "String", "StringValue": "two"},
+                "three": {"DataType": "String", "StringValue": "three"},
+                "four": {"DataType": "String", "StringValue": "four"},
+                "five": {"DataType": "String", "StringValue": "five"},
+                "six": {"DataType": "String", "StringValue": "six"},
+                "seven": {"DataType": "String", "StringValue": "seven"},
+                "eight": {"DataType": "String", "StringValue": "eight"},
+                "nine": {"DataType": "String", "StringValue": "nine"},
+            }
+
+            sqs.send_message(QueueUrl=queue["QueueUrl"], MessageBody="world", MessageAttributes=message_attributes)
+
+            sqs.receive_message(
+                QueueUrl=queue["QueueUrl"],
+                MessageAttributeNames=["_datadog"],
+                WaitTimeSeconds=2,
+            )
+
+            pin = Pin.get_from(sqs)
+            buckets = pin.tracer.data_streams_processor._buckets
+            assert len(buckets) == 1
+            _, first = list(buckets.items())[0]
+
+            assert first[("direction:out,topic:test,type:sqs", 8588586218407152755, 0)].full_pathway_latency._count >= 1
+            assert first[("direction:out,topic:test,type:sqs", 8588586218407152755, 0)].edge_latency._count >= 1
+            assert (
+                first[
+                    ("direction:in,topic:test,type:sqs", 3105195680836794952, 8588586218407152755)
+                ].full_pathway_latency._count
+                >= 1
+            )
+            assert (
+                first[
+                    ("direction:in,topic:test,type:sqs", 3105195680836794952, 8588586218407152755)
+                ].edge_latency._count
+                >= 1
+            )
+
+            sqs.delete_queue(QueueUrl=queue["QueueUrl"])
+
+    @mock_sqs
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
+    def test_data_streams_sqs_batch(self):
+        with self.override_config("botocore", dict(tag_all_params=True)):
+            sqs = self.session.create_client("sqs", region_name="us-east-1", endpoint_url="http://localhost:4566")
+            queue = sqs.create_queue(QueueName="test")
+            Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sqs)
+            message_attributes = {
+                "one": {"DataType": "String", "StringValue": "one"},
+                "two": {"DataType": "String", "StringValue": "two"},
+                "three": {"DataType": "String", "StringValue": "three"},
+                "four": {"DataType": "String", "StringValue": "four"},
+                "five": {"DataType": "String", "StringValue": "five"},
+                "six": {"DataType": "String", "StringValue": "six"},
+                "seven": {"DataType": "String", "StringValue": "seven"},
+                "eight": {"DataType": "String", "StringValue": "eight"},
+                "nine": {"DataType": "String", "StringValue": "nine"},
+            }
+
+            entries = [
+                {"Id": "1", "MessageBody": "Message No. 1", "MessageAttributes": message_attributes},
+                {"Id": "2", "MessageBody": "Message No. 2", "MessageAttributes": message_attributes},
+                {"Id": "3", "MessageBody": "Message No. 3", "MessageAttributes": message_attributes},
+            ]
+
+            sqs.send_message_batch(QueueUrl=queue["QueueUrl"], Entries=entries)
+
+            sqs.receive_message(
+                QueueUrl=queue["QueueUrl"],
+                MaxNumberOfMessages=3,
+                MessageAttributeNames=["_datadog"],
+                WaitTimeSeconds=2,
+            )
+
+            pin = Pin.get_from(sqs)
+            buckets = pin.tracer.data_streams_processor._buckets
+            assert len(buckets) == 1
+            _, first = list(buckets.items())[0]
+
+            assert first[("direction:out,topic:test,type:sqs", 8588586218407152755, 0)].full_pathway_latency._count >= 3
+            assert first[("direction:out,topic:test,type:sqs", 8588586218407152755, 0)].edge_latency._count >= 3
+            assert (
+                first[
+                    ("direction:in,topic:test,type:sqs", 3105195680836794952, 8588586218407152755)
+                ].full_pathway_latency._count
+                >= 3
+            )
+            assert (
+                first[
+                    ("direction:in,topic:test,type:sqs", 3105195680836794952, 8588586218407152755)
+                ].edge_latency._count
+                >= 3
+            )
+
+            sqs.delete_queue(QueueUrl=queue["QueueUrl"])
+
+    @mock_sqs
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
+    def test_data_streams_sqs_header_information(self):
+        with self.override_config("botocore", dict(tag_all_params=True)):
+            sqs = self.session.create_client("sqs", region_name="us-east-1", endpoint_url="http://localhost:4566")
+            queue = sqs.create_queue(QueueName="test")
+            sqs.send_message(QueueUrl=queue["QueueUrl"], MessageBody="world")
+            response = sqs.receive_message(
+                QueueUrl=queue["QueueUrl"],
+                MaxNumberOfMessages=1,
+                WaitTimeSeconds=2,
+                AttributeNames=[
+                    "All",
+                ],
+            )
+            assert "_datadog" in response["Messages"][0]["MessageAttributes"]
+
+            sqs.delete_queue(QueueUrl=queue["QueueUrl"])
+
     @mock_lambda
     def test_lambda_client(self):
         # DEV: No lambda params tagged so we only check no ClientContext
