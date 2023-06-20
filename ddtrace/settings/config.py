@@ -400,4 +400,5 @@ class Config(object):
     def __repr__(self):
         cls = self.__class__
         integrations = ", ".join(self._config.keys())
+        
         return "{}.{}({})".format(cls.__module__, cls.__name__, integrations)
