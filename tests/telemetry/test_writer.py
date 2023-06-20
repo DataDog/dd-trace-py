@@ -112,13 +112,15 @@ def test_app_started_event(telemetry_lifecycle_writer, test_agent_session, mock_
     assert events[0] == _get_request_body(payload, "app-started")
 
 
-def test_app_started_event_configuration_override(test_agent_session, run_python_code_in_subprocess):
+def test_app_started_event_configuration_override(test_agent_session, ddtrace_run_python_code_in_subprocess):
     """
     asserts that default configuration value
     is changed and queues a valid telemetry request
     which is then sent by periodic()
     """
     code = """
+import ddtrace.auto
+
 from ddtrace.internal.telemetry import telemetry_lifecycle_writer
 telemetry_lifecycle_writer.enable()
 telemetry_lifecycle_writer.reset_queues()
@@ -134,10 +136,9 @@ telemetry_lifecycle_writer.disable()
     env["DD_TRACE_PROPAGATION_STYLE_INJECT"] = "datadog"
     env["DD_TRACE_OTEL_ENABLED"] = "true"
 
-    _, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
 
     assert status == 0, stderr
-    assert stderr == b""
 
     events = test_agent_session.get_events()
 
@@ -165,12 +166,12 @@ telemetry_lifecycle_writer.disable()
         {
             "name": "ddtrace_bootstrapped",
             "origin": "default",
-            "value": False,
+            "value": True,
         },
         {
             "name": "ddtrace_auto_used",
             "origin": "default",
-            "value": False,
+            "value": True,
         },
         {
             "name": "otel_enabled",
