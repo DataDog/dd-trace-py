@@ -762,7 +762,7 @@ def test_logs_image_create(openai_vcr, openai, ddtrace_config_openai, mock_logs,
                     "ddsource": "openai",
                     "service": "",
                     "status": "info",
-                    "ddtags": "env:,version:,openai.request.endpoint:/v1/images/generations,openai.request.method:POST,openai.request.model:,openai.organization.name:datadog-4,openai.user.api_key:sk-...key>",  # noqa: E501
+                    "ddtags": "env:,version:,openai.request.endpoint:/v1/images/generations,openai.request.method:POST,openai.request.model:dall-e,openai.organization.name:datadog-4,openai.user.api_key:sk-...key>",  # noqa: E501
                     "dd.trace_id": str(trace_id),
                     "dd.span_id": str(span_id),
                     "prompt": "sleepy capybara with monkey on top",
@@ -859,7 +859,7 @@ def test_logs_image_edit(openai_vcr, openai, ddtrace_config_openai, mock_logs, m
                     "ddsource": "openai",
                     "service": "",
                     "status": "info",
-                    "ddtags": "env:,version:,openai.request.endpoint:/v1/images/edits,openai.request.method:POST,openai.request.model:,openai.organization.name:datadog-4,openai.user.api_key:sk-...key>",  # noqa: E501
+                    "ddtags": "env:,version:,openai.request.endpoint:/v1/images/edits,openai.request.method:POST,openai.request.model:dall-e,openai.organization.name:datadog-4,openai.user.api_key:sk-...key>",  # noqa: E501
                     "dd.trace_id": str(trace_id),
                     "dd.span_id": str(span_id),
                     "prompt": "A sunlit indoor lounge area with a pool containing a flamingo",
@@ -953,7 +953,7 @@ def test_logs_image_variation(openai_vcr, openai, ddtrace_config_openai, mock_lo
                     "ddsource": "openai",
                     "service": "",
                     "status": "info",
-                    "ddtags": "env:,version:,openai.request.endpoint:/v1/images/variations,openai.request.method:POST,openai.request.model:,openai.organization.name:datadog-4,openai.user.api_key:sk-...key>",  # noqa: E501
+                    "ddtags": "env:,version:,openai.request.endpoint:/v1/images/variations,openai.request.method:POST,openai.request.model:dall-e,openai.organization.name:datadog-4,openai.user.api_key:sk-...key>",  # noqa: E501
                     "dd.trace_id": str(trace_id),
                     "dd.span_id": str(span_id),
                     "image": "image.png",
