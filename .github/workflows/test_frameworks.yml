@@ -417,6 +417,8 @@ jobs:
     name: Pylons 1.0.3
     runs-on: "ubuntu-20.04"
     # Ubuntu 20.04 is the last version of ubuntu on github setup actions to provide Python 2.7.
+    container:
+      image: python:2.7.18-buster
     env:
       DD_TESTING_RAISE: true
       PYTHONPATH: ../ddtrace/tests/debugging/exploration/
@@ -424,9 +426,6 @@ jobs:
       run:
         working-directory: pylons
     steps:
-      - uses: actions/setup-python@v4
-        with:
-          python-version: '2.7'
       - uses: actions/checkout@v3
         with:
           path: ddtrace
