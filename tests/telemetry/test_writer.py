@@ -71,12 +71,12 @@ def test_app_started_event(telemetry_lifecycle_writer, test_agent_session, mock_
             {
                 "name": "data_streams_enabled",
                 "origin": "env_var",
-                "value": "False",
+                "value": False,
             },
             {
                 "name": "appsec_enabled",
                 "origin": "env_var",
-                "value": "False",
+                "value": False,
             },
             {
                 "name": "propagation_style_inject",
@@ -87,6 +87,21 @@ def test_app_started_event(telemetry_lifecycle_writer, test_agent_session, mock_
                 "name": "propagation_style_extract",
                 "origin": "env_var",
                 "value": "['tracecontext', 'datadog']",
+            },
+            {
+                "name": "ddtrace_bootstrapped",
+                "origin": "default",
+                "value": False,
+            },
+            {
+                "name": "ddtrace_auto_used",
+                "origin": "default",
+                "value": False,
+            },
+            {
+                "name": "otel_enabled",
+                "origin": "env_var",
+                "value": False,
             },
         ],
         "error": {
@@ -117,6 +132,7 @@ telemetry_lifecycle_writer.disable()
     env["DD_DATA_STREAMS_ENABLED"] = "true"
     env["DD_TRACE_PROPAGATION_STYLE_EXTRACT"] = "b3multi"
     env["DD_TRACE_PROPAGATION_STYLE_INJECT"] = "datadog"
+    env["DD_TRACE_OTEL_ENABLED"] = "true"
 
     _, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
 
@@ -129,12 +145,12 @@ telemetry_lifecycle_writer.disable()
         {
             "name": "data_streams_enabled",
             "origin": "env_var",
-            "value": "True",
+            "value": True,
         },
         {
             "name": "appsec_enabled",
             "origin": "env_var",
-            "value": "False",
+            "value": False,
         },
         {
             "name": "propagation_style_inject",
@@ -145,6 +161,21 @@ telemetry_lifecycle_writer.disable()
             "name": "propagation_style_extract",
             "origin": "env_var",
             "value": "['b3multi']",
+        },
+        {
+            "name": "ddtrace_bootstrapped",
+            "origin": "default",
+            "value": False,
+        },
+        {
+            "name": "ddtrace_auto_used",
+            "origin": "default",
+            "value": False,
+        },
+        {
+            "name": "otel_enabled",
+            "origin": "env_var",
+            "value": True,
         },
     ]
 
@@ -223,7 +254,7 @@ def test_app_client_configuration_changed_event(telemetry_lifecycle_writer, test
         },
         {
             "name": "appsec_enabled",
-            "value": "True",
+            "value": True,
         },
         {
             "name": "no_match_configuration",
@@ -249,7 +280,7 @@ def test_app_client_configuration_changed_event(telemetry_lifecycle_writer, test
             },
             {
                 "name": "appsec_enabled",
-                "value": "True",
+                "value": True,
             },
         ],
         "error": {

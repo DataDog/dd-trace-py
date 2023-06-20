@@ -2,6 +2,7 @@
 import itertools
 import os
 import time
+import sys
 from typing import Any
 from typing import Dict
 from typing import List
@@ -433,26 +434,41 @@ class TelemetryWriter(TelemetryBase):
             return
         #  List of configurations to be collected
         configuration = [
-            {
-                "name": "data_streams_enabled",
-                "origin": "env_var",
-                "value": str(config._data_streams_enabled),
-            },
-            {
-                "name": "appsec_enabled",
-                "origin": "env_var",
-                "value": str(config._appsec_enabled),
-            },
-            {
-                "name": "propagation_style_inject",
-                "origin": "env_var",
-                "value": str(config._propagation_style_inject),
-            },
-            {
-                "name": "propagation_style_extract",
-                "origin": "env_var",
-                "value": str(config._propagation_style_extract),
-            },
+                {
+                    "name": "data_streams_enabled",
+                    "origin": "env_var",
+                    "value": config._data_streams_enabled,
+                },
+                {
+                    "name": "appsec_enabled",
+                    "origin": "env_var",
+                    "value": config._appsec_enabled,
+                },
+                {
+                    "name": "propagation_style_inject",
+                    "origin": "env_var",
+                    "value": str(config._propagation_style_inject),
+                },
+                {
+                    "name": "propagation_style_extract",
+                    "origin": "env_var",
+                    "value": str(config._propagation_style_extract),
+                },
+                {
+                    "name": "ddtrace_bootstrapped",
+                    "origin": "default",
+                    "value": config._ddtrace_bootstrapped,
+                },
+                {
+                    "name": "ddtrace_auto_used",
+                    "origin": "default",
+                    "value": "ddtrace.auto" in sys.modules,
+                },
+                {
+                    "name": "otel_enabled",
+                    "origin": "env_var",
+                    "value": config._otel_enabled,
+                },
         ]
         self._configuration_queue = configuration
         payload = {
