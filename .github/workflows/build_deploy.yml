@@ -89,8 +89,14 @@ jobs:
     strategy:
       matrix:
         include:
+         - os: ubuntu-latest
+           archs: x86_64 i686
+         - os: ubuntu-latest
+           archs: aarch64
+         - os: windows-latest
+           archs: AMD64 x86
          - os: macos-latest
-           archs: universal2
+           archs: x86_64 universal2
     steps:
       - uses: actions/checkout@v3
         # Include all history and tags
