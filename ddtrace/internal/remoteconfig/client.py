@@ -216,6 +216,10 @@ class RemoteConfigClient(object):
         self._last_error = None  # type: Optional[str]
         self._backend_state = None  # type: Optional[str]
 
+    def renew_id(self):
+        # called after the process is forked to declare a new id
+        self.id = str(uuid.uuid4())
+
     def register_product(self, product_name, pubsub_instance=None):
         # type: (str, Optional[PubSub]) -> None
         if pubsub_instance is not None:
