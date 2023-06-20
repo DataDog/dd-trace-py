@@ -155,51 +155,12 @@ def set_headers_response(headers):  # type: (Any) -> None
 
 
 def set_body_response(body_response):
-    import json
+    from ddtrace.appsec.utils import parse_response_body
 
-    import xmltodict
+    parsed_body = parse_response_body(body_response)
 
-    from ddtrace.contrib.trace_utils import _get_header_value_case_insensitive
-
-    if not body_response:
-        return
-
-    if isinstance(body_response, dict):
-        set_waf_address(SPAN_DATA_NAMES.RESPONSE_BODY, body_response)
-        return
-
-    headers = get_waf_address(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES)
-    if not headers:
-        return
-    content_type = _get_header_value_case_insensitive(
-        dict(headers),
-        "content-type",
-    )
-    if not content_type:
-        return
-
-    def access_body(bd):
-        if isinstance(bd, list) and isinstance(bd[0], (str, bytes)):
-            bd = bd[0][:0].join(bd)
-        if getattr(bd, "decode", False):
-            bd = bd.decode("UTF-8", errors="ignore")
-        if len(bd) >= 0x1000000:
-            raise ValueError("response body larger than 16MB")
-        return bd
-
-    req_body = None
-    try:
-        # TODO handle charset
-        if "json" in content_type:
-            req_body = json.loads(access_body(body_response))
-        elif "xml" in content_type:
-            req_body = xmltodict.parse(access_body(body_response))
-        else:
-            return
-    except BaseException:
-        log.debug("Failed to parse response body", exc_info=True)
-    else:
-        set_waf_address(SPAN_DATA_NAMES.RESPONSE_BODY, req_body)
+    if parse_response_body is not None:
+        set_waf_address(SPAN_DATA_NAMES.RESPONSE_BODY, parsed_body)
 
 
 def set_waf_address(address, value, span=None):  # type: (str, Any, Any) -> None
