@@ -9,7 +9,7 @@ if __name__ == "__main__":
     # ASM IAST smoke test
     if sys.version_info >= (3, 6, 0):
         from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import OriginType
-        
+
         assert OriginType
 
     # ASM WAF smoke test

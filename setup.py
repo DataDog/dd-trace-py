@@ -346,7 +346,7 @@ class CMakeBuild(build_ext):
                 print("CMAKE_GENERATOR!!!!")
                 print(os.environ.get("CMAKE_GENERATOR", ""))
                 print(cmake_cmd_with_args)
-                build_command = [cmake_command, "--build", tmp_iast_path, "--clean-first"] + build_args
+                build_command = [cmake_command, "--build", tmp_iast_path] + build_args
                 print("build_command!!!!")
                 print(build_command)
                 subprocess.run(build_command, cwd=tmp_iast_path, check=True)
