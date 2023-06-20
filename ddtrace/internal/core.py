@@ -17,17 +17,25 @@ except ImportError:
 
 
 log = logging.getLogger(__name__)
-_CONTEXT_DATA = contextvars.ContextVar("ExecutionContext_var", default=dict())
+
+
+_CURRENT_CONTEXT = None
 
 
 class ExecutionContext:
     def __init__(self, identifier: str, parent=None, **kwargs):
         self.identifier = identifier
+        self._data = dict()
         self._parents = []
         self._children = []
         if parent is not None:
             self.addParent(parent)
-        self._token = _CONTEXT_DATA.set(kwargs)
+        self._data.update(kwargs)
+        if _CURRENT_CONTEXT is not None:
+            self._token = _CURRENT_CONTEXT.set(self)
+
+    def __repr__(self):
+        return "ExecutionContext '" + self.identifier + "'"
 
     @property
     def parents(self):
@@ -42,13 +50,14 @@ class ExecutionContext:
         return self._children
 
     def end(self):
-        _CONTEXT_DATA.reset(self._token)
+        _CURRENT_CONTEXT.reset(self._token)
         return dispatch("context.ended.%s" % self.identifier, [])
 
     def addParent(self, context):
-        if self is root_context:
+        if self.identifier == "root":
             raise ValueError("Cannot add parent to root context")
         self._parents.append(context)
+        self._data.update(context._data)
 
     def addChild(self, context):
         self._children.append(context)
@@ -56,39 +65,32 @@ class ExecutionContext:
     @classmethod
     @contextmanager
     def context_with_data(cls, identifier, parent=None, **kwargs):
-        global current_context
         new_context = cls(identifier, parent=parent, **kwargs)
-        prior_context = current_context
-        current_context = new_context
         try:
             yield new_context
         finally:
             new_context.end()
-            current_context = prior_context
 
     def get_item(self, data_key: str) -> Optional[Any]:
-        return _CONTEXT_DATA.get().get(data_key)
+        return self._data.get(data_key)
 
     def set_item(self, data_key: str, data_value: Optional[Any]):
-        data = _CONTEXT_DATA.get()
-        data[data_key] = data_value
-        _CONTEXT_DATA.set(data)
+        self._data[data_key] = data_value
 
 
-root_context = ExecutionContext("root")
-current_context = root_context
+_CURRENT_CONTEXT = contextvars.ContextVar("ExecutionContext_var", default=ExecutionContext("root"))
 
 
 def context_with_data(identifier: str, parent=None, **kwargs):
-    return ExecutionContext.context_with_data(identifier, parent=(parent or current_context), **kwargs)
+    return ExecutionContext.context_with_data(identifier, parent=(parent or _CURRENT_CONTEXT.get()), **kwargs)
 
 
 def get_item(data_key):
-    return current_context.get_item(data_key)
+    return _CURRENT_CONTEXT.get().get_item(data_key)
 
 
 def set_item(data_key, data_value):
-    return current_context.set_item(data_key, data_value)
+    return _CURRENT_CONTEXT.get().set_item(data_key, data_value)
 
 
 class EventHub:

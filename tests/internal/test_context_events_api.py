@@ -133,16 +133,17 @@ class TestContextEventsApi(unittest.TestCase):
         assert handler.called
 
     def test_core_root_context(self):
-        assert isinstance(core.root_context, core.ExecutionContext)
-        assert len(core.root_context.parents) == 0
-        assert len(core.root_context.children) == 0
+        root_context = core._CURRENT_CONTEXT.get()
+        assert isinstance(root_context, core.ExecutionContext)
+        assert len(root_context.parents) == 0
+        assert len(root_context.children) == 0
 
     def test_core_current_context(self):
-        assert core.current_context is core.root_context
+        assert core._CURRENT_CONTEXT.get().identifier == "root"
         with core.context_with_data("foobar") as context:
-            assert core.current_context is context
-            assert context.parent == core.root_context
-        assert core.current_context is core.root_context
+            assert core._CURRENT_CONTEXT.get() is context
+            assert context.parent.identifier == "root"
+        assert core._CURRENT_CONTEXT.get().identifier == "root"
 
     def test_core_context_with_data(self):
         data_key = "my.cool.data"
@@ -153,7 +154,7 @@ class TestContextEventsApi(unittest.TestCase):
 
     def test_core_set_item(self):
         data_key = "my.cool.data"
-        data_value = "ban.ana"
+        data_value = "ban.ana2"
         with core.context_with_data("foobar"):
             assert core.get_item(data_key) is None
             core.set_item(data_key, data_value)
@@ -165,28 +166,27 @@ class TestContextEventsApi(unittest.TestCase):
         data_value = "bazinga"
         thread_nested_context_id = "in.nested"
         thread_context_id = "in.thread"
-        parent_context_id = "main"
 
         def make_context(_results):
             with core.context_with_data(thread_context_id, **{data_key: data_value}):
                 _results[thread_context_id] = dict()
                 _results[thread_context_id][data_key] = core.get_item(data_key)
-                _results[thread_context_id]["_id"] = core.current_context.identifier
-                _results[thread_context_id]["parent"] = core.current_context.parent.identifier
+                _results[thread_context_id]["_id"] = core._CURRENT_CONTEXT.get().identifier
+                _results[thread_context_id]["parent"] = core._CURRENT_CONTEXT.get().parent.identifier
                 with core.context_with_data(thread_nested_context_id):
                     _results[thread_nested_context_id] = dict()
-                    _results[thread_nested_context_id]["_id"] = core.current_context.identifier
-                    _results[thread_nested_context_id]["parent"] = core.current_context.parent.identifier
+                    _results[thread_nested_context_id]["_id"] = core._CURRENT_CONTEXT.get().identifier
+                    _results[thread_nested_context_id]["parent"] = core._CURRENT_CONTEXT.get().parent.identifier
 
         results = dict()
 
-        with core.context_with_data(parent_context_id):
+        with core.context_with_data("main"):
             thread_that_makes_context = threading.Thread(target=make_context, args=(results,))
             thread_that_makes_context.start()
             thread_that_makes_context.join()
 
         assert results[thread_context_id]["_id"] == thread_context_id
-        assert results[thread_context_id]["parent"] == parent_context_id
+        assert results[thread_context_id]["parent"] == "root"
         assert results[thread_context_id][data_key] == data_value
         assert results[thread_nested_context_id]["_id"] == thread_nested_context_id
         assert results[thread_nested_context_id]["parent"] == thread_context_id
@@ -196,7 +196,7 @@ class TestContextEventsApi(unittest.TestCase):
         original_data_value = "ban.ana"
         with core.context_with_data("foobar", **{data_key: original_data_value}):
             with core.context_with_data("baz"):
-                assert core.get_item(data_key) is None
+                assert core.get_item(data_key) == original_data_value
 
             new_data_value = "baz.inga"
             with core.context_with_data("foobaz", **{data_key: new_data_value}):
