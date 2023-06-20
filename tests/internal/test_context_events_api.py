@@ -4,9 +4,13 @@ from typing import Dict
 import unittest
 
 import mock
+import pytest
 
 from ddtrace.internal import core
 from ddtrace.internal.compat import PY3
+
+
+pytest_plugins = ("pytest_asyncio",)
 
 
 class TestContextEventsApi(unittest.TestCase):
@@ -178,25 +182,6 @@ class TestContextEventsApi(unittest.TestCase):
         assert results[thread_nested_context_id]["_id"] == thread_nested_context_id
         assert results[thread_nested_context_id]["parent"] == thread_context_id
 
-    if PY3:
-
-        async def test_core_context_data_concurrent_safety(self):
-            data_key = "banana"
-
-            async def make_context(_results):
-                with core.context_with_data("foo"):
-                    # XXX if another async task creates a new context here, get_item on the next line
-                    # might see that context's data rather than its task-local data
-                    # adjust this test to catch this case
-                    _results[data_key] = core.get_item(data_key)
-
-            results = dict()
-
-            with core.context_with_data("bar", **{data_key: "wrong"}):
-                await make_context(results)
-
-            assert results[data_key] is None
-
     def test_core_context_with_data_inheritance(self):
         data_key = "my.cool.data"
         original_data_value = "ban.ana"
@@ -208,3 +193,38 @@ class TestContextEventsApi(unittest.TestCase):
             with core.context_with_data("foobaz", **{data_key: new_data_value}):
                 assert core.get_item(data_key) == new_data_value
             assert core.get_item(data_key) == original_data_value
+
+
+if PY3:
+
+    @pytest.mark.asyncio
+    async def test_core_context_data_concurrent_safety():
+        import asyncio
+
+        data_key = "banana"
+        other_context_started = asyncio.Event()
+        set_result = asyncio.Event()
+
+        async def make_context(_results):
+            with core.context_with_data("foo", **{data_key: "right"}):
+                await other_context_started.wait()
+                # XXX if another async task creates a new context here, get_item on the next line
+                # might see that context's data rather than its task-local data
+                # adjust this test to catch this case
+                _results[data_key] = core.get_item(data_key)
+                set_result.set()
+
+        async def make_another_context():
+            with core.context_with_data("bar", **{data_key: "wrong"}):
+                other_context_started.set()
+                await set_result.wait()
+
+        results = dict()
+
+        task1 = asyncio.create_task(make_context(results))
+        task2 = asyncio.create_task(make_another_context())
+
+        await task1
+        await task2
+
+        assert results[data_key] == "right"

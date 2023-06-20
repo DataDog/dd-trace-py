@@ -27,9 +27,8 @@ class ExecutionContext:
         self._children = []
         if parent is not None:
             self.addParent(parent)
-        self._data = _CONTEXT_DATA.get()
-        self._data = dict()
-        self._update_data(kwargs)
+        # self._data = _CONTEXT_DATA.get()
+        self._data = dict(**kwargs)
 
     @property
     def parents(self):
@@ -42,16 +41,6 @@ class ExecutionContext:
     @property
     def children(self):
         return self._children
-
-    def _update_data(self, dotted_attrs: Dict):
-        for key, value in dotted_attrs.items():
-            current_parent_attr = self._data
-            key_parts = key.split(".")
-            for key_part in key_parts[:-1]:
-                if key_part not in current_parent_attr:
-                    current_parent_attr[key_part] = dict()
-                current_parent_attr = current_parent_attr[key_part]
-            current_parent_attr[key_parts[-1]] = value
 
     def end(self):
         return dispatch("context.ended.%s" % self.identifier, [])
@@ -78,16 +67,10 @@ class ExecutionContext:
             current_context = prior_context
 
     def get_item(self, data_key: str) -> Optional[Any]:
-        key_parts = data_key.split(".")
-        current_parent_attr = self._data
-        for key_part in key_parts:
-            if key_part not in current_parent_attr:
-                return
-            current_parent_attr = current_parent_attr[key_part]
-        return current_parent_attr
+        return self._data.get(data_key)
 
     def set_item(self, data_key: str, data_value: Optional[Any]):
-        self._update_data({data_key, data_value})
+        self._data[data_key] = data_value
 
 
 root_context = ExecutionContext("root")
