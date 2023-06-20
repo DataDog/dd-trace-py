@@ -14,10 +14,11 @@ import requests
 for release candidates, patches, and minor releases.
 
 Setup:
-1. Create Github token: 
+1. Create a Personal access token (classic), not a fine grained one, on Github: 
 https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token#creating-a-personal-access-token-classic # noqa
-2. Give the Github token repo, user, audit_log, and project permissions.
-3. Add `export GH_TOKEN=<github token>` to your `.zhrc` file.
+2. Give the Github token repo, user, audit_log, and project permissions. It should look like this https://a.cl.ly/7KuzKv88 
+here: https://github.com/settings/tokens
+3. Add `export GH_TOKEN=<github token>` to your `.zshrc` file.
 
 4. Get API key and Application key for staging: https://ddstaging.datadoghq.com/organization-settings/api-keys
 5. Add export DD_API_KEY_STAGING=<api_key> and  export DD_APP_KEY_STAGING=<app_key> to your `.zhrc` file.
