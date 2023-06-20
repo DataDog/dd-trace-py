@@ -29,7 +29,7 @@ def get_items(keys, span=None):
 def set_item(key, val, span=None):
     # type: (str, Any, Optional[Span]) -> None
     """Set an item in the context of a trace."""
-    return core.set_item(key, val)
+    core.set_item(key, val)
 
 
 def set_items(kvs, span=None):

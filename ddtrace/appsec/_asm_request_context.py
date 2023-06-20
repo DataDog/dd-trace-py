@@ -5,6 +5,7 @@ from ddtrace import config
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
 from ddtrace.internal import _context
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 
 
@@ -278,12 +279,13 @@ def asm_request_context_manager(
     """
     The ASM context manager
     """
-    if config._appsec_enabled:
-        resources = _DataHandler()
-        asm_request_context_set(remote_ip, headers, headers_case_sensitive, block_request_callable)
-        try:
-            yield resources
-        finally:
-            resources.finalise()
-    else:
-        yield None
+    with core.context_with_data(__name__):
+        if config._appsec_enabled:
+            resources = _DataHandler()
+            asm_request_context_set(remote_ip, headers, headers_case_sensitive, block_request_callable)
+            try:
+                yield resources
+            finally:
+                resources.finalise()
+        else:
+            yield None
