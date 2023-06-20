@@ -8,7 +8,7 @@ from ddtrace.appsec.ddwaf import version
 from ddtrace.appsec.processor import AppSecSpanProcessor
 from ddtrace.contrib.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
-from ddtrace.internal.telemetry import telemetry_metrics_writer
+from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_APPSEC
 from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_DISTRIBUTION
 from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_GENERATE_METRICS
@@ -23,23 +23,23 @@ from tests.utils import override_global_config
 
 @pytest.fixture
 def mock_telemetry_metrics_writer():
-    telemetry_metrics_writer.disable()
-    telemetry_metrics_writer.enable()
-    metrics_result = telemetry_metrics_writer._namespace._metrics_data
+    telemetry_writer.disable()
+    telemetry_writer.enable()
+    metrics_result = telemetry_writer._namespace._metrics_data
     assert len(metrics_result[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE_TAG_APPSEC]) == 0
     assert len(metrics_result[TELEMETRY_TYPE_DISTRIBUTION][TELEMETRY_NAMESPACE_TAG_APPSEC]) == 0
-    yield telemetry_metrics_writer
-    telemetry_metrics_writer._namespace.flush()
+    yield telemetry_writer
+    telemetry_writer._namespace.flush()
 
 
 @pytest.fixture
 def mock_logs_telemetry_metrics_writer():
-    telemetry_metrics_writer.disable()
-    telemetry_metrics_writer.enable()
-    metrics_result = telemetry_metrics_writer._logs
+    telemetry_writer.disable()
+    telemetry_writer.enable()
+    metrics_result = telemetry_writer._logs
     assert len(metrics_result) == 0
-    yield telemetry_metrics_writer
-    telemetry_metrics_writer.reset_queues()
+    yield telemetry_writer
+    telemetry_writer.reset_queues()
 
 
 def _assert_generate_metrics(metrics_result, is_rule_triggered=False, is_blocked_request=False):

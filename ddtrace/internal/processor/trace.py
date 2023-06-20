@@ -21,7 +21,7 @@ from ddtrace.internal.processor import SpanProcessor
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import is_single_span_sampled
 from ddtrace.internal.service import ServiceStatusError
-from ddtrace.internal.telemetry import telemetry_metrics_writer
+from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_TRACER
 from ddtrace.internal.writer import TraceWriter
 from ddtrace.span import Span
@@ -198,12 +198,12 @@ class SpanAggregator(SpanProcessor):
             trace = self._traces[span.trace_id]
             trace.spans.append(span)
             self._span_api_to_count["span_created"][span._span_api] += 1
-            # perf: telemetry_metrics_writer.add_count_metric(...) is an expensive operation.
+            # perf: telemetry_writer.add_count_metric(...) is an expensive operation.
             # We should avoid calling this method on every invocation of ``SpanAggregator.on_span_start()``
             if sum(self._span_api_to_count["span_created"].values()) >= 100:
                 # self._span_api_to_count should only have 1-3 keys, calculating the sum here is not expensive.
                 for api, count in self._span_api_to_count["span_created"].items():
-                    telemetry_metrics_writer.add_count_metric(
+                    telemetry_writer.add_count_metric(
                         TELEMETRY_NAMESPACE_TAG_TRACER, "span_created", count, tags=(("integration_name", api),)
                     )
                 self._span_api_to_count["span_created"] = defaultdict(int)
@@ -239,12 +239,12 @@ class SpanAggregator(SpanProcessor):
                     del self._traces[span.trace_id]
 
                 self._span_api_to_count["span_finished"][span._span_api] += num_finished
-                # perf: telemetry_metrics_writer.add_count_metric(...) is an expensive operation.
+                # perf: telemetry_writer.add_count_metric(...) is an expensive operation.
                 # We should avoid calling this method on every invocation of ``SpanAggregator.on_span_finish()``
                 if sum(self._span_api_to_count["span_finished"].values()) >= 100:
                     # self._span_api_to_count should only have 1-3 keys, calculating the sum here is not expensive
                     for api, count in self._span_api_to_count["span_finished"].items():
-                        telemetry_metrics_writer.add_count_metric(
+                        telemetry_writer.add_count_metric(
                             TELEMETRY_NAMESPACE_TAG_TRACER, "span_finished", count, tags=(("integration_name", api),)
                         )
                     self._span_api_to_count["span_finished"] = defaultdict(int)
@@ -277,7 +277,7 @@ class SpanAggregator(SpanProcessor):
         # on_span_start queue span created counts in batches of 100. This ensures all remaining counts are sent
         # before the tracer is shutdown.
         for api, count in self._span_api_to_count["span_created"].items():
-            telemetry_metrics_writer.add_count_metric(
+            telemetry_writer.add_count_metric(
                 TELEMETRY_NAMESPACE_TAG_TRACER, "span_created", count, tags=(("integration_name", api),)
             )
         self._span_api_to_count["span_created"] = defaultdict(int)
@@ -285,13 +285,13 @@ class SpanAggregator(SpanProcessor):
         # on_span_finish(...) queues span finish metrics in batches of 100. This ensures all remaining counts are sent
         # before the tracer is shutdown.
         for api, count in self._span_api_to_count["span_finished"].items():
-            telemetry_metrics_writer.add_count_metric(
+            telemetry_writer.add_count_metric(
                 TELEMETRY_NAMESPACE_TAG_TRACER, "span_finished", count, tags=(("integration_name", api),)
             )
         self._span_api_to_count["span_finished"] = defaultdict(int)
 
         # The telemetry metrics writer can be shutdown before the tracer. This ensures all tracer metrics always sent.
-        telemetry_metrics_writer.periodic()
+        telemetry_writer.periodic()
         try:
             self._writer.stop(timeout)
         except ServiceStatusError:

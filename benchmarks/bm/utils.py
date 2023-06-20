@@ -71,13 +71,9 @@ def drop_traces(tracer):
 
 def drop_telemetry_events():
     # Avoids sending instrumentation telemetry payloads to the agent
-    telemetry.telemetry_lifecycle_writer.reset_queues()
-    telemetry.telemetry_lifecycle_writer.periodic = lambda: None
-    telemetry.telemetry_lifecycle_writer.enable(start_worker_thread=False)
-
-    telemetry.telemetry_metrics_writer.reset_queues()
-    telemetry.telemetry_metrics_writer.periodic = lambda: None
-    telemetry.telemetry_metrics_writer.enable(start_worker_thread=False)
+    telemetry.telemetry_writer.reset_queues()
+    telemetry.telemetry_writer.periodic = lambda: None
+    telemetry.telemetry_writer.enable(start_worker_thread=False)
 
 
 def gen_span(name):
