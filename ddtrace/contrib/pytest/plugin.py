@@ -133,7 +133,7 @@ def _get_module_name(item):
     return module_path.rpartition("/")[-1]
 
 
-def _start_test_module_span(item):
+def _start_test_module_span(item, module_name=""):
     """
     Starts a test module span at the start of a new pytest test package.
     Note that ``item`` is a ``pytest.Package`` object referencing the test module being run.
@@ -154,7 +154,7 @@ def _start_test_module_span(item):
     test_module_span.set_tag_str(_EVENT_TYPE, _MODULE_TYPE)
     test_module_span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
     test_module_span.set_tag_str(_MODULE_ID, str(test_module_span.span_id))
-    test_module_span.set_tag_str(test.MODULE, _get_module_name(item))
+    test_module_span.set_tag_str(test.MODULE, module_name or _get_module_name(item))
     test_module_span.set_tag_str(test.MODULE_PATH, _get_module_path(item))
     _store_span(item, test_module_span)
     return test_module_span
@@ -308,19 +308,20 @@ def pytest_runtest_protocol(item, nextitem):
     test_session_span = _extract_span(item.session)
 
     pytest_module_item = _find_pytest_item(item, pytest.Module)
+    module_name = pytest_module_item._obj.__name__
     pytest_package_item = _find_pytest_item(pytest_module_item, pytest.Package)
 
     test_module_span = _extract_span(pytest_package_item)
     if pytest_package_item is not None and test_module_span is None:
         if test_module_span is None:
-            test_module_span = _start_test_module_span(pytest_package_item)
+            test_module_span = _start_test_module_span(pytest_package_item, module_name=module_name)
 
     test_suite_span = _extract_span(pytest_module_item)
     if pytest_module_item is not None and test_suite_span is None:
         test_suite_span = _start_test_suite_span(pytest_module_item)
 
     if _CIVisibility.test_skipping_enabled() and _CIVisibility.should_skip(
-        item.name, test_suite_span.get_tag(test.SUITE), test_suite_span.get_tag(test.MODULE)
+        item.name, test_suite_span.get_tag(test.SUITE), module_name
     ):
         # Skip test
         item.add_marker(pytest.mark.skip(reason="Skipped by Datadog Intelligent Test Runner"))
