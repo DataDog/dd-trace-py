@@ -511,6 +511,7 @@ class _ImageHook(_EndpointHook):
 
     def _record_request(self, pin, integration, span, args, kwargs):
         super()._record_request(pin, integration, span, args, kwargs)
+        span.set_tag_str("openai.request.model", "dall-e")
 
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
         if not resp:
