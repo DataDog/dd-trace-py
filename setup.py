@@ -316,7 +316,7 @@ class CMakeBuild(build_ext):
                     "-DCMAKE_LIBRARY_OUTPUT_DIRECTORY={}".format(tmp_iast_path),
                     "-B",
                     tmp_iast_path,
-                    "-DPython_EXECUTABLE={}".format(sys.executable),
+                    "-DPYTHON_EXECUTABLE={}".format(sys.executable),
                     "-DCMAKE_BUILD_TYPE={}".format(build_type),  # not used on MSVC, but no harm
                 ]
 
