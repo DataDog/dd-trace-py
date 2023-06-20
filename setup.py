@@ -350,16 +350,16 @@ class CMakeBuild(build_ext):
                 print("build_command!!!!")
                 print(build_command)
                 subprocess.run(build_command, cwd=tmp_iast_path, check=True)
-                shutil.rmtree(os.path.join(tmp_iast_path, "_deps"))
-                shutil.rmtree(os.path.join(tmp_iast_path, "CMakeFiles"))
-                os.remove(os.path.join(tmp_iast_path, "Makefile"))
-                os.remove(os.path.join(tmp_iast_path, "cmake_install.cmake"))
-                if os.path.exists(os.path.join(tmp_iast_path, "compile_commands.json")):
-                    os.remove(os.path.join(tmp_iast_path, "compile_commands.json"))
-                if os.path.exists(os.path.join(tmp_iast_path, "CMakeCache.txt")):
-                    os.remove(os.path.join(tmp_iast_path, "CMakeCache.txt"))
-                if os.path.exists(os.path.join(IAST_DIR, tmp_filename)):
-                    shutil.copy(os.path.join(IAST_DIR, tmp_filename), tmp_iast_file_path)
+                # shutil.rmtree(os.path.join(tmp_iast_path, "_deps"))
+                # shutil.rmtree(os.path.join(tmp_iast_path, "CMakeFiles"))
+                # os.remove(os.path.join(tmp_iast_path, "Makefile"))
+                # os.remove(os.path.join(tmp_iast_path, "cmake_install.cmake"))
+                # if os.path.exists(os.path.join(tmp_iast_path, "compile_commands.json")):
+                #     os.remove(os.path.join(tmp_iast_path, "compile_commands.json"))
+                # if os.path.exists(os.path.join(tmp_iast_path, "CMakeCache.txt")):
+                #     os.remove(os.path.join(tmp_iast_path, "CMakeCache.txt"))
+                # if os.path.exists(os.path.join(IAST_DIR, tmp_filename)):
+                shutil.copy(os.path.join(IAST_DIR, tmp_filename), tmp_iast_file_path)
                 # except Exception:
                 #     print("WARNING: Failed to install ddtrace IAST extension")
         else:
@@ -456,7 +456,7 @@ if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
             )
         )
         if sys.version_info >= (3, 6, 0):
-            ext_modules.append(Extension("ddtrace.appsec.iast._taint_tracking._native", sources=[]))
+            ext_modules.append(Extension("ddtrace.appsec.iast._taint_tracking._native", sources=[], parallel=8))
 else:
     ext_modules = []
 
