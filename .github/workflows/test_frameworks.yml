@@ -407,7 +407,7 @@ jobs:
         run: pip install ../ddtrace
       - name: Install dependencies
         run: |
-          python -m pip install -U pip setuptools==67.8.0 wheel pytest
+          python -m pip install -U pip setuptools==58.1.0 wheel pytest
           python -m pip install -e .[test]
       - name: Run tests
         # Disable tests checking GC references since profiling can interfere
@@ -442,7 +442,7 @@ jobs:
       - name: Pin PasteDeploy to Python 2.7 compatible version
         run: pip install pastedeploy==2.1.1
       - name: MarkupSafe fix
-        run: pip install --upgrade MarkupSafe==0.18 pip setuptools==67.8.0 --force
+        run: pip install --upgrade MarkupSafe==0.18 pip setuptools==58.1.0 --force
       - name: Disable failing tests
         run: |
           sed -i'' "s/test_detect_lang/detect_lang/g" tests/test_units/test_basic_app.py
