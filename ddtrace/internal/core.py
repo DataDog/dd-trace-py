@@ -87,6 +87,10 @@ def get_item(data_key):
     return current_context.get_item(data_key)
 
 
+def set_item(data_key, data_value):
+    return current_context.set_item(data_key, data_value)
+
+
 class EventHub:
     def __init__(self):
         self._listeners = defaultdict(list)

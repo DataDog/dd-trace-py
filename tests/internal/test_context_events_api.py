@@ -151,6 +151,15 @@ class TestContextEventsApi(unittest.TestCase):
             assert core.get_item(data_key) == data_value
         assert core.get_item(data_key) is None
 
+    def test_core_set_item(self):
+        data_key = "my.cool.data"
+        data_value = "ban.ana"
+        with core.context_with_data("foobar"):
+            assert core.get_item(data_key) is None
+            core.set_item(data_key, data_value)
+            assert core.get_item(data_key) == data_value
+        assert core.get_item(data_key) is None
+
     def test_core_context_relationship_across_threads(self):
         data_key = "banana"
         data_value = "bazinga"
