@@ -279,13 +279,12 @@ def asm_request_context_manager(
     """
     The ASM context manager
     """
-    with core.context_with_data(__name__):
-        if config._appsec_enabled:
-            resources = _DataHandler()
-            asm_request_context_set(remote_ip, headers, headers_case_sensitive, block_request_callable)
-            try:
-                yield resources
-            finally:
-                resources.finalise()
-        else:
-            yield None
+    if config._appsec_enabled:
+        resources = _DataHandler()
+        asm_request_context_set(remote_ip, headers, headers_case_sensitive, block_request_callable)
+        try:
+            yield resources
+        finally:
+            resources.finalise()
+    else:
+        yield None
