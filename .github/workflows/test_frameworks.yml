@@ -407,8 +407,8 @@ jobs:
         run: pip install ../ddtrace
       - name: Install dependencies
         run: |
-          python -m pip install -U pip setuptools==58.1.0 wheel pytest
-          python -m pip install --use-deprecated=legacy-resolver -e .[test]
+          python -m pip install -vvv -U pip setuptools==58.1.0 wheel pytest
+          python -m pip install -vvv -e .[test]
       - name: Run tests
         # Disable tests checking GC references since profiling can interfere
         run: ddtrace-run python -m pytest -k 'not test_record_gc and not test_record_get and not test_record_items and not test_record_iter' tests
