@@ -61,7 +61,7 @@ class _TracedIterable(wrapt.ObjectProxy):
         super(_TracedIterable, self).__init__(wrapped)
         self._self_span = span
         self._self_parent_span = parent_span
-        self._self_span_finished = False
+        self._self_spans_finished = False
 
     def __iter__(self):
         return self
@@ -86,10 +86,10 @@ class _TracedIterable(wrapt.ObjectProxy):
         self._finish_spans()
 
     def _finish_spans(self):
-        if not self._self_span_finished:
+        if not self._self_spans_finished:
             self._self_span.finish()
             self._self_parent_span.finish()
-            self._self_span_finished = True
+            self._self_spans_finished = True
 
     def __getattribute__(self, name):
         if name == "__len__":
