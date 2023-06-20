@@ -296,19 +296,21 @@ class CMakeBuild(build_ext):
         tmp_iast_path = os.path.join(os.path.dirname(tmp_iast_file_path))
         tmp_filename = tmp_iast_file_path.replace(tmp_iast_path + os.path.sep, "")
 
-        if sys.version_info >= (3, 6, 0) and ext.name == "ddtrace.appsec.iast._taint_tracking._native":
-            cmake_list_path = os.path.join(IAST_DIR, "CMakeLists.txt")
-            if os.path.exists(cmake_list_path):
-                # try:
+        cmake_list_path = os.path.join(IAST_DIR, "CMakeLists.txt")
+        if (
+            sys.version_info >= (3, 6, 0)
+            and ext.name == "ddtrace.appsec.iast._taint_tracking._native"
+            and os.path.exists(cmake_list_path)
+        ):
+            try:
                 import shutil
 
                 os.makedirs(tmp_iast_path, exist_ok=True)
-                # if not os.path.exists(os.path.join(IAST_DIR, tmp_filename)):
+
                 import subprocess
 
                 cmake_command = os.environ.get("CMAKE_COMMAND", "cmake")
-                # build_type = "RelWithDebInfo" if DEBUG_COMPILE else "Release"
-                build_type = "RelWithDebInfo"
+                build_type = "RelWithDebInfo" if DEBUG_COMPILE else "Release"
                 build_args = ["--config", build_type]
                 cmake_args = [
                     "-S",
@@ -317,7 +319,7 @@ class CMakeBuild(build_ext):
                     "-B",
                     tmp_iast_path,
                     "-DPYTHON_EXECUTABLE={}".format(sys.executable),
-                    "-DCMAKE_BUILD_TYPE={}".format(build_type),  # not used on MSVC, but no harm
+                    "-DCMAKE_BUILD_TYPE={}".format(build_type),
                 ]
 
                 if CURRENT_OS == "Windows":
@@ -341,33 +343,22 @@ class CMakeBuild(build_ext):
                     if hasattr(self, "parallel") and self.parallel:
                         # CMake 3.12+ only.
                         build_args += ["-j{}".format(self.parallel)]
+
                 cmake_cmd_with_args = [cmake_command] + cmake_args
                 subprocess.run(cmake_cmd_with_args, cwd=tmp_iast_path, check=True)
-                print("CMAKE_GENERATOR!!!!")
-                print(os.environ.get("CMAKE_GENERATOR", ""))
-                print(cmake_cmd_with_args)
+
                 build_command = [cmake_command, "--build", tmp_iast_path] + build_args
-                print("build_command!!!!")
-                print(build_command)
                 subprocess.run(build_command, cwd=tmp_iast_path, check=True)
-                # shutil.rmtree(os.path.join(tmp_iast_path, "_deps"))
-                # shutil.rmtree(os.path.join(tmp_iast_path, "CMakeFiles"))
-                # os.remove(os.path.join(tmp_iast_path, "Makefile"))
-                # os.remove(os.path.join(tmp_iast_path, "cmake_install.cmake"))
-                # if os.path.exists(os.path.join(tmp_iast_path, "compile_commands.json")):
-                #     os.remove(os.path.join(tmp_iast_path, "compile_commands.json"))
-                # if os.path.exists(os.path.join(tmp_iast_path, "CMakeCache.txt")):
-                #     os.remove(os.path.join(tmp_iast_path, "CMakeCache.txt"))
-                # if os.path.exists(os.path.join(IAST_DIR, tmp_filename)):
-                print("tmp_iast_file_path!!!!!!!!!!!!!!")
-                res = os.listdir(tmp_iast_path)
-                print(res)
-                print("IAST_DIR!!!!!!!!!!!!!!")
-                res = os.listdir(IAST_DIR)
-                print(res)
+
+                for directory_to_remove in ["_deps", "CMakeFiles"]:
+                    shutil.rmtree(os.path.join(tmp_iast_path, directory_to_remove))
+                for file_to_remove in ["Makefile", "cmake_install.cmake", "compile_commands.json", "CMakeCache.txt"]:
+                    if os.path.exists(os.path.join(tmp_iast_path, file_to_remove)):
+                        os.remove(os.path.join(tmp_iast_path, file_to_remove))
+
                 shutil.copy(os.path.join(IAST_DIR, tmp_filename), tmp_iast_file_path)
-                # except Exception:
-                #     print("WARNING: Failed to install ddtrace IAST extension")
+            except Exception:
+                print("WARNING: Failed to install ddtrace IAST extension")
         else:
             build_ext.build_extension(self, ext)
 
@@ -528,7 +519,6 @@ setup(
         "envier",
         "pep562; python_version<'3.7'",
         "opentelemetry-api>=1; python_version>='3.7'",
-        "pybind11~=2.7; python_version>='3.6'",
         "cmake>=3.24.2; python_version>='3.6'",
     ]
     + bytecode,
