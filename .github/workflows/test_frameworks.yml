@@ -380,7 +380,7 @@ jobs:
       - name: Run tests
         run: PYTHONPATH=../ddtrace/tests/debugging/exploration/ ddtrace-run pytest -p no:warnings tests
 
-  asyncpg-testsuite-0_25_0:
+  asyncpg-testsuite-0_27_0:
     # https://github.com/MagicStack/asyncpg/blob/v0.25.0/.github/workflows/tests.yml#L125
     runs-on: "ubuntu-latest"
     env:
