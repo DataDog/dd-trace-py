@@ -158,10 +158,15 @@ def test_remote_config_forksafe():
 
         parent_worker = remoteconfig_poller
         assert parent_worker.status == ServiceStatus.RUNNING
+        client_id = remoteconfig_poller._client.id
+        runtime_id = remoteconfig_poller._client._client_tracer["runtime_id"]
 
         if os.fork() == 0:
             assert remoteconfig_poller.status == ServiceStatus.RUNNING
             assert remoteconfig_poller._worker is not parent_worker
+
+            assert client_id != remoteconfig_poller._client.id
+            assert runtime_id != remoteconfig_poller._client._client_tracer["runtime_id"]
             exit(0)
 
 
