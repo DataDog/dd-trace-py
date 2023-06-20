@@ -1082,7 +1082,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
 def test_schematized_service_name(ddtrace_run_python_code_in_subprocess, schema_version, service_name):
     """
     v0/Default: expect the service name to be "flask"
-    v1: expect the service name to be "unnamed-python-service"
+    v1: expect the service name to be internal.schema.DEFAULT_SPAN_SERVICE_NAME
     """
 
     expected_service_name = {

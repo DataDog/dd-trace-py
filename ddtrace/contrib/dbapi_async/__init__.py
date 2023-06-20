@@ -33,7 +33,7 @@ class TracedAsyncCursor(TracedCursor):
         # previous versions of the dbapi didn't support context managers. let's
         # reference the func that would be called to ensure that error
         # messages will be the same.
-        return await self.__wrapped__.__aexit__()
+        return await self.__wrapped__.__aexit__(exc_type, exc_val, exc_tb)
 
     async def _trace_method(self, method, name, resource, extra_tags, dbm_propagator, *args, **kwargs):
         """
@@ -221,7 +221,7 @@ class TracedAsyncConnection(TracedConnection):
         # previous versions of the dbapi didn't support context managers. let's
         # reference the func that would be called to ensure that errors
         # messages will be the same.
-        return await self.__wrapped__.__aexit__()
+        return await self.__wrapped__.__aexit__(exc_type, exc_val, exc_tb)
 
     async def _trace_method(self, method, name, extra_tags, *args, **kwargs):
         pin = Pin.get_from(self)

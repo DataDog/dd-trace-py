@@ -1,0 +1,75 @@
+interactions:
+- request:
+    body: '{"model": "text-davinci-edit-001", "input": "thsi si a spelilgn imstkae.",
+      "instruction": "fix spelling mistakes", "n": 3, "temperature": 0.2}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '142'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - OpenAI/v1 PythonBindings/0.27.7
+      X-OpenAI-Client-User-Agent:
+      - '{"bindings_version": "0.27.7", "httplib": "requests", "lang": "python", "lang_version":
+        "3.10.5", "platform": "macOS-13.3.1-arm64-arm-64bit", "publisher": "openai",
+        "uname": "Darwin 22.4.0 Darwin Kernel Version 22.4.0: Mon Mar  6 20:59:28
+        PST 2023; root:xnu-8796.101.5~3/RELEASE_ARM64_T6000 arm64"}'
+    method: POST
+    uri: https://api.openai.com/v1/edits
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA5SPQQqDMBQF9z1FeOtQVEqNuUpbSho/mhqTYH5BkNy9uHHvdphZzIb4+ZJlaFDv
+        GBJ2IcPUQ9d3dWtVp1olYcfoLGXoxwamddd5dFm4LIzIibx3YRCzy2wmuj4DJFzoaYWuijyb1OeT
+        prwkftkMBL0hLXFO/OY4UcjQzT4Q5+SJXQwH7ioJjmz8QepalXL5AwAA//8DANrtHxcTAQAA
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 7cb80d055891424d-EWR
+      Cache-Control:
+      - no-cache, must-revalidate
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 22 May 2023 21:11:19 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      access-control-allow-origin:
+      - '*'
+      alt-svc:
+      - h3=":443"; ma=86400, h3-29=":443"; ma=86400
+      openai-model:
+      - text-davinci-edit:001
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '538'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      x-ratelimit-limit-requests:
+      - '20'
+      x-ratelimit-remaining-requests:
+      - '19'
+      x-ratelimit-reset-requests:
+      - 3s
+      x-request-id:
+      - 8c74c080e91d3f6360caf258bf76b80e
+    status:
+      code: 200
+      message: OK
+version: 1
