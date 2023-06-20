@@ -4,7 +4,6 @@ from typing import TYPE_CHECKING
 from ddtrace import config
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
-from ddtrace.appsec.utils import parse_response_body
 from ddtrace.internal import _context
 from ddtrace.internal.compat import parse
 from ddtrace.internal.logger import get_logger
@@ -156,6 +155,9 @@ def set_headers_response(headers):  # type: (Any) -> None
 
 
 def set_body_response(body_response):
+    # local import to avoid circular import
+    from ddtrace.appsec.utils import parse_response_body
+
     parsed_body = parse_response_body(body_response)
 
     if parse_response_body is not None:
