@@ -1,6 +1,6 @@
 import json
-from multiprocessing import Process
 import os
+from threading import Thread
 from typing import Dict  # noqa
 from typing import List  # noqa
 from typing import Optional  # noqa
@@ -47,7 +47,7 @@ class CIVisibilityGitClient(object):
     ):
         # type: (str, str, int, str) -> None
         self._serializer = CIVisibilityGitClientSerializerV1(api_key, app_key)
-        self._worker = None  # type: Optional[Process]
+        self._worker = None  # type: Optional[Thread]
         self._response = RESPONSE
         self._requests_mode = requests_mode
         if self._requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS:
@@ -59,7 +59,7 @@ class CIVisibilityGitClient(object):
         # type: (Optional[str]) -> None
         self._tags = ci.tags(cwd=cwd)
         if self._worker is None:
-            self._worker = Process(
+            self._worker = Thread(
                 target=CIVisibilityGitClient._run_protocol,
                 args=(self._serializer, self._requests_mode, self._base_url, self._tags, self._response),
                 kwargs={"cwd": cwd},
