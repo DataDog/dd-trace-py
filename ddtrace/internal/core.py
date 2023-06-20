@@ -27,7 +27,7 @@ class ExecutionContext:
         self._children = []
         if parent is not None:
             self.addParent(parent)
-        _CONTEXT_DATA.set(kwargs)
+        self._token = _CONTEXT_DATA.set(kwargs)
 
     @property
     def parents(self):
@@ -42,6 +42,7 @@ class ExecutionContext:
         return self._children
 
     def end(self):
+        _CONTEXT_DATA.reset(self._token)
         return dispatch("context.ended.%s" % self.identifier, [])
 
     def addParent(self, context):
