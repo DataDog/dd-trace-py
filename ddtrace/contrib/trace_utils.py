@@ -19,6 +19,7 @@ from typing import cast
 
 from ddtrace import Pin
 from ddtrace import config
+from ddtrace.appsec.iast.taint_sinks.insecure_cookie import asm_check_cookies
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.ext import net
@@ -506,6 +507,9 @@ def set_http_meta(
             http.<key>. The last one
             is the DD standardized tag for user-agent"""
             _store_request_headers(dict(request_headers), span, integration_config)
+
+    if request_cookies and config._appsec_enabled:
+        asm_check_cookies(request_cookies)
 
     if response_headers is not None and integration_config.is_header_tracing_configured:
         _store_response_headers(dict(response_headers), span, integration_config)
