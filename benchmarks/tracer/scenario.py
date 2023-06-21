@@ -11,6 +11,7 @@ class Tracer(bm.Scenario):
         from ddtrace import tracer
 
         utils.drop_traces(tracer)
+        utils.drop_telemetry_events()
 
         def _(loops):
             for _ in range(loops):

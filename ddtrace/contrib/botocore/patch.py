@@ -1,5 +1,5 @@
 """
-Trace queries to aws api done via botocore client
+Trace queries and data streams monitoring to aws api done via botocore client
 """
 import base64
 import collections
@@ -18,6 +18,7 @@ import botocore.client
 import botocore.exceptions
 
 from ddtrace import config
+from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.settings.config import Config
 from ddtrace.vendor import debtcollector
 from ddtrace.vendor import wrapt
@@ -29,8 +30,14 @@ from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...ext import aws
 from ...ext import http
+from ...internal.compat import parse
 from ...internal.constants import COMPONENT
+from ...internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 from ...internal.logger import get_logger
+from ...internal.schema import schematize_cloud_api_operation
+from ...internal.schema import schematize_cloud_faas_operation
+from ...internal.schema import schematize_cloud_messaging_operation
+from ...internal.schema import schematize_service_name
 from ...internal.utils import get_argument_value
 from ...internal.utils.formats import asbool
 from ...internal.utils.formats import deep_getattr
@@ -57,14 +64,12 @@ LINE_BREAK = "\n"
 
 log = get_logger(__name__)
 
-
 if os.getenv("DD_AWS_TAG_ALL_PARAMS") is not None:
     debtcollector.deprecate(
         "Using environment variable 'DD_AWS_TAG_ALL_PARAMS' is deprecated",
         message="The botocore integration no longer includes all API parameters by default.",
         removal_version="2.0.0",
     )
-
 
 # Botocore default settings
 config._add(
@@ -75,6 +80,7 @@ config._add(
         "operations": collections.defaultdict(Config._HTTPServerConfig),
         "tag_no_params": asbool(os.getenv("DD_AWS_TAG_NO_PARAMS", default=False)),
         "tag_all_params": asbool(os.getenv("DD_AWS_TAG_ALL_PARAMS", default=False)),
+        "instrument_internals": asbool(os.getenv("DD_BOTOCORE_INSTRUMENT_INTERNALS", default=False)),
     },
 )
 
@@ -90,11 +96,11 @@ class TraceInjectionDecodingError(Exception):
 def inject_trace_data_to_message_attributes(trace_data, entry, endpoint=None):
     # type: (Dict[str, str], Dict[str, Any], Optional[str]) -> None
     """
-    :trace_data: trace headers to be stored in the entry's MessageAttributes
+    :trace_data: trace headers and DSM pathway to be stored in the entry's MessageAttributes
     :entry: an SQS or SNS record
     :endpoint: endpoint of message, "sqs" or "sns"
 
-    Inject trace headers into the an SQS or SNS record's MessageAttributes
+    Inject trace headers and DSM info into the SQS or SNS record's MessageAttributes
     """
     if "MessageAttributes" not in entry:
         entry["MessageAttributes"] = {}
@@ -116,15 +122,43 @@ def inject_trace_data_to_message_attributes(trace_data, entry, endpoint=None):
         log.warning("skipping trace injection, max number (10) of MessageAttributes exceeded")
 
 
-def inject_trace_to_sqs_or_sns_batch_message(params, span, endpoint=None):
-    # type: (Any, Span, Optional[str]) -> None
+def get_queue_name(params):
+    # type: (str) -> str
+    """
+    :params: contains the params for the current botocore action
+
+    Return the name of the queue given the params
+    """
+    queue_url = params["QueueUrl"]
+    url = parse.urlparse(queue_url)
+    return url.path.rsplit("/", 1)[-1]
+
+
+def get_pathway(pin, params):
+    # type: (Pin, Any) -> str
+    """
+    :pin: patch info for the botocore client
+    :queue_name: the name of the queue
+
+    Set the data streams monitoring checkpoint and return the encoded pathway
+    """
+    queue_name = get_queue_name(params)
+    pathway = pin.tracer.data_streams_processor.set_checkpoint(["direction:out", "topic:" + queue_name, "type:sqs"])
+    return pathway.encode_b64()
+
+
+def inject_trace_to_sqs_or_sns_batch_message(params, span, endpoint=None, pin=None, data_streams_enabled=False):
+    # type: (Any, Span, Optional[str], Optional[Pin], Optional[bool]) -> None
     """
     :params: contains the params for the current botocore action
     :span: the span which provides the trace context to be propagated
     :endpoint: endpoint of message, "sqs" or "sns"
+    :pin: patch info for the botocore client
+    :data_streams_enabled: boolean for whether data streams monitoring is enabled
 
-    Inject trace headers into MessageAttributes for all SQS or SNS records inside a batch
+    Inject trace headers and DSM info into MessageAttributes for all SQS or SNS records inside a batch
     """
+
     trace_data = {}
     HTTPPropagator.inject(span.context, trace_data)
 
@@ -133,20 +167,27 @@ def inject_trace_to_sqs_or_sns_batch_message(params, span, endpoint=None):
     # or PublishBatchRequestEntries (in case of PublishBatch).
     entries = params.get("Entries", params.get("PublishBatchRequestEntries", []))
     for entry in entries:
+        if data_streams_enabled:
+            trace_data[PROPAGATION_KEY_BASE_64] = get_pathway(pin, params)
         inject_trace_data_to_message_attributes(trace_data, entry, endpoint)
 
 
-def inject_trace_to_sqs_or_sns_message(params, span, endpoint=None):
-    # type: (Any, Span, Optional[str]) -> None
+def inject_trace_to_sqs_or_sns_message(params, span, endpoint=None, pin=None, data_streams_enabled=False):
+    # type: (Any, Span, Optional[str], Optional[Pin], Optional[bool]) -> None
     """
     :params: contains the params for the current botocore action
     :span: the span which provides the trace context to be propagated
     :endpoint: endpoint of message, "sqs" or "sns"
+    :pin: patch info for the botocore client
+    :data_streams_enabled: boolean for whether data streams monitoring is enabled
 
-    Inject trace headers into MessageAttributes for the SQS or SNS record
+    Inject trace headers and DSM info into MessageAttributes for the SQS or SNS record
     """
     trace_data = {}
     HTTPPropagator.inject(span.context, trace_data)
+
+    if data_streams_enabled:
+        trace_data[PROPAGATION_KEY_BASE_64] = get_pathway(pin, params)
 
     inject_trace_data_to_message_attributes(trace_data, params, endpoint)
 
@@ -323,6 +364,8 @@ def patch():
 
     wrapt.wrap_function_wrapper("botocore.client", "BaseClient._make_api_call", patched_api_call)
     Pin(service="aws").onto(botocore.client.BaseClient)
+    wrapt.wrap_function_wrapper("botocore.parsers", "ResponseParser.parse", patched_lib_fn)
+    Pin(service="aws").onto(botocore.parsers.ResponseParser)
     _PATCHED_SUBMODULES.clear()
 
 
@@ -330,6 +373,7 @@ def unpatch():
     _PATCHED_SUBMODULES.clear()
     if getattr(botocore.client, "_datadog_patch", False):
         setattr(botocore.client, "_datadog_patch", False)
+        unwrap(botocore.parsers.ResponseParser, "parse")
         unwrap(botocore.client.BaseClient, "_make_api_call")
 
 
@@ -342,8 +386,17 @@ def patch_submodules(submodules):
         _PATCHED_SUBMODULES.update(submodules)
 
 
-def patched_api_call(original_func, instance, args, kwargs):
+def patched_lib_fn(original_func, instance, args, kwargs):
+    pin = Pin.get_from(instance)
+    if not pin or not pin.enabled() or not config.botocore["instrument_internals"]:
+        return original_func(*args, **kwargs)
+    with pin.tracer.trace("{}.{}".format(original_func.__module__, original_func.__name__)) as span:
+        span.set_tag_str(COMPONENT, config.botocore.integration_name)
+        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+        return original_func(*args, **kwargs)
 
+
+def patched_api_call(original_func, instance, args, kwargs):
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
         return original_func(*args, **kwargs)
@@ -353,8 +406,13 @@ def patched_api_call(original_func, instance, args, kwargs):
     if _PATCHED_SUBMODULES and endpoint_name not in _PATCHED_SUBMODULES:
         return original_func(*args, **kwargs)
 
+    trace_operation = schematize_cloud_api_operation(
+        "{}.command".format(endpoint_name), cloud_provider="aws", cloud_service=endpoint_name
+    )
     with pin.tracer.trace(
-        "{}.command".format(endpoint_name), service="{}.{}".format(pin.service, endpoint_name), span_type=SpanTypes.HTTP
+        trace_operation,
+        service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
+        span_type=SpanTypes.HTTP,
     ) as span:
         span.set_tag_str(COMPONENT, config.botocore.integration_name)
 
@@ -375,18 +433,53 @@ def patched_api_call(original_func, instance, args, kwargs):
                 try:
                     if endpoint_name == "lambda" and operation == "Invoke":
                         inject_trace_to_client_context(params, span)
+                        span.name = schematize_cloud_faas_operation(
+                            trace_operation, cloud_provider="aws", cloud_service="lambda"
+                        )
                     if endpoint_name == "sqs" and operation == "SendMessage":
-                        inject_trace_to_sqs_or_sns_message(params, span, endpoint_name)
+                        inject_trace_to_sqs_or_sns_message(
+                            params, span, endpoint_name, pin, config._data_streams_enabled
+                        )
+                        span.name = schematize_cloud_messaging_operation(
+                            trace_operation, cloud_provider="aws", cloud_service="sqs", direction=SpanDirection.OUTBOUND
+                        )
                     if endpoint_name == "sqs" and operation == "SendMessageBatch":
-                        inject_trace_to_sqs_or_sns_batch_message(params, span, endpoint_name)
+                        inject_trace_to_sqs_or_sns_batch_message(
+                            params, span, endpoint_name, pin, config._data_streams_enabled
+                        )
+                        span.name = schematize_cloud_messaging_operation(
+                            trace_operation, cloud_provider="aws", cloud_service="sqs", direction=SpanDirection.OUTBOUND
+                        )
+                    if endpoint_name == "sqs" and operation == "ReceiveMessage":
+                        span.name = schematize_cloud_messaging_operation(
+                            trace_operation, cloud_provider="aws", cloud_service="sqs", direction=SpanDirection.INBOUND
+                        )
                     if endpoint_name == "events" and operation == "PutEvents":
                         inject_trace_to_eventbridge_detail(params, span)
+                        span.name = schematize_cloud_messaging_operation(
+                            trace_operation,
+                            cloud_provider="aws",
+                            cloud_service="events",
+                            direction=SpanDirection.OUTBOUND,
+                        )
                     if endpoint_name == "kinesis" and (operation == "PutRecord" or operation == "PutRecords"):
                         inject_trace_to_kinesis_stream(params, span)
+                        span.name = schematize_cloud_messaging_operation(
+                            trace_operation,
+                            cloud_provider="aws",
+                            cloud_service="kinesis",
+                            direction=SpanDirection.OUTBOUND,
+                        )
                     if endpoint_name == "sns" and operation == "Publish":
                         inject_trace_to_sqs_or_sns_message(params, span, endpoint_name)
+                        span.name = schematize_cloud_messaging_operation(
+                            trace_operation, cloud_provider="aws", cloud_service="sns", direction=SpanDirection.OUTBOUND
+                        )
                     if endpoint_name == "sns" and operation == "PublishBatch":
                         inject_trace_to_sqs_or_sns_batch_message(params, span, endpoint_name)
+                        span.name = schematize_cloud_messaging_operation(
+                            trace_operation, cloud_provider="aws", cloud_service="sns", direction=SpanDirection.OUTBOUND
+                        )
                 except Exception:
                     log.warning("Unable to inject trace context", exc_info=True)
 
@@ -412,10 +505,57 @@ def patched_api_call(original_func, instance, args, kwargs):
         span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.botocore.get_analytics_sample_rate())
 
         try:
-            result = original_func(*args, **kwargs)
-            _set_response_metadata_tags(span, result)
+            if endpoint_name == "sqs" and operation == "ReceiveMessage" and config._data_streams_enabled:
+                queue_name = get_queue_name(params)
 
-            return result
+                if "MessageAttributeNames" not in params:
+                    params.update({"MessageAttributeNames": ["_datadog"]})
+                elif "_datadog" not in params["MessageAttributeNames"]:
+                    params.update({"MessageAttributeNames": params["MessageAttributeNames"] + ["_datadog"]})
+
+                result = original_func(*args, **kwargs)
+                _set_response_metadata_tags(span, result)
+
+                try:
+                    if "Messages" in result:
+                        for message in result["Messages"]:
+                            if (
+                                "MessageAttributes" in message
+                                and "_datadog" in message["MessageAttributes"]
+                                and "StringValue" in message["MessageAttributes"]["_datadog"]
+                            ):
+                                if PROPAGATION_KEY_BASE_64 in json.loads(
+                                    message["MessageAttributes"]["_datadog"]["StringValue"]
+                                ):
+                                    pathway = json.loads(message["MessageAttributes"]["_datadog"]["StringValue"])[
+                                        PROPAGATION_KEY_BASE_64
+                                    ]
+                                    ctx = pin.tracer.data_streams_processor.decode_pathway_b64(pathway)
+                                    ctx.set_checkpoint(["direction:in", "topic:" + queue_name, "type:sqs"])
+
+                                else:
+                                    log.debug(
+                                        "Unable to find data streams context for the message. Data "
+                                        "streams monitoring was not enabled by the application "
+                                        "sending the message at the time of the send."
+                                    )
+                            else:
+                                log.debug(
+                                    "Unable to find trace context for the message. Please ensure that your Datadog "
+                                    "agent is correctly configured on the application sending the message and that "
+                                    "the SQS messages being sent have 9 or less Message Attributes."
+                                )
+
+                except Exception:
+                    log.debug("Error receiving SQS message with data streams monitoring enabled", exc_info=True)
+
+                return result
+
+            else:
+                result = original_func(*args, **kwargs)
+                _set_response_metadata_tags(span, result)
+                return result
+
         except botocore.exceptions.ClientError as e:
             # `ClientError.response` contains the result, so we can still grab response metadata
             _set_response_metadata_tags(span, e.response)
@@ -432,7 +572,6 @@ def _set_response_metadata_tags(span, result):
     # type: (Span, Dict[str, Any]) -> None
     if not result.get("ResponseMetadata"):
         return
-
     response_meta = result["ResponseMetadata"]
 
     if "HTTPStatusCode" in response_meta:

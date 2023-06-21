@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import itertools
 import os
+import sys
 import time
 from typing import Any
 from typing import Dict
@@ -11,6 +12,7 @@ from typing import Union
 
 from ...internal import atexit
 from ...internal import forksafe
+from ...internal.compat import parse
 from ...settings import _config as config
 from ..agent import get_connection
 from ..agent import get_trace_url
@@ -66,7 +68,7 @@ class _TelemetryClient:
 
     @property
     def url(self):
-        return "%s/%s" % (self._agent_url, self._endpoint)
+        return parse.urljoin(self._agent_url, self._endpoint)
 
     def send_event(self, request):
         # type: (Dict) -> Optional[httplib.HTTPResponse]
@@ -251,7 +253,7 @@ class TelemetryLogsMetricsWriter(TelemetryBase):
         return config._telemetry_metrics_enabled and super(TelemetryLogsMetricsWriter, self).enable(start_worker_thread)
 
     def add_log(self, level, message, stack_trace="", tags={}):
-        # type: (str, str, str, MetricTagType) -> None
+        # type: (str, str, str, Dict) -> None
         """
         Queues log. This event is meant to send library logs to Datadog’s backend through the Telemetry intake.
         This will make support cycles easier and ensure we know about potentially silent issues in libraries.
@@ -268,7 +270,7 @@ class TelemetryLogsMetricsWriter(TelemetryBase):
                 data["stack_trace"] = stack_trace
             self._logs.append(data)
 
-    def add_gauge_metric(self, namespace, name, value, tags={}):
+    def add_gauge_metric(self, namespace, name, value, tags=None):
         # type: (str,str, float, MetricTagType) -> None
         """
         Queues gauge metric
@@ -283,7 +285,7 @@ class TelemetryLogsMetricsWriter(TelemetryBase):
                 self.interval,
             )
 
-    def add_rate_metric(self, namespace, name, value=1.0, tags={}):
+    def add_rate_metric(self, namespace, name, value=1.0, tags=None):
         # type: (str,str, float, MetricTagType) -> None
         """
         Queues rate metric
@@ -298,7 +300,7 @@ class TelemetryLogsMetricsWriter(TelemetryBase):
                 self.interval,
             )
 
-    def add_count_metric(self, namespace, name, value=1.0, tags={}):
+    def add_count_metric(self, namespace, name, value=1.0, tags=None):
         # type: (str,str, float, MetricTagType) -> None
         """
         Queues count metric
@@ -312,7 +314,7 @@ class TelemetryLogsMetricsWriter(TelemetryBase):
                 tags,
             )
 
-    def add_distribution_metric(self, namespace, name, value=1.0, tags={}):
+    def add_distribution_metric(self, namespace, name, value=1.0, tags=None):
         # type: (str,str, float, MetricTagType) -> None
         """
         Queues distributions metric
@@ -430,7 +432,44 @@ class TelemetryWriter(TelemetryBase):
             # app-started events should only be sent by the main process
             return
         payload = {
-            "configuration": [],
+            #  List of configurations to be collected
+            "configuration": [
+                {
+                    "name": "data_streams_enabled",
+                    "origin": "env_var",
+                    "value": config._data_streams_enabled,
+                },
+                {
+                    "name": "appsec_enabled",
+                    "origin": "env_var",
+                    "value": config._appsec_enabled,
+                },
+                {
+                    "name": "propagation_style_inject",
+                    "origin": "env_var",
+                    "value": str(config._propagation_style_inject),
+                },
+                {
+                    "name": "propagation_style_extract",
+                    "origin": "env_var",
+                    "value": str(config._propagation_style_extract),
+                },
+                {
+                    "name": "ddtrace_bootstrapped",
+                    "origin": "default",
+                    "value": config._ddtrace_bootstrapped,
+                },
+                {
+                    "name": "ddtrace_auto_used",
+                    "origin": "default",
+                    "value": "ddtrace.auto" in sys.modules,
+                },
+                {
+                    "name": "otel_enabled",
+                    "origin": "env_var",
+                    "value": config._otel_enabled,
+                },
+            ],
             "error": {
                 "code": self._error[0],
                 "message": self._error[1],
