@@ -221,7 +221,6 @@ class CIVisibility(Service):
             )
         if writer is not None:
             self.tracer.configure(writer=writer)
-            self.tracer.enabled = True
 
     def _agent_evp_proxy_is_available(self):
         # type: () -> bool
@@ -310,6 +309,13 @@ class CIVisibility(Service):
 
     def _get_tests_to_skip(self, suite, module):
         return self._tests_to_skip.get((suite, module), self._tests_to_skip.get((suite, None), []))
+
+    def _should_skip_path(self, path):
+        if self._tests_to_skip:
+            for x, y in self._tests_to_skip.keys():
+                if path.endswith(x):
+                    return True
+        return False
 
     @classmethod
     def enable(cls, tracer=None, config=None, service=None):

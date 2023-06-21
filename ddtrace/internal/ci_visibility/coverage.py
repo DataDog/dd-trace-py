@@ -91,9 +91,10 @@ def _lines(coverage, context):
 
     data = {k: v.keys() if isinstance(v, dict) else v for k, v in coverage._collector.data.items()}
 
-    return {
+    res = {
         filename: segments(lines_covered) for filename, lines_covered in data.items() if "site-packages" not in filename
     }
+    return res
 
 
 def build_payload(coverage, test_id=None):
