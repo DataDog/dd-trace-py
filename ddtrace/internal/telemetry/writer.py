@@ -532,12 +532,12 @@ class TelemetryWriter(TelemetryBase):
         for e in self._events_queue:
             if e["request_type"] == "app-started":
                 payload = e["payload"]
-                payload["configuration"] = self.get_modified_configurations(original_config, configuration)
+                payload["configuration"] = self._get_modified_configurations(original_config, configuration)
                 break
         self.add_event(payload, "app-client-configuration-change")
 
-    def get_modified_configurations(self, original_config, modified_config):
-        # type: (Dict, List[Dict]) -> None
+    def _get_modified_configurations(self, original_config, modified_config):
+        # type: (Dict, List[Dict]) -> List
         """Build the list of configuration values to be changed"""
         modified_config_queue = []
         for changed_config in modified_config:
