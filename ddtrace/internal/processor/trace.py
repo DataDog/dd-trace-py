@@ -244,7 +244,7 @@ class SpanAggregator(SpanProcessor):
 
                 # perf: telemetry_metrics_writer.add_count_metric(...) is an expensive operation.
                 # We should avoid calling this method on every invocation of ``SpanAggregator.on_span_finish()``
-                self._queue_span_count_metrics("span_finished", "integration_name")
+                self._queue_span_count_metrics("spans_finished", "integration_name")
                 self._writer.write(spans)
                 return
 
