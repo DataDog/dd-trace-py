@@ -143,7 +143,7 @@ commands:
                 services: testagent << parameters.docker_services >>
             - run:
                 environment:
-                  DD_TRACE_AGENT_URL: http://testagent:9126
+                  DD_TRACE_AGENT_URL: http://localhost:9126
                   RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
                 command: |
                   # Sort the hashes to ensure a consistent ordering/division between each node
@@ -185,7 +185,7 @@ commands:
           when: always
           command: |
             set +e  # Disable exiting from testagent response failure
-            STATUS_RESPONSE=$(curl -s -w "%{http_code}" -o /dev/null http://testagent:9126/info) || true
+            STATUS_RESPONSE=$(curl -s -w "%{http_code}" -o /dev/null http://localhost:9126/info) || true
             set -e
             STATUS_RESPONSE_CODE=$(echo "STATUS_RESPONSE" | awk 'END {print $NF}')
             if [[ $STATUS_RESPONSE_CODE -eq 200 ]]; then
@@ -194,7 +194,7 @@ commands:
               echo "APM Test Agent is not running and was not used for testing. No checks failed."
               exit 0
             fi
-            RESPONSE=$(curl -s -w "\n%{http_code}" -o response.txt http://testagent:9126/test/trace_check/failures)
+            RESPONSE=$(curl -s -w "\n%{http_code}" -o response.txt http://localhost:9126/test/trace_check/failures)
             RESPONSE_CODE=$(echo "$RESPONSE" | awk 'END {print $NF}')
             if [[ $RESPONSE_CODE -eq 200 ]]; then
               echo "All APM Test Agent Check Traces returned successful! (HTTP 200)"
@@ -250,7 +250,6 @@ postgres_server: &postgres_server
 
 testagent: &testagent
   image: *testagent_image
-  name: testagent
   environment:
     - LOG_LEVEL=DEBUG
     - SNAPSHOT_DIR=/snapshots
