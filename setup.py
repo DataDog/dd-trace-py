@@ -313,6 +313,26 @@ class LibDatadogDownload(LibraryDownload):
         archive_name = archive_dir + ".tar.gz"
         return [archive_dir, archive_name]
 
+    @staticmethod
+    def get_extra_objects():
+        arch = "x86_64"
+        base_name = "libdatadog_profiling"
+        if CURRENT_OS != "Windows":
+            base_name += ".a"
+        base_path = os.path.join("ddtrace", "internal", "datadog", "profiling", "libdatadog", arch, "lib", base_name)
+        if CURRENT_OS == "Linux":
+            return [base_path]
+        return []
+
+    @staticmethod
+    def get_include_dirs():
+        if CURRENT_OS == "Linux":
+            return [
+                "ddtrace/internal/datadog/profiling/include",
+                "ddtrace/internal/datadog/profiling/libdatadog/x86_64/include",
+            ]
+        return []
+
 
 class UPXDownload(LibraryDownload):
     name = "upx"
