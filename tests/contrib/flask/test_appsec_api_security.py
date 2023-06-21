@@ -7,6 +7,7 @@ from flask import request
 import pytest
 
 from ddtrace import config
+from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.contrib.sqlite3.patch import patch
 from tests.appsec.api_security.test_schema_fuzz import equal_without_meta
 from tests.appsec.test_processor import RULES_SRB
@@ -62,15 +63,18 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert config._api_security_enabled
 
             for name, expected_value in [
-                ("_dd.appsec.s.req.body", [{"key": [8], "ids": [[[4]], {"len": 4}]}]),
+                (API_SECURITY.REQUEST_BODY, [{"key": [8], "ids": [[[4]], {"len": 4}]}]),
                 (
-                    "_dd.appsec.s.req.headers",
+                    API_SECURITY.REQUEST_HEADERS_NO_COOKIES,
                     [{"User-Agent": [8], "Host": [8], "Content-Type": [8], "Content-Length": [8]}],
                 ),
-                ("_dd.appsec.s.req.query", [{"extended": [8]}]),
-                ("_dd.appsec.s.req.params", [{"str_param": [8]}]),
-                ("_dd.appsec.s.res.headers", [{"Content-Type": [8], "Content-Length": [8], "extended": [8]}]),
-                ("_dd.appsec.s.res.body", [{"ids": [[[4]], {"len": 4}], "key": [8], "validate": [2], "value": [8]}]),
+                (API_SECURITY.REQUEST_QUERY, [{"extended": [8]}]),
+                (API_SECURITY.REQUEST_PATH_PARAMS, [{"str_param": [8]}]),
+                (
+                    API_SECURITY.RESPONSE_HEADERS_NO_COOKIES,
+                    [{"Content-Type": [8], "Content-Length": [8], "extended": [8]}],
+                ),
+                (API_SECURITY.RESPONSE_BODY, [{"ids": [[[4]], {"len": 4}], "key": [8], "validate": [2], "value": [8]}]),
             ]:
                 value = root_span.get_tag(name)
                 assert value
@@ -92,12 +96,12 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             root_span = self.pop_spans()[0]
             assert not config._api_security_enabled
             for name in [
-                "_dd.appsec.s.req.body",
-                "_dd.appsec.s.req.headers",
-                "_dd.appsec.s.req.query",
-                "_dd.appsec.s.req.params",
-                "_dd.appsec.s.res.headers",
-                "_dd.appsec.s.res.body",
+                API_SECURITY.REQUEST_BODY,
+                API_SECURITY.REQUEST_HEADERS_NO_COOKIES,
+                API_SECURITY.REQUEST_QUERY,
+                API_SECURITY.REQUEST_PATH_PARAMS,
+                API_SECURITY.RESPONSE_HEADERS_NO_COOKIES,
+                API_SECURITY.RESPONSE_BODY,
             ]:
                 value = root_span.get_tag(name)
                 assert value is None
