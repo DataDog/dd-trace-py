@@ -118,10 +118,10 @@ for _ in range(10):
 
     metrics = get_metrics_from_events(events)
     assert len(metrics) == 2
-    assert metrics[0]["metric"] == "span_created"
+    assert metrics[0]["metric"] == "spans_created"
     assert metrics[0]["tags"] == ["integration_name:datadog"]
     assert metrics[0]["points"][0][1] == 10
-    assert metrics[1]["metric"] == "span_finished"
+    assert metrics[1]["metric"] == "spans_finished"
     assert metrics[1]["tags"] == ["integration_name:datadog"]
     assert metrics[1]["points"][0][1] == 10
 
@@ -144,10 +144,10 @@ for _ in range(9):
 
     metrics = get_metrics_from_events(events)
     assert len(metrics) == 2
-    assert metrics[0]["metric"] == "span_created"
+    assert metrics[0]["metric"] == "spans_created"
     assert metrics[0]["tags"] == ["integration_name:otel"]
     assert metrics[0]["points"][0][1] == 9
-    assert metrics[1]["metric"] == "span_finished"
+    assert metrics[1]["metric"] == "spans_finished"
     assert metrics[1]["tags"] == ["integration_name:otel"]
     assert metrics[1]["points"][0][1] == 9
 
@@ -169,10 +169,10 @@ for _ in range(9):
 
     metrics = get_metrics_from_events(events)
     assert len(metrics) == 2
-    assert metrics[0]["metric"] == "span_created"
+    assert metrics[0]["metric"] == "spans_created"
     assert metrics[0]["tags"] == ["integration_name:opentracing"]
     assert metrics[0]["points"][0][1] == 9
-    assert metrics[1]["metric"] == "span_finished"
+    assert metrics[1]["metric"] == "spans_finished"
     assert metrics[1]["tags"] == ["integration_name:opentracing"]
     assert metrics[1]["points"][0][1] == 9
 
@@ -203,13 +203,13 @@ for _ in range(4):
     metrics = get_metrics_from_events(events)
     assert len(metrics) == 3
 
-    assert metrics[0]["metric"] == "span_created"
+    assert metrics[0]["metric"] == "spans_created"
     assert metrics[0]["tags"] == ["integration_name:datadog"]
     assert metrics[0]["points"][0][1] == 4
-    assert metrics[1]["metric"] == "span_created"
+    assert metrics[1]["metric"] == "spans_created"
     assert metrics[1]["tags"] == ["integration_name:opentracing"]
     assert metrics[1]["points"][0][1] == 4
-    assert metrics[2]["metric"] == "span_created"
+    assert metrics[2]["metric"] == "spans_created"
     assert metrics[2]["tags"] == ["integration_name:otel"]
     assert metrics[2]["points"][0][1] == 4
 
