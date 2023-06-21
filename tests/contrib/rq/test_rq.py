@@ -9,6 +9,7 @@ import rq
 
 from ddtrace import Pin
 from ddtrace.contrib.rq import patch
+from ddtrace.contrib.rq import rq_version
 from ddtrace.contrib.rq import unpatch
 from tests.utils import override_config
 from tests.utils import snapshot
@@ -124,6 +125,16 @@ def test_worker_failing_job(queue):
 def test_worker_class_job(queue):
     queue.enqueue(JobClass().job_on_class, 2)
     queue.enqueue(JobClass(), 4)
+    worker = rq.SimpleWorker([queue], connection=queue.connection)
+    worker.work(burst=True)
+
+
+@pytest.mark.skipif(rq_version < (1, 9, 0), reason="Added enqueue_many in 1.9.0")
+@snapshot(ignores=snapshot_ignores)
+def test_enqueue_many(queue):
+    queue.enqueue_many(
+        [rq.Queue.prepare_data(job_add1, (i,), job_id="test_job_{job_count}".format(job_count=i)) for i in range(3)]
+    )
     worker = rq.SimpleWorker([queue], connection=queue.connection)
     worker.work(burst=True)
 

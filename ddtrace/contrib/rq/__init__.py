@@ -77,6 +77,7 @@ Global Configuration
 
 """
 import os
+import rq
 
 from ddtrace import Pin
 from ddtrace import config
@@ -85,6 +86,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.utils.version import parse_version
 
 from .. import trace_utils
 from ...ext import SpanKind
@@ -115,6 +117,9 @@ config._add(
         _default_service=schematize_service_name("rq-worker"),
     ),
 )
+
+rq_version_str = getattr(rq, "__version__", "0.0.0")
+rq_version = parse_version(rq_version_str)
 
 
 @trace_utils.with_traced_module
@@ -244,7 +249,10 @@ def patch():
 
     # Patch rq.queue.Queue
     Pin().onto(rq.queue.Queue)
-    trace_utils.wrap("rq.queue", "Queue.enqueue_job", traced_queue_enqueue_job(rq))
+    if rq_version >= (1, 14, 0):
+        trace_utils.wrap("rq.queue", "Queue._enqueue_job", traced_queue_enqueue_job(rq))
+    else:
+        trace_utils.wrap("rq.queue", "Queue.enqueue_job", traced_queue_enqueue_job(rq))
     trace_utils.wrap("rq.queue", "Queue.fetch_job", traced_queue_fetch_job(rq))
 
     # Patch rq.worker.Worker
@@ -268,7 +276,10 @@ def unpatch():
 
     # Unpatch rq.queue.Queue
     Pin().remove_from(rq.queue.Queue)
-    trace_utils.unwrap(rq.queue.Queue, "enqueue_job")
+    if rq_version >= (1, 14, 0):
+        trace_utils.unwrap(rq.queue.Queue, "_enqueue_job")
+    else:
+        trace_utils.unwrap(rq.queue.Queue, "enqueue_job")
     trace_utils.unwrap(rq.queue.Queue, "fetch_job")
 
     # Unpatch rq.worker.Worker
