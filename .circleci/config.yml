@@ -481,10 +481,11 @@ jobs:
     <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
+      - *testagent
+    parallelism: 4   
     steps:
       - run_test:
           pattern: 'asyncio$|sqlite3$|futures$|dbapi$|dbapi_async$'
-          snapshot: true
 
   asyncpg:
     <<: *machine_executor
@@ -515,29 +516,28 @@ jobs:
   asgi:
     <<: *contrib_job
     docker:
-      - image: *ddtrace_dev_image
+      - *testagent
     steps:
       - run_test:
           pattern: 'asgi$'
-          snapshot: true
 
   tornado:
     <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
+      - *testagent
     steps:
       - run_test:
           pattern: 'tornado'
-          snapshot: true
 
   bottle:
     <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
+      - *testagent
     steps:
       - run_test:
           pattern: 'bottle'
-          snapshot: true
 
   cassandra:
     <<: *contrib_job
@@ -792,11 +792,11 @@ jobs:
     <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
+      - image: *memcached_image
+      - *testagent
     steps:
       - run_test:
           pattern: "pymemcache"
-          snapshot: true
-          docker_services: 'memcached'
 
   mongoengine:
     <<: *machine_executor
@@ -810,11 +810,11 @@ jobs:
     <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
+      - image: *mongo_image
+      - *testagent
     steps:
       - run_test:
           pattern: "pymongo"
-          snapshot: true
-          docker_services: 'mongo'
 
   pynamodb:
     <<: *contrib_job
@@ -845,11 +845,11 @@ jobs:
     <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
+      - *testagent
+      - *httpbin_local
     steps:
       - run_test:
           pattern: "requests"
-          snapshot: true
-          docker_services: "httpbin_local"
 
   sanic:
     <<: *contrib_job
@@ -874,13 +874,16 @@ jobs:
           snapshot: true
 
   sqlalchemy:
-    <<: *contrib_job
+    <<: *contrib_job_small
+    docker:
+      - image: *ddtrace_dev_image
+      - *testagent
+      - *postgres_server
+      - *mysql_server
     steps:
       - run_test:
-          docker_services: "postgres mysql"
           wait: postgres mysql
           pattern: "sqlalchemy"
-          snapshot: true
 
   psycopg:
     <<: *machine_executor
@@ -904,10 +907,11 @@ jobs:
     <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
+      - image: *moto_image
+      - *testagent
     steps:
        - run_test:
           pattern: 'aiobotocore'
-          docker_services: "moto"
 
   aiomysql:
     <<: *machine_executor
@@ -991,6 +995,7 @@ jobs:
     <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
+      - *testagent
       - image: *vertica_image
         environment:
           - VP_TEST_USER=dbadmin
@@ -1058,10 +1063,10 @@ jobs:
     <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
+      - *testagent
     steps:
       - run_test:
           pattern: 'algoliasearch'
-          snapshot: true
 
   build_docs:
     # build documentation and store as an artifact
