@@ -42,9 +42,11 @@ def asm_check_cookies(cookies):  # type: (Optional[Dict[str, str]]) -> None
 
         if ";secure" not in lvalue:
             InsecureCookie.report(evidence_value=evidence)
+            return
 
         if ";httponly" not in lvalue:
             NoHttpOnlyCookie.report(evidence_value=evidence)
+            return
 
         if ";samesite=" in lvalue:
             ss_tokens = lvalue.split(";samesite=")
