@@ -186,8 +186,8 @@ class SpanAggregator(SpanProcessor):
     _span_metrics = attr.ib(
         init=False,
         factory=lambda: {
-            "span_created": defaultdict(int),
-            "span_finished": defaultdict(int),
+            "spans_created": defaultdict(int),
+            "spans_finished": defaultdict(int),
         },
         type=Dict[str, DefaultDict],
     )
@@ -197,10 +197,10 @@ class SpanAggregator(SpanProcessor):
         with self._lock:
             trace = self._traces[span.trace_id]
             trace.spans.append(span)
-            self._span_metrics["span_created"][span._span_api] += 1
+            self._span_metrics["spans_created"][span._span_api] += 1
             # perf: telemetry_metrics_writer.add_count_metric(...) is an expensive operation.
             # We should avoid calling this method on every invocation of ``SpanAggregator.on_span_start()``
-            self._queue_span_count_metrics("span_created", "integration_name")
+            self._queue_span_count_metrics("spans_created", "integration_name")
 
     def on_span_finish(self, span):
         # type: (Span) -> None
@@ -263,10 +263,10 @@ class SpanAggregator(SpanProcessor):
         """
         # on_span_start queue span created counts in batches of 100. This ensures all remaining counts are sent
         # before the tracer is shutdown.
-        self._queue_span_count_metrics("span_finished", "integration_name", None)
+        self._queue_span_count_metrics("spans_finished", "integration_name", None)
         # on_span_finish(...) queues span finish metrics in batches of 100. This ensures all remaining counts are sent
         # before the tracer is shutdown.
-        self._queue_span_count_metrics("span_created", "integration_name", None)
+        self._queue_span_count_metrics("spans_created", "integration_name", None)
         # The telemetry metrics writer can be shutdown before the tracer. This ensures all tracer metrics always sent.
         telemetry_metrics_writer.periodic()
         try:
