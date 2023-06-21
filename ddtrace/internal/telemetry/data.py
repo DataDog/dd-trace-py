@@ -10,13 +10,9 @@ from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.packages import get_distributions
 from ddtrace.internal.runtime.container import get_container_info
 from ddtrace.internal.utils.cache import cached
-from ddtrace.internal.utils.cache import callonce
 
 from ...settings import _config as config
 from ..hostname import get_hostname
-
-
-_platform = callonce(lambda: platform.platform(aliased=True, terse=True))()
 
 
 def _format_version_info(vi):
@@ -36,7 +32,7 @@ def _get_container_id():
 
 def _get_os_version():
     # type: () -> str
-    """Returns the os version for applications running on Unix, Mac or Windows 32-bit"""
+    """Returns the os version for applications running on Mac or Windows 32-bit"""
     try:
         mver, _, _ = platform.mac_ver()
         if mver:
@@ -45,15 +41,6 @@ def _get_os_version():
         _, wver, _, _ = platform.win32_ver()
         if wver:
             return wver
-
-        # This is the call which is more likely to fail
-        #
-        # https://docs.python.org/3/library/platform.html#unix-platforms
-        #   Note that this function has intimate knowledge of how different libc versions add symbols
-        #   to the executable is probably only usable for executables compiled using gcc.
-        _, lver = platform.libc_ver()
-        if lver:
-            return lver
     except OSError:
         # We were unable to lookup the proper version
         pass
@@ -114,7 +101,7 @@ def get_host_info():
     global _host_info
     if _host_info is None:
         _host_info = {
-            "os": _platform,
+            "os": platform.system(),
             "hostname": get_hostname(),
             "os_version": _get_os_version(),
             "kernel_name": platform.system(),
