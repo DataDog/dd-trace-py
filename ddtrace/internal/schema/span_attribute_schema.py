@@ -7,12 +7,6 @@ class SpanDirection(Enum):
     PROCESSING = "processing"
 
 
-class UrlProtocols(Enum):
-    GRPC = "grpc"
-    HTTP = "http"
-    GRAPHQL = "graphql"
-
-
 def service_name_v0(v0_service_name):
     return v0_service_name
 
