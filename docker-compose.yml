@@ -138,7 +138,7 @@ services:
           - ddagent:/tmp/ddagent:rw
     testagent:
         # image: ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:latest
-        image: williamconti549/dd-apm-test-agent:service-checks
+        image: williamconti549/dd-apm-test-agent:service-naming
         ports:
             - "127.0.0.1:9126:8126"
         volumes:
