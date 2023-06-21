@@ -18,6 +18,7 @@
       "openai.request.endpoint": "/v1/images/variations",
       "openai.request.image": "image.png",
       "openai.request.method": "POST",
+      "openai.request.model": "dall-e",
       "openai.request.n": "1",
       "openai.request.response_format": "url",
       "openai.request.size": "256x256",
