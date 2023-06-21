@@ -1,0 +1,116 @@
+[[
+  {
+    "name": "langchain.request",
+    "service": "",
+    "resource": "langchain.chains.sequential.SequentialChain",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "langchain.request.inputs.style": "a 90s rapper",
+      "langchain.request.inputs.text": "\n        Chains allow us to combine multiple\n\n\n        components together to create a single, coherent application.\n\n        For example, we can create a chain that takes user input,       format it with a PromptTemplate,\n\n        and then passes the formatted response to an LLM. We can build more complex chains by combining\n\n        multiple chains together, or by\n\n\n        combining chains with other components.\n        ",
+      "langchain.response.outputs.final_output": "\nChains be like a link, let us connect the pieces, creatin' a single app. We can write a chain to take input, format it with a PromptTemplate, then send it to an LLM. We can get more complex, linkin' chains together, mixin' them with other parts, no problemo.",
+      "langchain.response.outputs.style": "a 90s rapper",
+      "langchain.response.outputs.text": "\n        Chains allow us to combine multiple\n\n\n        components together to create a single, coherent application.\n\n        For example, we can create a chain that takes user input,       format it with a PromptTemplate,\n\n        and then passes the formatted response to an LLM. We can build more complex chains by combining\n\n        multiple chains together, or by\n\n\n        combining chains with other components.\n        ",
+      "language": "python",
+      "runtime-id": "59f08deb20214c14ac3f237e288d8432"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "langchain.tokens.completion_tokens": 69,
+      "langchain.tokens.prompt_tokens": 105,
+      "langchain.tokens.total_cost": 0.0034800000000000005,
+      "langchain.tokens.total_tokens": 174,
+      "process_id": 81698
+    },
+    "duration": 2675000,
+    "start": 1687374139931554000
+  },
+     {
+       "name": "langchain.request",
+       "service": "",
+       "resource": "langchain.chains.transform.TransformChain",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "langchain.request.inputs.style": "a 90s rapper",
+         "langchain.request.inputs.text": "\n        Chains allow us to combine multiple\n\n\n        components together to create a single, coherent application.\n\n        For example, we can create a chain that takes user input,       format it with a PromptTemplate,\n\n        and then passes the formatted response to an LLM. We can build more complex chains by combining\n\n        multiple chains together, or by\n\n\n        combining chains with other components.\n        ",
+         "langchain.response.outputs.output_text": "\n Chains allow us to combine multiple\n components together to create a single, coherent application.\n For example, we can create a chain that takes user input, format it with a PromptTemplate,\n and then passes the formatted response to an LLM. We can build more complex chains by combining\n multiple chains together, or by\n combining chains with other components.\n "
+       },
+       "metrics": {
+         "_dd.measured": 1
+       },
+       "duration": 188000,
+       "start": 1687374139931676000
+     },
+     {
+       "name": "langchain.request",
+       "service": "",
+       "resource": "langchain.chains.llm.LLMChain",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "langchain.request.inputs.output_text": "\n Chains allow us to combine multiple\n components together to create a single, coherent application.\n For example, we can create a chain that takes user input, format it with a PromptTemplate,\n and then passes the formatted response to an LLM. We can build more complex chains by combining\n multiple chains together, or by\n combining chains with other components.\n ",
+         "langchain.request.inputs.style": "a 90s rapper",
+         "langchain.request.inputs.text": "\n        Chains allow us to combine multiple\n\n\n        components together to create a single, coherent application.\n\n        For example, we can create a chain that takes user input,       format it with a PromptTemplate,\n\n        and then passes the formatted response to an LLM. We can build more complex chains by combining\n\n        multiple chains together, or by\n\n\n        combining chains with other components.\n        ",
+         "langchain.request.prompt": "Paraphrase this text:\n\n        {output_text}\n\n        In the style of a {style}.\n\n        Paraphrase: ",
+         "langchain.response.outputs.final_output": "\nChains be like a link, let us connect the pieces, creatin' a single app. We can write a chain to take input, format it with a PromptTemplate, then send it to an LLM. We can get more complex, linkin' chains together, mixin' them with other parts, no problemo."
+       },
+       "metrics": {
+         "_dd.measured": 1,
+         "langchain.tokens.completion_tokens": 69,
+         "langchain.tokens.prompt_tokens": 105,
+         "langchain.tokens.total_cost": 0.0034800000000000005,
+         "langchain.tokens.total_tokens": 174
+       },
+       "duration": 2332000,
+       "start": 1687374139931885000
+     },
+        {
+          "name": "langchain.request",
+          "service": "",
+          "resource": "langchain.llms.openai.OpenAI",
+          "trace_id": 0,
+          "span_id": 4,
+          "parent_id": 3,
+          "type": "",
+          "error": 0,
+          "meta": {
+            "langchain.request.model": "text-davinci-003",
+            "langchain.request.openai.parameters.frequency_penalty": "0",
+            "langchain.request.openai.parameters.logit_bias": "{}",
+            "langchain.request.openai.parameters.max_tokens": "256",
+            "langchain.request.openai.parameters.n": "1",
+            "langchain.request.openai.parameters.presence_penalty": "0",
+            "langchain.request.openai.parameters.request_timeout": "None",
+            "langchain.request.openai.parameters.temperature": "0.7",
+            "langchain.request.openai.parameters.top_p": "1",
+            "langchain.request.prompt": "Paraphrase this text:\n\n        \n Chains allow us to combine multiple\n components together to create a single, coherent application.\n For example, we can create a chain that takes user input, format it with a PromptTemplate,\n and then passes the formatted response to an LLM. We can build more complex chains by combining\n multiple chains together, or by\n combining chains with other components.\n \n\n        In the style of a a 90s rapper.\n\n        Paraphrase: ",
+            "langchain.request.provider": "openai",
+            "langchain.response.completion.finish_reason": "stop",
+            "langchain.response.completion.logprobs": "None",
+            "langchain.response.completion.text": "\nChains be like a link, let us connect the pieces, creatin' a single app. We can write a chain to take input, format it with a PromptTemplate, then send it to an LLM. We can get more complex, linkin' chains together, mixin' them with other parts, no problemo."
+          },
+          "metrics": {
+            "_dd.measured": 1,
+            "langchain.tokens.completion_tokens": 69,
+            "langchain.tokens.prompt_tokens": 105,
+            "langchain.tokens.total_cost": 0.0034800000000000005,
+            "langchain.tokens.total_tokens": 174
+          },
+          "duration": 2187000,
+          "start": 1687374139932008000
+        }]]

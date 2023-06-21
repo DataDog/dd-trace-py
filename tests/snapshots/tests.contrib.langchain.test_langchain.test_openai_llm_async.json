@@ -1,0 +1,44 @@
+[[
+  {
+    "name": "langchain.request",
+    "service": "",
+    "resource": "langchain.llms.openai.OpenAI",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "langchain.request.model": "text-davinci-003",
+      "langchain.request.openai.parameters.frequency_penalty": "0",
+      "langchain.request.openai.parameters.logit_bias": "{}",
+      "langchain.request.openai.parameters.max_tokens": "256",
+      "langchain.request.openai.parameters.n": "1",
+      "langchain.request.openai.parameters.presence_penalty": "0",
+      "langchain.request.openai.parameters.request_timeout": "None",
+      "langchain.request.openai.parameters.temperature": "0.7",
+      "langchain.request.openai.parameters.top_p": "1",
+      "langchain.request.prompt": "Which team won the 2019 NBA finals?",
+      "langchain.request.provider": "openai",
+      "langchain.response.completion.finish_reason": "stop",
+      "langchain.response.completion.logprobs": "None",
+      "langchain.response.completion.text": "\n\nThe Toronto Raptors won the 2019 NBA Finals.",
+      "language": "python",
+      "runtime-id": "3a9f51c9bdeb44359c0e7c8967c185ca"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "langchain.tokens.completion_tokens": 11,
+      "langchain.tokens.prompt_tokens": 8,
+      "langchain.tokens.total_cost": 0.00038,
+      "langchain.tokens.total_tokens": 19,
+      "process_id": 76366
+    },
+    "duration": 1690000,
+    "start": 1687285144699383000
+  }]]

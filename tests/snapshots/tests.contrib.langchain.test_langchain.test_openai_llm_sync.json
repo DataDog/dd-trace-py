@@ -1,0 +1,44 @@
+[[
+  {
+    "name": "langchain.request",
+    "service": "",
+    "resource": "langchain.llms.openai.OpenAI",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "langchain.request.model": "text-davinci-003",
+      "langchain.request.openai.parameters.frequency_penalty": "0",
+      "langchain.request.openai.parameters.logit_bias": "{}",
+      "langchain.request.openai.parameters.max_tokens": "256",
+      "langchain.request.openai.parameters.n": "1",
+      "langchain.request.openai.parameters.presence_penalty": "0",
+      "langchain.request.openai.parameters.request_timeout": "None",
+      "langchain.request.openai.parameters.temperature": "0.7",
+      "langchain.request.openai.parameters.top_p": "1",
+      "langchain.request.prompt": "Can you explain what Descartes meant by 'I think, therefore I am'?",
+      "langchain.request.provider": "openai",
+      "langchain.response.completion.finish_reason": "stop",
+      "langchain.response.completion.logprobs": "None",
+      "langchain.response.completion.text": "\n\nDescartes' famous phrase \"I think, therefore I am\" is a fundamental statement of his philosophical approach, known as Cartesian dualism. This phrase expresses his belief that the very act of thinking proves one's existence. Descartes reasoned that even if he was tricked by an evil genius into believing false ideas, he still must exist in order to be tricked. Therefore, he concluded that his own existence was certain, even if all else was uncertain.",
+      "language": "python",
+      "runtime-id": "3a9f51c9bdeb44359c0e7c8967c185ca"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "langchain.tokens.completion_tokens": 95,
+      "langchain.tokens.prompt_tokens": 17,
+      "langchain.tokens.total_cost": 0.0022400000000000002,
+      "langchain.tokens.total_tokens": 112,
+      "process_id": 76366
+    },
+    "duration": 13798000,
+    "start": 1687285144633708000
+  }]]
