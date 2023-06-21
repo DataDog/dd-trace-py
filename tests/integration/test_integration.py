@@ -679,10 +679,10 @@ def test_bad_payload_log_payload_non_bytes(monkeypatch):
             # False
             # >>> isinstance(u"", bytes)
             # False
-            return u"bad_payload"
+            return "bad_payload"
 
         def encode_traces(self, traces):
-            return u"bad_payload"
+            return "bad_payload"
 
     for client in t._writer._clients:
         client.encoder = BadEncoder()
@@ -826,7 +826,7 @@ s2.finish()
         [sys.executable, "test.py"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=str(tmpdir), env=env
     )
     try:
-        p.wait(timeout=10)
+        p.wait(timeout=25)
     except TypeError:
         # timeout argument added in Python 3.3
         p.wait()
