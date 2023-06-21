@@ -191,7 +191,6 @@ def parse_response_body(raw_body):
     import xmltodict
 
     from ddtrace.appsec._constants import SPAN_DATA_NAMES
-    from ddtrace.contrib._asm_request_content import get_waf_address
     from ddtrace.contrib.trace_utils import _get_header_value_case_insensitive
 
     if not raw_body:
@@ -200,7 +199,7 @@ def parse_response_body(raw_body):
     if isinstance(raw_body, dict):
         return raw_body
 
-    headers = get_waf_address(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES)
+    headers = _asm_request_context.get_waf_address(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES)
     if not headers:
         return
     content_type = _get_header_value_case_insensitive(
