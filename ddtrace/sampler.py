@@ -346,16 +346,26 @@ class DatadogSampler(RateByServiceSampler):
         if not self.rules:
             return None
         rule_decision = [0 for _ in self.rules]
-        for span in trace:
-            # don't recheck spans if no new tags have been added
-            if span._trace_sampling_checked:
-                continue
-            for rule in self.rules:
-                if rule.matches(span):
-                    # increment the rule decision counter for this rule
-                    # we want to use whichever rule matches first
+
+        # need to check span context object tags since they haven't yet been added to the root span.
+        context = trace[0].context
+        context_tags = [context._meta, context._metrics]
+        for rule in self.rules:
+            for tag in context._meta:
+                if rule.tag_match(context._meta):
                     rule_decision[self.rules.index(rule)] += 1
                     break
+            for metric in context._metrics:
+                if rule.tag_match(context._metrics):
+                    rule_decision[self.rules.index(rule)] += 1
+                    break
+            for span in trace:
+                # don't recheck spans if no new tags have been added
+                if span._trace_sampling_checked:
+                    continue
+                if rule.matches(span):
+                    rule_decision[self.rules.index(rule)] += 1
+
         for index, value in enumerate(rule_decision):
             if value > 0:
                 return self.rules[index]
@@ -569,18 +579,22 @@ class SamplingRule(BaseSampler):
                 resource_match = self._resource_matcher.match(resource)
 
         if self._tag_value_matchers:
-            if tags is None:
-                return False
-            else:
-                for tag_key in self._tag_value_matchers.keys():
-                    value = span.get_tag(tag_key)
-                    if value is not None:
-                        tag_match = self._tag_value_matchers[tag_key].match(value)
-                    else:
-                        # if we don't match with all specified tags for a rule, it's not a match
-                        return False
+            tag_match = self.tag_match(tags)
 
         return service_match and name_match and resource_match and tag_match
+
+    def tag_match(self, tags):
+        if tags is None:
+            return False
+
+        for tag_key in self._tag_value_matchers.keys():
+            value = tags.get(tag_key)
+            if value is not None:
+                tag_match = self._tag_value_matchers[tag_key].match(value)
+            else:
+                # if we don't match with all specified tags for a rule, it's not a match
+                return False
+        return tag_match
 
     def sample(self, span):
         # type: (Span) -> bool
