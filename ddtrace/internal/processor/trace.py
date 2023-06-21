@@ -263,10 +263,10 @@ class SpanAggregator(SpanProcessor):
         """
         # on_span_start queue span created counts in batches of 100. This ensures all remaining counts are sent
         # before the tracer is shutdown.
-        self._queue_span_count_metrics("spans_finished", "integration_name", None)
+        self._queue_span_count_metrics("spans_created", "integration_name", None)
         # on_span_finish(...) queues span finish metrics in batches of 100. This ensures all remaining counts are sent
         # before the tracer is shutdown.
-        self._queue_span_count_metrics("spans_created", "integration_name", None)
+        self._queue_span_count_metrics("spans_finished", "integration_name", None)
         # The telemetry metrics writer can be shutdown before the tracer. This ensures all tracer metrics always sent.
         telemetry_metrics_writer.periodic()
         try:
