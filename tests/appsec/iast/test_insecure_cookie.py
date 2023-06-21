@@ -36,7 +36,7 @@ def test_nosamesite_cookies_none(iast_span_defaults):
     assert list(span_report.vulnerabilities)[0].type == VULN_NO_SAMESITE_COOKIE
 
 
-def test_nosamesite_cookies_foo(iast_span_defaults):
+def test_nosamesite_cookies_other(iast_span_defaults):
     cookies = {"foo": "bar;secure;httponly;samesite=none"}
     asm_check_cookies(cookies)
     span_report = _context.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
