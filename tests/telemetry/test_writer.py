@@ -242,9 +242,8 @@ def test_add_integration(telemetry_lifecycle_writer, test_agent_session, mock_ti
     assert requests[0]["body"] == _get_request_body(expected_payload, "app-integrations-change")
 
 
-# New test for app_configurations_changed_event
 def test_app_client_configuration_changed_event(telemetry_lifecycle_writer, test_agent_session, mock_time):
-
+    """asserts that client_configuration_changed_event() queues a valid telemetry request"""
     # send app start event:
     telemetry_lifecycle_writer._app_started_event()
 
@@ -290,6 +289,35 @@ def test_app_client_configuration_changed_event(telemetry_lifecycle_writer, test
         },
     }
     assert events[0]["payload"]["configuration"] == payload["configuration"]
+
+
+def test_app_client_configuration_changed_event_error(telemetry_lifecycle_writer, test_agent_session, mock_time):
+    """asserts that a error is logged when app-started event doesn't exist"""
+    configuration = [
+        {
+            "name": "appsec_enabled",
+            "value": True,
+        },
+    ]
+
+    telemetry_lifecycle_writer._app_client_configuration_changed_event(configuration)
+    telemetry_lifecycle_writer.periodic()
+
+    payload = {
+        "configuration": [],
+        "error": {
+            "code": 1,
+            "message": "No app started event found.",
+        },
+    }
+    requests = test_agent_session.get_requests()
+    assert len(requests) == 1
+    assert requests[0]["headers"]["DD-Telemetry-Request-Type"] == "app-client-configuration-change"
+
+    events = test_agent_session.get_events()
+    assert len(events) == 1
+
+    assert events[0]["payload"] == payload
 
 
 def test_add_integration_disabled_writer(telemetry_lifecycle_writer, test_agent_session):

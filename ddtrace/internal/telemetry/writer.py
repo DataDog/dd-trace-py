@@ -433,7 +433,7 @@ class TelemetryWriter(TelemetryBase):
             # app-started events should only be sent by the main process
             return
         #  List of configurations to be collected
-        configuration = [
+        configurations_to_collect = [
             {
                 "name": "data_streams_enabled",
                 "origin": "env_var",
@@ -470,9 +470,9 @@ class TelemetryWriter(TelemetryBase):
                 "value": config._otel_enabled,
             },
         ]
-        self._configuration_queue = configuration
+        self._configuration_queue = configurations_to_collect
         payload = {
-            "configuration": configuration,
+            "configuration": configurations_to_collect,
             "error": {
                 "code": self._error[0],
                 "message": self._error[1],
@@ -514,29 +514,39 @@ class TelemetryWriter(TelemetryBase):
     def _app_client_configuration_changed_event(self, configuration):
         # type: (List[Dict]) -> None
         """Adds a Telemetry event which sends list of modified configurations to the agent"""
-
-        config_change_queue = []
-        # Loop though the events queue and find the app-started event payload
-        for e in self._events_queue:
-            if e["request_type"] == "app-started":
-                payload = e["payload"]
-                break
         # Convert the original configuration to a dic to avoid iterating the whole list
         original_config = {}
         for cfg in self._configuration_queue:
             original_config[cfg["name"]] = cfg["value"]
-        """
-        Find the list of configuration values to be changed.
-        If the input configuration doesn't collected by the app start event, it will be ignored
-        """
-        for changed_config in configuration:
+
+        # Payload value when no app-started event found
+        payload = {
+            "configuration": [],
+            "error": {
+                "code": 1,
+                "message": "No app started event found.",
+            },
+        }
+
+        # Loop though the events queue and find the app-started event payload
+        for e in self._events_queue:
+            if e["request_type"] == "app-started":
+                payload = e["payload"]
+                payload["configuration"] = self.get_modified_configurations(original_config, configuration)
+                break
+        self.add_event(payload, "app-client-configuration-change")
+
+    def get_modified_configurations(self, original_config, modified_config):
+        # type: (Dict, List[Dict]) -> None
+        """Build the list of configuration values to be changed"""
+        modified_config_queue = []
+        for changed_config in modified_config:
             cfg_name = changed_config["name"]
             if cfg_name in original_config and original_config[cfg_name] != changed_config["value"]:
-                config_change_queue.append(changed_config)
+                modified_config_queue.append(changed_config)
 
-        # Only return configurations that being modified
-        payload["configuration"] = config_change_queue
-        self.add_event(payload, "app-client-configuration-change")
+        # Only return configurations that have been modified
+        return modified_config_queue
 
     def _app_dependencies_loaded_event(self):
         # type: () -> None
