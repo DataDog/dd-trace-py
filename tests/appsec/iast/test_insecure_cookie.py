@@ -1,5 +1,3 @@
-import pytest
-
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec.iast.constants import VULN_INSECURE_COOKIE
 from ddtrace.appsec.iast.constants import VULN_NO_HTTPONLY_COOKIE
