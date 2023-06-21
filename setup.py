@@ -458,6 +458,38 @@ else:
     ext_modules = []
 
 
+def get_ddup_ext():
+    ddup_ext = []
+    if sys.platform.startswith("linux") and platform.machine() == "x86_64" and "glibc" in platform.libc_ver()[0]:
+        LibDatadogDownload.run()
+        ddup_ext.extend(
+            cythonize(
+                [
+                    Cython.Distutils.Extension(
+                        "ddtrace.internal.datadog.profiling.ddup",
+                        sources=[
+                            "ddtrace/internal/datadog/profiling/src/exporter.cpp",
+                            "ddtrace/internal/datadog/profiling/src/interface.cpp",
+                            "ddtrace/internal/datadog/profiling/ddup.pyx",
+                        ],
+                        include_dirs=LibDatadogDownload.get_include_dirs(),
+                        extra_objects=LibDatadogDownload.get_extra_objects(),
+                        extra_compile_args=["-std=c++17"],
+                        language="c++",
+                    )
+                ],
+                compile_time_env={
+                    "PY_MAJOR_VERSION": sys.version_info.major,
+                    "PY_MINOR_VERSION": sys.version_info.minor,
+                    "PY_MICRO_VERSION": sys.version_info.micro,
+                },
+                force=True,
+                annotate=os.getenv("_DD_CYTHON_ANNOTATE") == "1",
+            )
+        )
+    return ddup_ext
+
+
 bytecode = [
     "dead-bytecode; python_version<'3.0'",  # backport of bytecode for Python 2.7
     "bytecode~=0.12.0; python_version=='3.5'",
@@ -619,5 +651,6 @@ setup(
         annotate=os.getenv("_DD_CYTHON_ANNOTATE") == "1",
     )
     + get_exts_for("wrapt")
-    + get_exts_for("psutil"),
+    + get_exts_for("psutil")
+    + get_ddup_ext(),
 )
