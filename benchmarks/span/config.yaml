@@ -5,6 +5,7 @@ start: &base
   nmetrics: 0
   finishspan: false
   traceid128: false
+  telemetry: false
 start-traceid128:
   <<: *base
   traceid128: true
@@ -22,3 +23,7 @@ start-finish-traceid128:
   <<: *base
   finishspan: true
   traceid128: true
+start-finish-telemetry:
+  <<: *base
+  finishspan: true
+  telemetry: true

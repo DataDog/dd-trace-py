@@ -1,4 +1,5 @@
 # coding: utf-8
+import base64
 from collections import defaultdict
 import gzip
 import os
@@ -65,6 +66,8 @@ https://docs.datadoghq.com/data_streams/
 log = get_logger(__name__)
 
 PROPAGATION_KEY = "dd-pathway-ctx"
+PROPAGATION_KEY_BASE_64 = "dd-pathway-ctx-base64"
+
 """
 PathwayAggrKey uniquely identifies a pathway to aggregate stats on.
 """
@@ -257,6 +260,13 @@ class DataStreamsProcessor(PeriodicService):
         except (EOFError, TypeError):
             return self.new_pathway()
 
+    def decode_pathway_b64(self, data):
+        # type: (str) -> DataStreamsCtx
+        binary_pathway = data.encode("utf-8")
+        encoded_pathway = base64.b64decode(binary_pathway)
+        data_streams_context = self.decode_pathway(encoded_pathway)
+        return data_streams_context
+
     def new_pathway(self):
         # type: () -> DataStreamsCtx
         now_sec = time.time()
@@ -294,6 +304,13 @@ class DataStreamsCtx:
             + encode_var_int_64(int(self.pathway_start_sec * 1e3))
             + encode_var_int_64(int(self.current_edge_start_sec * 1e3))
         )
+
+    def encode_b64(self):
+        # type: () -> str
+        encoded_pathway = self.encode()
+        binary_pathway = base64.b64encode(encoded_pathway)
+        data_streams_context = binary_pathway.decode("utf-8")
+        return data_streams_context
 
     def _compute_hash(self, tags, parent_hash):
         if six.PY3:

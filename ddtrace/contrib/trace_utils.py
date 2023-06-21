@@ -654,3 +654,17 @@ def set_user(tracer, user_id, name=None, email=None, scope=None, role=None, sess
             "See https://docs.datadoghq.com/security_platform/application_security/setup_and_configure/"
             "?tab=set_user&code-lang=python for more information.",
         )
+
+
+def extract_netloc_and_query_info_from_url(url):
+    # type: (str) -> Tuple[str, str]
+    parse_result = parse.urlparse(url)
+    query = parse_result.query
+
+    # Relative URLs don't have a netloc, so we force them
+    if not parse_result.netloc:
+        parse_result = parse.urlparse("//{url}".format(url=url))
+
+    netloc = parse_result.netloc.split("@", 1)[-1]  # Discard auth info
+    netloc = netloc.split(":", 1)[0]  # Discard port information
+    return netloc, query
