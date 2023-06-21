@@ -679,10 +679,10 @@ def test_bad_payload_log_payload_non_bytes(monkeypatch):
             # False
             # >>> isinstance(u"", bytes)
             # False
-            return "bad_payload"
+            return u"bad_payload"
 
         def encode_traces(self, traces):
-            return "bad_payload"
+            return u"bad_payload"
 
     for client in t._writer._clients:
         client.encoder = BadEncoder()
