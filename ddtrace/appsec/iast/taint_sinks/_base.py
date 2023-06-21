@@ -82,6 +82,7 @@ class VulnerabilityBase(Operation):
                     evidence = Evidence(valueParts=evidence_value)
                 else:
                     log.debug("Unexpected evidence_value type: %s", type(evidence_value))
+                    evidence = ""
 
                 if cls.is_not_reported(file_name, line_number):
                     report = _context.get_item(IAST.CONTEXT_KEY, span=span)

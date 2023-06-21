@@ -11,6 +11,7 @@ def test_insecure_cookies(iast_span_defaults):
     asm_check_cookies(cookies)
     span_report = _context.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
     assert list(span_report.vulnerabilities)[0].type == VULN_INSECURE_COOKIE
+    assert list(span_report.vulnerabilities)[0].evidence.value == "foo=bar"
 
 
 def test_nohttponly_cookies(iast_span_defaults):
@@ -18,6 +19,7 @@ def test_nohttponly_cookies(iast_span_defaults):
     asm_check_cookies(cookies)
     span_report = _context.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
     assert list(span_report.vulnerabilities)[0].type == VULN_NO_HTTPONLY_COOKIE
+    assert list(span_report.vulnerabilities)[0].evidence.value == "foo=bar;secure"
 
 
 def test_nosamesite_cookies_missing(iast_span_defaults):
@@ -25,6 +27,7 @@ def test_nosamesite_cookies_missing(iast_span_defaults):
     asm_check_cookies(cookies)
     span_report = _context.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
     assert list(span_report.vulnerabilities)[0].type == VULN_NO_SAMESITE_COOKIE
+    assert list(span_report.vulnerabilities)[0].evidence.value == "foo=bar;secure;httponly"
 
 
 def test_nosamesite_cookies_none(iast_span_defaults):
@@ -33,12 +36,15 @@ def test_nosamesite_cookies_none(iast_span_defaults):
     span_report = _context.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
     assert list(span_report.vulnerabilities)[0].type == VULN_NO_SAMESITE_COOKIE
 
+    assert list(span_report.vulnerabilities)[0].evidence.value == "foo=bar;secure;httponly;samesite=none"
+
 
 def test_nosamesite_cookies_other(iast_span_defaults):
     cookies = {"foo": "bar;secure;httponly;samesite=none"}
     asm_check_cookies(cookies)
     span_report = _context.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
     assert list(span_report.vulnerabilities)[0].type == VULN_NO_SAMESITE_COOKIE
+    assert list(span_report.vulnerabilities)[0].evidence.value == "foo=bar;secure;httponly;samesite=none"
 
 
 def test_nosamesite_cookies_lax_no_error(iast_span_defaults):
