@@ -77,6 +77,7 @@ Global Configuration
 
 """
 import os
+
 import rq
 
 from ddtrace import Pin

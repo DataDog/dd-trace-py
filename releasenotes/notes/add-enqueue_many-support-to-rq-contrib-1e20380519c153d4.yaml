@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    tracing: adds support for `enqueue_many` in `rq` versions 1.14.0 and above. The underlying job queuing function had
+    changed from version 1.14.0 and the batch queuing was no longer traced.
