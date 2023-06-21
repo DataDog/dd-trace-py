@@ -4,6 +4,7 @@ import sys
 from typing import TYPE_CHECKING
 
 from ddtrace.appsec import _asm_request_context
+from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.internal.compat import parse
 from ddtrace.internal.compat import to_bytes_py2
@@ -182,3 +183,52 @@ def parse_form_multipart(body):
         msg = email.message_from_string("MIME-Version: 1.0\nContent-Type: %s\n%s" % (content_type, body))
         return parse_message(msg)
     return {}
+
+
+def parse_response_body(raw_body):
+    import json
+
+    import xmltodict
+
+    from ddtrace.appsec._constants import SPAN_DATA_NAMES
+    from ddtrace.contrib._asm_request_content import get_waf_address
+    from ddtrace.contrib.trace_utils import _get_header_value_case_insensitive
+
+    if not raw_body:
+        return
+
+    if isinstance(raw_body, dict):
+        return raw_body
+
+    headers = get_waf_address(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES)
+    if not headers:
+        return
+    content_type = _get_header_value_case_insensitive(
+        dict(headers),
+        "content-type",
+    )
+    if not content_type:
+        return
+
+    def access_body(bd):
+        if isinstance(bd, list) and isinstance(bd[0], (str, bytes)):
+            bd = bd[0][:0].join(bd)
+        if getattr(bd, "decode", False):
+            bd = bd.decode("UTF-8", errors="ignore")
+        if len(bd) >= API_SECURITY.MAX_PAYLOAD_SIZE:
+            raise ValueError("response body larger than 16MB")
+        return bd
+
+    req_body = None
+    try:
+        # TODO handle charset
+        if "json" in content_type:
+            req_body = json.loads(access_body(raw_body))
+        elif "xml" in content_type:
+            req_body = xmltodict.parse(access_body(raw_body))
+        else:
+            return
+    except BaseException:
+        log.debug("Failed to parse response body", exc_info=True)
+    else:
+        return req_body

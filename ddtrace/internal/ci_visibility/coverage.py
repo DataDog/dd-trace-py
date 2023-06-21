@@ -1,9 +1,12 @@
+import contextlib
 from itertools import groupby
 import json
 import os
 from typing import Dict
+from typing import Iterable
 from typing import List
 from typing import Optional
+from typing import Tuple
 
 from ddtrace import config
 from ddtrace.internal import compat
@@ -57,12 +60,14 @@ def enabled(root=None):
 
 
 def segments(lines):
+    # type: (Iterable[int]) -> List[Tuple[int, int, int, int, int]]
+    """Extract the relevant report data for a single file."""
     _segments = []
-    for key, group in groupby(enumerate(sorted(lines)), lambda x: x[1] - x[0]):
-        group = list(group)
+    for key, g in groupby(enumerate(sorted(lines)), lambda x: x[1] - x[0]):
+        group = list(g)
         start = group[0][1]
         end = group[-1][1]
-        _segments.append([start, 0, end, 0, -1])
+        _segments.append((start, 0, end, 0, -1))
 
     return _segments
 

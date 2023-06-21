@@ -49,6 +49,7 @@ if not debug_mode and call_basic_config:
 
 log = get_logger(__name__)
 
+
 if os.environ.get("DD_GEVENT_PATCH_ALL") is not None:
     deprecate(
         "The environment variable DD_GEVENT_PATCH_ALL is deprecated and will be removed in a future version. ",
@@ -103,7 +104,6 @@ def cleanup_loaded_modules():
             "atexit",
             "copyreg",  # pickling issues for tracebacks with gevent
             "ddtrace",
-            "asyncio",
             "concurrent",
             "typing",
             "re",  # referenced by the typing module
@@ -203,15 +203,12 @@ try:
         env_tags = os.getenv("DD_TRACE_GLOBAL_TAGS")
         tracer.set_tags(parse_tags_str(env_tags))
 
-    if sys.version_info >= (3, 7) and asbool(os.getenv("DD_TRACE_OTEL_ENABLED", False)):
+    if sys.version_info >= (3, 7) and config._otel_enabled:
         from opentelemetry.trace import set_tracer_provider
 
         from ddtrace.opentelemetry import TracerProvider
 
         set_tracer_provider(TracerProvider())
-        # Replaces the default otel api runtime context with DDRuntimeContext
-        # https://github.com/open-telemetry/opentelemetry-python/blob/v1.16.0/opentelemetry-api/src/opentelemetry/context/__init__.py#L53
-        os.environ["OTEL_PYTHON_CONTEXT"] = "ddcontextvars_context"
 
     # Check for and import any sitecustomize that would have normally been used
     # had ddtrace-run not been used.
@@ -248,6 +245,21 @@ try:
         else:
             log.debug("additional sitecustomize found in: %s", sys.path)
 
+    if asbool(os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", "true")):
+        from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+
+        remoteconfig_poller.enable()
+
+    should_start_appsec_remoteconfig = config._appsec_enabled or asbool(
+        os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", "true")
+    )
+
+    if should_start_appsec_remoteconfig:
+        from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
+
+        enable_appsec_rc()
+
+    config._ddtrace_bootstrapped = True
     # Loading status used in tests to detect if the `sitecustomize` has been
     # properly loaded without exceptions. This must be the last action in the module
     # when the execution ends with a success.

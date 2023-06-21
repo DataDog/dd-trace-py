@@ -3,6 +3,7 @@ import os.path
 import sys
 from threading import Thread
 from time import sleep
+from time import time
 
 import mock
 from mock.mock import call
@@ -16,7 +17,8 @@ from ddtrace.debugging._probe.model import ProbeEvaluateTimingForMethod
 from ddtrace.debugging._probe.registry import _get_probe_location
 from ddtrace.debugging._signal.model import SignalState
 from ddtrace.debugging._signal.tracing import SPAN_NAME
-from ddtrace.internal.remoteconfig import RemoteConfig
+from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.utils.inspection import linenos
 from tests.debugging.mocking import debugger
 from tests.debugging.utils import compile_template
@@ -616,20 +618,25 @@ def test_debugger_line_probe_on_wrapped_function(stuff):
             assert snapshot.probe.probe_id == "line-probe-wrapped-method"
 
 
-def test_probe_status_logging(monkeypatch):
-    monkeypatch.setenv("DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "0.1")
-    RemoteConfig.disable()
-
+@pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
+def test_probe_status_logging(monkeypatch, remote_config_worker):
+    monkeypatch.setenv("DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "10")
+    remoteconfig_poller.interval = 10
     from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 
     old_request = RemoteConfigClient.request
 
     def request(self, *args, **kwargs):
-        for cb in self._products.values():
-            cb(None, None)
+        import uuid
+
+        for cb in self.get_pubsubs():
+            cb._subscriber._status_timestamp = time()
+            cb._subscriber.interval = 0.1
+            cb.append_and_publish({"test": str(uuid.uuid4())}, "", None)
+        return True
 
     RemoteConfigClient.request = request
-
+    assert remoteconfig_poller.status == ServiceStatus.STOPPED
     try:
         with rcm_endpoint(), debugger(diagnostics_interval=0.5) as d:
             d.add_probes(
@@ -652,34 +659,41 @@ def test_probe_status_logging(monkeypatch):
             def count_status(queue):
                 return Counter(_["debugger"]["diagnostics"]["status"] for _ in queue)
 
-            sleep(0.2)
+            sleep(0.1)
             assert count_status(queue) == {"INSTALLED": 1, "RECEIVED": 2, "ERROR": 1}
 
-            sleep(0.5)
+            remoteconfig_poller._client.request()
+            sleep(0.1)
             assert count_status(queue) == {"INSTALLED": 2, "RECEIVED": 2, "ERROR": 2}
 
-            sleep(0.5)
+            remoteconfig_poller._client.request()
+            sleep(0.1)
             assert count_status(queue) == {"INSTALLED": 3, "RECEIVED": 2, "ERROR": 3}
     finally:
         RemoteConfigClient.request = old_request
 
 
-def test_probe_status_logging_reemit_on_modify(monkeypatch):
-    monkeypatch.setenv("DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "0.1")
-    RemoteConfig.disable()
-
+@pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
+def test_probe_status_logging_reemit_on_modify(monkeypatch, remote_config_worker):
+    monkeypatch.setenv("DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "10")
+    remoteconfig_poller.interval = 10
     from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 
     old_request = RemoteConfigClient.request
 
     def request(self, *args, **kwargs):
-        for cb in self._products.values():
-            cb(None, None)
+        import uuid
+
+        for cb in self.get_pubsubs():
+            cb._subscriber._status_timestamp = time()
+            cb._subscriber.interval = 0.1
+            cb.append_and_publish({"test": str(uuid.uuid4())}, "", None)
+        return True
 
     RemoteConfigClient.request = request
-
+    assert remoteconfig_poller.status == ServiceStatus.STOPPED
     try:
-        with rcm_endpoint(), debugger(diagnostics_interval=0.5) as d:
+        with rcm_endpoint(), debugger(diagnostics_interval=0.3) as d:
             d.add_probes(
                 create_snapshot_line_probe(
                     version=1,
@@ -711,14 +725,15 @@ def test_probe_status_logging_reemit_on_modify(monkeypatch):
                     if _["debugger"]["diagnostics"]["status"] == status
                 ]
 
-            sleep(0.2)
+            sleep(0.1)
             assert count_status(queue) == {"INSTALLED": 2, "RECEIVED": 1}
             assert versions(queue, "INSTALLED") == [1, 2]
             assert versions(queue, "RECEIVED") == [1]
 
             queue[:] = []
-
             sleep(0.5)
+            remoteconfig_poller._client.request()
+            sleep(0.1)
             assert count_status(queue) == {"INSTALLED": 1}
             assert versions(queue, "INSTALLED") == [2]
 

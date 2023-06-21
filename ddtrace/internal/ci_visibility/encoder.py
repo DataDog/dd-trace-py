@@ -21,6 +21,9 @@ from ddtrace.internal.writer.writer import NoEncodableSpansError
 
 
 if TYPE_CHECKING:  # pragma: no cover
+    from typing import List
+    from typing import Optional
+
     from ..span import Span
 
 
@@ -142,6 +145,7 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
         return super(CIVisibilityCoverageEncoderV02, self).put(spans_with_coverage)
 
     def _build_coverage_attachment(self, data):
+        # type: (bytes) -> List[bytes]
         return [
             b"--%s" % self.boundary.encode("utf-8"),
             b'Content-Disposition: form-data; name="coverage1"; filename="coverage1.msgpack"',
@@ -151,6 +155,7 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
         ]
 
     def _build_event_json_attachment(self):
+        # type: () -> List[bytes]
         return [
             b"--%s" % self.boundary.encode("utf-8"),
             b'Content-Disposition: form-data; name="event"; filename="event.json"',
@@ -160,6 +165,7 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
         ]
 
     def _build_body(self, data):
+        # type: (bytes) -> List[bytes]
         return (
             self._build_coverage_attachment(data)
             + self._build_event_json_attachment()
@@ -167,6 +173,7 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
         )
 
     def _build_data(self, traces):
+        # type: (List[List[Span]]) -> Optional[bytes]
         normalized_covs = [
             CIVisibilityCoverageEncoderV02._convert_span(span, "")
             for trace in traces
@@ -177,7 +184,11 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
         return msgpack_packb({"version": self.PAYLOAD_FORMAT_VERSION, "coverages": normalized_covs})
 
     def _build_payload(self, traces):
-        return b"\r\n".join(self._build_body(self._build_data(traces)))
+        # type: (List[List[Span]]) -> Optional[bytes]
+        data = self._build_data(traces)
+        if not data:
+            return None
+        return b"\r\n".join(self._build_body(data))
 
     @staticmethod
     def _convert_span(span, dd_origin):

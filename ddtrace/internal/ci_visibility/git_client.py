@@ -3,12 +3,12 @@ import json
 import os
 from threading import Thread
 from typing import Callable  # noqa
+from typing import Dict  # noqa
 from typing import List  # noqa
 from typing import Optional  # noqa
 from typing import Tuple  # noqa
 
-import tenacity
-
+from ddtrace.ext import ci
 from ddtrace.ext.git import build_git_packfiles
 from ddtrace.ext.git import extract_commit_sha
 from ddtrace.ext.git import extract_latest_commits
@@ -18,6 +18,7 @@ from ddtrace.internal.agent import get_trace_url
 from ddtrace.internal.compat import JSONDecodeError
 from ddtrace.internal.logger import get_logger
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
+from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 
 from .. import compat
 from ..utils.http import Response
@@ -40,8 +41,6 @@ PACK_EXTENSION = ".pack"
 
 
 class CIVisibilityGitClient(object):
-    RETRY_ATTEMPTS = 5
-
     def __init__(
         self,
         api_key,
@@ -63,10 +62,18 @@ class CIVisibilityGitClient(object):
 
     def start(self, cwd=None):
         # type: (Optional[str]) -> None
+        self._tags = ci.tags(cwd=cwd)
         if self._worker is None:
             self._worker = Thread(
                 target=CIVisibilityGitClient._run_protocol,
-                args=(self._serializer, self._requests_mode, self._base_url, self._trace_id, self._response),
+                args=(
+                    self._serializer,
+                    self._requests_mode,
+                    self._base_url,
+                    self._trace_id,
+                    self._tags,
+                    self._response,
+                ),
                 kwargs={"cwd": cwd},
             )
             self._worker.start()
@@ -78,9 +85,9 @@ class CIVisibilityGitClient(object):
             self._worker = None
 
     @classmethod
-    def _run_protocol(cls, serializer, requests_mode, base_url, trace_id, _response, cwd=None):
-        # type: (CIVisibilityGitClientSerializerV1, int, str, str, Optional[Response], Optional[str]) -> None
-        repo_url = cls._get_repository_url(cwd=cwd)
+    def _run_protocol(cls, serializer, requests_mode, base_url, trace_id, _tags={}, _response=None, cwd=None):
+        # type: (CIVisibilityGitClientSerializerV1, int, str, str, Dict[str, str], Optional[Response], Optional[str]) -> None
+        repo_url = cls._get_repository_url(tags=_tags, cwd=cwd)
         latest_commits = cls._get_latest_commits(cwd=cwd)
         log.warning("%d latest commits", len(latest_commits))
         backend_commits = cls._search_commits(
@@ -100,15 +107,11 @@ class CIVisibilityGitClient(object):
             log.warning("No new commits to upload found")
 
     @classmethod
-    def _get_repository_url(cls, cwd=None):
-        # type: (Optional[str]) -> str
-        result = extract_remote_url(cwd=cwd)
-        if not result.startswith(("http", "git")):
-            from ddtrace.ext import ci
-
-            _tags = ci.tags(cwd=cwd)
-            result = _tags.get(ci.git.REPOSITORY_URL, result)
-
+    def _get_repository_url(cls, tags={}, cwd=None):
+        # type: (Dict[str, str], Optional[str]) -> str
+        result = tags.get(ci.git.REPOSITORY_URL, "")
+        if not result:
+            result = extract_remote_url(cwd=cwd)
         return result
 
     @classmethod
@@ -120,7 +123,7 @@ class CIVisibilityGitClient(object):
     def _search_commits(cls, requests_mode, base_url, repo_url, latest_commits, serializer, trace_id, _response):
         # type: (int, str, str, list[str], CIVisibilityGitClientSerializerV1, str, Optional[Response]) -> list[str]
         payload = serializer.search_commits_encode(repo_url, latest_commits)
-        response = _response or cls.retry_request(
+        response = _response or cls._do_request(
             requests_mode, base_url, "/search_commits", payload, serializer, trace_id
         )
         result = []
@@ -131,6 +134,7 @@ class CIVisibilityGitClient(object):
         return result
 
     @classmethod
+    @fibonacci_backoff_with_jitter(attempts=5, until=lambda result: isinstance(result, Response))
     def _do_request(cls, requests_mode, base_url, endpoint, payload, serializer, trace_id, headers=None):
         # type: (int, str, str, str, CIVisibilityGitClientSerializerV1, str, Optional[dict]) -> Response
         url = "{}/repository{}".format(base_url, endpoint)
@@ -180,24 +184,13 @@ class CIVisibilityGitClient(object):
             log.warning("uploading file path: %s", file_path)
             content_type, payload = serializer.upload_packfile_encode(repo_url, sha, file_path)
             headers = {"Content-Type": content_type}
-            response = _response or cls.retry_request(
+            response = _response or cls._do_request(
                 requests_mode, base_url, "/packfile", payload, serializer, trace_id, headers=headers
             )
             if response.status != 204:
                 log.warning("Upload failed: status code %d , filename: %s", response.status, filename)
                 return False
         return True
-
-    @classmethod
-    def retry_request(cls, *args, **kwargs):
-        return tenacity.Retrying(
-            wait=tenacity.wait_random_exponential(
-                multiplier=(0.618 / (1.618**cls.RETRY_ATTEMPTS) / 2),
-                exp_base=1.618,
-            ),
-            stop=tenacity.stop_after_attempt(cls.RETRY_ATTEMPTS),
-            retry=tenacity.retry_if_exception_type((compat.httplib.HTTPException, OSError, IOError)),
-        )(cls._do_request, *args, **kwargs)
 
 
 class CIVisibilityGitClientSerializerV1(object):

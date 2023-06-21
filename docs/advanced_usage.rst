@@ -105,6 +105,23 @@ threads::
         thread.start()
         thread.join()
 
+When the :ref:`futures` integration is enabled, the context is automatically propagated
+to :class:`~concurrent.futures.ThreadPoolExecutor` tasks::
+
+    from concurrent.futures import ThreadPoolExecutor
+    from ddtrace import tracer
+
+    @tracer.wrap()
+    def eat(dessert):  # each task will get its own span, child of the eat_all_the_things span
+        tracer.current_span().resource = dessert   # customize the local span
+        print(f"This {dessert} is delicious!")
+
+    @tracer.wrap()
+    def eat_all_the_things():
+        with ThreadPoolExecutor() as e:
+            e.submit(eat, "cookie")
+            e.map(eat, ("panna cotta", "tiramisu", "gelato"))
+
 
 Tracing Across Processes
 ^^^^^^^^^^^^^^^^^^^^^^^^
@@ -168,8 +185,8 @@ Tracing Across Asyncio Tasks
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 By default the active context will by propagated across tasks on creation as
-the `contextvars`_ context is copied between tasks. If this is not desirable
-then ``None`` can be activated in the new task::
+the :mod:`contextvars` context is copied between tasks. If this is not
+desirable then ``None`` can be activated in the new task::
 
     tracer.context_provider.activate(None)
 
@@ -186,9 +203,10 @@ for :meth:`ddtrace.Tracer.start_span`.
 Context Providers
 ^^^^^^^^^^^^^^^^^
 
-The default context provider used in the tracer uses contextvars_ to store
-the active context per execution. This means that any asynchronous library
-that uses `contextvars`_ will have support for automatic context management.
+The default context provider used in the tracer uses :mod:`contextvars`
+to store the active context per execution. This means that any asynchronous
+library that uses :mod:`contextvars` will have support for automatic
+context management.
 
 If there is a case where the default is insufficient then a custom context
 provider can be used. It must implement the
@@ -196,9 +214,6 @@ provider can be used. It must implement the
 with::
 
     tracer.configure(context_provider=MyContextProvider)
-
-
-.. _contextvars: https://docs.python.org/3/library/contextvars.html
 
 
 .. _disttracing:

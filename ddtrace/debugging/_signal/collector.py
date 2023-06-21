@@ -1,3 +1,4 @@
+import os
 from typing import Any
 from typing import Callable
 from typing import List
@@ -85,6 +86,9 @@ class SignalCollector(object):
     def _enqueue(self, log_signal):
         # type: (LogSignal) -> None
         try:
+            log.debug(
+                "[%s][P: %s] SignalCollector. _encoder (%s) _enqueue signal", os.getpid(), os.getppid(), self._encoder
+            )
             self._encoder.put(log_signal)
         except BufferFull:
             log.debug("Encoder buffer full")

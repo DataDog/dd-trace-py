@@ -5,6 +5,7 @@ except AttributeError:
     from dogpile import cache as dogpile_cache
     from dogpile import lock as dogpile_lock
 
+from ddtrace.internal.schema import schematize_service_name
 from ddtrace.pin import Pin
 from ddtrace.pin import _DD_PIN_NAME
 from ddtrace.pin import _DD_PIN_PROXY_NAME
@@ -29,7 +30,7 @@ def patch():
     _w("dogpile.cache.region", "CacheRegion.get_or_create_multi", _wrap_get_create_multi)
     _w("dogpile.lock", "Lock.__init__", _wrap_lock_ctor)
 
-    Pin(service="dogpile.cache").onto(dogpile_cache)
+    Pin(service=schematize_service_name("dogpile.cache")).onto(dogpile_cache)
 
 
 def unpatch():
