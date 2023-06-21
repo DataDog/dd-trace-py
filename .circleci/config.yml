@@ -482,7 +482,7 @@ jobs:
     docker:
       - image: *ddtrace_dev_image
       - *testagent
-    parallelism: 4   
+    parallelism: 4
     steps:
       - run_test:
           pattern: 'asyncio$|sqlite3$|futures$|dbapi$|dbapi_async$'
@@ -1005,7 +1005,6 @@ jobs:
       - run_test:
           wait: vertica
           pattern: 'vertica'
-          snapshot: true
 
   wsgi:
     <<: *machine_executor
