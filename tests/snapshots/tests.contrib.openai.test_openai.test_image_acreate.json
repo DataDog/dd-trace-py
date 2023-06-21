@@ -17,6 +17,7 @@
       "openai.organization.name": "datadog-4",
       "openai.request.endpoint": "/v1/images/generations",
       "openai.request.method": "POST",
+      "openai.request.model": "dall-e",
       "openai.request.n": "1",
       "openai.request.prompt": "sleepy capybara with monkey on top",
       "openai.request.response_format": "url",

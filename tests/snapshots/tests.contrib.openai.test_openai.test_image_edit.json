@@ -19,6 +19,7 @@
       "openai.request.image": "image.png",
       "openai.request.mask": "mask.png",
       "openai.request.method": "POST",
+      "openai.request.model": "dall-e",
       "openai.request.n": "1",
       "openai.request.prompt": "A sunlit indoor lounge area with a pool containing a flamingo",
       "openai.request.response_format": "url",
