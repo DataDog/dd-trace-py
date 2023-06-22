@@ -283,7 +283,6 @@ class SpanAggregator(SpanProcessor):
                 telemetry_metrics_writer.add_count_metric(
                     TELEMETRY_NAMESPACE_TAG_TRACER, metric_name, count, tags=((tag_name, tag_value),)
                 )
-                print("{} {}".format(tag_value, count))
             self._span_metrics[metric_name] = defaultdict(int)
 
 
