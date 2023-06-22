@@ -205,7 +205,7 @@ class SpanAggregator(SpanProcessor):
     def on_span_finish(self, span):
         # type: (Span) -> None
         with self._lock:
-            self._span_metrics["span_finished"][span._span_api] += 1
+            self._span_metrics["spans_finished"][span._span_api] += 1
             trace = self._traces[span.trace_id]
             trace.num_finished += 1
             should_partial_flush = self._partial_flush_enabled and trace.num_finished >= self._partial_flush_min_spans
