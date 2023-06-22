@@ -245,37 +245,32 @@ def test_add_integration(telemetry_lifecycle_writer, test_agent_session, mock_ti
 def test_app_client_configuration_changed_event(telemetry_lifecycle_writer, test_agent_session, mock_time):
     """asserts that client_configuration_changed_event() queues a valid telemetry request"""
 
-    telemetry_lifecycle_writer.add_configuration("appsec_enabled", True, "env_var")
-    telemetry_lifecycle_writer.add_configuration("no_match_configuration", "anything")
+    telemetry_lifecycle_writer.add_configuration("appsec_enabled", True)
+    telemetry_lifecycle_writer.add_configuration("propagation_style_extract", "['datadog']")
+    telemetry_lifecycle_writer.add_configuration("appsec_enabled", False, "env_var")
 
     telemetry_lifecycle_writer.periodic()
 
-    requests = test_agent_session.get_requests()
-    assert len(requests) == 1
-    assert requests[0]["headers"]["DD-Telemetry-Request-Type"] == "app-client-configuration-change"
-
     events = test_agent_session.get_events()
     assert len(events) == 1
+    assert events[0]["request_type"] == "app-client-configuration-change"
+    received_configurations = events[0]["payload"]["configuration"]
+    # Sort the configuration list by name
+    received_configurations.sort(key=lambda c: c["name"])
 
-    payload = {
-        "configuration": [
-            {
-                "name": "appsec_enabled",
-                "origin": "env_var",
-                "value": True,
-            },
-            {
-                "name": "no_match_configuration",
-                "origin": "unknown",
-                "value": "anything",
-            },
-        ],
-        "error": {
-            "code": 0,
-            "message": "",
+    # assert the latest configuration value is send to the agent
+    assert received_configurations == [
+        {
+            "name": "appsec_enabled",
+            "origin": "env_var",
+            "value": False,
         },
-    }
-    assert events[0]["payload"]["configuration"] == payload["configuration"]
+        {
+            "name": "propagation_style_extract",
+            "origin": "unknown",
+            "value": "['datadog']",
+        },
+    ]
 
 
 def test_add_integration_disabled_writer(telemetry_lifecycle_writer, test_agent_session):

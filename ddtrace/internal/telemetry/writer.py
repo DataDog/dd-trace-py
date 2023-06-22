@@ -390,7 +390,7 @@ class TelemetryWriter(TelemetryBase):
         # type: () -> None
         super(TelemetryWriter, self).__init__(interval=_get_heartbeat_interval_or_default())
         self._integrations_queue = []  # type: List[Dict]
-        self._configuration_queue = []  # type: List[Dict]
+        self._configuration_queue = {}  # type: Dict[str, Dict]
         # Currently telemetry only supports reporting a single error.
         # If we'd like to report multiple errors in the future
         # we could hack it in by xor-ing error codes and concatenating strings
@@ -433,13 +433,17 @@ class TelemetryWriter(TelemetryBase):
             # app-started events should only be sent by the main process
             return
         #  List of configurations to be collected
-        self.add_configuration("data_streams_enabled", config._data_streams_enabled)
-        self.add_configuration("appsec_enabled", config._appsec_enabled)
-        self.add_configuration("propagation_style_inject", str(config._propagation_style_inject))
-        self.add_configuration("propagation_style_extract", str(config._propagation_style_extract))
-        self.add_configuration("ddtrace_bootstrapped", config._ddtrace_bootstrapped)
-        self.add_configuration("ddtrace_auto_used", "ddtrace.auto" in sys.modules)
-        self.add_configuration("otel_enabled", config._otel_enabled)
+        self.add_configurations(
+            [
+                ("data_streams_enabled", config._data_streams_enabled, "unknown"),
+                ("appsec_enabled", config._appsec_enabled, "unknown"),
+                ("propagation_style_inject", str(config._propagation_style_inject), "unknown"),
+                ("propagation_style_extract", str(config._propagation_style_extract), "unknown"),
+                ("ddtrace_bootstrapped", config._ddtrace_bootstrapped, "unknown"),
+                ("ddtrace_auto_used", "ddtrace.auto" in sys.modules, "unknown"),
+                ("otel_enabled", config._otel_enabled, "unknown"),
+            ]
+        )
 
         payload = {
             "configuration": self._flush_configuration_queue(),
@@ -485,8 +489,8 @@ class TelemetryWriter(TelemetryBase):
         # type: () -> List[Dict]
         """Flushes and returns a list of all queued configurations"""
         with self._lock:
-            configuration = self._configuration_queue
-            self._configuration_queue = []
+            configuration = list(self._configuration_queue.values())
+            self._configuration_queue = {}
         return configuration
 
     def _app_client_configuration_changed_event(self, configurations):
@@ -501,14 +505,24 @@ class TelemetryWriter(TelemetryBase):
 
     def add_configuration(self, configuration_name, configuration_value, origin="unknown"):
         # type: (str, Union[bool, float, str], str) -> None
-        """Creates and queues the names and values of the configuration"""
-        self._configuration_queue.append(
-            {
+        """Creates and queues the name, origin, value of the configuration"""
+        with self._lock:
+            self._configuration_queue[configuration_name] = {
                 "name": configuration_name,
                 "origin": origin,
                 "value": configuration_value,
             }
-        )
+
+    def add_configurations(self, configuration_list):
+        # type: (List[Tuple[str, Union[bool, float, str], str]]) -> None
+        """Creates and queues a list of configurations"""
+        with self._lock:
+            for name, value, origin in configuration_list:
+                self._configuration_queue[name] = {
+                    "name": name,
+                    "origin": origin,
+                    "value": value,
+                }
 
     def _get_modified_configurations(self, original_config, modified_config):
         # type: (Dict, List[Dict]) -> List
