@@ -247,11 +247,9 @@ class CIVisibility(Service):
         if not cls.enabled:
             return False
 
-        if test is not None:
+        if TEST_LEVEL == "test" and test is not None:
             return cls._instance and test in cls._instance._get_tests_to_skip(suite, module)
 
-        else:
-            return cls._instance and cls._instance._get_tests_to_skip(suite, module) != []
         return False
 
     def _fetch_tests_to_skip(self):

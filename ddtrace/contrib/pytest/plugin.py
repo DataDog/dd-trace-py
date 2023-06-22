@@ -398,7 +398,7 @@ def pytest_runtest_protocol(item, nextitem):
         _store_span(item, span)
 
         if _CIVisibility.test_skipping_enabled() and _CIVisibility.should_skip(
-            test_suite_span.get_tag(test.SUITE), module_name
+            test_suite_span.get_tag(test.SUITE), module_name, item.name
         ):
             item.add_marker(pytest.mark.skip)
             yield
