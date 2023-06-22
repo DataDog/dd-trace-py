@@ -20,6 +20,7 @@ log = logging.getLogger(__name__)
 
 
 _CURRENT_CONTEXT = None
+ROOT_CONTEXT_ID = "__root"
 
 
 class ExecutionContext:
@@ -54,7 +55,7 @@ class ExecutionContext:
         return dispatch("context.ended.%s" % self.identifier, [])
 
     def addParent(self, context):
-        if self.identifier == "__root":
+        if self.identifier == ROOT_CONTEXT_ID:
             raise ValueError("Cannot add parent to root context")
         self._parents.append(context)
         self._data.update(context._data)
@@ -73,19 +74,19 @@ class ExecutionContext:
 
     def get_item(self, data_key: str) -> Optional[Any]:
         current = self
-        while current is not None:
+        while current.identifier != ROOT_CONTEXT_ID:
             if data_key in current._data:
                 return current._data.get(data_key)
             current = current.parent
 
     def set_item(self, data_key: str, data_value: Optional[Any]):
         current = self
-        while current is not None:
+        while current.identifier != ROOT_CONTEXT_ID:
             current._data[data_key] = data_value
             current = current.parent
 
 
-_CURRENT_CONTEXT = contextvars.ContextVar("ExecutionContext_var", default=ExecutionContext("__root"))
+_CURRENT_CONTEXT = contextvars.ContextVar("ExecutionContext_var", default=ExecutionContext(ROOT_CONTEXT_ID))
 
 
 def context_with_data(identifier: str, parent=None, **kwargs):
