@@ -62,22 +62,19 @@ class ASM_Environment:
         self.addresses_sent = set()  # type: set[str]
 
 
-_ASM = contextvars.ContextVar("ASM_contextvar", default=ASM_Environment())
-
-
 def free_context_available():  # type: () -> bool
-    env = _ASM.get()
+    env = core.get_item("env")
     return env.active and env.span is None
 
 
 def in_context():  # type: () -> bool
-    env = _ASM.get()
+    env = core.get_item("env")
     return env.active
 
 
 def is_blocked():  # type: () -> bool
     try:
-        env = _ASM.get()
+        env = core.get_item("env")
         if not env.active or env.span is None:
             return False
         return _context.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=env.span)
@@ -86,7 +83,7 @@ def is_blocked():  # type: () -> bool
 
 
 def register(span, span_asm_context=None):
-    env = _ASM.get()
+    env = core.get_item("env")
     if not env.active:
         log.debug("registering a span with no active asm context")
         return
@@ -95,7 +92,7 @@ def register(span, span_asm_context=None):
 
 
 def unregister(span):
-    env = _ASM.get()
+    env = core.get_item("env")
     if env.span_asm_context is not None and env.span is span:
         env.span_asm_context.__exit__(None, None, None)
 
@@ -115,25 +112,25 @@ class _DataHandler:
 
         self._id = _DataHandler.main_id
         self.active = True
-        self.token = _ASM.set(env)
+        self.execution_context = core.ExecutionContext(__name__, env=env)
 
         env.telemetry[_WAF_RESULTS] = [], [], []
         env.callbacks[_CONTEXT_CALL] = []
 
     def finalise(self):
         if self.active:
-            env = _ASM.get()
+            env = core.get_item("env")
             # assert _CONTEXT_ID.get() == self._id
             callbacks = env.callbacks.get(_CONTEXT_CALL)
             if callbacks is not None:
                 for function in callbacks:
                     function()
-                _ASM.reset(self.token)
+                self.execution_context.end()
             self.active = False
 
 
 def set_value(category, address, value):  # type: (str, str, Any) -> None
-    env = _ASM.get()
+    env = core.get_item("env")
     if not env.active:
         log.debug("setting %s address %s with no active asm context", category, address)
         return
@@ -145,13 +142,13 @@ def set_value(category, address, value):  # type: (str, str, Any) -> None
 def set_waf_address(address, value, span=None):  # type: (str, Any, Any) -> None
     set_value(_WAF_ADDRESSES, address, value)
     if span is None:
-        span = _ASM.get().span
+        span = core.get_item("env").span
     if span:
         _context.set_item(address, value, span=span)
 
 
 def get_value(category, address, default=None):  # type: (str, str, Any) -> Any
-    env = _ASM.get()
+    env = core.get_item("env")
     if not env.active:
         log.debug("getting %s address %s with no active asm context", category, address)
         return default
@@ -188,7 +185,8 @@ def call_waf_callback(custom_data=None):
 
 def set_ip(ip):  # type: (Optional[str]) -> None
     if ip is not None:
-        set_waf_address(SPAN_DATA_NAMES.REQUEST_HTTP_IP, ip, _ASM.get().span)
+        env = core.get_item("env")
+        set_waf_address(SPAN_DATA_NAMES.REQUEST_HTTP_IP, ip, env.span)
 
 
 def get_ip():  # type: () -> Optional[str]
@@ -202,7 +200,8 @@ def get_ip():  # type: () -> Optional[str]
 
 def set_headers(headers):  # type: (Any) -> None
     if headers is not None:
-        set_waf_address(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, headers, _ASM.get().span)
+        env = core.get_item("env")
+        set_waf_address(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, headers, env.span)
 
 
 def get_headers():  # type: () -> Optional[Any]
@@ -210,7 +209,8 @@ def get_headers():  # type: () -> Optional[Any]
 
 
 def set_headers_case_sensitive(case_sensitive):  # type: (bool) -> None
-    set_waf_address(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES_CASE, case_sensitive, _ASM.get().span)
+    env = core.get_item("env")
+    set_waf_address(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES_CASE, case_sensitive, env.span)
 
 
 def get_headers_case_sensitive():  # type: () -> bool
@@ -239,7 +239,7 @@ def block_request():  # type: () -> None
 
 
 def get_data_sent():  # type: () -> set[str] | None
-    env = _ASM.get()
+    env = core.get_item("env")
     if not env.active:
         log.debug("getting addresses sent with no active asm context")
         return set()
