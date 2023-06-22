@@ -176,7 +176,7 @@ else:
 
         def __init__(self, rules, obfuscation_parameter_key_regexp, obfuscation_parameter_value_regexp):
             # type: (DDWaf, Union[None, int, text_type, list[Any], dict[text_type, Any]], text_type, text_type) -> None
-            pass
+            self._handle = None
 
         def run(
             self,  # type: DDWaf
