@@ -32,9 +32,6 @@ def test_appsec_iast_processor():
         patch_iast(**IAST_PATCH)
 
         tracer = DummyTracer(iast_enabled=True)
-        import pudb
-
-        # pudb.set_trace()
 
         span = traced_function(tracer)
         tracer._on_span_finish(span)

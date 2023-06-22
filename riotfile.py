@@ -246,7 +246,6 @@ venv = Venv(
                 "pycryptodome": latest,
                 "cryptography": latest,
                 "astunparse": latest,
-                "pudb": latest,
             },
             env={
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
