@@ -215,32 +215,6 @@ jobs:
           # of the wheels will be uploaded if some are uploaded manually.
           skip_existing: true
 
-  upload_artifacts_to_github_release:
-    needs: [upload_pypi]
-    runs-on: ubuntu-latest
-    if: (github.event_name == 'release' && github.event.action == 'published') || (github.event_name == 'workflow_dispatch')
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v3
-        with:
-          name: artifact
-          path: dist
-      - name: Archive the build artifacts and generate shasum
-        run: |
-          tar_fname="$(ls dist/*.tar.gz | head -n 1 | xargs -I {} basename {} .tar.gz)-all.tar.gz"
-          (cd ./dist/ && tar -zcv -f "../${tar_fname}" *)
-          sha256sum "${tar_fname}" > shasum.txt
-      - uses: actions/upload-artifact@v3
-        with:
-          path: |
-            *-all.tar.gz
-            shasum.txt
-      - name: Upload files to release
-        run: |
-          gh release upload ${{ github.ref_name }} *-all.tar.gz shasum.txt
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
   build-and-publish-init-image:
     needs: [upload_pypi]
     uses: ./.github/workflows/lib-inject-publish.yml

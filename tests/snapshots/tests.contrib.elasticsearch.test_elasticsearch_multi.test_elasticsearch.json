@@ -16,6 +16,7 @@
       "elasticsearch.url": "/ddtrace_index",
       "http.status_code": "200",
       "language": "python",
+      "out.host": "localhost",
       "runtime-id": "48d5633e5196471c87a429e6e232c9da",
       "span.kind": "client"
     },
@@ -48,6 +49,7 @@
       "elasticsearch.url": "/ddtrace_index",
       "http.status_code": "200",
       "language": "python",
+      "out.host": "localhost",
       "runtime-id": "48d5633e5196471c87a429e6e232c9da",
       "span.kind": "client"
     },
