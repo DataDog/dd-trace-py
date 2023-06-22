@@ -128,6 +128,9 @@ commands:
       store_coverage:
         type: boolean
         default: true
+      trace_agent_url:
+        type: string
+        default: "http://localhost:9126"
     steps:
       - attach_workspace:
           at: .
@@ -143,7 +146,7 @@ commands:
                 services: testagent << parameters.docker_services >>
             - run:
                 environment:
-                  DD_TRACE_AGENT_URL: http://localhost:9126
+                  DD_TRACE_AGENT_URL: << parameters.trace_agent_url >> 
                   RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
                 command: |
                   # Sort the hashes to ensure a consistent ordering/division between each node
@@ -164,7 +167,7 @@ commands:
             - run:
                 environment:
                   RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
-                  DD_TRACE_AGENT_URL: http://localhost:9126
+                  DD_TRACE_AGENT_URL: << parameters.trace_agent_url >> 
                 command: |
                   # Sort the hashes to ensure a consistent ordering/division between each node
                   riot list --hash-only '<<parameters.pattern>>' | sort | circleci tests split | xargs -n 1 -I {} riot -v run --exitfirst --pass-env -s {} $([[ << pipeline.parameters.coverage >> == false ]] && echo '--no-cov' )
@@ -391,12 +394,14 @@ jobs:
     steps:
       - run_test:
           pattern: "tracer"
+          trace_agent_url: "http://localhost:8126"
 
   ci_visibility:
     <<: *contrib_job_small
     steps:
       - run_test:
           pattern: "ci_visibility"
+          trace_agent_url: "http://localhost:8126"
 
   sourcecode:
     <<: *contrib_job
@@ -451,6 +456,7 @@ jobs:
           store_coverage: false
           # We don't want to run the profile-diff venvs
           pattern: 'profile$'
+          trace_agent_url: "http://localhost:8126"
 
   integration_agent:
     <<: *machine_executor
@@ -477,6 +483,7 @@ jobs:
           snapshot: true
           store_coverage: false
           pattern: 'integration-snapshot'
+          trace_agent_url: "http://localhost:8126"
 
   vendor:
     <<: *contrib_job_small
@@ -505,6 +512,7 @@ jobs:
       - run_test:
           store_coverage: false
           pattern: 'ddtracerun'
+          trace_agent_url: "http://localhost:8126"
 
   test_logging:
     <<: *contrib_job
@@ -538,6 +546,7 @@ jobs:
     steps:
       - run_test:
           pattern: 'pylons'
+          trace_agent_url: "http://localhost:8126"
 
   aiohttp:
     <<: *machine_executor
