@@ -306,7 +306,6 @@ def traced_func(django, name, resource=None, ignored_excs=None):
                 )
                 if kwargs:
                     try:
-
                         for k, v in kwargs.items():
                             kwargs[k] = taint_pyobject(v, Input_info(k, v, IAST.HTTP_REQUEST_PATH_PARAMETER))
                     except Exception:
@@ -532,6 +531,8 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
             finally:
                 # DEV: Always set these tags, this is where `span.resource` is set
                 utils._after_request_tags(pin, span, request, response)
+                if config._appsec_enbled and config._api_security_enabled:
+                    trace_utils.set_http_meta(span, config.django, route=span.get_tag("http.route"))
                 # if not blocked yet, try blocking rules on response
                 if config._appsec_enabled and not _context.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span):
                     log.debug("Django WAF call for Suspicious Request Blocking on response")
@@ -761,7 +762,7 @@ def wrap_wsgi_environ(wrapped, _instance, args, kwargs):
 
         return wrapped(
             *((LazyTaintDict(args[0], origins=(IAST.HTTP_REQUEST_HEADER_NAME, IAST.HTTP_REQUEST_HEADER)),) + args[1:]),
-            **kwargs
+            **kwargs,
         )
 
     return wrapped(*args, **kwargs)
