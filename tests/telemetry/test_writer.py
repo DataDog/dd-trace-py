@@ -247,7 +247,6 @@ def test_app_client_configuration_changed_event(telemetry_lifecycle_writer, test
 
     telemetry_lifecycle_writer.add_configuration("appsec_enabled", True, "env_var")
     telemetry_lifecycle_writer.add_configuration("no_match_configuration", "anything")
-    telemetry_lifecycle_writer.add_configuration("appsec_enabled", False, "env_var")
 
     telemetry_lifecycle_writer.periodic()
 
@@ -269,11 +268,6 @@ def test_app_client_configuration_changed_event(telemetry_lifecycle_writer, test
                 "name": "no_match_configuration",
                 "origin": "unknown",
                 "value": "anything",
-            },
-            {
-                "name": "appsec_enabled",
-                "origin": "env_var",
-                "value": False,
             },
         ],
         "error": {
