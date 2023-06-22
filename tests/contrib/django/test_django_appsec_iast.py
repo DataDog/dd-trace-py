@@ -71,7 +71,10 @@ def get_line_and_hash(label, vuln_type, filename=TEST_FILE):
 
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_django_weak_hash(client, test_spans, tracer):
+    from ddtrace.appsec.iast._taint_tracking import setup
+
     with override_global_config(dict(_appsec_enabled=True, _iast_enabled=True)):
+        setup(bytes.join, bytearray.join)
         oce.reconfigure()
         patch_iast(weak_hash=True)
         root_span, _ = _aux_appsec_get_root_span(client, test_spans, tracer, url="/appsec/weak-hash/")
