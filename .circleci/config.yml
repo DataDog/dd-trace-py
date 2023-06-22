@@ -853,20 +853,16 @@ jobs:
           pattern: "requests"
 
   sanic:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - *testagent
+    <<: *machine_executor
+    parallelism: 4
     steps:
       - run_test:
           pattern: "sanic"
           snapshot: true
 
   snowflake:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - *testagent
+    <<: *machine_executor
+    parallelism: 4
     steps:
       - run_test:
           pattern: "snowflake"
