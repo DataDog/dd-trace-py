@@ -13,6 +13,7 @@ to be run at specific points during pytest execution. The most important hooks u
 """
 from doctest import DocTest
 import json
+import os
 import re
 from typing import Dict
 
@@ -193,7 +194,9 @@ def _start_test_suite_span(item):
         test_suite_span.set_tag_str(_MODULE_ID, str(test_module_span.span_id))
         test_suite_span.set_tag_str(test.MODULE, test_module_span.get_tag(test.MODULE))
         test_suite_span.set_tag_str(test.MODULE_PATH, test_module_span.get_tag(test.MODULE_PATH))
-    test_suite_span.set_tag_str(test.SUITE, item.name)
+
+    test_suite_path = os.path.relpath(item._obj.__file__)
+    test_suite_span.set_tag_str(test.SUITE, test_suite_path)
     _store_span(item, test_suite_span)
     return test_suite_span
 

@@ -104,6 +104,7 @@ class CIVisibility(Service):
 
         # (suite, module) -> List[test_name]
         self._tests_to_skip = defaultdict(list)  # type: Dict[Tuple[str, Optional[str]], List[str]]
+        self._test_suites_to_skip = []  # type:  List[str]
         self._requests_mode = REQUESTS_MODE.TRACES
         if ddconfig._ci_visibility_agentless_enabled:
             if not self._api_key:
@@ -301,20 +302,26 @@ class CIVisibility(Service):
 
         for item in parsed["data"]:
             if item["type"] == TEST_LEVEL and "suite" in item["attributes"]:
-                module = item["attributes"].get("module", None)
                 if TEST_LEVEL == "test":
+                    module = item["attributes"].get("configurations", {}).get("test.bundle", None)
                     self._tests_to_skip[(item["attributes"]["suite"], module)].append(item["attributes"]["name"])
                 else:
-                    self._tests_to_skip[(item["attributes"]["suite"], module)].append("")
+                    self._test_suites_to_skip.append(item["attributes"]["suite"])
 
     def _get_tests_to_skip(self, suite, module):
-        return self._tests_to_skip.get((suite, module), self._tests_to_skip.get((suite, None), []))
+        if TEST_LEVEL == "test":
+            return self._tests_to_skip.get((suite, module), self._tests_to_skip.get((suite, None), []))
+        else:
+            return self._test_suites_to_skip
 
     def _should_skip_path(self, path):
-        if self._tests_to_skip:
-            for x, y in self._tests_to_skip.keys():
-                if path.endswith(x):
-                    return True
+        if TEST_LEVEL == "test":
+            if self._tests_to_skip:
+                for x, y in self._tests_to_skip.keys():
+                    if path.endswith(x):
+                        return True
+        else:
+            return path.endswith(tuple(self._test_suites_to_skip))
         return False
 
     @classmethod
