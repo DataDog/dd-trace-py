@@ -14,6 +14,7 @@ from ddtrace.filters import TraceFilter
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import get_span_sampling_rules
+from ddtrace.settings import Config
 from ddtrace.settings.peer_service import PeerServiceConfig
 from ddtrace.vendor import debtcollector
 
@@ -296,6 +297,13 @@ class Tracer(object):
         self._shutdown_lock = RLock()
 
         self._new_process = False
+        self._service = config.service
+        config._subscribe(["service"], self._on_global_config_change)
+
+    def _on_global_config_change(self, new_config, items):
+        # type: (Config, List[str]) -> None
+        if "service" in items:
+            self._service = new_config.service
 
     def _atexit(self):
         # type: () -> None
@@ -362,7 +370,7 @@ class Tracer(object):
         if isinstance(active, Span) and active.service:
             service = active.service
         else:
-            service = config.service
+            service = self._service
 
         return {
             "trace_id": str(active.trace_id) if active else "0",
@@ -682,7 +690,7 @@ class Tracer(object):
             if parent:
                 service = parent.service
             else:
-                service = config.service
+                service = self._service
 
         # Update the service name based on any mapping
         service = config.service_mapping.get(service, service)
@@ -742,7 +750,7 @@ class Tracer(object):
             #     2. the span is not the root, but the root span's service matches the span's service
             #        and the root span has a version tag
             # then the span belongs to the user application and so set the version tag
-            if (root_span is None and service == config.service) or (
+            if (root_span is None and service == self._service) or (
                 root_span and root_span.service == service and root_span.get_tag(VERSION_KEY) is not None
             ):
                 span.set_tag_str(VERSION_KEY, config.version)
