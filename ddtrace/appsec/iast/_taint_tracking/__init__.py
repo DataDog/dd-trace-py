@@ -91,6 +91,7 @@ def taint_pyobject(pyobject, source_name, source_value, source_origin=None, star
     source = Source(source_name, source_value, source_origin)
     pyobject_range = TaintRange(start, len_pyobject, source)
     set_ranges(pyobject, [pyobject_range])
+    print(get_tainted_ranges(pyobject))
     return pyobject
 
 
