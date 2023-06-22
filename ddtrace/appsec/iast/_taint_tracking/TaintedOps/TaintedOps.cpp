@@ -1,7 +1,6 @@
 #include "TaintedOps.h"
 #include <iostream> // JJJ remove
 
-
 PyObject* bytes_join = NULL;
 PyObject* bytearray_join = NULL;
 PyObject* empty_bytes = NULL;
@@ -81,7 +80,6 @@ api_is_tainted(py::object tainted_object)
 
     return false;
 }
-
 
 void
 pyexport_tainted_ops(py::module& m)
