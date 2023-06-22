@@ -10,8 +10,8 @@ from ddtrace.internal.agent import get_stats_url
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.dogstatsd import get_dogstatsd_client
 from ddtrace.internal.hostname import get_hostname
-from ddtrace.internal.logger import get_logger
 from ddtrace.internal.log_writer import V2LogWriter
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.wrapping import wrap
 from ddtrace.sampler import RateSampler
