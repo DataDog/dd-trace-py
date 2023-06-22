@@ -516,6 +516,7 @@ jobs:
   asgi:
     <<: *contrib_job
     docker:
+      - image: *ddtrace_dev_image
       - *testagent
     steps:
       - run_test:
@@ -853,6 +854,9 @@ jobs:
 
   sanic:
     <<: *contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+      - *testagent
     steps:
       - run_test:
           pattern: "sanic"
@@ -860,6 +864,9 @@ jobs:
 
   snowflake:
     <<: *contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+      - *testagent
     steps:
       - run_test:
           pattern: "snowflake"
