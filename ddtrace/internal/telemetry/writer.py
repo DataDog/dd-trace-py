@@ -433,46 +433,16 @@ class TelemetryWriter(TelemetryBase):
             # app-started events should only be sent by the main process
             return
         #  List of configurations to be collected
-        configurations_to_collect = [
-            {
-                "name": "data_streams_enabled",
-                "origin": "env_var",
-                "value": config._data_streams_enabled,
-            },
-            {
-                "name": "appsec_enabled",
-                "origin": "env_var",
-                "value": config._appsec_enabled,
-            },
-            {
-                "name": "propagation_style_inject",
-                "origin": "env_var",
-                "value": str(config._propagation_style_inject),
-            },
-            {
-                "name": "propagation_style_extract",
-                "origin": "env_var",
-                "value": str(config._propagation_style_extract),
-            },
-            {
-                "name": "ddtrace_bootstrapped",
-                "origin": "default",
-                "value": config._ddtrace_bootstrapped,
-            },
-            {
-                "name": "ddtrace_auto_used",
-                "origin": "default",
-                "value": "ddtrace.auto" in sys.modules,
-            },
-            {
-                "name": "otel_enabled",
-                "origin": "env_var",
-                "value": config._otel_enabled,
-            },
-        ]
-        self._configuration_queue = configurations_to_collect
+        self.add_configuration("data_streams_enabled", config._data_streams_enabled)
+        self.add_configuration("appsec_enabled", config._appsec_enabled)
+        self.add_configuration("propagation_style_inject", str(config._propagation_style_inject))
+        self.add_configuration("propagation_style_extract", str(config._propagation_style_extract))
+        self.add_configuration("ddtrace_bootstrapped", config._ddtrace_bootstrapped)
+        self.add_configuration("ddtrace_auto_used", "ddtrace.auto" in sys.modules)
+        self.add_configuration("otel_enabled", config._otel_enabled)
+
         payload = {
-            "configuration": configurations_to_collect,
+            "configuration": self._flush_configuration_queue(),
             "error": {
                 "code": self._error[0],
                 "message": self._error[1],
@@ -511,30 +481,34 @@ class TelemetryWriter(TelemetryBase):
         }
         self.add_event(payload, "app-integrations-change")
 
-    def _app_client_configuration_changed_event(self, configuration):
+    def _flush_configuration_queue(self):
+        # type: () -> List[Dict]
+        """Flushes and returns a list of all queued configurations"""
+        with self._lock:
+            configuration = self._configuration_queue
+            self._configuration_queue = []
+        return configuration
+
+    def _app_client_configuration_changed_event(self, configurations):
         # type: (List[Dict]) -> None
         """Adds a Telemetry event which sends list of modified configurations to the agent"""
-        # Convert the original configuration to a dic to avoid iterating the whole list
-        original_config = {}
-        for cfg in self._configuration_queue:
-            original_config[cfg["name"]] = cfg["value"]
 
-        # Payload value when no app-started event found
         payload = {
-            "configuration": [],
-            "error": {
-                "code": 1,
-                "message": "No app started event found.",
-            },
+            "configuration": configurations,
         }
 
-        # Loop though the events queue and find the app-started event payload
-        for e in self._events_queue:
-            if e["request_type"] == "app-started":
-                payload = e["payload"]
-                payload["configuration"] = self._get_modified_configurations(original_config, configuration)
-                break
         self.add_event(payload, "app-client-configuration-change")
+
+    def add_configuration(self, configuration_name, configuration_value, origin="unknown"):
+        # type: (str, Union[bool, float, str], str) -> None
+        """Creates and queues the names and values of the configuration"""
+        self._configuration_queue.append(
+            {
+                "name": configuration_name,
+                "origin": origin,
+                "value": configuration_value,
+            }
+        )
 
     def _get_modified_configurations(self, original_config, modified_config):
         # type: (Dict, List[Dict]) -> List
@@ -558,6 +532,10 @@ class TelemetryWriter(TelemetryBase):
         integrations = self._flush_integrations_queue()
         if integrations:
             self._app_integrations_changed_event(integrations)
+
+        configurations = self._flush_configuration_queue()
+        if configurations:
+            self._app_client_configuration_changed_event(configurations)
 
         if not self._events_queue:
             # Optimization: only queue heartbeat if no other events are queued
