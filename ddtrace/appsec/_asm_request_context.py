@@ -116,19 +116,21 @@ class _DataHandler:
         self._id = _DataHandler.main_id
         self.active = True
         self.token = _ASM.set(env)
+        self.execution_context = core.ExecutionContext(__name__, **{"asm_env": env})
 
         env.telemetry[_WAF_RESULTS] = [], [], []
         env.callbacks[_CONTEXT_CALL] = []
 
     def finalise(self):
         if self.active:
-            env = _ASM.get()
+            env = core.get_item("asm_env")
             # assert _CONTEXT_ID.get() == self._id
             callbacks = env.callbacks.get(_CONTEXT_CALL)
             if callbacks is not None:
                 for function in callbacks:
                     function()
                 _ASM.reset(self.token)
+                self.execution_context.end()
             self.active = False
 
 
