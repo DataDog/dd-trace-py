@@ -399,7 +399,7 @@ def test_span_key(span_log):
     assert s.get_tag(123.32) is None
 
 
-def test_span_finished():
+def test_spans_finished():
     span = Span(None)
     assert span.finished is False
     assert span.duration_ns is None

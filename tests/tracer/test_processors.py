@@ -391,20 +391,20 @@ def test_span_creation_metrics():
 
         mock_tm.assert_has_calls(
             [
-                mock.call("tracers", "span_created", 100, tags=(("integration_name", "datadog"),)),
-                mock.call("tracers", "span_finished", 100, tags=(("integration_name", "datadog"),)),
-                mock.call("tracers", "span_created", 100, tags=(("integration_name", "datadog"),)),
-                mock.call("tracers", "span_finished", 100, tags=(("integration_name", "datadog"),)),
-                mock.call("tracers", "span_created", 100, tags=(("integration_name", "datadog"),)),
-                mock.call("tracers", "span_finished", 100, tags=(("integration_name", "datadog"),)),
+                mock.call("tracers", "spans_created", 100, tags=(("integration_name", "datadog"),)),
+                mock.call("tracers", "spans_finished", 100, tags=(("integration_name", "datadog"),)),
+                mock.call("tracers", "spans_created", 100, tags=(("integration_name", "datadog"),)),
+                mock.call("tracers", "spans_finished", 100, tags=(("integration_name", "datadog"),)),
+                mock.call("tracers", "spans_created", 100, tags=(("integration_name", "datadog"),)),
+                mock.call("tracers", "spans_finished", 100, tags=(("integration_name", "datadog"),)),
             ]
         )
         mock_tm.reset_mock()
         aggr.shutdown(None)
         mock_tm.assert_has_calls(
             [
-                mock.call("tracers", "span_created", 1, tags=(("integration_name", "datadog"),)),
-                mock.call("tracers", "span_finished", 1, tags=(("integration_name", "datadog"),)),
+                mock.call("tracers", "spans_created", 1, tags=(("integration_name", "datadog"),)),
+                mock.call("tracers", "spans_finished", 1, tags=(("integration_name", "datadog"),)),
             ]
         )
 
