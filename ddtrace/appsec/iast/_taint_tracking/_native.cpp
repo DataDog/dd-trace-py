@@ -9,9 +9,6 @@
 #include "Context/_context.h"
 #include "Exceptions/_exceptions.h"
 #include "Initializer/_initializer.h"
-#include "TaintTracking/Source.h"
-#include "TaintTracking/TaintRange.h"
-#include "TaintTracking/TaintedObject.h"
 #include "TaintTracking/_taint_tracking.h"
 #include "TaintedOps/TaintedOps.h"
 
@@ -44,7 +41,6 @@ static PyMethodDef OpsMethods[] = {
     // >= 3.7
     { "setup", (PyCFunction)setup, METH_VARARGS, "setup tainting module" },
     { "new_pyobject_id", (PyCFunction)api_new_pyobject_id, METH_VARARGS, "new pyobject id" },
-    { "is_tainted", (PyCFunction)api_is_tainted, METH_VARARGS, "Check Python object is tainted" },
     { nullptr, nullptr, 0, nullptr }
 };
 

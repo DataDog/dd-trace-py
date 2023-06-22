@@ -1,6 +1,7 @@
 #include "TaintedOps.h"
 #include <iostream> // JJJ remove
 
+
 PyObject* bytes_join = NULL;
 PyObject* bytearray_join = NULL;
 PyObject* empty_bytes = NULL;
@@ -64,21 +65,31 @@ is_tainted(PyObject* tainted_object, TaintRangeMapType* tx_taint_map)
     return false;
 }
 
-PyObject*
-api_is_tainted(PyObject* Py_UNUSED(module), PyObject* args)
+bool
+api_is_tainted(py::object tainted_object)
 {
-    PyObject* tainted_object;
-    PyArg_ParseTuple(args, "O", &tainted_object);
     if (tainted_object) {
         auto ctx_map = initializer->get_tainting_map();
         if (not ctx_map or ctx_map->empty()) {
-            return Py_False;
+            return false;
         }
 
-        if (is_tainted(tainted_object, ctx_map)) {
-            return Py_True;
+        if (is_tainted(tainted_object.ptr(), ctx_map)) {
+            return true;
         }
     }
 
-    return Py_False;
+    return false;
+}
+
+
+void
+pyexport_tainted_ops(py::module& m)
+{
+    m.def("is_tainted", &api_is_tainted, "tainted_object"_a, py::return_value_policy::move);
+    m.def("are_all_text_all_ranges",
+          &are_all_text_all_ranges,
+          "candidate_text"_a,
+          "candidate_text"_a,
+          py::return_value_policy::move);
 }

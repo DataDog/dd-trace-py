@@ -16,6 +16,7 @@ if _is_python_version_supported():
     from ddtrace.appsec.iast._taint_tracking._native.initializer import create_context
     from ddtrace.appsec.iast._taint_tracking._native.initializer import get_context
     from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import OriginType
+    from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import is_tainted
     from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import Source
     from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import TagMappingMode
     from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import TaintRange
@@ -31,7 +32,7 @@ if _is_python_version_supported():
 
     setup = ops.setup
     new_pyobject_id = ops.new_pyobject_id
-    is_pyobject_tainted = ops.is_tainted
+    is_pyobject_tainted = is_tainted
 
 if TYPE_CHECKING:
     from typing import Any

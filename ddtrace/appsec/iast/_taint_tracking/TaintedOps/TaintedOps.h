@@ -6,6 +6,7 @@
 #include <pybind11/pybind11.h>
 
 using namespace std;
+using namespace pybind11::literals;
 namespace py = pybind11;
 
 PyObject*
@@ -20,13 +21,11 @@ api_new_pyobject_id(PyObject* Py_UNUSED(module), PyObject* args);
 bool
 is_tainted(PyObject* Py_UNUSED(module), PyObject* args);
 
-void
-taint(PyObject* Py_UNUSED(module), PyObject* args);
+bool
+api_is_tainted(py::object tainted_object);
 
-PyObject*
-api_is_tainted(PyObject* Py_UNUSED(module), PyObject* args);
-PyObject*
-api_taint(PyObject* Py_UNUSED(module), PyObject* args);
+void
+pyexport_tainted_ops(py::module& m);
 // TODO
 // PyObject *api_add_taint_pyobject(PyObject* pyobject, PyObject* op1, PyObject*
 // op2); PyObject* api_taint_pyobject(PyObject* pyobject, Source source); bool
