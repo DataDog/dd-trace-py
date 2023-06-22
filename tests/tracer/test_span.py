@@ -108,7 +108,6 @@ class SpanTestCase(TracerTestCase):
 
         assert span2.get_baggage_item("item1") == "123"
         assert span2.get_baggage_item("item2") == "456"
-
         assert span1.get_baggage_item("item1") == "123"
         assert span1.get_baggage_item("item2") is None
 
