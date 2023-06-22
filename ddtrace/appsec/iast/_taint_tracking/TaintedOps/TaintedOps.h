@@ -19,6 +19,7 @@ api_new_pyobject_id(PyObject* Py_UNUSED(module), PyObject* args);
 
 bool
 is_tainted(PyObject* Py_UNUSED(module), PyObject* args);
+
 void
 taint(PyObject* Py_UNUSED(module), PyObject* args);
 

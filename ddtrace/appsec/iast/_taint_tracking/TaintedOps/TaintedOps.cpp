@@ -69,12 +69,16 @@ api_is_tainted(PyObject* Py_UNUSED(module), PyObject* args)
 {
     PyObject* tainted_object;
     PyArg_ParseTuple(args, "O", &tainted_object);
-    auto ctx_map = initializer->get_tainting_map();
-    if (not ctx_map or ctx_map->empty()) {
-        return Py_False;
+    if (tainted_object){
+        auto ctx_map = initializer->get_tainting_map();
+        if (not ctx_map or ctx_map->empty()) {
+            return Py_False;
+        }
+
+        if (is_tainted(tainted_object, ctx_map)) {
+            return Py_True;
+        }
     }
-    if (is_tainted(tainted_object, ctx_map)) {
-        return Py_True;
-    }
+
     return Py_False;
 }
