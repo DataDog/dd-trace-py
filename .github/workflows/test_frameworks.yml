@@ -380,7 +380,7 @@ jobs:
       - name: Run tests
         run: PYTHONPATH=../ddtrace/tests/debugging/exploration/ ddtrace-run pytest -p no:warnings tests
 
-  asyncpg-testsuite-0_25_0:
+  asyncpg-testsuite-0_27_0:
     # https://github.com/MagicStack/asyncpg/blob/v0.25.0/.github/workflows/tests.yml#L125
     runs-on: "ubuntu-latest"
     env:
@@ -399,7 +399,7 @@ jobs:
       - uses: actions/checkout@v3
         with:
           repository: magicstack/asyncpg
-          ref: v0.25.0
+          ref: v0.27.0
           path: asyncpg
           fetch-depth: 50
           submodules: true
@@ -417,6 +417,8 @@ jobs:
     name: Pylons 1.0.3
     runs-on: "ubuntu-20.04"
     # Ubuntu 20.04 is the last version of ubuntu on github setup actions to provide Python 2.7.
+    container:
+      image: python:2.7.18-buster
     env:
       DD_TESTING_RAISE: true
       PYTHONPATH: ../ddtrace/tests/debugging/exploration/
@@ -424,9 +426,6 @@ jobs:
       run:
         working-directory: pylons
     steps:
-      - uses: actions/setup-python@v4
-        with:
-          python-version: '2.7'
       - uses: actions/checkout@v3
         with:
           path: ddtrace
