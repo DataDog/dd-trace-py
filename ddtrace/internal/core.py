@@ -54,7 +54,7 @@ class ExecutionContext:
         return dispatch("context.ended.%s" % self.identifier, [])
 
     def addParent(self, context):
-        if self.identifier == "root":
+        if self.identifier == "__root":
             raise ValueError("Cannot add parent to root context")
         self._parents.append(context)
         self._data.update(context._data)
@@ -72,13 +72,20 @@ class ExecutionContext:
             new_context.end()
 
     def get_item(self, data_key: str) -> Optional[Any]:
-        return self._data.get(data_key)
+        current = self
+        while current is not None:
+            if data_key in current._data:
+                return current._data.get(data_key)
+            current = current.parent
 
     def set_item(self, data_key: str, data_value: Optional[Any]):
-        self._data[data_key] = data_value
+        current = self
+        while current is not None:
+            current._data[data_key] = data_value
+            current = current.parent
 
 
-_CURRENT_CONTEXT = contextvars.ContextVar("ExecutionContext_var", default=ExecutionContext("root"))
+_CURRENT_CONTEXT = contextvars.ContextVar("ExecutionContext_var", default=ExecutionContext("__root"))
 
 
 def context_with_data(identifier: str, parent=None, **kwargs):
