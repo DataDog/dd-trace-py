@@ -145,7 +145,7 @@ def _default_span_processors_factory(
     # FIXME: type should be AppsecSpanProcessor but we have a cyclic import here
     """Construct the default list of span processors to use."""
     trace_processors = []  # type: List[TraceProcessor]
-    trace_processors += [TraceTagsProcessor()]
+    trace_processors += [TraceTagsProcessor(), peer_service_processor]
     trace_processors += [TraceSamplingProcessor(compute_stats_enabled)]
     trace_processors += trace_filters
 
@@ -189,8 +189,6 @@ def _default_span_processors_factory(
 
     if single_span_sampling_rules:
         span_processors.append(SpanSamplingProcessor(single_span_sampling_rules))
-
-    span_processors.append(peer_service_processor)
 
     # These need to run after all the other processors
     deferred_processors = [
