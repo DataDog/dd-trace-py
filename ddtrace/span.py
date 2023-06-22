@@ -28,6 +28,7 @@ from .constants import VERSION_KEY
 from .context import Context
 from .ext import http
 from .ext import net
+from .internal import core
 from .internal._rand import rand64bits as _rand64bits
 from .internal._rand import rand128bits as _rand128bits
 from .internal.compat import NumericType
@@ -90,6 +91,7 @@ class Span(object):
         "_ignored_exceptions",
         "_on_finish_callbacks",
         "__weakref__",
+        "_execution_context",
     ]
 
     def __init__(
@@ -169,6 +171,7 @@ class Span(object):
         self._ignored_exceptions = None  # type: Optional[List[Exception]]
         self._local_root = None  # type: Optional[Span]
         self._store = None  # type: Optional[Dict[str, Any]]
+        self._execution_context = core.context_with_data(self.name).__enter__()
 
     def _ignore_exception(self, exc):
         # type: (Exception) -> None
@@ -272,6 +275,7 @@ class Span(object):
 
         for cb in self._on_finish_callbacks:
             cb(self)
+        self._execution_context.end()
 
     def set_tag(self, key, value=None):
         # type: (_TagNameType, Any) -> None
