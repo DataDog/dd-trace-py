@@ -16,7 +16,6 @@ if _is_python_version_supported():
     from ddtrace.appsec.iast._taint_tracking._native.initializer import create_context
     from ddtrace.appsec.iast._taint_tracking._native.initializer import get_context
     from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import OriginType
-    from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import is_tainted
     from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import Source
     from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import TagMappingMode
     from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import TaintRange
@@ -24,6 +23,7 @@ if _is_python_version_supported():
     from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import get_range_by_hash
     from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import get_ranges
     from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import is_notinterned_notfasttainted_unicode
+    from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import is_tainted
     from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import origin_to_str
     from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import set_fast_tainted_if_notinterned_unicode
     from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import set_ranges
