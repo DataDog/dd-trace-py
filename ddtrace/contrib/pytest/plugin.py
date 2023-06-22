@@ -337,10 +337,7 @@ def pytest_runtest_protocol(item, nextitem):
     test_suite_span = _extract_span(pytest_module_item)
     if pytest_module_item is not None and test_suite_span is None:
         test_suite_span = _start_test_suite_span(pytest_module_item)
-        if coverage_enabled(str(item.config.rootdir)) and not (
-            _CIVisibility.test_skipping_enabled()
-            and _CIVisibility.should_skip(test_suite_span.get_tag(test.SUITE), module_name)
-        ):
+        if coverage_enabled(str(item.config.rootdir)):
             _coverage_start()
 
     with _CIVisibility._instance.tracer._start_span(
@@ -414,10 +411,7 @@ def pytest_runtest_protocol(item, nextitem):
     ):
         _mark_test_status(pytest_module_item, test_suite_span)
 
-        if coverage_enabled(str(item.config.rootdir)) and not (
-            _CIVisibility.test_skipping_enabled()
-            and _CIVisibility.should_skip(test_suite_span.get_tag(test.SUITE), test_suite_span.get_tag(test.MODULE))
-        ):
+        if coverage_enabled(str(item.config.rootdir)):
             _coverage_end(test_suite_span)
         test_suite_span.finish()
 
