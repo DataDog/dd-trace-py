@@ -5,6 +5,7 @@ import pytest
 
 try:
     from ddtrace.appsec.iast import oce
+    from ddtrace.appsec.iast._taint_tracking import create_context
     from ddtrace.appsec.iast._taint_tracking import OriginType
     from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
     from ddtrace.appsec.iast._taint_tracking import setup as taint_tracking_setup
@@ -16,6 +17,7 @@ except (ImportError, AttributeError):
 
 
 def setup():
+    create_context()
     taint_tracking_setup(bytes.join, bytearray.join)
     oce._enabled = True
 

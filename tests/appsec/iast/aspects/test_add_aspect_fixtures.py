@@ -1,4 +1,6 @@
 # -*- encoding: utf-8 -*-
+import unittest
+
 import pytest
 
 
@@ -13,7 +15,12 @@ except (ImportError, AttributeError):
 mod = _iast_patched_module("tests.appsec.iast.fixtures.aspects.str_methods")
 
 
-class TestOperatorAddReplacement(object):
+class TestOperatorAddReplacement(unittest.TestCase):
+    def setUp(self):
+        from ddtrace.appsec.iast._taint_tracking import setup
+
+        setup(bytes.join, bytearray.join)
+
     def test_nostring_operator_add(self):
         # type: () -> None
         assert mod.do_operator_add_params(2, 3) == 5
@@ -42,9 +49,6 @@ class TestOperatorAddReplacement(object):
         assert bytecode.codeobj.co_names == ("ddtrace_aspects", "add_aspect")
 
     def test_string_operator_add_one_tainted(self):  # type: () -> None
-        from ddtrace.appsec.iast._taint_tracking import setup
-
-        setup(bytes.join, bytearray.join)
         string_input = taint_pyobject(
             pyobject="foo",
             source_name="test_add_aspect_tainting_left_hand",
@@ -87,9 +91,6 @@ class TestOperatorAddReplacement(object):
         assert len(get_tainted_ranges(result)) == 2
 
     def test_string_operator_add_one_tainted_mixed_bytearray_bytes(self):  # type: () -> None
-        from ddtrace.appsec.iast._taint_tracking import setup
-
-        setup(bytes.join, bytearray.join)
         string_input = taint_pyobject(
             pyobject=b"foo", source_name="foo", source_value="foo", source_origin=OriginType.PARAMETER
         )
@@ -106,9 +107,6 @@ class TestOperatorAddReplacement(object):
         # assert len(get_tainted_ranges(result)) == 2
 
     def test_string_operator_add_two_mixed_bytearray_bytes(self):  # type: () -> None
-        from ddtrace.appsec.iast._taint_tracking import setup
-
-        setup(bytes.join, bytearray.join)
         string_input = taint_pyobject(
             pyobject=bytearray(b"foo"), source_name="foo", source_value="foo", source_origin=OriginType.PARAMETER
         )
