@@ -101,15 +101,15 @@ class SpanTestCase(TracerTestCase):
 
     def test_baggage_propagation(self):
         span1 = Span(name="test.span1")
-        span1.set_baggage_item("item1", "1234")
+        span1.set_baggage_item("item1", "123")
 
         span2 = Span(name="test.span2", context=span1.context)
-        span2.set_baggage_item("item2", "4567")
+        span2.set_baggage_item("item2", "456")
 
-        assert span2.get_baggage_item("item1") == "1234"
-        assert span2.get_baggage_item("item2") == "4567"
+        assert span2.get_baggage_item("item1") == "123"
+        assert span2.get_baggage_item("item2") == "456"
 
-        assert span1.get_baggage_item("item1") == "1234"
+        assert span1.get_baggage_item("item1") == "123"
         assert span1.get_baggage_item("item2") is None
 
     def test_set_tag_metric(self):
