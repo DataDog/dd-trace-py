@@ -83,15 +83,15 @@ commands:
     steps:
       - save_cache:
           # DEV: Cache misses can still occur as venvs are not necessarily always created on the same node index
-          key: pip-cache-{{ .Environment.CIRCLE_JOB }}-{{ .Environment.CIRCLE_NODE_INDEX }}-{{ checksum "riotfile.py" }}-{{ checksum "setup.py" }}
+          key: pip-cache-xdg-{{ .Environment.CIRCLE_JOB }}-{{ .Environment.CIRCLE_NODE_INDEX }}-{{ checksum "riotfile.py" }}-{{ checksum "setup.py" }}
           paths:
-            - ".cache/pip"
+            - "~/.cache/pip"
 
   restore_pip_cache:
     description: "Restore pip cache directory"
     steps:
       - restore_cache:
-          key: pip-cache-{{ .Environment.CIRCLE_JOB }}-{{ .Environment.CIRCLE_NODE_INDEX }}-{{ checksum "riotfile.py" }}-{{ checksum "setup.py" }}
+          key: pip-cache-xdg-{{ .Environment.CIRCLE_JOB }}-{{ .Environment.CIRCLE_NODE_INDEX }}-{{ checksum "riotfile.py" }}-{{ checksum "setup.py" }}
 
   start_docker_services:
     description: "Start Docker services"
