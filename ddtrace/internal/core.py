@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Any
     from typing import Callable
+    from typing import Dict
     from typing import List
     from typing import Optional
     from typing import Tuple
@@ -141,8 +142,8 @@ class ExecutionContext:
         self._data[data_key] = data_value
 
     def set_items(self, keys_values):
-        # type: (List[Tuple[str, Optional[Any]]]) -> None
-        for data_key, data_value in keys_values:
+        # type: (Dict[str, Optional[Any]]) -> None
+        for data_key, data_value in keys_values.items():
             self.set_item(data_key, data_value)
 
 
@@ -177,7 +178,7 @@ def set_item(data_key, data_value, span=None):
 
 
 def set_items(keys_values, span=None):
-    # type: (List[Tuple[str, Optional[Any]]], Optional[Span]) -> None
+    # type: (Dict[str, Optional[Any]], Optional[Span]) -> None
     return _choose_context(span).set_items(keys_values)
 
 

@@ -1926,10 +1926,7 @@ def test_ctx_api():
 
     tracer = Tracer()
 
-    with pytest.raises(ValueError):
-        core.get_item("key")
-    with pytest.raises(ValueError):
-        core.set_item("key", "val")
+    assert core.get_item("key") is None
 
     with tracer.trace("root"):
         v = core.get_item("my.val")
@@ -1946,10 +1943,8 @@ def test_ctx_api():
         with tracer.trace("child"):
             assert core.get_item("appsec.key") == "val"
 
-    with pytest.raises(ValueError):
-        core.get_item("appsec.key")
-    with pytest.raises(ValueError):
-        core.get_items(["appsec.key"])
+    assert core.get_item("appsec.key") is None
+    assert core.get_items(["appsec.key"]) == [None]
 
 
 def test_installed_excepthook():
