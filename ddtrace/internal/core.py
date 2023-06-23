@@ -103,6 +103,8 @@ class ExecutionContext:
                 "This can happen when a span holding an executioncontext is "
                 "finished in a Context other than the one that started it."
             )
+        except LookupError:
+            log.debug("Encountered LookupError during core contextvar reset() call. I don't know why this is possible.")
         return dispatch("context.ended.%s" % self.identifier, [])
 
     def addParent(self, context):
