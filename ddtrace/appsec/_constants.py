@@ -106,6 +106,7 @@ class SPAN_DATA_NAMES(object):
     REQUEST_HEADERS_NO_COOKIES = "http.request.headers"
     REQUEST_HEADERS_NO_COOKIES_CASE = "http.request.headers_case_sensitive"
     REQUEST_URI_RAW = "http.request.uri"
+    REQUEST_ROUTE = "http.request.route"
     REQUEST_METHOD = "http.request.method"
     REQUEST_PATH_PARAMS = "http.request.path_params"
     REQUEST_COOKIES = "http.request.cookies"
@@ -113,6 +114,22 @@ class SPAN_DATA_NAMES(object):
     REQUEST_USER_ID = "usr.id"
     RESPONSE_STATUS = "http.response.status"
     RESPONSE_HEADERS_NO_COOKIES = "http.response.headers"
+    RESPONSE_BODY = "http.response.body"
+
+
+@six.add_metaclass(Constant_Class)  # required for python2/3 compatibility
+class API_SECURITY(object):
+    """constants related to API Security"""
+
+    REQUEST_HEADERS_NO_COOKIES = "_dd.appsec.s.req.headers"
+    REQUEST_QUERY = "_dd.appsec.s.req.query"
+    REQUEST_PATH_PARAMS = "_dd.appsec.s.req.params"
+    REQUEST_BODY = "_dd.appsec.s.req.body"
+    RESPONSE_HEADERS_NO_COOKIES = "_dd.appsec.s.res.headers"
+    RESPONSE_BODY = "_dd.appsec.s.res.body"
+    INTERVAL_PER_ROUTE = "_DD_API_SECURITY_INTERVAL_PER_ROUTE"
+    ENABLED = "_dd.appsec.api_security.enabled"
+    MAX_PAYLOAD_SIZE = 0x1000000  # 16MB maximum size
 
 
 @six.add_metaclass(Constant_Class)  # required for python2/3 compatibility
@@ -139,6 +156,23 @@ class PRODUCTS(object):
     ASM_DATA = "ASM_DATA"
     ASM_DD = "ASM_DD"
     ASM_FEATURES = "ASM_FEATURES"
+
+
+@six.add_metaclass(Constant_Class)  # required for python2/3 compatibility
+class LOGIN_EVENTS_MODE(object):
+    """
+    string identifier for the mode of the user login events. Can be:
+    DISABLED: automatic login events are disabled.
+    SAFE: automatic login events are enabled but will only store non-PII fields (id, pk uid...)
+    EXTENDED: automatic login events are enabled and will store potentially PII fields (username,
+    email, ...).
+    SDK: manually issued login events using the SDK.
+    """
+
+    DISABLED = "disabled"
+    SAFE = "safe"
+    EXTENDED = "extended"
+    SDK = "sdk"
 
 
 @six.add_metaclass(Constant_Class)  # required for python2/3 compatibility

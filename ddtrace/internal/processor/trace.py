@@ -1,6 +1,7 @@
 import abc
 from collections import defaultdict
 import threading
+from typing import Dict
 from typing import Iterable
 from typing import List
 from typing import Optional
@@ -10,6 +11,7 @@ import six
 
 from ddtrace import config
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
+from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import USER_KEEP
 from ddtrace.internal import gitmetadata
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
@@ -19,6 +21,8 @@ from ddtrace.internal.processor import SpanProcessor
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import is_single_span_sampled
 from ddtrace.internal.service import ServiceStatusError
+from ddtrace.internal.telemetry import telemetry_metrics_writer
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_TRACER
 from ddtrace.internal.writer import TraceWriter
 from ddtrace.span import Span
 from ddtrace.span import _get_64_highest_order_bits_as_hex
@@ -177,12 +181,32 @@ class SpanAggregator(SpanProcessor):
         repr=False,
     )
     _lock = attr.ib(init=False, factory=threading.Lock, repr=False)
+    # Tracks the number of spans created and tags each count with the api that was used
+    # ex: otel api, opentracing api, datadog api
+    _span_api_to_count = attr.ib(
+        init=False,
+        factory=lambda: {
+            "spans_created": defaultdict(int),
+            "spans_finished": defaultdict(int),
+        },
+        type=Dict[str, DefaultDict],
+    )
 
     def on_span_start(self, span):
         # type: (Span) -> None
         with self._lock:
             trace = self._traces[span.trace_id]
             trace.spans.append(span)
+            self._span_api_to_count["spans_created"][span._span_api] += 1
+            # perf: telemetry_metrics_writer.add_count_metric(...) is an expensive operation.
+            # We should avoid calling this method on every invocation of ``SpanAggregator.on_span_start()``
+            if sum(self._span_api_to_count["spans_created"].values()) >= 100:
+                # self._span_api_to_count should only have 1-3 keys, calculating the sum here is not expensive.
+                for api, count in self._span_api_to_count["spans_created"].items():
+                    telemetry_metrics_writer.add_count_metric(
+                        TELEMETRY_NAMESPACE_TAG_TRACER, "spans_created", count, tags=(("integration_name", api),)
+                    )
+                self._span_api_to_count["spans_created"] = defaultdict(int)
 
     def on_span_finish(self, span):
         # type: (Span) -> None
@@ -200,7 +224,6 @@ class SpanAggregator(SpanProcessor):
                             finished.append(s)
                         else:
                             trace.spans.append(s)
-
                 else:
                     finished = trace_spans
 
@@ -214,6 +237,17 @@ class SpanAggregator(SpanProcessor):
 
                 if len(trace.spans) == 0:
                     del self._traces[span.trace_id]
+
+                self._span_api_to_count["spans_finished"][span._span_api] += num_finished
+                # perf: telemetry_metrics_writer.add_count_metric(...) is an expensive operation.
+                # We should avoid calling this method on every invocation of ``SpanAggregator.on_span_finish()``
+                if sum(self._span_api_to_count["spans_finished"].values()) >= 100:
+                    # self._span_api_to_count should only have 1-3 keys, calculating the sum here is not expensive
+                    for api, count in self._span_api_to_count["spans_finished"].items():
+                        telemetry_metrics_writer.add_count_metric(
+                            TELEMETRY_NAMESPACE_TAG_TRACER, "spans_finished", count, tags=(("integration_name", api),)
+                        )
+                    self._span_api_to_count["spans_finished"] = defaultdict(int)
 
                 spans = finished  # type: Optional[List[Span]]
                 for tp in self._trace_processors:
@@ -240,6 +274,24 @@ class SpanAggregator(SpanProcessor):
             before exiting or :obj:`None` to block until flushing has successfully completed (default: :obj:`None`)
         :type timeout: :obj:`int` | :obj:`float` | :obj:`None`
         """
+        # on_span_start queue span created counts in batches of 100. This ensures all remaining counts are sent
+        # before the tracer is shutdown.
+        for api, count in self._span_api_to_count["spans_created"].items():
+            telemetry_metrics_writer.add_count_metric(
+                TELEMETRY_NAMESPACE_TAG_TRACER, "spans_created", count, tags=(("integration_name", api),)
+            )
+        self._span_api_to_count["spans_created"] = defaultdict(int)
+
+        # on_span_finish(...) queues span finish metrics in batches of 100. This ensures all remaining counts are sent
+        # before the tracer is shutdown.
+        for api, count in self._span_api_to_count["spans_finished"].items():
+            telemetry_metrics_writer.add_count_metric(
+                TELEMETRY_NAMESPACE_TAG_TRACER, "spans_finished", count, tags=(("integration_name", api),)
+            )
+        self._span_api_to_count["spans_finished"] = defaultdict(int)
+
+        # The telemetry metrics writer can be shutdown before the tracer. This ensures all tracer metrics always sent.
+        telemetry_metrics_writer.periodic()
         try:
             self._writer.stop(timeout)
         except ServiceStatusError:
@@ -278,3 +330,42 @@ class SpanSamplingProcessor(SpanProcessor):
                     if config._trace_compute_stats:
                         span.set_metric(SAMPLING_PRIORITY_KEY, USER_KEEP)
                     break
+
+
+class PeerServiceProcessor(SpanProcessor):
+    def __init__(self, peer_service_config):
+        self._config = peer_service_config
+        self._set_defaults_enabled = self._config.set_defaults_enabled
+
+    def on_span_start(self, span):
+        """
+        We don't do anything on span start
+        """
+        pass
+
+    def on_span_finish(self, span):
+        if self._set_defaults_enabled:
+            self._set_span_tag(span)
+        self._remap_peer_service(span)  # Remap regardless of whether defaults are enabled
+
+    def _set_span_tag(self, span):
+        if span.get_tag(self._config.tag_name):  # If the tag already exists, assume it is user generated
+            span.set_tag_str(self._config.source_tag_name, self._config.tag_name)
+            return
+
+        if span.get_tag(SPAN_KIND) not in self._config.enabled_span_kinds:
+            return
+
+        for data_source in self._config.prioritized_data_sources:
+            peer_service_definition = span.get_tag(data_source)
+            if peer_service_definition:
+                span.set_tag_str(self._config.tag_name, peer_service_definition)
+                span.set_tag_str(self._config.source_tag_name, data_source)
+                return
+
+    def _remap_peer_service(self, span):
+        current_peer_service = span.get_tag(self._config.tag_name)
+
+        if current_peer_service in self._config.peer_service_mapping:
+            span.set_tag_str(self._config.remap_tag_name, current_peer_service)
+            span.set_tag_str(self._config.tag_name, self._config.peer_service_mapping[current_peer_service])

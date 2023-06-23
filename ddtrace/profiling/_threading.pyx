@@ -52,10 +52,10 @@ cpdef get_thread_by_id(thread_id):
         # starting or dying.
         try:
             return threading_mod._active[thread_id]
-        except KeyError:
+        except (KeyError, AttributeError):
             try:
                 return threading_mod._limbo[thread_id]
-            except KeyError:
+            except (KeyError, AttributeError):
                 pass
 
     return None

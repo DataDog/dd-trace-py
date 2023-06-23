@@ -24,27 +24,7 @@ class Player(Base):
     name = Column(String(20))
 
 
-class SQLAlchemyTestMixin(object):
-    """SQLAlchemy test mixin that includes a complete set of tests
-    that must be executed for different engine. When a new test (or
-    a regression test) should be added to SQLAlchemy test suite, a new
-    entry must be appended here so that it will be executed for all
-    available and supported engines. If the test is specific to only
-    one engine, that test must be added to the specific `TestCase`
-    implementation.
-
-    To support a new engine, create a new `TestCase` that inherits from
-    `SQLAlchemyTestMixin` and `TestCase`. Then you must define the following
-    static class variables:
-    * VENDOR: the database vendor name
-    * SQL_DB: the `sql.db` tag that we expect (it's the name of the database available in the `.env` file)
-    * SERVICE: the service that we expect by default
-    * ENGINE_ARGS: all arguments required to create the engine
-
-    To check specific tags in each test, you must implement the
-    `check_meta(self, span)` method.
-    """
-
+class SQLAlchemyTestBase(object):
     VENDOR = None
     SQL_DB = None
     SERVICE = None
@@ -72,7 +52,7 @@ class SQLAlchemyTestMixin(object):
         return
 
     def setUp(self):
-        super(SQLAlchemyTestMixin, self).setUp()
+        super(SQLAlchemyTestBase, self).setUp()
 
         # create an engine with the given arguments
         self.engine = self.create_engine(self.ENGINE_ARGS)
@@ -91,7 +71,29 @@ class SQLAlchemyTestMixin(object):
         self.session.close()
         Base.metadata.drop_all(bind=self.engine)
         self.engine.dispose()
-        super(SQLAlchemyTestMixin, self).tearDown()
+        super(SQLAlchemyTestBase, self).tearDown()
+
+
+class SQLAlchemyTestMixin(SQLAlchemyTestBase):
+    """SQLAlchemy test mixin that includes a complete set of tests
+    that must be executed for different engine. When a new test (or
+    a regression test) should be added to SQLAlchemy test suite, a new
+    entry must be appended here so that it will be executed for all
+    available and supported engines. If the test is specific to only
+    one engine, that test must be added to the specific `TestCase`
+    implementation.
+
+    To support a new engine, create a new `TestCase` that inherits from
+    `SQLAlchemyTestMixin` and `TestCase`. Then you must define the following
+    static class variables:
+    * VENDOR: the database vendor name
+    * SQL_DB: the `sql.db` tag that we expect (it's the name of the database available in the `.env` file)
+    * SERVICE: the service that we expect by default
+    * ENGINE_ARGS: all arguments required to create the engine
+
+    To check specific tags in each test, you must implement the
+    `check_meta(self, span)` method.
+    """
 
     def test_orm_insert(self):
         # ensures that the ORM session is traced

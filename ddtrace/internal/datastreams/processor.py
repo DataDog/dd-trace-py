@@ -1,4 +1,5 @@
 # coding: utf-8
+import base64
 from collections import defaultdict
 import gzip
 import os
@@ -15,15 +16,14 @@ from typing import Union
 from ddsketch import LogCollapsingLowestDenseDDSketch
 from ddsketch.pb.proto import DDSketchProto
 import six
-import tenacity
 
 import ddtrace
 from ddtrace import config
+from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 
 from .._encoding import packb
 from ..agent import get_connection
 from ..compat import get_connection_response
-from ..compat import httplib
 from ..forksafe import Lock
 from ..hostname import get_hostname
 from ..logger import get_logger
@@ -66,6 +66,8 @@ https://docs.datadoghq.com/data_streams/
 log = get_logger(__name__)
 
 PROPAGATION_KEY = "dd-pathway-ctx"
+PROPAGATION_KEY_BASE_64 = "dd-pathway-ctx-base64"
+
 """
 PathwayAggrKey uniquely identifies a pathway to aggregate stats on.
 """
@@ -114,14 +116,12 @@ class DataStreamsProcessor(PeriodicService):
         self._lock = Lock()
         self._current_context = threading.local()
         self._enabled = True
-        self._retry_request = tenacity.Retrying(
-            # Use a Fibonacci policy with jitter, same as AgentWriter.
-            wait=tenacity.wait_random_exponential(
-                multiplier=0.618 * self.interval / (1.618 ** retry_attempts) / 2, exp_base=1.618
-            ),
-            stop=tenacity.stop_after_attempt(retry_attempts),
-            retry=tenacity.retry_if_exception_type((httplib.HTTPException, OSError, IOError)),
-        )
+
+        self._flush_stats_with_backoff = fibonacci_backoff_with_jitter(
+            attempts=retry_attempts,
+            initial_wait=0.618 * self.interval / (1.618 ** retry_attempts) / 2,
+        )(self._flush_stats)
+
         self.start()
 
     def on_checkpoint_creation(
@@ -237,8 +237,8 @@ class DataStreamsProcessor(PeriodicService):
         payload = packb(raw_payload)
         compressed = gzip_compress(payload)
         try:
-            self._retry_request(self._flush_stats, compressed)
-        except tenacity.RetryError:
+            self._flush_stats_with_backoff(compressed)
+        except Exception:
             log.error("retry limit exceeded submitting pathway stats to the Datadog agent at %s", self._agent_endpoint)
 
     def shutdown(self, timeout):
@@ -259,6 +259,13 @@ class DataStreamsProcessor(PeriodicService):
             return ctx
         except (EOFError, TypeError):
             return self.new_pathway()
+
+    def decode_pathway_b64(self, data):
+        # type: (str) -> DataStreamsCtx
+        binary_pathway = data.encode("utf-8")
+        encoded_pathway = base64.b64decode(binary_pathway)
+        data_streams_context = self.decode_pathway(encoded_pathway)
+        return data_streams_context
 
     def new_pathway(self):
         # type: () -> DataStreamsCtx
@@ -297,6 +304,13 @@ class DataStreamsCtx:
             + encode_var_int_64(int(self.pathway_start_sec * 1e3))
             + encode_var_int_64(int(self.current_edge_start_sec * 1e3))
         )
+
+    def encode_b64(self):
+        # type: () -> str
+        encoded_pathway = self.encode()
+        binary_pathway = base64.b64encode(encoded_pathway)
+        data_streams_context = binary_pathway.decode("utf-8")
+        return data_streams_context
 
     def _compute_hash(self, tags, parent_hash):
         if six.PY3:

@@ -11,6 +11,7 @@ import pytest
 from routes import url_for
 
 from ddtrace import config
+from ddtrace.appsec.ddwaf import _DDWAF_LOADED
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
@@ -525,6 +526,7 @@ class PylonsTestCase(TracerTestCase):
             assert spans[0].get_tag("http.response.headers.content-length") == "2"
         assert spans[0].get_tag("http.response.headers.custom-header") == "value"
 
+    @pytest.mark.skipif(not _DDWAF_LOADED, reason="Test only makes sense when ddwaf is loaded")
     def test_pylons_cookie_sql_injection(self):
         with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
             self.tracer._appsec_enabled = True
@@ -592,6 +594,7 @@ class PylonsTestCase(TracerTestCase):
         assert root_span
         assert not core.get_item("http.request.body", span=root_span)
 
+    @pytest.mark.skipif(not _DDWAF_LOADED, reason="Test only makes sense when ddwaf is loaded")
     def test_pylons_body_urlencoded_attack(self):
         with self.override_global_config(dict(_appsec_enabled=True)):
             with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
@@ -637,6 +640,7 @@ class PylonsTestCase(TracerTestCase):
             assert span
             assert span["mytestingbody_key"] == "mytestingbody_value"
 
+    @pytest.mark.skipif(not _DDWAF_LOADED, reason="Test only makes sense when ddwaf is loaded")
     def test_pylons_body_json_attack(self):
         with self.override_global_config(dict(_appsec_enabled=True)):
             with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
@@ -835,6 +839,7 @@ class PylonsTestCase(TracerTestCase):
             assert path_params["month"] == "july"
             assert path_params["year"] == "2022"
 
+    @pytest.mark.skipif(not _DDWAF_LOADED, reason="Test only makes sense when ddwaf is loaded")
     def test_pylon_path_params_attack(self):
         with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
             self.tracer._appsec_enabled = True

@@ -3,6 +3,7 @@ import sys
 from typing import TYPE_CHECKING
 
 from ddtrace.appsec import _asm_request_context
+from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
 from ...appsec._constants import SPAN_DATA_NAMES
 from ..trace_utils import _get_request_header_user_agent
@@ -294,7 +295,7 @@ class DDWSGIMiddleware(_DDWSGIMiddlewareBase):
                             Defaults to using the request method and url in the resource.
     """
 
-    _request_span_name = schematize_url_operation("wsgi.request", protocol="http", direction="inbound")
+    _request_span_name = schematize_url_operation("wsgi.request", protocol="http", direction=SpanDirection.INBOUND)
     _application_span_name = "wsgi.application"
     _response_span_name = "wsgi.response"
 

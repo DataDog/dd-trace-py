@@ -368,6 +368,11 @@ The following environment variables for the tracer are supported:
      default: True
      description: Prevents large payloads being sent to APM.
 
+   DD_TRACE_PARTIAL_FLUSH_MIN_SPANS:
+     type: Integer
+     default: 500
+     description: Maximum number of spans sent per trace per payload when ``DD_TRACE_PARTIAL_FLUSH_ENABLED=True``.
+
    DD_APPSEC_ENABLED:
      type: Boolean
      default: False
@@ -391,6 +396,12 @@ The following environment variables for the tracer are supported:
      default: |
          ``(?i)(?:p(?:ass)?w(?:or)?d|pass(?:_?phrase)?|secret|(?:api_?|private_?|public_?|access_?|secret_?)key(?:_?id)?|token|consumer_?(?:id|key|secret)|sign(?:ed|ature)?|auth(?:entication|orization)?)(?:\s*=[^;]|"\s*:\s*"[^"]+")|bearer\s+[a-z0-9\._\-]+|token:[a-z0-9]{13}|gh[opsu]_[0-9a-zA-Z]{36}|ey[I-L][\w=-]+\.ey[I-L][\w=-]+(?:\.[\w.+\/=-]+)?|[\-]{5}BEGIN[a-z\s]+PRIVATE\sKEY[\-]{5}[^\-]+[\-]{5}END[a-z\s]+PRIVATE\sKEY|ssh-rsa\s*[a-z0-9\/\.+]{100,}``
      description: Sensitive parameter value regexp for obfuscation.
+
+   DD_SUBPROCESS_SENSITIVE_WILDCARDS:
+     type: String
+     description: |
+         Add more possible matches to the internal list of subprocess execution argument scrubbing. Must be a comma-separated list and 
+         each item can take `fnmatch` style wildcards, for example: ``*ssn*,*personalid*,*idcard*,*creditcard*``.
 
    DD_HTTP_CLIENT_TAG_QUERY_STRING:
      type: Boolean
@@ -481,3 +492,9 @@ Dynamic Instrumentation
 -----------------------
 
 .. ddtrace-envier-configuration:: ddtrace.settings.dynamic_instrumentation:DynamicInstrumentationConfig
+
+
+Exception Debugging
+-------------------
+
+.. ddtrace-envier-configuration:: ddtrace.settings.exception_debugging:ExceptionDebuggingConfig

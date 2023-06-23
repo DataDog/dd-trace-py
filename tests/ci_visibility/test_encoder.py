@@ -199,6 +199,10 @@ class PytestEncodingTestCase(TracerTestCase):
         """Execute test script with test tracer."""
         return self.testdir.runpytest_subprocess(*args)
 
+    def teardown(self):
+        if CIVisibility.enabled:
+            CIVisibility.disable()
+
     def test_event_payload(self):
         """Test that a pytest test case will generate a test event, but with:
         - test_session_id, test_module_id, test_suite_id moved from meta to event content dictionary

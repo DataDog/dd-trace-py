@@ -133,7 +133,8 @@ if _DDWAF_LOADED:
                 return False
 
         def _at_request_start(self):
-            # type: () -> ddwaf_context_capsule
+            # type: () -> ddwaf_context_capsule | None
+            ctx = None
             if self._handle:
                 ctx = py_ddwaf_context_init(self._handle)
             if not ctx:
@@ -185,7 +186,7 @@ else:
 
         def __init__(self, rules, obfuscation_parameter_key_regexp, obfuscation_parameter_value_regexp):
             # type: (DDWaf, Union[None, int, text_type, list[Any], dict[text_type, Any]], text_type, text_type) -> None
-            pass
+            self._handle = None
 
         def run(
             self,  # type: DDWaf
