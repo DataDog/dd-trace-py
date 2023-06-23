@@ -810,6 +810,36 @@ def test_django_login_sucess_safe(client, test_spans, tracer):
 
 
 @pytest.mark.django_db
+def test_django_login_sucess_safe_is_not_default_if_wrong(client, test_spans, tracer):
+    from django.contrib.auth import get_user
+    from django.contrib.auth.models import User
+
+    with override_global_config(dict(_appsec_enabled=True, _automatic_login_events_mode="foobar")):
+        test_user = User.objects.create(username="fred")
+        test_user.set_password("secret")
+        test_user.save()
+        client.login(username="fred", password="secret")
+        assert get_user(client).is_authenticated
+        login_span = test_spans.find_span(name="django.contrib.auth.login")
+        assert login_span.get_tag(user.ID) == "fred"
+
+
+@pytest.mark.django_db
+def test_django_login_sucess_safe_is_not_default_if_missing(client, test_spans, tracer):
+    from django.contrib.auth import get_user
+    from django.contrib.auth.models import User
+
+    with override_global_config(dict(_appsec_enabled=True)):
+        test_user = User.objects.create(username="fred")
+        test_user.set_password("secret")
+        test_user.save()
+        client.login(username="fred", password="secret")
+        assert get_user(client).is_authenticated
+        login_span = test_spans.find_span(name="django.contrib.auth.login")
+        assert login_span.get_tag(user.ID) == "fred"
+
+
+@pytest.mark.django_db
 def test_django_login_failure_user_doesnt_exists(client, test_spans, tracer):
     from django.contrib.auth import get_user
 
