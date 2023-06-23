@@ -1,5 +1,5 @@
-import sys
 from platform import system
+import sys
 
 import ddtrace.appsec.ddwaf
 import ddtrace.bootstrap.sitecustomize as module

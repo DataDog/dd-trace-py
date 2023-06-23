@@ -6,6 +6,7 @@ from ddtrace.appsec.iast import oce
 from ddtrace.appsec.iast._taint_dict import get_taint_dict
 from ddtrace.appsec.iast._taint_tracking._native import ops  # noqa: F401
 
+
 setup = ops.setup
 new_pyobject_id = ops.new_pyobject_id
 
