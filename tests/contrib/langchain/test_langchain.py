@@ -4,12 +4,13 @@ import re
 from langchain import PromptTemplate
 from langchain.chains import LLMChain
 from langchain.chains import LLMMathChain
-from langchain.chains import TransformChain
 from langchain.chains import SequentialChain
+from langchain.chains import TransformChain
 from langchain.chat_models import ChatOpenAI
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.llms import OpenAI
-from langchain.schema import HumanMessage, SystemMessage
+from langchain.schema import HumanMessage
+from langchain.schema import SystemMessage
 import pytest
 import vcr
 
@@ -18,7 +19,10 @@ from ddtrace.contrib.langchain.patch import unpatch
 
 
 @pytest.fixture(autouse=True)
-def patch_langchain():
+def patch_langchain(request):
+    if "integrationTest" in request.keywords:
+        yield
+        return
     patch()
     yield
     unpatch()
@@ -45,6 +49,18 @@ def test_openai_llm_sync(openai_vcr):
     llm = OpenAI()
     with openai_vcr.use_cassette("openai_completion_sync.yaml"):
         llm("Can you explain what Descartes meant by 'I think, therefore I am'?")
+
+
+@pytest.mark.snapshot
+def test_openai_llm_sync_multiple_prompts(openai_vcr):
+    llm = OpenAI()
+    with openai_vcr.use_cassette("openai_completion_sync_multi_prompt.yaml"):
+        llm.generate(
+            [
+                "What is the best way to teach a baby multiple languages?",
+                "How many times has Spongebob failed his road test?",
+            ]
+        )
 
 
 @pytest.mark.asyncio
@@ -193,3 +209,68 @@ def test_openai_sequential_chain(openai_vcr):
         """
     with openai_vcr.use_cassette("openai_paraphrase.yaml"):
         sequential_chain.run({"text": input_text, "style": "a 90s rapper"})
+
+
+@pytest.mark.snapshot
+def test_openai_sequential_chain_with_multiple_llm(openai_vcr):
+    template = """Paraphrase this text:
+
+        {input_text}
+
+        Paraphrase: """
+    prompt = PromptTemplate(input_variables=["input_text"], template=template)
+    style_paraphrase_chain = LLMChain(llm=OpenAI(), prompt=prompt, output_key="paraphrased_output")
+    rhyme_template = """Make this text rhyme:
+
+        {paraphrased_output}
+
+        Rhyme: """
+    rhyme_prompt = PromptTemplate(input_variables=["paraphrased_output"], template=rhyme_template)
+    rhyme_chain = LLMChain(llm=OpenAI(), prompt=rhyme_prompt, output_key="final_output")
+    sequential_chain = SequentialChain(
+        chains=[style_paraphrase_chain, rhyme_chain],
+        input_variables=["input_text"],
+        output_variables=["final_output"],
+    )
+
+    input_text = """
+            I have convinced myself that there is absolutely nothing in the world, no sky, no earth, no minds, no
+            bodies. Does it now follow that I too do not exist? No: if I convinced myself of something then I certainly
+            existed. But there is a deceiver of supreme power and cunning who is deliberately and constantly deceiving
+            me. In that case I too undoubtedly exist, if he is deceiving me; and let him deceive me as much as he can,
+            he will never bring it about that I am nothing so long as I think that I am something. So after considering
+            everything very thoroughly, I must finally conclude that this proposition, I am, I exist, is necessarily
+            true whenever it is put forward by me or conceived in my mind.
+            """
+    with openai_vcr.use_cassette("openai_sequential_paraphrase_and_rhyme.yaml"):
+        sequential_chain.run({"input_text": input_text})
+
+
+@pytest.mark.integrationTest
+@pytest.mark.snapshot
+def test_openai_integration(openai_vcr, ddtrace_run_python_code_in_subprocess):
+    env = os.environ.copy()
+    pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
+    if "PYTHONPATH" in env:
+        pypath.append(env["PYTHONPATH"])
+    env.update(
+        {
+            "PYTHONPATH": ":".join(pypath),
+            # Disable metrics because the test agent doesn't support metrics
+            "DD_OPENAI_METRICS_ENABLED": "false",
+        }
+    )
+    out, err, status, pid = ddtrace_run_python_code_in_subprocess(
+        """
+from langchain.llms import OpenAI
+import ddtrace
+from tests.contrib.langchain.test_langchain import get_openai_vcr
+llm = OpenAI()
+with get_openai_vcr().use_cassette("openai_completion_sync.yaml"):
+    llm("Can you explain what Descartes meant by 'I think, therefore I am'?")
+""",
+        env=env,
+    )
+    assert status == 0, err
+    assert out == b""
+    assert err == b""

@@ -2775,7 +2775,8 @@ venv = Venv(
                 "langchain": latest,
                 "openai": latest,
                 "vcrpy": latest,
-            }
+                "pytest-asyncio": latest,
+            },
         ),
         Venv(
             name="molten",

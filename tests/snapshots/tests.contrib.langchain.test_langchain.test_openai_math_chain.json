@@ -11,11 +11,11 @@
     "meta": {
       "_dd.p.dm": "-0",
       "langchain.request.inputs.question": "what is two raised to the fifty-fourth power?",
-      "langchain.request.prompt": "Translate a math problem into a expression that can be executed using Python's numexpr library. Use the output of running this code to answer the question.\n\nQuestion: ${{Question with math problem.}}\n```text\n${{single line mathematical expression that solves the problem}}\n```\n...numexpr.evaluate(text)...\n```output\n${{Output of running the code}}\n```\nAnswer: ${{Answer}}\n\nBegin.\n\nQuestion: What is 37593 * 67?\n```text\n37593 * 67\n```\n...numexpr.evaluate(\"37593 * 67\")...\n```output\n2518731\n```\nAnswer: 2518731\n\nQuestion: 37593^(1/5)\n```text\n37593**(1/5)\n```\n...numexpr.evaluate(\"37593**(1/5)\")...\n```output\n8.222831614237718\n```\nAnswer: 8.222831614237718\n\nQuestion: {question}\n",
+      "langchain.request.prompt": "Translate a math problem into a expression that can be executed using Python's numexpr library. Use the output of running this c...",
       "langchain.response.outputs.answer": "Answer: 18014398509481984",
       "langchain.response.outputs.question": "what is two raised to the fifty-fourth power?",
       "language": "python",
-      "runtime-id": "c8c7c7789b1a41dda05276c3385ae778"
+      "runtime-id": "9a053892f560461696466a255a116264"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -27,10 +27,10 @@
       "langchain.tokens.prompt_tokens": 236,
       "langchain.tokens.total_cost": 0.0052,
       "langchain.tokens.total_tokens": 260,
-      "process_id": 96279
+      "process_id": 58283
     },
-    "duration": 952586000,
-    "start": 1687294021744561000
+    "duration": 2941000,
+    "start": 1687462198863245000
   },
      {
        "name": "langchain.request",
@@ -44,10 +44,10 @@
        "meta": {
          "langchain.request.inputs.question": "what is two raised to the fifty-fourth power?",
          "langchain.request.inputs.stop": "['```output']",
-         "langchain.request.prompt": "Translate a math problem into a expression that can be executed using Python's numexpr library. Use the output of running this code to answer the question.\n\nQuestion: ${{Question with math problem.}}\n```text\n${{single line mathematical expression that solves the problem}}\n```\n...numexpr.evaluate(text)...\n```output\n${{Output of running the code}}\n```\nAnswer: ${{Answer}}\n\nBegin.\n\nQuestion: What is 37593 * 67?\n```text\n37593 * 67\n```\n...numexpr.evaluate(\"37593 * 67\")...\n```output\n2518731\n```\nAnswer: 2518731\n\nQuestion: 37593^(1/5)\n```text\n37593**(1/5)\n```\n...numexpr.evaluate(\"37593**(1/5)\")...\n```output\n8.222831614237718\n```\nAnswer: 8.222831614237718\n\nQuestion: {question}\n",
+         "langchain.request.prompt": "Translate a math problem into a expression that can be executed using Python's numexpr library. Use the output of running this c...",
          "langchain.response.outputs.question": "what is two raised to the fifty-fourth power?",
          "langchain.response.outputs.stop": "['```output']",
-         "langchain.response.outputs.text": "\n```text\n2**54\n```\n...numexpr.evaluate(\"2**54\")...\n"
+         "langchain.response.outputs.text": "\\n```text\\n2**54\\n```\\n...numexpr.evaluate(\"2**54\")...\\n"
        },
        "metrics": {
          "_dd.measured": 1,
@@ -56,8 +56,8 @@
          "langchain.tokens.total_cost": 0.0052,
          "langchain.tokens.total_tokens": 260
        },
-       "duration": 951630000,
-       "start": 1687294021744711000
+       "duration": 2461000,
+       "start": 1687462198863409000
      },
         {
           "name": "langchain.request",
@@ -78,11 +78,11 @@
             "langchain.request.openai.parameters.request_timeout": "None",
             "langchain.request.openai.parameters.temperature": "0.0",
             "langchain.request.openai.parameters.top_p": "1",
-            "langchain.request.prompt": "Translate a math problem into a expression that can be executed using Python's numexpr library. Use the output of running this code to answer the question.\n\nQuestion: ${Question with math problem.}\n```text\n${single line mathematical expression that solves the problem}\n```\n...numexpr.evaluate(text)...\n```output\n${Output of running the code}\n```\nAnswer: ${Answer}\n\nBegin.\n\nQuestion: What is 37593 * 67?\n```text\n37593 * 67\n```\n...numexpr.evaluate(\"37593 * 67\")...\n```output\n2518731\n```\nAnswer: 2518731\n\nQuestion: 37593^(1/5)\n```text\n37593**(1/5)\n```\n...numexpr.evaluate(\"37593**(1/5)\")...\n```output\n8.222831614237718\n```\nAnswer: 8.222831614237718\n\nQuestion: what is two raised to the fifty-fourth power?\n",
+            "langchain.request.prompts.0": "Translate a math problem into a expression that can be executed using Python's numexpr library. Use the output of running this c...",
             "langchain.request.provider": "openai",
-            "langchain.response.completion.finish_reason": "stop",
-            "langchain.response.completion.logprobs": "None",
-            "langchain.response.completion.text": "\n```text\n2**54\n```\n...numexpr.evaluate(\"2**54\")...\n"
+            "langchain.response.completions.0.finish_reason": "stop",
+            "langchain.response.completions.0.logprobs": "None",
+            "langchain.response.completions.0.text": "\\n```text\\n2**54\\n```\\n...numexpr.evaluate(\"2**54\")...\\n"
           },
           "metrics": {
             "_dd.measured": 1,
@@ -91,6 +91,6 @@
             "langchain.tokens.total_cost": 0.0052,
             "langchain.tokens.total_tokens": 260
           },
-          "duration": 951362000,
-          "start": 1687294021744863000
+          "duration": 2261000,
+          "start": 1687462198863570000
         }]]

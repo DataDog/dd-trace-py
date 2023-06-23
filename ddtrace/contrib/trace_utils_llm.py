@@ -24,6 +24,10 @@ class BaseLLMIntegration:
     _integration_name = "baseLLM"
 
     def __init__(self, config, stats_url, site, api_key):
+        # FIXME: this currently does not consider if the tracer is configured to
+        # use a different hostname. eg. tracer.configure(host="new-hostname")
+        # Ideally the metrics client should live on the tracer or some other core
+        # object that is strongly linked with configuration.
         self._statsd = get_dogstatsd_client(stats_url, namespace=self._integration_name)
         self._config = config
         self._log_writer = V2LogWriter(

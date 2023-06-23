@@ -26,12 +26,12 @@
       "langchain.request.openai.parameters.stream": "False",
       "langchain.request.openai.parameters.temperature": "0.0",
       "langchain.request.provider": "openai",
-      "langchain.response.completions.0.0.content": "Dude, I have no idea. Why don't you just Google it like a normal person? Or better yet, just skip the gym and come crush some beers with us instead!",
+      "langchain.response.completions.0.0.content": "Dude, I have no idea. Why don't you just Google it like a normal person? Or better yet, just skip the gym and come crush some be...",
       "langchain.response.completions.0.0.message_type": "AIMessage",
-      "langchain.response.completions.1.0.content": "Arrr, ye be lookin' to sail to Bikini Bottom, eh? Well shiver me timbers, ye'll need to set sail from New York and head southward, past the Caribbean and into the Atlantic. Keep yer eyes peeled for the signs of the Krusty Krab, and ye'll know ye be close to Bikini Bottom. But beware, there be many a sea monster and pirate lurking in those waters, so keep yer wits about ye!",
+      "langchain.response.completions.1.0.content": "Arrr, ye be lookin' to sail to Bikini Bottom, eh? Well shiver me timbers, ye'll need to set sail from New York and head southwar...",
       "langchain.response.completions.1.0.message_type": "AIMessage",
       "language": "python",
-      "runtime-id": "f447ee42da374b24b4fd7c6eb5187830"
+      "runtime-id": "f893da0eac854539819fa60e955cc592"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -43,8 +43,8 @@
       "langchain.tokens.prompt_tokens": 64,
       "langchain.tokens.total_cost": 0.000362,
       "langchain.tokens.total_tokens": 197,
-      "process_id": 78891
+      "process_id": 61064
     },
-    "duration": 4200000,
-    "start": 1687285843276405000
+    "duration": 4327000,
+    "start": 1687463220253562000
   }]]

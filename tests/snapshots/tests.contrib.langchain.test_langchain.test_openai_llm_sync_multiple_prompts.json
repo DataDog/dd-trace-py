@@ -19,13 +19,17 @@
       "langchain.request.openai.parameters.request_timeout": "None",
       "langchain.request.openai.parameters.temperature": "0.7",
       "langchain.request.openai.parameters.top_p": "1",
-      "langchain.request.prompts.0": "Can you explain what Descartes meant by 'I think, therefore I am'?",
+      "langchain.request.prompts.0": "What is the best way to teach a baby multiple languages?",
+      "langchain.request.prompts.1": "How many times has Spongebob failed his road test?",
       "langchain.request.provider": "openai",
       "langchain.response.completions.0.finish_reason": "stop",
       "langchain.response.completions.0.logprobs": "None",
-      "langchain.response.completions.0.text": "\\n\\nDescartes' famous phrase \"I think, therefore I am\" is a fundamental statement of his philosophical approach, known as Cartes...",
+      "langchain.response.completions.0.text": "\\n\\nThe best way to teach a baby multiple languages is to start as early as possible and to make the learning experience fun and...",
+      "langchain.response.completions.1.finish_reason": "stop",
+      "langchain.response.completions.1.logprobs": "None",
+      "langchain.response.completions.1.text": "\\n\\nSpongebob has failed his road test a total of three times.",
       "language": "python",
-      "runtime-id": "2bb193d86878410f8f95dd1f098bc321"
+      "runtime-id": "9762d8bb20924ba1ba08dba0bcf5e731"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -33,12 +37,12 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "langchain.tokens.completion_tokens": 95,
-      "langchain.tokens.prompt_tokens": 17,
-      "langchain.tokens.total_cost": 0.0022400000000000002,
-      "langchain.tokens.total_tokens": 112,
-      "process_id": 53203
+      "langchain.tokens.completion_tokens": 114,
+      "langchain.tokens.prompt_tokens": 24,
+      "langchain.tokens.total_cost": 0.0027600000000000003,
+      "langchain.tokens.total_tokens": 138,
+      "process_id": 53130
     },
-    "duration": 502581000,
-    "start": 1687460842012957000
+    "duration": 451040000,
+    "start": 1687460825755345000
   }]]

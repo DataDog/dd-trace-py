@@ -1,20 +1,23 @@
 import os
+from typing import TYPE_CHECKING
 
 import langchain
 from langchain.callbacks import get_openai_callback
 
 from ddtrace import config
-from ddtrace.pin import Pin
-from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib.langchain.constants import text_embedding_models
-from ddtrace.contrib.openai._logging import V2LogWriter
 from ddtrace.contrib.trace_utils import unwrap
-from ddtrace.contrib.trace_utils import wrap
 from ddtrace.contrib.trace_utils import with_traced_module
-from ddtrace.internal.dogstatsd import get_dogstatsd_client
+from ddtrace.contrib.trace_utils import wrap
+from ddtrace.contrib.trace_utils_llm import BaseLLMIntegration
+from ddtrace.internal.agent import get_stats_url
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.sampler import RateSampler
+from ddtrace.pin import Pin
+
+
+if TYPE_CHECKING:
+    from ddtrace import Span
 
 
 log = get_logger(__name__)
@@ -33,22 +36,39 @@ config._add(
 )
 
 
-class _LangChainIntegration:
+class _LangChainIntegration(BaseLLMIntegration):
+    _integration_name = "langchain"
+
     def __init__(self, config, stats_url, site, api_key):
-        # FIXME: this currently does not consider if the tracer is configured to
-        # use a different hostname. eg. tracer.configure(host="new-hostname")
-        # Ideally the metrics client should live on the tracer or some other core
-        # object that is strongly linked with configuration.
-        self._statsd = get_dogstatsd_client(stats_url, namespace="openai")
-        self._config = config
-        self._log_writer = V2LogWriter(
-            site=site,
-            api_key=api_key,
-            interval=float(os.getenv("_DD_OPENAI_LOG_WRITER_INTERVAL", "1.0")),
-            timeout=float(os.getenv("_DD_OPENAI_LOG_WRITER_TIMEOUT", "2.0")),
+        super().__init__(config, stats_url, site, api_key)
+
+    def _set_base_span_tags(self, span):
+        # type: (Span) -> None
+        return None
+
+    def _logs_tags(self, span):
+        # type: (Span) -> str
+        tags = "env:%s,version:%s,langchain.request.provider:%s,langchain.request.model:%s" % (  # noqa: E501
+            (config.env or ""),
+            (config.version or ""),
+            (span.get_tag("langchain.request.provider") or ""),
+            (span.get_tag("langchain.request.model") or ""),
         )
-        self._span_pc_sampler = RateSampler(sample_rate=config.span_prompt_completion_sample_rate)
-        self._log_pc_sampler = RateSampler(sample_rate=config.log_prompt_completion_sample_rate)
+        return tags
+
+    def _metrics_tags(self, span):
+        tags = [
+            "version:%s" % (config.version or ""),
+            "env:%s" % (config.env or ""),
+            "service:%s" % (span.service or ""),
+            "langchain.request.provider:%s" % (span.get_tag("langchain.request.provider") or ""),
+            "langchain.request.model:%s" % (span.get_tag("langchain.request.model") or ""),
+            "error:%d" % span.error,
+        ]
+        err_type = span.get_tag("error.type")
+        if err_type:
+            tags.append("error_type:%s" % err_type)
+        return tags
 
 
 # TODO: set up rate sampler for prompt-completion tagging?
@@ -82,52 +102,59 @@ def _tag_token_usage(span, callback):
 
 @with_traced_module
 def traced_llm_generate(langchain, pin, func, instance, args, kwargs):
-    # TODO: can we add the state to the instance?
     llm_provider = instance._llm_type
     prompts = args[0]
-    with pin.tracer.trace(
-        "langchain.request", resource="%s.%s" % (instance.__module__, instance.__class__.__name__)
-    ) as span:
-        # Enable trace metrics for these spans so users can see per-service openai usage in APM.
-        span.set_tag(SPAN_MEASURED_KEY)
-        if len(prompts) == 1:
-            span.set_tag_str("langchain.request.prompt", prompts[0])
-        else:
+    integration = langchain._datadog_integration
+    with integration.trace(pin, "%s.%s" % (instance.__module__, instance.__class__.__name__)) as span:
+        if integration.is_pc_sampled_span(span):
             for idx, prompt in enumerate(prompts):
-                span.set_tag_str("langchain.request.prompts.%d" % idx, prompt)
+                span.set_tag_str("langchain.request.prompts.%d" % idx, integration.trunc(prompt))
         model = _extract_model_name(instance)
         if model is not None:
             span.set_tag_str("langchain.request.model", model)
         span.set_tag_str("langchain.request.provider", llm_provider)
         for param, val in getattr(instance, "_default_params", {}).items():
             span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
+
         if isinstance(instance, langchain.llms.OpenAI):
             with get_openai_callback() as cb:
                 completions = func(*args, **kwargs)
             _tag_token_usage(span, cb)
         else:
             completions = func(*args, **kwargs)
-        if len(completions.generations) == 1:
-            span.set_tag_str("langchain.response.completion.text", completions.generations[0][0].text)
+
+        for idx, completion in enumerate(completions.generations):
+            if integration.is_pc_sampled_span(span):
+                span.set_tag_str("langchain.response.completions.%d.text" % idx, integration.trunc(completion[0].text))
             span.set_tag_str(
-                "langchain.response.completion.finish_reason",
-                completions.generations[0][0].generation_info.get("finish_reason"),
+                "langchain.response.completions.%d.finish_reason" % idx,
+                completion[0].generation_info.get("finish_reason"),
             )
             span.set_tag_str(
-                "langchain.response.completion.logprobs",
-                str(completions.generations[0][0].generation_info.get("logprobs")),
+                "langchain.response.completions.%d.logprobs" % idx,
+                str(completion[0].generation_info.get("logprobs")),
             )
-        else:
-            for idx, completion in enumerate(completions.generations):
-                span.set_tag_str("langchain.response.completions.%d.text" % idx, completion[0].text)
-                span.set_tag_str(
-                    "langchain.response.completions.%d.finish_reason" % idx,
-                    completion[0].generation_info.get("finish_reason"),
-                )
-                span.set_tag_str(
-                    "langchain.response.completions.%d.logprobs" % idx,
-                    str(completion[0].generation_info.get("logprobs")),
-                )
+
+        if integration.is_pc_sampled_log(span):
+            integration.log(
+                span,
+                "info" if span.error == 0 else "error",
+                "sampled %s.%s" % (instance.__module__, instance.__class__.__name__),
+                attrs={
+                    "prompt": prompts,
+                    "choices": [
+                        [
+                            {
+                                "text": completion.text,
+                                "finish_reason": completion.generation_info.get("finish_reason"),
+                                "logprobs": completion.generation_info.get("logprobs"),
+                            }
+                            for completion in completions
+                        ]
+                        for completions in completions.generations
+                    ],
+                },
+            )
     return completions
 
 
@@ -135,16 +162,11 @@ def traced_llm_generate(langchain, pin, func, instance, args, kwargs):
 async def traced_llm_agenerate(langchain, pin, func, instance, args, kwargs):
     llm_provider = instance._llm_type
     prompts = args[0]
-    with pin.tracer.trace(
-        "langchain.request", resource="%s.%s" % (instance.__module__, instance.__class__.__name__)
-    ) as span:
-        # Enable trace metrics for these spans so users can see per-service openai usage in APM.
-        span.set_tag(SPAN_MEASURED_KEY)
-        if len(prompts) == 1:
-            span.set_tag_str("langchain.request.prompt", prompts[0])
-        else:
+    integration = langchain._datadog_integration
+    with integration.trace(pin, "%s.%s" % (instance.__module__, instance.__class__.__name__)) as span:
+        if integration.is_pc_sampled_span(span):
             for idx, prompt in enumerate(prompts):
-                span.set_tag_str("langchain.request.prompts.%d" % idx, prompt)
+                span.set_tag_str("langchain.request.prompts.%d" % idx, integration.trunc(prompt))
         model = _extract_model_name(instance)
         if model is not None:
             span.set_tag_str("langchain.request.model", model)
@@ -157,27 +179,38 @@ async def traced_llm_agenerate(langchain, pin, func, instance, args, kwargs):
             _tag_token_usage(span, cb)
         else:
             completions = await func(*args, **kwargs)
-        if len(completions.generations) == 1:
-            span.set_tag_str("langchain.response.completion.text", completions.generations[0][0].text)
+
+        for idx, completion in enumerate(completions.generations):
+            if integration.is_pc_sampled_span(span):
+                span.set_tag_str("langchain.response.completions.%d.text" % idx, integration.trunc(completion[0].text))
             span.set_tag_str(
-                "langchain.response.completion.finish_reason",
-                completions.generations[0][0].generation_info.get("finish_reason"),
+                "langchain.response.completions.%d.finish_reason" % idx,
+                completion[0].generation_info.get("finish_reason"),
             )
             span.set_tag_str(
-                "langchain.response.completion.logprobs",
-                str(completions.generations[0][0].generation_info.get("logprobs")),
+                "langchain.response.completions.%d.logprobs" % idx,
+                str(completion[0].generation_info.get("logprobs")),
             )
-        else:
-            for idx, completion in enumerate(completions.generations):
-                span.set_tag_str("langchain.response.completions.%d.text" % idx, completion[0].text)
-                span.set_tag_str(
-                    "langchain.response.completions.%d.finish_reason" % idx,
-                    completion[0].generation_info.get("finish_reason"),
-                )
-                span.set_tag_str(
-                    "langchain.response.completions.%d.logprobs" % idx,
-                    str(completion[0].generation_info.get("logprobs")),
-                )
+        if integration.is_pc_sampled_log(span):
+            integration.log(
+                span,
+                "info" if span.error == 0 else "error",
+                "sampled %s.%s" % (instance.__module__, instance.__class__.__name__),
+                attrs={
+                    "prompt": prompts,
+                    "choices": [
+                        [
+                            {
+                                "text": completion.text,
+                                "finish_reason": completion.generation_info.get("finish_reason"),
+                                "logprobs": completion.generation_info.get("logprobs"),
+                            }
+                            for completion in completions
+                        ]
+                        for completions in completions.generations
+                    ],
+                },
+            )
     return completions
 
 
@@ -185,16 +218,15 @@ async def traced_llm_agenerate(langchain, pin, func, instance, args, kwargs):
 def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
     llm_provider = instance._llm_type.split("-")[0]
     chat_messages = args[0]
-    with pin.tracer.trace(
-        "langchain.request", resource="%s.%s" % (instance.__module__, instance.__class__.__name__)
-    ) as span:
-        # Enable trace metrics for these spans so users can see per-service openai usage in APM.
-        span.set_tag(SPAN_MEASURED_KEY)
+    integration = langchain._datadog_integration
+    with integration.trace(pin, "%s.%s" % (instance.__module__, instance.__class__.__name__)) as span:
         for message_set_idx, message_set in enumerate(chat_messages):
             for message_idx, message in enumerate(message_set):
-                span.set_tag_str(
-                    "langchain.request.messages.%d.%d.content" % (message_set_idx, message_idx), message.content
-                )
+                if integration.is_pc_sampled_span(span):
+                    span.set_tag_str(
+                        "langchain.request.messages.%d.%d.content" % (message_set_idx, message_idx),
+                        integration.trunc(message.content),
+                    )
                 span.set_tag_str(
                     "langchain.request.messages.%d.%d.message_type" % (message_set_idx, message_idx),
                     message.__class__.__name__,
@@ -213,13 +245,44 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
             chat_completions = func(*args, **kwargs)
         for message_set_idx, message_set in enumerate(chat_completions.generations):
             for idx, chat_completion in enumerate(message_set):
-                span.set_tag_str(
-                    "langchain.response.completions.%d.%d.content" % (message_set_idx, idx), chat_completion.text
-                )
+                if integration.is_pc_sampled_span(span):
+                    span.set_tag_str(
+                        "langchain.response.completions.%d.%d.content" % (message_set_idx, idx),
+                        integration.trunc(chat_completion.text),
+                    )
                 span.set_tag_str(
                     "langchain.response.completions.%d.%d.message_type" % (message_set_idx, idx),
                     chat_completion.message.__class__.__name__,
                 )
+
+        if integration.is_pc_sampled_log(span):
+            integration.log(
+                span,
+                "info" if span.error == 0 else "error",
+                "sampled %s.%s" % (instance.__module__, instance.__class__.__name__),
+                attrs={
+                    "messages": [
+                        [
+                            {
+                                "content": message.content,
+                                "message_type": message.__class__.__name__,
+                            }
+                            for message in messages
+                        ]
+                        for messages in chat_messages
+                    ],
+                    "choices": [
+                        [
+                            {
+                                "content": message.text,
+                                "message_type": message.message.__class__.__name__,
+                            }
+                            for message in messages
+                        ]
+                        for messages in chat_completions.generations
+                    ],
+                },
+            )
 
     return chat_completions
 
@@ -228,16 +291,15 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
 async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwargs):
     llm_provider = instance._llm_type.split("-")[0]
     chat_messages = args[0]
-    with pin.tracer.trace(
-        "langchain.request", resource="%s.%s" % (instance.__module__, instance.__class__.__name__)
-    ) as span:
-        # Enable trace metrics for these spans so users can see per-service openai usage in APM.
-        span.set_tag(SPAN_MEASURED_KEY)
+    integration = langchain._datadog_integration
+    with integration.trace(pin, "%s.%s" % (instance.__module__, instance.__class__.__name__)) as span:
         for message_set_idx, message_set in enumerate(chat_messages):
             for message_idx, message in enumerate(message_set):
-                span.set_tag_str(
-                    "langchain.request.messages.%d.%d.content" % (message_set_idx, message_idx), message.content
-                )
+                if integration.is_pc_sampled_span(span):
+                    span.set_tag_str(
+                        "langchain.request.messages.%d.%d.content" % (message_set_idx, message_idx),
+                        integration.trunc(message.content),
+                    )
                 span.set_tag_str(
                     "langchain.request.messages.%d.%d.message_type" % (message_set_idx, message_idx),
                     message.__class__.__name__,
@@ -256,13 +318,45 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
             chat_completions = await func(*args, **kwargs)
         for message_set_idx, message_set in enumerate(chat_completions.generations):
             for idx, chat_completion in enumerate(message_set):
-                span.set_tag_str(
-                    "langchain.response.completions.%d.%d.content" % (message_set_idx, idx), chat_completion.text
-                )
+                if integration.is_pc_sampled_span(span):
+                    span.set_tag_str(
+                        "langchain.response.completions.%d.%d.content" % (message_set_idx, idx),
+                        integration.trunc(chat_completion.text),
+                    )
                 span.set_tag_str(
                     "langchain.response.completions.%d.%d.message_type" % (message_set_idx, idx),
                     chat_completion.message.__class__.__name__,
                 )
+
+        if integration.is_pc_sampled_log(span):
+            integration.log(
+                span,
+                "info" if span.error == 0 else "error",
+                "sampled %s.%s" % (instance.__module__, instance.__class__.__name__),
+                attrs={
+                    "messages": [
+                        [
+                            {
+                                "content": message.content,
+                                "message_type": message.__class__.__name__,
+                            }
+                            for message in messages
+                        ]
+                        for messages in chat_messages
+                    ],
+                    "choices": [
+                        [
+                            {
+                                "content": message.text,
+                                "message_type": message.message.__class__.__name__,
+                            }
+                            for message in messages
+                        ]
+                        for messages in chat_completions.generations
+                    ],
+                },
+            )
+
     return chat_completions
 
 
@@ -270,17 +364,16 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
 def traced_embedding(langchain, pin, func, instance, args, kwargs):
     input_texts = args[0]
     provider = instance.__class__.__name__.split("Embeddings")[0].lower()
-    with pin.tracer.trace(
-        "langchain.request", resource="%s.%s" % (instance.__module__, instance.__class__.__name__)
-    ) as span:
-        # Enable trace metrics for these spans so users can see per-service openai usage in APM.
-        span.set_tag(SPAN_MEASURED_KEY)
+    integration = langchain._datadog_integration
+    with integration.trace(pin, "%s.%s" % (instance.__module__, instance.__class__.__name__)) as span:
         if isinstance(input_texts, str):
-            span.set_tag_str("langchain.request.inputs.0.text", input_texts)
+            if integration.is_pc_sampled_span(span):
+                span.set_tag_str("langchain.request.inputs.0.text", integration.trunc(input_texts))
             span.set_metric("langchain.request.input_count", 1)
         else:
-            for idx, text in enumerate(input_texts):
-                span.set_tag_str("langchain.request.inputs.%d.text" % idx, text)
+            if integration.is_pc_sampled_span(span):
+                for idx, text in enumerate(input_texts):
+                    span.set_tag_str("langchain.request.inputs.%d.text" % idx, integration.trunc(text))
             span.set_metric("langchain.request.input_count", len(input_texts))
         model = _extract_model_name(instance)
         if model is not None:
@@ -294,51 +387,78 @@ def traced_embedding(langchain, pin, func, instance, args, kwargs):
                 span.set_metric("langchain.response.outputs.%d.embedding_length" % idx, len(embedding))
         else:
             span.set_metric("langchain.response.outputs.embedding_length", len(embeddings))
+
+        if integration.is_pc_sampled_log(span):
+            integration.log(
+                span,
+                "info" if span.error == 0 else "error",
+                "sampled %s.%s" % (instance.__module__, instance.__class__.__name__),
+                attrs={"inputs": input_texts},
+            )
+
         return embeddings
 
 
 @with_traced_module
 def traced_chain_call(langchain, pin, func, instance, args, kwargs):
-    with pin.tracer.trace(
-        "langchain.request", resource="%s.%s" % (instance.__module__, instance.__class__.__name__)
-    ) as span:
-        # Enable trace metrics for these spans so users can see per-service openai usage in APM.
-        span.set_tag(SPAN_MEASURED_KEY)
+    integration = langchain._datadog_integration
+    with integration.trace(pin, "%s.%s" % (instance.__module__, instance.__class__.__name__)) as span:
         inputs = args[0]
         if isinstance(inputs, dict):
             for k, v in inputs.items():
-                span.set_tag_str("langchain.request.inputs.%s" % k, str(v))
+                span.set_tag_str("langchain.request.inputs.%s" % k, integration.trunc(str(v)))
         else:
-            span.set_tag_str("langchain.request.inputs.%s" % instance.input_keys[0], inputs)
-        if hasattr(instance, "prompt"):
-            span.set_tag_str("langchain.request.prompt", str(instance.prompt.template))
+            span.set_tag_str("langchain.request.inputs.%s" % instance.input_keys[0], integration.trunc(str(inputs)))
+        if hasattr(instance, "prompt") and integration.is_pc_sampled_span(span):
+            span.set_tag_str("langchain.request.prompt", integration.trunc(str(instance.prompt.template)))
         final_outputs = func(*args, **kwargs)
-        for k, v in final_outputs.items():
-            span.set_tag_str("langchain.response.outputs.%s" % k, str(v))
-        pass
+        if integration.is_pc_sampled_span(span):
+            for k, v in final_outputs.items():
+                span.set_tag_str("langchain.response.outputs.%s" % k, integration.trunc(str(v)))
+
+        if integration.is_pc_sampled_log(span):
+            integration.log(
+                span,
+                "info" if span.error == 0 else "error",
+                "sampled %s.%s" % (instance.__module__, instance.__class__.__name__),
+                attrs={
+                    "inputs": inputs,
+                    "prompt": str(instance.prompt.template) or "",
+                    "outputs": final_outputs,
+                },
+            )
 
     return final_outputs
 
 
 @with_traced_module
 async def traced_chain_acall(langchain, pin, func, instance, args, kwargs):
-    with pin.tracer.trace(
-        "langchain.request", resource="%s.%s" % (instance.__module__, instance.__class__.__name__)
-    ) as span:
-        # Enable trace metrics for these spans so users can see per-service openai usage in APM.
-        span.set_tag(SPAN_MEASURED_KEY)
+    integration = langchain._datadog_integration
+    with integration.trace(pin, "%s.%s" % (instance.__module__, instance.__class__.__name__)) as span:
         inputs = args[0]
         if isinstance(inputs, dict):
             for k, v in inputs.items():
                 span.set_tag_str("langchain.request.inputs.%s" % k, str(v))
         else:
             span.set_tag_str("langchain.request.inputs.%s" % instance.input_keys[0], inputs)
-        if hasattr(instance, "prompt"):
-            span.set_tag_str("langchain.request.prompt", str(instance.prompt.template))
+        if hasattr(instance, "prompt") and integration.is_pc_sampled_span(span):
+            span.set_tag_str("langchain.request.prompt", integration.trunc(str(instance.prompt.template)))
         final_outputs = await func(*args, **kwargs)
-        for k, v in final_outputs.items():
-            span.set_tag_str("langchain.response.outputs.%s" % k, str(v))
-        pass
+        if integration.is_pc_sampled_span(span):
+            for k, v in final_outputs.items():
+                span.set_tag_str("langchain.response.outputs.%s" % k, integration.trunc(str(v)))
+
+        if integration.is_pc_sampled_log(span):
+            integration.log(
+                span,
+                "info" if span.error == 0 else "error",
+                "sampled %s.%s" % (instance.__module__, instance.__class__.__name__),
+                attrs={
+                    "inputs": inputs,
+                    "prompt": str(instance.prompt.template) or "",
+                    "outputs": final_outputs,
+                },
+            )
 
     return final_outputs
 
@@ -353,15 +473,18 @@ def patch():
         return
     setattr(langchain, "_datadog_patch", True)
 
-    # TODO: can we just share the _OpenAIIntegration class with LangChain?
-    #  Note that this would mean we need to share the integration object with everything in
-    #  langchain since it's top level
-    #  How do we test this? Can we mock out the metric/logger/sampler?
-    # setattr(langchain, "_langchain_integration", _LangChainIntegration())
+    #  TODO: How do we test this? Can we mock out the metric/logger/sampler?
+    ddsite = os.getenv("DD_SITE", "datadoghq.com")
+    ddapikey = os.getenv("DD_API_KEY", config.langchain._api_key)
 
     Pin().onto(langchain)
-
-    ddapikey = os.getenv("DD_API_KEY", config.langchain._api_key)
+    integration = _LangChainIntegration(
+        config=config.langchain,
+        stats_url=get_stats_url(),
+        site=ddsite,
+        api_key=ddapikey,
+    )
+    setattr(langchain, "_datadog_integration", integration)
 
     if config.langchain.logs_enabled:
         if not ddapikey:
