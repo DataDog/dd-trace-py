@@ -741,7 +741,7 @@ def _get_user_info(user):
     email and name.
 
     Since the Django Authentication model supports pluggable users models
-    there is some heuristic involved in extracted this field, through it should
+    there is some heuristic involved in extracting this field, though it should
     work well for the most common case with the default User model.
     """
     safe_mode = config._automatic_login_events_mode == "safe"
