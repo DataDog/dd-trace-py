@@ -13,8 +13,8 @@ from ddtrace.appsec.iast._util import _is_python_version_supported as python_sup
 from ddtrace.appsec.trace_utils import block_request_if_user_blocked
 from ddtrace.contrib.sqlite3.patch import patch
 from ddtrace.ext import http
-from ddtrace.internal import core
 from ddtrace.internal import constants
+from ddtrace.internal import core
 from ddtrace.internal.compat import urlencode
 from tests.appsec.test_processor import RULES_GOOD_PATH
 from tests.appsec.test_processor import RULES_SRB
@@ -66,7 +66,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             appsec_json = root_span.get_tag(APPSEC.JSON)
             assert "triggers" in json.loads(appsec_json if appsec_json else "{}")
             assert core.get_item("http.request.uri", span=root_span) == "http://localhost/.git?q=1"
-            query = dict(_context.get_item("http.request.query", span=root_span))
+            query = dict(core.get_item("http.request.query", span=root_span))
             assert query == {"q": "1"} or query == {"q": ["1"]}
 
     def test_flask_path_params(self):
@@ -142,9 +142,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             root_span = self.pop_spans()[0]
 
             assert root_span.get_tag(APPSEC.JSON) is None
-            assert (
-                core.get_item("http.request.cookies", span=root_span)["testingcookie_key"] == "testingcookie_value"
-            )
+            assert core.get_item("http.request.cookies", span=root_span)["testingcookie_key"] == "testingcookie_value"
             query = dict(_context.get_item("http.request.cookies", span=root_span))
             assert query == {"testingcookie_key": "testingcookie_value"} or query == {
                 "testingcookie_key": ["testingcookie_value"]

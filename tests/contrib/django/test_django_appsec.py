@@ -13,8 +13,8 @@ from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec.iast import oce
 from ddtrace.appsec.iast._util import _is_python_version_supported as python_supported_by_iast
 from ddtrace.ext import http
-from ddtrace.internal import core
 from ddtrace.internal import constants
+from ddtrace.internal import core
 from ddtrace.internal.compat import PY3
 from ddtrace.internal.compat import urlencode
 from ddtrace.internal.constants import APPSEC_BLOCKED_RESPONSE_HTML
