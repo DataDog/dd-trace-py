@@ -504,3 +504,9 @@ Dynamic Instrumentation
 -----------------------
 
 .. ddtrace-envier-configuration:: ddtrace.settings.dynamic_instrumentation:DynamicInstrumentationConfig
+
+
+Exception Debugging
+-------------------
+
+.. ddtrace-envier-configuration:: ddtrace.settings.exception_debugging:ExceptionDebuggingConfig

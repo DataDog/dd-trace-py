@@ -110,8 +110,13 @@ class SignalCollector(object):
             and signal.state in {SignalState.DONE, SignalState.COND_ERROR}
             and signal.has_message()
         ):
+            log.debug("Enqueueing signal %s", signal)
             # This signal emits a log message
             self._enqueue(signal)
+        else:
+            log.debug(
+                "Skipping signal %s (has message: %s)", signal, isinstance(signal, LogSignal) and signal.has_message()
+            )
 
     def attach(self, signal):
         # type: (Signal) -> SignalContext
