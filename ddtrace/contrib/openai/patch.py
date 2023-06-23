@@ -4,7 +4,7 @@ from typing import Optional
 from typing import TYPE_CHECKING
 
 from ddtrace import config
-from ddtrace.contrib.trace_utils_llm import BaseLLMIntegration
+from ddtrace.contrib._trace_utils_llm import BaseLLMIntegration
 from ddtrace.internal.agent import get_stats_url
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger

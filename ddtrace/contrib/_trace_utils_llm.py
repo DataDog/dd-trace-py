@@ -15,7 +15,7 @@ from ddtrace.internal.log_writer import V2LogWriter
 from ddtrace.sampler import RateSampler
 
 
-if TYPE_CHECKING:  # pragma: no cover
+if TYPE_CHECKING:
     from ddtrace import Pin
     from ddtrace import Span
 
