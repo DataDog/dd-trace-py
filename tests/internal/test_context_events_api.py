@@ -10,9 +10,6 @@ from ddtrace.internal import core
 from ddtrace.internal.compat import PY3
 
 
-pytest_plugins = ("pytest_asyncio",)
-
-
 class TestContextEventsApi(unittest.TestCase):
     def tearDown(self):
         core.reset_listeners()
@@ -169,36 +166,30 @@ class TestContextEventsApi(unittest.TestCase):
             assert core.get_item(data_key) == original_data_value
 
 
-if PY3:
+def test_core_context_data_concurrent_safety():
+    data_key = "banana"
+    other_context_started = threading.Event()
+    set_result = threading.Event()
 
-    @pytest.mark.asyncio
-    async def test_core_context_data_concurrent_safety():
-        import asyncio
+    def make_context(_results):
+        with core.context_with_data("foo", **{data_key: "right"}):
+            other_context_started.wait()
+            _results[data_key] = core.get_item(data_key)
+            set_result.set()
 
-        data_key = "banana"
-        other_context_started = asyncio.Event()
-        set_result = asyncio.Event()
+    def make_another_context():
+        with core.context_with_data("bar", **{data_key: "wrong"}):
+            other_context_started.set()
+            set_result.wait()
 
-        async def make_context(_results):
-            with core.context_with_data("foo", **{data_key: "right"}):
-                await other_context_started.wait()
-                # XXX if another async task creates a new context here, get_item on the next line
-                # might see that context's data rather than its task-local data
-                # adjust this test to catch this case
-                _results[data_key] = core.get_item(data_key)
-                set_result.set()
+    results = dict()
 
-        async def make_another_context():
-            with core.context_with_data("bar", **{data_key: "wrong"}):
-                other_context_started.set()
-                await set_result.wait()
+    task1 = threading.Thread(target=make_context, args=(results,))
+    task2 = threading.Thread(target=make_another_context)
 
-        results = dict()
+    task1.start()
+    task2.start()
+    task1.join()
+    task2.join()
 
-        task1 = asyncio.create_task(make_context(results))
-        task2 = asyncio.create_task(make_another_context())
-
-        await task1
-        await task2
-
-        assert results[data_key] == "right"
+    assert results[data_key] == "right"
