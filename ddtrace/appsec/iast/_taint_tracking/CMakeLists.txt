@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.19)
 include(FetchContent)
 
-set(APP_NAME _taint_tracking)
+set(APP_NAME _native)
 option(BUILD_MACOS "Build for MacOS" OFF)
 
 project(${APP_NAME})
@@ -27,6 +27,8 @@ FetchContent_Declare(
         URL "https://github.com/abseil/abseil-cpp/archive/refs/tags/20211102.0.zip"
 )
 FetchContent_MakeAvailable(absl)
+
+include_directories(".")
 
 file(GLOB SOURCE_FILES "*.cpp"
         "Aspects/*.cpp"
@@ -56,16 +58,12 @@ message(STATUS "Python_EXECUTABLE = ${Python_EXECUTABLE}")
 
 add_subdirectory(vendor/pybind11)
 
-# pybind11_add_module(_native SHARED ${SOURCE_FILES} ${HEADER_FILES})
-find_package(PythonLibs REQUIRED)
-include_directories(${PYTHON_INCLUDE_DIRS})
-add_library(${APP_NAME} SHARED ${SOURCE_FILES} ${HEADER_FILES} _native.cpp)
-
+pybind11_add_module(_native SHARED ${SOURCE_FILES} ${HEADER_FILES})
+get_filename_component(PARENT_DIR ${CMAKE_CURRENT_LIST_DIR} DIRECTORY)
 set_target_properties(
-        ${APP_NAME}
+        _native
         PROPERTIES
-        LIBRARY_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/../"
-        PREFIX ""
+        LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"
 )
 
-target_link_libraries(${APP_NAME} ${PYTHON_LIBRARIES})
+target_link_libraries(${APP_NAME} PRIVATE absl::node_hash_map)
