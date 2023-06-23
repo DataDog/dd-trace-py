@@ -106,6 +106,22 @@ def test_consumer_created_with_logger_does_not_raise(tracer):
     consumer.close()
 
 
+@pytest.mark.parametrize(
+    "config,expect_servers",
+    [
+        ({"bootstrap.servers": BOOTSTRAP_SERVERS}, BOOTSTRAP_SERVERS),
+        ({"metadata.broker.list": BOOTSTRAP_SERVERS}, BOOTSTRAP_SERVERS),
+        ({}, None),
+    ],
+)
+def test_producer_bootstrap_servers(config, expect_servers, tracer):
+    producer = confluent_kafka.Producer(config)
+    if expect_servers is not None:
+        assert producer._dd_bootstrap_servers == expect_servers
+    else:
+        assert producer._dd_bootstrap_servers is None
+
+
 def test_produce_single_server(dummy_tracer, producer, kafka_topic):
     Pin.override(producer, tracer=dummy_tracer)
     producer.produce(kafka_topic, PAYLOAD, key=KEY)
