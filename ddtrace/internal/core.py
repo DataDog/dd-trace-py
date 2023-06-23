@@ -35,6 +35,7 @@ class ExecutionContext:
         self._data = dict()
         self._parents = []
         self._children = []
+        self._event_hub = EventHub()
         if parent is not None:
             self.addParent(parent)
         self._data.update(kwargs)
@@ -170,19 +171,16 @@ class EventHub:
             return results, exceptions
 
 
-_event_hub = EventHub()
+def has_listeners(event_id, span=None):
+    # type: (str, Optional[Span]) -> bool
+    return _choose_context(span)._event_hub.has_listeners(event_id)
 
 
-def has_listeners(event_id):
-    # type: (str) -> bool
-    return _event_hub.has_listeners(event_id)
+def on(event_id, callback, span=None):
+    # type: (str, Callable, Optional[Span])
+    return _choose_context(span)._event_hub.on(event_id, callback)
 
 
-def on(event_id, callback):
-    # type: (str, Callable)
-    return _event_hub.on(event_id, callback)
-
-
-def dispatch(event_id, args):
-    # type: (str, List[Optional[Any]]) -> Tuple[List[Optional[Any]], List[Optional[Exception]]]
-    return _event_hub.dispatch(event_id, args)
+def dispatch(event_id, args, span=None):
+    # type: (str, List[Optional[Any]], Optional[Span]) -> Tuple[List[Optional[Any]], List[Optional[Exception]]]
+    return _choose_context(span)._event_hub.dispatch(event_id, args)
