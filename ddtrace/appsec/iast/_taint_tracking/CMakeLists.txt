@@ -58,7 +58,11 @@ message(STATUS "Python_EXECUTABLE = ${Python_EXECUTABLE}")
 
 add_subdirectory(vendor/pybind11)
 
-pybind11_add_module(_native SHARED ${SOURCE_FILES} ${HEADER_FILES})
+# pybind11_add_module(_native SHARED ${SOURCE_FILES} ${HEADER_FILES})
+find_package(PythonLibs REQUIRED)
+include_directories(${PYTHON_INCLUDE_DIRS})
+add_library(${APP_NAME} SHARED ${SOURCE_FILES} ${HEADER_FILES} _native.cpp)
+
 get_filename_component(PARENT_DIR ${CMAKE_CURRENT_LIST_DIR} DIRECTORY)
 set_target_properties(
         _native
