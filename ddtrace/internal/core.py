@@ -38,7 +38,7 @@ class EventHub:
         return event_id in self._listeners
 
     def on(self, event_id, callback):
-        # type: (str, Callable)
+        # type: (str, Callable) -> None
         with self._dispatch_lock:
             self._listeners[event_id].append(callback)
 
@@ -123,17 +123,18 @@ class ExecutionContext:
             if data_key in current._data:
                 return current._data.get(data_key)
             current = current.parent
+        return None
 
     def get_items(self, data_keys):
         # type: (List[str]) -> Optional[Any]
         return [self.get_item(key) for key in data_keys]
 
     def set_item(self, data_key, data_value):
-        # type: (str, Optional[Any])
+        # type: (str, Optional[Any]) -> None
         self._data[data_key] = data_value
 
     def set_items(self, keys_values):
-        # type: (List[Tuple[str, Optional[Any]]])
+        # type: (List[Tuple[str, Optional[Any]]]) -> None
         for data_key, data_value in keys_values:
             self.set_item(data_key, data_value)
 
@@ -142,16 +143,15 @@ _CURRENT_CONTEXT = contextvars.ContextVar("ExecutionContext_var", default=Execut
 
 
 def context_with_data(identifier, parent=None, **kwargs):
-    # type: (str, Optional[ExecutionContext], ...)
     return ExecutionContext.context_with_data(identifier, parent=(parent or _CURRENT_CONTEXT.get()), **kwargs)
 
 
 def _choose_context(span=None):
-    # type: (Optional[Span])
+    # type: (Optional[Span]) -> ExecutionContext
     if span:
         return span._execution_context
     else:
-        return _CURRENT_CONTEXT.get()
+        return _CURRENT_CONTEXT.get()  # type: ignore
 
 
 def get_item(data_key, span=None):
@@ -165,12 +165,12 @@ def get_items(data_keys, span=None):
 
 
 def set_item(data_key, data_value, span=None):
-    # type: (str, Optional[Any], Optional[Span])
+    # type: (str, Optional[Any], Optional[Span]) -> None
     return _choose_context(span).set_item(data_key, data_value)
 
 
 def set_items(keys_values, span=None):
-    # type: (List[Tuple[str, Optional[Any]]], Optional[Span])
+    # type: (List[Tuple[str, Optional[Any]]], Optional[Span]) -> None
     return _choose_context(span).set_items(keys_values)
 
 
@@ -180,12 +180,12 @@ def has_listeners(event_id, span=None):
 
 
 def on(event_id, callback, span=None):
-    # type: (str, Callable, Optional[Span])
+    # type: (str, Callable, Optional[Span]) -> None
     return _choose_context(span)._event_hub.on(event_id, callback)
 
 
 def reset_listeners(span=None):
-    # type: (str, Callable, Optional[Span])
+    # type: (Optional[Span]) -> None
     return _choose_context(span)._event_hub.reset()
 
 

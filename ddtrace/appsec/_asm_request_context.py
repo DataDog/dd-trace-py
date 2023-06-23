@@ -74,7 +74,7 @@ def is_blocked():  # type: () -> bool
         env = _get_asm_context()
         if not env.active or env.span is None:
             return False
-        return core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=env.span)
+        return bool(core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=env.span))
     except BaseException:
         return False
 
