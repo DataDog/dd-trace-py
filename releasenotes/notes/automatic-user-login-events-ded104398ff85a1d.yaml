@@ -10,4 +10,4 @@ prelude: >
 
 features:
   - |
-    Add support for automatic user login events in Django.
+    ASM: Add support for automatic user login events in Django.
