@@ -11,7 +11,6 @@ from ddtrace.ext import test
 from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
 from ddtrace.internal.logger import get_logger
 
-
 log = get_logger(__name__)
 
 
@@ -34,7 +33,12 @@ class _PytestBddPlugin:
     def __init__(self):
         import pytest_bdd
 
-        self.framework_version = pytest_bdd.__version__
+        try:
+            import importlib.metadata as importlib_metadata
+        except ImportError:
+            import importlib_metadata  # type: ignore[no-redef]
+
+        self.framework_version = importlib_metadata.version(pytest_bdd.__package__)
 
     @staticmethod
     @pytest.hookimpl(tryfirst=True)
