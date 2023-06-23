@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.19)
 include(FetchContent)
 
-set(APP_NAME _native)
+set(APP_NAME _taint_tracking)
 option(BUILD_MACOS "Build for MacOS" OFF)
 
 project(${APP_NAME})
@@ -27,8 +27,6 @@ FetchContent_Declare(
         URL "https://github.com/abseil/abseil-cpp/archive/refs/tags/20211102.0.zip"
 )
 FetchContent_MakeAvailable(absl)
-
-include_directories(".")
 
 file(GLOB SOURCE_FILES "*.cpp"
         "Aspects/*.cpp"
@@ -63,7 +61,6 @@ find_package(PythonLibs REQUIRED)
 include_directories(${PYTHON_INCLUDE_DIRS})
 add_library(${APP_NAME} SHARED ${SOURCE_FILES} ${HEADER_FILES} _native.cpp)
 
-get_filename_component(PARENT_DIR ${CMAKE_CURRENT_LIST_DIR} DIRECTORY)
 set_target_properties(
         ${APP_NAME}
         PROPERTIES
