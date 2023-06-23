@@ -13,7 +13,7 @@ from ddtrace.appsec.iast._util import _is_python_version_supported as python_sup
 from ddtrace.appsec.trace_utils import block_request_if_user_blocked
 from ddtrace.contrib.sqlite3.patch import patch
 from ddtrace.ext import http
-from ddtrace.internal import _context
+from ddtrace.internal import core
 from ddtrace.internal import constants
 from ddtrace.internal.compat import urlencode
 from tests.appsec.test_processor import RULES_GOOD_PATH
@@ -65,7 +65,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             appsec_json = root_span.get_tag(APPSEC.JSON)
             assert "triggers" in json.loads(appsec_json if appsec_json else "{}")
-            assert _context.get_item("http.request.uri", span=root_span) == "http://localhost/.git?q=1"
+            assert core.get_item("http.request.uri", span=root_span) == "http://localhost/.git?q=1"
             query = dict(_context.get_item("http.request.query", span=root_span))
             assert query == {"q": "1"} or query == {"q": ["1"]}
 
@@ -85,7 +85,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             flask_args = root_span.get_tag("flask.view_args.item")
             assert flask_args == "attack"
 
-            path_params = _context.get_item("http.request.path_params", span=root_span)
+            path_params = core.get_item("http.request.path_params", span=root_span)
             assert path_params == {"item": "attack"}
 
     def test_flask_path_params_attack(self):
@@ -127,7 +127,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             appsec_json = root_span.get_tag(APPSEC.JSON)
             assert "triggers" in json.loads(appsec_json if appsec_json else "{}")
-            assert _context.get_item("http.request.cookies", span=root_span)["attack"] == "1' or '1' = '1'"
+            assert core.get_item("http.request.cookies", span=root_span)["attack"] == "1' or '1' = '1'"
             query = dict(_context.get_item("http.request.cookies", span=root_span))
             assert query == {"attack": "1' or '1' = '1'"} or query == {"attack": ["1' or '1' = '1'"]}
 
@@ -143,7 +143,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             assert root_span.get_tag(APPSEC.JSON) is None
             assert (
-                _context.get_item("http.request.cookies", span=root_span)["testingcookie_key"] == "testingcookie_value"
+                core.get_item("http.request.cookies", span=root_span)["testingcookie_key"] == "testingcookie_value"
             )
             query = dict(_context.get_item("http.request.cookies", span=root_span))
             assert query == {"testingcookie_key": "testingcookie_value"} or query == {
@@ -188,7 +188,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             self.client.post("/", data=payload, content_type="application/x-www-form-urlencoded")
             root_span = self.pop_spans()[0]
 
-            assert not _context.get_item("http.request.body", span=root_span)
+            assert not core.get_item("http.request.body", span=root_span)
 
     def test_flask_request_body_urlencoded_attack(self):
         with override_global_config(dict(_appsec_enabled=True)):
@@ -292,7 +292,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             resp = self.client.get("/", headers={"X-Real-Ip": _ALLOWED_IP})
             root_span = self.pop_spans()[0]
             assert resp.status_code == 200
-            assert not _context.get_item("http.request.blocked", span=root_span)
+            assert not core.get_item("http.request.blocked", span=root_span)
 
     def test_flask_ipblock_match_403_json(self):
         with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):

@@ -3,7 +3,7 @@ import json
 import pytest
 
 from ddtrace.appsec._constants import APPSEC
-from ddtrace.internal import _context
+from ddtrace.internal import core
 from ddtrace.internal.compat import urlencode
 from ddtrace.internal.constants import APPSEC_BLOCKED_RESPONSE_JSON
 from tests.appsec.test_processor import RULES_GOOD_PATH

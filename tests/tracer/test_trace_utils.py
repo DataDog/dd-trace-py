@@ -23,7 +23,7 @@ from ddtrace.contrib import trace_utils
 from ddtrace.contrib.trace_utils import _get_request_header_client_ip
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
-from ddtrace.internal import _context
+from ddtrace.internal import core
 from ddtrace.internal.compat import six
 from ddtrace.internal.compat import stringify
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
@@ -420,15 +420,15 @@ def test_set_http_meta(
 
     if appsec_enabled and span.span_type == SpanTypes.WEB:
         if uri is not None:
-            assert _context.get_item("http.request.uri", span=span) == uri
+            assert core.get_item("http.request.uri", span=span) == uri
         if method is not None:
-            assert _context.get_item("http.request.method", span=span) == method
+            assert core.get_item("http.request.method", span=span) == method
         if request_headers is not None:
-            assert _context.get_item("http.request.headers", span=span) == request_headers
+            assert core.get_item("http.request.headers", span=span) == request_headers
         if response_headers is not None:
-            assert _context.get_item("http.response.headers", span=span) == response_headers
+            assert core.get_item("http.response.headers", span=span) == response_headers
         if path_params is not None:
-            assert _context.get_item("http.request.path_params", span=span) == path_params
+            assert core.get_item("http.request.path_params", span=span) == path_params
 
 
 @mock.patch("ddtrace.settings.config.log")

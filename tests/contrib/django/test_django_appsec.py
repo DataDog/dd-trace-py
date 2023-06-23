@@ -13,7 +13,7 @@ from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec.iast import oce
 from ddtrace.appsec.iast._util import _is_python_version_supported as python_supported_by_iast
 from ddtrace.ext import http
-from ddtrace.internal import _context
+from ddtrace.internal import core
 from ddtrace.internal import constants
 from ddtrace.internal.compat import PY3
 from ddtrace.internal.compat import urlencode
@@ -65,8 +65,8 @@ def test_django_simple_attack(client, test_spans, tracer):
         str_json = root_span.get_tag(APPSEC.JSON)
         assert str_json is not None, "no JSON tag in root span"
         assert "triggers" in json.loads(str_json)
-        assert _context.get_item("http.request.uri", span=root_span) == "http://testserver/.git?q=1"
-        assert _context.get_item("http.request.headers", span=root_span) is not None
+        assert core.get_item("http.request.uri", span=root_span) == "http://testserver/.git?q=1"
+        assert core.get_item("http.request.headers", span=root_span) is not None
         query = dict(_context.get_item("http.request.query", span=root_span))
         assert query == {"q": "1"} or query == {"q": ["1"]}
 
@@ -81,7 +81,7 @@ def test_django_querystrings(client, test_spans, tracer):
 def test_no_django_querystrings(client, test_spans, tracer):
     with override_global_config(dict(_appsec_enabled=True)):
         root_span, _ = _aux_appsec_get_root_span(client, test_spans, tracer)
-        assert not _context.get_item("http.request.query", span=root_span)
+        assert not core.get_item("http.request.query", span=root_span)
 
 
 def test_django_request_cookies(client, test_spans, tracer):
@@ -136,7 +136,7 @@ def test_django_request_body_urlencoded_appsec_disabled_then_no_body(client, tes
             url="/",
             content_type="application/x-www-form-urlencoded",
         )
-        assert not _context.get_item("http.request.body", span=root_span)
+        assert not core.get_item("http.request.body", span=root_span)
 
 
 def test_django_request_body_urlencoded_attack(client, test_spans, tracer):
@@ -237,7 +237,7 @@ def test_django_request_body_xml_attack(client, test_spans, tracer):
 def test_django_request_body_plain(client, test_spans, tracer):
     with override_global_config(dict(_appsec_enabled=True)):
         root_span, _ = _aux_appsec_get_root_span(client, test_spans, tracer, payload="foo=bar")
-        query = _context.get_item("http.request.body", span=root_span)
+        query = core.get_item("http.request.body", span=root_span)
 
         assert root_span.get_tag(APPSEC.JSON) is None
         assert query is None
@@ -247,7 +247,7 @@ def test_django_request_body_plain_attack(client, test_spans, tracer):
     with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
         root_span, _ = _aux_appsec_get_root_span(client, test_spans, tracer, payload="1' or '1' = '1'")
 
-        query = _context.get_item("http.request.body", span=root_span)
+        query = core.get_item("http.request.body", span=root_span)
         str_json = root_span.get_tag(APPSEC.JSON)
         assert str_json is None, "JSON tag in root span"
         assert query is None
@@ -299,7 +299,7 @@ def test_django_path_params(client, test_spans, tracer):
             tracer,
             url="/appsec/path-params/2022/july/",
         )
-        path_params = _context.get_item("http.request.path_params", span=root_span)
+        path_params = core.get_item("http.request.path_params", span=root_span)
         assert path_params["month"] == "july"
         # django>=1.8,<1.9 returns string instead int
         assert int(path_params["year"]) == 2022

@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 
 from ddtrace.appsec import _asm_request_context
 from ddtrace.contrib.trace_utils import set_user
-from ddtrace.internal import _context
+from ddtrace.internal import core
 
 
 if TYPE_CHECKING:
@@ -155,11 +155,11 @@ def should_block_user(tracer, userid):  # type: (Tracer, str) -> bool
         )
         return False
 
-    if _context.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span):
+    if core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span):
         return True
 
     _asm_request_context.call_waf_callback(custom_data={"REQUEST_USER_ID": str(userid)})
-    return bool(_context.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span))
+    return bool(core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span))
 
 
 def block_request():  # type: () -> None

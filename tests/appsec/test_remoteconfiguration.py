@@ -22,7 +22,7 @@ from ddtrace.appsec.utils import _appsec_rc_capabilities
 from ddtrace.appsec.utils import _appsec_rc_features_is_enabled
 from ddtrace.contrib.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
-from ddtrace.internal import _context
+from ddtrace.internal import core
 from ddtrace.internal.remoteconfig import RemoteConfig
 from ddtrace.internal.remoteconfig.client import AgentPayload
 from ddtrace.internal.remoteconfig.client import ConfigMetadata
@@ -902,7 +902,7 @@ def test_rc_activation_ip_blocking_data(tracer, remote_config_worker):
                     Config(),
                 )
             assert "triggers" in json.loads(span.get_tag(APPSEC.JSON))
-            assert _context.get_item("http.request.remote_ip", span) == "8.8.4.4"
+            assert core.get_item("http.request.remote_ip", span) == "8.8.4.4"
 
 
 def test_rc_activation_ip_blocking_data_expired(tracer, remote_config_worker):
@@ -959,7 +959,7 @@ def test_rc_activation_ip_blocking_data_not_expired(tracer, remote_config_worker
                     Config(),
                 )
             assert "triggers" in json.loads(span.get_tag(APPSEC.JSON))
-            assert _context.get_item("http.request.remote_ip", span) == "8.8.4.4"
+            assert core.get_item("http.request.remote_ip", span) == "8.8.4.4"
 
 
 def test_rc_rules_data(tracer):

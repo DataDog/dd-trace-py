@@ -22,7 +22,7 @@ from ddtrace import config
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.ext import user
-from ddtrace.internal import _context
+from ddtrace.internal import core
 from ddtrace.internal.compat import ip_is_global
 from ddtrace.internal.compat import parse
 from ddtrace.internal.compat import six
@@ -487,7 +487,7 @@ def set_http_meta(
         # https://datadoghq.atlassian.net/wiki/spaces/APS/pages/2118779066/Client+IP+addresses+resolution
         if config._appsec_enabled or config.retrieve_client_ip:
             # Retrieve the IP if it was calculated on AppSecProcessor.on_span_start
-            request_ip = _context.get_item("http.request.remote_ip", span=span)
+            request_ip = core.get_item("http.request.remote_ip", span=span)
 
             if not request_ip:
                 # Not calculated: framework does not support IP blocking or testing env

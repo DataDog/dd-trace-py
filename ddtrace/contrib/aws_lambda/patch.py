@@ -127,9 +127,9 @@ class DatadogInstrumentation(object):
         # note: AWS Lambda context is an object, the event is a dict.
         # `get_remaining_time_in_millis` is guaranteed to be
         # present in the context.
-        _context = get_argument_value(args, kwargs, 1, "context")
+        core = get_argument_value(args, kwargs, 1, "context")
         if hasattr(_context, "get_remaining_time_in_millis"):
-            self.context = _context
+            self.context = core
         else:
             # Handler was possibly manually wrapped, and the first
             # argument is the `datadog-lambda` decorator object.

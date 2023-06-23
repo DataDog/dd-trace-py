@@ -12,7 +12,7 @@ from ddtrace.appsec.trace_utils import track_user_login_success_event
 from ddtrace.contrib.trace_utils import set_user
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import user
-from ddtrace.internal import _context
+from ddtrace.internal import core
 from tests.appsec.test_processor import RULES_GOOD_PATH
 from tests.appsec.test_processor import tracer_appsec  # noqa: F401
 from tests.utils import TracerTestCase
@@ -141,7 +141,7 @@ class EventsSDKTestCase(TracerTestCase):
                 assert span.get_tag(user.ROLE)
                 assert span.get_tag(user.SCOPE)
                 assert span.get_tag(user.SESSION_ID)
-                assert _context.get_item("http.request.blocked", span=span)
+                assert core.get_item("http.request.blocked", span=span)
 
     def test_no_span_doesnt_raise(self):
         from ddtrace import tracer

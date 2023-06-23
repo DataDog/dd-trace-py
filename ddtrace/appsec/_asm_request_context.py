@@ -4,15 +4,8 @@ from typing import TYPE_CHECKING
 from ddtrace import config
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
-from ddtrace.internal import _context
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
-
-
-try:
-    import contextvars
-except ImportError:
-    import ddtrace.vendor.contextvars as contextvars  # type: ignore
 
 
 if TYPE_CHECKING:
@@ -26,15 +19,7 @@ if TYPE_CHECKING:
 
 log = get_logger(__name__)
 
-"""
-Stopgap module for providing ASM context for the blocking features wrapping some
-contextvars. When using this, note that context vars are always thread-local so each
-thread will have a different context.
-"""
-
-# FIXME: remove these and use the new context API once implemented and allowing
-# contexts without spans
-
+# Stopgap module for providing ASM context for the blocking features wrapping some contextvars.
 
 _WAF_ADDRESSES = "waf_addresses"
 _CALLBACKS = "callbacks"
@@ -63,10 +48,10 @@ class ASM_Environment:
 
 
 def _get_asm_context():
-    env = _context.get_item("asm_env")
+    env = core.get_item("asm_env")
     if env is None:
         env = ASM_Environment()
-        _context.set_item("asm_env", env)
+        core.set_item("asm_env", env)
     return env
 
 
@@ -85,7 +70,7 @@ def is_blocked():  # type: () -> bool
         env = _get_asm_context()
         if not env.active or env.span is None:
             return False
-        return _context.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=env.span)
+        return core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=env.span)
     except BaseException:
         return False
 
@@ -153,7 +138,7 @@ def set_waf_address(address, value, span=None):  # type: (str, Any, Any) -> None
     if span is None:
         span = _get_asm_context().span
     if span:
-        _context.set_item(address, value, span=span)
+        core.set_item(address, value, span=span)
 
 
 def get_value(category, address, default=None):  # type: (str, str, Any) -> Any

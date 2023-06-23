@@ -1,7 +1,7 @@
 import django
 import pytest
 
-from ddtrace.internal import _context
+from ddtrace.internal import core
 from ddtrace.internal.compat import urlencode
 from tests.utils import assert_span_http_status_code
 from tests.utils import override_global_config
