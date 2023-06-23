@@ -36,18 +36,6 @@ def test_appsec_iast_processor():
         span = traced_function(tracer)
         tracer._on_span_finish(span)
 
-        # even though it doesn't look like it, this test creates an asm_request_context
-        # (this is because of a bug where feature flags leak between tests)
-        # in 1.x this doesn't affect CONTEXT_KEY's accessibility. that's because it's
-        # stored on the root span, which is still accessible via `span` here.
-        # on this branch, CONTEXT_KEY is not accessible. this is because it's stored on the
-        # current context, which ceases to exist when the trace() context manager exits.
-        # trace() isn't supposed to create a context, and CONTEXT_KEY is supposed to be set on the root context
-        # however, the config-leaking bug means that trace() does create a context, which it
-        # later destroys along with CONTEXT_KEY
-        # solution 1: fix the config leak. undesirable because a similar fix would have to be applied on
-        #   all tests
-        # solution 2: make core.set_item store everything on the root context
         span_report = core.get_item(IAST.CONTEXT_KEY, span=span)
         result = span.get_tag(IAST.JSON)
 
