@@ -485,43 +485,9 @@ The following environment variables for the tracer are supported:
          Sets the mode for the automated user login events tracking feature which sets some traces on each user login event. The
          supported modes are ``safe`` which will only store the user id or primary key, ``extended`` which will also store
          the username, email and full name and ``disabled``. Note that this feature requires ``DD_APPSEC_ENABLED`` to be 
-         set to ``true`` to work. For apps using the normal framework authentication models you shouldn't need to configure
-         anything else but in some cases with custom user models you could need to use once of the ``DD_USERMODEL_SOMETHING_FIELD``
-         detailed below.
+         set to ``true`` to work. 
       version_added:
          v1.15.0:
-
-   DD_USERMODEL_LOGIN_FIELD:
-      type: String
-      default: ""
-      description: |
-         Sets the field of the authentication user model to use for retrieving the user id or username. This will be used in the
-         automatic user login events feature (see ``DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING`` above). Use it only if the automatic
-         inference doesn't work. Please note that if you set this variable, the tracer will try to use whatever field you set
-         even if ``safe`` mode is enabled!
-      version_added:
-         v1.15.0:
-
-   DD_USERMODEL_EMAIL_FIELD:
-      type: String
-      default: ""
-      description: |
-         Sets the field of the authentication user model to user for retrieving the user's email. This will be used in the
-         automatic user login events feature (see ``DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING`` above). Use it only if the automatic
-         inference doesn't work. Please note that the email field will only be retrieved if you set the mode to ``extended``.
-      version_added:
-         v1.15.0:
-
-   DD_USERMODEL_NAME_FIELD:
-      type: String
-      default: ""
-      description: |
-         Sets the field of the authentication user model to user for retrieving the user's name. This will be used in the
-         automatic user login events feature (see ``DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING`` above). Use it only if the automatic
-         inference doesn't work. Please note that the name field will only be retrieved if you set the mode to ``extended``.
-      version_added:
-         v1.15.0:
-
 
 
 .. _Unified Service Tagging: https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging/
