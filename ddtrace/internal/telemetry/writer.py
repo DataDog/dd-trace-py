@@ -524,18 +524,6 @@ class TelemetryWriter(TelemetryBase):
                     "value": value,
                 }
 
-    def _get_modified_configurations(self, original_config, modified_config):
-        # type: (Dict, List[Dict]) -> List
-        """Build the list of configuration values to be changed"""
-        modified_config_queue = []
-        for changed_config in modified_config:
-            cfg_name = changed_config["name"]
-            if cfg_name in original_config and original_config[cfg_name] != changed_config["value"]:
-                modified_config_queue.append(changed_config)
-
-        # Only return configurations that have been modified
-        return modified_config_queue
-
     def _app_dependencies_loaded_event(self):
         # type: () -> None
         """Adds a Telemetry event which sends a list of installed python packages to the agent"""
