@@ -489,23 +489,21 @@ class TelemetryWriter(TelemetryBase):
         # type: () -> List[Dict]
         """Flushes and returns a list of all queued configurations"""
         with self._lock:
-            configuration = list(self._configuration_queue.values())
+            configurations = list(self._configuration_queue.values())
             self._configuration_queue = {}
-        return configuration
+        return configurations
 
     def _app_client_configuration_changed_event(self, configurations):
         # type: (List[Dict]) -> None
         """Adds a Telemetry event which sends list of modified configurations to the agent"""
-
         payload = {
             "configuration": configurations,
         }
-
         self.add_event(payload, "app-client-configuration-change")
 
     def add_configuration(self, configuration_name, configuration_value, origin="unknown"):
         # type: (str, Union[bool, float, str], str) -> None
-        """Creates and queues the name, origin, value of the configuration"""
+        """Creates and queues the name, origin, value of a configuration"""
         with self._lock:
             self._configuration_queue[configuration_name] = {
                 "name": configuration_name,
