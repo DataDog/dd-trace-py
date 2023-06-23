@@ -18,7 +18,6 @@ import re
 from typing import Dict
 
 import pytest
-import _pytest
 
 import ddtrace
 from ddtrace.constants import SPAN_KIND
@@ -81,6 +80,10 @@ def _check_failed(item):
 
 def _mark_not_skipped(item):
     """Mark test suite/module/session `pytest.Item` as not skipped."""
+    parent = item.parent
+    if parent:
+        _mark_not_skipped(parent)
+
     setattr(item, "_fully_skipped", False)
 
 
@@ -460,10 +463,7 @@ def pytest_runtest_makereport(item, call):
         if xfail and not has_skip_keyword:
             # XFail tests that fail are recorded skipped by pytest, should be passed instead
             span.set_tag_str(test.STATUS, test.Status.PASS.value)
-            parent = item.parent
-            if isinstance(parent, _pytest.unittest.UnitTestCase):
-                parent = parent.parent
-            _mark_not_skipped(parent)
+            _mark_not_skipped(item)
             if not item.config.option.runxfail:
                 span.set_tag_str(test.RESULT, test.Status.XFAIL.value)
                 span.set_tag_str(XFAIL_REASON, getattr(result, "wasxfail", "XFail"))
@@ -473,10 +473,7 @@ def pytest_runtest_makereport(item, call):
         if reason is not None:
             span.set_tag_str(test.SKIP_REASON, str(reason))
     elif result.passed:
-        parent = item.parent
-        if isinstance(parent, _pytest.unittest.UnitTestCase):
-            parent = parent.parent
-        _mark_not_skipped(parent)
+        _mark_not_skipped(item)
         span.set_tag_str(test.STATUS, test.Status.PASS.value)
         if xfail and not has_skip_keyword and not item.config.option.runxfail:
             # XPass (strict=False) are recorded passed by pytest
@@ -484,11 +481,8 @@ def pytest_runtest_makereport(item, call):
             span.set_tag_str(test.RESULT, test.Status.XPASS.value)
     else:
         # Store failure in test suite `pytest.Item` to propagate to test suite spans
-        parent = item.parent
-        if isinstance(parent, _pytest.unittest.UnitTestCase):
-            parent = parent.parent
-        _mark_failed(parent)
-        _mark_not_skipped(parent)
+        _mark_failed(item.parent)
+        _mark_not_skipped(item)
         span.set_tag_str(test.STATUS, test.Status.FAIL.value)
         if xfail and not has_skip_keyword and not item.config.option.runxfail:
             # XPass (strict=True) are recorded failed by pytest, longrepr contains reason
