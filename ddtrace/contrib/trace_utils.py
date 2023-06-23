@@ -508,9 +508,6 @@ def set_http_meta(
             is the DD standardized tag for user-agent"""
             _store_request_headers(dict(request_headers), span, integration_config)
 
-    if request_cookies and config._appsec_enabled:
-        asm_check_cookies(request_cookies)
-
     if response_headers is not None and integration_config.is_header_tracing_configured:
         _store_response_headers(dict(response_headers), span, integration_config)
 
@@ -518,6 +515,9 @@ def set_http_meta(
         span.set_tag_str(http.RETRIES_REMAIN, str(retries_remain))
 
     if span.span_type == SpanTypes.WEB and config._appsec_enabled:
+        if request_cookies:
+            asm_check_cookies(request_cookies)
+
         from ddtrace.appsec._asm_request_context import set_waf_address
         from ddtrace.appsec._constants import SPAN_DATA_NAMES
 
