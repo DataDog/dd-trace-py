@@ -73,17 +73,15 @@ class ExecutionContext:
             new_context.end()
 
     def get_item(self, data_key: str) -> Optional[Any]:
+        # NB mimic the behavior of `ddtrace.internal._context` by doing lazy inheritance
         current = self
-        while current.identifier != ROOT_CONTEXT_ID:
+        while current is not None and current.identifier != ROOT_CONTEXT_ID:
             if data_key in current._data:
                 return current._data.get(data_key)
             current = current.parent
 
     def set_item(self, data_key: str, data_value: Optional[Any]):
-        current = self
-        while current.identifier != ROOT_CONTEXT_ID:
-            current._data[data_key] = data_value
-            current = current.parent
+        self._data[data_key] = data_value
 
 
 _CURRENT_CONTEXT = contextvars.ContextVar("ExecutionContext_var", default=ExecutionContext(ROOT_CONTEXT_ID))

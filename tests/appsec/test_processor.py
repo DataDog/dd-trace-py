@@ -661,11 +661,11 @@ def test_asm_context_registration(tracer_appsec):
 
     # For a web type span, a context manager is added, but then removed
     with tracer.trace("test", span_type=SpanTypes.WEB) as span:
-        assert core._CURRENT_CONTEXT.get().get_item("asm_env").span_asm_context
-    assert core._CURRENT_CONTEXT.get().get_item("asm_env") is None
+        assert core.get_item("asm_env").span_asm_context
+    assert core.get_item("asm_env") is None
 
     # Regression test, if the span type changes after being created, we always removed
     with tracer.trace("test", span_type=SpanTypes.WEB) as span:
         span.span_type = SpanTypes.HTTP
-        assert core._CURRENT_CONTEXT.get().get_item("asm_env").span_asm_context
-    assert core._CURRENT_CONTEXT.get().get_item("asm_env") is None
+        assert core.get_item("asm_env").span_asm_context
+    assert core.get_item("asm_env") is None
