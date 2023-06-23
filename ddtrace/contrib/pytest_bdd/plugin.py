@@ -11,6 +11,7 @@ from ddtrace.ext import test
 from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
 from ddtrace.internal.logger import get_logger
 
+
 log = get_logger(__name__)
 
 
