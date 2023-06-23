@@ -80,7 +80,6 @@ class Span(object):
         "_meta",
         "error",
         "_metrics",
-        "_store",
         "span_type",
         "start_ns",
         "duration_ns",
@@ -175,7 +174,6 @@ class Span(object):
         self._parent = None  # type: Optional[Span]
         self._ignored_exceptions = None  # type: Optional[List[Exception]]
         self._local_root = None  # type: Optional[Span]
-        self._store = None  # type: Optional[Dict[str, Any]]
         self._execution_context_manager = core.context_with_data(self.name)
         self._execution_context = self._execution_context_manager.__enter__()
 
@@ -185,24 +183,6 @@ class Span(object):
             self._ignored_exceptions = [exc]
         else:
             self._ignored_exceptions.append(exc)
-
-    def _set_ctx_item(self, key, val):
-        # type: (str, Any) -> None
-        if not self._store:
-            self._store = {}
-        self._store[key] = val
-
-    def _set_ctx_items(self, items):
-        # type: (Dict[str, Any]) -> None
-        if not self._store:
-            self._store = {}
-        self._store.update(items)
-
-    def _get_ctx_item(self, key):
-        # type: (str) -> Optional[Any]
-        if not self._store:
-            return None
-        return self._store.get(key)
 
     @property
     def _trace_id_64bits(self):
