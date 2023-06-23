@@ -72,7 +72,6 @@ class V2LogWriter(PeriodicService):
             self._buffer.append(log)
 
     def on_shutdown(self):
-        # type: (...) -> None
         self.periodic()
 
     @property

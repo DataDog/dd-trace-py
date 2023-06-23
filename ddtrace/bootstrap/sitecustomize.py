@@ -10,7 +10,8 @@ import sys
 import warnings  # noqa
 
 from ddtrace import config  # noqa
-from ddtrace.debugging._config import config as debugger_config  # noqa
+from ddtrace.debugging._config import di_config  # noqa
+from ddtrace.debugging._config import ed_config  # noqa
 from ddtrace.internal.compat import PY2  # noqa
 from ddtrace.internal.logger import get_logger  # noqa
 from ddtrace.internal.module import ModuleWatchdog  # noqa
@@ -159,7 +160,7 @@ try:
         log.debug("profiler enabled via environment variable")
         import ddtrace.profiling.auto  # noqa: F401
 
-    if debugger_config.enabled:
+    if di_config.enabled or ed_config.enabled:
         from ddtrace.debugging import DynamicInstrumentation
 
         DynamicInstrumentation.enable()

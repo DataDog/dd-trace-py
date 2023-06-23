@@ -1,6 +1,6 @@
 from typing import Optional
 
-from ddtrace.debugging._config import config
+from ddtrace.debugging._config import di_config
 from ddtrace.debugging._encoding import BufferedEncoder
 from ddtrace.debugging._metrics import metrics
 from ddtrace.internal import compat
@@ -22,13 +22,13 @@ class LogsIntakeUploaderV1(AwakeablePeriodicService):
     the debugger and the events platform.
     """
 
-    ENDPOINT = config._intake_endpoint
+    ENDPOINT = di_config._intake_endpoint
 
     RETRY_ATTEMPTS = 3
 
     def __init__(self, encoder, interval=None):
         # type: (BufferedEncoder, Optional[float]) -> None
-        super(LogsIntakeUploaderV1, self).__init__(interval or config.upload_flush_interval)
+        super(LogsIntakeUploaderV1, self).__init__(interval or di_config.upload_flush_interval)
         self._encoder = encoder
         self._headers = {
             "Content-type": "application/json; charset=utf-8",
@@ -41,9 +41,9 @@ class LogsIntakeUploaderV1(AwakeablePeriodicService):
             if container_id is not None:
                 self._headers["Datadog-Container-Id"] = container_id
 
-        if config._tags_in_qs and config.tags:
-            self.ENDPOINT += "?ddtags=" + config.tags
-        self._connect = connector(config._intake_url, timeout=config.upload_timeout)
+        if di_config._tags_in_qs and di_config.tags:
+            self.ENDPOINT += "?ddtags=" + di_config.tags
+        self._connect = connector(di_config._intake_url, timeout=di_config.upload_timeout)
 
         # Make it retryable
         self._write_with_backoff = fibonacci_backoff_with_jitter(
@@ -53,7 +53,7 @@ class LogsIntakeUploaderV1(AwakeablePeriodicService):
 
         log.debug(
             "Logs intake uploader initialized (url: %s, endpoint: %s, interval: %f)",
-            config._intake_url,
+            di_config._intake_url,
             self.ENDPOINT,
             self.interval,
         )
