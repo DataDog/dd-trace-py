@@ -65,9 +65,10 @@ add_library(${APP_NAME} SHARED ${SOURCE_FILES} ${HEADER_FILES} _native.cpp)
 
 get_filename_component(PARENT_DIR ${CMAKE_CURRENT_LIST_DIR} DIRECTORY)
 set_target_properties(
-        _native
+        ${APP_NAME}
         PROPERTIES
-        LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"
+        LIBRARY_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/../"
+        PREFIX ""
 )
 
 target_link_libraries(${APP_NAME} ${PYTHON_LIBRARIES})
