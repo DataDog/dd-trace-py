@@ -15,16 +15,16 @@ static PyMethodDef OpsMethods[] = {
 };
 
 static struct PyModuleDef ops = { PyModuleDef_HEAD_INIT,
-                                 .m_name = "ddtrace.appsec.iast._taint_tracking._native",
-                                 .m_doc = "Taint tracking operations",
-                                 .m_size = -1,
-                                 .m_methods = OpsMethods };
+                                  .m_name = "ddtrace.appsec.iast._taint_tracking._native",
+                                  .m_doc = "Taint tracking operations",
+                                  .m_size = -1,
+                                  .m_methods = OpsMethods };
 
 PYBIND11_MODULE(_native, m)
 {
-  // Note: the order of these definitions matter. For example,
-  // stacktrace_element definitions must be before the ones of the
-  // classes inheriting from it.
-  PyObject* hm_ops = PyModule_Create(&ops);
-  m.add_object("ops", hm_ops);
+    // Note: the order of these definitions matter. For example,
+    // stacktrace_element definitions must be before the ones of the
+    // classes inheriting from it.
+    PyObject* hm_ops = PyModule_Create(&ops);
+    m.add_object("ops", hm_ops);
 }
