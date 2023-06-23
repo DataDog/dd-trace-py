@@ -84,7 +84,6 @@ public:
     cpp_function() = default;
     // NOLINTNEXTLINE(google-explicit-constructor)
     cpp_function(std::nullptr_t) {}
-    cpp_function(std::nullptr_t, const is_setter &) {}
 
     /// Construct a cpp_function from a vanilla function pointer
     template <typename Return, typename... Args, typename... Extra>
@@ -245,16 +244,10 @@ protected:
             using Guard = extract_guard_t<Extra...>;
 
             /* Perform the function call */
-            handle result;
-            if (call.func.is_setter) {
-                (void) std::move(args_converter).template call<Return, Guard>(cap->f);
-                result = none().release();
-            } else {
-                result = cast_out::cast(
-                    std::move(args_converter).template call<Return, Guard>(cap->f),
-                    policy,
-                    call.parent);
-            }
+            handle result
+                = cast_out::cast(std::move(args_converter).template call<Return, Guard>(cap->f),
+                                 policy,
+                                 call.parent);
 
             /* Invoke call policy post-call hook */
             process_attributes<Extra...>::postcall(call, result);
@@ -1736,8 +1729,7 @@ public:
     template <typename Getter, typename Setter, typename... Extra>
     class_ &
     def_property(const char *name, const Getter &fget, const Setter &fset, const Extra &...extra) {
-        return def_property(
-            name, fget, cpp_function(method_adaptor<type>(fset), is_setter()), extra...);
+        return def_property(name, fget, cpp_function(method_adaptor<type>(fset)), extra...);
     }
     template <typename Getter, typename... Extra>
     class_ &def_property(const char *name,
