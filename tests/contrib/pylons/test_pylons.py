@@ -577,7 +577,7 @@ class PylonsTestCase(TracerTestCase):
             assert root_span
             assert root_span.get_tag("_dd.appsec.json") is None
 
-            span = dict(_context.get_item("http.request.body", span=root_span))
+            span = dict(core.get_item("http.request.body", span=root_span))
             assert span
             assert span["mytestingbody_key"] == "mytestingbody_value"
 
@@ -614,7 +614,7 @@ class PylonsTestCase(TracerTestCase):
                 assert appsec_json
                 assert "triggers" in json.loads(appsec_json if appsec_json else "{}")
 
-                query = dict(_context.get_item("http.request.body", span=root_span))
+                query = dict(core.get_item("http.request.body", span=root_span))
                 assert query == {"attack": "1' or '1' = '1'"}
 
     def test_pylons_body_json(self):
@@ -636,7 +636,7 @@ class PylonsTestCase(TracerTestCase):
             assert root_span
             assert root_span.get_tag("_dd.appsec.json") is None
 
-            span = dict(_context.get_item("http.request.body", span=root_span))
+            span = dict(core.get_item("http.request.body", span=root_span))
             assert span
             assert span["mytestingbody_key"] == "mytestingbody_value"
 
@@ -662,7 +662,7 @@ class PylonsTestCase(TracerTestCase):
                 assert appsec_json
                 assert "triggers" in json.loads(appsec_json if appsec_json else "{}")
 
-                span = dict(_context.get_item("http.request.body", span=root_span))
+                span = dict(core.get_item("http.request.body", span=root_span))
                 assert span
                 assert span == {"attack": "1' or '1' = '1'"}
 
@@ -686,7 +686,7 @@ class PylonsTestCase(TracerTestCase):
             assert root_span
             assert root_span.get_tag("_dd.appsec.json") is None
 
-            span = dict(_context.get_item("http.request.body", span=root_span))
+            span = dict(core.get_item("http.request.body", span=root_span))
             assert span
             assert span["mytestingbody_key"] == "mytestingbody_value"
 
@@ -758,7 +758,7 @@ class PylonsTestCase(TracerTestCase):
             assert "UnicodeDecodeError" not in self._caplog.text
             assert root_span.get_tag("_dd.appsec.json") is None
 
-            span = dict(_context.get_item("http.request.body", span=root_span))
+            span = dict(core.get_item("http.request.body", span=root_span))
             assert span
             assert span == {"attack": "1' or '1' = '1'"}
 
@@ -853,7 +853,7 @@ class PylonsTestCase(TracerTestCase):
             appsec_json = root_span.get_tag("_dd.appsec.json")
             assert "triggers" in json.loads(appsec_json if appsec_json else "{}")
 
-            query = dict(_context.get_item("http.request.path_params", span=root_span))
+            query = dict(core.get_item("http.request.path_params", span=root_span))
             assert query["month"] == "w00tw00t.at.isc.sans.dfind"
             assert query["year"] == "2022"
 

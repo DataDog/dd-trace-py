@@ -104,7 +104,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             appsec_json = root_span.get_tag(APPSEC.JSON)
             assert "triggers" in json.loads(appsec_json if appsec_json else "{}")
 
-            query = dict(_context.get_item("http.request.path_params", span=root_span))
+            query = dict(core.get_item("http.request.path_params", span=root_span))
             assert query == {"item": "w00tw00t.at.isc.sans.dfind"}
 
     def test_flask_querystrings(self):
@@ -112,11 +112,11 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             self._aux_appsec_prepare_tracer()
             self.client.get("/?a=1&b&c=d")
             root_span = self.pop_spans()[0]
-            query = dict(_context.get_item("http.request.query", span=root_span))
+            query = dict(core.get_item("http.request.query", span=root_span))
             assert query == {"a": "1", "b": "", "c": "d"} or query == {"a": ["1"], "b": [""], "c": ["d"]}
             self.client.get("/")
             root_span = self.pop_spans()[0]
-            assert len(_context.get_item("http.request.query", span=root_span)) == 0
+            assert len(core.get_item("http.request.query", span=root_span)) == 0
 
     def test_flask_cookie_sql_injection(self):
         with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
@@ -129,7 +129,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             appsec_json = root_span.get_tag(APPSEC.JSON)
             assert "triggers" in json.loads(appsec_json if appsec_json else "{}")
             assert core.get_item("http.request.cookies", span=root_span)["attack"] == "1' or '1' = '1'"
-            query = dict(_context.get_item("http.request.cookies", span=root_span))
+            query = dict(core.get_item("http.request.cookies", span=root_span))
             assert query == {"attack": "1' or '1' = '1'"} or query == {"attack": ["1' or '1' = '1'"]}
 
     def test_flask_cookie(self):
@@ -144,7 +144,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             assert root_span.get_tag(APPSEC.JSON) is None
             assert core.get_item("http.request.cookies", span=root_span)["testingcookie_key"] == "testingcookie_value"
-            query = dict(_context.get_item("http.request.cookies", span=root_span))
+            query = dict(core.get_item("http.request.cookies", span=root_span))
             assert query == {"testingcookie_key": "testingcookie_value"} or query == {
                 "testingcookie_key": ["testingcookie_value"]
             }
@@ -175,7 +175,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             self.client.post("/body", data=payload, content_type="application/x-www-form-urlencoded")
 
             root_span = self.pop_spans()[0]
-            query = dict(_context.get_item("http.request.body", span=root_span))
+            query = dict(core.get_item("http.request.body", span=root_span))
 
             assert root_span.get_tag(APPSEC.JSON) is None
             assert query == {"mytestingbody_key": "mytestingbody_value"}
@@ -195,7 +195,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             payload = urlencode({"attack": "1' or '1' = '1'"})
             self.client.post("/", data=payload, content_type="application/x-www-form-urlencoded")
             root_span = self.pop_spans()[0]
-            query = dict(_context.get_item("http.request.body", span=root_span))
+            query = dict(core.get_item("http.request.body", span=root_span))
             assert "triggers" in json.loads(root_span.get_tag(APPSEC.JSON))
             assert query == {"attack": "1' or '1' = '1'"}
 
@@ -212,7 +212,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             self.client.post("/body", json=payload, content_type="application/json")
 
             root_span = self.pop_spans()[0]
-            query = dict(_context.get_item("http.request.body", span=root_span))
+            query = dict(core.get_item("http.request.body", span=root_span))
 
             assert root_span.get_tag(APPSEC.JSON) is None
             assert query == {"mytestingbody_key": "mytestingbody_value"}
@@ -223,7 +223,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             payload = {"attack": "1' or '1' = '1'"}
             self.client.post("/", json=payload, content_type="application/json")
             root_span = self.pop_spans()[0]
-            query = dict(_context.get_item("http.request.body", span=root_span))
+            query = dict(core.get_item("http.request.body", span=root_span))
             assert "triggers" in json.loads(root_span.get_tag(APPSEC.JSON))
             assert query == {"attack": "1' or '1' = '1'"}
 
@@ -241,7 +241,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert response.data == b"<mytestingbody_key>mytestingbody_value</mytestingbody_key>"
 
             root_span = self.pop_spans()[0]
-            query = dict(_context.get_item("http.request.body", span=root_span))
+            query = dict(core.get_item("http.request.body", span=root_span))
 
             assert root_span.get_tag(APPSEC.JSON) is None
             assert query == {"mytestingbody_key": "mytestingbody_value"}
@@ -252,7 +252,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             payload = "<attack>1' or '1' = '1'</attack>"
             self.client.post("/", data=payload, content_type="application/xml")
             root_span = self.pop_spans()[0]
-            query = dict(_context.get_item("http.request.body", span=root_span))
+            query = dict(core.get_item("http.request.body", span=root_span))
 
             assert "triggers" in json.loads(root_span.get_tag(APPSEC.JSON))
             assert query == {"attack": "1' or '1' = '1'"}

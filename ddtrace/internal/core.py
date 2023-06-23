@@ -67,7 +67,6 @@ class EventHub:
 
 class ExecutionContext:
     def __init__(self, identifier, parent=None, **kwargs):
-        # type: (str, Optional[ExecutionContext], ...) -> ExecutionContext
         self.identifier = identifier
         self._data = dict()
         self._parents = []
