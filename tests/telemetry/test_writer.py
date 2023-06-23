@@ -244,7 +244,7 @@ def test_add_integration(telemetry_lifecycle_writer, test_agent_session, mock_ti
 
 
 def test_app_client_configuration_changed_event(telemetry_lifecycle_writer, test_agent_session, mock_time):
-    """asserts that client_configuration_changed_event() queues a valid telemetry request"""
+    """asserts that queuing a configuration sends a valid telemetry request"""
 
     telemetry_lifecycle_writer.add_configuration("appsec_enabled", True)
     telemetry_lifecycle_writer.add_configuration("propagation_style_extract", "['datadog']")
