@@ -44,8 +44,10 @@ def _track_user_login_common(
             for k, v in six.iteritems(metadata):
                 span.set_tag_str("%s.%s" % (tag_prefix, k), str(v))
 
+        real_login = login if login else user_id
+
         if login:
-            span.set_tag_str("%s.login" % tag_prefix, login)
+            span.set_tag_str("%s.login" % tag_prefix, real_login)
 
         if email:
             span.set_tag_str("%s.email" % tag_prefix, email)
