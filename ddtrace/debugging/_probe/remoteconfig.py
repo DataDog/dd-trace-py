@@ -8,7 +8,7 @@ from typing import Optional
 from typing import Type
 
 from ddtrace import config as tracer_config
-from ddtrace.debugging._config import config
+from ddtrace.debugging._config import di_config
 from ddtrace.debugging._expressions import dd_compile
 from ddtrace.debugging._probe.model import CaptureLimits
 from ddtrace.debugging._probe.model import DDExpression
@@ -323,7 +323,7 @@ class DebuggerRemoteConfigSubscriber(RemoteConfigSubscriber):
 
     def _next_status_update_timestamp(self):
         # type: () -> None
-        self._status_timestamp = time.time() + config.diagnostics_interval
+        self._status_timestamp = time.time() + di_config.diagnostics_interval
 
     def _dispatch_probe_events(self, prev_probes, next_probes):
         # type: (Dict[str, Probe], Dict[str, Probe]) -> None
