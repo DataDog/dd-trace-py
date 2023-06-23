@@ -18,6 +18,7 @@ import re
 from typing import Dict
 
 import pytest
+import _pytest
 
 import ddtrace
 from ddtrace.constants import SPAN_KIND
@@ -133,7 +134,14 @@ def _get_module_name(item):
     module_path = _get_module_path(item)
     if module_path is None:
         return None
-    return module_path.rpartition("/")[-1]
+    return module_path.replace("/", ".")
+
+
+def _get_suite_name(suite_path):
+    """Extract suite name from a path"""
+    if suite_path is None:
+        return None
+    return suite_path.rpartition("/")[-1]
 
 
 def _start_test_module_span(item, module_name=""):
@@ -195,8 +203,8 @@ def _start_test_suite_span(item):
         test_suite_span.set_tag_str(test.MODULE, test_module_span.get_tag(test.MODULE))
         test_suite_span.set_tag_str(test.MODULE_PATH, test_module_span.get_tag(test.MODULE_PATH))
 
-    test_suite_path = os.path.relpath(item._obj.__file__)
-    test_suite_span.set_tag_str(test.SUITE, test_suite_path)
+    test_suite_name = _get_suite_name(os.path.relpath(item._obj.__file__))
+    test_suite_span.set_tag_str(test.SUITE, test_suite_name)
     _store_span(item, test_suite_span)
     return test_suite_span
 
@@ -326,13 +334,13 @@ def pytest_runtest_protocol(item, nextitem):
     test_session_span = _extract_span(item.session)
 
     pytest_module_item = _find_pytest_item(item, pytest.Module)
-    module_name = pytest_module_item._obj.__name__
     pytest_package_item = _find_pytest_item(pytest_module_item, pytest.Package)
+    module_name = ""
 
     test_module_span = _extract_span(pytest_package_item)
     if pytest_package_item is not None and test_module_span is None:
         if test_module_span is None:
-            test_module_span = _start_test_module_span(pytest_package_item, module_name=module_name)
+            test_module_span = _start_test_module_span(pytest_package_item)
 
     test_suite_span = _extract_span(pytest_module_item)
     if pytest_module_item is not None and test_suite_span is None:
@@ -356,8 +364,9 @@ def pytest_runtest_protocol(item, nextitem):
         span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
 
         if test_module_span is not None:
+            module_name = test_module_span.get_tag(test.MODULE)
             span.set_tag_str(_MODULE_ID, str(test_module_span.span_id))
-            span.set_tag_str(test.MODULE, test_module_span.get_tag(test.MODULE))
+            span.set_tag_str(test.MODULE, module_name)
             span.set_tag_str(test.MODULE_PATH, test_module_span.get_tag(test.MODULE_PATH))
 
         if test_suite_span is not None:
@@ -452,7 +461,7 @@ def pytest_runtest_makereport(item, call):
             # XFail tests that fail are recorded skipped by pytest, should be passed instead
             span.set_tag_str(test.STATUS, test.Status.PASS.value)
             parent = item.parent
-            if type(parent, pytest.UnitTestCase):
+            if isinstance(parent, _pytest.unittest.UnitTestCase):
                 parent = parent.parent
             _mark_not_skipped(parent)
             if not item.config.option.runxfail:
@@ -465,7 +474,7 @@ def pytest_runtest_makereport(item, call):
             span.set_tag_str(test.SKIP_REASON, str(reason))
     elif result.passed:
         parent = item.parent
-        if type(parent, pytest.UnitTestCase):
+        if isinstance(parent, _pytest.unittest.UnitTestCase):
             parent = parent.parent
         _mark_not_skipped(parent)
         span.set_tag_str(test.STATUS, test.Status.PASS.value)
@@ -476,7 +485,7 @@ def pytest_runtest_makereport(item, call):
     else:
         # Store failure in test suite `pytest.Item` to propagate to test suite spans
         parent = item.parent
-        if type(parent, pytest.UnitTestCase):
+        if isinstance(parent, _pytest.unittest.UnitTestCase):
             parent = parent.parent
         _mark_failed(parent)
         _mark_not_skipped(parent)

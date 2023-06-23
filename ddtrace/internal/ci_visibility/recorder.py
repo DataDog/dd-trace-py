@@ -304,7 +304,8 @@ class CIVisibility(Service):
                     module = item["attributes"].get("configurations", {}).get("test.bundle", None)
                     self._tests_to_skip[(item["attributes"]["suite"], module)].append(item["attributes"]["name"])
                 else:
-                    self._test_suites_to_skip.append(item["attributes"]["suite"])
+                    module = item["attributes"].get("configurations", {}).get("test.bundle", None).replace(".", "/")
+                    self._test_suites_to_skip.append("/".join((module, item["attributes"]["suite"])))
 
     def _get_tests_to_skip(self, suite, module):
         if TEST_LEVEL == "test":
