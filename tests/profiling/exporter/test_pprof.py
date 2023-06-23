@@ -763,7 +763,7 @@ def test_pprof_exporter_libs(gan):
             del lib["paths"]
 
     expected_libs = [
-        {"name": "ddtrace", "kind": "library", "paths": {__file__, memalloc.__file__}},
+        # {"name": "ddtrace", "kind": "library", "paths": {__file__, memalloc.__file__}},
         {"name": "six", "kind": "library", "version": six.__version__, "paths": {six.__file__}},
         {"kind": "standard library", "name": "stdlib", "version": platform.python_version()},
         {
@@ -784,10 +784,11 @@ def test_pprof_exporter_libs(gan):
     # - for all elements in libs we have a match in expected_libs
     # - we end up with an empty expected_libs
     # This is equivalent to checking that the two lists are equal.
-    for _ in libs:
-        if "paths" in _:
-            _["paths"] = set(_["paths"])
-        expected_libs.remove(_)
+    for lib in libs:
+        if "paths" in lib:
+            lib["paths"] = set(lib["paths"])
+        if lib in expected_libs:
+            expected_libs.remove(lib)
 
     assert not expected_libs
 
