@@ -193,7 +193,10 @@ def on(event_id, callback, span=None):
 
 def reset_listeners(span=None):
     # type: (Optional[Span]) -> None
-    return _choose_context(span)._event_hub.reset()
+    current = _choose_context(span)
+    while current is not None:
+        current._event_hub.reset()
+        current = current.parent
 
 
 def dispatch(event_id, args, span=None):
