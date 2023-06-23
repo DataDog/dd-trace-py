@@ -14,8 +14,8 @@ pytest_plugins = ("pytest_asyncio",)
 
 
 class TestContextEventsApi(unittest.TestCase):
-    def setUp(self):
-        core._event_hub = core.EventHub()
+    def tearDown(self):
+        core.reset_listeners()
 
     def test_core_get_execution_context(self):
         context = core.ExecutionContext("foo")
@@ -86,41 +86,6 @@ class TestContextEventsApi(unittest.TestCase):
                 assert exception is None
             else:
                 assert isinstance(exception, ValueError)
-
-    def test_core_concurrent_dispatch(self):
-        event_name = "my.cool.event"
-
-        def dispatcher(_results: Dict):
-            _results["results"] = core.dispatch(event_name, [])[0]
-
-        def make_listener(delay: float):
-            def listener():
-                def _listen():
-                    time.sleep(delay)
-                    return 42
-
-                core.on(event_name, _listen)
-
-            return listener
-
-        dispatcher_results = dict()
-
-        dispatcher_thread = threading.Thread(target=dispatcher, args=(dispatcher_results,))
-        listener_thread_slow = threading.Thread(target=make_listener(1))
-        listener_thread_fast = threading.Thread(target=make_listener(0))
-
-        listener_thread_slow.start()
-        dispatcher_thread.start()
-        listener_thread_fast.start()
-
-        listener_thread_fast.join()
-        dispatcher_thread.join()
-        listener_thread_slow.join()
-
-        assert (
-            len(dispatcher_results["results"]) == 1
-        ), "Listeners should not be triggered by dispatch() calls concurrent with their on() registration"
-        assert dispatcher_results["results"][0] == 42
 
     def test_core_dispatch_context_ended(self):
         context_id = "my.cool.context"

@@ -28,6 +28,43 @@ _CURRENT_CONTEXT = None
 ROOT_CONTEXT_ID = "__root"
 
 
+class EventHub:
+    def __init__(self):
+        self._dispatch_lock = threading.Lock()
+        self.reset()
+
+    def has_listeners(self, event_id):
+        # type: (str) -> bool
+        return event_id in self._listeners
+
+    def on(self, event_id, callback):
+        # type: (str, Callable)
+        with self._dispatch_lock:
+            self._listeners[event_id].append(callback)
+
+    def reset(self):
+        with self._dispatch_lock:
+            self._listeners = defaultdict(list)
+
+    def dispatch(self, event_id, args):
+        # type: (str, List[Optional[Any]]) -> Tuple[List[Optional[Any]], List[Optional[Exception]]]
+        with self._dispatch_lock:
+            log.debug("Dispatching event %s", event_id)
+            results = []
+            exceptions = []
+            for listener in self._listeners.get(event_id, []):
+                log.debug("Calling listener %s", listener)
+                result = None
+                exception = None
+                try:
+                    result = listener(*args)
+                except Exception as exc:
+                    exception = exc
+                results.append(result)
+                exceptions.append(exception)
+            return results, exceptions
+
+
 class ExecutionContext:
     def __init__(self, identifier, parent=None, **kwargs):
         # type: (str, Optional[ExecutionContext], ...) -> ExecutionContext
@@ -138,39 +175,6 @@ def set_items(keys_values, span=None):
     return _choose_context(span).set_items(keys_values)
 
 
-class EventHub:
-    def __init__(self):
-        self._listeners = defaultdict(list)
-        self._dispatch_lock = threading.Lock()
-
-    def has_listeners(self, event_id):
-        # type: (str) -> bool
-        return event_id in self._listeners
-
-    def on(self, event_id, callback):
-        # type: (str, Callable)
-        with self._dispatch_lock:
-            self._listeners[event_id].append(callback)
-
-    def dispatch(self, event_id, args):
-        # type: (str, List[Optional[Any]]) -> Tuple[List[Optional[Any]], List[Optional[Exception]]]
-        with self._dispatch_lock:
-            log.debug("Dispatching event %s", event_id)
-            results = []
-            exceptions = []
-            for listener in self._listeners.get(event_id, []):
-                log.debug("Calling listener %s", listener)
-                result = None
-                exception = None
-                try:
-                    result = listener(*args)
-                except Exception as exc:
-                    exception = exc
-                results.append(result)
-                exceptions.append(exception)
-            return results, exceptions
-
-
 def has_listeners(event_id, span=None):
     # type: (str, Optional[Span]) -> bool
     return _choose_context(span)._event_hub.has_listeners(event_id)
@@ -179,6 +183,11 @@ def has_listeners(event_id, span=None):
 def on(event_id, callback, span=None):
     # type: (str, Callable, Optional[Span])
     return _choose_context(span)._event_hub.on(event_id, callback)
+
+
+def reset_listeners(span=None):
+    # type: (str, Callable, Optional[Span])
+    return _choose_context(span)._event_hub.reset()
 
 
 def dispatch(event_id, args, span=None):
