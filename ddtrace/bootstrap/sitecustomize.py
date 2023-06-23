@@ -10,7 +10,8 @@ import sys
 import warnings  # noqa
 
 from ddtrace import config  # noqa
-from ddtrace.debugging._config import config as debugger_config  # noqa
+from ddtrace.debugging._config import di_config  # noqa
+from ddtrace.debugging._config import ed_config  # noqa
 from ddtrace.internal.compat import PY2  # noqa
 from ddtrace.internal.logger import get_logger  # noqa
 from ddtrace.internal.module import ModuleWatchdog  # noqa
@@ -104,7 +105,6 @@ def cleanup_loaded_modules():
             "atexit",
             "copyreg",  # pickling issues for tracebacks with gevent
             "ddtrace",
-            "asyncio",
             "concurrent",
             "typing",
             "re",  # referenced by the typing module
@@ -160,7 +160,7 @@ try:
         log.debug("profiler enabled via environment variable")
         import ddtrace.profiling.auto  # noqa: F401
 
-    if debugger_config.enabled:
+    if di_config.enabled or ed_config.enabled:
         from ddtrace.debugging import DynamicInstrumentation
 
         DynamicInstrumentation.enable()
@@ -204,15 +204,12 @@ try:
         env_tags = os.getenv("DD_TRACE_GLOBAL_TAGS")
         tracer.set_tags(parse_tags_str(env_tags))
 
-    if sys.version_info >= (3, 7) and asbool(os.getenv("DD_TRACE_OTEL_ENABLED", False)):
+    if sys.version_info >= (3, 7) and config._otel_enabled:
         from opentelemetry.trace import set_tracer_provider
 
         from ddtrace.opentelemetry import TracerProvider
 
         set_tracer_provider(TracerProvider())
-        # Replaces the default otel api runtime context with DDRuntimeContext
-        # https://github.com/open-telemetry/opentelemetry-python/blob/v1.16.0/opentelemetry-api/src/opentelemetry/context/__init__.py#L53
-        os.environ["OTEL_PYTHON_CONTEXT"] = "ddcontextvars_context"
 
     # Check for and import any sitecustomize that would have normally been used
     # had ddtrace-run not been used.
@@ -263,6 +260,7 @@ try:
 
         enable_appsec_rc()
 
+    config._ddtrace_bootstrapped = True
     # Loading status used in tests to detect if the `sitecustomize` has been
     # properly loaded without exceptions. This must be the last action in the module
     # when the execution ends with a success.

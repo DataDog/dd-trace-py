@@ -374,6 +374,41 @@ def test_span_normalizator():
     assert span.span_type == "x" * MAX_TYPE_LENGTH
 
 
+def test_span_creation_metrics():
+    """Test that telemetry metrics are queued in batches of 100 and the remainder is sent on shutdown"""
+    writer = DummyWriter()
+    aggr = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=0, trace_processors=[], writer=writer)
+
+    with mock.patch("ddtrace.internal.processor.trace.telemetry_metrics_writer.add_count_metric") as mock_tm:
+        for _ in range(300):
+            span = Span("span", on_finish=[aggr.on_span_finish])
+            aggr.on_span_start(span)
+            span.finish()
+
+        span = Span("span", on_finish=[aggr.on_span_finish])
+        aggr.on_span_start(span)
+        span.finish()
+
+        mock_tm.assert_has_calls(
+            [
+                mock.call("tracers", "spans_created", 100, tags=(("integration_name", "datadog"),)),
+                mock.call("tracers", "spans_finished", 100, tags=(("integration_name", "datadog"),)),
+                mock.call("tracers", "spans_created", 100, tags=(("integration_name", "datadog"),)),
+                mock.call("tracers", "spans_finished", 100, tags=(("integration_name", "datadog"),)),
+                mock.call("tracers", "spans_created", 100, tags=(("integration_name", "datadog"),)),
+                mock.call("tracers", "spans_finished", 100, tags=(("integration_name", "datadog"),)),
+            ]
+        )
+        mock_tm.reset_mock()
+        aggr.shutdown(None)
+        mock_tm.assert_has_calls(
+            [
+                mock.call("tracers", "spans_created", 1, tags=(("integration_name", "datadog"),)),
+                mock.call("tracers", "spans_finished", 1, tags=(("integration_name", "datadog"),)),
+            ]
+        )
+
+
 def test_single_span_sampling_processor():
     """Test that single span sampling tags are applied to spans that should get sampled"""
 

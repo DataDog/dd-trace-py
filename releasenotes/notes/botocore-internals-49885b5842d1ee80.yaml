@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    botocore: Introduces environment variable ``DD_BOTOCORE_INSTRUMENT_INTERNALS`` that opts into
+    tracing certain internal functionality.

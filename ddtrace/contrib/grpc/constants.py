@@ -7,6 +7,7 @@ from ddtrace.vendor.debtcollector import deprecate
 GRPC_PIN_MODULE_SERVER = grpc.Server
 GRPC_PIN_MODULE_CLIENT = grpc.Channel
 GRPC_METHOD_PATH_KEY = "grpc.method.path"
+GRPC_METHOD_PACKAGE_SERVICE_KEY = "rpc.service"
 GRPC_METHOD_PACKAGE_KEY = "grpc.method.package"
 GRPC_METHOD_SERVICE_KEY = "grpc.method.service"
 GRPC_METHOD_NAME_KEY = "grpc.method.name"
