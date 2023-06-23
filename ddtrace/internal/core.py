@@ -94,7 +94,14 @@ class ExecutionContext:
         return self._children
 
     def end(self):
-        _CURRENT_CONTEXT.reset(self._token)
+        try:
+            _CURRENT_CONTEXT.reset(self._token)
+        except ValueError:
+            log.debug(
+                "Encountered ValueError during core contextvar reset() call. "
+                "This can happen when a span holding an executioncontext is "
+                "finished in a Context other than the one that started it."
+            )
         return dispatch("context.ended.%s" % self.identifier, [])
 
     def addParent(self, context):
