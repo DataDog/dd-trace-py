@@ -23,6 +23,7 @@ from .constants import ENV_KEY
 from .constants import SAMPLING_AGENT_DECISION
 from .constants import SAMPLING_LIMIT_DECISION
 from .constants import SAMPLING_RULE_DECISION
+from .constants import SAMPLING_PRIORITY_KEY
 from .constants import USER_KEEP
 from .constants import USER_REJECT
 from .internal.compat import iteritems
@@ -155,12 +156,12 @@ class RateByServiceSampler(BasePrioritySampler):
         # type: (Span, int) -> None
         span.context.sampling_priority = priority
         span.sampled = priority > 0  # Positive priorities mean it was kept
+        
+        # This might not be the right way to handle setting _sampling_priority_v1 on span
+        span.set_metric(SAMPLING_PRIORITY_KEY, priority)
 
     def _set_sampler_decision(self, span, sampler, sampled):
         # type: (Span, RateSampler, bool) -> None
-        import pdb
-
-        pdb.set_trace()
         priority = AUTO_KEEP if sampled else AUTO_REJECT
         self._set_priority(span, priority)
 
@@ -169,17 +170,20 @@ class RateByServiceSampler(BasePrioritySampler):
         sampling_mechanism = (
             SamplingMechanism.DEFAULT if sampler == self._default_sampler else SamplingMechanism.AGENT_RATE
         )
+        
 
         update_sampling_decision(span.context, sampling_mechanism, sampled)
 
-    def sample(self, span):
-        # type: (Span) -> bool
+    def sample(self, trace):
+        # type: (List[Span]) -> bool
+        span = trace[0]
         env = span.get_tag(ENV_KEY)
         key = self._key(span.service, env)
 
         sampler = self._by_service_samplers.get(key) or self._default_sampler
         sampled = sampler.sample(span)
-        self._set_sampler_decision(span, sampler, sampled)
+        for span in trace:
+            self._set_sampler_decision(span, sampler, sampled)
 
         return sampled
 
@@ -249,6 +253,7 @@ class DatadogSampler(RateByServiceSampler):
         """
         # Use default sample rate of 1.0
         super(DatadogSampler, self).__init__()
+        # import pdb; pdb.set_trace()
 
         if default_sample_rate is None:
             sample_rate = os.getenv("DD_TRACE_SAMPLE_RATE")
@@ -259,20 +264,8 @@ class DatadogSampler(RateByServiceSampler):
         if rate_limit is None:
             rate_limit = int(os.getenv("DD_TRACE_RATE_LIMIT", default=self.DEFAULT_RATE_LIMIT))
 
-        # Ensure rules is a list
-        self.rules = []  # type: List[SamplingRule]
         if rules is None:
-            env_sampling_rules = os.getenv("DD_TRACE_SAMPLING_RULES")
-            if env_sampling_rules:
-                rules = self._parse_rules_from_env_variable(env_sampling_rules)
-            else:
-                rules = []
-
-        # Validate that the rules is a list of SampleRules
-        for rule in rules:
-            if not isinstance(rule, SamplingRule):
-                raise TypeError("Rule {!r} must be a sub-class of type ddtrace.sampler.SamplingRules".format(rule))
-        self.rules = rules
+            self.rules = []
         # DEV: Default sampling rule must come last
         if default_sample_rate is not None:
             self.rules.append(SamplingRule(sample_rate=default_sample_rate))
@@ -290,42 +283,19 @@ class DatadogSampler(RateByServiceSampler):
 
     __repr__ = __str__
 
-    def _parse_rules_from_env_variable(self, rules):
-        sampling_rules = []
-        if rules is not None:
-            json_rules = []
-            try:
-                json_rules = json.loads(rules)
-            except JSONDecodeError:
-                raise ValueError("Unable to parse DD_TRACE_SAMPLING_RULES={}".format(rules))
-            for rule in json_rules:
-                if "sample_rate" not in rule:
-                    raise KeyError("No sample_rate provided for sampling rule: {}".format(json.dumps(rule)))
-                sample_rate = float(rule["sample_rate"])
-                service = rule.get("service", SamplingRule.NO_RULE)
-                name = rule.get("name", SamplingRule.NO_RULE)
-                resource = rule.get("resource", SamplingRule.NO_RULE)
-                tags = rule.get("tags", SamplingRule.NO_RULE)
-                try:
-                    sampling_rule = SamplingRule(
-                        sample_rate=sample_rate, service=service, name=name, resource=resource, tags=tags
-                    )
-                except ValueError as e:
-                    raise ValueError("Error creating sampling rule {}: {}".format(json.dumps(rule), e))
-                sampling_rules.append(sampling_rule)
-        return sampling_rules
-
     def _set_priority(self, span, priority):
         # type: (Span, int) -> None
         span.context.sampling_priority = priority
-        span.sampled = priority > 0  # Positive priorities mean it was kept
+        span.sampled = priority > 0  # Positive priorities mean it was kep
+        # this might not be the best way to set _sampling_priority_v1
+        span.set_metric(SAMPLING_PRIORITY_KEY, priority)
 
     def _set_sampler_decision(self, span, sampler, sampled):
         # type: (Span, Union[RateSampler, SamplingRule, RateLimiter], bool) -> None
         if isinstance(sampler, RateSampler):
             # When agent based sampling is used
             return super(DatadogSampler, self)._set_sampler_decision(span, sampler, sampled)
-
+        
         if isinstance(sampler, SamplingRule):
             span.set_metric(SAMPLING_RULE_DECISION, sampler.sample_rate)
         elif isinstance(sampler, RateLimiter) and not sampled:
@@ -386,29 +356,28 @@ class DatadogSampler(RateByServiceSampler):
         # If there are rules defined, then iterate through them and find the earliest rule that matches the trace
         #  e.g. [rule1, rule2, rule3] -> rule1 matches once, rule2 matches twice -> return rule1 because it's earlier
         sampler = None  # type: Optional[Union[SamplingRule, RateLimiter]]
+        # we need a span to grab the trace id from the span to run sample
         rule = self.decide_sampling_rule(trace)
-        sampler = rule if rule is not None else super(DatadogSampler, self)
+        if rule:
+            first_span = trace[0]
+            sampled = rule.sample(first_span)
+            
+            # not sure we need to actually do this for each span if we continue to use context to store sampling decision
+            for span in trace:
+                self._set_sampler_decision(span, sampler, sampled)
+                if sampled:
+                    # Ensure all allowed traces adhere to the global rate limit
+                    # DEV: Think about how behavior may change now that we check the limiter against all spans that were
+                    # going to be dropped instead of just the root span, also what to return if we block some spans but
+                    # sample others in a single trace? 
+                    allowed = self.limiter.is_allowed(span.start_ns)
+                    if not allowed:
+                        self._set_sampler_decision(span, self.limiter, allowed)
+        else:
+            # use agent sampling
+            sampled = super(DatadogSampler, self).sample(trace)
 
-        # DEV: This should never happen, but since the type is Optional we have to check
-        if not sampler:
-            raise SamplingError("No sampling rule found for trace {!r} from {!r}".format(trace, self))
-        # we need a span to grab the trace id from the run sample
-        first_span = trace[0]
-        sampled = sampler.sample(first_span)
-        # not sure we need to actually do this for each span if we continue to use context to store sampling decision
-        for span in trace:
-            self._set_sampler_decision(span, sampler, sampled)
-            if sampled:
-                # Ensure all allowed traces adhere to the global rate limit
-                # DEV: Think about how behavior may change now that we check the limiter against all spans that were
-                # going to be dropped instead of just the root span
-                allowed = self.limiter.is_allowed(span.start_ns)
-                if not allowed:
-                    self._set_sampler_decision(span, self.limiter, allowed)
-                    return False
-
-        return trace
-
+        return sampled
 
 class SamplingRule(BaseSampler):
     """
@@ -470,6 +439,8 @@ class SamplingRule(BaseSampler):
         self.sample_rate = sample_rate
         self.service = service
         self.name = name
+        self.tags = tags
+        self.resource = resource
         # default root
         self.target_span = target_span
 

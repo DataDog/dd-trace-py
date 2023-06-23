@@ -75,13 +75,15 @@ class TraceSamplingProcessor(TraceProcessor):
     the spans of a trace are divided in separate lists then it's possible that
     parts of the trace are unsampled when the whole trace should be sampled.
     """
+    def __init__(self, sampling_rules=[]):
+        self.sampling_rules = sampling_rules
 
     _compute_stats_enabled = attr.ib(type=bool)
 
     def process_trace(self, trace):
         # type: (List[Span]) -> Optional[List[Span]]
         if trace:
-            sampler = DatadogSampler()
+            sampler = DatadogSampler(self.sampling_rules)
             trace = sampler.sample(trace)
             # When stats computation is enabled in the tracer then we can
             # safely drop the traces.
@@ -93,7 +95,6 @@ class TraceSamplingProcessor(TraceProcessor):
                     single_spans = [_ for _ in trace if is_single_span_sampled(_)]
 
                     return single_spans or None
-
             for span in trace:
                 if span.sampled:
                     return trace

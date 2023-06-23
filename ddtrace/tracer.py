@@ -14,6 +14,9 @@ from ddtrace.filters import TraceFilter
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import get_span_sampling_rules
+from ddtrace.internal.sampling import get_trace_sampling_rules
+
+from ddtrace.sampler import SamplingRule
 from ddtrace.settings.peer_service import PeerServiceConfig
 from ddtrace.vendor import debtcollector
 
@@ -137,6 +140,7 @@ def _default_span_processors_factory(
     iast_enabled,  # type: bool
     compute_stats_enabled,  # type: bool
     single_span_sampling_rules,  # type: List[SpanSamplingRule]
+    trace_sampling_rules, # type: List[SamplingRule]
     agent_url,  # type: str
     profiling_span_processor,  # type: EndpointCallCounterProcessor
     peer_service_processor,  # type: PeerServiceProcessor
@@ -146,7 +150,7 @@ def _default_span_processors_factory(
     """Construct the default list of span processors to use."""
     trace_processors = []  # type: List[TraceProcessor]
     trace_processors += [TraceTagsProcessor()]
-    trace_processors += [TraceSamplingProcessor(compute_stats_enabled)]
+    trace_processors += [TraceSamplingProcessor(compute_stats_enabled, trace_sampling_rules)]
     trace_processors += trace_filters
 
     span_processors = []  # type: List[SpanProcessor]
@@ -260,6 +264,7 @@ class Tracer(object):
                 headers={"Datadog-Client-Computed-Stats": "yes"} if self._compute_stats else {},
             )
         self._single_span_sampling_rules = get_span_sampling_rules()  # type: List[SpanSamplingRule]
+        self._trace_sampling_rules = get_trace_sampling_rules()
         self._writer = writer  # type: TraceWriter
         self._partial_flush_enabled = asbool(os.getenv("DD_TRACE_PARTIAL_FLUSH_ENABLED", default=True))
         self._partial_flush_min_spans = int(os.getenv("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", default=500))
@@ -278,6 +283,7 @@ class Tracer(object):
             self._iast_enabled,
             self._compute_stats,
             self._single_span_sampling_rules,
+            self._trace_sampling_rules,
             self._agent_url,
             self._endpoint_call_counter_span_processor,
             self._peer_service_processor,
@@ -521,6 +527,7 @@ class Tracer(object):
                 self._iast_enabled,
                 self._compute_stats,
                 self._single_span_sampling_rules,
+                self._trace_sampling_rules,
                 self._agent_url,
                 self._endpoint_call_counter_span_processor,
                 self._peer_service_processor,
@@ -571,6 +578,7 @@ class Tracer(object):
             self._iast_enabled,
             self._compute_stats,
             self._single_span_sampling_rules,
+            self._trace_sampling_rules,
             self._agent_url,
             self._endpoint_call_counter_span_processor,
             self._peer_service_processor,
@@ -754,32 +762,6 @@ class Tracer(object):
         if service and service not in self._services and self._is_span_internal(span):
             self._services.add(service)
 
-        if not trace_id:
-            span.sampled = self._sampler.sample(span)
-            # Old behavior
-            # DEV: The new sampler sets metrics and priority sampling on the span for us
-            if not isinstance(self._sampler, DatadogSampler):
-                if span.sampled:
-                    # When doing client sampling in the client, keep the sample rate so that we can
-                    # scale up statistics in the next steps of the pipeline.
-                    if isinstance(self._sampler, RateSampler):
-                        span.set_metric(SAMPLE_RATE_METRIC_KEY, self._sampler.sample_rate)
-
-                    if self._priority_sampler:
-                        # At this stage, it's important to have the service set. If unset,
-                        # priority sampler will use the default sampling rate, which might
-                        # lead to oversampling (that is, dropping too many traces).
-                        if self._priority_sampler.sample(span):
-                            context.sampling_priority = AUTO_KEEP
-                        else:
-                            context.sampling_priority = AUTO_REJECT
-                else:
-                    if self._priority_sampler:
-                        # If dropped by the local sampler, distributed instrumentation can drop it too.
-                        context.sampling_priority = AUTO_REJECT
-            else:
-                # We must always mark the span as sampled so it is forwarded to the agent
-                span.sampled = True
 
         # Only call span processors if the tracer is enabled
         if self.enabled:
