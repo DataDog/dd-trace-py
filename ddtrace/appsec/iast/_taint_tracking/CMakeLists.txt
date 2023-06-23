@@ -70,4 +70,4 @@ set_target_properties(
         LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"
 )
 
-target_link_libraries(${APP_NAME} PRIVATE absl::node_hash_map)
+target_link_libraries(${APP_NAME} ${PYTHON_LIBRARIES})
