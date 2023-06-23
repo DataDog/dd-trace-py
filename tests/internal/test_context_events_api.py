@@ -1,13 +1,9 @@
 import threading
-import time
-from typing import Dict
 import unittest
 
 import mock
-import pytest
 
 from ddtrace.internal import core
-from ddtrace.internal.compat import PY3
 
 
 class TestContextEventsApi(unittest.TestCase):
