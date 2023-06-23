@@ -259,10 +259,9 @@ class Span(object):
         # be defensive so we don't die if start isn't set
         self.duration_ns = finish_time_ns - (self.start_ns or finish_time_ns)
 
-        self._execution_context_manager.__exit__(None, None, None)
-
         for cb in self._on_finish_callbacks:
             cb(self)
+        self._execution_context_manager.__exit__(None, None, None)
 
     def set_tag(self, key, value=None):
         # type: (_TagNameType, Any) -> None
