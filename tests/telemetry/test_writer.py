@@ -95,12 +95,12 @@ def test_app_started_event(telemetry_lifecycle_writer, test_agent_session, mock_
                 "value": False,
             },
             {
-                "name": "propagation_style_extract",
+                "name": "trace_propagation_style_extract",
                 "origin": "unknown",
                 "value": "['tracecontext', 'datadog']",
             },
             {
-                "name": "propagation_style_inject",
+                "name": "trace_propagation_style_inject",
                 "origin": "unknown",
                 "value": "['tracecontext', 'datadog']",
             },
@@ -170,12 +170,12 @@ telemetry_lifecycle_writer.disable()
             "value": True,
         },
         {
-            "name": "propagation_style_extract",
+            "name": "trace_propagation_style_extract",
             "origin": "unknown",
             "value": "['b3multi']",
         },
         {
-            "name": "propagation_style_inject",
+            "name": "trace_propagation_style_inject",
             "origin": "unknown",
             "value": "['datadog']",
         },
@@ -247,7 +247,7 @@ def test_app_client_configuration_changed_event(telemetry_lifecycle_writer, test
     """asserts that queuing a configuration sends a valid telemetry request"""
 
     telemetry_lifecycle_writer.add_configuration("appsec_enabled", True)
-    telemetry_lifecycle_writer.add_configuration("propagation_style_extract", "['datadog']")
+    telemetry_lifecycle_writer.add_configuration("trace_propagation_style_extract", "['datadog']")
     telemetry_lifecycle_writer.add_configuration("appsec_enabled", False, "env_var")
 
     telemetry_lifecycle_writer.periodic()
@@ -267,7 +267,7 @@ def test_app_client_configuration_changed_event(telemetry_lifecycle_writer, test
             "value": False,
         },
         {
-            "name": "propagation_style_extract",
+            "name": "trace_propagation_style_extract",
             "origin": "unknown",
             "value": "['datadog']",
         },
