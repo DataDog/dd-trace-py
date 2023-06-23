@@ -483,7 +483,7 @@ The following environment variables for the tracer are supported:
       default: "safe"
       description: |
          Sets the mode for the automated user login events tracking feature which sets some traces on each user login event. The
-         supported modes are ``safe`` which will only stores the user id or primary key, ``extended`` which will also store
+         supported modes are ``safe`` which will only store the user id or primary key, ``extended`` which will also store
          the username, email and full name and ``disabled``. Note that this feature requires ``DD_APPSEC_ENABLED`` to be 
          set to ``true`` to work. For apps using the normal framework authentication models you shouldn't need to configure
          anything else but in some cases with custom user models you could need to use once of the ``DD_USERMODEL_SOMETHING_FIELD``
