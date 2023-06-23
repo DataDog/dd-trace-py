@@ -24,9 +24,9 @@ log = get_logger(__name__)
 
 
 def _track_user_login_common(
-    tracer, user_id, success, metadata=None, login_events_mode=LOGIN_EVENTS_MODE.SDK, login=None, name=None, email=None
+    tracer, success, metadata=None, login_events_mode=LOGIN_EVENTS_MODE.SDK, login=None, name=None, email=None
 ):
-    # type: (Tracer, str, bool, Optional[dict], str, Optional[str], Optional[str], Optional[str]) -> Optional[Span]
+    # type: (Tracer, bool, Optional[dict], str, Optional[str], Optional[str], Optional[str]) -> Optional[Span]
 
     span = tracer.current_root_span()
     if span:
@@ -44,10 +44,8 @@ def _track_user_login_common(
             for k, v in six.iteritems(metadata):
                 span.set_tag_str("%s.%s" % (tag_prefix, k), str(v))
 
-        real_login = login if login else user_id
-
         if login:
-            span.set_tag_str("%s.login" % tag_prefix, real_login)
+            span.set_tag_str("%s.login" % tag_prefix, login)
 
         if email:
             span.set_tag_str("%s.email" % tag_prefix, email)
@@ -92,7 +90,7 @@ def track_user_login_success_event(
     :param metadata: a dictionary with additional metadata information to be stored with the event
     """
 
-    span = _track_user_login_common(tracer, user_id, True, metadata, login_events_mode, login, name, email)
+    span = _track_user_login_common(tracer, True, metadata, login_events_mode, login, name, email)
     if not span:
         return
 
@@ -110,7 +108,7 @@ def track_user_login_failure_event(tracer, user_id, exists, metadata=None, login
     :param metadata: a dictionary with additional metadata information to be stored with the event
     """
 
-    span = _track_user_login_common(tracer, user_id, False, metadata, login_events_mode)
+    span = _track_user_login_common(tracer, False, metadata, login_events_mode)
     if not span:
         return
 
