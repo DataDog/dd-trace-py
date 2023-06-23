@@ -355,8 +355,6 @@ class TelemetryLogsMetricsWriter(TelemetryBase):
                 if metrics:
                     payload = {
                         "namespace": namespace,
-                        "lib_language": "python",
-                        "lib_version": _pep440_to_semver(),
                         "series": [m.to_dict() for m in metrics.values()],
                     }
                     log.debug("%s request payload, namespace %s", payload_type, namespace)
