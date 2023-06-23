@@ -744,10 +744,9 @@ def _get_user_info(user):
     there is some heuristic involved in extracting this field, though it should
     work well for the most common case with the default User model.
     """
-    safe_mode = config._automatic_login_events_mode == "safe"
     user_extra_info = {}
 
-    if safe_mode:
+    if config._automatic_login_events_mode == "safe":
         user_id = _get_userid(user)
     else:
         user_id = _get_username(user)
