@@ -7,6 +7,8 @@ option(BUILD_MACOS "Build for MacOS" OFF)
 project(${APP_NAME})
 
 set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
 # -U_FORTIFY_SOURCE to fix a bug in alpine and pybind11
 # https://github.com/pybind/pybind11/issues/1650
