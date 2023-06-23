@@ -80,8 +80,15 @@ class ExecutionContext:
                 return current._data.get(data_key)
             current = current.parent
 
+    def get_items(self, data_keys) -> Optional[Any]:
+        return [self.get_item(key) for key in data_keys]
+
     def set_item(self, data_key: str, data_value: Optional[Any]):
         self._data[data_key] = data_value
+
+    def set_items(self, keys_values):
+        for data_key, data_value in keys_values:
+            self.set_item(data_key, data_value)
 
 
 _CURRENT_CONTEXT = contextvars.ContextVar("ExecutionContext_var", default=ExecutionContext(ROOT_CONTEXT_ID))
@@ -91,12 +98,27 @@ def context_with_data(identifier: str, parent=None, **kwargs):
     return ExecutionContext.context_with_data(identifier, parent=(parent or _CURRENT_CONTEXT.get()), **kwargs)
 
 
-def get_item(data_key):
-    return _CURRENT_CONTEXT.get().get_item(data_key)
+def _choose_context(span=None):
+    if span:
+        return span._execution_context
+    else:
+        return _CURRENT_CONTEXT.get()
 
 
-def set_item(data_key, data_value):
-    return _CURRENT_CONTEXT.get().set_item(data_key, data_value)
+def get_item(data_key, span=None):
+    return _choose_context(span).get_item(data_key)
+
+
+def get_items(data_keys, span=None):
+    return _choose_context(span).get_items(data_keys)
+
+
+def set_item(data_key, data_value, span=None):
+    return _choose_context(span).set_item(data_key, data_value)
+
+
+def set_items(keys_values, span=None):
+    return _choose_context(span).set_items(keys_values)
 
 
 class EventHub:
