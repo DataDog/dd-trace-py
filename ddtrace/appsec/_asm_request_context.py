@@ -113,8 +113,7 @@ class _DataHandler:
 
         self._id = _DataHandler.main_id
         self.active = True
-        self.execution_context = core.context_with_data(__name__, **{"asm_env": env})
-        self.execution_context.__enter__()
+        self.execution_context = core.ExecutionContext(__name__, **{"asm_env": env})
 
         env.telemetry[_WAF_RESULTS] = [], [], []
         env.callbacks[_CONTEXT_CALL] = []
@@ -127,7 +126,7 @@ class _DataHandler:
             if callbacks is not None:
                 for function in callbacks:
                     function(env)
-                self.execution_context.__exit__(None, None, None)
+                self.execution_context.end()
             self.active = False
 
 
