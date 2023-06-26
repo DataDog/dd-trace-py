@@ -706,6 +706,7 @@ class Tracer(object):
                 span.sampled = parent.sampled
                 span._parent = parent
                 span._local_root = parent._local_root
+                span._execution_context.addParent(parent._execution_context)
 
             if span._local_root is None:
                 span._local_root = span
