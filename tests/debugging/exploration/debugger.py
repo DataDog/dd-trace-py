@@ -5,7 +5,7 @@ import typing as t
 
 from _config import config
 
-from ddtrace.debugging._config import config as debugger_config
+from ddtrace.debugging._config import di_config
 import ddtrace.debugging._debugger as _debugger
 from ddtrace.debugging._debugger import Debugger
 from ddtrace.debugging._debugger import DebuggerModuleWatchdog
@@ -225,9 +225,9 @@ class ExplorationDebugger(Debugger):
     @classmethod
     def enable(cls):
         # type: () -> None
-        debugger_config.max_probes = float("inf")
-        debugger_config.global_rate_limit = float("inf")
-        debugger_config.metrics = False
+        di_config.max_probes = float("inf")
+        di_config.global_rate_limit = float("inf")
+        di_config.metrics = False
 
         super(ExplorationDebugger, cls).enable()
 
