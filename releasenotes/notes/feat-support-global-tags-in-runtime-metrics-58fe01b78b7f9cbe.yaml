@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    core: Apply ``DD_TAGS`` to runtime metrics.
