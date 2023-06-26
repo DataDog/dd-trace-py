@@ -3,21 +3,33 @@ import sys
 
 import pytest
 
+from ddtrace.appsec.iast import oce
+
 
 try:
     from ddtrace.appsec.iast._taint_tracking import OriginType
     from ddtrace.appsec.iast._taint_tracking import Source
     from ddtrace.appsec.iast._taint_tracking import TaintRange
     from ddtrace.appsec.iast._taint_tracking import are_all_text_all_ranges
+    from ddtrace.appsec.iast._taint_tracking import contexts_reset
+    from ddtrace.appsec.iast._taint_tracking import create_context
     from ddtrace.appsec.iast._taint_tracking import get_range_by_hash
     from ddtrace.appsec.iast._taint_tracking import get_ranges
     from ddtrace.appsec.iast._taint_tracking import is_notinterned_notfasttainted_unicode
+    from ddtrace.appsec.iast._taint_tracking import num_objects_tainted
     from ddtrace.appsec.iast._taint_tracking import set_fast_tainted_if_notinterned_unicode
     from ddtrace.appsec.iast._taint_tracking import set_ranges
+    from ddtrace.appsec.iast._taint_tracking import setup as taint_tracking_setup
     from ddtrace.appsec.iast._taint_tracking import shift_taint_range
     from ddtrace.appsec.iast._taint_tracking import shift_taint_ranges
+    from ddtrace.appsec.iast._taint_tracking import taint_pyobject
 except (ImportError, AttributeError):
     pytest.skip("IAST not supported for this Python version", allow_module_level=True)
+
+
+def setup():
+    taint_tracking_setup(bytes.join, bytearray.join)
+    oce._enabled = True
 
 
 def test_source_origin_refcount():
@@ -147,3 +159,63 @@ def test_get_range_by_hash():
     assert hash_r1 != hash_r2_call
     assert get_range_by_hash(hash_r1, [_RANGE1, _RANGE2]) == _RANGE1
     assert get_range_by_hash(hash_r2_call, [_RANGE1, _RANGE2]) == _RANGE2
+
+
+def test_num_objects_tainted():
+    contexts_reset()
+    create_context()
+    a_1 = "abc123_len1"
+    a_2 = "def456__len2"
+    a_3 = "ghi789___len3"
+    assert num_objects_tainted() == 0
+    a_1 = taint_pyobject(
+        a_1,
+        source_name="test_num_objects_tainted",
+        source_value=a_1,
+        source_origin=OriginType.PARAMETER,
+    )
+    a_2 = taint_pyobject(
+        a_2,
+        source_name="test_num_objects_tainted",
+        source_value=a_2,
+        source_origin=OriginType.PARAMETER,
+    )
+    a_3 = taint_pyobject(
+        a_3,
+        source_name="test_num_objects_tainted",
+        source_value=a_3,
+        source_origin=OriginType.PARAMETER,
+    )
+    assert num_objects_tainted() == 3
+
+
+def test_reset_objects():
+    contexts_reset()
+    create_context()
+
+    a_1 = "abc123"
+    a_2 = "def456"
+    assert num_objects_tainted() == 0
+    a_1 = taint_pyobject(
+        a_1,
+        source_name="test_num_objects_tainted",
+        source_value=a_1,
+        source_origin=OriginType.PARAMETER,
+    )
+    assert num_objects_tainted() == 1
+
+    contexts_reset()
+    create_context()
+
+    a_2 = taint_pyobject(
+        a_2,
+        source_name="test_num_objects_tainted",
+        source_value=a_2,
+        source_origin=OriginType.PARAMETER,
+    )
+    assert num_objects_tainted() == 1
+
+    contexts_reset()
+    create_context()
+
+    assert num_objects_tainted() == 0

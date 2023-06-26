@@ -14,7 +14,9 @@ if _is_python_version_supported():
     from ddtrace.appsec.iast._taint_tracking._native.aspect_helpers import parse_params
     from ddtrace.appsec.iast._taint_tracking._native.initializer import contexts_reset
     from ddtrace.appsec.iast._taint_tracking._native.initializer import create_context
+    from ddtrace.appsec.iast._taint_tracking._native.initializer import destroy_context
     from ddtrace.appsec.iast._taint_tracking._native.initializer import get_context
+    from ddtrace.appsec.iast._taint_tracking._native.initializer import num_objects_tainted
     from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import OriginType
     from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import Source
     from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import TagMappingMode
@@ -91,7 +93,7 @@ def taint_pyobject(pyobject, source_name, source_value, source_origin=None, star
     source = Source(source_name, source_value, source_origin)
     pyobject_range = TaintRange(start, len_pyobject, source)
     set_ranges(pyobject, [pyobject_range])
-    print(get_tainted_ranges(pyobject))
+
     return pyobject
 
 

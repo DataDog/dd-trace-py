@@ -42,45 +42,12 @@ Initializer::load_modules()
 }
 
 void
-Initializer::load_local_settings(bool allow_skip)
-{
-    if (settings_loaded)
-        return;
-
-    try {
-        settings_loaded = true;
-    } catch (py::error_already_set& e) {
-        settings_loaded = false;
-        if (!allow_skip) {
-            throw;
-        }
-    }
-}
-
-void
 Initializer::get_paths()
 {
     stdlib_paths.insert(pyfunc_get_python_lib(false, true).cast<string>());
     stdlib_paths.insert(pyfunc_get_python_lib(true, true).cast<string>());
     site_package_paths.insert(pyfunc_get_python_lib(false, false).cast<string>());
     site_package_paths.insert(pyfunc_get_python_lib(true, false).cast<string>());
-}
-
-bool
-Initializer::get_taint_debug()
-{
-    if (!settings_loaded) {
-        // Load the settings, this time without allowing for errors
-        load_local_settings(false);
-    }
-
-    return taint_debug;
-}
-
-void
-Initializer::set_taint_debug(bool taint_debug_)
-{
-    this->taint_debug = taint_debug_;
 }
 
 TaintRangeMapType*
@@ -128,6 +95,16 @@ Initializer::clear_tainting_maps()
     active_map_addreses.clear();
 }
 
+int
+Initializer::num_objects_tainted()
+{
+    auto ctx_map = initializer->get_tainting_map();
+    if (ctx_map) {
+        return ctx_map->size();
+    }
+    return 0;
+}
+
 void
 Initializer::reset_stdlib_paths_and_modules()
 {
@@ -153,7 +130,6 @@ Initializer::allocate_tainted_object()
         available_taintedobjects_stack.pop();
         return toptr;
     }
-
     // Stack is empty, create new object
     return new TaintedObject();
 }
@@ -371,11 +347,9 @@ unique_ptr<Initializer> initializer;
 void
 pyexport_initializer(py::module& m)
 {
-    m.def("get_taint_debug", [] { return py::bool_(initializer->get_taint_debug()); });
-
-    m.def("set_taint_debug", [](bool newvalue) { initializer->set_taint_debug(newvalue); });
-
     m.def("clear_tainting_maps", [] { initializer->clear_tainting_maps(); });
+
+    m.def("num_objects_tainted", [] { return initializer->num_objects_tainted(); });
 
     m.def("reset_stdlib_paths_and_modules", [] { initializer->reset_stdlib_paths_and_modules(); });
 
@@ -387,6 +361,7 @@ pyexport_initializer(py::module& m)
       py::return_value_policy::reference,
       "tx_id"_a = 0);
     m.def("contexts_reset", [] { initializer->contexts_reset(); });
+    m.def("destroy_context", [] { initializer->destroy_context(); });
 
     // TODO: Migrate/change this when the new TaintedMap is merged
     //    m.def("get_ranges_dict", [] {

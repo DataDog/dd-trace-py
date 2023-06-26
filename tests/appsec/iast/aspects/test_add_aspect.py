@@ -16,7 +16,7 @@ except (ImportError, AttributeError):
     "obj1, obj2",
     [
         (3.5, 3.3),
-        # (complex(2, 1), complex(3, 4)),
+        (complex(2, 1), complex(3, 4)),
         ("Hello ", "world"),
         ("🙀", "🙀"),
         (b"Hi", b""),

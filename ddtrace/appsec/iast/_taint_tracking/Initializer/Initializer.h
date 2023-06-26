@@ -21,9 +21,6 @@ namespace py = pybind11;
 class Initializer
 {
   private:
-    bool settings_loaded = false;
-    bool taint_debug = false;
-
     // Used to reset stdlib_modules to these values
     unordered_set<string> stdlib_modules_orig{
         "__future__",  "__phello__",  "abc",       "aifc",        "antigravity", "argparse",     "ast",
@@ -73,12 +70,6 @@ class Initializer
 
     void load_modules();
 
-    void load_local_settings(bool allow_skip);
-
-    bool get_taint_debug();
-
-    void set_taint_debug(bool);
-
     TaintRangeMapType* create_tainting_map();
 
     void free_tainting_map(TaintRangeMapType* tx_map);
@@ -86,6 +77,8 @@ class Initializer
     static TaintRangeMapType* get_tainting_map();
 
     void clear_tainting_maps();
+
+    static int num_objects_tainted();
 
     void get_paths();
 

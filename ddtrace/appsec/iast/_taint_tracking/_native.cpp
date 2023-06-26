@@ -54,7 +54,6 @@ PYBIND11_MODULE(_native, m)
 {
     initializer = make_unique<Initializer>();
     initializer->load_modules();
-    initializer->load_local_settings(true);
     initializer->get_paths();
     initializer->create_context();
     // Cleanup code to be run at the end of the interpreter lifetime:
