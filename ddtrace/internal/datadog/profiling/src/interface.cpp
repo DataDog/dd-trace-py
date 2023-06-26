@@ -36,8 +36,10 @@ ddup_config_env(const char* env)
 void
 ddup_config_service(const char* service)
 {
-    if (!service || !*service)
+    if (!service || !*service) {
         return;
+    }
+
     uploader_builder.set_service(service);
 }
 void

@@ -70,6 +70,7 @@ IF UNAME_SYSNAME == "Linux" and UNAME_MACHINE == "x86_64":
         # Try to provide a ddtrace-specific default service if one is not given
         if not service:
             service = DEFAULT_SERVICE_NAME
+        ddup_config_service(ensure_binary(service))
 
         # If otherwise no values are provided, the uploader will omit the fields
         # and they will be auto-populated in the backend
