@@ -31,25 +31,6 @@ Initializer::Initializer()
     }
 }
 
-void
-Initializer::load_modules()
-{
-    pyfunc_get_python_lib = py::module::import("distutils.sysconfig").attr("get_python_lib");
-
-    global_context = make_unique<GlobalContext>();
-    auto pymod_types = py::module::import("types");
-    pytype_frame = pymod_types.attr("FrameType");
-}
-
-void
-Initializer::get_paths()
-{
-    stdlib_paths.insert(pyfunc_get_python_lib(false, true).cast<string>());
-    stdlib_paths.insert(pyfunc_get_python_lib(true, true).cast<string>());
-    site_package_paths.insert(pyfunc_get_python_lib(false, false).cast<string>());
-    site_package_paths.insert(pyfunc_get_python_lib(true, false).cast<string>());
-}
-
 TaintRangeMapType*
 Initializer::create_tainting_map()
 {
@@ -105,23 +86,6 @@ Initializer::num_objects_tainted()
     return 0;
 }
 
-void
-Initializer::reset_stdlib_paths_and_modules()
-{
-    this->stdlib_modules = this->stdlib_modules_orig;
-    this->no_stdlib_modules.clear();
-}
-
-bool
-Initializer::get_propagation()
-{
-    if (ThreadContextCache.tx_id == 0) {
-        return false;
-    }
-
-    return get_context()->get_propagation();
-}
-
 TaintedObjectPtr
 Initializer::allocate_tainted_object()
 {
@@ -134,22 +98,23 @@ Initializer::allocate_tainted_object()
     return new TaintedObject();
 }
 
-void
-Initializer::release_tainted_object(TaintedObjectPtr tobj)
-{
-    if (!tobj)
-        return;
-
-    tobj->reset();
-    if (available_taintedobjects_stack.size() < TAINTEDOBJECTS_STACK_SIZE) {
-        available_taintedobjects_stack.push(tobj);
-        return;
-    }
-
-    // Stack full, just delete the object (but to a reset before so ranges are
-    // reused or freed)
-    delete tobj;
-}
+// TODO: Release tainted objects, where?
+// void
+// Initializer::release_tainted_object(TaintedObjectPtr tobj)
+//{
+//    if (!tobj)
+//        return;
+//
+//    tobj->reset();
+//    if (available_taintedobjects_stack.size() < TAINTEDOBJECTS_STACK_SIZE) {
+//        available_taintedobjects_stack.push(tobj);
+//        return;
+//    }
+//
+//    // Stack full, just delete the object (but to a reset before so ranges are
+//    // reused or freed)
+//    delete tobj;
+//}
 
 TaintRangePtr
 Initializer::allocate_taint_range(int start, int length, SourcePtr origin)
@@ -362,43 +327,4 @@ pyexport_initializer(py::module& m)
       "tx_id"_a = 0);
     m.def("contexts_reset", [] { initializer->contexts_reset(); });
     m.def("destroy_context", [] { initializer->destroy_context(); });
-
-    // TODO: Migrate/change this when the new TaintedMap is merged
-    //    m.def("get_ranges_dict", [] {
-    //        // In this case we want the usually dangerous "create if it doesn't
-    //        exist and return it"
-    //        // behaviour of the map operator[].
-    //        map<size_t, TaintRangeRefs> res;
-    //        auto ctx_map = initializer->taint_map[initializer->context_id()];
-    //
-    //        for (const auto& taintob : ctx_map) {
-    //            res.insert({taintob.first, taintob.second->get_ranges_copy()});
-    //        }
-    //        return res;
-    //    });
-    //
-    //    m.def("gcontext_set_framework_data",
-    //          [](const string& key, const string& value) {
-    //          initializer->global_context->framework_data[key] = value; });
-    //
-    //    m.def("gcontext_get_framework_data", [](const string& key) -> string {
-    //        try {
-    //            return initializer->global_context->framework_data.at(key);
-    //        } catch (const out_of_range&) {
-    //            throw_with_nested(py::key_error("Key " + key + " not in global
-    //            framework data"));
-    //        }
-    //    });
-    //
-    //
-    //
-    //    m.def("context_id", [] { return initializer->context_id(); });
-    //
-    //
-    //    m.def("is_stdlib_module", [](const string& module_name) {
-    //        return initializer->stdlib_modules.find(module_name) !=
-    //        initializer->stdlib_modules.end();
-    //    });
-    //
-    //    m.def("get_propagation", [] { return initializer->get_propagation(); });
 }

@@ -59,16 +59,7 @@ class Initializer
     absl::node_hash_map<size_t, SourcePtr> allocated_sources_map;
 
   public:
-    // Imported Python stuff
-    py::object pytype_frame;
-    unordered_set<string> no_stdlib_modules;
-    unordered_set<string> stdlib_paths;
-    unordered_set<string> site_package_paths;
-    unique_ptr<GlobalContext> global_context;
-
     Initializer();
-
-    void load_modules();
 
     TaintRangeMapType* create_tainting_map();
 
@@ -79,10 +70,6 @@ class Initializer
     void clear_tainting_maps();
 
     static int num_objects_tainted();
-
-    void get_paths();
-
-    void reset_stdlib_paths_and_modules();
 
     unordered_set<string> stdlib_modules{ stdlib_modules_orig };
 
@@ -95,8 +82,6 @@ class Initializer
     void contexts_reset();
 
     static size_t context_id();
-
-    bool get_propagation();
 
     // FIXME: these should be static functions of TaintedObject
 
@@ -135,7 +120,7 @@ class Initializer
         return allocate_tainted_object_copy(from->ranges_);
     }
 
-    void release_tainted_object(TaintedObjectPtr tobj);
+    //void release_tainted_object(TaintedObjectPtr tobj);
 
     // FIXME: these should be static functions of TaintRange
     // IMPORTANT: if the returned object is not assigned to the map, you have

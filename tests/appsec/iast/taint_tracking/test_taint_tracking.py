@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-
 import pytest
 
 from ddtrace.appsec.iast import oce

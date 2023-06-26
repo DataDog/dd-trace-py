@@ -1,3 +1,10 @@
+/* *****
+ * IAST Native Module
+ * This C++ module contains IAST propagation features:
+ * - Taint tracking: propagation of a tainted variable.
+ * - Aspects: common string operations are replaced by functions that propagate the taint variables.
+ * - Taint ranges: Information related to tainted values.
+ */
 #include <memory>
 #include <pybind11/pybind11.h>
 
@@ -53,8 +60,6 @@ static struct PyModuleDef ops = { PyModuleDef_HEAD_INIT,
 PYBIND11_MODULE(_native, m)
 {
     initializer = make_unique<Initializer>();
-    initializer->load_modules();
-    initializer->get_paths();
     initializer->create_context();
     // Cleanup code to be run at the end of the interpreter lifetime:
     auto atexit = py::module::import("atexit");
