@@ -355,8 +355,6 @@ class TelemetryLogsMetricsWriter(TelemetryBase):
                 if metrics:
                     payload = {
                         "namespace": namespace,
-                        "lib_language": "python",
-                        "lib_version": _pep440_to_semver(),
                         "series": [m.to_dict() for m in metrics.values()],
                     }
                     log.debug("%s request payload, namespace %s", payload_type, namespace)
@@ -390,6 +388,7 @@ class TelemetryWriter(TelemetryBase):
         # type: () -> None
         super(TelemetryWriter, self).__init__(interval=_get_heartbeat_interval_or_default())
         self._integrations_queue = []  # type: List[Dict]
+        self._configuration_queue = {}  # type: Dict[str, Dict]
         # Currently telemetry only supports reporting a single error.
         # If we'd like to report multiple errors in the future
         # we could hack it in by xor-ing error codes and concatenating strings
@@ -431,45 +430,21 @@ class TelemetryWriter(TelemetryBase):
         if self._forked:
             # app-started events should only be sent by the main process
             return
+        #  List of configurations to be collected
+        self.add_configurations(
+            [
+                ("data_streams_enabled", config._data_streams_enabled, "unknown"),
+                ("appsec_enabled", config._appsec_enabled, "unknown"),
+                ("trace_propagation_style_inject", str(config._propagation_style_inject), "unknown"),
+                ("trace_propagation_style_extract", str(config._propagation_style_extract), "unknown"),
+                ("ddtrace_bootstrapped", config._ddtrace_bootstrapped, "unknown"),
+                ("ddtrace_auto_used", "ddtrace.auto" in sys.modules, "unknown"),
+                ("otel_enabled", config._otel_enabled, "unknown"),
+            ]
+        )
+
         payload = {
-            #  List of configurations to be collected
-            "configuration": [
-                {
-                    "name": "data_streams_enabled",
-                    "origin": "env_var",
-                    "value": config._data_streams_enabled,
-                },
-                {
-                    "name": "appsec_enabled",
-                    "origin": "env_var",
-                    "value": config._appsec_enabled,
-                },
-                {
-                    "name": "propagation_style_inject",
-                    "origin": "env_var",
-                    "value": str(config._propagation_style_inject),
-                },
-                {
-                    "name": "propagation_style_extract",
-                    "origin": "env_var",
-                    "value": str(config._propagation_style_extract),
-                },
-                {
-                    "name": "ddtrace_bootstrapped",
-                    "origin": "default",
-                    "value": config._ddtrace_bootstrapped,
-                },
-                {
-                    "name": "ddtrace_auto_used",
-                    "origin": "default",
-                    "value": "ddtrace.auto" in sys.modules,
-                },
-                {
-                    "name": "otel_enabled",
-                    "origin": "env_var",
-                    "value": config._otel_enabled,
-                },
-            ],
+            "configuration": self._flush_configuration_queue(),
             "error": {
                 "code": self._error[0],
                 "message": self._error[1],
@@ -508,6 +483,43 @@ class TelemetryWriter(TelemetryBase):
         }
         self.add_event(payload, "app-integrations-change")
 
+    def _flush_configuration_queue(self):
+        # type: () -> List[Dict]
+        """Flushes and returns a list of all queued configurations"""
+        with self._lock:
+            configurations = list(self._configuration_queue.values())
+            self._configuration_queue = {}
+        return configurations
+
+    def _app_client_configuration_changed_event(self, configurations):
+        # type: (List[Dict]) -> None
+        """Adds a Telemetry event which sends list of modified configurations to the agent"""
+        payload = {
+            "configuration": configurations,
+        }
+        self.add_event(payload, "app-client-configuration-change")
+
+    def add_configuration(self, configuration_name, configuration_value, origin="unknown"):
+        # type: (str, Union[bool, float, str], str) -> None
+        """Creates and queues the name, origin, value of a configuration"""
+        with self._lock:
+            self._configuration_queue[configuration_name] = {
+                "name": configuration_name,
+                "origin": origin,
+                "value": configuration_value,
+            }
+
+    def add_configurations(self, configuration_list):
+        # type: (List[Tuple[str, Union[bool, float, str], str]]) -> None
+        """Creates and queues a list of configurations"""
+        with self._lock:
+            for name, value, origin in configuration_list:
+                self._configuration_queue[name] = {
+                    "name": name,
+                    "origin": origin,
+                    "value": value,
+                }
+
     def _app_dependencies_loaded_event(self):
         # type: () -> None
         """Adds a Telemetry event which sends a list of installed python packages to the agent"""
@@ -518,6 +530,10 @@ class TelemetryWriter(TelemetryBase):
         integrations = self._flush_integrations_queue()
         if integrations:
             self._app_integrations_changed_event(integrations)
+
+        configurations = self._flush_configuration_queue()
+        if configurations:
+            self._app_client_configuration_changed_event(configurations)
 
         if not self._events_queue:
             # Optimization: only queue heartbeat if no other events are queued
