@@ -261,7 +261,7 @@ class DataStreamsProcessor(PeriodicService):
             return self.new_pathway()
 
     def decode_pathway_b64(self, data):
-        # type: (Optional[str]) -> DataStreamsCtx
+        # type: (str) -> DataStreamsCtx
         try:
             binary_pathway = data.encode("utf-8")
             encoded_pathway = base64.b64decode(binary_pathway)
