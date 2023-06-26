@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Pytest modules and test suites tags will be reported differently, modules will be their fully qualified name, whereas test suites will be the file name
