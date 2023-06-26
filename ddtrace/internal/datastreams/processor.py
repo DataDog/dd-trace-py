@@ -261,11 +261,14 @@ class DataStreamsProcessor(PeriodicService):
             return self.new_pathway()
 
     def decode_pathway_b64(self, data):
-        # type: (str) -> DataStreamsCtx
-        binary_pathway = data.encode("utf-8")
-        encoded_pathway = base64.b64decode(binary_pathway)
-        data_streams_context = self.decode_pathway(encoded_pathway)
-        return data_streams_context
+        # type: (Optional[str]) -> DataStreamsCtx
+        try:
+            binary_pathway = data.encode("utf-8")
+            encoded_pathway = base64.b64decode(binary_pathway)
+            data_streams_context = self.decode_pathway(encoded_pathway)
+            return data_streams_context
+        except AttributeError:
+            return self.new_pathway()
 
     def new_pathway(self):
         # type: () -> DataStreamsCtx

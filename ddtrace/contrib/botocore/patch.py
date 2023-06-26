@@ -519,6 +519,7 @@ def patched_api_call(original_func, instance, args, kwargs):
                 try:
                     if "Messages" in result:
                         for message in result["Messages"]:
+                            pathway = None
                             if (
                                 "MessageAttributes" in message
                                 and "_datadog" in message["MessageAttributes"]
@@ -527,9 +528,6 @@ def patched_api_call(original_func, instance, args, kwargs):
                                 pathway = json.loads(message["MessageAttributes"]["_datadog"]["StringValue"]).get(
                                     PROPAGATION_KEY_BASE_64, None
                                 )
-                            else:
-                                pathway = None
-
                             ctx = pin.tracer.data_streams_processor.decode_pathway_b64(pathway)
                             ctx.set_checkpoint(["direction:in", "topic:" + queue_name, "type:sqs"])
 

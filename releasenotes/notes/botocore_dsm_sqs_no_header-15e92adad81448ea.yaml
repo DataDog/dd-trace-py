@@ -1,7 +1,0 @@
----
-other:
-  - |
-    botocore: Changes the way that data streams monitoring handles the case when a service receiving a
-    message from Simple Queue Service doesn't have a header, from previously not setting the checkpoint
-    to now setting the checkpoint with a pathway valued at None.
-
