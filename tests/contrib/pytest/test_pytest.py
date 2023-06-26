@@ -1098,7 +1098,7 @@ class PytestTestCase(TracerTestCase):
         assert test_session_span.get_tag("test.status") == "pass"
 
     def test_pytest_all_skipped_tests_does_propagate_in_testcase(self):
-        """Test that if not all tests are skipped, that status does not propagate upwards."""
+        """Test that if all tests are skipped, that status is propagated upwards."""
         py_file = self.testdir.makepyfile(
             """
             import unittest
@@ -1111,7 +1111,7 @@ class PytestTestCase(TracerTestCase):
                     assert 0
 
                 @pytest.mark.skip(reason="Because")
-                def test_ok(self):
+                def test_ok_but_skipped(self):
                     assert True
         """
         )
@@ -1129,7 +1129,7 @@ class PytestTestCase(TracerTestCase):
         assert test_session_span.get_tag("test.status") == "skip"
 
     def test_pytest_failed_tests_propagate_in_testcase(self):
-        """Test that if not all tests are skipped, that status does not propagate upwards."""
+        """Test that if any test fails, that status is propagated upwards."""
         py_file = self.testdir.makepyfile(
             """
             import unittest
@@ -1137,7 +1137,7 @@ class PytestTestCase(TracerTestCase):
 
             class MyTest(unittest.TestCase):
 
-                def test_not_ok_but_skipped(self):
+                def test_not_ok(self):
                     assert 0
 
                 def test_ok(self):
