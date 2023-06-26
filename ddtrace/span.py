@@ -93,7 +93,6 @@ class Span(object):
         "_on_finish_callbacks",
         "__weakref__",
         "_execution_context",
-        "_execution_context_manager",
     ]
 
     def __init__(
@@ -174,8 +173,7 @@ class Span(object):
         self._parent = None  # type: Optional[Span]
         self._ignored_exceptions = None  # type: Optional[List[Exception]]
         self._local_root = None  # type: Optional[Span]
-        self._execution_context_manager = core.context_with_data(self.name, span=self)
-        self._execution_context = self._execution_context_manager.__enter__()
+        self._execution_context = core.ExecutionContext(self.name, span=self)
 
     def _ignore_exception(self, exc):
         # type: (Exception) -> None
@@ -261,7 +259,7 @@ class Span(object):
 
         for cb in self._on_finish_callbacks:
             cb(self)
-        self._execution_context_manager.__exit__(None, None, None)
+        self._execution_context.end()
 
     def set_tag(self, key, value=None):
         # type: (_TagNameType, Any) -> None
