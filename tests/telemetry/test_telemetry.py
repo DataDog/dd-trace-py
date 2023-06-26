@@ -37,7 +37,10 @@ def test_telemetry_enabled_on_first_tracer_flush(test_agent_session, ddtrace_run
     assert len(test_agent_session.get_events()) == 0
 
     # Submit a trace to the agent in a subprocess
-    code = 'from ddtrace import tracer; span = tracer.trace("test-telemetry"); span.finish()'
+    code = 'from ddtrace import tracer; span = tracer.trace("test-telemetry"); span.finish();'
+    # PY2.7 and PY3.5 import sqlite3 via transitive dependencies this triggers the app-integrations-change event.
+    # Ensure sqlite3 is imported for all python versions to ensure the subprocess generates consistent events.
+    code += "import sqlite3;"
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code)
     assert status == 0, stderr
     assert stderr == b""
