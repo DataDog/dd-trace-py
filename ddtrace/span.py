@@ -434,6 +434,13 @@ class Span(object):
         """Return all metrics."""
         return self._metrics.copy()
 
+    def set_parent(self, parent):
+        # type: (Span) -> None
+        self.sampled = parent.sampled
+        self._parent = parent
+        self._local_root = parent._local_root
+        self._execution_context.addParent(parent._execution_context)
+
     def set_traceback(self, limit=30):
         # type: (int) -> None
         """If the current stack has an exception, tag the span with the

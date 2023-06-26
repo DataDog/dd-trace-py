@@ -701,12 +701,8 @@ class Tracer(object):
                 on_finish=[self._on_span_finish],
             )
 
-            # Extra attributes when from a local parent
             if parent:
-                span.sampled = parent.sampled
-                span._parent = parent
-                span._local_root = parent._local_root
-                span._execution_context.addParent(parent._execution_context)
+                span.set_parent(parent)
 
             if span._local_root is None:
                 span._local_root = span
