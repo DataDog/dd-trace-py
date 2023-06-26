@@ -63,9 +63,6 @@ _config = Config(
                 "postgres:postgresql,defaultdb:postgresql",
             ],
         ),
-        remoteconfig=_ConfigSourceRemoteConfigV1(
-            key="tracing_service_mapping",
-        ),
         metadata={
             "description": "Map service names to other service names to enable renaming services in traces.",
             "version_added": {

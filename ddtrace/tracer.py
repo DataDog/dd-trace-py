@@ -9,8 +9,6 @@ import sys
 from threading import RLock
 from typing import TYPE_CHECKING
 
-import six
-
 from ddtrace import config
 from ddtrace.filters import TraceFilter
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
@@ -60,6 +58,7 @@ from .sampler import BaseSampler
 from .sampler import DatadogSampler
 from .sampler import RateByServiceSampler
 from .sampler import RateSampler
+from .sampler import SamplingRule
 from .span import Span
 
 
@@ -135,6 +134,7 @@ def _default_span_processors_factory(
     appsec_enabled,  # type: bool
     iast_enabled,  # type: bool
     compute_stats_enabled,  # type: bool
+    single_span_sampling_rules,  # type: List[SpanSamplingRule]
     agent_url,  # type: str
     profiling_span_processor,  # type: EndpointCallCounterProcessor
 ):
@@ -174,8 +174,8 @@ def _default_span_processors_factory(
 
     span_processors.append(profiling_span_processor)
 
-    if config.span_sampling_rules:
-        span_processors.append(SpanSamplingProcessor(config.span_sampling_rules))
+    if single_span_sampling_rules:
+        span_processors.append(SpanSamplingProcessor(single_span_sampling_rules))
 
     span_processors.append(
         SpanAggregator(
@@ -188,17 +188,31 @@ def _default_span_processors_factory(
     return span_processors, appsec_processor
 
 
+class _ConfigItem(object):
+    def __init__(self, value, source):
+        self.value = value
+        self.source = source
+
+
 class _TraceConfigurationV1(object):
     def __init__(
         self,
         service,  # type: str
         service_mapping,
-        sampler,
+        sampler,  # type: DatadogSampler
     ):
         # type: (...) -> None
         self.service = service
         self.service_mapping = service_mapping
-        self.sampler = sampler
+        self.sampler = sampler  # type: DatadogSampler
+
+    def copy(self):
+        # type: () -> _TraceConfigurationV1
+        return self.__class__(
+            service=self.service,
+            service_mapping=self.service_mapping.copy(),
+            sampler=self.sampler,
+        )
 
 
 class Tracer(object):
@@ -243,6 +257,7 @@ class Tracer(object):
         # traces
         self._pid = getpid()
 
+        self.enabled = asbool(os.getenv("DD_TRACE_ENABLED", default=True))
         self.context_provider = DefaultContextProvider()
         self._priority_sampler = RateByServiceSampler()  # type: Optional[BasePrioritySampler]
         self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
@@ -250,26 +265,31 @@ class Tracer(object):
         self._agent_url = agent.get_trace_url() if url is None else url  # type: str
         agent.verify_url(self._agent_url)
 
+        self._sampler = None
+        self._trace_sample_rate_rc = None
+        self._trace_sample_rate_code = None
+        self._trace_sample_rate_global = None
+        self._trace_rate_limit_code = None
+        self._trace_rate_limit_global = None
+        self._trace_sampling_rules_code = None
+        self._trace_sampling_rules_global = None
         self._config = _TraceConfigurationV1(
             service=config.service,
             service_mapping=config.service_mapping,
-            sampler=DatadogSampler(
-                default_sample_rate=config.trace_sample_rate,
-                rate_limit=config.trace_rate_limit,
-                rules=config.trace_sampling_rules,
-            ),
+            sampler=self._resolve_sampler(),
         )
+
         if self._use_log_writer() and url is None:
             writer = LogWriter()  # type: TraceWriter
         else:
             writer = AgentWriter(
                 agent_url=self._agent_url,
+                sampler=self._sampler,
+                priority_sampler=self._priority_sampler,
                 dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
                 sync_mode=self._use_sync_mode(),
                 headers={"Datadog-Client-Computed-Stats": "yes"} if self._compute_stats else {},
-                response_callback=self._update_config,
             )
-        self.enabled = True
         self._single_span_sampling_rules = get_span_sampling_rules()  # type: List[SpanSamplingRule]
         self._writer = writer  # type: TraceWriter
         self._partial_flush_enabled = asbool(os.getenv("DD_TRACE_PARTIAL_FLUSH_ENABLED", default=True))
@@ -279,7 +299,6 @@ class Tracer(object):
         self._appsec_processor = None
         self._iast_enabled = config._iast_enabled
         self._endpoint_call_counter_span_processor = EndpointCallCounterProcessor()
-
         self._span_processors, self._appsec_processor = _default_span_processors_factory(
             self._filters,
             self._writer,
@@ -288,6 +307,7 @@ class Tracer(object):
             self._appsec_enabled,
             self._iast_enabled,
             self._compute_stats,
+            self._single_span_sampling_rules,
             self._agent_url,
             self._endpoint_call_counter_span_processor,
         )
@@ -304,7 +324,6 @@ class Tracer(object):
         config._subscribe(
             [
                 "service",
-                "service_mapping",
                 "trace_sample_rate",
                 "trace_rate_limit",
                 "trace_sampling_rules",
@@ -312,30 +331,59 @@ class Tracer(object):
             self._on_config_change,
         )
 
-    def _on_config_change(self, new_config, updated_items):
+    def _on_config_change(self, new_config, new_settings):
         """Handle global configuration updates relevant to tracing.
 
         Config updates should not happen often so this is where we choose to copy the configuration (rather than
         copying the config for each trace).
         """
-        new_trace_config = _TraceConfigurationV1(
-            service=self._config.service,
-            service_mapping=self._config.service_mapping,
-            sampler=self._config.sampler,
-        )
+        log.debug("updating tracer configuration with %s", new_settings)
+        new_trace_config = self._config.copy()
 
-        if "service" in updated_items:
-            new_trace_config.service = new_config.service
-        if "service_mapping" in updated_items:
-            new_trace_config.service_mapping = new_config.service_mapping
-        # If any of the sampling rules have changed, we need to create a new sampler
-        if any(s in updated_items for s in ("trace_sample_rate", "trace_rate_limit", "trace_sampling_rules")):
-            new_trace_config.sampler = DatadogSampler(
-                default_sample_rate=new_config.trace_sample_rate,
-                rate_limit=new_config.trace_rate_limit,
-                rules=new_config.trace_sampling_rules,
-            )
-        self._config = new_trace_config
+        if "service" in new_settings:
+            new_trace_config.service = new_settings["service"].value
+
+        if "trace_sample_rate" in new_settings:
+            self._trace_sample_rate_rc = None
+            self._trace_sample_rate_global = None
+            if new_settings["trace_sample_rate"].source == "remote_config":
+                self._trace_sample_rate_rc = new_settings["trace_sample_rate"].value
+            else:
+                self._trace_sample_rate_global = new_settings["trace_sample_rate"].value
+
+        # If any of the sampling settings have changed, we need to create a new sampler
+        # Note that this operation does not persist the state of the rate limiter!
+        if any(s in new_settings for s in ("trace_sample_rate", "trace_rate_limit", "trace_sampling_rules")):
+            new_trace_config.sampler = self._resolve_sampler()
+            self._config = new_trace_config
+
+    def _resolve_sampler(self):
+        # Precedence:
+        #   1. Remote configuration
+        #   2. User set sampler (via .configure())
+        #   3. Global configuration (via config API / environment variables, defaults)
+        for v in [self._trace_sample_rate_rc, self._trace_sample_rate_code]:
+            if v is not None:
+                sample_rate = v
+                break
+        else:
+            sample_rate = self._trace_sample_rate_global
+
+        if self._trace_rate_limit_code is not None:
+            rate_limit = self._trace_rate_limit_code
+        else:
+            rate_limit = self._trace_rate_limit_global
+
+        if self._trace_sampling_rules_code is not None:
+            sampling_rules = self._trace_sampling_rules_code
+        else:
+            sampling_rules = self._trace_sampling_rules_global
+
+        return DatadogSampler(
+            rules=sampling_rules,
+            default_sample_rate=sample_rate,
+            rate_limit=rate_limit,
+        )
 
     def _atexit(self):
         # type: () -> None
@@ -346,20 +394,6 @@ class Tracer(object):
             key,
         )
         self.shutdown(timeout=self.SHUTDOWN_TIMEOUT)
-
-    def _update_config(self, resp):
-        if "rate_by_service" in resp:
-            try:
-                if self._priority_sampler:
-                    self._priority_sampler.update_rate_by_service_sample_rates(
-                        resp["rate_by_service"],
-                    )
-                if isinstance(self._config.sampler, BasePrioritySampler):
-                    self._config.sampler.update_rate_by_service_sample_rates(
-                        resp["rate_by_service"],
-                    )
-            except ValueError:
-                log.error("sample_rate is negative, cannot update the rate samplers")
 
     def on_start_span(self, func):
         # type: (Callable) -> Callable
@@ -493,7 +527,20 @@ class Tracer(object):
             self._priority_sampler = None
 
         if sampler is not None:
-            self._config.sampler = sampler
+            # Only handle DatadogSampler instances
+            if isinstance(sampler, DatadogSampler):
+                if len(sampler.rules) > 0:
+                    # Assume last rule is the default rule
+                    rule = sampler.rules[-1]
+                    if rule.service is SamplingRule.NO_RULE and rule.name is SamplingRule.NO_RULE:
+                        self._trace_sample_rate_code = rule.sample_rate
+                        # Note that the SamplingRule objects are not copied
+                        self._trace_sampling_rules_code = sampler.rules[:-1]
+                        new_cfg = self._config.copy()
+                        new_cfg.sampler = self._resolve_sampler()
+                        self._config = new_cfg
+            else:
+                self._sampler = sampler
 
         self._dogstatsd_url = dogstatsd_url or self._dogstatsd_url
 
@@ -573,6 +620,7 @@ class Tracer(object):
                 self._appsec_enabled,
                 self._iast_enabled,
                 self._compute_stats,
+                self._single_span_sampling_rules,
                 self._agent_url,
                 self._endpoint_call_counter_span_processor,
             )
@@ -618,6 +666,7 @@ class Tracer(object):
             self._appsec_enabled,
             self._iast_enabled,
             self._compute_stats,
+            self._single_span_sampling_rules,
             self._agent_url,
             self._endpoint_call_counter_span_processor,
         )

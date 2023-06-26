@@ -165,19 +165,19 @@ class _ConfigSource(object):
         # type: () -> _ConfigResult
         raise NotImplementedError
 
+    def __repr__(self):
+        return "<{}: {}>".format(self.__class__.__name__, self.get())
+
+    __str__ = __repr__
+
 
 class _ConfigSourceEnv(_ConfigSource):
     def __init__(self, name, factory=lambda x: x, examples=None):
         self.key = name
         self.factory = factory
-        # self.deprecated = deprecated
         self.examples = examples or []
-        # TODO: store/cache computed value
 
     def get(self):
-        # if self.deprecated:
-        #     # TODO: warning
-        #     pass
         raw = os.environ.get(self.key)
         value = None
         if raw is not None:
@@ -210,8 +210,8 @@ class _ConfigSourceEnvMulti(_ConfigSource):
 
 
 class _ConfigSourceRemoteConfigV1(_ConfigSource):
-    def __init__(self, key):
-        self.key = key
+    def __init__(self):
+        self._raw = None
         self._value = None
 
     def set(self, raw, val):
@@ -222,10 +222,11 @@ class _ConfigSourceRemoteConfigV1(_ConfigSource):
         return {
             "value": self._value,
             "raw": self._value,
-            "source": "remoteconfig",
+            "source": "remote_config",
         }
 
     def clear(self):
+        self._raw = None
         self._value = None
 
 
@@ -258,7 +259,6 @@ class _ConfigItem(object):
         default,
         environ=None,
         programmatic=None,
-        remoteconfig=None,
         resolve=None,
         metadata=None,
     ):
@@ -267,7 +267,7 @@ class _ConfigItem(object):
         self._default_factory = default if callable(default) else lambda: default
         self.environ = environ
         self.programmatic = programmatic or _ConfigSourceProgrammatic()
-        self.remoteconfig = remoteconfig
+        self.remoteconfig = _ConfigSourceRemoteConfigV1()
         self.resolve = self._default_resolve if resolve is None else resolve
         self.metadata = metadata or {
             "description": "",
@@ -312,19 +312,14 @@ class _ConfigItem(object):
     def resolved(self):
         return self._resolve()
 
-    def copy(self):
-        return self.__class__(
-            self.default,
-            self.environ,
-            self.programmatic,
-            self.remoteconfig,
-        )
-
     def set(self, val):
         self.programmatic.set(val)
 
     def reset(self):
         self.programmatic.set(None)
+
+    def __repr__(self):
+        return "<{}: {}>".format(self.__class__.__name__, self._resolve())
 
 
 class Config(object):
@@ -595,31 +590,45 @@ class Config(object):
         integrations = ", ".join(self._config.keys())
         return "{}.{}({})".format(cls.__module__, cls.__name__, integrations)
 
-    def copy(self):
-        c = self.__class__(*self._items.values())
-        return c
-
     def _update_rc(self, metadata, cfg):
         # TODO: if version >= 2.0, log warning
         if not cfg:
             for cfg_item in self._items.values():
                 cfg_item.remote_config.clear()
+                # TODO: notify subscribers
 
         # Keep track of changed items to notify subscribers
-        changed_items = []
         config = cfg["lib_config"]
 
-        if config["tracing_service_mapping"] is None:
-            self._items["service_mapping"].remoteconfig.clear()
+        # TODO: do diff detection?
+        # Solved by event including the previous value and the new value
+        # (previous, current)
+        changed_items = ["tracing_http_header_tags", "trace_sample_rate"]
+
+        # if config["tracing_http_header_tags"] is None:
+        #     self._items["tracing_http_header_tags"].remoteconfig.clear()
+        # else:
+        #     self._items["tracing_http_header_tags"].remoteconfig.set(
+        #         config["tracing_http_header_tags"],
+        #         {m["header"]: m["tag_name"] for m in config["tracing_http_header_tags"]},
+        #     )
+
+        # rc_tracing_sampling_rate = config["tracing_sampling_rate"]
+
+        # if rc_tracing_sampling_rate != self._items["trace_sample_rate"].remoteconfig.value:
+        #     previous_value = self._items["trace_sample_rate"].remoteconfig.value
+        #     self._items["trace_sample_rate"].remoteconfig.set(rc_tracing_sampling_rate)
+        #     changed_items["trace_sample_rate"] = {
+        #         "previous": self._items["trace_sample_rate"].remoteconfig.value,
+        #         "current": ,
+        #     }
+
+        if config["tracing_sampling_rate"] is None:
+            self._items["trace_sample_rate"].remoteconfig.clear()
         else:
-            self._items["service_mapping"].remoteconfig.set(
-                config["tracing_service_mapping"],
-                {m["from_key"]: m["to_name"] for m in config["tracing_service_mapping"]},
+            self._items["trace_sample_rate"].remoteconfig.set(
+                config["tracing_sampling_rate"], config["tracing_sampling_rate"]
             )
-
-        if config["tracing_sample_rate"]:
-            pass
-
         self._notify_subscribers(changed_items)
 
     def _subscribe(self, items, handler):
@@ -629,7 +638,8 @@ class Config(object):
         for sub_items, sub_handler in self._subscriptions:
             sub_updated_items = [i for i in changed_items if i in sub_items]
             if sub_updated_items:
-                sub_handler(self, sub_updated_items)
+                # TODO: self should be a copy to avoid races on the config
+                sub_handler(self, {i: self._items[i] for i in sub_updated_items})
 
     def __setattr__(self, key, value):
         if key == "_items":

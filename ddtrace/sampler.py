@@ -100,8 +100,6 @@ class RateSampler(BaseSampler):
 
         self.set_sample_rate(sample_rate)
 
-        log.debug("initialized RateSampler, sample %s%% of traces", 100 * sample_rate)
-
     def set_sample_rate(self, sample_rate):
         # type: (float) -> None
         self.sample_rate = float(sample_rate)
@@ -277,8 +275,6 @@ class DatadogSampler(RateByServiceSampler):
 
         # Configure rate limiter
         self.limiter = RateLimiter(rate_limit)
-
-        log.debug("initialized %r", self)
 
     def __str__(self):
         rates = {key: sampler.sample_rate for key, sampler in self._by_service_samplers.items()}
