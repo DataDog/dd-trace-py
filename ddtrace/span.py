@@ -174,7 +174,7 @@ class Span(object):
         self._parent = None  # type: Optional[Span]
         self._ignored_exceptions = None  # type: Optional[List[Exception]]
         self._local_root = None  # type: Optional[Span]
-        self._execution_context_manager = core.context_with_data(self.name)
+        self._execution_context_manager = core.context_with_data(self.name, span=self)
         self._execution_context = self._execution_context_manager.__enter__()
 
     def _ignore_exception(self, exc):

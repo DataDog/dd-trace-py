@@ -67,16 +67,17 @@ class EventHub:
 
 
 class ExecutionContext:
-    def __init__(self, identifier, parent=None, **kwargs):
+    def __init__(self, identifier, parent=None, span=None, **kwargs):
         self.identifier = identifier
         self._data = dict()
         self._parents = []
         self._children = []
         self._event_hub = EventHub()
+        self._span = span
         if parent is not None:
             self.addParent(parent)
         self._data.update(kwargs)
-        if _CURRENT_CONTEXT is not None:
+        if self._span is None and _CURRENT_CONTEXT is not None:
             self._token = _CURRENT_CONTEXT.set(self)
 
     def __repr__(self):
@@ -95,16 +96,19 @@ class ExecutionContext:
         return self._children
 
     def end(self):
-        try:
-            _CURRENT_CONTEXT.reset(self._token)
-        except ValueError:
-            log.debug(
-                "Encountered ValueError during core contextvar reset() call. "
-                "This can happen when a span holding an executioncontext is "
-                "finished in a Context other than the one that started it."
-            )
-        except LookupError:
-            log.debug("Encountered LookupError during core contextvar reset() call. I don't know why this is possible.")
+        if self._span is None:
+            try:
+                _CURRENT_CONTEXT.reset(self._token)
+            except ValueError:
+                log.debug(
+                    "Encountered ValueError during core contextvar reset() call. "
+                    "This can happen when a span holding an executioncontext is "
+                    "finished in a Context other than the one that started it."
+                )
+            except LookupError:
+                log.debug(
+                    "Encountered LookupError during core contextvar reset() call. I don't know why this is possible."
+                )
         return dispatch("context.ended.%s" % self.identifier, [])
 
     def addParent(self, context):
@@ -118,8 +122,8 @@ class ExecutionContext:
 
     @classmethod
     @contextmanager
-    def context_with_data(cls, identifier, parent=None, **kwargs):
-        new_context = cls(identifier, parent=parent, **kwargs)
+    def context_with_data(cls, identifier, parent=None, span=None, **kwargs):
+        new_context = cls(identifier, parent=parent, span=span, **kwargs)
         try:
             yield new_context
         finally:
