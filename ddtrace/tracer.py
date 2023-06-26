@@ -239,8 +239,11 @@ class Tracer(object):
         # globally set tags
         self._tags = config.tags.copy()
 
+        # collection of services seen, used for runtime metrics tags
         # a buffer for service info so we don't perpetually send the same things
         self._services = set()  # type: Set[str]
+        if config.service:
+            self._services.add(config.service)
 
         # Runtime id used for associating data collected during runtime to
         # traces
@@ -569,6 +572,8 @@ class Tracer(object):
         # Assume that the services of the child are not necessarily a subset of those
         # of the parent.
         self._services = set()
+        if config.service:
+            self._services.add(config.service)
 
         # Re-create the background writer thread
         self._writer = self._writer.recreate()

@@ -3,7 +3,6 @@ from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_TRACER
 from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_DISTRIBUTION
 from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_GENERATE_METRICS
 from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_LOGS
-from ddtrace.internal.utils.version import _pep440_to_semver
 from tests.telemetry.test_writer import _get_request_body
 from tests.utils import override_global_config
 
@@ -22,8 +21,6 @@ def _assert_metric(
 
     payload = {
         "namespace": namespace,
-        "lib_language": "python",
-        "lib_version": _pep440_to_semver(),
         "series": expected_series,
     }
     assert events[0]["request_type"] == type_paypload
