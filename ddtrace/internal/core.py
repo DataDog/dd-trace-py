@@ -163,7 +163,7 @@ def context_with_data(identifier, parent=None, **kwargs):
 def _choose_context(span=None):
     # type: (Optional[Span]) -> ExecutionContext
     if span:
-        return span._execution_context
+        return span._execution_context  # type: ignore
     else:
         return _CURRENT_CONTEXT.get()  # type: ignore
 
