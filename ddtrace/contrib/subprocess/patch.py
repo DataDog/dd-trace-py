@@ -400,17 +400,17 @@ def _traced_subprocess_init(module, pin, wrapped, instance, args, kwargs):
         is_shell = kwargs.get("shell", False)
         shellcmd = SubprocessCmdLine(cmd_args_list, shell=is_shell)  # nosec
 
-        with pin.tracer.trace(COMMANDS.SPAN_NAME, resource=shellcmd.binary, span_type=SpanTypes.SYSTEM) as span:
-            core.set_item(COMMANDS.CTX_SUBP_IS_SHELL, is_shell, span=span)
+        with pin.tracer.trace(COMMANDS.SPAN_NAME, resource=shellcmd.binary, span_type=SpanTypes.SYSTEM):
+            core.set_item(COMMANDS.CTX_SUBP_IS_SHELL, is_shell)
 
             if shellcmd.truncated:
-                core.set_item(COMMANDS.CTX_SUBP_TRUNCATED, "yes", span=span)
+                core.set_item(COMMANDS.CTX_SUBP_TRUNCATED, "yes")
 
             if is_shell:
-                core.set_item(COMMANDS.CTX_SUBP_LINE, shellcmd.as_string(), span=span)
+                core.set_item(COMMANDS.CTX_SUBP_LINE, shellcmd.as_string())
             else:
-                core.set_item(COMMANDS.CTX_SUBP_LINE, shellcmd.as_list(), span=span)
-            core.set_item(COMMANDS.CTX_SUBP_BINARY, shellcmd.binary, span=span)
+                core.set_item(COMMANDS.CTX_SUBP_LINE, shellcmd.as_list())
+            core.set_item(COMMANDS.CTX_SUBP_BINARY, shellcmd.binary)
     except:  # noqa
         log.debug("Could not trace subprocess execution: [args: %s kwargs: %s]", args, kwargs, exc_info=True)
 
@@ -423,12 +423,12 @@ def _traced_subprocess_wait(module, pin, wrapped, instance, args, kwargs):
         binary = core.get_item("subprocess_popen_binary")
 
         with pin.tracer.trace(COMMANDS.SPAN_NAME, resource=binary, span_type=SpanTypes.SYSTEM) as span:
-            if core.get_item(COMMANDS.CTX_SUBP_IS_SHELL, span=span):
-                span.set_tag_str(COMMANDS.SHELL, core.get_item(COMMANDS.CTX_SUBP_LINE, span=span))
+            if core.get_item(COMMANDS.CTX_SUBP_IS_SHELL):
+                span.set_tag_str(COMMANDS.SHELL, core.get_item(COMMANDS.CTX_SUBP_LINE))
             else:
-                span.set_tag(COMMANDS.EXEC, core.get_item(COMMANDS.CTX_SUBP_LINE, span=span))
+                span.set_tag(COMMANDS.EXEC, core.get_item(COMMANDS.CTX_SUBP_LINE))
 
-            truncated = core.get_item(COMMANDS.CTX_SUBP_TRUNCATED, span=span)
+            truncated = core.get_item(COMMANDS.CTX_SUBP_TRUNCATED)
             if truncated:
                 span.set_tag_str(COMMANDS.TRUNCATED, "yes")
             span.set_tag_str(COMMANDS.COMPONENT, "subprocess")
