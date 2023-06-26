@@ -3,7 +3,6 @@ from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_TRACER
 from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_DISTRIBUTION
 from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_GENERATE_METRICS
 from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_LOGS
-from ddtrace.internal.utils.version import _pep440_to_semver
 from tests.telemetry.test_writer import _get_request_body
 
 
@@ -14,15 +13,13 @@ def _assert_metric(
     type_paypload=TELEMETRY_TYPE_GENERATE_METRICS,
     seq_id=1,
 ):
-    test_agent.telemetry_writer.periodic()
+    test_agent.telemetry_lifecycle_writer.periodic()
     events = test_agent.get_events()
 
     assert len([event for event in events if event["request_type"] == type_paypload]) == seq_id
 
     payload = {
         "namespace": namespace,
-        "lib_language": "python",
-        "lib_version": _pep440_to_semver(),
         "series": expected_series,
     }
     assert events[0]["request_type"] == type_paypload
@@ -48,7 +45,7 @@ def _assert_logs(
     expected_payload,
     seq_id=1,
 ):
-    test_agent.telemetry_writer.periodic()
+    test_agent.telemetry_lifecycle_writer.periodic()
     events = test_agent.get_events()
 
     assert len([event for event in events if event["request_type"] == TELEMETRY_TYPE_LOGS]) == seq_id
@@ -62,10 +59,10 @@ def _assert_logs(
 
 
 def test_send_metric_flush_and_generate_metrics_series_is_restarted(
-    telemetry_writer, test_agent_metrics_session, mock_time
+    telemetry_lifecycle_writer, test_agent_session, mock_time
 ):
     """Check the queue of metrics is empty after run periodic method of PeriodicService"""
-    telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric2", 1, (("a", "b"),))
+    telemetry_lifecycle_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric2", 1, (("a", "b"),))
     expected_series = [
         {
             "common": True,
@@ -76,23 +73,23 @@ def test_send_metric_flush_and_generate_metrics_series_is_restarted(
         },
     ]
 
-    _assert_metric(test_agent_metrics_session, expected_series)
+    _assert_metric(test_agent_session, expected_series)
 
-    telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric2", 1, (("a", "b"),))
+    telemetry_lifecycle_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric2", 1, (("a", "b"),))
 
-    _assert_metric(test_agent_metrics_session, expected_series, seq_id=2)
+    _assert_metric(test_agent_session, expected_series, seq_id=2)
 
 
 def test_send_metric_datapoint_equal_type_and_tags_yields_single_series(
-    telemetry_writer, test_agent_metrics_session, mock_time
+    telemetry_lifecycle_writer, test_agent_session, mock_time
 ):
     """Check metrics datapoints and the aggregations by datapoint ID.
     A datapoint ID is at least: a metric name, a metric value, and the time at which the value was collected.
     But in Datadog, a datapoint also includes tags, which declare all the various scopes the datapoint belongs to
     https://www.datadoghq.com/blog/the-power-of-tagged-metrics/#whats-a-metric-tag
     """
-    telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 2, (("a", "b"),))
-    telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 3, (("a", "b"),))
+    telemetry_lifecycle_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 2, (("a", "b"),))
+    telemetry_lifecycle_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 3, (("a", "b"),))
 
     expected_series = [
         {
@@ -104,19 +101,19 @@ def test_send_metric_datapoint_equal_type_and_tags_yields_single_series(
         },
     ]
 
-    _assert_metric(test_agent_metrics_session, expected_series)
+    _assert_metric(test_agent_session, expected_series)
 
 
 def test_send_metric_datapoint_equal_type_different_tags_yields_multiple_series(
-    telemetry_writer, test_agent_metrics_session, mock_time
+    telemetry_lifecycle_writer, test_agent_session, mock_time
 ):
     """Check metrics datapoints and the aggregations by datapoint ID.
     A datapoint ID is at least: a metric name, a metric value, and the time at which the value was collected.
     But in Datadog, a datapoint also includes tags, which declare all the various scopes the datapoint belongs to
     https://www.datadoghq.com/blog/the-power-of-tagged-metrics/#whats-a-metric-tag
     """
-    telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 4, (("a", "b"),))
-    telemetry_writer.add_count_metric(
+    telemetry_lifecycle_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 4, (("a", "b"),))
+    telemetry_lifecycle_writer.add_count_metric(
         TELEMETRY_NAMESPACE_TAG_TRACER,
         "test-metric",
         5,
@@ -125,7 +122,7 @@ def test_send_metric_datapoint_equal_type_different_tags_yields_multiple_series(
             ("c", "True"),
         ),
     )
-    telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 6, tuple())
+    telemetry_lifecycle_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 6, tuple())
 
     expected_series = [
         {
@@ -151,17 +148,17 @@ def test_send_metric_datapoint_equal_type_different_tags_yields_multiple_series(
         },
     ]
 
-    _assert_metric(test_agent_metrics_session, expected_series)
+    _assert_metric(test_agent_session, expected_series)
 
 
-def test_send_metric_datapoint_with_different_types(telemetry_writer, test_agent_metrics_session, mock_time):
+def test_send_metric_datapoint_with_different_types(telemetry_lifecycle_writer, test_agent_session, mock_time):
     """Check metrics datapoints and the aggregations by datapoint ID.
     A datapoint ID is at least: a metric name, a metric value, and the time at which the value was collected.
     But in Datadog, a datapoint also includes tags, which declare all the various scopes the datapoint belongs to
     https://www.datadoghq.com/blog/the-power-of-tagged-metrics/#whats-a-metric-tag
     """
-    telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 1, (("a", "b"),))
-    telemetry_writer.add_gauge_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 1, (("a", "b"),))
+    telemetry_lifecycle_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 1, (("a", "b"),))
+    telemetry_lifecycle_writer.add_gauge_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 1, (("a", "b"),))
 
     expected_series = [
         {"common": True, "metric": "test-metric", "points": [[1642544540, 1.0]], "tags": ["a:b"], "type": "count"},
@@ -174,14 +171,14 @@ def test_send_metric_datapoint_with_different_types(telemetry_writer, test_agent
             "interval": 60,
         },
     ]
-    _assert_metric(test_agent_metrics_session, expected_series)
+    _assert_metric(test_agent_session, expected_series)
 
 
-def test_send_tracers_count_metric(telemetry_writer, test_agent_metrics_session, mock_time):
-    telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 1, (("a", "b"),))
-    telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 1, (("a", "b"),))
-    telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 1, tuple())
-    telemetry_writer.add_count_metric(
+def test_send_tracers_count_metric(telemetry_lifecycle_writer, test_agent_session, mock_time):
+    telemetry_lifecycle_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 1, (("a", "b"),))
+    telemetry_lifecycle_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 1, (("a", "b"),))
+    telemetry_lifecycle_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_TRACER, "test-metric", 1, tuple())
+    telemetry_lifecycle_writer.add_count_metric(
         TELEMETRY_NAMESPACE_TAG_TRACER,
         "test-metric",
         1,
@@ -214,18 +211,18 @@ def test_send_tracers_count_metric(telemetry_writer, test_agent_metrics_session,
             "type": "count",
         },
     ]
-    _assert_metric(test_agent_metrics_session, expected_series)
+    _assert_metric(test_agent_session, expected_series)
 
 
-def test_send_appsec_rate_metric(telemetry_writer, test_agent_metrics_session, mock_time):
-    telemetry_writer.add_rate_metric(
+def test_send_appsec_rate_metric(telemetry_lifecycle_writer, test_agent_session, mock_time):
+    telemetry_lifecycle_writer.add_rate_metric(
         TELEMETRY_NAMESPACE_TAG_APPSEC,
         "test-metric",
         6,
         (("hi", "HELLO"), ("NAME", "CANDY")),
     )
-    telemetry_writer.add_rate_metric(TELEMETRY_NAMESPACE_TAG_APPSEC, "test-metric", 6, tuple())
-    telemetry_writer.add_rate_metric(TELEMETRY_NAMESPACE_TAG_APPSEC, "test-metric", 6, tuple())
+    telemetry_lifecycle_writer.add_rate_metric(TELEMETRY_NAMESPACE_TAG_APPSEC, "test-metric", 6, tuple())
+    telemetry_lifecycle_writer.add_rate_metric(TELEMETRY_NAMESPACE_TAG_APPSEC, "test-metric", 6, tuple())
 
     expected_series = [
         {
@@ -246,11 +243,11 @@ def test_send_appsec_rate_metric(telemetry_writer, test_agent_metrics_session, m
         },
     ]
 
-    _assert_metric(test_agent_metrics_session, expected_series, namespace=TELEMETRY_NAMESPACE_TAG_APPSEC)
+    _assert_metric(test_agent_session, expected_series, namespace=TELEMETRY_NAMESPACE_TAG_APPSEC)
 
 
-def test_send_appsec_gauge_metric(telemetry_writer, test_agent_metrics_session, mock_time):
-    telemetry_writer.add_gauge_metric(
+def test_send_appsec_gauge_metric(telemetry_lifecycle_writer, test_agent_session, mock_time):
+    telemetry_lifecycle_writer.add_gauge_metric(
         TELEMETRY_NAMESPACE_TAG_APPSEC,
         "test-metric",
         5,
@@ -259,8 +256,8 @@ def test_send_appsec_gauge_metric(telemetry_writer, test_agent_metrics_session, 
             ("NAME", "CANDY"),
         ),
     )
-    telemetry_writer.add_gauge_metric(TELEMETRY_NAMESPACE_TAG_APPSEC, "test-metric", 5, (("a", "b"),))
-    telemetry_writer.add_gauge_metric(TELEMETRY_NAMESPACE_TAG_APPSEC, "test-metric", 6, tuple())
+    telemetry_lifecycle_writer.add_gauge_metric(TELEMETRY_NAMESPACE_TAG_APPSEC, "test-metric", 5, (("a", "b"),))
+    telemetry_lifecycle_writer.add_gauge_metric(TELEMETRY_NAMESPACE_TAG_APPSEC, "test-metric", 6, tuple())
 
     expected_series = [
         {
@@ -288,13 +285,13 @@ def test_send_appsec_gauge_metric(telemetry_writer, test_agent_metrics_session, 
             "type": "gauge",
         },
     ]
-    _assert_metric(test_agent_metrics_session, expected_series, namespace=TELEMETRY_NAMESPACE_TAG_APPSEC)
+    _assert_metric(test_agent_session, expected_series, namespace=TELEMETRY_NAMESPACE_TAG_APPSEC)
 
 
-def test_send_appsec_distributions_metric(telemetry_writer, test_agent_metrics_session, mock_time):
-    telemetry_writer.add_distribution_metric(TELEMETRY_NAMESPACE_TAG_APPSEC, "test-metric", 4, tuple())
-    telemetry_writer.add_distribution_metric(TELEMETRY_NAMESPACE_TAG_APPSEC, "test-metric", 5, tuple())
-    telemetry_writer.add_distribution_metric(TELEMETRY_NAMESPACE_TAG_APPSEC, "test-metric", 6, tuple())
+def test_send_appsec_distributions_metric(telemetry_lifecycle_writer, test_agent_session, mock_time):
+    telemetry_lifecycle_writer.add_distribution_metric(TELEMETRY_NAMESPACE_TAG_APPSEC, "test-metric", 4, tuple())
+    telemetry_lifecycle_writer.add_distribution_metric(TELEMETRY_NAMESPACE_TAG_APPSEC, "test-metric", 5, tuple())
+    telemetry_lifecycle_writer.add_distribution_metric(TELEMETRY_NAMESPACE_TAG_APPSEC, "test-metric", 6, tuple())
 
     expected_series = [
         {
@@ -304,7 +301,7 @@ def test_send_appsec_distributions_metric(telemetry_writer, test_agent_metrics_s
         }
     ]
     _assert_metric(
-        test_agent_metrics_session,
+        test_agent_session,
         expected_series,
         namespace=TELEMETRY_NAMESPACE_TAG_APPSEC,
         type_paypload=TELEMETRY_TYPE_DISTRIBUTION,
@@ -312,12 +309,12 @@ def test_send_appsec_distributions_metric(telemetry_writer, test_agent_metrics_s
 
 
 def test_send_metric_flush_and_distributions_series_is_restarted(
-    telemetry_writer, test_agent_metrics_session, mock_time
+    telemetry_lifecycle_writer, test_agent_session, mock_time
 ):
     """Check the queue of metrics is empty after run periodic method of PeriodicService"""
-    telemetry_writer.add_distribution_metric(TELEMETRY_NAMESPACE_TAG_APPSEC, "test-metric", 4, tuple())
-    telemetry_writer.add_distribution_metric(TELEMETRY_NAMESPACE_TAG_APPSEC, "test-metric", 5, tuple())
-    telemetry_writer.add_distribution_metric(TELEMETRY_NAMESPACE_TAG_APPSEC, "test-metric", 6, tuple())
+    telemetry_lifecycle_writer.add_distribution_metric(TELEMETRY_NAMESPACE_TAG_APPSEC, "test-metric", 4, tuple())
+    telemetry_lifecycle_writer.add_distribution_metric(TELEMETRY_NAMESPACE_TAG_APPSEC, "test-metric", 5, tuple())
+    telemetry_lifecycle_writer.add_distribution_metric(TELEMETRY_NAMESPACE_TAG_APPSEC, "test-metric", 6, tuple())
     expected_series = [
         {
             "metric": "test-metric",
@@ -327,7 +324,7 @@ def test_send_metric_flush_and_distributions_series_is_restarted(
     ]
 
     _assert_metric(
-        test_agent_metrics_session,
+        test_agent_session,
         expected_series,
         namespace=TELEMETRY_NAMESPACE_TAG_APPSEC,
         type_paypload=TELEMETRY_TYPE_DISTRIBUTION,
@@ -341,10 +338,10 @@ def test_send_metric_flush_and_distributions_series_is_restarted(
         }
     ]
 
-    telemetry_writer.add_distribution_metric(TELEMETRY_NAMESPACE_TAG_APPSEC, "test-metric", 1, tuple())
+    telemetry_lifecycle_writer.add_distribution_metric(TELEMETRY_NAMESPACE_TAG_APPSEC, "test-metric", 1, tuple())
 
     _assert_metric(
-        test_agent_metrics_session,
+        test_agent_session,
         expected_series,
         namespace=TELEMETRY_NAMESPACE_TAG_APPSEC,
         type_paypload=TELEMETRY_TYPE_DISTRIBUTION,
@@ -352,9 +349,9 @@ def test_send_metric_flush_and_distributions_series_is_restarted(
     )
 
 
-def test_send_log_metric_simple(telemetry_writer, test_agent_metrics_session, mock_time):
+def test_send_log_metric_simple(telemetry_lifecycle_writer, test_agent_session, mock_time):
     """Check the queue of metrics is empty after run periodic method of PeriodicService"""
-    telemetry_writer.add_log("WARNING", "test error 1")
+    telemetry_lifecycle_writer.add_log("WARNING", "test error 1")
     expected_payload = [
         {
             "level": "WARNING",
@@ -363,12 +360,12 @@ def test_send_log_metric_simple(telemetry_writer, test_agent_metrics_session, mo
         },
     ]
 
-    _assert_logs(test_agent_metrics_session, expected_payload)
+    _assert_logs(test_agent_session, expected_payload)
 
 
-def test_send_log_metric_simple_tags(telemetry_writer, test_agent_metrics_session, mock_time):
+def test_send_log_metric_simple_tags(telemetry_lifecycle_writer, test_agent_session, mock_time):
     """Check the queue of metrics is empty after run periodic method of PeriodicService"""
-    telemetry_writer.add_log("WARNING", "test error 1", tags={"a": "b", "c": "d"})
+    telemetry_lifecycle_writer.add_log("WARNING", "test error 1", tags={"a": "b", "c": "d"})
     expected_payload = [
         {
             "level": "WARNING",
@@ -378,12 +375,12 @@ def test_send_log_metric_simple_tags(telemetry_writer, test_agent_metrics_sessio
         },
     ]
 
-    _assert_logs(test_agent_metrics_session, expected_payload)
+    _assert_logs(test_agent_session, expected_payload)
 
 
-def test_send_multiple_log_metric(telemetry_writer, test_agent_metrics_session, mock_time):
+def test_send_multiple_log_metric(telemetry_lifecycle_writer, test_agent_session, mock_time):
     """Check the queue of metrics is empty after run periodic method of PeriodicService"""
-    telemetry_writer.add_log("WARNING", "test error 1", "Traceback:\nValueError", {"a": "b"})
+    telemetry_lifecycle_writer.add_log("WARNING", "test error 1", "Traceback:\nValueError", {"a": "b"})
     expected_payload = [
         {
             "level": "WARNING",
@@ -394,8 +391,8 @@ def test_send_multiple_log_metric(telemetry_writer, test_agent_metrics_session, 
         },
     ]
 
-    _assert_logs(test_agent_metrics_session, expected_payload)
+    _assert_logs(test_agent_session, expected_payload)
 
-    telemetry_writer.add_log("WARNING", "test error 1", "Traceback:\nValueError", {"a": "b"})
+    telemetry_lifecycle_writer.add_log("WARNING", "test error 1", "Traceback:\nValueError", {"a": "b"})
 
-    _assert_logs(test_agent_metrics_session, expected_payload, seq_id=2)
+    _assert_logs(test_agent_session, expected_payload, seq_id=2)

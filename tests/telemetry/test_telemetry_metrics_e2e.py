@@ -29,7 +29,7 @@ def gunicorn_server(telemetry_metrics_enabled="true", token=None):
     cmd = ["ddtrace-run", "gunicorn", "-w", "1", "-b", "0.0.0.0:8000", "tests.telemetry.app:app"]
     env = _build_env()
     env["DD_TELEMETRY_METRICS_ENABLED"] = telemetry_metrics_enabled
-    env["DD_TELEMETRY_METRICS_INTERVAL_SECONDS"] = "1.0"
+    env["DD_TELEMETRY_HEARTBEAT_INTERVAL"] = "1.0"
     env["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"] = "X-Datadog-Test-Session-Token:{}".format(token)
     env["DD_TRACE_AGENT_URL"] = os.environ.get("DD_TRACE_AGENT_URL", "")
     env["DD_TRACE_DEBUG"] = "true"
@@ -90,22 +90,23 @@ def test_telemetry_metrics_enabled_on_gunicorn_child_process(test_agent_session)
         gunicorn_client.get("/metrics")
         response = gunicorn_client.get("/metrics")
         response_content = json.loads(response.content)
-        assert response_content["telemetry_metrics_writer_running"] is True
-        assert response_content["telemetry_metrics_writer_worker"] is True
-        assert response_content["telemetry_metrics_writer_queue"][0]["metric"] == "test_metric"
-        assert response_content["telemetry_metrics_writer_queue"][0]["points"][0][1] == 3.0
+        assert response_content["telemetry_lifecycle_writer_running"] is True
+        assert response_content["telemetry_lifecycle_writer_worker"] is True
+        assert response_content["telemetry_lifecycle_writer_queue"][0]["metric"] == "test_metric"
+        assert response_content["telemetry_lifecycle_writer_queue"][0]["points"][0][1] == 3.0
         time.sleep(1)
         gunicorn_client.get("/metrics")
         response = gunicorn_client.get("/metrics")
         response_content = json.loads(response.content)
-        assert response_content["telemetry_metrics_writer_queue"][0]["points"][0][1] == 2.0
+        assert response_content["telemetry_lifecycle_writer_queue"][0]["points"][0][1] == 2.0
     events = test_agent_session.get_events()
-    assert len(events) == 6
-    assert events[1]["payload"]["series"][0]["metric"] == "test_metric"
-    assert events[3]["payload"]["series"][0]["metric"] == "test_metric"
+    metrics = list(filter(lambda event: event["request_type"] == "generate-metrics", events))
+    assert len(metrics) == 2
+    assert metrics[0]["payload"]["series"][0]["metric"] == "test_metric"
+    assert metrics[1]["payload"]["series"][0]["metric"] == "test_metric"
 
 
-def test_span_creation_and_finished_metrics_datadog(test_agent_metrics_session, ddtrace_run_python_code_in_subprocess):
+def test_span_creation_and_finished_metrics_datadog(test_agent_session, ddtrace_run_python_code_in_subprocess):
     code = """
 from ddtrace import tracer
 for _ in range(10):
@@ -114,20 +115,20 @@ for _ in range(10):
 """
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code)
     assert status == 0, stderr
-    events = test_agent_metrics_session.get_events()
+    events = test_agent_session.get_events()
 
     metrics = get_metrics_from_events(events)
     assert len(metrics) == 2
-    assert metrics[0]["metric"] == "span_created"
+    assert metrics[0]["metric"] == "spans_created"
     assert metrics[0]["tags"] == ["integration_name:datadog"]
     assert metrics[0]["points"][0][1] == 10
-    assert metrics[1]["metric"] == "span_finished"
+    assert metrics[1]["metric"] == "spans_finished"
     assert metrics[1]["tags"] == ["integration_name:datadog"]
     assert metrics[1]["points"][0][1] == 10
 
 
 @pytest.mark.skipif(sys.version_info < (3, 7), reason="OpenTelemetry dropped support for python<=3.6")
-def test_span_creation_and_finished_metrics_otel(test_agent_metrics_session, ddtrace_run_python_code_in_subprocess):
+def test_span_creation_and_finished_metrics_otel(test_agent_session, ddtrace_run_python_code_in_subprocess):
     code = """
 import opentelemetry
 
@@ -140,21 +141,19 @@ for _ in range(9):
     env["DD_TRACE_OTEL_ENABLED"] = "true"
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, stderr
-    events = test_agent_metrics_session.get_events()
+    events = test_agent_session.get_events()
 
     metrics = get_metrics_from_events(events)
     assert len(metrics) == 2
-    assert metrics[0]["metric"] == "span_created"
+    assert metrics[0]["metric"] == "spans_created"
     assert metrics[0]["tags"] == ["integration_name:otel"]
     assert metrics[0]["points"][0][1] == 9
-    assert metrics[1]["metric"] == "span_finished"
+    assert metrics[1]["metric"] == "spans_finished"
     assert metrics[1]["tags"] == ["integration_name:otel"]
     assert metrics[1]["points"][0][1] == 9
 
 
-def test_span_creation_and_finished_metrics_opentracing(
-    test_agent_metrics_session, ddtrace_run_python_code_in_subprocess
-):
+def test_span_creation_and_finished_metrics_opentracing(test_agent_session, ddtrace_run_python_code_in_subprocess):
     code = """
 from ddtrace.opentracer import Tracer
 
@@ -165,20 +164,20 @@ for _ in range(9):
 """
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code)
     assert status == 0, stderr
-    events = test_agent_metrics_session.get_events()
+    events = test_agent_session.get_events()
 
     metrics = get_metrics_from_events(events)
     assert len(metrics) == 2
-    assert metrics[0]["metric"] == "span_created"
+    assert metrics[0]["metric"] == "spans_created"
     assert metrics[0]["tags"] == ["integration_name:opentracing"]
     assert metrics[0]["points"][0][1] == 9
-    assert metrics[1]["metric"] == "span_finished"
+    assert metrics[1]["metric"] == "spans_finished"
     assert metrics[1]["tags"] == ["integration_name:opentracing"]
     assert metrics[1]["points"][0][1] == 9
 
 
 @pytest.mark.skipif(sys.version_info < (3, 7), reason="OpenTelemetry dropped support for python<=3.6")
-def test_span_creation_no_finish(test_agent_metrics_session, ddtrace_run_python_code_in_subprocess):
+def test_span_creation_no_finish(test_agent_session, ddtrace_run_python_code_in_subprocess):
 
     code = """
 import ddtrace
@@ -199,17 +198,17 @@ for _ in range(4):
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, stderr
 
-    events = test_agent_metrics_session.get_events()
+    events = test_agent_session.get_events()
     metrics = get_metrics_from_events(events)
     assert len(metrics) == 3
 
-    assert metrics[0]["metric"] == "span_created"
+    assert metrics[0]["metric"] == "spans_created"
     assert metrics[0]["tags"] == ["integration_name:datadog"]
     assert metrics[0]["points"][0][1] == 4
-    assert metrics[1]["metric"] == "span_created"
+    assert metrics[1]["metric"] == "spans_created"
     assert metrics[1]["tags"] == ["integration_name:opentracing"]
     assert metrics[1]["points"][0][1] == 4
-    assert metrics[2]["metric"] == "span_created"
+    assert metrics[2]["metric"] == "spans_created"
     assert metrics[2]["tags"] == ["integration_name:otel"]
     assert metrics[2]["points"][0][1] == 4
 

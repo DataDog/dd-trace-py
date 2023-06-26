@@ -1,7 +1,7 @@
 from flask import Flask
 
 from ddtrace.internal.service import ServiceStatus
-from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.telemetry import telemetry_lifecycle_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_TRACER
 
 
@@ -15,12 +15,12 @@ def index():
 
 @app.route("/metrics")
 def metrics_view():
-    telemetry_writer.add_count_metric(
+    telemetry_lifecycle_writer.add_count_metric(
         TELEMETRY_NAMESPACE_TAG_TRACER,
         "test_metric",
         1.0,
     )
-    namespace_metrics = telemetry_writer._namespace._metrics_data
+    namespace_metrics = telemetry_lifecycle_writer._namespace._metrics_data
     metrics = [
         m.to_dict()
         for payload_type, namespaces in namespace_metrics.items()
@@ -28,7 +28,7 @@ def metrics_view():
         for m in metrics.values()
     ]
     return {
-        "telemetry_metrics_writer_running": telemetry_writer.status == ServiceStatus.RUNNING,
-        "telemetry_metrics_writer_worker": telemetry_writer._worker is not None,
-        "telemetry_metrics_writer_queue": metrics,
+        "telemetry_lifecycle_writer_running": telemetry_lifecycle_writer.status == ServiceStatus.RUNNING,
+        "telemetry_lifecycle_writer_worker": telemetry_lifecycle_writer._worker is not None,
+        "telemetry_lifecycle_writer_queue": metrics,
     }, 200

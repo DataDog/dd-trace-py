@@ -272,6 +272,7 @@ class Config(object):
         self._data_streams_enabled = asbool(os.getenv("DD_DATA_STREAMS_ENABLED", False))
         self._appsec_enabled = asbool(os.getenv(APPSEC_ENV, False))
         self._iast_enabled = asbool(os.getenv(IAST_ENV, False))
+        self._api_security_enabled = asbool(os.getenv("_DD_API_SECURITY_ENABLED", False))
         self._waf_timeout = DEFAULT.WAF_TIMEOUT
         try:
             self._waf_timeout = float(os.getenv("DD_APPSEC_WAF_TIMEOUT"))

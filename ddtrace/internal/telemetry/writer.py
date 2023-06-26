@@ -124,6 +124,7 @@ class TelemetryWriter(PeriodicService):
         self._disabled = False
         self._forked = False  # type: bool
         self._events_queue = []  # type: List[Dict]
+        self._configuration_queue = {}  # type: Dict[str, Dict]
         self._lock = forksafe.Lock()  # type: forksafe.ResetObject
         self.started = False
         forksafe.register(self._fork_writer)
@@ -145,11 +146,9 @@ class TelemetryWriter(PeriodicService):
         if self.status == ServiceStatus.RUNNING:
             return True
 
-        self.started = True
-
         if start_worker_thread:
             self.start()
-            atexit.register(self.stop)
+            atexit.register(self.app_shutdown)
             return True
         self.status = ServiceStatus.RUNNING
         return True
@@ -197,7 +196,7 @@ class TelemetryWriter(PeriodicService):
         # type: () -> bool
         """
         Returns true if the the telemetry writer is running and was enabled using
-        telemetry_writer.enable(start_worker_thread=True)
+        telemetry_lifecycle_writer.enable(start_worker_thread=True)
         """
         return self.status is ServiceStatus.RUNNING and self._worker and self._worker.is_alive()
 
@@ -237,45 +236,21 @@ class TelemetryWriter(PeriodicService):
         if self._forked:
             # app-started events should only be sent by the main process
             return
+        #  List of configurations to be collected
+        self.add_configurations(
+            [
+                ("data_streams_enabled", config._data_streams_enabled, "unknown"),
+                ("appsec_enabled", config._appsec_enabled, "unknown"),
+                ("trace_propagation_style_inject", str(config._propagation_style_inject), "unknown"),
+                ("trace_propagation_style_extract", str(config._propagation_style_extract), "unknown"),
+                ("ddtrace_bootstrapped", config._ddtrace_bootstrapped, "unknown"),
+                ("ddtrace_auto_used", "ddtrace.auto" in sys.modules, "unknown"),
+                ("otel_enabled", config._otel_enabled, "unknown"),
+            ]
+        )
+
         payload = {
-            #  List of configurations to be collected
-            "configuration": [
-                {
-                    "name": "data_streams_enabled",
-                    "origin": "env_var",
-                    "value": config._data_streams_enabled,
-                },
-                {
-                    "name": "appsec_enabled",
-                    "origin": "env_var",
-                    "value": config._appsec_enabled,
-                },
-                {
-                    "name": "propagation_style_inject",
-                    "origin": "env_var",
-                    "value": str(config._propagation_style_inject),
-                },
-                {
-                    "name": "propagation_style_extract",
-                    "origin": "env_var",
-                    "value": str(config._propagation_style_extract),
-                },
-                {
-                    "name": "ddtrace_bootstrapped",
-                    "origin": "default",
-                    "value": config._ddtrace_bootstrapped,
-                },
-                {
-                    "name": "ddtrace_auto_used",
-                    "origin": "default",
-                    "value": "ddtrace.auto" in sys.modules,
-                },
-                {
-                    "name": "otel_enabled",
-                    "origin": "env_var",
-                    "value": config._otel_enabled,
-                },
-            ],
+            "configuration": self._flush_configuration_queue(),
             "error": {
                 "code": self._error[0],
                 "message": self._error[1],
@@ -321,6 +296,43 @@ class TelemetryWriter(PeriodicService):
             integrations = self._integrations_queue
             self._integrations_queue = []
         return integrations
+
+    def _flush_configuration_queue(self):
+        # type: () -> List[Dict]
+        """Flushes and returns a list of all queued configurations"""
+        with self._lock:
+            configurations = list(self._configuration_queue.values())
+            self._configuration_queue = {}
+        return configurations
+
+    def _app_client_configuration_changed_event(self, configurations):
+        # type: (List[Dict]) -> None
+        """Adds a Telemetry event which sends list of modified configurations to the agent"""
+        payload = {
+            "configuration": configurations,
+        }
+        self.add_event(payload, "app-client-configuration-change")
+
+    def add_configuration(self, configuration_name, configuration_value, origin="unknown"):
+        # type: (str, Union[bool, float, str], str) -> None
+        """Creates and queues the name, origin, value of a configuration"""
+        with self._lock:
+            self._configuration_queue[configuration_name] = {
+                "name": configuration_name,
+                "origin": origin,
+                "value": configuration_value,
+            }
+
+    def add_configurations(self, configuration_list):
+        # type: (List[Tuple[str, Union[bool, float, str], str]]) -> None
+        """Creates and queues a list of configurations"""
+        with self._lock:
+            for name, value, origin in configuration_list:
+                self._configuration_queue[name] = {
+                    "name": name,
+                    "origin": origin,
+                    "value": value,
+                }
 
     def _app_dependencies_loaded_event(self):
         # type: () -> None
@@ -418,8 +430,6 @@ class TelemetryWriter(PeriodicService):
                 if metrics:
                     payload = {
                         "namespace": namespace,
-                        "lib_language": "python",
-                        "lib_version": _pep440_to_semver(),
                         "series": [m.to_dict() for m in metrics.values()],
                     }
                     log.debug("%s request payload, namespace %s", payload_type, namespace)
@@ -438,9 +448,9 @@ class TelemetryWriter(PeriodicService):
         if integrations:
             self._app_integrations_changed_event(integrations)
 
-        if not self._events_queue:
-            # Optimization: only queue heartbeat if no other events are queued
-            self._app_heartbeat_event()
+        configurations = self._flush_configuration_queue()
+        if configurations:
+            self._app_client_configuration_changed_event(configurations)
 
         namespace_metrics = self._namespace.flush()
         if namespace_metrics:
@@ -450,6 +460,10 @@ class TelemetryWriter(PeriodicService):
         if logs_metrics:
             self._generate_logs_event(logs_metrics)
 
+        if not self._events_queue:
+            # Optimization: only queue heartbeat if no other events are queued
+            self._app_heartbeat_event()
+
         telemetry_events = self._flush_events_queue()
         for telemetry_event in telemetry_events:
             self._client.send_event(telemetry_event)
@@ -458,10 +472,12 @@ class TelemetryWriter(PeriodicService):
         # type: (...) -> None
         super(TelemetryWriter, self).start(*args, **kwargs)
         # Queue app-started event after the telemetry worker thread is running
-        self._app_started_event()
-        self._app_dependencies_loaded_event()
+        if self.started is False:
+            self._app_started_event()
+            self._app_dependencies_loaded_event()
+            self.started = True
 
-    def on_shutdown(self):
+    def app_shutdown(self):
         self._app_closing_event()
         self.periodic()
 

@@ -9,7 +9,7 @@ from ddtrace.internal.constants import APPSEC_BLOCKED_RESPONSE_JSON
 from tests.appsec.test_processor import RULES_GOOD_PATH
 from tests.appsec.test_processor import _BLOCKED_IP
 from tests.appsec.test_telemety import _assert_generate_metrics
-from tests.appsec.test_telemety import mock_telemetry_metrics_writer  # noqa: F401
+from tests.appsec.test_telemety import mock_telemetry_lifecycle_writer  # noqa: F401
 from tests.contrib.flask import BaseFlaskTestCase
 from tests.utils import override_env
 from tests.utils import override_global_config
@@ -17,8 +17,8 @@ from tests.utils import override_global_config
 
 class FlaskAppSecTestCase(BaseFlaskTestCase):
     @pytest.fixture(autouse=True)
-    def inject_fixtures(self, mock_telemetry_metrics_writer):  # noqa: F811
-        self.mock_telemetry_metrics_writer = mock_telemetry_metrics_writer
+    def inject_fixtures(self, mock_telemetry_lifecycle_writer):  # noqa: F811
+        self.mock_telemetry_lifecycle_writer = mock_telemetry_lifecycle_writer
 
     def _aux_appsec_prepare_tracer(self, appsec_enabled=True):
         self.tracer._appsec_enabled = appsec_enabled
@@ -34,7 +34,9 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
                 assert resp.text == APPSEC_BLOCKED_RESPONSE_JSON
 
         _assert_generate_metrics(
-            self.mock_telemetry_metrics_writer._namespace._metrics_data, is_rule_triggered=True, is_blocked_request=True
+            self.mock_telemetry_lifecycle_writer._namespace._metrics_data,
+            is_rule_triggered=True,
+            is_blocked_request=True,
         )
 
     def test_telemetry_metrics_attack(self):
@@ -48,7 +50,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert query == {"attack": "1' or '1' = '1'"}
 
         _assert_generate_metrics(
-            self.mock_telemetry_metrics_writer._namespace._metrics_data,
+            self.mock_telemetry_lifecycle_writer._namespace._metrics_data,
             is_rule_triggered=True,
             is_blocked_request=False,
         )
