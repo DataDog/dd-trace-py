@@ -66,42 +66,43 @@ def test_app_started_event(telemetry_lifecycle_writer, test_agent_session, mock_
     events = test_agent_session.get_events()
     assert len(events) == 1
 
+    events[0]["payload"]["configuration"].sort(key=lambda c: c["name"])
     payload = {
         "configuration": [
             {
-                "name": "data_streams_enabled",
-                "origin": "env_var",
-                "value": False,
-            },
-            {
                 "name": "appsec_enabled",
-                "origin": "env_var",
+                "origin": "unknown",
                 "value": False,
             },
             {
-                "name": "propagation_style_inject",
-                "origin": "env_var",
-                "value": "['tracecontext', 'datadog']",
-            },
-            {
-                "name": "propagation_style_extract",
-                "origin": "env_var",
-                "value": "['tracecontext', 'datadog']",
-            },
-            {
-                "name": "ddtrace_bootstrapped",
-                "origin": "default",
+                "name": "data_streams_enabled",
+                "origin": "unknown",
                 "value": False,
             },
             {
                 "name": "ddtrace_auto_used",
-                "origin": "default",
+                "origin": "unknown",
+                "value": False,
+            },
+            {
+                "name": "ddtrace_bootstrapped",
+                "origin": "unknown",
                 "value": False,
             },
             {
                 "name": "otel_enabled",
-                "origin": "env_var",
+                "origin": "unknown",
                 "value": False,
+            },
+            {
+                "name": "trace_propagation_style_extract",
+                "origin": "unknown",
+                "value": "['tracecontext', 'datadog']",
+            },
+            {
+                "name": "trace_propagation_style_inject",
+                "origin": "unknown",
+                "value": "['tracecontext', 'datadog']",
             },
         ],
         "error": {
@@ -141,42 +142,42 @@ telemetry_lifecycle_writer.disable()
     assert status == 0, stderr
 
     events = test_agent_session.get_events()
-
+    events[0]["payload"]["configuration"].sort(key=lambda c: c["name"])
     configuration = [
         {
-            "name": "data_streams_enabled",
-            "origin": "env_var",
-            "value": True,
-        },
-        {
             "name": "appsec_enabled",
-            "origin": "env_var",
+            "origin": "unknown",
             "value": False,
         },
         {
-            "name": "propagation_style_inject",
-            "origin": "env_var",
-            "value": "['datadog']",
-        },
-        {
-            "name": "propagation_style_extract",
-            "origin": "env_var",
-            "value": "['b3multi']",
-        },
-        {
-            "name": "ddtrace_bootstrapped",
-            "origin": "default",
+            "name": "data_streams_enabled",
+            "origin": "unknown",
             "value": True,
         },
         {
             "name": "ddtrace_auto_used",
-            "origin": "default",
+            "origin": "unknown",
+            "value": True,
+        },
+        {
+            "name": "ddtrace_bootstrapped",
+            "origin": "unknown",
             "value": True,
         },
         {
             "name": "otel_enabled",
-            "origin": "env_var",
+            "origin": "unknown",
             "value": True,
+        },
+        {
+            "name": "trace_propagation_style_extract",
+            "origin": "unknown",
+            "value": "['b3multi']",
+        },
+        {
+            "name": "trace_propagation_style_inject",
+            "origin": "unknown",
+            "value": "['datadog']",
         },
     ]
 
@@ -240,6 +241,37 @@ def test_add_integration(telemetry_lifecycle_writer, test_agent_session, mock_ti
         ]
     }
     assert requests[0]["body"] == _get_request_body(expected_payload, "app-integrations-change")
+
+
+def test_app_client_configuration_changed_event(telemetry_lifecycle_writer, test_agent_session, mock_time):
+    """asserts that queuing a configuration sends a valid telemetry request"""
+
+    telemetry_lifecycle_writer.add_configuration("appsec_enabled", True)
+    telemetry_lifecycle_writer.add_configuration("trace_propagation_style_extract", "['datadog']")
+    telemetry_lifecycle_writer.add_configuration("appsec_enabled", False, "env_var")
+
+    telemetry_lifecycle_writer.periodic()
+
+    events = test_agent_session.get_events()
+    assert len(events) == 1
+    assert events[0]["request_type"] == "app-client-configuration-change"
+    received_configurations = events[0]["payload"]["configuration"]
+    # Sort the configuration list by name
+    received_configurations.sort(key=lambda c: c["name"])
+
+    # assert the latest configuration value is send to the agent
+    assert received_configurations == [
+        {
+            "name": "appsec_enabled",
+            "origin": "env_var",
+            "value": False,
+        },
+        {
+            "name": "trace_propagation_style_extract",
+            "origin": "unknown",
+            "value": "['datadog']",
+        },
+    ]
 
 
 def test_add_integration_disabled_writer(telemetry_lifecycle_writer, test_agent_session):
