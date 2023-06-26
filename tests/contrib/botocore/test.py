@@ -1235,7 +1235,7 @@ class BotocoreTest(TracerTestCase):
 
     @mock_sqs
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
-    def test_data_streams_sqs_header(self):
+    def test_data_streams_sqs_no_header(self):
         with self.override_config("botocore", dict(tag_all_params=True)):
             sqs = self.session.create_client("sqs", region_name="us-east-1", endpoint_url="http://localhost:4566")
             queue = sqs.create_queue(QueueName="test")
