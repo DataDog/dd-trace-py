@@ -3,7 +3,6 @@
 Any `sampled = False` trace won't be written, and can be ignored by the instrumentation.
 """
 import abc
-import json
 import os
 from typing import Any
 from typing import Dict
@@ -22,8 +21,8 @@ from .constants import AUTO_REJECT
 from .constants import ENV_KEY
 from .constants import SAMPLING_AGENT_DECISION
 from .constants import SAMPLING_LIMIT_DECISION
-from .constants import SAMPLING_RULE_DECISION
 from .constants import SAMPLING_PRIORITY_KEY
+from .constants import SAMPLING_RULE_DECISION
 from .constants import USER_KEEP
 from .constants import USER_REJECT
 from .internal.compat import iteritems
@@ -156,7 +155,7 @@ class RateByServiceSampler(BasePrioritySampler):
         # type: (Span, int) -> None
         span.context.sampling_priority = priority
         span.sampled = priority > 0  # Positive priorities mean it was kept
-        
+
         # This might not be the right way to handle setting _sampling_priority_v1 on span
         span.set_metric(SAMPLING_PRIORITY_KEY, priority)
 
@@ -170,7 +169,6 @@ class RateByServiceSampler(BasePrioritySampler):
         sampling_mechanism = (
             SamplingMechanism.DEFAULT if sampler == self._default_sampler else SamplingMechanism.AGENT_RATE
         )
-        
 
         update_sampling_decision(span.context, sampling_mechanism, sampled)
 
@@ -253,7 +251,6 @@ class DatadogSampler(RateByServiceSampler):
         """
         # Use default sample rate of 1.0
         super(DatadogSampler, self).__init__()
-        # import pdb; pdb.set_trace()
 
         if default_sample_rate is None:
             sample_rate = os.getenv("DD_TRACE_SAMPLE_RATE")
@@ -295,7 +292,7 @@ class DatadogSampler(RateByServiceSampler):
         if isinstance(sampler, RateSampler):
             # When agent based sampling is used
             return super(DatadogSampler, self)._set_sampler_decision(span, sampler, sampled)
-        
+
         if isinstance(sampler, SamplingRule):
             span.set_metric(SAMPLING_RULE_DECISION, sampler.sample_rate)
         elif isinstance(sampler, RateLimiter) and not sampled:
@@ -319,7 +316,6 @@ class DatadogSampler(RateByServiceSampler):
 
         # need to check span context object tags since they haven't yet been added to the root span.
         context = trace[0].context
-        context_tags = [context._meta, context._metrics]
         for rule in self.rules:
             for tag in context._meta:
                 if rule.tag_match(context._meta):
@@ -361,15 +357,16 @@ class DatadogSampler(RateByServiceSampler):
         if rule:
             first_span = trace[0]
             sampled = rule.sample(first_span)
-            
-            # not sure we need to actually do this for each span if we continue to use context to store sampling decision
+
+            # not sure we need to actually do this for each span if we continue
+            # to use context to store sampling decision
             for span in trace:
                 self._set_sampler_decision(span, sampler, sampled)
                 if sampled:
                     # Ensure all allowed traces adhere to the global rate limit
                     # DEV: Think about how behavior may change now that we check the limiter against all spans that were
                     # going to be dropped instead of just the root span, also what to return if we block some spans but
-                    # sample others in a single trace? 
+                    # sample others in a single trace?
                     allowed = self.limiter.is_allowed(span.start_ns)
                     if not allowed:
                         self._set_sampler_decision(span, self.limiter, allowed)
@@ -378,6 +375,7 @@ class DatadogSampler(RateByServiceSampler):
             sampled = super(DatadogSampler, self).sample(trace)
 
         return sampled
+
 
 class SamplingRule(BaseSampler):
     """

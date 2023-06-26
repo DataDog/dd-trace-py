@@ -350,19 +350,20 @@ def is_single_span_sampled(span):
 
 def get_trace_sampling_rules():
     # type:() -> Optional[List[SamplingRule]]
-            # Ensure rules is a list
-        rules = []  # type: List[SamplingRule]
-        if rules is None:
-            env_sampling_rules = os.getenv("DD_TRACE_SAMPLING_RULES")
-            if env_sampling_rules:
-                rules = _parse_rules_from_env_variable(env_sampling_rules)
-            else:
-                rules = []
-         # Validate that the rules is a list of SampleRules
-        for rule in rules:
-            if not isinstance(rule, SamplingRule):
-                raise TypeError("Rule {!r} must be a sub-class of type ddtrace.sampler.SamplingRules".format(rule))
-        return rules
+    # Ensure rules is a list
+    rules = []  # type: List[SamplingRule]
+    if rules is None:
+        env_sampling_rules = os.getenv("DD_TRACE_SAMPLING_RULES")
+        if env_sampling_rules:
+            rules = _parse_rules_from_env_variable(env_sampling_rules)
+        else:
+            rules = []
+    # Validate that the rules is a list of SampleRules
+    for rule in rules:
+        if not isinstance(rule, SamplingRule):
+            raise TypeError("Rule {!r} must be a sub-class of type ddtrace.sampler.SamplingRules".format(rule))
+    return rules
+
 
 def _parse_rules_from_env_variable(self, rules):
     sampling_rules = []

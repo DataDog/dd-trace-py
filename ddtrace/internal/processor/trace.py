@@ -24,7 +24,6 @@ from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.telemetry import telemetry_metrics_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_TRACER
 from ddtrace.internal.writer import TraceWriter
-from ddtrace.sampler import DatadogSampler
 from ddtrace.span import Span
 from ddtrace.span import _get_64_highest_order_bits_as_hex
 from ddtrace.span import _is_top_level
@@ -75,16 +74,16 @@ class TraceSamplingProcessor(TraceProcessor):
     the spans of a trace are divided in separate lists then it's possible that
     parts of the trace are unsampled when the whole trace should be sampled.
     """
-    def __init__(self, sampling_rules=[]):
-        self.sampling_rules = sampling_rules
 
-    _compute_stats_enabled = attr.ib(type=bool)
+    def __init__(self, compute_stats_enabled, sampler):
+        self.sampler = sampler
+
+        self._compute_stats_enabled = compute_stats_enabled
 
     def process_trace(self, trace):
         # type: (List[Span]) -> Optional[List[Span]]
         if trace:
-            sampler = DatadogSampler(self.sampling_rules)
-            trace = sampler.sample(trace)
+            trace = self.sampler.sample(trace)
             # When stats computation is enabled in the tracer then we can
             # safely drop the traces.
             if self._compute_stats_enabled:

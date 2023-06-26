@@ -15,19 +15,14 @@ from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounter
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import get_span_sampling_rules
 from ddtrace.internal.sampling import get_trace_sampling_rules
-
-from ddtrace.sampler import SamplingRule
 from ddtrace.settings.peer_service import PeerServiceConfig
 from ddtrace.vendor import debtcollector
 
 from . import _hooks
 from ._monkey import patch
-from .constants import AUTO_KEEP
-from .constants import AUTO_REJECT
 from .constants import ENV_KEY
 from .constants import HOSTNAME_KEY
 from .constants import PID
-from .constants import SAMPLE_RATE_METRIC_KEY
 from .constants import VERSION_KEY
 from .context import Context
 from .internal import agent
@@ -63,7 +58,6 @@ from .sampler import BasePrioritySampler
 from .sampler import BaseSampler
 from .sampler import DatadogSampler
 from .sampler import RateByServiceSampler
-from .sampler import RateSampler
 from .span import Span
 
 
@@ -140,7 +134,7 @@ def _default_span_processors_factory(
     iast_enabled,  # type: bool
     compute_stats_enabled,  # type: bool
     single_span_sampling_rules,  # type: List[SpanSamplingRule]
-    trace_sampling_rules, # type: List[SamplingRule]
+    trace_sampler,  # type: BaseSampler
     agent_url,  # type: str
     profiling_span_processor,  # type: EndpointCallCounterProcessor
     peer_service_processor,  # type: PeerServiceProcessor
@@ -150,7 +144,7 @@ def _default_span_processors_factory(
     """Construct the default list of span processors to use."""
     trace_processors = []  # type: List[TraceProcessor]
     trace_processors += [TraceTagsProcessor()]
-    trace_processors += [TraceSamplingProcessor(compute_stats_enabled, trace_sampling_rules)]
+    trace_processors += [TraceSamplingProcessor(compute_stats_enabled, trace_sampler)]
     trace_processors += trace_filters
 
     span_processors = []  # type: List[SpanProcessor]
@@ -242,13 +236,14 @@ class Tracer(object):
 
         self.enabled = asbool(os.getenv("DD_TRACE_ENABLED", default=True))
         self.context_provider = DefaultContextProvider()
-        self._sampler = DatadogSampler()  # type: BaseSampler
+        self._sampler = get_trace_sampling_rules()
+        self._compute_stats = config._trace_compute_stats
+        self._sampler = DatadogSampler(self._compute_stats, self._sampler)  # type: BaseSampler
         if asbool(os.getenv("DD_PRIORITY_SAMPLING", True)):
             self._priority_sampler = RateByServiceSampler()  # type: Optional[BasePrioritySampler]
         else:
             self._priority_sampler = None
         self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
-        self._compute_stats = config._trace_compute_stats
         self._agent_url = agent.get_trace_url() if url is None else url  # type: str
         agent.verify_url(self._agent_url)
 
@@ -264,7 +259,6 @@ class Tracer(object):
                 headers={"Datadog-Client-Computed-Stats": "yes"} if self._compute_stats else {},
             )
         self._single_span_sampling_rules = get_span_sampling_rules()  # type: List[SpanSamplingRule]
-        self._trace_sampling_rules = get_trace_sampling_rules()
         self._writer = writer  # type: TraceWriter
         self._partial_flush_enabled = asbool(os.getenv("DD_TRACE_PARTIAL_FLUSH_ENABLED", default=True))
         self._partial_flush_min_spans = int(os.getenv("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", default=500))
@@ -283,7 +277,7 @@ class Tracer(object):
             self._iast_enabled,
             self._compute_stats,
             self._single_span_sampling_rules,
-            self._trace_sampling_rules,
+            self._sampler,
             self._agent_url,
             self._endpoint_call_counter_span_processor,
             self._peer_service_processor,
@@ -527,7 +521,7 @@ class Tracer(object):
                 self._iast_enabled,
                 self._compute_stats,
                 self._single_span_sampling_rules,
-                self._trace_sampling_rules,
+                self._sampler,
                 self._agent_url,
                 self._endpoint_call_counter_span_processor,
                 self._peer_service_processor,
@@ -578,7 +572,7 @@ class Tracer(object):
             self._iast_enabled,
             self._compute_stats,
             self._single_span_sampling_rules,
-            self._trace_sampling_rules,
+            self._sampler,
             self._agent_url,
             self._endpoint_call_counter_span_processor,
             self._peer_service_processor,
@@ -761,7 +755,6 @@ class Tracer(object):
         # update set of services handled by tracer
         if service and service not in self._services and self._is_span_internal(span):
             self._services.add(service)
-
 
         # Only call span processors if the tracer is enabled
         if self.enabled:
