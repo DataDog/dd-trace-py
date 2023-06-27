@@ -306,18 +306,14 @@ def _get_test_class_hierarchy(item):
     return ".".join(test_class_hierarchy)
 
 
-@pytest.hookimpl(tryfirst=True, hookwrapper=True)
 def pytest_ignore_collect(path, config):
-    outcome = yield
     if (
         not path.strpath.endswith("conftest.py")
         and _CIVisibility.test_skipping_enabled()
         and _CIVisibility._instance._should_skip_path(path.strpath)
     ):
         # Skip test suite
-        outcome.force_result(True)
-    yield outcome
-    return
+        return True
 
 
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)
