@@ -1,3 +1,4 @@
+==============
  Contributing
 ==============
 
@@ -34,7 +35,7 @@ Branches and Pull Requests
 
 This library follows the practice of `trunk-based development <https://trunkbaseddevelopment.com/>`_.
 
-The "trunk" branch, which new pull requests should target, is `1.x`.
+The "trunk" branch, which new pull requests should target, is ``1.x``.
 Roughly every two weeks, we checkpoint the current state of this branch as a new
 release branch, whose naming follows `semantic versioning <https://semver.org/>`_.
 You can find the list of past released versions `here <https://github.com/DataDog/dd-trace-py/releases>`_.
@@ -44,7 +45,7 @@ standard, which is enforced by a continuous integration job. The standardized "s
 in pull request names are enumerated `here <releasenotes.rst#Scope>`_.
 
 Pull requests that change the library's public API require a `release note <releasenotes.rst>`_.
-If your pull request doesn't change the public API, apply the `no-changelog` label.
+If your pull request doesn't change the public API, apply the ``no-changelog`` label.
 
 Backporting
 -----------
@@ -54,10 +55,10 @@ minor version branches according to the `version support policy <versioning.rst#
 
 * **Fix PRs** are backported to all maintained release branches.
 * **CI PRs** are backported to the maintained release branches.
-* **New features** (`feat` PRs) are not backported.
+* **New features** (``feat`` PRs) are not backported.
 * **Chore, documentation, and other PRs** are not backported.
 
-If your pull request is a `fix` or `ci` change, apply the backport labels corresponding to the minor
+If your pull request is a ``fix`` or ``ci`` change, apply the backport labels corresponding to the minor
 versions that need the change.
 
 Implementation Guidelines
@@ -102,14 +103,14 @@ communication.
 If a pull request fixes a bug, it should include a test that, on the trunk branch, would replicate the bug.
 Seeing this test pass on the fix branch gives us confidence that the bug was actually fixed.
 
-Put your code's tests in the appropriate subdirectory of the `tests` directory based on what they are testing.
-If your feature is substantially new, you may decide to create a new `tests` subdirectory in the interest
+Put your code's tests in the appropriate subdirectory of the ``tests`` directory based on what they are testing.
+If your feature is substantially new, you may decide to create a new ``tests`` subdirectory in the interest
 of code organization.
 
-`.riot/requirements` contains requirements files generated with `pip-compile` for every environment specified
-by `riotfile.py`. Riot uses these files to build its environments, and they do not get rebuilt automatically
+``.riot/requirements`` contains requirements files generated with ``pip-compile`` for every environment specified
+by ``riotfile.py``. Riot uses these files to build its environments, and they do not get rebuilt automatically
 when the riotfile changes. Thus, if you make changes to the riotfile, you need to run either
-`scripts/compile-and-prune-test-requirements` or `riot run -c <mytests>` to regenerate the requirements
+``scripts/compile-and-prune-test-requirements`` or ``riot run -c <mytests>`` to regenerate the requirements
 files for the environments that changed. In order to run the script, you need to have all minor versions
 of Python that the tracer supports. The easiest way to accomplish this and generate the files is to simply
 spin up the testagent container, exec into it, and run the script from there.
@@ -122,30 +123,31 @@ spin up the testagent container, exec into it, and run the script from there.
 
 
 This can also be accomplished using pyenv and installing all of the Python versions before running the script.
-You can commit and pull request changes to files in `.riot/requirements` alongside the corresponding changes to `riotfile.py`.
+You can commit and pull request changes to files in ``.riot/requirements`` alongside the corresponding changes to ``riotfile.py``.
 
 Documentation
 -------------
 
 Pull requests implementing new features should include documentation for those features. The audience for this
 documentation is the public population of library users. The Products and Core logic are documented alongside
-this document, in the `docs` directory. The documentation for each Integration is contained in a docstring
-in that integration's `__init__.py` file. See `this page <contributing-integrations.rst>`_ for more information
+this document, in the ``docs`` directory. The documentation for each Integration is contained in a docstring
+in that integration's ``__init__.py`` file. See `this page <contributing-integrations.rst>`_ for more information
 on writing documentation for Integrations.
 
 Logging
 -------
 
-Use `ddtrace.internal.logger.get_logger(__name__)` to initialize/retrieve a `DDLogger` object you can use
+Use ``ddtrace.internal.logger.get_logger(__name__)`` to initialize/retrieve a ``DDLogger`` object you can use
 to emit well-formatted log messages from your code.
 
 Keep the following in mind when writing logging code:
 
-* Logs should be generated with the level `DEBUG`, `INFO`, `WARNING`, or `ERROR` according to conventions
+* Logs should be generated with the level ``DEBUG``, ``INFO``, ``WARNING``, or ``ERROR`` according to conventions
   `like these <https://stackoverflow.com/a/2031209/735204>`_.
 * Log messages should be grammatically correct and should not contain spelling errors.
 * Log messages should be standalone and actionable. They should not require context from other logs, metrics or trace data.
 * Log data is sensitive and should not contain application secrets or other sensitive data.
+
 
 .. toctree::
     :hidden:
