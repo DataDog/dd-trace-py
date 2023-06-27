@@ -30,7 +30,7 @@ COVERAGE_SINGLETON = None
 ROOT_DIR = None
 
 
-def enabled(root=None):
+def enabled():
     if config._ci_visibility_code_coverage_enabled:
         if compat.PY2:
             return False
@@ -40,24 +40,26 @@ def enabled(root=None):
                 "To use code coverage tracking, please install `coverage` from https://pypi.org/project/coverage/"
             )
             return False
-        if root:
-            global COVERAGE_SINGLETON
-            global ROOT_DIR
-            if ROOT_DIR is None:
-                ROOT_DIR = root
-
-            if COVERAGE_SINGLETON is None:
-                coverage_kwargs = {
-                    "data_file": None,
-                    "source": [root],
-                    "config_file": False,
-                    "omit": [
-                        "*/site-packages/*",
-                    ],
-                }
-                COVERAGE_SINGLETON = Coverage(**coverage_kwargs)
         return True
     return False
+
+
+def _initialize(root_dir):
+    global ROOT_DIR
+    if ROOT_DIR is None:
+        ROOT_DIR = root_dir
+
+    global COVERAGE_SINGLETON
+    if COVERAGE_SINGLETON is None:
+        coverage_kwargs = {
+            "data_file": None,
+            "source": [root_dir],
+            "config_file": False,
+            "omit": [
+                "*/site-packages/*",
+            ],
+        }
+        COVERAGE_SINGLETON = Coverage(**coverage_kwargs)
 
 
 def _coverage_start():

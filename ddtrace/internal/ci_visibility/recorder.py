@@ -88,6 +88,7 @@ class CIVisibility(Service):
         self._tags = ci.tags(cwd=_get_git_repo())  # type: Dict[str, str]
         self._service = service
         self._codeowners = None
+        self._root_dir = None
 
         int_service = None
         if self.config is not None:
@@ -270,13 +271,21 @@ class CIVisibility(Service):
             log.warning("Test skips request responded with invalid JSON '%s'", response.body)
             return
 
+        self._test_suites_to_skip = []
         for item in parsed["data"]:
             if item["type"] == TEST_SKIPPING_LEVEL and "suite" in item["attributes"]:
-                module = item["attributes"].get("configurations", {}).get("test.bundle", None).replace(".", "/")
-                self._test_suites_to_skip.append("/".join((module, item["attributes"]["suite"])))
+                module = item["attributes"].get("configurations", {}).get("test.bundle", "").replace(".", "/")
+                self._test_suites_to_skip.append(
+                    "/".join((module, item["attributes"]["suite"])) if module else item["attributes"]["suite"]
+                )
 
     def _should_skip_path(self, path):
-        return path.endswith(tuple(self._test_suites_to_skip))
+        if not self._root_dir:
+            # Local import to make sure it's been initialized
+            from .coverage import ROOT_DIR
+
+            self._root_dir = ROOT_DIR
+        return os.path.relpath(path, self._root_dir) in self._test_suites_to_skip
 
     @classmethod
     def enable(cls, tracer=None, config=None, service=None):
