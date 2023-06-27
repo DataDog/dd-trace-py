@@ -1,3 +1,6 @@
+from time import sleep
+from unittest.mock import ANY
+
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_APPSEC
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_TRACER
 from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_DISTRIBUTION
@@ -53,8 +56,11 @@ def _assert_logs(
 
     # Python 2.7 and Python 3.5 fail with dictionaries and lists order
     expected_body = _get_request_body(expected_payload, TELEMETRY_TYPE_LOGS, seq_id)
-    expected_body_sorted = expected_body["payload"].sort(key=lambda x: x["message"], reverse=False)
-    result_event = events[0]["payload"].sort(key=lambda x: x["message"], reverse=False)
+    expected_body["payload"].sort(key=lambda x: x["message"], reverse=False)
+    expected_body_sorted = expected_body["payload"]
+
+    events[0]["payload"].sort(key=lambda x: x["message"], reverse=False)
+    result_event = events[0]["payload"]
 
     assert result_event == expected_body_sorted
 
@@ -447,6 +453,31 @@ def test_send_multiple_log_metric_no_duplicates_for_each_interval(
         _assert_logs(test_agent_metrics_session, expected_payload)
 
         for _ in range(10):
+            telemetry_metrics_writer.add_log("WARNING", "test error 1")
+
+        _assert_logs(test_agent_metrics_session, expected_payload, seq_id=2)
+
+
+def test_send_multiple_log_metric_no_duplicates_for_each_interval_check_time(
+    telemetry_metrics_writer, test_agent_metrics_session
+):
+    with override_global_config(dict(_telemetry_metrics_enabled=True)):
+        for _ in range(3):
+            sleep(0.1)
+            telemetry_metrics_writer.add_log("WARNING", "test error 1")
+
+        expected_payload = [
+            {
+                "level": "WARNING",
+                "message": "test error 1",
+                "tracer_time": ANY,
+            },
+        ]
+
+        _assert_logs(test_agent_metrics_session, expected_payload)
+
+        for _ in range(3):
+            sleep(0.1)
             telemetry_metrics_writer.add_log("WARNING", "test error 1")
 
         _assert_logs(test_agent_metrics_session, expected_payload, seq_id=2)

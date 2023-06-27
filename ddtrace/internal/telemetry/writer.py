@@ -47,7 +47,15 @@ log = get_logger(__name__)
 
 class LogData(dict):
     def __hash__(self):
-        return hash(tuple(sorted(self.items())))
+        return hash(tuple([self["message"], self["level"], self.get("tags"), self.get("stack_trace")]))
+
+    def __eq__(self, other):
+        return (
+            self["message"] == other["message"]
+            and self["level"] == other["level"]
+            and self.get("tags") == other.get("tags")
+            and self.get("stack_trace") == other.get("stack_trace")
+        )
 
 
 def _get_heartbeat_interval_or_default():
