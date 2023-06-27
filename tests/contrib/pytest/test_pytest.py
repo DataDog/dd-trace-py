@@ -1318,8 +1318,11 @@ class PytestTestCase(TracerTestCase):
         test_module_spans = [span for span in spans if span.get_tag("type") == "test_module_end"]
         assert test_module_spans[0].get_tag("test.module") == "test_outer_package"
         assert test_module_spans[0].get_tag("test.module_path") == "test_outer_package"
-        assert test_module_spans[1].get_tag("test.module") == "test_inner_package"
+        assert test_module_spans[1].get_tag("test.module") == "test_outer_package.test_inner_package"
         assert test_module_spans[1].get_tag("test.module_path") == "test_outer_package/test_inner_package"
+        test_suite_spans = [span for span in spans if span.get_tag("type") == "test_suite_end"]
+        assert test_suite_spans[0].get_tag("test.suite") == "test_outer_abc.py"
+        assert test_suite_spans[1].get_tag("test.suite") == "test_inner_abc.py"
 
     @pytest.mark.skipif(compat.PY2, reason="ddtrace does not support coverage on Python 2")
     def test_pytest_will_report_coverage(self):
