@@ -131,10 +131,7 @@ def _get_module_path(item):
 
 def _get_module_name(item):
     """Extract module name (fully qualified) from a `pytest.Item` instance."""
-    module_path = _get_module_path(item)
-    if module_path is None:
-        return None
-    return module_path.replace("/", ".")
+    return item.module.__name__
 
 
 def _get_suite_name(item):
