@@ -536,6 +536,7 @@ def set_http_meta(
                 (SPAN_DATA_NAMES.REQUEST_PATH_PARAMS, request_path_params),
                 (SPAN_DATA_NAMES.REQUEST_BODY, request_body),
                 (SPAN_DATA_NAMES.REQUEST_HTTP_IP, request_ip),
+                (SPAN_DATA_NAMES.REQUEST_ROUTE, route),
             ]
             if v is not None
         }
