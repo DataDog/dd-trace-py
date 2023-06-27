@@ -316,7 +316,8 @@ def pytest_ignore_collect(path, config):
     ):
         # Skip test suite
         outcome.force_result(True)
-    return outcome
+    yield outcome
+    return
 
 
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)
