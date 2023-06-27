@@ -75,6 +75,7 @@ def _do_request(method, url, payload, headers):
 class CIVisibility(Service):
     _instance = None  # type: Optional[CIVisibility]
     enabled = False
+    _test_suites_to_skip = None  # type: Optional[List[str]]
 
     def __init__(self, tracer=None, config=None, service=None):
         # type: (Optional[Tracer], Optional[IntegrationConfig], Optional[str]) -> None
@@ -99,7 +100,6 @@ class CIVisibility(Service):
         elif self._service is None and int_service is not None:
             self._service = int_service
 
-        self._test_suites_to_skip = None  # type: Optional[List[str]]
         self._requests_mode = REQUESTS_MODE.TRACES
         if ddconfig._ci_visibility_agentless_enabled:
             if not self._api_key:
