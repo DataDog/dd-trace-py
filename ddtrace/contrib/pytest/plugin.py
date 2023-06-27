@@ -34,6 +34,8 @@ from ddtrace.internal.ci_visibility.constants import SESSION_ID as _SESSION_ID
 from ddtrace.internal.ci_visibility.constants import SESSION_TYPE as _SESSION_TYPE
 from ddtrace.internal.ci_visibility.constants import SUITE_ID as _SUITE_ID
 from ddtrace.internal.ci_visibility.constants import SUITE_TYPE as _SUITE_TYPE
+from ddtrace.internal.ci_visibility.coverage import _coverage_end
+from ddtrace.internal.ci_visibility.coverage import _coverage_start
 from ddtrace.internal.ci_visibility.coverage import enabled as coverage_enabled
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
@@ -305,6 +307,19 @@ def _get_test_class_hierarchy(item):
 
 
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)
+def pytest_ignore_collect(path, config):
+    outcome = yield
+    if (
+        not path.strpath.endswith("conftest.py")
+        and _CIVisibility.test_skipping_enabled()
+        and _CIVisibility._instance._should_skip_path(path.strpath)
+    ):
+        # Skip test suite
+        outcome.force_result(True)
+    return outcome
+
+
+@pytest.hookimpl(tryfirst=True, hookwrapper=True)
 def pytest_runtest_protocol(item, nextitem):
     if not _CIVisibility.enabled:
         yield
@@ -322,14 +337,9 @@ def pytest_runtest_protocol(item, nextitem):
     test_suite_span = _extract_span(pytest_module_item)
     if pytest_module_item is not None and test_suite_span is None:
         test_suite_span = _start_test_suite_span(pytest_module_item)
-
-    if _CIVisibility.test_skipping_enabled() and _CIVisibility.should_skip(
-        item.name, test_suite_span.get_tag(test.SUITE), test_suite_span.get_tag(test.MODULE)
-    ):
-        # Replace test body by pytest skip call
-        item.obj = lambda **_: pytest.skip("Skipped by Datadog Intelligent Test Runner")
-        yield
-        return
+        # Start coverage for the test suite if coverage is enabled
+        if coverage_enabled(str(item.config.rootdir)):
+            _coverage_start()
 
     with _CIVisibility._instance.tracer._start_span(
         ddtrace.config.pytest.operation_name,
@@ -388,19 +398,17 @@ def pytest_runtest_protocol(item, nextitem):
             span.set_tags(tags)
         _store_span(item, span)
 
-        if coverage_enabled():
-            from ddtrace.internal.ci_visibility.coverage import cover
-
-            with cover(span, root=str(item.config.rootdir)):
-                yield
-        else:
-            yield
+        # Run the actual test
+        yield
 
     nextitem_pytest_module_item = _find_pytest_item(nextitem, pytest.Module)
     if test_suite_span is not None and (
         nextitem is None or nextitem_pytest_module_item != pytest_module_item and not test_suite_span.finished
     ):
         _mark_test_status(pytest_module_item, test_suite_span)
+        # Finish coverage for the test suite if coverage is enabled
+        if coverage_enabled(str(item.config.rootdir)):
+            _coverage_end(test_suite_span)
         test_suite_span.finish()
 
     nextitem_pytest_package_item = _find_pytest_item(nextitem, pytest.Package)
