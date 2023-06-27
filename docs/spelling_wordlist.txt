@@ -199,6 +199,7 @@ submodule
 submodules
 substring
 testagent
+TestCase
 timestamp
 tokenizer
 tracestate
@@ -207,6 +208,7 @@ uWSGI
 unbuffered
 unicode
 uninstrumented
+unittest
 unix
 unpatch
 unpatched
