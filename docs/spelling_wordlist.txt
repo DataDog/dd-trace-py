@@ -64,6 +64,7 @@ Cython
 datadog
 datadoghq
 datastore
+datastores
 dbapi
 ddtrace
 deprecations
