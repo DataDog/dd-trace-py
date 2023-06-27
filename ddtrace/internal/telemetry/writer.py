@@ -47,7 +47,7 @@ log = get_logger(__name__)
 
 class LogData(dict):
     def __hash__(self):
-        return hash(tuple([self["message"], self["level"], self.get("tags"), self.get("stack_trace")]))
+        return hash((self["message"], self["level"], self.get("tags"), self.get("stack_trace")))
 
     def __eq__(self, other):
         return (
