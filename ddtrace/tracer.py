@@ -139,13 +139,12 @@ def _default_span_processors_factory(
     single_span_sampling_rules,  # type: List[SpanSamplingRule]
     agent_url,  # type: str
     profiling_span_processor,  # type: EndpointCallCounterProcessor
-    peer_service_processor,  # type: PeerServiceProcessor
 ):
     # type: (...) -> Tuple[List[SpanProcessor], Optional[Any], List[SpanProcessor]]
     # FIXME: type should be AppsecSpanProcessor but we have a cyclic import here
     """Construct the default list of span processors to use."""
     trace_processors = []  # type: List[TraceProcessor]
-    trace_processors += [TraceTagsProcessor()]
+    trace_processors += [TraceTagsProcessor(), PeerServiceProcessor(PeerServiceConfig())]
     trace_processors += [TraceSamplingProcessor(compute_stats_enabled)]
     trace_processors += trace_filters
 
@@ -189,8 +188,6 @@ def _default_span_processors_factory(
 
     if single_span_sampling_rules:
         span_processors.append(SpanSamplingProcessor(single_span_sampling_rules))
-
-    span_processors.append(peer_service_processor)
 
     # These need to run after all the other processors
     deferred_processors = [
@@ -281,7 +278,6 @@ class Tracer(object):
         self._appsec_processor = None
         self._iast_enabled = config._iast_enabled
         self._endpoint_call_counter_span_processor = EndpointCallCounterProcessor()
-        self._peer_service_processor = PeerServiceProcessor(PeerServiceConfig())
         self._span_processors, self._appsec_processor, self._deferred_processors = _default_span_processors_factory(
             self._filters,
             self._writer,
@@ -293,7 +289,6 @@ class Tracer(object):
             self._single_span_sampling_rules,
             self._agent_url,
             self._endpoint_call_counter_span_processor,
-            self._peer_service_processor,
         )
         if config._data_streams_enabled:
             # Inline the import to avoid pulling in ddsketch or protobuf
@@ -536,7 +531,6 @@ class Tracer(object):
                 self._single_span_sampling_rules,
                 self._agent_url,
                 self._endpoint_call_counter_span_processor,
-                self._peer_service_processor,
             )
 
         if context_provider is not None:
@@ -588,7 +582,6 @@ class Tracer(object):
             self._single_span_sampling_rules,
             self._agent_url,
             self._endpoint_call_counter_span_processor,
-            self._peer_service_processor,
         )
 
         self._new_process = True
