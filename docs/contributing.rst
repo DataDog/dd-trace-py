@@ -1,4 +1,3 @@
-==============
  Contributing
 ==============
 
@@ -12,8 +11,26 @@ if you'd like to report a bug or request a new feature.
 
 Thanks for working with us!
 
+Change Process
+==============
+
+The process of making a change to the library starts with a pull request. When you open one,
+reviewers are automatically assigned based on the CODEOWNERS file. Many different continuous integration
+jobs are also triggered, including unit tests, integration tests, benchmarks, and linters.
+
+Marking your pull request as a draft using the "Convert to draft" link communicates to potential reviewers
+that your pull request is not ready to be reviewed. Use the "ready for review" button when this changes.
+It's often beneficial to open an in-progress pull request and mark it as a draft while you confirm that the test
+suite passes.
+
+Within a few business days, one of the maintainers will respond with a code review. The review will
+primarily focus on idiomatic Python usage, efficiency, testing, and adherence to the versioning policy.
+Correctness and code style are automatically checked in continuous integration, with style linting managed by
+various tools including Flake8, Black, and MyPy. This means that code reviews don't need to worry about style
+and can focus on substance.
+
 Branches and Pull Requests
-==========================
+--------------------------
 
 This library follows the practice of `trunk-based development <https://trunkbaseddevelopment.com/>`_.
 
@@ -27,7 +44,7 @@ standard, which is enforced by a continuous integration job. The standardized "s
 in pull request names are enumerated `here <releasenotes.rst#Scope>`_.
 
 Backporting
-===========
+-----------
 
 Each minor version has its own branch. Bug fixes are "backported" from trunk to certain
 minor version branches according to the `version support policy <versioning.rst#release-versions>`_.
@@ -37,17 +54,35 @@ minor version branches according to the `version support policy <versioning.rst#
 * **New features** (`feat` PRs) are not backported.
 * **Chore, documentation, and other PRs** are not backported.
 
-Change Process
-==============
+If your pull request is a `fix` or `ci` change, apply the backport labels corresponding to the minor
+versions that need the change.
 
-code reviews, requesting
-seeing if CI passes
+Implementation Guidelines
+=========================
 
-Code style is automatically checked by various tools including Flake8, Black, and MyPy. This
-means that code reviews don't need to worry about style and can focus on substance.
+Parts of the Library
+--------------------
+
+When designing a change, one of the first decisions to make is where it should be made. This is an overview
+of the main functional areas of the library.
+
+A **product** is a unit of code within the library that implements functionality specific to a small set of
+customer-facing Datadog products. Examples include the `appsec module <https://github.com/DataDog/dd-trace-py/tree/1.x/ddtrace/appsec>`_
+implementing functionality for `Application Security Management <https://www.datadoghq.com/product/application-security-management/>`_
+and the `profiling <https://github.com/DataDog/dd-trace-py/tree/1.x/ddtrace/profiling>`_ module implementing functionality for
+`Continuous Profiling <https://docs.datadoghq.com/profiler/>`_.
+
+An **integration** is one of the modules in the `contrib <https://github.com/DataDog/dd-trace-py/tree/f26a526a6f79870e6e6a21d281f4796a434616bb/ddtrace/contrib>`_
+directory, building the context tree for a given Python library. Ideally it only contains code that is specific to the
+library being integrated with, and no code related to Products.
+
+The **core** of the library is the abstraction layer that allows Products and Integrations to keep their concerns separate.
+It is implemented in the Python files in the `top level of ddtracepy <https://github.com/DataDog/dd-trace-py/tree/1.x/ddtrace>`_
+and in the `internal` module. As an implementation detail, the core logic also happens to directly support
+`Application Performance Monitoring <https://docs.datadoghq.com/tracing/`_.
 
 Logging
-=======
+-------
 
 The ddtrace logger should be used to log events in the dd-trace-py library. Use ``ddtrace.internal.logger.get_logger(__name__)`` to initialize/retrieve an instance of the ddtrace logger (DDLogger).
 
@@ -59,7 +94,7 @@ To ensure the ddtrace library produces consistent and secure logs the following 
 * Log data is sensitive and should not contain application secrets or other sensitive data.
 
 Changing Test Requirements
-==========================
+--------------------------
 
 `.riot/requirements` contains requirements files generated with `pip-compile` for every environment specified by `riotfile.py`.
 Riot uses these files to build its environments, and they do not get rebuilt automatically when the riotfile changes.
