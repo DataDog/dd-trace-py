@@ -1,6 +1,6 @@
 import logging
 
-from ddtrace.tracer_utils import log
+from ddtrace.tracer import log
 
 
 if __name__ == "__main__":

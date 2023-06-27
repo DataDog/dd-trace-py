@@ -10,7 +10,7 @@ from .vendor import wrapt
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from .tracer_utils import Tracer
+    from .tracer import Tracer
 
 
 log = get_logger(__name__)

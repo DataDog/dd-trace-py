@@ -72,7 +72,7 @@ from ddtrace.internal.wrapping import Wrapper
 
 if TYPE_CHECKING:  # pragma: no cover
     from ddtrace.internal.module import ModuleHookType
-    from ddtrace.tracer_utils import Tracer
+    from ddtrace.tracer import Tracer
 
 
 # Coroutine support

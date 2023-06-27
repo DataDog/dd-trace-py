@@ -1,5 +1,5 @@
 from ddtrace.filters import TraceFilter
-from ddtrace.tracer_utils import Tracer
+from ddtrace.tracer import Tracer
 from tests.utils import DummyWriter
 
 from .utils import TornadoTestCase

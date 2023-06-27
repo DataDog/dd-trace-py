@@ -32,7 +32,7 @@ from .internal.utils.deprecations import DDTraceDeprecationWarning  # noqa: E402
 from .pin import Pin  # noqa: E402
 from .settings import _config as config  # noqa: E402
 from .span import Span  # noqa: E402
-from .tracer_utils import Tracer  # noqa: E402
+from .tracer import Tracer  # noqa: E402
 from .version import get_version  # noqa: E402
 
 

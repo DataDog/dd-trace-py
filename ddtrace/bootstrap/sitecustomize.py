@@ -19,8 +19,8 @@ from ddtrace.internal.module import find_loader  # noqa
 from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker  # noqa
 from ddtrace.internal.utils.formats import asbool  # noqa
 from ddtrace.internal.utils.formats import parse_tags_str  # noqa
-from ddtrace.tracer_utils import DD_LOG_FORMAT  # noqa
-from ddtrace.tracer_utils import debug_mode  # noqa
+from ddtrace.tracer import DD_LOG_FORMAT  # noqa
+from ddtrace.tracer import debug_mode  # noqa
 from ddtrace.vendor.debtcollector import deprecate  # noqa
 
 
