@@ -38,11 +38,11 @@ This library follows the practice of `trunk-based development <https://trunkbase
 The "trunk" branch, which new pull requests should target, is ``1.x``.
 Roughly every two weeks, we checkpoint the current state of this branch as a new
 release branch, whose naming follows `semantic versioning <https://semver.org/>`_.
-You can find the list of past released versions `here <https://github.com/DataDog/dd-trace-py/releases>`_.
+You can find the list of past released versions `on this GitHub page <https://github.com/DataDog/dd-trace-py/releases>`_.
 
 Pull requests are named according to the `conventional commit <https://www.conventionalcommits.org/en/v1.0.0/>`_
 standard, which is enforced by a continuous integration job. The standardized "scopes" we use
-in pull request names are enumerated `here <releasenotes.rst#Scope>`_.
+in pull request names are enumerated `in the release notes documentation <releasenotes.rst#Scope>`_.
 
 Pull requests that change the library's public API require a `release note <releasenotes.rst>`_.
 If your pull request doesn't change the public API, apply the ``no-changelog`` label.
