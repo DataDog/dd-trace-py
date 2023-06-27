@@ -63,7 +63,7 @@ class VulnerabilityBase(Operation):
         TODO: check deduplications if DD_IAST_DEDUPLICATION_ENABLED is true
         """
         if cls.acquire_quota():
-            if not tracer or not hasattr(tracer, 'current_root_span'):
+            if not tracer or not hasattr(tracer, "current_root_span"):
                 log.debug("Not tracer or tracer has no root span")
                 return None
 
