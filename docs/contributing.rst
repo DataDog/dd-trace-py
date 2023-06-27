@@ -2,23 +2,28 @@
  Contributing
 ==============
 
-When contributing to this repository, we advise you to discuss the change you
-wish to make via an `issue <https://github.com/DataDog/dd-trace-py/issues>`_.
+Contributions are welcome!
 
+The best way to suggest a change to the library is to open a
+`pull request <https://github.com/DataDog/dd-trace-py/pulls>`_.
+
+You may also consider opening an `issue <https://github.com/DataDog/dd-trace-py/issues>`_
+if you'd like to report a bug or request a new feature.
+
+Thanks for working with us!
 
 Branches
 ========
 
-Development happens in the `1.x` branch. When all the features for the next
-milestone are merged, the next version is released and tagged on the `1.x`
-branch as `vVERSION`.
+This library follows the practice of `trunk-based development <https://trunkbaseddevelopment.com/>`_.
 
-Your pull request should target the `1.x` branch.
+The "trunk" branch, which new pull requests should target, is `1.x`.
+Roughly every two weeks, we checkpoint the current state of this branch as a new
+release branch, whose naming follows `semantic versioning <https://semver.org/>`_.
+You can find the list of past released versions `here <https://github.com/DataDog/dd-trace-py/releases>`_.
 
-Once a new version is released, a `VERSION` branch might be created to
-support micro releases to `VERSION`. Patches should be cherry-picking from the
-`1.x` branch where possible — or otherwise created from scratch.
-
+Each minor version has its own branch. Bug fixes are "backported" from trunk to certain
+minor version branches according to the `version support policy <???>`_.
 
 Internal API
 ============
@@ -78,12 +83,6 @@ This can also be accomplished using pyenv and installing all of the Python versi
 You can commit and pull request changes to files in `.riot/requirements` alongside the corresponding changes to `riotfile.py`.
 
 
-.. toctree::
-    :hidden:
-
-    contributing-integrations
-    releasenotes
-
 Pre-commit Hooks
 ================
 
@@ -117,4 +116,10 @@ Chore and documentation PRs
 ---------------------------
 
 These are PRs that do not fall into any of the previous categories. In general there should be no need to backport these PRs.
+
+.. toctree::
+    :hidden:
+
+    contributing-integrations
+    releasenotes
 
