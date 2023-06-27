@@ -12,8 +12,8 @@ if you'd like to report a bug or request a new feature.
 
 Thanks for working with us!
 
-Branches
-========
+Branches and Pull Requests
+==========================
 
 This library follows the practice of `trunk-based development <https://trunkbaseddevelopment.com/>`_.
 
@@ -22,34 +22,29 @@ Roughly every two weeks, we checkpoint the current state of this branch as a new
 release branch, whose naming follows `semantic versioning <https://semver.org/>`_.
 You can find the list of past released versions `here <https://github.com/DataDog/dd-trace-py/releases>`_.
 
+Pull requests are named according to the `conventional commit <https://www.conventionalcommits.org/en/v1.0.0/>`_
+standard, which is enforced by a continuous integration job. The standardized "scopes" we use
+in pull request names are enumerated `here <releasenotes.rst#Scope>`_.
+
+Backporting
+===========
+
 Each minor version has its own branch. Bug fixes are "backported" from trunk to certain
-minor version branches according to the `version support policy <???>`_.
+minor version branches according to the `version support policy <versioning.rst#release-versions>`_.
 
-Internal API
-============
+* **Fix PRs** are backported to all maintained release branches.
+* **CI PRs** are backported to the maintained release branches.
+* **New features** (`feat` PRs) are not backported.
+* **Chore, documentation, and other PRs** are not backported.
 
-The `ddtrace.internal` module contains code that must only be used inside
-`ddtrace` itself. Relying on the API of this module is dangerous and can break
-at anytime. Don't do it.
+Change Process
+==============
 
-Python Versions and Implementations Support
-===========================================
+code reviews, requesting
+seeing if CI passes
 
-The following Python implementations are supported:
-
-- CPython
-
-Versions of those implementations that are supported are the Python versions
-that are currently supported by the community.
-
-Code Style
-==========
-
-The code style is enforced by `flake8 <https://pypi.org/project/flake8>`_, its
-configuration, and possibly extensions. No code style review should be done by
-a human. All code style enforcement must be automated to avoid bikeshedding
-and losing time.
-
+Code style is automatically checked by various tools including Flake8, Black, and MyPy. This
+means that code reviews don't need to worry about style and can focus on substance.
 
 Logging
 =======
@@ -82,44 +77,8 @@ The easiest way to accomplish this and generate the files is to simply spin up t
 This can also be accomplished using pyenv and installing all of the Python versions before running the script.
 You can commit and pull request changes to files in `.riot/requirements` alongside the corresponding changes to `riotfile.py`.
 
-
-Pre-commit Hooks
-================
-
-The tracer library uses formatting/linting tools including black, flake8, and mypy.
-While these are run in each CI pipeline for pull requests, they are also **optionally** available to be automated to run
-when you call git commit as pre-commit hooks to catch any formatting errors before you commit.
-To initialize the pre-commit hook script to run in your development branch, run the following command:
-
-    $ rm .git/hooks/pre-commit
-
-
-Release Branch Maintenance
-==========================
-
-Fix PRs
--------
-
-These PRs are generally opened to fix a bug reported by a user of the library. Fix PRs should be backported to all impacted and maintained release branches.
-
-CI PRs
-------
-
-These PRs are generally opened to fix or improve the current status of the CI. As a general rule, these PRs should all be backported to all the maintained release branches.
-
-New features
-------------
-
-New features introduced by feat PRs should not be backported.
-
-Chore and documentation PRs
----------------------------
-
-These are PRs that do not fall into any of the previous categories. In general there should be no need to backport these PRs.
-
 .. toctree::
     :hidden:
 
     contributing-integrations
     releasenotes
-
