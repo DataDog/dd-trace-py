@@ -64,6 +64,13 @@ def patch():
             _w("redis.asyncio.client", "Pipeline.execute", traced_async_execute_pipeline)
             _w("redis.asyncio.client", "Pipeline.immediate_execute_command", traced_async_execute_command)
             Pin(service=None).onto(redis.asyncio.Redis)
+
+        if PY3 and redis.VERSION >= (4, 3, 0):
+            from .asyncio_patch import traced_async_execute_command
+
+            _w("redis.asyncio.cluster", "RedisCluster.execute_command", traced_async_execute_command)
+            Pin(service=None).onto(redis.asyncio.RedisCluster)
+
     Pin(service=None).onto(redis.StrictRedis)
 
 
@@ -91,6 +98,8 @@ def unpatch():
                 unwrap(redis.asyncio.client.Redis, "pipeline")
                 unwrap(redis.asyncio.client.Pipeline, "execute")
                 unwrap(redis.asyncio.client.Pipeline, "immediate_execute_command")
+            if redis.VERSION >= (4, 3, 0):
+                unwrap(redis.asyncio.cluster.RedisCluster, "execute_command")
 
 
 #
