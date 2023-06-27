@@ -84,7 +84,7 @@ that is specific to the library being integrated with, and no code related to Pr
 The **core** of the library is the abstraction layer that allows Products and Integrations to keep their concerns
 separate. It is implemented in the Python files in the `top level of ddtracepy <https://github.com/DataDog/dd-trace-py/tree/1.x/ddtrace>`_
 and in the `internal` module. As an implementation detail, the core logic also happens to directly support
-`Application Performance Monitoring <https://docs.datadoghq.com/tracing/`_.
+`Application Performance Monitoring <https://docs.datadoghq.com/tracing/>`_.
 
 Be mindful and intentional about which of these categories your change fits into, and avoid mixing concerns between
 categories. If doing so requires more foundational refactoring or additional layers of abstraction, consider
@@ -118,7 +118,7 @@ spin up the testagent container, exec into it, and run the script from there.
 .. code-block:: bash
 
   cd dd-trace-py && docker run --network host --userns=host --rm -w /root/project -v $PWD/:/root/project \
-    -it ghcr.io/datadog/dd-trace-py/testrunner:1ed971833a2a3c97f43cbaeabcbb3f1e28745a00 \
+    -it ghcr.io/datadog/dd-trace-py/testrunner \
     bash -c "git config --global --add safe.directory /root/project && pip install riot && bash -i './scripts/compile-and-prune-test-requirements'"
 
 
