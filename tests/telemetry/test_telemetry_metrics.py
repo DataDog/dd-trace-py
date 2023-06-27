@@ -409,3 +409,44 @@ def test_send_multiple_log_metric(telemetry_metrics_writer, test_agent_metrics_s
         telemetry_metrics_writer.add_log("WARNING", "test error 1", "Traceback:\nValueError", {"a": "b"})
 
         _assert_logs(test_agent_metrics_session, expected_payload, seq_id=2)
+
+
+def test_send_multiple_log_metric_no_duplicates(telemetry_metrics_writer, test_agent_metrics_session, mock_time):
+    with override_global_config(dict(_telemetry_metrics_enabled=True)):
+        for _ in range(10):
+            telemetry_metrics_writer.add_log("WARNING", "test error 1", "Traceback:\nValueError", {"a": "b"})
+
+        expected_payload = [
+            {
+                "level": "WARNING",
+                "message": "test error 1",
+                "stack_trace": "Traceback:\nValueError",
+                "tracer_time": 1642544540,
+                "tags": "a:b",
+            },
+        ]
+
+        _assert_logs(test_agent_metrics_session, expected_payload)
+
+
+def test_send_multiple_log_metric_no_duplicates_for_each_interval(
+    telemetry_metrics_writer, test_agent_metrics_session, mock_time
+):
+    with override_global_config(dict(_telemetry_metrics_enabled=True)):
+        for _ in range(10):
+            telemetry_metrics_writer.add_log("WARNING", "test error 1")
+
+        expected_payload = [
+            {
+                "level": "WARNING",
+                "message": "test error 1",
+                "tracer_time": 1642544540,
+            },
+        ]
+
+        _assert_logs(test_agent_metrics_session, expected_payload)
+
+        for _ in range(10):
+            telemetry_metrics_writer.add_log("WARNING", "test error 1")
+
+        _assert_logs(test_agent_metrics_session, expected_payload, seq_id=2)
