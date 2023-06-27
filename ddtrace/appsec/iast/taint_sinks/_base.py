@@ -63,6 +63,8 @@ class VulnerabilityBase(Operation):
         TODO: check deduplications if DD_IAST_DEDUPLICATION_ENABLED is true
         """
         if cls.acquire_quota():
+            log.warning("JJJ tracer type: %s", type(tracer))
+            log.warning("JJJ tracer dir: %s", dir(tracer))
             if not tracer or not hasattr(tracer, 'current_root_span'):
                 log.debug("Not tracer or tracer has no root span")
                 return None
