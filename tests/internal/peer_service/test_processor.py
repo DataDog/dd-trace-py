@@ -30,48 +30,57 @@ def test_span():
     )
 
 
-@pytest.mark.parametrize("span_kind", [SpanKind.CLIENT, SpanKind.PRODUCER])
-def test_processing_peer_service_exists(processor, test_span, span_kind, peer_service_config):
-    processor._set_defaults_enabled = True
-    test_span.set_tag(SPAN_KIND, span_kind)
-    test_span.set_tag(peer_service_config.tag_name, "fake_peer_service")
-    test_span.set_tag("out.host", "fake_falue")  # Should not show up
-    processor.on_span_finish(test_span)
+@pytest.fixture
+def test_trace(test_span):
+    return [test_span]
 
-    assert test_span.get_tag(peer_service_config.tag_name) == "fake_peer_service"
-    assert test_span.get_tag(peer_service_config.source_tag_name) == "peer.service"
+
+@pytest.mark.parametrize("span_kind", [SpanKind.CLIENT, SpanKind.PRODUCER])
+def test_processing_peer_service_exists(processor, test_trace, span_kind, peer_service_config):
+    processor._set_defaults_enabled = True
+    span = test_trace[0]
+    span.set_tag(SPAN_KIND, span_kind)
+    span.set_tag(peer_service_config.tag_name, "fake_peer_service")
+    span.set_tag("out.host", "fake_falue")  # Should not show up
+    processor.process_trace(test_trace)
+
+    assert span.get_tag(peer_service_config.tag_name) == "fake_peer_service"
+    assert span.get_tag(peer_service_config.source_tag_name) == "peer.service"
 
 
 @pytest.mark.parametrize("span_kind", [SpanKind.SERVER, SpanKind.CONSUMER])
-def test_nothing_happens_for_server_and_consumer(processor, test_span, span_kind, peer_service_config):
+def test_nothing_happens_for_server_and_consumer(processor, test_trace, span_kind, peer_service_config):
+    span = test_trace[0]
     processor._set_defaults_enabled = True
-    test_span.set_tag(SPAN_KIND, span_kind)
-    test_span.set_tag("out.host", "fake_host")
-    processor.on_span_finish(test_span)
+    span.set_tag(SPAN_KIND, span_kind)
+    span.set_tag("out.host", "fake_host")
+    processor.process_trace(test_trace)
 
-    assert test_span.get_tag(peer_service_config.source_tag_name) is None
+    assert span.get_tag(peer_service_config.source_tag_name) is None
 
 
 @pytest.mark.parametrize("data_source", PeerServiceConfig.prioritized_data_sources)
-def test_existing_data_sources(processor, test_span, data_source, peer_service_config):
+def test_existing_data_sources(processor, test_trace, data_source, peer_service_config):
     processor._set_defaults_enabled = True
-    test_span.set_tag(SPAN_KIND, SpanKind.CLIENT)
-    test_span.set_tag(data_source, "test_value")
+    span = test_trace[0]
+    span.set_tag(SPAN_KIND, SpanKind.CLIENT)
+    span.set_tag(data_source, "test_value")
 
-    processor.on_span_finish(test_span)
+    processor.process_trace(test_trace)
 
-    assert test_span.get_tag(peer_service_config.tag_name) == "test_value"
-    assert test_span.get_tag(peer_service_config.source_tag_name) == data_source
+    assert span.get_tag(peer_service_config.tag_name) == "test_value"
+    assert span.get_tag(peer_service_config.source_tag_name) == data_source
 
 
 @pytest.mark.parametrize("data_source", PeerServiceConfig.prioritized_data_sources)
-def test_disabled_peer_service(processor, test_span, data_source, peer_service_config):
+def test_disabled_peer_service(processor, test_trace, data_source, peer_service_config):
     processor._set_defaults_enabled = False
-    test_span.set_tag(data_source, "test_value")
-    processor.on_span_finish(test_span)
+    span = test_trace[0]
+    span.set_tag(data_source, "test_value")
+    processor.process_trace(test_trace)
 
-    assert test_span.get_tag(peer_service_config.tag_name) is None
-    assert test_span.get_tag(peer_service_config.source_tag_name) is None
+    assert span.get_tag(peer_service_config.tag_name) is None
+    assert span.get_tag(peer_service_config.source_tag_name) is None
 
 
 @pytest.mark.parametrize(
@@ -104,7 +113,7 @@ def test_tracer_hooks():
         "test",
         service="test_service",
         resource="test_resource",
-        span_type="test_span_type",
+        span_type="span_type",
     )
     span.set_tag(SPAN_KIND, SpanKind.CLIENT)
     span.set_tag("out.host", "test_value")
@@ -115,27 +124,29 @@ def test_tracer_hooks():
     assert span.get_tag(peer_service_config.source_tag_name) == "out.host"
 
 
-def test_peer_service_remap(test_span):
+def test_peer_service_remap(test_trace):
     with mock.patch.dict(os.environ, {"DD_TRACE_PEER_SERVICE_MAPPING": "fake_peer_service:remapped_service"}):
         peer_service_config = PeerServiceConfig(set_defaults_enabled=True)
         processor = PeerServiceProcessor(peer_service_config)
         processor._set_defaults_enabled = True
-        test_span.set_tag(SPAN_KIND, SpanKind.CLIENT)
-        test_span.set_tag(peer_service_config.tag_name, "fake_peer_service")
-        processor.on_span_finish(test_span)
+        span = test_trace[0]
+        span.set_tag(SPAN_KIND, SpanKind.CLIENT)
+        span.set_tag(peer_service_config.tag_name, "fake_peer_service")
+        processor.process_trace(test_trace)
 
-        assert test_span.get_tag(peer_service_config.tag_name) == "remapped_service"
-        assert test_span.get_tag(peer_service_config.remap_tag_name) == "fake_peer_service"
-        assert test_span.get_tag(peer_service_config.source_tag_name) == "peer.service"
+        assert span.get_tag(peer_service_config.tag_name) == "remapped_service"
+        assert span.get_tag(peer_service_config.remap_tag_name) == "fake_peer_service"
+        assert span.get_tag(peer_service_config.source_tag_name) == "peer.service"
 
 
-def test_remap_still_happens_when_defaults_disabled(test_span):
+def test_remap_still_happens_when_defaults_disabled(test_trace):
     with mock.patch.dict(os.environ, {"DD_TRACE_PEER_SERVICE_MAPPING": "fake_peer_service:remapped_service"}):
         peer_service_config = PeerServiceConfig(set_defaults_enabled=False)
         processor = PeerServiceProcessor(peer_service_config)
         processor._set_defaults_enabled = False
-        test_span.set_tag(peer_service_config.tag_name, "fake_peer_service")
-        processor.on_span_finish(test_span)
+        span = test_trace[0]
+        span.set_tag(peer_service_config.tag_name, "fake_peer_service")
+        processor.process_trace(test_trace)
 
-        assert test_span.get_tag(peer_service_config.tag_name) == "remapped_service"
-        assert test_span.get_tag(peer_service_config.remap_tag_name) == "fake_peer_service"
+        assert span.get_tag(peer_service_config.tag_name) == "remapped_service"
+        assert span.get_tag(peer_service_config.remap_tag_name) == "fake_peer_service"
