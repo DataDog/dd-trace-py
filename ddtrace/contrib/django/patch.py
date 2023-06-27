@@ -806,9 +806,10 @@ def traced_login(django, pin, func, instance, args, kwargs):
                         **user_extra
                     )
                     return
-
-                # Login failed but the user exists
-                track_user_login_failure_event(pin.tracer, user_id=user_id, exists=True, login_events_mode=mode)
+                else:
+                    # Login failed but the user exists
+                    track_user_login_failure_event(pin.tracer, user_id=user_id, exists=True, login_events_mode=mode)
+                    return
         else:
             # Login failed and the user is unknown
             if user:
@@ -820,6 +821,7 @@ def traced_login(django, pin, func, instance, args, kwargs):
                     user_id = "AnonymousUser"
 
                 track_user_login_failure_event(pin.tracer, user_id=user_id, exists=False, login_events_mode=mode)
+                return
     except Exception:
         log.debug("Error while trying to trace Django login", exc_info=True)
 
