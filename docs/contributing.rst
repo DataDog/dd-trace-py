@@ -93,7 +93,7 @@ opening an issue describing the limitations of the current design.
 Tests
 -----
 
-If your change touches Python code, it should probably include at least one test. We use hueristics to
+If your change touches Python code, it should probably include at least one test. We use heuristics to
 decide when and what sort of tests to write. For example, a pull request implementing a new feature
 should include enough unit tests to cover the feature's "happy path" use cases in addition to any known
 likely edge cases. If the feature involves a new form of communication with another component (like the
