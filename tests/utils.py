@@ -106,6 +106,7 @@ def override_global_config(values):
         "_raise",
         "_trace_compute_stats",
         "_appsec_enabled",
+        "_api_security_enabled",
         "_waf_timeout",
         "_iast_enabled",
         "_obfuscation_query_string_pattern",
