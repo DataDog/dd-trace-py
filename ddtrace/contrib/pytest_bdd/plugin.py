@@ -69,33 +69,6 @@ class _PytestBddPlugin:
             span.set_tag(test.FRAMEWORK, FRAMEWORK)
             span.set_tag(test.FRAMEWORK_VERSION, self.framework_version)
 
-            # store parsed step arguments
-            try:
-                parsers = [step_func.parser]
-            except AttributeError:
-                try:
-                    # pytest-bdd >= 6.0.0
-                    parsers = step_func._pytest_bdd_parsers
-                except AttributeError:
-                    parsers = []
-            for parser in parsers:
-                if parser is not None:
-                    converters = getattr(step_func, "converters", {})
-                    parameters = {}
-                    try:
-                        for arg, value in parser.parse_arguments(step.name).items():
-                            try:
-                                if arg in converters:
-                                    value = converters[arg](value)
-                            except Exception:
-                                # Ignore invalid converters
-                                pass
-                            parameters[arg] = value
-                    except Exception:
-                        pass
-                    if parameters:
-                        span.set_tag(test.PARAMETERS, json.dumps(parameters))
-
             location = os.path.relpath(step_func.__code__.co_filename, str(request.config.rootdir))
             span.set_tag(test.FILE, location)
             _CIVisibility.set_codeowners_of(location, span=span)
@@ -107,6 +80,8 @@ class _PytestBddPlugin:
     def pytest_bdd_after_step(request, feature, scenario, step, step_func, step_func_args):
         span = _extract_span(step_func)
         if span is not None:
+            if step_func_args:
+                span.set_tag(test.PARAMETERS, json.dumps(step_func_args))
             span.finish()
 
     @staticmethod
@@ -118,5 +93,7 @@ class _PytestBddPlugin:
             else:
                 # PY2 compatibility workaround
                 _, _, tb = sys.exc_info()
+            if step_func_args:
+                span.set_tag(test.PARAMETERS, json.dumps(step_func_args))
             span.set_exc_info(type(exception), exception, tb)
             span.finish()
