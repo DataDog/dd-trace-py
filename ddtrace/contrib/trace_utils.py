@@ -19,7 +19,6 @@ from typing import cast
 
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace.appsec.iast.taint_sinks.insecure_cookie import asm_check_cookies
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.ext import net
@@ -515,7 +514,11 @@ def set_http_meta(
         span.set_tag_str(http.RETRIES_REMAIN, str(retries_remain))
 
     if span.span_type == SpanTypes.WEB and config._appsec_enabled:
-        if request_cookies:
+        from ddtrace.appsec.iast._util import _is_iast_enabled
+
+        if request_cookies and _is_iast_enabled():
+            from ddtrace.appsec.iast.taint_sinks.insecure_cookie import asm_check_cookies
+
             asm_check_cookies(request_cookies)
 
         from ddtrace.appsec._asm_request_context import set_waf_address
