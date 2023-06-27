@@ -810,7 +810,7 @@ def test_django_login_sucess_safe(client, test_spans, tracer):
 
 
 @pytest.mark.django_db
-def test_django_login_sucess_safe_is_not_default_if_wrong(client, test_spans, tracer):
+def test_django_login_sucess_safe_is_default_if_wrong(client, test_spans, tracer):
     from django.contrib.auth import get_user
     from django.contrib.auth.models import User
 
@@ -821,11 +821,11 @@ def test_django_login_sucess_safe_is_not_default_if_wrong(client, test_spans, tr
         client.login(username="fred", password="secret")
         assert get_user(client).is_authenticated
         login_span = test_spans.find_span(name="django.contrib.auth.login")
-        assert login_span.get_tag(user.ID) == "fred"
+        assert login_span.get_tag(user.ID) == "1"
 
 
 @pytest.mark.django_db
-def test_django_login_sucess_safe_is_not_default_if_missing(client, test_spans, tracer):
+def test_django_login_sucess_safe_is_default_if_missing(client, test_spans, tracer):
     from django.contrib.auth import get_user
     from django.contrib.auth.models import User
 
@@ -836,7 +836,7 @@ def test_django_login_sucess_safe_is_not_default_if_missing(client, test_spans, 
         client.login(username="fred", password="secret")
         assert get_user(client).is_authenticated
         login_span = test_spans.find_span(name="django.contrib.auth.login")
-        assert login_span.get_tag(user.ID) == "fred"
+        assert login_span.get_tag(user.ID) == "1"
 
 
 @pytest.mark.django_db

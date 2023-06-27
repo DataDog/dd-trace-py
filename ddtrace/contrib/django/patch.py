@@ -752,9 +752,7 @@ def _get_user_info(user):
     """
     user_extra_info = {}
 
-    if config._automatic_login_events_mode == "safe":
-        user_id = _get_userid(user)
-    else:  # extended mode, default
+    if config._automatic_login_events_mode == "extended":
         user_id = _get_username(user)
         if not user_id:
             user_id = _find_in_user_model(user, _POSSIBLE_USER_ID_FIELDS)
@@ -764,6 +762,8 @@ def _get_user_info(user):
             "email": _get_user_email(user),
             "name": _get_name(user),
         }
+    else:  # safe mode, default
+        user_id = _get_userid(user)
 
     if not user_id:
         return None, {}
