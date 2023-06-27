@@ -25,7 +25,7 @@
       "langchain.response.completions.0.logprobs": "None",
       "langchain.response.completions.0.text": "\\n\\nDescartes' famous phrase \"I think, therefore I am\" is a fundamental statement of his philosophical approach, known as Cartes...",
       "language": "python",
-      "runtime-id": "2305925e6d7d46339bb2a4fe35525cdb"
+      "runtime-id": "30d492e3c4c349f9b22b2b390a8f872e"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -37,10 +37,10 @@
       "langchain.tokens.prompt_tokens": 17,
       "langchain.tokens.total_cost": 0.0022400000000000002,
       "langchain.tokens.total_tokens": 112,
-      "process_id": 88596
+      "process_id": 66869
     },
-    "duration": 22777000,
-    "start": 1687531427186528000
+    "duration": 23156000,
+    "start": 1687790644319172000
   },
      {
        "name": "openai.request",
@@ -71,7 +71,7 @@
          "openai.response.choices.0.text": "\\n\\nDescartes' famous phrase \"I think, therefore I am\" is a fundamental statement of his philosophical approach, known as Cartes...",
          "openai.response.id": "cmpl-7TZs9SoIjYLVNCYmAqIz9ihMX1grP",
          "openai.response.model": "text-davinci-003",
-         "openai.user.api_key": "sk-...DnFw"
+         "openai.user.api_key": "sk-...key>"
        },
        "metrics": {
          "_dd.measured": 1,
@@ -80,8 +80,8 @@
          "openai.response.choices_count": 1,
          "openai.response.created": 1687283761
        },
-       "duration": 22176000,
-       "start": 1687531427186872000
+       "duration": 22500000,
+       "start": 1687790644319514000
      },
         {
           "name": "requests.request",
@@ -105,6 +105,6 @@
             "_dd.measured": 1,
             "_dd.top_level": 1
           },
-          "duration": 2195000,
-          "start": 1687531427205958000
+          "duration": 2484000,
+          "start": 1687790644338573000
         }]]
