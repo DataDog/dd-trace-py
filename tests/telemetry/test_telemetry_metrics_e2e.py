@@ -86,24 +86,23 @@ def test_telemetry_metrics_enabled_on_gunicorn_child_process(test_agent_session)
     with gunicorn_server(telemetry_metrics_enabled="true", token=token) as context:
         _, gunicorn_client = context
 
-        gunicorn_client.get("/metrics")
-        gunicorn_client.get("/metrics")
-        response = gunicorn_client.get("/metrics")
-        response_content = json.loads(response.content)
-        assert response_content["telemetry_lifecycle_writer_running"] is True
-        assert response_content["telemetry_lifecycle_writer_worker"] is True
-        assert response_content["telemetry_lifecycle_writer_queue"][0]["metric"] == "test_metric"
-        assert response_content["telemetry_lifecycle_writer_queue"][0]["points"][0][1] == 3.0
+        gunicorn_client.get("/count_metric")
+        gunicorn_client.get("/count_metric")
+        response = gunicorn_client.get("/count_metric")
+        assert response.status_code == 200
+        # DD_TELEMETRY_HEARTBEAT_INTERVAL is set to 1 second
         time.sleep(1)
-        gunicorn_client.get("/metrics")
-        response = gunicorn_client.get("/metrics")
-        response_content = json.loads(response.content)
-        assert response_content["telemetry_lifecycle_writer_queue"][0]["points"][0][1] == 2.0
+        gunicorn_client.get("/count_metric")
+        response = gunicorn_client.get("/count_metric")
+        assert response.status_code == 200
+
     events = test_agent_session.get_events()
     metrics = list(filter(lambda event: event["request_type"] == "generate-metrics", events))
     assert len(metrics) == 2
     assert metrics[0]["payload"]["series"][0]["metric"] == "test_metric"
+    assert metrics[0]["payload"]["series"][0]["points"][0][1] == 2.0
     assert metrics[1]["payload"]["series"][0]["metric"] == "test_metric"
+    assert metrics[1]["payload"]["series"][0]["points"][0][1] == 3.0
 
 
 def test_span_creation_and_finished_metrics_datadog(test_agent_session, ddtrace_run_python_code_in_subprocess):
