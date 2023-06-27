@@ -78,7 +78,7 @@ functionality for `Continuous Profiling <https://docs.datadoghq.com/profiler/>`_
 that is specific to the Datadog product being supported, and no code related to Integrations.
 
 An **integration** is one of the modules in the `contrib <https://github.com/DataDog/dd-trace-py/tree/f26a526a6f79870e6e6a21d281f4796a434616bb/ddtrace/contrib>`_
-directory, hooking ddtracepy into the internal logic of a given Python library. Ideally it only contains code
+directory, hooking our code into the internal logic of a given Python library. Ideally it only contains code
 that is specific to the library being integrated with, and no code related to Products.
 
 The **core** of the library is the abstraction layer that allows Products and Integrations to keep their concerns
