@@ -703,7 +703,10 @@ def _get_username(user):
         return username
 
     if hasattr(user, "get_username"):
-        return user.get_username()
+        try:
+            return user.get_username()
+        except Exception:
+            log.debug("User model get_username member produced an exception: ", exc_info=True)
 
     user_type = type(user)
     if hasattr(user_type, "USERNAME_FIELD"):
@@ -726,7 +729,10 @@ def _get_user_email(user):
 
 def _get_name(user):
     if hasattr(user, "get_full_name"):
-        return user.get_full_name()
+        try:
+            return user.get_full_name()
+        except Exception:
+            log.debug("User model get_full_name member produced an exception: ", exc_info=True)
 
     if hasattr(user, "first_name") and hasattr(user, "last_name"):
         return "%s %s" % (user.first_name, user.last_name)
