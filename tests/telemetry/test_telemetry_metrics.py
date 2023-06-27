@@ -1,7 +1,7 @@
 import sys
 from time import sleep
-from unittest.mock import ANY
 
+from mock.mock import ANY
 import pytest
 
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_APPSEC
