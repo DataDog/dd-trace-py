@@ -90,7 +90,7 @@ The definition of the **internal** interface:
 
     Any module, function, class or attribute that is contained within an internal module is internal
 
-Internal code may be subject to breaking changes in bugfix and minor releases.
+Internal code may be subject to breaking changes in bug fix and minor releases.
 
 .. _versioning_supported_runtimes:
 
