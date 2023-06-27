@@ -284,7 +284,7 @@ class CIVisibility(Service):
             # Local import to make sure it's been initialized
             from .coverage import ROOT_DIR
 
-            self._root_dir = ROOT_DIR
+            self._root_dir = ROOT_DIR if ROOT_DIR is not None else ""
         return os.path.relpath(path, self._root_dir) in self._test_suites_to_skip
 
     @classmethod
