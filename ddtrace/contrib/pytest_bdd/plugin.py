@@ -26,8 +26,7 @@ def _store_span(item, span):
 
 
 def _extract_step_func_args(step, step_func, step_func_args):
-    """Backwards-compatible get arguments from step_func or step_func_args
-    """
+    """Backwards-compatible get arguments from step_func or step_func_args"""
     if not (hasattr(step_func, "parser") or hasattr(step_func, "_pytest_bdd_parsers")):
         return step_func_args
 
