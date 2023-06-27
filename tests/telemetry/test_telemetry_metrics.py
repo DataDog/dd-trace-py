@@ -1,5 +1,8 @@
+import sys
 from time import sleep
 from unittest.mock import ANY
+
+import pytest
 
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_APPSEC
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_TRACER
@@ -380,6 +383,7 @@ def test_send_log_metric_simple(telemetry_metrics_writer, test_agent_metrics_ses
         _assert_logs(test_agent_metrics_session, expected_payload)
 
 
+@pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only, tags order fails on 2.7 and 3.5")
 def test_send_log_metric_simple_tags(telemetry_metrics_writer, test_agent_metrics_session, mock_time):
     """Check the queue of metrics is empty after run periodic method of PeriodicService"""
     with override_global_config(dict(_telemetry_metrics_enabled=True)):
