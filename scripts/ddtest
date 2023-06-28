@@ -31,8 +31,8 @@ if [[ "${CIRCLECI}" = "true" ]]; then
                    bash -c "$FULL_CMD"
 else
     docker-compose run \
-                   -e DD_TRACE_AGENT_URL \
                    --rm \
+                   -i \
                    testrunner \
-                   bash -c "$FULL_CMD"
+                   bash -c "git config --global --add safe.directory /root/project && $FULL_CMD"
 fi
