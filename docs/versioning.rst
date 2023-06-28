@@ -76,6 +76,10 @@ PATCH
 Interfaces
 ==========
 
+For semantic versioning purposes, the public API is defined as follows.
+
+The definition of the **public** interface:
+    Any module, function, class or attribute that is not internal
 
 The definition of the **internal** interface:
     The ``ddtrace.internal`` module is internal
@@ -86,10 +90,7 @@ The definition of the **internal** interface:
 
     Any module, function, class or attribute that is contained within an internal module is internal
 
-
-The definition of the **public** interface:
-    Any module, function, class or attribute that is not internal
-
+Internal code may be subject to breaking changes in bug fix and minor releases.
 
 .. _versioning_supported_runtimes:
 
