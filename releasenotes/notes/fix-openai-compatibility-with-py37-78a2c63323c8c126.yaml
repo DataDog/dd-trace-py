@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    openai: Fixes the issue with ``ImportError`` of ``TypedDict`` from ``typing`` module in Python 3.7.
