@@ -154,52 +154,56 @@ def context_with_data(identifier, parent=None, **kwargs):
     return ExecutionContext.context_with_data(identifier, parent=(parent or _CURRENT_CONTEXT.get()), **kwargs)
 
 
-def _choose_context(span=None):
-    # type: (Optional[Span]) -> ExecutionContext
-    if span:
-        return span._execution_context
-    else:
-        return _CURRENT_CONTEXT.get()  # type: ignore
-
-
 def get_item(data_key, span=None):
     # type: (str, Optional[Span]) -> Optional[Any]
-    return _choose_context(span).get_item(data_key)
+    if span is not None and span._local_root is not None:
+        return span._local_root._get_ctx_item(data_key)
+    else:
+        return _CURRENT_CONTEXT.get().get_item(data_key)
 
 
 def get_items(data_keys, span=None):
     # type: (List[str], Optional[Span]) -> Optional[Any]
-    return _choose_context(span).get_items(data_keys)
+    if span is not None and span._local_root is not None:
+        return [span._local_root._get_ctx_item(key) for key in data_keys]
+    else:
+        return _CURRENT_CONTEXT.get().get_items(data_keys)
 
 
 def set_item(data_key, data_value, span=None):
     # type: (str, Optional[Any], Optional[Span]) -> None
-    return _choose_context(span).set_item(data_key, data_value)
+    if span is not None and span._local_root is not None:
+        span._local_root._set_ctx_item(data_key, data_value)
+    else:
+        _CURRENT_CONTEXT.get().set_item(data_key, data_value)
 
 
 def set_items(keys_values, span=None):
     # type: (Dict[str, Optional[Any]], Optional[Span]) -> None
-    return _choose_context(span).set_items(keys_values)
+    if span is not None and span._local_root is not None:
+        span._local_root._set_ctx_items(keys_values)
+    else:
+        _CURRENT_CONTEXT.get().set_items(keys_values)
 
 
-def has_listeners(event_id, span=None):
+def has_listeners(event_id):
     # type: (str, Optional[Span]) -> bool
-    return _choose_context(span)._event_hub.has_listeners(event_id)
+    return _CURRENT_CONTEXT.get()._event_hub.has_listeners(event_id)
 
 
-def on(event_id, callback, span=None):
+def on(event_id, callback):
     # type: (str, Callable, Optional[Span]) -> None
-    return _choose_context(span)._event_hub.on(event_id, callback)
+    return _CURRENT_CONTEXT.get()._event_hub.on(event_id, callback)
 
 
-def reset_listeners(span=None):
+def reset_listeners():
     # type: (Optional[Span]) -> None
-    current = _choose_context(span)
+    current = _CURRENT_CONTEXT.get()
     while current is not None:
         current._event_hub.reset()
         current = current.parent
 
 
-def dispatch(event_id, args, span=None):
+def dispatch(event_id, args):
     # type: (str, List[Optional[Any]], Optional[Span]) -> Tuple[List[Optional[Any]], List[Optional[Exception]]]
-    return _choose_context(span)._event_hub.dispatch(event_id, args)
+    return _CURRENT_CONTEXT.get()._event_hub.dispatch(event_id, args)

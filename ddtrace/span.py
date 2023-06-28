@@ -28,7 +28,6 @@ from .constants import VERSION_KEY
 from .context import Context
 from .ext import http
 from .ext import net
-from .internal import core
 from .internal._rand import rand64bits as _rand64bits
 from .internal._rand import rand128bits as _rand128bits
 from .internal.compat import NumericType
@@ -80,6 +79,7 @@ class Span(object):
         "_meta",
         "error",
         "_metrics",
+        "_store",
         "span_type",
         "start_ns",
         "duration_ns",
@@ -92,7 +92,6 @@ class Span(object):
         "_ignored_exceptions",
         "_on_finish_callbacks",
         "__weakref__",
-        "_exec_ctx",
     ]
 
     def __init__(
@@ -173,7 +172,7 @@ class Span(object):
         self._parent = None  # type: Optional[Span]
         self._ignored_exceptions = None  # type: Optional[List[Exception]]
         self._local_root = None  # type: Optional[Span]
-        self._exec_ctx = core.ExecutionContext(self.name, span=self)
+        self._store = None  # type: Optional[Dict[str, Any]]
 
     def _ignore_exception(self, exc):
         # type: (Exception) -> None
@@ -182,15 +181,27 @@ class Span(object):
         else:
             self._ignored_exceptions.append(exc)
 
+    def _set_ctx_item(self, key, val):
+        # type: (str, Any) -> None
+        if not self._store:
+            self._store = {}
+        self._store[key] = val
+
+    def _set_ctx_items(self, items):
+        # type: (Dict[str, Any]) -> None
+        if not self._store:
+            self._store = {}
+        self._store.update(items)
+
+    def _get_ctx_item(self, key):
+        # type: (str) -> Optional[Any]
+        if not self._store:
+            return None
+        return self._store.get(key)
+
     @property
     def _trace_id_64bits(self):
         return _get_64_lowest_order_bits_as_int(self.trace_id)
-
-    @property
-    def _execution_context(self):
-        if self._exec_ctx is None:
-            self._exec_ctx = core.ExecutionContext(self.name, span=self)
-        return self._exec_ctx
 
     @property
     def start(self):
@@ -265,8 +276,6 @@ class Span(object):
 
         for cb in self._on_finish_callbacks:
             cb(self)
-        if self._exec_ctx is not None:
-            self._exec_ctx.end()
 
     def set_tag(self, key, value=None):
         # type: (_TagNameType, Any) -> None
@@ -440,14 +449,6 @@ class Span(object):
         # type: () -> _MetricDictType
         """Return all metrics."""
         return self._metrics.copy()
-
-    def set_parent(self, parent):
-        # type: (Span) -> None
-        self.sampled = parent.sampled
-        self._parent = parent
-        self._local_root = parent._local_root
-        if self._exec_ctx is not None:
-            self._exec_ctx.addParent(parent._execution_context)
 
     def set_traceback(self, limit=30):
         # type: (int) -> None
