@@ -1,11 +1,10 @@
 import os
 
-from ddtrace.internal.logger import get_logger
-
-from ddtrace.internal.telemetry import telemetry_metrics_writer
-from ddtrace.internal.utils.cache import cached
-from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_IAST
 from ddtrace.appsec._constants import IAST
+from ddtrace.internal.logger import get_logger
+from ddtrace.internal.telemetry import telemetry_metrics_writer
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_IAST
+
 
 log = get_logger(__name__)
 

@@ -1,10 +1,9 @@
 import pytest
 
-from ddtrace.appsec.iast._metrics import metric_verbosity
 from ddtrace.appsec.iast._metrics import TELEMETRY_DEBUG_VERBOSITY
-from ddtrace.appsec.iast._metrics import TELEMETRY_MANDATORY_VERBOSITY
 from ddtrace.appsec.iast._metrics import TELEMETRY_INFORMATION_VERBOSITY
-
+from ddtrace.appsec.iast._metrics import TELEMETRY_MANDATORY_VERBOSITY
+from ddtrace.appsec.iast._metrics import metric_verbosity
 from tests.utils import override_env
 
 
