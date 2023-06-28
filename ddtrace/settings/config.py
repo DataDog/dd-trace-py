@@ -594,8 +594,9 @@ class Config(object):
         # TODO: if version >= 2.0, log warning
         if not cfg:
             for cfg_item in self._items.values():
-                cfg_item.remote_config.clear()
+                cfg_item.remoteconfig.clear()
                 # TODO: notify subscribers
+            return
 
         config = cfg["lib_config"]
 

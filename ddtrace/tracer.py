@@ -214,6 +214,15 @@ class _TraceConfigurationV1(object):
             sampler=self.sampler,
         )
 
+    def __repr__(self):
+        # type: () -> str
+        return "{}(service={!r}, service_mapping={!r}, sampler={!r})".format(
+            self.__class__.__name__,
+            self.service,
+            self.service_mapping,
+            self.sampler,
+        )
+
 
 class Tracer(object):
     """
@@ -317,7 +326,6 @@ class Tracer(object):
         forksafe.register(self._child_after_fork)
 
         self._shutdown_lock = RLock()
-
         self._new_process = False
 
         # Subscribe the tracing configuration options from the global config.
@@ -328,14 +336,14 @@ class Tracer(object):
                 "trace_rate_limit",
                 "trace_sampling_rules",
             ],
-            self._on_config_change,
+            self._on_global_config_change,
         )
 
-    def _on_config_change(self, new_config, new_settings):
+    def _on_global_config_change(self, new_config, new_settings):
         """Handle global configuration updates relevant to tracing.
 
-        Config updates should not happen often so this is where we choose to copy the configuration (rather than
-        copying the config for each trace).
+        Config updates should not happen often so this is where we choose to copy the configuration rather than
+        copying the config for each trace. Each trace can then keep a reference to the config it was created from.
         """
         log.debug("updating tracer configuration with %s", new_settings)
         new_trace_config = self._config.copy()
@@ -355,6 +363,7 @@ class Tracer(object):
         # Note that this operation does not persist the state of the rate limiter!
         if any(s in new_settings for s in ("trace_sample_rate", "trace_rate_limit", "trace_sampling_rules")):
             new_trace_config.sampler = self._resolve_sampler()
+            log.debug("updating tracer config to %r", new_trace_config)
             self._config = new_trace_config
 
     def _resolve_sampler(self):
