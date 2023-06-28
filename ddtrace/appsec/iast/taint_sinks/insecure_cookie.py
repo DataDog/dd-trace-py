@@ -53,7 +53,6 @@ def asm_check_cookies(cookies):  # type: (Optional[Dict[str, str]]) -> None
             if len(ss_tokens) == 0:
                 report_samesite = True
             elif ss_tokens[1].startswith("strict") or ss_tokens[1].startswith("lax"):
-                print("XXX samesite value: %s" % ss_tokens[1])
                 report_samesite = False
             else:
                 report_samesite = True
