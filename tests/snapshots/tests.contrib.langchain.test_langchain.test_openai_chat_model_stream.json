@@ -10,7 +10,7 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "langchain.request.messages.0.0.content": "When do you use 'whom' instead of 'who'?",
+      "langchain.request.messages.0.0.content": "What is the secret Krabby Patty recipe?",
       "langchain.request.messages.0.0.message_type": "HumanMessage",
       "langchain.request.model": "gpt-3.5-turbo",
       "langchain.request.openai.api_key": "<no...key>",
@@ -18,13 +18,13 @@
       "langchain.request.openai.parameters.model": "gpt-3.5-turbo",
       "langchain.request.openai.parameters.n": "1",
       "langchain.request.openai.parameters.request_timeout": "None",
-      "langchain.request.openai.parameters.stream": "False",
+      "langchain.request.openai.parameters.stream": "True",
       "langchain.request.openai.parameters.temperature": "0.0",
       "langchain.request.provider": "openai",
-      "langchain.response.completions.0.0.content": "'Whom' is used instead of 'who' when referring to the object of a sentence or clause. It is used when the person being referred ...",
+      "langchain.response.completions.0.0.content": "As an AI language model, I do not have access to the secret Krabby Patty recipe. It is a closely guarded secret by the creators ...",
       "langchain.response.completions.0.0.message_type": "AIMessage",
       "language": "python",
-      "runtime-id": "f893da0eac854539819fa60e955cc592"
+      "runtime-id": "0ef61adb6068409ab0787eb9864a3b6b"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -32,12 +32,12 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "langchain.tokens.completion_tokens": 59,
-      "langchain.tokens.prompt_tokens": 21,
-      "langchain.tokens.total_cost": 0.0001495,
-      "langchain.tokens.total_tokens": 80,
-      "process_id": 61064
+      "langchain.tokens.completion_tokens": 0,
+      "langchain.tokens.prompt_tokens": 0,
+      "langchain.tokens.total_cost": 0.0,
+      "langchain.tokens.total_tokens": 0,
+      "process_id": 53846
     },
-    "duration": 2563000,
-    "start": 1687463220235518000
+    "duration": 895612000,
+    "start": 1687878637733417000
   }]]

@@ -2772,10 +2772,11 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/langchain",
             pys=select_pys(min_version="3.9"),
             pkgs={
-                "langchain": latest,
+                "langchain": ["~=0.0.185", latest],
                 "openai": latest,
                 "vcrpy": latest,
                 "pytest-asyncio": latest,
+                "pinecone-client": latest,
             },
         ),
         Venv(

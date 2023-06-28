@@ -10,6 +10,7 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "langchain.request.openai.api_key": "<no...key>",
       "langchain.request.inputs.0.text": "this is",
       "langchain.request.inputs.1.text": "a test document.",
       "langchain.request.model": "text-embedding-ada-002",

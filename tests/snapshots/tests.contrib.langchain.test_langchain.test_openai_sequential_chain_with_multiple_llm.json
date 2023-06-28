@@ -66,6 +66,7 @@
           "error": 0,
           "meta": {
             "langchain.request.model": "text-davinci-003",
+            "langchain.request.openai.api_key": "<no...key>",
             "langchain.request.openai.parameters.frequency_penalty": "0",
             "langchain.request.openai.parameters.logit_bias": "{}",
             "langchain.request.openai.parameters.max_tokens": "256",
@@ -126,6 +127,7 @@
           "error": 0,
           "meta": {
             "langchain.request.model": "text-davinci-003",
+            "langchain.request.openai.api_key": "<no...key>",
             "langchain.request.openai.parameters.frequency_penalty": "0",
             "langchain.request.openai.parameters.logit_bias": "{}",
             "langchain.request.openai.parameters.max_tokens": "256",

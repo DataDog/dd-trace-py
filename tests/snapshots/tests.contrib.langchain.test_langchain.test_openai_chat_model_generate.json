@@ -19,6 +19,7 @@
       "langchain.request.messages.1.1.content": "How does one get to Bikini Bottom from New York?",
       "langchain.request.messages.1.1.message_type": "HumanMessage",
       "langchain.request.model": "gpt-3.5-turbo",
+      "langchain.request.openai.api_key": "<no...key>",
       "langchain.request.openai.parameters.max_tokens": "256",
       "langchain.request.openai.parameters.model": "gpt-3.5-turbo",
       "langchain.request.openai.parameters.n": "1",
