@@ -67,11 +67,12 @@ class EventHub:
 
 
 class ExecutionContext:
+    __slots__ = ["identifier", "_data", "_parents", "_event_hub", "_span", "_token"]
+
     def __init__(self, identifier, parent=None, span=None, **kwargs):
         self.identifier = identifier
-        self._data = dict()
+        self._data = {}
         self._parents = []
-        self._children = []
         self._event_hub = EventHub()
         self._span = span
         if parent is not None:
@@ -90,10 +91,6 @@ class ExecutionContext:
     @property
     def parent(self):
         return self._parents[0] if self._parents else None
-
-    @property
-    def children(self):
-        return self._children
 
     def end(self):
         if self._span is None:
@@ -116,9 +113,6 @@ class ExecutionContext:
             raise ValueError("Cannot add parent to root context")
         self._parents.append(context)
         self._data.update(context._data)
-
-    def addChild(self, context):
-        self._children.append(context)
 
     @classmethod
     @contextmanager
