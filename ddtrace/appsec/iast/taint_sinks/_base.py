@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 from ddtrace import tracer
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec.iast import oce
+from ddtrace.appsec.iast._metrics import _set_metric_iast_executed_sink
 from ddtrace.appsec.iast._overhead_control_engine import Operation
 from ddtrace.appsec.iast.reporter import Evidence
 from ddtrace.appsec.iast.reporter import IastSpanReporter
@@ -82,6 +83,9 @@ class VulnerabilityBase(Operation):
                     log.debug("Unexpected evidence_value type: %s", type(evidence_value))
 
                 if cls.is_not_reported(file_name, line_number):
+
+                    _set_metric_iast_executed_sink(cls.vulnerability_type)
+
                     report = _context.get_item(IAST.CONTEXT_KEY, span=span)
                     if report:
                         report.vulnerabilities.add(

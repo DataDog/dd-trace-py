@@ -6,6 +6,8 @@ from typing import TYPE_CHECKING
 
 from six import iteritems
 
+from ddtrace.appsec.iast._metrics import _set_metric_iast_instrumented_propagation
+
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Any
@@ -294,7 +296,7 @@ class AstVisitor(ast.NodeTransformer):
         """
         self.generic_visit(call_node)
         func_member = call_node.func
-
+        call_modified = False
         if self.replacements_disabled_for_functiondef:
             return call_node
 
@@ -304,7 +306,7 @@ class AstVisitor(ast.NodeTransformer):
             aspect = self._aspect_functions.get(func_name_node)
             if aspect:
                 call_node.func = self._attr_node(call_node, aspect)
-                self.ast_modified = True
+                self.ast_modified = call_modified = True
         # Call [attr] -> Attribute [value]-> Attribute [value]-> Attribute
         # a.b.c.method()
         # replaced_method(a.b.c)
@@ -328,7 +330,7 @@ class AstVisitor(ast.NodeTransformer):
 
                 # Create a new Name node for the replacement and set it as node.func
                 call_node.func = self._attr_node(call_node, aspect)
-                self.ast_modified = True
+                self.ast_modified = call_modified = True
 
             elif hasattr(func_member.value, "id") or hasattr(func_member.value, "attr"):
                 aspect = self._aspect_modules.get(method_name, None)
@@ -338,7 +340,11 @@ class AstVisitor(ast.NodeTransformer):
 
                     # Create a new Name node for the replacement and set it as node.func
                     call_node.func = self._attr_node(call_node, aspect)
-                    self.ast_modified = True
+                    self.ast_modified = call_modified = True
+
+        if call_modified:
+            _set_metric_iast_instrumented_propagation()
+
         return call_node
 
     def visit_BinOp(self, call_node):  # type: (ast.BinOp) -> Any
@@ -351,6 +357,8 @@ class AstVisitor(ast.NodeTransformer):
         aspect = self._aspect_operators.get(operator.__class__)
         if aspect:
             self.ast_modified = True
+            _set_metric_iast_instrumented_propagation()
+
             return ast.Call(self._attr_node(call_node, aspect), [call_node.left, call_node.right], [])
 
         return call_node
@@ -383,6 +391,7 @@ class AstVisitor(ast.NodeTransformer):
         )
 
         self.ast_modified = True
+        _set_metric_iast_instrumented_propagation()
         return call_node
 
     def visit_JoinedStr(self, joinedstr_node):  # type: (ast.JoinedStr) -> Any
@@ -412,4 +421,5 @@ class AstVisitor(ast.NodeTransformer):
         )
 
         self.ast_modified = True
+        _set_metric_iast_instrumented_propagation()
         return call_node

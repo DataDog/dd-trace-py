@@ -2,6 +2,7 @@
 # flake8: noqa
 from typing import TYPE_CHECKING
 
+from ddtrace.appsec.iast._metrics import _set_metric_iast_executed_source
 from ddtrace.appsec.iast._util import _is_python_version_supported
 
 
@@ -93,7 +94,7 @@ def taint_pyobject(pyobject, source_name, source_value, source_origin=None, star
     source = Source(source_name, source_value, source_origin)
     pyobject_range = TaintRange(start, len_pyobject, source)
     set_ranges(pyobject, [pyobject_range])
-
+    _set_metric_iast_executed_source(source_origin)
     return pyobject
 
 
