@@ -482,16 +482,16 @@ def test_set_http_meta_no_headers(mock_store_headers, span, int_config):
     mock_store_headers.assert_not_called()
 
 
-def test_set_http_meta_insecure_cookies_asm_disabled(span, int_config):
-    with override_global_config(dict(_appsec_enabled=False)):
+def test_set_http_meta_insecure_cookies_iast_disabled(span, int_config):
+    with override_global_config(dict(_iast_enabled=False)):
         cookies = {"foo": "bar"}
         trace_utils.set_http_meta(span, int_config.myint, request_cookies=cookies)
         span_report = _context.get_item(IAST.CONTEXT_KEY, span=span)
         assert not span_report
 
 
-def test_set_http_meta_insecure_cookies_asm_enabled(span, int_config):
-    with override_global_config(dict(_appsec_enabled=True)):
+def test_set_http_meta_insecure_cookies_iast_enabled(span, int_config):
+    with override_global_config(dict(_iast_enabled=True, _appsec_enabled=True)):
         cookies = {"foo": "bar"}
         trace_utils.set_http_meta(span, int_config.myint, request_cookies=cookies)
         span_report = _context.get_item(IAST.CONTEXT_KEY, span=span)

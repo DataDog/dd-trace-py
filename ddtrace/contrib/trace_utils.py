@@ -513,38 +513,38 @@ def set_http_meta(
     if retries_remain is not None:
         span.set_tag_str(http.RETRIES_REMAIN, str(retries_remain))
 
-    if span.span_type == SpanTypes.WEB and config._appsec_enabled:
+    if config._appsec_enabled:
         from ddtrace.appsec.iast._util import _is_iast_enabled
 
         if request_cookies and _is_iast_enabled():
             from ddtrace.appsec.iast.taint_sinks.insecure_cookie import asm_check_cookies
-
             asm_check_cookies(request_cookies)
 
-        from ddtrace.appsec._asm_request_context import set_waf_address
-        from ddtrace.appsec._constants import SPAN_DATA_NAMES
+        if span.span_type == SpanTypes.WEB:
+            from ddtrace.appsec._asm_request_context import set_waf_address
+            from ddtrace.appsec._constants import SPAN_DATA_NAMES
 
-        status_code = str(status_code) if status_code is not None else None
+            status_code = str(status_code) if status_code is not None else None
 
-        addresses = {
-            k: v
-            for k, v in [
-                (SPAN_DATA_NAMES.REQUEST_URI_RAW, raw_uri),
-                (SPAN_DATA_NAMES.REQUEST_METHOD, method),
-                (SPAN_DATA_NAMES.REQUEST_COOKIES, request_cookies),
-                (SPAN_DATA_NAMES.REQUEST_QUERY, parsed_query),
-                (SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, request_headers),
-                (SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, response_headers),
-                (SPAN_DATA_NAMES.RESPONSE_STATUS, status_code),
-                (SPAN_DATA_NAMES.REQUEST_PATH_PARAMS, request_path_params),
-                (SPAN_DATA_NAMES.REQUEST_BODY, request_body),
-                (SPAN_DATA_NAMES.REQUEST_HTTP_IP, request_ip),
-                (SPAN_DATA_NAMES.REQUEST_ROUTE, route),
-            ]
-            if v is not None
-        }
-        for k, v in addresses.items():
-            set_waf_address(k, v, span)
+            addresses = {
+                k: v
+                for k, v in [
+                    (SPAN_DATA_NAMES.REQUEST_URI_RAW, raw_uri),
+                    (SPAN_DATA_NAMES.REQUEST_METHOD, method),
+                    (SPAN_DATA_NAMES.REQUEST_COOKIES, request_cookies),
+                    (SPAN_DATA_NAMES.REQUEST_QUERY, parsed_query),
+                    (SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, request_headers),
+                    (SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, response_headers),
+                    (SPAN_DATA_NAMES.RESPONSE_STATUS, status_code),
+                    (SPAN_DATA_NAMES.REQUEST_PATH_PARAMS, request_path_params),
+                    (SPAN_DATA_NAMES.REQUEST_BODY, request_body),
+                    (SPAN_DATA_NAMES.REQUEST_HTTP_IP, request_ip),
+                    (SPAN_DATA_NAMES.REQUEST_ROUTE, route),
+                ]
+                if v is not None
+            }
+            for k, v in addresses.items():
+                set_waf_address(k, v, span)
 
     if route is not None:
         span.set_tag_str(http.ROUTE, route)
