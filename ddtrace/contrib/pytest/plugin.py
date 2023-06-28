@@ -42,6 +42,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 
 
+SKIPPED_BY_ITR = "Skipped by Datadog Intelligent Test Runner"
 PATCH_ALL_HELP_MSG = "Call ddtrace.patch_all before running tests."
 log = get_logger(__name__)
 
@@ -311,7 +312,7 @@ def _get_test_class_hierarchy(item):
 
 def pytest_collection_modifyitems(session, config, items):
     if _CIVisibility.test_skipping_enabled():
-        skip = pytest.mark.skip(reason="Skipped by Datadog Intelligent Test Runner")
+        skip = pytest.mark.skip(reason=SKIPPED_BY_ITR)
         for item in items:
             if _CIVisibility._instance._should_skip_path(str(item.path)):
                 item.add_marker(skip)
@@ -395,7 +396,13 @@ def pytest_runtest_protocol(item, nextitem):
         markers = [marker.kwargs for marker in item.iter_markers(name="dd_tags")]
         for tags in markers:
             span.set_tags(tags)
-        _store_span(item, span)
+
+        is_skipped_by_itr = [
+            marker for marker in item.iter_markers(name="skip") if marker.kwargs["reason"] == SKIPPED_BY_ITR
+        ]
+
+        if not is_skipped_by_itr:
+            _store_span(item, span)
 
         # Run the actual test
         yield
