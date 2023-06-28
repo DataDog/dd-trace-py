@@ -194,8 +194,6 @@ Initializer::release_taint_source(SourcePtr sourceptr)
     if (!sourceptr)
         return;
 
-    // assert(hash);
-
     if (--(sourceptr->refcount) == 0) {
         // No more references pointing to this origin; move it back from the map
         // to the stack (or delete it if the stack is full)
@@ -315,8 +313,6 @@ pyexport_initializer(py::module& m)
     m.def("clear_tainting_maps", [] { initializer->clear_tainting_maps(); });
 
     m.def("num_objects_tainted", [] { return initializer->num_objects_tainted(); });
-
-    m.def("reset_stdlib_paths_and_modules", [] { initializer->reset_stdlib_paths_and_modules(); });
 
     m.def(
       "create_context", []() { return initializer->create_context(); }, py::return_value_policy::reference);

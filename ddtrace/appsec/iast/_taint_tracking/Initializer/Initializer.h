@@ -21,31 +21,6 @@ namespace py = pybind11;
 class Initializer
 {
   private:
-    // Used to reset stdlib_modules to these values
-    unordered_set<string> stdlib_modules_orig{
-        "__future__",  "__phello__",  "abc",       "aifc",        "antigravity", "argparse",     "ast",
-        "asynchat",    "asyncore",    "base64",    "bdb",         "binhex",      "bisect",       "cProfile",
-        "calendar",    "cgi",         "cgitb",     "chunk",       "cmd",         "code",         "codecs",
-        "codeop",      "collections", "colorsys",  "compileall",  "contextlib",  "copy",         "csv",
-        "ctypes",      "curses",      "decimal",   "difflib",     "dis",         "distutils",    "dummy_threading",
-        "email",       "encodings",   "ensurepip", "filecmp",     "fileinput",   "fnmatch",      "formatter",
-        "fractions",   "ftplib",      "functools", "genericpath", "getopt",      "getpass",      "gettext",
-        "glob",        "gzip",        "hashlib",   "heapq",       "hmac",        "idlelib",      "imaplib",
-        "imghdr",      "importlib",   "inspect",   "io",          "json",        "keyword",      "linecache",
-        "locale",      "logging",     "mailbox",   "mailcap",     "mimetypes",   "modulefinder", "multiprocessing",
-        "netrc",       "nntplib",     "ntpath",    "nturl2path",  "numbers",     "opcode",       "optparse",
-        "os",          "pdb",         "pickle",    "pickletools", "pipes",       "pkgutil",      "platform",
-        "plistlib",    "poplib",      "posixpath", "pprint",      "profile",     "pstats",       "pty",
-        "py_compile",  "pyclbr",      "pydoc",     "pydoc_data",  "quopri",      "random",       "re",
-        "rlcompleter", "runpy",       "sched",     "shelve",      "shlex",       "shutil",       "site",
-        "smtpd",       "smtplib",     "sndhdr",    "socket",      "sqlite3",     "sre_compile",  "sre_constants",
-        "sre_parse",   "ssl",         "stat",      "string",      "stringprep",  "struct",       "subprocess",
-        "sunau",       "symbol",      "symtable",  "sysconfig",   "tabnanny",    "tarfile",      "telnetlib",
-        "tempfile",    "textwrap",    "this",      "threading",   "timeit",      "token",        "tokenize",
-        "trace",       "traceback",   "tty",       "types",       "urllib",      "uu",           "uuid",
-        "warnings",    "wave",        "weakref",   "webbrowser",  "wsgiref",     "xdrlib",       "xml",
-        "zipfile",
-    };
     py::object pyfunc_get_settings;
     py::object pyfunc_get_python_lib;
     unordered_map<size_t, shared_ptr<Context>> contexts;
@@ -70,8 +45,6 @@ class Initializer
     void clear_tainting_maps();
 
     static int num_objects_tainted();
-
-    unordered_set<string> stdlib_modules{ stdlib_modules_orig };
 
     shared_ptr<Context> create_context();
 
