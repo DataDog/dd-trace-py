@@ -440,6 +440,7 @@ class TelemetryWriter(TelemetryBase):
                 ("ddtrace_bootstrapped", config._ddtrace_bootstrapped, "unknown"),
                 ("ddtrace_auto_used", "ddtrace.auto" in sys.modules, "unknown"),
                 ("otel_enabled", config._otel_enabled, "unknown"),
+                ("runtimemetrics_enabled", asbool(os.getenv("DD_RUNTIME_METRICS_ENABLED", default=False)), "unknown"),
             ]
         )
 

@@ -95,6 +95,11 @@ def test_app_started_event(telemetry_lifecycle_writer, test_agent_session, mock_
                 "value": False,
             },
             {
+                "name": "runtimemetrics_enabled",
+                "origin": "unknown",
+                "value": False,
+            },
+            {
                 "name": "trace_propagation_style_extract",
                 "origin": "unknown",
                 "value": "['tracecontext', 'datadog']",
@@ -136,6 +141,7 @@ telemetry_lifecycle_writer.disable()
     env["DD_TRACE_PROPAGATION_STYLE_EXTRACT"] = "b3multi"
     env["DD_TRACE_PROPAGATION_STYLE_INJECT"] = "datadog"
     env["DD_TRACE_OTEL_ENABLED"] = "true"
+    env["DD_RUNTIME_METRICS_ENABLED"] = "true"
 
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
 
@@ -166,6 +172,11 @@ telemetry_lifecycle_writer.disable()
         },
         {
             "name": "otel_enabled",
+            "origin": "unknown",
+            "value": True,
+        },
+        {
+            "name": "runtimemetrics_enabled",
             "origin": "unknown",
             "value": True,
         },
