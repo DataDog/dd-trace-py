@@ -490,6 +490,7 @@ def test_set_http_meta_insecure_cookies_iast_disabled(span, int_config):
         assert not span_report
 
 
+@pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ test")
 def test_set_http_meta_insecure_cookies_iast_enabled(span, int_config):
     with override_global_config(dict(_iast_enabled=True, _appsec_enabled=True)):
         cookies = {"foo": "bar"}
