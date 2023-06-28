@@ -24,6 +24,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
 from ddtrace.internal.writer.writer import Response
 from ddtrace.settings import IntegrationConfig
+from ddtrace.vendor.psutil._compat import lru_cache
 
 from .. import agent
 from .constants import AGENTLESS_DEFAULT_SITE
@@ -279,6 +280,7 @@ class CIVisibility(Service):
                     "/".join((module, item["attributes"]["suite"])) if module else item["attributes"]["suite"]
                 )
 
+    @lru_cache
     def _should_skip_path(self, path):
         if self._root_dir is None:
             # Local import to make sure it's been initialized
