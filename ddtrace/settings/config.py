@@ -611,6 +611,19 @@ class Config(object):
             )
         self._notify_subscribers(changed_items)
 
+        from ..internal.telemetry import telemetry_lifecycle_writer
+
+        telemetry_lifecycle_writer.add_event(
+            {
+                "configuration": [
+                    {"name": "service", "value": self.service},
+                    {"name": "env", "value": self.env},
+                ],
+                "remote_config": {},
+            },
+            "app-client-configuration-change",
+        )
+
     def _subscribe(self, items, handler):
         self._subscriptions.append((items, handler))
 
