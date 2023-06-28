@@ -82,7 +82,4 @@ def _set_metric_iast_executed_sink(vulnerability_type):
 
 @metric_verbosity(TELEMETRY_INFORMATION_VERBOSITY)
 def _set_metric_iast_request_tainted():
-    # TODO: function num_objects_tainted is in other PR
-    # from ddtrace.appsec.iast._taint_tracking import num_objects_tainted
-    num_objects_tainted = lambda: 1
-    telemetry_metrics_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_IAST, "request.tainted", num_objects_tainted())
+    telemetry_metrics_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_IAST, "request.tainted", 1)
