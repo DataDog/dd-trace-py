@@ -280,7 +280,7 @@ class CIVisibility(Service):
                 )
 
     def _should_skip_path(self, path):
-        if not self._root_dir:
+        if self._root_dir is None:
             # Local import to make sure it's been initialized
             from .coverage import ROOT_DIR
 

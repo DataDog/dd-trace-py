@@ -1406,9 +1406,7 @@ class PytestTestCase(TracerTestCase):
         self.testdir.chdir()
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
-            return_value=[
-                True,
-            ],
+            return_value=True,
         ), mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"), mock.patch.object(
             ddtrace.internal.ci_visibility.recorder.CIVisibility,
             "_test_suites_to_skip",
@@ -1432,7 +1430,7 @@ class PytestTestCase(TracerTestCase):
         """
         Test that running pytest on two nested packages with 1 test each. It should generate
         1 test session span, 2 test module spans, 2 test suite spans, and 2 test spans, but
-        all test suites are  skipped with ITR, so only the test session span is created.
+        all test suites are skipped with ITR, so only the test session span is created.
         """
         package_outer_dir = self.testdir.mkpydir("test_outer_package")
         os.chdir(str(package_outer_dir))
@@ -1453,9 +1451,7 @@ class PytestTestCase(TracerTestCase):
         self.testdir.chdir()
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
-            return_value=[
-                True,
-            ],
+            return_value=True,
         ), mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._should_skip_path", return_value=True
         ):
@@ -1464,3 +1460,78 @@ class PytestTestCase(TracerTestCase):
         spans = self.pop_spans()
         assert len(spans) == 1
         assert spans[0].get_tag("type") == "test_session_end"
+
+    def test_pytest_skip_all_suites_but_test_skipping_not_enabled(self):
+        """
+        Test that running pytest on two nested packages with 1 test each. It should generate
+        1 test session span, 2 test module spans, 2 test suite spans, and 2 test spans.
+        All test suites match to be skipped with ITR, but test skipping is not enabled.
+        """
+        package_outer_dir = self.testdir.mkpydir("test_outer_package")
+        os.chdir(str(package_outer_dir))
+        with open("test_outer_abc.py", "w+") as fd:
+            fd.write(
+                """def test_outer_ok():
+                assert True"""
+            )
+        os.mkdir("test_inner_package")
+        os.chdir("test_inner_package")
+        with open("__init__.py", "w+"):
+            pass
+        with open("test_inner_abc.py", "w+") as fd:
+            fd.write(
+                """def test_inner_ok():
+                assert True"""
+            )
+        self.testdir.chdir()
+        with mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._should_skip_path", return_value=True
+        ):
+            self.inline_run("--ddtrace")
+
+        spans = self.pop_spans()
+        assert len(spans) == 7
+        test_suite_spans = [span for span in spans if span.get_tag("type") == "test_suite_end"]
+        assert len(test_suite_spans) == 2
+        test_spans = [span for span in spans if span.get_tag("type") == "test"]
+        assert len(test_spans) == 2
+
+    def test_pytest_skip_suite_by_path_but_test_skipping_not_enabled(self):
+        """
+        Test that running pytest on two nested packages with 1 test each. It should generate
+        1 test session span, 2 test module spans, 2 test suite spans, and 2 test spans,
+        both suites are to be skipped with ITR, but test skipping is disabled.
+        """
+        package_outer_dir = self.testdir.mkpydir("test_outer_package")
+        os.chdir(str(package_outer_dir))
+        with open("test_outer_abc.py", "w+") as fd:
+            fd.write(
+                """def test_outer_ok():
+                assert True"""
+            )
+        os.mkdir("test_inner_package")
+        os.chdir("test_inner_package")
+        with open("__init__.py", "w+"):
+            pass
+        with open("test_inner_abc.py", "w+") as fd:
+            fd.write(
+                """def test_inner_ok():
+                assert True"""
+            )
+        self.testdir.chdir()
+        with mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"), mock.patch.object(
+            ddtrace.internal.ci_visibility.recorder.CIVisibility,
+            "_test_suites_to_skip",
+            [
+                "test_outer_package/test_inner_package/test_inner_abc.py",
+                "test_outer_package/test_outer_abc.py",
+            ],
+        ):
+            self.inline_run("--ddtrace")
+
+        spans = self.pop_spans()
+        assert len(spans) == 7
+        test_suite_spans = [span for span in spans if span.get_tag("type") == "test_suite_end"]
+        assert len(test_suite_spans) == 2
+        test_spans = [span for span in spans if span.get_tag("type") == "test"]
+        assert len(test_spans) == 2
