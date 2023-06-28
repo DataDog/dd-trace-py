@@ -518,6 +518,7 @@ def set_http_meta(
 
         if request_cookies and _is_iast_enabled():
             from ddtrace.appsec.iast.taint_sinks.insecure_cookie import asm_check_cookies
+
             asm_check_cookies(request_cookies)
 
         if span.span_type == SpanTypes.WEB:
