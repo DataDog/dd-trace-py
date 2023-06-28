@@ -5,7 +5,7 @@ import mock
 import pytest
 import vcr
 
-from ddtrace.contrib.openai._logging import V2LogWriter
+from ddtrace.internal.log_writer import V2LogWriter
 from tests.utils import request_token
 
 
@@ -34,7 +34,7 @@ def vcr_logs(request):
 
 @pytest.fixture
 def mock_logs():
-    with mock.patch("ddtrace.contrib.openai._logging.logger") as m:
+    with mock.patch("ddtrace.internal.log_writer.logger") as m:
         yield m
 
 
@@ -118,7 +118,7 @@ def test_send_on_exit():
     import os
     import time
 
-    from ddtrace.contrib.openai._logging import V2LogWriter
+    from ddtrace.internal.log_writer import V2LogWriter
     from tests.contrib.openai.test_logger import logs_vcr
 
     ctx = logs_vcr.use_cassette("tests.contrib.openai.test_logger.test_send_on_exit.yaml")
