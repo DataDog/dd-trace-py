@@ -1,63 +1,119 @@
-from ddtrace import config
-from ddtrace.internal.remoteconfig import RemoteConfig
-from ddtrace.internal.telemetry import telemetry_lifecycle_writer
-from ddtrace.internal.utils.formats import asbool
+from .internal.utils.formats import parse_tags_str
+from .sampler import DatadogSampler
+from .settings.config import _ConfigItem
+from .settings.config import _ConfigSourceEnv
+from .settings.config import _ConfigSourceEnvMulti
 
 
-def remoteconfig_callback(metadata, cfg):
-    """Handle remote configuration received for the APM_TRACING RC product."""
-    if not cfg:
-        # TODO: reset back to original config
-        return
-
-    features = cfg["lib_config"]
-    new_cfg = self._config.copy()
-
-    # if features["tracing_debug"] is None:
-    #     new_cfg["debug_enabled"] = debug_mode
-    # else:
-    #     new_cfg["debug_enabled"] = features["tracing_debug"]
-
-    # if features["tracing_sample_rate"] is None:
-    #     # TODO: handle user-defined values for the fallback (eg. tracer.configure())
-    #     new_cfg["tracing_sample_rate"] = os.getenv("DD_TRACE_SAMPLE_RATE")
-    # else:
-    #     new_cfg["tracing_sample_rate"] = features["tracing_sample_rate"]
-
-    if features["tracing_service_mapping"] is None:
-        new_cfg.service_mapping.rc_value = None
-    else:
-        new_cfg.service_mapping.rc_value = {m["from_name"]: m["to_name"] for m in features["tracing_service_mapping"]}
-
-    enable_runtime_metrics = features["runtime_metrics_enabled"]
-    if enable_runtime_metrics is None:
-        enable_runtime_metrics = asbool(os.getenv("DD_RUNTIME_METRICS_ENABLED", False))
-
-    if features["tracing_http_header_tags"] is None:
-        # TODO
-        pass
-    else:
-        new_cfg["http_header_tags"] = features["tracing_http_header_tags"]
-
-    from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker  # noqa
-
-    if enable_runtime_metrics:
-        RuntimeWorker.enable()
-    else:
-        RuntimeWorker.disable()
-
-    self._config = new_cfg
-    # telemetry_lifecycle_writer.add_event(
-    #     {
-    #         "configuration": [
-    #             {"name": "service", "value": config.service},
-    #             {"name": "env", "value": config.env},
-    #         ],
-    #         "remote_config": {},
-    #     },
-    #     "app-client-configuration-change",
-    # )
+def _service_from_tags(s):
+    if s is None:
+        return None
+    tags = parse_tags_str(s)
+    return tags.get("service")
 
 
-# Subscribe to remote config updates.
-RemoteConfig.register("APM_TRACING", remoteconfig_callback)
+def _parse_tags_str(s):
+    if s is None:
+        return None
+    return parse_tags_str(s)
+
+
+def _parse_trace_sampling_rules(s):
+    # This is a method so we need a `self` argument, but the self argument is unused.
+    return DatadogSampler._parse_rules_from_env_variable(None, s)
+
+
+def _default_config():
+    return (
+        _ConfigItem(
+            key="service",
+            type="Optional[str]",
+            default=None,
+            environ=_ConfigSourceEnvMulti(
+                _ConfigSourceEnv(
+                    name="DD_TAGS",
+                    factory=_service_from_tags,
+                    examples=["service:my-web-service", "service:my-web-service,env:prod"],
+                ),
+                _ConfigSourceEnv(name="DD_SERVICE", examples=["my-web-service"]),
+            ),
+            metadata={
+                "description": "Service name to be used for the application. This is the primary key used in the Datadog product for data submitted from this library. See `Unified Service Tagging`_ for more information.",
+                "version_added": {
+                    "v0.36.0": "",
+                },
+            },
+        ),
+        _ConfigItem(
+            key="service_mapping",
+            default=dict,
+            type="Dict[str, str]",
+            environ=_ConfigSourceEnv(
+                name="DD_SERVICE_MAPPING",
+                factory=_parse_tags_str,
+                examples=[
+                    "from_service:to_service",
+                    "from_service:to_service,from_service2:to_service2",
+                    "postgres:postgresql,defaultdb:postgresql",
+                ],
+            ),
+            metadata={
+                "description": "Map service names to other service names to enable renaming services in traces.",
+                "version_added": {
+                    "v0.47.0": "",
+                },
+            },
+        ),
+        _ConfigItem(
+            key="trace_sample_rate",
+            default=1.0,
+            type="float",
+            environ=_ConfigSourceEnv(
+                name="DD_TRACE_SAMPLE_RATE",
+                factory=float,
+            ),
+            metadata={
+                "description": "Global sampling rate for traces. Setting this to 0.1 will sample 10% of traces.",
+                "version_added": {
+                    "v0.33.0": "``DD_TRACE_SAMPLE_RATE`` added",
+                    "v1.16.0": "``config.trace_sample_rate`` added",
+                },
+            },
+        ),
+        _ConfigItem(
+            key="trace_rate_limit",
+            default=100,
+            type="int",
+            environ=_ConfigSourceEnv(
+                name="DD_TRACE_RATE_LIMIT",
+                factory=float,
+            ),
+            metadata={
+                "description": "Maximum number of traces to sample per second. Setting this to 100 will sample a maximum of 100 traces per second.",
+                "version_added": {
+                    "v0.33.0": "``DD_TRACE_RATE_LIMIT`` added",
+                    "v1.16.0": "``config.trace_rate_limit`` added",
+                },
+            },
+        ),
+        _ConfigItem(
+            key="trace_sampling_rules",
+            default=list,
+            type="List[ddtrace.sampler.SamplingRule]",
+            environ=_ConfigSourceEnv(
+                name="DD_TRACE_SAMPLING_RULES",
+                factory=_parse_trace_sampling_rules,
+                examples=[
+                    '[{"sample_rate":0.5,"service":"my-service"}]',
+                    '[{"sample_rate":0.9,"service":"my-flask-app","name":"flask.request"}]',
+                ],
+            ),
+            metadata={
+                "description": "Rules for sampling traces based on service and span name.",
+                "version_added": {
+                    "v0.55.0": "``DD_TRACE_SAMPLING_RULES`` added",
+                    "v1.16.0": "``config.trace_sampling_rules`` added",
+                },
+            },
+        ),
+    )

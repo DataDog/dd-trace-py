@@ -597,31 +597,10 @@ class Config(object):
                 cfg_item.remote_config.clear()
                 # TODO: notify subscribers
 
-        # Keep track of changed items to notify subscribers
         config = cfg["lib_config"]
 
-        # TODO: do diff detection?
-        # Solved by event including the previous value and the new value
-        # (previous, current)
-        changed_items = ["tracing_http_header_tags", "trace_sample_rate"]
-
-        # if config["tracing_http_header_tags"] is None:
-        #     self._items["tracing_http_header_tags"].remoteconfig.clear()
-        # else:
-        #     self._items["tracing_http_header_tags"].remoteconfig.set(
-        #         config["tracing_http_header_tags"],
-        #         {m["header"]: m["tag_name"] for m in config["tracing_http_header_tags"]},
-        #     )
-
-        # rc_tracing_sampling_rate = config["tracing_sampling_rate"]
-
-        # if rc_tracing_sampling_rate != self._items["trace_sample_rate"].remoteconfig.value:
-        #     previous_value = self._items["trace_sample_rate"].remoteconfig.value
-        #     self._items["trace_sample_rate"].remoteconfig.set(rc_tracing_sampling_rate)
-        #     changed_items["trace_sample_rate"] = {
-        #         "previous": self._items["trace_sample_rate"].remoteconfig.value,
-        #         "current": ,
-        #     }
+        # Keep track of changed items to notify subscribers
+        changed_items = ["trace_sample_rate"]
 
         if config["tracing_sampling_rate"] is None:
             self._items["trace_sample_rate"].remoteconfig.clear()

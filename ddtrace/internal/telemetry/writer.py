@@ -11,7 +11,6 @@ from typing import Union
 
 from ...internal import atexit
 from ...internal import forksafe
-from ...settings import _config as config
 from ..agent import get_connection
 from ..agent import get_trace_url
 from ..compat import get_connection_response

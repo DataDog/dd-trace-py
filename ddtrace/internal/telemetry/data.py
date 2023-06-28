@@ -12,7 +12,6 @@ from ddtrace.internal.runtime.container import get_container_info
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.cache import callonce
 
-from ...settings import _config as config
 from ..hostname import get_hostname
 
 
@@ -101,7 +100,7 @@ def get_application(service, version, env):
 def _get_products():
     # type: () -> Dict
     return {
-        "appsec": {"version": ddtrace.__version__, "enabled": config._appsec_enabled},
+        "appsec": {"version": ddtrace.__version__, "enabled": ddtrace.config._appsec_enabled},
     }
 
 

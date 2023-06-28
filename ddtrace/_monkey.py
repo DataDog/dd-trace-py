@@ -3,13 +3,13 @@ import os
 import threading
 from typing import TYPE_CHECKING
 
+from ddtrace import config
 from ddtrace.vendor.wrapt.importer import when_imported
 
 from .internal.compat import PY2
 from .internal.logger import get_logger
 from .internal.telemetry import telemetry_lifecycle_writer
 from .internal.utils import formats
-from .settings import _config as config
 
 
 if TYPE_CHECKING:  # pragma: no cover
