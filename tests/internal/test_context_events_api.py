@@ -14,7 +14,6 @@ class TestContextEventsApi(unittest.TestCase):
         context = core.ExecutionContext("foo")
         assert context.parents == []
         context.addParent(core.ExecutionContext("bar"))
-        context.addChild(core.ExecutionContext("baz"))
         assert len(context.parents) == 1
 
     def test_core_has_listeners(self):
