@@ -309,6 +309,9 @@ def patch():
     _w("flask", "Flask.preprocess_request", request_tracer("preprocess_request"))
     _w("flask", "Flask.add_url_rule", traced_add_url_rule)
     _w("flask", "Flask.endpoint", traced_endpoint)
+
+    _w("flask", "Flask.finalize_request", traced_finalize_request)
+
     if flask_version >= (2, 0, 0):
         _w("flask", "Flask.register_error_handler", traced_register_error_handler)
     else:
@@ -457,6 +460,8 @@ def unpatch():
         "templating._render",
     ]
 
+    props.append("Flask.finalize_request")
+
     if flask_version >= (2, 0, 0):
         props.append("Flask.register_error_handler")
     else:
@@ -510,6 +515,18 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
     environ, start_response = args
     middleware = _FlaskWSGIMiddleware(wrapped, pin.tracer, config.flask, pin)
     return middleware(environ, start_response)
+
+
+def traced_finalize_request(wrapped, instance, args, kwargs):
+    """
+    Wrapper for flask.app.Flask.finalize_request
+    """
+    rv = wrapped(*args, **kwargs)
+    if config._api_security_enabled and config._appsec_enabled and getattr(rv, "is_sequence", False):
+        # start_response was not called yet, set the HTTP response headers earlier
+        _asm_request_context.set_headers_response(list(rv.headers))
+        _asm_request_context.set_body_response(rv.response)
+    return rv
 
 
 def traced_blueprint_register(wrapped, instance, args, kwargs):
