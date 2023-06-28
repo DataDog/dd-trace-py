@@ -807,6 +807,9 @@ def test_django_login_sucess_safe(client, test_spans, tracer):
         assert login_span.get_tag(user.ID) == "1"
         assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.track") == "true"
         assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.auto.mode") == "safe"
+        assert not login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.login")
+        assert not login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.email")
+        assert not login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.username")
 
 
 @pytest.mark.django_db
