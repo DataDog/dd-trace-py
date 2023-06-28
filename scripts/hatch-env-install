@@ -1,0 +1,10 @@
+#!/bin/bash
+set -euo pipefail
+
+# Install ddtrace using only from local wheels
+pip install \
+    --pre \
+    --find-links $WHEELS_DIR \
+    --no-cache-dir \
+    --no-index \
+    ddtrace

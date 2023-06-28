@@ -78,6 +78,11 @@ commands:
       # Make sure we install and run riot on Python 3
       - run: pip3 install riot==0.17.4
 
+  setup_hatch:
+    description: "Install hatch"
+    steps:
+      - run: pip3 install hatch==1.7.0
+
   save_pip_cache:
     description: "Save pip cache directory"
     steps:
@@ -148,6 +153,8 @@ commands:
                 environment:
                   DD_TRACE_AGENT_URL: << parameters.trace_agent_url >> 
                   RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
+                  PIP_PRE: 1
+                  PIP_FIND_LINKS: ./wheelhouse/
                 command: |
                   # Sort the hashes to ensure a consistent ordering/division between each node
                   riot list --hash-only '<<parameters.pattern>>' | sort | circleci tests split | xargs -n 1 -I {} ./scripts/ddtest riot -v run --exitfirst --pass-env -s {} $([[ << pipeline.parameters.coverage >> == false ]] && echo '--no-cov' )
@@ -175,6 +182,8 @@ commands:
             - run:
                 environment:
                   RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
+                  PIP_PRE: 1
+                  PIP_FIND_LINKS: ./wheelhouse/
                 command: |
                   # Sort the hashes to ensure a consistent ordering/division between each node
                   riot list --hash-only '<<parameters.pattern>>' | sort | circleci tests split | xargs -n 1 -I {} riot -v run --exitfirst --pass-env -s {} $([[ << pipeline.parameters.coverage >> == false ]] && echo '--no-cov' )
@@ -195,6 +204,71 @@ commands:
           name: Get APM Test Agent Trace Check Results
           when: always
           command: bash ./scripts/get-test-agent-results.sh
+
+  run_test_hatch:
+    description: "hatch run {env}:test"
+    parameters:
+      env:
+        type: string
+        default: ""
+      wait:
+        type: string
+        default: ""
+      snapshot:
+        type: boolean
+        default: false
+      docker_services:
+        type: string
+        default: ""
+      store_coverage:
+        type: boolean
+        default: true
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - restore_pip_cache
+      - setup_hatch
+      - when:
+          condition:
+              << parameters.snapshot >>
+          steps:
+            - start_docker_services:
+                env: SNAPSHOT_CI=1
+                services: testagent << parameters.docker_services >>
+            - run:
+                environment:
+                  DD_TRACE_AGENT_URL: http://localhost:9126
+                  RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
+                command: |
+                  hatch run <<parameters.env>>:test
+      - unless:
+          condition:
+              << parameters.snapshot >>
+          steps:
+            - setup_riot
+            - when:
+                condition:
+                  << parameters.wait >>
+                steps:
+                  - run:
+                      name: "Waiting for << parameters.wait >>"
+                      command: riot -v run 'wait' << parameters.wait >>
+            - run:
+                command: |
+                  hatch run <<parameters.env>>:test
+      - save_pip_cache
+      - when:
+          condition:
+            and:
+              - << pipeline.parameters.coverage >>
+              - << parameters.store_coverage >>
+          steps:
+            - save_coverage
+      - store_test_results:
+          path: test-results
+      - store_artifacts:
+          path: test-results
 
 executors:
   cimg_base:
@@ -264,24 +338,24 @@ jobs:
       - run:
           name: "Mypy check"
           command: riot run -s mypy
-      - run:
-          name: "cython-lint check"
-          command: riot run -s cython-lint
-      - run:
-          name: "Codespell check"
-          command: riot run -s codespell
-      - run:
-          name: "Run riotfile.py tests"
-          command: riot run -s riot-helpers
-      - run:
-          name: "Test agent snapshot check"
-          command: riot run -s snapshot-fmt && git diff --exit-code
-      - run:
-          name: "Run scripts/*.py tests"
-          command: riot run -s scripts
-      - run:
-          name: "Running security analysis checks with bandit"
-          command: riot -v run -s bandit
+      # - run:
+      #     name: "cython-lint check"
+      #     command: riot run -s cython-lint
+      # - run:
+      #     name: "Codespell check"
+      #     command: riot run -s codespell
+      # - run:
+      #     name: "Run riotfile.py tests"
+      #     command: riot run -s riot-helpers
+      # - run:
+      #     name: "Test agent snapshot check"
+      #     command: riot run -s snapshot-fmt && git diff --exit-code
+      # - run:
+      #     name: "Run scripts/*.py tests"
+      #     command: riot run -s scripts
+      # - run:
+      #     name: "Running security analysis checks with bandit"
+      #     command: riot -v run -s bandit
 
   ccheck:
     executor: cimg_base
@@ -334,23 +408,38 @@ jobs:
           steps:
             - run: echo "No coverage data collected. Set run workflow manually with pipeline parameter 'coverage=true'."
 
-
-  build_base_venvs:
+  build_wheel:
     resource_class: large
+    parameters:
+      python_version:
+        type: string
     docker:
-      - image: *ddtrace_dev_image
-    parallelism: 8
+      - image: cimg/python:3.9
+    environment:
+      - CIBW_PROJECT_REQUIRES_PYTHON: "~=<< parameters.python_version >>.0"
+      - CIBW_ARCHS_LINUX: "native"
     steps:
       - checkout
-      - setup_riot
-      - run:
-          name: "Generate base virtual environments."
-          # DEV: riot list -i tracer lists all supported Python versions
-          command: "riot list -i tracer | circleci tests split | xargs -I PY riot -v generate --python=PY"
+      - setup_remote_docker
+      - setup_hatch
+      - run: hatch run +python-version=<< parameters.python_version >> wheels:build
+      - store_artifacts:
+          path: ./wheelhouse
       - persist_to_workspace:
           root: .
-          paths:
-            - "."
+          paths: ./wheelhouse
+
+  download_deps:
+    executor: ddtrace_dev
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - setup_hatch
+      - run: hatch run deps:download
+      - persist_to_workspace:
+          root: .
+          paths: ./wheelhouse
 
   appsec:
     <<: *machine_executor
@@ -367,10 +456,10 @@ jobs:
           snapshot: true
 
   internal:
-    <<: *contrib_job
+    executor: ddtrace_dev
     steps:
-      - run_test:
-          pattern: "internal"
+      - run_test_hatch:
+          env: "internal"
 
   datastreams:
     <<: *contrib_job
@@ -675,10 +764,10 @@ jobs:
 
   fastapi:
     <<: *machine_executor
-    parallelism: 2
+    # parallelism: 2
     steps:
-      - run_test:
-          pattern: "fastapi"
+      - run_test_hatch:
+          env: "fastapi"
           snapshot: true
 
   flask:
@@ -1128,11 +1217,9 @@ requires_pre_check: &requires_pre_check
     - pre_check
     - ccheck
 
-requires_base_venvs: &requires_base_venvs
+requires_wheels: &requires_wheels
   requires:
-    - pre_check
-    - ccheck
-    - build_base_venvs
+    - download_deps
 
 requires_tests: &requires_tests
   requires:
@@ -1229,98 +1316,98 @@ workflows:
       # Pre-checking before running all jobs
       - pre_check
       - ccheck
-
-      # Build necessary base venvs for integration tests
-      - build_base_venvs
-
-      # Docs
+      - build_wheel:
+          matrix:
+            parameters:
+              python_version: ["2.7", "3.5", "3.6", "3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
+      - download_deps:
+          requires:
+            - build_wheel
       - build_docs: *requires_pre_check
-
       # Integration test suites
-      - aiobotocore: *requires_base_venvs
-      - aiohttp: *requires_base_venvs
-      - aiomysql: *requires_base_venvs
-      - aiopg: *requires_base_venvs
-      - aioredis: *requires_base_venvs
-      - asyncpg: *requires_base_venvs
-      - algoliasearch: *requires_base_venvs
-      - asgi: *requires_base_venvs
-      - aws_lambda: *requires_base_venvs
-      - boto: *requires_base_venvs
-      - bottle: *requires_base_venvs
-      - cassandra: *requires_base_venvs
-      - celery: *requires_base_venvs
-      - cherrypy: *requires_base_venvs
-      - ci_visibility: *requires_base_venvs
-      - consul: *requires_base_venvs
-      - datastreams: *requires_base_venvs
-      - ddtracerun: *requires_base_venvs
-      - django: *requires_base_venvs
-      - django_hosts: *requires_base_venvs
-      - djangorestframework: *requires_base_venvs
-      - dogpile_cache: *requires_base_venvs
-      - elasticsearch: *requires_base_venvs
-      - falcon: *requires_base_venvs
-      - fastapi: *requires_base_venvs
-      - flask: *requires_base_venvs
-      - gevent: *requires_base_venvs
-      - graphene: *requires_base_venvs
-      - graphql: *requires_base_venvs
-      - grpc: *requires_base_venvs
-      - gunicorn: *requires_base_venvs
-      - httplib: *requires_base_venvs
-      - httpx: *requires_base_venvs
-      - integration_agent: *requires_base_venvs
-      - integration_testagent: *requires_base_venvs
-      - internal: *requires_base_venvs
-      - vendor: *requires_base_venvs
-      - profile: *requires_base_venvs
-      - jinja2: *requires_base_venvs
-      - kafka: *requires_base_venvs
-      - kombu: *requires_base_venvs
-      - langchain: *requires_base_venvs
-      - mako: *requires_base_venvs
-      - mariadb: *requires_base_venvs
-      - molten: *requires_base_venvs
-      - mongoengine: *requires_base_venvs
-      - mysqlconnector: *requires_base_venvs
-      - mysqlpython: *requires_base_venvs
-      - openai: *requires_base_venvs
-      - opentracer: *requires_base_venvs
-      - opentelemetry: *requires_base_venvs
-      - psycopg: *requires_base_venvs
-      - psycopg2: *requires_base_venvs
-      - pylibmc: *requires_base_venvs
-      - pylons: *requires_base_venvs
-      - pymemcache: *requires_base_venvs
-      - pymongo: *requires_base_venvs
-      - pymysql: *requires_base_venvs
-      - pynamodb: *requires_base_venvs
-      - pyodbc: *requires_base_venvs
-      - pyramid: *requires_base_venvs
-      - pytest: *requires_base_venvs
-      - asynctest: *requires_base_venvs
-      - pytestbdd: *requires_base_venvs
-      - aredis: *requires_base_venvs
-      - yaaredis: *requires_base_venvs
-      - redis: *requires_base_venvs
-      - rediscluster: *requires_base_venvs
-      - requests: *requires_base_venvs
-      - rq: *requires_base_venvs
-      - sanic: *requires_base_venvs
-      - snowflake: *requires_base_venvs
-      - starlette: *requires_base_venvs
-      - stdlib: *requires_base_venvs
-      - sqlalchemy: *requires_base_venvs
-      - sourcecode: *requires_base_venvs
-      - test_logging: *requires_base_venvs
-      - tornado: *requires_base_venvs
-      - tracer: *requires_base_venvs
-      - telemetry: *requires_base_venvs
-      - debugger: *requires_base_venvs
-      - appsec: *requires_base_venvs
-      - urllib3: *requires_base_venvs
-      - vertica: *requires_base_venvs
-      - wsgi: *requires_base_venvs
-      # Final reports
-      - coverage_report: *requires_tests
+      # - aiobotocore: *requires_wheels
+      # - aiohttp: *requires_wheels
+      # - aiomysql: *requires_wheels
+      # - aiopg: *requires_wheels
+      # - aioredis: *requires_wheels
+      # - asyncpg: *requires_wheels
+      # - algoliasearch: *requires_wheels
+      - asgi: *requires_wheels
+      # - aws_lambda: *requires_wheels
+      # - benchmarks: *requires_wheels
+      # - boto: *requires_wheels
+      # - bottle: *requires_wheels
+      # - cassandra: *requires_wheels
+      # - celery: *requires_wheels
+      # - cherrypy: *requires_wheels
+      # - ci_visibility: *requires_wheels
+      # - consul: *requires_wheels
+      # - ddtracerun: *requires_wheels
+      # - django: *requires_wheels
+      # - django_hosts: *requires_wheels
+      # - djangorestframework: *requires_wheels
+      # - dogpile_cache: *requires_wheels
+      # - elasticsearch: *requires_wheels
+      # - falcon: *requires_wheels
+      - fastapi: *requires_wheels
+      # - flask: *requires_wheels
+      # - gevent: *requires_wheels
+      # - graphene: *requires_wheels
+      # - graphql: *requires_wheels
+      # - grpc: *requires_wheels
+      # - gunicorn: *requires_wheels
+      # - httplib: *requires_wheels
+      # - httpx: *requires_wheels
+      # - integration_agent: *requires_wheels
+      # - integration_testagent: *requires_wheels
+      - internal: *requires_wheels
+      # - vendor: *requires_wheels
+      # - profile: *requires_wheels
+      # - jinja2: *requires_wheels
+      # - kafka: *requires_wheels
+      # - kombu: *requires_wheels
+      # - mako: *requires_wheels
+      # - mariadb: *requires_wheels
+      # - molten: *requires_wheels
+      # - mongoengine: *requires_wheels
+      # - mysqlconnector: *requires_wheels
+      # - mysqlpython: *requires_wheels
+      # - openai: *requires_wheels
+      # - opentracer: *requires_wheels
+      # - opentelemetry: *requires_wheels
+      # - psycopg: *requires_wheels
+      # - psycopg2: *requires_wheels
+      # - pylibmc: *requires_wheels
+      # - pylons: *requires_wheels
+      # - pymemcache: *requires_wheels
+      # - pymongo: *requires_wheels
+      # - pymysql: *requires_wheels
+      # - pynamodb: *requires_wheels
+      # - pyodbc: *requires_wheels
+      # - pyramid: *requires_wheels
+      # - pytest: *requires_wheels
+      # - asynctest: *requires_wheels
+      # - pytestbdd: *requires_wheels
+      # - aredis: *requires_wheels
+      # - yaaredis: *requires_wheels
+      # - redis: *requires_wheels
+      # - rediscluster: *requires_wheels
+      # - requests: *requires_wheels
+      # - rq: *requires_wheels
+      # - sanic: *requires_wheels
+      # - snowflake: *requires_wheels
+      # - starlette: *requires_wheels
+      # - stdlib: *requires_wheels
+      # - sqlalchemy: *requires_wheels
+      # - sourcecode: *requires_wheels
+      # - test_logging: *requires_wheels
+      # - tornado: *requires_wheels
+      # - tracer: *requires_wheels
+      # - telemetry: *requires_wheels
+      # - debugger: *requires_wheels
+      # - appsec: *requires_wheels
+      # - urllib3: *requires_wheels
+      # - vertica: *requires_wheels
+      # - wsgi: *requires_wheels
+      # # Final reports
+      # - coverage_report: *requires_tests

@@ -1,0 +1,181 @@
+[envs.lint]
+detached = true
+# TOOD: Move to optional dependencies in pyproject.toml
+dependencies = [
+    "black==21.4b2",
+    # See https://github.com/psf/black/issues/2964 for incompatibility with click==8.1.0
+    "click<8.1.0",
+    "cython-lint==0.15.0",
+    "isort==5.12.0",
+    "mypy==0.991",
+    "envier==0.4.0",
+    "types-attrs==19.1.0",
+    "types-docutils==0.19.1.1",
+    "types-protobuf==3.20.4.5",
+    "types-PyYAML==6.0.12.2",
+    "types-setuptools==65.6.0.0",
+    "types-six==1.16.21.4",
+    "codespell==2.1.0",
+    "bandit==1.7.5",
+    "ddapm-test-agent==1.10.1",
+]
+
+[envs.lint.scripts]
+style = [
+    "isort -c {args:.}",
+    "black --check --diff {args:.}",
+]
+format = [
+    "isort {args:.}",
+    "black {args:.}",
+    "ddapm-test-agent-fmt tests/snapshots/",
+]
+typing = "mypy"
+tools = [
+    "cython-lint {args:.}",
+    "codespell --skip=ddwaf.h ddtrace/ tests/",
+    "bandit -c pyproject.toml -r ddtrace/",
+]
+all = [
+    "format",
+    "typing",
+    "tools",
+]
+
+[envs.wheels]
+detached = true
+
+[envs.wheels.scripts]
+build = [
+    "cibuildwheel --output-dir $WHEELS_DIR {args}",
+]
+
+[envs.wheels.env-vars]
+CIBW_SKIP = "*-musllinux* pp*"
+CIBW_PRERELEASE_PYTHONS = "True"
+
+[[envs.wheels.matrix]]
+python-version = ["2.7", "3.5", "3.6", "3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
+
+[envs.wheels.overrides]
+# 2.0.0 dropped support for 2.7 and 3.5
+matrix.python-version.dependencies = [
+    { value = "cibuildwheel==1.12.0", if = ["2.7", "3.5"]},
+    { value = "cibuildwheel==2.13.1", if = ["3.6", "3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]},
+]
+matrix.python-version.env-vars = [
+    { key = "CIBW_BUILD", value = "cp27*", if = ["2.7"]},
+    { key = "CIBW_BUILD", value = "cp35*", if = ["3.5"]},
+    { key = "CIBW_BUILD", value = "cp36*", if = ["3.6"]},
+    { key = "CIBW_BUILD", value = "cp37*", if = ["3.7"]},
+    { key = "CIBW_BUILD", value = "cp38*", if = ["3.8"]},
+    { key = "CIBW_BUILD", value = "cp39*", if = ["3.9"]},
+    { key = "CIBW_BUILD", value = "cp310*", if = ["3.10"]},
+    { key = "CIBW_BUILD", value = "cp311*", if = ["3.11"]},
+    { key = "CIBW_BUILD", value = "cp312*", if = ["3.12"]},
+    { key = "WHEELS_DIR", value = "./wheelhouse/{matrix:python-version}"},
+]
+platform.macos.env-vars = [
+    # ci only run for linux
+    { key = "CIBW_PLATFORM", value = "linux"},
+    # cp27-* not available for aarch64
+    { key = "CIBW_ARCHS", value = "x86_64"},
+]
+
+[envs.deps]
+detached = true
+
+[envs.deps.scripts]
+download = [
+    "pip download --disable-pip-version-check --dest $WHEELS_DIR --only-binary :all: --pre --find-links $WHEELS_DIR --no-cache-dir --verbose $WHEELS_DIR/ddtrace*dev*.whl",
+]
+
+[envs.deps.overrides]
+matrix.python.env-vars = [
+    { key = "WHEELS_DIR", value = "./wheelhouse/{matrix:python}"},
+]
+
+[[envs.deps.matrix]]
+# Dropping 2.7, 3.5, 3.6
+python = ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
+
+[envs.tests]
+dependencies = [
+    "mock",
+    "pytest",
+    "pytest-mock",
+    "coverage",
+    "pytest-cov",
+    "opentracing",
+    "hypothesis<6.45.1",
+]
+skip-install = true
+
+[envs.tests.overrides]
+matrix.python.env-vars = [
+    { key = "WHEELS_DIR", value = "./wheelhouse/{matrix:python}"},
+]
+
+[[envs.tests.matrix]]
+python = ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
+
+[envs.tests.env-vars]
+DD_TESTING_RAISE = "1"
+DD_REMOTE_CONFIGURATION_ENABLED = "false"
+
+[envs.tests-internal]
+template = "tests"
+extra-dependencies = [
+    "httpretty==0.9.7",
+    "gevent",
+    "pytest-asyncio; python_version~='3.0'",
+]
+
+[envs.tests-internal.scripts]
+test = [
+    "scripts/hatch-env-install",
+    "pytest tests/internal/ {args}",
+]
+
+[[envs.tests-internal.matrix]]
+python = ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
+
+[envs.tests-fastapi]
+template = "tests"
+extra-dependencies = [
+    "httpx",
+    "pytest-asyncio",
+    "requests",
+    "aiofiles",
+]
+
+[envs.tests-fastapi.scripts]
+test = [
+    "scripts/hatch-env-install",
+    "pytest tests/contrib/fastapi/ {args}",
+]
+
+[[envs.tests-fastapi.matrix]]
+python = ["3.6"]
+version = ["0.64.0", "0.83.0"]
+
+[[envs.tests-fastapi.matrix]]
+python = ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
+version = ["0.64.0", "0.90.0"]
+
+[envs.tests-fastapi.overrides]
+matrix.version.dependencies = [
+  { value = "fastapi~={matrix:version:}" },
+]
+
+[envs.tests-fastapi_latest]
+template = "tests-fastapi"
+
+[[envs.tests-fastapi_latest.matrix]]
+python = ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
+
+# We need a dependency override for any environment that matches
+[envs.tests-fastapi_latest.overrides]
+name.".+".dependencies = [
+  { value = "fastapi" },
+]

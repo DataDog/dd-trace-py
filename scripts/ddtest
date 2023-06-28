@@ -4,31 +4,29 @@ set -e
 
 CMD=$*
 
-if [ -z "$CMD" ]
-then
+if [ -z "$CMD" ]; then
     CMD=bash
 fi
 
 # retry docker pull if fails
 for i in {1..3}; do docker-compose pull -q testrunner && break || sleep 3; done
 
-FULL_CMD="pip install -q --disable-pip-version-check riot==0.17.4 && $CMD"
-
+FULL_CMD="pip install -q --disable-pip-version-check riot==0.17.3 hatch==1.7.0 && $CMD"
 
 # install and upgrade riot in case testrunner image has not been updated
 # DEV: Use `--no-TTY` and `--quiet-pull` when running in CircleCI
 if [[ "${CIRCLECI}" = "true" ]]; then
     docker-compose run \
-                   -e CIRCLE_NODE_TOTAL \
-                   -e CIRCLE_NODE_INDEX \
-                   -e CIRCLE_WORKFLOW_ID \
-                   -e DD_TRACE_AGENT_URL \
-                   -e RIOT_RUN_RECOMPILE_REQS \
-                   --no-TTY \
-                   --quiet-pull \
-                   --rm \
-                   testrunner \
-                   bash -c "$FULL_CMD"
+        -e CIRCLE_NODE_TOTAL \
+        -e CIRCLE_NODE_INDEX \
+        -e CIRCLE_WORKFLOW_ID \
+        -e DD_TRACE_AGENT_URL \
+        -e RIOT_RUN_RECOMPILE_REQS \
+        --no-TTY \
+        --quiet-pull \
+        --rm \
+        testrunner \
+        bash -c "$FULL_CMD"
 else
     docker-compose run \
                    -e DD_TRACE_AGENT_URL \
