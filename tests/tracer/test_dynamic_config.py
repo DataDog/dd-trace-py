@@ -28,7 +28,7 @@ def _base_config(cfg):
 
     return {
         "action": "enable",
-        "service_target": {"service": "", "env": ""},
+        "service_target": {"service": None, "env": None},
         "lib_config": lib_config,
     }
 

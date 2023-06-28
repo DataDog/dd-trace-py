@@ -10,6 +10,7 @@ from typing import Tuple
 from typing import Union
 
 from ddtrace import config
+
 from ...internal import atexit
 from ...internal import forksafe
 from ..agent import get_connection

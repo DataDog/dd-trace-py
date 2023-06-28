@@ -598,16 +598,23 @@ class Config(object):
                 # TODO: notify subscribers
             return
 
-        config = cfg["lib_config"]
+        service_target = cfg["service_target"]
+        if service_target["service"] != self.service or service_target["env"] != self.env:
+            raise ValueError(
+                "Service (%r) and env (%r) in remote config do not match the current configuration (%r, %r)"
+                % (service_target["service"], service_target["env"], self.service, self.env)
+            )
+
+        lib_config = cfg["lib_config"]
 
         # Keep track of changed items to notify subscribers
         changed_items = ["trace_sample_rate"]
 
-        if config["tracing_sampling_rate"] is None:
+        if lib_config["tracing_sampling_rate"] is None:
             self._items["trace_sample_rate"].remoteconfig.clear()
         else:
             self._items["trace_sample_rate"].remoteconfig.set(
-                config["tracing_sampling_rate"], config["tracing_sampling_rate"]
+                lib_config["tracing_sampling_rate"], lib_config["tracing_sampling_rate"]
             )
         self._notify_subscribers(changed_items)
 

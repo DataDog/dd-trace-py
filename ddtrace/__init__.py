@@ -37,12 +37,12 @@ config = Config(*_default_config())
 
 # Depends on the global config
 
+from ._monkey import patch  # noqa: E402
+from ._monkey import patch_all  # noqa: E402
 from .internal import telemetry  # noqa: E402
 from .internal.remoteconfig import RemoteConfig  # noqa: E402
 from .span import Span  # noqa: E402
 from .tracer import Tracer  # noqa: E402
-from ._monkey import patch  # noqa: E402
-from ._monkey import patch_all  # noqa: E402
 
 
 RemoteConfig.enable()
