@@ -1,6 +1,6 @@
 ---
 features:
   - |
-    Pytest modules and test suites tags will be reported differently, modules will be their fully qualified name, whereas test suites will be the file name:
-    before this change: {"module": "tests", "suite":"my_module/tests/test_suite.py"}
-    after this change: {"module": "my_module.tests", "suite": "test_suite.py"}
+   ci-visibility: Updates how pytest modules and test suites are reported. Modules names are now set to the fully qualified name, whereas test suites will be set to the file name.
+    Before this change: {"module": "tests", "suite":"my_module/tests/test_suite.py"}
+    After this change: {"module": "my_module.tests", "suite": "test_suite.py"}
