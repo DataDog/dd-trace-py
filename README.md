@@ -62,106 +62,19 @@ launch them through:
 [docker]: https://www.docker.com/products/docker
 [docker-compose]: https://www.docker.com/products/docker-compose
 
-#### Set up Python
-
-1. Clone the repository locally: `git clone https://github.com/DataDog/dd-trace-py`
-2. The tests for this project run on various versions of Python. We recommend
-   using a Python version management tool, such as
-   [pyenv](https://github.com/pyenv/pyenv), to utilize multiple versions of
-   Python. [How to install Pyenv](https://github.com/pyenv/pyenv#installation) 
-3. Install the relevant versions of Python in Pyenv: `pyenv install 3.11.0 2.7.18 3.6.15 3.7.13 3.8.13 3.9.13 3.10.5`
-4. Make those versions available globally: `pyenv global 3.11.0 2.7.18 3.6.15 3.7.13 3.8.13 3.9.13 3.10.5`
-
 ### Testing
 
-#### Running Tests in docker
+Run the test suite with the following command:
 
-The dd-trace-py testrunner docker image allows you to run tests in an environment that matches CI. This is especially useful
-if you are unable to install certain test dependencies on your dev machine's bare metal.
+    $ scripts/ddtest riot run
 
-Once your docker-compose environment is running, you can use the shell script to
-execute tests within a Docker image. You can start the container with a bash shell:
-
-    $ scripts/ddtest
-
-You can now run tests as you would do in your local environment. We use
-[riot][riot], a new tool that we developed for addressing
-our specific needs with an ever growing matrix of tests. You can list the tests
-managed by each:
-
-    $ riot list
-
-You can run multiple tests by using regular expressions:
-
-    $ riot run psycopg
-
-[riot]: https://github.com/DataDog/riot/
-
-#### Running Tests locally
-
-1. Install riot: `pip install riot`.
-2. Create the base virtual environments: `riot -v generate`.
-3. You can list the available test suites with `riot list`.
-4. Certain tests might require running service containers in order to emulate
-   the necessary testing environment. You can spin up individual containers with
-   `docker-compose up -d <SERVICE_NAME>`, where `<SERVICE_NAME>` should match a
-   service specified in the `docker-compose.yml` file.
-5. Run a test suite: `riot -v run <RUN_FLAGS> <TEST_SUITE_NAME>`.
-
-You can use the `-s` and `-x` flags: `-s` prevents riot from reinstalling the dev package;
-`-x` forces an exit after the first failed test suite. To limit the tests to a particular
-version of Python, use the `-p` flag: `riot -v run -p <PYTHON_VERSION>`. You can also pass
-command line arguments to the underlying test runner (like pytest) with the `--` argument.
-For example, you can run a specific test under pytest with
-`riot -v run -s gunicorn -- -k test_no_known_errors_occur`
-
-The `run` command uses regex syntax, which in some cases will cause multiple
-test suites to run. Use the following syntax to ensure only an individual suite
-runs: `^<TEST_SUITE_NAME>$` where `^` signifies the start of a string and `$`
-signifies the end of a string. For example, use `riot -v run -s -x ^redis$` to
-run only the redis suite.
-
-#### Use the APM Test Agent
-
-The APM test agent can emulate the APM endpoints of the Datadog agent. Spin up
-the `testagent` container along with any other service container:
-
-    $ docker-compose up -d testagent <SERVICE_CONTAINER>
-
-Run the test agent as a proxy in your tests:
-
-    $ DD_TRACE_AGENT_URL=http://localhost:9126/ riot -v run <RUN_FLAGS> --pass-env <TEST_SUITE_NAME>
-
-`--pass-env` injects the environment variables of the current shell session into
-the command. Here's an example command for running the redis test suite along
-with the test agent, limited to tests for Python 3.9:
-
-    $ DD_TRACE_AGENT_URL=http://localhost:9126/ riot -v run -p 3.9 -s -x --pass-env '^redis$'
-
-Read more about the APM test agent:
-https://github.com/datadog/dd-apm-test-agent#readme
-
-### Continuous Integration
-
-We use CircleCI 2.0 for our continuous integration.
-
-#### Configuration
-
-The CI tests are configured through [config.yml](.circleci/config.yml).
-
-#### Running Locally
-
-The CI tests can be run locally using the `circleci` CLI. More information about
-the CLI can be found at https://circleci.com/docs/2.0/local-cli/.
-
-After installing the `circleci` CLI, you can run jobs by name. For example:
-
-    $ circleci build --job django
+The test suite is huge and running the entire thing is probably not what you want to do.
+See the [testing guidelines](docs/contributing-testing.rst) for more on running specific tests.
 
 ### Release Notes
 
 This project follows [semver](https://semver.org/) and so bug fixes, breaking
-changes, new features, etc must be accompanied by a release note. 
+changes, new features, etc must be accompanied by a release note.
 
 See the [contributing docs](https://ddtrace.readthedocs.io/en/stable/contributing.html) for
 instructions on generating, writing, formatting, and styling release notes.
