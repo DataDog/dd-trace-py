@@ -29,6 +29,8 @@ How do I run the test suite?
 
 With `docker <https://www.docker.com/products/docker>`_ installed, run this.
 
+.. code-block:: bash
+
     $ scripts/ddtest riot run -p 3.10
 
 This command runs the entire test suite, which is probably not what you want to do.
@@ -50,6 +52,8 @@ How do I run only the tests I care about?
 Anatomy of a Riot Command
 -------------------------
 
+.. code-block:: bash
+
     $ riot -v run -s -p 3.10 <suite_name> -- -s -vv -k 'test_name1 or test_name2'
 
 * ``-v``: Print verbose output
@@ -68,6 +72,8 @@ Why are my tests failing with 404 errors?
 If your test relies on the ``testagent`` service, you might see it fail with a 404 error.
 To fix this:
 
+.. code-block:: bash
+
     # outside of the testrunner shell
     $ docker-compose up -d testagent
 
@@ -80,6 +86,8 @@ Why is my CI run failing with a message about requirements files?
 ``.riot/requirements`` contains requirements files generated with ``pip-compile`` for every environment specified
 by ``riotfile.py``. Riot uses these files to build its environments, and they do not get rebuilt automatically
 when the riotfile changes. Thus, if you make changes to the riotfile, you need to rebuild them.
+
+.. code-block:: bash
 
   $ scripts/ddtest scripts/compile-and-prune-test-requirements
 
