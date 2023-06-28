@@ -51,6 +51,7 @@
       "kafka.tombstone": "False",
       "kafka.topic": "test_schematized_span_service_and_operation_None-None",
       "language": "python",
+      "messaging.kafka.bootstrap.servers": "localhost:29092",
       "messaging.system": "kafka",
       "runtime-id": "314057b20ee846c0a16aeb74336a2528",
       "span.kind": "producer"
