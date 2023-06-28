@@ -42,7 +42,7 @@ def metric_verbosity(lvl):
                 return f
             except Exception:
                 log.warning("Error reporting IAST metrics", exc_info=True)
-        return lambda: None
+        return lambda: None  # noqa: E731
 
     return wrapper
 
