@@ -53,7 +53,7 @@ def taint_pyobject(pyobject, input_info):  # type: (Any, Input_info) -> Any
     pyobject = new_pyobject_id(pyobject, len_pyobject)
     taint_dict = get_taint_dict()
     taint_dict[id(pyobject)] = ((input_info, 0, len_pyobject),)
-    _set_metric_iast_executed_source(source_origin)
+    _set_metric_iast_executed_source(input_info.origin)
     return pyobject
 
 
