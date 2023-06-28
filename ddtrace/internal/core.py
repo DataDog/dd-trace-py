@@ -159,7 +159,7 @@ def get_item(data_key, span=None):
     if span is not None and span._local_root is not None:
         return span._local_root._get_ctx_item(data_key)
     else:
-        return _CURRENT_CONTEXT.get().get_item(data_key)
+        return _CURRENT_CONTEXT.get().get_item(data_key)  # type: ignore
 
 
 def get_items(data_keys, span=None):
@@ -167,7 +167,7 @@ def get_items(data_keys, span=None):
     if span is not None and span._local_root is not None:
         return [span._local_root._get_ctx_item(key) for key in data_keys]
     else:
-        return _CURRENT_CONTEXT.get().get_items(data_keys)
+        return _CURRENT_CONTEXT.get().get_items(data_keys)  # type: ignore
 
 
 def set_item(data_key, data_value, span=None):
@@ -175,7 +175,7 @@ def set_item(data_key, data_value, span=None):
     if span is not None and span._local_root is not None:
         span._local_root._set_ctx_item(data_key, data_value)
     else:
-        _CURRENT_CONTEXT.get().set_item(data_key, data_value)
+        _CURRENT_CONTEXT.get().set_item(data_key, data_value)  # type: ignore
 
 
 def set_items(keys_values, span=None):
@@ -183,27 +183,27 @@ def set_items(keys_values, span=None):
     if span is not None and span._local_root is not None:
         span._local_root._set_ctx_items(keys_values)
     else:
-        _CURRENT_CONTEXT.get().set_items(keys_values)
+        _CURRENT_CONTEXT.get().set_items(keys_values)  # type: ignore
 
 
 def has_listeners(event_id):
-    # type: (str, Optional[Span]) -> bool
-    return _CURRENT_CONTEXT.get()._event_hub.has_listeners(event_id)
+    # type: (str) -> bool
+    return _CURRENT_CONTEXT.get()._event_hub.has_listeners(event_id)  # type: ignore
 
 
 def on(event_id, callback):
-    # type: (str, Callable, Optional[Span]) -> None
-    return _CURRENT_CONTEXT.get()._event_hub.on(event_id, callback)
+    # type: (str, Callable) -> None
+    return _CURRENT_CONTEXT.get()._event_hub.on(event_id, callback)  # type: ignore
 
 
 def reset_listeners():
-    # type: (Optional[Span]) -> None
-    current = _CURRENT_CONTEXT.get()
+    # type: () -> None
+    current = _CURRENT_CONTEXT.get()  # type: ignore
     while current is not None:
         current._event_hub.reset()
         current = current.parent
 
 
 def dispatch(event_id, args):
-    # type: (str, List[Optional[Any]], Optional[Span]) -> Tuple[List[Optional[Any]], List[Optional[Exception]]]
-    return _CURRENT_CONTEXT.get()._event_hub.dispatch(event_id, args)
+    # type: (str, List[Optional[Any]]) -> Tuple[List[Optional[Any]], List[Optional[Exception]]]
+    return _CURRENT_CONTEXT.get()._event_hub.dispatch(event_id, args)  # type: ignore
