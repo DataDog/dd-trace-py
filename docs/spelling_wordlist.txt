@@ -39,6 +39,7 @@ backend
 backends
 backport
 backported
+backporting
 bdd
 bikeshedding
 booleans
@@ -68,6 +69,7 @@ dbapi
 ddtrace
 deprecations
 django
+docstring
 doctest
 dogpile
 dogpile.cache
@@ -115,6 +117,7 @@ kubernetes
 kwarg
 kwargs
 lifecycle
+linters
 lookups
 loopback
 macOS
@@ -195,6 +198,7 @@ starlette
 statsd
 stringable
 subclass
+subdirectory
 subdomains
 submodule
 submodules
