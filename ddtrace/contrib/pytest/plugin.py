@@ -67,6 +67,8 @@ def _store_span(item, span):
 
 def _mark_failed(item):
     """Store test failed status at `pytest.Item` instance."""
+    if item.parent:
+        _mark_failed(item.parent)
     setattr(item, "_failed", True)
 
 
@@ -77,6 +79,8 @@ def _check_failed(item):
 
 def _mark_not_skipped(item):
     """Mark test suite/module/session `pytest.Item` as not skipped."""
+    if item.parent:
+        _mark_not_skipped(item.parent)
     setattr(item, "_fully_skipped", False)
 
 
@@ -126,11 +130,13 @@ def _get_module_path(item):
 
 
 def _get_module_name(item):
-    """Extract module name from a `pytest.Item` instance."""
-    module_path = _get_module_path(item)
-    if module_path is None:
-        return None
-    return module_path.rpartition("/")[-1]
+    """Extract module name (fully qualified) from a `pytest.Item` instance."""
+    return item.module.__name__
+
+
+def _get_suite_name(item):
+    """Extract suite name from a `pytest.Item` instance."""
+    return item.nodeid.rpartition("/")[-1]
 
 
 def _start_test_module_span(item):
@@ -191,7 +197,7 @@ def _start_test_suite_span(item):
         test_suite_span.set_tag_str(_MODULE_ID, str(test_module_span.span_id))
         test_suite_span.set_tag_str(test.MODULE, test_module_span.get_tag(test.MODULE))
         test_suite_span.set_tag_str(test.MODULE_PATH, test_module_span.get_tag(test.MODULE_PATH))
-    test_suite_span.set_tag_str(test.SUITE, item.name)
+    test_suite_span.set_tag_str(test.SUITE, _get_suite_name(item))
     _store_span(item, test_suite_span)
     return test_suite_span
 

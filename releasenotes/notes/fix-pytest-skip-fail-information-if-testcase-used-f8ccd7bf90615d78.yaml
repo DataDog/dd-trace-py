@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    pytest: This fix resolves an issue where failures and non-skipped tests were not propagated properly when
+    ``unittest.TestCase`` classes were used.

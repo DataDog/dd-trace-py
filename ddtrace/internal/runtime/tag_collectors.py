@@ -2,6 +2,7 @@ from typing import List
 from typing import Tuple
 
 from ...constants import ENV_KEY
+from ...constants import VERSION_KEY
 from .collector import ValueCollector
 from .constants import LANG
 from .constants import LANG_INTERPRETER
@@ -22,10 +23,23 @@ class TracerTagCollector(RuntimeTagCollector):
 
     def collect_fn(self, keys):
         ddtrace = self.modules.get("ddtrace")
+
         # make sure to copy _services to avoid RuntimeError: Set changed size during iteration
         tags = [(SERVICE, service) for service in list(ddtrace.tracer._services)]
-        if ENV_KEY in ddtrace.tracer._tags:
-            tags.append((ENV_KEY, ddtrace.tracer._tags.get(ENV_KEY)))
+
+        # DEV: `DD_ENV`, `DD_VERSION`, and `DD_SERVICE` get picked up automatically by
+        #      dogstatsd client, but someone might configure these via `ddtrace.config`
+        #      instead of env vars, so better to collect them here again just in case
+        # DD_ENV gets stored in `config.env`
+        if ddtrace.config.env:
+            tags.append((ENV_KEY, ddtrace.config.env))
+
+        # DD_VERSION gets stored in `config.version`
+        if ddtrace.config.version:
+            tags.append((VERSION_KEY, ddtrace.config.version))
+
+        for key, value in ddtrace.tracer._tags.items():
+            tags.append((key, value))
         return tags
 
 
