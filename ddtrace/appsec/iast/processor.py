@@ -45,37 +45,37 @@ class AppSecIastSpanProcessor(SpanProcessor):
         if span.span_type != SpanTypes.WEB:
             return
 
-        if not oce._enabled:
+        if not oce._enabled or not _is_iast_enabled():
             span.set_metric(IAST.ENABLED, 0.0)
             return
+
+        from ddtrace.appsec.iast._taint_tracking import contexts_reset  # noqa: F401
 
         span.set_metric(IAST.ENABLED, 1.0)
 
         data = _context.get_item(IAST.CONTEXT_KEY, span=span)
 
         if data:
-            if _is_iast_enabled():
-                from ddtrace.appsec.iast._taint_tracking import OriginType  # noqa: F401
-                from ddtrace.appsec.iast._taint_tracking import contexts_reset  # noqa: F401
-                from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import origin_to_str  # noqa: F401
+            from ddtrace.appsec.iast._taint_tracking import OriginType  # noqa: F401
+            from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import origin_to_str  # noqa: F401
 
-                class OriginTypeEncoder(json.JSONEncoder):
-                    def default(self, obj):
-                        if isinstance(obj, OriginType):
-                            # if the obj is uuid, we simply return the value of uuid
-                            return origin_to_str(obj)
-                        return json.JSONEncoder.default(self, obj)
+            class OriginTypeEncoder(json.JSONEncoder):
+                def default(self, obj):
+                    if isinstance(obj, OriginType):
+                        # if the obj is uuid, we simply return the value of uuid
+                        return origin_to_str(obj)
+                    return json.JSONEncoder.default(self, obj)
 
-                span.set_tag_str(
-                    IAST.JSON,
-                    json.dumps(attr.asdict(data, filter=lambda attr, x: x is not None), cls=OriginTypeEncoder),
-                )
+            span.set_tag_str(
+                IAST.JSON,
+                json.dumps(attr.asdict(data, filter=lambda attr, x: x is not None), cls=OriginTypeEncoder),
+            )
 
-                _set_metric_iast_request_tainted()
-                contexts_reset()
+        _set_metric_iast_request_tainted()
+        contexts_reset()
 
-            span.set_tag(MANUAL_KEEP_KEY)
-            if span.get_tag(ORIGIN_KEY) is None:
-                span.set_tag_str(ORIGIN_KEY, APPSEC.ORIGIN_VALUE)
+        span.set_tag(MANUAL_KEEP_KEY)
+        if span.get_tag(ORIGIN_KEY) is None:
+            span.set_tag_str(ORIGIN_KEY, APPSEC.ORIGIN_VALUE)
 
         oce.release_request()

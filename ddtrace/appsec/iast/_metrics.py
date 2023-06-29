@@ -60,9 +60,9 @@ def _set_metric_iast_instrumented_propagation():
 
 
 @metric_verbosity(TELEMETRY_MANDATORY_VERBOSITY)
-def _set_metric_iast_instrumented_sink(vulnerability_type):
+def _set_metric_iast_instrumented_sink(vulnerability_type, counter=1):
     telemetry_metrics_writer.add_count_metric(
-        TELEMETRY_NAMESPACE_TAG_IAST, "instrumented.sink", 1, (("vulnerability_type", vulnerability_type),)
+        TELEMETRY_NAMESPACE_TAG_IAST, "instrumented.sink", counter, (("vulnerability_type", vulnerability_type),)
     )
 
 
@@ -84,4 +84,8 @@ def _set_metric_iast_executed_sink(vulnerability_type):
 def _set_metric_iast_request_tainted():
     from ddtrace.appsec.iast._taint_tracking import num_objects_tainted
 
-    telemetry_metrics_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_IAST, "request.tainted", num_objects_tainted())
+    total_objects_tainted = num_objects_tainted()
+    if total_objects_tainted > 0:
+        telemetry_metrics_writer.add_count_metric(
+            TELEMETRY_NAMESPACE_TAG_IAST, "request.tainted", num_objects_tainted()
+        )

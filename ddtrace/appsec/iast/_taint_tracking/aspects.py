@@ -48,6 +48,7 @@ def add_aspect(op1, op2):
 
 def str_aspect(*args, **kwargs):
     # type: (Any, Any) -> str
+    # TODO: migrate this function to C++ and shift ranges instead to create a new one
     result = builtin_str(*args, **kwargs)
     if isinstance(args[0], TEXT_TYPES) and is_pyobject_tainted(args[0]):
         result = taint_pyobject(

@@ -42,7 +42,6 @@ if TYPE_CHECKING:
     from typing import Dict
     from typing import List
     from typing import Optional
-    from typing import Text
     from typing import Tuple
     from typing import Union
 
@@ -116,7 +115,6 @@ def taint_ranges_as_evidence_info(pyobject):
         return ([{"value": pyobject}], [])
 
     for _range in tainted_ranges:
-        # _source, _pos, _length = _range
         if _range.start > current_pos:
             value_parts.append({"value": pyobject[current_pos : _range.start]})
 
