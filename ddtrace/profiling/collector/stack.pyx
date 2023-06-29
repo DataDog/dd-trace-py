@@ -34,6 +34,13 @@ FEATURES = {
 cdef bint use_libdd = False
 cdef bint use_py = True
 
+cdef void set_use_libdd(bint flag):
+    global use_libdd
+    use_libdd = flag
+
+cdef void set_use_py(bint flag):
+    global use_py
+    use_py = flag
 
 IF UNAME_SYSNAME == "Linux":
     FEATURES['cpu-time'] = True
@@ -498,8 +505,8 @@ class StackCollector(collector.PeriodicCollector):
         if self.tracer is not None:
             self._thread_span_links = _ThreadSpanLinks()
             self.tracer.context_provider._on_activate(self._thread_span_links.link_span)
-        use_libdd = config.export.libdd_enabled
-        use_py = config.export.py_enabled
+        set_use_libdd(config.export.libdd_enabled)
+        set_use_py(config.export.py_enabled)
 
     def _start_service(self):
         # type: (...) -> None
