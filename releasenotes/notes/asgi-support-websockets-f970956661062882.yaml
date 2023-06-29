@@ -1,4 +1,4 @@
 ---
 features:
   - |
-    asgi: Trace websockets in asgi middleware
+    asgi: Trace websockets in asgi middleware behind feature flag. Set ``DD_TRACE_ASGI_WEBSOCK=true`` to enable.

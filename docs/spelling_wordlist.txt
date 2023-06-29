@@ -227,6 +227,8 @@ uvicorn
 versioned
 vertica
 w3c
+websocket
+websockets
 whitelist
 whitespace
 workflow
