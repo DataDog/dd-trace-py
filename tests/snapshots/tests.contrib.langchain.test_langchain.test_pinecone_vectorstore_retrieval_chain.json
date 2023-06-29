@@ -15,7 +15,7 @@
       "langchain.response.outputs.question": "Who was Alan Turing?",
       "langchain.response.outputs.sources": "https://simple.wikipedia.org/wiki/Alan%20Turing",
       "language": "python",
-      "runtime-id": "7b8a5071c1b244e2b697bb1fd18b2fb3"
+      "runtime-id": "fda0c9cf31b147d883158fded9890680"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -27,10 +27,10 @@
       "langchain.tokens.prompt_tokens": 2889,
       "langchain.tokens.total_cost": 0.06042,
       "langchain.tokens.total_tokens": 3021,
-      "process_id": 90688
+      "process_id": 664
     },
-    "duration": 13976000,
-    "start": 1687802038826658000
+    "duration": 32686000,
+    "start": 1688049538749091000
   },
      {
        "name": "langchain.request",
@@ -42,11 +42,10 @@
        "type": "",
        "error": 0,
        "meta": {
-
-      "langchain.request.pinecone.api_key": "<no...key>",
-      "langchain.request.pinecone.environment": "<not-a-real-env>",
-      "langchain.request.pinecone.index_name": "langchain-retrieval",
-      "langchain.request.pinecone.project_name": "74ce8fe",
+         "langchain.request.pinecone.api_key": "...key>",
+         "langchain.request.pinecone.environment": "<not-a-real-env>",
+         "langchain.request.pinecone.index_name": "langchain-retrieval",
+         "langchain.request.pinecone.project_name": "74ce8fe",
          "langchain.request.provider": "pinecone",
          "langchain.request.query": "Who was Alan Turing?",
          "langchain.response.document.0.metadata.chunk": "1.0",
@@ -74,8 +73,8 @@
          "_dd.measured": 1,
          "langchain.response.document_count": 4
        },
-       "duration": 10787000,
-       "start": 1687802038826898000
+       "duration": 14781000,
+       "start": 1688049538749252000
      },
         {
           "name": "langchain.request",
@@ -89,7 +88,7 @@
           "meta": {
             "langchain.request.inputs.0.text": "Who was Alan Turing?",
             "langchain.request.model": "text-embedding-ada-002",
-            "langchain.request.openai.api_key": "<no...key>",
+            "langchain.request.openai.api_key": "...key>",
             "langchain.request.provider": "openai"
           },
           "metrics": {
@@ -97,8 +96,8 @@
             "langchain.request.input_count": 1,
             "langchain.response.outputs.embedding_length": 1536
           },
-          "duration": 2481000,
-          "start": 1687802038826921000
+          "duration": 2890000,
+          "start": 1688049538749277000
         },
      {
        "name": "langchain.request",
@@ -123,8 +122,8 @@
          "langchain.tokens.total_cost": 0.06042,
          "langchain.tokens.total_tokens": 3021
        },
-       "duration": 2827000,
-       "start": 1687802038837737000
+       "duration": 17100000,
+       "start": 1688049538764303000
      },
         {
           "name": "langchain.request",
@@ -150,8 +149,8 @@
             "langchain.tokens.total_cost": 0.06042,
             "langchain.tokens.total_tokens": 3021
           },
-          "duration": 2532000,
-          "start": 1687802038837975000
+          "duration": 16351000,
+          "start": 1688049538764852000
         },
            {
              "name": "langchain.request",
@@ -164,10 +163,10 @@
              "error": 0,
              "meta": {
                "langchain.request.model": "text-davinci-003",
-               "langchain.request.openai.api_key": "<no...key>",
+               "langchain.request.openai.api_key": "...key>",
                "langchain.request.openai.parameters.frequency_penalty": "0",
-               "langchain.request.openai.parameters.logit_bias": "{}",
                "langchain.request.openai.parameters.max_tokens": "256",
+               "langchain.request.openai.parameters.model_name": "text-davinci-003",
                "langchain.request.openai.parameters.n": "1",
                "langchain.request.openai.parameters.presence_penalty": "0",
                "langchain.request.openai.parameters.request_timeout": "None",
@@ -186,6 +185,6 @@
                "langchain.tokens.total_cost": 0.06042,
                "langchain.tokens.total_tokens": 3021
              },
-             "duration": 2278000,
-             "start": 1687802038838188000
+             "duration": 4117000,
+             "start": 1688049538765724000
            }]]

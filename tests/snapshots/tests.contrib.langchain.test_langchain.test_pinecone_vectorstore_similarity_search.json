@@ -11,7 +11,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "langchain.request.k": "1",
-      "langchain.request.pinecone.api_key": "<no...key>",
+      "langchain.request.pinecone.api_key": "...key>",
       "langchain.request.pinecone.environment": "<not-a-real-env>",
       "langchain.request.pinecone.index_name": "langchain-retrieval",
       "langchain.request.pinecone.project_name": "74ce8fe",
@@ -49,7 +49,7 @@
        "meta": {
          "langchain.request.inputs.0.text": "Who was Alan Turing?",
          "langchain.request.model": "text-embedding-ada-002",
-         "langchain.request.openai.api_key": "<no...key>",
+         "langchain.request.openai.api_key": "...key>",
          "langchain.request.provider": "openai"
        },
        "metrics": {

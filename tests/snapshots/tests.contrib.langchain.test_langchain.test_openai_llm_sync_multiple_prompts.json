@@ -11,10 +11,10 @@
     "meta": {
       "_dd.p.dm": "-0",
       "langchain.request.model": "text-davinci-003",
-      "langchain.request.openai.api_key": "<no...key>",
+      "langchain.request.openai.api_key": "...key>",
       "langchain.request.openai.parameters.frequency_penalty": "0",
-      "langchain.request.openai.parameters.logit_bias": "{}",
       "langchain.request.openai.parameters.max_tokens": "256",
+      "langchain.request.openai.parameters.model_name": "text-davinci-003",
       "langchain.request.openai.parameters.n": "1",
       "langchain.request.openai.parameters.presence_penalty": "0",
       "langchain.request.openai.parameters.request_timeout": "None",
@@ -30,7 +30,7 @@
       "langchain.response.completions.1.logprobs": "None",
       "langchain.response.completions.1.text": "\\n\\nSpongebob has failed his road test a total of three times.",
       "language": "python",
-      "runtime-id": "9762d8bb20924ba1ba08dba0bcf5e731"
+      "runtime-id": "fee8e436b6394c02893eb6af74d2ada2"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -42,8 +42,8 @@
       "langchain.tokens.prompt_tokens": 24,
       "langchain.tokens.total_cost": 0.0027600000000000003,
       "langchain.tokens.total_tokens": 138,
-      "process_id": 53130
+      "process_id": 98111
     },
-    "duration": 451040000,
-    "start": 1687460825755345000
+    "duration": 2884000,
+    "start": 1688048579029762000
   }]]

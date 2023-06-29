@@ -13,9 +13,10 @@
       "langchain.request.messages.0.0.content": "What is the secret Krabby Patty recipe?",
       "langchain.request.messages.0.0.message_type": "HumanMessage",
       "langchain.request.model": "gpt-3.5-turbo",
-      "langchain.request.openai.api_key": "<no...key>",
+      "langchain.request.openai.api_key": "...key>",
       "langchain.request.openai.parameters.max_tokens": "256",
       "langchain.request.openai.parameters.model": "gpt-3.5-turbo",
+      "langchain.request.openai.parameters.model_name": "gpt-3.5-turbo",
       "langchain.request.openai.parameters.n": "1",
       "langchain.request.openai.parameters.request_timeout": "None",
       "langchain.request.openai.parameters.stream": "True",
@@ -24,7 +25,7 @@
       "langchain.response.completions.0.0.content": "As an AI language model, I do not have access to the secret Krabby Patty recipe. It is a closely guarded secret by the creators ...",
       "langchain.response.completions.0.0.message_type": "AIMessage",
       "language": "python",
-      "runtime-id": "0ef61adb6068409ab0787eb9864a3b6b"
+      "runtime-id": "fee8e436b6394c02893eb6af74d2ada2"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -36,8 +37,8 @@
       "langchain.tokens.prompt_tokens": 0,
       "langchain.tokens.total_cost": 0.0,
       "langchain.tokens.total_tokens": 0,
-      "process_id": 53846
+      "process_id": 98111
     },
-    "duration": 895612000,
-    "start": 1687878637733417000
+    "duration": 3391000,
+    "start": 1688048579231256000
   }]]

@@ -2779,6 +2779,9 @@ venv = Venv(
                 "vcrpy": latest,
                 "pytest-asyncio": latest,
                 "pinecone-client": latest,
+                "cohere": latest,
+                "huggingface-hub": latest,
+                "ai21": latest,
             },
         ),
         Venv(

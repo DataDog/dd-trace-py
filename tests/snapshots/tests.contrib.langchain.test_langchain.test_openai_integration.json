@@ -11,10 +11,10 @@
     "meta": {
       "_dd.p.dm": "-0",
       "langchain.request.model": "text-davinci-003",
-      "langchain.request.openai.api_key": "<no...key>",
+      "langchain.request.openai.api_key": "...key>",
       "langchain.request.openai.parameters.frequency_penalty": "0",
-      "langchain.request.openai.parameters.logit_bias": "{}",
       "langchain.request.openai.parameters.max_tokens": "256",
+      "langchain.request.openai.parameters.model_name": "text-davinci-003",
       "langchain.request.openai.parameters.n": "1",
       "langchain.request.openai.parameters.presence_penalty": "0",
       "langchain.request.openai.parameters.request_timeout": "None",
@@ -26,7 +26,7 @@
       "langchain.response.completions.0.logprobs": "None",
       "langchain.response.completions.0.text": "\\n\\nDescartes' famous phrase \"I think, therefore I am\" is a fundamental statement of his philosophical approach, known as Cartes...",
       "language": "python",
-      "runtime-id": "30d492e3c4c349f9b22b2b390a8f872e"
+      "runtime-id": "a35ec40301264b4c935a16153752de58"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -36,12 +36,12 @@
       "_sampling_priority_v1": 1,
       "langchain.tokens.completion_tokens": 95,
       "langchain.tokens.prompt_tokens": 17,
-      "langchain.tokens.total_cost": 0.0022400000000000002,
+      "langchain.tokens.total_cost": 0.00224,
       "langchain.tokens.total_tokens": 112,
-      "process_id": 66869
+      "process_id": 98128
     },
-    "duration": 23156000,
-    "start": 1687790644319172000
+    "duration": 23733000,
+    "start": 1688048580720774000
   },
      {
        "name": "openai.request",
@@ -81,8 +81,8 @@
          "openai.response.choices_count": 1,
          "openai.response.created": 1687283761
        },
-       "duration": 22500000,
-       "start": 1687790644319514000
+       "duration": 23072000,
+       "start": 1688048580721146000
      },
         {
           "name": "requests.request",
@@ -106,6 +106,6 @@
             "_dd.measured": 1,
             "_dd.top_level": 1
           },
-          "duration": 2484000,
-          "start": 1687790644338573000
+          "duration": 2453000,
+          "start": 1688048580740907000
         }]]

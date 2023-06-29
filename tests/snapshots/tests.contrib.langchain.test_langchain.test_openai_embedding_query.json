@@ -10,12 +10,12 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "langchain.request.openai.api_key": "<no...key>",
       "langchain.request.inputs.0.text": "this is a test query.",
       "langchain.request.model": "text-embedding-ada-002",
+      "langchain.request.openai.api_key": "...key>",
       "langchain.request.provider": "openai",
       "language": "python",
-      "runtime-id": "c892f7388aa14e5c93af9e04cf0fa63c"
+      "runtime-id": "fee8e436b6394c02893eb6af74d2ada2"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -25,8 +25,8 @@
       "_sampling_priority_v1": 1,
       "langchain.request.input_count": 1,
       "langchain.response.outputs.embedding_length": 1536,
-      "process_id": 82691
+      "process_id": 98111
     },
-    "duration": 2368000,
-    "start": 1687287219857794000
+    "duration": 2316000,
+    "start": 1688048579265922000
   }]]

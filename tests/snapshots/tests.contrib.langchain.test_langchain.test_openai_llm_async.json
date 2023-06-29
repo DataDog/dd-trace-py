@@ -11,10 +11,10 @@
     "meta": {
       "_dd.p.dm": "-0",
       "langchain.request.model": "text-davinci-003",
-      "langchain.request.openai.api_key": "<no...key>",
+      "langchain.request.openai.api_key": "...key>",
       "langchain.request.openai.parameters.frequency_penalty": "0",
-      "langchain.request.openai.parameters.logit_bias": "{}",
       "langchain.request.openai.parameters.max_tokens": "256",
+      "langchain.request.openai.parameters.model_name": "text-davinci-003",
       "langchain.request.openai.parameters.n": "1",
       "langchain.request.openai.parameters.presence_penalty": "0",
       "langchain.request.openai.parameters.request_timeout": "None",
@@ -26,7 +26,7 @@
       "langchain.response.completions.0.logprobs": "None",
       "langchain.response.completions.0.text": "\\n\\nThe Toronto Raptors won the 2019 NBA Finals.",
       "language": "python",
-      "runtime-id": "19c103a5daa24ef2ad682aac6be628dc"
+      "runtime-id": "fee8e436b6394c02893eb6af74d2ada2"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -38,8 +38,8 @@
       "langchain.tokens.prompt_tokens": 8,
       "langchain.tokens.total_cost": 0.00038,
       "langchain.tokens.total_tokens": 19,
-      "process_id": 58640
+      "process_id": 98111
     },
-    "duration": 1404000,
-    "start": 1687462294906948000
+    "duration": 1177000,
+    "start": 1688048579046554000
   }]]

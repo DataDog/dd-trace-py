@@ -19,9 +19,10 @@
       "langchain.request.messages.1.1.content": "How does one get to Bikini Bottom from New York?",
       "langchain.request.messages.1.1.message_type": "HumanMessage",
       "langchain.request.model": "gpt-3.5-turbo",
-      "langchain.request.openai.api_key": "<no...key>",
+      "langchain.request.openai.api_key": "...key>",
       "langchain.request.openai.parameters.max_tokens": "256",
       "langchain.request.openai.parameters.model": "gpt-3.5-turbo",
+      "langchain.request.openai.parameters.model_name": "gpt-3.5-turbo",
       "langchain.request.openai.parameters.n": "1",
       "langchain.request.openai.parameters.request_timeout": "None",
       "langchain.request.openai.parameters.stream": "False",
@@ -32,7 +33,7 @@
       "langchain.response.completions.1.0.content": "Arrr, ye be lookin' to sail to Bikini Bottom, eh? Well shiver me timbers, ye'll need to set sail from New York and head southwar...",
       "langchain.response.completions.1.0.message_type": "AIMessage",
       "language": "python",
-      "runtime-id": "f893da0eac854539819fa60e955cc592"
+      "runtime-id": "fee8e436b6394c02893eb6af74d2ada2"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -44,8 +45,8 @@
       "langchain.tokens.prompt_tokens": 64,
       "langchain.tokens.total_cost": 0.000362,
       "langchain.tokens.total_tokens": 197,
-      "process_id": 61064
+      "process_id": 98111
     },
-    "duration": 4327000,
-    "start": 1687463220253562000
+    "duration": 4448000,
+    "start": 1688048579170101000
   }]]
