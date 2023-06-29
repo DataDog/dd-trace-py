@@ -49,7 +49,7 @@ def test_metric_executed_sink(mock_telemetry_metrics_writer):
 
         tracer = DummyTracer(iast_enabled=True)
 
-        with tracer.trace("test", span_type=SpanTypes.WEB) as span:
+        with tracer.trace("test", span_type=SpanTypes.WEB):
             import hashlib
 
             m = hashlib.new("md5")
@@ -95,7 +95,7 @@ def test_metric_request_tainted(mock_telemetry_metrics_writer):
             from ddtrace.appsec.iast._taint_tracking import setup
 
             setup(bytes.join, bytearray.join)
-            string_input = taint_pyobject(
+            taint_pyobject(
                 pyobject="bar",
                 source_name="test_string_operator_add_two",
                 source_value="bar",
