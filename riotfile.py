@@ -2778,6 +2778,7 @@ venv = Venv(
                 "openai": latest,
                 "vcrpy": latest,
                 "pytest-asyncio": latest,
+                "tiktoken": latest,
                 "pinecone-client": latest,
                 "cohere": latest,
                 "huggingface-hub": latest,
