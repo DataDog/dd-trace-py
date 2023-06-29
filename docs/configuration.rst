@@ -494,7 +494,7 @@ The following environment variables for the tracer are supported:
       default: ""
       description: |
          Field to be used to read the user login when using a custom ``User`` model for the automatic login events. Use only if the automatic inference doesn't work.
-         Please note that, if set, this field will be user to retrieve the user login even if ``DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING`` is set to ``safe`` and, 
+         Please note that, if set, this field will be used to retrieve the user login even if ``DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING`` is set to ``safe`` and, 
          in some cases, the selected field could hold potentially private information.
       version_added:
          v1.15.0
