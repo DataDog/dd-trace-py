@@ -511,7 +511,7 @@ The following environment variables for the tracer are supported:
       type: String
       default: ""
       description: |
-         Field to be used to read the user name when using a custom ``User`` model for the automatic login events. Use only if the automatic inference doesn't work.
+         Field to be used to read the user name when using a custom ``User`` model for the automatic login events. Used only if the automatic inference doesn't work.
       version_added:
          v1.15.0
 
