@@ -322,12 +322,18 @@ def asm_request_context_manager(
         resources = _DataHandler()
         asm_request_context_set(remote_ip, headers, headers_case_sensitive, block_request_callable)
         core.on("wsgi.block_decided", _on_block_decided)
+        core.on("wsgi._make_block_content", _on_make_block_content)
         try:
             yield resources
         finally:
             resources.finalise()
     else:
         yield None
+
+
+def _on_make_block_content(content, ctype, span):
+    span.set_tag_str(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-length", str(len(content)))
+    span.set_tag_str(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type", ctype)
 
 
 def _on_block_decided(callback):

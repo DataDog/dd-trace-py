@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING
 from ddtrace.appsec import _asm_request_context
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
-from ...appsec._constants import SPAN_DATA_NAMES
 from ..trace_utils import _get_request_header_user_agent
 from ..trace_utils import _set_url_tag
 
@@ -138,8 +137,7 @@ class _DDWSGIMiddlewareBase(object):
         ctype = "text/html" if "text/html" in headers.get("Accept", "").lower() else "text/json"
         content = utils._get_blocked_template(ctype).encode("UTF-8")
         try:
-            span.set_tag_str(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-length", str(len(content)))
-            span.set_tag_str(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type", ctype)
+            core.dispatch("wsgi._make_block_content", [content, ctype, span])
             span.set_tag_str(http.STATUS_CODE, "403")
             url = construct_url(environ)
             query_string = environ.get("QUERY_STRING")
@@ -173,20 +171,17 @@ class _DDWSGIMiddlewareBase(object):
                 span_type=SpanTypes.WEB,
             )
 
-            if self.tracer._appsec_enabled:
-                # [IP Blocking]
-                if core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
-                    ctype, content = self._make_block_content(environ, headers, req_span)
-                    start_response("403 FORBIDDEN", [("content-type", ctype)])
-                    closing_iterator = [content]
-                    not_blocked = False
+            if core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
+                ctype, content = self._make_block_content(environ, headers, req_span)
+                start_response("403 FORBIDDEN", [("content-type", ctype)])
+                closing_iterator = [content]
+                not_blocked = False
 
-                # [Suspicious Request Blocking on request]
-                def blocked_view():
-                    ctype, content = self._make_block_content(environ, headers, req_span)
-                    return content, 403, [("content-type", ctype)]
+            def blocked_view():
+                ctype, content = self._make_block_content(environ, headers, req_span)
+                return content, 403, [("content-type", ctype)]
 
-                core.dispatch("wsgi.block_decided", [blocked_view])
+            core.dispatch("wsgi.block_decided", [blocked_view])
 
             if not_blocked:
                 req_span.set_tag_str(COMPONENT, self._config.integration_name)
@@ -210,8 +205,7 @@ class _DDWSGIMiddlewareBase(object):
                     app_span.finish()
                     req_span.finish()
                     raise
-                if self.tracer._appsec_enabled and core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
-                    # [Suspicious Request Blocking on request or response]
+                if core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
                     _, content = self._make_block_content(environ, headers, req_span)
                     closing_iterator = [content]
 
