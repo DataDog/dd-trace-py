@@ -310,11 +310,20 @@ def _get_test_class_hierarchy(item):
     return ".".join(test_class_hierarchy)
 
 
+def get_path(item):
+    if hasattr(item, "path"):
+        return str(item.path)
+    parent = item
+    while not hasattr(parent, "fspath"):
+        parent = parent.parent
+    return str(parent.fspath)
+
+
 def pytest_collection_modifyitems(session, config, items):
     if _CIVisibility.test_skipping_enabled():
         skip = pytest.mark.skip(reason=SKIPPED_BY_ITR)
         for item in items:
-            if _CIVisibility._instance._should_skip_path(str(item.path)):
+            if _CIVisibility._instance._should_skip_path(get_path(item)):
                 item.add_marker(skip)
 
 
@@ -324,31 +333,33 @@ def pytest_runtest_protocol(item, nextitem):
         yield
         return
 
-    test_session_span = _extract_span(item.session)
-
-    pytest_module_item = _find_pytest_item(item, pytest.Module)
-    pytest_package_item = _find_pytest_item(pytest_module_item, pytest.Package)
-
-    test_module_span = _extract_span(pytest_package_item)
-    if pytest_package_item is not None and test_module_span is None:
-        if test_module_span is None:
-            test_module_span = _start_test_module_span(pytest_package_item)
-
-    test_suite_span = _extract_span(pytest_module_item)
-    if pytest_module_item is not None and test_suite_span is None:
-        test_suite_span = _start_test_suite_span(pytest_module_item)
-        # Start coverage for the test suite if coverage is enabled
-        if coverage_enabled():
-            _initialize(str(item.config.rootdir))
-            _coverage_start()
-
     is_skipped_by_itr = [
-        marker for marker in item.iter_markers(name="skip") if marker.kwargs["reason"] == SKIPPED_BY_ITR
+        marker
+        for marker in item.iter_markers(name="skip")
+        if "reason" in marker.kwargs and marker.kwargs["reason"] == SKIPPED_BY_ITR
     ]
 
     if is_skipped_by_itr:
         yield
     else:
+        test_session_span = _extract_span(item.session)
+
+        pytest_module_item = _find_pytest_item(item, pytest.Module)
+        pytest_package_item = _find_pytest_item(pytest_module_item, pytest.Package)
+
+        test_module_span = _extract_span(pytest_package_item)
+        if pytest_package_item is not None and test_module_span is None:
+            if test_module_span is None:
+                test_module_span = _start_test_module_span(pytest_package_item)
+
+        test_suite_span = _extract_span(pytest_module_item)
+        if pytest_module_item is not None and test_suite_span is None:
+            test_suite_span = _start_test_suite_span(pytest_module_item)
+            # Start coverage for the test suite if coverage is enabled
+            if coverage_enabled():
+                _initialize(str(item.config.rootdir))
+                _coverage_start()
+
         with _CIVisibility._instance.tracer._start_span(
             ddtrace.config.pytest.operation_name,
             service=_CIVisibility._instance._service,
@@ -409,22 +420,22 @@ def pytest_runtest_protocol(item, nextitem):
             # Run the actual test
             yield
 
-    nextitem_pytest_module_item = _find_pytest_item(nextitem, pytest.Module)
-    if test_suite_span is not None and (
-        nextitem is None or nextitem_pytest_module_item != pytest_module_item and not test_suite_span.finished
-    ):
-        _mark_test_status(pytest_module_item, test_suite_span)
-        # Finish coverage for the test suite if coverage is enabled
-        if coverage_enabled():
-            _coverage_end(test_suite_span)
-        test_suite_span.finish()
+        nextitem_pytest_module_item = _find_pytest_item(nextitem, pytest.Module)
+        if test_suite_span is not None and (
+            nextitem is None or nextitem_pytest_module_item != pytest_module_item and not test_suite_span.finished
+        ):
+            _mark_test_status(pytest_module_item, test_suite_span)
+            # Finish coverage for the test suite if coverage is enabled
+            if coverage_enabled():
+                _coverage_end(test_suite_span)
+            test_suite_span.finish()
 
-    nextitem_pytest_package_item = _find_pytest_item(nextitem, pytest.Package)
-    if test_module_span is not None and (
-        nextitem is None or nextitem_pytest_package_item != pytest_package_item and not test_module_span.finished
-    ):
-        _mark_test_status(pytest_package_item, test_module_span)
-        test_module_span.finish()
+        nextitem_pytest_package_item = _find_pytest_item(nextitem, pytest.Package)
+        if test_module_span is not None and (
+            nextitem is None or nextitem_pytest_package_item != pytest_package_item and not test_module_span.finished
+        ):
+            _mark_test_status(pytest_package_item, test_module_span)
+            test_module_span.finish()
 
 
 @pytest.hookimpl(hookwrapper=True)
