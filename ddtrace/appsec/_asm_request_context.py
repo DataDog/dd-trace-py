@@ -74,7 +74,7 @@ def is_blocked():  # type: () -> bool
         env = _get_asm_context()
         if not env.active or env.span is None:
             return False
-        return bool(core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=env.span))
+        return bool(core.get_item(WAF_CONTEXT_NAMES.BLOCKED))
     except BaseException:
         return False
 
@@ -321,9 +321,14 @@ def asm_request_context_manager(
     if config._appsec_enabled:
         resources = _DataHandler()
         asm_request_context_set(remote_ip, headers, headers_case_sensitive, block_request_callable)
+        core.on("wsgi.block_decided", _on_block_decided)
         try:
             yield resources
         finally:
             resources.finalise()
     else:
         yield None
+
+
+def _on_block_decided(callback):
+    set_value(_CALLBACKS, "flask_block", callback)

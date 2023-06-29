@@ -151,10 +151,10 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
             req_span, config.flask, status_code=code, response_headers=headers, route=req_span.get_tag(FLASK_URL_RULE)
         )
 
-        if config._appsec_enabled and not core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=req_span):
+        if config._appsec_enabled and not core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
             log.debug("Flask WAF call for Suspicious Request Blocking on response")
             _asm_request_context.call_waf_callback()
-            if core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=req_span):
+            if core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
                 # response code must be set here, or it will be too late
                 ctype = (
                     "text/html"
@@ -666,7 +666,7 @@ def _set_block_tags(span):
 
 def _block_request_callable(span):
     request = flask.request
-    core.set_item(WAF_CONTEXT_NAMES.BLOCKED, True, span=span)
+    core.set_item(WAF_CONTEXT_NAMES.BLOCKED, True)
     _set_block_tags(span)
     ctype = "text/html" if "text/html" in request.headers.get("Accept", "").lower() else "text/json"
     abort(flask.Response(utils._get_blocked_template(ctype), content_type=ctype, status=403))
@@ -697,7 +697,7 @@ def request_tracer(name):
             request_span.set_tag_str(COMPONENT, config.flask.integration_name)
 
             request_span._ignore_exception(werkzeug.exceptions.NotFound)
-            if config._appsec_enabled and core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span):
+            if config._appsec_enabled and core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
                 _asm_request_context.block_request()
             return wrapped(*args, **kwargs)
 

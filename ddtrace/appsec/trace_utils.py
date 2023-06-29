@@ -166,11 +166,11 @@ def should_block_user(tracer, userid):  # type: (Tracer, str) -> bool
         )
         return False
 
-    if core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span):
+    if core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
         return True
 
     _asm_request_context.call_waf_callback(custom_data={"REQUEST_USER_ID": str(userid)})
-    return bool(core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span))
+    return bool(core.get_item(WAF_CONTEXT_NAMES.BLOCKED))
 
 
 def block_request():  # type: () -> None

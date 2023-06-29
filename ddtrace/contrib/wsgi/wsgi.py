@@ -175,7 +175,7 @@ class _DDWSGIMiddlewareBase(object):
 
             if self.tracer._appsec_enabled:
                 # [IP Blocking]
-                if core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=req_span):
+                if core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
                     ctype, content = self._make_block_content(environ, headers, req_span)
                     start_response("403 FORBIDDEN", [("content-type", ctype)])
                     closing_iterator = [content]
@@ -186,7 +186,7 @@ class _DDWSGIMiddlewareBase(object):
                     ctype, content = self._make_block_content(environ, headers, req_span)
                     return content, 403, [("content-type", ctype)]
 
-                _asm_request_context.set_value(_asm_request_context._CALLBACKS, "flask_block", blocked_view)
+                core.dispatch("wsgi.block_decided", [blocked_view])
 
             if not_blocked:
                 req_span.set_tag_str(COMPONENT, self._config.integration_name)
@@ -210,7 +210,7 @@ class _DDWSGIMiddlewareBase(object):
                     app_span.finish()
                     req_span.finish()
                     raise
-                if self.tracer._appsec_enabled and core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=req_span):
+                if self.tracer._appsec_enabled and core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
                     # [Suspicious Request Blocking on request or response]
                     _, content = self._make_block_content(environ, headers, req_span)
                     closing_iterator = [content]

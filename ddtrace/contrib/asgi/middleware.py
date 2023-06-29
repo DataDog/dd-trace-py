@@ -83,7 +83,7 @@ def span_from_scope(scope):
 
 
 def _request_blocked(span):
-    return span and config._appsec_enabled and core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span)
+    return span and config._appsec_enabled and core.get_item(WAF_CONTEXT_NAMES.BLOCKED)
 
 
 async def _blocked_asgi_app(scope, receive, send):

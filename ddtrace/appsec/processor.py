@@ -272,7 +272,7 @@ class AppSecSpanProcessor(SpanProcessor):
         if span.span_type != SpanTypes.WEB:
             return
 
-        if core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span):
+        if core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
             return
 
         data = {}
@@ -302,7 +302,7 @@ class AppSecSpanProcessor(SpanProcessor):
         blocked = WAF_ACTIONS.BLOCK in waf_results.actions
         _asm_request_context.set_waf_results(waf_results, self._ddwaf.info, blocked)
         if blocked:
-            core.set_item(WAF_CONTEXT_NAMES.BLOCKED, True, span=span)
+            core.set_item(WAF_CONTEXT_NAMES.BLOCKED, True)
 
         try:
             info = self._ddwaf.info
