@@ -207,7 +207,7 @@ They use the Flask integration tests as a teaching example. Referencing these in
 
 
 This function accepts a client object, defined elsewhere in the file, as a fixture. The
-client has been initialized to communicate with the server running the "hellow world" app we
+client has been initialized to communicate with the server running the "hello world" app we
 created in step 3. The function makes a simple request to the app server and checks the status
 code. The ``pytest.mark.snapshot`` decorator
 
