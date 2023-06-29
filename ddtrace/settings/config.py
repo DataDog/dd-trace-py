@@ -205,6 +205,8 @@ class Config(object):
         self.version = os.getenv("DD_VERSION", default=self.tags.get("version"))
         self.http_server = self._HTTPServerConfig()
 
+        self.trace_asgi_websocket = os.getenv("DD_TRACE_ASGI_WEBSOCKET", default=False)
+
         self.service_mapping = parse_tags_str(os.getenv("DD_SERVICE_MAPPING", default=""))
 
         # The service tag corresponds to span.service and should not be
