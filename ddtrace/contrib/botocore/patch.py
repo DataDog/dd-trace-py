@@ -563,9 +563,14 @@ def patched_api_call(original_func, instance, args, kwargs):
                             message_body = None
                             context_json = None
 
-                            if "Body" in message and '"Type": "Notification"' in message["Body"]:
-                                # The message originated from SNS
-                                message_body = json.loads(message["Body"])
+                            if "Body" in message:
+                                try:
+                                    message_body = json.loads(message["Body"])
+                                except ValueError:
+                                    log.debug("Unable to parse message body, treat as non-json")
+
+                            if message_body and message_body.get("Type") == "Notification":
+                                # This is potentially a DSM SNS notification
                                 if (
                                     "MessageAttributes" in message_body
                                     and "_datadog" in message_body["MessageAttributes"]

@@ -80,6 +80,9 @@ class BotocoreTest(TracerTestCase):
         self.sqs_client = self.session.create_client(
             "sqs", region_name="us-east-1", endpoint_url="http://localhost:4566"
         )
+        for queue_url in self.sqs_client.list_queues().get("QueueUrls", []):
+            self.sqs_client.delete_queue(QueueUrl=queue_url)
+
         self.sqs_test_queue = self.sqs_client.create_queue(QueueName=self.queue_name)
 
         super(BotocoreTest, self).setUp()
