@@ -1,14 +1,9 @@
 """
-This module when included on the PYTHONPATH will install the ddtrace package from pypi
-for the Python runtime being used.
+This module when included on the PYTHONPATH will install the ddtrace package
+from the locally available wheels that are included in the image.
 """
 import os
 import sys
-
-
-# This special string is to be replaced at container build time so that the
-# version is fixed in the source.
-version = "<DD_TRACE_VERSION_TO_BE_REPLACED>"
 
 
 def _configure_ddtrace():
@@ -39,18 +34,18 @@ if "DDTRACE_PYTHON_INSTALL_IN_PROGRESS" not in os.environ:
         env = os.environ.copy()
         env["DDTRACE_PYTHON_INSTALL_IN_PROGRESS"] = "true"
 
-        if "git" in version:
-            ddtrace_version = version
-        else:
-            ddtrace_version = "ddtrace==%s" % version
-
         # Execute the installation with the current interpreter
         try:
-            subprocess.run([sys.executable, "-m", "pip", "install", ddtrace_version], env=env, check=True)
-        except Exception:
-            print("datadog autoinstrumentation: failed to install python package version %r" % ddtrace_version)
+            pkgs_path = os.path.join(os.path.dirname(__file__), "ddtrace_pkgs")
+            subprocess.run(
+                [sys.executable, "-m", "pip", "install", "--no-index", "--find-links", pkgs_path, "ddtrace"],
+                env=env,
+                check=True,
+            )
+        except BaseException as e:
+            print("datadog autoinstrumentation: failed to install python package %s" % str(e))
         else:
-            print("datadog autoinstrumentation: successfully installed python package version %r" % ddtrace_version)
+            print("datadog autoinstrumentation: successfully installed python package")
             _configure_ddtrace()
     else:
         print("datadog autoinstrumentation: ddtrace already installed, skipping install")

@@ -1,4 +1,5 @@
 # -*- encoding: utf-8 -*-
+import os
 import uuid
 
 import pytest
@@ -53,6 +54,30 @@ def test_patching():
 async def test_long_command(snapshot_context, traced_yaaredis):
     with snapshot_context():
         await traced_yaaredis.mget(*range(1000))
+
+
+@pytest.mark.asyncio
+@pytest.mark.snapshot
+async def test_cmd_max_length(traced_yaaredis):
+    with override_config("yaaredis", dict(cmd_max_length=7)):
+        await traced_yaaredis.get("here-is-a-long-key")
+
+
+@pytest.mark.skip(reason="No traces sent to the test agent")
+@pytest.mark.subprocess(env=dict(DD_YAAREDIS_CMD_MAX_LENGTH="10"), ddtrace_run=True)
+@pytest.mark.snapshot
+def test_cmd_max_length_env():
+    import asyncio
+
+    import yaaredis
+
+    from tests.contrib.config import REDIS_CONFIG
+
+    async def main():
+        r = yaaredis.StrictRedis(port=REDIS_CONFIG["port"])
+        await r.get("here-is-a-long-key")
+
+    asyncio.run(main())
 
 
 @pytest.mark.asyncio
@@ -148,3 +173,45 @@ async def test_opentracing(tracer, snapshot_context, traced_yaaredis):
 
         with ot_tracer.start_active_span("redis_get"):
             await traced_yaaredis.get("cheese")
+
+
+@pytest.mark.parametrize(
+    "service_schema",
+    [
+        (None, None),
+        (None, "v0"),
+        (None, "v1"),
+        ("mysvc", None),
+        ("mysvc", "v0"),
+        ("mysvc", "v1"),
+    ],
+)
+@pytest.mark.snapshot()
+def test_schematization(ddtrace_run_python_code_in_subprocess, service_schema):
+    service, schema = service_schema
+    code = """
+import pytest
+import sys
+
+from tests.contrib.yaaredis.test_yaaredis import traced_yaaredis
+
+@pytest.mark.asyncio
+async def test_basics(traced_yaaredis):
+    if sys.version_info < (3, 7):
+        await traced_yaaredis.get("cheese")
+    else:
+        async for client in traced_yaaredis:
+            await client.get("cheese")
+
+
+if __name__ == "__main__":
+    sys.exit(pytest.main(["-x", __file__]))
+    """
+    env = os.environ.copy()
+    if service:
+        env["DD_SERVICE"] = service
+    if schema:
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    assert status == 0, (err.decode(), out.decode())
+    assert err == b"", err.decode()

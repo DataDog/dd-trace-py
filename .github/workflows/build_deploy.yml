@@ -5,6 +5,9 @@ on:
     branches:
       - '[0-9].[0-9]*'
       - '[0-9].x'
+      # special branches used to test this workflow
+      # before merging/releasing
+      - build_deploy*
   pull_request:
     paths:
       - "setup.py"
@@ -112,7 +115,7 @@ jobs:
           platforms: all
 
       - name: Build wheels python 3.6 and above
-        uses: pypa/cibuildwheel@v2.12.0
+        uses: pypa/cibuildwheel@v2.12.3
         env:
           # configure cibuildwheel to build native archs ('auto'), and some
           # emulated ones
@@ -214,13 +217,9 @@ jobs:
 
   build-and-publish-init-image:
     needs: [upload_pypi]
-    # We have to wait for the PyPI job since the image that we publish depends on installing
-    # the package from PyPI.
-    uses: ./.github/workflows/build-and-publish-image.yml
-    with:
-      tags: ghcr.io/datadog/dd-trace-py/dd-lib-python-init:${{ github.ref_name }}
-      platforms: 'linux/amd64,linux/arm64/v8'
-      build-args: "DDTRACE_PYTHON_VERSION=${{ github.ref_name }}"
-      context: ./lib-injection
+    uses: ./.github/workflows/lib-inject-publish.yml
     secrets:
       token: ${{ secrets.GITHUB_TOKEN }}
+    with:
+      ddtrace-version: ${{ github.ref_name }}
+      image-tag: ${{ github.ref_name }}

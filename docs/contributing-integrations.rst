@@ -29,7 +29,7 @@ The development process looks like this:
   - Write the integration (see more on this below).
 
   - Open up a draft PR using the `integration checklist
-    <https://github.com/DataDog/dd-trace-py/.github/PULL_REQUEST_TEMPLATE/integration.md>`_.
+    <https://github.com/DataDog/dd-trace-py/blob/1.x/.github/PULL_REQUEST_TEMPLATE.md>`_.
 
 
 Integration Fundamentals

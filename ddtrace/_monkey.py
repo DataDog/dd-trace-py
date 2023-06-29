@@ -5,10 +5,9 @@ from typing import TYPE_CHECKING
 
 from ddtrace.vendor.wrapt.importer import when_imported
 
-from .constants import IAST_ENV
 from .internal.compat import PY2
 from .internal.logger import get_logger
-from .internal.telemetry import telemetry_writer
+from .internal.telemetry import telemetry_lifecycle_writer
 from .internal.utils import formats
 from .settings import _config as config
 
@@ -17,6 +16,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Any
     from typing import Callable
     from typing import List
+    from typing import Union
 
 
 log = get_logger(__name__)
@@ -29,7 +29,7 @@ PATCH_MODULES = {
     "asyncio": True,
     "boto": True,
     "botocore": True,
-    "bottle": False,
+    "bottle": True,
     "cassandra": True,
     "celery": True,
     "consul": True,
@@ -41,6 +41,7 @@ PATCH_MODULES = {
     "graphql": True,
     "grpc": True,
     "httpx": True,
+    "kafka": True,
     "mongoengine": True,
     "mysql": True,
     "mysqldb": True,
@@ -72,9 +73,9 @@ PATCH_MODULES = {
     "kombu": False,
     "starlette": True,
     # Ignore some web framework integrations that might be configured explicitly in code
-    "falcon": False,
-    "pylons": False,
-    "pyramid": False,
+    "falcon": True,
+    "pylons": True,
+    "pyramid": True,
     # Auto-enable logging if the environment variable DD_LOGS_INJECTION is true
     "logging": config.logs_injection,
     "pynamodb": True,
@@ -85,6 +86,8 @@ PATCH_MODULES = {
     "asyncpg": True,
     "aws_lambda": True,  # patch only in AWS Lambda environments
     "tornado": False,
+    "openai": True,
+    "subprocess": True,
 }
 
 
@@ -111,20 +114,25 @@ _MODULES_FOR_CONTRIB = {
         "elasticsearch7",
         "opensearchpy",
     ),
-    "psycopg": ("psycopg2",),
+    "psycopg": (
+        "psycopg",
+        "psycopg2",
+    ),
     "snowflake": ("snowflake.connector",),
     "cassandra": ("cassandra.cluster",),
     "dogpile_cache": ("dogpile.cache",),
     "mysqldb": ("MySQLdb",),
-    "futures": ("concurrent.futures",),
+    "futures": ("concurrent.futures.thread",),
     "vertica": ("vertica_python",),
     "aws_lambda": ("datadog_lambda",),
     "httplib": ("httplib" if PY2 else "http.client",),
+    "kafka": ("confluent_kafka",),
 }
 
 IAST_PATCH = {
-    "weak_hash": True,
+    "path_traversal": True,
     "weak_cipher": True,
+    "weak_hash": True,
 }
 
 DEFAULT_MODULES_PREFIX = "ddtrace.contrib"
@@ -140,8 +148,8 @@ class ModuleNotFoundException(PatchException):
     pass
 
 
-def _on_import_factory(module, prefix="ddtrace.contrib", raise_errors=True):
-    # type: (str, str, bool) -> Callable[[Any], None]
+def _on_import_factory(module, prefix="ddtrace.contrib", raise_errors=True, patch_indicator=True):
+    # type: (str, str, bool, Union[bool, List[str]]) -> Callable[[Any], None]
     """Factory to create an import hook for the provided module name"""
 
     def on_import(hook):
@@ -149,13 +157,17 @@ def _on_import_factory(module, prefix="ddtrace.contrib", raise_errors=True):
         path = "%s.%s" % (prefix, module)
         try:
             imported_module = importlib.import_module(path)
-        except ImportError:
+        except Exception:
             if raise_errors:
                 raise
-            log.error("failed to import ddtrace module %r when patching on import", path, exc_info=True)
+            error_msg = "failed to import ddtrace module %r when patching on import" % (path,)
+            log.error(error_msg, exc_info=True)
+            telemetry_lifecycle_writer.add_integration(module, False, PATCH_MODULES.get(module) is True, error_msg)
         else:
             imported_module.patch()
-            telemetry_writer.add_integration(module, PATCH_MODULES.get(module) is True)
+            telemetry_lifecycle_writer.add_integration(module, True, PATCH_MODULES.get(module) is True, "")
+            if hasattr(imported_module, "patch_submodules"):
+                imported_module.patch_submodules(patch_indicator)
 
     return on_import
 
@@ -199,7 +211,7 @@ def patch_iast(**patch_modules):
 
     IAST_PATCH: list of implemented vulnerabilities
     """
-    iast_enabled = formats.asbool(os.environ.get(IAST_ENV, "false"))
+    iast_enabled = config._iast_enabled
     if iast_enabled:
         # TODO: Devise the correct patching strategy for IAST
         for module in (m for m, e in patch_modules.items() if e):
@@ -209,7 +221,7 @@ def patch_iast(**patch_modules):
 
 
 def patch(raise_errors=True, patch_modules_prefix=DEFAULT_MODULES_PREFIX, **patch_modules):
-    # type: (bool, str, bool) -> None
+    # type: (bool, str, Union[List[str], bool]) -> None
     """Patch only a set of given modules.
 
     :param bool raise_errors: Raise error if one patch fail.
@@ -217,8 +229,8 @@ def patch(raise_errors=True, patch_modules_prefix=DEFAULT_MODULES_PREFIX, **patc
 
         >>> patch(psycopg=True, elasticsearch=True)
     """
-    contribs = [c for c, should_patch in patch_modules.items() if should_patch]
-    for contrib in contribs:
+    contribs = {c: patch_indicator for c, patch_indicator in patch_modules.items() if patch_indicator}
+    for contrib, patch_indicator in contribs.items():
         # Check if we have the requested contrib.
         if not os.path.isfile(os.path.join(os.path.dirname(__file__), "contrib", contrib, "__init__.py")):
             if raise_errors:
@@ -229,7 +241,9 @@ def patch(raise_errors=True, patch_modules_prefix=DEFAULT_MODULES_PREFIX, **patc
         modules_to_patch = _MODULES_FOR_CONTRIB.get(contrib, (contrib,))
         for module in modules_to_patch:
             # Use factory to create handler to close over `module` and `raise_errors` values from this loop
-            when_imported(module)(_on_import_factory(contrib, raise_errors=False))
+            when_imported(module)(
+                _on_import_factory(contrib, raise_errors=raise_errors, patch_indicator=patch_indicator)
+            )
 
         # manually add module to patched modules
         with _LOCK:

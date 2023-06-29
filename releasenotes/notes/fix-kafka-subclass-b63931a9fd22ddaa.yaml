@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    kafka: Previously instantiating a subclass of kafka's Producer/Consumer classes would result in attribute errors
+    due to patching the Producer/Consumer classes with an ObjectProxy. This fix resolves this issue by making the
+    traced classes directly inherit from kafka's base Producer/Consumer classes.

@@ -11,8 +11,27 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
 
+from ._cold_start import is_cold_start
+from ._cold_start import set_cold_start
 
-log = get_logger(__name__)
+
+class DDLambdaLogger:
+    """Uses `DDLogger` to log only on cold start invocations."""
+
+    def __init__(self):
+        self.logger = get_logger(__name__)
+        self.is_cold_start = is_cold_start()
+
+    def exception(self, msg, *args, exc_info=True, **kwargs):
+        if self.is_cold_start:
+            self.logger.error(msg, *args, exc_info=exc_info, **kwargs)
+
+    def warning(self, msg, *args, **kwargs):
+        if self.is_cold_start:
+            self.logger.warning(msg, *args, **kwargs)
+
+
+log = DDLambdaLogger()
 
 
 class TimeoutChannel:
@@ -100,8 +119,25 @@ class DatadogInstrumentation(object):
         finally:
             self._after()
 
+    def _set_context(self, args, kwargs):
+        """Sets the context attribute."""
+        # The context is the second argument in a handler
+        # signature and it is always sent.
+        #
+        # note: AWS Lambda context is an object, the event is a dict.
+        # `get_remaining_time_in_millis` is guaranteed to be
+        # present in the context.
+        _context = get_argument_value(args, kwargs, 1, "context")
+        if hasattr(_context, "get_remaining_time_in_millis"):
+            self.context = _context
+        else:
+            # Handler was possibly manually wrapped, and the first
+            # argument is the `datadog-lambda` decorator object.
+            self.context = get_argument_value(args, kwargs, 2, "context")
+
     def _before(self, args, kwargs):
-        self.context = get_argument_value(args, kwargs, -1, "context")
+        set_cold_start()
+        self._set_context(args, kwargs)
         self.timeoutChannel = TimeoutChannel(self.context)
 
         self.timeoutChannel._start()
@@ -124,16 +160,42 @@ def _get_handler_and_module():
     if path is None:
         from datadog_lambda.wrapper import datadog_lambda_wrapper
 
-        handler = getattr(datadog_lambda_wrapper, "__call__")
+        wrapper_module = datadog_lambda_wrapper
+        wrapper_handler = getattr(datadog_lambda_wrapper, "__call__")
 
-        return handler, datadog_lambda_wrapper, _datadog_instrumentation
+        return wrapper_handler, wrapper_module, _datadog_instrumentation
     else:
         parts = path.rsplit(".", 1)
         (mod_name, handler_name) = parts
         modified_mod_name = _modify_module_name(mod_name)
         handler_module = import_module(modified_mod_name)
         handler = getattr(handler_module, handler_name)
-        return handler, handler_module, _datadog_instrumentation
+
+        if callable(handler):
+            class_name = type(handler).__name__
+            is_function = not isinstance(handler, type) and hasattr(handler, "__code__") and class_name == "function"
+            # handler is a function
+            #
+            # note: this is a best effort to identify function based handlers
+            # this will not cover all cases
+            if is_function:
+                return handler, handler_module, _datadog_instrumentation
+
+            # handler must be either a class or an instance of a class
+            #
+            # note: if handler is a class instance with `__code__` defined,
+            # we will prioritize the `__call__` method, ignoring `__code__`.
+            class_module = getattr(handler_module, class_name)
+            class_handler = getattr(class_module, "__call__")
+
+            if isinstance(handler, type):
+                # class handler is a metaclass
+                if hasattr(class_handler, "__func__"):
+                    class_handler = class_handler.__func__
+
+            return class_handler, class_module, _datadog_instrumentation
+        else:
+            raise TypeError("Handler type is not supported to patch.")
 
 
 def _has_patch_module():
@@ -165,23 +227,41 @@ def patch():
     if not in_aws_lambda() and not _has_patch_module():
         return
 
-    handler, handler_module, wrapper = _get_handler_and_module()
+    try:
+        handler, handler_module, wrapper = _get_handler_and_module()
 
-    if getattr(handler_module, "_datadog_patch", False):
+        if getattr(handler_module, "_datadog_patch", False):
+            return
+
+        wrap(handler, wrapper)
+
+        setattr(handler_module, "_datadog_patch", True)
+    except AttributeError:
+        # User code might contain `ddtrace.patch_all()` or `ddtrace.patch(aws_lambda=True)`
+        # which might cause a circular dependency. Skipping.
         return
-    setattr(handler_module, "_datadog_patch", True)
+    except Exception:
+        log.exception("Error patching handler. Timeout spans will not be generated.")
 
-    wrap(handler, wrapper)
+        return
 
 
 def unpatch():
     if not in_aws_lambda() and not _has_patch_module():
         return
 
-    handler, handler_module, wrapper = _get_handler_and_module()
+    try:
+        handler, handler_module, wrapper = _get_handler_and_module()
 
-    if not getattr(handler_module, "_datadog_patch", False):
+        if not getattr(handler_module, "_datadog_patch", False):
+            return
+
+        unwrap(handler, wrapper)
+
+        setattr(handler_module, "_datadog_patch", False)
+    except AttributeError:
         return
-    setattr(handler_module, "_datadog_patch", False)
+    except Exception:
+        log.exception("Error unpatching handler.")
 
-    unwrap(handler, wrapper)
+        return

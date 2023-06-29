@@ -11,6 +11,7 @@ import pytest
 from routes import url_for
 
 from ddtrace import config
+from ddtrace.appsec.ddwaf import _DDWAF_LOADED
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
@@ -21,6 +22,7 @@ from ddtrace.ext import http
 from ddtrace.ext import user
 from ddtrace.internal import _context
 from ddtrace.internal.compat import urlencode
+from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.appsec.test_processor import RULES_GOOD_PATH
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
@@ -524,6 +526,7 @@ class PylonsTestCase(TracerTestCase):
             assert spans[0].get_tag("http.response.headers.content-length") == "2"
         assert spans[0].get_tag("http.response.headers.custom-header") == "value"
 
+    @pytest.mark.skipif(not _DDWAF_LOADED, reason="Test only makes sense when ddwaf is loaded")
     def test_pylons_cookie_sql_injection(self):
         with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
             self.tracer._appsec_enabled = True
@@ -591,6 +594,7 @@ class PylonsTestCase(TracerTestCase):
         assert root_span
         assert not _context.get_item("http.request.body", span=root_span)
 
+    @pytest.mark.skipif(not _DDWAF_LOADED, reason="Test only makes sense when ddwaf is loaded")
     def test_pylons_body_urlencoded_attack(self):
         with self.override_global_config(dict(_appsec_enabled=True)):
             with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
@@ -636,6 +640,7 @@ class PylonsTestCase(TracerTestCase):
             assert span
             assert span["mytestingbody_key"] == "mytestingbody_value"
 
+    @pytest.mark.skipif(not _DDWAF_LOADED, reason="Test only makes sense when ddwaf is loaded")
     def test_pylons_body_json_attack(self):
         with self.override_global_config(dict(_appsec_enabled=True)):
             with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
@@ -834,6 +839,7 @@ class PylonsTestCase(TracerTestCase):
             assert path_params["month"] == "july"
             assert path_params["year"] == "2022"
 
+    @pytest.mark.skipif(not _DDWAF_LOADED, reason="Test only makes sense when ddwaf is loaded")
     def test_pylon_path_params_attack(self):
         with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
             self.tracer._appsec_enabled = True
@@ -888,3 +894,96 @@ class PylonsTestCase(TracerTestCase):
         assert root_span.get_tag(user.SCOPE) == "usr.scope"
         assert root_span.get_tag("component") == "pylons"
         assert root_span.get_tag("span.kind") == "server"
+
+
+class PylonsSchemaTestCase(TracerTestCase):
+    """Pylons Test Controller that is used to test specific
+    cases defined in the Pylons controller. To test a new behavior,
+    add a new action in the `app.controllers.root` module.
+    """
+
+    conf_dir = os.path.dirname(os.path.abspath(__file__))
+
+    def setUp(self):
+        super(PylonsSchemaTestCase, self).setUp()
+        # initialize a real traced Pylons app
+        wsgiapp = loadapp("config:test.ini", relative_to=PylonsTestCase.conf_dir)
+        self._wsgiapp = wsgiapp
+        app = PylonsTraceMiddleware(wsgiapp, self.tracer)
+        self.app = fixture.TestApp(app)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    def test_schematized_service_name_default(self):
+        self.app.get("/identify")
+
+        spans = self.pop_spans()
+        root_span = spans[0]
+
+        assert root_span.service == "pylons", "Expected 'pylons' but got {}".format(root_span.service)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_schematized_service_name_v0(self):
+        self.app.get("/identify")
+
+        spans = self.pop_spans()
+        root_span = spans[0]
+
+        assert root_span.service == "pylons", "Expected 'pylons' but got {}".format(root_span.service)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_schematized_service_name_v1(self):
+        self.app.get("/identify")
+
+        spans = self.pop_spans()
+        root_span = spans[0]
+
+        assert root_span.service == "mysvc", "Expected 'mysvc' but got {}".format(root_span.service)
+
+    @TracerTestCase.run_in_subprocess()
+    def test_schematized_unspecified_service_name_default(self):
+        self.app.get("/identify")
+
+        spans = self.pop_spans()
+        root_span = spans[0]
+
+        assert root_span.service == "pylons", "Expected 'pylons' but got {}".format(root_span.service)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_schematized_unspecified_service_name_v0(self):
+        self.app.get("/identify")
+
+        spans = self.pop_spans()
+        root_span = spans[0]
+
+        assert root_span.service == "pylons", "Expected 'pylons' but got {}".format(root_span.service)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_schematized_unspecified_service_name_v1(self):
+        self.app.get("/identify")
+
+        spans = self.pop_spans()
+        root_span = spans[0]
+
+        assert root_span.service == DEFAULT_SPAN_SERVICE_NAME, "Expected '{}' but got {}".format(
+            DEFAULT_SPAN_SERVICE_NAME, root_span.service
+        )
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_schematized_operation_name_v0(self):
+        self.app.get("/identify")
+
+        spans = self.pop_spans()
+        root_span = spans[0]
+
+        assert root_span.name == "pylons.request", "Expected 'pylons.request' but got {}".format(root_span.name)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_schematized_operation_name_v1(self):
+        self.app.get("/identify")
+
+        spans = self.pop_spans()
+        root_span = spans[0]
+
+        assert root_span.name == "http.server.request", "Expected 'http.server.request' but got {}".format(
+            root_span.name
+        )

@@ -1,8 +1,8 @@
+import os
 import socket
-from typing import Optional
 
 
-_hostname = None  # type: Optional[str]
+_hostname = os.getenv("DD_HOSTNAME", "")  # type: str
 
 
 def get_hostname():
@@ -15,4 +15,4 @@ def get_hostname():
 
 def _reset():
     global _hostname
-    _hostname = None
+    _hostname = ""

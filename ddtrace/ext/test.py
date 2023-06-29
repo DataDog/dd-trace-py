@@ -14,6 +14,18 @@ FRAMEWORK = TEST_FRAMEWORK = "test.framework"
 # Test Framework Version
 FRAMEWORK_VERSION = TEST_FRAMEWORK_VERSION = "test.framework_version"
 
+# Test Command
+COMMAND = "test.command"
+
+# Test Module
+MODULE = "test.module"
+
+# Test Module Path
+MODULE_PATH = "test.module_path"
+
+# Test Suite
+SUITE = TEST_SUITE = "test.suite"
+
 # Test Name
 NAME = TEST_NAME = "test.name"
 
@@ -29,9 +41,6 @@ SKIP_REASON = TEST_SKIP_REASON = "test.skip_reason"
 # Test Status
 STATUS = TEST_STATUS = "test.status"
 
-# Test Suite
-SUITE = TEST_SUITE = "test.suite"
-
 # Traits
 TRAITS = TEST_TRAITS = "test.traits"
 
@@ -41,6 +50,9 @@ TYPE = TEST_TYPE = "test.type"
 # Test File
 # Use when test implementation file is different from test suite name.
 FILE = TEST_FILE = "test.file"
+
+# Test Class Hierarchy
+CLASS_HIERARCHY = "test.class_hierarchy"
 
 # Test Codeowners
 CODEOWNERS = TEST_CODEOWNERS = "test.codeowners"

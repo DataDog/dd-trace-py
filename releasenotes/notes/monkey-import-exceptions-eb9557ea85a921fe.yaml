@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    tracer: Handle exceptions besides ``ImportError`` when integrations are loaded.

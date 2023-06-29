@@ -1,5 +1,6 @@
 import bm
-import utils
+import bm.flask_utils as flask_utils
+from utils import _post_response
 
 
 class FlaskSimple(bm.Scenario):
@@ -11,7 +12,7 @@ class FlaskSimple(bm.Scenario):
     telemetry_metrics_enabled = bm.var_bool()
 
     def run(self):
-        with utils.server(self) as get_response:
+        with flask_utils.server(self, custom_post_response=_post_response) as get_response:
 
             def _(loops):
                 for _ in range(loops):

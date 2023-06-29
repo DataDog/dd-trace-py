@@ -33,10 +33,12 @@ from ddtrace.constants import VERSION_KEY
 from ddtrace.context import Context
 from ddtrace.contrib.trace_utils import set_user
 from ddtrace.ext import user
+from ddtrace.internal import telemetry
 from ddtrace.internal._encoding import MsgpackEncoderV03
 from ddtrace.internal._encoding import MsgpackEncoderV05
 from ddtrace.internal.serverless import has_aws_lambda_agent_extension
 from ddtrace.internal.serverless import in_aws_lambda
+from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.settings import Config
@@ -652,7 +654,7 @@ def test_tracer_url():
     with pytest.raises(ValueError) as e:
         ddtrace.Tracer(url="foo://foobar:12")
     assert (
-        str(e.value) == "Unsupported protocol 'foo' in Agent URL 'foo://foobar:12'. Must be one of: http, https, unix"
+        str(e.value) == "Unsupported protocol 'foo' in intake URL 'foo://foobar:12'. Must be one of: http, https, unix"
     )
 
 
@@ -939,6 +941,20 @@ class EnvTracerTestCase(TracerTestCase):
                 with self.trace("") as child2:
                     assert child2.service == "django"
                     assert VERSION_KEY in child2.get_tags() and child2.get_tag(VERSION_KEY) == "0.1.2"
+
+    @run_in_subprocess(env_overrides=dict(FUNCTION_NAME="my-func", GCP_PROJECT="project-name"))
+    def test_detect_gcp_function_old_runtime(self):
+        assert in_gcp_function()
+        tracer = Tracer()
+        assert isinstance(tracer._writer, AgentWriter)
+        assert tracer._writer._sync_mode
+
+    @run_in_subprocess(env_overrides=dict(K_SERVICE="my-func", FUNCTION_TARGET="function-target"))
+    def test_detect_gcp_function_new_runtime(self):
+        assert in_gcp_function()
+        tracer = Tracer()
+        assert isinstance(tracer._writer, AgentWriter)
+        assert tracer._writer._sync_mode
 
     @run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
     def test_detect_agentless_env_with_lambda(self):
@@ -1656,18 +1672,18 @@ def test_bad_agent_url(monkeypatch):
         Tracer()
     assert (
         str(e.value)
-        == "Unsupported protocol 'bad' in Agent URL 'bad://localhost:1234'. Must be one of: http, https, unix"
+        == "Unsupported protocol 'bad' in intake URL 'bad://localhost:1234'. Must be one of: http, https, unix"
     )
 
     monkeypatch.setenv("DD_TRACE_AGENT_URL", "unix://")
     with pytest.raises(ValueError) as e:
         Tracer()
-    assert str(e.value) == "Invalid file path in Agent URL 'unix://'"
+    assert str(e.value) == "Invalid file path in intake URL 'unix://'"
 
     monkeypatch.setenv("DD_TRACE_AGENT_URL", "http://")
     with pytest.raises(ValueError) as e:
         Tracer()
-    assert str(e.value) == "Invalid hostname in Agent URL 'http://'"
+    assert str(e.value) == "Invalid hostname in intake URL 'http://'"
 
 
 def test_context_priority(tracer, test_spans):
@@ -1934,3 +1950,14 @@ def test_ctx_api():
         _context.get_item("appsec.key")
     with pytest.raises(ValueError):
         _context.get_items(["appsec.key"])
+
+
+def test_installed_excepthook():
+    telemetry.install_excepthook()
+    assert sys.excepthook is telemetry._excepthook
+    telemetry.uninstall_excepthook()
+    assert sys.excepthook is not telemetry._excepthook
+    telemetry.install_excepthook()
+    assert sys.excepthook is telemetry._excepthook
+    # Reset exception hooks
+    telemetry.uninstall_excepthook()

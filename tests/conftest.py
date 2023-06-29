@@ -4,6 +4,7 @@ from itertools import product
 import os
 from os.path import split
 from os.path import splitext
+import subprocess
 import sys
 from tempfile import NamedTemporaryFile
 import time
@@ -16,6 +17,9 @@ import pytest
 from six import PY2
 
 import ddtrace
+from ddtrace.internal.remoteconfig.client import RemoteConfigClient
+from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+from tests import utils
 from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
 from tests.utils import call_program
@@ -73,7 +77,7 @@ def ddtrace_run_python_code_in_subprocess(tmpdir):
 def snapshot(request):
     marks = [m for m in request.node.iter_markers(name="snapshot")]
     assert len(marks) < 2, "Multiple snapshot marks detected"
-    if marks:
+    if marks and os.getenv("DD_SNAPSHOT_ENABLED", "1") == "1":
         snap = marks[0]
         token = snap.kwargs.get("token")
         if token:
@@ -81,8 +85,12 @@ def snapshot(request):
         else:
             token = request_token(request).replace(" ", "_").replace(os.path.sep, "_")
 
-        with _snapshot_context(token, *snap.args, **snap.kwargs) as snapshot:
-            yield snapshot
+        mgr = _snapshot_context(token, *snap.args, **snap.kwargs)
+        snapshot = mgr.__enter__()
+        yield snapshot
+        # Skip doing any checks if the test was skipped
+        if hasattr(request.node, "rep_call") and not request.node.rep_call.skipped:
+            mgr.__exit__(None, None, None)
     else:
         yield
 
@@ -141,7 +149,7 @@ def unwind_params(params):
         yield None
         return
 
-    for _ in product(*(((k, v) for v in vs) for k, vs in params.items())):
+    for _ in product(*([(k, v) for v in vs] for k, vs in params.items())):
         yield dict(_)
 
 
@@ -188,6 +196,8 @@ def run_function_from_file(item, params=None):
 
     args = [sys.executable]
 
+    timeout = marker.kwargs.get("timeout", None)
+
     # Add ddtrace-run prefix in ddtrace-run mode
     if marker.kwargs.get("ddtrace_run", False):
         args.insert(0, "ddtrace-run")
@@ -198,6 +208,9 @@ def run_function_from_file(item, params=None):
 
     # Override environment variables for the subprocess
     env = os.environ.copy()
+    pythonpath = os.getenv("PYTHONPATH", None)
+    base_path = os.path.dirname(os.path.dirname(__file__))
+    env["PYTHONPATH"] = os.pathsep.join((base_path, pythonpath)) if pythonpath is not None else base_path
     env.update(marker.kwargs.get("env", {}))
     if params is not None:
         env.update(params)
@@ -222,7 +235,7 @@ def run_function_from_file(item, params=None):
         args.extend(marker.kwargs.get("args", []))
 
         def _subprocess_wrapper():
-            out, err, status, _ = call_program(*args, env=env, cwd=cwd)
+            out, err, status, _ = call_program(*args, env=env, cwd=cwd, timeout=timeout)
 
             if status != expected_status:
                 raise AssertionError(
@@ -281,3 +294,92 @@ def pytest_runtest_protocol(item):
             ihook.pytest_runtest_logfinish(nodeid=nodeid, location=item.location)
 
         return True
+
+
+# source code fixtures
+
+
+def _run(cmd):
+    return subprocess.check_output(cmd, shell=True)
+
+
+@contextlib.contextmanager
+def create_package(directory, pyproject, setup):
+    package_dir = os.path.join(directory, "mypackage")
+    os.mkdir(package_dir)
+
+    pyproject_file = os.path.join(package_dir, "pyproject.toml")
+    with open(pyproject_file, "wb") as f:
+        f.write(pyproject.encode("utf-8"))
+
+    setup_file = os.path.join(package_dir, "setup.py")
+    with open(setup_file, "wb") as f:
+        f.write(setup.encode("utf-8"))
+
+    _ = os.path.join(package_dir, "mypackage")
+    os.mkdir(_)
+    with open(os.path.join(_, "__init__.py"), "wb") as f:
+        f.write('"0.0.1"'.encode("utf-8"))
+
+    cwd = os.getcwd()
+    os.chdir(package_dir)
+
+    try:
+        _run("git init")
+        _run("git config --local user.name user")
+        _run("git config --local user.email user@company.com")
+        _run("git add .")
+        _run("git commit --no-gpg-sign -m init")
+        _run("git remote add origin https://github.com/companydotcom/repo.git")
+
+        yield package_dir
+    finally:
+        os.chdir(cwd)
+
+
+@pytest.fixture
+def mypackage_example(tmpdir):
+    with create_package(
+        str(tmpdir),
+        """\
+[build-system]
+requires = ["setuptools", "ddtrace"]
+build-backend = "setuptools.build_meta"
+""",
+        """\
+import ddtrace.sourcecode.setuptools_auto
+from setuptools import setup
+
+setup(
+    name="mypackage",
+    version="0.0.1",
+)
+""",
+    ) as package:
+        yield package
+
+
+@pytest.fixture
+def git_repo_empty(tmpdir):
+    yield utils.git_repo_empty(tmpdir)
+
+
+@pytest.fixture
+def git_repo(git_repo_empty):
+    yield utils.git_repo(git_repo_empty)
+
+
+def _stop_remote_config_worker():
+    if remoteconfig_poller._worker:
+        remoteconfig_poller._stop_service()
+        remoteconfig_poller._worker = None
+
+
+@pytest.fixture
+def remote_config_worker():
+    remoteconfig_poller.disable()
+    remoteconfig_poller._client = RemoteConfigClient()
+    try:
+        yield
+    finally:
+        _stop_remote_config_worker()

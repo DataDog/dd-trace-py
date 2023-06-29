@@ -3,11 +3,9 @@ from typing import TYPE_CHECKING
 
 import attr
 
+from ddtrace.appsec._constants import APPSEC
+from ddtrace.appsec._constants import IAST
 from ddtrace.appsec.iast import oce
-from ddtrace.constants import APPSEC_ORIGIN_VALUE
-from ddtrace.constants import IAST_CONTEXT_KEY
-from ddtrace.constants import IAST_ENABLED
-from ddtrace.constants import IAST_JSON
 from ddtrace.constants import MANUAL_KEEP_KEY
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.ext import SpanTypes
@@ -28,7 +26,7 @@ class AppSecIastSpanProcessor(SpanProcessor):
         # type: (Span) -> None
         if span.span_type != SpanTypes.WEB:
             return
-        oce.acquire_request()
+        oce.acquire_request(span)
 
     def on_span_finish(self, span):
         # type: (Span) -> None
@@ -42,15 +40,19 @@ class AppSecIastSpanProcessor(SpanProcessor):
         if span.span_type != SpanTypes.WEB:
             return
 
-        span.set_metric(IAST_ENABLED, 1.0)
+        if not oce._enabled:
+            span.set_metric(IAST.ENABLED, 0.0)
+            return
 
-        data = _context.get_item(IAST_CONTEXT_KEY, span=span)
+        span.set_metric(IAST.ENABLED, 1.0)
+
+        data = _context.get_item(IAST.CONTEXT_KEY, span=span)
 
         if data:
-            span.set_tag_str(IAST_JSON, json.dumps(attr.asdict(data)))
+            span.set_tag_str(IAST.JSON, json.dumps(attr.asdict(data, filter=lambda attr, x: x is not None)))
 
             span.set_tag(MANUAL_KEEP_KEY)
             if span.get_tag(ORIGIN_KEY) is None:
-                span.set_tag_str(ORIGIN_KEY, APPSEC_ORIGIN_VALUE)
+                span.set_tag_str(ORIGIN_KEY, APPSEC.ORIGIN_VALUE)
 
         oce.release_request()

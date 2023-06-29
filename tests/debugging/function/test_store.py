@@ -6,7 +6,9 @@ import pytest
 from six import PY2
 
 from ddtrace.debugging._function.discovery import FunctionDiscovery
+from ddtrace.debugging._function.discovery import _undecorate
 from ddtrace.debugging._function.store import FunctionStore
+from ddtrace.internal.module import origin
 from ddtrace.internal.utils.inspection import linenos
 import tests.submod.stuff as stuff
 
@@ -143,13 +145,14 @@ def test_function_wrap_property():
 def test_function_wrap_decorated():
     with FunctionStore() as store:
         function = FunctionDiscovery.from_module(stuff).by_name(
-            ".".join((stuff.Stuff.__name__, stuff.Stuff.doublydecoratedstuff.__name__))
+            ".".join((stuff.Stuff.__name__, "doublydecoratedstuff"))
         )
 
         if PY2:
             assert function.__code__ is stuff.Stuff.doublydecoratedstuff.__func__.__code__
         else:
-            assert function is stuff.Stuff.doublydecoratedstuff
+            assert function is not stuff.Stuff.doublydecoratedstuff
+            assert function is _undecorate(stuff.Stuff.doublydecoratedstuff, "doublydecoratedstuff", origin(stuff))
 
         arg = mock.Mock()
         store.wrap(function, gen_wrapper(arg, 42))

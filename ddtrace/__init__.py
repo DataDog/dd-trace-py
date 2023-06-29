@@ -1,13 +1,31 @@
+import sys
+
+
+LOADED_MODULES = frozenset(sys.modules.keys())
+
 from ddtrace.internal.module import ModuleWatchdog
 
 
 ModuleWatchdog.install()
 
-from ._logger import configure_ddtrace_logger  # noqa: E402
+# Acquire a reference to the threading module. Some parts of the library (e.g.
+# the profiler) might be enabled programmatically and therefore might end up
+# getting a reference to the tracee's threading module. By storing a reference
+# to the threading module used by ddtrace here, we make it easy for those parts
+# to get a reference to the right threading module.
+import threading as _threading
+
+from ._logger import configure_ddtrace_logger
 
 
 # configure ddtrace logger before other modules log
 configure_ddtrace_logger()  # noqa: E402
+
+from ddtrace.internal import telemetry
+
+
+telemetry.install_excepthook()
+
 from ._monkey import patch  # noqa: E402
 from ._monkey import patch_all  # noqa: E402
 from .internal.utils.deprecations import DDTraceDeprecationWarning  # noqa: E402

@@ -1,14 +1,19 @@
+import os
 import re
 
-from hypothesis import example
-from hypothesis import given
-from hypothesis.provisional import urls
 import pytest
 
 from ddtrace.internal.compat import parse
 from ddtrace.internal.utils.http import normalize_header_name
 from ddtrace.internal.utils.http import redact_url
 from ddtrace.internal.utils.http import strip_query_string
+
+
+def _url_fixtures():
+    filename = os.path.join(os.path.dirname(__file__), "fixtures", "urls.txt")
+    with open(filename) as fp:
+        for line in fp:
+            yield line.strip()
 
 
 class TestHeaderNameNormalization(object):
@@ -25,15 +30,7 @@ class TestHeaderNameNormalization(object):
         assert normalize_header_name("") == ""
 
 
-@given(urls())
-@example("/relative/path")
-@example("")
-@example("#fragment?with=query&string")
-@example(":")
-@example(":/")
-@example("://?")
-@example("://?&?")
-@example("://?&#")
+@pytest.mark.parametrize("url", _url_fixtures())
 def test_strip_query_string(url):
     parsed_url = parse.urlparse(url)
     assert strip_query_string(url) == parse.urlunparse(
@@ -48,60 +45,24 @@ def test_strip_query_string(url):
     )
 
 
-@given(urls())
-@example("")
-@example("/relative/path")
-@example("://?")
-@example("://a?b")
-@example("#fragment?with=query&string")
-@example(":")
-@example(":/")
-@example("://?&?")
-@example("://?&#")
+@pytest.mark.parametrize("url", _url_fixtures())
 def test_redact_url_obfuscation_disabled_without_param(url):
     assert redact_url(url, None, None) == url
 
 
-@given(urls())
-@example("")
-@example("/relative/path")
-@example("://?")
-@example("://a?b")
-@example("#fragment?with=query&string")
-@example(":")
-@example(":/")
-@example("://?&?")
-@example("://?&#")
+@pytest.mark.parametrize("url", _url_fixtures())
 def test_redact_url_obfuscation_disabled_with_param(url):
     assert redact_url(url, None, "query_string") == url
 
 
-@given(urls())
-@example("")
-@example("/relative/path")
-@example("://?")
-@example("://a?b")
-@example("#fragment?with=query&string")
-@example(":")
-@example(":/")
-@example("://?&?")
-@example("://?&#")
+@pytest.mark.parametrize("url", _url_fixtures())
 def test_redact_url_not_redacts_without_param(url):
     res = redact_url(url, re.compile(b"\\@"), None)
     expected_result = url if isinstance(res, str) else url.encode("utf-8")
     assert res == expected_result
 
 
-@given(urls())
-@example("")
-@example("/relative/path")
-@example("://?")
-@example("://a?b")
-@example("#fragment?with=query&string")
-@example(":")
-@example(":/")
-@example("://?&?")
-@example("://?&")
+@pytest.mark.parametrize("url", _url_fixtures())
 def test_redact_url_not_redacts_with_param(url):
     parsed_url = parse.urlparse(url)
     assert (

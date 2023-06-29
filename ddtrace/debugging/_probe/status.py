@@ -4,13 +4,13 @@ import time
 from typing import Optional
 from typing import Tuple
 
-from ddtrace.debugging._capture import utils
-from ddtrace.debugging._config import config
+from ddtrace.debugging._config import di_config
 from ddtrace.debugging._encoding import BufferFull
 from ddtrace.debugging._encoding import BufferedEncoder
 from ddtrace.debugging._encoding import add_tags
 from ddtrace.debugging._metrics import metrics
 from ddtrace.debugging._probe.model import Probe
+from ddtrace.debugging._signal import utils
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.logger import get_logger
 
@@ -36,6 +36,7 @@ class ProbeStatusLogger(object):
             "debugger": {
                 "diagnostics": {
                     "probeId": probe.probe_id,
+                    "probeVersion": probe.version,
                     "status": status,
                 }
             },
@@ -64,7 +65,7 @@ class ProbeStatusLogger(object):
 
             while self._retry_queue:
                 item, ts = self._retry_queue.popleft()
-                if now - ts > config.diagnostics_interval:
+                if now - ts > di_config.diagnostics_interval:
                     # We discard the expired items as they wouldn't be picked
                     # up by the backend anyway.
                     continue

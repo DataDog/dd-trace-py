@@ -35,6 +35,10 @@ See [the contributing docs](https://ddtrace.readthedocs.io/en/stable/contributin
 
 ### Pre-commit Hooks
 
+**NOTE**: Pre-commit hooks are optional and provided as a convenience for contributors. 
+If pre-commit hooks fail to run in your development environment, you can uninstall them by deleting the symlink created by the installation script:
+
+    $ rm .git/hooks/pre-commit
 The tracer library uses formatting/linting tools including black, flake8, and mypy.
 While these are run in each CI pipeline for pull requests, they are automated to run
 when you call `git commit` as pre-commit hooks to catch any formatting errors before
@@ -65,8 +69,8 @@ launch them through:
    using a Python version management tool, such as
    [pyenv](https://github.com/pyenv/pyenv), to utilize multiple versions of
    Python. [How to install Pyenv](https://github.com/pyenv/pyenv#installation) 
-3. Install the relevant versions of Python in Pyenv: `pyenv install 2.7.18 3.5.10 3.6.15 3.7.13 3.8.13 3.9.13 3.10.5`
-4. Make those versions available globally: `pyenv global 2.7.18 3.5.10 3.6.15 3.7.13 3.8.13 3.9.13 3.10.5`
+3. Install the relevant versions of Python in Pyenv: `pyenv install 3.11.0 2.7.18 3.6.15 3.7.13 3.8.13 3.9.13 3.10.5`
+4. Make those versions available globally: `pyenv global 3.11.0 2.7.18 3.6.15 3.7.13 3.8.13 3.9.13 3.10.5`
 
 ### Testing
 
@@ -81,19 +85,16 @@ execute tests within a Docker image. You can start the container with a bash she
     $ scripts/ddtest
 
 You can now run tests as you would do in your local environment. We use
-[tox][tox] as well as [riot][riot], a new tool that we developed for addressing
+[riot][riot], a new tool that we developed for addressing
 our specific needs with an ever growing matrix of tests. You can list the tests
 managed by each:
 
-    $ tox -l
     $ riot list
 
 You can run multiple tests by using regular expressions:
 
-    $ scripts/run-tox-scenario '^futures_contrib-'
     $ riot run psycopg
 
-[tox]: https://github.com/tox-dev/tox/
 [riot]: https://github.com/DataDog/riot/
 
 #### Running Tests locally

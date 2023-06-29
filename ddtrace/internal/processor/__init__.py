@@ -1,4 +1,5 @@
 import abc
+from typing import List
 from typing import Optional
 
 import attr
@@ -14,6 +15,8 @@ log = get_logger(__name__)
 @attr.s
 class SpanProcessor(six.with_metaclass(abc.ABCMeta)):
     """A Processor is used to process spans as they are created and finished by a tracer."""
+
+    __processors__ = []  # type: List["SpanProcessor"]
 
     def __attrs_post_init__(self):
         # type: () -> None
@@ -60,3 +63,16 @@ class SpanProcessor(six.with_metaclass(abc.ABCMeta)):
         Any clean-up or flushing should be performed with this method.
         """
         pass
+
+    def register(self):
+        # type: () -> None
+        """Register the processor with the global list of processors."""
+        SpanProcessor.__processors__.append(self)
+
+    def unregister(self):
+        # type: () -> None
+        """Unregister the processor from the global list of processors."""
+        try:
+            SpanProcessor.__processors__.remove(self)
+        except ValueError:
+            raise ValueError("Span processor %r not registered" % self)

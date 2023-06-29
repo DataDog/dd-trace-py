@@ -5,16 +5,20 @@ from typing import List
 from typing import Optional
 from typing import Tuple
 
+from ddtrace.appsec._constants import DEFAULT
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.constants import IAST_ENV
+from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.utils.cache import cachedmethod
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor.debtcollector import deprecate
 
+from ..internal import gitmetadata
 from ..internal.constants import PROPAGATION_STYLE_ALL
 from ..internal.constants import PROPAGATION_STYLE_B3
 from ..internal.constants import _PROPAGATION_STYLE_DEFAULT
 from ..internal.logger import get_logger
+from ..internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ..internal.utils.formats import asbool
 from ..internal.utils.formats import parse_tags_str
 from ..pin import Pin
@@ -51,6 +55,7 @@ def _parse_propagation_styles(name, default):
     - "datadog"
     - "b3multi"
     - "b3 single header"
+    - "tracecontext"
     - "none"
 
 
@@ -198,10 +203,15 @@ class Config(object):
         self.client_ip_header = os.getenv("DD_TRACE_CLIENT_IP_HEADER")
         self.retrieve_client_ip = asbool(os.getenv("DD_TRACE_CLIENT_IP_ENABLED", default=False))
 
-        self.tags = parse_tags_str(os.getenv("DD_TAGS") or "")
+        # cleanup DD_TAGS, because values will be inserted back in the optimal way (via _dd.git.* tags)
+        self.tags = gitmetadata.clean_tags(parse_tags_str(os.getenv("DD_TAGS") or ""))
 
         self.env = os.getenv("DD_ENV") or self.tags.get("env")
-        self.service = os.getenv("DD_SERVICE", default=self.tags.get("service"))
+        self.service = os.getenv("DD_SERVICE", default=self.tags.get("service", DEFAULT_SPAN_SERVICE_NAME))
+
+        if self.service is None and in_gcp_function():
+            self.service = os.environ.get("K_SERVICE", os.environ.get("FUNCTION_NAME"))
+
         self.version = os.getenv("DD_VERSION", default=self.tags.get("version"))
         self.http_server = self._HTTPServerConfig()
 
@@ -224,7 +234,13 @@ class Config(object):
 
         self.health_metrics_enabled = asbool(os.getenv("DD_TRACE_HEALTH_METRICS_ENABLED", default=False))
 
-        self._telemetry_metrics_enabled = asbool(os.getenv("_DD_TELEMETRY_METRICS_ENABLED", default=False))
+        self._telemetry_enabled = asbool(os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED", True))
+
+        self._telemetry_metrics_enabled = asbool(os.getenv("DD_TELEMETRY_METRICS_ENABLED", default=True))
+
+        self._128_bit_trace_id_enabled = asbool(os.getenv("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", False))
+
+        self._128_bit_trace_id_logging_enabled = asbool(os.getenv("DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED", False))
 
         # Propagation styles
         self._propagation_style_extract = self._propagation_style_inject = _parse_propagation_styles(
@@ -255,10 +271,17 @@ class Config(object):
         # Raise certain errors only if in testing raise mode to prevent crashing in production with non-critical errors
         self._raise = asbool(os.getenv("DD_TESTING_RAISE", False))
         self._trace_compute_stats = asbool(
-            os.getenv("DD_TRACE_COMPUTE_STATS", os.getenv("DD_TRACE_STATS_COMPUTATION_ENABLED", False))
+            os.getenv("DD_TRACE_COMPUTE_STATS", os.getenv("DD_TRACE_STATS_COMPUTATION_ENABLED", in_gcp_function()))
         )
+        self._data_streams_enabled = asbool(os.getenv("DD_DATA_STREAMS_ENABLED", False))
         self._appsec_enabled = asbool(os.getenv(APPSEC_ENV, False))
         self._iast_enabled = asbool(os.getenv(IAST_ENV, False))
+        self._api_security_enabled = asbool(os.getenv("_DD_API_SECURITY_ENABLED", False))
+        self._waf_timeout = DEFAULT.WAF_TIMEOUT
+        try:
+            self._waf_timeout = float(os.getenv("DD_APPSEC_WAF_TIMEOUT"))
+        except (TypeError, ValueError):
+            pass
 
         dd_trace_obfuscation_query_string_pattern = os.getenv(
             "DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN", DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN_DEFAULT
@@ -275,6 +298,21 @@ class Config(object):
             except Exception:
                 log.warning("Invalid obfuscation pattern, disabling query string tracing")
                 self.http_tag_query_string = False  # Disable query string tagging if malformed obfuscation pattern
+
+        self._ci_visibility_agentless_enabled = asbool(os.getenv("DD_CIVISIBILITY_AGENTLESS_ENABLED", default=False))
+        self._ci_visibility_agentless_url = os.getenv("DD_CIVISIBILITY_AGENTLESS_URL", default="")
+        self._ci_visibility_intelligent_testrunner_enabled = asbool(
+            os.getenv("DD_CIVISIBILITY_ITR_ENABLED", default=False)
+        )
+        self._ci_visibility_code_coverage_enabled = asbool(
+            os.getenv("DD_CIVISIBILITY_CODE_COVERAGE_ENABLED", default=False)
+        )
+        self._otel_enabled = asbool(os.getenv("DD_TRACE_OTEL_ENABLED", False))
+        if self._otel_enabled:
+            # Replaces the default otel api runtime context with DDRuntimeContext
+            # https://github.com/open-telemetry/opentelemetry-python/blob/v1.16.0/opentelemetry-api/src/opentelemetry/context/__init__.py#L53
+            os.environ["OTEL_PYTHON_CONTEXT"] = "ddcontextvars_context"
+        self._ddtrace_bootstrapped = False
 
     def __getattr__(self, name):
         if name not in self._config:

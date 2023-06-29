@@ -1,4 +1,5 @@
 import asyncio
+import os
 
 import aioredis
 import pytest
@@ -45,6 +46,12 @@ async def traced_aioredis(redis_client):
     finally:
         unpatch()
     await redis_client.flushall()
+
+    if hasattr(redis_client, "wait_closed"):
+        redis_client.close()
+        await redis_client.wait_closed()
+    else:
+        await redis_client.close()
 
 
 def test_patching():
@@ -147,6 +154,28 @@ async def test_long_command(redis_client):
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot
+async def test_cmd_max_length(redis_client):
+    with override_config("aioerdis", dict(cmd_max_length=7)):
+        await redis_client.get("here-is-a-long-key")
+
+
+@pytest.mark.skip(reason="No traces sent to the test agent")
+@pytest.mark.subprocess(env=dict(DD_AIOREDIS_CMD_MAX_LENGTH="10"), ddtrace_run=True)
+@pytest.mark.snapshot
+def test_cmd_max_length_env():
+    import asyncio
+
+    from tests.contrib.aioredis.test_aioredis import get_redis_instance
+
+    async def main():
+        redis_client = await get_redis_instance(1)
+        await redis_client.get("here-is-a-long-key")
+
+    asyncio.run(main())
+
+
+@pytest.mark.asyncio
+@pytest.mark.snapshot
 async def test_override_service_name(redis_client):
     with override_config("aioredis", dict(service_name="myaioredis")):
         val = await redis_client.get("cheese")
@@ -156,6 +185,40 @@ async def test_override_service_name(redis_client):
         if isinstance(val, bytes):
             val = val.decode()
         assert val == "my-cheese"
+
+
+@pytest.mark.parametrize("service", [None, "mysvc"])
+@pytest.mark.parametrize("schema", [None, "v0", "v1"])
+@pytest.mark.snapshot(variants={"": aioredis_version >= (2, 0), "13": aioredis_version < (2, 0)})
+def test_schematization_of_service_and_operation(ddtrace_run_python_code_in_subprocess, service, schema):
+    code = """
+import asyncio
+import pytest
+import sys
+from tests.contrib.aioredis.test_aioredis import traced_aioredis
+from tests.contrib.aioredis.test_aioredis import redis_client
+from tests.contrib.aioredis.test_aioredis import get_redis_instance
+
+@pytest.mark.asyncio
+async def test(redis_client):
+    # Works for 3.6
+    client = await redis_client
+    await client.set("cheese", "my-cheese")
+
+if __name__ == "__main__":
+    if sys.version_info < (3, 7):
+        sys.exit(pytest.main(["-x", __file__]))
+    else:
+        sys.exit(pytest.main(["-x", __file__, "--asyncio-mode=auto"]))
+    """
+    env = os.environ.copy()
+    if service:
+        env["DD_SERVICE"] = service
+    if schema:
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    assert status == 0, (err.decode(), out.decode())
+    assert err == b"", err.decode()
 
 
 @pytest.mark.asyncio

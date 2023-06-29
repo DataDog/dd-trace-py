@@ -1,7 +1,6 @@
 """
 Generic dbapi tracing code.
 """
-
 import six
 
 from ddtrace import config
@@ -46,11 +45,16 @@ class TracedCursor(wrapt.ObjectProxy):
         pin.onto(self)
         # Allow dbapi-based integrations to override default span name prefix
         span_name_prefix = (
-            cfg._dbapi_span_name_prefix
+            cfg["_dbapi_span_name_prefix"]
             if cfg and "_dbapi_span_name_prefix" in cfg
-            else config.dbapi2._dbapi_span_name_prefix
+            else config.dbapi2["_dbapi_span_name_prefix"]
         )
-        self._self_datadog_name = "{}.query".format(span_name_prefix)
+        span_name = (
+            cfg["_dbapi_span_operation_name"]
+            if cfg and "_dbapi_span_operation_name" in cfg
+            else "{}.query".format(span_name_prefix)
+        )
+        self._self_datadog_name = span_name
         self._self_last_execute_operation = None
         self._self_config = cfg or config.dbapi2
         self._self_dbm_propagator = getattr(self._self_config, "_dbm_propagator", None)
@@ -100,11 +104,14 @@ class TracedCursor(wrapt.ObjectProxy):
             s.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
             if _is_iast_enabled():
-                from ddtrace.appsec.iast._taint_utils import check_tainted_args
-                from ddtrace.appsec.iast.taint_sinks.sql_injection import SqlInjection
+                try:
+                    from ddtrace.appsec.iast._taint_utils import check_tainted_args
+                    from ddtrace.appsec.iast.taint_sinks.sql_injection import SqlInjection
 
-                if check_tainted_args(args, kwargs, pin.tracer, self._self_config.integration_name, method):
-                    SqlInjection.report(evidence_value=args[0])
+                    if check_tainted_args(args, kwargs, pin.tracer, self._self_config.integration_name, method):
+                        SqlInjection.report(evidence_value=args[0])
+                except Exception:
+                    log.debug("Unexpected exception while reporting vulnerability", exc_info=True)
 
             # set analytics sample rate if enabled but only for non-FetchTracedCursor
             if not isinstance(self, FetchTracedCursor):
@@ -309,7 +316,7 @@ class TracedConnection(wrapt.ObjectProxy):
         pin = Pin.get_from(self)
         if not pin:
             return cursor
-        return self._self_cursor_cls(cursor, pin, self._self_config)
+        return self._self_cursor_cls(cursor=cursor, pin=pin, cfg=self._self_config)
 
     def commit(self, *args, **kwargs):
         span_name = "{}.{}".format(self._self_datadog_name, "commit")

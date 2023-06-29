@@ -2,16 +2,25 @@ import atexit
 from collections import Counter
 from contextlib import contextmanager
 import json
+from time import sleep
 from typing import Any
 
-from ddtrace.debugging._capture.collector import CapturedEventCollector
-from ddtrace.debugging._config import config
+from envier import En
+
+from ddtrace.debugging._config import di_config
+from ddtrace.debugging._config import ed_config
 from ddtrace.debugging._debugger import Debugger
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
 from ddtrace.debugging._probe.remoteconfig import _filter_by_env_and_version
+from ddtrace.debugging._signal.collector import SignalCollector
 from ddtrace.debugging._uploader import LogsIntakeUploaderV1
+from ddtrace.internal.compat import monotonic
 from tests.debugging.probe.test_status import DummyProbeStatusLogger
+
+
+class PayloadWaitTimeout(Exception):
+    pass
 
 
 class MockLogsIntakeUploaderV1(LogsIntakeUploaderV1):
@@ -21,6 +30,16 @@ class MockLogsIntakeUploaderV1(LogsIntakeUploaderV1):
 
     def _write(self, payload):
         self.queue.append(payload.decode())
+
+    def wait_for_payloads(self, cond=lambda _: bool(_), timeout=1.0):
+        end = monotonic() + timeout
+
+        while not cond(self.queue):
+            if monotonic() > end:
+                raise PayloadWaitTimeout(cond, timeout)
+            sleep(0.05)
+
+        return self.payloads
 
     @property
     def payloads(self):
@@ -53,26 +72,26 @@ class MockProbeStatusLogger(DummyProbeStatusLogger):
         self.queue = []
 
 
-class TestSnapshotCollector(CapturedEventCollector):
+class TestSignalCollector(SignalCollector):
     def __init__(self, *args, **kwargs):
         # type: (*Any, **Any) -> None
-        super(TestSnapshotCollector, self).__init__(*args, **kwargs)
+        super(TestSignalCollector, self).__init__(*args, **kwargs)
         self.test_queue = []
-        self.event_state_counter = Counter()
+        self.signal_state_counter = Counter()
 
-    def push(self, event):
-        self.event_state_counter[event.state] += 1
-        super(TestSnapshotCollector, self).push(event)
+    def push(self, signal):
+        self.signal_state_counter.update({signal.state: 1})
+        super(TestSignalCollector, self).push(signal)
 
     def _enqueue(self, snapshot):
         self.test_queue.append(snapshot)
-        return super(TestSnapshotCollector, self)._enqueue(snapshot)
+        return super(TestSignalCollector, self)._enqueue(snapshot)
 
 
 class TestDebugger(Debugger):
     __logger__ = MockProbeStatusLogger
     __uploader__ = MockLogsIntakeUploaderV1
-    __collector__ = TestSnapshotCollector
+    __collector__ = TestSignalCollector
 
     def add_probes(self, *probes):
         # type: (Probe) -> None
@@ -82,13 +101,17 @@ class TestDebugger(Debugger):
         # type: (Probe) -> None
         self._on_configuration(ProbePollerEvent.DELETED_PROBES, probes)
 
+    def modify_probes(self, *probes):
+        # type: (Probe) -> None
+        self._on_configuration(ProbePollerEvent.MODIFIED_PROBES, probes)
+
     @property
     def test_queue(self):
         return self._collector.test_queue
 
     @property
-    def event_state_counter(self):
-        return self._collector.event_state_counter
+    def signal_state_counter(self):
+        return self._collector.signal_state_counter
 
     @property
     def uploader(self):
@@ -108,14 +131,14 @@ class TestDebugger(Debugger):
 
 
 @contextmanager
-def debugger(**config_overrides):
-    # type: (Any) -> None
+def _debugger(config_to_override, config_overrides):
+    # type: (En, Any) -> None
     """Test with the debugger enabled."""
     atexit_register = atexit.register
     try:
-        old_config = config.__dict__
-        config.__dict__ = dict(old_config)
-        config.__dict__.update(config_overrides)
+        old_config = config_to_override.__dict__
+        config_to_override.__dict__ = dict(old_config)
+        config_to_override.__dict__.update(config_overrides)
 
         atexit.register = lambda _: None
 
@@ -128,6 +151,22 @@ def debugger(**config_overrides):
         try:
             TestDebugger.disable()
             assert TestDebugger._instance is None
-            config.__dict__ = old_config
+            config_to_override.__dict__ = old_config
         finally:
             atexit.register = atexit_register
+
+
+@contextmanager
+def debugger(**config_overrides):
+    # type: (Any) -> None
+    """Test with the debugger enabled."""
+    with _debugger(di_config, config_overrides) as debugger:
+        yield debugger
+
+
+@contextmanager
+def exception_debugging(**config_overrides):
+    config_overrides.setdefault("enabled", True)
+
+    with _debugger(ed_config, config_overrides) as ed:
+        yield ed

@@ -63,6 +63,6 @@ def test_registry_location_error():
             "service": "test",
             "message": "Unable to resolve location information for probe 42",
             "ddsource": "dd_debugger",
-            "debugger": {"diagnostics": {"probeId": 42, "status": "ERROR"}},
+            "debugger": {"diagnostics": {"probeId": 42, "probeVersion": 0, "status": "ERROR"}},
         }
     ]

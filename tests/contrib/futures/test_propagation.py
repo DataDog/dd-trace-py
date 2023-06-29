@@ -1,6 +1,8 @@
 import concurrent
 import time
 
+import pytest
+
 from ddtrace.contrib.futures import patch
 from ddtrace.contrib.futures import unpatch
 from tests.opentracer.utils import init_tracer
@@ -78,7 +80,7 @@ class PropagationTestCase(TracerTestCase):
         with self.override_global_tracer():
             with self.tracer.trace("main.thread"):
                 with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-                    future = executor.submit(fn=fn, value=42, key="CheeseShop")
+                    future = executor.submit(fn, value=42, key="CheeseShop")
                     value, key = future.result()
                     # assert the right result
                     self.assertEqual(value, 42)
@@ -349,3 +351,26 @@ class PropagationTestCase(TracerTestCase):
             dict(name="main.thread"),
             (dict(name="executor.thread"),),
         )
+
+
+@pytest.mark.subprocess(ddtrace_run=True, timeout=5)
+def test_concurrent_futures_with_gevent():
+    """Check compatibility between the integration and gevent"""
+    import os
+    import sys
+
+    pid = os.fork()
+    if pid == 0:
+        from gevent import monkey
+
+        monkey.patch_all()
+        import concurrent.futures.thread
+        from time import sleep
+
+        assert concurrent.futures.thread.__datadog_patch
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            future = executor.submit(lambda: sleep(0.1) or 42)
+            result = future.result()
+            assert result == 42
+        sys.exit(0)
+    os.waitpid(pid, 0)

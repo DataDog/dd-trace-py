@@ -10,8 +10,8 @@
     "error": 0,
     "meta": {
       "_dd.appsec.event_rules.version": "rules_good",
-      "_dd.appsec.json": "{\"triggers\":[{\"rule\":{\"id\":\"blk-001-001\",\"name\":\"Block IP addresses\",\"tags\":{\"type\":\"ip_addresses\",\"category\":\"blocking\"},\"on_match\":[\"block\"]},\"rule_matches\":[{\"operator\":\"ip_match\",\"operator_value\":\"\",\"parameters\":[{\"address\":\"http.client_ip\",\"key_path\":[],\"value\":\"8.8.4.4\",\"highlight\":[\"8.8.4.4\"]}]}]}]}",
-      "_dd.appsec.waf.version": "1.8.2",
+      "_dd.appsec.json": "{\"triggers\":[\n  {\n    \"rule\": {\n      \"id\": \"blk-001-001\",\n      \"name\": \"Block IP addresses\",\n      \"on_match\": [\n        \"block\"\n      ],\n      \"tags\": {\n        \"category\": \"blocking\",\n        \"type\": \"ip_addresses\"\n      }\n    },\n    \"rule_matches\": [\n      {\n        \"operator\": \"ip_match\",\n        \"operator_value\": \"\",\n        \"parameters\": [\n          {\n            \"address\": \"http.client_ip\",\n            \"highlight\": [\n              \"8.8.4.4\"\n            ],\n            \"key_path\": [],\n            \"value\": \"8.8.4.4\"\n          }\n        ]\n      }\n    ]\n  }\n]}",
+      "_dd.appsec.waf.version": "1.11.0",
       "_dd.origin": "appsec",
       "_dd.p.dm": "-4",
       "_dd.runtime_family": "python",
@@ -20,32 +20,32 @@
       "appsec.event": "true",
       "http.method": "GET",
       "http.request.headers.accept": "text/html",
-      "http.request.headers.accept-encoding": "gzip, deflate, br",
+      "http.request.headers.accept-encoding": "gzip, deflate",
       "http.request.headers.host": "0.0.0.0:8000",
-      "http.request.headers.user-agent": "python-requests/2.28.1",
+      "http.request.headers.user-agent": "python-requests/2.30.0",
       "http.request.headers.x-real-ip": "8.8.4.4",
       "http.response.headers.content-length": "1564",
       "http.response.headers.content-type": "text/html",
       "http.status_code": "403",
       "http.url": "http://0.0.0.0:8000/",
-      "http.useragent": "python-requests/2.28.1",
+      "http.useragent": "python-requests/2.30.0",
       "language": "python",
-      "runtime-id": "2d13dc0f0fa04596b3c66a1171731f7f"
+      "runtime-id": "c4e633235f0f4cbabed20087ec4e9f51"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.appsec.enabled": 1.0,
       "_dd.appsec.event_rules.error_count": 0,
       "_dd.appsec.event_rules.loaded": 5,
-      "_dd.appsec.waf.duration": 33.354,
-      "_dd.appsec.waf.duration_ext": 56.743621826171875,
+      "_dd.appsec.waf.duration": 37.756,
+      "_dd.appsec.waf.duration_ext": 91.79115295410156,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 2,
-      "process_id": 3222852
+      "process_id": 3888935
     },
-    "duration": 552805,
-    "start": 1678179753512589328
+    "duration": 831899,
+    "start": 1683880343121928464
   },
      {
        "name": "flask.response",
@@ -59,6 +59,6 @@
        "meta": {
          "component": "flask"
        },
-       "duration": 228084,
-       "start": 1678179753512899697
+       "duration": 273920,
+       "start": 1683880343122469158
      }]]

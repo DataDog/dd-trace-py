@@ -65,3 +65,19 @@ benchmark-set-http-meta:
   extends: .benchmarks
   variables:
     SCENARIO: "set_http_meta"
+
+benchmark-flask-simple:
+  extends: .benchmarks
+  timeout: 1h 30m
+  variables:
+    SCENARIO: "flask_simple"
+
+benchmark-flask-sqli:
+  extends: .benchmarks
+  variables:
+    SCENARIO: "flask_sqli"
+
+benchmark-otel-span:
+  extends: .benchmarks
+  variables:
+    SCENARIO: "otel_span"

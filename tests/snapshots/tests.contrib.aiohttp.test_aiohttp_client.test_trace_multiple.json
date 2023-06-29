@@ -16,6 +16,7 @@
       "http.status_msg": "OK",
       "http.url": "http://localhost:8001/status/200",
       "language": "python",
+      "out.host": "localhost",
       "runtime-id": "ad99d3e85d1d407e95c792cfaa56068b",
       "span.kind": "client"
     },
@@ -38,6 +39,9 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
+       "meta": {
+         "component": "aiohttp"
+       },
        "duration": 26278000,
        "start": 1646794505598411000
      }],
@@ -59,6 +63,7 @@
       "http.status_msg": "OK",
       "http.url": "http://localhost:8001/status/200",
       "language": "python",
+      "out.host": "localhost",
       "runtime-id": "ad99d3e85d1d407e95c792cfaa56068b",
       "span.kind": "client"
     },
@@ -81,6 +86,9 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
+       "meta": {
+         "component": "aiohttp"
+       },
        "duration": 70000,
        "start": 1646794505627940000
      }],
@@ -102,6 +110,7 @@
       "http.status_msg": "OK",
       "http.url": "http://localhost:8001/status/200",
       "language": "python",
+      "out.host": "localhost",
       "runtime-id": "ad99d3e85d1d407e95c792cfaa56068b",
       "span.kind": "client"
     },
@@ -124,6 +133,9 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
+       "meta": {
+         "component": "aiohttp"
+       },
        "duration": 136000,
        "start": 1646794505631851000
      }]]

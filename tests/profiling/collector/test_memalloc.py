@@ -5,6 +5,9 @@ import threading
 
 import pytest
 
+from ddtrace.settings.profiling import ProfilingConfig
+from ddtrace.settings.profiling import _derive_default_heap_sample_size
+
 
 try:
     from ddtrace.profiling.collector import _memalloc
@@ -162,7 +165,7 @@ def test_memory_collector():
             assert event.thread_name == "MainThread"
             count_object += 1
             assert event.frames[2][0] == __file__
-            assert event.frames[2][1] == 149
+            assert event.frames[2][1] == 152
             assert event.frames[2][2] == "test_memory_collector"
 
     assert count_object > 0
@@ -348,8 +351,12 @@ def test_memalloc_speed(benchmark, heap_sample_size):
     ),
 )
 def test_memalloc_sample_size(enabled, predicates, monkeypatch):
-    monkeypatch.setenv("DD_PROFILING_HEAP_ENABLED", str(enabled))
-    assert predicates[0](memalloc._get_default_heap_sample_size())
-    assert predicates[1](memalloc._get_default_heap_sample_size(1))
-    assert predicates[2](memalloc._get_default_heap_sample_size(512))
-    assert predicates[3](memalloc._get_default_heap_sample_size(512 * 1024 * 1024))
+    monkeypatch.setenv("DD_PROFILING_HEAP_ENABLED", str(enabled).lower())
+    config = ProfilingConfig()
+
+    assert config.heap.enabled is enabled
+
+    for predicate, default in zip(predicates, (1024 * 1024, 1, 512, 512 * 1024 * 1024)):
+        assert predicate(_derive_default_heap_sample_size(config.heap, default)), _derive_default_heap_sample_size(
+            config.heap
+        )

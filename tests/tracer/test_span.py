@@ -18,6 +18,7 @@ from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.constants import VERSION_KEY
 from ddtrace.ext import SpanTypes
 from ddtrace.span import Span
+from tests.subprocesstest import run_in_subprocess
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import assert_is_not_measured
@@ -35,6 +36,16 @@ class SpanTestCase(TracerTestCase):
         assert s2.trace_id == 1
         assert s2.span_id == 2
         assert s2.parent_id == 1
+
+    @run_in_subprocess(env_overrides=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="true"))
+    def test_128bit_trace_ids(self):
+        s = Span(name="test.span")
+        assert s.trace_id >= 2 ** 64
+        assert s._trace_id_64bits < 2 ** 64
+
+        trace_id_binary = format(s.trace_id, "b")
+        trace_id64_binary = format(s._trace_id_64bits, "b")
+        assert int(trace_id64_binary, 2) == int(trace_id_binary[-64:], 2)
 
     def test_tags(self):
         s = Span(name="test.span")
@@ -388,7 +399,7 @@ def test_span_key(span_log):
     assert s.get_tag(123.32) is None
 
 
-def test_span_finished():
+def test_spans_finished():
     span = Span(None)
     assert span.finished is False
     assert span.duration_ns is None

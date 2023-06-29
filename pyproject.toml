@@ -15,6 +15,16 @@ skip = ["ddtrace/vendor/", ".riot", ".ddriot", ".tox", ".ddtox", ".eggs", "build
 skip_glob = [".venv*", "ddtrace/profiling/exporter/pprof_*pb2.py"]
 line_length = 120
 
+[tool.cython-lint]
+max-line-length = 120
+exclude = '''
+(
+  .venv*
+  | \.riot
+  | ddtrace/profiling/
+)
+'''
+
 [tool.black]
 line-length = 120
 target_version = ['py27', 'py35', 'py36', 'py37', 'py38']
@@ -31,8 +41,9 @@ exclude = '''
   | ddtrace/profiling/collector/_task.pyx$
   | ddtrace/profiling/_threading.pyx$
   | ddtrace/profiling/collector/stack.pyx$
-  | ddtrace/profiling/exporter/pprof_.*pb2.py$
+  | ddtrace/profiling/exporter/pprof_.*_pb2.py$
   | ddtrace/profiling/exporter/pprof.pyx$
+  | ddtrace/internal/datadog/profiling/ddup.pyx$
   | ddtrace/vendor/
   | \.eggs
   | \.git
@@ -69,9 +80,44 @@ exclude-modules = '''
   | ddtrace.profiling.bootstrap.sitecustomize
   | ddtrace.profiling.auto
   # protobuf file fails to import
-  | ddtrace.profiling.exporter.pprof_pre312_pb2
-  | ddtrace.profiling.exporter.pprof_pre319_pb2
+  | ddtrace.profiling.exporter.pprof_3_pb2
+  | ddtrace.profiling.exporter.pprof_312_pb2
+  | ddtrace.profiling.exporter.pprof_319_pb2
+  | ddtrace.profiling.exporter.pprof_421_pb2
   # TODO: resolve slot inheritance issues with profiling
   | ddtrace.profiling.collector
+  | ddtrace.appsec.ddwaf.ddwaf_types
 )
 '''
+
+[tool.bandit]
+targets = ["ddtrace/"]
+
+# TODO: Remove excludes
+exclude_dirs = [
+  "ddtrace/vendor/",
+  "ddtrace/appsec/iast/_ast/visitor.py",
+  "ddtrace/appsec/iast/_loader.py",
+  "ddtrace/appsec/iast/_patch.py",
+  "ddtrace/appsec/iast/_taint_tracking/__init__.py",
+  "ddtrace/commands/ddtrace_run.py",
+  "ddtrace/contrib/elasticsearch/patch.py",
+  "ddtrace/contrib/pylibmc/client.py",
+  "ddtrace/contrib/pytest_bdd/plugin.py",
+  "ddtrace/contrib/sanic/patch.py",
+  "ddtrace/debugging/_debugger.py",
+  "ddtrace/debugging/_function/discovery.py",
+  "ddtrace/debugging/_probe/registry.py",
+  "ddtrace/debugging/_probe/status.py",
+  "ddtrace/debugging/_signal/metric_sample.py",
+  "ddtrace/ext/git.py",
+  "ddtrace/ext/test.py",
+  "ddtrace/internal/module.py",
+  "ddtrace/internal/processor/stats.py",
+  "ddtrace/internal/rate_limiter.py",
+  "ddtrace/internal/serverless/mini_agent.py",
+  "ddtrace/internal/uwsgi.py",
+  "ddtrace/internal/wrapping.py",
+  "ddtrace/profiling/collector/_lock.py",
+  "ddtrace/sourcecode/_utils.py",
+]

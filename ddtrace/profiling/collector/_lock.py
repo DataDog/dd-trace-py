@@ -9,13 +9,12 @@ import attr
 from six.moves import _thread
 
 from ddtrace.internal import compat
-from ddtrace.internal.utils import attr as attr_utils
-from ddtrace.internal.utils import formats
 from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
 from ddtrace.profiling import event
 from ddtrace.profiling.collector import _task
 from ddtrace.profiling.collector import _traceback
+from ddtrace.settings.profiling import config
 from ddtrace.vendor import wrapt
 
 
@@ -179,10 +178,9 @@ class FunctionWrapper(wrapt.FunctionWrapper):
 class LockCollector(collector.CaptureSamplerCollector):
     """Record lock usage."""
 
-    nframes = attr.ib(factory=attr_utils.from_env("DD_PROFILING_MAX_FRAMES", 64, int))
-    endpoint_collection_enabled = attr.ib(
-        factory=attr_utils.from_env("DD_PROFILING_ENDPOINT_COLLECTION_ENABLED", True, formats.asbool)
-    )
+    nframes = attr.ib(type=int, default=config.max_frames)
+    endpoint_collection_enabled = attr.ib(type=bool, default=config.endpoint_collection)
+
     tracer = attr.ib(default=None)
 
     _original = attr.ib(init=False, repr=False, type=typing.Any, cmp=False)

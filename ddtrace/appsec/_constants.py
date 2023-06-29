@@ -66,6 +66,18 @@ class IAST(object):
     JSON = "_dd.iast.json"
     ENABLED = "_dd.iast.enabled"
     CONTEXT_KEY = "_iast_data"
+    PATCH_MODULES = "_DD_IAST_PATCH_MODULES"
+    DENY_MODULES = "_DD_IAST_DENY_MODULES"
+    SEP_MODULES = ","
+    HTTP_REQUEST_BODY = "http.request.body"
+    HTTP_REQUEST_HEADER = "http.request.header"
+    HTTP_REQUEST_HEADER_NAME = "http.request.header.name"
+    HTTP_REQUEST_PARAMETER = "http.request.parameter"
+    HTTP_REQUEST_PATH = "http.request.path"
+    HTTP_REQUEST_PATH_PARAMETER = "http.request.path.parameter"
+    HTTP_REQUEST_QUERYSTRING = "http.request.query"
+    HTTP_REQUEST_COOKIE_NAME = "http.request.cookie.name"
+    HTTP_REQUEST_COOKIE_VALUE = "http.request.cookie.value"
 
 
 @six.add_metaclass(Constant_Class)  # required for python2/3 compatibility
@@ -94,6 +106,7 @@ class SPAN_DATA_NAMES(object):
     REQUEST_HEADERS_NO_COOKIES = "http.request.headers"
     REQUEST_HEADERS_NO_COOKIES_CASE = "http.request.headers_case_sensitive"
     REQUEST_URI_RAW = "http.request.uri"
+    REQUEST_ROUTE = "http.request.route"
     REQUEST_METHOD = "http.request.method"
     REQUEST_PATH_PARAMS = "http.request.path_params"
     REQUEST_COOKIES = "http.request.cookies"
@@ -101,6 +114,22 @@ class SPAN_DATA_NAMES(object):
     REQUEST_USER_ID = "usr.id"
     RESPONSE_STATUS = "http.response.status"
     RESPONSE_HEADERS_NO_COOKIES = "http.response.headers"
+    RESPONSE_BODY = "http.response.body"
+
+
+@six.add_metaclass(Constant_Class)  # required for python2/3 compatibility
+class API_SECURITY(object):
+    """constants related to API Security"""
+
+    REQUEST_HEADERS_NO_COOKIES = "_dd.appsec.s.req.headers"
+    REQUEST_QUERY = "_dd.appsec.s.req.query"
+    REQUEST_PATH_PARAMS = "_dd.appsec.s.req.params"
+    REQUEST_BODY = "_dd.appsec.s.req.body"
+    RESPONSE_HEADERS_NO_COOKIES = "_dd.appsec.s.res.headers"
+    RESPONSE_BODY = "_dd.appsec.s.res.body"
+    INTERVAL_PER_ROUTE = "_DD_API_SECURITY_INTERVAL_PER_ROUTE"
+    ENABLED = "_dd.appsec.api_security.enabled"
+    MAX_PAYLOAD_SIZE = 0x1000000  # 16MB maximum size
 
 
 @six.add_metaclass(Constant_Class)  # required for python2/3 compatibility
@@ -130,11 +159,28 @@ class PRODUCTS(object):
 
 
 @six.add_metaclass(Constant_Class)  # required for python2/3 compatibility
+class LOGIN_EVENTS_MODE(object):
+    """
+    string identifier for the mode of the user login events. Can be:
+    DISABLED: automatic login events are disabled.
+    SAFE: automatic login events are enabled but will only store non-PII fields (id, pk uid...)
+    EXTENDED: automatic login events are enabled and will store potentially PII fields (username,
+    email, ...).
+    SDK: manually issued login events using the SDK.
+    """
+
+    DISABLED = "disabled"
+    SAFE = "safe"
+    EXTENDED = "extended"
+    SDK = "sdk"
+
+
+@six.add_metaclass(Constant_Class)  # required for python2/3 compatibility
 class DEFAULT(object):
     ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
     RULES = os.path.join(ROOT_DIR, "rules.json")
     TRACE_RATE_LIMIT = 100
-    WAF_TIMEOUT = 5  # ms
+    WAF_TIMEOUT = 5.0  # float (milliseconds)
     APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP = (
         r"(?i)(?:p(?:ass)?w(?:or)?d|pass(?:_?phrase)?|secret|(?:api_?|private_?|public_?)key)|token|consumer_?"
         r"(?:id|key|secret)|sign(?:ed|ature)|bearer|authorization"

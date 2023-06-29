@@ -1,13 +1,15 @@
+import os
 from typing import TYPE_CHECKING
 
 from ddtrace import tracer
+from ddtrace.appsec._constants import IAST
 from ddtrace.appsec.iast import oce
 from ddtrace.appsec.iast._overhead_control_engine import Operation
 from ddtrace.appsec.iast.reporter import Evidence
 from ddtrace.appsec.iast.reporter import IastSpanReporter
 from ddtrace.appsec.iast.reporter import Location
+from ddtrace.appsec.iast.reporter import Source
 from ddtrace.appsec.iast.reporter import Vulnerability
-from ddtrace.constants import IAST_CONTEXT_KEY
 from ddtrace.internal import _context
 from ddtrace.internal.logger import get_logger
 
@@ -22,9 +24,15 @@ except ImportError:
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Any
     from typing import Callable
+    from typing import List
+    from typing import Optional
     from typing import Text
 
+    from ddtrace.appsec.iast._input_info import Input_info
+
 log = get_logger(__name__)
+
+CWD = os.path.abspath(os.getcwd())
 
 
 class VulnerabilityBase(Operation):
@@ -48,29 +56,46 @@ class VulnerabilityBase(Operation):
         return wrapper
 
     @classmethod
-    def report(cls, evidence_value=""):
-        # type: (Text) -> None
+    def report(cls, evidence_value="", sources=None):
+        # type: (Text, Optional[List[Input_info]]) -> None
         """Build a IastSpanReporter instance to report it in the `AppSecIastSpanProcessor` as a string JSON
 
         TODO: check deduplications if DD_IAST_DEDUPLICATION_ENABLED is true
         """
         if cls.acquire_quota():
+            if not tracer or not hasattr(tracer, "current_root_span"):
+                log.debug("Not tracer or tracer has no root span")
+                return None
+
             span = tracer.current_root_span()
             if not span:
                 log.debug("No root span in the current execution. Skipping IAST taint sink.")
                 return None
 
-            frame_info = get_info_frame()
+            frame_info = get_info_frame(CWD)
             if frame_info:
                 file_name, line_number = frame_info
+
+                # Remove CWD prefix
+                if file_name.startswith(CWD):
+                    file_name = os.path.relpath(file_name, start=CWD)
+
+                if isinstance(evidence_value, (str, bytes, bytearray)):
+                    evidence = Evidence(value=evidence_value)
+                elif isinstance(evidence_value, (set, list)):
+                    evidence = Evidence(valueParts=evidence_value)
+                else:
+                    log.debug("Unexpected evidence_value type: %s", type(evidence_value))
+                    evidence = ""
+
                 if cls.is_not_reported(file_name, line_number):
-                    report = _context.get_item(IAST_CONTEXT_KEY, span=span)
+                    report = _context.get_item(IAST.CONTEXT_KEY, span=span)
                     if report:
                         report.vulnerabilities.add(
                             Vulnerability(
                                 type=cls.vulnerability_type,
-                                evidence=Evidence(type=cls.evidence_type, value=evidence_value),
-                                location=Location(path=file_name, line=line_number),
+                                evidence=evidence,
+                                location=Location(path=file_name, line=line_number, spanId=span.span_id),
                             )
                         )
 
@@ -79,9 +104,11 @@ class VulnerabilityBase(Operation):
                             vulnerabilities={
                                 Vulnerability(
                                     type=cls.vulnerability_type,
-                                    evidence=Evidence(type=cls.evidence_type, value=evidence_value),
-                                    location=Location(path=file_name, line=line_number),
+                                    evidence=evidence,
+                                    location=Location(path=file_name, line=line_number, spanId=span.span_id),
                                 )
                             }
                         )
-                    _context.set_item(IAST_CONTEXT_KEY, report, span=span)
+                    if sources:
+                        report.sources = {Source(origin=x.origin, name=x.name, value=x.value) for x in sources}
+                    _context.set_item(IAST.CONTEXT_KEY, report, span=span)

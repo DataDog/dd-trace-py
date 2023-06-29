@@ -1,10 +1,14 @@
 import collections
 import logging
 import os
-from typing import Any
-from typing import DefaultDict
-from typing import Tuple
+import typing
 from typing import cast
+
+
+if typing.TYPE_CHECKING:
+    from typing import Any
+    from typing import DefaultDict
+    from typing import Tuple
 
 
 def get_logger(name):
@@ -125,6 +129,14 @@ class DDLogger(logging.Logger):
         :param record: The log record being logged
         :type record: ``logging.LogRecord``
         """
+        if record.levelno >= logging.ERROR:
+            # avoid circular import
+            from ddtrace.internal.telemetry import telemetry_lifecycle_writer
+
+            # currently we only have one error code
+            full_file_name = os.path.join(record.pathname, record.filename)
+            telemetry_lifecycle_writer.add_error(1, record.msg % record.args, full_file_name, record.lineno)
+
         # If rate limiting has been disabled (`DD_TRACE_LOGGING_RATE=0`) then apply no rate limit
         # If the logging is in debug, then do not apply any limits to any log
         if not self.rate_limit or self.getEffectiveLevel() == logging.DEBUG:

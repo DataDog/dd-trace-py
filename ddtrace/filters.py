@@ -7,9 +7,9 @@ from typing import TYPE_CHECKING
 import ddtrace
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import ci
+from ddtrace.ext import http
 from ddtrace.internal.processor.trace import TraceProcessor
-
-from .ext import http
+from ddtrace.vendor.debtcollector import removals
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -75,6 +75,11 @@ class FilterRequestsOnUrl(TraceFilter):
         return trace
 
 
+@removals.removed_class(
+    "TraceCiVisibilityFilter",
+    message="TraceCiVisibilityFilter is deprecated and will be removed from the public API.",
+    removal_version="2.0.0",
+)
 class TraceCiVisibilityFilter(TraceFilter):
     def process_trace(self, trace):
         # type: (List[Span]) -> Optional[List[Span]]

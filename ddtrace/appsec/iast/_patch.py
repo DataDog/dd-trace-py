@@ -3,6 +3,8 @@ import gc
 import sys
 from typing import TYPE_CHECKING
 
+from ddtrace.appsec.iast._input_info import Input_info
+from ddtrace.appsec.iast._util import _is_iast_enabled
 from ddtrace.internal.logger import get_logger
 from ddtrace.vendor.wrapt import FunctionWrapper
 from ddtrace.vendor.wrapt import resolve_path
@@ -130,3 +132,34 @@ def patch_builtins(klass, attr, value):
             pass
 
     ctypes.pythonapi.PyType_Modified(ctypes.py_object(klass))
+
+
+def if_iast_taint_returned_object_for(origin, wrapped, instance, args, kwargs):
+    value = wrapped(*args, **kwargs)
+
+    if _is_iast_enabled():
+        try:
+            from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
+            from ddtrace.appsec.iast._taint_tracking import taint_pyobject
+
+            if not is_pyobject_tainted(value):
+                name = str(args[0]) if len(args) else "http.request.body"
+                return taint_pyobject(value, Input_info(name, value, origin))
+        except Exception:
+            log.debug("Unexpected exception while tainting pyobject", exc_info=True)
+    return value
+
+
+def if_iast_taint_yield_tuple_for(origins, wrapped, instance, args, kwargs):
+    if _is_iast_enabled():
+        from ddtrace.appsec.iast._taint_tracking import taint_pyobject
+
+        for key, value in wrapped(*args, **kwargs):
+            new_key = taint_pyobject(key, Input_info(key, key, origins[0]))
+            new_value = taint_pyobject(value, Input_info(key, value, origins[1]))
+
+            yield new_key, new_value
+
+    else:
+        for key, value in wrapped(*args, **kwargs):
+            yield key, value

@@ -34,11 +34,13 @@
        "error": 0,
        "meta": {
          "language": "python",
-         "runtime-id": "d0c70dc4dfb240c78a993aed893ddb46"
+         "runtime-id": "d0c70dc4dfb240c78a993aed893ddb46",
+         "tracestate": "dd=s:1;t.dm:-0"
        },
        "metrics": {
          "_dd.top_level": 1,
          "_dd.tracer_kr": 1.0,
+         "_sampling_priority_v1": 1,
          "process_id": 34016
        },
        "duration": 21789000,

@@ -94,14 +94,18 @@ def _protobuf_version():
     return parse_version(google.protobuf.__version__)
 
 
+# Load the appropriate pprof_pb2 module
 _pb_version = _protobuf_version()
-
-if _pb_version >= (3, 19, 0):
-    from ddtrace.profiling.exporter import pprof_pb2
-elif _pb_version >= (3, 12, 0):
-    from ddtrace.profiling.exporter import pprof_pre319_pb2 as pprof_pb2  # type: ignore[no-redef]
+for v in [(4, 21), (3, 19), (3, 12)]:
+    if _pb_version >= v:
+        import sys
+        
+        pprof_module = "ddtrace.profiling.exporter.pprof_%s%s_pb2" % v
+        __import__(pprof_module)
+        pprof_pb2 = sys.modules[pprof_module]
+        break
 else:
-    from ddtrace.profiling.exporter import pprof_pre312_pb2 as pprof_pb2  # type: ignore[no-redef]
+    from ddtrace.profiling.exporter import pprof_3_pb2 as pprof_pb2  # type: ignore[no-redef]
 
 
 _ITEMGETTER_ZERO = operator.itemgetter(0)

@@ -2,6 +2,7 @@ from tornado import template
 
 import ddtrace
 from ddtrace import config
+from ddtrace.internal.schema import schematize_service_name
 
 from . import context_provider
 from . import decorators
@@ -19,7 +20,7 @@ def tracer_config(__init__, app, args, kwargs):
     # default settings
     settings = {
         "tracer": ddtrace.tracer,
-        "default_service": config._get_service("tornado-web"),
+        "default_service": schematize_service_name(config._get_service("tornado-web")),
         "distributed_tracing": None,
         "analytics_enabled": None,
     }

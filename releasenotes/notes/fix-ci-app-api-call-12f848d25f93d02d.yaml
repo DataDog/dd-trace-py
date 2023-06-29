@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    CI Visibility: This fix resolves an issue where the tracer was doing extra requests if the ``DD_CIVISIBILITY_ITR_ENABLED`` env var was not set.

@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import contextlib
 import json
 import random
 import string
@@ -43,7 +44,7 @@ def span_to_tuple(span):
         span.service,
         span.name,
         span.resource,
-        span.trace_id or 0,
+        span._trace_id_64bits or 0,
         span.span_id or 0,
         span.parent_id or 0,
         span.start_ns or 0,
@@ -426,6 +427,7 @@ def test_encoder_propagates_dd_origin(Encoder, item):
 
 @allencodings
 @given(
+    trace_id=integers(min_value=1, max_value=2 ** 128 - 1),
     name=text(),
     service=text(),
     resource=text(),
@@ -435,9 +437,9 @@ def test_encoder_propagates_dd_origin(Encoder, item):
     span_type=text(),
 )
 @settings(max_examples=200)
-def test_custom_msgpack_encode_trace_size(encoding, name, service, resource, meta, metrics, error, span_type):
+def test_custom_msgpack_encode_trace_size(encoding, trace_id, name, service, resource, meta, metrics, error, span_type):
     encoder = MSGPACK_ENCODERS[encoding](1 << 20, 1 << 20)
-    span = Span(name=name, service=service, resource=resource)
+    span = Span(trace_id=trace_id, name=name, service=service, resource=resource)
     span.set_tags(meta)
     span.set_metrics(metrics)
     span.error = error
@@ -587,6 +589,11 @@ def test_list_string_table():
     assert list(t) == ["", "foobar", "foobaz"]
 
 
+@contextlib.contextmanager
+def _value():
+    yield "value"
+
+
 @pytest.mark.parametrize(
     "data",
     [
@@ -600,6 +607,8 @@ def test_list_string_table():
         {"duration_ns": "duration_time"},
         {"span_type": 100},
         {"_meta": {"num": 100}},
+        # Validating behavior with a context manager is a customer regression
+        {"_meta": {"key": _value()}},
         {"_metrics": {"key": "value"}},
     ],
 )
@@ -611,9 +620,10 @@ def test_encoding_invalid_data(data):
         setattr(span, key, value)
 
     trace = [span]
-    with pytest.raises(TypeError):
+    with pytest.raises(RuntimeError) as e:
         encoder.put(trace)
 
+    assert e.match(r"failed to pack span: <Span\(id="), e
     assert encoder.encode() is None
 
 

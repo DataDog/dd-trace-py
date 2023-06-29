@@ -1,9 +1,10 @@
+import random
 from time import sleep
 from uuid import uuid4
 
 import pytest
 
-from ddtrace.debugging._config import config
+from ddtrace.debugging._config import di_config
 from ddtrace.debugging._probe.model import DEFAULT_PROBE_RATE
 from ddtrace.debugging._probe.model import DEFAULT_SNAPSHOT_PROBE_RATE
 from ddtrace.debugging._probe.model import LogProbeMixin
@@ -12,8 +13,9 @@ from ddtrace.debugging._probe.model import ProbeType
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
 from ddtrace.debugging._probe.remoteconfig import ProbeRCAdapter
 from ddtrace.debugging._probe.remoteconfig import _filter_by_env_and_version
-from ddtrace.debugging._probe.remoteconfig import probe_factory
+from ddtrace.debugging._probe.remoteconfig import build_probe
 from ddtrace.internal.remoteconfig.client import ConfigMetadata
+from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from tests.debugging.utils import create_snapshot_line_probe
 from tests.utils import override_global_config
 
@@ -65,10 +67,10 @@ def mock_config():
         ("prod", "dev", set(["probe1", "probe2", "probe3", "probe4"])),
     ],
 )
-def test_poller_env_version(env, version, expected, mock_config):
+def test_poller_env_version(env, version, expected, remote_config_worker, mock_config):
     probes = []
 
-    def cb(e, ps):
+    def callback(e, ps, *args, **kwargs):
         probes.extend(ps)
 
     with override_global_config(dict(env=env, version=version)):
@@ -104,15 +106,152 @@ def test_poller_env_version(env, version, expected, mock_config):
             ]
         )
 
-        ProbeRCAdapter(cb)(config_metadata(), {})
+        adapter = ProbeRCAdapter(None, callback)
+        remoteconfig_poller.register("TEST", adapter, skip_enabled=True)
+        adapter.append_and_publish({"test": random.randint(0, 11111111)}, "", config_metadata())
+        remoteconfig_poller._poll_data()
 
         assert set(_.probe_id for _ in probes) == expected
 
 
-def test_poller_events(mock_config):
+def test_poller_remove_probe():
     events = set()
 
     def cb(e, ps):
+        events.add((e, frozenset({p.probe_id if isinstance(p, Probe) else p for p in ps})))
+
+    def validate_events(expected):
+        assert events == expected
+        events.clear()
+
+    old_interval = di_config.diagnostics_interval
+    di_config.diagnostics_interval = 0.5
+    try:
+        adapter = ProbeRCAdapter(None, cb)
+        # Wait to allow the next call to the adapter to generate a status event
+        remoteconfig_poller.register("TEST", adapter, skip_enabled=True)
+        adapter.append_and_publish(
+            {
+                "id": "probe1",
+                "version": 0,
+                "type": ProbeType.SPAN_PROBE,
+                "active": True,
+                "tags": ["foo:bar"],
+                "where": {"type": "Stuff", "method": "foo"},
+                "resource": "resourceX",
+            },
+            "",
+            config_metadata("probe1"),
+        )
+        remoteconfig_poller._poll_data()
+
+        validate_events(
+            {
+                (ProbePollerEvent.NEW_PROBES, frozenset({"probe1"})),
+            }
+        )
+
+        adapter.append_and_publish(
+            False,
+            "",
+            config_metadata("probe1"),
+        )
+        remoteconfig_poller._poll_data()
+
+        validate_events(
+            {
+                (ProbePollerEvent.DELETED_PROBES, frozenset({"probe1"})),
+            }
+        )
+
+    finally:
+        di_config.diagnostics_interval = old_interval
+
+
+def test_poller_remove_multiple_probe():
+    events = set()
+
+    def cb(e, ps):
+        events.add((e, frozenset({p.probe_id if isinstance(p, Probe) else p for p in ps})))
+
+    def validate_events(expected):
+        assert events == expected
+        events.clear()
+
+    old_interval = di_config.diagnostics_interval
+    di_config.diagnostics_interval = 0.5
+    try:
+        adapter = ProbeRCAdapter(None, cb)
+        # Wait to allow the next call to the adapter to generate a status event
+        remoteconfig_poller.register("TEST", adapter, skip_enabled=True)
+        adapter.append(
+            {
+                "id": "probe1",
+                "version": 0,
+                "type": ProbeType.SPAN_PROBE,
+                "active": True,
+                "tags": ["foo:bar"],
+                "where": {"type": "Stuff", "method": "foo"},
+                "resource": "resourceX",
+            },
+            "",
+            config_metadata("probe1"),
+        )
+        adapter.append(
+            {
+                "id": "probe2",
+                "version": 0,
+                "type": ProbeType.SPAN_PROBE,
+                "active": True,
+                "tags": ["foo:bar"],
+                "where": {"type": "Stuff", "method": "foo"},
+                "resource": "resourceX",
+            },
+            "",
+            config_metadata("probe2"),
+        )
+        adapter.publish()
+        remoteconfig_poller._poll_data()
+
+        validate_events(
+            {
+                (ProbePollerEvent.NEW_PROBES, frozenset({"probe2"})),
+                (ProbePollerEvent.NEW_PROBES, frozenset({"probe1"})),
+            }
+        )
+
+        adapter.append_and_publish(
+            False,
+            "",
+            config_metadata("probe1"),
+        )
+        remoteconfig_poller._poll_data()
+
+        validate_events(
+            {
+                (ProbePollerEvent.DELETED_PROBES, frozenset({"probe1"})),
+            }
+        )
+        adapter.append_and_publish(
+            False,
+            "",
+            config_metadata("probe2"),
+        )
+        remoteconfig_poller._poll_data()
+
+        validate_events(
+            {
+                (ProbePollerEvent.DELETED_PROBES, frozenset({"probe2"})),
+            }
+        )
+    finally:
+        di_config.diagnostics_interval = old_interval
+
+
+def test_poller_events(remote_config_worker, mock_config):
+    events = set()
+
+    def callback(e, ps, *args, **kwargs):
         events.add((e, frozenset([p.probe_id if isinstance(p, Probe) else p for p in ps])))
 
     mock_config.add_probes(
@@ -145,12 +284,13 @@ def test_poller_events(mock_config):
     )
 
     metadata = config_metadata()
-    old_interval = config.diagnostics_interval
-    config.diagnostics_interval = 0.5
+    old_interval = di_config.diagnostics_interval
+    di_config.diagnostics_interval = 0.5
     try:
-        adapter = ProbeRCAdapter(cb)
-
-        adapter(metadata, {})
+        adapter = ProbeRCAdapter(None, callback)
+        remoteconfig_poller.register("TEST2", adapter, skip_enabled=True)
+        adapter.append_and_publish({"test": 2}, "", metadata)
+        remoteconfig_poller._poll_data()
         mock_config.remove_probes("probe1", "probe2")
         mock_config.add_probes(
             [
@@ -170,23 +310,25 @@ def test_poller_events(mock_config):
                 ),
             ]
         )
-        adapter(metadata, {})
+        adapter.append_and_publish({"test": 3}, "", metadata)
+        remoteconfig_poller._poll_data()
 
         # Wait to allow the next call to the adapter to generate a status event
         sleep(0.5)
-        adapter(metadata, {})
-
+        adapter.append_and_publish({"test": 4}, "", metadata)
+        remoteconfig_poller._poll_data()
+        sleep(0.5)
         assert events == {
             (ProbePollerEvent.NEW_PROBES, frozenset(["probe4", "probe1", "probe2", "probe3"])),
             (ProbePollerEvent.DELETED_PROBES, frozenset(["probe1"])),
             (ProbePollerEvent.NEW_PROBES, frozenset(["probe5"])),
             (ProbePollerEvent.STATUS_UPDATE, frozenset(["probe4", "probe2", "probe3", "probe5"])),
-        }
+        }, events
     finally:
-        config.diagnostics_interval = old_interval
+        di_config.diagnostics_interval = old_interval
 
 
-def test_multiple_configs():
+def test_multiple_configs(remote_config_worker):
     events = set()
 
     def cb(e, ps):
@@ -196,22 +338,47 @@ def test_multiple_configs():
         assert events == expected
         events.clear()
 
-    old_interval = config.diagnostics_interval
-    config.diagnostics_interval = 0.5
+    old_interval = di_config.diagnostics_interval
+    di_config.diagnostics_interval = 0.5
     try:
-        adapter = ProbeRCAdapter(cb)
+        adapter = ProbeRCAdapter(None, cb)
+        # Wait to allow the next call to the adapter to generate a status event
+        remoteconfig_poller.register("TEST", adapter, skip_enabled=True)
+        adapter.append_and_publish(
+            {
+                "id": "probe1",
+                "version": 0,
+                "type": ProbeType.SPAN_PROBE,
+                "active": True,
+                "tags": ["foo:bar"],
+                "where": {"type": "Stuff", "method": "foo"},
+                "resource": "resourceX",
+            },
+            "",
+            config_metadata("spanProbe_probe1"),
+        )
+        remoteconfig_poller._poll_data()
 
-        adapter(
-            config_metadata("metricProbe_probe2"),
+        validate_events(
+            {
+                (ProbePollerEvent.NEW_PROBES, frozenset({"probe1"})),
+            }
+        )
+
+        adapter.append_and_publish(
             {
                 "id": "probe2",
+                "version": 1,
                 "type": ProbeType.METRIC_PROBE,
                 "tags": ["foo:bar"],
                 "where": {"sourceFile": "tests/submod/stuff.p", "lines": ["36"]},
                 "metricName": "test.counter",
                 "kind": "COUNTER",
             },
+            "",
+            config_metadata("metricProbe_probe2"),
         )
+        remoteconfig_poller._poll_data()
 
         validate_events(
             {
@@ -219,17 +386,20 @@ def test_multiple_configs():
             }
         )
 
-        adapter(
-            config_metadata("logProbe_probe3"),
+        adapter.append_and_publish(
             {
                 "id": "probe3",
+                "version": 1,
                 "type": ProbeType.LOG_PROBE,
                 "tags": ["foo:bar"],
                 "where": {"sourceFile": "tests/submod/stuff.p", "lines": ["36"]},
                 "template": "hello {#foo}",
                 "segments:": [{"str": "hello "}, {"dsl": "foo", "json": "#foo"}],
             },
+            "",
+            config_metadata("logProbe_probe3"),
         )
+        remoteconfig_poller._poll_data()
 
         validate_events(
             {
@@ -243,16 +413,18 @@ def test_multiple_configs():
         #  1. after sleep 0.5 probe status should report 2 probes
         #  2. bad config raises ValueError
         with pytest.raises(ValueError):
-            adapter(config_metadata("not-supported"), {})
+            adapter.append_and_publish({}, "", config_metadata("not-supported"))
+            remoteconfig_poller._poll_data()
 
         validate_events(
             {
-                (ProbePollerEvent.STATUS_UPDATE, frozenset({"probe2", "probe3"})),
+                (ProbePollerEvent.STATUS_UPDATE, frozenset({"probe1", "probe2", "probe3"})),
             }
         )
 
         # remove configuration
-        adapter(config_metadata("metricProbe_probe2"), None)
+        adapter.append_and_publish(None, "", config_metadata("metricProbe_probe2"))
+        remoteconfig_poller._poll_data()
 
         validate_events(
             {
@@ -261,11 +433,11 @@ def test_multiple_configs():
         )
 
     finally:
-        config.diagnostics_interval = old_interval
+        di_config.diagnostics_interval = old_interval
 
 
 def test_log_probe_attributes_parsing():
-    probe = probe_factory(
+    probe = build_probe(
         {
             "id": "3d338829-21c4-4a8a-8a1a-71fbce995efa",
             "version": 0,
@@ -295,7 +467,7 @@ def test_log_probe_attributes_parsing():
 
 
 def test_parse_log_probe_with_rate():
-    probe = probe_factory(
+    probe = build_probe(
         {
             "id": "3d338829-21c4-4a8a-8a1a-71fbce995efa",
             "version": 0,
@@ -312,7 +484,7 @@ def test_parse_log_probe_with_rate():
 
 
 def test_parse_log_probe_default_rates():
-    probe = probe_factory(
+    probe = build_probe(
         {
             "id": "3d338829-21c4-4a8a-8a1a-71fbce995efa",
             "version": 0,
@@ -327,7 +499,7 @@ def test_parse_log_probe_default_rates():
 
     assert probe.rate == DEFAULT_SNAPSHOT_PROBE_RATE
 
-    probe = probe_factory(
+    probe = build_probe(
         {
             "id": "3d338829-21c4-4a8a-8a1a-71fbce995efa",
             "version": 0,
@@ -341,3 +513,60 @@ def test_parse_log_probe_default_rates():
     )
 
     assert probe.rate == DEFAULT_PROBE_RATE
+
+
+def test_modified_probe_events(remote_config_worker, mock_config):
+    events = []
+
+    def cb(e, ps):
+        events.append((e, frozenset([p.probe_id if isinstance(p, Probe) else p for p in ps])))
+
+    mock_config.add_probes(
+        [
+            create_snapshot_line_probe(
+                probe_id="probe1",
+                version=1,
+                source_file="tests/debugger/submod/stuff.py",
+                line=36,
+                condition=None,
+            ),
+        ]
+    )
+
+    metadata = config_metadata()
+    old_interval = di_config.diagnostics_interval
+    di_config.diagnostics_interval = 0.5
+    try:
+        adapter = ProbeRCAdapter(None, cb)
+        # Wait to allow the next call to the adapter to generate a status event
+        remoteconfig_poller.register("TEST", adapter, skip_enabled=True)
+        sleep(0.5)
+        adapter.append_and_publish({"test": 5}, "", metadata)
+        remoteconfig_poller._poll_data()
+
+        mock_config.add_probes(
+            [
+                create_snapshot_line_probe(
+                    probe_id="probe1",
+                    version=2,
+                    source_file="tests/debugger/submod/stuff.py",
+                    line=36,
+                    condition=None,
+                )
+            ]
+        )
+        adapter.append_and_publish({"test": 6}, "", metadata)
+        remoteconfig_poller._poll_data()
+        # Wait to allow the next call to the adapter to generate a status event
+        sleep(0.5)
+        adapter.append_and_publish({"test": 7}, "", metadata)
+        remoteconfig_poller._poll_data()
+
+        assert events == [
+            (ProbePollerEvent.STATUS_UPDATE, frozenset()),
+            (ProbePollerEvent.NEW_PROBES, frozenset(["probe1"])),
+            (ProbePollerEvent.MODIFIED_PROBES, frozenset(["probe1"])),
+            (ProbePollerEvent.STATUS_UPDATE, frozenset(["probe1"])),
+        ]
+    finally:
+        di_config.diagnostics_interval = old_interval

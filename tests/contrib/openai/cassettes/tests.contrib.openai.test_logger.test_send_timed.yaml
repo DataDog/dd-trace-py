@@ -1,0 +1,72 @@
+interactions:
+- request:
+    body: '[{"timestamp": 1682232053965.313, "message": "test msg", "hostname": "dev-mbp",
+      "ddsource": "python", "service": "", "status": "info", "ddtags": ""}, {"timestamp":
+      1682232053965.3142, "message": "test msg", "hostname": "dev-mbp", "ddsource":
+      "python", "service": "", "status": "info", "ddtags": ""}]'
+    headers:
+      Content-Type:
+      - application/json
+      DD-API-KEY:
+      - XXXXXX
+    method: POST
+    uri: https://http-intake.logs.datadoghq.com/api/v2/logs
+  response:
+    body:
+      string: '{}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '2'
+      Content-Type:
+      - application/json
+      Date:
+      - Sun, 23 Apr 2023 06:40:54 GMT
+      accept-encoding:
+      - identity,gzip,x-gzip,deflate,x-deflate,zstd
+      cross-origin-resource-policy:
+      - cross-origin
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-content-type-options:
+      - nosniff
+    status:
+      code: 202
+      message: Accepted
+- request:
+    body: '[{"timestamp": 1682232054170.752, "message": "test msg", "hostname": "dev-mbp",
+      "ddsource": "python", "service": "", "status": "info", "ddtags": ""}, {"timestamp":
+      1682232054170.756, "message": "test msg", "hostname": "dev-mbp", "ddsource":
+      "python", "service": "", "status": "info", "ddtags": ""}]'
+    headers:
+      Content-Type:
+      - application/json
+      DD-API-KEY:
+      - XXXXXX
+    method: POST
+    uri: https://http-intake.logs.datadoghq.com/api/v2/logs
+  response:
+    body:
+      string: '{}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '2'
+      Content-Type:
+      - application/json
+      Date:
+      - Sun, 23 Apr 2023 06:40:54 GMT
+      accept-encoding:
+      - identity,gzip,x-gzip,deflate,x-deflate,zstd
+      cross-origin-resource-policy:
+      - cross-origin
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-content-type-options:
+      - nosniff
+    status:
+      code: 202
+      message: Accepted
+version: 1

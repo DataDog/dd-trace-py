@@ -9,6 +9,9 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.schema import schematize_url_operation
+from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.pin import Pin
 from ddtrace.vendor import wrapt
@@ -20,7 +23,7 @@ from ...internal.logger import get_logger
 
 log = get_logger(__name__)
 
-config._add("sanic", dict(_default_service="sanic", distributed_tracing=True))
+config._add("sanic", dict(_default_service=schematize_service_name("sanic"), distributed_tracing=True))
 
 SANIC_VERSION = (0, 0, 0)
 
@@ -196,7 +199,7 @@ def _create_sanic_request_span(request):
     trace_utils.activate_distributed_headers(ddtrace.tracer, int_config=config.sanic, request_headers=headers)
 
     span = pin.tracer.trace(
-        "sanic.request",
+        schematize_url_operation("sanic.request", protocol="http", direction=SpanDirection.INBOUND),
         service=trace_utils.int_service(None, config.sanic),
         resource=resource,
         span_type=SpanTypes.WEB,
