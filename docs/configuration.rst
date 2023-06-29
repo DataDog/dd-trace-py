@@ -497,7 +497,7 @@ The following environment variables for the tracer are supported:
          Please note that, if set, this field will be used to retrieve the user login even if ``DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING`` is set to ``safe`` and, 
          in some cases, the selected field could hold potentially private information.
       version_added:
-         v1.15.0
+         v1.15.0:
 
    DD_USER_MODEL_EMAIL_FIELD:
       type: String
@@ -505,7 +505,7 @@ The following environment variables for the tracer are supported:
       description: |
          Field to be used to read the user email when using a custom ``User`` model for the automatic login events. Use only if the automatic inference doesn't work.
       version_added:
-         v1.15.0
+         v1.15.0:
 
    DD_USER_MODEL_NAME_FIELD:
       type: String
@@ -513,7 +513,7 @@ The following environment variables for the tracer are supported:
       description: |
          Field to be used to read the user name when using a custom ``User`` model for the automatic login events. Used only if the automatic inference doesn't work.
       version_added:
-         v1.15.0
+         v1.15.0:
 
 
 
