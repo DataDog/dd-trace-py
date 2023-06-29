@@ -183,7 +183,7 @@ They use the Flask integration tests as a teaching example. Referencing these in
 
 1. Make sure a directory for your integration exists under ``tests/contrib``
 2. Create a new file ``tests/contrib/<integration>/test_<integration>_snapshot.py``
-3. Make sure a ``Venv`` instance exists in ``Riotfile.py`` that references your ``contrib`` subdirectory.
+3. Make sure a ``Venv`` instance exists in ``riotfile.py`` that references your ``contrib`` subdirectory.
    Create one if it doesn't exist. Note the name of this ``Venv`` - this is the "test suite name".
 4. In this directory, write a simple "Hello World" application that uses the library you're
    integrating with similarly to how customers will use it. Depending on the library, this
