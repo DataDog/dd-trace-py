@@ -2,7 +2,6 @@ import functools
 import sys
 from typing import TYPE_CHECKING
 
-from ddtrace.appsec import _asm_request_context
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
 from ..trace_utils import _get_request_header_user_agent
@@ -162,8 +161,11 @@ class _DDWSGIMiddlewareBase(object):
         headers = get_request_headers(environ)
         closing_iterator = ()
         not_blocked = True
-        with _asm_request_context.asm_request_context_manager(
-            environ.get("REMOTE_ADDR"), headers, headers_case_sensitive=True
+        with core.context_with_data(
+            "wsgi.__call__",
+            remote_addr=environ.get("REMOTE_ADDR"),
+            headers=headers,
+            headers_case_sensitive=True,
         ):
             req_span = self.tracer.trace(
                 self._request_span_name,

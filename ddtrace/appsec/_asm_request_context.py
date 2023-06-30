@@ -52,7 +52,7 @@ class ASM_Environment:
 
 
 def _get_asm_context():
-    env = core.get_item("asm_env")
+    env = RESOURCES.execution_context.get_item("asm_env")
     if env is None:
         env = ASM_Environment()
         core.set_item("asm_env", env)
@@ -120,7 +120,7 @@ class _DataHandler:
 
     def finalise(self):
         if self.active:
-            env = core.get_item("asm_env")
+            env = self.execution_context.get_item("asm_env")
             # assert _CONTEXT_ID.get() == self._id
             callbacks = GLOBAL_CALLBACKS.get(_CONTEXT_CALL, []) + env.callbacks.get(_CONTEXT_CALL)
             if callbacks is not None:
@@ -338,3 +338,27 @@ def _on_make_block_content(content, ctype, span):
 
 def _on_block_decided(callback):
     set_value(_CALLBACKS, "flask_block", callback)
+
+
+RESOURCES = None
+
+
+def _on_context_started(context):
+    global RESOURCES
+    RESOURCES = _DataHandler()
+    asm_request_context_set(
+        context.get_item("remote_addr"),
+        context.get_item("headers"),
+        context.get_item("headers_case_sensitive"),
+        context.get_item("block_request_callable"),
+    )
+    core.on("wsgi.block_decided", _on_block_decided)
+    core.on("wsgi._make_block_content", _on_make_block_content)
+
+
+def _on_context_ended(context):
+    RESOURCES.finalise()
+
+
+core.on("context.started.wsgi.__call__", _on_context_started)
+core.on("context.ended.wsgi.__call__", _on_context_ended)
