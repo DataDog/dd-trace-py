@@ -16,6 +16,7 @@ import json
 import re
 from typing import Dict
 
+from _pytest.nodes import get_fslocation_from_item
 import pytest
 
 import ddtrace
@@ -310,20 +311,11 @@ def _get_test_class_hierarchy(item):
     return ".".join(test_class_hierarchy)
 
 
-def get_path(item):
-    if hasattr(item, "path"):
-        return str(item.path)
-    parent = item
-    while not hasattr(parent, "fspath"):
-        parent = parent.parent
-    return str(parent.fspath)
-
-
 def pytest_collection_modifyitems(session, config, items):
     if _CIVisibility.test_skipping_enabled():
         skip = pytest.mark.skip(reason=SKIPPED_BY_ITR)
         for item in items:
-            if _CIVisibility._instance._should_skip_path(get_path(item)):
+            if _CIVisibility._instance._should_skip_path(str(get_fslocation_from_item(item)[0])):
                 item.add_marker(skip)
 
 
