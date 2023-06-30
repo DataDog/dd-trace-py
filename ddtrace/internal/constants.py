@@ -24,7 +24,7 @@ SPAN_API_DATADOG = "datadog"
 SPAN_API_OTEL = "otel"
 SPAN_API_OPENTRACING = "opentracing"
 
-APPSEC_BLOCKED_RESPONSE_HTML = """
+BLOCKED_RESPONSE_HTML = """
 <!DOCTYPE html><html lang="en"><head> <meta charset="UTF-8"> <meta name="viewport"
 content="width=device-width,initial-scale=1"> <title>You've been blocked</title>
 <style>a, body, div, html, span{margin: 0; padding: 0; border: 0; font-size: 100%;
@@ -43,9 +43,10 @@ line-height: normal; color: #646464; font-family: sans-serif; font-weight: 400}a
 <footer> <p>Security provided by
 <a href="https://www.datadoghq.com/product/security-platform/application-security-monitoring/"
 target="_blank">Datadog</a></p></footer></body></html>"""
-APPSEC_BLOCKED_RESPONSE_JSON = (
+BLOCKED_RESPONSE_JSON = (
     '{"errors": [{"title": "You\'ve been blocked", "detail": "Sorry, you cannot access '
     'this page. Please contact the customer service team. Security provided by Datadog."}]}'
 )
+HTTP_REQUEST_BLOCKED = "http.request.blocked"
 
 MESSAGING_SYSTEM = "messaging.system"

@@ -3,6 +3,8 @@ from typing import TYPE_CHECKING
 
 import six
 
+from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
+
 
 if TYPE_CHECKING:
     from typing import Any
@@ -137,7 +139,7 @@ class WAF_CONTEXT_NAMES(object):
     """string names used by the library for tagging data from requests in context"""
 
     RESULTS = "http.request.waf.results"
-    BLOCKED = "http.request.blocked"
+    BLOCKED = HTTP_REQUEST_BLOCKED
     CALLBACK = "http.request.waf.callback"
 
 

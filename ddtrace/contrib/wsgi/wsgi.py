@@ -29,15 +29,15 @@ from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
+from ddtrace.internal.utils import http as http_utils
 from ddtrace.propagation._utils import from_wsgi_header
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.vendor import wrapt
 
 from .. import trace_utils
-from ...appsec import utils
-from ...appsec._constants import WAF_CONTEXT_NAMES
 from ...constants import SPAN_KIND
 from ...internal import core
 
@@ -135,7 +135,7 @@ class _DDWSGIMiddlewareBase(object):
 
     def _make_block_content(self, environ, headers, span):
         ctype = "text/html" if "text/html" in headers.get("Accept", "").lower() else "text/json"
-        content = utils._get_blocked_template(ctype).encode("UTF-8")
+        content = http_utils._get_blocked_template(ctype).encode("UTF-8")
         try:
             core.dispatch("wsgi._make_block_content", [content, ctype, span])
             span.set_tag_str(http.STATUS_CODE, "403")
@@ -171,7 +171,7 @@ class _DDWSGIMiddlewareBase(object):
                 span_type=SpanTypes.WEB,
             )
 
-            if core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
+            if core.get_item(HTTP_REQUEST_BLOCKED):
                 ctype, content = self._make_block_content(environ, headers, req_span)
                 start_response("403 FORBIDDEN", [("content-type", ctype)])
                 closing_iterator = [content]
@@ -205,7 +205,7 @@ class _DDWSGIMiddlewareBase(object):
                     app_span.finish()
                     req_span.finish()
                     raise
-                if core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
+                if core.get_item(HTTP_REQUEST_BLOCKED):
                     _, content = self._make_block_content(environ, headers, req_span)
                     closing_iterator = [content]
 
