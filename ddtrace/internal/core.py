@@ -103,7 +103,7 @@ class ExecutionContext:
         dispatch("context.started.%s" % self.identifier, [self])
 
     def __repr__(self):
-        return "ExecutionContext '" + self.identifier + "'"
+        return "ExecutionContext '" + self.identifier + "' @ " + str(id(self))
 
     @property
     def parents(self):
@@ -114,6 +114,7 @@ class ExecutionContext:
         return self._parents[0] if self._parents else None
 
     def end(self):
+        dispatch_result = dispatch("context.ended.%s" % self.identifier, [self])
         if self._span is None:
             try:
                 _CURRENT_CONTEXT.reset(self._token)
@@ -127,7 +128,7 @@ class ExecutionContext:
                 log.debug(
                     "Encountered LookupError during core contextvar reset() call. I don't know why this is possible."
                 )
-        return dispatch("context.ended.%s" % self.identifier, [self])
+        return dispatch_result
 
     def addParent(self, context):
         if self.identifier == ROOT_CONTEXT_ID:
@@ -148,7 +149,7 @@ class ExecutionContext:
         # type: (str) -> Optional[Any]
         # NB mimic the behavior of `ddtrace.internal._context` by doing lazy inheritance
         current = self
-        while current is not None and current.identifier != ROOT_CONTEXT_ID:
+        while current is not None:
             if data_key in current._data:
                 return current._data.get(data_key)
             current = current.parent
@@ -166,6 +167,14 @@ class ExecutionContext:
         # type: (Dict[str, Optional[Any]]) -> None
         for data_key, data_value in keys_values.items():
             self.set_item(data_key, data_value)
+
+    def root(self):
+        if self.identifier == ROOT_CONTEXT_ID:
+            return self
+        current = self
+        while current.parent is not None:
+            current = current.parent
+        return current
 
 
 _CURRENT_CONTEXT = contextvars.ContextVar("ExecutionContext_var", default=ExecutionContext(ROOT_CONTEXT_ID))

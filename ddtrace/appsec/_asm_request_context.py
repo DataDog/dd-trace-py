@@ -52,10 +52,12 @@ class ASM_Environment:
 
 
 def _get_asm_context():
-    env = RESOURCES.execution_context.get_item("asm_env")
+    context = core._CURRENT_CONTEXT.get().root()
+    resources = context.get_item("resources")
+    env = resources.asm_env
     if env is None:
         env = ASM_Environment()
-        core.set_item("asm_env", env)
+        core._CURRENT_CONTEXT.get().root().get_item("resources").asm_env = env
     return env
 
 
@@ -109,24 +111,22 @@ class _DataHandler:
 
     def __init__(self):
         _DataHandler.main_id += 1
-        env = ASM_Environment(True)
+        self.asm_env = ASM_Environment(True)
 
         self._id = _DataHandler.main_id
         self.active = True
-        self.execution_context = core.ExecutionContext(__name__, **{"asm_env": env})
 
-        env.telemetry[_WAF_RESULTS] = [], [], []
-        env.callbacks[_CONTEXT_CALL] = []
+        self.asm_env.telemetry[_WAF_RESULTS] = [], [], []
+        self.asm_env.callbacks[_CONTEXT_CALL] = []
 
     def finalise(self):
         if self.active:
-            env = self.execution_context.get_item("asm_env")
+            env = self.asm_env
             # assert _CONTEXT_ID.get() == self._id
             callbacks = GLOBAL_CALLBACKS.get(_CONTEXT_CALL, []) + env.callbacks.get(_CONTEXT_CALL)
             if callbacks is not None:
                 for function in callbacks:
                     function(env)
-                self.execution_context.end()
             self.active = False
 
 
@@ -319,9 +319,9 @@ def asm_request_context_manager(
     The ASM context manager
     """
     if config._appsec_enabled:
-        _on_context_started()
+        resources = _on_context_started()
         try:
-            yield RESOURCES
+            yield resources
         finally:
             _on_context_ended()
     else:
@@ -337,14 +337,11 @@ def _on_block_decided(callback):
     set_value(_CALLBACKS, "flask_block", callback)
 
 
-RESOURCES = None
-
-
 def _on_context_started(context=None):
-    global RESOURCES
-    RESOURCES = _DataHandler()
     if context is None:
         context = core._CURRENT_CONTEXT.get()
+    resources = _DataHandler()
+    context.root().set_item("resources", resources)
     asm_request_context_set(
         context.get_item("remote_addr"),
         context.get_item("headers"),
@@ -353,10 +350,11 @@ def _on_context_started(context=None):
     )
     core.on("wsgi.block_decided", _on_block_decided)
     core.on("wsgi._make_block_content", _on_make_block_content)
+    return resources
 
 
-def _on_context_ended(context=None):
-    RESOURCES.finalise()
+def _on_context_ended(context):
+    context.root().get_item("resources").finalise()
 
 
 core.on("context.started.wsgi.__call__", _on_context_started)
