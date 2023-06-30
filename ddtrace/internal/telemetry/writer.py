@@ -1,11 +1,13 @@
 # -*- coding: utf-8 -*-
 import itertools
 import os
+import sys
 import time
 from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Set
 from typing import Tuple
 from typing import Union
 
@@ -41,6 +43,19 @@ from .metrics_namespaces import NamespaceMetricType
 
 
 log = get_logger(__name__)
+
+
+class LogData(dict):
+    def __hash__(self):
+        return hash((self["message"], self["level"], self.get("tags"), self.get("stack_trace")))
+
+    def __eq__(self, other):
+        return (
+            self["message"] == other["message"]
+            and self["level"] == other["level"]
+            and self.get("tags") == other.get("tags")
+            and self.get("stack_trace") == other.get("stack_trace")
+        )
 
 
 def _get_heartbeat_interval_or_default():
@@ -240,7 +255,7 @@ class TelemetryLogsMetricsWriter(TelemetryBase):
         # type: () -> None
         super(TelemetryLogsMetricsWriter, self).__init__(interval=_get_telemetry_metrics_interval_or_default())
         self._namespace = MetricNamespace()
-        self._logs = []  # type: List[Dict[str, Any]]
+        self._logs = set()  # type: Set[Dict[str, Any]]
 
     def enable(self, start_worker_thread=True):
         # type: (bool) -> bool
@@ -258,16 +273,18 @@ class TelemetryLogsMetricsWriter(TelemetryBase):
         This will make support cycles easier and ensure we know about potentially silent issues in libraries.
         """
         if self.enable():
-            data = {
-                "message": message,
-                "level": level,
-                "tracer_time": int(time.time()),
-            }
+            data = LogData(
+                {
+                    "message": message,
+                    "level": level,
+                    "tracer_time": int(time.time()),
+                }
+            )
             if tags:
                 data["tags"] = ",".join(["%s:%s" % (k, str(v).lower()) for k, v in tags.items()])
             if stack_trace:
                 data["stack_trace"] = stack_trace
-            self._logs.append(data)
+            self._logs.add(data)
 
     def add_gauge_metric(self, namespace, name, value, tags=None):
         # type: (str,str, float, MetricTagType) -> None
@@ -341,10 +358,10 @@ class TelemetryLogsMetricsWriter(TelemetryBase):
             self._client.send_event(telemetry_event)
 
     def _flush_log_metrics(self):
-        # type () -> List[Metric]
+        # type () -> Set[Metric]
         with self._lock:
             log_metrics = self._logs
-            self._logs = []
+            self._logs = set()
         return log_metrics
 
     def _generate_metrics_event(self, namespace_metrics):
@@ -354,8 +371,6 @@ class TelemetryLogsMetricsWriter(TelemetryBase):
                 if metrics:
                     payload = {
                         "namespace": namespace,
-                        "lib_language": "python",
-                        "lib_version": _pep440_to_semver(),
                         "series": [m.to_dict() for m in metrics.values()],
                     }
                     log.debug("%s request payload, namespace %s", payload_type, namespace)
@@ -365,9 +380,9 @@ class TelemetryLogsMetricsWriter(TelemetryBase):
                         self.add_event(payload, TELEMETRY_TYPE_GENERATE_METRICS)
 
     def _generate_logs_event(self, payload):
-        # type: (List[Dict[str, str]]) -> None
+        # type: (Set[Dict[str, str]]) -> None
         log.debug("%s request payload", TELEMETRY_TYPE_LOGS)
-        self.add_event(payload, TELEMETRY_TYPE_LOGS)
+        self.add_event(list(payload), TELEMETRY_TYPE_LOGS)
 
     def on_shutdown(self):
         self.periodic()
@@ -376,7 +391,7 @@ class TelemetryLogsMetricsWriter(TelemetryBase):
         # type: () -> None
         super(TelemetryLogsMetricsWriter, self).reset_queues()
         self._namespace.flush()
-        self._logs = []
+        self._logs = set()
 
 
 class TelemetryWriter(TelemetryBase):
@@ -389,6 +404,7 @@ class TelemetryWriter(TelemetryBase):
         # type: () -> None
         super(TelemetryWriter, self).__init__(interval=_get_heartbeat_interval_or_default())
         self._integrations_queue = []  # type: List[Dict]
+        self._configuration_queue = {}  # type: Dict[str, Dict]
         # Currently telemetry only supports reporting a single error.
         # If we'd like to report multiple errors in the future
         # we could hack it in by xor-ing error codes and concatenating strings
@@ -430,30 +446,21 @@ class TelemetryWriter(TelemetryBase):
         if self._forked:
             # app-started events should only be sent by the main process
             return
+        #  List of configurations to be collected
+        self.add_configurations(
+            [
+                ("data_streams_enabled", config._data_streams_enabled, "unknown"),
+                ("appsec_enabled", config._appsec_enabled, "unknown"),
+                ("trace_propagation_style_inject", str(config._propagation_style_inject), "unknown"),
+                ("trace_propagation_style_extract", str(config._propagation_style_extract), "unknown"),
+                ("ddtrace_bootstrapped", config._ddtrace_bootstrapped, "unknown"),
+                ("ddtrace_auto_used", "ddtrace.auto" in sys.modules, "unknown"),
+                ("otel_enabled", config._otel_enabled, "unknown"),
+            ]
+        )
+
         payload = {
-            #  List of configurations to be collected
-            "configuration": [
-                {
-                    "name": "data_streams_enabled",
-                    "origin": "env_var",
-                    "value": config._data_streams_enabled,
-                },
-                {
-                    "name": "appsec_enabled",
-                    "origin": "env_var",
-                    "value": config._appsec_enabled,
-                },
-                {
-                    "name": "propagation_style_inject",
-                    "origin": "env_var",
-                    "value": str(config._propagation_style_inject),
-                },
-                {
-                    "name": "propagation_style_extract",
-                    "origin": "env_var",
-                    "value": str(config._propagation_style_extract),
-                },
-            ],
+            "configuration": self._flush_configuration_queue(),
             "error": {
                 "code": self._error[0],
                 "message": self._error[1],
@@ -492,6 +499,43 @@ class TelemetryWriter(TelemetryBase):
         }
         self.add_event(payload, "app-integrations-change")
 
+    def _flush_configuration_queue(self):
+        # type: () -> List[Dict]
+        """Flushes and returns a list of all queued configurations"""
+        with self._lock:
+            configurations = list(self._configuration_queue.values())
+            self._configuration_queue = {}
+        return configurations
+
+    def _app_client_configuration_changed_event(self, configurations):
+        # type: (List[Dict]) -> None
+        """Adds a Telemetry event which sends list of modified configurations to the agent"""
+        payload = {
+            "configuration": configurations,
+        }
+        self.add_event(payload, "app-client-configuration-change")
+
+    def add_configuration(self, configuration_name, configuration_value, origin="unknown"):
+        # type: (str, Union[bool, float, str], str) -> None
+        """Creates and queues the name, origin, value of a configuration"""
+        with self._lock:
+            self._configuration_queue[configuration_name] = {
+                "name": configuration_name,
+                "origin": origin,
+                "value": configuration_value,
+            }
+
+    def add_configurations(self, configuration_list):
+        # type: (List[Tuple[str, Union[bool, float, str], str]]) -> None
+        """Creates and queues a list of configurations"""
+        with self._lock:
+            for name, value, origin in configuration_list:
+                self._configuration_queue[name] = {
+                    "name": name,
+                    "origin": origin,
+                    "value": value,
+                }
+
     def _app_dependencies_loaded_event(self):
         # type: () -> None
         """Adds a Telemetry event which sends a list of installed python packages to the agent"""
@@ -502,6 +546,10 @@ class TelemetryWriter(TelemetryBase):
         integrations = self._flush_integrations_queue()
         if integrations:
             self._app_integrations_changed_event(integrations)
+
+        configurations = self._flush_configuration_queue()
+        if configurations:
+            self._app_client_configuration_changed_event(configurations)
 
         if not self._events_queue:
             # Optimization: only queue heartbeat if no other events are queued

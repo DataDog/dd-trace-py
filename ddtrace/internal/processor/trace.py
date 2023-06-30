@@ -186,8 +186,8 @@ class SpanAggregator(SpanProcessor):
     _span_api_to_count = attr.ib(
         init=False,
         factory=lambda: {
-            "span_created": defaultdict(int),
-            "span_finished": defaultdict(int),
+            "spans_created": defaultdict(int),
+            "spans_finished": defaultdict(int),
         },
         type=Dict[str, DefaultDict],
     )
@@ -197,16 +197,16 @@ class SpanAggregator(SpanProcessor):
         with self._lock:
             trace = self._traces[span.trace_id]
             trace.spans.append(span)
-            self._span_api_to_count["span_created"][span._span_api] += 1
+            self._span_api_to_count["spans_created"][span._span_api] += 1
             # perf: telemetry_metrics_writer.add_count_metric(...) is an expensive operation.
             # We should avoid calling this method on every invocation of ``SpanAggregator.on_span_start()``
-            if sum(self._span_api_to_count["span_created"].values()) >= 100:
+            if sum(self._span_api_to_count["spans_created"].values()) >= 100:
                 # self._span_api_to_count should only have 1-3 keys, calculating the sum here is not expensive.
-                for api, count in self._span_api_to_count["span_created"].items():
+                for api, count in self._span_api_to_count["spans_created"].items():
                     telemetry_metrics_writer.add_count_metric(
-                        TELEMETRY_NAMESPACE_TAG_TRACER, "span_created", count, tags=(("integration_name", api),)
+                        TELEMETRY_NAMESPACE_TAG_TRACER, "spans_created", count, tags=(("integration_name", api),)
                     )
-                self._span_api_to_count["span_created"] = defaultdict(int)
+                self._span_api_to_count["spans_created"] = defaultdict(int)
 
     def on_span_finish(self, span):
         # type: (Span) -> None
@@ -238,16 +238,16 @@ class SpanAggregator(SpanProcessor):
                 if len(trace.spans) == 0:
                     del self._traces[span.trace_id]
 
-                self._span_api_to_count["span_finished"][span._span_api] += num_finished
+                self._span_api_to_count["spans_finished"][span._span_api] += num_finished
                 # perf: telemetry_metrics_writer.add_count_metric(...) is an expensive operation.
                 # We should avoid calling this method on every invocation of ``SpanAggregator.on_span_finish()``
-                if sum(self._span_api_to_count["span_finished"].values()) >= 100:
+                if sum(self._span_api_to_count["spans_finished"].values()) >= 100:
                     # self._span_api_to_count should only have 1-3 keys, calculating the sum here is not expensive
-                    for api, count in self._span_api_to_count["span_finished"].items():
+                    for api, count in self._span_api_to_count["spans_finished"].items():
                         telemetry_metrics_writer.add_count_metric(
-                            TELEMETRY_NAMESPACE_TAG_TRACER, "span_finished", count, tags=(("integration_name", api),)
+                            TELEMETRY_NAMESPACE_TAG_TRACER, "spans_finished", count, tags=(("integration_name", api),)
                         )
-                    self._span_api_to_count["span_finished"] = defaultdict(int)
+                    self._span_api_to_count["spans_finished"] = defaultdict(int)
 
                 spans = finished  # type: Optional[List[Span]]
                 for tp in self._trace_processors:
@@ -276,19 +276,19 @@ class SpanAggregator(SpanProcessor):
         """
         # on_span_start queue span created counts in batches of 100. This ensures all remaining counts are sent
         # before the tracer is shutdown.
-        for api, count in self._span_api_to_count["span_created"].items():
+        for api, count in self._span_api_to_count["spans_created"].items():
             telemetry_metrics_writer.add_count_metric(
-                TELEMETRY_NAMESPACE_TAG_TRACER, "span_created", count, tags=(("integration_name", api),)
+                TELEMETRY_NAMESPACE_TAG_TRACER, "spans_created", count, tags=(("integration_name", api),)
             )
-        self._span_api_to_count["span_created"] = defaultdict(int)
+        self._span_api_to_count["spans_created"] = defaultdict(int)
 
         # on_span_finish(...) queues span finish metrics in batches of 100. This ensures all remaining counts are sent
         # before the tracer is shutdown.
-        for api, count in self._span_api_to_count["span_finished"].items():
+        for api, count in self._span_api_to_count["spans_finished"].items():
             telemetry_metrics_writer.add_count_metric(
-                TELEMETRY_NAMESPACE_TAG_TRACER, "span_finished", count, tags=(("integration_name", api),)
+                TELEMETRY_NAMESPACE_TAG_TRACER, "spans_finished", count, tags=(("integration_name", api),)
             )
-        self._span_api_to_count["span_finished"] = defaultdict(int)
+        self._span_api_to_count["spans_finished"] = defaultdict(int)
 
         # The telemetry metrics writer can be shutdown before the tracer. This ensures all tracer metrics always sent.
         telemetry_metrics_writer.periodic()
@@ -332,40 +332,41 @@ class SpanSamplingProcessor(SpanProcessor):
                     break
 
 
-class PeerServiceProcessor(SpanProcessor):
+class PeerServiceProcessor(TraceProcessor):
     def __init__(self, peer_service_config):
         self._config = peer_service_config
         self._set_defaults_enabled = self._config.set_defaults_enabled
+        self._mapping = self._config.peer_service_mapping
 
-    def on_span_start(self, span):
-        """
-        We don't do anything on span start
-        """
-        pass
+    def process_trace(self, trace):
+        if not trace:
+            return
 
-    def on_span_finish(self, span):
-        if self._set_defaults_enabled:
-            self._set_span_tag(span)
-        self._remap_peer_service(span)  # Remap regardless of whether defaults are enabled
+        traces_to_process = []
+        if not self._set_defaults_enabled:
+            traces_to_process = filter(lambda x: x.get_tag(self._config.tag_name), trace)
+        else:
+            traces_to_process = filter(
+                lambda x: x.get_tag(self._config.tag_name) or x.get_tag(SPAN_KIND) in self._config.enabled_span_kinds,
+                trace,
+            )
+        any(map(lambda x: self._update_peer_service_tags(x), traces_to_process))
 
-    def _set_span_tag(self, span):
-        if span.get_tag(self._config.tag_name):  # If the tag already exists, assume it is user generated
+        return trace
+
+    def _update_peer_service_tags(self, span):
+        tag = span.get_tag(self._config.tag_name)
+
+        if tag:  # If the tag already exists, assume it is user generated
             span.set_tag_str(self._config.source_tag_name, self._config.tag_name)
-            return
+        else:
+            for data_source in self._config.prioritized_data_sources:
+                tag = span.get_tag(data_source)
+                if tag:
+                    span.set_tag_str(self._config.tag_name, tag)
+                    span.set_tag_str(self._config.source_tag_name, data_source)
+                    break
 
-        if span.get_tag(SPAN_KIND) not in self._config.enabled_span_kinds:
-            return
-
-        for data_source in self._config.prioritized_data_sources:
-            peer_service_definition = span.get_tag(data_source)
-            if peer_service_definition:
-                span.set_tag_str(self._config.tag_name, peer_service_definition)
-                span.set_tag_str(self._config.source_tag_name, data_source)
-                return
-
-    def _remap_peer_service(self, span):
-        current_peer_service = span.get_tag(self._config.tag_name)
-
-        if current_peer_service in self._config.peer_service_mapping:
-            span.set_tag_str(self._config.remap_tag_name, current_peer_service)
-            span.set_tag_str(self._config.tag_name, self._config.peer_service_mapping[current_peer_service])
+        if tag in self._mapping:
+            span.set_tag_str(self._config.remap_tag_name, tag)
+            span.set_tag_str(self._config.tag_name, self._config.peer_service_mapping[tag])

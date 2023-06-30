@@ -1,7 +1,13 @@
 import atexit
 import json
 from typing import List
-from typing import TypedDict
+
+
+# TypedDict was added to typing in python 3.8
+try:
+    from typing import TypedDict
+except ImportError:
+    from typing_extensions import TypedDict
 
 from ddtrace.internal import forksafe
 from ddtrace.internal.compat import get_connection_response
@@ -72,7 +78,6 @@ class V2LogWriter(PeriodicService):
             self._buffer.append(log)
 
     def on_shutdown(self):
-        # type: (...) -> None
         self.periodic()
 
     @property
