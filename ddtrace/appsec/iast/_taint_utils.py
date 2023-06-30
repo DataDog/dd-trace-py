@@ -19,22 +19,40 @@ class LazyTaintDict(dict):
 
     def __getitem__(self, key):
         value = super(LazyTaintDict, self).__getitem__(key)
-        if (
-            value
-            and isinstance(value, (str, bytes, bytearray))
-            and (not is_pyobject_tainted(value) or self.override_pyobject_tainted)
-        ):
-            try:
-                value = taint_pyobject(
-                    pyobject=value, source_name=key, source_value=value, source_origin=self.origin_value
-                )
-                super(LazyTaintDict, self).__setitem__(key, value)
-            except SystemError:
-                # TODO: Find the root cause for
-                # SystemError: NULL object passed to Py_BuildValue
-                log.debug("SystemError while tainting value: %s with key: %s", value, key, exc_info=True)
-            except Exception:
-                log.debug("Unexpected exception while tainting value", exc_info=True)
+        if value:
+            if isinstance(value, (str, bytes, bytearray)):
+                if not is_pyobject_tainted(value) or self.override_pyobject_tainted:
+                    try:
+                        value = taint_pyobject(
+                            pyobject=value, source_name=key, source_value=value, source_origin=self.origin_value
+                        )
+                        super(LazyTaintDict, self).__setitem__(key, value)
+                    except SystemError:
+                        # TODO: Find the root cause for
+                        # SystemError: NULL object passed to Py_BuildValue
+                        log.debug("SystemError while tainting value: %s with key: %s", value, key, exc_info=True)
+                    except Exception:
+                        log.debug("Unexpected exception while tainting value", exc_info=True)
+            elif isinstance(value, (list,)):
+                new_value = list()
+                try:
+                    for v in value:
+                        if isinstance(v, (str, bytes, bytearray)) and (
+                            not is_pyobject_tainted(v) or self.override_pyobject_tainted
+                        ):
+                            new_value.append(
+                                taint_pyobject(
+                                    pyobject=v, source_name=key, source_value=v, source_origin=self.origin_value
+                                )
+                            )
+                        else:
+                            new_value.append(v)
+                    value = new_value
+                    super(LazyTaintDict, self).__setitem__(key, value)
+                except SystemError:
+                    log.debug("SystemError while tainting value: %s with key: %s", value, key, exc_info=True)
+                except Exception:
+                    log.debug("Unexpected exception while tainting value", exc_info=True)
         return value
 
     def get(self, key, default=None):

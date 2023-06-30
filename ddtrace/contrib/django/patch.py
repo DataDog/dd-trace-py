@@ -297,6 +297,16 @@ def traced_func(django, name, resource=None, ignored_excs=None):
                     args[0].COOKIES = LazyTaintDict(
                         args[0].COOKIES, origins=(OriginType.COOKIE_NAME, OriginType.COOKIE)
                     )
+                if not isinstance(args[0].GET, LazyTaintDict):
+                    args[0].GET = LazyTaintDict(args[0].GET, origins=(OriginType.PARAMETER_NAME, OriginType.PARAMETER))
+                if not isinstance(args[0].POST, LazyTaintDict):
+                    args[0].POST = LazyTaintDict(args[0].POST, origins=(OriginType.BODY, OriginType.BODY))
+                if not isinstance(args[0].META, LazyTaintDict):
+                    args[0].META = LazyTaintDict(args[0].META, origins=(OriginType.HEADER_NAME, OriginType.HEADER))
+                if not isinstance(args[0].headers, LazyTaintDict):
+                    args[0].headers = LazyTaintDict(
+                        args[0].headers, origins=(OriginType.HEADER_NAME, OriginType.HEADER)
+                    )
                 args[0].path = taint_pyobject(
                     args[0].path, source_name="path", source_value=args[0].path, source_origin=OriginType.PATH
                 )
@@ -330,6 +340,9 @@ def traced_func(django, name, resource=None, ignored_excs=None):
         _set_metric_iast_instrumented_source(OriginType.PATH)
         _set_metric_iast_instrumented_source(OriginType.COOKIE)
         _set_metric_iast_instrumented_source(OriginType.COOKIE_NAME)
+        _set_metric_iast_instrumented_source(OriginType.PARAMETER)
+        _set_metric_iast_instrumented_source(OriginType.PARAMETER_NAME)
+        _set_metric_iast_instrumented_source(OriginType.BODY)
     return trace_utils.with_traced_module(wrapped)(django)
 
 
@@ -782,6 +795,8 @@ def wrap_wsgi_environ(wrapped, _instance, args, kwargs):
         from ddtrace.appsec.iast._taint_tracking import OriginType  # noqa: F401
         from ddtrace.appsec.iast._taint_utils import LazyTaintDict
 
+        _set_metric_iast_instrumented_source(OriginType.HEADER_NAME)
+        _set_metric_iast_instrumented_source(OriginType.HEADER)
         return wrapped(
             *((LazyTaintDict(args[0], origins=(OriginType.HEADER_NAME, OriginType.HEADER)),) + args[1:]), **kwargs
         )

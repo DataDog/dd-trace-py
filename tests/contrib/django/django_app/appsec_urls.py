@@ -78,7 +78,7 @@ def checkuser_view(request, user_id):
 def sqli_http_request_parameter(request):
     with connection.cursor() as cursor:
         # label iast_enabled_sqli_http_request_parameter
-        cursor.execute(request.GET["q"])
+        cursor.execute(request.GET["q"][0])
 
     return HttpResponse(request.META["HTTP_USER_AGENT"], status=200)
 
@@ -135,7 +135,7 @@ def taint_checking_enabled_view(request):
 
     # TODO: Taint request body
     # assert is_pyobject_tainted(request.body)
-    assert is_pyobject_tainted(request.GET["q"])
+    assert is_pyobject_tainted(request.GET["q"][0])
     assert is_pyobject_tainted(request.META["QUERY_STRING"])
     assert is_pyobject_tainted(request.META["HTTP_USER_AGENT"])
     # TODO: Taint request headers
