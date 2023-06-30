@@ -61,7 +61,7 @@
           "type": "",
           "error": 0,
           "meta": {
-            "langchain.request.cohere.api_key": "...iat5",
+            "langchain.request.api_key": "...iat5",
             "langchain.request.cohere.parameters.frequency_penalty": "0.0",
             "langchain.request.cohere.parameters.k": "0",
             "langchain.request.cohere.parameters.max_tokens": "256",

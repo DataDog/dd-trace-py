@@ -10,7 +10,7 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "langchain.request.cohere.api_key": "...key>",
+      "langchain.request.api_key": "...key>",
       "langchain.request.cohere.parameters.frequency_penalty": "0.0",
       "langchain.request.cohere.parameters.k": "0",
       "langchain.request.cohere.parameters.max_tokens": "256",

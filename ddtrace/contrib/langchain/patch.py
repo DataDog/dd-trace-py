@@ -50,16 +50,14 @@ class _LangChainIntegration(BaseLLMIntegration):
 
     def _logs_tags(self, span):
         # type: (Span) -> str
-        provider = span.get_tag("langchain.request.provider") or ""
-        api_key = span.get_tag("langchain.request.%s.api_key" % provider) or ""
+        api_key = span.get_tag("langchain.request.api_key") or ""
         tags = (
-            "env:%s,version:%s,langchain.request.provider:%s,langchain.request.model:%s,langchain.request.%s.api_key:%s"
+            "env:%s,version:%s,langchain.request.provider:%s,langchain.request.model:%s,langchain.request.api_key:%s"
             % (  # noqa: E501
                 (config.env or ""),
                 (config.version or ""),
                 (span.get_tag("langchain.request.provider") or ""),
                 (span.get_tag("langchain.request.model") or ""),
-                provider,
                 api_key,
             )
         )
@@ -67,14 +65,14 @@ class _LangChainIntegration(BaseLLMIntegration):
 
     def _metrics_tags(self, span):
         provider = span.get_tag("langchain.request.provider") or ""
-        api_key = span.get_tag("langchain.request.%s.api_key" % provider) or ""
+        api_key = span.get_tag("langchain.request.api_key") or ""
         tags = [
             "version:%s" % (config.version or ""),
             "env:%s" % (config.env or ""),
             "service:%s" % (span.service or ""),
             "langchain.request.provider:%s" % provider,
             "langchain.request.model:%s" % (span.get_tag("langchain.request.model") or ""),
-            "langchain.request.%s.api_key:%s" % (provider, api_key),
+            "langchain.request.api_key:%s" % api_key,
             "error:%d" % span.error,
         ]
         err_type = span.get_tag("error.type")
@@ -93,6 +91,7 @@ class _LangChainIntegration(BaseLLMIntegration):
         total_cost = span.get_metric("langchain.tokens.total_cost")
         if total_cost:
             self.metric(span, "incr", "tokens.total_cost", total_cost)
+
 
 def _extract_model_name(instance):
     """Extract model name or ID from llm instance."""
@@ -166,7 +165,7 @@ def traced_llm_generate(langchain, pin, func, instance, args, kwargs):
                     span.set_tag_str("langchain.request.%s.parameters.%s.%s" % (llm_provider, param, k), str(v))
             else:
                 span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
-        span.set_tag_str("langchain.request.%s.api_key" % llm_provider, str(_extract_api_key(instance)))
+        span.set_tag_str("langchain.request.api_key", str(_extract_api_key(instance)))
 
         completions = func(*args, **kwargs)
         if isinstance(instance, langchain.llms.OpenAI):
@@ -191,7 +190,7 @@ def traced_llm_generate(langchain, pin, func, instance, args, kwargs):
                 "info" if span.error == 0 else "error",
                 "sampled %s.%s" % (instance.__module__, instance.__class__.__name__),
                 attrs={
-                    "prompt": prompts,
+                    "prompts": prompts,
                     "choices": [
                         [{"text": completion.text} for completion in completions]
                         for completions in completions.generations
@@ -228,7 +227,7 @@ async def traced_llm_agenerate(langchain, pin, func, instance, args, kwargs):
                     span.set_tag_str("langchain.request.%s.parameters.%s.%s" % (llm_provider, param, k), str(v))
             else:
                 span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
-        span.set_tag_str("langchain.request.%s.api_key" % llm_provider, str(_extract_api_key(instance)))
+        span.set_tag_str("langchain.request.api_key", str(_extract_api_key(instance)))
 
         completions = await func(*args, **kwargs)
         if isinstance(instance, langchain.llms.OpenAI):
@@ -292,7 +291,7 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
         if model is not None:
             span.set_tag_str("langchain.request.model", model)
         span.set_tag_str("langchain.request.provider", llm_provider)
-        span.set_tag_str("langchain.request.%s.api_key" % llm_provider, str(_extract_api_key(instance)))
+        span.set_tag_str("langchain.request.api_key", str(_extract_api_key(instance)))
         for param, val in getattr(instance, "_identifying_params", {}).items():
             if isinstance(val, dict):
                 for k, v in val.items():
@@ -377,7 +376,7 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
         if model is not None:
             span.set_tag_str("langchain.request.model", model)
         span.set_tag_str("langchain.request.provider", llm_provider)
-        span.set_tag_str("langchain.request.%s.api_key" % llm_provider, str(_extract_api_key(instance)))
+        span.set_tag_str("langchain.request.api_key", str(_extract_api_key(instance)))
         for param, val in getattr(instance, "_identifying_params", {}).items():
             if isinstance(val, dict):
                 for k, v in val.items():
@@ -460,7 +459,7 @@ def traced_embedding(langchain, pin, func, instance, args, kwargs):
         if model is not None:
             span.set_tag_str("langchain.request.model", model)
         span.set_tag_str("langchain.request.provider", provider)
-        span.set_tag_str("langchain.request.%s.api_key" % provider, str(_extract_api_key(instance)))
+        span.set_tag_str("langchain.request.api_key", str(_extract_api_key(instance)))
         # langchain currently does not support token tracking for OpenAI embeddings:
         #  https://github.com/hwchase17/langchain/issues/945
         embeddings = func(*args, **kwargs)
@@ -475,7 +474,7 @@ def traced_embedding(langchain, pin, func, instance, args, kwargs):
                 span,
                 "info" if span.error == 0 else "error",
                 "sampled %s.%s" % (instance.__module__, instance.__class__.__name__),
-                attrs={"inputs": input_texts},
+                attrs={"inputs": [input_texts] if isinstance(input_texts, str) else input_texts},
             )
     except Exception:
         span.set_exc_info(*sys.exc_info())
@@ -512,7 +511,7 @@ def traced_chain_call(langchain, pin, func, instance, args, kwargs):
                 "info" if span.error == 0 else "error",
                 "sampled %s.%s" % (instance.__module__, instance.__class__.__name__),
                 attrs={
-                    "inputs": inputs,
+                    "inputs": inputs if isinstance(inputs, dict) else {instance.input_keys[0]: inputs},
                     "prompt": str(instance.prompt.template) or "",
                     "outputs": final_outputs,
                 },
@@ -552,7 +551,7 @@ async def traced_chain_acall(langchain, pin, func, instance, args, kwargs):
                 "info" if span.error == 0 else "error",
                 "sampled %s.%s" % (instance.__module__, instance.__class__.__name__),
                 attrs={
-                    "inputs": inputs,
+                    "inputs": inputs if isinstance(inputs, dict) else {instance.input_keys[0]: inputs},
                     "prompt": str(instance.prompt.template) or "",
                     "outputs": final_outputs,
                 },
@@ -596,9 +595,9 @@ def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
                 instance._index.configuration.server_variables.get("project_name", ""),
             )
             api_key = instance._index.configuration.api_key.get("ApiKeyAuth", "")
-            span.set_tag_str("langchain.request.pinecone.api_key", "...%s" % api_key[-4:])
+            span.set_tag_str("langchain.request.api_key", "...%s" % api_key[-4:])
         else:
-            span.set_tag_str("langchain.request.%s.api_key" % provider, str(_extract_api_key(instance)))
+            span.set_tag_str("langchain.request.api_key", str(_extract_api_key(instance)))
         documents = func(*args, **kwargs)
         span.set_metric("langchain.response.document_count", len(documents))
         for idx, document in enumerate(documents):
@@ -616,6 +615,7 @@ def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
                 "sampled %s.%s" % (instance.__module__, instance.__class__.__name__),
                 attrs={
                     "query": query,
+                    "k": k or "",
                     "documents": [
                         {"page_content": document.page_content, "metadata": document.metadata} for document in documents
                     ],

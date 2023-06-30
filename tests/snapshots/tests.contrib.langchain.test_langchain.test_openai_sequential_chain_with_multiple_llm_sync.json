@@ -65,8 +65,8 @@
           "type": "",
           "error": 0,
           "meta": {
+            "langchain.request.api_key": "...key>",
             "langchain.request.model": "text-davinci-003",
-            "langchain.request.openai.api_key": "...key>",
             "langchain.request.openai.parameters.frequency_penalty": "0",
             "langchain.request.openai.parameters.max_tokens": "256",
             "langchain.request.openai.parameters.model_name": "text-davinci-003",
@@ -126,8 +126,8 @@
           "type": "",
           "error": 0,
           "meta": {
+            "langchain.request.api_key": "...key>",
             "langchain.request.model": "text-davinci-003",
-            "langchain.request.openai.api_key": "...key>",
             "langchain.request.openai.parameters.frequency_penalty": "0",
             "langchain.request.openai.parameters.max_tokens": "256",
             "langchain.request.openai.parameters.model_name": "text-davinci-003",
