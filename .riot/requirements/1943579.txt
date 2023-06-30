@@ -21,4 +21,4 @@ pytest-cov==4.0.0
 pytest-mock==3.10.0
 sortedcontainers==2.4.0
 tomli==2.0.1
-typing-extensions==4.6.3
+typing-extensions==4.7.0
