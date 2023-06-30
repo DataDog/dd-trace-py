@@ -331,7 +331,9 @@ def pytest_runtest_protocol(item, nextitem):
         if "reason" in marker.kwargs and marker.kwargs["reason"] == SKIPPED_BY_ITR
     ]
 
-    if is_skipped_by_itr:
+    is_itr_unskippable = [marker for marker in item.iter_markers(name="itr_unskippable")]
+
+    if is_skipped_by_itr and not is_itr_unskippable:
         yield
     else:
         test_session_span = _extract_span(item.session)
