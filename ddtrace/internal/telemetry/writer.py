@@ -451,8 +451,8 @@ class TelemetryWriter(TelemetryBase):
             [
                 ("data_streams_enabled", config._data_streams_enabled, "unknown"),
                 ("appsec_enabled", config._appsec_enabled, "unknown"),
-                ("trace_propagation_style_inject", str(config._propagation_style_inject), "unknown"),
-                ("trace_propagation_style_extract", str(config._propagation_style_extract), "unknown"),
+                ("DD_TRACE_PROPAGATION_STYLE_INJECT", str(",".join(config._propagation_style_inject)), "unknown"),
+                ("DD_TRACE_PROPAGATION_STYLE_EXTRACT", str(",".join(config._propagation_style_extract)), "unknown"),
                 ("ddtrace_bootstrapped", config._ddtrace_bootstrapped, "unknown"),
                 ("ddtrace_auto_used", "ddtrace.auto" in sys.modules, "unknown"),
                 ("otel_enabled", config._otel_enabled, "unknown"),
