@@ -466,7 +466,7 @@ def pytest_runtest_makereport(item, call):
             span.set_tag_str(test.STATUS, test.Status.SKIP.value)
         reason = _extract_reason(call)
         if reason is not None:
-            span.set_tag_str(test.SKIP_REASON, str(reason))
+            span.set_tag_str(test.SKIP_REASON, reason)
     elif result.passed:
         _mark_not_skipped(item.parent)
         span.set_tag_str(test.STATUS, test.Status.PASS.value)
