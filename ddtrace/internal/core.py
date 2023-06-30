@@ -177,6 +177,12 @@ class ExecutionContext:
         return current
 
 
+def __getattr__(name):
+    if name == "root":
+        return _CURRENT_CONTEXT.get().root()
+    raise AttributeError
+
+
 _CURRENT_CONTEXT = contextvars.ContextVar("ExecutionContext_var", default=ExecutionContext(ROOT_CONTEXT_ID))
 
 

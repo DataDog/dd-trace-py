@@ -50,12 +50,11 @@ class ASM_Environment:
 
 
 def _get_asm_context():
-    context = core._CURRENT_CONTEXT.get().root()
-    resources = context.get_item("resources")
+    resources = core.root.get_item("resources")
     env = resources.asm_env
     if env is None:
         env = ASM_Environment()
-        core._CURRENT_CONTEXT.get().root().get_item("resources").asm_env = env
+        core.root.get_item("resources").asm_env = env
     return env
 
 
@@ -148,7 +147,7 @@ def set_waf_address(address, value):  # type: (str, Any, Any) -> None
         set_value(_WAF_ADDRESSES, address, waf_value)
     else:
         set_value(_WAF_ADDRESSES, address, value)
-    core._CURRENT_CONTEXT.get().root().set_item(address, value)
+    core.root.set_item(address, value)
 
 
 def get_value(category, address, default=None):  # type: (str, str, Any) -> Any
