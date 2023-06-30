@@ -24,6 +24,7 @@ from six.moves.urllib.parse import quote
 
 import ddtrace
 from ddtrace import config
+from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
@@ -136,7 +137,8 @@ class _DDWSGIMiddlewareBase(object):
         ctype = "text/html" if "text/html" in headers.get("Accept", "").lower() else "text/json"
         content = http_utils._get_blocked_template(ctype).encode("UTF-8")
         try:
-            core.dispatch("wsgi._make_block_content", [content, ctype, span])
+            span.set_tag_str(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-length", str(len(content)))
+            span.set_tag_str(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type", ctype)
             span.set_tag_str(http.STATUS_CODE, "403")
             url = construct_url(environ)
             query_string = environ.get("QUERY_STRING")

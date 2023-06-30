@@ -43,7 +43,6 @@ class ASM_Environment:
 
     def __init__(self, active=False):  # type: (bool) -> None
         self.active = active
-        self.span = None
         self.waf_addresses = {}  # type: dict[str, Any]
         self.callbacks = {}  # type: dict[str, Any]
         self.telemetry = {}  # type: dict[str, Any]
@@ -62,7 +61,7 @@ def _get_asm_context():
 
 def free_context_available():  # type: () -> bool
     env = _get_asm_context()
-    return env.active and env.span is None
+    return env.active
 
 
 def in_context():  # type: () -> bool
@@ -73,7 +72,7 @@ def in_context():  # type: () -> bool
 def is_blocked():  # type: () -> bool
     try:
         env = _get_asm_context()
-        if not env.active or env.span is None:
+        if not env.active:
             return False
         return bool(core.get_item(WAF_CONTEXT_NAMES.BLOCKED))
     except BaseException:
@@ -85,15 +84,13 @@ def register(span):
     if not env.active:
         log.debug("registering a span with no active asm context")
         return
-    env.span = span
 
 
 def unregister(span):
     env = _get_asm_context()
-    if env.span is span:
-        # needed for api security flushing information before end of the span
-        for function in GLOBAL_CALLBACKS.get(_CONTEXT_CALL, []):
-            function(env)
+    # needed for api security flushing information before end of the span
+    for function in GLOBAL_CALLBACKS.get(_CONTEXT_CALL, []):
+        function(env)
 
 
 class _DataHandler:
@@ -138,7 +135,7 @@ def set_value(category, address, value):  # type: (str, str, Any) -> None
 
 def set_headers_response(headers):  # type: (Any) -> None
     if headers is not None:
-        set_waf_address(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, headers, _get_asm_context().span)
+        set_waf_address(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, headers)
 
 
 def set_body_response(body_response):
@@ -159,10 +156,7 @@ def set_waf_address(address, value, span=None):  # type: (str, Any, Any) -> None
         set_value(_WAF_ADDRESSES, address, waf_value)
     else:
         set_value(_WAF_ADDRESSES, address, value)
-    if span is None:
-        span = _get_asm_context().span
-    if span:
-        core.set_item(address, value, span=span)
+    core._CURRENT_CONTEXT.get().root().set_item(address, value)
 
 
 def get_value(category, address, default=None):  # type: (str, str, Any) -> Any
@@ -223,7 +217,7 @@ def call_waf_callback(custom_data=None):
 
 def set_ip(ip):  # type: (Optional[str]) -> None
     if ip is not None:
-        set_waf_address(SPAN_DATA_NAMES.REQUEST_HTTP_IP, ip, _get_asm_context().span)
+        set_waf_address(SPAN_DATA_NAMES.REQUEST_HTTP_IP, ip)
 
 
 def get_ip():  # type: () -> Optional[str]
@@ -237,7 +231,7 @@ def get_ip():  # type: () -> Optional[str]
 
 def set_headers(headers):  # type: (Any) -> None
     if headers is not None:
-        set_waf_address(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, headers, _get_asm_context().span)
+        set_waf_address(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, headers)
 
 
 def get_headers():  # type: () -> Optional[Any]
@@ -245,7 +239,7 @@ def get_headers():  # type: () -> Optional[Any]
 
 
 def set_headers_case_sensitive(case_sensitive):  # type: (bool) -> None
-    set_waf_address(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES_CASE, case_sensitive, _get_asm_context().span)
+    set_waf_address(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES_CASE, case_sensitive)
 
 
 def get_headers_case_sensitive():  # type: () -> bool
@@ -324,11 +318,6 @@ def asm_request_context_manager(
         yield None
 
 
-def _on_make_block_content(content, ctype, span):
-    span.set_tag_str(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-length", str(len(content)))
-    span.set_tag_str(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type", ctype)
-
-
 def _on_block_decided(callback):
     set_value(_CALLBACKS, "flask_block", callback)
 
@@ -345,7 +334,6 @@ def _on_context_started(context=None):
         context.get_item("block_request_callable"),
     )
     core.on("wsgi.block_decided", _on_block_decided)
-    core.on("wsgi._make_block_content", _on_make_block_content)
     return resources
 
 
