@@ -44,6 +44,11 @@ The following metrics are collected by default by the LangChain integration.
    Type: ``distribution``
 
 
+.. py:data:: langchain.tokens.total_cost
+
+   Type: ``count``
+
+
 (beta) Prompt and Completion Sampling
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

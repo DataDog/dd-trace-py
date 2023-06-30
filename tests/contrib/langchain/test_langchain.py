@@ -82,6 +82,14 @@ def mock_logs(scope="session"):
 
 
 @pytest.fixture
+def snapshot_tracer(langchain, mock_logs, mock_metrics):
+    pin = Pin.get_from(langchain)
+    yield pin.tracer
+    mock_logs.reset_mock()
+    mock_metrics.reset_mock()
+
+
+@pytest.fixture
 def mock_tracer(langchain, mock_logs, mock_metrics):
     pin = Pin.get_from(langchain)
     mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
@@ -242,6 +250,53 @@ def test_ai21_llm_sync(langchain, request_vcr):
         llm("Why does everyone in Bikini Bottom hate Plankton?")
 
 
+@pytest.mark.snapshot(token="tests.contrib.langchain.test_langchain.test_openai_llm_sync")
+def test_openai_llm_metrics(langchain, request_vcr, mock_metrics, mock_logs, snapshot_tracer):
+    llm = langchain.llms.OpenAI()
+    with request_vcr.use_cassette("openai_completion_sync.yaml"):
+        llm("Can you explain what Descartes meant by 'I think, therefore I am'?")
+    expected_tags = [
+        "version:",
+        "env:",
+        "service:",
+        "langchain.request.provider:openai",
+        "langchain.request.model:text-davinci-003",
+        "langchain.request.openai.api_key:...key>",
+        "error:0",
+    ]
+    mock_metrics.assert_has_calls(
+        [
+            mock.call.distribution(
+                "tokens.prompt",
+                17,
+                tags=expected_tags,
+            ),
+            mock.call.distribution(
+                "tokens.completion",
+                95,
+                tags=expected_tags,
+            ),
+            mock.call.distribution(
+                "tokens.total",
+                112,
+                tags=expected_tags,
+            ),
+            mock.call.increment(
+                "tokens.total_cost",
+                0.00224,
+                tags=expected_tags,
+            ),
+            mock.call.distribution(
+                "request.duration",
+                mock.ANY,
+                tags=expected_tags,
+            ),
+        ],
+        any_order=True,
+    )
+    mock_logs.assert_not_called()
+
+
 @pytest.mark.snapshot(token="tests.contrib.langchain.test_langchain.test_openai_chat_model_call")
 def test_openai_chat_model_sync_call(langchain, request_vcr):
     chat = langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
@@ -313,6 +368,54 @@ async def test_openai_chat_model_async_stream(langchain, request_vcr):
         await chat.agenerate([[langchain.schema.HumanMessage(content="What is the secret Krabby Patty recipe?")]])
 
 
+@pytest.mark.snapshot(token="tests.contrib.langchain.test_langchain.test_openai_chat_model_call")
+def test_openai_chat_model_metrics(langchain, request_vcr, mock_metrics, mock_logs, snapshot_tracer):
+    chat = langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
+    with request_vcr.use_cassette("openai_chat_completion_sync_call.yaml"):
+        chat([langchain.schema.HumanMessage(content="When do you use 'whom' instead of 'who'?")])
+    expected_tags = [
+        "version:",
+        "env:",
+        "service:",
+        "langchain.request.provider:openai",
+        "langchain.request.model:gpt-3.5-turbo",
+        "langchain.request.openai.api_key:...key>",
+        "error:0",
+    ]
+    mock_metrics.assert_has_calls(
+        [
+            mock.call.distribution(
+                "tokens.prompt",
+                21,
+                tags=expected_tags,
+            ),
+            mock.call.distribution(
+                "tokens.completion",
+                59,
+                tags=expected_tags,
+            ),
+            mock.call.distribution(
+                "tokens.total",
+                80,
+                tags=expected_tags,
+            ),
+            mock.call.increment(
+                "tokens.total_cost",
+                0.0001495,
+                tags=expected_tags,
+            ),
+            mock.call.distribution(
+                "request.duration",
+                mock.ANY,
+                tags=expected_tags,
+            ),
+        ],
+        any_order=True,
+    )
+    mock_logs.assert_not_called()
+
+
+
 @pytest.mark.snapshot
 def test_openai_embedding_query(langchain, request_vcr):
     embeddings = langchain.embeddings.OpenAIEmbeddings()
@@ -337,6 +440,33 @@ def test_fake_embedding_query(langchain):
 def test_fake_embedding_document(langchain):
     embeddings = langchain.embeddings.FakeEmbeddings(size=99)
     embeddings.embed_documents(["foo", "bar"])
+
+
+@pytest.mark.snapshot(token="tests.contrib.langchain.test_langchain.test_openai_embedding_query")
+def test_openai_embedding_metrics(langchain, request_vcr, mock_metrics, mock_logs, snapshot_tracer):
+    embeddings = langchain.embeddings.OpenAIEmbeddings()
+    with request_vcr.use_cassette("openai_embedding_query.yaml"):
+        embeddings.embed_query("this is a test query.")
+    expected_tags = [
+        "version:",
+        "env:",
+        "service:",
+        "langchain.request.provider:openai",
+        "langchain.request.model:text-embedding-ada-002",
+        "langchain.request.openai.api_key:...key>",
+        "error:0",
+    ]
+    mock_metrics.assert_has_calls(
+        [
+            mock.call.distribution(
+                "request.duration",
+                mock.ANY,
+                tags=expected_tags,
+            ),
+        ],
+        any_order=True,
+    )
+    mock_logs.assert_not_called()
 
 
 @pytest.mark.snapshot(token="tests.contrib.langchain.test_langchain.test_openai_math_chain")
@@ -503,6 +633,53 @@ async def test_openai_sequential_chain_with_multiple_llm_async(langchain, reques
         await sequential_chain.acall({"input_text": input_text})
 
 
+@pytest.mark.snapshot(token="tests.contrib.langchain.test_langchain.test_openai_math_chain")
+def test_openai_chain_metrics(langchain, request_vcr, mock_metrics, mock_logs, snapshot_tracer):
+    chain = langchain.chains.LLMMathChain(llm=langchain.llms.OpenAI(temperature=0))
+    with request_vcr.use_cassette("openai_math_chain_sync.yaml"):
+        chain.run("what is two raised to the fifty-fourth power?")
+    expected_tags = [
+        "version:",
+        "env:",
+        "service:",
+        "langchain.request.provider:openai",
+        "langchain.request.model:text-davinci-003",
+        "langchain.request.openai.api_key:...key>",
+        "error:0",
+    ]
+    mock_metrics.assert_has_calls(
+        [
+            mock.call.distribution(
+                "tokens.prompt",
+                236,
+                tags=expected_tags,
+            ),
+            mock.call.distribution(
+                "tokens.completion",
+                24,
+                tags=expected_tags,
+            ),
+            mock.call.distribution(
+                "tokens.total",
+                260,
+                tags=expected_tags,
+            ),
+            mock.call.increment(
+                "tokens.total_cost",
+                0.005200000000000001,
+                tags=expected_tags,
+            ),
+            mock.call.distribution(
+                "request.duration",
+                mock.ANY,
+                tags=expected_tags,
+            ),
+        ],
+        any_order=True,
+    )
+    mock_logs.assert_not_called()
+
+
 @pytest.mark.snapshot
 def test_pinecone_vectorstore_similarity_search(langchain, request_vcr):
     """
@@ -548,6 +725,43 @@ def test_pinecone_vectorstore_retrieval_chain(langchain, request_vcr):
             llm=llm, chain_type="stuff", retriever=vectorstore.as_retriever()
         )
         qa_with_sources("Who was Alan Turing?")
+
+
+@pytest.mark.snapshot(token="tests.contrib.langchain.test_langchain.test_pinecone_vectorstore_similarity_search")
+def test_vectorstore_similarity_search_metrics(langchain, request_vcr, mock_metrics, mock_logs, snapshot_tracer):
+    import pinecone
+
+    with request_vcr.use_cassette("openai_pinecone_similarity_search.yaml"):
+        pinecone.init(
+            api_key=os.getenv("PINECONE_API_KEY", "<not-a-real-key>"),
+            environment=os.getenv("PINECONE_ENV", "<not-a-real-env>"),
+        )
+        embed = langchain.embeddings.OpenAIEmbeddings(
+            model="text-embedding-ada-002", openai_api_key=os.getenv("OPENAI_API_KEY", "<not-a-real-key>")
+        )
+        index = pinecone.Index(index_name="langchain-retrieval")
+        vectorstore = langchain.vectorstores.Pinecone(index, embed.embed_query, "text")
+        vectorstore.similarity_search("Who was Alan Turing?", 1)
+    expected_tags = [
+        "version:",
+        "env:",
+        "service:",
+        "langchain.request.provider:pinecone",
+        "langchain.request.model:",
+        "langchain.request.pinecone.api_key:...key>",
+        "error:0",
+    ]
+    mock_metrics.assert_has_calls(
+        [
+            mock.call.distribution(
+                "request.duration",
+                mock.ANY,
+                tags=expected_tags,
+            ),
+        ],
+        any_order=True,
+    )
+    mock_logs.assert_not_called()
 
 
 @pytest.mark.integrationTest

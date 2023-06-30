@@ -86,11 +86,13 @@ class _LangChainIntegration(BaseLLMIntegration):
         if not usage or not self._config.metrics_enabled:
             return
         for token_type in ("prompt", "completion", "total"):
-            num_tokens = usage.get(token_type + "_tokens")
+            num_tokens = usage.get("token_usage", {}).get(token_type + "_tokens")
             if not num_tokens:
                 continue
             self.metric(span, "dist", "tokens.%s" % token_type, num_tokens)
-
+        total_cost = span.get_metric("langchain.tokens.total_cost")
+        if total_cost:
+            self.metric(span, "incr", "tokens.total_cost", total_cost)
 
 def _extract_model_name(instance):
     """Extract model name or ID from llm instance."""
