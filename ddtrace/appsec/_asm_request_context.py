@@ -44,7 +44,6 @@ class ASM_Environment:
     def __init__(self, active=False):  # type: (bool) -> None
         self.active = active
         self.span = None
-        self.span_asm_context = None  # type: None | contextlib.AbstractContextManager
         self.waf_addresses = {}  # type: dict[str, Any]
         self.callbacks = {}  # type: dict[str, Any]
         self.telemetry = {}  # type: dict[str, Any]
@@ -81,20 +80,17 @@ def is_blocked():  # type: () -> bool
         return False
 
 
-def register(span, span_asm_context=None):
+def register(span):
     env = _get_asm_context()
     if not env.active:
         log.debug("registering a span with no active asm context")
         return
     env.span = span
-    env.span_asm_context = span_asm_context
 
 
 def unregister(span):
     env = _get_asm_context()
-    if env.span_asm_context is not None and env.span is span:
-        env.span_asm_context.__exit__(None, None, None)
-    elif env.span is span:
+    if env.span is span:
         # needed for api security flushing information before end of the span
         for function in GLOBAL_CALLBACKS.get(_CONTEXT_CALL, []):
             function(env)
