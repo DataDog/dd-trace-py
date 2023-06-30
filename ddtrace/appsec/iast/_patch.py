@@ -138,7 +138,7 @@ def if_iast_taint_returned_object_for(origin, wrapped, instance, args, kwargs):
 
     if _is_iast_enabled():
         try:
-            from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
+            # from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
             from ddtrace.appsec.iast._taint_tracking import taint_pyobject
 
             # if not is_pyobject_tainted(value):

@@ -93,7 +93,7 @@ class Initializer
         return allocate_tainted_object_copy(from->ranges_);
     }
 
-    //void release_tainted_object(TaintedObjectPtr tobj);
+    // void release_tainted_object(TaintedObjectPtr tobj);
 
     // FIXME: these should be static functions of TaintRange
     // IMPORTANT: if the returned object is not assigned to the map, you have
