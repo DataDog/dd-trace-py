@@ -315,23 +315,34 @@ jobs:
           steps:
             - run: echo "No coverage data collected. Set run workflow manually with pipeline parameter 'coverage=true'."
 
-
-  build_base_venvs:
+  build_wheel:
     resource_class: large
+    parameters:
+      cibw_version:
+        type: string
+      python_version:
+        type: string
     docker:
-      - image: *ddtrace_dev_image
-    parallelism: 8
+      - image: cimg/python:3.9
+    environment:
+      - CIBW_PROJECT_REQUIRES_PYTHON: "~=<< parameters.python_version >>.0"
+      - CIBW_ARCHS_LINUX: "native"
+      - CIBW_BUILD: "cp*"
+      - CIBW_SKIP: "*-musllinux*"
+      - CIBW_PRERELEASE_PYTHONS: "True"
     steps:
       - checkout
-      - setup_riot
+      - setup_remote_docker
       - run:
-          name: "Generate base virtual environments."
-          # DEV: riot list -i tracer lists all supported Python versions
-          command: "riot list -i tracer | circleci tests split | xargs -I PY riot -v generate --python=PY"
+          name: Build the Linux wheels.
+          command: |
+            pip3 install --user cibuildwheel==<< parameters.cibw_version >>
+            cibuildwheel --output-dir wheelhouse
+      - store_artifacts:
+          path: ./wheelhouse
       - persist_to_workspace:
           root: .
-          paths:
-            - "."
+          paths: ./wheelhouse
 
   appsec:
     <<: *machine_executor
@@ -1089,11 +1100,10 @@ requires_pre_check: &requires_pre_check
     - pre_check
     - ccheck
 
-requires_base_venvs: &requires_base_venvs
+requires_build_wheels: &requires_build_wheels
   requires:
-    - pre_check
-    - ccheck
-    - build_base_venvs
+    - build_wheels
+    - build_wheels_py35
 
 requires_tests: &requires_tests
   requires:
@@ -1189,97 +1199,104 @@ workflows:
       # Pre-checking before running all jobs
       - pre_check
       - ccheck
-
-      # Build necessary base venvs for integration tests
-      - build_base_venvs
-
-      # Docs
+      - build_wheel:
+          cibw_version: "2.13.1"
+          matrix:
+            alias: build_wheels
+            parameters:
+              python_version: ["3.6", "3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
+      # TODO: Remove this once we drop support for older versions of Python
+      - build_wheel:
+          cibw_version: "1.12.0"
+          matrix:
+            alias: build_wheels_py35
+            parameters:
+              python_version: ["2.7", "3.5"]
       - build_docs: *requires_pre_check
-
       # Integration test suites
-      - aiobotocore: *requires_base_venvs
-      - aiohttp: *requires_base_venvs
-      - aiomysql: *requires_base_venvs
-      - aiopg: *requires_base_venvs
-      - aioredis: *requires_base_venvs
-      - asyncpg: *requires_base_venvs
-      - algoliasearch: *requires_base_venvs
-      - asgi: *requires_base_venvs
-      - aws_lambda: *requires_base_venvs
-      - benchmarks: *requires_base_venvs
-      - boto: *requires_base_venvs
-      - bottle: *requires_base_venvs
-      - cassandra: *requires_base_venvs
-      - celery: *requires_base_venvs
-      - cherrypy: *requires_base_venvs
-      - ci_visibility: *requires_base_venvs
-      - consul: *requires_base_venvs
-      - ddtracerun: *requires_base_venvs
-      - django: *requires_base_venvs
-      - django_hosts: *requires_base_venvs
-      - djangorestframework: *requires_base_venvs
-      - dogpile_cache: *requires_base_venvs
-      - elasticsearch: *requires_base_venvs
-      - falcon: *requires_base_venvs
-      - fastapi: *requires_base_venvs
-      - flask: *requires_base_venvs
-      - gevent: *requires_base_venvs
-      - graphene: *requires_base_venvs
-      - graphql: *requires_base_venvs
-      - grpc: *requires_base_venvs
-      - gunicorn: *requires_base_venvs
-      - httplib: *requires_base_venvs
-      - httpx: *requires_base_venvs
-      - integration_agent: *requires_base_venvs
-      - integration_testagent: *requires_base_venvs
-      - internal: *requires_base_venvs
-      - vendor: *requires_base_venvs
-      - profile: *requires_base_venvs
-      - jinja2: *requires_base_venvs
-      - kafka: *requires_base_venvs
-      - kombu: *requires_base_venvs
-      - mako: *requires_base_venvs
-      - mariadb: *requires_base_venvs
-      - molten: *requires_base_venvs
-      - mongoengine: *requires_base_venvs
-      - mysqlconnector: *requires_base_venvs
-      - mysqlpython: *requires_base_venvs
-      - openai: *requires_base_venvs
-      - opentracer: *requires_base_venvs
-      - opentelemetry: *requires_base_venvs
-      - psycopg: *requires_base_venvs
-      - psycopg2: *requires_base_venvs
-      - pylibmc: *requires_base_venvs
-      - pylons: *requires_base_venvs
-      - pymemcache: *requires_base_venvs
-      - pymongo: *requires_base_venvs
-      - pymysql: *requires_base_venvs
-      - pynamodb: *requires_base_venvs
-      - pyodbc: *requires_base_venvs
-      - pyramid: *requires_base_venvs
-      - pytest: *requires_base_venvs
-      - asynctest: *requires_base_venvs
-      - pytestbdd: *requires_base_venvs
-      - aredis: *requires_base_venvs
-      - yaaredis: *requires_base_venvs
-      - redis: *requires_base_venvs
-      - rediscluster: *requires_base_venvs
-      - requests: *requires_base_venvs
-      - rq: *requires_base_venvs
-      - sanic: *requires_base_venvs
-      - snowflake: *requires_base_venvs
-      - starlette: *requires_base_venvs
-      - stdlib: *requires_base_venvs
-      - sqlalchemy: *requires_base_venvs
-      - sourcecode: *requires_base_venvs
-      - test_logging: *requires_base_venvs
-      - tornado: *requires_base_venvs
-      - tracer: *requires_base_venvs
-      - telemetry: *requires_base_venvs
-      - debugger: *requires_base_venvs
-      - appsec: *requires_base_venvs
-      - urllib3: *requires_base_venvs
-      - vertica: *requires_base_venvs
-      - wsgi: *requires_base_venvs
-      # Final reports
+      - aiobotocore: *requires_build_wheels
+      - aiohttp: *requires_build_wheels
+      - aiomysql: *requires_build_wheels
+      - aiopg: *requires_build_wheels
+      - aioredis: *requires_build_wheels
+      - asyncpg: *requires_build_wheels
+      - algoliasearch: *requires_build_wheels
+      - asgi: *requires_build_wheels
+      - aws_lambda: *requires_build_wheels
+      - benchmarks: *requires_build_wheels
+      - boto: *requires_build_wheels
+      - bottle: *requires_build_wheels
+      - cassandra: *requires_build_wheels
+      - celery: *requires_build_wheels
+      - cherrypy: *requires_build_wheels
+      - ci_visibility: *requires_build_wheels
+      - consul: *requires_build_wheels
+      - ddtracerun: *requires_build_wheels
+      - django: *requires_build_wheels
+      - django_hosts: *requires_build_wheels
+      - djangorestframework: *requires_build_wheels
+      - dogpile_cache: *requires_build_wheels
+      - elasticsearch: *requires_build_wheels
+      - falcon: *requires_build_wheels
+      - fastapi: *requires_build_wheels
+      - flask: *requires_build_wheels
+      - gevent: *requires_build_wheels
+      - graphene: *requires_build_wheels
+      - graphql: *requires_build_wheels
+      - grpc: *requires_build_wheels
+      - gunicorn: *requires_build_wheels
+      - httplib: *requires_build_wheels
+      - httpx: *requires_build_wheels
+      - integration_agent: *requires_build_wheels
+      - integration_testagent: *requires_build_wheels
+      - internal: *requires_build_wheels
+      - vendor: *requires_build_wheels
+      - profile: *requires_build_wheels
+      - jinja2: *requires_build_wheels
+      - kafka: *requires_build_wheels
+      - kombu: *requires_build_wheels
+      - mako: *requires_build_wheels
+      - mariadb: *requires_build_wheels
+      - molten: *requires_build_wheels
+      - mongoengine: *requires_build_wheels
+      - mysqlconnector: *requires_build_wheels
+      - mysqlpython: *requires_build_wheels
+      - openai: *requires_build_wheels
+      - opentracer: *requires_build_wheels
+      - opentelemetry: *requires_build_wheels
+      - psycopg: *requires_build_wheels
+      - psycopg2: *requires_build_wheels
+      - pylibmc: *requires_build_wheels
+      - pylons: *requires_build_wheels
+      - pymemcache: *requires_build_wheels
+      - pymongo: *requires_build_wheels
+      - pymysql: *requires_build_wheels
+      - pynamodb: *requires_build_wheels
+      - pyodbc: *requires_build_wheels
+      - pyramid: *requires_build_wheels
+      - pytest: *requires_build_wheels
+      - asynctest: *requires_build_wheels
+      - pytestbdd: *requires_build_wheels
+      - aredis: *requires_build_wheels
+      - yaaredis: *requires_build_wheels
+      - redis: *requires_build_wheels
+      - rediscluster: *requires_build_wheels
+      - requests: *requires_build_wheels
+      - rq: *requires_build_wheels
+      - sanic: *requires_build_wheels
+      - snowflake: *requires_build_wheels
+      - starlette: *requires_build_wheels
+      - stdlib: *requires_build_wheels
+      - sqlalchemy: *requires_build_wheels
+      - sourcecode: *requires_build_wheels
+      - test_logging: *requires_build_wheels
+      - tornado: *requires_build_wheels
+      - tracer: *requires_build_wheels
+      - telemetry: *requires_build_wheels
+      - debugger: *requires_build_wheels
+      - appsec: *requires_build_wheels
+      - urllib3: *requires_build_wheels
+      - vertica: *requires_build_wheels
+      - wsgi: *requires_build_wheels
+      # # Final reports
       - coverage_report: *requires_tests
