@@ -7,10 +7,6 @@ from ddtrace.internal.service import ServiceStatus
 from ddtrace.runtime import RuntimeMetrics
 from tests.utils import DummyTracer
 
-# Import helpful telemetry fixtures
-from ..telemetry.conftest import telemetry_lifecycle_writer  # noqa
-from ..telemetry.conftest import test_agent_session  # noqa
-
 
 def test_runtime_metrics_api():
     RuntimeMetrics.enable()
