@@ -62,6 +62,10 @@ class VulnerabilityBase(Operation):
         TODO: check deduplications if DD_IAST_DEDUPLICATION_ENABLED is true
         """
         if cls.acquire_quota():
+            if not tracer or not hasattr(tracer, "current_root_span"):
+                log.debug("Not tracer or tracer has no root span")
+                return None
+
             span = tracer.current_root_span()
             if not span:
                 log.debug("No root span in the current execution. Skipping IAST taint sink.")
@@ -81,6 +85,7 @@ class VulnerabilityBase(Operation):
                     evidence = Evidence(valueParts=evidence_value)
                 else:
                     log.debug("Unexpected evidence_value type: %s", type(evidence_value))
+                    evidence = ""
 
                 if cls.is_not_reported(file_name, line_number):
 
