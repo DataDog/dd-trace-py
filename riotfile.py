@@ -339,6 +339,7 @@ venv = Venv(
                     env={
                         "AGENT_VERSION": "latest",
                     },
+                    command="pytest --ddtrace --no-cov {cmdargs} tests/integration/",
                     venvs=[
                         Venv(pys=select_pys(max_version="3.5")),
                         Venv(
@@ -404,7 +405,7 @@ venv = Venv(
         ),
         Venv(
             name="internal",
-            command="pytest {cmdargs} tests/internal/",
+            command="pytest --ddtrace {cmdargs} tests/internal/",
             pkgs={
                 "httpretty": "==0.9.7",
                 "gevent": latest,
@@ -505,7 +506,7 @@ venv = Venv(
         ),
         Venv(
             name="ddtracerun",
-            command="pytest {cmdargs} --no-cov tests/commands/test_runner.py",
+            command="pytest --ddtrace {cmdargs} --no-cov tests/commands/test_runner.py",
             venvs=[
                 Venv(
                     pys=select_pys(),
@@ -518,7 +519,7 @@ venv = Venv(
         ),
         Venv(
             name="debugger",
-            command="pytest {cmdargs} tests/debugging/",
+            command="pytest --ddtrace {cmdargs} tests/debugging/",
             pkgs={
                 "msgpack": latest,
                 "httpretty": "==0.9.7",
@@ -541,7 +542,7 @@ venv = Venv(
         ),
         Venv(
             name="vertica",
-            command="pytest {cmdargs} tests/contrib/vertica/",
+            command="pytest --ddtrace {cmdargs} tests/contrib/vertica/",
             pys=select_pys(max_version="3.9"),
             pkgs={
                 "vertica-python": [">=0.6.0,<0.7.0", ">=0.7.0,<0.8.0"],
@@ -585,7 +586,7 @@ venv = Venv(
         ),
         Venv(
             name="httplib",
-            command="pytest {cmdargs} tests/contrib/httplib",
+            command="pytest --ddtrace {cmdargs} tests/contrib/httplib",
             pys=select_pys(),
         ),
         Venv(
@@ -595,7 +596,7 @@ venv = Venv(
         ),
         Venv(
             name="falcon",
-            command="pytest {cmdargs} tests/contrib/falcon",
+            command="pytest --ddtrace {cmdargs} tests/contrib/falcon",
             venvs=[
                 # FIXME: tests fail on Python 2.7 with falcon 2.0
                 # Venv(
@@ -642,7 +643,7 @@ venv = Venv(
         ),
         Venv(
             name="celery",
-            command="pytest {cmdargs} tests/contrib/celery",
+            command="pytest --ddtrace {cmdargs} tests/contrib/celery",
             pkgs={"more_itertools": "<8.11.0"},
             venvs=[
                 # Celery 4.3 wants Kombu >= 4.4 and Redis >= 3.2
@@ -741,7 +742,7 @@ venv = Venv(
         ),
         Venv(
             name="pylons",
-            command="python -m pytest {cmdargs} tests/contrib/pylons",
+            command="python -m pytest --ddtrace {cmdargs} tests/contrib/pylons",
             venvs=[
                 Venv(
                     pys="2.7",
@@ -1224,13 +1225,13 @@ venv = Venv(
         ),
         Venv(
             name="mako",
-            command="pytest {cmdargs} tests/contrib/mako",
+            command="pytest --ddtrace {cmdargs} tests/contrib/mako",
             pys=select_pys(),
             pkgs={"mako": ["~=1.1.0", latest]},
         ),
         Venv(
             name="mysql",
-            command="pytest {cmdargs} tests/contrib/mysql",
+            command="pytest --ddtrace {cmdargs} tests/contrib/mysql",
             venvs=[
                 Venv(
                     # mysql-connector-python dropped support for Python 2.7/3.5 in 8.0.24
@@ -1419,7 +1420,7 @@ venv = Venv(
         ),
         Venv(
             name="requests",
-            command="pytest {cmdargs} tests/contrib/requests",
+            command="pytest --ddtrace {cmdargs} tests/contrib/requests",
             venvs=[
                 Venv(
                     # requests dropped support for Python 2.7 in 2.28
@@ -1485,7 +1486,7 @@ venv = Venv(
         ),
         Venv(
             name="boto",
-            command="pytest {cmdargs} tests/contrib/boto",
+            command="pytest --ddtrace {cmdargs} tests/contrib/boto",
             venvs=[Venv(pys=select_pys(max_version="3.6"), pkgs={"boto": latest, "moto": "<1.0.0"})],
         ),
         Venv(
@@ -1537,7 +1538,7 @@ venv = Venv(
         ),
         Venv(
             name="mongoengine",
-            command="pytest {cmdargs} tests/contrib/mongoengine",
+            command="pytest --ddtrace {cmdargs} tests/contrib/mongoengine",
             pkgs={
                 "pymongo": latest,
             },
@@ -1571,7 +1572,7 @@ venv = Venv(
                 "asgiref": ["~=3.0.0", "~=3.0", latest],
             },
             pys=select_pys(min_version="3.6"),
-            command="pytest {cmdargs} tests/contrib/asgi",
+            command="pytest --ddtrace {cmdargs} tests/contrib/asgi",
         ),
         Venv(
             name="mariadb",
@@ -1592,7 +1593,7 @@ venv = Venv(
         ),
         Venv(
             name="pymysql",
-            command="pytest {cmdargs} tests/contrib/pymysql",
+            command="pytest --ddtrace {cmdargs} tests/contrib/pymysql",
             venvs=[
                 Venv(
                     # pymysql dropped support for Python 2.7/3.5 in 1.0
@@ -1659,7 +1660,7 @@ venv = Venv(
         ),
         Venv(
             name="aiobotocore",
-            command="pytest {cmdargs} tests/contrib/aiobotocore",
+            command="pytest --ddtrace {cmdargs} tests/contrib/aiobotocore",
             pkgs={"pytest-asyncio": latest, "async_generator": ["~=1.10"]},
             venvs=[
                 # async_generator 1.10 used because @asynccontextmanager was only available in Python 3.6+
@@ -1769,7 +1770,7 @@ venv = Venv(
         ),
         Venv(
             name="asynctest",
-            command="pytest {cmdargs} tests/contrib/asynctest/",
+            command="pytest --ddtrace {cmdargs} tests/contrib/asynctest/",
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.5", max_version="3.9"),
@@ -2027,11 +2028,11 @@ venv = Venv(
             name="cassandra",
             pys=select_pys(max_version="3.8"),
             pkgs={"cassandra-driver": ["~=3.24.0", latest]},
-            command="pytest {cmdargs} tests/contrib/cassandra",
+            command="pytest --ddtrace {cmdargs} tests/contrib/cassandra",
         ),
         Venv(
             name="algoliasearch",
-            command="pytest {cmdargs} tests/contrib/algoliasearch",
+            command="pytest --ddtrace {cmdargs} tests/contrib/algoliasearch",
             venvs=[
                 Venv(
                     # algoliasearch dropped support for Python 2.7 in 3.0
@@ -2190,7 +2191,7 @@ venv = Venv(
                     },
                 ),
             ],
-            command="pytest {cmdargs} tests/contrib/jinja2",
+            command="pytest --ddtrace {cmdargs} tests/contrib/jinja2",
         ),
         Venv(
             name="rediscluster",
@@ -2418,7 +2419,7 @@ venv = Venv(
         ),
         Venv(
             name="asyncio",
-            command="pytest {cmdargs} tests/contrib/asyncio",
+            command="pytest --ddtrace {cmdargs} tests/contrib/asyncio",
             pys=select_pys(min_version="3.5"),
             pkgs={
                 "pytest-asyncio": latest,
@@ -2426,7 +2427,7 @@ venv = Venv(
         ),
         Venv(
             name="futures",
-            command="pytest {cmdargs} tests/contrib/futures",
+            command="pytest --ddtrace {cmdargs} tests/contrib/futures",
             pkgs={"gevent": latest},
             venvs=[
                 # futures is backported for 2.7
@@ -2438,7 +2439,7 @@ venv = Venv(
         ),
         Venv(
             name="sqlite3",
-            command="pytest {cmdargs} tests/contrib/sqlite3",
+            command="pytest --ddtrace {cmdargs} tests/contrib/sqlite3",
             venvs=[
                 Venv(
                     pys=["2.7", "3.5", "3.6", "3.8", "3.9", "3.10", "3.11"],
@@ -2448,7 +2449,7 @@ venv = Venv(
         ),
         Venv(
             name="dbapi",
-            command="pytest {cmdargs} tests/contrib/dbapi",
+            command="pytest --ddtrace {cmdargs} tests/contrib/dbapi",
             pys=select_pys(),
             env={
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
@@ -2456,7 +2457,7 @@ venv = Venv(
         ),
         Venv(
             name="dbapi_async",
-            command="pytest {cmdargs} tests/contrib/dbapi_async",
+            command="pytest --ddtrace {cmdargs} tests/contrib/dbapi_async",
             pys=select_pys(min_version="3.6"),
             env={
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
@@ -2509,7 +2510,7 @@ venv = Venv(
         Venv(
             name="consul",
             pys=select_pys(),
-            command="pytest {cmdargs} tests/contrib/consul",
+            command="pytest --ddtrace {cmdargs} tests/contrib/consul",
             pkgs={
                 "python-consul": [
                     ">=1.1,<1.2",
@@ -2627,7 +2628,7 @@ venv = Venv(
         ),
         Venv(
             name="pyodbc",
-            command="pytest {cmdargs} tests/contrib/pyodbc",
+            command="pytest --ddtrace {cmdargs} tests/contrib/pyodbc",
             venvs=[
                 Venv(
                     pys=select_pys(max_version="3.8"),
@@ -2713,7 +2714,7 @@ venv = Venv(
         ),
         Venv(
             name="tornado",
-            command="python -m pytest {cmdargs} tests/contrib/tornado",
+            command="python -m pytest --ddtrace {cmdargs} tests/contrib/tornado",
             venvs=[
                 Venv(
                     # tornado dropped support for Python 2.7 in 6.0
@@ -2771,7 +2772,7 @@ venv = Venv(
         ),
         Venv(
             name="molten",
-            command="pytest {cmdargs} tests/contrib/molten",
+            command="pytest --ddtrace {cmdargs} tests/contrib/molten",
             pys=select_pys(min_version="3.6"),
             pkgs={
                 "cattrs": ["<23.1.1"],
@@ -2829,7 +2830,7 @@ venv = Venv(
         ),
         Venv(
             name="sourcecode",
-            command="pytest {cmdargs} tests/sourcecode",
+            command="pytest --ddtrace {cmdargs} tests/sourcecode",
             pys=select_pys(),
             pkgs={
                 "setuptools": ["<=67.6.0"],
