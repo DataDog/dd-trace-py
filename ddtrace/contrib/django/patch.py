@@ -42,6 +42,7 @@ from ddtrace.vendor.wrapt.importer import when_imported
 
 from .. import trace_utils
 from ...appsec._constants import WAF_CONTEXT_NAMES
+from ...appsec.iast._metrics import _set_metric_iast_instrumented_source
 from ...internal.utils import get_argument_value
 from ..trace_utils import _get_request_header_user_agent
 from ..trace_utils import _set_url_tag
@@ -322,6 +323,13 @@ def traced_func(django, name, resource=None, ignored_excs=None):
 
             return func(*args, **kwargs)
 
+    if _is_iast_enabled():
+        from ddtrace.appsec.iast._taint_tracking import OriginType  # noqa: F401
+
+        _set_metric_iast_instrumented_source(OriginType.PATH_PARAMETER)
+        _set_metric_iast_instrumented_source(OriginType.PATH)
+        _set_metric_iast_instrumented_source(OriginType.COOKIE)
+        _set_metric_iast_instrumented_source(OriginType.COOKIE_NAME)
     return trace_utils.with_traced_module(wrapped)(django)
 
 
