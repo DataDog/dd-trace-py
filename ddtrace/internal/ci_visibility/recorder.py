@@ -7,7 +7,6 @@ from typing import Optional
 from typing import Tuple
 from uuid import uuid4
 
-import ddtrace
 from ddtrace import Tracer
 from ddtrace import config as ddconfig
 from ddtrace.contrib import trace_utils
@@ -81,7 +80,11 @@ class CIVisibility(Service):
         # type: (Optional[Tracer], Optional[IntegrationConfig], Optional[str]) -> None
         super(CIVisibility, self).__init__()
 
-        self.tracer = tracer or ddtrace.tracer
+        if tracer:
+            self.tracer = tracer
+        else:
+            # Use a new tracer
+            self.tracer = Tracer()
         self._app_key = os.getenv("DD_APP_KEY", os.getenv("DD_APPLICATION_KEY", os.getenv("DATADOG_APPLICATION_KEY")))
         self._api_key = os.getenv("DD_API_KEY")
         self._dd_site = os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE)
