@@ -3,6 +3,7 @@
 from typing import TYPE_CHECKING
 
 from ddtrace.appsec.iast import oce
+from ddtrace.appsec.iast._metrics import _set_metric_iast_executed_source
 from ddtrace.appsec.iast._taint_dict import get_taint_dict
 from ddtrace.appsec.iast._taint_tracking._native import new_pyobject_id
 from ddtrace.appsec.iast._taint_tracking._native import setup  # noqa: F401
@@ -52,6 +53,7 @@ def taint_pyobject(pyobject, input_info):  # type: (Any, Input_info) -> Any
     pyobject = new_pyobject_id(pyobject, len_pyobject)
     taint_dict = get_taint_dict()
     taint_dict[id(pyobject)] = ((input_info, 0, len_pyobject),)
+    _set_metric_iast_executed_source(input_info.origin)
     return pyobject
 
 
