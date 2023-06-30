@@ -79,16 +79,8 @@ def is_blocked():  # type: () -> bool
         return False
 
 
-def register(span):
+def finalize():
     env = _get_asm_context()
-    if not env.active:
-        log.debug("registering a span with no active asm context")
-        return
-
-
-def unregister(span):
-    env = _get_asm_context()
-    # needed for api security flushing information before end of the span
     for function in GLOBAL_CALLBACKS.get(_CONTEXT_CALL, []):
         function(env)
 
@@ -148,7 +140,7 @@ def set_body_response(body_response):
         set_waf_address(SPAN_DATA_NAMES.RESPONSE_BODY, parsed_body)
 
 
-def set_waf_address(address, value, span=None):  # type: (str, Any, Any) -> None
+def set_waf_address(address, value):  # type: (str, Any, Any) -> None
     if address == SPAN_DATA_NAMES.REQUEST_URI_RAW:
         parse_address = parse.urlparse(value)
         no_scheme = parse.ParseResult("", "", *parse_address[2:])

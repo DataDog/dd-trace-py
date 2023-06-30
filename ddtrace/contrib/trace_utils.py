@@ -537,7 +537,7 @@ def set_http_meta(
             if v is not None
         }
         for k, v in addresses.items():
-            set_waf_address(k, v, span)
+            set_waf_address(k, v)
 
     if route is not None:
         span.set_tag_str(http.ROUTE, route)

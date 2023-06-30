@@ -220,7 +220,6 @@ class AppSecSpanProcessor(SpanProcessor):
 
         if not _asm_request_context.free_context_available():
             _asm_request_context._on_context_started()
-        _asm_request_context.register(span)
 
         ctx = self._ddwaf._at_request_start()
 
@@ -237,16 +236,16 @@ class AppSecSpanProcessor(SpanProcessor):
         _asm_request_context.set_waf_callback(waf_callable)
         _asm_request_context.add_context_callback(_set_waf_request_metrics)
         if headers is not None:
-            _asm_request_context.set_waf_address(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, headers, span)
+            _asm_request_context.set_waf_address(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, headers)
             _asm_request_context.set_waf_address(
-                SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES_CASE, headers_case_sensitive, span
+                SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES_CASE, headers_case_sensitive
             )
             if not peer_ip:
                 return
 
             ip = trace_utils._get_request_header_client_ip(headers, peer_ip, headers_case_sensitive)
             # Save the IP and headers in the context so the retrieval can be skipped later
-            _asm_request_context.set_waf_address(SPAN_DATA_NAMES.REQUEST_HTTP_IP, ip, span)
+            _asm_request_context.set_waf_address(SPAN_DATA_NAMES.REQUEST_HTTP_IP, ip)
             if ip and self._is_needed(WAF_DATA_NAMES.REQUEST_HTTP_IP):
                 log.debug("[DDAS-001-00] Executing ASM WAF for checking IP block")
                 # _asm_request_context.call_callback()
@@ -393,5 +392,4 @@ class AppSecSpanProcessor(SpanProcessor):
 
                 self._ddwaf._at_request_end()
         finally:
-            # release asm context if it was created by the span
-            _asm_request_context.unregister(span)
+            _asm_request_context.finalize()
