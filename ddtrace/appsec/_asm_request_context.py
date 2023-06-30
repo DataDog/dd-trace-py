@@ -319,14 +319,11 @@ def asm_request_context_manager(
     The ASM context manager
     """
     if config._appsec_enabled:
-        resources = _DataHandler()
-        asm_request_context_set(remote_ip, headers, headers_case_sensitive, block_request_callable)
-        core.on("wsgi.block_decided", _on_block_decided)
-        core.on("wsgi._make_block_content", _on_make_block_content)
+        _on_context_started()
         try:
-            yield resources
+            yield RESOURCES
         finally:
-            resources.finalise()
+            _on_context_ended()
     else:
         yield None
 
@@ -343,9 +340,11 @@ def _on_block_decided(callback):
 RESOURCES = None
 
 
-def _on_context_started(context):
+def _on_context_started(context=None):
     global RESOURCES
     RESOURCES = _DataHandler()
+    if context is None:
+        context = core._CURRENT_CONTEXT.get()
     asm_request_context_set(
         context.get_item("remote_addr"),
         context.get_item("headers"),
@@ -356,7 +355,7 @@ def _on_context_started(context):
     core.on("wsgi._make_block_content", _on_make_block_content)
 
 
-def _on_context_ended(context):
+def _on_context_ended(context=None):
     RESOURCES.finalise()
 
 
