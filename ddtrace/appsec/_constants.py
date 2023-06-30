@@ -68,6 +68,8 @@ class IAST(object):
     """Specific constants for IAST"""
 
     ENV = "DD_IAST_ENABLED"
+    ENV_DEBUG = "_DD_IAST_DEBUG"
+    TELEMETRY_REPORT_LVL = "DD_IAST_TELEMETRY_VERBOSITY"
     JSON = "_dd.iast.json"
     ENABLED = "_dd.iast.enabled"
     CONTEXT_KEY = "_iast_data"
