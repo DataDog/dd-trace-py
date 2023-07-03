@@ -2,6 +2,7 @@
 from typing import TYPE_CHECKING
 
 from ddtrace.appsec.iast import oce
+from ddtrace.appsec.iast._metrics import _set_metric_iast_executed_source
 from ddtrace.appsec.iast._taint_dict import get_taint_dict
 from ddtrace.appsec.iast._taint_tracking._native import ops  # noqa: F401
 from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import OriginType  # noqa: F401
@@ -60,7 +61,8 @@ def taint_pyobject(pyobject, source_name=None, source_value=None, source_origin=
         source_origin = OriginType.PARAMETER
     source = Source(source_name, source_value, source_origin)
     taint_dict = get_taint_dict()
-    taint_dict[id(pyobject)] = ((source, start, len_pyobject),)
+    taint_dict[id(pyobject)] = ((input_info, 0, len_pyobject),)
+    _set_metric_iast_executed_source(input_info.origin)
     return pyobject
 
 

@@ -1067,6 +1067,96 @@ class PytestTestCase(TracerTestCase):
         assert test_suite_span.get_tag("test.status") == "pass"
         assert test_session_span.get_tag("test.status") == "pass"
 
+    def test_pytest_some_skipped_tests_does_not_propagate_in_testcase(self):
+        """Test that if not all tests are skipped, that status does not propagate upwards."""
+        py_file = self.testdir.makepyfile(
+            """
+            import unittest
+            import pytest
+
+            class MyTest(unittest.TestCase):
+
+                @pytest.mark.skip(reason="Because")
+                def test_not_ok_but_skipped(self):
+                    assert 0
+
+                def test_ok(self):
+                    assert True
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        rec = self.inline_run("--ddtrace", file_name)
+        rec.assertoutcome(skipped=1, passed=1)
+        spans = self.pop_spans()
+        test_span_skipped = spans[0]
+        test_span_ok = spans[1]
+        test_suite_span = spans[3]
+        test_session_span = spans[2]
+        assert test_span_skipped.get_tag("test.status") == "skip"
+        assert test_span_ok.get_tag("test.status") == "pass"
+        assert test_suite_span.get_tag("test.status") == "pass"
+        assert test_session_span.get_tag("test.status") == "pass"
+
+    def test_pytest_all_skipped_tests_does_propagate_in_testcase(self):
+        """Test that if all tests are skipped, that status is propagated upwards."""
+        py_file = self.testdir.makepyfile(
+            """
+            import unittest
+            import pytest
+
+            class MyTest(unittest.TestCase):
+
+                @pytest.mark.skip(reason="Because")
+                def test_not_ok_but_skipped(self):
+                    assert 0
+
+                @pytest.mark.skip(reason="Because")
+                def test_ok_but_skipped(self):
+                    assert True
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        rec = self.inline_run("--ddtrace", file_name)
+        rec.assertoutcome(skipped=2, passed=0)
+        spans = self.pop_spans()
+        test_span_skipped = spans[0]
+        test_span_ok = spans[1]
+        test_suite_span = spans[3]
+        test_session_span = spans[2]
+        assert test_span_skipped.get_tag("test.status") == "skip"
+        assert test_span_ok.get_tag("test.status") == "skip"
+        assert test_suite_span.get_tag("test.status") == "skip"
+        assert test_session_span.get_tag("test.status") == "skip"
+
+    def test_pytest_failed_tests_propagate_in_testcase(self):
+        """Test that if any test fails, that status is propagated upwards."""
+        py_file = self.testdir.makepyfile(
+            """
+            import unittest
+            import pytest
+
+            class MyTest(unittest.TestCase):
+
+                def test_not_ok(self):
+                    assert 0
+
+                def test_ok(self):
+                    assert True
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        rec = self.inline_run("--ddtrace", file_name)
+        rec.assertoutcome(failed=1, passed=1)
+        spans = self.pop_spans()
+        test_span_skipped = spans[0]
+        test_span_ok = spans[1]
+        test_suite_span = spans[3]
+        test_session_span = spans[2]
+        assert test_span_skipped.get_tag("test.status") == "fail"
+        assert test_span_ok.get_tag("test.status") == "pass"
+        assert test_suite_span.get_tag("test.status") == "fail"
+        assert test_session_span.get_tag("test.status") == "fail"
+
     def test_pytest_module(self):
         """Test that running pytest on a test package will generate a test module span."""
         package_a_dir = self.testdir.mkpydir("test_package_a")
@@ -1228,8 +1318,11 @@ class PytestTestCase(TracerTestCase):
         test_module_spans = [span for span in spans if span.get_tag("type") == "test_module_end"]
         assert test_module_spans[0].get_tag("test.module") == "test_outer_package"
         assert test_module_spans[0].get_tag("test.module_path") == "test_outer_package"
-        assert test_module_spans[1].get_tag("test.module") == "test_inner_package"
+        assert test_module_spans[1].get_tag("test.module") == "test_outer_package.test_inner_package"
         assert test_module_spans[1].get_tag("test.module_path") == "test_outer_package/test_inner_package"
+        test_suite_spans = [span for span in spans if span.get_tag("type") == "test_suite_end"]
+        assert test_suite_spans[0].get_tag("test.suite") == "test_outer_abc.py"
+        assert test_suite_spans[1].get_tag("test.suite") == "test_inner_abc.py"
 
     @pytest.mark.skipif(compat.PY2, reason="ddtrace does not support coverage on Python 2")
     def test_pytest_will_report_coverage(self):
