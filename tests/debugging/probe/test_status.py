@@ -4,6 +4,7 @@ import time
 
 from ddtrace.debugging._probe.status import ProbeStatusLogger
 from tests.debugging.utils import create_snapshot_line_probe
+from ddtrace.internal import runtime
 
 
 class DummyProbeStatusLogger(ProbeStatusLogger):
@@ -32,6 +33,8 @@ def test_probe_status_received():
     (entry,) = status_logger.queue
     assert entry["message"] == message
     assert entry["debugger"]["diagnostics"]["probeId"] == probe.probe_id
+    assert entry["debugger"]["diagnostics"]["probeVersion"] == probe.version
+    assert entry["debugger"]["diagnostics"]["runtimeId"] == runtime.get_runtime_id()
     assert entry["debugger"]["diagnostics"]["status"] == "RECEIVED"
 
 
@@ -40,6 +43,7 @@ def test_probe_status_installed():
 
     probe = create_snapshot_line_probe(
         probe_id="probe-instance-method",
+        version=123,
         source_file="tests/debugger/submod/stuff.py",
         line=36,
         condition=None,
@@ -51,6 +55,8 @@ def test_probe_status_installed():
     (entry,) = status_logger.queue
     assert entry["message"] == message
     assert entry["debugger"]["diagnostics"]["probeId"] == probe.probe_id
+    assert entry["debugger"]["diagnostics"]["probeVersion"] == probe.version
+    assert entry["debugger"]["diagnostics"]["runtimeId"] == runtime.get_runtime_id()
     assert entry["debugger"]["diagnostics"]["status"] == "INSTALLED"
 
 
