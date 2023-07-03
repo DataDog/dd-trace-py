@@ -111,7 +111,8 @@ def _extract_api_key(instance):
     api_key_attrs = [a for a in dir(instance) if a.endswith(("api_token", "api_key"))]
     if api_key_attrs and hasattr(instance, str(api_key_attrs[0])):
         api_key = getattr(instance, api_key_attrs[0], None)
-        return "...%s" % api_key[-4:]
+        if api_key:
+            return "...%s" % api_key[-4:]
     return ""
 
 
@@ -664,12 +665,14 @@ def patch():
     # Text embedding models override two abstract base methods instead of super calls, so we need to
     #  wrap each langchain-provided text embedding model.
     for text_embedding_model in text_embedding_models:
-        wrap("langchain", "embeddings.%s.embed_query" % text_embedding_model, traced_embedding(langchain))
-        wrap("langchain", "embeddings.%s.embed_documents" % text_embedding_model, traced_embedding(langchain))
-        # TODO: langchain >= 0.0.209 includes async embedding implementation (only for OpenAI)
+        if hasattr(langchain.embeddings, text_embedding_model):
+            wrap("langchain", "embeddings.%s.embed_query" % text_embedding_model, traced_embedding(langchain))
+            wrap("langchain", "embeddings.%s.embed_documents" % text_embedding_model, traced_embedding(langchain))
+            # TODO: langchain >= 0.0.209 includes async embedding implementation (only for OpenAI)
     # We need to do the same with Vectorstores.
     for vectorstore in vectorstores:
-        wrap("langchain", "vectorstores.%s.similarity_search" % vectorstore, traced_similarity_search(langchain))
+        if hasattr(langchain.vectorstores, vectorstore):
+            wrap("langchain", "vectorstores.%s.similarity_search" % vectorstore, traced_similarity_search(langchain))
 
 
 def unpatch():
@@ -683,9 +686,11 @@ def unpatch():
     unwrap(langchain.chains.base.Chain, "__call__")
     unwrap(langchain.chains.base.Chain, "acall")
     for text_embedding_model in text_embedding_models:
-        unwrap(getattr(langchain.embeddings, text_embedding_model), "embed_query")
-        unwrap(getattr(langchain.embeddings, text_embedding_model), "embed_documents")
+        if hasattr(langchain.embeddings, text_embedding_model):
+            unwrap(getattr(langchain.embeddings, text_embedding_model), "embed_query")
+            unwrap(getattr(langchain.embeddings, text_embedding_model), "embed_documents")
     for vectorstore in vectorstores:
-        unwrap(getattr(langchain.vectorstores, vectorstore), "similarity_search")
+        if hasattr(langchain.vectorstores, vectorstore):
+            unwrap(getattr(langchain.vectorstores, vectorstore), "similarity_search")
 
     delattr(langchain, "_datadog_integration")

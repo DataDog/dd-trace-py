@@ -114,7 +114,7 @@ def test_enable_metrics(langchain, ddtrace_config_langchain, request_vcr, mock_m
     llm = langchain.llms.OpenAI()
     with override_global_config(dict(service="test-svc", env="staging", version="1234")):
         with request_vcr.use_cassette("openai_completion_sync.yaml"):
-            llm("What does Nietzsche mean by 'God is dead'?")
+            llm("Can you explain what Descartes meant by 'I think, therefore I am'?")
     if ddtrace_config_langchain["metrics_enabled"]:
         assert mock_metrics.mock_calls
     else:
