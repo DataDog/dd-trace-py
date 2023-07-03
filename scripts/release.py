@@ -271,7 +271,6 @@ def create_notebook(dd_repo, name, rn, base, rc, patch):
             commits.append(dd_repo.get_commit(commit_hash))
         except Exception:
             print("Couldn't get commit hash %s for notebook, please add this manually" % commit_hash)
-            
 
     # get list of authors for when we make the slack announcement
     author_slack_handles = []
