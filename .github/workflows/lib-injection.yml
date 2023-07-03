@@ -33,6 +33,7 @@ jobs:
       DOCKER_REGISTRY_IMAGES_PATH: ghcr.io/datadog
       DOCKER_IMAGE_TAG: ${{ github.sha }}
       BUILDX_PLATFORMS: linux/amd64
+      MODE: manual
     steps:
       - name: lib-injection test runner
         id: lib-injection-test-runner
