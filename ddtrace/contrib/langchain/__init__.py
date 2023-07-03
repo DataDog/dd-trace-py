@@ -8,6 +8,7 @@ All metrics, logs, and traces submitted from the LangChain integration are tagge
 - ``service``, ``env``, ``version``: see the `Unified Service Tagging docs <https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging>`_.
 - ``langchain.request.provider``: LLM provider used in the request.
 - ``langchain.request.model``: LLM/Chat/Embeddings model used in the request.
+- ``langchain.request.api_key``: LLM provider API key used to make the request (obfuscated into the format ``...XXXX`` where ``XXXX`` is the last 4 digits of the key).
 
 Metrics
 ~~~~~~~
