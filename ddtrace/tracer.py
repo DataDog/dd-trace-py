@@ -1,6 +1,5 @@
 import functools
 from itertools import chain
-import json
 import logging
 import os
 from os import environ
@@ -550,7 +549,7 @@ class Tracer(object):
                 self._log_compat(logging.WARNING, "- DATADOG TRACER DIAGNOSTIC - %s" % msg)
             else:
                 if log.isEnabledFor(logging.INFO):
-                    msg = "- DATADOG TRACER CONFIGURATION - %s" % json.dumps(info)
+                    msg = "- DATADOG TRACER CONFIGURATION - %s" % info
                     self._log_compat(logging.INFO, msg)
 
                 # Always log errors since we're either in debug_mode or start up logs
