@@ -98,7 +98,6 @@ venv = Venv(
     env={
         "DD_TESTING_RAISE": "1",
         "DD_REMOTE_CONFIGURATION_ENABLED": "false",
-        "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
         "DD_CIVISIBILITY_CODE_COVERAGE_ENABLED": "1",
         "DD_CIVISIBILITY_ITR_ENABLED": "1",
     },
@@ -2844,6 +2843,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/ci_visibility",
             pys=select_pys(),
             pkgs={"msgpack": latest, "coverage": latest},
+            env={"DD_CIVISIBILITY_CODE_COVERAGE_ENABLED": "0"},
         ),
         Venv(
             name="profile",
