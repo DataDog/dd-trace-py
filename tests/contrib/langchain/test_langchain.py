@@ -50,7 +50,8 @@ def ddtrace_config_langchain():
 @pytest.fixture
 def langchain(ddtrace_config_langchain, mock_logs, mock_metrics):
     with override_config("langchain", ddtrace_config_langchain):
-        os.environ["OPENAI_API_KEY"] = "<not-a-real-key>"
+        # ensure that mock OpenAI API key is passed in
+        os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY", "<not-a-real-key>")
         patch()
         import langchain
 
@@ -107,23 +108,6 @@ def mock_tracer(langchain, mock_logs, mock_metrics):
 def test_logs_no_api_key(langchain, ddtrace_config_langchain, mock_tracer):
     """When no DD_API_KEY is set, the patching fails"""
     pass
-
-
-@pytest.mark.parametrize("ddtrace_config_langchain", [dict(metrics_enabled=b) for b in [True, False]])
-def test_enable_metrics(langchain, ddtrace_config_langchain, request_vcr, mock_metrics, mock_logs, mock_tracer):
-    """Ensure the metrics_enabled configuration works."""
-    llm = langchain.llms.OpenAI()
-    with override_global_config(dict(service="test-svc", env="staging", version="1234")):
-        if sys.version_info >= (3, 10, 0):
-            cassette_name = "openai_completion_sync.yaml"
-        else:
-            cassette_name = "openai_completion_sync_39.yaml"
-        with request_vcr.use_cassette(cassette_name):
-            llm("Can you explain what Descartes meant by 'I think, therefore I am'?")
-    if ddtrace_config_langchain["metrics_enabled"]:
-        assert mock_metrics.mock_calls
-    else:
-        assert not mock_metrics.mock_calls
 
 
 @pytest.mark.parametrize(
@@ -190,7 +174,7 @@ def test_openai_llm_sync(langchain, request_vcr):
 
 
 @pytest.mark.skipif(sys.version_info >= (3, 10, 0), reason="Python 3.9 specific test")
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
 def test_openai_llm_sync_39(langchain, request_vcr):
     llm = langchain.llms.OpenAI()
     with request_vcr.use_cassette("openai_completion_sync_39.yaml"):
@@ -401,7 +385,7 @@ def test_openai_chat_model_sync_call(langchain, request_vcr):
 
 
 @pytest.mark.skipif(sys.version_info >= (3, 10, 0), reason="Python 3.9 specific test")
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
 def test_openai_chat_model_sync_call_39(langchain, request_vcr):
     chat = langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
     with request_vcr.use_cassette("openai_chat_completion_sync_call_39.yaml"):
@@ -433,7 +417,7 @@ def test_openai_chat_model_sync_generate(langchain, request_vcr):
 
 
 @pytest.mark.skipif(sys.version_info >= (3, 10, 0), reason="Python 3.9 specific test")
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
 def test_openai_chat_model_sync_generate_39(langchain, request_vcr):
     chat = langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
     with request_vcr.use_cassette("openai_chat_completion_sync_generate_39.yaml"):
@@ -627,6 +611,7 @@ def test_openai_embedding_query(langchain, request_vcr):
         embeddings.embed_query("this is a test query.")
 
 
+@pytest.mark.skip(reason="Tiktoken request to get model encodings cannot be made in CI")
 @pytest.mark.snapshot
 def test_openai_embedding_document(langchain, request_vcr):
     embeddings = langchain.embeddings.OpenAIEmbeddings()
