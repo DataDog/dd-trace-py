@@ -102,7 +102,7 @@ venv = Venv(
         "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
         "DD_CIVISIBILITY_CODE_COVERAGE_ENABLED": "1",
         "DD_CIVISIBILITY_ITR_ENABLED": "1",
-        "DD_API_KEY": os.getenv("DD_API_KEY", ""),
+        "DD_API_KEY": os.getenv("CI_DD_API_KEY", ""),
     },
     venvs=[
         Venv(
