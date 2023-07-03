@@ -1,6 +1,7 @@
 import pytest
 
 from ddtrace.appsec.iast import oce
+from ddtrace.appsec.iast._util import _is_python_version_supported
 from ddtrace.appsec.iast.taint_sinks.path_traversal import patch as path_traversal_patch
 from ddtrace.appsec.iast.taint_sinks.weak_cipher import patch as weak_cipher_patch
 from ddtrace.appsec.iast.taint_sinks.weak_cipher import unpatch_iast as weak_cipher_unpatch
@@ -74,9 +75,10 @@ def iast_span_only_sha1(tracer):
 
 @pytest.fixture(autouse=True, scope="module")
 def iast_context():
-    from ddtrace.appsec.iast._taint_tracking import contexts_reset
-    from ddtrace.appsec.iast._taint_tracking import create_context
+    if _is_python_version_supported():
+        from ddtrace.appsec.iast._taint_tracking import contexts_reset
+        from ddtrace.appsec.iast._taint_tracking import create_context
 
-    create_context()
-    yield
-    contexts_reset()
+        create_context()
+        yield
+        contexts_reset()
