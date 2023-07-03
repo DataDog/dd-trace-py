@@ -82,3 +82,5 @@ def iast_context():
         create_context()
         yield
         contexts_reset()
+    else:
+        yield
