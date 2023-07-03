@@ -1723,6 +1723,11 @@ venv = Venv(
         Venv(
             name="pytest",
             command="pytest {cmdargs} tests/contrib/pytest/",
+            env={
+                "DD_CIVISIBILITY_AGENTLESS_ENABLED": "0",
+                "DD_CIVISIBILITY_CODE_COVERAGE_ENABLED": "0",
+                "DD_CIVISIBILITY_ITR_ENABLED": "0",
+            },
             venvs=[
                 Venv(
                     pys=["2.7"],
@@ -1792,6 +1797,11 @@ venv = Venv(
             name="pytest-bdd",
             command="pytest {cmdargs} tests/contrib/pytest_bdd/",
             pkgs={"msgpack": latest},
+            env={
+                "DD_CIVISIBILITY_AGENTLESS_ENABLED": "0",
+                "DD_CIVISIBILITY_CODE_COVERAGE_ENABLED": "0",
+                "DD_CIVISIBILITY_ITR_ENABLED": "0",
+            },
             venvs=[
                 Venv(
                     pys=["2.7"],
@@ -2179,6 +2189,7 @@ venv = Venv(
         ),
         Venv(
             name="jinja2",
+            env={"DD_TRACE_DEBUG": "1"},
             venvs=[
                 Venv(
                     pys=select_pys(max_version="3.9"),
@@ -2846,7 +2857,11 @@ venv = Venv(
             command="pytest {cmdargs} tests/ci_visibility",
             pys=select_pys(),
             pkgs={"msgpack": latest, "coverage": latest},
-            env={"DD_CIVISIBILITY_CODE_COVERAGE_ENABLED": "0"},
+            env={
+                "DD_CIVISIBILITY_AGENTLESS_ENABLED": "0",
+                "DD_CIVISIBILITY_CODE_COVERAGE_ENABLED": "0",
+                "DD_CIVISIBILITY_ITR_ENABLED": "0",
+            },
         ),
         Venv(
             name="profile",
