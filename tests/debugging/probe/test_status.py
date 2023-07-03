@@ -3,8 +3,8 @@ import sys
 import time
 
 from ddtrace.debugging._probe.status import ProbeStatusLogger
-from tests.debugging.utils import create_snapshot_line_probe
 from ddtrace.internal import runtime
+from tests.debugging.utils import create_snapshot_line_probe
 
 
 class DummyProbeStatusLogger(ProbeStatusLogger):
