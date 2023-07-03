@@ -1548,7 +1548,7 @@ class PytestTestCase(TracerTestCase):
         package_outer_dir = self.testdir.mkpydir("test_outer_package")
         os.chdir(str(package_outer_dir))
         with open("test_outer_abc.py", "w+") as fd:
-            fd.write("import pytest\n" "@pytest.mark.itr_unskippable\n" "def test_ok():\n\tassert True\n")
+            fd.write("import pytest\n" "@pytest.mark.itr_unskippable('test')\n" "def test_ok():\n\tassert True\n")
         os.mkdir("test_inner_package")
         os.chdir("test_inner_package")
         with open("__init__.py", "w+"):
