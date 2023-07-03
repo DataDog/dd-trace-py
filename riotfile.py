@@ -98,6 +98,9 @@ venv = Venv(
     env={
         "DD_TESTING_RAISE": "1",
         "DD_REMOTE_CONFIGURATION_ENABLED": "false",
+        "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
+        "DD_CIVISIBILITY_CODE_COVERAGE_ENABLED": "1",
+        "DD_CIVISIBILITY_ITR_ENABLED": "1",
     },
     venvs=[
         Venv(
