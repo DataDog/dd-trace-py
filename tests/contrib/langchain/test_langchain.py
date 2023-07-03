@@ -103,18 +103,11 @@ def mock_tracer(langchain, mock_logs, mock_metrics):
     mock_metrics.reset_mock()
 
 
-@pytest.mark.xfail(reason="An API key is required when logs are enabled")
-@pytest.mark.parametrize("ddtrace_config_langchain", [dict(_api_key="", logs_enabled=True)])
-def test_logs_no_api_key(langchain, ddtrace_config_langchain, mock_tracer):
-    """When no DD_API_KEY is set, the patching fails"""
-    pass
-
-
 @pytest.mark.parametrize(
     "ddtrace_config_langchain",
     [dict(_api_key="<not-real-but-it's-something>", logs_enabled=True, log_prompt_completion_sample_rate=1.0)],
 )
-def test_global_tags(langchain, ddtrace_config_langchain, request_vcr, mock_metrics, mock_logs, mock_tracer):
+def test_global_tags(ddtrace_config_langchain, langchain, request_vcr, mock_metrics, mock_logs, mock_tracer):
     """
     When the global config UST tags are set
         The service name should be used for all data
@@ -163,6 +156,13 @@ def test_global_tags(langchain, ddtrace_config_langchain, request_vcr, mock_metr
             log["ddtags"]
             == "env:staging,version:1234,langchain.request.provider:openai,langchain.request.model:text-davinci-003,langchain.request.api_key:...key>"  # noqa: E501
         )
+
+
+@pytest.mark.xfail(reason="An API key is required when logs are enabled")
+@pytest.mark.parametrize("ddtrace_config_langchain", [dict(_api_key="", logs_enabled=True)])
+def test_logs_no_api_key(ddtrace_config_langchain, langchain, mock_tracer):
+    """When no DD_API_KEY is set, the patching fails"""
+    pass
 
 
 @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Python 3.10+ specific test")
