@@ -2189,7 +2189,7 @@ venv = Venv(
         ),
         Venv(
             name="jinja2",
-            env={"DD_TRACE_DEBUG": "1"},
+            env={"DD_TRACE_DEBUG": "1", "DD_SERVICE": "dd-trace-py"},
             venvs=[
                 Venv(
                     pys=select_pys(max_version="3.9"),
