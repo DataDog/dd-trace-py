@@ -49,6 +49,7 @@ def test_metric_executed_sink(mock_telemetry_metrics_writer):
 
         tracer = DummyTracer(iast_enabled=True)
 
+        mock_telemetry_metrics_writer._namespace.flush()
         with tracer.trace("test", span_type=SpanTypes.WEB):
             import hashlib
 
@@ -61,11 +62,8 @@ def test_metric_executed_sink(mock_telemetry_metrics_writer):
         metrics_result = mock_telemetry_metrics_writer._namespace._metrics_data
 
     generate_metrics = metrics_result[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE_TAG_IAST]
-    assert len(generate_metrics) == 4, "Expected 1 generate_metrics"
+    assert len(generate_metrics) == 1, "Expected 1 generate_metrics"
     assert [metric.name for metric in generate_metrics.values()] == [
-        "instrumented.sink",
-        "instrumented.sink",
-        "instrumented.sink",
         "executed.sink",
     ]
 

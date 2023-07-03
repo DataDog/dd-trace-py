@@ -70,3 +70,13 @@ def iast_span_only_md5(tracer):
 def iast_span_only_sha1(tracer):
     for t in iast_span(tracer, dict(DD_IAST_ENABLED="true", DD_IAST_WEAK_HASH_ALGORITHMS="SHA1")):
         yield t
+
+
+@pytest.fixture(autouse=True, scope="module")
+def iast_context():
+    from ddtrace.appsec.iast._taint_tracking import contexts_reset
+    from ddtrace.appsec.iast._taint_tracking import create_context
+
+    create_context()
+    yield
+    contexts_reset()
