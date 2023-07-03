@@ -2207,7 +2207,7 @@ venv = Venv(
                     },
                 ),
             ],
-            command="pytest --ddtrace {cmdargs} tests/contrib/jinja2",
+            command="pytest --log-cli-level debug --ddtrace {cmdargs} tests/contrib/jinja2",
         ),
         Venv(
             name="rediscluster",
