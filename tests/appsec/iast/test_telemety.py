@@ -1,5 +1,6 @@
 import pytest
 
+
 try:
     from ddtrace._monkey import IAST_PATCH
     from ddtrace._monkey import patch_iast
