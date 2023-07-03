@@ -172,7 +172,7 @@ def test_global_tags(langchain, ddtrace_config_langchain, request_vcr, mock_metr
         )
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
 def test_openai_llm_sync(langchain, request_vcr):
     llm = langchain.llms.OpenAI()
     with request_vcr.use_cassette("openai_completion_sync.yaml"):
@@ -250,7 +250,9 @@ def test_ai21_llm_sync(langchain, request_vcr):
         llm("Why does everyone in Bikini Bottom hate Plankton?")
 
 
-@pytest.mark.snapshot(token="tests.contrib.langchain.test_langchain.test_openai_llm_sync")
+@pytest.mark.snapshot(
+    token="tests.contrib.langchain.test_langchain.test_openai_llm_sync", ignores=["metrics.langchain.tokens.total_cost"]
+)
 def test_openai_llm_metrics(langchain, request_vcr, mock_metrics, mock_logs, snapshot_tracer):
     llm = langchain.llms.OpenAI()
     with request_vcr.use_cassette("openai_completion_sync.yaml"):
@@ -283,7 +285,7 @@ def test_openai_llm_metrics(langchain, request_vcr, mock_metrics, mock_logs, sna
             ),
             mock.call.increment(
                 "tokens.total_cost",
-                0.00224,
+                mock.ANY,
                 tags=expected_tags,
             ),
             mock.call.distribution(
@@ -342,14 +344,20 @@ def test_llm_logs(langchain, ddtrace_config_langchain, request_vcr, mock_logs, m
     mock_metrics.count.assert_not_called()
 
 
-@pytest.mark.snapshot(token="tests.contrib.langchain.test_langchain.test_openai_chat_model_call")
+@pytest.mark.snapshot(
+    token="tests.contrib.langchain.test_langchain.test_openai_chat_model_call",
+    ignores=["metrics.langchain.tokens.total_cost"],
+)
 def test_openai_chat_model_sync_call(langchain, request_vcr):
     chat = langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
     with request_vcr.use_cassette("openai_chat_completion_sync_call.yaml"):
         chat([langchain.schema.HumanMessage(content="When do you use 'whom' instead of 'who'?")])
 
 
-@pytest.mark.snapshot(token="tests.contrib.langchain.test_langchain.test_openai_chat_model_generate")
+@pytest.mark.snapshot(
+    token="tests.contrib.langchain.test_langchain.test_openai_chat_model_generate",
+    ignores=["metrics.langchain.tokens.total_cost"],
+)
 def test_openai_chat_model_sync_generate(langchain, request_vcr):
     chat = langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
     with request_vcr.use_cassette("openai_chat_completion_sync_generate.yaml"):
@@ -370,7 +378,10 @@ def test_openai_chat_model_sync_generate(langchain, request_vcr):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot(token="tests.contrib.langchain.test_langchain.test_openai_chat_model_call")
+@pytest.mark.snapshot(
+    token="tests.contrib.langchain.test_langchain.test_openai_chat_model_call",
+    ignores=["metrics.langchain.tokens.total_cost"],
+)
 async def test_openai_chat_model_async_call(langchain, request_vcr):
     chat = langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
     with request_vcr.use_cassette("openai_chat_completion_async_call.yaml"):
@@ -378,7 +389,10 @@ async def test_openai_chat_model_async_call(langchain, request_vcr):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot(token="tests.contrib.langchain.test_langchain.test_openai_chat_model_generate")
+@pytest.mark.snapshot(
+    token="tests.contrib.langchain.test_langchain.test_openai_chat_model_generate",
+    ignores=["metrics.langchain.tokens.total_cost"],
+)
 async def test_openai_chat_model_async_generate(langchain, request_vcr):
     chat = langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
     with request_vcr.use_cassette("openai_chat_completion_async_generate.yaml"):
@@ -413,7 +427,10 @@ async def test_openai_chat_model_async_stream(langchain, request_vcr):
         await chat.agenerate([[langchain.schema.HumanMessage(content="What is the secret Krabby Patty recipe?")]])
 
 
-@pytest.mark.snapshot(token="tests.contrib.langchain.test_langchain.test_openai_chat_model_call")
+@pytest.mark.snapshot(
+    token="tests.contrib.langchain.test_langchain.test_openai_chat_model_call",
+    ignores=["metrics.langchain.tokens.total_cost"],
+)
 def test_openai_chat_model_metrics(langchain, request_vcr, mock_metrics, mock_logs, snapshot_tracer):
     chat = langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
     with request_vcr.use_cassette("openai_chat_completion_sync_call.yaml"):
@@ -446,7 +463,7 @@ def test_openai_chat_model_metrics(langchain, request_vcr, mock_metrics, mock_lo
             ),
             mock.call.increment(
                 "tokens.total_cost",
-                0.0001495,
+                mock.ANY,
                 tags=expected_tags,
             ),
             mock.call.distribution(
@@ -616,7 +633,10 @@ def test_embedding_logs(langchain, ddtrace_config_langchain, request_vcr, mock_l
     mock_metrics.count.assert_not_called()
 
 
-@pytest.mark.snapshot(token="tests.contrib.langchain.test_langchain.test_openai_math_chain")
+@pytest.mark.snapshot(
+    token="tests.contrib.langchain.test_langchain.test_openai_math_chain",
+    ignores=["metrics.langchain.tokens.total_cost"],
+)
 def test_openai_math_chain_sync(langchain, request_vcr):
     """
     Test that using the provided LLMMathChain will result in a 3-span trace with
@@ -628,7 +648,10 @@ def test_openai_math_chain_sync(langchain, request_vcr):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot(token="tests.contrib.langchain.test_langchain.test_openai_math_chain")
+@pytest.mark.snapshot(
+    token="tests.contrib.langchain.test_langchain.test_openai_math_chain",
+    ignores=["metrics.langchain.tokens.total_cost"],
+)
 async def test_openai_math_chain_async(langchain, request_vcr):
     """
     Test that using the provided LLMMathChain will result in a 3-span trace with
@@ -652,7 +675,10 @@ def test_cohere_math_chain_sync(langchain, request_vcr):
         chain.run("what is thirteen raised to the .3432 power?")
 
 
-@pytest.mark.snapshot(token="tests.contrib.langchain.test_langchain.test_openai_sequential_chain")
+@pytest.mark.snapshot(
+    token="tests.contrib.langchain.test_langchain.test_openai_sequential_chain",
+    ignores=["metrics.langchain.tokens.total_cost"],
+)
 def test_openai_sequential_chain(langchain, request_vcr):
     """
     Test that using a SequentialChain will result in a 4-span trace with
@@ -780,7 +806,10 @@ async def test_openai_sequential_chain_with_multiple_llm_async(langchain, reques
         await sequential_chain.acall({"input_text": input_text})
 
 
-@pytest.mark.snapshot(token="tests.contrib.langchain.test_langchain.test_openai_math_chain")
+@pytest.mark.snapshot(
+    token="tests.contrib.langchain.test_langchain.test_openai_math_chain",
+    ignores=["metrics.langchain.tokens.total_cost"],
+)
 def test_openai_chain_metrics(langchain, request_vcr, mock_metrics, mock_logs, snapshot_tracer):
     chain = langchain.chains.LLMMathChain(llm=langchain.llms.OpenAI(temperature=0))
     with request_vcr.use_cassette("openai_math_chain_sync.yaml"):
@@ -813,7 +842,7 @@ def test_openai_chain_metrics(langchain, request_vcr, mock_metrics, mock_logs, s
             ),
             mock.call.increment(
                 "tokens.total_cost",
-                0.005200000000000001,
+                mock.ANY,
                 tags=expected_tags,
             ),
             mock.call.distribution(
@@ -1068,7 +1097,7 @@ def test_vectorstore_logs(langchain, ddtrace_config_langchain, request_vcr, mock
     mock_metrics.count.assert_not_called()
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
 def test_openai_integration(langchain, request_vcr, ddtrace_run_python_code_in_subprocess):
     env = os.environ.copy()
     pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]

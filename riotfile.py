@@ -2774,7 +2774,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/langchain",
             pys=select_pys(min_version="3.9"),
             pkgs={
-                "langchain": ["~=0.0.185", latest],
+                "langchain": ["==0.0.192", latest],
                 "openai": latest,
                 "vcrpy": latest,
                 "pytest-asyncio": latest,
@@ -2783,6 +2783,8 @@ venv = Venv(
                 "cohere": latest,
                 "huggingface-hub": latest,
                 "ai21": latest,
+                "exceptiongroup": latest,
+                "psutil": latest,
             },
         ),
         Venv(
