@@ -334,7 +334,7 @@ venv = Venv(
         Venv(
             name="integration",
             # Enabling coverage for integration tests breaks certain tests in CI
-            command="pytest --no-cov {cmdargs} tests/integration/",
+            command="pytest --no-ddtrace --no-cov {cmdargs} tests/integration/",
             pkgs={"msgpack": [latest], "coverage": latest},
             venvs=[
                 Venv(
@@ -647,7 +647,7 @@ venv = Venv(
         ),
         Venv(
             name="celery",
-            command="pytest --ddtrace {cmdargs} tests/contrib/celery",
+            command="pytest --no-ddtrace {cmdargs} tests/contrib/celery",
             pkgs={"more_itertools": "<8.11.0"},
             venvs=[
                 # Celery 4.3 wants Kombu >= 4.4 and Redis >= 3.2
@@ -1723,7 +1723,7 @@ venv = Venv(
         ),
         Venv(
             name="pytest",
-            command="pytest {cmdargs} tests/contrib/pytest/",
+            command="pytest --no-ddtrace {cmdargs} tests/contrib/pytest/",
             env={
                 "DD_CIVISIBILITY_AGENTLESS_ENABLED": "0",
                 "DD_CIVISIBILITY_CODE_COVERAGE_ENABLED": "0",
@@ -1781,7 +1781,7 @@ venv = Venv(
         ),
         Venv(
             name="asynctest",
-            command="pytest --ddtrace {cmdargs} tests/contrib/asynctest/",
+            command="pytest --no-ddtrace --ddtrace {cmdargs} tests/contrib/asynctest/",
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.5", max_version="3.9"),
@@ -2855,7 +2855,7 @@ venv = Venv(
         ),
         Venv(
             name="ci_visibility",
-            command="pytest {cmdargs} tests/ci_visibility",
+            command="pytest --no-ddtrace {cmdargs} tests/ci_visibility",
             pys=select_pys(),
             pkgs={"msgpack": latest, "coverage": latest},
             env={
@@ -2878,7 +2878,7 @@ venv = Venv(
                 # Python 2.7
                 Venv(
                     # uWSGI tests are not supported on Python 2.7
-                    command='python -m tests.profiling.run pytest --capture=no --benchmark-disable --ignore-glob="*asyncio*" --ignore=tests/profiling/test_uwsgi.py {cmdargs} tests/profiling',  # noqa: E501
+                    command='python -m tests.profiling.run pytest --no-ddtrace --capture=no --benchmark-disable --ignore-glob="*asyncio*" --ignore=tests/profiling/test_uwsgi.py {cmdargs} tests/profiling',  # noqa: E501
                     pys="2.7",
                     venvs=[
                         Venv(
@@ -2917,7 +2917,7 @@ venv = Venv(
                 ),
                 # Python 3.5+
                 Venv(
-                    command="python -m tests.profiling.run pytest --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling",  # noqa: E501
+                    command="python -m tests.profiling.run pytest --no-ddtrace --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling",  # noqa: E501
                     pkgs={
                         "uwsgi": latest,
                         "pytest-asyncio": latest,

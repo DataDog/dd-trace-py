@@ -57,7 +57,7 @@ def encode_test_parameter(parameter):
 
 def is_enabled(config):
     """Check if the ddtrace plugin is enabled."""
-    return config.getoption("ddtrace") or config.getini("ddtrace")
+    return not config.getoption("noddtrace") and (config.getoption("ddtrace") or config.getini("ddtrace"))
 
 
 def _extract_span(item):
@@ -215,6 +215,14 @@ def pytest_addoption(parser):
         "--ddtrace",
         action="store_true",
         dest="ddtrace",
+        default=False,
+        help=HELP_MSG,
+    )
+
+    group._addoption(
+        "--no-ddtrace",
+        action="store_true",
+        dest="noddtrace",
         default=False,
         help=HELP_MSG,
     )
