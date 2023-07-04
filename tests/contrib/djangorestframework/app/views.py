@@ -3,10 +3,12 @@ import json
 import django
 from django.conf.urls import include
 from django.contrib.auth.models import User
+from django.db import connection
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework import routers
 from rest_framework import serializers
 from rest_framework import viewsets
+from rest_framework.decorators import action
 from rest_framework.decorators import authentication_classes
 from rest_framework.decorators import permission_classes
 from rest_framework.parsers import MultiPartParser
@@ -34,10 +36,6 @@ class UserViewSet(viewsets.ModelViewSet):
 
     queryset = User.objects.all().order_by("-date_joined")
     serializer_class = UserSerializer
-
-
-router = routers.DefaultRouter()
-router.register(r"users", UserViewSet)
 
 
 # ASM
@@ -71,9 +69,29 @@ class ASM_View(APIView):
         return Response({"received data form": request.data})
 
 
+@authentication_classes([])
+@permission_classes([])
+class IASTViewSet(viewsets.ViewSet):
+    """
+    IAST View
+    """
+
+    @csrf_exempt
+    @action(methods=["post"], detail=False, url_path="sqli", url_name="iast_sqli")
+    def iast_sqli(self, request):
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(request.data["query"])
+        except Exception:
+            pass
+        return Response({"received sqli data": request.data}, status=200)
+
+
 # Wire up our API using automatic URL routing.
 # Additionally, we include login URLs for the browsable API.
-
+router = routers.DefaultRouter()
+router.register(r"users", UserViewSet)
+router.register(r"iast", IASTViewSet, basename="iast")
 
 urlpatterns = [
     handler(r"asm/", ASM_View.as_view()),

@@ -985,7 +985,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
                 "valueParts": [{"value": "SELECT 1 FROM "}, {"value": "sqlite_master", "source": 0}]
             }
             assert loaded["vulnerabilities"][0]["location"]["path"] == "tests/contrib/flask/test_flask_appsec.py"
-            # assert loaded["vulnerabilities"][0]["location"]["line"] == 370
+            assert loaded["vulnerabilities"][0]["location"]["line"] == 370
 
     def test_request_suspicious_request_block_match_query_value(self):
         @self.app.route("/index.html")
