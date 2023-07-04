@@ -92,7 +92,7 @@ def _git_subprocess_cmd(cmd, cwd=None, std_in=None):
 
 
 def set_safe_directory(cwd=None):
-    _git_subprocess_cmd("config --global --add safe.directory %s", cwd)
+    _git_subprocess_cmd("config --global --add safe.directory %s" % cwd, cwd=cwd)
 
 
 def extract_user_info(cwd=None):
@@ -139,7 +139,6 @@ def extract_repository_url(cwd=None):
     # type: (Optional[str]) -> str
     """Extract the repository url from the git repository in the current directory or one specified by ``cwd``."""
     # Note: `git show ls-remote --get-url` is supported since git 2.6.7 onwards
-    set_safe_directory(cwd)
     repository_url = _git_subprocess_cmd("ls-remote --get-url", cwd=cwd)
     return repository_url
 
@@ -148,6 +147,7 @@ def extract_commit_message(cwd=None):
     # type: (Optional[str]) -> str
     """Extract git commit message from the git repository in the current directory or one specified by ``cwd``."""
     # Note: `git show -s --format... --date...` is supported since git 2.1.4 onwards
+    set_safe_directory(cwd)
     commit_message = _git_subprocess_cmd("show -s --format=%s", cwd=cwd)
     return commit_message
 
@@ -173,12 +173,16 @@ def extract_commit_sha(cwd=None):
     return commit_sha
 
 
-def extract_git_metadata(cwd=None):
-    # type: (Optional[str]) -> Dict[str, Optional[str]]
+def extract_git_metadata(cwd=None, repo_url=None):
+    # type: (Optional[str], Optional[str]) -> Dict[str, Optional[str]]
     """Extract git commit metadata."""
     tags = {}  # type: Dict[str, Optional[str]]
     try:
-        tags[REPOSITORY_URL] = extract_repository_url(cwd=cwd)
+        if repo_url:
+            tags[REPOSITORY_URL] = repo_url
+        else:
+            tags[REPOSITORY_URL] = extract_repository_url(cwd=cwd)
+
         tags[COMMIT_MESSAGE] = extract_commit_message(cwd=cwd)
         users = extract_user_info(cwd=cwd)
         tags[COMMIT_AUTHOR_NAME] = users["author"][0]

@@ -98,7 +98,11 @@ def tags(env=None, cwd=None):
             tags = extract(env)
             break
 
-    git_info = git.extract_git_metadata(cwd=cwd)
+    repo_url = tags.get(git.REPOSITORY_URL)
+    if repo_url:
+        tags[git.REPOSITORY_URL] = _filter_sensitive_info(repo_url)
+
+    git_info = git.extract_git_metadata(cwd=cwd, repo_url=tags.get(git.REPOSITORY_URL))
     try:
         git_info[WORKSPACE_PATH] = git.extract_workspace_path(cwd=cwd)
     except git.GitNotFoundError:
