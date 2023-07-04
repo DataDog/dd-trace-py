@@ -285,7 +285,10 @@ class CIVisibility(Service):
             log.warning("Test skips request responded with status %d", response.status)
             return
         try:
-            parsed = json.loads(response.body)
+            body = response.body
+            if isinstance(body, bytes):
+                body = body.decode()
+            parsed = json.loads(body)
         except json.JSONDecodeError:
             log.warning("Test skips request responded with invalid JSON '%s'", response.body)
             return
@@ -299,7 +302,7 @@ class CIVisibility(Service):
                 )
 
     def _should_skip_path(self, path):
-        return os.path.relpath(path) in self._test_suites_to_skip
+        return self._test_suites_to_skip and os.path.relpath(path) in self._test_suites_to_skip
 
     @classmethod
     def enable(cls, tracer=None, config=None, service=None):

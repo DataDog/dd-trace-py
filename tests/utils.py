@@ -513,11 +513,10 @@ class DummyWriter(DummyWriterMixin, AgentWriter):
 
 class DummyCIVisibilityWriter(DummyWriterMixin, CIVisibilityWriter):
     def __init__(self, *args, **kwargs):
-        os.environ.pop("CI_DD_API_KEY")
-        os.environ.pop("CI_DD_APP_KEY")
-        CIVisibilityWriter.__init__(self, *args, **kwargs)
-        DummyWriterMixin.__init__(self, *args, **kwargs)
-        self._encoded = None
+        with override_env(env={}, pop=["CI_DD_API_KEY", "CI_DD_APP_KEY"]):
+            CIVisibilityWriter.__init__(self, *args, **kwargs)
+            DummyWriterMixin.__init__(self, *args, **kwargs)
+            self._encoded = None
 
     def write(self, spans=None):
         DummyWriterMixin.write(self, spans=spans)
