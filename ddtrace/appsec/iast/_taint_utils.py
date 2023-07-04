@@ -10,6 +10,42 @@ DBAPI_PREFIXES = ("django-",)
 log = get_logger(__name__)
 
 
+class LazyTaintList(list):
+    def __init__(self, *args, origins=(0, 0), override_pyobject_tainted=False):
+        self.origin_key = origins[0]
+        self.origin_value = origins[1]
+        self.override_pyobject_tainted = override_pyobject_tainted
+        super(LazyTaintList, self).__init__(*args)
+
+    def __getitem__(self, key):
+        value = super(LazyTaintDict, self).__getitem__(key)
+        if value:
+            if isinstance(value, dict) and not isinstance(value, LazyTaintDict):
+                value = LazyTaintDict(value)
+                self[key] = value
+            elif isinstance(value, list) and not isinstance(value, LazyTaintList):
+                value = LazyTaintList(value)
+                if isinstance(key, int):
+                    self[key] = value
+            elif isinstance(value, (str, bytes, bytearray)):
+                if not is_pyobject_tainted(value) or self.override_pyobject_tainted:
+                    try:
+                        value = taint_pyobject(
+                            pyobject=value, source_name=key, source_value=value, source_origin=self.origin_value
+                        )
+                        self[key] = value
+                    except SystemError:
+                        # TODO: Find the root cause for
+                        # SystemError: NULL object passed to Py_BuildValue
+                        log.debug("SystemError while tainting value: %s with key: %s", value, key, exc_info=True)
+                    except Exception:
+                        log.debug("Unexpected exception while tainting value", exc_info=True)
+        return value
+
+    def __iter__(self):
+        return (self[i] for i in range(len(self)))
+
+
 class LazyTaintDict(dict):
     def __init__(self, *args, origins=(0, 0), override_pyobject_tainted=False):
         self.origin_key = origins[0]
@@ -20,7 +56,13 @@ class LazyTaintDict(dict):
     def __getitem__(self, key):
         value = super(LazyTaintDict, self).__getitem__(key)
         if value:
-            if isinstance(value, (str, bytes, bytearray)):
+            if isinstance(value, dict) and not isinstance(value, LazyTaintDict):
+                value = LazyTaintDict(value)
+                self[key] = value
+            elif isinstance(value, list) and not isinstance(value, LazyTaintList):
+                value = LazyTaintList(value)
+                self[key] = value
+            elif isinstance(value, (str, bytes, bytearray)):
                 if not is_pyobject_tainted(value) or self.override_pyobject_tainted:
                     try:
                         value = taint_pyobject(
@@ -33,26 +75,6 @@ class LazyTaintDict(dict):
                         log.debug("SystemError while tainting value: %s with key: %s", value, key, exc_info=True)
                     except Exception:
                         log.debug("Unexpected exception while tainting value", exc_info=True)
-            elif isinstance(value, (list,)):
-                new_value = list()
-                try:
-                    for v in value:
-                        if isinstance(v, (str, bytes, bytearray)) and (
-                            not is_pyobject_tainted(v) or self.override_pyobject_tainted
-                        ):
-                            new_value.append(
-                                taint_pyobject(
-                                    pyobject=v, source_name=key, source_value=v, source_origin=self.origin_value
-                                )
-                            )
-                        else:
-                            new_value.append(v)
-                    value = new_value
-                    super(LazyTaintDict, self).__setitem__(key, value)
-                except SystemError:
-                    log.debug("SystemError while tainting value: %s with key: %s", value, key, exc_info=True)
-                except Exception:
-                    log.debug("Unexpected exception while tainting value", exc_info=True)
         return value
 
     def get(self, key, default=None):
@@ -63,24 +85,20 @@ class LazyTaintDict(dict):
         return default
 
     def items(self):
-        for k, v in super(LazyTaintDict, self).items():
-            if k and isinstance(k, (str, bytes, bytearray)) and not is_pyobject_tainted(k):
+        for k in self.keys():
+            yield (k, self[k])
+
+    def keys(self):
+        for k in self.keys():
+            if (
+                k
+                and isinstance(k, (str, bytes, bytearray))
+                and (self.override_pyobject_tainted or not is_pyobject_tainted(k))
+            ):
                 try:
                     k = taint_pyobject(pyobject=k, source_name=k, source_value=k, source_origin=self.origin_key)
                 except Exception:
                     log.debug("Unexpected exception while tainting key", exc_info=True)
-
-            if v and isinstance(v, (str, bytes, bytearray)) and not is_pyobject_tainted(v):
-                try:
-                    v = taint_pyobject(pyobject=v, source_name=k, source_value=v, source_origin=self.origin_value)
-                    super(LazyTaintDict, self).__setitem__(k, v)
-                except Exception:
-                    log.debug("Unexpected exception while tainting value", exc_info=True)
-
-            yield (k, v)
-
-    def keys(self):
-        for k, _ in self.items():
             yield k
 
     def values(self):
