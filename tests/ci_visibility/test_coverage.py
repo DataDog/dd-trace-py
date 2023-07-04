@@ -4,13 +4,13 @@ from os import getcwd
 
 import pytest
 
-from ddtrace import Tracer
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.coverage import Coverage
 from ddtrace.internal.ci_visibility.coverage import _coverage_end
 from ddtrace.internal.ci_visibility.coverage import _coverage_start
 from ddtrace.internal.ci_visibility.coverage import _initialize
 from ddtrace.internal.ci_visibility.coverage import segments
+from ddtrace.internal.ci_visibility.recorder import CITracer
 
 
 @pytest.mark.parametrize(
@@ -29,7 +29,7 @@ def test_segments(lines, expected_segments):
 
 @pytest.mark.skipif(Coverage is None, reason="Coverage not available")
 def test_cover():
-    tracer = Tracer()
+    tracer = CITracer()
     span = tracer.start_span("cover_span")
 
     _initialize(getcwd())
@@ -40,13 +40,37 @@ def test_cover():
     res = literal_eval(span.get_tag(COVERAGE_TAG_NAME))
 
     assert "files" in res
-    assert len(res["files"]) == 3
+    assert len(res["files"]) == 27
 
     for filename in [x["filename"] for x in res["files"]]:
         assert filename.endswith(
             (
                 "ddtrace/internal/module.py",
                 "ddtrace/contrib/pytest/plugin.py",
+                "ddtrace/span.py",
+                "ddtrace/tracer.py",
+                "ddtrace/provider.py",
+                "ddtrace/_hooks.py",
+                "ddtrace/internal/processor/trace.py",
+                "ddtrace/internal/processor/endpoint_call_counter.py",
+                "ddtrace/internal/ci_visibility/recorder.py",
+                "ddtrace/internal/service.py",
+                "ddtrace/internal/processor/__init__.py",
+                "ddtrace/internal/telemetry/writer.py",
+                "ddtrace/internal/periodic.py",
+                "ddtrace/internal/forksafe.py",
+                "ddtrace/internal/telemetry/metrics_namespaces.py",
+                "ddtrace/internal/telemetry/metrics.py",
+                "ddtrace/internal/runtime/__init__.py",
+                "ddtrace/internal/telemetry/data.py",
+                "ddtrace/internal/utils/cache.py",
+                "ddtrace/internal/hostname.py",
+                "ddtrace/internal/runtime/container.py",
+                "ddtrace/internal/utils/time.py",
+                "ddtrace/internal/utils/http.py",
+                "ddtrace/internal/http.py",
+                "ddtrace/internal/compat.py",
+                "ddtrace/internal/ci_visibility/writer.py",
                 "ddtrace/internal/ci_visibility/coverage.py",
             )
         )

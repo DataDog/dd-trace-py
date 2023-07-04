@@ -91,6 +91,10 @@ def _git_subprocess_cmd(cmd, cwd=None, std_in=None):
     raise ValueError(compat.ensure_text(stderr).strip())
 
 
+def set_safe_directory(cwd=None):
+    _git_subprocess_cmd("config --global --add safe.directory %s", cwd)
+
+
 def extract_user_info(cwd=None):
     # type: (Optional[str]) -> Dict[str, Tuple[str, str, str]]
     """Extract commit author info from the git repository in the current directory or one specified by ``cwd``."""
@@ -135,6 +139,7 @@ def extract_repository_url(cwd=None):
     # type: (Optional[str]) -> str
     """Extract the repository url from the git repository in the current directory or one specified by ``cwd``."""
     # Note: `git show ls-remote --get-url` is supported since git 2.6.7 onwards
+    set_safe_directory(cwd)
     repository_url = _git_subprocess_cmd("ls-remote --get-url", cwd=cwd)
     return repository_url
 
