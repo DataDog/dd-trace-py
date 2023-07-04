@@ -16,7 +16,7 @@ import json
 import re
 from typing import Dict
 
-from _pytest.nodes import get_fslocation_from_item
+# from _pytest.nodes import get_fslocation_from_item
 import pytest
 
 import ddtrace
@@ -321,12 +321,22 @@ def _get_test_class_hierarchy(item):
     return ".".join(test_class_hierarchy)
 
 
-def pytest_collection_modifyitems(session, config, items):
-    if _CIVisibility.test_skipping_enabled():
-        skip = pytest.mark.skip(reason=SKIPPED_BY_ITR)
-        for item in items:
-            if _CIVisibility._instance._should_skip_path(str(get_fslocation_from_item(item)[0])):
-                item.add_marker(skip)
+def pytest_ignore_collect(path, config):
+    if (
+        not path.strpath.endswith("conftest.py")
+        and _CIVisibility.test_skipping_enabled()
+        and _CIVisibility._instance._should_skip_path(path.strpath)
+    ):
+        # Skip test suite
+        return True
+
+
+# def pytest_collection_modifyitems(session, config, items):
+#     if _CIVisibility.test_skipping_enabled():
+#         skip = pytest.mark.skip(reason=SKIPPED_BY_ITR)
+#         for item in items:
+#             if _CIVisibility._instance._should_skip_path(str(get_fslocation_from_item(item)[0])):
+#                 item.add_marker(skip)
 
 
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)
