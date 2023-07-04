@@ -1,6 +1,5 @@
 # type: ignore
 import logging
-import os
 from typing import List  # noqa
 from typing import Tuple  # noqa
 
@@ -102,7 +101,6 @@ venv = Venv(
         "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
         "DD_CIVISIBILITY_CODE_COVERAGE_ENABLED": "1",
         "DD_CIVISIBILITY_ITR_ENABLED": "1",
-        "DD_API_KEY": os.getenv("CI_DD_API_KEY", ""),
     },
     venvs=[
         Venv(
