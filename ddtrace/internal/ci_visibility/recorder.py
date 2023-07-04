@@ -21,6 +21,7 @@ from ddtrace.internal.compat import parse
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
 from ddtrace.internal.writer.writer import Response
+from ddtrace.provider import CIContextProvider
 from ddtrace.settings import IntegrationConfig
 from ddtrace.tracer import Tracer
 
@@ -89,6 +90,7 @@ class CIVisibility(Service):
         else:
             # Use a new tracer
             self.tracer = CITracer()
+            self.tracer.context_provider = CIContextProvider()
 
         self._app_key = os.getenv("CI_DD_APP_KEY")
         self._api_key = os.getenv("CI_DD_API_KEY")
