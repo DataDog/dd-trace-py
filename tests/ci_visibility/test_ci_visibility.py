@@ -9,12 +9,21 @@ import pytest
 import ddtrace
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.ext import ci
+from ddtrace.internal import agent
+from ddtrace.internal import compat
 from ddtrace.internal.ci_visibility import CIVisibility
+from ddtrace.internal.ci_visibility.constants import AGENTLESS_ENDPOINT
+from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
+from ddtrace.internal.ci_visibility.constants import EVP_PROXY_AGENT_ENDPOINT
+from ddtrace.internal.ci_visibility.constants import EVP_SUBDOMAIN_HEADER_EVENT_VALUE
+from ddtrace.internal.ci_visibility.constants import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.internal.ci_visibility.constants import REQUESTS_MODE
 from ddtrace.internal.ci_visibility.filters import TraceCiVisibilityFilter
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClient
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClientSerializerV1
+from ddtrace.internal.ci_visibility.recorder import CITracer as Tracer
 from ddtrace.internal.ci_visibility.recorder import _extract_repository_name_from_url
+from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.utils.http import Response
 from ddtrace.span import Span
 from tests.utils import DummyCIVisibilityWriter
@@ -22,6 +31,8 @@ from tests.utils import DummyTracer
 from tests.utils import override_env
 from tests.utils import override_global_config
 
+
+AGENT_VERSION = os.environ.get("AGENT_VERSION")
 
 TEST_SHA = "b3672ea5cbc584124728c48a443825d2940e0ddd"
 
@@ -705,3 +716,70 @@ def test_civisibility_check_enabled_features_itr_enabled_malformed_response(_do_
 
         mock_log.warning.assert_called_with("Settings request responded with invalid JSON '%s'", "}")
         CIVisibility.disable()
+
+
+@pytest.mark.skip(reason="WIP")
+def test_civisibility_intake_with_missing_apikey():
+    with override_env(dict(DD_SITE="foobar.baz")):
+        with override_global_config({"_ci_visibility_agentless_enabled": True}):
+            with pytest.raises(EnvironmentError):
+                CIVisibility.enable()
+
+
+@pytest.mark.skip(reason="WIP")
+def test_civisibility_intake_with_apikey():
+    with override_env(dict(DD_API_KEY="foobar.baz", DD_SITE="foo.bar")):
+        with override_global_config({"_ci_visibility_agentless_enabled": True}):
+            t = Tracer()
+            CIVisibility.enable(tracer=t)
+            assert CIVisibility._instance.tracer._writer._endpoint == AGENTLESS_ENDPOINT
+            assert CIVisibility._instance.tracer._writer.intake_url == "https://citestcycle-intake.foo.bar"
+            CIVisibility.disable()
+
+
+@pytest.mark.skip(reason="WIP")
+@pytest.mark.skipif(AGENT_VERSION == "testagent", reason="Test agent doesn't support evp proxy.")
+def test_civisibility_intake_with_evp_available():
+    with override_env(dict(DD_API_KEY="foobar.baz", DD_SITE="foo.bar")):
+        with override_global_config({"_ci_visibility_agentless_enabled": False}):
+            t = Tracer()
+            CIVisibility.enable(tracer=t)
+            assert CIVisibility._instance.tracer._writer._endpoint == EVP_PROXY_AGENT_ENDPOINT
+            assert CIVisibility._instance.tracer._writer.intake_url == agent.get_trace_url()
+            assert (
+                CIVisibility._instance.tracer._writer._headers[EVP_SUBDOMAIN_HEADER_NAME]
+                == EVP_SUBDOMAIN_HEADER_EVENT_VALUE
+            )
+            CIVisibility.disable()
+
+
+def test_civisibility_event_endpoints():
+    with override_env(dict(DD_API_KEY="foobar.baz")):
+        with override_global_config({"_ci_visibility_code_coverage_enabled": True}):
+            t = Tracer()
+            t.configure(writer=CIVisibilityWriter(reuse_connections=True))
+            t._writer._conn = mock.MagicMock()
+            with mock.patch("ddtrace.internal.writer.Response.from_http_response") as from_http_response:
+                from_http_response.return_value.__class__ = Response
+                from_http_response.return_value.status = 200
+                s = t.trace("operation", service="svc-no-cov")
+                s.finish()
+                span = t.trace("operation2", service="my-svc2")
+                span.set_tag(
+                    COVERAGE_TAG_NAME,
+                    '{"files": [{"filename": "test_cov.py", "segments": [[5, 0, 5, 0, -1]]}, '
+                    + '{"filename": "test_module.py", "segments": [[2, 0, 2, 0, -1]]}]}',
+                )
+                span.finish()
+                conn = t._writer._conn
+                t.shutdown()
+            assert conn.request.call_count == (2 if compat.PY3 else 1)
+            assert conn.request.call_args_list[0].args[1] == "api/v2/citestcycle"
+            assert (
+                b"svc-no-cov" in conn.request.call_args_list[0].args[2]
+            ), "requests to the cycle endpoint should include non-coverage spans"
+            if compat.PY3:
+                assert conn.request.call_args_list[1].args[1] == "api/v2/citestcov"
+                assert (
+                    b"svc-no-cov" not in conn.request.call_args_list[1].args[2]
+                ), "requests to the coverage endpoint should not include non-coverage spans"

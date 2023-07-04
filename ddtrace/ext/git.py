@@ -139,6 +139,7 @@ def extract_repository_url(cwd=None):
     # type: (Optional[str]) -> str
     """Extract the repository url from the git repository in the current directory or one specified by ``cwd``."""
     # Note: `git show ls-remote --get-url` is supported since git 2.6.7 onwards
+    set_safe_directory(cwd)
     repository_url = _git_subprocess_cmd("ls-remote --get-url", cwd=cwd)
     return repository_url
 
@@ -155,6 +156,7 @@ def extract_commit_message(cwd=None):
 def extract_workspace_path(cwd=None):
     # type: (Optional[str]) -> str
     """Extract the root directory path from the git repository in the current directory or one specified by ``cwd``."""
+    set_safe_directory(cwd)
     workspace_path = _git_subprocess_cmd("rev-parse --show-toplevel", cwd=cwd)
     return workspace_path
 
