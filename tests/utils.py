@@ -58,7 +58,7 @@ def assert_span_http_status_code(span, code):
 
 
 @contextlib.contextmanager
-def override_env(env):
+def override_env(env, pop=[]):
     """
     Temporarily override ``os.environ`` with provided values::
 
@@ -67,6 +67,10 @@ def override_env(env):
     """
     # Copy the full original environment
     original = dict(os.environ)
+
+    # Pop keys oassed
+    for i in pop:
+        os.environ.pop(i)
 
     # Update based on the passed in arguments
     os.environ.update(env)
