@@ -7,7 +7,6 @@ from typing import Optional
 from typing import Tuple
 from uuid import uuid4
 
-from ddtrace import Tracer
 from ddtrace import config as ddconfig
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import ci
@@ -23,6 +22,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
 from ddtrace.internal.writer.writer import Response
 from ddtrace.settings import IntegrationConfig
+from ddtrace.tracer import Tracer
 
 from .. import agent
 from .constants import AGENTLESS_DEFAULT_SITE
@@ -71,6 +71,10 @@ def _do_request(method, url, payload, headers):
     return result
 
 
+class CITracer(Tracer):
+    pass
+
+
 class CIVisibility(Service):
     _instance = None  # type: Optional[CIVisibility]
     enabled = False
@@ -84,9 +88,18 @@ class CIVisibility(Service):
             self.tracer = tracer
         else:
             # Use a new tracer
-            self.tracer = Tracer()
-        self._app_key = os.getenv("DD_APP_KEY", os.getenv("DD_APPLICATION_KEY", os.getenv("DATADOG_APPLICATION_KEY")))
-        self._api_key = os.getenv("DD_API_KEY")
+            self.tracer = CITracer()
+
+        self._app_key = os.getenv("CI_DD_APP_KEY")
+        self._api_key = os.getenv("CI_DD_API_KEY")
+
+        if not self._app_key:
+            self._app_key = os.getenv(
+                "DD_APP_KEY", os.getenv("DD_APPLICATION_KEY", os.getenv("DATADOG_APPLICATION_KEY"))
+            )
+        if not self._api_key:
+            self._api_key = os.getenv("DD_API_KEY")
+
         self._dd_site = os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE)
         self.config = config  # type: Optional[IntegrationConfig]
         self._tags = ci.tags(cwd=_get_git_repo())  # type: Dict[str, str]
