@@ -70,7 +70,8 @@ def override_env(env, pop=[]):
 
     # Pop keys oassed
     for i in pop:
-        os.environ.pop(i)
+        if i in os.environ:
+            os.environ.pop(i)
 
     # Update based on the passed in arguments
     os.environ.update(env)

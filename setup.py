@@ -477,7 +477,6 @@ setup(
         "contextlib2<1.0; python_version=='2.7'",
         "cattrs<1.1; python_version<='3.6'",
         "cattrs; python_version>='3.7'",
-        "exceptiongroup==1.1.1; python_version>='3.7'",
         "six>=1.12.0",
         "typing_extensions",
         "importlib_metadata; python_version<'3.8'",
