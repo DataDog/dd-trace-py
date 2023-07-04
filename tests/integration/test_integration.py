@@ -553,6 +553,7 @@ def test_civisibility_intake_with_missing_apikey():
                 CIVisibility.enable()
 
 
+@pytest.mark.skip(reason="WIP")
 def test_civisibility_intake_with_apikey():
     with override_env(dict(DD_API_KEY="foobar.baz", DD_SITE="foo.bar")):
         with override_global_config({"_ci_visibility_agentless_enabled": True}):

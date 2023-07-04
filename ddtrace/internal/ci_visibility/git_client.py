@@ -76,6 +76,8 @@ class CIVisibilityGitClient(object):
     def _run_protocol(cls, serializer, requests_mode, base_url, _tags={}, _response=None, cwd=None):
         # type: (CIVisibilityGitClientSerializerV1, int, str, Dict[str, str], Optional[Response], Optional[str]) -> None
         repo_url = cls._get_repository_url(tags=_tags, cwd=cwd)
+        if not repo_url:
+            return
         latest_commits = cls._get_latest_commits(cwd=cwd)
         if latest_commits:
             backend_commits = cls._search_commits(
@@ -93,7 +95,10 @@ class CIVisibilityGitClient(object):
         # type: (Dict[str, str], Optional[str]) -> str
         result = tags.get(ci.git.REPOSITORY_URL, "")
         if not result:
-            result = extract_remote_url(cwd=cwd)
+            try:
+                result = extract_remote_url(cwd=cwd)
+            except ValueError:
+                result = ""
         return result
 
     @classmethod
