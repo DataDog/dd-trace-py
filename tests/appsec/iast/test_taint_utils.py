@@ -23,7 +23,6 @@ def setup():
 
 
 def test_tainted_types():
-
     tainted = taint_pyobject(
         pyobject="hello", source_name="request_body", source_value="hello", source_origin=OriginType.PARAMETER
     )

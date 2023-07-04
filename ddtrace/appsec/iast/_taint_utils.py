@@ -89,7 +89,7 @@ class LazyTaintDict(dict):
             yield (k, self[k])
 
     def keys(self):
-        for k in self.keys():
+        for k in super(LazyTaintDict, self).keys():
             if (
                 k
                 and isinstance(k, (str, bytes, bytearray))
