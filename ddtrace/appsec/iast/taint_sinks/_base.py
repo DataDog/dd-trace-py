@@ -1,6 +1,8 @@
 import os
 from typing import TYPE_CHECKING
 
+import six
+
 from ddtrace import tracer
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec.iast import oce
@@ -127,7 +129,7 @@ class VulnerabilityBase(Operation):
             if sources:
                 report.sources = {Source(origin=x.origin, name=x.name, value=x.value) for x in sources}
 
-            redacted_report = cls._redacted_report_cache.get(hash(report), lambda: cls.redact(report), False)
+            redacted_report = cls._redacted_report_cache.get(hash(report), lambda: cls._redact_report(report), False)
             _context.set_item(IAST.CONTEXT_KEY, redacted_report, span=span)
 
     @classmethod
@@ -136,9 +138,17 @@ class VulnerabilityBase(Operation):
         raise Exception("JJJ this is abstract, but do this right")
 
     @classmethod
-    def redact_report(cls, report):  # type: (IastSpanReporter) -> IastSpanReporter
-        # TODO: add some catching. Most request will have the same fields
+    def _get_vulnerability_text(cls, vulnerability):
+        if vulnerability and vulnerability.evidence.value is not None:
+            return vulnerability.evidence.value
 
+        if vulnerability.evidence.valueParts is not None:
+            return "".join([part.get("value", "") for part in vulnerability.evidence.valueParts])
+
+        return ""
+
+    @classmethod
+    def _redact_report(cls, report):  # type: (IastSpanReporter) -> IastSpanReporter
         if not _config._iast_redaction_enabled:
             return report
 
@@ -146,65 +156,90 @@ class VulnerabilityBase(Operation):
         found = False
 
         for source in report.sources:
-            # Join them so we only run the regexps once for source
+            # Join them so we only run the regexps once for each source
             joined_fields = "%s%s" % (source.name, source.value)
             if _has_to_scrub(joined_fields):
                 found = True
                 break
 
+        vulns_to_text = {}
+
         if not found:
             # Check the evidence's value/s
-            for vulnerability in report.vulnerabilities:
-                if vulnerability.evidence.value is not None and _has_to_scrub(vulnerability.evidence.value):
+            for vuln in report.vulnerabilities:
+                vulnerability_text = cls._get_vulnerability_text(vuln)
+                if _has_to_scrub(vulnerability_text):
+                    vulns_to_text[vuln] = vulnerability_text
                     found = True
                     break
-                elif vulnerability.evidence.valueParts is not None:
-                    # Join all the strings in valueParts so we run only the regexp once per vulnerability
-                    joined_parts = "".join([part.get("value", "") for part in vulnerability.evidence.valueParts])
-                    if _has_to_scrub(joined_parts):
-                        found = True
-                        break
 
         if not found:
             return report
+
+        if not vulns_to_text:
+            vulns_to_text = {vuln: cls._get_vulnerability_text(vuln) for vuln in report.vulnerabilities}
 
         # If we're here, some potentially sensitive information was found, we delegate on
         # the specific subclass the task of extracting the variable tokens (e.g. literals inside
         # quotes for SQL Injection). Note that by just having one potentially sensitive match
         # we need to then scrub all the tokens, thus why we do it in two steps instead of one
-        tokens = cls._extract_sensitive_tokens(report)
+        vulns_to_tokens = cls._extract_sensitive_tokens(vulns_to_text)
 
-        if not tokens:
+        if not vulns_to_tokens:
             return report
 
-        redacted_tokens = {t: _scrub(t) for t in tokens}
+        all_tokens = set()
+        for _, value_dict in six.iteritems(vulns_to_tokens):
+            all_tokens.update(value_dict["tokens"])
 
         # Iterate over all the sources, if one of the tokens match it, redact it
         for source in report.sources:
-            if source.name in tokens or source.value in tokens:
-                source.value = redacted_tokens(source.value)
+            if source.name in all_tokens or source.value in all_tokens:
+                source.pattern = _scrub(source.value, has_range=True)
                 source.redacted = True
+                source.value = None
 
-        def replace_tokens(s):
-            ret = s
-            for token in tokens:
-                ret = ret.replace(token, redacted_tokens(token))
-            return s
+        def replace_tokens(vuln, has_range=False):
+            ret = vuln.evidence.value
+            replaced = False
+
+            for token in vulns_to_tokens[hash(vuln)]["tokens"]:
+                ret = ret.replace(token, _scrub(token, has_range))
+                replaced = True
+
+            return ret, replaced
 
         # Same for all the evidence values
-        for vulnerability in report.vulnerabilities:
-            if vulnerability.evidence.value is not None:
-                orig_vuln = vulnerability.evidence.value
-                vulnerability.evidence.value = replace_tokens(vulnerability.evidence.value)
-                vulnerability.evidence.redacted = orig_vuln != vulnerability.evidence.value
-            elif vulnerability.evidence.valueParts is not None:
-                for part in vulnerability.evidence.valueParts:
-                    value = part.get("value", "")
-                    if not value:
-                        continue
+        for vuln in report.vulnerabilities:
+            # Use the initial hash directly as iteration key since the vuln itself will change
+            vuln_hash = hash(vuln)
+            if vuln.evidence.value is not None:
+                pattern, replaced = replace_tokens(vuln, hasattr(vuln.evidence.value, "source"))
+                if replaced:
+                    vuln.evidence.pattern = pattern
+                    vuln.evidence.redacted = True
+                    vuln.evidence.value = None
+            elif vuln.evidence.valueParts is not None:
+                idx = 0
+                for part in vuln.evidence.valueParts:
+                    value = part["value"]
+                    part_len = len(value)
+                    part_start = idx
+                    part_end = idx + part_len
 
-                    part["value"] = replace_tokens(value)
-                    if value != part["value"]:
-                        part["redacted"] = True
+                    for positions in vulns_to_tokens[vuln_hash]["token_positions"]:
+                        if part_end <= positions[0]:
+                            # This part if before this token
+                            continue
+                        elif (part_start <= positions[0] < part_end) or (part_end > positions[1]):
+                            # This part contains at least part of the token
+                            part_scrub_start = max(positions[0] - idx, 0)
+                            part_scrub_end = positions[1] - idx
+                            to_scrub = value[part_scrub_start:part_scrub_end]
+                            scrubbed = _scrub(to_scrub, "source" in part)
+                            part["pattern"] = value[:part_scrub_start] + scrubbed + value[part_scrub_end:]
+                            part["redacted"] = True
+                            del part["value"]
+                    idx += part_len
 
         return report

@@ -1,7 +1,6 @@
+import json
 from functools import reduce
 import operator
-from typing import List
-from typing import Set
 import zlib
 
 import attr
@@ -9,11 +8,41 @@ import attr
 from ddtrace.internal.compat import PY2
 
 
-@attr.s(eq=True, hash=True)
 class Evidence(object):
-    value = attr.ib(type=str, default=None)
-    valueParts = attr.ib(type=List, default=None, hash=False)
-    redacted = attr.ib(type=bool, default=False)
+    def __init__(self, value=None, pattern=None, valueParts=None, redacted=False):
+        self.value = value
+        self.pattern = pattern
+        self.valueParts = valueParts
+        self.redacted = redacted
+
+    def __eq__(self, other):
+        if isinstance(other, self.__class__):
+            return (self.value == other.value and
+                    self.pattern == other.pattern and
+                    self._valueParts_hash() == other._valueParts_hash() and
+                    self.redacted == other.redacted)
+        return False
+
+    def _valueParts_hash(self):
+        if not self.valueParts:
+            return
+
+        hash = 0
+        for part in self.valueParts:
+            if isinstance(part, dict):
+                json_str = json.dumps(part, sort_keys=True)
+                part_hash = zlib.crc32(json_str.encode())
+            else:
+                part_hash = hash(part)
+            hash ^= part_hash
+
+        return hash
+
+    def __hash__(self):
+        return hash((self.value, self.pattern, self._valueParts_hash(), self.redacted))
+
+    def __repr__(self):
+        return f"Evidence(value={self.value}, pattern={self.pattern}, valueParts={self.valueParts}, redacted={self.redacted})"
 
 
 @attr.s(eq=True, hash=True)
@@ -26,7 +55,7 @@ class Location(object):
 @attr.s(eq=True, hash=True)
 class Vulnerability(object):
     type = attr.ib(type=str)
-    evidence = attr.ib(type=Evidence, repr=False)
+    evidence = attr.ib(type=Evidence, repr=True)
     location = attr.ib(type=Location)
     hash = attr.ib(init=False, eq=False, hash=False, repr=False)
 
@@ -50,4 +79,12 @@ class IastSpanReporter(object):
         self.vulnerabilities = vulnerabilities if vulnerabilities else set()
 
     def __hash__(self):
+        for obj in self.sources | self.vulnerabilities:
+            print("Hash of %s -> %s" % (obj, hash(obj)))
         return reduce(operator.xor, (hash(obj) for obj in self.sources | self.vulnerabilities))
+
+    def __str__(self):
+        return str({"sources": self.sources, "vulnerabilities": self.vulnerabilities})
+
+    def __repr__(self):
+        return str(self)

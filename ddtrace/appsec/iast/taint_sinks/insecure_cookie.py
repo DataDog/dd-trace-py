@@ -9,6 +9,8 @@ from ddtrace.appsec.iast.taint_sinks._base import VulnerabilityBase
 from ddtrace.internal.compat import six
 
 
+# JJJ add scrub_evidence
+
 if TYPE_CHECKING:
     from typing import Dict
     from typing import Optional
