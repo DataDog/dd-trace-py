@@ -190,7 +190,10 @@ class CIVisibility(Service):
         }
         response = _do_request("POST", url, json.dumps(payload), _headers)
         try:
-            parsed = json.loads(response.body)
+            body = response.body
+            if isinstance(body, bytes):
+                body = body.decode()
+            parsed = json.loads(body)
         except JSONDecodeError:
             log.warning("Settings request responded with invalid JSON '%s'", response.body)
             return False, False
