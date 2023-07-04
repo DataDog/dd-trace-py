@@ -12,19 +12,23 @@ log = get_logger(__name__)
 
 class LazyTaintList(list):
     def __init__(self, *args, origins=(0, 0), override_pyobject_tainted=False):
-        self.origin_key = origins[0]
+        self.origins = origins
         self.origin_value = origins[1]
         self.override_pyobject_tainted = override_pyobject_tainted
         super(LazyTaintList, self).__init__(*args)
 
     def __getitem__(self, key):
-        value = super(LazyTaintDict, self).__getitem__(key)
+        value = super(LazyTaintList, self).__getitem__(key)
         if value:
             if isinstance(value, dict) and not isinstance(value, LazyTaintDict):
-                value = LazyTaintDict(value)
+                value = LazyTaintDict(
+                    value, origins=self.origins, override_pyobject_tainted=self.override_pyobject_tainted
+                )
                 self[key] = value
             elif isinstance(value, list) and not isinstance(value, LazyTaintList):
-                value = LazyTaintList(value)
+                value = LazyTaintList(
+                    value, origins=self.origins, override_pyobject_tainted=self.override_pyobject_tainted
+                )
                 if isinstance(key, int):
                     self[key] = value
             elif isinstance(value, (str, bytes, bytearray)):
@@ -48,6 +52,7 @@ class LazyTaintList(list):
 
 class LazyTaintDict(dict):
     def __init__(self, *args, origins=(0, 0), override_pyobject_tainted=False):
+        self.origins = origins
         self.origin_key = origins[0]
         self.origin_value = origins[1]
         self.override_pyobject_tainted = override_pyobject_tainted
@@ -57,10 +62,14 @@ class LazyTaintDict(dict):
         value = super(LazyTaintDict, self).__getitem__(key)
         if value:
             if isinstance(value, dict) and not isinstance(value, LazyTaintDict):
-                value = LazyTaintDict(value)
+                value = LazyTaintDict(
+                    value, origins=self.origins, override_pyobject_tainted=self.override_pyobject_tainted
+                )
                 self[key] = value
             elif isinstance(value, list) and not isinstance(value, LazyTaintList):
-                value = LazyTaintList(value)
+                value = LazyTaintList(
+                    value, origins=self.origins, override_pyobject_tainted=self.override_pyobject_tainted
+                )
                 self[key] = value
             elif isinstance(value, (str, bytes, bytearray)):
                 if not is_pyobject_tainted(value) or self.override_pyobject_tainted:

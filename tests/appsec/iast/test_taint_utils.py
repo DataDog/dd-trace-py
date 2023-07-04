@@ -161,6 +161,29 @@ def test_tainted_keys_and_values():
         assert not is_pyobject_tainted(v)
 
 
+def test_recursivity():
+    tainted_dict = LazyTaintDict(
+        {
+            "tr_key_001": ["tr_val_001", "tr_val_002", "tr_val_003", {"tr_key_005": "tr_val_004"}],
+            "tr_key_002": {"tr_key_003": {"tr_key_004": "tr_val_005"}},
+        },
+        origins=(OriginType.PARAMETER, OriginType.PARAMETER),
+    )
+
+    def check_taint(v):
+        if isinstance(v, str):
+            assert is_pyobject_tainted(v)
+        elif isinstance(v, dict):
+            for k, ev in v.items():
+                assert is_pyobject_tainted(k)
+                check_taint(ev)
+        elif isinstance(v, list):
+            for ev in v:
+                check_taint(ev)
+
+    check_taint(tainted_dict)
+
+
 def test_checked_tainted_args():
     cursor = mock.Mock()
     setattr(cursor.execute, "__name__", "execute")
