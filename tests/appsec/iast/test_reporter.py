@@ -165,7 +165,6 @@ def test_redacted_report_valueparts():
 
     redacted_report = SqlInjection._redact_report(report)
     for v in redacted_report.vulnerabilities:
-        print(v.evidence.valueParts)
         assert v.evidence.valueParts == [
             {"value": "SELECT * FROM users WHERE password = '"},
             {"source": 0, "pattern": "abcd", "redacted": True},
@@ -200,6 +199,7 @@ def test_scrub_cache(tracer):
             VulnerabilityBase._redacted_report_cache = LFUCache()
             SqlInjection.report(evidence_value=valueParts1, sources=[s1])
             span_report1 = _context.get_item(IAST.CONTEXT_KEY, span=span)
+            assert span_report1, "no report: check that get_info_frame is not skipping this frame"
             assert list(span_report1.vulnerabilities)[0].evidence == Evidence(
                 value=None,
                 pattern=None,
