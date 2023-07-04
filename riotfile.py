@@ -493,6 +493,7 @@ venv = Venv(
             pkgs={
                 "msgpack": latest,
                 "httpretty": "==0.9.7",
+                "typing-extensions": latest,
             },
             venvs=[
                 Venv(pys="2.7"),
@@ -736,6 +737,7 @@ venv = Venv(
                             ">=17,<18",
                         ],
                         "more_itertools": "<8.11.0",
+                        "typing-extensions": latest,
                     },
                 ),
                 Venv(
@@ -934,6 +936,7 @@ venv = Venv(
                 "celery": "~=5.0.5",
                 "gevent": latest,
                 "requests": latest,
+                "typing-extensions": latest,
             },
             pys=select_pys(min_version="3.8"),
         ),
@@ -2351,6 +2354,7 @@ venv = Venv(
                     "~=1.3.0",
                     latest,
                 ],
+                "typing-extensions": latest,
             },
         ),
         Venv(
