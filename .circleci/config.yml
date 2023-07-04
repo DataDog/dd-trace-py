@@ -143,8 +143,6 @@ commands:
                 services: testagent << parameters.docker_services >>
             - run:
                 environment:
-                  CI_DD_API_KEY: ${CI_DD_API_KEY}
-                  CI_DD_APP_KEY: ${CI_DD_APP_KEY}
                   DD_TRACE_AGENT_URL: http://localhost:9126
                   RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
                 command: |
