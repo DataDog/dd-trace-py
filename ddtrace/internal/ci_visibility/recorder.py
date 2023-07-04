@@ -123,8 +123,6 @@ class CIVisibility(Service):
                     "DD_CIVISIBILITY_AGENTLESS_ENABLED is set, but DD_API_KEY is not set, so ddtrace "
                     "cannot be initialized."
                 )
-                self.tracer.enabled = False
-                return
             self._requests_mode = REQUESTS_MODE.AGENTLESS_EVENTS
         elif self._agent_evp_proxy_is_available():
             self._requests_mode = REQUESTS_MODE.EVP_PROXY_EVENTS
