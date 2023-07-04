@@ -77,13 +77,16 @@ class CIVisibilityGitClient(object):
         # type: (CIVisibilityGitClientSerializerV1, int, str, Dict[str, str], Optional[Response], Optional[str]) -> None
         repo_url = cls._get_repository_url(tags=_tags, cwd=cwd)
         latest_commits = cls._get_latest_commits(cwd=cwd)
-        backend_commits = cls._search_commits(requests_mode, base_url, repo_url, latest_commits, serializer, _response)
-        rev_list = cls._get_filtered_revisions(backend_commits, cwd=cwd)
-        if rev_list:
-            with cls._build_packfiles(rev_list, cwd=cwd) as packfiles_prefix:
-                cls._upload_packfiles(
-                    requests_mode, base_url, repo_url, packfiles_prefix, serializer, _response, cwd=cwd
-                )
+        if latest_commits:
+            backend_commits = cls._search_commits(
+                requests_mode, base_url, repo_url, latest_commits, serializer, _response
+            )
+            rev_list = cls._get_filtered_revisions(backend_commits, cwd=cwd)
+            if rev_list:
+                with cls._build_packfiles(rev_list, cwd=cwd) as packfiles_prefix:
+                    cls._upload_packfiles(
+                        requests_mode, base_url, repo_url, packfiles_prefix, serializer, _response, cwd=cwd
+                    )
 
     @classmethod
     def _get_repository_url(cls, tags={}, cwd=None):
@@ -96,7 +99,10 @@ class CIVisibilityGitClient(object):
     @classmethod
     def _get_latest_commits(cls, cwd=None):
         # type: (Optional[str]) -> list[str]
-        return extract_latest_commits(cwd=cwd)
+        try:
+            return extract_latest_commits(cwd=cwd)
+        except ValueError:
+            return []
 
     @classmethod
     def _search_commits(cls, requests_mode, base_url, repo_url, latest_commits, serializer, _response):
