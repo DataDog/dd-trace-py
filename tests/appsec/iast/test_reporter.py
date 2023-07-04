@@ -1,7 +1,8 @@
-from ddtrace.appsec.iast.reporter import Evidence
+from ddtrace.appsec.iast.reporter import Evidence, IastSpanReporter
 from ddtrace.appsec.iast.reporter import Location
 from ddtrace.appsec.iast.reporter import Source
 from ddtrace.appsec.iast.reporter import Vulnerability
+from ddtrace.appsec.iast.taint_sinks._base import VulnerabilityBase
 
 
 # e and e2 must be logically equal, f and g not equal to e
@@ -63,3 +64,23 @@ def test_source_hash_and_equality():
 
     _do_assert_hash(e, f, g, e2)
     _do_assert_equality(e, f, g, e2)
+
+
+# JJJ: tests:
+# unredacted report
+# redacted report with sources
+# redacted report with vulnerabilities
+# redacted report with both
+# catching test checking the cache member calling report() with a span
+
+def test_redacted_report():
+    ev = Evidence(value="SomeEvidenceValue")
+    loc = Location(path="foobar.py", line=35, spanId=123)
+    v = Vulnerability(type="VulnerabilityType", evidence=ev, location=loc)
+    s = Source(origin="SomeOrigin", name="SomeName", value="SomeValue")
+    report = IastSpanReporter(set([s]), set([v]))
+
+    redacted_report = VulnerabilityBase.redact_report(report)
+    VulnerabilityBase.report(sources = [s])
+    cache = VulnerabilityBase._redacted_report_cache
+    pass

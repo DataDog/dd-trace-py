@@ -9,6 +9,7 @@ from ddtrace.appsec.iast.taint_sinks._base import VulnerabilityBase
 class SqlInjection(VulnerabilityBase):
     vulnerability_type = VULN_SQL_INJECTION
     evidence_type = EVIDENCE_SQL_INJECTION
+    scrub_evidence = True
 
     @classmethod
     def report(cls, evidence_value=None, sources=None):

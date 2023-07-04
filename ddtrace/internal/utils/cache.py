@@ -30,7 +30,7 @@ class LFUCache(dict):
         self.maxsize = maxsize
         self.lock = RLock()
 
-    def get(self, key, f):  # type: ignore[override]
+    def get(self, key, f, call_f_on_key=True):  # type: ignore[override]
         # type: (T, F) -> Any
         """Get a value from the cache.
 
@@ -55,7 +55,7 @@ class LFUCache(dict):
                 self[key] = (value, count + 1)
                 return value
 
-            value = f(key)
+            value = f(key) if call_f_on_key else f()
 
             self[key] = (value, 1)
 

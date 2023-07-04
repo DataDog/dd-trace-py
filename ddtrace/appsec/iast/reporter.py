@@ -1,3 +1,6 @@
+from functools import reduce
+import operator
+from typing import List
 from typing import Set
 import zlib
 
@@ -9,7 +12,8 @@ from ddtrace.internal.compat import PY2
 @attr.s(eq=True, hash=True)
 class Evidence(object):
     value = attr.ib(type=str, default=None)
-    valueParts = attr.ib(type=Set, default=None, hash=False)
+    valueParts = attr.ib(type=List, default=None, hash=False)
+    redacted = attr.ib(type=bool, default=False)
 
 
 @attr.s(eq=True, hash=True)
@@ -37,9 +41,13 @@ class Source(object):
     origin = attr.ib(type=str)
     name = attr.ib(type=str)
     value = attr.ib(type=str)
+    redacted = attr.ib(type=bool, default=False)
 
 
-@attr.s(eq=False)
 class IastSpanReporter(object):
-    sources = attr.ib(type=Set[Source], factory=set)
-    vulnerabilities = attr.ib(type=Set[Vulnerability], factory=set)
+    def __init__(self, sources=None, vulnerabilities=None):
+        self.sources = sources if sources else set()
+        self.vulnerabilities = vulnerabilities if vulnerabilities else set()
+
+    def __hash__(self):
+        return reduce(operator.xor, (hash(obj) for obj in self.sources | self.vulnerabilities))
