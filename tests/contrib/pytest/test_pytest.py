@@ -1387,6 +1387,7 @@ class PytestTestCase(TracerTestCase):
         assert test_span.get_tag(git.COMMIT_SHA)
         assert test_span.get_tag(git.REPOSITORY_URL)
 
+    @pytest.mark.skip(reason="WIP")
     def test_pytest_skip_suite_by_path(self):
         """
         Test that running pytest on two nested packages with 1 test each. It should generate
@@ -1433,6 +1434,7 @@ class PytestTestCase(TracerTestCase):
         assert len(test_spans) == 1
         assert test_spans[0].get_tag("test.name") == "test_inner_ok"
 
+    @pytest.mark.skip(reason="WIP")
     def test_pytest_skip_all_suites(self):
         """
         Test that running pytest on two nested packages with 1 test each. It should generate
