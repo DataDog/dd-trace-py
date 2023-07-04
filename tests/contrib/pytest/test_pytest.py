@@ -33,8 +33,10 @@ class PytestTestCase(TracerTestCase):
 
     def inline_run(self, *args):
         """Execute test script with test tracer."""
-        os.environ.pop("CI_DD_API_KEY")
-        os.environ.pop("CI_DD_APP_KEY")
+        if "CI_DD_API_KEY" in os.environ:
+            os.environ.pop("CI_DD_API_KEY")
+        if "CI_DD_APP_KEY" in os.environ:
+            os.environ.pop("CI_DD_APP_KEY")
 
         class CIVisibilityPlugin:
             @staticmethod
