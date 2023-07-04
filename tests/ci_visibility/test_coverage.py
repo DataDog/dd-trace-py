@@ -33,7 +33,6 @@ EXPECTED_COVERED_FILES = (
     "ddtrace/internal/runtime/__init__.py",
     "ddtrace/internal/telemetry/data.py",
     "ddtrace/internal/utils/cache.py",
-    "ddtrace/internal/hostname.py",
     "ddtrace/internal/runtime/container.py",
     "ddtrace/internal/utils/time.py",
     "ddtrace/internal/utils/http.py",

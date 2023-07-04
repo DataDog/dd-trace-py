@@ -114,6 +114,7 @@ def extract_git_version(cwd=None):
 
 
 def extract_remote_url(cwd=None):
+    set_safe_directory(cwd)
     remote_url = _git_subprocess_cmd("config --get remote.origin.url", cwd=cwd)
     return remote_url
 
@@ -164,6 +165,7 @@ def extract_workspace_path(cwd=None):
 def extract_branch(cwd=None):
     # type: (Optional[str]) -> str
     """Extract git branch from the git repository in the current directory or one specified by ``cwd``."""
+    set_safe_directory(cwd)
     branch = _git_subprocess_cmd("rev-parse --abbrev-ref HEAD", cwd=cwd)
     return branch
 
@@ -171,6 +173,7 @@ def extract_branch(cwd=None):
 def extract_commit_sha(cwd=None):
     # type: (Optional[str]) -> str
     """Extract git commit SHA from the git repository in the current directory or one specified by ``cwd``."""
+    set_safe_directory(cwd)
     commit_sha = _git_subprocess_cmd("rev-parse HEAD", cwd=cwd)
     return commit_sha
 
