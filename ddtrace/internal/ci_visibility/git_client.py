@@ -173,6 +173,8 @@ class CIVisibilityGitClientSerializerV1(object):
         # type: (str) -> List[str]
         res = []  # type: List[str]
         try:
+            if isinstance(payload, bytes):
+                payload = payload.decode()
             parsed = json.loads(payload)
             return [item["id"] for item in parsed["data"] if item["type"] == "commit"]
         except KeyError:
