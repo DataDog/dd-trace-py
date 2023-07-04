@@ -19,7 +19,6 @@ FULL_CMD="pip install -q --disable-pip-version-check riot==0.17.3 && $CMD"
 # DEV: Use `--no-TTY` and `--quiet-pull` when running in CircleCI
 if [[ "${CIRCLECI}" = "true" ]]; then
     docker-compose run \
-                   -u $UID:$GID \
                    -e CIRCLE_NODE_TOTAL \
                    -e CIRCLE_NODE_INDEX \
                    -e CIRCLE_WORKFLOW_ID \
