@@ -289,7 +289,7 @@ class LibDatadogDownload(LibraryDownload):
     available_releases = {
         "Windows": ["win32", "x64"],
         "Darwin": [],
-        "Linux": ["x86_64"],
+        "Linux": ["x86_64", "aarch64"],
     }
     translate_suffix = {"Windows": (".lib", ".h"), "Darwin": (), "Linux": (".a", ".h")}
 
@@ -336,18 +336,20 @@ class LibDatadogDownload(LibraryDownload):
                 cls.get_package_name(arch, OS),
                 cls.version,
             )
+            print("Getting Windows download at: " + ret_url)
         return ret_url
 
     @staticmethod
     def get_extra_objects():
         arch = "x86_64"
         base_name = "libdatadog_profiling"
-        if CURRENT_OS != "Windows":
+        if CURRENT_OS == "Windows":
+            base_name += "_ffi.lib"
+            base_path = os.path.join("ddtrace", "internal", "datadog", "profiling", "libdatadog", arch, "lib", base_name)
+        elif CURRENT_OS == "Linux":
             base_name += ".a"
-        base_path = os.path.join("ddtrace", "internal", "datadog", "profiling", "libdatadog", arch, "lib", base_name)
-        if CURRENT_OS == "Linux":
-            return [base_path]
-        return []
+            base_path = os.path.join("ddtrace", "internal", "datadog", "profiling", "libdatadog", arch, "lib", base_name)
+        return [base_path]
 
     @staticmethod
     def get_include_dirs():
