@@ -253,7 +253,7 @@ class LibDDWafDownload(LibraryDownload):
 
     @classmethod
     def get_package_name(cls, arch, OS):
-        return "lib%s-%s-%s-%s" % (cls.name, cls.version, os.lower(), arch)
+        return "lib%s-%s-%s-%s" % (cls.name, cls.version, OS.lower(), arch)
 
     @classmethod
     def get_package_file(cls, arch, OS):
@@ -274,11 +274,11 @@ class LibDatadogDownload(LibraryDownload):
         "Linux": {
             "x86_64": {
                 "gnu": "e9ee7172dd7b8f12ff8125e0ee699d01df7698604f64299c4094ae47629ccec1",
-                "musl": "59f8e014b80b5e44bfcc325d03cdcf7c147987e2a106883d91fe80e1cba79f4b",
+                "other": "59f8e014b80b5e44bfcc325d03cdcf7c147987e2a106883d91fe80e1cba79f4b",
             },
             "aarch64": {
                 "gnu": "a326e9552e65b945c64e7119c23d670ffdfb99aa96d9d90928a8a2ff6427199d",
-                "musl": "7a5f8f37b2925ee3e54cc1da8db1a461a4db082f8fd0492e40d4b33c5e771306",
+                "other": "7a5f8f37b2925ee3e54cc1da8db1a461a4db082f8fd0492e40d4b33c5e771306",
             },
         },
         "Windows": {
@@ -297,7 +297,7 @@ class LibDatadogDownload(LibraryDownload):
     def get_checksum(cls, OS, arch):
         # Override on Linux because there are different packages per libc
         if OS == "Linux":
-            libc = "gnu" if is_libc_gnu() else "musl"
+            libc = "gnu" if is_libc_gnu() else "other"
             return cls.expected_checksums[OS][arch][libc]
         return cls.expected_checksums[OS][arch]
 
