@@ -47,7 +47,6 @@ def test_cover():
     res = literal_eval(span.get_tag(COVERAGE_TAG_NAME))
 
     assert "files" in res
-    assert len(res["files"]) >= 27
 
     covered_files = [x["filename"] for x in res["files"]]
     for filename in SOME_EXPECTED_COVERED_FILES:

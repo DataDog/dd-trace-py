@@ -90,17 +90,15 @@ class CIVisibility(Service):
         else:
             # Use a new tracer
             self.tracer = CITracer()
+
+        if not isinstance(self.tracer.context_provider, CIContextProvider):
             self.tracer.context_provider = CIContextProvider()
 
-        self._app_key = os.getenv("CI_DD_APP_KEY")
-        self._api_key = os.getenv("CI_DD_API_KEY")
-
-        if not self._app_key:
-            self._app_key = os.getenv(
-                "DD_APP_KEY", os.getenv("DD_APPLICATION_KEY", os.getenv("DATADOG_APPLICATION_KEY"))
-            )
-        if not self._api_key:
-            self._api_key = os.getenv("DD_API_KEY")
+        self._app_key = os.getenv(
+            "CI_DD_APP_KEY",
+            os.getenv("DD_APP_KEY", os.getenv("DD_APPLICATION_KEY", os.getenv("DATADOG_APPLICATION_KEY"))),
+        )
+        self._api_key = os.getenv("CI_DD_API_KEY", os.getenv("DD_API_KEY"))
 
         self._dd_site = os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE)
         self.config = config  # type: Optional[IntegrationConfig]

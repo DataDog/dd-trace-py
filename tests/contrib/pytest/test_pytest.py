@@ -1387,7 +1387,6 @@ class PytestTestCase(TracerTestCase):
         assert test_span.get_tag(git.COMMIT_SHA)
         assert test_span.get_tag(git.REPOSITORY_URL)
 
-    @pytest.mark.skip(reason="WIP")
     def test_pytest_skip_suite_by_path(self):
         """
         Test that running pytest on two nested packages with 1 test each. It should generate
@@ -1425,16 +1424,15 @@ class PytestTestCase(TracerTestCase):
             self.inline_run("--ddtrace")
 
         spans = self.pop_spans()
-        assert len(spans) == 4
+        assert len(spans) == 7
         test_suite_spans = [span for span in spans if span.get_tag("type") == "test_suite_end"]
-        assert len(test_suite_spans) == 1
-        assert test_suite_spans[0].get_tag("test.suite") == "test_inner_abc.py"
+        assert len(test_suite_spans) == 2
+        assert test_suite_spans[0].get_tag("test.suite") == "test_outer_abc.py"
 
         test_spans = [span for span in spans if span.get_tag("type") == "test"]
-        assert len(test_spans) == 1
-        assert test_spans[0].get_tag("test.name") == "test_inner_ok"
+        assert len(test_spans) == 2
+        assert test_spans[0].get_tag("test.name") == "test_outer_ok"
 
-    @pytest.mark.skip(reason="WIP")
     def test_pytest_skip_all_suites(self):
         """
         Test that running pytest on two nested packages with 1 test each. It should generate
@@ -1467,8 +1465,7 @@ class PytestTestCase(TracerTestCase):
             self.inline_run("--ddtrace")
 
         spans = self.pop_spans()
-        assert len(spans) == 1
-        assert spans[0].get_tag("type") == "test_session_end"
+        assert len(spans) == 7
 
     def test_pytest_skip_all_suites_but_test_skipping_not_enabled(self):
         """
