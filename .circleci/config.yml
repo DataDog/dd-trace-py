@@ -645,14 +645,17 @@ jobs:
   flask:
     <<: *contrib_job
     parallelism: 4
+    docker:
+      - image: *ddtrace_dev_image
+      - image: *memcached_image
+      - image: *redis_image
+      - *testagent
     steps:
       - run_test:
           # Run both flask and flask_cache test suites
           # TODO: Re-enable coverage for Flask tests
           store_coverage: false
-          snapshot: true
           pattern: "flask"
-          docker_services: "memcached redis"
 
   gevent:
     <<: *contrib_job
