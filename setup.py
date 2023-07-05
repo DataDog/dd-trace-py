@@ -269,7 +269,7 @@ class LibDatadogDownload(LibraryDownload):
     download_dir = LIBDATADOG_PROF_DOWNLOAD_DIR
     version = LIBDATADOG_PROF_VERSION
     url_root = "https://github.com/DataDog/libdatadog/releases/download"
-    url_root_win = "https://globalcdn.nuget.org/packages/"
+    url_root_win = "https://globalcdn.nuget.org/packages"
     expected_checksums = {
         "Linux": {
             "x86_64": {
