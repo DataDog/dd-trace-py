@@ -220,6 +220,7 @@ class AppSecSpanProcessor(SpanProcessor):
 
         if not _asm_request_context.free_context_available():
             _asm_request_context._on_context_started()
+        _asm_request_context.register(span)
 
         ctx = self._ddwaf._at_request_start()
 
@@ -392,4 +393,4 @@ class AppSecSpanProcessor(SpanProcessor):
 
                 self._ddwaf._at_request_end()
         finally:
-            _asm_request_context.finalize()
+            _asm_request_context.finalize(span)

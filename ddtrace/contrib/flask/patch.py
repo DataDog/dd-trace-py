@@ -132,7 +132,10 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
         )
 
         if not core.get_item(HTTP_REQUEST_BLOCKED):
-            headers_from_context = core.dispatch("flask.start_response", [])[0][0]
+            headers_from_context = ""
+            results, exceptions = core.dispatch("flask.start_response", [])
+            if not any(exceptions) and results and results[0]:
+                headers_from_context = results[0]
             if core.get_item(HTTP_REQUEST_BLOCKED):
                 # response code must be set here, or it will be too late
                 ctype = "text/html" if "text/html" in headers_from_context else "text/json"
@@ -167,7 +170,7 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
 
         req_body = None
         results, exceptions = core.dispatch("flask.request_span_modifier", [request, environ, _HAS_JSON_MIXIN])
-        if not any(exceptions):
+        if not any(exceptions) and results and results[0]:
             req_body = results[0]
         trace_utils.set_http_meta(
             span,

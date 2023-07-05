@@ -101,8 +101,14 @@ def is_blocked():  # type: () -> bool
         return False
 
 
-def finalize():
+def register(span):
+    _get_asm_context().span = span
+
+
+def finalize(span):
     env = _get_asm_context()
+    if env.span is span:
+        env.span = None
     for function in GLOBAL_CALLBACKS.get(_CONTEXT_CALL, []):
         function(env)
 
@@ -409,7 +415,6 @@ def _on_request_spanmodifier(request, environ, _HAS_JSON_MIXIN):
 
 def _on_set_request_tags(request):
     if _is_iast_enabled():
-
         return LazyTaintDict(
             request.cookies,
             origins=(HTTP_REQUEST_COOKIE_NAME, HTTP_REQUEST_COOKIE_VALUE),

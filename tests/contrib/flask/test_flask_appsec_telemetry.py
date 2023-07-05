@@ -45,7 +45,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             payload = urlencode({"attack": "1' or '1' = '1'"})
             self.client.post("/", data=payload, content_type="application/x-www-form-urlencoded")
             root_span = self.pop_spans()[0]
-            query = dict(core.get_item("http.request.body", span=root_span))
+            query = dict(core.get_item("http.request.body"))
             assert "triggers" in json.loads(root_span.get_tag(APPSEC.JSON))
             assert query == {"attack": "1' or '1' = '1'"}
 

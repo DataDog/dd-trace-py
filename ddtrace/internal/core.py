@@ -43,6 +43,8 @@ class EventHub:
         self._listeners[event_id].append(callback)
 
     def reset(self):
+        if hasattr(self, "_listeners"):
+            del self._listeners
         self._listeners = defaultdict(list)
 
     def dispatch(self, event_id, args):
@@ -150,6 +152,7 @@ class ExecutionContext:
         # NB mimic the behavior of `ddtrace.internal._context` by doing lazy inheritance
         current = self
         while current is not None:
+            log.debug("Checking context '%s' for data at key '%s'", current.identifier, data_key)
             if data_key in current._data:
                 return current._data.get(data_key)
             current = current.parent
