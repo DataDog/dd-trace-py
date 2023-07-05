@@ -4,6 +4,15 @@ from typing import TYPE_CHECKING
 import six
 
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
+from ddtrace.internal.constants import HTTP_REQUEST_BODY
+from ddtrace.internal.constants import HTTP_REQUEST_COOKIE_NAME
+from ddtrace.internal.constants import HTTP_REQUEST_COOKIE_VALUE
+from ddtrace.internal.constants import HTTP_REQUEST_HEADER
+from ddtrace.internal.constants import HTTP_REQUEST_HEADER_NAME
+from ddtrace.internal.constants import HTTP_REQUEST_PARAMETER
+from ddtrace.internal.constants import HTTP_REQUEST_PATH
+from ddtrace.internal.constants import HTTP_REQUEST_QUERY
+from ddtrace.internal.constants import RESPONSE_HEADERS
 
 
 if TYPE_CHECKING:
@@ -71,15 +80,15 @@ class IAST(object):
     PATCH_MODULES = "_DD_IAST_PATCH_MODULES"
     DENY_MODULES = "_DD_IAST_DENY_MODULES"
     SEP_MODULES = ","
-    HTTP_REQUEST_BODY = "http.request.body"
-    HTTP_REQUEST_HEADER = "http.request.header"
-    HTTP_REQUEST_HEADER_NAME = "http.request.header.name"
-    HTTP_REQUEST_PARAMETER = "http.request.parameter"
-    HTTP_REQUEST_PATH = "http.request.path"
+    HTTP_REQUEST_BODY = HTTP_REQUEST_BODY
+    HTTP_REQUEST_HEADER = HTTP_REQUEST_HEADER
+    HTTP_REQUEST_HEADER_NAME = HTTP_REQUEST_HEADER_NAME
+    HTTP_REQUEST_PARAMETER = HTTP_REQUEST_PARAMETER
+    HTTP_REQUEST_PATH = HTTP_REQUEST_PATH
     HTTP_REQUEST_PATH_PARAMETER = "http.request.path.parameter"
-    HTTP_REQUEST_QUERYSTRING = "http.request.query"
-    HTTP_REQUEST_COOKIE_NAME = "http.request.cookie.name"
-    HTTP_REQUEST_COOKIE_VALUE = "http.request.cookie.value"
+    HTTP_REQUEST_QUERYSTRING = HTTP_REQUEST_QUERY
+    HTTP_REQUEST_COOKIE_NAME = HTTP_REQUEST_COOKIE_NAME
+    HTTP_REQUEST_COOKIE_VALUE = HTTP_REQUEST_COOKIE_VALUE
 
 
 @six.add_metaclass(Constant_Class)  # required for python2/3 compatibility
@@ -115,7 +124,7 @@ class SPAN_DATA_NAMES(object):
     REQUEST_HTTP_IP = "http.request.remote_ip"
     REQUEST_USER_ID = "usr.id"
     RESPONSE_STATUS = "http.response.status"
-    RESPONSE_HEADERS_NO_COOKIES = "http.response.headers"
+    RESPONSE_HEADERS_NO_COOKIES = RESPONSE_HEADERS
     RESPONSE_BODY = "http.response.body"
 
 
