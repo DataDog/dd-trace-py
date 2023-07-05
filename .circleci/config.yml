@@ -227,6 +227,14 @@ testagent: &testagent
     - SNAPSHOT_DIR=/snapshots
     - SNAPSHOT_CI=1
 
+testagent_snapshot: &testagent_snapshot
+  image: *testagent_image
+  environment:
+    - LOG_LEVEL=WARNING
+    - SNAPSHOT_DIR=/snapshots
+    - SNAPSHOT_CI=1
+    - DD_TRACE_AGENT_URL=http://localhost:9126
+
 jobs:
   pre_check:
     executor: python310
@@ -649,13 +657,12 @@ jobs:
       - image: *ddtrace_dev_image
       - image: *memcached_image
       - image: *redis_image
-      - *testagent
+      - *testagent_snapshot
     steps:
       - run_test:
           # Run both flask and flask_cache test suites
           # TODO: Re-enable coverage for Flask tests
           store_coverage: false
-          snapshot: true
           pattern: "flask"
 
   gevent:
