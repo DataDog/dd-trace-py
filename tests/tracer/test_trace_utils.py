@@ -18,6 +18,7 @@ from ddtrace import Pin
 from ddtrace import Span
 from ddtrace import Tracer
 from ddtrace import config
+from ddtrace.appsec._constants import IAST
 from ddtrace.context import Context
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.trace_utils import _get_request_header_client_ip
@@ -479,6 +480,23 @@ def test_set_http_meta_no_headers(mock_store_headers, span, int_config):
     result_keys.sort(reverse=True)
     assert result_keys == ["runtime-id", http.USER_AGENT]
     mock_store_headers.assert_not_called()
+
+
+def test_set_http_meta_insecure_cookies_iast_disabled(span, int_config):
+    with override_global_config(dict(_iast_enabled=False)):
+        cookies = {"foo": "bar"}
+        trace_utils.set_http_meta(span, int_config.myint, request_cookies=cookies)
+        span_report = _context.get_item(IAST.CONTEXT_KEY, span=span)
+        assert not span_report
+
+
+@pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ test")
+def test_set_http_meta_insecure_cookies_iast_enabled(span, int_config):
+    with override_global_config(dict(_iast_enabled=True, _appsec_enabled=True)):
+        cookies = {"foo": "bar"}
+        trace_utils.set_http_meta(span, int_config.myint, request_cookies=cookies)
+        span_report = _context.get_item(IAST.CONTEXT_KEY, span=span)
+        assert span_report.vulnerabilities
 
 
 @mock.patch("ddtrace.contrib.trace_utils._store_headers")
