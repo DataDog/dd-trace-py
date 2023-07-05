@@ -14,6 +14,8 @@
 
 // Backtrace providers
 #if defined(__GLIBC__)
+#include <cxxabi.h>
+#include <execinfo.h>
 inline static void
 print_backtrace()
 {
@@ -50,8 +52,6 @@ print_backtrace()
   std::cerr << "Backtrace not available on this platform\n";
 }
 #endif
-#include <cxxabi.h>
-#include <execinfo.h>
 
 // State
 bool is_initialized = false;
