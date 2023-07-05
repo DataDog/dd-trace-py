@@ -21,7 +21,7 @@ iniconfig==2.0.0
 joblib==1.2.0
 mock==5.0.2
 multidict==6.0.4
-numpy==1.21.6
+numpy==1.22.0
 openai==0.26.5
 opentracing==2.4.0
 packaging==23.1

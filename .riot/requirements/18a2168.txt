@@ -25,7 +25,7 @@ kiwisolver==1.4.4
 matplotlib==3.7.1
 mock==5.0.2
 multidict==6.0.4
-numpy==1.25.0
+numpy==1.22.0
 openai[embeddings]==0.27.8
 openpyxl==3.1.2
 opentracing==2.4.0
