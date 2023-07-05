@@ -57,7 +57,7 @@ class EventHub:
             try:
                 result = listener(*args)
             except Exception as exc:
-                raise exc
+                log.info(exc)
                 exception = exc
             results.append(result)
             exceptions.append(exception)
