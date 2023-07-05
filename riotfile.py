@@ -334,7 +334,7 @@ venv = Venv(
         Venv(
             name="integration",
             # Enabling coverage for integration tests breaks certain tests in CI
-            command="pytest --no-ddtrace --no-cov {cmdargs} tests/integration/",
+            command="pytest --no-cov {cmdargs} tests/integration/",
             pkgs={"msgpack": [latest], "coverage": latest},
             venvs=[
                 Venv(
@@ -342,7 +342,6 @@ venv = Venv(
                     env={
                         "AGENT_VERSION": "latest",
                     },
-                    command="pytest --no-cov {cmdargs} tests/integration/",
                     venvs=[
                         Venv(pys=select_pys(max_version="3.5")),
                         Venv(

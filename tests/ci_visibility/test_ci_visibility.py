@@ -45,6 +45,10 @@ POP_CI_VISIBILITY_KEYS = [
 ]
 
 
+def setup():
+    CIVisibility.disable()
+
+
 def test_filters_test_spans():
     trace_filter = TraceCiVisibilityFilter(tags={"hello": "world"}, service="test-service")
     root_test_span = Span(name="span1", span_type="test")
@@ -718,17 +722,15 @@ def test_civisibility_check_enabled_features_itr_enabled_malformed_response(_do_
         CIVisibility.disable()
 
 
-@pytest.mark.skip(reason="WIP")
 def test_civisibility_intake_with_missing_apikey():
-    with override_env(dict(DD_SITE="foobar.baz")):
+    with override_env(dict(DD_SITE="foobar.baz"), pop=POP_CI_VISIBILITY_KEYS):
         with override_global_config({"_ci_visibility_agentless_enabled": True}):
             with pytest.raises(EnvironmentError):
                 CIVisibility.enable()
 
 
-@pytest.mark.skip(reason="WIP")
 def test_civisibility_intake_with_apikey():
-    with override_env(dict(DD_API_KEY="foobar.baz", DD_SITE="foo.bar")):
+    with override_env(dict(DD_API_KEY="foobar.baz", DD_SITE="foo.bar"), pop=POP_CI_VISIBILITY_KEYS):
         with override_global_config({"_ci_visibility_agentless_enabled": True}):
             t = Tracer()
             CIVisibility.enable(tracer=t)
@@ -737,10 +739,9 @@ def test_civisibility_intake_with_apikey():
             CIVisibility.disable()
 
 
-@pytest.mark.skip(reason="WIP")
 @pytest.mark.skipif(AGENT_VERSION == "testagent", reason="Test agent doesn't support evp proxy.")
 def test_civisibility_intake_with_evp_available():
-    with override_env(dict(DD_API_KEY="foobar.baz", DD_SITE="foo.bar")):
+    with override_env(dict(DD_API_KEY="foobar.baz", DD_SITE="foo.bar"), pop=POP_CI_VISIBILITY_KEYS):
         with override_global_config({"_ci_visibility_agentless_enabled": False}):
             t = Tracer()
             CIVisibility.enable(tracer=t)
@@ -754,7 +755,7 @@ def test_civisibility_intake_with_evp_available():
 
 
 def test_civisibility_event_endpoints():
-    with override_env(dict(DD_API_KEY="foobar.baz")):
+    with override_env(dict(DD_API_KEY="foobar.baz"), pop=POP_CI_VISIBILITY_KEYS):
         with override_global_config({"_ci_visibility_code_coverage_enabled": True}):
             t = Tracer()
             t.configure(writer=CIVisibilityWriter(reuse_connections=True))
