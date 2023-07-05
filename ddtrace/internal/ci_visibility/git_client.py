@@ -141,8 +141,8 @@ class CIVisibilityGitClient(object):
         return result
 
     @classmethod
-    def _get_filtered_revisions(cls, excluded_commits, included_commits, cwd=None):
-        # type: (list[str], list[str], Optional[str]) -> str
+    def _get_filtered_revisions(cls, excluded_commits, included_commits=None, cwd=None):
+        # type: (list[str], Optional[list[str]], Optional[str]) -> str
         return get_rev_list(excluded_commits, included_commits, cwd=cwd)
 
     @classmethod
