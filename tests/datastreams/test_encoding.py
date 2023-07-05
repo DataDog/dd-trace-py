@@ -5,7 +5,7 @@ from ddtrace.internal.datastreams.processor import DataStreamsProcessor
 
 def test_encoding():
     n = 1679672748
-    expected_encoded = bytes([216, 150, 238, 193, 12])
+    expected_encoded = bytearray([216, 150, 238, 193, 12])
     encoded = encode_var_int_64(n)
     assert encoded == expected_encoded
     decoded, b = decode_var_int_64(encoded)

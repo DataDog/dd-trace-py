@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    telemetry: telemetry writer validates unique log messages for each interval.
