@@ -49,7 +49,7 @@ print_backtrace()
 inline static void
 print_backtrace()
 {
-  std::cerr << "Backtrace not available on this platform\n";
+    std::cerr << "Backtrace not available on this platform\n";
 }
 #endif
 
