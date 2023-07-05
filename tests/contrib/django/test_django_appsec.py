@@ -8,6 +8,7 @@ from ddtrace import config
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.ext import http
+from ddtrace.ext import user
 from ddtrace.internal import _context
 from ddtrace.internal import constants
 from ddtrace.internal.compat import PY3
@@ -729,3 +730,149 @@ def test_request_suspicious_request_block_match_response_headers(client, test_sp
     with override_global_config(dict(_appsec_enabled=False)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
         root_span, response = _aux_appsec_get_root_span(client, test_spans, tracer, url="/appsec/response-header/")
         assert response.status_code == 200
+
+
+@pytest.mark.django_db
+def test_django_login_events_disabled_explicitly(client, test_spans, tracer):
+    from django.contrib.auth import get_user
+    from django.contrib.auth.models import User
+
+    with override_global_config(dict(_appsec_enabled=True, _automatic_login_events_mode="disabled")):
+        test_user = User.objects.create(username="fred")
+        test_user.set_password("secret")
+        test_user.save()
+        assert not get_user(client).is_authenticated
+        client.login(username="fred", password="secret")
+        assert get_user(client).is_authenticated
+
+        with pytest.raises(AssertionError) as excl_info:
+            _ = test_spans.find_span(name="django.contrib.auth.login")
+        assert "No span found for filter" in str(excl_info.value)
+
+
+@pytest.mark.django_db
+def test_django_login_events_disabled_noappsec(client, test_spans, tracer):
+    from django.contrib.auth import get_user
+    from django.contrib.auth.models import User
+
+    with override_global_config(dict(_appsec_enabled=False, _automatic_login_events_mode="safe")):
+        test_user = User.objects.create(username="fred")
+        test_user.set_password("secret")
+        test_user.save()
+        assert not get_user(client).is_authenticated
+        client.login(username="fred", password="secret")
+        assert get_user(client).is_authenticated
+
+        with pytest.raises(AssertionError) as excl_info:
+            _ = test_spans.find_span(name="django.contrib.auth.login")
+        assert "No span found for filter" in str(excl_info.value)
+
+
+@pytest.mark.django_db
+def test_django_login_sucess_extended(client, test_spans, tracer):
+    from django.contrib.auth import get_user
+    from django.contrib.auth.models import User
+
+    with override_global_config(dict(_appsec_enabled=True, _automatic_login_events_mode="extended")):
+        test_user = User.objects.create(username="fred", first_name="Fred", email="fred@test.com")
+        test_user.set_password("secret")
+        test_user.save()
+        assert not get_user(client).is_authenticated
+        client.login(username="fred", password="secret")
+        assert get_user(client).is_authenticated
+        login_span = test_spans.find_span(name="django.contrib.auth.login")
+        assert login_span
+        assert login_span.get_tag(user.ID) == "fred"
+        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.track") == "true"
+        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.auto.mode") == "extended"
+        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.login") == "fred"
+        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.email") == "fred@test.com"
+        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.username") == "Fred"
+
+
+@pytest.mark.django_db
+def test_django_login_sucess_safe(client, test_spans, tracer):
+    from django.contrib.auth import get_user
+    from django.contrib.auth.models import User
+
+    with override_global_config(dict(_appsec_enabled=True, _automatic_login_events_mode="safe")):
+        test_user = User.objects.create(username="fred2")
+        test_user.set_password("secret")
+        test_user.save()
+        assert not get_user(client).is_authenticated
+        client.login(username="fred2", password="secret")
+        assert get_user(client).is_authenticated
+        login_span = test_spans.find_span(name="django.contrib.auth.login")
+        assert login_span
+        assert login_span.get_tag(user.ID) == "1"
+        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.track") == "true"
+        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.auto.mode") == "safe"
+        assert not login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.login")
+        assert not login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.email")
+        assert not login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.username")
+
+
+@pytest.mark.django_db
+def test_django_login_sucess_safe_is_default_if_wrong(client, test_spans, tracer):
+    from django.contrib.auth import get_user
+    from django.contrib.auth.models import User
+
+    with override_global_config(dict(_appsec_enabled=True, _automatic_login_events_mode="foobar")):
+        test_user = User.objects.create(username="fred")
+        test_user.set_password("secret")
+        test_user.save()
+        client.login(username="fred", password="secret")
+        assert get_user(client).is_authenticated
+        login_span = test_spans.find_span(name="django.contrib.auth.login")
+        assert login_span.get_tag(user.ID) == "1"
+
+
+@pytest.mark.django_db
+def test_django_login_sucess_safe_is_default_if_missing(client, test_spans, tracer):
+    from django.contrib.auth import get_user
+    from django.contrib.auth.models import User
+
+    with override_global_config(dict(_appsec_enabled=True)):
+        test_user = User.objects.create(username="fred")
+        test_user.set_password("secret")
+        test_user.save()
+        client.login(username="fred", password="secret")
+        assert get_user(client).is_authenticated
+        login_span = test_spans.find_span(name="django.contrib.auth.login")
+        assert login_span.get_tag(user.ID) == "1"
+
+
+@pytest.mark.django_db
+def test_django_login_failure_user_doesnt_exists(client, test_spans, tracer):
+    from django.contrib.auth import get_user
+
+    with override_global_config(dict(_appsec_enabled=True, _automatic_login_events_mode="extended")):
+        assert not get_user(client).is_authenticated
+        client.login(username="missing", password="secret2")
+        assert not get_user(client).is_authenticated
+        login_span = test_spans.find_span(name="django.contrib.auth.login")
+        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".failure.track") == "true"
+        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".failure." + user.ID) == "missing"
+        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".failure." + user.EXISTS) == "false"
+        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".failure.auto.mode") == "extended"
+
+
+@pytest.mark.django_db
+def test_django_login_sucess_safe_but_user_set_login(client, test_spans, tracer):
+    from django.contrib.auth import get_user
+    from django.contrib.auth.models import User
+
+    with override_global_config(
+        dict(_appsec_enabled=True, _user_model_login_field="username", _automatic_login_events_mode="safe")
+    ):
+        test_user = User.objects.create(username="fred2")
+        test_user.set_password("secret")
+        test_user.save()
+        assert not get_user(client).is_authenticated
+        client.login(username="fred2", password="secret")
+        assert get_user(client).is_authenticated
+        login_span = test_spans.find_span(name="django.contrib.auth.login")
+        assert login_span
+        assert login_span.get_tag(user.ID) == "fred2"
+        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.track") == "true"
+        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.auto.mode") == "safe"

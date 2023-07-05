@@ -12,24 +12,22 @@
 #define SITE_PACKAGES_PREFIX "/site-packages/"
 #endif
 
-
 #if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 11
-    #include <internal/pycore_frame.h>
-    #define GET_LINENO(frame) PyLong_FromLong(PyCode_Addr2Line(PyFrame_GetCode(frame), PyFrame_GetLasti(frame)))
-    #define GET_FRAME(tstate) PyThreadState_GetFrame(tstate)
-    #define GET_PREVIOUS(frame) PyFrame_GetBack(frame)
-    #define GET_FILENAME(frame) PyObject_GetAttrString(PyFrame_GetCode(frame), "co_filename")
+#include <internal/pycore_frame.h>
+#define GET_LINENO(frame) PyFrame_GetLineNumber((PyFrameObject*)frame)
+#define GET_FRAME(tstate) PyThreadState_GetFrame(tstate)
+#define GET_PREVIOUS(frame) PyFrame_GetBack(frame)
+#define GET_FILENAME(frame) PyObject_GetAttrString(PyFrame_GetCode(frame), "co_filename")
 #else
-    #define PyFrameObject PyFrameObject
-    #define GET_FRAME(tstate) tstate->frame
-    #define GET_PREVIOUS(frame) frame->f_back
-    #define GET_FILENAME(frame) frame->f_code->co_filename
-    #if PY_MAJOR_VERSION >= 3 && PY_MINOR_VERSION >= 10
-        /* See: https://bugs.python.org/issue44964 */
-        #define GET_LINENO(frame) PyCode_Addr2Line(frame->f_code, frame->f_lasti * 2)
-    #else
-        #define GET_LINENO(frame) PyCode_Addr2Line(frame->f_code, frame->f_lasti)
-    #endif
+#define GET_FRAME(tstate) tstate->frame
+#define GET_PREVIOUS(frame) frame->f_back
+#define GET_FILENAME(frame) frame->f_code->co_filename
+#if PY_MAJOR_VERSION >= 3 && PY_MINOR_VERSION >= 10
+/* See: https://bugs.python.org/issue44964 */
+#define GET_LINENO(frame) PyCode_Addr2Line(frame->f_code, frame->f_lasti * 2)
+#else
+#define GET_LINENO(frame) PyCode_Addr2Line(frame->f_code, frame->f_lasti)
+#endif
 #endif
 
 /**
@@ -64,10 +62,10 @@ get_file_and_line(PyObject* Py_UNUSED(module), PyObject* args)
     if (NULL != tstate && NULL != GET_FRAME(tstate)) {
         frame = GET_FRAME(tstate);
         while (NULL != frame) {
+
             filename_o = GET_FILENAME(frame);
             filename = PyUnicode_AsUTF8(filename_o);
-            if (
-            ((strstr(filename, DD_TRACE_INSTALLED_PREFIX) != NULL && strstr(filename, TESTS_PREFIX) == NULL)) ||
+            if (((strstr(filename, DD_TRACE_INSTALLED_PREFIX) != NULL && strstr(filename, TESTS_PREFIX) == NULL)) ||
                 (strstr(filename, SITE_PACKAGES_PREFIX) != NULL || strstr(filename, cwd) == NULL)) {
 
                 frame = GET_PREVIOUS(frame);
