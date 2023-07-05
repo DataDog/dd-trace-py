@@ -331,7 +331,7 @@ class LibDatadogDownload(LibraryDownload):
                 cls.get_package_file(arch, OS),
             )
         elif OS == "Windows":
-            ret_url = "%s/%s.%s.nuget" % (
+            ret_url = "%s/%s" % (
                 cls.url_root_win,
                 cls.version,
             )
