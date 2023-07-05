@@ -522,6 +522,7 @@ venv = Venv(
             pkgs={
                 "msgpack": latest,
                 "httpretty": "==0.9.7",
+                "typing-extensions": latest,
             },
             venvs=[
                 Venv(pys="2.7"),
@@ -765,6 +766,7 @@ venv = Venv(
                             ">=17,<18",
                         ],
                         "more_itertools": "<8.11.0",
+                        "typing-extensions": latest,
                     },
                 ),
                 Venv(
@@ -963,6 +965,7 @@ venv = Venv(
                 "celery": "~=5.0.5",
                 "gevent": latest,
                 "requests": latest,
+                "typing-extensions": latest,
             },
             pys=select_pys(min_version="3.8"),
         ),
@@ -2380,6 +2383,7 @@ venv = Venv(
                     "~=1.3.0",
                     latest,
                 ],
+                "typing-extensions": latest,
             },
         ),
         Venv(
@@ -2535,8 +2539,6 @@ venv = Venv(
         Venv(
             name="openai",
             command="pytest {cmdargs} tests/contrib/openai",
-            env={"SKLEARN_ALLOW_DEPRECATED_SKLEARN_PACKAGE_INSTALL": "True"},
-            pys=select_pys(min_version="3.8"),
             pkgs={
                 "vcrpy": "==4.2.1",
                 "urllib3": "~=1.26",  # vcrpy errors with urllib3 2.x https://github.com/kevin1024/vcrpy/issues/688
@@ -2545,15 +2547,19 @@ venv = Venv(
             },
             venvs=[
                 Venv(
+                    # openai[embeddings] broken install with sklearn was never fixed on 0.26
+                    # https://github.com/openai/openai-python/issues/210
+                    pys="3.7",
+                    env={"SKLEARN_ALLOW_DEPRECATED_SKLEARN_PACKAGE_INSTALL": "True"},
                     pkgs={
-                        "openai[embeddings]": ["==0.27.2", latest],
+                        "openai": "==0.26.5",
+                        "scikit-learn": "==1.0.2",
                     },
                 ),
                 Venv(
+                    pys=select_pys(min_version="3.7"),
                     pkgs={
-                        # openai[embeddings] broken install with sklearn was never fixed on 0.26
-                        "openai": "==0.26.5",  # https://github.com/openai/openai-python/issues/210
-                        "scikit-learn": "==1.2.2",
+                        "openai[embeddings]": ["==0.27.2", latest],
                     },
                 ),
             ],
