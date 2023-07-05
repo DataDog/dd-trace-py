@@ -6,8 +6,8 @@ from ddtrace.settings import _config as config
 
 
 def _is_python_version_supported():
-    # IAST supports Python versions 3.6 to 3.10
-    return (3, 6, 0) <= sys.version_info < (3, 11, 0)
+    # IAST supports Python versions 3.6 to 3.11
+    return (3, 6, 0) <= sys.version_info < (3, 12, 0)
 
 
 def _is_iast_enabled():
