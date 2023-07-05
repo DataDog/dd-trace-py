@@ -213,7 +213,7 @@ def test_scrub_cache(tracer):
             assert len(VulnerabilityBase._redacted_report_cache) == 1
         oce.release_request()
 
-        # Same report
+        # Should be the same report object
         with tracer.trace("test2") as span:
             oce.acquire_request(span)
             SqlInjection.report(evidence_value=valueParts1_copy1, sources=[s1])

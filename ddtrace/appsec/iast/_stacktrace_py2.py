@@ -32,13 +32,12 @@ def get_info_frame(cwd):
             filename = frame.filename
             lineno = frame.lineno
 
-        # JJJ uncomment
-        # if (
-        #     (DD_TRACE_INSTALLED_PREFIX in filename and TESTS_PREFIX not in filename)
-        #     or (cwd not in filename)
-        #     or (SITE_PACKAGES_PREFIX in filename)
-        # ):
-        #     continue
+        if (
+            (DD_TRACE_INSTALLED_PREFIX in filename and TESTS_PREFIX not in filename)
+            or (cwd not in filename)
+            or (SITE_PACKAGES_PREFIX in filename)
+        ):
+            continue
 
         return filename, lineno
 
