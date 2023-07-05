@@ -1,6 +1,4 @@
 import copy
-from functools import partial
-import timeit
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec.iast import oce
@@ -208,7 +206,6 @@ def test_scrub_cache(tracer):
                     {"source": 0, "pattern": "abcd", "redacted": True},
                     {"pattern": "*******'", "redacted": True},
                 ],
-                redacted=False,
             )
             assert len(VulnerabilityBase._redacted_report_cache) == 1
         oce.release_request()
@@ -226,7 +223,6 @@ def test_scrub_cache(tracer):
                     {"source": 0, "pattern": "abcd", "redacted": True},
                     {"pattern": "*******'", "redacted": True},
                 ],
-                redacted=False,
             )
             assert id(span_report1) == id(span_report2)
             assert span_report1 is span_report2
@@ -246,7 +242,6 @@ def test_scrub_cache(tracer):
                     {"source": 0, "pattern": "abcdef", "redacted": True},
                     {"pattern": "*******'", "redacted": True},
                 ],
-                redacted=False,
             )
             assert id(span_report1) != id(span_report3)
             assert span_report1 is not span_report3
@@ -266,7 +261,6 @@ def test_scrub_cache(tracer):
                     {"source": 0, "pattern": "abcd", "redacted": True},
                     {"pattern": "*******'", "redacted": True},
                 ],
-                redacted=False,
             )
             assert id(span_report1) != id(span_report4)
             assert span_report1 is not span_report4
@@ -286,7 +280,6 @@ def test_scrub_cache(tracer):
                     {"source": 0, "pattern": "abcd", "redacted": True},
                     {"pattern": "*******'", "redacted": True},
                 ],
-                redacted=False,
             )
             assert id(span_report1) != id(span_report5)
             assert span_report1 is not span_report5

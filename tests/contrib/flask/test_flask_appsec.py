@@ -389,9 +389,6 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert root_span.get_metric(IAST.ENABLED) == 1.0
 
             loaded = json.loads(root_span.get_tag(IAST.JSON))
-            from pprint import pprint
-
-            pprint(loaded)
             assert loaded["sources"] == [
                 {"origin": "http.request.path.parameter", "name": "param_str", "value": "sqlite_master"}
             ]
@@ -399,8 +396,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert loaded["vulnerabilities"][0]["evidence"] == {
                 "valueParts": [{"value": "SELECT 1 FROM "}, {"value": "sqlite_master", "source": 0}]
             }
-            # JJJ uncomment!
-            # assert loaded["vulnerabilities"][0]["location"]["path"] == "tests/contrib/flask/test_flask_appsec.py"
+            assert loaded["vulnerabilities"][0]["location"]["path"] == "tests/contrib/flask/test_flask_appsec.py"
             assert loaded["vulnerabilities"][0]["location"]["line"] == 370
 
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
@@ -883,7 +879,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert loaded["vulnerabilities"][0]["evidence"] == {
                 "valueParts": [{"value": "SELECT 1 FROM "}, {"value": "sqlite_master", "source": 0}]
             }
-            # assert loaded["vulnerabilities"][0]["location"]["path"] == "tests/contrib/flask/test_flask_appsec.py"  # JJJ
+            assert loaded["vulnerabilities"][0]["location"]["path"] == "tests/contrib/flask/test_flask_appsec.py"
             assert loaded["vulnerabilities"][0]["location"]["line"] == 852
 
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
@@ -1222,3 +1218,51 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             resp = self.client.get("/response-header/")
             # it must not completely fail on an invalid rule file
             assert resp.status_code == 200
+
+    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    def test_flask_full_sqli_iast_enabled_http_request_header_values_scrubbed(self):
+        @self.app.route("/sqli/<string:param_str>/", methods=["GET", "POST"])
+        def test_sqli(param_str):
+            import sqlite3
+
+            from flask import request
+
+            from ddtrace.appsec.iast._ast.aspects import add_aspect
+
+            con = sqlite3.connect(":memory:")
+            cur = con.cursor()
+
+            header = [k for k in request.headers.values() if k == "master"][0]
+
+            query = add_aspect(add_aspect("SELECT tbl_name FROM sqlite_", header), " WHERE tbl_name LIKE 'password'")
+            cur.execute(query)
+
+            return "OK", 200
+
+        with override_global_config(
+            dict(
+                _iast_enabled=True,
+            )
+        ), override_env(IAST_ENV):
+            oce.reconfigure()
+            from ddtrace.appsec.iast._taint_tracking import setup
+
+            setup(bytes.join, bytearray.join)
+
+            self._aux_appsec_prepare_tracer(iast_enabled=True)
+            resp = self.client.post("/sqli/sqlite_master/", data={"name": "test"}, headers={"user-agent": "master"})
+            assert resp.status_code == 200
+
+            root_span = self.pop_spans()[0]
+            assert root_span.get_metric(IAST.ENABLED) == 1.0
+
+            loaded = json.loads(root_span.get_tag(IAST.JSON))
+            assert loaded["sources"] == [{"origin": "http.request.header", "name": "User-Agent", "value": "master"}]
+            assert loaded["vulnerabilities"][0]["type"] == "SQL_INJECTION"
+            assert loaded["vulnerabilities"][0]["evidence"] == {
+                "valueParts": [
+                    {"value": "SELECT tbl_name FROM sqlite_"},
+                    {"value": "master", "source": 0},
+                    {"pattern": " WHERE tbl_name LIKE '********'", "redacted": True},
+                ]
+            }

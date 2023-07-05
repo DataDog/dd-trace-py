@@ -33,11 +33,6 @@ def _is_iast_enabled():  # type: () -> bool
     return True
 
 
-# JJJ TODO:
-# - configuration.rst
-# - flask tests
-# - catching test checking the cache member calling report() with a span
-
 # Used to cache the compiled regular expression
 _SOURCE_NAME_SCRUB = None
 _SOURCE_VALUE_SCRUB = None

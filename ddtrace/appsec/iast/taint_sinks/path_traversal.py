@@ -11,13 +11,11 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 
-# JJJ: add scrub_evidence
-
-
 @oce.register
 class PathTraversal(VulnerabilityBase):
     vulnerability_type = VULN_PATH_TRAVERSAL
     evidence_type = EVIDENCE_PATH_TRAVERSAL
+    scrub_evidence = False
 
 
 def unpatch_iast():

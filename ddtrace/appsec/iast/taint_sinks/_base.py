@@ -73,25 +73,20 @@ class VulnerabilityBase(Operation):
         TODO: check deduplications if DD_IAST_DEDUPLICATION_ENABLED is true
         """
 
-        print("JJJ report 1")
         if cls.acquire_quota():
-            print("JJJ report 2")
             if not tracer or not hasattr(tracer, "current_root_span"):
                 log.debug("Not tracer or tracer has no root span")
                 return None
 
-            print("JJJ report 3")
             span = tracer.current_root_span()
             if not span:
                 log.debug("No root span in the current execution. Skipping IAST taint sink.")
                 return None
 
-            print("JJJ report 4")
             frame_info = get_info_frame(CWD)
             if not frame_info:
                 return None
 
-            print("JJJ report 5")
             file_name, line_number = frame_info
 
             # Remove CWD prefix
@@ -110,14 +105,10 @@ class VulnerabilityBase(Operation):
                 # not not reported = reported
                 return None
 
-            print("JJJ report 6")
             _set_metric_iast_executed_sink(cls.vulnerability_type)
-            print("JJJ report 7")
 
             report = _context.get_item(IAST.CONTEXT_KEY, span=span)
-            print("JJJ report 8")
             if report:
-                print("JJJ report 9")
                 report.vulnerabilities.add(
                     Vulnerability(
                         type=cls.vulnerability_type,
@@ -127,22 +118,15 @@ class VulnerabilityBase(Operation):
                 )
 
             else:
-                print("JJJ report 10")
-                try:
-                    report = IastSpanReporter(
-                        vulnerabilities={
-                            Vulnerability(
-                                type=cls.vulnerability_type,
-                                evidence=evidence,
-                                location=Location(path=file_name, line=line_number, spanId=span.span_id),
-                            )
-                        }
-                    )
-                except:
-                    from traceback import format_exc
-                    print("JJJ tb: %s" % format_exc())
-                    raise
-            print("JJJ report 11")
+                report = IastSpanReporter(
+                    vulnerabilities={
+                        Vulnerability(
+                            type=cls.vulnerability_type,
+                            evidence=evidence,
+                            location=Location(path=file_name, line=line_number, spanId=span.span_id),
+                        )
+                    }
+                )
             if sources:
                 report.sources = {Source(origin=x.origin, name=x.name, value=x.value) for x in sources}
 
@@ -152,7 +136,7 @@ class VulnerabilityBase(Operation):
     @classmethod
     def _extract_sensitive_tokens(cls, report):
         # type: (IastSpanReporter) -> Set[str]
-        raise Exception("JJJ this is abstract, but do this right")
+        log.debug("Base class VulnerabilityBase._extract_sensitive_tokens called")
 
     @classmethod
     def _get_vulnerability_text(cls, vulnerability):

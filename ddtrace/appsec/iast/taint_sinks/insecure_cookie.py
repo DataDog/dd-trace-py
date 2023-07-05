@@ -9,8 +9,6 @@ from ddtrace.appsec.iast.taint_sinks._base import VulnerabilityBase
 from ddtrace.internal.compat import six
 
 
-# JJJ add scrub_evidence
-
 if TYPE_CHECKING:
     from typing import Dict
     from typing import Optional
@@ -20,6 +18,7 @@ if TYPE_CHECKING:
 class InsecureCookie(VulnerabilityBase):
     vulnerability_type = VULN_INSECURE_COOKIE
     evidence_type = EVIDENCE_COOKIE
+    scrub_evidence = False
 
 
 @oce.register
