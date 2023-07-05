@@ -38,7 +38,6 @@ from ddtrace.internal.ci_visibility.coverage import enabled as coverage_enabled
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 
-
 PATCH_ALL_HELP_MSG = "Call ddtrace.patch_all before running tests."
 log = get_logger(__name__)
 
@@ -234,6 +233,7 @@ def pytest_configure(config):
 
 def pytest_sessionstart(session):
     if _CIVisibility.enabled:
+        log.debug("CI Visibility enabled - starting test session")
         test_session_span = _CIVisibility._instance.tracer.trace(
             "pytest.test_session",
             service=_CIVisibility._instance._service,
@@ -251,6 +251,7 @@ def pytest_sessionstart(session):
 
 def pytest_sessionfinish(session, exitstatus):
     if _CIVisibility.enabled:
+        log.debug("CI Visibility enabled - finishing test session")
         test_session_span = _extract_span(session)
         if test_session_span is not None:
             _mark_test_status(session, test_session_span)
@@ -271,7 +272,7 @@ def ddtracer():
     return ddtrace.tracer
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="session")
 def patch_all(request):
     if request.config.getoption("ddtrace-patch-all") or request.config.getini("ddtrace-patch-all"):
         ddtrace.patch_all()

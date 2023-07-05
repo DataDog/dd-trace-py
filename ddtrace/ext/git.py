@@ -20,7 +20,6 @@ from ddtrace.internal import compat
 from ddtrace.internal.compat import TemporaryDirectory
 from ddtrace.internal.logger import get_logger
 
-
 if six.PY2:
     GitNotFoundError = OSError
 else:
@@ -103,6 +102,11 @@ def extract_user_info(cwd=None):
     }
 
 
+def extract_clone_defaultremotename(cwd=None):
+    output = _git_subprocess_cmd("config --default origin --get clone.defaultRemoteName")
+    return output
+
+
 def extract_git_version(cwd=None):
     output = _git_subprocess_cmd("--version")
     version_info = tuple([int(part) for part in output.split()[-1].split(".")])
@@ -120,13 +124,22 @@ def extract_latest_commits(cwd=None):
 
 
 def get_rev_list_excluding_commits(commit_shas, cwd=None):
+    return get_rev_list(excluded_commit_shas=commit_shas, cwd=cwd)
+
+
+def get_rev_list(excluded_commit_shas=None, included_commit_shas=None, cwd=None):
+    # type: (Optional[list[str]], Optional[list[str]], Optional[str]) -> str
     command = ["rev-list", "--objects", "--filter=blob:none"]
     if extract_git_version(cwd=cwd) >= (2, 23, 0):
         command.append('--since="1 month ago"')
         command.append("--no-object-names")
     command.append("HEAD")
-    exclusions = ["^%s" % sha for sha in commit_shas]
-    command.extend(exclusions)
+    if excluded_commit_shas:
+        exclusions = ["^%s" % sha for sha in excluded_commit_shas]
+        command.extend(exclusions)
+    if included_commit_shas:
+        inclusions = ["%s" % sha for sha in included_commit_shas]
+        command.extend(inclusions)
     commits = _git_subprocess_cmd(command, cwd=cwd)
     return commits
 
@@ -253,3 +266,27 @@ def build_git_packfiles(revisions, cwd=None):
             "pack-objects --compression=9 --max-pack-size=3m %s" % prefix, cwd=cwd, std_in=revisions.encode("utf-8")
         )
         yield prefix
+
+
+def is_shallow_repository(cwd=None):
+    # type: (Optional[str]) -> bool
+    output = _git_subprocess_cmd("rev-parse --is-shallow-repository", cwd=cwd)
+    return output.strip() == "true"
+
+
+def unshallow_repository(cwd=None):
+    # type (Optional[str]) -> None
+    remote_name = extract_clone_defaultremotename(cwd)
+    head_sha = extract_commit_sha(cwd)
+
+    cmd = [
+        "fetch",
+        "--update-shallow",
+        "--filter=blob:none",
+        "--recurse-submodules=no",
+        '--shallow-since="1 month ago"',
+        remote_name,
+        head_sha,
+    ]
+
+    _git_subprocess_cmd(cmd, cwd=cwd)
