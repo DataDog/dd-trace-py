@@ -261,7 +261,7 @@ class LibDDWafDownload(LibraryDownload):
 
     @classmethod
     def get_download_link(cls, arch, OS):
-        return "%s/%s/%s" % (cls.url_root, cls.version, cls.get_package_file(arc, OS))
+        return "%s/%s/%s" % (cls.url_root, cls.version, cls.get_package_file(arch, OS))
 
 
 class LibDatadogDownload(LibraryDownload):
@@ -311,7 +311,8 @@ class LibDatadogDownload(LibraryDownload):
     @classmethod
     def get_package_name(cls, arch, OS):
         if OS == "Linux":
-            archive_dir = "lib%s-%s-unknown-linux-gnu" % (cls.name, arch)
+            libc = "unknown-linux-gnu" if is_libc_gnu() else "alpine-linux-musl"
+            archive_dir = "lib%s-%s-%s" % (cls.name, arch, libc)
         elif OS == "Windows":
             archive_dir = "lib%s" % (cls.name)
         return archive_dir
