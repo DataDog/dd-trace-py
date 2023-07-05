@@ -248,7 +248,7 @@ class LibDDWafDownload(LibraryDownload):
     translate_suffix = {"Windows": (".dll",), "Darwin": (".dylib",), "Linux": (".so",)}
 
     @classmethod
-    def archive_type(cls):
+    def archive_type(cls, OS):
         return "gz"
 
     @classmethod
