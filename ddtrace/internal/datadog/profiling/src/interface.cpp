@@ -8,11 +8,50 @@
 
 #include <csignal>
 #include <cstdlib>
-#include <cxxabi.h>
-#include <execinfo.h>
 #include <iostream>
 #include <thread>
 #include <unistd.h>
+
+// Backtrace providers
+#if defined(__GLIBC__)
+inline static void
+print_backtrace()
+{
+    constexpr int max_frames = 128;
+    void* frames[max_frames];
+    int num_frames = backtrace(frames, max_frames);
+    char** symbols = backtrace_symbols(frames, num_frames);
+
+    std::cerr << "Backtrace:\n";
+    for (int i = 0; i < num_frames; ++i) {
+        std::string symbol(symbols[i]);
+        std::size_t start = symbol.find_first_of('_');
+        std::size_t end = symbol.find_first_of(' ', start);
+
+        if (start != std::string::npos && end != std::string::npos) {
+            std::string mangled_name = symbol.substr(start, end - start);
+            int status = -1;
+            char* demangled_name = abi::__cxa_demangle(mangled_name.c_str(), nullptr, nullptr, &status);
+            if (status == 0) {
+                symbol.replace(start, end - start, demangled_name);
+                free(demangled_name);
+            }
+        }
+        std::cerr << symbol << std::endl;
+    }
+    std::cerr << std::endl;
+
+    free(symbols);
+}
+#else
+inline static void
+print_backtrace()
+{
+  std::cerr << "Backtrace not available on this platform\n";
+}
+#endif
+#include <cxxabi.h>
+#include <execinfo.h>
 
 // State
 bool is_initialized = false;
@@ -85,35 +124,6 @@ ddup_config_max_nframes(int max_nframes)
         profile_builder.set_max_nframes(max_nframes);
 }
 
-inline static void
-print_backtrace()
-{
-    constexpr int max_frames = 128;
-    void* frames[max_frames];
-    int num_frames = backtrace(frames, max_frames);
-    char** symbols = backtrace_symbols(frames, num_frames);
-
-    std::cerr << "Backtrace:\n";
-    for (int i = 0; i < num_frames; ++i) {
-        std::string symbol(symbols[i]);
-        std::size_t start = symbol.find_first_of('_');
-        std::size_t end = symbol.find_first_of(' ', start);
-
-        if (start != std::string::npos && end != std::string::npos) {
-            std::string mangled_name = symbol.substr(start, end - start);
-            int status = -1;
-            char* demangled_name = abi::__cxa_demangle(mangled_name.c_str(), nullptr, nullptr, &status);
-            if (status == 0) {
-                symbol.replace(start, end - start, demangled_name);
-                free(demangled_name);
-            }
-        }
-        std::cerr << symbol << std::endl;
-    }
-    std::cerr << std::endl;
-
-    free(symbols);
-}
 static void
 sigsegv_handler(int sig, siginfo_t* si, void* uc)
 {
@@ -121,6 +131,7 @@ sigsegv_handler(int sig, siginfo_t* si, void* uc)
     print_backtrace();
     exit(-1);
 }
+
 void
 ddup_init()
 {
