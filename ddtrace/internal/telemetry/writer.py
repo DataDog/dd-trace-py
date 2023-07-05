@@ -7,6 +7,7 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Set
 from typing import Tuple
 from typing import Union
 
@@ -42,6 +43,19 @@ from .metrics_namespaces import NamespaceMetricType
 
 
 log = get_logger(__name__)
+
+
+class LogData(dict):
+    def __hash__(self):
+        return hash((self["message"], self["level"], self.get("tags"), self.get("stack_trace")))
+
+    def __eq__(self, other):
+        return (
+            self["message"] == other["message"]
+            and self["level"] == other["level"]
+            and self.get("tags") == other.get("tags")
+            and self.get("stack_trace") == other.get("stack_trace")
+        )
 
 
 def _get_heartbeat_interval_or_default():
@@ -241,7 +255,7 @@ class TelemetryLogsMetricsWriter(TelemetryBase):
         # type: () -> None
         super(TelemetryLogsMetricsWriter, self).__init__(interval=_get_telemetry_metrics_interval_or_default())
         self._namespace = MetricNamespace()
-        self._logs = []  # type: List[Dict[str, Any]]
+        self._logs = set()  # type: Set[Dict[str, Any]]
 
     def enable(self, start_worker_thread=True):
         # type: (bool) -> bool
@@ -259,16 +273,18 @@ class TelemetryLogsMetricsWriter(TelemetryBase):
         This will make support cycles easier and ensure we know about potentially silent issues in libraries.
         """
         if self.enable():
-            data = {
-                "message": message,
-                "level": level,
-                "tracer_time": int(time.time()),
-            }
+            data = LogData(
+                {
+                    "message": message,
+                    "level": level,
+                    "tracer_time": int(time.time()),
+                }
+            )
             if tags:
                 data["tags"] = ",".join(["%s:%s" % (k, str(v).lower()) for k, v in tags.items()])
             if stack_trace:
                 data["stack_trace"] = stack_trace
-            self._logs.append(data)
+            self._logs.add(data)
 
     def add_gauge_metric(self, namespace, name, value, tags=None):
         # type: (str,str, float, MetricTagType) -> None
@@ -342,10 +358,10 @@ class TelemetryLogsMetricsWriter(TelemetryBase):
             self._client.send_event(telemetry_event)
 
     def _flush_log_metrics(self):
-        # type () -> List[Metric]
+        # type () -> Set[Metric]
         with self._lock:
             log_metrics = self._logs
-            self._logs = []
+            self._logs = set()
         return log_metrics
 
     def _generate_metrics_event(self, namespace_metrics):
@@ -364,9 +380,9 @@ class TelemetryLogsMetricsWriter(TelemetryBase):
                         self.add_event(payload, TELEMETRY_TYPE_GENERATE_METRICS)
 
     def _generate_logs_event(self, payload):
-        # type: (List[Dict[str, str]]) -> None
+        # type: (Set[Dict[str, str]]) -> None
         log.debug("%s request payload", TELEMETRY_TYPE_LOGS)
-        self.add_event(payload, TELEMETRY_TYPE_LOGS)
+        self.add_event(list(payload), TELEMETRY_TYPE_LOGS)
 
     def on_shutdown(self):
         self.periodic()
@@ -375,7 +391,7 @@ class TelemetryLogsMetricsWriter(TelemetryBase):
         # type: () -> None
         super(TelemetryLogsMetricsWriter, self).reset_queues()
         self._namespace.flush()
-        self._logs = []
+        self._logs = set()
 
 
 class TelemetryWriter(TelemetryBase):

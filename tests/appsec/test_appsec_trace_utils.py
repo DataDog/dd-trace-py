@@ -10,6 +10,7 @@ from ddtrace.appsec.trace_utils import should_block_user
 from ddtrace.appsec.trace_utils import track_custom_event
 from ddtrace.appsec.trace_utils import track_user_login_failure_event
 from ddtrace.appsec.trace_utils import track_user_login_success_event
+from ddtrace.appsec.trace_utils import track_user_signup_event
 from ddtrace.contrib.trace_utils import set_user
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import user
@@ -159,6 +160,13 @@ class EventsSDKTestCase(TracerTestCase):
             root_span = self.tracer.current_root_span()
             failure_prefix = "%s.failure" % APPSEC.USER_LOGIN_EVENT_PREFIX
             assert root_span.get_tag("%s.%s" % (failure_prefix, user.EXISTS)) == "false"
+
+    def test_track_user_signup_event_exists(self):
+        with self.trace("test_signup_exists"):
+            track_user_signup_event(self.tracer, "john", True)
+            root_span = self.tracer.current_root_span()
+            assert root_span.get_tag(APPSEC.USER_SIGNUP_EVENT) == "true"
+            assert root_span.get_tag(user.ID) == "john"
 
     def test_custom_event(self):
         with self.trace("test_custom"):
