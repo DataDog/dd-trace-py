@@ -71,10 +71,15 @@ def drop_traces(tracer):
 
 def drop_telemetry_events():
     # Avoids sending instrumentation telemetry payloads to the agent
-    if telemetry.telemetry_writer.is_periodic():
-        telemetry.telemetry_writer.stop()
-    telemetry.telemetry_writer.reset_queues()
-    telemetry.telemetry_writer.enable(start_worker_thread=False)
+    try:
+        if telemetry.telemetry_writer.is_periodic():
+            telemetry.telemetry_writer.stop()
+        telemetry.telemetry_writer.reset_queues()
+        telemetry.telemetry_writer.enable(start_worker_thread=False)
+    except AttributeError:
+        # telemetry.telemetry_writer is not defined in this version of dd-trace-py
+        # Telemetry events will not be mocked!
+        pass
 
 
 def gen_span(name):
