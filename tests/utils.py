@@ -1,4 +1,3 @@
-import contextlib
 from contextlib import contextmanager
 import inspect
 import json
@@ -57,7 +56,7 @@ def assert_span_http_status_code(span, code):
     assert tag == code, "%r != %r" % (tag, code)
 
 
-@contextlib.contextmanager
+@contextmanager
 def override_env(env, pop=[]):
     """
     Temporarily override ``os.environ`` with provided values::
@@ -83,7 +82,7 @@ def override_env(env, pop=[]):
         os.environ.update(original)
 
 
-@contextlib.contextmanager
+@contextmanager
 def override_global_config(values):
     """
     Temporarily override an global configuration::
@@ -142,7 +141,7 @@ def override_global_config(values):
             setattr(ddtrace.config, key, value)
 
 
-@contextlib.contextmanager
+@contextmanager
 def override_config(integration, values):
     """
     Temporarily override an integration configuration value::
@@ -161,7 +160,7 @@ def override_config(integration, values):
         options.update(original)
 
 
-@contextlib.contextmanager
+@contextmanager
 def override_http_config(integration, values):
     """
     Temporarily override an integration configuration for HTTP value::
@@ -188,7 +187,7 @@ def override_http_config(integration, values):
             setattr(options, key, value)
 
 
-@contextlib.contextmanager
+@contextmanager
 def override_sys_modules(modules):
     """
     Temporarily override ``sys.modules`` with provided dictionary of modules::
@@ -443,7 +442,7 @@ class TracerTestCase(TestSpanContainer, BaseTestCase):
         root_span = self.get_root_span()
         root_span.assert_structure(root, children)
 
-    @contextlib.contextmanager
+    @contextmanager
     def override_global_tracer(self, tracer=None):
         original = ddtrace.tracer
         tracer = tracer or self.tracer
@@ -528,6 +527,14 @@ class DummyCIVisibilityWriter(DummyWriterMixin, CIVisibilityWriter):
         CIVisibilityWriter.write(self, spans=spans)
         # take a snapshot of the writer buffer for tests to inspect
         self._encoded = self._encoder._build_payload()
+
+
+@contextmanager
+def _patch_dummy_writer():
+    original = ddtrace.internal.ci_visibility.recorder.CIVisibilityWriter
+    ddtrace.internal.ci_visibility.recorder.CIVisibilityWriter = DummyCIVisibilityWriter
+    yield
+    ddtrace.internal.ci_visibility.recorder.CIVisibilityWriter = original
 
 
 class DummyTracer(Tracer):

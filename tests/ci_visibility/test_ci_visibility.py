@@ -45,8 +45,9 @@ POP_CI_VISIBILITY_KEYS = [
 ]
 
 
-def setup():
-    CIVisibility.disable()
+def teardown():
+    if CIVisibility.enabled:
+        CIVisibility.disable()
 
 
 def test_filters_test_spans():
