@@ -22,6 +22,7 @@ from tests.utils import DummyTracer
 from tests.utils import override_env
 from tests.utils import override_global_config
 
+
 TEST_SHA = "b3672ea5cbc584124728c48a443825d2940e0ddd"
 
 

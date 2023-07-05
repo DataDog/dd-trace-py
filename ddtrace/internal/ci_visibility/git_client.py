@@ -30,6 +30,7 @@ from .constants import EVP_SUBDOMAIN_HEADER_NAME
 from .constants import GIT_API_BASE_PATH
 from .constants import REQUESTS_MODE
 
+
 log = get_logger(__name__)
 
 # this exists only for the purpose of mocking in tests

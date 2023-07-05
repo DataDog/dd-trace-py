@@ -20,6 +20,7 @@ from ddtrace.internal import compat
 from ddtrace.internal.compat import TemporaryDirectory
 from ddtrace.internal.logger import get_logger
 
+
 if six.PY2:
     GitNotFoundError = OSError
 else:
