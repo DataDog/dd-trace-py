@@ -5,6 +5,7 @@ import platform
 import shutil
 import sys
 import tarfile
+import zipfile
 
 from setuptools import setup, find_packages, Extension
 from setuptools.command.build_ext import build_ext as BuildExtCommand
