@@ -130,11 +130,7 @@ _MODULES_FOR_CONTRIB = {
     "kafka": ("confluent_kafka",),
 }
 
-IAST_PATCH = {
-    "path_traversal": True,
-    "weak_cipher": True,
-    "weak_hash": True,
-}
+IAST_PATCH = {"path_traversal": True, "weak_cipher": True, "weak_hash": True, "json_tainting": True}
 
 DEFAULT_MODULES_PREFIX = "ddtrace.contrib"
 
