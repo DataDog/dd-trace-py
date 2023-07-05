@@ -19,7 +19,6 @@
 #define GET_PREVIOUS(frame) PyFrame_GetBack(frame)
 #define GET_FILENAME(frame) PyObject_GetAttrString(PyFrame_GetCode(frame), "co_filename")
 #else
-#define PyFrameObject PyFrameObject
 #define GET_FRAME(tstate) tstate->frame
 #define GET_PREVIOUS(frame) frame->f_back
 #define GET_FILENAME(frame) frame->f_code->co_filename
