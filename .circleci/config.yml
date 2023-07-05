@@ -643,7 +643,7 @@ jobs:
           snapshot: true
 
   flask:
-    <<: *machine_executor
+    <<: *contrib_job
     parallelism: 4
     steps:
       - run_test:
