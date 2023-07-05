@@ -10,9 +10,17 @@ import xmltodict
 from ddtrace import config
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
+from ddtrace.appsec.iast._input_info import Input_info
+from ddtrace.appsec.iast._taint_tracking import taint_pyobject
+from ddtrace.appsec.iast._taint_utils import LazyTaintDict
+from ddtrace.appsec.iast._util import _is_iast_enabled
 from ddtrace.internal import core
 from ddtrace.internal.compat import parse
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
+from ddtrace.internal.constants import HTTP_REQUEST_COOKIE_NAME
+from ddtrace.internal.constants import HTTP_REQUEST_COOKIE_VALUE
+from ddtrace.internal.constants import HTTP_REQUEST_PATH
+from ddtrace.internal.constants import HTTP_REQUEST_QUERY
 from ddtrace.internal.logger import get_logger
 
 
@@ -399,6 +407,29 @@ def _on_request_spanmodifier(request, environ, _HAS_JSON_MIXIN):
     return req_body
 
 
+def _on_set_request_tags(request):
+    if _is_iast_enabled():
+
+        return LazyTaintDict(
+            request.cookies,
+            origins=(HTTP_REQUEST_COOKIE_NAME, HTTP_REQUEST_COOKIE_VALUE),
+            override_pyobject_tainted=True,
+        )
+
+
+def _on_request_init(instance):
+    if _is_iast_enabled():
+        try:
+
+            taint_pyobject(
+                instance.query_string,
+                Input_info(HTTP_REQUEST_QUERY, instance.query_string, HTTP_REQUEST_QUERY),
+            )
+            taint_pyobject(instance.path, Input_info(HTTP_REQUEST_PATH, instance.path, HTTP_REQUEST_PATH))
+        except Exception:
+            log.debug("Unexpected exception while tainting pyobject", exc_info=True)
+
+
 def _on_context_started(context=None):
     if context is None:
         context = core._CURRENT_CONTEXT.get()
@@ -411,9 +442,11 @@ def _on_context_started(context=None):
         context.get_item("block_request_callable"),
     )
     core.on("flask.start_response", _on_startresponse)
+    core.on("flask.request_init", _on_request_init)
     core.on("flask.traced_request.pre", _on_pre_tracedrequest)
     core.on("flask.finalize_request.post", _on_post_finalizerequest)
     core.on("flask.request_span_modifier", _on_request_spanmodifier)
+    core.on("flask.set_request_tags", _on_set_request_tags)
     core.on("wsgi.block_decided", _on_block_decided)
     return resources
 

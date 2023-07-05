@@ -12,12 +12,9 @@ from ddtrace.ext import SpanKind
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.constants import HTTP_REQUEST_BODY
-from ddtrace.internal.constants import HTTP_REQUEST_COOKIE_NAME
-from ddtrace.internal.constants import HTTP_REQUEST_COOKIE_VALUE
 from ddtrace.internal.constants import HTTP_REQUEST_HEADER
 from ddtrace.internal.constants import HTTP_REQUEST_HEADER_NAME
 from ddtrace.internal.constants import HTTP_REQUEST_PARAMETER
-from ddtrace.internal.constants import HTTP_REQUEST_PATH
 from ddtrace.internal.constants import HTTP_REQUEST_QUERY
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import http as http_utils
@@ -106,20 +103,9 @@ flask_version_str = getattr(flask, "__version__", "0.0.0")
 flask_version = parse_version(flask_version_str)
 
 
-def taint_request_init(wrapped, instance, args, kwargs):
+def wrapped_request_init(wrapped, instance, args, kwargs):
     wrapped(*args, **kwargs)
-    if _is_iast_enabled():
-        try:
-            from ddtrace.appsec.iast._input_info import Input_info
-            from ddtrace.appsec.iast._taint_tracking import taint_pyobject
-
-            taint_pyobject(
-                instance.query_string,
-                Input_info(HTTP_REQUEST_QUERY, instance.query_string, HTTP_REQUEST_QUERY),
-            )
-            taint_pyobject(instance.path, Input_info(HTTP_REQUEST_PATH, instance.path, HTTP_REQUEST_PATH))
-        except Exception:
-            log.debug("Unexpected exception while tainting pyobject", exc_info=True)
+    core.dispatch("flask.request_init", [instance])
 
 
 class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
@@ -224,7 +210,7 @@ def patch():
         "ImmutableMultiDict.__getitem__",
         functools.partial(if_iast_taint_returned_object_for, HTTP_REQUEST_PARAMETER),
     )
-    _w("werkzeug.wrappers.request", "Request.__init__", taint_request_init)
+    _w("werkzeug.wrappers.request", "Request.__init__", wrapped_request_init)
     _w(
         "werkzeug.wrappers.request",
         "Request.get_data",
@@ -690,14 +676,9 @@ def _set_request_tags(span):
             span.resource = " ".join((request.method, request.url_rule.rule))
             span.set_tag_str(FLASK_URL_RULE, request.url_rule.rule)
 
-        if _is_iast_enabled():
-            from ddtrace.appsec.iast._taint_utils import LazyTaintDict
-
-            request.cookies = LazyTaintDict(
-                request.cookies,
-                origins=(HTTP_REQUEST_COOKIE_NAME, HTTP_REQUEST_COOKIE_VALUE),
-                override_pyobject_tainted=True,
-            )
+        results, exceptions = core.dispatch("flask.set_request_tags", [request])
+        if not any(exceptions) and results[0] is not None:
+            request.cookies = results[0]
 
         if not span.get_tag(FLASK_VIEW_ARGS) and request.view_args and config.flask.get("collect_view_args"):
             for k, v in request.view_args.items():
