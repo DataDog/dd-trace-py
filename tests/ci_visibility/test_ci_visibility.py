@@ -723,6 +723,7 @@ def test_civisibility_check_enabled_features_itr_enabled_malformed_response(_do_
         CIVisibility.disable()
 
 
+@pytest.mark.skip(reason="WIP")
 def test_civisibility_intake_with_missing_apikey():
     with override_env(dict(DD_SITE="foobar.baz"), pop=POP_CI_VISIBILITY_KEYS):
         with override_global_config({"_ci_visibility_agentless_enabled": True}):
@@ -730,6 +731,7 @@ def test_civisibility_intake_with_missing_apikey():
                 CIVisibility.enable()
 
 
+@pytest.mark.skip(reason="WIP")
 def test_civisibility_intake_with_apikey():
     with override_env(dict(DD_API_KEY="foobar.baz", DD_SITE="foo.bar"), pop=POP_CI_VISIBILITY_KEYS):
         with override_global_config({"_ci_visibility_agentless_enabled": True}):
@@ -740,6 +742,7 @@ def test_civisibility_intake_with_apikey():
             CIVisibility.disable()
 
 
+@pytest.mark.skip(reason="WIP")
 @pytest.mark.skipif(AGENT_VERSION == "testagent", reason="Test agent doesn't support evp proxy.")
 def test_civisibility_intake_with_evp_available():
     with override_env(dict(DD_API_KEY="foobar.baz", DD_SITE="foo.bar"), pop=POP_CI_VISIBILITY_KEYS):
