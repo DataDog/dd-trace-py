@@ -138,7 +138,7 @@ class LibraryDownload:
 
     @classmethod
     def expand_zip(cls, filename, suffixes, archive_dir, arch_dir):
-        with zipfile.ZipFile(filename, 'r') as zip_ref:
+        with zipfile.ZipFile(filename, "r") as zip_ref:
             dynfiles = [c for c in zip_ref.namelist() if c.endswith(suffixes)]
             print("extracting files:", dynfiles)
 
@@ -149,8 +149,8 @@ class LibraryDownload:
     @classmethod
     def expand(cls, filename, suffixes, archive_dir, arch_dir, OS):
         dispatch_dict = {
-            "gz" : cls.expand_gz,
-            "xz" : cls.expand_xz,
+            "gz": cls.expand_gz,
+            "xz": cls.expand_xz,
             "zip": cls.expand_zip,
         }
         return dispatch_dict[cls.archive_type(OS)](filename, suffixes, archive_dir, arch_dir)
@@ -237,7 +237,7 @@ class LibDDWafDownload(LibraryDownload):
         },
         "Windows": {
             "x64": "f0ce0dff6718796a4bd2c0310d69fd22275d0f418c626c2b66bf24710f2ded47",
-            "win32": "69f514fcad680412b8fcafb2c1f007eebccaab07bed455bb89a840b76c5780c6"
+            "win32": "69f514fcad680412b8fcafb2c1f007eebccaab07bed455bb89a840b76c5780c6",
         },
     }
     available_releases = {
@@ -249,7 +249,7 @@ class LibDDWafDownload(LibraryDownload):
 
     @classmethod
     def archive_type(cls):
-      return "gz"
+        return "gz"
 
     @classmethod
     def get_package_name(cls, arch, OS):
@@ -261,11 +261,7 @@ class LibDDWafDownload(LibraryDownload):
 
     @classmethod
     def get_download_link(cls, arch, OS):
-        return "%s/%s/%s" % (
-            cls.url_root,
-            cls.version,
-            cls.get_package_file(arc, OS)
-        )
+        return "%s/%s/%s" % (cls.url_root, cls.version, cls.get_package_file(arc, OS))
 
 
 class LibDatadogDownload(LibraryDownload):
@@ -307,10 +303,10 @@ class LibDatadogDownload(LibraryDownload):
 
     @classmethod
     def archive_type(cls, OS):
-      if OS == "Windows":
-        return "zip"
-      else:
-        return "gz"
+        if OS == "Windows":
+            return "zip"
+        else:
+            return "gz"
 
     @classmethod
     def get_package_name(cls, arch, OS):
