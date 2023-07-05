@@ -681,7 +681,6 @@ def test_civisibility_check_enabled_features_itr_enabled_malformed_response(_do_
         CIVisibility.disable()
 
 
-@pytest.mark.romain
 def test_run_protocol_unshallow_git_ge_227():
     with mock.patch("ddtrace.internal.ci_visibility.git_client.extract_git_version", return_value=(2, 27, 0)):
         with mock.patch.multiple(

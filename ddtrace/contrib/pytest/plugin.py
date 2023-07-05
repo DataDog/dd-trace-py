@@ -272,7 +272,7 @@ def ddtracer():
     return ddtrace.tracer
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="session", autouse=True)
 def patch_all(request):
     if request.config.getoption("ddtrace-patch-all") or request.config.getini("ddtrace-patch-all"):
         ddtrace.patch_all()
