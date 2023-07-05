@@ -1,6 +1,6 @@
 from flask import Flask
 
-from ddtrace.internal.telemetry import telemetry_lifecycle_writer
+from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_TRACER
 
 
@@ -14,7 +14,7 @@ def index():
 
 @app.route("/count_metric")
 def metrics_view():
-    telemetry_lifecycle_writer.add_count_metric(
+    telemetry_writer.add_count_metric(
         TELEMETRY_NAMESPACE_TAG_TRACER,
         "test_metric",
         1.0,

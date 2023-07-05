@@ -210,7 +210,7 @@ class TelemetryWriter(PeriodicService):
         # type: () -> bool
         """
         Returns true if the the telemetry writer is running and was enabled using
-        telemetry_lifecycle_writer.enable(start_worker_thread=True)
+        telemetry_writer.enable(start_worker_thread=True)
         """
         return self.status is ServiceStatus.RUNNING and self._worker and self._worker.is_alive()
 
