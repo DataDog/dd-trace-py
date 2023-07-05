@@ -269,7 +269,7 @@ class LibDatadogDownload(LibraryDownload):
     download_dir = LIBDATADOG_PROF_DOWNLOAD_DIR
     version = LIBDATADOG_PROF_VERSION
     url_root = "https://github.com/DataDog/libdatadog/releases/download"
-    url_root_win = "https://globalcdn.nuget.org/packages"
+    url_root_win = "https://www.nuget.org/api/v2/package/libdatadog"
     expected_checksums = {
         "Linux": {
             "x86_64": {
@@ -333,7 +333,6 @@ class LibDatadogDownload(LibraryDownload):
         elif OS == "Windows":
             ret_url = "%s/%s.%s.nuget" % (
                 cls.url_root_win,
-                cls.get_package_name(arch, OS),
                 cls.version,
             )
             print("Getting Windows download at: " + ret_url)
