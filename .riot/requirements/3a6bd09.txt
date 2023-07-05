@@ -7,7 +7,7 @@
 attrs==22.2.0
 coverage[toml]==6.2
 googleapis-common-protos==1.56.3
-grpcio==1.48.2
+grpcio==1.53.0
 hypothesis==6.31.6
 importlib-metadata==4.8.3
 iniconfig==1.1.1
