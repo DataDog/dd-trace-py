@@ -14,7 +14,7 @@
 
 #if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 11
 #include <internal/pycore_frame.h>
-#define GET_LINENO(frame) PyLong_FromLong(PyCode_Addr2Line(PyFrame_GetCode(frame), PyFrame_GetLasti(frame)))
+#define GET_LINENO(frame) PyFrame_GetLineNumber((PyFrameObject*)frame)
 #define GET_FRAME(tstate) PyThreadState_GetFrame(tstate)
 #define GET_PREVIOUS(frame) PyFrame_GetBack(frame)
 #define GET_FILENAME(frame) PyObject_GetAttrString(PyFrame_GetCode(frame), "co_filename")
