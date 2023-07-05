@@ -10,6 +10,9 @@ The best way to suggest a change to the library is to open a
 You may also consider opening an `issue <https://github.com/DataDog/dd-trace-py/issues>`_
 if you'd like to report a bug or request a new feature.
 
+Before working on the library, install `docker <https://www.docker.com/products/docker>`_
+and `docker-compose <https://www.docker.com/products/docker-compose>`_.
+
 Thanks for working with us!
 
 Change Process
@@ -29,6 +32,8 @@ primarily focus on idiomatic Python usage, efficiency, testing, and adherence to
 Correctness and code style are automatically checked in continuous integration, with style linting managed by
 various tools including Flake8, Black, and MyPy. This means that code reviews don't need to worry about style
 and can focus on substance.
+
+If you get errors from ``git commit`` that mention "pre-commit", run ``$ rm .git/hooks/pre-commit`` and try again.
 
 Branches and Pull Requests
 --------------------------

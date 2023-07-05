@@ -15,7 +15,7 @@ mongo_image: &mongo_image mongo:3.6
 httpbin_image: &httpbin_image kennethreitz/httpbin@sha256:2c7abc4803080c22928265744410173b6fea3b898872c01c5fd0f0f9df4a59fb
 vertica_image: &vertica_image sumitchawla/vertica:latest
 rabbitmq_image: &rabbitmq_image rabbitmq:3.7-alpine
-testagent_image: &testagent_image ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:latest
+testagent_image: &testagent_image ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:v1.10.1
 
 parameters:
   coverage:
@@ -352,6 +352,12 @@ jobs:
     steps:
       - run_test:
           pattern: "internal"
+
+  datastreams:
+    <<: *contrib_job
+    steps:
+      - run_test:
+          pattern: "datastreams"
 
   tracer:
     <<: *contrib_job_large
@@ -1115,6 +1121,7 @@ requires_tests: &requires_tests
     - ci_visibility
     - consul
     - ddtracerun
+    - datastreams
     - dogpile_cache
     - django
     - django_hosts
@@ -1214,6 +1221,7 @@ workflows:
       - cherrypy: *requires_base_venvs
       - ci_visibility: *requires_base_venvs
       - consul: *requires_base_venvs
+      - datastreams: *requires_base_venvs
       - ddtracerun: *requires_base_venvs
       - django: *requires_base_venvs
       - django_hosts: *requires_base_venvs
