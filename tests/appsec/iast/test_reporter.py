@@ -109,7 +109,7 @@ def test_redacted_report_source_name_match():
     s = Source(origin="SomeOrigin", name="secret", value="SomeValue")
     report = IastSpanReporter(set([s]), set([v]))
 
-    redacted_report = SqlInjection.redact_report(report)
+    redacted_report = SqlInjection._redact_report(report)
     for v in redacted_report.vulnerabilities:
         assert v.evidence.redacted
         assert v.evidence.pattern == "'%s'" % ("*" * len_ev)

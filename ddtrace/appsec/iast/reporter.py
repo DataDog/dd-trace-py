@@ -10,18 +10,16 @@ from ddtrace.internal.compat import PY2
 
 
 class Evidence(object):
-    def __init__(self, value=None, pattern=None, valueParts=None, redacted=False):
+    def __init__(self, value=None, pattern=None, valueParts=None):
         self.value = value
         self.pattern = pattern
         self.valueParts = valueParts
-        self.redacted = redacted
 
     def __eq__(self, other):
         if isinstance(other, self.__class__):
             return (self.value == other.value and
                     self.pattern == other.pattern and
-                    self._valueParts_hash() == other._valueParts_hash() and
-                    self.redacted == other.redacted)
+                    self._valueParts_hash() == other._valueParts_hash())
         return False
 
     def _valueParts_hash(self):
@@ -40,10 +38,18 @@ class Evidence(object):
         return hash
 
     def __hash__(self):
-        return hash((self.value, self.pattern, self._valueParts_hash(), self.redacted))
+        return hash((self.value, self.pattern, self._valueParts_hash()))
 
     def __repr__(self):
-        return f"Evidence(value={self.value}, pattern={self.pattern}, valueParts={self.valueParts}, redacted={self.redacted})"
+        return f"Evidence(value={self.value}, pattern={self.pattern}, valueParts={self.valueParts}"
+
+    def asdict(self, *args, **kwargs):
+        ret = {}
+        if self.value:
+            ret["value"] = self.value
+        if self.valueParts:
+            ret["valueParts"] = self.valueParts
+        return ret
 
 
 @attr.s(eq=True, hash=True)
@@ -89,3 +95,24 @@ class IastSpanReporter(object):
 
     def __repr__(self):
         return str(self)
+
+    @staticmethod
+    def _non_attrs_serializer(instance, field, value):
+        if hasattr(value, "asdict"):
+            return value.asdict()
+        return value
+
+    def asdict(self):
+
+        JJJ = {
+            "sources": [attr.asdict(s, filter=lambda attr, x: x is not None and x is not False) for s in self.sources],
+            "vulnerabilities": [attr.asdict(s, filter=lambda attr, x: x is not None and x is not False, value_serializer=self._non_attrs_serializer) for s in self.vulnerabilities],
+        }
+        from pprint import pprint
+        print("JJJ Report asdict: %s" % JJJ)
+        pprint(JJJ)
+
+        return {
+            "sources": [attr.asdict(s, filter=lambda attr, x: x is not None and x is not False) for s in self.sources],
+            "vulnerabilities": [attr.asdict(s, filter=lambda attr, x: x is not None and x is not False, value_serializer=self._non_attrs_serializer) for s in self.vulnerabilities],
+        }
