@@ -51,6 +51,7 @@
       "kafka.tombstone": "False",
       "kafka.topic": "test_service_override_env_var",
       "language": "python",
+      "messaging.kafka.bootstrap.servers": "localhost:29092",
       "messaging.system": "kafka",
       "runtime-id": "1ee2059e7bbd4920992d6d4d2f121780",
       "span.kind": "producer"
