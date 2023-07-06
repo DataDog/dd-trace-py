@@ -64,6 +64,7 @@ from .sampler import RateSampler
 from .span import Span
 
 
+
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Any
     from typing import Dict

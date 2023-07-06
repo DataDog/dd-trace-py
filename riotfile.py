@@ -290,6 +290,7 @@ venv = Venv(
                 "structlog": latest,
                 # httpretty v1.0 drops python 2.7 support
                 "httpretty": "==0.9.7",
+                "rust": "/target/wheels/rust-0.1.0-cp39-cp39-macosx_11_0_arm64.whl"
             },
             venvs=[
                 Venv(pys=select_pys()),
