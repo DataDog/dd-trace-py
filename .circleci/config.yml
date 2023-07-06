@@ -76,7 +76,7 @@ commands:
     description: "Install riot"
     steps:
       # Make sure we install and run riot on Python 3
-      - run: pip3 install git+https://github.com/DataDog/riot@fix/dev-package-prefix
+      - run: pip3 install git+https://github.com/DataDog/riot@fix/dev-package-dedicated-venv
 
   save_pip_cache:
     description: "Save pip cache directory"
