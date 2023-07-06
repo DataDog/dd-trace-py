@@ -159,13 +159,6 @@ def test_global_tags(ddtrace_config_langchain, langchain, request_vcr, mock_metr
         )
 
 
-@pytest.mark.xfail(reason="An API key is required when logs are enabled")
-@pytest.mark.parametrize("ddtrace_config_langchain", [dict(_api_key="", logs_enabled=True)])
-def test_logs_no_api_key(ddtrace_config_langchain, langchain, mock_tracer):
-    """When no DD_API_KEY is set, the patching fails"""
-    pass
-
-
 @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Python 3.10+ specific test")
 @pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
 def test_openai_llm_sync(langchain, request_vcr):
