@@ -194,8 +194,6 @@ ddup_push_lock_name(const char* lock_name)
 void
 ddup_push_threadinfo(int64_t thread_id, int64_t thread_native_id, const char* thread_name)
 {
-    if (!thread_name)
-        return;
     g_profile->push_threadinfo(thread_id, thread_native_id, thread_name);
 }
 

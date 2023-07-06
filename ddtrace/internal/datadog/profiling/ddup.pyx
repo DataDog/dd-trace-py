@@ -132,10 +132,8 @@ IF UNAME_SYSNAME == "Linux" and UNAME_MACHINE == "x86_64":
         if thread_native_id is None:
             thread_native_id = 0
 
-        if thread_name is None:
-            ddup_push_threadinfo(thread_id, thread_native_id, ensure_binary(""))
-        else:
-            ddup_push_threadinfo(thread_id, thread_native_id, ensure_binary(thread_name))
+        # caller ensures thread_name is never null
+        ddup_push_threadinfo(thread_id, thread_native_id, ensure_binary(thread_name))
 
     def push_task_id(task_id: int) -> None:
         ddup_push_task_id(task_id)

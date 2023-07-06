@@ -339,8 +339,6 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
             if task_pyframes is None:
                 continue
 
-            if task_id in thread_id_ignore_list:
-                continue
             frames, nframes = _traceback.pyframe_to_frames(task_pyframes, max_nframes)
 
             if use_libdd and nframes:
