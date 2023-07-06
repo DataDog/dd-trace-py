@@ -1,4 +1,4 @@
 ---
-fix:
+fixes:
   - |
     telemetry: resolves issue with sending unnecessary duplicate logs
