@@ -13,6 +13,7 @@ from ddtrace.constants import IAST_ENV
 from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.utils.cache import cachedmethod
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.internal.utils.http import normalize_header_name
 from ddtrace.vendor.debtcollector import deprecate
 
 from ..internal import gitmetadata
@@ -380,8 +381,7 @@ class Config(object):
 
         self._subscriptions = []
 
-        header_tags = parse_tags_str(os.getenv("DD_TRACE_HEADER_TAGS", ""))
-        self.http = HttpConfig(header_tags=header_tags)
+        self.http = HttpConfig(header_tags=self.trace_http_header_tags)
 
         # Master switch for turning on and off trace search by default
         # this weird invocation of getenv is meant to read the DD_ANALYTICS_ENABLED
@@ -405,7 +405,7 @@ class Config(object):
         self.version = os.getenv("DD_VERSION", default=self.tags.get("version"))
         self.http_server = self._HTTPServerConfig()
 
-        # self.service_mapping = parse_tags_str(os.getenv("DD_SERVICE_MAPPING", default=""))
+        self.service_mapping = parse_tags_str(os.getenv("DD_SERVICE_MAPPING", default=""))
 
         # The service tag corresponds to span.service and should not be
         # included in the global tags.
@@ -568,10 +568,11 @@ class Config(object):
         """
         return self.http.header_is_traced(header_name)
 
-    @cachedmethod()
     def _header_tag_name(self, header_name):
         # type: (str) -> Optional[str]
-        return self.http._header_tag_name(header_name)
+        from ddtrace.internal.utils.http import normalize_header_name
+
+        return self.trace_http_header_tags.get(normalize_header_name(header_name))
 
     def _get_service(self, default=None):
         """
@@ -615,6 +616,14 @@ class Config(object):
         else:
             self._items["trace_sample_rate"].remoteconfig.set(
                 lib_config["tracing_sampling_rate"], lib_config["tracing_sampling_rate"]
+            )
+
+        if lib_config["tracing_header_tags"] is None:
+            self._items["trace_http_header_tags"].remoteconfig.clear()
+        else:
+            self._items["trace_http_header_tags"].remoteconfig.set(
+                lib_config["tracing_header_tags"],
+                {normalize_header_name(e["header"]): e["tag_name"] for e in lib_config["tracing_header_tags"]},
             )
         self._notify_subscribers(changed_items)
 

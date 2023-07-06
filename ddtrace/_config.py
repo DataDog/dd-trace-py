@@ -1,8 +1,10 @@
 from .internal.utils.formats import parse_tags_str
+from .internal.utils.http import normalize_header_name
 from .sampler import DatadogSampler
 from .settings.config import _ConfigItem
 from .settings.config import _ConfigSourceEnv
 from .settings.config import _ConfigSourceEnvMulti
+from .settings.config import _ConfigSourceProgrammatic
 
 
 def _service_from_tags(s):
@@ -19,8 +21,12 @@ def _parse_tags_str(s):
 
 
 def _parse_trace_sampling_rules(s):
-    # This is a method so we need a `self` argument, but the self argument is unused.
+    # This is a method, so we need a `self` argument, but the self argument is unused.
     return DatadogSampler._parse_rules_from_env_variable(None, s)
+
+
+def _parse_http_header_tags(s):
+    return {normalize_header_name(k): v for k, v in parse_tags_str(s or "").items()}
 
 
 def _default_config():
@@ -41,26 +47,6 @@ def _default_config():
                 "description": "Service name to be used for the application. This is the primary key used in the Datadog product for data submitted from this library. See `Unified Service Tagging`_ for more information.",
                 "version_added": {
                     "v0.36.0": "",
-                },
-            },
-        ),
-        _ConfigItem(
-            key="service_mapping",
-            default=dict,
-            type="Dict[str, str]",
-            environ=_ConfigSourceEnv(
-                name="DD_SERVICE_MAPPING",
-                factory=_parse_tags_str,
-                examples=[
-                    "from_service:to_service",
-                    "from_service:to_service,from_service2:to_service2",
-                    "postgres:postgresql,defaultdb:postgresql",
-                ],
-            ),
-            metadata={
-                "description": "Map service names to other service names to enable renaming services in traces.",
-                "version_added": {
-                    "v0.47.0": "",
                 },
             },
         ),
@@ -113,6 +99,28 @@ def _default_config():
                 "version_added": {
                     "v0.55.0": "``DD_TRACE_SAMPLING_RULES`` added",
                     "v1.16.0": "``config.trace_sampling_rules`` added",
+                },
+            },
+        ),
+        _ConfigItem(
+            key="trace_http_header_tags",
+            default=dict,
+            type="Dict[str, str]",
+            programmatic=_ConfigSourceProgrammatic(
+                factory=lambda h: {normalize_header_name(k): v for k, v in h.items()}
+            ),
+            environ=_ConfigSourceEnv(
+                name="DD_TRACE_HEADER_TAGS",
+                factory=_parse_http_header_tags,
+                examples=[
+                    "X-HEADER:tag1,X-Other-Header:tag2",
+                    "X-HEADER,X-Other-Header",
+                ],
+            ),
+            metadata={
+                "description": "Headers to tag on traces. Tags will be applied to the TODO span. When a tag value is not provided for a header then a default prefix will be included",
+                "version_added": {
+                    "TODO": "",
                 },
             },
         ),

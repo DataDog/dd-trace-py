@@ -17,7 +17,7 @@ def _base_config(cfg):
     lib_config = {
         "runtime_metrics_enabled": None,
         "tracing_debug": None,
-        "tracing_http_header_tags": None,
+        "tracing_header_tags": None,
         "tracing_service_mapping": None,
         "tracing_sampling_rate": None,
         "tracing_sampling_rules": None,
@@ -306,3 +306,35 @@ def test_trace_sampling_user(monkeypatch):
     assert tracer._config.sampler.rules[1].sample_rate == 0.2
     assert tracer._config.sampler.rules[1].service == SamplingRule.NO_RULE
     assert tracer._config.sampler.rules[1].name == SamplingRule.NO_RULE
+
+
+def test_trace_http_header_tags(monkeypatch):
+    # Environment vars
+    monkeypatch.setenv("DD_TRACE_HEADER_TAGS", "X-Test-Tag:test.tag_env")
+    assert config._header_tag_name("X-Test-Tag") == "test.tag_env"
+
+    # Programmatic
+    config.trace_http_header_tags = {
+        "X-Test-Tag": "test.tag_user",
+    }
+    assert config._header_tag_name("X-Test-Tag") == "test.tag_user"
+
+    # Remote Config
+    config._update_rc(
+        None,
+        _base_config(
+            {
+                "tracing_header_tags": [
+                    {
+                        "header": "X-Test-Tag",
+                        "tag": "test.tag_rc",
+                    }
+                ]
+            }
+        ),
+    )
+    assert config._header_tag_name("X-Test-Tag") == "test.tag_rc"
+
+    # Unset RC
+    config._update_rc(None, _base_config({"tracing_header_tags": None}))
+    assert config._header_tag_name("X-Test-Tag") == "test.tag_user"

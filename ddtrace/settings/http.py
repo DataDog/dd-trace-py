@@ -28,7 +28,6 @@ class HttpConfig(object):
         self._header_tags = {}
         self._header_tag_name.invalidate()
 
-    @cachedmethod()
     def _header_tag_name(self, header_name):
         # type: (str) -> Optional[str]
         if not self._header_tags:

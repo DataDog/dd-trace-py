@@ -198,28 +198,24 @@ class _TraceConfigurationV1(object):
     def __init__(
         self,
         service,  # type: str
-        service_mapping,
         sampler,  # type: DatadogSampler
     ):
         # type: (...) -> None
         self.service = service
-        self.service_mapping = service_mapping
         self.sampler = sampler  # type: DatadogSampler
 
     def copy(self):
         # type: () -> _TraceConfigurationV1
         return self.__class__(
             service=self.service,
-            service_mapping=self.service_mapping.copy(),
             sampler=self.sampler,
         )
 
     def __repr__(self):
         # type: () -> str
-        return "{}(service={!r}, service_mapping={!r}, sampler={!r})".format(
+        return "{}(service={!r}, sampler={!r})".format(
             self.__class__.__name__,
             self.service,
-            self.service_mapping,
             self.sampler,
         )
 
@@ -284,7 +280,6 @@ class Tracer(object):
         self._trace_sampling_rules_global = None
         self._config = _TraceConfigurationV1(
             service=config.service,
-            service_mapping=config.service_mapping,
             sampler=self._resolve_sampler(),
         )
 
@@ -783,7 +778,7 @@ class Tracer(object):
             service = trace_cfg.service
 
         # Update the service name based on any mapping
-        service = trace_cfg.service_mapping.get(service, service)
+        service = config.service_mapping.get(service, service)
 
         if trace_id:
             # child_of a non-empty context, so either a local child span or from a remote context

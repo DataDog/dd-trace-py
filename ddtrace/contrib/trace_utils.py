@@ -495,14 +495,9 @@ def set_http_meta(
 
             span.set_tag_str(http.CLIENT_IP, request_ip)
             span.set_tag_str("network.client.ip", request_ip)
+        _store_request_headers(dict(request_headers), span, integration_config)
 
-        if integration_config.is_header_tracing_configured:
-            """We should store both http.<request_or_response>.headers.<header_name> and
-            http.<key>. The last one
-            is the DD standardized tag for user-agent"""
-            _store_request_headers(dict(request_headers), span, integration_config)
-
-    if response_headers is not None and integration_config.is_header_tracing_configured:
+    if response_headers is not None:
         _store_response_headers(dict(response_headers), span, integration_config)
 
     if retries_remain is not None:
