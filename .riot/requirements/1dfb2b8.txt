@@ -45,7 +45,7 @@ six==1.16.0
 sortedcontainers==2.4.0
 tenacity==8.2.2
 tomli==2.0.1
-typing-extensions==4.6.3
+typing-extensions==4.7.0
 urllib3==1.26.16
 wrapt==1.15.0
 xmltodict==0.13.0
