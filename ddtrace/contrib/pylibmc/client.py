@@ -186,7 +186,7 @@ class TracedClient(ObjectProxy):
         # FIXME[matt] the host selection is buried in c code. we can't tell what it's actually
         # using, so fallback to randomly choosing one. can we do better?
         if self._addresses:
-            _, host, port, _ = random.choice(self._addresses)
+            _, host, port, _ = random.choice(self._addresses)  # nosec
             span.set_tag_str(net.TARGET_HOST, host)
             span.set_tag(net.TARGET_PORT, port)
 
