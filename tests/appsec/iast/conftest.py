@@ -1,6 +1,7 @@
 import pytest
 
 from ddtrace.appsec.iast import oce
+from ddtrace.appsec.iast.taint_sinks._base import VulnerabilityBase
 from ddtrace.appsec.iast.taint_sinks.path_traversal import patch as path_traversal_patch
 from ddtrace.appsec.iast.taint_sinks.weak_cipher import patch as weak_cipher_patch
 from ddtrace.appsec.iast.taint_sinks.weak_cipher import unpatch_iast as weak_cipher_unpatch
@@ -11,6 +12,7 @@ from tests.utils import override_env
 
 def iast_span(tracer, env, request_sampling="100"):
     env.update({"DD_IAST_REQUEST_SAMPLING": request_sampling})
+    VulnerabilityBase._reset_cache()
     with override_env(env):
         oce.reconfigure()
         with tracer.trace("test") as span:

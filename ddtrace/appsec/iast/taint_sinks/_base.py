@@ -52,6 +52,11 @@ class VulnerabilityBase(Operation):
     evidence_type = ""
     _redacted_report_cache = LFUCache()
 
+
+    @classmethod
+    def _reset_cache(cls):
+        cls._redacted_report_cache.clear()
+
     @classmethod
     def wrap(cls, func):
         # type: (Callable) -> Callable
