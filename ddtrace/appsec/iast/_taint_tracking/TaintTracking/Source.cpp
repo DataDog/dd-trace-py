@@ -38,8 +38,7 @@ Source::operator std::string() const
 
 // Note: don't use size_t or long, if the hash is bigger than an int, Python
 // will re-hash it!
-uint
-Source::get_hash() const
+int Source::get_hash() const
 {
     return std::hash<size_t>()(std::hash<string>()(name) ^ (long)origin ^ std::hash<string>()(value));
 };
