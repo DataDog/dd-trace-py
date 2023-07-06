@@ -68,7 +68,6 @@ class VulnerabilityBase(Operation):
 
         return wrapper
 
-    # JJJ Any
     @classmethod
     def report(cls, evidence_value="", sources=None):
         # type: (Union[Text|List[Dict[str, Any]]], Optional[List[Input_info]]) -> None
