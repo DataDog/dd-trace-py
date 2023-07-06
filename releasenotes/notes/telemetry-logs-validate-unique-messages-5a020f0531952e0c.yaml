@@ -1,4 +1,4 @@
 ---
-features:
+fix:
   - |
-    telemetry: telemetry writer validates unique log messages for each interval.
+    telemetry: resolves issue with sending unnecessary duplicate logs
