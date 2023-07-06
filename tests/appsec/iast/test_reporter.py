@@ -13,7 +13,7 @@ from ddtrace.appsec.iast.reporter import Source
 from ddtrace.appsec.iast.reporter import Vulnerability
 
 
-if sys.version_info > (3, 0, 0):
+if python_supported_by_iast():
     from ddtrace.appsec.iast.taint_sinks._base import VulnerabilityBase
     from ddtrace.appsec.iast.taint_sinks.sql_injection import SqlInjection
 
