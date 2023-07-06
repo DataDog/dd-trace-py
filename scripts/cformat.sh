@@ -29,5 +29,3 @@ else
     rm -f "$CFORMAT_TMP"
   done
 fi
-
-
