@@ -118,7 +118,7 @@ class TraceMiddleware:
     async def __call__(self, scope, receive, send):
         if scope["type"] == "http":
             method = scope["method"]
-        elif scope["type"] == "websocket":
+        elif scope["type"] == "websocket" and config._trace_asgi_websocket:
             method = "WEBSOCKET"
         else:
             return await self.app(scope, receive, send)

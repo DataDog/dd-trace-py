@@ -7,6 +7,7 @@ from fastapi import BackgroundTasks
 from fastapi import FastAPI
 from fastapi import HTTPException
 from fastapi import Header
+from fastapi import WebSocketException
 from fastapi.responses import FileResponse
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -38,8 +39,16 @@ def get_app():
     @app.websocket("/ws")
     async def websocket(websocket):
         await websocket.accept()
-        await websocket.send_json({"test": "Hello World"})
+        await websocket.send_text("hello world!")
         await websocket.close()
+
+    # @app.websocket("/ws")
+    # async def websocket_endpoint(websocket):
+    #     1/0
+    #     raise WebSocketDisconnect
+    #     await websocket.accept()
+    #     while True:
+    #         await websocket.send_text(f"hello world")
 
     @app.get("/")
     async def read_homepage(sleep: str = Header(...)):
