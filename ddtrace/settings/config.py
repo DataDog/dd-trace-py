@@ -5,6 +5,7 @@ from typing import List
 from typing import Optional
 from typing import Tuple
 
+from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.constants import IAST_ENV
@@ -271,8 +272,14 @@ class Config(object):
         self._trace_compute_stats = asbool(
             os.getenv("DD_TRACE_COMPUTE_STATS", os.getenv("DD_TRACE_STATS_COMPUTATION_ENABLED", in_gcp_function()))
         )
+        self._data_streams_enabled = asbool(os.getenv("DD_DATA_STREAMS_ENABLED", False))
         self._appsec_enabled = asbool(os.getenv(APPSEC_ENV, False))
+        self._automatic_login_events_mode = os.getenv(APPSEC.AUTOMATIC_USER_EVENTS_TRACKING, "safe")
+        self._user_model_login_field = os.getenv(APPSEC.USER_MODEL_LOGIN_FIELD, default="")
+        self._user_model_email_field = os.getenv(APPSEC.USER_MODEL_EMAIL_FIELD, default="")
+        self._user_model_name_field = os.getenv(APPSEC.USER_MODEL_NAME_FIELD, default="")
         self._iast_enabled = asbool(os.getenv(IAST_ENV, False))
+        self._api_security_enabled = asbool(os.getenv("_DD_API_SECURITY_ENABLED", False))
         self._waf_timeout = DEFAULT.WAF_TIMEOUT
         try:
             self._waf_timeout = float(os.getenv("DD_APPSEC_WAF_TIMEOUT"))
@@ -303,6 +310,12 @@ class Config(object):
         self._ci_visibility_code_coverage_enabled = asbool(
             os.getenv("DD_CIVISIBILITY_CODE_COVERAGE_ENABLED", default=False)
         )
+        self._otel_enabled = asbool(os.getenv("DD_TRACE_OTEL_ENABLED", False))
+        if self._otel_enabled:
+            # Replaces the default otel api runtime context with DDRuntimeContext
+            # https://github.com/open-telemetry/opentelemetry-python/blob/v1.16.0/opentelemetry-api/src/opentelemetry/context/__init__.py#L53
+            os.environ["OTEL_PYTHON_CONTEXT"] = "ddcontextvars_context"
+        self._ddtrace_bootstrapped = False
 
     def __getattr__(self, name):
         if name not in self._config:

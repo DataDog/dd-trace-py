@@ -21,6 +21,7 @@ from ddtrace import Pin
 from ddtrace import config
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
+from ddtrace.ext import net
 from ddtrace.ext import user
 from ddtrace.internal import _context
 from ddtrace.internal.compat import ip_is_global
@@ -422,6 +423,7 @@ def set_http_meta(
     integration_config,  # type: IntegrationConfig
     method=None,  # type: Optional[str]
     url=None,  # type: Optional[str]
+    target_host=None,  # type: Optional[str]
     status_code=None,  # type: Optional[Union[int, str]]
     status_msg=None,  # type: Optional[str]
     query=None,  # type: Optional[str]
@@ -460,6 +462,9 @@ def set_http_meta(
     if url is not None:
         url = _sanitized_url(url)
         _set_url_tag(integration_config, span, url, query)
+
+    if target_host is not None:
+        span.set_tag_str(net.TARGET_HOST, target_host)
 
     if status_code is not None:
         try:
@@ -508,30 +513,39 @@ def set_http_meta(
     if retries_remain is not None:
         span.set_tag_str(http.RETRIES_REMAIN, str(retries_remain))
 
-    if span.span_type == SpanTypes.WEB and config._appsec_enabled:
-        from ddtrace.appsec._asm_request_context import set_waf_address
-        from ddtrace.appsec._constants import SPAN_DATA_NAMES
+    if config._appsec_enabled:
+        from ddtrace.appsec.iast._util import _is_iast_enabled
 
-        status_code = str(status_code) if status_code is not None else None
+        if request_cookies and _is_iast_enabled():
+            from ddtrace.appsec.iast.taint_sinks.insecure_cookie import asm_check_cookies
 
-        addresses = {
-            k: v
-            for k, v in [
-                (SPAN_DATA_NAMES.REQUEST_URI_RAW, raw_uri),
-                (SPAN_DATA_NAMES.REQUEST_METHOD, method),
-                (SPAN_DATA_NAMES.REQUEST_COOKIES, request_cookies),
-                (SPAN_DATA_NAMES.REQUEST_QUERY, parsed_query),
-                (SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, request_headers),
-                (SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, response_headers),
-                (SPAN_DATA_NAMES.RESPONSE_STATUS, status_code),
-                (SPAN_DATA_NAMES.REQUEST_PATH_PARAMS, request_path_params),
-                (SPAN_DATA_NAMES.REQUEST_BODY, request_body),
-                (SPAN_DATA_NAMES.REQUEST_HTTP_IP, request_ip),
-            ]
-            if v is not None
-        }
-        for k, v in addresses.items():
-            set_waf_address(k, v, span)
+            asm_check_cookies(request_cookies)
+
+        if span.span_type == SpanTypes.WEB:
+            from ddtrace.appsec._asm_request_context import set_waf_address
+            from ddtrace.appsec._constants import SPAN_DATA_NAMES
+
+            status_code = str(status_code) if status_code is not None else None
+
+            addresses = {
+                k: v
+                for k, v in [
+                    (SPAN_DATA_NAMES.REQUEST_URI_RAW, raw_uri),
+                    (SPAN_DATA_NAMES.REQUEST_METHOD, method),
+                    (SPAN_DATA_NAMES.REQUEST_COOKIES, request_cookies),
+                    (SPAN_DATA_NAMES.REQUEST_QUERY, parsed_query),
+                    (SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, request_headers),
+                    (SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, response_headers),
+                    (SPAN_DATA_NAMES.RESPONSE_STATUS, status_code),
+                    (SPAN_DATA_NAMES.REQUEST_PATH_PARAMS, request_path_params),
+                    (SPAN_DATA_NAMES.REQUEST_BODY, request_body),
+                    (SPAN_DATA_NAMES.REQUEST_HTTP_IP, request_ip),
+                    (SPAN_DATA_NAMES.REQUEST_ROUTE, route),
+                ]
+                if v is not None
+            }
+            for k, v in addresses.items():
+                set_waf_address(k, v, span)
 
     if route is not None:
         span.set_tag_str(http.ROUTE, route)
@@ -645,3 +659,17 @@ def set_user(tracer, user_id, name=None, email=None, scope=None, role=None, sess
             "See https://docs.datadoghq.com/security_platform/application_security/setup_and_configure/"
             "?tab=set_user&code-lang=python for more information.",
         )
+
+
+def extract_netloc_and_query_info_from_url(url):
+    # type: (str) -> Tuple[str, str]
+    parse_result = parse.urlparse(url)
+    query = parse_result.query
+
+    # Relative URLs don't have a netloc, so we force them
+    if not parse_result.netloc:
+        parse_result = parse.urlparse("//{url}".format(url=url))
+
+    netloc = parse_result.netloc.split("@", 1)[-1]  # Discard auth info
+    netloc = netloc.split(":", 1)[0]  # Discard port information
+    return netloc, query

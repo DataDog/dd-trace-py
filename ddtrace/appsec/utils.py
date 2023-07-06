@@ -4,6 +4,7 @@ import sys
 from typing import TYPE_CHECKING
 
 from ddtrace.appsec import _asm_request_context
+from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.internal.compat import parse
 from ddtrace.internal.compat import to_bytes_py2
@@ -29,6 +30,10 @@ def _appsec_rc_features_is_enabled():
     if asbool(os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", "true")):
         return APPSEC_ENV not in os.environ
     return False
+
+
+def _appsec_rc_file_is_not_static():
+    return "DD_APPSEC_RULES" not in os.environ
 
 
 def _appsec_rc_capabilities(test_tracer=None):
@@ -58,7 +63,7 @@ def _appsec_rc_capabilities(test_tracer=None):
     if asbool(os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", "true")):
         if _appsec_rc_features_is_enabled():
             value |= 1 << 1  # Enable ASM_ACTIVATION
-        if tracer._appsec_processor:
+        if tracer._appsec_processor and _appsec_rc_file_is_not_static():
             value |= 1 << 2  # Enable ASM_IP_BLOCKING
             value |= 1 << 3  # Enable ASM_DD_RULES
             value |= 1 << 4  # Enable ASM_EXCLUSIONS
@@ -178,3 +183,51 @@ def parse_form_multipart(body):
         msg = email.message_from_string("MIME-Version: 1.0\nContent-Type: %s\n%s" % (content_type, body))
         return parse_message(msg)
     return {}
+
+
+def parse_response_body(raw_body):
+    import json
+
+    import xmltodict
+
+    from ddtrace.appsec._constants import SPAN_DATA_NAMES
+    from ddtrace.contrib.trace_utils import _get_header_value_case_insensitive
+
+    if not raw_body:
+        return
+
+    if isinstance(raw_body, dict):
+        return raw_body
+
+    headers = _asm_request_context.get_waf_address(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES)
+    if not headers:
+        return
+    content_type = _get_header_value_case_insensitive(
+        dict(headers),
+        "content-type",
+    )
+    if not content_type:
+        return
+
+    def access_body(bd):
+        if isinstance(bd, list) and isinstance(bd[0], (str, bytes)):
+            bd = bd[0][:0].join(bd)
+        if getattr(bd, "decode", False):
+            bd = bd.decode("UTF-8", errors="ignore")
+        if len(bd) >= API_SECURITY.MAX_PAYLOAD_SIZE:
+            raise ValueError("response body larger than 16MB")
+        return bd
+
+    req_body = None
+    try:
+        # TODO handle charset
+        if "json" in content_type:
+            req_body = json.loads(access_body(raw_body))
+        elif "xml" in content_type:
+            req_body = xmltodict.parse(access_body(raw_body))
+        else:
+            return
+    except BaseException:
+        log.debug("Failed to parse response body", exc_info=True)
+    else:
+        return req_body

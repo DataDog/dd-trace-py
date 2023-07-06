@@ -67,6 +67,8 @@ def _store_span(item, span):
 
 def _mark_failed(item):
     """Store test failed status at `pytest.Item` instance."""
+    if item.parent:
+        _mark_failed(item.parent)
     setattr(item, "_failed", True)
 
 
@@ -77,6 +79,8 @@ def _check_failed(item):
 
 def _mark_not_skipped(item):
     """Mark test suite/module/session `pytest.Item` as not skipped."""
+    if item.parent:
+        _mark_not_skipped(item.parent)
     setattr(item, "_fully_skipped", False)
 
 
@@ -126,11 +130,13 @@ def _get_module_path(item):
 
 
 def _get_module_name(item):
-    """Extract module name from a `pytest.Item` instance."""
-    module_path = _get_module_path(item)
-    if module_path is None:
-        return None
-    return module_path.rpartition("/")[-1]
+    """Extract module name (fully qualified) from a `pytest.Item` instance."""
+    return item.module.__name__
+
+
+def _get_suite_name(item):
+    """Extract suite name from a `pytest.Item` instance."""
+    return item.nodeid.rpartition("/")[-1]
 
 
 def _start_test_module_span(item):
@@ -152,8 +158,8 @@ def _start_test_module_span(item):
     test_module_span.set_tag_str(test.FRAMEWORK_VERSION, pytest.__version__)
     test_module_span.set_tag_str(test.COMMAND, _get_pytest_command(item.config))
     test_module_span.set_tag_str(_EVENT_TYPE, _MODULE_TYPE)
-    test_module_span.set_tag(_SESSION_ID, test_session_span.span_id)
-    test_module_span.set_tag(_MODULE_ID, test_module_span.span_id)
+    test_module_span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
+    test_module_span.set_tag_str(_MODULE_ID, str(test_module_span.span_id))
     test_module_span.set_tag_str(test.MODULE, _get_module_name(item))
     test_module_span.set_tag_str(test.MODULE_PATH, _get_module_path(item))
     _store_span(item, test_module_span)
@@ -185,13 +191,13 @@ def _start_test_suite_span(item):
     test_suite_span.set_tag_str(test.FRAMEWORK_VERSION, pytest.__version__)
     test_suite_span.set_tag_str(test.COMMAND, _get_pytest_command(item.config))
     test_suite_span.set_tag_str(_EVENT_TYPE, _SUITE_TYPE)
-    test_suite_span.set_tag(_SESSION_ID, test_session_span.span_id)
-    test_suite_span.set_tag(_SUITE_ID, test_suite_span.span_id)
+    test_suite_span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
+    test_suite_span.set_tag_str(_SUITE_ID, str(test_suite_span.span_id))
     if test_module_span is not None:
-        test_suite_span.set_tag(_MODULE_ID, test_module_span.span_id)
+        test_suite_span.set_tag_str(_MODULE_ID, str(test_module_span.span_id))
         test_suite_span.set_tag_str(test.MODULE, test_module_span.get_tag(test.MODULE))
         test_suite_span.set_tag_str(test.MODULE_PATH, test_module_span.get_tag(test.MODULE_PATH))
-    test_suite_span.set_tag_str(test.SUITE, item.name)
+    test_suite_span.set_tag_str(test.SUITE, _get_suite_name(item))
     _store_span(item, test_suite_span)
     return test_suite_span
 
@@ -239,7 +245,7 @@ def pytest_sessionstart(session):
         test_session_span.set_tag_str(test.FRAMEWORK_VERSION, pytest.__version__)
         test_session_span.set_tag_str(_EVENT_TYPE, _SESSION_TYPE)
         test_session_span.set_tag_str(test.COMMAND, _get_pytest_command(session.config))
-        test_session_span.set_tag(_SESSION_ID, test_session_span.span_id)
+        test_session_span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
         _store_span(session, test_session_span)
 
 
@@ -319,6 +325,14 @@ def pytest_runtest_protocol(item, nextitem):
     if pytest_module_item is not None and test_suite_span is None:
         test_suite_span = _start_test_suite_span(pytest_module_item)
 
+    if _CIVisibility.test_skipping_enabled() and _CIVisibility.should_skip(
+        item.name, test_suite_span.get_tag(test.SUITE), test_suite_span.get_tag(test.MODULE)
+    ):
+        # Replace test body by pytest skip call
+        item.obj = lambda **_: pytest.skip("Skipped by Datadog Intelligent Test Runner")
+        yield
+        return
+
     with _CIVisibility._instance.tracer._start_span(
         ddtrace.config.pytest.operation_name,
         service=_CIVisibility._instance._service,
@@ -332,15 +346,15 @@ def pytest_runtest_protocol(item, nextitem):
         span.set_tag_str(_EVENT_TYPE, SpanTypes.TEST)
         span.set_tag_str(test.NAME, item.name)
         span.set_tag_str(test.COMMAND, _get_pytest_command(item.config))
-        span.set_tag(_SESSION_ID, test_session_span.span_id)
+        span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
 
         if test_module_span is not None:
-            span.set_tag(_MODULE_ID, test_module_span.span_id)
+            span.set_tag_str(_MODULE_ID, str(test_module_span.span_id))
             span.set_tag_str(test.MODULE, test_module_span.get_tag(test.MODULE))
             span.set_tag_str(test.MODULE_PATH, test_module_span.get_tag(test.MODULE_PATH))
 
         if test_suite_span is not None:
-            span.set_tag(_SUITE_ID, test_suite_span.span_id)
+            span.set_tag_str(_SUITE_ID, str(test_suite_span.span_id))
             test_class_hierarchy = _get_test_class_hierarchy(item)
             if test_class_hierarchy:
                 span.set_tag_str(test.CLASS_HIERARCHY, test_class_hierarchy)
@@ -435,7 +449,7 @@ def pytest_runtest_makereport(item, call):
             span.set_tag_str(test.STATUS, test.Status.SKIP.value)
         reason = _extract_reason(call)
         if reason is not None:
-            span.set_tag(test.SKIP_REASON, reason)
+            span.set_tag_str(test.SKIP_REASON, str(reason))
     elif result.passed:
         _mark_not_skipped(item.parent)
         span.set_tag_str(test.STATUS, test.Status.PASS.value)

@@ -79,14 +79,8 @@ jobs:
       - name: Run APPSEC_RATE_LIMITER
         run: ./run.sh APPSEC_RATE_LIMITER
 
-      - name: Run APPSEC_IP_BLOCKING
-        run: ./run.sh APPSEC_IP_BLOCKING
-
-      - name: Run APPSEC_IP_BLOCKING
-        run: ./run.sh APPSEC_IP_BLOCKING
-
-      - name: Run APPSEC_IP_BLOCKING_MAXED
-        run: ./run.sh APPSEC_IP_BLOCKING_MAXED
+      - name: Run APPSEC_BLOCKING_FULL_DENYLIST
+        run: ./run.sh APPSEC_BLOCKING_FULL_DENYLIST
 
       - name: Run APPSEC_REQUEST_BLOCKING
         run: ./run.sh APPSEC_REQUEST_BLOCKING
@@ -116,7 +110,7 @@ jobs:
   parametric:
     runs-on: ubuntu-latest
     env:
-      CLIENTS_ENABLED: python
+      TEST_LIBRARY: python
       PYTHON_DDTRACE_PACKAGE: git+https://github.com/Datadog/dd-trace-py.git@${{ github.sha }}
     steps:
       - name: Checkout system tests
@@ -126,9 +120,17 @@ jobs:
       - uses: actions/setup-python@v4
         with:
           python-version: '3.9'
+      - name: Build
+        run: ./build.sh -i runner
       - name: Run
-        run: |
-          cd parametric
-          pip install wheel
-          pip install -r requirements.txt
-          ./run.sh
+        run: ./run.sh PARAMETRIC
+
+      - name: Compress artifact
+        if: ${{ always() }}  
+        run: tar -czvf artifact.tar.gz $(ls | grep logs)
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        if: ${{ always() }}
+        with:
+          name: logs_parametric
+          path: artifact.tar.gz

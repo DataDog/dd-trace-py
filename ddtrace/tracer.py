@@ -14,6 +14,7 @@ from ddtrace.filters import TraceFilter
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import get_span_sampling_rules
+from ddtrace.settings.peer_service import PeerServiceConfig
 from ddtrace.vendor import debtcollector
 
 from . import _hooks
@@ -32,10 +33,12 @@ from .internal import compat
 from .internal import debug
 from .internal import forksafe
 from .internal import hostname
+from .internal.constants import SPAN_API_DATADOG
 from .internal.dogstatsd import get_dogstatsd_client
 from .internal.logger import get_logger
 from .internal.logger import hasHandlers
 from .internal.processor import SpanProcessor
+from .internal.processor.trace import PeerServiceProcessor
 from .internal.processor.trace import SpanAggregator
 from .internal.processor.trace import SpanSamplingProcessor
 from .internal.processor.trace import TopLevelSpanProcessor
@@ -137,11 +140,11 @@ def _default_span_processors_factory(
     agent_url,  # type: str
     profiling_span_processor,  # type: EndpointCallCounterProcessor
 ):
-    # type: (...) -> Tuple[List[SpanProcessor], Optional[Any]]
+    # type: (...) -> Tuple[List[SpanProcessor], Optional[Any], List[SpanProcessor]]
     # FIXME: type should be AppsecSpanProcessor but we have a cyclic import here
     """Construct the default list of span processors to use."""
     trace_processors = []  # type: List[TraceProcessor]
-    trace_processors += [TraceTagsProcessor()]
+    trace_processors += [TraceTagsProcessor(), PeerServiceProcessor(PeerServiceConfig())]
     trace_processors += [TraceSamplingProcessor(compute_stats_enabled)]
     trace_processors += trace_filters
 
@@ -149,10 +152,20 @@ def _default_span_processors_factory(
     span_processors += [TopLevelSpanProcessor()]
 
     if appsec_enabled:
+        if config._api_security_enabled:
+            from ddtrace.appsec._api_security.api_manager import APIManager
+
+            APIManager.enable()
+
         appsec_processor = _start_appsec_processor()
         if appsec_processor:
             span_processors.append(appsec_processor)
     else:
+        if config._api_security_enabled:
+            from ddtrace.appsec._api_security.api_manager import APIManager
+
+            APIManager.disable()
+
         appsec_processor = None
 
     if iast_enabled:
@@ -176,15 +189,16 @@ def _default_span_processors_factory(
     if single_span_sampling_rules:
         span_processors.append(SpanSamplingProcessor(single_span_sampling_rules))
 
-    span_processors.append(
+    # These need to run after all the other processors
+    deferred_processors = [
         SpanAggregator(
             partial_flush_enabled=partial_flush_enabled,
             partial_flush_min_spans=partial_flush_min_spans,
             trace_processors=trace_processors,
             writer=trace_writer,
         )
-    )
-    return span_processors, appsec_processor
+    ]  # type: List[SpanProcessor]
+    return span_processors, appsec_processor, deferred_processors
 
 
 class Tracer(object):
@@ -222,8 +236,11 @@ class Tracer(object):
         # globally set tags
         self._tags = config.tags.copy()
 
+        # collection of services seen, used for runtime metrics tags
         # a buffer for service info so we don't perpetually send the same things
         self._services = set()  # type: Set[str]
+        if config.service:
+            self._services.add(config.service)
 
         # Runtime id used for associating data collected during runtime to
         # traces
@@ -261,7 +278,7 @@ class Tracer(object):
         self._appsec_processor = None
         self._iast_enabled = config._iast_enabled
         self._endpoint_call_counter_span_processor = EndpointCallCounterProcessor()
-        self._span_processors, self._appsec_processor = _default_span_processors_factory(
+        self._span_processors, self._appsec_processor, self._deferred_processors = _default_span_processors_factory(
             self._filters,
             self._writer,
             self._partial_flush_enabled,
@@ -273,6 +290,12 @@ class Tracer(object):
             self._agent_url,
             self._endpoint_call_counter_span_processor,
         )
+        if config._data_streams_enabled:
+            # Inline the import to avoid pulling in ddsketch or protobuf
+            # when importing ddtrace.
+            from .internal.datastreams.processor import DataStreamsProcessor
+
+            self.data_streams_processor = DataStreamsProcessor(self._agent_url)
 
         self._hooks = _hooks.Hooks()
         atexit.register(self._atexit)
@@ -497,7 +520,7 @@ class Tracer(object):
                 iast_enabled,
             ]
         ):
-            self._span_processors, self._appsec_processor = _default_span_processors_factory(
+            self._span_processors, self._appsec_processor, self._deferred_processors = _default_span_processors_factory(
                 self._filters,
                 self._writer,
                 self._partial_flush_enabled,
@@ -543,10 +566,12 @@ class Tracer(object):
         # Assume that the services of the child are not necessarily a subset of those
         # of the parent.
         self._services = set()
+        if config.service:
+            self._services.add(config.service)
 
         # Re-create the background writer thread
         self._writer = self._writer.recreate()
-        self._span_processors, self._appsec_processor = _default_span_processors_factory(
+        self._span_processors, self._appsec_processor, self._deferred_processors = _default_span_processors_factory(
             self._filters,
             self._writer,
             self._partial_flush_enabled,
@@ -569,10 +594,11 @@ class Tracer(object):
         resource=None,  # type: Optional[str]
         span_type=None,  # type: Optional[str]
         activate=False,  # type: bool
+        span_api=SPAN_API_DATADOG,  # type: str
     ):
         # type: (...) -> Span
         log.warning("Spans started after the tracer has been shut down will not be sent to the Datadog Agent.")
-        return self._start_span(name, child_of, service, resource, span_type, activate)
+        return self._start_span(name, child_of, service, resource, span_type, activate, span_api)
 
     def _start_span(
         self,
@@ -582,6 +608,7 @@ class Tracer(object):
         resource=None,  # type: Optional[str]
         span_type=None,  # type: Optional[str]
         activate=False,  # type: bool
+        span_api=SPAN_API_DATADOG,  # type: str
     ):
         # type: (...) -> Span
         """Return a span that represents an operation called ``name``.
@@ -678,6 +705,7 @@ class Tracer(object):
                 service=service,
                 resource=resource,
                 span_type=span_type,
+                span_api=span_api,
                 on_finish=[self._on_span_finish],
             )
 
@@ -697,6 +725,7 @@ class Tracer(object):
                 service=service,
                 resource=resource,
                 span_type=span_type,
+                span_api=span_api,
                 on_finish=[self._on_span_finish],
             )
             span._local_root = span
@@ -762,7 +791,7 @@ class Tracer(object):
 
         # Only call span processors if the tracer is enabled
         if self.enabled:
-            for p in chain(self._span_processors, SpanProcessor.__processors__):
+            for p in chain(self._span_processors, SpanProcessor.__processors__, self._deferred_processors):
                 p.on_span_start(span)
         self._hooks.emit(self.__class__.start_span, span)
 
@@ -780,7 +809,7 @@ class Tracer(object):
 
         # Only call span processors if the tracer is enabled
         if self.enabled:
-            for p in chain(self._span_processors, SpanProcessor.__processors__):
+            for p in chain(self._span_processors, SpanProcessor.__processors__, self._deferred_processors):
                 p.on_span_finish(span)
 
         if log.isEnabledFor(logging.DEBUG):
@@ -803,8 +832,8 @@ class Tracer(object):
         else:
             log.log(level, msg)
 
-    def trace(self, name, service=None, resource=None, span_type=None):
-        # type: (str, Optional[str], Optional[str], Optional[str]) -> Span
+    def trace(self, name, service=None, resource=None, span_type=None, span_api=SPAN_API_DATADOG):
+        # type: (str, Optional[str], Optional[str], Optional[str], str) -> Span
         """Activate and return a new span that inherits from the current active span.
 
         :param str name: the name of the operation being traced
@@ -852,6 +881,7 @@ class Tracer(object):
             resource=resource,
             span_type=span_type,
             activate=True,
+            span_api=span_api,
         )
 
     def current_root_span(self):
@@ -1015,10 +1045,17 @@ class Tracer(object):
         with self._shutdown_lock:
             # Thread safety: Ensures tracer is shutdown synchronously
             span_processors = self._span_processors
+            deferred_processors = self._deferred_processors
             self._span_processors = []
-            for processor in chain(span_processors, SpanProcessor.__processors__):
+            self._deferred_processors = []
+            for processor in chain(span_processors, SpanProcessor.__processors__, deferred_processors):
                 if hasattr(processor, "shutdown"):
                     processor.shutdown(timeout)
+            try:
+                self.data_streams_processor.shutdown(timeout)
+            except Exception as e:
+                if config._data_streams_enabled:
+                    log.warning("Failed to shutdown data streams processor: %s", repr(e))
 
             atexit.unregister(self._atexit)
             forksafe.unregister(self._child_after_fork)

@@ -1,7 +1,9 @@
+from collections import defaultdict
 import json
 import os
 from typing import Any
 from typing import Dict
+from typing import List
 from typing import Optional
 from typing import Tuple
 from uuid import uuid4
@@ -15,6 +17,7 @@ from ddtrace.ext import test
 from ddtrace.internal import atexit
 from ddtrace.internal import compat
 from ddtrace.internal.agent import get_connection
+from ddtrace.internal.agent import get_trace_url
 from ddtrace.internal.ci_visibility.filters import TraceCiVisibilityFilter
 from ddtrace.internal.compat import JSONDecodeError
 from ddtrace.internal.compat import parse
@@ -26,8 +29,12 @@ from ddtrace.settings import IntegrationConfig
 from .. import agent
 from .constants import AGENTLESS_DEFAULT_SITE
 from .constants import EVP_PROXY_AGENT_BASE_PATH
+from .constants import EVP_SUBDOMAIN_HEADER_API_VALUE
+from .constants import EVP_SUBDOMAIN_HEADER_EVENT_VALUE
 from .constants import EVP_SUBDOMAIN_HEADER_NAME
-from .constants import EVP_SUBDOMAIN_HEADER_VALUE
+from .constants import REQUESTS_MODE
+from .constants import SETTING_ENDPOINT
+from .constants import SKIPPABLE_ENDPOINT
 from .git_client import CIVisibilityGitClient
 from .writer import CIVisibilityWriter
 
@@ -58,9 +65,10 @@ def _do_request(method, url, payload, headers):
         conn.request("POST", url, payload, headers)
         resp = compat.get_connection_response(conn)
         log.debug("Response status: %s", resp.status)
+        result = Response.from_http_response(resp)
     finally:
         conn.close()
-    return Response.from_http_response(resp)
+    return result
 
 
 class CIVisibility(Service):
@@ -75,7 +83,6 @@ class CIVisibility(Service):
         self._app_key = os.getenv("DD_APP_KEY", os.getenv("DD_APPLICATION_KEY", os.getenv("DATADOG_APPLICATION_KEY")))
         self._api_key = os.getenv("DD_API_KEY")
         self._dd_site = os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE)
-        self._configure_writer()
         self.config = config  # type: Optional[IntegrationConfig]
         self._tags = ci.tags(cwd=_get_git_repo())  # type: Dict[str, str]
         self._service = service
@@ -90,6 +97,21 @@ class CIVisibility(Service):
         elif self._service is None and int_service is not None:
             self._service = int_service
 
+        # (suite, module) -> List[test_name]
+        self._tests_to_skip = defaultdict(list)  # type: Dict[Tuple[str, Optional[str]], List[str]]
+        self._requests_mode = REQUESTS_MODE.TRACES
+        if ddconfig._ci_visibility_agentless_enabled:
+            if not self._api_key:
+                raise EnvironmentError(
+                    "DD_CIVISIBILITY_AGENTLESS_ENABLED is set, but DD_API_KEY is not set, so ddtrace "
+                    "cannot be initialized."
+                )
+            self._requests_mode = REQUESTS_MODE.AGENTLESS_EVENTS
+        elif self._agent_evp_proxy_is_available():
+            self._requests_mode = REQUESTS_MODE.EVP_PROXY_EVENTS
+
+        self._configure_writer()
+
         self._code_coverage_enabled_by_api, self._test_skipping_enabled_by_api = self._check_enabled_features()
 
         self._git_client = None
@@ -97,8 +119,12 @@ class CIVisibility(Service):
         if ddconfig._ci_visibility_intelligent_testrunner_enabled:
             if self._app_key is None:
                 log.warning("Environment variable DD_APPLICATION_KEY not set, so no git metadata will be uploaded.")
+            elif self._requests_mode == REQUESTS_MODE.TRACES:
+                log.warning("Cannot start git client if mode is not agentless or evp proxy")
             else:
-                self._git_client = CIVisibilityGitClient(api_key=self._api_key or "", app_key=self._app_key)
+                self._git_client = CIVisibilityGitClient(
+                    api_key=self._api_key or "", app_key=self._app_key, requests_mode=self._requests_mode
+                )
         try:
             from ddtrace.internal.codeowners import Codeowners
 
@@ -117,8 +143,21 @@ class CIVisibility(Service):
         if not ddconfig._ci_visibility_intelligent_testrunner_enabled:
             return False, False
 
-        url = "https://api.%s/api/v2/libraries/tests/services/setting" % self._dd_site
-        _headers = {"dd-api-key": self._api_key, "dd-application-key": self._app_key}
+        _headers = {
+            "dd-api-key": self._api_key,
+            "dd-application-key": self._app_key,
+            "Content-Type": "application/json",
+        }
+
+        if self._requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS:
+            url = get_trace_url() + EVP_PROXY_AGENT_BASE_PATH + SETTING_ENDPOINT
+            _headers = {EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_API_VALUE}
+        elif self._requests_mode == REQUESTS_MODE.AGENTLESS_EVENTS:
+            url = "https://api." + self._dd_site + SETTING_ENDPOINT
+        else:
+            log.warning("Cannot make requests to setting endpoint if mode is not agentless or evp proxy")
+            return False, False
+
         payload = {
             "data": {
                 "id": str(uuid4()),
@@ -136,6 +175,7 @@ class CIVisibility(Service):
         try:
             parsed = json.loads(response.body)
         except JSONDecodeError:
+            log.warning("Settings request responded with invalid JSON '%s'", response.body)
             return False, False
         if response.status >= 400 or ("errors" in parsed and parsed["errors"][0] == "Not found"):
             log.warning(
@@ -146,23 +186,20 @@ class CIVisibility(Service):
         attributes = parsed["data"]["attributes"]
         return attributes["code_coverage"], attributes["tests_skipping"]
 
-    def _configure_writer(self):
+    def _configure_writer(self, requests_mode=None):
         writer = None
-        if ddconfig._ci_visibility_agentless_enabled:
+        if requests_mode is None:
+            requests_mode = self._requests_mode
+
+        if requests_mode == REQUESTS_MODE.AGENTLESS_EVENTS:
             headers = {"dd-api-key": self._api_key}
-            if headers["dd-api-key"]:
-                writer = CIVisibilityWriter(
-                    headers=headers,
-                )
-            else:
-                raise EnvironmentError(
-                    "DD_CIVISIBILITY_AGENTLESS_ENABLED is set, but DD_API_KEY is not set, so ddtrace "
-                    "cannot be initialized."
-                )
-        elif self._agent_evp_proxy_is_available():
+            writer = CIVisibilityWriter(
+                headers=headers,
+            )
+        elif requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS:
             writer = CIVisibilityWriter(
                 intake_url=agent.get_trace_url(),
-                headers={EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_VALUE},
+                headers={EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_EVENT_VALUE},
                 use_evp=True,
             )
         if writer is not None:
@@ -180,6 +217,72 @@ class CIVisibility(Service):
             if endpoints and any(EVP_PROXY_AGENT_BASE_PATH in endpoint for endpoint in endpoints):
                 return True
         return False
+
+    @classmethod
+    def test_skipping_enabled(cls):
+        if not cls.enabled:
+            return False
+        return cls._instance and cls._instance._test_skipping_enabled_by_api
+
+    @classmethod
+    def should_skip(cls, test, suite, module):
+        if not cls.enabled:
+            return False
+
+        return cls._instance and test in cls._instance._get_tests_to_skip(suite, module)
+
+    def _fetch_tests_to_skip(self):
+        # Make sure git uploading has finished
+        # this will block the thread until that happens
+        if self._git_client is not None:
+            self._git_client.shutdown()
+            self._git_client = None
+
+        payload = {
+            "data": {
+                "type": "test_params",
+                "attributes": {
+                    "service": self._service,
+                    "env": ddconfig.env,
+                    "repository_url": self._tags.get(ci.git.REPOSITORY_URL),
+                    "sha": self._tags.get(ci.git.COMMIT_SHA),
+                    "configurations": ci._get_runtime_and_os_metadata(),
+                },
+            }
+        }
+
+        _headers = {
+            "dd-api-key": self._api_key,
+            "dd-application-key": self._app_key,
+            "Content-Type": "application/json",
+        }
+        if self._requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS:
+            url = EVP_PROXY_AGENT_BASE_PATH + SKIPPABLE_ENDPOINT
+            _headers = {EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_API_VALUE}
+        elif self._requests_mode == REQUESTS_MODE.AGENTLESS_EVENTS:
+            url = "https://api." + self._dd_site + SKIPPABLE_ENDPOINT
+        else:
+            log.warning("Cannot make requests to skippable endpoint if mode is not agentless or evp proxy")
+            return
+
+        response = _do_request("POST", url, json.dumps(payload), _headers)
+
+        if response.status >= 400:
+            log.warning("Test skips request responded with status %d", response.status)
+            return
+        try:
+            parsed = json.loads(response.body)
+        except json.JSONDecodeError:
+            log.warning("Test skips request responded with invalid JSON '%s'", response.body)
+            return
+
+        for item in parsed["data"]:
+            if item["type"] == "test" and "suite" in item["attributes"]:
+                module = item["attributes"].get("module", None)
+                self._tests_to_skip[(item["attributes"]["suite"], module)].append(item["attributes"]["name"])
+
+    def _get_tests_to_skip(self, suite, module):
+        return self._tests_to_skip.get((suite, module), [])
 
     @classmethod
     def enable(cls, tracer=None, config=None, service=None):
@@ -221,6 +324,8 @@ class CIVisibility(Service):
             self.tracer.configure(settings={"FILTERS": tracer_filters})
         if self._git_client is not None:
             self._git_client.start(cwd=_get_git_repo())
+        if self.test_skipping_enabled() and not self._tests_to_skip:
+            self._fetch_tests_to_skip()
 
     def _stop_service(self):
         # type: () -> None

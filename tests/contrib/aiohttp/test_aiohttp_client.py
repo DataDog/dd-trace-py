@@ -7,6 +7,7 @@ import pytest
 from ddtrace import Pin
 from ddtrace.contrib.aiohttp import patch
 from ddtrace.contrib.aiohttp import unpatch
+from ddtrace.contrib.aiohttp.patch import extract_netloc_and_query_info_from_url
 from tests.utils import override_http_config
 
 from ..config import HTTPBIN_CONFIG
@@ -20,6 +21,28 @@ URL_AUTH = "http://user:pass@{}".format(SOCKET)
 URL_200 = "{}/status/200".format(URL)
 URL_AUTH_200 = "{}/status/200".format(URL_AUTH)
 URL_500 = "{}/status/500".format(URL)
+
+
+@pytest.mark.parametrize("qs,query_res", [("", None), ("?foo=bar&baz=quux", "foo=bar&baz=quux")])
+@pytest.mark.parametrize(
+    "url,netloc",
+    [
+        ("http://www.netloc.com/foo", "www.netloc.com"),
+        ("http://user:pass@www.netloc.com/foo", "www.netloc.com"),
+        ("http://www.netloc.com:3030/foo", "www.netloc.com"),
+        ("http://user:pass@www.netloc.com:3030/foo", "www.netloc.com"),
+        ("www.netloc.com/foo", "www.netloc.com"),
+        ("user:pass@www.netloc.com/foo", "www.netloc.com"),
+        ("www.netloc.com:3030/foo", "www.netloc.com"),
+        ("user:pass@www.netloc.com:3030/foo", "www.netloc.com"),
+    ],
+)
+def test_extract_from_urlparse(url, netloc, qs, query_res):
+    query_url = url + qs
+    host, query = extract_netloc_and_query_info_from_url(query_url)
+    if query_res is not None:
+        assert query == query_res
+    assert host == netloc
 
 
 @pytest.fixture(autouse=True)

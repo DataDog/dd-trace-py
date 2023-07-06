@@ -12,6 +12,8 @@ class SpanTypes(object):
     TEST = "test"
     WEB = "web"
     WORKER = "worker"
+    AUTH = "auth"
+    SYSTEM = "system"
 
 
 class SpanKind(object):

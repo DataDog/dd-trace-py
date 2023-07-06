@@ -1,3 +1,4 @@
+import os
 import time
 from typing import Any
 from typing import Dict
@@ -65,15 +66,122 @@ def test_app_started_event(telemetry_lifecycle_writer, test_agent_session, mock_
     events = test_agent_session.get_events()
     assert len(events) == 1
 
-    # validate request body
+    events[0]["payload"]["configuration"].sort(key=lambda c: c["name"])
     payload = {
-        "configuration": [],
+        "configuration": [
+            {
+                "name": "appsec_enabled",
+                "origin": "unknown",
+                "value": False,
+            },
+            {
+                "name": "data_streams_enabled",
+                "origin": "unknown",
+                "value": False,
+            },
+            {
+                "name": "ddtrace_auto_used",
+                "origin": "unknown",
+                "value": False,
+            },
+            {
+                "name": "ddtrace_bootstrapped",
+                "origin": "unknown",
+                "value": False,
+            },
+            {
+                "name": "otel_enabled",
+                "origin": "unknown",
+                "value": False,
+            },
+            {
+                "name": "trace_propagation_style_extract",
+                "origin": "unknown",
+                "value": "['tracecontext', 'datadog']",
+            },
+            {
+                "name": "trace_propagation_style_inject",
+                "origin": "unknown",
+                "value": "['tracecontext', 'datadog']",
+            },
+        ],
         "error": {
             "code": 0,
             "message": "",
         },
     }
     assert events[0] == _get_request_body(payload, "app-started")
+
+
+def test_app_started_event_configuration_override(test_agent_session, ddtrace_run_python_code_in_subprocess):
+    """
+    asserts that default configuration value
+    is changed and queues a valid telemetry request
+    which is then sent by periodic()
+    """
+    code = """
+import ddtrace.auto
+
+from ddtrace.internal.telemetry import telemetry_lifecycle_writer
+telemetry_lifecycle_writer.enable()
+telemetry_lifecycle_writer.reset_queues()
+telemetry_lifecycle_writer._app_started_event()
+telemetry_lifecycle_writer.periodic()
+telemetry_lifecycle_writer.disable()
+    """
+
+    env = os.environ.copy()
+    # Change configuration default values
+    env["DD_DATA_STREAMS_ENABLED"] = "true"
+    env["DD_TRACE_PROPAGATION_STYLE_EXTRACT"] = "b3multi"
+    env["DD_TRACE_PROPAGATION_STYLE_INJECT"] = "datadog"
+    env["DD_TRACE_OTEL_ENABLED"] = "true"
+
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+
+    assert status == 0, stderr
+
+    events = test_agent_session.get_events()
+    events[0]["payload"]["configuration"].sort(key=lambda c: c["name"])
+    configuration = [
+        {
+            "name": "appsec_enabled",
+            "origin": "unknown",
+            "value": False,
+        },
+        {
+            "name": "data_streams_enabled",
+            "origin": "unknown",
+            "value": True,
+        },
+        {
+            "name": "ddtrace_auto_used",
+            "origin": "unknown",
+            "value": True,
+        },
+        {
+            "name": "ddtrace_bootstrapped",
+            "origin": "unknown",
+            "value": True,
+        },
+        {
+            "name": "otel_enabled",
+            "origin": "unknown",
+            "value": True,
+        },
+        {
+            "name": "trace_propagation_style_extract",
+            "origin": "unknown",
+            "value": "['b3multi']",
+        },
+        {
+            "name": "trace_propagation_style_inject",
+            "origin": "unknown",
+            "value": "['datadog']",
+        },
+    ]
+
+    assert events[0]["payload"]["configuration"] == configuration
 
 
 def test_app_dependencies_loaded_event(telemetry_lifecycle_writer, test_agent_session, mock_time):
@@ -133,6 +241,37 @@ def test_add_integration(telemetry_lifecycle_writer, test_agent_session, mock_ti
         ]
     }
     assert requests[0]["body"] == _get_request_body(expected_payload, "app-integrations-change")
+
+
+def test_app_client_configuration_changed_event(telemetry_lifecycle_writer, test_agent_session, mock_time):
+    """asserts that queuing a configuration sends a valid telemetry request"""
+
+    telemetry_lifecycle_writer.add_configuration("appsec_enabled", True)
+    telemetry_lifecycle_writer.add_configuration("trace_propagation_style_extract", "['datadog']")
+    telemetry_lifecycle_writer.add_configuration("appsec_enabled", False, "env_var")
+
+    telemetry_lifecycle_writer.periodic()
+
+    events = test_agent_session.get_events()
+    assert len(events) == 1
+    assert events[0]["request_type"] == "app-client-configuration-change"
+    received_configurations = events[0]["payload"]["configuration"]
+    # Sort the configuration list by name
+    received_configurations.sort(key=lambda c: c["name"])
+
+    # assert the latest configuration value is send to the agent
+    assert received_configurations == [
+        {
+            "name": "appsec_enabled",
+            "origin": "env_var",
+            "value": False,
+        },
+        {
+            "name": "trace_propagation_style_extract",
+            "origin": "unknown",
+            "value": "['datadog']",
+        },
+    ]
 
 
 def test_add_integration_disabled_writer(telemetry_lifecycle_writer, test_agent_session):

@@ -1,5 +1,6 @@
 from collections import Counter
 import os
+import socket
 import subprocess
 from time import sleep
 
@@ -191,6 +192,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
             assert async_span.get_tag("celery.routing_key") == "celery"
             assert async_span.get_tag("component") == "celery"
             assert async_span.get_tag("span.kind") == "producer"
+            assert async_span.get_tag("out.host") == socket.gethostname()
         else:
             assert 1 == len(traces)
             assert 1 == len(traces[0])
@@ -234,6 +236,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
             assert async_span.get_tag("celery.routing_key") == "celery"
             assert async_span.get_tag("component") == "celery"
             assert async_span.get_tag("span.kind") == "producer"
+            assert async_span.get_tag("out.host") == socket.gethostname()
         else:
             assert 1 == len(traces)
             assert 1 == len(traces[0])
@@ -682,6 +685,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
             assert async_span.get_tag("celery.routing_key") == "celery"
             assert async_span.get_tag("component") == "celery"
             assert async_span.get_tag("span.kind") == "producer"
+            assert async_span.get_tag("out.host") == socket.gethostname()
 
         run_span = self.find_span(name="celery.run")
         assert run_span.name == "celery.run"

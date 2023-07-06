@@ -5,6 +5,7 @@ from ddtrace import config
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
 from ddtrace.internal import _context
+from ddtrace.internal.compat import parse
 from ddtrace.internal.logger import get_logger
 
 
@@ -42,6 +43,9 @@ _CONTEXT_CALL = "context"
 _WAF_CALL = "waf_run"
 _BLOCK_CALL = "block"
 _WAF_RESULTS = "waf_results"
+
+
+GLOBAL_CALLBACKS = {}  # type: dict[str, Any]
 
 
 class ASM_Environment:
@@ -97,6 +101,10 @@ def unregister(span):
     env = _ASM.get()
     if env.span_asm_context is not None and env.span is span:
         env.span_asm_context.__exit__(None, None, None)
+    elif env.span is span:
+        # needed for api security flushing information before end of the span
+        for function in GLOBAL_CALLBACKS.get(_CONTEXT_CALL, []):
+            function(env)
 
 
 class _DataHandler:
@@ -123,10 +131,10 @@ class _DataHandler:
         if self.active:
             env = _ASM.get()
             # assert _CONTEXT_ID.get() == self._id
-            callbacks = env.callbacks.get(_CONTEXT_CALL)
+            callbacks = GLOBAL_CALLBACKS.get(_CONTEXT_CALL, []) + env.callbacks.get(_CONTEXT_CALL)
             if callbacks is not None:
                 for function in callbacks:
-                    function()
+                    function(env)
                 _ASM.reset(self.token)
             self.active = False
 
@@ -141,8 +149,29 @@ def set_value(category, address, value):  # type: (str, str, Any) -> None
         asm_context_attr[address] = value
 
 
+def set_headers_response(headers):  # type: (Any) -> None
+    if headers is not None:
+        set_waf_address(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, headers, _ASM.get().span)
+
+
+def set_body_response(body_response):
+    # local import to avoid circular import
+    from ddtrace.appsec.utils import parse_response_body
+
+    parsed_body = parse_response_body(body_response)
+
+    if parse_response_body is not None:
+        set_waf_address(SPAN_DATA_NAMES.RESPONSE_BODY, parsed_body)
+
+
 def set_waf_address(address, value, span=None):  # type: (str, Any, Any) -> None
-    set_value(_WAF_ADDRESSES, address, value)
+    if address == SPAN_DATA_NAMES.REQUEST_URI_RAW:
+        parse_address = parse.urlparse(value)
+        no_scheme = parse.ParseResult("", "", *parse_address[2:])
+        waf_value = parse.urlunparse(no_scheme)
+        set_value(_WAF_ADDRESSES, address, waf_value)
+    else:
+        set_value(_WAF_ADDRESSES, address, value)
     if span is None:
         span = _ASM.get().span
     if span:
@@ -164,10 +193,30 @@ def get_waf_address(address, default=None):  # type: (str, Any) -> Any
     return get_value(_WAF_ADDRESSES, address, default=default)
 
 
-def add_context_callback(function):  # type: (Any) -> None
-    callbacks = get_value(_CALLBACKS, _CONTEXT_CALL)
+def get_waf_addresses(default=None):  # type: (Any) -> Any
+    env = _ASM.get()
+    if not env.active:
+        log.debug("getting WAF addresses with no active asm context")
+        return default
+    return env.waf_addresses
+
+
+def add_context_callback(function, global_callback=False):  # type: (Any, bool) -> None
+    if global_callback:
+        callbacks = GLOBAL_CALLBACKS.setdefault(_CONTEXT_CALL, [])
+    else:
+        callbacks = get_value(_CALLBACKS, _CONTEXT_CALL)
     if callbacks is not None:
         callbacks.append(function)
+
+
+def remove_context_callback(function, global_callback=False):  # type: (Any, bool) -> None
+    if global_callback:
+        callbacks = GLOBAL_CALLBACKS.get(_CONTEXT_CALL)
+    else:
+        callbacks = get_value(_CALLBACKS, _CONTEXT_CALL)
+    if callbacks:
+        callbacks[:] = list([cb for cb in callbacks if cb != function])
 
 
 def set_waf_callback(value):  # type: (Any) -> None

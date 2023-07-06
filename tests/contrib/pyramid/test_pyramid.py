@@ -91,6 +91,29 @@ class TestPyramidDistributedTracingDefault(PyramidBase):
         assert span.get_metric(SAMPLING_PRIORITY_KEY) == 2
         assert span.get_tag(ORIGIN_KEY) == "synthetics"
 
+    def test_distributed_tracing_patterned(self):
+        # ensure the Context is properly created
+        # if distributed tracing is enabled
+        headers = {
+            "x-datadog-trace-id": "100",
+            "x-datadog-parent-id": "42",
+            "x-datadog-sampling-priority": "2",
+            "x-datadog-origin": "synthetics",
+        }
+        self.app.get("/hello/world", headers=headers, status=200)
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        # check the propagated Context
+        span = spans[0]
+        assert span.get_tag("component") == "pyramid"
+        assert span.get_tag("span.kind") == "server"
+        assert span.get_tag("pyramid.route.name") == "hello_patterned"
+        assert span.get_tag("http.route") == "/hello/{param}"
+        assert span.trace_id == 100
+        assert span.parent_id == 42
+        assert span.get_metric(SAMPLING_PRIORITY_KEY) == 2
+        assert span.get_tag(ORIGIN_KEY) == "synthetics"
+
 
 class TestPyramidDistributedTracingDisabled(PyramidBase):
     instrument = True

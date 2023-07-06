@@ -2,16 +2,25 @@ import atexit
 from collections import Counter
 from contextlib import contextmanager
 import json
+from time import sleep
 from typing import Any
 
-from ddtrace.debugging._config import config
+from envier import En
+
+from ddtrace.debugging._config import di_config
+from ddtrace.debugging._config import ed_config
 from ddtrace.debugging._debugger import Debugger
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
 from ddtrace.debugging._probe.remoteconfig import _filter_by_env_and_version
 from ddtrace.debugging._signal.collector import SignalCollector
 from ddtrace.debugging._uploader import LogsIntakeUploaderV1
+from ddtrace.internal.compat import monotonic
 from tests.debugging.probe.test_status import DummyProbeStatusLogger
+
+
+class PayloadWaitTimeout(Exception):
+    pass
 
 
 class MockLogsIntakeUploaderV1(LogsIntakeUploaderV1):
@@ -21,6 +30,16 @@ class MockLogsIntakeUploaderV1(LogsIntakeUploaderV1):
 
     def _write(self, payload):
         self.queue.append(payload.decode())
+
+    def wait_for_payloads(self, cond=lambda _: bool(_), timeout=1.0):
+        end = monotonic() + timeout
+
+        while not cond(self.queue):
+            if monotonic() > end:
+                raise PayloadWaitTimeout(cond, timeout)
+            sleep(0.05)
+
+        return self.payloads
 
     @property
     def payloads(self):
@@ -112,14 +131,14 @@ class TestDebugger(Debugger):
 
 
 @contextmanager
-def debugger(**config_overrides):
-    # type: (Any) -> None
+def _debugger(config_to_override, config_overrides):
+    # type: (En, Any) -> None
     """Test with the debugger enabled."""
     atexit_register = atexit.register
     try:
-        old_config = config.__dict__
-        config.__dict__ = dict(old_config)
-        config.__dict__.update(config_overrides)
+        old_config = config_to_override.__dict__
+        config_to_override.__dict__ = dict(old_config)
+        config_to_override.__dict__.update(config_overrides)
 
         atexit.register = lambda _: None
 
@@ -132,6 +151,22 @@ def debugger(**config_overrides):
         try:
             TestDebugger.disable()
             assert TestDebugger._instance is None
-            config.__dict__ = old_config
+            config_to_override.__dict__ = old_config
         finally:
             atexit.register = atexit_register
+
+
+@contextmanager
+def debugger(**config_overrides):
+    # type: (Any) -> None
+    """Test with the debugger enabled."""
+    with _debugger(di_config, config_overrides) as debugger:
+        yield debugger
+
+
+@contextmanager
+def exception_debugging(**config_overrides):
+    config_overrides.setdefault("enabled", True)
+
+    with _debugger(ed_config, config_overrides) as ed:
+        yield ed

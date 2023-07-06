@@ -1067,6 +1067,96 @@ class PytestTestCase(TracerTestCase):
         assert test_suite_span.get_tag("test.status") == "pass"
         assert test_session_span.get_tag("test.status") == "pass"
 
+    def test_pytest_some_skipped_tests_does_not_propagate_in_testcase(self):
+        """Test that if not all tests are skipped, that status does not propagate upwards."""
+        py_file = self.testdir.makepyfile(
+            """
+            import unittest
+            import pytest
+
+            class MyTest(unittest.TestCase):
+
+                @pytest.mark.skip(reason="Because")
+                def test_not_ok_but_skipped(self):
+                    assert 0
+
+                def test_ok(self):
+                    assert True
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        rec = self.inline_run("--ddtrace", file_name)
+        rec.assertoutcome(skipped=1, passed=1)
+        spans = self.pop_spans()
+        test_span_skipped = spans[0]
+        test_span_ok = spans[1]
+        test_suite_span = spans[3]
+        test_session_span = spans[2]
+        assert test_span_skipped.get_tag("test.status") == "skip"
+        assert test_span_ok.get_tag("test.status") == "pass"
+        assert test_suite_span.get_tag("test.status") == "pass"
+        assert test_session_span.get_tag("test.status") == "pass"
+
+    def test_pytest_all_skipped_tests_does_propagate_in_testcase(self):
+        """Test that if all tests are skipped, that status is propagated upwards."""
+        py_file = self.testdir.makepyfile(
+            """
+            import unittest
+            import pytest
+
+            class MyTest(unittest.TestCase):
+
+                @pytest.mark.skip(reason="Because")
+                def test_not_ok_but_skipped(self):
+                    assert 0
+
+                @pytest.mark.skip(reason="Because")
+                def test_ok_but_skipped(self):
+                    assert True
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        rec = self.inline_run("--ddtrace", file_name)
+        rec.assertoutcome(skipped=2, passed=0)
+        spans = self.pop_spans()
+        test_span_skipped = spans[0]
+        test_span_ok = spans[1]
+        test_suite_span = spans[3]
+        test_session_span = spans[2]
+        assert test_span_skipped.get_tag("test.status") == "skip"
+        assert test_span_ok.get_tag("test.status") == "skip"
+        assert test_suite_span.get_tag("test.status") == "skip"
+        assert test_session_span.get_tag("test.status") == "skip"
+
+    def test_pytest_failed_tests_propagate_in_testcase(self):
+        """Test that if any test fails, that status is propagated upwards."""
+        py_file = self.testdir.makepyfile(
+            """
+            import unittest
+            import pytest
+
+            class MyTest(unittest.TestCase):
+
+                def test_not_ok(self):
+                    assert 0
+
+                def test_ok(self):
+                    assert True
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        rec = self.inline_run("--ddtrace", file_name)
+        rec.assertoutcome(failed=1, passed=1)
+        spans = self.pop_spans()
+        test_span_skipped = spans[0]
+        test_span_ok = spans[1]
+        test_suite_span = spans[3]
+        test_session_span = spans[2]
+        assert test_span_skipped.get_tag("test.status") == "fail"
+        assert test_span_ok.get_tag("test.status") == "pass"
+        assert test_suite_span.get_tag("test.status") == "fail"
+        assert test_session_span.get_tag("test.status") == "fail"
+
     def test_pytest_module(self):
         """Test that running pytest on a test package will generate a test module span."""
         package_a_dir = self.testdir.mkpydir("test_package_a")
@@ -1228,8 +1318,11 @@ class PytestTestCase(TracerTestCase):
         test_module_spans = [span for span in spans if span.get_tag("type") == "test_module_end"]
         assert test_module_spans[0].get_tag("test.module") == "test_outer_package"
         assert test_module_spans[0].get_tag("test.module_path") == "test_outer_package"
-        assert test_module_spans[1].get_tag("test.module") == "test_inner_package"
+        assert test_module_spans[1].get_tag("test.module") == "test_outer_package.test_inner_package"
         assert test_module_spans[1].get_tag("test.module_path") == "test_outer_package/test_inner_package"
+        test_suite_spans = [span for span in spans if span.get_tag("type") == "test_suite_end"]
+        assert test_suite_spans[0].get_tag("test.suite") == "test_outer_abc.py"
+        assert test_suite_spans[1].get_tag("test.suite") == "test_inner_abc.py"
 
     @pytest.mark.skipif(compat.PY2, reason="ddtrace does not support coverage on Python 2")
     def test_pytest_will_report_coverage(self):
@@ -1289,3 +1382,76 @@ class PytestTestCase(TracerTestCase):
         assert test_span.get_tag(git.BRANCH)
         assert test_span.get_tag(git.COMMIT_SHA)
         assert test_span.get_tag(git.REPOSITORY_URL)
+
+    def test_pytest_skipped_by_itr(self):
+        py_file = self.testdir.makepyfile(
+            """
+        def test_will_work():
+            assert 1 == 1
+
+        def test_not_ok():
+            assert 0 == 1
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
+            return_value=[
+                True,
+            ],
+        ), mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._get_tests_to_skip",
+            return_value=[
+                "test_will_work",
+            ],
+        ), mock.patch(
+            "pytest.skip"
+        ) as pytest_skip:
+            self.inline_run("--ddtrace", file_name)
+            spans = self.pop_spans()
+
+        pytest_skip.assert_called_once_with("Skipped by Datadog Intelligent Test Runner")
+
+        assert len(spans) == 3
+        test_test_span = spans[0]
+        assert test_test_span.name == "pytest.test"
+        assert test_test_span.get_tag("test.status") == "fail"
+        assert test_test_span.get_tag("test.name") == "test_not_ok"
+
+    def test_pytest_not_skipped_by_itr_empty_tests_to_skip(self):
+        py_file = self.testdir.makepyfile(
+            """
+        def test_will_work():
+            assert 1 == 1
+
+        def test_not_ok():
+            assert 0 == 1
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
+            return_value=[
+                True,
+            ],
+        ), mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._get_tests_to_skip",
+            return_value=[],
+        ), mock.patch(
+            "pytest.skip"
+        ) as pytest_skip:
+            self.inline_run("--ddtrace", file_name)
+            spans = self.pop_spans()
+
+        pytest_skip.assert_not_called()
+
+        assert len(spans) == 4
+        test_passed_test_span = spans[0]
+        assert test_passed_test_span.name == "pytest.test"
+        assert test_passed_test_span.get_tag("test.status") == "pass"
+        assert test_passed_test_span.get_tag("test.name") == "test_will_work"
+
+        test_failed_test_span = spans[1]
+        assert test_failed_test_span.name == "pytest.test"
+        assert test_failed_test_span.get_tag("test.status") == "fail"
+        assert test_failed_test_span.get_tag("test.name") == "test_not_ok"

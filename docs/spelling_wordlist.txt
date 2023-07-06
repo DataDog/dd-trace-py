@@ -39,6 +39,7 @@ backend
 backends
 backport
 backported
+backporting
 bdd
 bikeshedding
 booleans
@@ -68,10 +69,12 @@ dbapi
 ddtrace
 deprecations
 django
+docstring
 doctest
 dogpile
 dogpile.cache
 dogstatsd
+dsn
 elasticsearch
 elasticsearch1
 elasticsearch7
@@ -114,6 +117,7 @@ kubernetes
 kwarg
 kwargs
 lifecycle
+linters
 lookups
 loopback
 macOS
@@ -124,6 +128,7 @@ metadata
 microservices
 middleware
 middlewares
+moderations
 mongoengine
 multiline
 multiprocess
@@ -193,11 +198,13 @@ starlette
 statsd
 stringable
 subclass
+subdirectory
 subdomains
 submodule
 submodules
 substring
 testagent
+TestCase
 timestamp
 tokenizer
 tracestate
@@ -206,6 +213,7 @@ uWSGI
 unbuffered
 unicode
 uninstrumented
+unittest
 unix
 unpatch
 unpatched
@@ -235,3 +243,4 @@ IAST
 programmatically
 DES
 Blowfish
+Gitlab

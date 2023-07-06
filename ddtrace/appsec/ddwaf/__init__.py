@@ -25,7 +25,6 @@ try:
     from .ddwaf_types import ddwaf_object
     from .ddwaf_types import ddwaf_object_free
     from .ddwaf_types import ddwaf_result
-    from .ddwaf_types import ddwaf_ruleset_info
     from .ddwaf_types import ddwaf_run
     from .ddwaf_types import py_ddwaf_context_init
     from .ddwaf_types import py_ddwaf_init
@@ -82,17 +81,19 @@ if _DDWAF_LOADED:
             config = ddwaf_config(
                 key_regex=obfuscation_parameter_key_regexp, value_regex=obfuscation_parameter_value_regexp
             )
-            self._info = ddwaf_ruleset_info()
+            diagnostics = ddwaf_object()
             ruleset_map_object = ddwaf_object.create_without_limits(ruleset_map)
-            self._handle = py_ddwaf_init(ruleset_map_object, ctypes.byref(config), ctypes.byref(self._info))
-            if not self._handle or self._info.failed:
+            self._handle = py_ddwaf_init(ruleset_map_object, ctypes.byref(config), ctypes.byref(diagnostics))
+            self._set_info(diagnostics)
+            info = self.info
+            if not self._handle or info.failed:
                 # We keep the handle alive in case of errors, as some valid rules can be loaded
                 # at the same time some invalid ones are rejected
                 LOGGER.debug(
                     "DDWAF.__init__: invalid rules\n ruleset: %s\nloaded:%s\nerrors:%s\n",
                     ruleset_map_object.struct,
-                    self._info.loaded,
-                    self.info.errors,
+                    info.failed,
+                    info.errors,
                 )
             ddwaf_object_free(ctypes.byref(ruleset_map_object))
 
@@ -101,19 +102,27 @@ if _DDWAF_LOADED:
             # type: (DDWaf) -> list[text_type]
             return py_ddwaf_required_addresses(self._handle) if self._handle else []
 
+        def _set_info(self, diagnostics):
+            # type: (DDWaf, ddwaf_object) -> None
+            info_struct = diagnostics.struct
+            rules = info_struct.get("rules", {}) if info_struct else {}  # type: ignore
+            errors_result = rules.get("errors", {})
+            version = info_struct.get("ruleset_version", "") if info_struct else ""  # type: ignore
+            self._info = DDWaf_info(len(rules.get("loaded", [])), len(rules.get("failed", [])), errors_result, version)
+            ddwaf_object_free(diagnostics)
+
         @property
         def info(self):
             # type: (DDWaf) -> DDWaf_info
-            errors_result = self._info.errors.struct if self._info.failed > 0 else {}
-            version = self._info.version
-            version = "" if version is None else version.decode("UTF-8")
-            return DDWaf_info(self._info.loaded, self._info.failed, errors_result, version)
+            return self._info
 
         def update_rules(self, new_rules):
             # type: (dict[text_type, DDWafRulesType]) -> bool
             """update the rules of the WAF instance. return True if an error occurs."""
             rules = ddwaf_object.create_without_limits(new_rules)
-            result = py_ddwaf_update(self._handle, rules, self._info)
+            diagnostics = ddwaf_object()
+            result = py_ddwaf_update(self._handle, rules, diagnostics)
+            self._set_info(diagnostics)
             ddwaf_object_free(rules)
             if result:
                 LOGGER.debug("DDWAF.update_rules success.\ninfo %s", self.info)
@@ -124,7 +133,8 @@ if _DDWAF_LOADED:
                 return False
 
         def _at_request_start(self):
-            # type: () -> ddwaf_context_capsule
+            # type: () -> ddwaf_context_capsule | None
+            ctx = None
             if self._handle:
                 ctx = py_ddwaf_context_init(self._handle)
             if not ctx:
@@ -155,8 +165,8 @@ if _DDWAF_LOADED:
             if error < 0:
                 LOGGER.debug("run DDWAF error: %d\ninput %s\nerror %s", error, wrapper.struct, self.info.errors)
             return DDWaf_result(
-                result.data.decode("UTF-8", errors="ignore") if hasattr(result, "data") and result.data else None,
-                [result.actions.array[i].decode("UTF-8", errors="ignore") for i in range(result.actions.size)],
+                result.events.struct,
+                result.actions.struct,
                 result.total_runtime / 1e3,
                 (time.time() - start) * 1e6,
                 result.timeout,
@@ -176,7 +186,7 @@ else:
 
         def __init__(self, rules, obfuscation_parameter_key_regexp, obfuscation_parameter_value_regexp):
             # type: (DDWaf, Union[None, int, text_type, list[Any], dict[text_type, Any]], text_type, text_type) -> None
-            pass
+            self._handle = None
 
         def run(
             self,  # type: DDWaf

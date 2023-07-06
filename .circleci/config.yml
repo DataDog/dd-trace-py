@@ -15,7 +15,7 @@ mongo_image: &mongo_image mongo:3.6
 httpbin_image: &httpbin_image kennethreitz/httpbin@sha256:2c7abc4803080c22928265744410173b6fea3b898872c01c5fd0f0f9df4a59fb
 vertica_image: &vertica_image sumitchawla/vertica:latest
 rabbitmq_image: &rabbitmq_image rabbitmq:3.7-alpine
-testagent_image: &testagent_image ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:latest
+testagent_image: &testagent_image ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:v1.10.1
 
 parameters:
   coverage:
@@ -44,15 +44,15 @@ machine_executor: &machine_executor
 
 contrib_job_large: &contrib_job_large
   executor: ddtrace_dev
-  parallelism: 8
+  parallelism: 12
 
 contrib_job: &contrib_job
   executor: ddtrace_dev
-  parallelism: 2
+  parallelism: 4
 
 contrib_job_small: &contrib_job_small
   executor: ddtrace_dev_small
-  parallelism: 1
+  parallelism: 2
 
 commands:
   save_coverage:
@@ -83,15 +83,15 @@ commands:
     steps:
       - save_cache:
           # DEV: Cache misses can still occur as venvs are not necessarily always created on the same node index
-          key: pip-cache-{{ .Environment.CIRCLE_JOB }}-{{ .Environment.CIRCLE_NODE_INDEX }}-{{ checksum "riotfile.py" }}-{{ checksum "setup.py" }}
+          key: pip-cache-xdg-{{ .Environment.CIRCLE_JOB }}-{{ .Environment.CIRCLE_NODE_INDEX }}-{{ checksum "riotfile.py" }}-{{ checksum "setup.py" }}
           paths:
-            - ".cache/pip"
+            - "~/.cache/pip"
 
   restore_pip_cache:
     description: "Restore pip cache directory"
     steps:
       - restore_cache:
-          key: pip-cache-{{ .Environment.CIRCLE_JOB }}-{{ .Environment.CIRCLE_NODE_INDEX }}-{{ checksum "riotfile.py" }}-{{ checksum "setup.py" }}
+          key: pip-cache-xdg-{{ .Environment.CIRCLE_JOB }}-{{ .Environment.CIRCLE_NODE_INDEX }}-{{ checksum "riotfile.py" }}-{{ checksum "setup.py" }}
 
   start_docker_services:
     description: "Start Docker services"
@@ -353,15 +353,20 @@ jobs:
       - run_test:
           pattern: "internal"
 
+  datastreams:
+    <<: *contrib_job
+    steps:
+      - run_test:
+          pattern: "datastreams"
+
   tracer:
     <<: *contrib_job_large
-    parallelism: 11
     steps:
       - run_test:
           pattern: "tracer"
 
   ci_visibility:
-    <<: *contrib_job_small
+    <<: *contrib_job
     steps:
       - run_test:
           pattern: "ci_visibility"
@@ -382,7 +387,6 @@ jobs:
 
   debugger:
     <<: *contrib_job
-    parallelism: 7
     steps:
       - run_test:
           pattern: "debugger"
@@ -396,7 +400,7 @@ jobs:
           snapshot: true
 
   opentracer:
-    <<: *contrib_job
+    <<: *contrib_job_large
     steps:
       - run_test:
           pattern: 'opentracer'
@@ -456,7 +460,7 @@ jobs:
 
   boto:
     <<: *machine_executor
-    parallelism: 4
+    parallelism: 6
     steps:
       - run_test:
           pattern: '^boto'  # run boto and botocore
@@ -465,7 +469,6 @@ jobs:
 
   ddtracerun:
     <<: *contrib_job
-    parallelism: 4
     docker:
       - image: *ddtrace_dev_image
       - image: *redis_image
@@ -526,7 +529,7 @@ jobs:
           pattern: 'asgi$'
 
   tornado:
-    <<: *contrib_job_small
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
       - *testagent
@@ -535,7 +538,7 @@ jobs:
           pattern: 'tornado'
 
   bottle:
-    <<: *contrib_job_small
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
       - *testagent
@@ -544,7 +547,7 @@ jobs:
           pattern: 'bottle'
 
   cassandra:
-    <<: *contrib_job_small
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
         environment:
@@ -560,8 +563,7 @@ jobs:
           pattern: 'cassandra'
 
   celery:
-    <<: *contrib_job
-    parallelism: 5
+    <<: *contrib_job_large
     docker:
       - image: *ddtrace_dev_image
       - image: redis:4.0-alpine
@@ -573,6 +575,7 @@ jobs:
 
   cherrypy:
     <<: *machine_executor
+    parallelism: 4
     steps:
       - run_test:
           pattern: 'cherrypy'
@@ -589,7 +592,7 @@ jobs:
           pattern: 'consul'
 
   dogpile_cache:
-    <<: *contrib_job_small
+    <<: *contrib_job
     steps:
       - run_test:
           pattern: 'dogpile_cache'
@@ -614,7 +617,7 @@ jobs:
 
   django:
     <<: *machine_executor
-    parallelism: 2
+    parallelism: 4
     steps:
       - run_test:
           pattern: 'django($|_celery)'
@@ -630,6 +633,7 @@ jobs:
 
   djangorestframework:
     <<: *machine_executor
+    parallelism: 2
     steps:
       - run_test:
           pattern: 'djangorestframework'
@@ -638,6 +642,7 @@ jobs:
 
   fastapi:
     <<: *machine_executor
+    parallelism: 2
     steps:
       - run_test:
           pattern: "fastapi"
@@ -680,6 +685,7 @@ jobs:
 
   grpc:
     <<: *machine_executor
+    parallelism: 2
     steps:
       - run_test:
           pattern: "grpc"
@@ -687,7 +693,7 @@ jobs:
 
   gunicorn:
     <<: *machine_executor
-    parallelism: 6
+    parallelism: 8
     steps:
       - run_test:
           pattern: "gunicorn"
@@ -704,6 +710,7 @@ jobs:
 
   httpx:
     <<: *machine_executor
+    parallelism: 4
     steps:
       - run_test:
           pattern: 'httpx'
@@ -719,7 +726,7 @@ jobs:
           docker_services: "mariadb"
 
   molten:
-    <<: *contrib_job_small
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
       - *testagent
@@ -739,7 +746,7 @@ jobs:
           pattern: 'mysql'
 
   mysqlpython:
-    <<: *contrib_job_small
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
       - *mysql_server
@@ -750,7 +757,7 @@ jobs:
           pattern: 'mysqldb'
 
   pymysql:
-    <<: *contrib_job_small
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
       - *mysql_server
@@ -761,7 +768,7 @@ jobs:
           pattern: 'pymysql'
 
   pylibmc:
-    <<: *contrib_job_small
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
       - image: *memcached_image
@@ -771,7 +778,7 @@ jobs:
           pattern: 'pylibmc'
 
   pytest:
-    executor: ddtrace_dev
+    <<: *contrib_job
     steps:
       - run_test:
           pattern: 'pytest$'
@@ -826,7 +833,7 @@ jobs:
           pattern: "pynamodb"
 
   pyodbc:
-    <<: *contrib_job_small
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
       - *testagent
@@ -853,7 +860,7 @@ jobs:
 
   sanic:
     <<: *machine_executor
-    parallelism: 2
+    parallelism: 4
     steps:
       - run_test:
           pattern: "sanic"
@@ -861,7 +868,7 @@ jobs:
 
   snowflake:
     <<: *machine_executor
-    parallelism: 2
+    parallelism: 4
     steps:
       - run_test:
           pattern: "snowflake"
@@ -937,6 +944,7 @@ jobs:
 
   aioredis:
     <<: *machine_executor
+    parallelism: 2
     steps:
       - run_test:
           docker_services: 'redis'
@@ -977,6 +985,7 @@ jobs:
 
   rq:
     <<: *machine_executor
+    parallelism: 2
     steps:
       - run_test:
           pattern: "rq"
@@ -992,7 +1001,7 @@ jobs:
           docker_services: "httpbin_local"
 
   vertica:
-    <<: *contrib_job_small
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
       - *testagent
@@ -1023,7 +1032,7 @@ jobs:
           docker_services: 'kafka'
 
   kombu:
-    <<: *contrib_job_small
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
       - image: *rabbitmq_image
@@ -1041,7 +1050,7 @@ jobs:
           pattern: '^benchmarks'
 
   jinja2:
-    <<: *contrib_job_small
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
       - *testagent
@@ -1050,7 +1059,7 @@ jobs:
           pattern: 'jinja2'
 
   mako:
-    <<: *contrib_job_small
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
       - *testagent
@@ -1059,7 +1068,7 @@ jobs:
           pattern: 'mako'
 
   algoliasearch:
-    <<: *contrib_job_small
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
       - *testagent
@@ -1112,6 +1121,7 @@ requires_tests: &requires_tests
     - ci_visibility
     - consul
     - ddtracerun
+    - datastreams
     - dogpile_cache
     - django
     - django_hosts
@@ -1211,6 +1221,7 @@ workflows:
       - cherrypy: *requires_base_venvs
       - ci_visibility: *requires_base_venvs
       - consul: *requires_base_venvs
+      - datastreams: *requires_base_venvs
       - ddtracerun: *requires_base_venvs
       - django: *requires_base_venvs
       - django_hosts: *requires_base_venvs

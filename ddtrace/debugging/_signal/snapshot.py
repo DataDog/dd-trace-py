@@ -11,6 +11,7 @@ import attr
 from ddtrace.debugging import safety
 from ddtrace.debugging._expressions import DDExpressionEvaluationError
 from ddtrace.debugging._probe.model import CaptureLimits
+from ddtrace.debugging._probe.model import DEFAULT_CAPTURE_LIMITS
 from ddtrace.debugging._probe.model import FunctionLocationMixin
 from ddtrace.debugging._probe.model import LineLocationMixin
 from ddtrace.debugging._probe.model import LiteralTemplateSegment
@@ -36,7 +37,7 @@ def _capture_context(
     arguments,  # type: List[Tuple[str, Any]]
     _locals,  # type: List[Tuple[str, Any]]
     throwable,  # type: ExcInfoType
-    limits=CaptureLimits(),  # type: CaptureLimits
+    limits=DEFAULT_CAPTURE_LIMITS,  # type: CaptureLimits
 ):
     # type: (...) -> Dict[str, Any]
     with HourGlass(duration=CAPTURE_TIME_BUDGET) as hg:
@@ -61,7 +62,7 @@ def _capture_context(
         }
 
 
-_EMPTY_CAPTURED_CONTEXT = _capture_context([], [], (None, None, None), CaptureLimits())
+_EMPTY_CAPTURED_CONTEXT = _capture_context([], [], (None, None, None), DEFAULT_CAPTURE_LIMITS)
 
 
 def format_captured_value(value):
