@@ -6,7 +6,7 @@
 #
 atomicwrites==1.4.1
 attrs==21.4.0
-backports.functools-lru-cache==1.6.4
+backports.functools-lru-cache==1.6.5
 configparser==4.0.2
 contextlib2==0.6.0.post1
 coverage==5.5
