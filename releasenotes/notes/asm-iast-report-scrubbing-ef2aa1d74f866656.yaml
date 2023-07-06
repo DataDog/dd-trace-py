@@ -1,4 +1,4 @@
 ---
 other:
   - |
-    asm: scrub potentially sensitive information in the vulnerability report.
+    ASM: scrub potentially sensitive information in the vulnerability report.
