@@ -18,6 +18,7 @@
       "langchain.request.model": "google/flan-t5-xxl",
       "langchain.request.prompts.0": "Why does Mr. Krabs have a whale daughter?",
       "langchain.request.provider": "huggingface_hub",
+      "langchain.request.type": "llm",
       "langchain.response.completions.0.text": "she's a mermaid",
       "language": "python",
       "runtime-id": "40bd184f683049df87b1238ac911af64"

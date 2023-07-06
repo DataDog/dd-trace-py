@@ -22,6 +22,7 @@
       "langchain.request.openai.parameters.top_p": "1",
       "langchain.request.prompts.0": "Which team won the 2019 NBA finals?",
       "langchain.request.provider": "openai",
+      "langchain.request.type": "llm",
       "langchain.response.completions.0.finish_reason": "stop",
       "langchain.response.completions.0.logprobs": "None",
       "langchain.response.completions.0.text": "\\n\\nThe Toronto Raptors won the 2019 NBA Finals.",

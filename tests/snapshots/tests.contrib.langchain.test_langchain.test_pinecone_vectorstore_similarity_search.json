@@ -17,6 +17,7 @@
       "langchain.request.pinecone.project_name": "74ce8fe",
       "langchain.request.provider": "pinecone",
       "langchain.request.query": "Who was Alan Turing?",
+      "langchain.request.type": "similarity_search",
       "langchain.response.document.0.metadata.chunk": "1.0",
       "langchain.response.document.0.metadata.source": "https://simple.wikipedia.org/wiki/Alan%20Turing",
       "langchain.response.document.0.metadata.title": "Alan Turing",
@@ -50,7 +51,8 @@
          "langchain.request.api_key": "...key>",
          "langchain.request.inputs.0.text": "Who was Alan Turing?",
          "langchain.request.model": "text-embedding-ada-002",
-         "langchain.request.provider": "openai"
+         "langchain.request.provider": "openai",
+         "langchain.request.type": "embedding"
        },
        "metrics": {
          "_dd.measured": 1,

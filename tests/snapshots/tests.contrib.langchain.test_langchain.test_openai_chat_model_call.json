@@ -22,6 +22,7 @@
       "langchain.request.openai.parameters.stream": "False",
       "langchain.request.openai.parameters.temperature": "0.0",
       "langchain.request.provider": "openai",
+      "langchain.request.type": "chat_model",
       "langchain.response.completions.0.0.content": "'Whom' is used instead of 'who' when referring to the object of a sentence or clause. It is used when the person being referred ...",
       "langchain.response.completions.0.0.message_type": "AIMessage",
       "language": "python",

@@ -22,6 +22,7 @@
       "langchain.request.openai.parameters.top_p": "1",
       "langchain.request.prompts.0": "Can you explain what Descartes meant by 'I think, therefore I am'?",
       "langchain.request.provider": "openai",
+      "langchain.request.type": "llm",
       "langchain.response.completions.0.finish_reason": "stop",
       "langchain.response.completions.0.logprobs": "None",
       "langchain.response.completions.0.text": "\\n\\nDescartes' famous phrase \"I think, therefore I am\" is a fundamental statement of his philosophical approach, known as Cartes...",

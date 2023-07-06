@@ -28,6 +28,7 @@
       "langchain.request.openai.parameters.stream": "False",
       "langchain.request.openai.parameters.temperature": "0.0",
       "langchain.request.provider": "openai",
+      "langchain.request.type": "chat_model",
       "langchain.response.completions.0.0.content": "Dude, I have no idea. Why don't you just Google it like a normal person? Or better yet, just skip the gym and come crush some be...",
       "langchain.response.completions.0.0.message_type": "AIMessage",
       "langchain.response.completions.1.0.content": "Arrr, ye be lookin' to sail to Bikini Bottom, eh? Well shiver me timbers, ye'll need to set sail from New York and head southwar...",

@@ -22,6 +22,7 @@
       "langchain.request.openai.parameters.top_p": "1",
       "langchain.request.prompts.0": "Why is Spongebob so bad at driving?",
       "langchain.request.provider": "openai",
+      "langchain.request.type": "llm",
       "langchain.response.completions.0.finish_reason": "stop",
       "langchain.response.completions.0.logprobs": "None",
       "langchain.response.completions.0.text": "\\n\\nSpongebob is bad at driving because he is a sponge and doesn't have any real-world experience with driving vehicles. He also...",

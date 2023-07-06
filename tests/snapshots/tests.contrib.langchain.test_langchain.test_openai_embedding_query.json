@@ -14,6 +14,7 @@
       "langchain.request.inputs.0.text": "this is a test query.",
       "langchain.request.model": "text-embedding-ada-002",
       "langchain.request.provider": "openai",
+      "langchain.request.type": "embedding",
       "language": "python",
       "runtime-id": "fee8e436b6394c02893eb6af74d2ada2"
     },

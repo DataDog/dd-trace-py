@@ -26,6 +26,7 @@
       "langchain.request.prompts.0": "12345",
       "langchain.request.prompts.1": "123456",
       "langchain.request.provider": "openai",
+      "langchain.request.type": "llm",
       "language": "python",
       "runtime-id": "fee8e436b6394c02893eb6af74d2ada2"
     },

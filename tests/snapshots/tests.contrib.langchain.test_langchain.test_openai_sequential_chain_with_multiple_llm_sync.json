@@ -11,6 +11,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "langchain.request.inputs.input_text": "\\n            I have convinced myself that there is absolutely nothing in the world, no sky, no earth, no minds, no\\n           ...",
+      "langchain.request.type": "chain",
       "langchain.response.outputs.final_output": "\\nI've come to the conclusion it's true,\\nThere's nothing in the world like me and you.\\nDoes this mean I don't exist? No!\\nFor ...",
       "langchain.response.outputs.input_text": "\\n            I have convinced myself that there is absolutely nothing in the world, no sky, no earth, no minds, no\\n           ...",
       "language": "python",
@@ -43,6 +44,7 @@
        "meta": {
          "langchain.request.inputs.input_text": "\\n            I have convinced myself that there is absolutely nothing in the world, no sky, no earth, no minds, no\\n           ...",
          "langchain.request.prompt": "Paraphrase this text:\\n\\n        {input_text}\\n\\n        Paraphrase: ",
+         "langchain.request.type": "chain",
          "langchain.response.outputs.paraphrased_output": "\\nI have come to the conclusion that there is nothing in the world such as the sky, the earth, minds, or bodies. Does this mean ..."
        },
        "metrics": {
@@ -77,6 +79,7 @@
             "langchain.request.openai.parameters.top_p": "1",
             "langchain.request.prompts.0": "Paraphrase this text:\\n\\n        \\n            I have convinced myself that there is absolutely nothing in the world, no sky, no...",
             "langchain.request.provider": "openai",
+            "langchain.request.type": "llm",
             "langchain.response.completions.0.finish_reason": "stop",
             "langchain.response.completions.0.logprobs": "None",
             "langchain.response.completions.0.text": "\\nI have come to the conclusion that there is nothing in the world such as the sky, the earth, minds, or bodies. Does this mean ..."
@@ -104,6 +107,7 @@
          "langchain.request.inputs.input_text": "\\n            I have convinced myself that there is absolutely nothing in the world, no sky, no earth, no minds, no\\n           ...",
          "langchain.request.inputs.paraphrased_output": "\\nI have come to the conclusion that there is nothing in the world such as the sky, the earth, minds, or bodies. Does this mean ...",
          "langchain.request.prompt": "Make this text rhyme:\\n\\n        {paraphrased_output}\\n\\n        Rhyme: ",
+         "langchain.request.type": "chain",
          "langchain.response.outputs.final_output": "\\nI've come to the conclusion it's true,\\nThere's nothing in the world like me and you.\\nDoes this mean I don't exist? No!\\nFor ..."
        },
        "metrics": {
@@ -138,6 +142,7 @@
             "langchain.request.openai.parameters.top_p": "1",
             "langchain.request.prompts.0": "Make this text rhyme:\\n\\n        \\nI have come to the conclusion that there is nothing in the world such as the sky, the earth, ...",
             "langchain.request.provider": "openai",
+            "langchain.request.type": "llm",
             "langchain.response.completions.0.finish_reason": "stop",
             "langchain.response.completions.0.logprobs": "None",
             "langchain.response.completions.0.text": "\\nI've come to the conclusion it's true,\\nThere's nothing in the world like me and you.\\nDoes this mean I don't exist? No!\\nFor ..."

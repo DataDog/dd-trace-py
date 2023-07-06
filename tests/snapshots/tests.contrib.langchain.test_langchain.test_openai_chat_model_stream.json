@@ -22,6 +22,7 @@
       "langchain.request.openai.parameters.stream": "True",
       "langchain.request.openai.parameters.temperature": "0.0",
       "langchain.request.provider": "openai",
+      "langchain.request.type": "chat_model",
       "langchain.response.completions.0.0.content": "As an AI language model, I do not have access to the secret Krabby Patty recipe. It is a closely guarded secret by the creators ...",
       "langchain.response.completions.0.0.message_type": "AIMessage",
       "language": "python",

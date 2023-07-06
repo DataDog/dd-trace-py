@@ -28,6 +28,7 @@
       "langchain.request.openai.parameters.stream": "False",
       "langchain.request.openai.parameters.temperature": "0.0",
       "langchain.request.provider": "openai",
+      "langchain.request.type": "chat_model",
       "langchain.response.completions.0.0.content": "Yo bro, I got you covered! The nearest Equinox gym from Hudson Yards in Manhattan is just a few blocks away, man. It's on 10th A...",
       "langchain.response.completions.0.0.message_type": "AIMessage",
       "langchain.response.completions.1.0.content": "Arr, me heartie! To get to Bikini Bottom from New York, ye be needin' a sturdy ship and a compass that points true. Set sail fro...",

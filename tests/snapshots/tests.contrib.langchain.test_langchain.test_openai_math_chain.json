@@ -12,6 +12,7 @@
       "_dd.p.dm": "-0",
       "langchain.request.inputs.question": "what is two raised to the fifty-fourth power?",
       "langchain.request.prompt": "Translate a math problem into a expression that can be executed using Python's numexpr library. Use the output of running this c...",
+      "langchain.request.type": "chain",
       "langchain.response.outputs.answer": "Answer: 18014398509481984",
       "langchain.response.outputs.question": "what is two raised to the fifty-fourth power?",
       "language": "python",
@@ -45,6 +46,7 @@
          "langchain.request.inputs.question": "what is two raised to the fifty-fourth power?",
          "langchain.request.inputs.stop": "['```output']",
          "langchain.request.prompt": "Translate a math problem into a expression that can be executed using Python's numexpr library. Use the output of running this c...",
+         "langchain.request.type": "chain",
          "langchain.response.outputs.question": "what is two raised to the fifty-fourth power?",
          "langchain.response.outputs.stop": "['```output']",
          "langchain.response.outputs.text": "\\n```text\\n2**54\\n```\\n...numexpr.evaluate(\"2**54\")...\\n"
@@ -81,6 +83,7 @@
             "langchain.request.openai.parameters.top_p": "1",
             "langchain.request.prompts.0": "Translate a math problem into a expression that can be executed using Python's numexpr library. Use the output of running this c...",
             "langchain.request.provider": "openai",
+            "langchain.request.type": "llm",
             "langchain.response.completions.0.finish_reason": "stop",
             "langchain.response.completions.0.logprobs": "None",
             "langchain.response.completions.0.text": "\\n```text\\n2**54\\n```\\n...numexpr.evaluate(\"2**54\")...\\n"

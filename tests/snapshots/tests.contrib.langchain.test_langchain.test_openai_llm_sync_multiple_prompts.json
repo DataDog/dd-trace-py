@@ -23,6 +23,7 @@
       "langchain.request.prompts.0": "What is the best way to teach a baby multiple languages?",
       "langchain.request.prompts.1": "How many times has Spongebob failed his road test?",
       "langchain.request.provider": "openai",
+      "langchain.request.type": "llm",
       "langchain.response.completions.0.finish_reason": "stop",
       "langchain.response.completions.0.logprobs": "None",
       "langchain.response.completions.0.text": "\\n\\nThe best way to teach a baby multiple languages is to start as early as possible and to make the learning experience fun and...",

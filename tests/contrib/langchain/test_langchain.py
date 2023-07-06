@@ -141,6 +141,7 @@ def test_global_tags(ddtrace_config_langchain, langchain, request_vcr, mock_metr
             "version:1234",
             "langchain.request.model:text-davinci-003",
             "langchain.request.provider:openai",
+            "langchain.request.type:llm",
             "langchain.request.api_key:...key>",
         ]
         actual_tags = kwargs.get("tags")
@@ -154,7 +155,7 @@ def test_global_tags(ddtrace_config_langchain, langchain, request_vcr, mock_metr
         assert log["service"] == "test-svc"
         assert (
             log["ddtags"]
-            == "env:staging,version:1234,langchain.request.provider:openai,langchain.request.model:text-davinci-003,langchain.request.api_key:...key>"  # noqa: E501
+            == "env:staging,version:1234,langchain.request.provider:openai,langchain.request.model:text-davinci-003,langchain.request.type:llm,langchain.request.api_key:...key>"  # noqa: E501
         )
 
 
@@ -288,6 +289,7 @@ def test_openai_llm_metrics(langchain, request_vcr, mock_metrics, mock_logs, sna
         "service:",
         "langchain.request.provider:openai",
         "langchain.request.model:text-davinci-003",
+        "langchain.request.type:llm",
         "langchain.request.api_key:...key>",
         "error:0",
     ]
@@ -359,7 +361,7 @@ def test_llm_logs(langchain, ddtrace_config_langchain, request_vcr, mock_logs, m
                     "ddsource": "langchain",
                     "service": "",
                     "status": "info",
-                    "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:text-davinci-003,langchain.request.api_key:...key>",  # noqa: E501
+                    "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:text-davinci-003,langchain.request.type:llm,langchain.request.api_key:...key>",  # noqa: E501
                     "dd.trace_id": str(trace_id),
                     "dd.span_id": str(span_id),
                     "prompts": ["Can you explain what Descartes meant by 'I think, therefore I am'?"],
@@ -501,6 +503,7 @@ def test_chat_model_metrics(langchain, request_vcr, mock_metrics, mock_logs, sna
         "service:",
         "langchain.request.provider:openai",
         "langchain.request.model:gpt-3.5-turbo",
+        "langchain.request.type:chat_model",
         "langchain.request.api_key:...key>",
         "error:0",
     ]
@@ -572,7 +575,7 @@ def test_chat_model_logs(langchain, ddtrace_config_langchain, request_vcr, mock_
                     "ddsource": "langchain",
                     "service": "",
                     "status": "info",
-                    "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:gpt-3.5-turbo,langchain.request.api_key:...key>",  # noqa: E501
+                    "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:gpt-3.5-turbo,langchain.request.type:chat_model,langchain.request.api_key:...key>",  # noqa: E501
                     "dd.trace_id": str(trace_id),
                     "dd.span_id": str(span_id),
                     "messages": [
@@ -649,6 +652,7 @@ def test_openai_embedding_metrics(langchain, request_vcr, mock_metrics, mock_log
         "service:",
         "langchain.request.provider:openai",
         "langchain.request.model:text-embedding-ada-002",
+        "langchain.request.type:embedding",
         "langchain.request.api_key:...key>",
         "error:0",
     ]
@@ -700,7 +704,7 @@ def test_embedding_logs(langchain, ddtrace_config_langchain, request_vcr, mock_l
                     "ddsource": "langchain",
                     "service": "",
                     "status": "info",
-                    "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:text-embedding-ada-002,langchain.request.api_key:...key>",  # noqa: E501
+                    "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:text-embedding-ada-002,langchain.request.type:embedding,langchain.request.api_key:...key>",  # noqa: E501
                     "dd.trace_id": str(trace_id),
                     "dd.span_id": str(span_id),
                     "inputs": ["this is a test query."],
@@ -906,6 +910,7 @@ def test_openai_chain_metrics(langchain, request_vcr, mock_metrics, mock_logs, s
         "service:",
         "langchain.request.provider:openai",
         "langchain.request.model:text-davinci-003",
+        mock.ANY,  # should be in format "langchain.request.type:<type>"
         "langchain.request.api_key:...key>",
         "error:0",
     ]
@@ -979,7 +984,7 @@ def test_chain_logs(langchain, ddtrace_config_langchain, request_vcr, mock_logs,
                     "ddsource": "langchain",
                     "service": "",
                     "status": "info",
-                    "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:text-davinci-003,langchain.request.api_key:...key>",  # noqa: E501
+                    "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:text-davinci-003,langchain.request.type:llm,langchain.request.api_key:...key>",  # noqa: E501
                     "dd.trace_id": str(llm_span.trace_id),
                     "dd.span_id": str(llm_span.span_id),
                     "prompts": mock.ANY,
@@ -994,14 +999,14 @@ def test_chain_logs(langchain, ddtrace_config_langchain, request_vcr, mock_logs,
                     "ddsource": "langchain",
                     "service": "",
                     "status": "info",
-                    "ddtags": "env:,version:,langchain.request.provider:,langchain.request.model:,langchain.request.api_key:",  # noqa: E501
+                    "ddtags": "env:,version:,langchain.request.provider:,langchain.request.model:,langchain.request.type:chain,langchain.request.api_key:",  # noqa: E501
                     "dd.trace_id": str(mid_chain_span.trace_id),
                     "dd.span_id": str(mid_chain_span.span_id),
                     "inputs": mock.ANY,
                     "prompt": mock.ANY,
                     "outputs": {
                         "question": "what is two raised to the fifty-fourth power?",
-                        "stop": ["```output"],
+                        "stop": mock.ANY,
                         "text": '\n```text\n2**54\n```\n...numexpr.evaluate("2**54")...\n',
                     },
                 }
@@ -1014,7 +1019,7 @@ def test_chain_logs(langchain, ddtrace_config_langchain, request_vcr, mock_logs,
                     "ddsource": "langchain",
                     "service": "",
                     "status": "info",
-                    "ddtags": "env:,version:,langchain.request.provider:,langchain.request.model:,langchain.request.api_key:",  # noqa: E501
+                    "ddtags": "env:,version:,langchain.request.provider:,langchain.request.model:,langchain.request.type:chain,langchain.request.api_key:",  # noqa: E501
                     "dd.trace_id": str(base_chain_span.trace_id),
                     "dd.span_id": str(base_chain_span.span_id),
                     "inputs": {"question": "what is two raised to the fifty-fourth power?"},
@@ -1135,6 +1140,7 @@ def test_vectorstore_similarity_search_metrics(langchain, request_vcr, mock_metr
         "service:",
         "langchain.request.provider:pinecone",
         "langchain.request.model:",
+        "langchain.request.type:similarity_search",
         "langchain.request.api_key:...key>",
         "error:0",
     ]
@@ -1197,7 +1203,7 @@ def test_vectorstore_logs(langchain, ddtrace_config_langchain, request_vcr, mock
                     "ddsource": "langchain",
                     "service": "",
                     "status": "info",
-                    "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:text-embedding-ada-002,langchain.request.api_key:...key>",  # noqa: E501
+                    "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:text-embedding-ada-002,langchain.request.type:embedding,langchain.request.api_key:...key>",  # noqa: E501
                     "dd.trace_id": str(embeddings_span.trace_id),
                     "dd.span_id": str(embeddings_span.span_id),
                     "inputs": ["Who was Alan Turing?"],
@@ -1211,7 +1217,7 @@ def test_vectorstore_logs(langchain, ddtrace_config_langchain, request_vcr, mock
                     "ddsource": "langchain",
                     "service": "",
                     "status": "info",
-                    "ddtags": "env:,version:,langchain.request.provider:pinecone,langchain.request.model:,langchain.request.api_key:...key>",  # noqa: E501
+                    "ddtags": "env:,version:,langchain.request.provider:pinecone,langchain.request.model:,langchain.request.type:similarity_search,langchain.request.api_key:...key>",  # noqa: E501
                     "dd.trace_id": str(vectorstore_span.trace_id),
                     "dd.span_id": str(vectorstore_span.span_id),
                     "query": "Who was Alan Turing?",

@@ -11,6 +11,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "langchain.request.inputs.question": "Who was Alan Turing?",
+      "langchain.request.type": "chain",
       "langchain.response.outputs.answer": " Alan Turing was a brilliant mathematician and cryptographer who became the founder of modern-day computer science and artificia...",
       "langchain.response.outputs.question": "Who was Alan Turing?",
       "langchain.response.outputs.sources": "https://simple.wikipedia.org/wiki/Alan%20Turing",
@@ -48,6 +49,7 @@
          "langchain.request.pinecone.project_name": "74ce8fe",
          "langchain.request.provider": "pinecone",
          "langchain.request.query": "Who was Alan Turing?",
+         "langchain.request.type": "similarity_search",
          "langchain.response.document.0.metadata.chunk": "1.0",
          "langchain.response.document.0.metadata.source": "https://simple.wikipedia.org/wiki/Alan%20Turing",
          "langchain.response.document.0.metadata.title": "Alan Turing",
@@ -89,7 +91,8 @@
             "langchain.request.api_key": "...key>",
             "langchain.request.inputs.0.text": "Who was Alan Turing?",
             "langchain.request.model": "text-embedding-ada-002",
-            "langchain.request.provider": "openai"
+            "langchain.request.provider": "openai",
+            "langchain.request.type": "embedding"
           },
           "metrics": {
             "_dd.measured": 1,
@@ -111,6 +114,7 @@
        "meta": {
          "langchain.request.inputs.input_documents": "[Document(page_content='A brilliant mathematician and cryptographer Alan was to become the founder of modern-day computer scienc...",
          "langchain.request.inputs.question": "Who was Alan Turing?",
+         "langchain.request.type": "chain",
          "langchain.response.outputs.input_documents": "[Document(page_content='A brilliant mathematician and cryptographer Alan was to become the founder of modern-day computer scienc...",
          "langchain.response.outputs.output_text": " Alan Turing was a brilliant mathematician and cryptographer who became the founder of modern-day computer science and artificia...",
          "langchain.response.outputs.question": "Who was Alan Turing?"
@@ -138,6 +142,7 @@
             "langchain.request.inputs.question": "Who was Alan Turing?",
             "langchain.request.inputs.summaries": "Content: A brilliant mathematician and cryptographer Alan was to become the founder of modern-day computer science and artificia...",
             "langchain.request.prompt": "Given the following extracted parts of a long document and a question, create a final answer with references (\"SOURCES\"). \\nIf y...",
+            "langchain.request.type": "chain",
             "langchain.response.outputs.question": "Who was Alan Turing?",
             "langchain.response.outputs.summaries": "Content: A brilliant mathematician and cryptographer Alan was to become the founder of modern-day computer science and artificia...",
             "langchain.response.outputs.text": " Alan Turing was a brilliant mathematician and cryptographer who became the founder of modern-day computer science and artificia..."
@@ -174,6 +179,7 @@
                "langchain.request.openai.parameters.top_p": "1",
                "langchain.request.prompts.0": "Given the following extracted parts of a long document and a question, create a final answer with references (\"SOURCES\"). \\nIf y...",
                "langchain.request.provider": "openai",
+               "langchain.request.type": "llm",
                "langchain.response.completions.0.finish_reason": "stop",
                "langchain.response.completions.0.logprobs": "None",
                "langchain.response.completions.0.text": " Alan Turing was a brilliant mathematician and cryptographer who became the founder of modern-day computer science and artificia..."

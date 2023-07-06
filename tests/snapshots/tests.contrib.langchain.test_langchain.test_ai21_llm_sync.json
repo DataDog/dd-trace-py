@@ -39,6 +39,7 @@
       "langchain.request.model": "j2-jumbo-instruct",
       "langchain.request.prompts.0": "Why does everyone in Bikini Bottom hate Plankton?",
       "langchain.request.provider": "ai21",
+      "langchain.request.type": "llm",
       "langchain.response.completions.0.text": "\\nPlankton is a character in the animated television show SpongeBob SquarePants. He is the owner of The Chum Bucket, a fast food...",
       "language": "python",
       "runtime-id": "5d2e2eb985334cb88c7fe08756bc5201"

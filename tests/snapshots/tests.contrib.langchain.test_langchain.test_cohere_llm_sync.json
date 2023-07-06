@@ -21,6 +21,7 @@
       "langchain.request.cohere.parameters.truncate": "None",
       "langchain.request.prompts.0": "What is the secret Krabby Patty recipe?",
       "langchain.request.provider": "cohere",
+      "langchain.request.type": "llm",
       "langchain.response.completions.0.text": "\\nThe secret Krabby Patty recipe is a closely guarded trade secret, known only to a select few people at the Krusty Krab restaur...",
       "language": "python",
       "runtime-id": "7c828b663d70480b9a89d334e26794be"
