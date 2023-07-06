@@ -40,7 +40,8 @@ class EventHub:
 
     def on(self, event_id, callback):
         # type: (str, Callable) -> None
-        self._listeners[event_id].append(callback)
+        if callback not in self._listeners[event_id]:
+            self._listeners[event_id].append(callback)
 
     def reset(self):
         if hasattr(self, "_listeners"):

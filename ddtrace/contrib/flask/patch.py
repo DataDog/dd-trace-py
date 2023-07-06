@@ -4,8 +4,6 @@ import flask
 import werkzeug
 from werkzeug.exceptions import abort
 
-from ddtrace.appsec.iast._patch import if_iast_taint_returned_object_for
-from ddtrace.appsec.iast._patch import if_iast_taint_yield_tuple_for
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind
 from ddtrace.internal.constants import COMPONENT
@@ -108,8 +106,8 @@ def wrapped_request_init(wrapped, instance, args, kwargs):
 
 
 def wrap_with_event(module, name, origin):
-    def dispatcher(*args):
-        results, exceptions = core.dispatch("flask.%s.%s" % (module, name), [origin] + list(args))
+    def dispatcher(_origin, *args):
+        results, exceptions = core.dispatch("flask.%s.%s" % (module, name), [_origin] + list(args))
         if any(exceptions):
             for exc in exceptions:
                 if exc:
@@ -118,8 +116,9 @@ def wrap_with_event(module, name, origin):
             for result in results:
                 if result:
                     return result
+        return ""
 
-    _w(module, name, dispatcher)
+    _w(module, name, functools.partial(dispatcher, origin))
 
 
 class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
@@ -217,27 +216,27 @@ def patch():
         "Headers.items",
         (HTTP_REQUEST_HEADER_NAME, HTTP_REQUEST_HEADER),
     )
-    _w(
+    wrap_with_event(
         "werkzeug.datastructures",
         "EnvironHeaders.__getitem__",
-        functools.partial(if_iast_taint_returned_object_for, HTTP_REQUEST_HEADER),
+        HTTP_REQUEST_HEADER,
     )
-    _w(
+    wrap_with_event(
         "werkzeug.datastructures",
         "ImmutableMultiDict.__getitem__",
-        functools.partial(if_iast_taint_returned_object_for, HTTP_REQUEST_PARAMETER),
+        HTTP_REQUEST_PARAMETER,
     )
     _w("werkzeug.wrappers.request", "Request.__init__", wrapped_request_init)
-    _w(
+    wrap_with_event(
         "werkzeug.wrappers.request",
         "Request.get_data",
-        functools.partial(if_iast_taint_returned_object_for, HTTP_REQUEST_BODY),
+        HTTP_REQUEST_BODY,
     )
     if flask_version < (2, 0, 0):
-        _w(
+        wrap_with_event(
             "werkzeug._internal",
             "_DictAccessorProperty.__get__",
-            functools.partial(if_iast_taint_returned_object_for, HTTP_REQUEST_QUERY),
+            HTTP_REQUEST_QUERY,
         )
 
     # flask.app.Flask methods that have custom tracing (add metadata, wrap functions, etc)
