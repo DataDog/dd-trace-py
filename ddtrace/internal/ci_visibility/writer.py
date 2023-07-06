@@ -24,7 +24,6 @@ from .constants import EVP_PROXY_AGENT_ENDPOINT
 from .constants import EVP_PROXY_COVERAGE_ENDPOINT
 from .constants import EVP_SUBDOMAIN_HEADER_COVERAGE_VALUE
 from .constants import EVP_SUBDOMAIN_HEADER_NAME
-from .coverage import enabled as coverage_enabled
 from .encoder import CIVisibilityCoverageEncoderV02
 from .encoder import CIVisibilityEncoderV01
 
@@ -87,6 +86,7 @@ class CIVisibilityWriter(HTTPWriter):
         reuse_connections=None,  # type: Optional[bool]
         headers=None,  # type: Optional[Dict[str, str]]
         use_evp=False,  # type: bool
+        code_coverage=False,  # type: bool
     ):
         intake_cov_url = None
         if use_evp:
@@ -101,7 +101,7 @@ class CIVisibilityWriter(HTTPWriter):
         clients = (
             [CIVisibilityProxiedEventClient()] if use_evp else [CIVisibilityAgentlessEventClient()]
         )  # type: List[WriterClientBase]
-        if coverage_enabled():
+        if code_coverage:
             if not intake_cov_url:
                 intake_cov_url = "%s.%s" % (AGENTLESS_COVERAGE_BASE_URL, os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE))
             clients.append(

@@ -18,6 +18,7 @@ from ddtrace.internal import atexit
 from ddtrace.internal import compat
 from ddtrace.internal.agent import get_connection
 from ddtrace.internal.agent import get_trace_url
+from ddtrace.internal.ci_visibility.coverage import is_coverage_available
 from ddtrace.internal.ci_visibility.filters import TraceCiVisibilityFilter
 from ddtrace.internal.compat import JSONDecodeError
 from ddtrace.internal.compat import parse
@@ -110,10 +111,11 @@ class CIVisibility(Service):
         elif self._agent_evp_proxy_is_available():
             self._requests_mode = REQUESTS_MODE.EVP_PROXY_EVENTS
 
-        self._configure_writer()
-
         self._code_coverage_enabled_by_api, self._test_skipping_enabled_by_api = self._check_enabled_features()
 
+        self._collect_coverage_enabled = self._should_collect_coverage(self._code_coverage_enabled_by_api)
+
+        self._configure_writer(code_coverage=self._collect_coverage_enabled)
         self._git_client = None
 
         if ddconfig._ci_visibility_intelligent_testrunner_enabled:
@@ -133,6 +135,21 @@ class CIVisibility(Service):
             log.warning("CODEOWNERS file is not available")
         except Exception:
             log.warning("Failed to load CODEOWNERS", exc_info=True)
+
+    @staticmethod
+    def _should_collect_coverage(coverage_enabled_by_api):
+        if not coverage_enabled_by_api:
+            return False
+        if compat.PY2:
+            log.warning("CI Visibility code coverage tracking is enabled, but Python 2 is not supported.")
+            return False
+        if not is_coverage_available():
+            log.warning(
+                "CI Visibility code coverage tracking is enabled, but either the `coverage` package is not installed."
+                "To use code coverage tracking, please install `coverage` from https://pypi.org/project/coverage/"
+            )
+            return False
+        return True
 
     def _check_enabled_features(self):
         # type: () -> Tuple[bool, bool]
@@ -186,7 +203,7 @@ class CIVisibility(Service):
         attributes = parsed["data"]["attributes"]
         return attributes["code_coverage"], attributes["tests_skipping"]
 
-    def _configure_writer(self, requests_mode=None):
+    def _configure_writer(self, code_coverage=False, requests_mode=None):
         writer = None
         if requests_mode is None:
             requests_mode = self._requests_mode
@@ -195,12 +212,14 @@ class CIVisibility(Service):
             headers = {"dd-api-key": self._api_key}
             writer = CIVisibilityWriter(
                 headers=headers,
+                code_coverage=code_coverage,
             )
         elif requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS:
             writer = CIVisibilityWriter(
                 intake_url=agent.get_trace_url(),
                 headers={EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_EVENT_VALUE},
                 use_evp=True,
+                code_coverage=code_coverage,
             )
         if writer is not None:
             self.tracer.configure(writer=writer)
