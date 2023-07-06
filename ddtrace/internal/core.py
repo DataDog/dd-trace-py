@@ -105,7 +105,7 @@ class ExecutionContext:
         dispatch("context.started.%s" % self.identifier, [self])
 
     def __repr__(self):
-        return "ExecutionContext '" + self.identifier + "' @ " + str(id(self))
+        return self.__class__.__name__ + " '" + self.identifier + "' @ " + str(id(self))
 
     @property
     def parents(self):
@@ -187,10 +187,11 @@ def __getattr__(name):
 
 
 _CURRENT_CONTEXT = contextvars.ContextVar("ExecutionContext_var", default=ExecutionContext(ROOT_CONTEXT_ID))
+_CONTEXT_CLASS = ExecutionContext
 
 
 def context_with_data(identifier, parent=None, **kwargs):
-    return ExecutionContext.context_with_data(identifier, parent=(parent or _CURRENT_CONTEXT.get()), **kwargs)
+    return _CONTEXT_CLASS.context_with_data(identifier, parent=(parent or _CURRENT_CONTEXT.get()), **kwargs)
 
 
 def get_item(data_key, span=None):

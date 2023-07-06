@@ -24,6 +24,7 @@ from tests.appsec.test_processor import RULES_SRB_RESPONSE
 from tests.appsec.test_processor import _ALLOWED_IP
 from tests.appsec.test_processor import _BLOCKED_IP
 from tests.contrib.flask import BaseFlaskTestCase
+from tests.utils import TestExecutionContext
 from tests.utils import override_env
 from tests.utils import override_global_config
 
@@ -47,7 +48,6 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
     def setUp(self):
         super(FlaskAppSecTestCase, self).setUp()
-        core.root._data = {}
         patch()
 
     def _aux_appsec_prepare_tracer(self, appsec_enabled=True, iast_enabled=False):
@@ -67,8 +67,9 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             appsec_json = root_span.get_tag(APPSEC.JSON)
             assert "triggers" in json.loads(appsec_json if appsec_json else "{}")
-            assert core.get_item("http.request.uri") == "http://localhost/.git?q=1"
-            query = dict(core.get_item("http.request.query"))
+            ctx = self.pop_context()
+            assert ctx.get_item("http.request.uri") == "http://localhost/.git?q=1"
+            query = dict(ctx.get_item("http.request.query"))
             assert query == {"q": "1"} or query == {"q": ["1"]}
 
     def test_flask_path_params(self):
@@ -87,7 +88,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             flask_args = root_span.get_tag("flask.view_args.item")
             assert flask_args == "attack"
 
-            path_params = core.get_item("http.request.path_params")
+            path_params = self.pop_context().get_item("http.request.path_params")
             assert path_params == {"item": "attack"}
 
     def test_flask_path_params_attack(self):
@@ -105,17 +106,17 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             appsec_json = root_span.get_tag(APPSEC.JSON)
             assert "triggers" in json.loads(appsec_json if appsec_json else "{}")
 
-            query = dict(core.get_item("http.request.path_params"))
+            query = dict(self.pop_context().get_item("http.request.path_params"))
             assert query == {"item": "w00tw00t.at.isc.sans.dfind"}
 
     def test_flask_querystrings(self):
         with override_global_config(dict(_appsec_enabled=True)):
             self._aux_appsec_prepare_tracer()
             self.client.get("/?a=1&b&c=d")
-            query = dict(core.get_item("http.request.query"))
+            query = dict(self.pop_context().get_item("http.request.query"))
             assert query == {"a": "1", "b": "", "c": "d"} or query == {"a": ["1"], "b": [""], "c": ["d"]}
             self.client.get("/")
-            assert len(core.get_item("http.request.query")) == 0
+            assert len(self.pop_context().get_item("http.request.query")) == 0
 
     def test_flask_cookie_sql_injection(self):
         with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
@@ -127,8 +128,9 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             appsec_json = root_span.get_tag(APPSEC.JSON)
             assert "triggers" in json.loads(appsec_json if appsec_json else "{}")
-            assert core.get_item("http.request.cookies")["attack"] == "1' or '1' = '1'"
-            query = dict(core.get_item("http.request.cookies"))
+            ctx = self.pop_context()
+            assert ctx.get_item("http.request.cookies")["attack"] == "1' or '1' = '1'"
+            query = dict(ctx.get_item("http.request.cookies"))
             assert query == {"attack": "1' or '1' = '1'"} or query == {"attack": ["1' or '1' = '1'"]}
 
     def test_flask_cookie(self):
@@ -142,8 +144,9 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             root_span = self.pop_spans()[0]
 
             assert root_span.get_tag(APPSEC.JSON) is None
-            assert core.get_item("http.request.cookies")["testingcookie_key"] == "testingcookie_value"
-            query = dict(core.get_item("http.request.cookies"))
+            ctx = self.pop_context()
+            assert ctx.get_item("http.request.cookies")["testingcookie_key"] == "testingcookie_value"
+            query = dict(ctx.get_item("http.request.cookies"))
             assert query == {"testingcookie_key": "testingcookie_value"} or query == {
                 "testingcookie_key": ["testingcookie_value"]
             }
@@ -174,7 +177,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             self.client.post("/body", data=payload, content_type="application/x-www-form-urlencoded")
 
             root_span = self.pop_spans()[0]
-            query = dict(core.get_item("http.request.body"))
+            query = dict(self.pop_context().get_item("http.request.body"))
 
             assert root_span.get_tag(APPSEC.JSON) is None
             assert query == {"mytestingbody_key": "mytestingbody_value"}
@@ -185,7 +188,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             payload = urlencode({"mytestingbody_key": "mytestingbody_value"})
             self.client.post("/", data=payload, content_type="application/x-www-form-urlencoded")
 
-            assert not core.get_item("http.request.body")
+            assert not self.pop_context().get_item("http.request.body")
 
     def test_flask_request_body_urlencoded_attack(self):
         with override_global_config(dict(_appsec_enabled=True)):
@@ -193,7 +196,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             payload = urlencode({"attack": "1' or '1' = '1'"})
             self.client.post("/", data=payload, content_type="application/x-www-form-urlencoded")
             root_span = self.pop_spans()[0]
-            query = dict(core.get_item("http.request.body"))
+            query = dict(self.pop_context().get_item("http.request.body"))
             assert "triggers" in json.loads(root_span.get_tag(APPSEC.JSON))
             assert query == {"attack": "1' or '1' = '1'"}
 
@@ -210,7 +213,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             self.client.post("/body", json=payload, content_type="application/json")
 
             root_span = self.pop_spans()[0]
-            query = dict(core.get_item("http.request.body"))
+            query = dict(self.pop_context().get_item("http.request.body"))
 
             assert root_span.get_tag(APPSEC.JSON) is None
             assert query == {"mytestingbody_key": "mytestingbody_value"}
@@ -221,7 +224,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             payload = {"attack": "1' or '1' = '1'"}
             self.client.post("/", json=payload, content_type="application/json")
             root_span = self.pop_spans()[0]
-            query = dict(core.get_item("http.request.body"))
+            query = dict(self.pop_context().get_item("http.request.body"))
             assert "triggers" in json.loads(root_span.get_tag(APPSEC.JSON))
             assert query == {"attack": "1' or '1' = '1'"}
 
@@ -239,7 +242,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert response.data == b"<mytestingbody_key>mytestingbody_value</mytestingbody_key>"
 
             root_span = self.pop_spans()[0]
-            query = dict(core.get_item("http.request.body"))
+            query = dict(self.pop_context().get_item("http.request.body"))
 
             assert root_span.get_tag(APPSEC.JSON) is None
             assert query == {"mytestingbody_key": "mytestingbody_value"}
@@ -250,7 +253,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             payload = "<attack>1' or '1' = '1'</attack>"
             self.client.post("/", data=payload, content_type="application/xml")
             root_span = self.pop_spans()[0]
-            query = dict(core.get_item("http.request.body"))
+            query = dict(self.pop_context().get_item("http.request.body"))
 
             assert "triggers" in json.loads(root_span.get_tag(APPSEC.JSON))
             assert query == {"attack": "1' or '1' = '1'"}
@@ -287,9 +290,8 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
             self._aux_appsec_prepare_tracer()
             resp = self.client.get("/", headers={"X-Real-Ip": _ALLOWED_IP})
-            root_span = self.pop_spans()[0]
             assert resp.status_code == 200
-            assert not core.get_item("http.request.blocked")
+            assert not self.pop_context().get_item("http.request.blocked")
 
     def test_flask_ipblock_match_403_json(self):
         with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
@@ -393,7 +395,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
                 "valueParts": [{"value": "SELECT 1 FROM "}, {"value": "sqlite_master", "source": 0}]
             }
             assert loaded["vulnerabilities"][0]["location"]["path"] == "tests/contrib/flask/test_flask_appsec.py"
-            assert loaded["vulnerabilities"][0]["location"]["line"] == 366
+            assert loaded["vulnerabilities"][0]["location"]["line"] == 368
 
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_enabled_http_request_header_getitem(self):
@@ -440,7 +442,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
                 "valueParts": [{"value": "SELECT 1 FROM "}, {"value": "sqlite_master", "source": 0}]
             }
             assert loaded["vulnerabilities"][0]["location"]["path"] == "tests/contrib/flask/test_flask_appsec.py"
-            assert loaded["vulnerabilities"][0]["location"]["line"] == 411
+            assert loaded["vulnerabilities"][0]["location"]["line"] == 413
 
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_disabled_http_request_header_getitem(self):
@@ -525,7 +527,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
                 "valueParts": [{"value": "SELECT 1 FROM sqlite_"}, {"value": "Master", "source": 0}]
             }
             assert loaded["vulnerabilities"][0]["location"]["path"] == "tests/contrib/flask/test_flask_appsec.py"
-            assert loaded["vulnerabilities"][0]["location"]["line"] == 500
+            assert loaded["vulnerabilities"][0]["location"]["line"] == 502
 
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_disabled_http_request_header_name_keys(self):
@@ -608,7 +610,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
                 "valueParts": [{"value": "SELECT 1 FROM sqlite_"}, {"value": "master", "source": 0}]
             }
             assert loaded["vulnerabilities"][0]["location"]["path"] == "tests/contrib/flask/test_flask_appsec.py"
-            assert loaded["vulnerabilities"][0]["location"]["line"] == 583
+            assert loaded["vulnerabilities"][0]["location"]["line"] == 585
 
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_disabled_http_request_header_values(self):
@@ -794,7 +796,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
                 "valueParts": [{"value": "SELECT 1 FROM "}, {"value": "sqlite_master", "source": 0}]
             }
             assert loaded["vulnerabilities"][0]["location"]["path"] == "tests/contrib/flask/test_flask_appsec.py"
-            assert loaded["vulnerabilities"][0]["location"]["line"] == 766
+            assert loaded["vulnerabilities"][0]["location"]["line"] == 768
 
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_disabled_http_request_cookies_value(self):
@@ -876,7 +878,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
                 "valueParts": [{"value": "SELECT 1 FROM "}, {"value": "sqlite_master", "source": 0}]
             }
             assert loaded["vulnerabilities"][0]["location"]["path"] == "tests/contrib/flask/test_flask_appsec.py"
-            assert loaded["vulnerabilities"][0]["location"]["line"] == 848
+            assert loaded["vulnerabilities"][0]["location"]["line"] == 850
 
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_disabled_http_request_cookies_name(self):

@@ -176,7 +176,7 @@ def set_waf_address(address, value):  # type: (str, Any, Any) -> None
         set_value(_WAF_ADDRESSES, address, waf_value)
     else:
         set_value(_WAF_ADDRESSES, address, value)
-    core.root.set_item(address, value)
+    core.set_item(address, value)
 
 
 def get_value(category, address, default=None):  # type: (str, str, Any) -> Any

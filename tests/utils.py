@@ -18,6 +18,7 @@ from ddtrace import Tracer
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.ext import http
 from ddtrace.internal import agent
+from ddtrace.internal import core
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import httplib
@@ -399,6 +400,7 @@ class TracerTestCase(TestSpanContainer, BaseTestCase):
     def setUp(self):
         """Before each test case, setup a dummy tracer to use"""
         self.tracer = DummyTracer()
+        core._CONTEXT_CLASS = TestExecutionContext
 
         super(TracerTestCase, self).setUp()
 
@@ -421,9 +423,14 @@ class TracerTestCase(TestSpanContainer, BaseTestCase):
         # type: () -> List[List[Span]]
         return self.tracer.pop_traces()
 
+    def pop_context(self):
+        # type: () -> TestExecutionContext
+        return TestExecutionContext.CONTEXTS.pop()
+
     def reset(self):
         """Helper to reset the existing list of spans created"""
         self.tracer._writer.pop()
+        TestExecutionContext.CONTEXTS = []
 
     def trace(self, *args, **kwargs):
         """Wrapper for self.tracer.trace that returns a TestSpan"""
@@ -573,6 +580,14 @@ class DummyTracer(Tracer):
             # should emit traces.
             kwargs["writer"] = DummyWriter(trace_flush_enabled=check_test_agent_status())
         super(DummyTracer, self).configure(*args, **kwargs)
+
+
+class TestExecutionContext(core.ExecutionContext):
+    CONTEXTS = []
+
+    def end(self):
+        TestExecutionContext.CONTEXTS.append(self)
+        return super(TestExecutionContext, self).end()
 
 
 class TestSpan(Span):
