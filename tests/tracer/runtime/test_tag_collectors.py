@@ -1,13 +1,12 @@
 import pytest
 
-from ddtrace.internal.runtime import constants
 from ddtrace.internal.runtime import tag_collectors
 
 
 def test_values():
     ptc = tag_collectors.PlatformTagCollector()
     values = dict(ptc.collect())
-    assert constants.PLATFORM_TAGS == set(values.keys())
+    assert set(["lang", "lang_interpreter", "lang_version", "tracer_version"]) == set(values.keys())
 
 
 @pytest.mark.subprocess(
