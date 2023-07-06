@@ -16,6 +16,7 @@ from ddtrace.internal.ci_visibility.constants import SESSION_ID
 from ddtrace.internal.ci_visibility.constants import SESSION_TYPE
 from ddtrace.internal.ci_visibility.constants import SUITE_ID
 from ddtrace.internal.ci_visibility.constants import SUITE_TYPE
+from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.encoding import JSONEncoderV2
 from ddtrace.internal.writer.writer import NoEncodableSpansError
 
@@ -195,8 +196,14 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
     @staticmethod
     def _convert_span(span, dd_origin):
         # type: (Span, str) -> Dict[str, Any]
-        return {
+        converted_span = {
             "test_session_id": int(span.get_tag(SESSION_ID) or "1"),
             "test_suite_id": int(span.get_tag(SUITE_ID) or "1"),
             "files": json.loads(span.get_tag(COVERAGE_TAG_NAME))["files"],
         }
+        from ddtrace.internal.ci_visibility.recorder import TEST_SKIPPING_LEVEL
+
+        if TEST_SKIPPING_LEVEL == TEST:
+            converted_span["span_id"] = span.span_id
+
+        return converted_span
