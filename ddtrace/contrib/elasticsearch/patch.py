@@ -159,7 +159,7 @@ def _get_perform_request(elasticsearch):
                 if took:
                     span.set_metric(metadata.TOOK, int(took))
             except Exception:
-                pass
+                log.debug("Unexpected exception", exc_info=True)
 
             if status:
                 span.set_tag(http.STATUS_CODE, status)
