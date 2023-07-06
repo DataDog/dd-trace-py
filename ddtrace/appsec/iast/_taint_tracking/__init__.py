@@ -12,7 +12,6 @@ from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import Source  #
 setup = ops.setup
 new_pyobject_id = ops.new_pyobject_id
 
-
 if TYPE_CHECKING:
     from typing import Any
     from typing import Dict
@@ -61,8 +60,8 @@ def taint_pyobject(pyobject, source_name=None, source_value=None, source_origin=
         source_origin = OriginType.PARAMETER
     source = Source(source_name, source_value, source_origin)
     taint_dict = get_taint_dict()
-    taint_dict[id(pyobject)] = ((input_info, 0, len_pyobject),)
-    _set_metric_iast_executed_source(input_info.origin)
+    taint_dict[id(pyobject)] = ((source, 0, len_pyobject),)
+    _set_metric_iast_executed_source(source.origin)
     return pyobject
 
 

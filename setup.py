@@ -1,12 +1,12 @@
 import hashlib
 import os
 import platform
+import re
 import shutil
 import sys
-import re
 import tarfile
 
-from setuptools import setup, find_packages, Extension
+from setuptools import Extension, find_packages, setup
 from setuptools.command.build_ext import build_ext
 from setuptools.command.build_py import build_py as BuildPyCommand
 from pkg_resources import get_build_platform
@@ -302,63 +302,60 @@ class CMakeBuild(build_ext):
             and ext.name == "ddtrace.appsec.iast._taint_tracking._native"
             and os.path.exists(cmake_list_path)
         ):
-            try:
-                import shutil
+            import shutil
 
-                os.makedirs(tmp_iast_path, exist_ok=True)
+            os.makedirs(tmp_iast_path, exist_ok=True)
 
-                import subprocess
+            import subprocess
 
-                cmake_command = os.environ.get("CMAKE_COMMAND", "cmake")
-                build_type = "RelWithDebInfo" if DEBUG_COMPILE else "Release"
-                build_args = ["--config", build_type]
-                cmake_args = [
-                    "-S",
-                    IAST_DIR,
-                    "-DCMAKE_LIBRARY_OUTPUT_DIRECTORY={}".format(tmp_iast_path),
-                    "-B",
-                    tmp_iast_path,
-                    "-DPYTHON_EXECUTABLE={}".format(sys.executable),
-                    "-DCMAKE_BUILD_TYPE={}".format(build_type),
-                ]
+            cmake_command = os.environ.get("CMAKE_COMMAND", "cmake")
+            build_type = "RelWithDebInfo" if DEBUG_COMPILE else "Release"
+            build_args = ["--config", build_type]
+            cmake_args = [
+                "-S",
+                IAST_DIR,
+                "-DCMAKE_LIBRARY_OUTPUT_DIRECTORY={}".format(tmp_iast_path),
+                "-B",
+                tmp_iast_path,
+                "-DPYTHON_EXECUTABLE={}".format(sys.executable),
+                "-DCMAKE_BUILD_TYPE={}".format(build_type),
+            ]
 
-                if CURRENT_OS == "Windows":
-                    cmake_args.extend(["-A", "x64" if platform.architecture()[0] == "64bit" else "Win32"])
+            if CURRENT_OS == "Windows":
+                cmake_args.extend(["-A", "x64" if platform.architecture()[0] == "64bit" else "Win32"])
 
-                if CURRENT_OS == "Darwin" and sys.version_info >= (3, 8, 0):
-                    # Cross-compile support for macOS - respect ARCHFLAGS if set
-                    # Darwin Universal2 should bundle both architectures
-                    archs = re.findall(r"-arch (\S+)", os.environ.get("ARCHFLAGS", ""))
-                    if archs:
-                        cmake_args += [
-                            "-DBUILD_MACOS=ON",
-                            "-DCMAKE_OSX_ARCHITECTURES={}".format(";".join(archs)),
-                        ]
+            if CURRENT_OS == "Darwin" and sys.version_info >= (3, 8, 0):
+                # Cross-compile support for macOS - respect ARCHFLAGS if set
+                # Darwin Universal2 should bundle both architectures
+                archs = re.findall(r"-arch (\S+)", os.environ.get("ARCHFLAGS", ""))
+                if archs:
+                    cmake_args += [
+                        "-DBUILD_MACOS=ON",
+                        "-DCMAKE_OSX_ARCHITECTURES={}".format(";".join(archs)),
+                    ]
 
-                # Set CMAKE_BUILD_PARALLEL_LEVEL to control the parallel build level
-                # across all generators.
-                if "CMAKE_BUILD_PARALLEL_LEVEL" not in os.environ:
-                    # self.parallel is a Python 3 only way to set parallel jobs by hand
-                    # using -j in the build_ext call, not supported by pip or PyPA-build.
-                    if hasattr(self, "parallel") and self.parallel:
-                        # CMake 3.12+ only.
-                        build_args += ["-j{}".format(self.parallel)]
+            # Set CMAKE_BUILD_PARALLEL_LEVEL to control the parallel build level
+            # across all generators.
+            if "CMAKE_BUILD_PARALLEL_LEVEL" not in os.environ:
+                # self.parallel is a Python 3 only way to set parallel jobs by hand
+                # using -j in the build_ext call, not supported by pip or PyPA-build.
+                if hasattr(self, "parallel") and self.parallel:
+                    # CMake 3.12+ only.
+                    build_args += ["-j{}".format(self.parallel)]
 
-                cmake_cmd_with_args = [cmake_command] + cmake_args
-                subprocess.run(cmake_cmd_with_args, cwd=tmp_iast_path, check=True)
+            cmake_cmd_with_args = [cmake_command] + cmake_args
+            subprocess.run(cmake_cmd_with_args, cwd=tmp_iast_path, check=True)
 
-                build_command = [cmake_command, "--build", tmp_iast_path] + build_args
-                subprocess.run(build_command, cwd=tmp_iast_path, check=True)
+            build_command = [cmake_command, "--build", tmp_iast_path] + build_args
+            subprocess.run(build_command, cwd=tmp_iast_path, check=True)
 
-                for directory_to_remove in ["_deps", "CMakeFiles"]:
-                    shutil.rmtree(os.path.join(tmp_iast_path, directory_to_remove))
-                for file_to_remove in ["Makefile", "cmake_install.cmake", "compile_commands.json", "CMakeCache.txt"]:
-                    if os.path.exists(os.path.join(tmp_iast_path, file_to_remove)):
-                        os.remove(os.path.join(tmp_iast_path, file_to_remove))
+            for directory_to_remove in ["_deps", "CMakeFiles"]:
+                shutil.rmtree(os.path.join(tmp_iast_path, directory_to_remove))
+            for file_to_remove in ["Makefile", "cmake_install.cmake", "compile_commands.json", "CMakeCache.txt"]:
+                if os.path.exists(os.path.join(tmp_iast_path, file_to_remove)):
+                    os.remove(os.path.join(tmp_iast_path, file_to_remove))
 
-                shutil.copy(os.path.join(IAST_DIR, tmp_filename), tmp_iast_file_path)
-            except Exception:
-                print("WARNING: Failed to install ddtrace IAST extension")
+            shutil.copy(os.path.join(IAST_DIR, tmp_filename), tmp_iast_file_path)
         else:
             build_ext.build_extension(self, ext)
 
