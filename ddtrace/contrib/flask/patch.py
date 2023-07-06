@@ -6,7 +6,6 @@ from werkzeug.exceptions import abort
 
 from ddtrace.appsec.iast._patch import if_iast_taint_returned_object_for
 from ddtrace.appsec.iast._patch import if_iast_taint_yield_tuple_for
-from ddtrace.appsec.iast._util import _is_iast_enabled
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind
 from ddtrace.internal.constants import COMPONENT
@@ -108,6 +107,21 @@ def wrapped_request_init(wrapped, instance, args, kwargs):
     core.dispatch("flask.request_init", [instance])
 
 
+def wrap_with_event(module, name, origin):
+    def dispatcher(*args):
+        results, exceptions = core.dispatch("flask.%s.%s" % (module, name), [origin] + list(args))
+        if any(exceptions):
+            for exc in exceptions:
+                if exc:
+                    raise exc
+        if any(results):
+            for result in results:
+                if result:
+                    return result
+
+    _w(module, name, dispatcher)
+
+
 class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
     _request_span_name = schematize_url_operation("flask.request", protocol="http", direction=SpanDirection.INBOUND)
     _application_span_name = "flask.application"
@@ -198,10 +212,10 @@ def patch():
 
     Pin().onto(flask.Flask)
 
-    _w(
+    wrap_with_event(
         "werkzeug.datastructures",
         "Headers.items",
-        functools.partial(if_iast_taint_yield_tuple_for, (HTTP_REQUEST_HEADER_NAME, HTTP_REQUEST_HEADER)),
+        (HTTP_REQUEST_HEADER_NAME, HTTP_REQUEST_HEADER),
     )
     _w(
         "werkzeug.datastructures",
