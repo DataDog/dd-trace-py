@@ -543,7 +543,7 @@ setup(
         "importlib_metadata; python_version<'3.8'",
         "pathlib2; python_version<'3.5'",
         "jsonschema; python_version>'2.7'",
-        "jsonschema==4.18.0; python_version=='2.7'",
+        "jsonschema<4.18.0; python_version=='2.7'",
         "xmltodict>=0.12",
         "ipaddress; python_version<'3.7'",
         "envier",
