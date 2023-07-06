@@ -48,12 +48,11 @@ def _extract_step_func_args(step, step_func, step_func_args):
                     try:
                         if arg in converters:
                             value = converters[arg](value)
-                    except Exception:
-                        # Ignore invalid converters
-                        pass
+                    except Exception as err:
+                        log.debug("argument conversion failed:", err)
                     parameters[arg] = value
-            except Exception:
-                pass
+            except Exception as err:
+                log.debug("argument parsing failed:", err)
 
     return parameters or None
 
