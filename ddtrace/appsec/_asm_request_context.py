@@ -22,7 +22,9 @@ from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.constants import HTTP_REQUEST_COOKIE_NAME
 from ddtrace.internal.constants import HTTP_REQUEST_COOKIE_VALUE
 from ddtrace.internal.constants import HTTP_REQUEST_PATH
+from ddtrace.internal.constants import HTTP_REQUEST_PATH_PARAMETER
 from ddtrace.internal.constants import HTTP_REQUEST_QUERY
+from ddtrace.internal.constants import REQUEST_PATH_PARAMS
 from ddtrace.internal.logger import get_logger
 
 
@@ -437,6 +439,30 @@ def _on_request_init(instance):
             log.debug("Unexpected exception while tainting pyobject", exc_info=True)
 
 
+def _on_wrapped_view(kwargs):
+    return_value = [None, None]
+    # if Appsec is enabled, we can try to block as we have the path parameters at that point
+    if config._appsec_enabled and in_context():
+        log.debug("Flask WAF call for Suspicious Request Blocking on request")
+        if kwargs:
+            set_waf_address(REQUEST_PATH_PARAMS, kwargs)
+        call_waf_callback()
+        if is_blocked():
+            callback_block = get_value(_CALLBACKS, "flask_block")
+            return_value[0] = callback_block
+
+    # If IAST is enabled, taint the Flask function kwargs (path parameters)
+    if _is_iast_enabled() and kwargs:
+        from ddtrace.appsec.iast._input_info import Input_info
+        from ddtrace.appsec.iast._taint_tracking import taint_pyobject
+
+        _kwargs = {}
+        for k, v in kwargs.items():
+            _kwargs[k] = taint_pyobject(v, Input_info(k, v, HTTP_REQUEST_PATH_PARAMETER))
+        return_value[1] = _kwargs
+    return return_value
+
+
 def _on_werkzeug(*args):
     if isinstance(args[0], tuple):
         return if_iast_taint_yield_tuple_for(*args)
@@ -460,6 +486,7 @@ def _on_context_started(context=None):
     core.on("flask.finalize_request.post", _on_post_finalizerequest)
     core.on("flask.request_span_modifier", _on_request_spanmodifier)
     core.on("flask.set_request_tags", _on_set_request_tags)
+    core.on("flask.wrapped_view", _on_wrapped_view)
     core.on("flask.werkzeug.datastructures.Headers.items", _on_werkzeug)
     core.on("flask.werkzeug.datastructures.EnvironHeaders.__getitem__", _on_werkzeug)
     core.on("flask.werkzeug.datastructures.ImmutableMultiDict.__getitem__", _on_werkzeug)

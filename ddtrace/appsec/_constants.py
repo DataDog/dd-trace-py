@@ -11,7 +11,9 @@ from ddtrace.internal.constants import HTTP_REQUEST_HEADER
 from ddtrace.internal.constants import HTTP_REQUEST_HEADER_NAME
 from ddtrace.internal.constants import HTTP_REQUEST_PARAMETER
 from ddtrace.internal.constants import HTTP_REQUEST_PATH
+from ddtrace.internal.constants import HTTP_REQUEST_PATH_PARAMETER
 from ddtrace.internal.constants import HTTP_REQUEST_QUERY
+from ddtrace.internal.constants import REQUEST_PATH_PARAMS
 from ddtrace.internal.constants import RESPONSE_HEADERS
 
 
@@ -92,7 +94,7 @@ class IAST(object):
     HTTP_REQUEST_HEADER_NAME = HTTP_REQUEST_HEADER_NAME
     HTTP_REQUEST_PARAMETER = HTTP_REQUEST_PARAMETER
     HTTP_REQUEST_PATH = HTTP_REQUEST_PATH
-    HTTP_REQUEST_PATH_PARAMETER = "http.request.path.parameter"
+    HTTP_REQUEST_PATH_PARAMETER = HTTP_REQUEST_PATH_PARAMETER
     HTTP_REQUEST_QUERYSTRING = HTTP_REQUEST_QUERY
     HTTP_REQUEST_COOKIE_NAME = HTTP_REQUEST_COOKIE_NAME
     HTTP_REQUEST_COOKIE_VALUE = HTTP_REQUEST_COOKIE_VALUE
@@ -126,7 +128,7 @@ class SPAN_DATA_NAMES(object):
     REQUEST_URI_RAW = "http.request.uri"
     REQUEST_ROUTE = "http.request.route"
     REQUEST_METHOD = "http.request.method"
-    REQUEST_PATH_PARAMS = "http.request.path_params"
+    REQUEST_PATH_PARAMS = REQUEST_PATH_PARAMS
     REQUEST_COOKIES = "http.request.cookies"
     REQUEST_HTTP_IP = "http.request.remote_ip"
     REQUEST_USER_ID = "usr.id"
