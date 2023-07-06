@@ -198,8 +198,6 @@ class SpanAggregator(SpanProcessor):
             trace = self._traces[span.trace_id]
             trace.spans.append(span)
             self._span_metrics["spans_created"][span._span_api] += 1
-            # perf: telemetry_metrics_writer.add_count_metric(...) is an expensive operation.
-            # We should avoid calling this method on every invocation of ``SpanAggregator.on_span_start()``
             self._queue_span_count_metrics("spans_created", "integration_name")
 
     def on_span_finish(self, span):
@@ -242,8 +240,6 @@ class SpanAggregator(SpanProcessor):
                     except Exception:
                         log.error("error applying processor %r", tp, exc_info=True)
 
-                # perf: telemetry_metrics_writer.add_count_metric(...) is an expensive operation.
-                # We should avoid calling this method on every invocation of ``SpanAggregator.on_span_finish()``
                 self._queue_span_count_metrics("spans_finished", "integration_name")
                 self._writer.write(spans)
                 return
@@ -278,6 +274,8 @@ class SpanAggregator(SpanProcessor):
     def _queue_span_count_metrics(self, metric_name, tag_name, min_count=100):
         # type: (str, str, Optional[int]) -> None
         """Queues a telemetry count metric for span created and span finished"""
+        # perf: telemetry_metrics_writer.add_count_metric(...) is an expensive operation.
+        # We should avoid calling this method on every invocation of span finish and span start.
         if min_count is None or sum(self._span_metrics[metric_name].values()) >= min_count:
             for tag_value, count in self._span_metrics[metric_name].items():
                 telemetry_metrics_writer.add_count_metric(
