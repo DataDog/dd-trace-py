@@ -353,6 +353,12 @@ jobs:
       - run_test:
           pattern: "internal"
 
+  datastreams:
+    <<: *contrib_job
+    steps:
+      - run_test:
+          pattern: "datastreams"
+
   tracer:
     <<: *contrib_job_large
     steps:
@@ -1115,6 +1121,7 @@ requires_tests: &requires_tests
     - ci_visibility
     - consul
     - ddtracerun
+    - datastreams
     - dogpile_cache
     - django
     - django_hosts
@@ -1214,6 +1221,7 @@ workflows:
       - cherrypy: *requires_base_venvs
       - ci_visibility: *requires_base_venvs
       - consul: *requires_base_venvs
+      - datastreams: *requires_base_venvs
       - ddtracerun: *requires_base_venvs
       - django: *requires_base_venvs
       - django_hosts: *requires_base_venvs
