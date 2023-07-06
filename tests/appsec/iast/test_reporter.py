@@ -1,14 +1,22 @@
 import copy
+import sys
+
+import pytest
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec.iast import oce
+from ddtrace.appsec.iast._util import _is_python_version_supported as python_supported_by_iast
 from ddtrace.appsec.iast.reporter import Evidence
 from ddtrace.appsec.iast.reporter import IastSpanReporter
 from ddtrace.appsec.iast.reporter import Location
 from ddtrace.appsec.iast.reporter import Source
 from ddtrace.appsec.iast.reporter import Vulnerability
-from ddtrace.appsec.iast.taint_sinks._base import VulnerabilityBase
-from ddtrace.appsec.iast.taint_sinks.sql_injection import SqlInjection
+
+
+if sys.version_info > (3, 0, 0):
+    from ddtrace.appsec.iast.taint_sinks._base import VulnerabilityBase
+    from ddtrace.appsec.iast.taint_sinks.sql_injection import SqlInjection
+
 from ddtrace.internal import _context
 from ddtrace.internal.utils.cache import LFUCache
 from tests.utils import override_env
@@ -85,6 +93,7 @@ def test_source_hash_and_equality():
     _do_assert_equality(e, f, g, e2)
 
 
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_redacted_report_no_match():
     ev = Evidence(value="SomeEvidenceValue")
     orig_ev = ev.value
@@ -99,6 +108,7 @@ def test_redacted_report_no_match():
         assert v.evidence.value == orig_ev
 
 
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_redacted_report_source_name_match():
     ev = Evidence(value="'SomeEvidenceValue'")
     len_ev = len(ev.value) - 2
@@ -114,6 +124,7 @@ def test_redacted_report_source_name_match():
         assert not v.evidence.value
 
 
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_redacted_report_source_value_match():
     ev = Evidence(value="'SomeEvidenceValue'")
     len_ev = len(ev.value) - 2
@@ -129,6 +140,7 @@ def test_redacted_report_source_value_match():
         assert not v.evidence.value
 
 
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_redacted_report_evidence_value_match_also_redacts_source_value():
     ev = Evidence(value="'SomeSecretPassword'")
     len_ev = len(ev.value) - 2
@@ -148,6 +160,7 @@ def test_redacted_report_evidence_value_match_also_redacts_source_value():
         assert not s.value
 
 
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_redacted_report_valueparts():
     ev = Evidence(
         valueParts=[
@@ -170,6 +183,7 @@ def test_redacted_report_valueparts():
         ]
 
 
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_scrub_cache(tracer):
     valueParts1 = [
         {"value": "SELECT * FROM users WHERE password = '"},
