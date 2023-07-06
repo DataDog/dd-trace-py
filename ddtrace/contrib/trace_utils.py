@@ -92,7 +92,7 @@ def _get_header_value_case_insensitive(headers, keyname):
         return shortcut_value
 
     for key, value in six.iteritems(headers):
-        if key.lower().replace("_", "-") == keyname:
+        if key and key.lower().replace("_", "-") == keyname:
             return value
 
     return None
