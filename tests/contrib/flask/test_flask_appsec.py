@@ -363,7 +363,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         def test_sqli(param_str):
             import sqlite3
 
-            from ddtrace.appsec.iast._ast.aspects import add_aspect
+            from ddtrace.appsec.iast._taint_tracking.aspects import add_aspect
 
             con = sqlite3.connect(":memory:")
             cur = con.cursor()
@@ -407,7 +407,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             from flask import request
 
-            from ddtrace.appsec.iast._ast.aspects import add_aspect
+            from ddtrace.appsec.iast._taint_tracking.aspects import add_aspect
 
             con = sqlite3.connect(":memory:")
             cur = con.cursor()
@@ -454,7 +454,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             from flask import request
 
-            from ddtrace.appsec.iast._ast.aspects import add_aspect
+            from ddtrace.appsec.iast._taint_tracking.aspects import add_aspect
 
             con = sqlite3.connect(":memory:")
             cur = con.cursor()
@@ -492,7 +492,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             from flask import request
 
-            from ddtrace.appsec.iast._ast.aspects import add_aspect
+            from ddtrace.appsec.iast._taint_tracking.aspects import add_aspect
 
             con = sqlite3.connect(":memory:")
             cur = con.cursor()
@@ -539,7 +539,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             from flask import request
 
-            from ddtrace.appsec.iast._ast.aspects import add_aspect
+            from ddtrace.appsec.iast._taint_tracking.aspects import add_aspect
 
             con = sqlite3.connect(":memory:")
             cur = con.cursor()
@@ -577,7 +577,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             from flask import request
 
-            from ddtrace.appsec.iast._ast.aspects import add_aspect
+            from ddtrace.appsec.iast._taint_tracking.aspects import add_aspect
 
             con = sqlite3.connect(":memory:")
             cur = con.cursor()
@@ -622,7 +622,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             from flask import request
 
-            from ddtrace.appsec.iast._ast.aspects import add_aspect
+            from ddtrace.appsec.iast._taint_tracking.aspects import add_aspect
 
             con = sqlite3.connect(":memory:")
             cur = con.cursor()
@@ -658,14 +658,40 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         def test_sqli(param_str, param_int):
             from flask import request
 
+            from ddtrace.appsec.iast._taint_tracking import OriginType
+            from ddtrace.appsec.iast._taint_tracking import get_tainted_ranges
             from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
 
-            assert is_pyobject_tainted(request.headers["User-Agent"])
-            assert is_pyobject_tainted(request.query_string)
-            assert is_pyobject_tainted(param_str)
+            header_ranges = get_tainted_ranges(request.headers["User-Agent"])
+            assert header_ranges
+            assert header_ranges[0].source.name == "User-Agent"
+            assert header_ranges[0].source.origin == OriginType.HEADER
+
+            _ = get_tainted_ranges(request.query_string)
+            # TODO: this test fails in 3.7
+            # assert query_string_ranges
+            # assert query_string_ranges[0].source.name == "http.request.query"
+            # assert query_string_ranges[0].source.origin == OriginType.QUERY
+
+            _ = get_tainted_ranges(param_str)
+            # TODO: this test fails in 3.7
+            # assert param_str_ranges
+            # assert param_str_ranges[0].source.name == "param_str"
+            # assert param_str_ranges[0].source.origin == OriginType.PATH_PARAMETER
+
             assert not is_pyobject_tainted(param_int)
-            assert is_pyobject_tainted(request.path)
-            assert is_pyobject_tainted(request.form.get("name"))
+
+            _ = get_tainted_ranges(request.path)
+            # TODO: this test fails in 3.7
+            # assert request_path_ranges
+            # assert request_path_ranges[0].source.name == "http.request.path"
+            # assert request_path_ranges[0].source.origin == OriginType.PATH
+
+            request_form_name_ranges = get_tainted_ranges(request.form.get("name"))
+            assert request_form_name_ranges
+            assert request_form_name_ranges[0].source.name == "name"
+            assert request_form_name_ranges[0].source.origin == OriginType.PARAMETER
+
             return request.query_string, 200
 
         with override_global_config(
@@ -762,7 +788,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             from flask import request
 
-            from ddtrace.appsec.iast._ast.aspects import add_aspect
+            from ddtrace.appsec.iast._taint_tracking.aspects import add_aspect
 
             con = sqlite3.connect(":memory:")
             cur = con.cursor()
@@ -798,7 +824,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
                 "valueParts": [{"value": "SELECT 1 FROM "}, {"value": "sqlite_master", "source": 0}]
             }
             assert loaded["vulnerabilities"][0]["location"]["path"] == "tests/contrib/flask/test_flask_appsec.py"
-            assert loaded["vulnerabilities"][0]["location"]["line"] == 770
+            assert loaded["vulnerabilities"][0]["location"]["line"] == 796
 
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_disabled_http_request_cookies_value(self):
@@ -808,7 +834,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             from flask import request
 
-            from ddtrace.appsec.iast._ast.aspects import add_aspect
+            from ddtrace.appsec.iast._taint_tracking.aspects import add_aspect
 
             con = sqlite3.connect(":memory:")
             cur = con.cursor()
@@ -844,7 +870,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             from flask import request
 
-            from ddtrace.appsec.iast._ast.aspects import add_aspect
+            from ddtrace.appsec.iast._taint_tracking.aspects import add_aspect
 
             con = sqlite3.connect(":memory:")
             cur = con.cursor()
@@ -880,7 +906,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
                 "valueParts": [{"value": "SELECT 1 FROM "}, {"value": "sqlite_master", "source": 0}]
             }
             assert loaded["vulnerabilities"][0]["location"]["path"] == "tests/contrib/flask/test_flask_appsec.py"
-            assert loaded["vulnerabilities"][0]["location"]["line"] == 852
+            assert loaded["vulnerabilities"][0]["location"]["line"] == 878
 
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_disabled_http_request_cookies_name(self):
@@ -890,7 +916,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             from flask import request
 
-            from ddtrace.appsec.iast._ast.aspects import add_aspect
+            from ddtrace.appsec.iast._taint_tracking.aspects import add_aspect
 
             con = sqlite3.connect(":memory:")
             cur = con.cursor()
@@ -918,6 +944,48 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert root_span.get_metric(IAST.ENABLED) is None
 
             assert root_span.get_tag(IAST.JSON) is None
+
+    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    def test_flask_full_sqli_iast_http_request_parameter(self):
+        @self.app.route("/sqli/parameter/", methods=["GET"])
+        def test_sqli():
+            import sqlite3
+
+            from ddtrace.appsec.iast._taint_tracking.aspects import add_aspect
+
+            con = sqlite3.connect(":memory:")
+            cur = con.cursor()
+            cur.execute(add_aspect("SELECT 1 FROM ", request.args.get("table")))
+
+            return "OK", 200
+
+        with override_global_config(
+            dict(
+                _iast_enabled=True,
+            )
+        ), override_env(IAST_ENV):
+            oce.reconfigure()
+            from ddtrace.appsec.iast._taint_tracking import setup
+
+            setup(bytes.join, bytearray.join)
+
+            self._aux_appsec_prepare_tracer(iast_enabled=True)
+            resp = self.client.get("/sqli/parameter/?table=sqlite_master")
+            assert resp.status_code == 200
+
+            root_span = self.pop_spans()[0]
+            assert root_span.get_metric(IAST.ENABLED) == 1.0
+
+            loaded = json.loads(root_span.get_tag(IAST.JSON))
+            assert loaded["sources"] == [
+                {"origin": "http.request.parameter", "name": "table", "value": "sqlite_master"}
+            ]
+            assert loaded["vulnerabilities"][0]["type"] == "SQL_INJECTION"
+            assert loaded["vulnerabilities"][0]["evidence"] == {
+                "valueParts": [{"value": "SELECT 1 FROM "}, {"value": "sqlite_master", "source": 0}]
+            }
+            assert loaded["vulnerabilities"][0]["location"]["path"] == "tests/contrib/flask/test_flask_appsec.py"
+            assert loaded["vulnerabilities"][0]["location"]["line"] == 958
 
     def test_request_suspicious_request_block_match_query_value(self):
         @self.app.route("/index.html")

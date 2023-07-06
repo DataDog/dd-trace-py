@@ -56,8 +56,8 @@ def test_visit_ast_changed(source_text, module_path, module_name):
 @pytest.mark.parametrize(
     "module_name",
     [
-        ("tests.appsec.iast.fixtures.aspects.str.class_str"),
-        ("tests.appsec.iast.fixtures.aspects.str.function_str"),
+        ("tests.appsec.iast.fixtures.ast.str.class_str"),
+        ("tests.appsec.iast.fixtures.ast.str.function_str"),
     ],
 )
 @pytest.mark.skipif(not PY36, reason="Python 3.6+ only")
@@ -65,14 +65,14 @@ def test_astpatch_module_changed(module_name):
     module_path, new_source = astpatch_module(__import__(module_name, fromlist=[None]))
     assert ("", "") != (module_path, new_source)
     new_code = astunparse.unparse(new_source)
-    assert new_code.startswith("\nimport ddtrace.appsec.iast._ast.aspects as ddtrace_aspects")
+    assert new_code.startswith("\nimport ddtrace.appsec.iast._taint_tracking.aspects as ddtrace_aspects")
     assert "ddtrace_aspects.str_aspect(" in new_code
 
 
 @pytest.mark.parametrize(
     "module_name",
     [
-        ("tests.appsec.iast.fixtures.aspects.add_operator.basic"),
+        ("tests.appsec.iast.fixtures.ast.add_operator.basic"),
     ],
 )
 @pytest.mark.skipif(not PY36, reason="Python 3.6+ only")
@@ -80,15 +80,15 @@ def test_astpatch_module_changed_add_operator(module_name):
     module_path, new_source = astpatch_module(__import__(module_name, fromlist=[None]))
     assert ("", "") != (module_path, new_source)
     new_code = astunparse.unparse(new_source)
-    assert new_code.startswith("\nimport ddtrace.appsec.iast._ast.aspects as ddtrace_aspects")
+    assert new_code.startswith("\nimport ddtrace.appsec.iast._taint_tracking.aspects as ddtrace_aspects")
     assert "ddtrace_aspects.add_aspect(" in new_code
 
 
 @pytest.mark.parametrize(
     "module_name",
     [
-        ("tests.appsec.iast.fixtures.aspects.str.future_import_class_str"),
-        ("tests.appsec.iast.fixtures.aspects.str.future_import_function_str"),
+        ("tests.appsec.iast.fixtures.ast.str.future_import_class_str"),
+        ("tests.appsec.iast.fixtures.ast.str.future_import_function_str"),
     ],
 )
 @pytest.mark.skipif(not PY36, reason="Python 3.6+ only")
@@ -103,7 +103,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
-import ddtrace.appsec.iast._ast.aspects as ddtrace_aspects
+import ddtrace.appsec.iast._taint_tracking.aspects as ddtrace_aspects
 import html"""
     )
     assert "ddtrace_aspects.str_aspect(" in new_code
@@ -112,11 +112,11 @@ import html"""
 @pytest.mark.parametrize(
     "module_name",
     [
-        ("tests.appsec.iast.fixtures.aspects.str.class_no_str"),
-        ("tests.appsec.iast.fixtures.aspects.str.function_no_str"),
-        ("tests.appsec.iast.fixtures.aspects.str.__init__"),  # Empty __init__.py
-        ("tests.appsec.iast.fixtures.aspects.str.non_utf8_content"),  # EUC-JP file content
-        ("tests.appsec.iast.fixtures.aspects.str.empty_file"),
+        ("tests.appsec.iast.fixtures.ast.str.class_no_str"),
+        ("tests.appsec.iast.fixtures.ast.str.function_no_str"),
+        ("tests.appsec.iast.fixtures.ast.str.__init__"),  # Empty __init__.py
+        ("tests.appsec.iast.fixtures.ast.str.non_utf8_content"),  # EUC-JP file content
+        ("tests.appsec.iast.fixtures.ast.str.empty_file"),
     ],
 )
 @pytest.mark.skipif(not PY36, reason="Python 3.6+ only")

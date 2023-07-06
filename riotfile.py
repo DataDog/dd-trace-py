@@ -172,11 +172,12 @@ venv = Venv(
             venvs=[
                 Venv(
                     name="codespell",
-                    command='codespell --skip="ddwaf.h" ddtrace/ tests/',
+                    command='codespell --skip="ddwaf.h" '
+                    '--skip="ddtrace/appsec/iast/_taint_tracking/vendor/*" ddtrace/ tests/',
                 ),
                 Venv(
                     name="hook-codespell",
-                    command="codespell {cmdargs}",
+                    command='codespell --skip="ddtrace/appsec/iast/_taint_tracking/vendor/*" {cmdargs}',
                 ),
             ],
         ),
