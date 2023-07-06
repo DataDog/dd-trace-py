@@ -31,6 +31,7 @@ if [[ "${CIRCLECI}" = "true" ]]; then
                    bash -c "$FULL_CMD"
 else
     docker-compose run \
+                   -e DD_TRACE_AGENT_URL \
                    --rm \
                    -i \
                    testrunner \
