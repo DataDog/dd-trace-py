@@ -62,7 +62,6 @@ get_file_and_line(PyObject* Py_UNUSED(module), PyObject* args)
     if (NULL != tstate && NULL != GET_FRAME(tstate)) {
         frame = GET_FRAME(tstate);
         while (NULL != frame) {
-
             filename_o = GET_FILENAME(frame);
             filename = PyUnicode_AsUTF8(filename_o);
             if (((strstr(filename, DD_TRACE_INSTALLED_PREFIX) != NULL && strstr(filename, TESTS_PREFIX) == NULL)) ||

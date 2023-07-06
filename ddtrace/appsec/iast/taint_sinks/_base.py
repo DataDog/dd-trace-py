@@ -1,5 +1,6 @@
 import os
 from typing import TYPE_CHECKING
+from typing import cast
 
 import six
 
@@ -32,10 +33,12 @@ except ImportError:
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Any
     from typing import Callable
+    from typing import Dict
     from typing import List
     from typing import Optional
     from typing import Set
     from typing import Text
+    from typing import Union
 
     from ddtrace.appsec.iast._input_info import Input_info
 
@@ -65,9 +68,10 @@ class VulnerabilityBase(Operation):
 
         return wrapper
 
+    # JJJ Any
     @classmethod
     def report(cls, evidence_value="", sources=None):
-        # type: (Text, Optional[List[Input_info]]) -> None
+        # type: (Union[Text|List[Dict[str, Any]]], Optional[List[Input_info]]) -> None
         """Build a IastSpanReporter instance to report it in the `AppSecIastSpanProcessor` as a string JSON
 
         TODO: check deduplications if DD_IAST_DEDUPLICATION_ENABLED is true
@@ -99,7 +103,7 @@ class VulnerabilityBase(Operation):
                 evidence = Evidence(value=evidence_value)
             else:
                 log.debug("Unexpected evidence_value type: %s", type(evidence_value))
-                evidence = ""
+                evidence = Evidence(value="")
 
             if not cls.is_not_reported(file_name, line_number):
                 # not not reported = reported
@@ -130,13 +134,16 @@ class VulnerabilityBase(Operation):
             if sources:
                 report.sources = {Source(origin=x.origin, name=x.name, value=x.value) for x in sources}
 
-            redacted_report = cls._redacted_report_cache.get(hash(report), lambda: cls._redact_report(report), False)
+            redacted_report = cls._redacted_report_cache.get(
+                hash(report), lambda x: cls._redact_report(cast(IastSpanReporter, report))
+            )
             _context.set_item(IAST.CONTEXT_KEY, redacted_report, span=span)
 
     @classmethod
     def _extract_sensitive_tokens(cls, report):
-        # type: (IastSpanReporter) -> Set[str]
+        # type: (Dict[Vulnerability, str]) -> Dict[int, Dict[str, Any]]
         log.debug("Base class VulnerabilityBase._extract_sensitive_tokens called")
+        raise NotImplementedError()
 
     @classmethod
     def _get_vulnerability_text(cls, vulnerability):
@@ -189,7 +196,7 @@ class VulnerabilityBase(Operation):
         if not vulns_to_tokens:
             return report
 
-        all_tokens = set()
+        all_tokens = set()  # type: Set[str]
         for _, value_dict in six.iteritems(vulns_to_tokens):
             all_tokens.update(value_dict["tokens"])
 

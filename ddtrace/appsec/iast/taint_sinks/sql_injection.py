@@ -35,9 +35,9 @@ class SqlInjection(VulnerabilityBase):
 
     @classmethod
     def _extract_sensitive_tokens(cls, vulns_to_text):
-        # type: (Dict[Vulnerability, str]) -> Dict[VulnerabilityBase, Dict[str, Any]]
+        # type: (Dict[Vulnerability, str]) -> Dict[int, Dict[str, Any]]
 
-        ret = {}
+        ret = {}  # type: Dict[int, Dict[str, Any]]
         for vuln, text in six.iteritems(vulns_to_text):
             vuln_hash = hash(vuln)
             ret[vuln_hash] = {

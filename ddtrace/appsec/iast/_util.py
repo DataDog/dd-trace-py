@@ -9,11 +9,9 @@ from ddtrace.settings import _config as config
 
 if TYPE_CHECKING:
     from typing import Any
-    from typing import Iterable
     from typing import List
+    from typing import Set
     from typing import Tuple
-
-    from ddtrace.appsec.iast.reporter import Evidence
 
 
 def _is_python_version_supported():  # type: () -> bool
@@ -21,7 +19,7 @@ def _is_python_version_supported():  # type: () -> bool
     return (3, 6, 0) <= sys.version_info < (3, 12, 0)
 
 
-def _is_iast_enabled():  # type: () -> bool
+def _is_iast_enabled():
     if not config._iast_enabled:
         return False
 
@@ -63,30 +61,8 @@ def _is_evidence_value_parts(value):  # type: (Any) -> bool
     return isinstance(value, (set, list))
 
 
-def _scrub_value_part(evidence):  # type: (Evidence) -> dict
-    if _is_evidence_value_parts(evidence):
-        evidence_value = evidence["value"]
-        is_parts = True
-        has_range = "source" in evidence
-    else:
-        evidence_value = evidence
-        is_parts = False
-        has_range = False
-
-    def return_wrap(evidence_value):
-        if is_parts:
-            evidence["value"] = evidence_value
-            return evidence
-        return evidence_value
-
-    if not _has_to_scrub(evidence_value):
-        return return_wrap(evidence_value)
-
-    return return_wrap(_scrub(evidence_value, has_range=has_range))
-
-
 def _scrub_get_tokens_positions(text, tokens):
-    # type: (str, Iterable[str]) -> List[Tuple[int, int]]
+    # type: (str, Set[str]) -> List[Tuple[int, int]]
     token_positions = []
 
     for token in tokens:
