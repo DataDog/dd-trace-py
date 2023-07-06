@@ -393,7 +393,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
                 "valueParts": [{"value": "SELECT 1 FROM "}, {"value": "sqlite_master", "source": 0}]
             }
             assert loaded["vulnerabilities"][0]["location"]["path"] == "tests/contrib/flask/test_flask_appsec.py"
-            assert loaded["vulnerabilities"][0]["location"]["line"] == 365
+            assert loaded["vulnerabilities"][0]["location"]["line"] == 366
 
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_enabled_http_request_header_getitem(self):
@@ -440,7 +440,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
                 "valueParts": [{"value": "SELECT 1 FROM "}, {"value": "sqlite_master", "source": 0}]
             }
             assert loaded["vulnerabilities"][0]["location"]["path"] == "tests/contrib/flask/test_flask_appsec.py"
-            assert loaded["vulnerabilities"][0]["location"]["line"] == 410
+            assert loaded["vulnerabilities"][0]["location"]["line"] == 411
 
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_disabled_http_request_header_getitem(self):
@@ -525,7 +525,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
                 "valueParts": [{"value": "SELECT 1 FROM sqlite_"}, {"value": "Master", "source": 0}]
             }
             assert loaded["vulnerabilities"][0]["location"]["path"] == "tests/contrib/flask/test_flask_appsec.py"
-            assert loaded["vulnerabilities"][0]["location"]["line"] == 499
+            assert loaded["vulnerabilities"][0]["location"]["line"] == 500
 
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_disabled_http_request_header_name_keys(self):
@@ -608,7 +608,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
                 "valueParts": [{"value": "SELECT 1 FROM sqlite_"}, {"value": "master", "source": 0}]
             }
             assert loaded["vulnerabilities"][0]["location"]["path"] == "tests/contrib/flask/test_flask_appsec.py"
-            assert loaded["vulnerabilities"][0]["location"]["line"] == 582
+            assert loaded["vulnerabilities"][0]["location"]["line"] == 583
 
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_disabled_http_request_header_values(self):
@@ -794,7 +794,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
                 "valueParts": [{"value": "SELECT 1 FROM "}, {"value": "sqlite_master", "source": 0}]
             }
             assert loaded["vulnerabilities"][0]["location"]["path"] == "tests/contrib/flask/test_flask_appsec.py"
-            assert loaded["vulnerabilities"][0]["location"]["line"] == 765
+            assert loaded["vulnerabilities"][0]["location"]["line"] == 766
 
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_disabled_http_request_cookies_value(self):
@@ -876,7 +876,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
                 "valueParts": [{"value": "SELECT 1 FROM "}, {"value": "sqlite_master", "source": 0}]
             }
             assert loaded["vulnerabilities"][0]["location"]["path"] == "tests/contrib/flask/test_flask_appsec.py"
-            assert loaded["vulnerabilities"][0]["location"]["line"] == 847
+            assert loaded["vulnerabilities"][0]["location"]["line"] == 848
 
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_disabled_http_request_cookies_name(self):
