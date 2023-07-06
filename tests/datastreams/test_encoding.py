@@ -5,7 +5,7 @@ from ddtrace.internal.datastreams.processor import DataStreamsProcessor
 
 def test_encoding():
     n = 1679672748
-    expected_encoded = bytes([216, 150, 238, 193, 12])
+    expected_encoded = bytearray([216, 150, 238, 193, 12])
     encoded = encode_var_int_64(n)
     assert encoded == expected_encoded
     decoded, b = decode_var_int_64(encoded)
@@ -22,7 +22,7 @@ def test_pathway_encoding():
 
     def on_checkpoint_creation(hash_value, parent_hash, edge_tags, now_sec, edge_latency_sec, full_pathway_latency_sec):
         assert parent_hash == ctx.hash
-        assert edge_tags == ["direction:in", "type:kafka", "topic:topic1"]
+        assert sorted(edge_tags) == sorted(["direction:in", "type:kafka", "topic:topic1"])
 
     processor.on_checkpoint_creation = on_checkpoint_creation
     decoded = processor.decode_pathway(data)
