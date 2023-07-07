@@ -80,7 +80,7 @@ def on(event_id, callback):
 
 def reset_listeners():
     # type: () -> None
-    _EVENT_HUB.get().reset()
+    _EVENT_HUB.get().reset()  # type: ignore
 
 
 def dispatch(event_id, args):

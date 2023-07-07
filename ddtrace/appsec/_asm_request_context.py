@@ -495,8 +495,8 @@ def _on_context_started(context=None):
     return resources
 
 
-def _on_context_ended(context):
-    context.root().get_item("resources").finalise()
+def _on_context_ended():
+    core.root.get_item("resources").finalise()
 
 
 core.on("context.started.wsgi.__call__", _on_context_started)
