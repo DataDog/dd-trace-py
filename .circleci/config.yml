@@ -140,7 +140,7 @@ commands:
           steps:
             - run:
                 name: Install git
-                command: sudo apt-get update && sudo apt-get install -y --no-install-recommends openssh-client git
+                command: sudo apt-mark hold openssh-server openssh-sftp-server && sudo apt-get update && sudo apt-get install -y --no-install-recommends openssh-client git
       - checkout
       - restore_pip_cache
       - when:
