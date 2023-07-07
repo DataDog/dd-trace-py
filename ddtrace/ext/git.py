@@ -2,7 +2,6 @@
 tags for common git attributes
 """
 import contextlib
-import logging
 import os
 import random
 import re
@@ -92,7 +91,7 @@ def _git_subprocess_cmd(cmd, cwd=None, std_in=None):
 
 
 def set_safe_directory(cwd=None):
-    _git_subprocess_cmd("config --global --add safe.directory '*'", cwd=cwd)
+    _git_subprocess_cmd("config --global --add safe.directory *", cwd=cwd)
 
 
 def extract_user_info(cwd=None):
@@ -201,9 +200,9 @@ def extract_git_metadata(cwd=None, repo_url=None):
     except GitNotFoundError:
         log.error("Git executable not found, cannot extract git metadata.")
     except ValueError as e:
-        debug_mode = log.isEnabledFor(logging.DEBUG)
-        stderr = str(e)
-        log.error("Error extracting git metadata: %s", stderr, exc_info=debug_mode)
+        # debug_mode = log.isEnabledFor(logging.DEBUG)
+        exception_caught = str(e)
+        log.error("Error extracting git metadata: %s", exception_caught, exc_info=True)
 
     return tags
 
