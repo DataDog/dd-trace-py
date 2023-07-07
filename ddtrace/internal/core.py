@@ -115,7 +115,7 @@ class ExecutionContext:
         return self._parents[0] if self._parents else None
 
     def end(self):
-        dispatch_result = dispatch("context.ended.%s" % self.identifier, [self])
+        dispatch_result = dispatch("context.ended.%s" % self.identifier, [])
         if self._span is None:
             try:
                 _CURRENT_CONTEXT.reset(self._token)
