@@ -80,18 +80,23 @@ class VulnerabilityBase(Operation):
         TODO: check deduplications if DD_IAST_DEDUPLICATION_ENABLED is true
         """
 
+        log.warning("JJJ 1")
+
         if cls.acquire_quota():
             if not tracer or not hasattr(tracer, "current_root_span"):
                 log.debug("Not tracer or tracer has no root span")
+                log.warning("JJJ 2")
                 return None
 
             span = tracer.current_root_span()
             if not span:
                 log.debug("No root span in the current execution. Skipping IAST taint sink.")
+                log.warning("JJJ 3")
                 return None
 
             frame_info = get_info_frame(CWD)
             if not frame_info:
+                log.warning("JJJ 4")
                 return None
 
             file_name, line_number = frame_info
@@ -110,8 +115,10 @@ class VulnerabilityBase(Operation):
 
             if not cls.is_not_reported(file_name, line_number):
                 # not not reported = reported
+                log.warning("JJJ 5")
                 return None
 
+            log.warning("JJJ 6")
             _set_metric_iast_executed_sink(cls.vulnerability_type)
 
             report = _context.get_item(IAST.CONTEXT_KEY, span=span)
@@ -137,10 +144,12 @@ class VulnerabilityBase(Operation):
             if sources:
                 report.sources = {Source(origin=x.origin, name=x.name, value=x.value) for x in sources}
 
+            log.warning("JJJ 7")
             redacted_report = cls._redacted_report_cache.get(
                 hash(report), lambda x: cls._redact_report(cast(IastSpanReporter, report))
             )
             _context.set_item(IAST.CONTEXT_KEY, redacted_report, span=span)
+            log.warning("JJJ 8")
 
     @classmethod
     def _extract_sensitive_tokens(cls, report):
