@@ -2918,6 +2918,7 @@ venv = Venv(
                                     pkgs={
                                         "protobuf": "==3.8.0",
                                     },
+                                    create=True,  # Needed bp Python 3.5 because of namespace packages
                                 ),
                                 # Gevent
                                 Venv(
