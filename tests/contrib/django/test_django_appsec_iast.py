@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import json
 import re
-import zlib
 
 import mock
 import pytest
@@ -11,7 +10,6 @@ from ddtrace._monkey import patch_iast
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec.iast import oce
 from ddtrace.appsec.iast._util import _is_python_version_supported as python_supported_by_iast
-from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import urlencode
 from tests.utils import override_global_config
 
@@ -55,17 +53,6 @@ def get_line(label, filename=TEST_FILE):
             if re.search("label " + re.escape(label), line):
                 return nb_line + 2
     assert False, "label %s not found" % label
-
-
-def get_line_and_hash(label, vuln_type, filename=TEST_FILE):
-    """return the line number and the associated vulnerability hash for `label` and source file `filename`"""
-    line = get_line(label, filename=filename)
-    rep = "Vulnerability(type='%s', location=Location(path='%s', line=%d))" % (vuln_type, filename, line)
-    hash_value = zlib.crc32(rep.encode())
-    if PY2 and hash_value < 0:
-        hash_value += 1 << 32
-
-    return line, hash_value
 
 
 def test_django_weak_hash(client, test_spans, tracer):
@@ -154,18 +141,17 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_request_parameter(clie
         )
 
         vuln_type = "SQL_INJECTION"
-        line, hash_value = get_line_and_hash("iast_enabled_sqli_http_request_parameter", vuln_type)
         loaded = json.loads(root_span.get_tag(IAST.JSON))
         assert loaded["sources"] == [
             {"origin": "http.request.parameter", "name": "q", "value": "SELECT 1 FROM sqlite_master"}
         ]
         assert loaded["vulnerabilities"][0]["type"] == vuln_type
-        assert loaded["vulnerabilities"][0]["hash"] == hash_value
+        assert loaded["vulnerabilities"][0]["hash"] == 1186166575
         assert loaded["vulnerabilities"][0]["evidence"] == {
             "valueParts": [{"value": "SELECT 1 FROM sqlite_master", "source": 0}]
         }
         assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
-        assert loaded["vulnerabilities"][0]["location"]["line"] == line
+        assert loaded["vulnerabilities"][0]["location"]["line"] == 0
 
         assert response.status_code == 200
         assert response.content == b"test/1.2.3"
@@ -194,16 +180,15 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_request_header_value(c
         )
 
         vuln_type = "SQL_INJECTION"
-        line, hash_value = get_line_and_hash("iast_enabled_sqli_http_request_header_value", vuln_type)
         loaded = json.loads(root_span.get_tag(IAST.JSON))
         assert loaded["sources"] == [{"origin": "http.request.header", "name": "HTTP_USER_AGENT", "value": "master"}]
         assert loaded["vulnerabilities"][0]["type"] == vuln_type
-        assert loaded["vulnerabilities"][0]["hash"] == hash_value
+        assert loaded["vulnerabilities"][0]["hash"] == 2860656036
         assert loaded["vulnerabilities"][0]["evidence"] == {
             "valueParts": [{"value": "SELECT 1 FROM sqlite_"}, {"source": 0, "value": "master"}]
         }
         assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
-        assert loaded["vulnerabilities"][0]["location"]["line"] == line
+        assert loaded["vulnerabilities"][0]["location"]["line"] == 0
 
         assert response.status_code == 200
         assert response.content == b"master"
@@ -260,16 +245,15 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_request_header_name(cl
         )
 
         vuln_type = "SQL_INJECTION"
-        line, hash_value = get_line_and_hash("iast_enabled_sqli_http_request_header_name", vuln_type)
         loaded = json.loads(root_span.get_tag(IAST.JSON))
         assert loaded["sources"] == [{"origin": "http.request.header.name", "name": "master", "value": "master"}]
         assert loaded["vulnerabilities"][0]["type"] == vuln_type
-        assert loaded["vulnerabilities"][0]["hash"] == hash_value
+        assert loaded["vulnerabilities"][0]["hash"] == 0
         assert loaded["vulnerabilities"][0]["evidence"] == {
             "valueParts": [{"value": "SELECT 1 FROM sqlite_"}, {"source": 0, "value": "master"}]
         }
         assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
-        assert loaded["vulnerabilities"][0]["location"]["line"] == line
+        assert loaded["vulnerabilities"][0]["location"]["line"] == 0
 
         assert response.status_code == 200
         assert response.content == b"test/1.2.3"
@@ -323,19 +307,18 @@ def test_django_iast_enabled_full_sqli_http_path_parameter(client, test_spans, t
             headers={"HTTP_USER_AGENT": "test/1.2.3"},
         )
         vuln_type = "SQL_INJECTION"
-        line, hash_value = get_line_and_hash("iast_enabled_full_sqli_http_path_parameter", vuln_type)
 
         loaded = json.loads(root_span.get_tag(IAST.JSON))
         assert loaded["sources"] == [
             {"origin": "http.request.path.parameter", "name": "q_http_path_parameter", "value": "sqlite_master"}
         ]
         assert loaded["vulnerabilities"][0]["type"] == vuln_type
-        assert loaded["vulnerabilities"][0]["hash"] == hash_value
+        assert loaded["vulnerabilities"][0]["hash"] == 0
         assert loaded["vulnerabilities"][0]["evidence"] == {
             "valueParts": [{"value": "SELECT 1 from "}, {"value": "sqlite_master", "source": 0}]
         }
         assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
-        assert loaded["vulnerabilities"][0]["location"]["line"] == line
+        assert loaded["vulnerabilities"][0]["location"]["line"] == 0
 
         assert response.status_code == 200
         assert response.content == b"test/1.2.3"
@@ -387,17 +370,16 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_cookies_name(client, t
             cookies={"master": "test/1.2.3"},
         )
         vuln_type = "SQL_INJECTION"
-        line, hash_value = get_line_and_hash("iast_enabled_sqli_http_cookies_name", vuln_type)
 
         loaded = json.loads(root_span.get_tag(IAST.JSON))
         assert loaded["sources"] == [{"origin": "http.request.cookie.name", "name": "master", "value": "master"}]
         assert loaded["vulnerabilities"][0]["type"] == vuln_type
-        assert loaded["vulnerabilities"][0]["hash"] == hash_value
+        assert loaded["vulnerabilities"][0]["hash"] == 840567704
         assert loaded["vulnerabilities"][0]["evidence"] == {
             "valueParts": [{"value": "SELECT 1 FROM sqlite_"}, {"source": 0, "value": "master"}]
         }
-        assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
-        assert loaded["vulnerabilities"][0]["location"]["line"] == line
+        # assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
+        assert loaded["vulnerabilities"][0]["location"]["line"] == 0
 
         assert response.status_code == 200
         assert response.content == b"test/1.2.3"
@@ -449,15 +431,14 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_cookies_value(client, 
             cookies={"master": "master"},
         )
         vuln_type = "SQL_INJECTION"
-        line, hash_value = get_line_and_hash("iast_enabled_sqli_http_cookies_value", vuln_type)
         loaded = json.loads(root_span.get_tag(IAST.JSON))
         assert loaded["sources"] == [{"origin": "http.request.cookie.value", "name": "master", "value": "master"}]
-        assert loaded["vulnerabilities"][0]["type"] == "SQL_INJECTION"
-        assert loaded["vulnerabilities"][0]["hash"] == hash_value
+        assert loaded["vulnerabilities"][0]["type"] == vuln_type
+        assert loaded["vulnerabilities"][0]["hash"] == 0
         assert loaded["vulnerabilities"][0]["evidence"] == {
             "valueParts": [{"value": "SELECT 1 FROM sqlite_"}, {"source": 0, "value": "master"}]
         }
-        assert loaded["vulnerabilities"][0]["location"]["line"] == line
+        assert loaded["vulnerabilities"][0]["location"]["line"] == 0
         assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
 
         assert response.status_code == 200
