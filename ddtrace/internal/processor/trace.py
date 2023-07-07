@@ -261,11 +261,12 @@ class SpanAggregator(SpanProcessor):
             # on_span_start queue span created counts in batches of 100. This ensures all remaining counts are sent
             # before the tracer is shutdown.
             self._queue_span_count_metrics("spans_created", "integration_name", None)
-            # on_span_finish(...) queues span finish metrics in batches of 100. This ensures all remaining counts are sent
-            # before the tracer is shutdown.
+            # on_span_finish(...) queues span finish metrics in batches of 100.
+            # This ensures all remaining counts are sent before the tracer is shutdown.
             self._queue_span_count_metrics("spans_finished", "integration_name", None)
-            # The telemetry metrics writer can be shutdown before the tracer. This ensures all tracer metrics always sent.
-            telemetry_metrics_writer.periodic()
+            # The telemetry metrics writer can be shutdown before the tracer.
+            # This ensures all tracer metrics always sent.
+            telemetry_writer.periodic()
 
         try:
             self._writer.stop(timeout)
@@ -280,7 +281,7 @@ class SpanAggregator(SpanProcessor):
         # We should avoid calling this method on every invocation of span finish and span start.
         if min_count is None or sum(self._span_metrics[metric_name].values()) >= min_count:
             for tag_value, count in self._span_metrics[metric_name].items():
-                telemetry_metrics_writer.add_count_metric(
+                telemetry_writer.add_count_metric(
                     TELEMETRY_NAMESPACE_TAG_TRACER, metric_name, count, tags=((tag_name, tag_value),)
                 )
             self._span_metrics[metric_name] = defaultdict(int)
