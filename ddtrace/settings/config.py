@@ -60,7 +60,7 @@ def _parse_propagation_styles(name, default):
     - "none"
 
 
-    The default value is ``"tracecontext,datadog"``.
+    The default value is ``"datadog"``.
 
 
     Examples::
