@@ -1,7 +1,6 @@
 from itertools import groupby
 import json
 import os
-import sys
 from typing import Dict
 from typing import Iterable
 from typing import List
@@ -34,8 +33,7 @@ ROOT_DIR = None
 
 def enabled():
     if config._ci_visibility_code_coverage_enabled:
-        # Support from Python 3.6 onwards
-        if not sys.version_info[:2] >= (3, 6):
+        if compat.PY2:
             return False
         if Coverage is None:
             log.warning(
