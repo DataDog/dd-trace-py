@@ -6,7 +6,6 @@ import pytest
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec.iast import oce
 from ddtrace.appsec.iast._util import _is_python_version_supported as python_supported_by_iast
-from ddtrace.constants import IAST_ENV
 from ddtrace.internal import _context
 from ddtrace.internal.compat import urlencode
 from tests.utils import assert_span_http_status_code
