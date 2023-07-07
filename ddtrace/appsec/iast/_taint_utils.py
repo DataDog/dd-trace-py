@@ -77,12 +77,7 @@ class LazyTaintDict:
         self.override_pyobject_tainted = override_pyobject_tainted
 
     def __getitem__(self, key):
-        try:
-            value = self.obj[key]
-            print(">> VALUE", value)
-        except KeyError:
-            print(">> KEYERROR", self.obj, key)
-            raise
+        value = self.obj[key]
 
         if value:
             if isinstance(value, abc.Mapping) and not isinstance(value, LazyTaintDict):
@@ -147,13 +142,8 @@ class LazyTaintDict:
     def __setitem__(self, key, value):
         self.obj[key] = value
 
-    def __getattribute__(self, __name: str) -> Any:
-        print(">> GETA", __name)
-        return super().__getattribute__(__name)
-
     def __getattr__(self, name):
         # type: (str) -> Any
-        print(">> GETATTR", name)
         return getattr(self.obj, name)
 
 
