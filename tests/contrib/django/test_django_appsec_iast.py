@@ -253,7 +253,7 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_request_header_name(cl
             "valueParts": [{"value": "SELECT 1 FROM sqlite_"}, {"source": 0, "value": "master"}]
         }
         assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
-        assert loaded["vulnerabilities"][0]["location"]["line"] == 694865376
+        assert loaded["vulnerabilities"][0]["location"]["line"] == 91
 
         assert response.status_code == 200
         assert response.content == b"test/1.2.3"
@@ -438,7 +438,7 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_cookies_value(client, 
         assert loaded["vulnerabilities"][0]["evidence"] == {
             "valueParts": [{"value": "SELECT 1 FROM sqlite_"}, {"source": 0, "value": "master"}]
         }
-        assert loaded["vulnerabilities"][0]["location"]["line"] == 1787895634
+        assert loaded["vulnerabilities"][0]["location"]["line"] == 186
         assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
 
         assert response.status_code == 200
