@@ -18,14 +18,14 @@ from ddtrace.settings import _config as config
 from .conftest import TelemetryTestSession
 
 
-def test_add_event(telemetry_lifecycle_writer, test_agent_session, mock_time):
+def test_add_event(telemetry_writer, test_agent_session, mock_time):
     """asserts that add_event queues a telemetry request with valid headers and payload"""
     payload = {"test": "123"}
     payload_type = "test-event"
     # add event to the queue
-    telemetry_lifecycle_writer.add_event(payload, payload_type)
+    telemetry_writer.add_event(payload, payload_type)
     # send request to the agent
-    telemetry_lifecycle_writer.periodic()
+    telemetry_writer.periodic()
 
     requests = test_agent_session.get_requests()
     assert len(requests) == 1
@@ -38,26 +38,26 @@ def test_add_event(telemetry_lifecycle_writer, test_agent_session, mock_time):
     assert requests[0]["body"] == _get_request_body(payload, payload_type)
 
 
-def test_add_event_disabled_writer(telemetry_lifecycle_writer, test_agent_session):
+def test_add_event_disabled_writer(telemetry_writer, test_agent_session):
     """asserts that add_event() does not create a telemetry request when telemetry writer is disabled"""
-    telemetry_lifecycle_writer.disable()
+    telemetry_writer.disable()
 
     payload = {"test": "123"}
     payload_type = "test-event"
     # ensure events are not queued when telemetry is disabled
-    telemetry_lifecycle_writer.add_event(payload, payload_type)
+    telemetry_writer.add_event(payload, payload_type)
 
     # ensure no request were sent
-    telemetry_lifecycle_writer.periodic()
+    telemetry_writer.periodic()
     assert len(test_agent_session.get_requests()) == 0
 
 
-def test_app_started_event(telemetry_lifecycle_writer, test_agent_session, mock_time):
+def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
     """asserts that _app_started_event() queues a valid telemetry request which is then sent by periodic()"""
     # queue an app started event
-    telemetry_lifecycle_writer._app_started_event()
+    telemetry_writer._app_started_event()
     # force a flush
-    telemetry_lifecycle_writer.periodic()
+    telemetry_writer.periodic()
 
     requests = test_agent_session.get_requests()
     assert len(requests) == 1
@@ -122,12 +122,12 @@ def test_app_started_event_configuration_override(test_agent_session, ddtrace_ru
     code = """
 import ddtrace.auto
 
-from ddtrace.internal.telemetry import telemetry_lifecycle_writer
-telemetry_lifecycle_writer.enable()
-telemetry_lifecycle_writer.reset_queues()
-telemetry_lifecycle_writer._app_started_event()
-telemetry_lifecycle_writer.periodic()
-telemetry_lifecycle_writer.disable()
+from ddtrace.internal.telemetry import telemetry_writer
+telemetry_writer.enable()
+telemetry_writer.reset_queues()
+telemetry_writer._app_started_event()
+telemetry_writer.periodic()
+telemetry_writer.disable()
     """
 
     env = os.environ.copy()
@@ -184,20 +184,20 @@ telemetry_lifecycle_writer.disable()
     assert events[0]["payload"]["configuration"] == configuration
 
 
-def test_app_dependencies_loaded_event(telemetry_lifecycle_writer, test_agent_session, mock_time):
-    telemetry_lifecycle_writer._app_dependencies_loaded_event()
+def test_app_dependencies_loaded_event(telemetry_writer, test_agent_session, mock_time):
+    telemetry_writer._app_dependencies_loaded_event()
     # force a flush
-    telemetry_lifecycle_writer.periodic()
+    telemetry_writer.periodic()
     events = test_agent_session.get_events()
     assert len(events) == 1
     payload = {"dependencies": get_dependencies()}
     assert events[0] == _get_request_body(payload, "app-dependencies-loaded")
 
 
-def test_app_closing_event(telemetry_lifecycle_writer, test_agent_session, mock_time):
-    """asserts that on_shutdown() queues and sends an app-closing telemetry request"""
+def test_app_closing_event(telemetry_writer, test_agent_session, mock_time):
+    """asserts that app_shutdown() queues and sends an app-closing telemetry request"""
     # send app closed event
-    telemetry_lifecycle_writer.on_shutdown()
+    telemetry_writer.app_shutdown()
 
     requests = test_agent_session.get_requests()
     assert len(requests) == 1
@@ -206,13 +206,13 @@ def test_app_closing_event(telemetry_lifecycle_writer, test_agent_session, mock_
     assert requests[0]["body"] == _get_request_body({}, "app-closing")
 
 
-def test_add_integration(telemetry_lifecycle_writer, test_agent_session, mock_time):
+def test_add_integration(telemetry_writer, test_agent_session, mock_time):
     """asserts that add_integration() queues a valid telemetry request"""
     # queue integrations
-    telemetry_lifecycle_writer.add_integration("integration-t", True, True, "")
-    telemetry_lifecycle_writer.add_integration("integration-f", False, False, "terrible failure")
+    telemetry_writer.add_integration("integration-t", True, True, "")
+    telemetry_writer.add_integration("integration-f", False, False, "terrible failure")
     # send integrations to the agent
-    telemetry_lifecycle_writer.periodic()
+    telemetry_writer.periodic()
 
     requests = test_agent_session.get_requests()
     assert len(requests) == 1
@@ -243,14 +243,14 @@ def test_add_integration(telemetry_lifecycle_writer, test_agent_session, mock_ti
     assert requests[0]["body"] == _get_request_body(expected_payload, "app-integrations-change")
 
 
-def test_app_client_configuration_changed_event(telemetry_lifecycle_writer, test_agent_session, mock_time):
+def test_app_client_configuration_changed_event(telemetry_writer, test_agent_session, mock_time):
     """asserts that queuing a configuration sends a valid telemetry request"""
 
-    telemetry_lifecycle_writer.add_configuration("appsec_enabled", True)
-    telemetry_lifecycle_writer.add_configuration("trace_propagation_style_extract", "['datadog']")
-    telemetry_lifecycle_writer.add_configuration("appsec_enabled", False, "env_var")
+    telemetry_writer.add_configuration("appsec_enabled", True)
+    telemetry_writer.add_configuration("trace_propagation_style_extract", "['datadog']")
+    telemetry_writer.add_configuration("appsec_enabled", False, "env_var")
 
-    telemetry_lifecycle_writer.periodic()
+    telemetry_writer.periodic()
 
     events = test_agent_session.get_events()
     assert len(events) == 1
@@ -274,39 +274,41 @@ def test_app_client_configuration_changed_event(telemetry_lifecycle_writer, test
     ]
 
 
-def test_add_integration_disabled_writer(telemetry_lifecycle_writer, test_agent_session):
+def test_add_integration_disabled_writer(telemetry_writer, test_agent_session):
     """asserts that add_integration() does not queue an integration when telemetry is disabled"""
-    telemetry_lifecycle_writer.disable()
+    telemetry_writer.disable()
 
-    telemetry_lifecycle_writer.add_integration("integration-name", True, False, "")
-    telemetry_lifecycle_writer.periodic()
+    telemetry_writer.add_integration("integration-name", True, False, "")
+    telemetry_writer.periodic()
 
     assert len(test_agent_session.get_requests()) == 0
 
 
 @pytest.mark.parametrize("mock_status", [300, 400, 401, 403, 500])
-def test_send_failing_request(mock_status, telemetry_lifecycle_writer):
+def test_send_failing_request(mock_status, telemetry_writer):
     """asserts that a warning is logged when an unsuccessful response is returned by the http client"""
 
     with httpretty.enabled():
-        httpretty.register_uri(httpretty.POST, telemetry_lifecycle_writer._client.url, status=mock_status)
+        httpretty.register_uri(httpretty.POST, telemetry_writer._client.url, status=mock_status)
         with mock.patch("ddtrace.internal.telemetry.writer.log") as log:
             # sends failing app-closing event
-            telemetry_lifecycle_writer.on_shutdown()
+            telemetry_writer.app_shutdown()
             # asserts unsuccessful status code was logged
             log.debug.assert_called_with(
                 "failed to send telemetry to the Datadog Agent at %s. response: %s",
-                telemetry_lifecycle_writer._client.url,
+                telemetry_writer._client.url,
                 mock_status,
             )
         # ensure one failing request was sent
         assert len(httpretty.latest_requests()) == 1
 
 
-@pytest.mark.parametrize("telemetry_lifecycle_writer", [TelemetryWriter()])
-def test_telemetry_graceful_shutdown(telemetry_lifecycle_writer, test_agent_session, mock_time):
-    telemetry_lifecycle_writer.start()
-    telemetry_lifecycle_writer.stop()
+@pytest.mark.parametrize("telemetry_writer", [TelemetryWriter()])
+def test_telemetry_graceful_shutdown(telemetry_writer, test_agent_session, mock_time):
+    telemetry_writer.start()
+    telemetry_writer.stop()
+    # mocks calling sys.atexit hooks
+    telemetry_writer.app_shutdown()
 
     events = test_agent_session.get_events()
     assert len(events) == 3
@@ -318,18 +320,18 @@ def test_telemetry_graceful_shutdown(telemetry_lifecycle_writer, test_agent_sess
     assert events[2]["request_type"] == "app-started"
 
 
-def test_app_heartbeat_event_periodic(mock_time, telemetry_lifecycle_writer, test_agent_session):
+def test_app_heartbeat_event_periodic(mock_time, telemetry_writer, test_agent_session):
     # type: (mock.Mock, Any, TelemetryWriter) -> None
     """asserts that we queue/send app-heartbeat when periodc() is called"""
 
     # Assert default hearbeat interval is 60 seconds
-    assert telemetry_lifecycle_writer.interval == 60
+    assert telemetry_writer.interval == 60
     # Assert next flush contains app-heartbeat event
-    telemetry_lifecycle_writer.periodic()
+    telemetry_writer.periodic()
     _assert_app_heartbeat_event(1, test_agent_session)
 
 
-def test_app_heartbeat_event(mock_time, telemetry_lifecycle_writer, test_agent_session):
+def test_app_heartbeat_event(mock_time, telemetry_writer, test_agent_session):
     # type: (mock.Mock, Any, TelemetryWriter) -> None
     """asserts that we queue/send app-heartbeat event every 60 seconds when app_heartbeat_event() is called"""
 
@@ -338,8 +340,8 @@ def test_app_heartbeat_event(mock_time, telemetry_lifecycle_writer, test_agent_s
     assert len(events) == 0
 
     # Assert a maximum of one heartbeat is queued per flush
-    telemetry_lifecycle_writer._app_heartbeat_event()
-    telemetry_lifecycle_writer.periodic()
+    telemetry_writer._app_heartbeat_event()
+    telemetry_writer.periodic()
     events = test_agent_session.get_events()
     assert len(events) == 1
 
