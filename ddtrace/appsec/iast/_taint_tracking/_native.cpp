@@ -4,6 +4,7 @@
 #include "TaintTracking/Source.h"
 #include "TaintTracking/_taint_tracking.h"
 #include "TaintedObject/TaintedObject.h"
+#include "Constants.h"
 
 #define PY_MODULE_NAME_ASPECTS                                                                                         \
     PY_MODULE_NAME "."                                                                                                 \
