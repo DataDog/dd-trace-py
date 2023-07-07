@@ -151,7 +151,7 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_request_parameter(clie
             "valueParts": [{"value": "SELECT 1 FROM sqlite_master", "source": 0}]
         }
         assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
-        assert loaded["vulnerabilities"][0]["location"]["line"] == 0
+        assert loaded["vulnerabilities"][0]["location"]["line"] == 81
 
         assert response.status_code == 200
         assert response.content == b"test/1.2.3"
@@ -188,7 +188,7 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_request_header_value(c
             "valueParts": [{"value": "SELECT 1 FROM sqlite_"}, {"source": 0, "value": "master"}]
         }
         assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
-        assert loaded["vulnerabilities"][0]["location"]["line"] == 0
+        assert loaded["vulnerabilities"][0]["location"]["line"] == 101
 
         assert response.status_code == 200
         assert response.content == b"master"
@@ -248,7 +248,7 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_request_header_name(cl
         loaded = json.loads(root_span.get_tag(IAST.JSON))
         assert loaded["sources"] == [{"origin": "http.request.header.name", "name": "master", "value": "master"}]
         assert loaded["vulnerabilities"][0]["type"] == vuln_type
-        assert loaded["vulnerabilities"][0]["hash"] == 0
+        assert loaded["vulnerabilities"][0]["hash"] == 694865376
         assert loaded["vulnerabilities"][0]["evidence"] == {
             "valueParts": [{"value": "SELECT 1 FROM sqlite_"}, {"source": 0, "value": "master"}]
         }
@@ -318,7 +318,7 @@ def test_django_iast_enabled_full_sqli_http_path_parameter(client, test_spans, t
             "valueParts": [{"value": "SELECT 1 from "}, {"value": "sqlite_master", "source": 0}]
         }
         assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
-        assert loaded["vulnerabilities"][0]["location"]["line"] == 0
+        assert loaded["vulnerabilities"][0]["location"]["line"] == 112
 
         assert response.status_code == 200
         assert response.content == b"test/1.2.3"
@@ -378,8 +378,8 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_cookies_name(client, t
         assert loaded["vulnerabilities"][0]["evidence"] == {
             "valueParts": [{"value": "SELECT 1 FROM sqlite_"}, {"source": 0, "value": "master"}]
         }
-        # assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
-        assert loaded["vulnerabilities"][0]["location"]["line"] == 0
+        assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
+        assert loaded["vulnerabilities"][0]["location"]["line"] == 176
 
         assert response.status_code == 200
         assert response.content == b"test/1.2.3"
@@ -434,7 +434,7 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_cookies_value(client, 
         loaded = json.loads(root_span.get_tag(IAST.JSON))
         assert loaded["sources"] == [{"origin": "http.request.cookie.value", "name": "master", "value": "master"}]
         assert loaded["vulnerabilities"][0]["type"] == vuln_type
-        assert loaded["vulnerabilities"][0]["hash"] == 0
+        assert loaded["vulnerabilities"][0]["hash"] == 1787895634
         assert loaded["vulnerabilities"][0]["evidence"] == {
             "valueParts": [{"value": "SELECT 1 FROM sqlite_"}, {"source": 0, "value": "master"}]
         }
