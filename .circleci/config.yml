@@ -134,7 +134,7 @@ commands:
       - run:
           name: Install git
           command: |
-            apt-get update && apt-get install -y openssh-client git
+            sudo apt-get update && sudo apt-get install -y openssh-client git
       - checkout
       - restore_pip_cache
       - when:
