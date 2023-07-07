@@ -83,11 +83,10 @@ class _PytestBddPlugin:
                                 if arg in converters:
                                     value = converters[arg](value)
                             except Exception:
-                                # Ignore invalid converters
-                                pass
+                                log.debug("Ignoring invalid converter")
                             parameters[arg] = value
                     except Exception:
-                        pass
+                        log.debug("Encountered error while parsing arguments, ignoring", exc_info=True)
                     if parameters:
                         span.set_tag(test.PARAMETERS, json.dumps(parameters))
 
