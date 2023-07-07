@@ -325,5 +325,6 @@ def asm_request_context_manager(
             yield resources
         finally:
             resources.finalise()
+            core.set_item("asm_env", None)
     else:
         yield None
