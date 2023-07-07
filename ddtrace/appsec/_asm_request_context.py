@@ -334,7 +334,12 @@ def asm_request_context_manager(
     The ASM context manager
     """
     if config._appsec_enabled:
-        resources = _on_context_started()
+        resources = _on_context_started(
+            remote_ip=remote_ip,
+            headers=headers,
+            headers_case_sensitive=headers_case_sensitive,
+            block_request_callable=block_request_callable,
+        )
         try:
             yield resources
         finally:
@@ -469,16 +474,18 @@ def _on_werkzeug(*args):
     return if_iast_taint_returned_object_for(*args)
 
 
-def _on_context_started(context=None):
+def _on_context_started(
+    context=None, remote_ip=None, headers=None, headers_case_sensitive=False, block_request_callable=None
+):
     if context is None:
         context = core._CURRENT_CONTEXT.get()
     resources = _DataHandler()
     context.root().set_item("resources", resources)
     asm_request_context_set(
-        context.get_item("remote_addr"),
-        context.get_item("headers"),
-        context.get_item("headers_case_sensitive"),
-        context.get_item("block_request_callable"),
+        remote_ip or context.get_item("remote_addr"),
+        headers or context.get_item("headers"),
+        headers_case_sensitive or context.get_item("headers_case_sensitive"),
+        block_request_callable or context.get_item("block_request_callable"),
     )
     core.on("flask.start_response", _on_startresponse)
     core.on("flask.request_init", _on_request_init)

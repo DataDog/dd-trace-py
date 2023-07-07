@@ -226,8 +226,8 @@ def test_ip_block(tracer):
                 )
 
             assert "triggers" in json.loads(span.get_tag(APPSEC.JSON))
-            assert core.get_item("http.request.remote_ip", span) == _BLOCKED_IP
-            assert core.get_item("http.request.blocked", span)
+            assert core.get_item("http.request.remote_ip") == _BLOCKED_IP
+            assert core.get_item("http.request.blocked")
 
 
 def test_ip_not_block(tracer):
@@ -240,8 +240,8 @@ def test_ip_not_block(tracer):
                     Config(),
                 )
 
-            assert core.get_item("http.request.remote_ip", span) == _ALLOWED_IP
-            assert core.get_item("http.request.blocked", span) is None
+            assert core.get_item("http.request.remote_ip") == _ALLOWED_IP
+            assert core.get_item("http.request.blocked") is None
 
 
 def test_ip_update_rules_and_block(tracer):
@@ -267,8 +267,8 @@ def test_ip_update_rules_and_block(tracer):
                     Config(),
                 )
 
-                assert core.get_item("http.request.remote_ip", span) == _BLOCKED_IP
-                assert core.get_item("http.request.blocked", span)
+                assert core.get_item("http.request.remote_ip") == _BLOCKED_IP
+                assert core.get_item("http.request.blocked")
 
 
 def test_ip_update_rules_expired_no_block(tracer):
@@ -294,8 +294,8 @@ def test_ip_update_rules_expired_no_block(tracer):
                     Config(),
                 )
 
-            assert core.get_item("http.request.remote_ip", span) == _BLOCKED_IP
-            assert core.get_item("http.request.blocked", span) is None
+            assert core.get_item("http.request.remote_ip") == _BLOCKED_IP
+            assert core.get_item("http.request.blocked") is None
 
 
 @snapshot(
