@@ -121,23 +121,12 @@ Check out some of our existing database integrations for how to use the `dbapi`:
 Testing
 -------
 
-<<<<<<< HEAD
 The tests for your integration should be defined in their own module at ``tests/contrib/<integration>/``.
-=======
-The tests should be defined in their own module in ``tests/contrib/<integration>/``.
->>>>>>> 1.x
 
 Testing is the most important part of the integration. We have to be certain
 that the integration submits meaningful information to Datadog and does not
 impact the library or application by disturbing state, performance or causing errors. The integration
 should be invisible to users.
-
-<<<<<<< HEAD
-The best way to get started writing tests is to reference other integration test
-suites. ``tests/contrib/django`` and ``tests/contrib/mariadb`` are good examples.
-Be sure to make use of preexisting test utilities and fixtures where applicable.
-=======
->>>>>>> 1.x
 
 Snapshot Tests
 --------------
