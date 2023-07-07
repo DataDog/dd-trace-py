@@ -73,6 +73,7 @@ class ASM_Environment:
         self.callbacks = {}  # type: dict[str, Any]
         self.telemetry = {}  # type: dict[str, Any]
         self.addresses_sent = set()  # type: set[str]
+        self.span = None
 
 
 def _get_asm_context():
