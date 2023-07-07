@@ -4,7 +4,6 @@ import json
 from typing import TYPE_CHECKING
 
 from six import BytesIO
-from werkzeug.exceptions import BadRequest
 import xmltodict
 
 from ddtrace import config
@@ -400,7 +399,6 @@ def _on_request_spanmodifier(request, environ, _HAS_JSON_MIXIN):
             AttributeError,
             RuntimeError,
             TypeError,
-            BadRequest,
             ValueError,
             JSONDecodeError,
             xmltodict.expat.ExpatError,
