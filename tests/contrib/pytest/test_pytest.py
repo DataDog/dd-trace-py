@@ -1422,7 +1422,7 @@ class PytestTestCase(TracerTestCase):
         spans = self.pop_spans()
         assert len(spans) == 7
 
-    def test_pytest_skip_all_suites(self):
+    def test_pytest_skip_all_tests(self):
         """
         Test that running pytest on two nested packages with 1 test each. It should generate
         1 test session span, 2 test module spans, 2 test suite spans, and 2 test spans, but
@@ -1456,7 +1456,7 @@ class PytestTestCase(TracerTestCase):
         spans = self.pop_spans()
         assert len(spans) == 7
 
-    def test_pytest_skip_all_suites_but_test_skipping_not_enabled(self):
+    def test_pytest_skip_all_tests_but_test_skipping_not_enabled(self):
         """
         Test that running pytest on two nested packages with 1 test each. It should generate
         1 test session span, 2 test module spans, 2 test suite spans, and 2 test spans.

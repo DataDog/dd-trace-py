@@ -45,7 +45,7 @@ from .writer import CIVisibilityWriter
 
 log = get_logger(__name__)
 
-TEST_SKIPPING_LEVEL = SUITE if asbool(os.getenv("DD_CIVISIBILITY_ITR_SUITE_MODE", default=False)) else TEST
+TEST_SKIPPING_LEVEL = SUITE if asbool(os.getenv("_DD_CIVISIBILITY_ITR_SUITE_MODE", default=False)) else TEST
 
 
 def _extract_repository_name_from_url(repository_url):
@@ -338,7 +338,7 @@ class CIVisibility(Service):
             self.tracer.configure(settings={"FILTERS": tracer_filters})
         if self._git_client is not None:
             self._git_client.start(cwd=_get_git_repo())
-        if self.test_skipping_enabled() and self._test_suites_to_skip is None:
+        if self.test_skipping_enabled() and (not self._tests_to_skip and self._test_suites_to_skip is None):
             self._fetch_tests_to_skip()
 
     def _stop_service(self):

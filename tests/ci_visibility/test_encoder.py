@@ -116,6 +116,7 @@ def test_encode_traces_civisibility_v2_coverage():
     expected_cov = {
         b"test_session_id": int(coverage_span.get_tag(SESSION_ID)),
         b"test_suite_id": int(coverage_span.get_tag(SUITE_ID)),
+        b"span_id": coverage_span.span_id,
         b"files": [
             {k.encode("utf-8"): v.encode("utf-8") if isinstance(v, str) else v for k, v in file.items()}
             for file in coverage_data["files"]
