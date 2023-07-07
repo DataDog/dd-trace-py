@@ -409,9 +409,7 @@ def test_request_ipblock_403(client, test_spans, tracer):
             headers={"HTTP_X_REAL_IP": _BLOCKED_IP, "HTTP_USER_AGENT": "fooagent"},
         )
         assert result.status_code == 403
-        as_bytes = (
-            bytes(constants.BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else constants.BLOCKED_RESPONSE_JSON
-        )
+        as_bytes = bytes(constants.BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else constants.BLOCKED_RESPONSE_JSON
         assert result.content == as_bytes
         assert root.get_tag("actor.ip") == _BLOCKED_IP
         assert root.get_tag(http.STATUS_CODE) == "403"
@@ -464,9 +462,7 @@ def test_request_block_request_callable(client, test_spans, tracer):
         )
         # Should not block by IP, but the block callable is called directly inside that view
         assert result.status_code == 403
-        as_bytes = (
-            bytes(constants.BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else constants.BLOCKED_RESPONSE_JSON
-        )
+        as_bytes = bytes(constants.BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else constants.BLOCKED_RESPONSE_JSON
         assert result.content == as_bytes
         assert root.get_tag(http.STATUS_CODE) == "403"
         assert root.get_tag(http.URL) == "http://testserver/appsec/block/"
@@ -496,9 +492,7 @@ def test_request_userblock_403(client, test_spans, tracer):
             client, test_spans, tracer, url="/appsec/checkuser/%s/" % _BLOCKED_USER
         )
         assert result.status_code == 403
-        as_bytes = (
-            bytes(constants.BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else constants.BLOCKED_RESPONSE_JSON
-        )
+        as_bytes = bytes(constants.BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else constants.BLOCKED_RESPONSE_JSON
         assert result.content == as_bytes
         assert root.get_tag(http.STATUS_CODE) == "403"
         assert root.get_tag(http.URL) == "http://testserver/appsec/checkuser/%s/" % _BLOCKED_USER
