@@ -382,7 +382,7 @@ class AppSecSpanProcessor(SpanProcessor):
         try:
             if span.span_type == SpanTypes.WEB:
                 # Force to set respond headers at the end
-                headers_req = core.get_item(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES)
+                headers_req = _asm_request_context.get_waf_address(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES)
                 if headers_req:
                     _set_headers(span, headers_req, kind="response")
 
