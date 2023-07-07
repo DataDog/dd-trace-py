@@ -54,8 +54,13 @@ class APPSEC(object):
     ORIGIN_VALUE = "appsec"
     CUSTOM_EVENT_PREFIX = "appsec.events"
     USER_LOGIN_EVENT_PREFIX = "appsec.events.users.login"
+    USER_SIGNUP_EVENT = "appsec.events.users.signup.track"
     BLOCKED = "appsec.blocked"
     EVENT = "appsec.event"
+    AUTOMATIC_USER_EVENTS_TRACKING = "DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING"
+    USER_MODEL_LOGIN_FIELD = "DD_USER_MODEL_LOGIN_FIELD"
+    USER_MODEL_EMAIL_FIELD = "DD_USER_MODEL_EMAIL_FIELD"
+    USER_MODEL_NAME_FIELD = "DD_USER_MODEL_NAME_FIELD"
 
 
 @six.add_metaclass(Constant_Class)  # required for python2/3 compatibility
