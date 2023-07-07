@@ -1,7 +1,6 @@
 from collections import defaultdict
 from contextlib import contextmanager
 import logging
-import threading
 from typing import TYPE_CHECKING
 
 
@@ -60,7 +59,6 @@ class EventHub:
             try:
                 result = listener(*args)
             except Exception as exc:
-                log.info(exc)
                 exception = exc
             results.append(result)
             exceptions.append(exception)
