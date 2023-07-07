@@ -28,7 +28,6 @@ class LazyTaintList:
                 value = LazyTaintDict(
                     value, origins=self.origins, override_pyobject_tainted=self.override_pyobject_tainted
                 )
-                self.obj[key] = value
             elif isinstance(value, (str, bytes, bytearray)):
                 if not is_pyobject_tainted(value) or self.override_pyobject_tainted:
                     try:
@@ -38,7 +37,6 @@ class LazyTaintList:
                             source_value=value,
                             source_origin=self.origin_value,
                         )
-                        self[key] = value
                     except SystemError:
                         # TODO: Find the root cause for
                         # SystemError: NULL object passed to Py_BuildValue
@@ -52,12 +50,19 @@ class LazyTaintList:
                     override_pyobject_tainted=self.override_pyobject_tainted,
                     source_name=self.source_name,
                 )
-                if isinstance(key, int):
-                    self.obj[key] = value
         return value
 
     def __iter__(self):
         return (self.obj[i] for i in range(len(self)))
+
+    def __contains__(self, value):
+        return value in self.obj
+
+    def __len__(self):
+        return len(self.obj)
+
+    def __setitem__(self, key, value):
+        self.obj[key] = value
 
     def __getattr__(self, name):
         return getattr(self.obj, name)
@@ -72,20 +77,24 @@ class LazyTaintDict:
         self.override_pyobject_tainted = override_pyobject_tainted
 
     def __getitem__(self, key):
-        value = self.obj[key]
+        try:
+            value = self.obj[key]
+            print(">> VALUE", value)
+        except KeyError:
+            print(">> KEYERROR", self.obj, key)
+            raise
+
         if value:
             if isinstance(value, abc.Mapping) and not isinstance(value, LazyTaintDict):
                 value = LazyTaintDict(
                     value, origins=self.origins, override_pyobject_tainted=self.override_pyobject_tainted
                 )
-                self.obj[key] = value
             elif isinstance(value, (str, bytes, bytearray)):
                 if not is_pyobject_tainted(value) or self.override_pyobject_tainted:
                     try:
                         value = taint_pyobject(
                             pyobject=value, source_name=key, source_value=value, source_origin=self.origin_value
                         )
-                        super(LazyTaintDict, self).__setitem__(key, value)
                     except SystemError:
                         # TODO: Find the root cause for
                         # SystemError: NULL object passed to Py_BuildValue
@@ -99,7 +108,6 @@ class LazyTaintDict:
                     override_pyobject_tainted=self.override_pyobject_tainted,
                     source_name=key,
                 )
-                self.obj[key] = value
         return value
 
     def get(self, key, default=None):
@@ -130,8 +138,22 @@ class LazyTaintDict:
         for _, v in self.items():
             yield v
 
+    def __contains__(self, key):
+        return key in self.obj
+
+    def __len__(self):
+        return len(self.obj)
+
+    def __setitem__(self, key, value):
+        self.obj[key] = value
+
+    def __getattribute__(self, __name: str) -> Any:
+        print(">> GETA", __name)
+        return super().__getattribute__(__name)
+
     def __getattr__(self, name):
         # type: (str) -> Any
+        print(">> GETATTR", name)
         return getattr(self.obj, name)
 
 
