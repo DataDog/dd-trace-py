@@ -621,7 +621,6 @@ venv = Venv(
                 # Split into <3.8 and >=3.8 to pin importlib_metadata dependency for kombu
                 Venv(
                     # celery dropped support for Python 2.7/3.5 in 5.0
-                    pys=select_pys(max_version="3.7"),
                     pkgs={
                         "pytest": "~=3.10",
                         "celery": [
@@ -633,6 +632,11 @@ venv = Venv(
                         "pytest-cov": "==2.3.0",
                         "pytest-mock": "==2.0.0",
                     },
+                    venvs=[
+                        Venv(pys=select_pys(max_version="3.6")),
+                        # exceptiongroup latest specified to avoid riot bug: https://github.com/DataDog/riot/issues/211
+                        Venv(pys="3.7", pkgs={"exceptiongroup": latest}),
+                    ],
                 ),
                 Venv(
                     # celery added support for Python 3.9 in 4.x
@@ -1126,7 +1130,6 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    pys=select_pys(max_version="3.9"),
                     pkgs={
                         "flask": "~=0.12.0",
                         "Werkzeug": ["<1.0"],
@@ -1144,6 +1147,10 @@ venv = Venv(
                         # DEV: Breaking change made in 2.1.0 release
                         "markupsafe": "<2.0",
                     },
+                    venvs=[
+                        Venv(pys=select_pys(max_version="3.7")),
+                        Venv(pys=select_pys(min_version="3.8", max_version="3.9"), pkgs={"exceptiongroup": latest}),
+                    ],
                 ),
                 Venv(
                     # flask-caching dropped support for Python 3.5 in 1.8
