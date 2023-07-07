@@ -8,8 +8,8 @@ from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.internal.compat import parse
 from ddtrace.internal.compat import to_bytes_py2
-from ddtrace.internal.constants import APPSEC_BLOCKED_RESPONSE_HTML
-from ddtrace.internal.constants import APPSEC_BLOCKED_RESPONSE_JSON
+from ddtrace.internal.constants import BLOCKED_RESPONSE_HTML
+from ddtrace.internal.constants import BLOCKED_RESPONSE_JSON
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
 
@@ -123,11 +123,11 @@ def _get_blocked_template(accept_header_value):
 
     # No user-defined template at this point
     if need_html_template:
-        _HTML_BLOCKED_TEMPLATE_CACHE = APPSEC_BLOCKED_RESPONSE_HTML
-        return APPSEC_BLOCKED_RESPONSE_HTML
+        _HTML_BLOCKED_TEMPLATE_CACHE = BLOCKED_RESPONSE_HTML
+        return BLOCKED_RESPONSE_HTML
 
-    _JSON_BLOCKED_TEMPLATE_CACHE = APPSEC_BLOCKED_RESPONSE_JSON
-    return APPSEC_BLOCKED_RESPONSE_JSON
+    _JSON_BLOCKED_TEMPLATE_CACHE = BLOCKED_RESPONSE_JSON
+    return BLOCKED_RESPONSE_JSON
 
 
 def parse_form_params(body):
