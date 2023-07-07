@@ -21,7 +21,7 @@ from ddtrace.internal.processor import SpanProcessor
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import is_single_span_sampled
 from ddtrace.internal.service import ServiceStatusError
-from ddtrace.internal.telemetry import telemetry_metrics_writer
+from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_TRACER
 from ddtrace.internal.writer import TraceWriter
 from ddtrace.span import Span
@@ -257,14 +257,16 @@ class SpanAggregator(SpanProcessor):
             before exiting or :obj:`None` to block until flushing has successfully completed (default: :obj:`None`)
         :type timeout: :obj:`int` | :obj:`float` | :obj:`None`
         """
-        # on_span_start queue span created counts in batches of 100. This ensures all remaining counts are sent
-        # before the tracer is shutdown.
-        self._queue_span_count_metrics("spans_created", "integration_name", None)
-        # on_span_finish(...) queues span finish metrics in batches of 100. This ensures all remaining counts are sent
-        # before the tracer is shutdown.
-        self._queue_span_count_metrics("spans_finished", "integration_name", None)
-        # The telemetry metrics writer can be shutdown before the tracer. This ensures all tracer metrics always sent.
-        telemetry_metrics_writer.periodic()
+        if self._span_api_to_count["spans_created"] or self._span_api_to_count["spans_finished"]:
+            # on_span_start queue span created counts in batches of 100. This ensures all remaining counts are sent
+            # before the tracer is shutdown.
+            self._queue_span_count_metrics("spans_created", "integration_name", None)
+            # on_span_finish(...) queues span finish metrics in batches of 100. This ensures all remaining counts are sent
+            # before the tracer is shutdown.
+            self._queue_span_count_metrics("spans_finished", "integration_name", None)
+            # The telemetry metrics writer can be shutdown before the tracer. This ensures all tracer metrics always sent.
+            telemetry_metrics_writer.periodic()
+
         try:
             self._writer.stop(timeout)
         except ServiceStatusError:
