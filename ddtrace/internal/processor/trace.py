@@ -257,7 +257,7 @@ class SpanAggregator(SpanProcessor):
             before exiting or :obj:`None` to block until flushing has successfully completed (default: :obj:`None`)
         :type timeout: :obj:`int` | :obj:`float` | :obj:`None`
         """
-        if self._span_api_to_count["spans_created"] or self._span_api_to_count["spans_finished"]:
+        if self._span_metrics["spans_created"] or self._span_metrics["spans_finished"]:
             # on_span_start queue span created counts in batches of 100. This ensures all remaining counts are sent
             # before the tracer is shutdown.
             self._queue_span_count_metrics("spans_created", "integration_name", None)
