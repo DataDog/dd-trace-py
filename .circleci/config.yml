@@ -643,21 +643,16 @@ jobs:
           snapshot: true
 
   flask:
-    <<: *contrib_job
+    <<: *machine_executor
     parallelism: 4
-    docker:
-      - image: *memcached_image
-      - image: *redis_image
-      - *testagent
-      - image: *ddtrace_dev_image
-        environment:
-          - DD_TRACE_AGENT_URL=http://localhost:9126
     steps:
       - run_test:
           # Run both flask and flask_cache test suites
           # TODO: Re-enable coverage for Flask tests
           store_coverage: false
+          snapshot: true
           pattern: "flask"
+          docker_services: "memcached redis"
 
   gevent:
     <<: *contrib_job
