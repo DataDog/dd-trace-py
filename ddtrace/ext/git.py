@@ -2,6 +2,7 @@
 tags for common git attributes
 """
 import contextlib
+import logging
 import os
 import random
 import re
@@ -200,9 +201,9 @@ def extract_git_metadata(cwd=None, repo_url=None):
     except GitNotFoundError:
         log.error("Git executable not found, cannot extract git metadata.")
     except ValueError as e:
-        # debug_mode = log.isEnabledFor(logging.DEBUG)
+        debug_mode = log.isEnabledFor(logging.DEBUG)
         exception_caught = str(e)
-        log.error("Error extracting git metadata: %s", exception_caught, exc_info=True)
+        log.error("Error extracting git metadata: %s", exception_caught, exc_info=debug_mode)
 
     return tags
 

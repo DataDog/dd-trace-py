@@ -6,7 +6,6 @@ from typing import Iterable
 from typing import List
 from typing import Optional
 from typing import Tuple
-from uuid import uuid4
 
 from ddtrace import config
 from ddtrace.internal import compat
@@ -53,7 +52,7 @@ def _initialize(root_dir):
     global COVERAGE_SINGLETON
     if COVERAGE_SINGLETON is None:
         coverage_kwargs = {
-            "data_file": ".coverage_" + str(uuid4()),
+            "data_file": None,
             "source": [root_dir],
             "config_file": False,
             "omit": [
