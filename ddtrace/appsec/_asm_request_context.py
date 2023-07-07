@@ -76,23 +76,26 @@ class ASM_Environment:
         self.span = None
 
 
+def _reset_asm_context():
+    env = ASM_Environment()
+    core.root.get_item("resources").asm_env = env
+    return env
+
+
 def _get_asm_context():
     resources = core.root.get_item("resources")
     env = resources.asm_env
     if env is None:
-        env = ASM_Environment()
-        core.root.get_item("resources").asm_env = env
+        env = _reset_asm_context()
     return env
 
 
-def free_context_available():  # type: () -> bool
-    env = _get_asm_context()
-    return env.active
-
-
 def in_context():  # type: () -> bool
-    env = _get_asm_context()
-    return env.active
+    resources = core.root.get_item("resources")
+    if not resources:
+        return False
+    env = resources.asm_env
+    return env and env.active
 
 
 def is_blocked():  # type: () -> bool
@@ -148,6 +151,8 @@ class _DataHandler:
 
 
 def set_value(category, address, value):  # type: (str, str, Any) -> None
+    if not in_context():
+        return
     env = _get_asm_context()
     if not env.active:
         log.debug("setting %s address %s with no active asm context", category, address)
@@ -185,6 +190,8 @@ def set_waf_address(address, value):
 
 
 def get_value(category, address, default=None):  # type: (str, str, Any) -> Any
+    if not in_context():
+        return default
     env = _get_asm_context()
     if not env.active:
         log.debug("getting %s address %s with no active asm context", category, address)
@@ -505,6 +512,8 @@ def _on_context_started(
 
 def _on_context_ended():
     core.root.get_item("resources").finalise()
+    _reset_asm_context()
+    core.root._data = {}
 
 
 core.on("context.started.wsgi.__call__", _on_context_started)

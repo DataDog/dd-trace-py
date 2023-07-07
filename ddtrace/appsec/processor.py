@@ -220,7 +220,7 @@ class AppSecSpanProcessor(SpanProcessor):
 
         core.set_item(WAF_CONTEXT_NAMES.BLOCKED, None)
 
-        if not _asm_request_context.free_context_available():
+        if not _asm_request_context.in_context():
             _asm_request_context._on_context_started()
         _asm_request_context.register(span)
 

@@ -198,7 +198,7 @@ class EventsSDKTestCase(TracerTestCase):
                 assert span.get_tag(user.ROLE)
                 assert span.get_tag(user.SCOPE)
                 assert span.get_tag(user.SESSION_ID)
-                assert core.get_item("http.request.blocked", span=span)
+                assert core.get_item("http.request.blocked")
 
     def test_no_span_doesnt_raise(self):
         from ddtrace import tracer
