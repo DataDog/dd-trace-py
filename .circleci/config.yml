@@ -445,7 +445,7 @@ jobs:
     steps:
       - attach_workspace:
           at: .
-      - run: sudo apt-get update && sudo apt-get install -y openssh-client git
+      - run: sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" --force-yes -y --no-install-recommends openssh-client git
       - checkout
       - setup_riot
       - start_docker_services:
