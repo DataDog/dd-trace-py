@@ -173,7 +173,7 @@ try:
         from ddtrace.appsec.iast._util import _is_python_version_supported
 
         if _is_python_version_supported():
-            # TODO: control any exception in this file
+
             from ddtrace.appsec.iast._ast.ast_patching import _should_iast_patch
             from ddtrace.appsec.iast._loader import _exec_iast_patched_module
             from ddtrace.appsec.iast._taint_tracking import setup
