@@ -172,7 +172,8 @@ def set_body_response(body_response):
         set_waf_address(SPAN_DATA_NAMES.RESPONSE_BODY, parsed_body)
 
 
-def set_waf_address(address, value):  # type: (str, Any, Any) -> None
+def set_waf_address(address, value):
+    # type: (str, Any) -> None
     if address == SPAN_DATA_NAMES.REQUEST_URI_RAW:
         parse_address = parse.urlparse(value)
         no_scheme = parse.ParseResult("", "", *parse_address[2:])
