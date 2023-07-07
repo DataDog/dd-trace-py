@@ -316,7 +316,8 @@ The following environment variables for the tracer are supported:
 
      version_added:
        v1.7.0: The ``b3multi`` propagation style was added and ``b3`` was deprecated in favor it.
-       v1.7.0: Added support for ``tracecontext`` W3C headers. Changed the default value to ``DD_TRACE_PROPAGATION_STYLE="datadog"``.
+       v1.7.0: Added support for ``tracecontext`` W3C headers. Changed the default value to ``DD_TRACE_PROPAGATION_STYLE="tracecontext,datadog"``.
+       v1.17.0: Changed the default value to ``DD_TRACE_PROPAGATION_STYLE="datadog"``.
 
    DD_TRACE_PROPAGATION_STYLE_EXTRACT:
      default: |
