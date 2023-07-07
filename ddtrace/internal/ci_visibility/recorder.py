@@ -1,6 +1,8 @@
+from collections import defaultdict
 import json
 import os
 from typing import Any
+from typing import DefaultDict
 from typing import Dict
 from typing import List
 from typing import Optional
@@ -20,6 +22,7 @@ from ddtrace.internal.compat import JSONDecodeError
 from ddtrace.internal.compat import parse
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
+from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.writer.writer import Response
 from ddtrace.provider import CIContextProvider
 from ddtrace.settings import IntegrationConfig
@@ -34,13 +37,15 @@ from .constants import EVP_SUBDOMAIN_HEADER_NAME
 from .constants import REQUESTS_MODE
 from .constants import SETTING_ENDPOINT
 from .constants import SKIPPABLE_ENDPOINT
+from .constants import SUITE
+from .constants import TEST
 from .git_client import CIVisibilityGitClient
 from .writer import CIVisibilityWriter
 
 
 log = get_logger(__name__)
 
-TEST_SKIPPING_LEVEL = "suite"
+TEST_SKIPPING_LEVEL = SUITE if asbool(os.getenv("_DD_CIVISIBILITY_ITR_SUITE_MODE", default=False)) else TEST
 
 
 def _extract_repository_name_from_url(repository_url):
@@ -80,6 +85,7 @@ class CIVisibility(Service):
     _instance = None  # type: Optional[CIVisibility]
     enabled = False
     _test_suites_to_skip = None  # type: Optional[List[str]]
+    _tests_to_skip = defaultdict(list)  # type: DefaultDict[str, List[str]]
 
     def __init__(self, tracer=None, config=None, service=None):
         # type: (Optional[Tracer], Optional[IntegrationConfig], Optional[str]) -> None
@@ -293,16 +299,26 @@ class CIVisibility(Service):
             log.warning("Test skips request responded with invalid JSON '%s'", response.body)
             return
 
-        self._test_suites_to_skip = []
+        if TEST_SKIPPING_LEVEL == SUITE:
+            self._test_suites_to_skip = []
+
         for item in parsed["data"]:
             if item["type"] == TEST_SKIPPING_LEVEL and "suite" in item["attributes"]:
                 module = item["attributes"].get("configurations", {}).get("test.bundle", "").replace(".", "/")
-                self._test_suites_to_skip.append(
-                    "/".join((module, item["attributes"]["suite"])) if module else item["attributes"]["suite"]
-                )
+                path = "/".join((module, item["attributes"]["suite"])) if module else item["attributes"]["suite"]
 
-    def _should_skip_path(self, path):
-        return self._test_suites_to_skip and os.path.relpath(path) in self._test_suites_to_skip
+                if TEST_SKIPPING_LEVEL == SUITE:
+                    self._test_suites_to_skip.append(path)
+                else:
+                    # self._tests_to_skip.setdefault(path, [])
+                    self._tests_to_skip[path].append(item["attributes"]["name"])
+
+    def _should_skip_path(self, path, name):
+        if TEST_SKIPPING_LEVEL == SUITE:
+            return os.path.relpath(path) in self._test_suites_to_skip
+        else:
+            return name in self._tests_to_skip[os.path.relpath(path)]
+        return False
 
     @classmethod
     def enable(cls, tracer=None, config=None, service=None):
@@ -344,7 +360,7 @@ class CIVisibility(Service):
             self.tracer.configure(settings={"FILTERS": tracer_filters})
         if self._git_client is not None:
             self._git_client.start(cwd=_get_git_repo())
-        if self.test_skipping_enabled() and self._test_suites_to_skip is None:
+        if self.test_skipping_enabled() and (not self._tests_to_skip and self._test_suites_to_skip is None):
             self._fetch_tests_to_skip()
 
     def _stop_service(self):

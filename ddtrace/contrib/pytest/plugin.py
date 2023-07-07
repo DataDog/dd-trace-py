@@ -28,13 +28,16 @@ from ddtrace.contrib.pytest.constants import XFAIL_REASON
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
 from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
+from ddtrace.internal.ci_visibility import TEST_SKIPPING_LEVEL
 from ddtrace.internal.ci_visibility.constants import EVENT_TYPE as _EVENT_TYPE
 from ddtrace.internal.ci_visibility.constants import MODULE_ID as _MODULE_ID
 from ddtrace.internal.ci_visibility.constants import MODULE_TYPE as _MODULE_TYPE
 from ddtrace.internal.ci_visibility.constants import SESSION_ID as _SESSION_ID
 from ddtrace.internal.ci_visibility.constants import SESSION_TYPE as _SESSION_TYPE
+from ddtrace.internal.ci_visibility.constants import SUITE
 from ddtrace.internal.ci_visibility.constants import SUITE_ID as _SUITE_ID
 from ddtrace.internal.ci_visibility.constants import SUITE_TYPE as _SUITE_TYPE
+from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.ci_visibility.coverage import _coverage_end
 from ddtrace.internal.ci_visibility.coverage import _coverage_start
 from ddtrace.internal.ci_visibility.coverage import _initialize
@@ -325,7 +328,7 @@ def pytest_collection_modifyitems(session, config, items):
     if _CIVisibility.test_skipping_enabled():
         skip = pytest.mark.skip(reason=SKIPPED_BY_ITR)
         for item in items:
-            if _CIVisibility._instance._should_skip_path(str(get_fslocation_from_item(item)[0])):
+            if _CIVisibility._instance._should_skip_path(str(get_fslocation_from_item(item)[0]), item.name):
                 item.add_marker(skip)
 
 
@@ -335,15 +338,12 @@ def pytest_runtest_protocol(item, nextitem):
         yield
         return
 
-    # is_skipped_by_itr = [
-    #     marker
-    #     for marker in item.iter_markers(name="skip")
-    #     if "reason" in marker.kwargs and marker.kwargs["reason"] == SKIPPED_BY_ITR
-    # ]
+    is_skipped_by_itr = [
+        marker
+        for marker in item.iter_markers(name="skip")
+        if "reason" in marker.kwargs and marker.kwargs["reason"] == SKIPPED_BY_ITR
+    ]
 
-    # if is_skipped_by_itr:
-    #     yield
-    # else:
     test_session_span = _extract_span(item.session)
 
     pytest_module_item = _find_pytest_item(item, pytest.Module)
@@ -358,7 +358,7 @@ def pytest_runtest_protocol(item, nextitem):
     if pytest_module_item is not None and test_suite_span is None:
         test_suite_span = _start_test_suite_span(pytest_module_item)
         # Start coverage for the test suite if coverage is enabled
-        if coverage_enabled():
+        if TEST_SKIPPING_LEVEL == SUITE and coverage_enabled() and not is_skipped_by_itr:
             _initialize(str(item.config.rootdir))
             _coverage_start()
 
@@ -420,18 +420,24 @@ def pytest_runtest_protocol(item, nextitem):
             span.set_tags(tags)
         _store_span(item, span)
 
+        if TEST_SKIPPING_LEVEL == TEST and coverage_enabled() and not is_skipped_by_itr:
+            _initialize(str(item.config.rootdir))
+            _coverage_start()
         # Run the actual test
         yield
-
-    nextitem_pytest_module_item = _find_pytest_item(nextitem, pytest.Module)
-    if test_suite_span is not None and (
-        nextitem is None or nextitem_pytest_module_item != pytest_module_item and not test_suite_span.finished
-    ):
-        _mark_test_status(pytest_module_item, test_suite_span)
         # Finish coverage for the test suite if coverage is enabled
-        if coverage_enabled():
+        if TEST_SKIPPING_LEVEL == TEST and coverage_enabled() and not is_skipped_by_itr:
             _coverage_end(test_suite_span)
-        test_suite_span.finish()
+
+        nextitem_pytest_module_item = _find_pytest_item(nextitem, pytest.Module)
+        if test_suite_span is not None and (
+            nextitem is None or nextitem_pytest_module_item != pytest_module_item and not test_suite_span.finished
+        ):
+            _mark_test_status(pytest_module_item, test_suite_span)
+            # Finish coverage for the test suite if coverage is enabled
+            if TEST_SKIPPING_LEVEL == SUITE and coverage_enabled() and not is_skipped_by_itr:
+                _coverage_end(test_suite_span)
+            test_suite_span.finish()
 
     nextitem_pytest_package_item = _find_pytest_item(nextitem, pytest.Package)
     if test_module_span is not None and (
