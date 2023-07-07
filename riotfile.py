@@ -646,7 +646,7 @@ venv = Venv(
         ),
         Venv(
             name="celery",
-            command="pytest --no-ddtrace {cmdargs} tests/contrib/celery",
+            command="pytest {cmdargs} tests/contrib/celery",
             pkgs={"more_itertools": "<8.11.0"},
             venvs=[
                 # Celery 4.3 wants Kombu >= 4.4 and Redis >= 3.2
@@ -2854,7 +2854,7 @@ venv = Venv(
         ),
         Venv(
             name="ci_visibility",
-            command="pytest --no-ddtrace {cmdargs} tests/ci_visibility",
+            command="pytest {cmdargs} tests/ci_visibility",
             pys=select_pys(),
             pkgs={"msgpack": latest, "coverage": latest},
             env={
@@ -2877,7 +2877,7 @@ venv = Venv(
                 # Python 2.7
                 Venv(
                     # uWSGI tests are not supported on Python 2.7
-                    command='python -m tests.profiling.run pytest --no-ddtrace --capture=no --benchmark-disable --ignore-glob="*asyncio*" --ignore=tests/profiling/test_uwsgi.py {cmdargs} tests/profiling',  # noqa: E501
+                    command='python -m tests.profiling.run pytest --capture=no --benchmark-disable --ignore-glob="*asyncio*" --ignore=tests/profiling/test_uwsgi.py {cmdargs} tests/profiling',  # noqa: E501
                     pys="2.7",
                     venvs=[
                         Venv(
@@ -2916,7 +2916,7 @@ venv = Venv(
                 ),
                 # Python 3.5+
                 Venv(
-                    command="python -m tests.profiling.run pytest --no-ddtrace --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling",  # noqa: E501
+                    command="python -m tests.profiling.run pytest --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling",  # noqa: E501
                     pkgs={
                         "uwsgi": latest,
                         "pytest-asyncio": latest,
