@@ -875,7 +875,7 @@ def test_rc_activation_ip_blocking_data(tracer, remote_config_worker):
                     Config(),
                 )
             assert "triggers" in json.loads(span.get_tag(APPSEC.JSON))
-            assert core.get_item("http.request.remote_ip", span) == "8.8.4.4"
+            assert core.get_item("http.request.remote_ip") == "8.8.4.4"
 
 
 def test_rc_activation_ip_blocking_data_expired(tracer, remote_config_worker):
@@ -936,7 +936,7 @@ def test_rc_activation_ip_blocking_data_not_expired(tracer, remote_config_worker
                     Config(),
                 )
             assert "triggers" in json.loads(span.get_tag(APPSEC.JSON))
-            assert core.get_item("http.request.remote_ip", span) == "8.8.4.4"
+            assert core.get_item("http.request.remote_ip") == "8.8.4.4"
 
 
 def test_rc_rules_data(tracer):
