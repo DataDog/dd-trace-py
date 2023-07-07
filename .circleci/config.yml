@@ -140,8 +140,7 @@ commands:
           steps:
             - run:
                 name: Install git
-                command: |
-                  sudo apt-get update && sudo apt-get install -y openssh-client git
+                command: sudo apt-get update && sudo apt-get install -y openssh-client git
       - checkout
       - restore_pip_cache
       - when:
@@ -1224,7 +1223,7 @@ workflows:
       - aiobotocore: *requires_base_venvs
       - aiohttp: *requires_base_venvs
       - fastapi: *requires_base_venvs
-      - flask:
+      - flask
       - wsgi: *requires_base_venvs
       # Final reports
       - coverage_report: *requires_tests
