@@ -140,7 +140,7 @@ commands:
           steps:
             - run:
                 name: Install git
-                command: sudo apt-get update && sudo apt-get install -o Dpkg::Options::="--force-confold" --force-yes -y --no-install-recommends openssh-client git
+                command: sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" --force-yes -y --no-install-recommends openssh-client git
       - checkout
       - restore_pip_cache
       - when:
