@@ -4,10 +4,13 @@ import django
 import pytest
 
 from ddtrace.appsec._constants import IAST
+from ddtrace.appsec.iast import oce
 from ddtrace.appsec.iast._util import _is_python_version_supported as python_supported_by_iast
+from ddtrace.constants import IAST_ENV
 from ddtrace.internal import _context
 from ddtrace.internal.compat import urlencode
 from tests.utils import assert_span_http_status_code
+from tests.utils import override_env
 from tests.utils import override_global_config
 
 
@@ -61,15 +64,21 @@ def test_djangorest_request_body_custom_parser(client, test_spans, tracer):
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 @pytest.mark.django_db
 def test_djangorest_iast_json(client, test_spans, tracer):
-    with override_global_config(dict(_appsec_enabled=True, _iast_enabled=True)):
+    with override_global_config(
+        dict(
+            _appsec_enabled=True,
+            _iast_enabled=True,
+        )
+    ), override_env({"DD_IAST_REQUEST_SAMPLING": "100"}):
+        oce.reconfigure()
+        from ddtrace.appsec.iast._taint_tracking import setup
+
+        setup(bytes.join, bytearray.join)
+
         tracer._appsec_enabled = True
         tracer._iast_enabled = True
         # Hack: need to pass an argument to configure so that the processors are recreated
         tracer.configure(api_version="v0.4")
-
-        from ddtrace.appsec.iast._taint_tracking import setup
-
-        setup(bytes.join, bytearray.join)
 
         payload = {"query": "SELECT * FROM auth_user"}
         request = client.post("/iast/sqli/", payload)
