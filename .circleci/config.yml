@@ -36,7 +36,6 @@ machine_executor: &machine_executor
     # https://support.circleci.com/hc/en-us/articles/360045268074-Build-Fails-with-Too-long-with-no-output-exceeded-10m0s-context-deadline-exceeded-
     - PYTHONUNBUFFERED: 1
   steps:
-    - run: apt-get update && apt-get install -y openssh-client git
     - &pyenv-set-global
       run:
         name: Set global pyenv
@@ -132,6 +131,10 @@ commands:
     steps:
       - attach_workspace:
           at: .
+      - run:
+          name: Install git
+          command: |
+            apt-get update && apt-get install -y openssh-client git
       - checkout
       - restore_pip_cache
       - when:
