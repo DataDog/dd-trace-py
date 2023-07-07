@@ -481,7 +481,6 @@ setup(
         "typing_extensions",
         "importlib_metadata; python_version<'3.8'",
         "pathlib2; python_version<'3.5'",
-        "jsonschema",
         "xmltodict>=0.12",
         "ipaddress; python_version<'3.7'",
         "envier",
