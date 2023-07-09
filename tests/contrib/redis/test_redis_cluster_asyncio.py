@@ -10,6 +10,7 @@ from tests.utils import DummyTracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 
+
 TEST_HOST = REDISCLUSTER_CONFIG["host"]
 TEST_PORTS = REDISCLUSTER_CONFIG["ports"]
 
@@ -86,7 +87,9 @@ async def test_unicode(traced_redis_cluster):
     assert span.resource == "GET 😐"
 
 
-@pytest.mark.skipif(redis.VERSION < (4, 3, 2), reason="redis.asyncio.cluster pipeline is not implemented in redis<4.3.2")
+@pytest.mark.skipif(
+    redis.VERSION < (4, 3, 2), reason="redis.asyncio.cluster pipeline is not implemented in redis<4.3.2"
+)
 @pytest.mark.asyncio
 async def test_pipeline(traced_redis_cluster):
     cluster, test_spans = traced_redis_cluster
@@ -159,7 +162,8 @@ def test_default_service_name_v1():
 
     import redis
 
-    from ddtrace import Pin, config
+    from ddtrace import Pin
+    from ddtrace import config
     from ddtrace.contrib.redis import patch
     from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
     from tests.contrib.config import REDISCLUSTER_CONFIG
@@ -207,7 +211,8 @@ def test_user_specified_service_v0():
 
     import redis
 
-    from ddtrace import Pin, config
+    from ddtrace import Pin
+    from ddtrace import config
     from ddtrace.contrib.redis import patch
     from tests.contrib.config import REDISCLUSTER_CONFIG
     from tests.utils import DummyTracer
@@ -257,7 +262,8 @@ def test_user_specified_service_v1():
 
     import redis
 
-    from ddtrace import Pin, config
+    from ddtrace import Pin
+    from ddtrace import config
     from ddtrace.contrib.redis import patch
     from tests.contrib.config import REDISCLUSTER_CONFIG
     from tests.utils import DummyTracer
@@ -303,7 +309,8 @@ def test_env_user_specified_rediscluster_service_v0():
 
     import redis
 
-    from ddtrace import Pin, config
+    from ddtrace import Pin
+    from ddtrace import config
     from ddtrace.contrib.redis import patch
     from tests.contrib.config import REDISCLUSTER_CONFIG
     from tests.utils import DummyTracer
@@ -346,7 +353,8 @@ def test_env_user_specified_rediscluster_service_v1():
 
     import redis
 
-    from ddtrace import Pin, config
+    from ddtrace import Pin
+    from ddtrace import config
     from ddtrace.contrib.redis import patch
     from tests.contrib.config import REDISCLUSTER_CONFIG
     from tests.utils import DummyTracer
@@ -391,7 +399,8 @@ def test_service_precedence_v0():
 
     import redis
 
-    from ddtrace import Pin, config
+    from ddtrace import Pin
+    from ddtrace import config
     from ddtrace.contrib.redis import patch
     from tests.contrib.config import REDISCLUSTER_CONFIG
     from tests.utils import DummyTracer
@@ -439,7 +448,8 @@ def test_service_precedence_v1():
 
     import redis
 
-    from ddtrace import Pin, config
+    from ddtrace import Pin
+    from ddtrace import config
     from ddtrace.contrib.redis import patch
     from tests.contrib.config import REDISCLUSTER_CONFIG
     from tests.utils import DummyTracer

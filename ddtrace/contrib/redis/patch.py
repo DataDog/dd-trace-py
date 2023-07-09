@@ -67,11 +67,12 @@ def patch():
 
         if PY3 and redis.VERSION >= (4, 3, 0):
             from .asyncio_patch import traced_async_execute_command
-            from .asyncio_patch import traced_async_execute_cluster_pipeline
 
             _w("redis.asyncio.cluster", "RedisCluster.execute_command", traced_async_execute_command)
 
             if redis.VERSION >= (4, 3, 2):
+                from .asyncio_patch import traced_async_execute_cluster_pipeline
+
                 _w("redis.asyncio.cluster", "RedisCluster.pipeline", traced_pipeline)
                 _w("redis.asyncio.cluster", "ClusterPipeline.execute", traced_async_execute_cluster_pipeline)
 
