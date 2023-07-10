@@ -1753,6 +1753,7 @@ venv = Venv(
                             pkgs={
                                 "pytest": ["~=6.0"],
                                 "pytest-cov": "==2.9.0",
+                                "exceptiongroup": latest,
                             },
                         ),
                         Venv(
