@@ -257,12 +257,12 @@ def extract_buildkite(env):
     """Extract CI tags from Buildkite environ."""
     # Get alL keys which start with BUILDKITE_AGENT_META_DATA_x
     node_label_list = []
-    BUILDKITE_AGENT_META_DATA_PREFIX = 'BUILDKITE_AGENT_META_DATA_'
+    BUILDKITE_AGENT_META_DATA_PREFIX = "BUILDKITE_AGENT_META_DATA_"
     for env_variable in env:
         if env_variable.startswith(BUILDKITE_AGENT_META_DATA_PREFIX):
-            key = env_variable.replace(BUILDKITE_AGENT_META_DATA_PREFIX,'').lower()
+            key = env_variable.replace(BUILDKITE_AGENT_META_DATA_PREFIX, "").lower()
             value = env.get(env_variable)
-            node_label_list.append(f'{key}:{value}')
+            node_label_list.append(f"{key}:{value}")
     node_label_list.sort(reverse=True)
     return {
         git.BRANCH: env.get("BUILDKITE_BRANCH"),
@@ -292,7 +292,7 @@ def extract_buildkite(env):
             separators=(",", ":"),
         ),
         NODE_LABELS: json.dumps(node_label_list, separators=(",", ":")),
-        NODE_NAME: env.get("BUILDKITE_AGENT_ID")
+        NODE_NAME: env.get("BUILDKITE_AGENT_ID"),
     }
 
 
@@ -324,6 +324,7 @@ def extract_circle_ci(env):
         ),
     }
 
+
 def extract_codefresh(env):
     # type: (MutableMapping[str, str]) -> Dict[str, Optional[str]]
     """Extract CI tags from Codefresh environ."""
@@ -337,17 +338,9 @@ def extract_codefresh(env):
         PROVIDER_NAME: "codefresh",
         # OrderedDict is necessary for comparing against a fixture in testing
         _CI_ENV_VARS: json.dumps(
-            OrderedDict(
-                [
-                    ("CF_BUILD_ID", env.get("CF_BUILD_ID"))
-                ]
-            ),
+            OrderedDict([("CF_BUILD_ID", env.get("CF_BUILD_ID"))]),
             separators=(",", ":"),
         ),
-
-
-
-
     }
 
 
@@ -449,7 +442,7 @@ def extract_jenkins(env):
         name = "/".join((v for v in name.split("/") if v and "=" not in v))
     node_labels_list = []
     if env.get("NODE_LABELS"):
-        node_labels_list = env.get('NODE_LABELS').split()
+        node_labels_list = env.get("NODE_LABELS").split()
     return {
         git.BRANCH: env.get("GIT_BRANCH"),
         git.COMMIT_SHA: env.get("GIT_COMMIT"),
@@ -470,7 +463,7 @@ def extract_jenkins(env):
             separators=(",", ":"),
         ),
         NODE_LABELS: json.dumps(node_labels_list, separators=(",", ":")),
-        NODE_NAME: env.get('NODE_NAME'),
+        NODE_NAME: env.get("NODE_NAME"),
     }
 
 
