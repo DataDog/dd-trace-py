@@ -170,7 +170,11 @@ class _ProfilerInstance(service.Service):
             endpoint_call_counter_span_processor.enable()
 
         if self._export_libdd_enabled:
-            versionname = self.version + ".libdd" if self._export_py_enabled else self.version
+            versionname = (
+                "{}.libdd".format(self.version)
+                if self._export_py_enabled and self.version is not None
+                else self.version
+            )
             ddup.init(
                 env=self.env,
                 service=self.service,
