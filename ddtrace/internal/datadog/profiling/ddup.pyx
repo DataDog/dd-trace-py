@@ -60,7 +60,7 @@ IF UNAME_SYSNAME == "Linux" and UNAME_MACHINE == "x86_64":
         void ddup_upload()
 
     def init(
-            service: str,
+            service: Optional[str],
             env: Optional[str],
             version: Optional[str],
             tags: Optional[typing.Dict[str, str]],
@@ -68,8 +68,7 @@ IF UNAME_SYSNAME == "Linux" and UNAME_MACHINE == "x86_64":
             url: Optional[str]) -> None:
 
         # Try to provide a ddtrace-specific default service if one is not given
-        if not service:
-            service = DEFAULT_SERVICE_NAME
+        service = service if service else DEFAULT_SERVICE_NAME
         ddup_config_service(ensure_binary(service))
 
         # If otherwise no values are provided, the uploader will omit the fields
@@ -78,7 +77,6 @@ IF UNAME_SYSNAME == "Linux" and UNAME_MACHINE == "x86_64":
             ddup_config_env(ensure_binary(env))
         if version:
             ddup_config_version(ensure_binary(version))
-
         if url:
             ddup_config_url(ensure_binary(url))
 
@@ -117,22 +115,16 @@ IF UNAME_SYSNAME == "Linux" and UNAME_MACHINE == "x86_64":
         ddup_push_lock_name(ensure_binary(lock_name))
 
     def push_frame(name: str, filename: str, address: int, line: int) -> None:
-        if name is None and filename is None:
-            ddup_push_frame(name, filename, address, line)
-        elif filename is None:
-            ddup_push_frame(ensure_binary(name), filename, address, line)
-        elif name is None:
-            ddup_push_frame(name, ensure_binary(filename), address, line)
-        else:
-            ddup_push_frame(ensure_binary(name), ensure_binary(filename), address, line)
+        name = name if name is not None else ""
+        filename = filename if filename is not None else ""
+        ddup_push_frame(ensure_binary(name), ensure_binary(filename), address, line)
 
     def push_threadinfo(thread_id: int, thread_native_id: int, thread_name: Optional[str]) -> None:
-        if thread_id is None:
-            thread_id = 0
-        if thread_native_id is None:
-            thread_native_id = 0
+        # Type hints don't preclude the possibility of a None being propagated
+        thread_id = thread_id if thread_id is not None else 0
+        thread_native_id = thread_native_id if thread_native_id is not None else 0
+        thread_name = thread_name if thread_name is not None else ""
 
-        # caller ensures thread_name is never null
         ddup_push_threadinfo(thread_id, thread_native_id, ensure_binary(thread_name))
 
     def push_task_id(task_id: int) -> None:
@@ -148,8 +140,8 @@ IF UNAME_SYSNAME == "Linux" and UNAME_MACHINE == "x86_64":
             ddup_push_exceptioninfo(ensure_binary(exc_name), count)
 
     def push_class_name(class_name: str) -> None:
-        if class_name is not None:
-            ddup_push_class_name(ensure_binary(class_name))
+        class_name = class_name if class_name is not None else ""
+        ddup_push_class_name(ensure_binary(class_name))
 
     def push_span(span: typing.Optional[Span], endpoint_collection_enabled: bool) -> None:
         if span:
