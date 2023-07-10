@@ -12,7 +12,6 @@ from ddtrace.ext.git import extract_commit_sha
 from ddtrace.ext.git import extract_latest_commits
 from ddtrace.ext.git import extract_remote_url
 from ddtrace.ext.git import get_rev_list_excluding_commits
-from ddtrace.ext.git import set_safe_directory
 from ddtrace.internal.agent import get_trace_url
 from ddtrace.internal.compat import JSONDecodeError
 from ddtrace.internal.logger import get_logger
@@ -76,7 +75,6 @@ class CIVisibilityGitClient(object):
     @classmethod
     def _run_protocol(cls, serializer, requests_mode, base_url, _tags={}, _response=None, cwd=None):
         # type: (CIVisibilityGitClientSerializerV1, int, str, Dict[str, str], Optional[Response], Optional[str]) -> None
-        set_safe_directory()
         repo_url = cls._get_repository_url(tags=_tags, cwd=cwd)
         if not repo_url:
             return

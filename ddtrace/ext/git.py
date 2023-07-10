@@ -180,6 +180,7 @@ def extract_git_metadata(cwd=None, repo_url=None):
     """Extract git commit metadata."""
     tags = {}  # type: Dict[str, Optional[str]]
 
+    set_safe_directory()
     try:
         if repo_url:
             tags[REPOSITORY_URL] = repo_url
