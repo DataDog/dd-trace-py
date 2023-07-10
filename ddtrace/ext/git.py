@@ -91,8 +91,11 @@ def _git_subprocess_cmd(cmd, cwd=None, std_in=None):
     raise ValueError(compat.ensure_text(stderr).strip())
 
 
-def set_safe_directory(cwd=None):
-    _git_subprocess_cmd("config --global --add safe.directory *", cwd=cwd)
+def set_safe_directory():
+    try:
+        _git_subprocess_cmd("config --global --add safe.directory *")
+    except ValueError:
+        log.error("Error setting safe directory: %s", exc_info=True)
 
 
 def extract_user_info(cwd=None):
@@ -177,7 +180,6 @@ def extract_git_metadata(cwd=None, repo_url=None):
     """Extract git commit metadata."""
     tags = {}  # type: Dict[str, Optional[str]]
 
-    set_safe_directory(cwd)
     try:
         if repo_url:
             tags[REPOSITORY_URL] = repo_url

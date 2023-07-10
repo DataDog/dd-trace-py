@@ -76,7 +76,7 @@ class CIVisibilityGitClient(object):
     @classmethod
     def _run_protocol(cls, serializer, requests_mode, base_url, _tags={}, _response=None, cwd=None):
         # type: (CIVisibilityGitClientSerializerV1, int, str, Dict[str, str], Optional[Response], Optional[str]) -> None
-        set_safe_directory(cwd)
+        set_safe_directory()
         repo_url = cls._get_repository_url(tags=_tags, cwd=cwd)
         if not repo_url:
             return
