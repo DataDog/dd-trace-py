@@ -397,3 +397,4 @@ class AppSecSpanProcessor(SpanProcessor):
         finally:
             if _asm_request_context.in_context():
                 _asm_request_context.finalize(span)
+                _asm_request_context._on_context_ended()

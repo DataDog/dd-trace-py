@@ -82,8 +82,16 @@ def _reset_asm_context():
     return env
 
 
+def _reset_asm_resources():
+    resources = _DataHandler()
+    core.root.set_item("resources", resources)
+    return resources
+
+
 def _get_asm_context():
     resources = core.root.get_item("resources")
+    if not resources:
+        resources = _reset_asm_resources()
     env = resources.asm_env
     if env is None:
         env = _reset_asm_context()
@@ -486,8 +494,7 @@ def _on_context_started(
 ):
     if context is None:
         context = core._CURRENT_CONTEXT.get()
-    resources = _DataHandler()
-    context.root().set_item("resources", resources)
+    resources = _reset_asm_resources()
     asm_request_context_set(
         remote_ip or context.get_item("remote_addr"),
         headers or context.get_item("headers"),
@@ -511,9 +518,11 @@ def _on_context_started(
 
 
 def _on_context_ended():
-    core.root.get_item("resources").finalise()
-    _reset_asm_context()
-    core.root._data = {}
+    resources = core.root.get_item("resources")
+    if resources:
+        resources.finalise()
+        _reset_asm_context()
+    core.root.set_item("resources", None)
 
 
 core.on("context.started.wsgi.__call__", _on_context_started)
