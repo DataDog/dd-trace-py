@@ -11,6 +11,7 @@ from ddtrace.debugging._encoding import add_tags
 from ddtrace.debugging._metrics import metrics
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._signal import utils
+from ddtrace.internal import runtime
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.logger import get_logger
 
@@ -37,6 +38,7 @@ class ProbeStatusLogger(object):
                 "diagnostics": {
                     "probeId": probe.probe_id,
                     "probeVersion": probe.version,
+                    "runtimeId": runtime.get_runtime_id(),
                     "status": status,
                 }
             },
