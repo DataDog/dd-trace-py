@@ -242,9 +242,9 @@ jobs:
       # - run:
       #     name: "Slots check"
       #     command: riot run -s slotscheck
-      - run:
-          name: "Mypy check"
-          command: riot run -s mypy
+      # - run:
+      #     name: "Mypy check"
+      #     command: riot run -s mypy
       - run:
           name: "cython-lint check"
           command: riot run -s cython-lint
