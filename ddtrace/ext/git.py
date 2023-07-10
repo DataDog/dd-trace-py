@@ -92,7 +92,7 @@ def _git_subprocess_cmd(cmd, cwd=None, std_in=None):
 
 
 def set_safe_directory(cwd=None):
-    pass
+    _git_subprocess_cmd("config --global --add safe.directory %s" % cwd, cwd=cwd)
 
 
 def extract_user_info(cwd=None):
@@ -114,7 +114,6 @@ def extract_git_version(cwd=None):
 
 
 def extract_remote_url(cwd=None):
-    set_safe_directory(cwd)
     remote_url = _git_subprocess_cmd("config --get remote.origin.url", cwd=cwd)
     return remote_url
 
@@ -140,7 +139,6 @@ def extract_repository_url(cwd=None):
     # type: (Optional[str]) -> str
     """Extract the repository url from the git repository in the current directory or one specified by ``cwd``."""
     # Note: `git show ls-remote --get-url` is supported since git 2.6.7 onwards
-    set_safe_directory(cwd)
     repository_url = _git_subprocess_cmd("ls-remote --get-url", cwd=cwd)
     return repository_url
 
@@ -149,7 +147,6 @@ def extract_commit_message(cwd=None):
     # type: (Optional[str]) -> str
     """Extract git commit message from the git repository in the current directory or one specified by ``cwd``."""
     # Note: `git show -s --format... --date...` is supported since git 2.1.4 onwards
-    set_safe_directory(cwd)
     commit_message = _git_subprocess_cmd("show -s --format=%s", cwd=cwd)
     return commit_message
 
@@ -157,7 +154,6 @@ def extract_commit_message(cwd=None):
 def extract_workspace_path(cwd=None):
     # type: (Optional[str]) -> str
     """Extract the root directory path from the git repository in the current directory or one specified by ``cwd``."""
-    set_safe_directory(cwd)
     workspace_path = _git_subprocess_cmd("rev-parse --show-toplevel", cwd=cwd)
     return workspace_path
 
@@ -165,7 +161,6 @@ def extract_workspace_path(cwd=None):
 def extract_branch(cwd=None):
     # type: (Optional[str]) -> str
     """Extract git branch from the git repository in the current directory or one specified by ``cwd``."""
-    set_safe_directory(cwd)
     branch = _git_subprocess_cmd("rev-parse --abbrev-ref HEAD", cwd=cwd)
     return branch
 
@@ -173,7 +168,6 @@ def extract_branch(cwd=None):
 def extract_commit_sha(cwd=None):
     # type: (Optional[str]) -> str
     """Extract git commit SHA from the git repository in the current directory or one specified by ``cwd``."""
-    set_safe_directory(cwd)
     commit_sha = _git_subprocess_cmd("rev-parse HEAD", cwd=cwd)
     return commit_sha
 
@@ -182,6 +176,8 @@ def extract_git_metadata(cwd=None, repo_url=None):
     # type: (Optional[str], Optional[str]) -> Dict[str, Optional[str]]
     """Extract git commit metadata."""
     tags = {}  # type: Dict[str, Optional[str]]
+
+    set_safe_directory(cwd)
     try:
         if repo_url:
             tags[REPOSITORY_URL] = repo_url
