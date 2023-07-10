@@ -28,7 +28,6 @@ from ddtrace.contrib.pytest.constants import XFAIL_REASON
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
 from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
-from ddtrace.internal.ci_visibility import TEST_SKIPPING_LEVEL
 from ddtrace.internal.ci_visibility.constants import EVENT_TYPE as _EVENT_TYPE
 from ddtrace.internal.ci_visibility.constants import MODULE_ID as _MODULE_ID
 from ddtrace.internal.ci_visibility.constants import MODULE_TYPE as _MODULE_TYPE
@@ -42,12 +41,15 @@ from ddtrace.internal.ci_visibility.coverage import _coverage_end
 from ddtrace.internal.ci_visibility.coverage import _coverage_start
 from ddtrace.internal.ci_visibility.coverage import _initialize
 from ddtrace.internal.ci_visibility.coverage import enabled as coverage_enabled
+from ddtrace.internal.ci_visibility.recorder import _get_test_skipping_level
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 
 
 SKIPPED_BY_ITR = "Skipped by Datadog Intelligent Test Runner"
 PATCH_ALL_HELP_MSG = "Call ddtrace.patch_all before running tests."
+TEST_SKIPPING_LEVEL = _get_test_skipping_level()
+
 log = get_logger(__name__)
 
 
@@ -344,6 +346,11 @@ def pytest_runtest_protocol(item, nextitem):
         for marker in item.iter_markers(name="skip")
         if "reason" in marker.kwargs and marker.kwargs["reason"] == SKIPPED_BY_ITR
     ]
+
+    test_module_span = _extract_span(pytest_package_item)
+    if pytest_package_item is not None and test_module_span is None:
+        if test_module_span is None:
+            test_module_span = _start_test_module_span(pytest_package_item)
 
     test_suite_span = _extract_span(pytest_module_item)
     if pytest_module_item is not None and test_suite_span is None:

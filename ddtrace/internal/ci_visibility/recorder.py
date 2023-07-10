@@ -1,15 +1,10 @@
+from collections import defaultdict
 import json
 import os
-from typing import Any
-from typing import DefaultDict
-from typing import Dict
-from typing import List
-from typing import Optional
-from typing import Tuple
+from typing import TYPE_CHECKING
 from uuid import uuid4
 
 import ddtrace
-from ddtrace import Tracer
 from ddtrace import config as ddconfig
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import ci
@@ -25,7 +20,6 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.writer.writer import Response
-from ddtrace.settings import IntegrationConfig
 
 from .. import agent
 from .constants import AGENTLESS_DEFAULT_SITE
@@ -42,9 +36,25 @@ from .git_client import CIVisibilityGitClient
 from .writer import CIVisibilityWriter
 
 
+if TYPE_CHECKING:  # pragma: no cover
+    from typing import Any
+    from typing import DefaultDict
+    from typing import Dict
+    from typing import List
+    from typing import Optional
+    from typing import Tuple
+
+    from ddtrace import Tracer
+    from ddtrace.settings import IntegrationConfig
+
 log = get_logger(__name__)
 
-TEST_SKIPPING_LEVEL = SUITE if asbool(os.getenv("_DD_CIVISIBILITY_ITR_SUITE_MODE", default=False)) else TEST
+
+def _get_test_skipping_level():
+    return SUITE if asbool(os.getenv("_DD_CIVISIBILITY_ITR_SUITE_MODE", default=False)) else TEST
+
+
+TEST_SKIPPING_LEVEL = _get_test_skipping_level()
 
 
 def _extract_repository_name_from_url(repository_url):
@@ -291,7 +301,7 @@ class CIVisibility(Service):
                     self._tests_to_skip[path].append(item["attributes"]["name"])
 
     def _should_skip_path(self, path, name):
-        if TEST_SKIPPING_LEVEL == SUITE:
+        if _get_test_skipping_level() == SUITE:
             return os.path.relpath(path) in self._test_suites_to_skip
         else:
             return name in self._tests_to_skip[os.path.relpath(path)]

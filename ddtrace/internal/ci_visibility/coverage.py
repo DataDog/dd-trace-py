@@ -1,11 +1,7 @@
 from itertools import groupby
 import json
 import os
-from typing import Dict
-from typing import Iterable
-from typing import List
-from typing import Optional
-from typing import Tuple
+from typing import TYPE_CHECKING
 
 from ddtrace import config
 from ddtrace.internal import compat
@@ -13,6 +9,13 @@ from ddtrace.internal.logger import get_logger
 
 from .constants import COVERAGE_TAG_NAME
 
+
+if TYPE_CHECKING:  # pragma: no cover
+    from typing import Dict
+    from typing import Iterable
+    from typing import List
+    from typing import Optional
+    from typing import Tuple
 
 log = get_logger(__name__)
 
