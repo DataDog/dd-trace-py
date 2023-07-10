@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+from unittest import mock
 
 import pytest
 
@@ -30,7 +31,10 @@ class ExceptionDebuggingTestCase(TracerTestCase):
         ddtrace.tracer = self.backup_tracer
         super(ExceptionDebuggingTestCase, self).tearDown()
 
-    def test_debugger_exception_debugging(self):
+    @mock.patch("ddtrace.internal.packages._main_package")
+    def test_debugger_exception_debugging(self, mock_main_package):
+        mock_main_package.return_value = "ddtrace"
+
         def a(v, d=None):
             with self.trace("a"):
                 if not v:
@@ -86,7 +90,10 @@ class ExceptionDebuggingTestCase(TracerTestCase):
             exc_ids = set(span.get_tag("_dd.debug.error.exception_id") for span in self.spans)
             assert len(exc_ids) == 1
 
-    def test_debugger_exception_chaining(self):
+    @mock.patch("ddtrace.internal.packages._main_package")
+    def test_debugger_exception_chaining(self, mock_main_package):
+        mock_main_package.return_value = "ddtrace"
+
         def a(v, d=None):
             with self.trace("a"):
                 if not v:
@@ -121,7 +128,6 @@ class ExceptionDebuggingTestCase(TracerTestCase):
             assert len(d.test_queue) == 3
 
             snapshots = {str(s.uuid): s for s in d.test_queue}
-            print(snapshots.keys())
 
             if PY < (3, 0):
                 stacks = [["c", "b_chain"], ["b_chain"], ["a"]]
@@ -136,8 +142,6 @@ class ExceptionDebuggingTestCase(TracerTestCase):
                 exc_id = span.get_tag("_dd.debug.error.exception_id")
 
                 info = {k: v for k, v in enumerate(stacks[n], start=1)}
-
-                print(span._meta["error.stack"], info)
 
                 for i in range(1, len(info) + 1):
                     fn = info[i]

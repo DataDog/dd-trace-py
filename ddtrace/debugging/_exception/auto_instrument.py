@@ -13,6 +13,7 @@ from ddtrace.debugging._probe.model import LogLineProbe
 from ddtrace.debugging._signal.collector import SignalCollector
 from ddtrace.debugging._signal.snapshot import DEFAULT_CAPTURE_LIMITS
 from ddtrace.debugging._signal.snapshot import Snapshot
+from ddtrace.internal import packages
 from ddtrace.internal.processor import SpanProcessor
 from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLimiter
 from ddtrace.internal.rate_limiter import RateLimitExceeded
@@ -182,35 +183,35 @@ class SpanExceptionProcessor(SpanProcessor):
                 code = frame.f_code
                 seq_nr = next(seq)
 
-                # TODO: Check if it is user code; if not, skip. We still
-                #       generate a sequence number.
+                # Skip stdlib or third-party frames
+                filename = code.co_filename
+                if not (packages.is_stdlib(filename) or packages.is_third_party(filename)):
+                    try:
+                        snapshot_id = frame.f_locals["_dd_debug_snapshot_id"]
+                    except KeyError:
+                        # We don't have a snapshot for the frame so we create one
+                        snapshot = SpanExceptionSnapshot(
+                            probe=SpanExceptionProbe.build(exc_id, _tb),
+                            frame=frame,
+                            thread=current_thread(),
+                            trace_context=span,
+                            exc_id=exc_id,
+                        )
 
-                try:
-                    snapshot_id = frame.f_locals["_dd_debug_snapshot_id"]
-                except KeyError:
-                    # We don't have a snapshot for the frame so we create one
-                    snapshot = SpanExceptionSnapshot(
-                        probe=SpanExceptionProbe.build(exc_id, _tb),
-                        frame=frame,
-                        thread=current_thread(),
-                        trace_context=span,
-                        exc_id=exc_id,
-                    )
+                        # Capture
+                        snapshot.line()
 
-                    # Capture
-                    snapshot.line()
+                        # Collect
+                        self.collector.push(snapshot)
 
-                    # Collect
-                    self.collector.push(snapshot)
+                        # Memoize
+                        frame.f_locals["_dd_debug_snapshot_id"] = snapshot_id = snapshot.uuid
 
-                    # Memoize
-                    frame.f_locals["_dd_debug_snapshot_id"] = snapshot_id = snapshot.uuid
-
-                # Add correlation tags on the span
-                span.set_tag_str(FRAME_SNAPSHOT_ID_TAG % seq_nr, snapshot_id)
-                span.set_tag_str(FRAME_FUNCTION_TAG % seq_nr, code.co_name)
-                span.set_tag_str(FRAME_FILE_TAG % seq_nr, code.co_filename)
-                span.set_tag_str(FRAME_LINE_TAG % seq_nr, str(_tb.tb_lineno))
+                    # Add correlation tags on the span
+                    span.set_tag_str(FRAME_SNAPSHOT_ID_TAG % seq_nr, snapshot_id)
+                    span.set_tag_str(FRAME_FUNCTION_TAG % seq_nr, code.co_name)
+                    span.set_tag_str(FRAME_FILE_TAG % seq_nr, code.co_filename)
+                    span.set_tag_str(FRAME_LINE_TAG % seq_nr, str(_tb.tb_lineno))
 
                 # Move up the stack
                 _tb = _tb.tb_next

@@ -1,8 +1,10 @@
 import logging
 import os
 import sys
+import sysconfig
 import typing as t
 
+from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.cache import callonce
 
 
@@ -134,6 +136,34 @@ def filename_to_package(filename):
     return mapping.get(filename)
 
 
+@callonce
+def _main_package():
+    # type: (...) -> t.Optional[str]
+    from ddtrace.internal.gitmetadata import GitMetadataConfig
+
+    return GitMetadataConfig().main_package or None
+
+
+@cached()
 def is_third_party(filename):
+    # type: (str) -> t.Optional[bool]
+    # If we don't have the name of the main package then we are likely going to
+    # report all packages as third party. We make this function return a
+    # tri-state boolean, with None meaning "unknown".
+    main_package = _main_package()
+    if main_package is None:
+        return None
+
+    package = filename_to_package(filename)
+
+    return package is not None and package.name != main_package
+
+
+stdlib_path = sysconfig.get_path("stdlib")
+platstdlib_path = sysconfig.get_path("platstdlib")
+
+
+@cached()
+def is_stdlib(filename):
     # type: (str) -> bool
-    return filename_to_package(filename) is not None
+    return filename.startswith(stdlib_path) or filename.startswith(platstdlib_path)
