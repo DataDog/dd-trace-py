@@ -42,6 +42,12 @@ PIPELINE_URL = "ci.pipeline.url"
 # Provider
 PROVIDER_NAME = "ci.provider.name"
 
+# CI Node Name
+NODE_NAME = "ci.node.name"
+
+# CI Node Labels
+NODE_LABELS = "ci.node.labels"
+
 # Workspace Path
 WORKSPACE_PATH = "ci.workspace_path"
 
@@ -249,6 +255,15 @@ def extract_bitbucket(env):
 def extract_buildkite(env):
     # type: (MutableMapping[str, str]) -> Dict[str, Optional[str]]
     """Extract CI tags from Buildkite environ."""
+    # Get alL keys which start with BUILDKITE_AGENT_META_DATA_x
+    node_label_list = []
+    BUILDKITE_AGENT_META_DATA_PREFIX = 'BUILDKITE_AGENT_META_DATA_'
+    for env_variable in env:
+        if env_variable.startswith(BUILDKITE_AGENT_META_DATA_PREFIX):
+            key = env_variable.replace(BUILDKITE_AGENT_META_DATA_PREFIX,'').lower()
+            value = env.get(env_variable)
+            node_label_list.append(f'{key}:{value}')
+    node_label_list.sort(reverse=True)
     return {
         git.BRANCH: env.get("BUILDKITE_BRANCH"),
         git.COMMIT_SHA: env.get("BUILDKITE_COMMIT"),
@@ -276,6 +291,8 @@ def extract_buildkite(env):
             ),
             separators=(",", ":"),
         ),
+        NODE_LABELS: json.dumps(node_label_list, separators=(",", ":")),
+        NODE_NAME: env.get("BUILDKITE_AGENT_ID")
     }
 
 
@@ -305,6 +322,32 @@ def extract_circle_ci(env):
             ),
             separators=(",", ":"),
         ),
+    }
+
+def extract_codefresh(env):
+    # type: (MutableMapping[str, str]) -> Dict[str, Optional[str]]
+    """Extract CI tags from Codefresh environ."""
+    return {
+        git.BRANCH: env.get("CF_BRANCH"),
+        PIPELINE_ID: env.get("CF_BUILD_ID"),
+        PIPELINE_NAME: env.get("CF_PIPELINE_NAME"),
+        PIPELINE_NUMBER: env.get("CIRCLE_BUILD_NUM"),
+        PIPELINE_URL: "https://g.codefresh.io/build/{0}".format(env.get("CF_BUILD_ID")),
+        JOB_NAME: env.get("CF_STEP_NAME"),
+        PROVIDER_NAME: "codefresh",
+        # OrderedDict is necessary for comparing against a fixture in testing
+        _CI_ENV_VARS: json.dumps(
+            OrderedDict(
+                [
+                    ("CF_BUILD_ID", env.get("CF_BUILD_ID"))
+                ]
+            ),
+            separators=(",", ":"),
+        ),
+
+
+
+
     }
 
 
@@ -390,6 +433,8 @@ def extract_gitlab(env):
             ),
             separators=(",", ":"),
         ),
+        NODE_LABELS: env.get("CI_RUNNER_TAGS"),
+        NODE_NAME: env.get("CI_RUNNER_ID"),
     }
 
 
@@ -402,7 +447,9 @@ def extract_jenkins(env):
         name = re.sub("/{0}".format(git.normalize_ref(branch)), "", name)
     if name:
         name = "/".join((v for v in name.split("/") if v and "=" not in v))
-
+    node_labels_list = []
+    if env.get("NODE_LABELS"):
+        node_labels_list = env.get('NODE_LABELS').split()
     return {
         git.BRANCH: env.get("GIT_BRANCH"),
         git.COMMIT_SHA: env.get("GIT_COMMIT"),
@@ -422,6 +469,8 @@ def extract_jenkins(env):
             ),
             separators=(",", ":"),
         ),
+        NODE_LABELS: json.dumps(node_labels_list, separators=(",", ":")),
+        NODE_NAME: env.get('NODE_NAME'),
     }
 
 
@@ -512,6 +561,7 @@ PROVIDERS = (
     ("BITBUCKET_COMMIT", extract_bitbucket),
     ("BUILDKITE", extract_buildkite),
     ("CIRCLECI", extract_circle_ci),
+    ("CF_BUILD_ID", extract_codefresh),
     ("GITHUB_SHA", extract_github_actions),
     ("GITLAB_CI", extract_gitlab),
     ("JENKINS_URL", extract_jenkins),
