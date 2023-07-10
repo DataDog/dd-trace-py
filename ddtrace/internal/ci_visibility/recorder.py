@@ -297,7 +297,6 @@ class CIVisibility(Service):
                 if TEST_SKIPPING_LEVEL == SUITE:
                     self._test_suites_to_skip.append(path)
                 else:
-                    # self._tests_to_skip.setdefault(path, [])
                     self._tests_to_skip[path].append(item["attributes"]["name"])
 
     def _should_skip_path(self, path, name):
