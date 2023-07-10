@@ -407,7 +407,7 @@ venv = Venv(
         ),
         Venv(
             name="internal",
-            command="pytest {cmdargs} tests/internal/",
+            command="pytest --no-ddtrace {cmdargs} tests/internal/",
             pkgs={
                 "httpretty": "==0.9.7",
                 "gevent": latest,
@@ -521,7 +521,7 @@ venv = Venv(
         ),
         Venv(
             name="debugger",
-            command="pytest {cmdargs} tests/debugging/",
+            command="pytest --no-ddtrace {cmdargs} tests/debugging/",
             pkgs={
                 "msgpack": latest,
                 "httpretty": "==0.9.7",
