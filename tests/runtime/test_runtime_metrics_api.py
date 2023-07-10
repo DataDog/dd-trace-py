@@ -50,8 +50,8 @@ def test_manually_start_runtime_metrics_telemetry(test_agent_session, run_python
         Runtime metrics worker starts and we report that it is enabled via telemetry
     """
     code = """
-from ddtrace.internal.telemetry import telemetry_lifecycle_writer
-telemetry_lifecycle_writer.start()
+from ddtrace.internal.telemetry import telemetry_writer
+telemetry_writer.start()
 
 from ddtrace.runtime import RuntimeMetrics
 
@@ -59,8 +59,8 @@ assert not RuntimeMetrics._enabled
 RuntimeMetrics.enable()
 assert RuntimeMetrics._enabled
 
-telemetry_lifecycle_writer.stop()
-telemetry_lifecycle_writer.join(3)
+telemetry_writer.stop()
+telemetry_writer.join(3)
     """
 
     def find_telemetry_event(events, request_type):
@@ -104,8 +104,8 @@ def test_manually_stop_runtime_metrics_telemetry(test_agent_session, ddtrace_run
         Runtime metrics worker stops and we report that it is enabled via telemetry
     """
     code = """
-from ddtrace.internal.telemetry import telemetry_lifecycle_writer
-telemetry_lifecycle_writer.start()
+from ddtrace.internal.telemetry import telemetry_writer
+telemetry_writer.start()
 
 from ddtrace.runtime import RuntimeMetrics
 
@@ -113,8 +113,8 @@ assert RuntimeMetrics._enabled
 RuntimeMetrics.disable()
 assert not RuntimeMetrics._enabled
 
-telemetry_lifecycle_writer.stop()
-telemetry_lifecycle_writer.join(3)
+telemetry_writer.stop()
+telemetry_writer.join(3)
     """
 
     def find_telemetry_event(events, request_type):

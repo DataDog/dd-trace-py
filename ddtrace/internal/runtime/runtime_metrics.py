@@ -13,7 +13,7 @@ from ddtrace.internal import forksafe
 from .. import periodic
 from ..dogstatsd import get_dogstatsd_client
 from ..logger import get_logger
-from ..telemetry import telemetry_lifecycle_writer
+from ..telemetry import telemetry_writer
 from ..telemetry.constants import TELEMETRY_RUNTIMEMETRICS_ENABLED
 from .constants import DEFAULT_RUNTIME_METRICS
 from .metric_collectors import GCRuntimeMetricCollector
@@ -108,7 +108,7 @@ class RuntimeWorker(periodic.PeriodicService):
             cls.enabled = False
 
         # Report status to telemetry
-        telemetry_lifecycle_writer.add_configuration(TELEMETRY_RUNTIMEMETRICS_ENABLED, False, origin="unknown")
+        telemetry_writer.add_configuration(TELEMETRY_RUNTIMEMETRICS_ENABLED, False, origin="unknown")
 
     @classmethod
     def _restart(cls):
@@ -135,7 +135,7 @@ class RuntimeWorker(periodic.PeriodicService):
             cls.enabled = True
 
         # Report status to telemetry
-        telemetry_lifecycle_writer.add_configuration(TELEMETRY_RUNTIMEMETRICS_ENABLED, True, origin="unknown")
+        telemetry_writer.add_configuration(TELEMETRY_RUNTIMEMETRICS_ENABLED, True, origin="unknown")
 
     def flush(self):
         # type: () -> None
