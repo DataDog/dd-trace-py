@@ -441,8 +441,9 @@ def extract_jenkins(env):
     if name:
         name = "/".join((v for v in name.split("/") if v and "=" not in v))
     node_labels_list: list[str] = []
-    if env.get("NODE_LABELS"):
-        node_labels_list = env.get("NODE_LABELS").split()
+    node_labels_env: Optional[str] = env.get("NODE_LABELS")
+    if node_labels_env:
+        node_labels_list = node_labels_env.split()
     return {
         git.BRANCH: env.get("GIT_BRANCH"),
         git.COMMIT_SHA: env.get("GIT_COMMIT"),
