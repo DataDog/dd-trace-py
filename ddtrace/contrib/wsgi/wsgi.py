@@ -279,7 +279,7 @@ def get_request_headers(environ):
     """
     request_headers = {}  # type: Mapping[str, str]
     for key in environ.keys():
-        if key.startswith("HTTP"):
+        if key.startswith("HTTP_"):
             name = from_wsgi_header(key)
             if name:
                 request_headers[name] = environ[key]
