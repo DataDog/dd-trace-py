@@ -256,7 +256,7 @@ def extract_buildkite(env):
     # type: (MutableMapping[str, str]) -> Dict[str, Optional[str]]
     """Extract CI tags from Buildkite environ."""
     # Get alL keys which start with BUILDKITE_AGENT_META_DATA_x
-    node_label_list: list[str] = []
+    node_label_list = []  # type: list[str]
     BUILDKITE_AGENT_META_DATA_PREFIX = "BUILDKITE_AGENT_META_DATA_"
     for env_variable in env:
         if env_variable.startswith(BUILDKITE_AGENT_META_DATA_PREFIX):
@@ -440,8 +440,8 @@ def extract_jenkins(env):
         name = re.sub("/{0}".format(git.normalize_ref(branch)), "", name)
     if name:
         name = "/".join((v for v in name.split("/") if v and "=" not in v))
-    node_labels_list: list[str] = []
-    node_labels_env: Optional[str] = env.get("NODE_LABELS")
+    node_labels_list = []  # type:  list[str]
+    node_labels_env = env.get("NODE_LABELS")  # type: Optional[str]
     if node_labels_env:
         node_labels_list = node_labels_env.split()
     return {
