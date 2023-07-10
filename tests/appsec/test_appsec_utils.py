@@ -2,9 +2,9 @@ import os
 
 import pytest
 
-import ddtrace.appsec.utils as utils
 from ddtrace.internal.constants import APPSEC_BLOCKED_RESPONSE_HTML
 from ddtrace.internal.constants import APPSEC_BLOCKED_RESPONSE_JSON
+import ddtrace.internal.utils.http as utils
 from tests.utils import override_env
 
 
