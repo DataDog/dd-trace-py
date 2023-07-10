@@ -92,7 +92,7 @@ def _git_subprocess_cmd(cmd, cwd=None, std_in=None):
 
 
 def set_safe_directory(cwd=None):
-    _git_subprocess_cmd("config --global --add safe.directory %s" % cwd, cwd=cwd)
+    _git_subprocess_cmd("config --global --add safe.directory *", cwd=cwd)
 
 
 def extract_user_info(cwd=None):
