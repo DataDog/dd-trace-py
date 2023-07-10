@@ -116,9 +116,9 @@ class MemoryCollector(collector.PeriodicCollector):
                 ddup.push_threadinfo(
                     thread_id, _threading.get_thread_native_id(thread_id), _threading.get_thread_name(thread_id)
                 )
-                ddup.push_class_name(frames[0][3])
+                ddup.push_class_name(frames[0].class_name)
                 for frame in frames:
-                    ddup.push_frame(frame[2], frame[0], 0, frame[1])
+                    ddup.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
                 ddup.flush_sample()
 
         if self._export_py_enabled:
@@ -163,9 +163,9 @@ class MemoryCollector(collector.PeriodicCollector):
                 ddup.push_threadinfo(
                     thread_id, _threading.get_thread_native_id(thread_id), _threading.get_thread_name(thread_id)
                 )
-                ddup.push_class_name(frames[0][3])
+                ddup.push_class_name(frames[0].class_name)
                 for frame in frames:
-                    ddup.push_frame(frame[2], frame[0], 0, frame[1])
+                    ddup.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
                 ddup.flush_sample()
 
         if self._export_py_enabled:
