@@ -75,18 +75,18 @@ class ASM_Environment:
 
 def _reset_asm_context():
     env = ASM_Environment()
-    core.root.get_item("resources").asm_env = env
+    core.root().get_item("resources").asm_env = env
     return env
 
 
 def _reset_asm_resources():
     resources = _DataHandler()
-    core.root.set_item("resources", resources)
+    core.root().set_item("resources", resources)
     return resources
 
 
 def _get_asm_context():
-    resources = core.root.get_item("resources")
+    resources = core.root().get_item("resources")
     if not resources:
         resources = _reset_asm_resources()
     env = resources.asm_env
@@ -96,7 +96,7 @@ def _get_asm_context():
 
 
 def in_context():  # type: () -> bool
-    resources = core.root.get_item("resources")
+    resources = core.root().get_item("resources")
     if not resources:
         return False
     env = resources.asm_env
@@ -520,11 +520,11 @@ def _on_context_started(
 
 
 def _on_context_ended():
-    resources = core.root.get_item("resources")
+    resources = core.root().get_item("resources")
     if resources:
         resources.finalise()
         _reset_asm_context()
-    core.root.set_item("resources", None)
+    core.root().set_item("resources", None)
 
 
 core.on("context.started.wsgi.__call__", _on_context_started)

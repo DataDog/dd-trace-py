@@ -88,7 +88,7 @@ def dispatch(event_id, args):
     return _EVENT_HUB.get().dispatch(event_id, args)  # type: ignore
 
 
-class ExecutionContext:
+class ExecutionContext(object):
     __slots__ = ["identifier", "_data", "_parents", "_span", "_token"]
 
     def __init__(self, identifier, parent=None, span=None, **kwargs):
@@ -179,9 +179,13 @@ class ExecutionContext:
         return current
 
 
+def root():
+    return _CURRENT_CONTEXT.get().root()
+
+
 def __getattr__(name):
     if name == "root":
-        return _CURRENT_CONTEXT.get().root()
+        return root()
     raise AttributeError
 
 
