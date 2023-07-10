@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 from ast import literal_eval
+from os import getcwd
 
 import pytest
 
 from ddtrace import Tracer
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.coverage import Coverage
-from ddtrace.internal.ci_visibility.coverage import cover
+from ddtrace.internal.ci_visibility.coverage import _coverage_end
+from ddtrace.internal.ci_visibility.coverage import _coverage_start
+from ddtrace.internal.ci_visibility.coverage import _initialize
 from ddtrace.internal.ci_visibility.coverage import segments
 
 
@@ -29,8 +32,10 @@ def test_cover():
     tracer = Tracer()
     span = tracer.start_span("cover_span")
 
-    with cover(span):
-        pytest.main(["tests/utils.py"])
+    _initialize(getcwd())
+    _coverage_start()
+    pytest.main(["tests/utils.py"])
+    _coverage_end(span)
 
     res = literal_eval(span.get_tag(COVERAGE_TAG_NAME))
 
