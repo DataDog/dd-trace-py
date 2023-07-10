@@ -395,4 +395,5 @@ class AppSecSpanProcessor(SpanProcessor):
 
                 self._ddwaf._at_request_end()
         finally:
-            _asm_request_context.finalize(span)
+            if _asm_request_context.in_context():
+                _asm_request_context.finalize(span)
