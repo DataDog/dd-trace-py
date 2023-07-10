@@ -16,6 +16,7 @@ import json
 import re
 from typing import Dict
 
+from _pytest.nodes import get_fslocation_from_item
 import pytest
 
 import ddtrace
@@ -34,11 +35,15 @@ from ddtrace.internal.ci_visibility.constants import SESSION_ID as _SESSION_ID
 from ddtrace.internal.ci_visibility.constants import SESSION_TYPE as _SESSION_TYPE
 from ddtrace.internal.ci_visibility.constants import SUITE_ID as _SUITE_ID
 from ddtrace.internal.ci_visibility.constants import SUITE_TYPE as _SUITE_TYPE
+from ddtrace.internal.ci_visibility.coverage import _coverage_end
+from ddtrace.internal.ci_visibility.coverage import _coverage_start
+from ddtrace.internal.ci_visibility.coverage import _initialize
 from ddtrace.internal.ci_visibility.coverage import enabled as coverage_enabled
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 
 
+SKIPPED_BY_ITR = "Skipped by Datadog Intelligent Test Runner"
 PATCH_ALL_HELP_MSG = "Call ddtrace.patch_all before running tests."
 log = get_logger(__name__)
 
@@ -130,11 +135,13 @@ def _get_module_path(item):
 
 
 def _get_module_name(item):
-    """Extract module name from a `pytest.Item` instance."""
-    module_path = _get_module_path(item)
-    if module_path is None:
-        return None
-    return module_path.rpartition("/")[-1]
+    """Extract module name (fully qualified) from a `pytest.Item` instance."""
+    return item.module.__name__
+
+
+def _get_suite_name(item):
+    """Extract suite name from a `pytest.Item` instance."""
+    return item.nodeid.rpartition("/")[-1]
 
 
 def _start_test_module_span(item):
@@ -195,7 +202,7 @@ def _start_test_suite_span(item):
         test_suite_span.set_tag_str(_MODULE_ID, str(test_module_span.span_id))
         test_suite_span.set_tag_str(test.MODULE, test_module_span.get_tag(test.MODULE))
         test_suite_span.set_tag_str(test.MODULE_PATH, test_module_span.get_tag(test.MODULE_PATH))
-    test_suite_span.set_tag_str(test.SUITE, item.name)
+    test_suite_span.set_tag_str(test.SUITE, _get_suite_name(item))
     _store_span(item, test_suite_span)
     return test_suite_span
 
@@ -304,111 +311,123 @@ def _get_test_class_hierarchy(item):
     return ".".join(test_class_hierarchy)
 
 
+def pytest_collection_modifyitems(session, config, items):
+    if _CIVisibility.test_skipping_enabled():
+        skip = pytest.mark.skip(reason=SKIPPED_BY_ITR)
+        for item in items:
+            if _CIVisibility._instance._should_skip_path(str(get_fslocation_from_item(item)[0])):
+                item.add_marker(skip)
+
+
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)
 def pytest_runtest_protocol(item, nextitem):
     if not _CIVisibility.enabled:
         yield
         return
-    test_session_span = _extract_span(item.session)
 
-    pytest_module_item = _find_pytest_item(item, pytest.Module)
-    pytest_package_item = _find_pytest_item(pytest_module_item, pytest.Package)
+    is_skipped_by_itr = [
+        marker
+        for marker in item.iter_markers(name="skip")
+        if "reason" in marker.kwargs and marker.kwargs["reason"] == SKIPPED_BY_ITR
+    ]
 
-    test_module_span = _extract_span(pytest_package_item)
-    if pytest_package_item is not None and test_module_span is None:
-        if test_module_span is None:
-            test_module_span = _start_test_module_span(pytest_package_item)
-
-    test_suite_span = _extract_span(pytest_module_item)
-    if pytest_module_item is not None and test_suite_span is None:
-        test_suite_span = _start_test_suite_span(pytest_module_item)
-
-    if _CIVisibility.test_skipping_enabled() and _CIVisibility.should_skip(
-        item.name, test_suite_span.get_tag(test.SUITE), test_suite_span.get_tag(test.MODULE)
-    ):
-        # Replace test body by pytest skip call
-        item.obj = lambda **_: pytest.skip("Skipped by Datadog Intelligent Test Runner")
+    if is_skipped_by_itr:
         yield
-        return
+    else:
+        test_session_span = _extract_span(item.session)
 
-    with _CIVisibility._instance.tracer._start_span(
-        ddtrace.config.pytest.operation_name,
-        service=_CIVisibility._instance._service,
-        resource=item.nodeid,
-        span_type=SpanTypes.TEST,
-        activate=True,
-    ) as span:
-        span.set_tag_str(COMPONENT, "pytest")
-        span.set_tag_str(SPAN_KIND, KIND)
-        span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
-        span.set_tag_str(_EVENT_TYPE, SpanTypes.TEST)
-        span.set_tag_str(test.NAME, item.name)
-        span.set_tag_str(test.COMMAND, _get_pytest_command(item.config))
-        span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
+        pytest_module_item = _find_pytest_item(item, pytest.Module)
+        pytest_package_item = _find_pytest_item(pytest_module_item, pytest.Package)
 
-        if test_module_span is not None:
-            span.set_tag_str(_MODULE_ID, str(test_module_span.span_id))
-            span.set_tag_str(test.MODULE, test_module_span.get_tag(test.MODULE))
-            span.set_tag_str(test.MODULE_PATH, test_module_span.get_tag(test.MODULE_PATH))
+        test_module_span = _extract_span(pytest_package_item)
+        if pytest_package_item is not None and test_module_span is None:
+            if test_module_span is None:
+                test_module_span = _start_test_module_span(pytest_package_item)
 
-        if test_suite_span is not None:
-            span.set_tag_str(_SUITE_ID, str(test_suite_span.span_id))
-            test_class_hierarchy = _get_test_class_hierarchy(item)
-            if test_class_hierarchy:
-                span.set_tag_str(test.CLASS_HIERARCHY, test_class_hierarchy)
-            if hasattr(item, "dtest") and isinstance(item.dtest, DocTest):
-                span.set_tag_str(test.SUITE, "{}.py".format(item.dtest.globs["__name__"]))
-            else:
-                span.set_tag_str(test.SUITE, test_suite_span.get_tag(test.SUITE))
+        test_suite_span = _extract_span(pytest_module_item)
+        if pytest_module_item is not None and test_suite_span is None:
+            test_suite_span = _start_test_suite_span(pytest_module_item)
+            # Start coverage for the test suite if coverage is enabled
+            if coverage_enabled():
+                _initialize(str(item.config.rootdir))
+                _coverage_start()
 
-        span.set_tag_str(test.TYPE, SpanTypes.TEST)
-        span.set_tag_str(test.FRAMEWORK_VERSION, pytest.__version__)
+        with _CIVisibility._instance.tracer._start_span(
+            ddtrace.config.pytest.operation_name,
+            service=_CIVisibility._instance._service,
+            resource=item.nodeid,
+            span_type=SpanTypes.TEST,
+            activate=True,
+        ) as span:
+            span.set_tag_str(COMPONENT, "pytest")
+            span.set_tag_str(SPAN_KIND, KIND)
+            span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
+            span.set_tag_str(_EVENT_TYPE, SpanTypes.TEST)
+            span.set_tag_str(test.NAME, item.name)
+            span.set_tag_str(test.COMMAND, _get_pytest_command(item.config))
+            span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
 
-        if item.location and item.location[0]:
-            _CIVisibility.set_codeowners_of(item.location[0], span=span)
+            if test_module_span is not None:
+                span.set_tag_str(_MODULE_ID, str(test_module_span.span_id))
+                span.set_tag_str(test.MODULE, test_module_span.get_tag(test.MODULE))
+                span.set_tag_str(test.MODULE_PATH, test_module_span.get_tag(test.MODULE_PATH))
 
-        # We preemptively set FAIL as a status, because if pytest_runtest_makereport is not called
-        # (where the actual test status is set), it means there was a pytest error
-        span.set_tag_str(test.STATUS, test.Status.FAIL.value)
+            if test_suite_span is not None:
+                span.set_tag_str(_SUITE_ID, str(test_suite_span.span_id))
+                test_class_hierarchy = _get_test_class_hierarchy(item)
+                if test_class_hierarchy:
+                    span.set_tag_str(test.CLASS_HIERARCHY, test_class_hierarchy)
+                if hasattr(item, "dtest") and isinstance(item.dtest, DocTest):
+                    span.set_tag_str(test.SUITE, "{}.py".format(item.dtest.globs["__name__"]))
+                else:
+                    span.set_tag_str(test.SUITE, test_suite_span.get_tag(test.SUITE))
 
-        # Parameterized test cases will have a `callspec` attribute attached to the pytest Item object.
-        # Pytest docs: https://docs.pytest.org/en/6.2.x/reference.html#pytest.Function
-        if getattr(item, "callspec", None):
-            parameters = {"arguments": {}, "metadata": {}}  # type: Dict[str, Dict[str, str]]
-            for param_name, param_val in item.callspec.params.items():
-                try:
-                    parameters["arguments"][param_name] = encode_test_parameter(param_val)
-                except Exception:
-                    parameters["arguments"][param_name] = "Could not encode"
-                    log.warning("Failed to encode %r", param_name, exc_info=True)
-            span.set_tag_str(test.PARAMETERS, json.dumps(parameters))
+            span.set_tag_str(test.TYPE, SpanTypes.TEST)
+            span.set_tag_str(test.FRAMEWORK_VERSION, pytest.__version__)
 
-        markers = [marker.kwargs for marker in item.iter_markers(name="dd_tags")]
-        for tags in markers:
-            span.set_tags(tags)
-        _store_span(item, span)
+            if item.location and item.location[0]:
+                _CIVisibility.set_codeowners_of(item.location[0], span=span)
 
-        if coverage_enabled():
-            from ddtrace.internal.ci_visibility.coverage import cover
+            # We preemptively set FAIL as a status, because if pytest_runtest_makereport is not called
+            # (where the actual test status is set), it means there was a pytest error
+            span.set_tag_str(test.STATUS, test.Status.FAIL.value)
 
-            with cover(span, root=str(item.config.rootdir)):
-                yield
-        else:
+            # Parameterized test cases will have a `callspec` attribute attached to the pytest Item object.
+            # Pytest docs: https://docs.pytest.org/en/6.2.x/reference.html#pytest.Function
+            if getattr(item, "callspec", None):
+                parameters = {"arguments": {}, "metadata": {}}  # type: Dict[str, Dict[str, str]]
+                for param_name, param_val in item.callspec.params.items():
+                    try:
+                        parameters["arguments"][param_name] = encode_test_parameter(param_val)
+                    except Exception:
+                        parameters["arguments"][param_name] = "Could not encode"
+                        log.warning("Failed to encode %r", param_name, exc_info=True)
+                span.set_tag_str(test.PARAMETERS, json.dumps(parameters))
+
+            markers = [marker.kwargs for marker in item.iter_markers(name="dd_tags")]
+            for tags in markers:
+                span.set_tags(tags)
+            _store_span(item, span)
+
+            # Run the actual test
             yield
 
-    nextitem_pytest_module_item = _find_pytest_item(nextitem, pytest.Module)
-    if test_suite_span is not None and (
-        nextitem is None or nextitem_pytest_module_item != pytest_module_item and not test_suite_span.finished
-    ):
-        _mark_test_status(pytest_module_item, test_suite_span)
-        test_suite_span.finish()
+        nextitem_pytest_module_item = _find_pytest_item(nextitem, pytest.Module)
+        if test_suite_span is not None and (
+            nextitem is None or nextitem_pytest_module_item != pytest_module_item and not test_suite_span.finished
+        ):
+            _mark_test_status(pytest_module_item, test_suite_span)
+            # Finish coverage for the test suite if coverage is enabled
+            if coverage_enabled():
+                _coverage_end(test_suite_span)
+            test_suite_span.finish()
 
-    nextitem_pytest_package_item = _find_pytest_item(nextitem, pytest.Package)
-    if test_module_span is not None and (
-        nextitem is None or nextitem_pytest_package_item != pytest_package_item and not test_module_span.finished
-    ):
-        _mark_test_status(pytest_package_item, test_module_span)
-        test_module_span.finish()
+        nextitem_pytest_package_item = _find_pytest_item(nextitem, pytest.Package)
+        if test_module_span is not None and (
+            nextitem is None or nextitem_pytest_package_item != pytest_package_item and not test_module_span.finished
+        ):
+            _mark_test_status(pytest_package_item, test_module_span)
+            test_module_span.finish()
 
 
 @pytest.hookimpl(hookwrapper=True)
