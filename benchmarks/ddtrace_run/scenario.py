@@ -33,17 +33,17 @@ class DDtraceRun(bm.Scenario):
             code += """
 import httpretty
 from ddtrace import tracer
-from ddtrace.internal.telemetry import telemetry_lifecycle_writer
+from ddtrace.internal.telemetry import telemetry_writer
 
 httpretty.enable(allow_net_connect=False)
-httpretty.register_uri(httpretty.PUT, '%s/%s' % (tracer.agent_trace_url, 'v0.4/traces'))
-httpretty.register_uri(httpretty.POST, '%s/%s' % (tracer.agent_trace_url, telemetry_lifecycle_writer.ENDPOINT))
+httpretty.register_uri(httpretty.PUT, '%s/%s' % (tracer.agent_trace_url, 'v0.5/traces'))
+httpretty.register_uri(httpretty.POST, '%s/%s' % (tracer.agent_trace_url, telemetry_writer._client._endpoint))
 # profiler will collect snapshot during shutdown
 httpretty.register_uri(httpretty.POST, '%s/%s' % (tracer.agent_trace_url, 'profiling/v1/input'))
 """
 
         if self.telemetry:
-            code += "telemetry_lifecycle_writer.enable()\n"
+            code += "telemetry_writer.enable()\n"
 
         if self.tracing:
             code += "span = tracer.trace('test-x', service='bench-test'); span.finish()\n"
