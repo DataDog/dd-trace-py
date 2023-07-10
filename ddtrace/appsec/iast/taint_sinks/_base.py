@@ -80,23 +80,18 @@ class VulnerabilityBase(Operation):
         TODO: check deduplications if DD_IAST_DEDUPLICATION_ENABLED is true
         """
 
-        log.warning("JJJ 1")
-
         if cls.acquire_quota():
             if not tracer or not hasattr(tracer, "current_root_span"):
                 log.debug("Not tracer or tracer has no root span")
-                log.warning("JJJ 2")
                 return None
 
             span = tracer.current_root_span()
             if not span:
                 log.debug("No root span in the current execution. Skipping IAST taint sink.")
-                log.warning("JJJ 3")
                 return None
 
             frame_info = get_info_frame(CWD)
             if not frame_info:
-                log.warning("JJJ 4")
                 return None
 
             file_name, line_number = frame_info
@@ -115,10 +110,8 @@ class VulnerabilityBase(Operation):
 
             if not cls.is_not_reported(file_name, line_number):
                 # not not reported = reported
-                log.warning("JJJ 5")
                 return None
 
-            log.warning("JJJ 6")
             _set_metric_iast_executed_sink(cls.vulnerability_type)
 
             report = _context.get_item(IAST.CONTEXT_KEY, span=span)
@@ -130,7 +123,6 @@ class VulnerabilityBase(Operation):
                         location=Location(path=file_name, line=line_number, spanId=span.span_id),
                     )
                 )
-
             else:
                 report = IastSpanReporter(
                     vulnerabilities={
@@ -144,12 +136,10 @@ class VulnerabilityBase(Operation):
             if sources:
                 report.sources = {Source(origin=x.origin, name=x.name, value=x.value) for x in sources}
 
-            log.warning("JJJ 7")
             redacted_report = cls._redacted_report_cache.get(
                 hash(report), lambda x: cls._redact_report(cast(IastSpanReporter, report))
             )
             _context.set_item(IAST.CONTEXT_KEY, redacted_report, span=span)
-            log.warning("JJJ 8")
 
     @classmethod
     def _extract_sensitive_tokens(cls, report):
@@ -246,10 +236,12 @@ class VulnerabilityBase(Operation):
                     part_len = len(value)
                     part_start = idx
                     part_end = idx + part_len
+                    pattern_list = []
 
                     for positions in vulns_to_tokens[vuln_hash]["token_positions"]:
                         if part_end <= positions[0]:
                             # This part if before this token
+                            pattern_list.append(value[part_start:part_end])
                             continue
                         elif (part_start <= positions[0] < part_end) or (part_end > positions[1]):
                             # This part contains at least part of the token
@@ -257,9 +249,13 @@ class VulnerabilityBase(Operation):
                             part_scrub_end = positions[1] - idx
                             to_scrub = value[part_scrub_start:part_scrub_end]
                             scrubbed = _scrub(to_scrub, "source" in part)
-                            part["pattern"] = value[:part_scrub_start] + scrubbed + value[part_scrub_end:]
+                            pattern_list.append(value[:part_scrub_start] + scrubbed + value[part_scrub_end:])
                             part["redacted"] = True
-                            del part["value"]
+
+                    if "redacted" in part:
+                        part["pattern"] = "".join(pattern_list)
+                        del part["value"]
+
                     idx += part_len
 
         return report

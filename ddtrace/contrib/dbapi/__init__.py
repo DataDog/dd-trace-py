@@ -42,7 +42,6 @@ class TracedCursor(wrapt.ObjectProxy):
 
     def __init__(self, cursor, pin, cfg):
         super(TracedCursor, self).__init__(cursor)
-        log.warning("JJJ trace init 1")
         pin.onto(self)
         # Allow dbapi-based integrations to override default span name prefix
         span_name_prefix = (
@@ -84,7 +83,6 @@ class TracedCursor(wrapt.ObjectProxy):
         :param kwargs: The args that will be passed as kwargs to the wrapped method
         :return: The result of the wrapped method invocation
         """
-        log.warning("JJJ trace_method")
         pin = Pin.get_from(self)
         if not pin or not pin.enabled():
             return method(*args, **kwargs)
@@ -123,9 +121,6 @@ class TracedCursor(wrapt.ObjectProxy):
                 args, kwargs = dbm_propagator.inject(s, args, kwargs)
 
             try:
-                import inspect
-                log.warning("JJJ method is: %s", method)
-                log.warning("JJJ method signature: %s", inspect.signature(method))
                 return method(*args, **kwargs)
             finally:
                 # Try to fetch custom properties that were passed by the specific Database implementation
@@ -133,7 +128,6 @@ class TracedCursor(wrapt.ObjectProxy):
 
     def executemany(self, query, *args, **kwargs):
         """Wraps the cursor.executemany method"""
-        log.warning("JJJ executemany 1")
         self._self_last_execute_operation = query
         # Always return the result as-is
         # DEV: Some libraries return `None`, others `int`, and others the cursor objects
@@ -153,7 +147,6 @@ class TracedCursor(wrapt.ObjectProxy):
 
     def execute(self, query, *args, **kwargs):
         """Wraps the cursor.execute method"""
-        log.warning("JJJ execute 1")
         self._self_last_execute_operation = query
 
         # Always return the result as-is
@@ -172,14 +165,12 @@ class TracedCursor(wrapt.ObjectProxy):
 
     def callproc(self, proc, *args):
         """Wraps the cursor.callproc method"""
-        log.warning("JJJ callproc 1")
         self._self_last_execute_operation = proc
         return self._trace_method(self.__wrapped__.callproc, self._self_datadog_name, proc, {}, None, proc, *args)
 
     def _set_post_execute_tags(self, span):
         # rowcount is in the dbapi specification (https://peps.python.org/pep-0249/#rowcount)
         # but some database drivers (cassandra-driver specifically) don't implement it.
-        log.warning("JJJ post execute tags 1")
         row_count = getattr(self.__wrapped__, "rowcount", None)
         if row_count is None:
             return
@@ -211,7 +202,6 @@ class FetchTracedCursor(TracedCursor):
 
     def fetchone(self, *args, **kwargs):
         """Wraps the cursor.fetchone method"""
-        log.warning("JJJ post fetchone 1")
         span_name = "{}.{}".format(self._self_datadog_name, "fetchone")
         return self._trace_method(
             self.__wrapped__.fetchone, span_name, self._self_last_execute_operation, {}, None, *args, **kwargs
@@ -219,7 +209,6 @@ class FetchTracedCursor(TracedCursor):
 
     def fetchall(self, *args, **kwargs):
         """Wraps the cursor.fetchall method"""
-        log.warning("JJJ post fetchall 1")
         span_name = "{}.{}".format(self._self_datadog_name, "fetchall")
         return self._trace_method(
             self.__wrapped__.fetchall, span_name, self._self_last_execute_operation, {}, None, *args, **kwargs
@@ -227,7 +216,6 @@ class FetchTracedCursor(TracedCursor):
 
     def fetchmany(self, *args, **kwargs):
         """Wraps the cursor.fetchmany method"""
-        log.warning("JJJ post fetchmany 1")
         span_name = "{}.{}".format(self._self_datadog_name, "fetchmany")
         # We want to trace the information about how many rows were requested. Note that this number may be larger
         # the number of rows actually returned if less then requested are available from the query.
