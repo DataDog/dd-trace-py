@@ -95,7 +95,7 @@ def set_safe_directory():
     try:
         _git_subprocess_cmd("config --global --add safe.directory *")
     except ValueError:
-        log.error("Error setting safe directory: %s", exc_info=True)
+        log.error("Error setting safe directory", exc_info=True)
 
 
 def extract_user_info(cwd=None):
