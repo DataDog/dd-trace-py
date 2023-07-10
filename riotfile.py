@@ -407,7 +407,7 @@ venv = Venv(
         ),
         Venv(
             name="internal",
-            command="pytest --no-ddtrace {cmdargs} tests/internal/",
+            command="pytest {cmdargs} tests/internal/",
             pkgs={
                 "httpretty": "==0.9.7",
                 "gevent": latest,

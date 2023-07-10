@@ -94,6 +94,8 @@ def _git_subprocess_cmd(cmd, cwd=None, std_in=None):
 def set_safe_directory():
     try:
         _git_subprocess_cmd("config --global --add safe.directory *")
+    except GitNotFoundError:
+        log.error("Git executable not found, cannot extract git metadata.")
     except ValueError:
         log.error("Error setting safe directory", exc_info=True)
 
