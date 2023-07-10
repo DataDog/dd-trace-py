@@ -13,11 +13,6 @@ from .writer import TelemetryWriter
 
 telemetry_writer = TelemetryWriter()
 
-# Required to fix failing benchmarks
-# TODO: Remove these the telemetry writers below
-telemetry_metrics_writer = TelemetryWriter()
-telemetry_lifecycle_writer = TelemetryWriter()
-
 __all__ = ["telemetry_writer"]
 
 
