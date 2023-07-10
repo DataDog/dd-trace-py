@@ -9,11 +9,8 @@ import xmltodict
 from ddtrace import config
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
-from ddtrace.appsec.iast._input_info import Input_info
 from ddtrace.appsec.iast._patch import if_iast_taint_returned_object_for
 from ddtrace.appsec.iast._patch import if_iast_taint_yield_tuple_for
-from ddtrace.appsec.iast._taint_tracking import taint_pyobject
-from ddtrace.appsec.iast._taint_utils import LazyTaintDict
 from ddtrace.appsec.iast._util import _is_iast_enabled
 from ddtrace.internal import core
 from ddtrace.internal.compat import parse
@@ -439,6 +436,8 @@ def _on_request_spanmodifier(request, environ, _HAS_JSON_MIXIN):
 
 def _on_set_request_tags(request):
     if _is_iast_enabled():
+        from ddtrace.appsec.iast._taint_utils import LazyTaintDict
+
         return LazyTaintDict(
             request.cookies,
             origins=(HTTP_REQUEST_COOKIE_NAME, HTTP_REQUEST_COOKIE_VALUE),
@@ -448,6 +447,9 @@ def _on_set_request_tags(request):
 
 def _on_request_init(instance):
     if _is_iast_enabled():
+        from ddtrace.appsec.iast._input_info import Input_info
+        from ddtrace.appsec.iast._taint_tracking import taint_pyobject
+
         try:
 
             taint_pyobject(
