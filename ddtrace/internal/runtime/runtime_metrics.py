@@ -14,6 +14,7 @@ from .. import periodic
 from ..dogstatsd import get_dogstatsd_client
 from ..logger import get_logger
 from ..telemetry import telemetry_lifecycle_writer
+from ..telemetry.constants import TELEMETRY_RUNTIMEMETRICS_ENABLED
 from .constants import DEFAULT_RUNTIME_METRICS
 from .metric_collectors import GCRuntimeMetricCollector
 from .metric_collectors import PSUtilRuntimeMetricCollector
@@ -22,8 +23,6 @@ from .tag_collectors import TracerTagCollector
 
 
 log = get_logger(__name__)
-
-TELEMETRY_RUNTIMEMETRICS_ENABLED = "runtimemetrics_enabled"
 
 
 class RuntimeCollectorsIterable(object):
