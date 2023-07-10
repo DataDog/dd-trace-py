@@ -99,7 +99,7 @@ def _get_path(request):
         try:
             value = str(value)
         except Exception:
-            # Best effort
+            log.debug("Failed to convert path parameter value to string", exc_info=True)
             continue
         path = path.replace(value, f"<{key}>")
     return path

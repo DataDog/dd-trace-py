@@ -131,11 +131,11 @@ class DDLogger(logging.Logger):
         """
         if record.levelno >= logging.ERROR:
             # avoid circular import
-            from ddtrace.internal.telemetry import telemetry_lifecycle_writer
+            from ddtrace.internal.telemetry import telemetry_writer
 
             # currently we only have one error code
             full_file_name = os.path.join(record.pathname, record.filename)
-            telemetry_lifecycle_writer.add_error(1, record.msg % record.args, full_file_name, record.lineno)
+            telemetry_writer.add_error(1, record.msg % record.args, full_file_name, record.lineno)
 
         # If rate limiting has been disabled (`DD_TRACE_LOGGING_RATE=0`) then apply no rate limit
         # If the logging is in debug, then do not apply any limits to any log
