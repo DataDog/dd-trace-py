@@ -1810,7 +1810,10 @@ venv = Venv(
                                 "pytest-bdd": [
                                     ">=4.0,<5.0",
                                     ">=6.0,<7.0",
-                                ]
+                                ],
+                                "typing-extensions": [
+                                    latest,
+                                ],
                             },
                         ),
                         Venv(
