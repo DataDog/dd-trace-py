@@ -7,6 +7,7 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Set
 from typing import Tuple
 from typing import Union
 
@@ -44,14 +45,22 @@ from .metrics_namespaces import NamespaceMetricType
 log = get_logger(__name__)
 
 
+class LogData(dict):
+    def __hash__(self):
+        return hash((self["message"], self["level"], self.get("tags"), self.get("stack_trace")))
+
+    def __eq__(self, other):
+        return (
+            self["message"] == other["message"]
+            and self["level"] == other["level"]
+            and self.get("tags") == other.get("tags")
+            and self.get("stack_trace") == other.get("stack_trace")
+        )
+
+
 def _get_heartbeat_interval_or_default():
     # type: () -> float
     return float(os.getenv("DD_TELEMETRY_HEARTBEAT_INTERVAL", default=60))
-
-
-def _get_telemetry_metrics_interval_or_default():
-    # type: () -> float
-    return float(os.getenv("DD_TELEMETRY_METRICS_INTERVAL_SECONDS", default=10))
 
 
 class _TelemetryClient:
@@ -103,9 +112,10 @@ class _TelemetryClient:
         return headers
 
 
-class TelemetryBase(PeriodicService):
+class TelemetryWriter(PeriodicService):
     """
-    Common features of Telemetry services
+    Submits Instrumentation Telemetry events to the datadog agent.
+    Supports v2 of the instrumentation telemetry api
     """
 
     # telemetry endpoint uses events platform v2 api
@@ -115,12 +125,20 @@ class TelemetryBase(PeriodicService):
     # payloads is only used in tests and is not required to process Telemetry events.
     _sequence = itertools.count(1)
 
-    def __init__(self, interval):
-        # type: (float) -> None
-        super(TelemetryBase, self).__init__(interval=interval)
+    def __init__(self):
+        # type: () -> None
+        super(TelemetryWriter, self).__init__(interval=_get_heartbeat_interval_or_default())
+        self._integrations_queue = []  # type: List[Dict]
+        # Currently telemetry only supports reporting a single error.
+        # If we'd like to report multiple errors in the future
+        # we could hack it in by xor-ing error codes and concatenating strings
+        self._error = (0, "")  # type: Tuple[int, str]
+        self._namespace = MetricNamespace()
+        self._logs = set()  # type: Set[Dict[str, Any]]
         self._disabled = False
         self._forked = False  # type: bool
         self._events_queue = []  # type: List[Dict]
+        self._configuration_queue = {}  # type: Dict[str, Dict]
         self._lock = forksafe.Lock()  # type: forksafe.ResetObject
         self.started = False
         forksafe.register(self._fork_writer)
@@ -129,6 +147,40 @@ class TelemetryBase(PeriodicService):
         self._debug = asbool(os.environ.get("DD_TELEMETRY_DEBUG", "false"))
 
         self._client = _TelemetryClient(self.ENDPOINT_V2)
+
+    def enable(self, start_worker_thread=True):
+        # type: (bool) -> bool
+        """
+        Enable the instrumentation telemetry collection service. If the service has already been
+        activated before, this method does nothing. Use ``disable`` to turn off the telemetry collection service.
+        """
+        if not config._telemetry_enabled:
+            return False
+
+        if self.status == ServiceStatus.RUNNING:
+            return True
+
+        if start_worker_thread:
+            self.start()
+            atexit.register(self.app_shutdown)
+            return True
+        self.status = ServiceStatus.RUNNING
+        return True
+
+    def disable(self):
+        # type: () -> None
+        """
+        Disable the telemetry collection service and drop the existing integrations and events
+        Once disabled, telemetry collection can not be re-enabled.
+        """
+        self._disabled = True
+        self.reset_queues()
+
+        if self.is_periodic:
+            atexit.unregister(self.stop)
+            self.stop()
+        else:
+            self.status = ServiceStatus.STOPPED
 
     def add_event(self, payload, payload_type):
         # type: (Union[Dict[str, Any], List[Any]], str) -> None
@@ -153,42 +205,6 @@ class TelemetryBase(PeriodicService):
             }
             self._events_queue.append(event)
 
-    def enable(self, start_worker_thread=True):
-        # type: (bool) -> bool
-        """
-        Enable the instrumentation telemetry collection service. If the service has already been
-        activated before, this method does nothing. Use ``disable`` to turn off the telemetry collection service.
-        """
-        if not config._telemetry_enabled:
-            return False
-
-        if self.status == ServiceStatus.RUNNING:
-            return True
-
-        self.started = True
-
-        if start_worker_thread:
-            self.start()
-            atexit.register(self.stop)
-            return True
-        self.status = ServiceStatus.RUNNING
-        return True
-
-    def disable(self):
-        # type: () -> None
-        """
-        Disable the telemetry collection service and drop the existing integrations and events
-        Once disabled, telemetry collection can not be re-enabled.
-        """
-        self._disabled = True
-        self.reset_queues()
-
-        if self.is_periodic:
-            atexit.unregister(self.stop)
-            self.stop()
-        else:
-            self.status = ServiceStatus.STOPPED
-
     @property
     def is_periodic(self):
         # type: () -> bool
@@ -197,204 +213,6 @@ class TelemetryBase(PeriodicService):
         telemetry_writer.enable(start_worker_thread=True)
         """
         return self.status is ServiceStatus.RUNNING and self._worker and self._worker.is_alive()
-
-    def reset_queues(self):
-        # type: () -> None
-        self._events_queue = []
-
-    def _flush_events_queue(self):
-        # type: () -> List[Dict]
-        """Flushes and returns a list of all telemtery event"""
-        with self._lock:
-            events = self._events_queue
-            self._events_queue = []
-        return events
-
-    def _fork_writer(self):
-        # type: () -> None
-        self._forked = True
-        # Avoid sending duplicate events.
-        # Queued events should be sent in the main process.
-        self.reset_queues()
-        if self.status == ServiceStatus.STOPPED:
-            return
-
-        atexit.unregister(self.stop)
-        self.stop(join=False)
-
-    def _restart_sequence(self):
-        self._sequence = itertools.count(1)
-
-    def _stop_service(self, join=True, *args, **kwargs):
-        # type: (...) -> None
-        super(TelemetryBase, self)._stop_service(*args, **kwargs)
-        if join:
-            self.join(timeout=2)
-
-
-class TelemetryLogsMetricsWriter(TelemetryBase):
-    """
-    Submits Telemetry Metrics events to the datadog agent.
-    """
-
-    def __init__(self):
-        # type: () -> None
-        super(TelemetryLogsMetricsWriter, self).__init__(interval=_get_telemetry_metrics_interval_or_default())
-        self._namespace = MetricNamespace()
-        self._logs = []  # type: List[Dict[str, Any]]
-
-    def enable(self, start_worker_thread=True):
-        # type: (bool) -> bool
-        """
-        Enable the telemetry metrics collection service. If the service has already been
-        activated before, this method does nothing. Use ``disable`` to turn off the telemetry metrics collection
-        service.
-        """
-        return config._telemetry_metrics_enabled and super(TelemetryLogsMetricsWriter, self).enable(start_worker_thread)
-
-    def add_log(self, level, message, stack_trace="", tags={}):
-        # type: (str, str, str, Dict) -> None
-        """
-        Queues log. This event is meant to send library logs to Datadog’s backend through the Telemetry intake.
-        This will make support cycles easier and ensure we know about potentially silent issues in libraries.
-        """
-        if self.enable():
-            data = {
-                "message": message,
-                "level": level,
-                "tracer_time": int(time.time()),
-            }
-            if tags:
-                data["tags"] = ",".join(["%s:%s" % (k, str(v).lower()) for k, v in tags.items()])
-            if stack_trace:
-                data["stack_trace"] = stack_trace
-            self._logs.append(data)
-
-    def add_gauge_metric(self, namespace, name, value, tags=None):
-        # type: (str,str, float, MetricTagType) -> None
-        """
-        Queues gauge metric
-        """
-        if self.status == ServiceStatus.RUNNING or self.enable():
-            self._namespace.add_metric(
-                TELEMETRY_METRIC_TYPE_GAUGE,
-                namespace,
-                name,
-                value,
-                tags,
-                self.interval,
-            )
-
-    def add_rate_metric(self, namespace, name, value=1.0, tags=None):
-        # type: (str,str, float, MetricTagType) -> None
-        """
-        Queues rate metric
-        """
-        if self.status == ServiceStatus.RUNNING or self.enable():
-            self._namespace.add_metric(
-                TELEMETRY_METRIC_TYPE_RATE,
-                namespace,
-                name,
-                value,
-                tags,
-                self.interval,
-            )
-
-    def add_count_metric(self, namespace, name, value=1.0, tags=None):
-        # type: (str,str, float, MetricTagType) -> None
-        """
-        Queues count metric
-        """
-        if self.status == ServiceStatus.RUNNING or self.enable():
-            self._namespace.add_metric(
-                TELEMETRY_METRIC_TYPE_COUNT,
-                namespace,
-                name,
-                value,
-                tags,
-            )
-
-    def add_distribution_metric(self, namespace, name, value=1.0, tags=None):
-        # type: (str,str, float, MetricTagType) -> None
-        """
-        Queues distributions metric
-        """
-        if self.status == ServiceStatus.RUNNING or self.enable():
-            self._namespace.add_metric(
-                TELEMETRY_METRIC_TYPE_DISTRIBUTIONS,
-                namespace,
-                name,
-                value,
-                tags,
-            )
-
-    def periodic(self):
-        namespace_metrics = self._namespace.flush()
-        if namespace_metrics:
-            self._generate_metrics_event(namespace_metrics)
-
-        logs_metrics = self._flush_log_metrics()
-        if logs_metrics:
-            self._generate_logs_event(logs_metrics)
-
-        telemetry_events = self._flush_events_queue()
-        for telemetry_event in telemetry_events:
-            self._client.send_event(telemetry_event)
-
-    def _flush_log_metrics(self):
-        # type () -> List[Metric]
-        with self._lock:
-            log_metrics = self._logs
-            self._logs = []
-        return log_metrics
-
-    def _generate_metrics_event(self, namespace_metrics):
-        # type: (NamespaceMetricType) -> None
-        for payload_type, namespaces in namespace_metrics.items():
-            for namespace, metrics in namespaces.items():
-                if metrics:
-                    payload = {
-                        "namespace": namespace,
-                        "lib_language": "python",
-                        "lib_version": _pep440_to_semver(),
-                        "series": [m.to_dict() for m in metrics.values()],
-                    }
-                    log.debug("%s request payload, namespace %s", payload_type, namespace)
-                    if payload_type == TELEMETRY_TYPE_DISTRIBUTION:
-                        self.add_event(payload, TELEMETRY_TYPE_DISTRIBUTION)
-                    elif payload_type == TELEMETRY_TYPE_GENERATE_METRICS:
-                        self.add_event(payload, TELEMETRY_TYPE_GENERATE_METRICS)
-
-    def _generate_logs_event(self, payload):
-        # type: (List[Dict[str, str]]) -> None
-        log.debug("%s request payload", TELEMETRY_TYPE_LOGS)
-        self.add_event(payload, TELEMETRY_TYPE_LOGS)
-
-    def on_shutdown(self):
-        self.periodic()
-
-    def reset_queues(self):
-        # type: () -> None
-        super(TelemetryLogsMetricsWriter, self).reset_queues()
-        self._namespace.flush()
-        self._logs = []
-
-
-class TelemetryWriter(TelemetryBase):
-    """
-    Submits Instrumentation Telemetry events to the datadog agent.
-    Supports v2 of the instrumentation telemetry api
-    """
-
-    def __init__(self):
-        # type: () -> None
-        super(TelemetryWriter, self).__init__(interval=_get_heartbeat_interval_or_default())
-        self._integrations_queue = []  # type: List[Dict]
-        self._configuration_queue = {}  # type: Dict[str, Dict]
-        # Currently telemetry only supports reporting a single error.
-        # If we'd like to report multiple errors in the future
-        # we could hack it in by xor-ing error codes and concatenating strings
-        self._error = (0, "")  # type: Tuple[int, str]
 
     def add_integration(self, integration_name, patched, auto_patched, error_msg):
         # type: (str, bool, bool, str) -> None
@@ -485,6 +303,14 @@ class TelemetryWriter(TelemetryBase):
         }
         self.add_event(payload, "app-integrations-change")
 
+    def _flush_integrations_queue(self):
+        # type: () -> List[Dict]
+        """Flushes and returns a list of all queued integrations"""
+        with self._lock:
+            integrations = self._integrations_queue
+            self._integrations_queue = []
+        return integrations
+
     def _flush_configuration_queue(self):
         # type: () -> List[Dict]
         """Flushes and returns a list of all queued configurations"""
@@ -528,6 +354,111 @@ class TelemetryWriter(TelemetryBase):
         payload = {"dependencies": get_dependencies()}
         self.add_event(payload, "app-dependencies-loaded")
 
+    def add_log(self, level, message, stack_trace="", tags={}):
+        # type: (str, str, str, Dict) -> None
+        """
+        Queues log. This event is meant to send library logs to Datadog’s backend through the Telemetry intake.
+        This will make support cycles easier and ensure we know about potentially silent issues in libraries.
+        """
+        if self.enable():
+            data = LogData(
+                {
+                    "message": message,
+                    "level": level,
+                    "tracer_time": int(time.time()),
+                }
+            )
+            if tags:
+                data["tags"] = ",".join(["%s:%s" % (k, str(v).lower()) for k, v in tags.items()])
+            if stack_trace:
+                data["stack_trace"] = stack_trace
+            self._logs.add(data)
+
+    def add_gauge_metric(self, namespace, name, value, tags=None):
+        # type: (str,str, float, MetricTagType) -> None
+        """
+        Queues gauge metric
+        """
+        if self.status == ServiceStatus.RUNNING or self.enable():
+            self._namespace.add_metric(
+                TELEMETRY_METRIC_TYPE_GAUGE,
+                namespace,
+                name,
+                value,
+                tags,
+                self.interval,
+            )
+
+    def add_rate_metric(self, namespace, name, value=1.0, tags=None):
+        # type: (str,str, float, MetricTagType) -> None
+        """
+        Queues rate metric
+        """
+        if self.status == ServiceStatus.RUNNING or self.enable():
+            self._namespace.add_metric(
+                TELEMETRY_METRIC_TYPE_RATE,
+                namespace,
+                name,
+                value,
+                tags,
+                self.interval,
+            )
+
+    def add_count_metric(self, namespace, name, value=1.0, tags=None):
+        # type: (str,str, float, MetricTagType) -> None
+        """
+        Queues count metric
+        """
+        if self.status == ServiceStatus.RUNNING or self.enable():
+            self._namespace.add_metric(
+                TELEMETRY_METRIC_TYPE_COUNT,
+                namespace,
+                name,
+                value,
+                tags,
+            )
+
+    def add_distribution_metric(self, namespace, name, value=1.0, tags=None):
+        # type: (str,str, float, MetricTagType) -> None
+        """
+        Queues distributions metric
+        """
+        if self.status == ServiceStatus.RUNNING or self.enable():
+            self._namespace.add_metric(
+                TELEMETRY_METRIC_TYPE_DISTRIBUTIONS,
+                namespace,
+                name,
+                value,
+                tags,
+            )
+
+    def _flush_log_metrics(self):
+        # type () -> Set[Metric]
+        with self._lock:
+            log_metrics = self._logs
+            self._logs = set()
+        return log_metrics
+
+    def _generate_metrics_event(self, namespace_metrics):
+        # type: (NamespaceMetricType) -> None
+        for payload_type, namespaces in namespace_metrics.items():
+            for namespace, metrics in namespaces.items():
+                if metrics:
+                    payload = {
+                        "namespace": namespace,
+                        "series": [m.to_dict() for m in metrics.values()],
+                    }
+                    log.debug("%s request payload, namespace %s", payload_type, namespace)
+                    if payload_type == TELEMETRY_TYPE_DISTRIBUTION:
+                        self.add_event(payload, TELEMETRY_TYPE_DISTRIBUTION)
+                    elif payload_type == TELEMETRY_TYPE_GENERATE_METRICS:
+                        self.add_event(payload, TELEMETRY_TYPE_GENERATE_METRICS)
+
+    def _generate_logs_event(self, payload):
+        # type: (Set[Dict[str, str]]) -> None
+        log.debug("%s request payload", TELEMETRY_TYPE_LOGS)
+        self.add_event(list(payload), TELEMETRY_TYPE_LOGS)
+
     def periodic(self):
         integrations = self._flush_integrations_queue()
         if integrations:
@@ -537,6 +468,14 @@ class TelemetryWriter(TelemetryBase):
         if configurations:
             self._app_client_configuration_changed_event(configurations)
 
+        namespace_metrics = self._namespace.flush()
+        if namespace_metrics:
+            self._generate_metrics_event(namespace_metrics)
+
+        logs_metrics = self._flush_log_metrics()
+        if logs_metrics:
+            self._generate_logs_event(logs_metrics)
+
         if not self._events_queue:
             # Optimization: only queue heartbeat if no other events are queued
             self._app_heartbeat_event()
@@ -545,26 +484,51 @@ class TelemetryWriter(TelemetryBase):
         for telemetry_event in telemetry_events:
             self._client.send_event(telemetry_event)
 
-    def _flush_integrations_queue(self):
-        # type: () -> List[Dict]
-        """Flushes and returns a list of all queued integrations"""
-        with self._lock:
-            integrations = self._integrations_queue
-            self._integrations_queue = []
-        return integrations
-
     def start(self, *args, **kwargs):
         # type: (...) -> None
-        super(TelemetryBase, self).start(*args, **kwargs)
+        super(TelemetryWriter, self).start(*args, **kwargs)
         # Queue app-started event after the telemetry worker thread is running
-        self._app_started_event()
-        self._app_dependencies_loaded_event()
+        if self.started is False:
+            self._app_started_event()
+            self._app_dependencies_loaded_event()
+            self.started = True
 
-    def on_shutdown(self):
+    def app_shutdown(self):
         self._app_closing_event()
         self.periodic()
 
     def reset_queues(self):
         # type: () -> None
-        super(TelemetryWriter, self).reset_queues()
+        self._events_queue = []
         self._integrations_queue = []
+        self._namespace.flush()
+        self._logs = set()
+
+    def _flush_events_queue(self):
+        # type: () -> List[Dict]
+        """Flushes and returns a list of all telemtery event"""
+        with self._lock:
+            events = self._events_queue
+            self._events_queue = []
+        return events
+
+    def _fork_writer(self):
+        # type: () -> None
+        self._forked = True
+        # Avoid sending duplicate events.
+        # Queued events should be sent in the main process.
+        self.reset_queues()
+        if self.status == ServiceStatus.STOPPED:
+            return
+
+        atexit.unregister(self.stop)
+        self.stop(join=False)
+
+    def _restart_sequence(self):
+        self._sequence = itertools.count(1)
+
+    def _stop_service(self, join=True, *args, **kwargs):
+        # type: (...) -> None
+        super(TelemetryWriter, self)._stop_service(*args, **kwargs)
+        if join:
+            self.join(timeout=2)
