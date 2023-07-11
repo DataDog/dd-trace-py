@@ -1,7 +1,5 @@
 import json
 import threading
-from typing import Any
-from typing import Dict
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
@@ -22,6 +20,8 @@ from ddtrace.internal.writer.writer import NoEncodableSpansError
 
 
 if TYPE_CHECKING:  # pragma: no cover
+    from typing import Any
+    from typing import Dict
     from typing import List
     from typing import Optional
 

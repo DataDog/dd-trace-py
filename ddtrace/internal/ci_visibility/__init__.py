@@ -6,7 +6,6 @@ To start the service manually, invoke the ``enable`` method::
     CIVisibility.enable()
 """
 from .recorder import CIVisibility
-from .recorder import TEST_SKIPPING_LEVEL
 
 
-__all__ = ["CIVisibility", "TEST_SKIPPING_LEVEL"]
+__all__ = ["CIVisibility"]
