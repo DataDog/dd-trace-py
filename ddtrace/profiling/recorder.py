@@ -24,7 +24,7 @@ class _defaultdictkey(dict):
         raise KeyError(key)
 
 
-EventsType = typing.Dict[event.Event, typing.Sequence[event.Event]]
+EventsType = typing.Dict[event.Event, typing.Deque[event.Event]]
 
 
 @attr.s
@@ -38,7 +38,9 @@ class Recorder(object):
     """A dict of {event_type_class: max events} to limit the number of events to record."""
 
     events = attr.ib(init=False, repr=False, eq=False, type=EventsType)
-    _events_lock = attr.ib(init=False, repr=False, factory=threading.Lock, eq=False)
+    _event_queue_lock = attr.ib(
+        init=False, repr=False, factory=lambda: collections.defaultdict(threading.Lock), eq=False
+    )  # type: typing.Dict[typing.Type[event.Event], threading.Lock]
 
     def __attrs_post_init__(self):
         # type: (...) -> None
@@ -71,8 +73,8 @@ class Recorder(object):
         """
         if events:
             event_type = events[0].__class__
-            with self._events_lock:
-                q = self.events[event_type]
+            q = self.events[event_type]
+            with self._event_queue_lock[event_type]:
                 q.extend(events)
 
     def _get_deque_for_event_type(self, event_type):
@@ -84,12 +86,11 @@ class Recorder(object):
     def reset(self):
         """Reset the recorder.
 
-        This is useful when e.g. exporting data. Once the event queue is retrieved, a new one can be created by calling
-        the reset method, avoiding iterating on a mutating event list.
-
-        :return: The list of events that has been removed.
+        :return: The events that have been removed in the process, indexed by event type.
         """
-        with self._events_lock:
-            events = self.events
-            self._reset_events()
+        events = {}
+        for et, q in self.events.items():
+            with self._event_queue_lock[et]:
+                events[et] = list(q)
+                q.clear()
         return events
