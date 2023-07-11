@@ -6,9 +6,6 @@ from werkzeug.exceptions import abort
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
-from ddtrace.appsec.iast._patch import if_iast_taint_returned_object_for
-from ddtrace.appsec.iast._patch import if_iast_taint_yield_tuple_for
-from ddtrace.appsec.iast._util import _is_iast_enabled
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind
 from ddtrace.internal.constants import COMPONENT
@@ -112,6 +109,22 @@ def wrapped_request_init(wrapped, instance, args, kwargs):
     core.dispatch("flask.request_init", [instance])
 
 
+def wrap_with_event(module, name, origin):
+    def dispatcher(_origin, *args):
+        results, exceptions = core.dispatch("flask.%s.%s" % (module, name), [_origin] + list(args))
+        if any(results):
+            for result in results:
+                if result is not None:
+                    return result
+        if any(exceptions):
+            for exc in exceptions:
+                if exc:
+                    raise exc
+        return ""
+
+    _w(module, name, functools.partial(dispatcher, origin))
+
+
 class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
     _request_span_name = schematize_url_operation("flask.request", protocol="http", direction=SpanDirection.INBOUND)
     _application_span_name = "flask.application"
@@ -202,32 +215,32 @@ def patch():
 
     Pin().onto(flask.Flask)
 
-    _w(
+    wrap_with_event(
         "werkzeug.datastructures",
         "Headers.items",
-        functools.partial(if_iast_taint_yield_tuple_for, (IAST.HTTP_REQUEST_HEADER_NAME, IAST.HTTP_REQUEST_HEADER)),
+        (IAST.HTTP_REQUEST_HEADER_NAME, IAST.HTTP_REQUEST_HEADER),
     )
-    _w(
+    wrap_with_event(
         "werkzeug.datastructures",
         "EnvironHeaders.__getitem__",
-        functools.partial(if_iast_taint_returned_object_for, IAST.HTTP_REQUEST_HEADER),
+        IAST.HTTP_REQUEST_HEADER,
     )
-    _w(
+    wrap_with_event(
         "werkzeug.datastructures",
         "ImmutableMultiDict.__getitem__",
-        functools.partial(if_iast_taint_returned_object_for, IAST.HTTP_REQUEST_PARAMETER),
+        IAST.HTTP_REQUEST_PARAMETER,
     )
     _w("werkzeug.wrappers.request", "Request.__init__", wrapped_request_init)
-    _w(
+    wrap_with_event(
         "werkzeug.wrappers.request",
         "Request.get_data",
-        functools.partial(if_iast_taint_returned_object_for, IAST.HTTP_REQUEST_BODY),
+        IAST.HTTP_REQUEST_BODY,
     )
     if flask_version < (2, 0, 0):
-        _w(
+        wrap_with_event(
             "werkzeug._internal",
             "_DictAccessorProperty.__get__",
-            functools.partial(if_iast_taint_returned_object_for, IAST.HTTP_REQUEST_QUERYSTRING),
+            IAST.HTTP_REQUEST_QUERYSTRING,
         )
 
     # flask.app.Flask methods that have custom tracing (add metadata, wrap functions, etc)

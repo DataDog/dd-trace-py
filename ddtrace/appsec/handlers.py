@@ -9,6 +9,8 @@ from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
+from ddtrace.appsec.iast._patch import if_iast_taint_returned_object_for
+from ddtrace.appsec.iast._patch import if_iast_taint_yield_tuple_for
 from ddtrace.appsec.iast._util import _is_iast_enabled
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
@@ -148,6 +150,12 @@ def _on_request_init(instance):
             log.debug("Unexpected exception while tainting pyobject", exc_info=True)
 
 
+def _on_werkzeug(*args):
+    if isinstance(args[0], tuple):
+        return if_iast_taint_yield_tuple_for(*args)
+    return if_iast_taint_returned_object_for(*args)
+
+
 def listen():
     core.on("wsgi.block_decided", _on_block_decided)
     core.on("flask.start_response", _on_start_response)
@@ -157,3 +165,10 @@ def listen():
     core.on("flask.finalize_request.post", _on_post_finalizerequest)
     core.on("flask.request_span_modifier", _on_request_span_modifier)
     core.on("flask.request_init", _on_request_init)
+
+
+core.on("flask.werkzeug.datastructures.Headers.items", _on_werkzeug)
+core.on("flask.werkzeug.datastructures.EnvironHeaders.__getitem__", _on_werkzeug)
+core.on("flask.werkzeug.datastructures.ImmutableMultiDict.__getitem__", _on_werkzeug)
+core.on("flask.werkzeug.wrappers.request.Request.get_data", _on_werkzeug)
+core.on("flask.werkzeug._internal._DictAccessorProperty.__get__", _on_werkzeug)
