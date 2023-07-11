@@ -1,4 +1,5 @@
 import contextlib
+import functools
 from typing import TYPE_CHECKING
 
 from ddtrace import config
@@ -370,6 +371,13 @@ def _on_set_request_tags(request):
         )
 
 
+def _on_pre_tracedrequest(block_request_callable, span):
+    if config._appsec_enabled:
+        set_block_request_callable(functools.partial(block_request_callable, span))
+        if core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span):
+            block_request()
+
+
 def _start_context(remote_ip, headers, headers_case_sensitive, block_request_callable):
     if config._appsec_enabled:
         resources = _DataHandler()
@@ -377,6 +385,7 @@ def _start_context(remote_ip, headers, headers_case_sensitive, block_request_cal
         core.on("wsgi.block_decided", _on_block_decided)
         core.on("flask.wrapped_view", _on_wrapped_view)
         core.on("flask.set_request_tags", _on_set_request_tags)
+        core.on("flask.traced_request.pre", _on_pre_tracedrequest)
         return resources
 
 

@@ -693,12 +693,10 @@ def request_tracer(name):
             ".".join(("flask", name)),
             service=trace_utils.int_service(pin, config.flask, pin),
         ) as request_span:
-            _asm_request_context.set_block_request_callable(functools.partial(_block_request_callable, span))
             request_span.set_tag_str(COMPONENT, config.flask.integration_name)
 
             request_span._ignore_exception(werkzeug.exceptions.NotFound)
-            if config._appsec_enabled and core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span):
-                _asm_request_context.block_request()
+            core.dispatch("flask.traced_request.pre", [_block_request_callable, span])
             return wrapped(*args, **kwargs)
 
     return _traced_request
