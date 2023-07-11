@@ -1329,7 +1329,41 @@ class PytestTestCase(TracerTestCase):
         assert test_suite_spans[1].get_tag("test.suite") == "test_inner_abc.py"
 
     @pytest.mark.skipif(compat.PY2, reason="ddtrace does not support coverage on Python 2")
-    def test_pytest_will_report_coverage(self):
+    def test_pytest_will_report_coverage_by_suite(self):
+        self.testdir.makepyfile(
+            test_module="""
+        def lib_fn():
+            return True
+        """
+        )
+        py_cov_file = self.testdir.makepyfile(
+            test_cov="""
+        import pytest
+        from test_module import lib_fn
+
+        def test_cov():
+            assert lib_fn()
+        """
+        )
+
+        with mock.patch(
+            "ddtrace.contrib.pytest.plugin._get_test_skipping_level", return_value="suite"
+        ), override_global_config({"_ci_visibility_code_coverage_enabled": True}):
+            self.inline_run("--ddtrace", os.path.basename(py_cov_file.strpath))
+        spans = self.pop_spans()
+
+        suite_span = spans[2]
+        assert suite_span.get_tag("type") == "test_suite_end"
+        assert COVERAGE_TAG_NAME in suite_span.get_tags()
+        tag_data = json.loads(suite_span.get_tag(COVERAGE_TAG_NAME))
+        files = sorted(tag_data["files"], key=lambda x: x["filename"])
+        assert files[0]["filename"] == "test_cov.py"
+        assert files[1]["filename"] == "test_module.py"
+        assert files[0]["segments"][0] == [5, 0, 5, 0, -1]
+        assert files[1]["segments"][0] == [2, 0, 2, 0, -1]
+
+    @pytest.mark.skipif(compat.PY2, reason="ddtrace does not support coverage on Python 2")
+    def test_pytest_will_report_coverage_by_test(self):
         self.testdir.makepyfile(
             test_module="""
         def lib_fn():
@@ -1347,11 +1381,13 @@ class PytestTestCase(TracerTestCase):
         )
 
         with override_global_config({"_ci_visibility_code_coverage_enabled": True}):
-            self.inline_run("--ddtrace", os.path.basename(py_cov_file.strpath))
+            self.inline_run("--ddtrace", "--log-cli-level", "debug", os.path.basename(py_cov_file.strpath))
         spans = self.pop_spans()
 
-        assert COVERAGE_TAG_NAME in spans[2].get_tags()
-        tag_data = json.loads(spans[2].get_tag(COVERAGE_TAG_NAME))
+        test_span = spans[0]
+        assert test_span.get_tag("type") == "test"
+        assert COVERAGE_TAG_NAME in test_span.get_tags()
+        tag_data = json.loads(test_span.get_tag(COVERAGE_TAG_NAME))
         files = sorted(tag_data["files"], key=lambda x: x["filename"])
         assert files[0]["filename"] == "test_cov.py"
         assert files[1]["filename"] == "test_module.py"

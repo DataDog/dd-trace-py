@@ -201,9 +201,10 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
             "test_suite_id": int(span.get_tag(SUITE_ID) or "1"),
             "files": json.loads(span.get_tag(COVERAGE_TAG_NAME))["files"],
         }
-        from ddtrace.internal.ci_visibility.recorder import TEST_SKIPPING_LEVEL
 
-        if TEST_SKIPPING_LEVEL == TEST:
+        from ddtrace.internal.ci_visibility.recorder import _get_test_skipping_level
+
+        if _get_test_skipping_level() == TEST:
             converted_span["span_id"] = span.span_id
 
         return converted_span

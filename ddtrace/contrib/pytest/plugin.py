@@ -48,7 +48,6 @@ from ddtrace.internal.logger import get_logger
 
 SKIPPED_BY_ITR = "Skipped by Datadog Intelligent Test Runner"
 PATCH_ALL_HELP_MSG = "Call ddtrace.patch_all before running tests."
-TEST_SKIPPING_LEVEL = _get_test_skipping_level()
 
 log = get_logger(__name__)
 
@@ -366,7 +365,7 @@ def pytest_runtest_protocol(item, nextitem):
     if pytest_module_item is not None and test_suite_span is None:
         test_suite_span = _start_test_suite_span(pytest_module_item)
         # Start coverage for the test suite if coverage is enabled
-        if TEST_SKIPPING_LEVEL == SUITE and coverage_enabled() and not is_skipped_by_itr:
+        if _get_test_skipping_level() == SUITE and coverage_enabled() and not is_skipped_by_itr:
             _initialize(str(item.config.rootdir))
             _coverage_start()
 
@@ -428,13 +427,13 @@ def pytest_runtest_protocol(item, nextitem):
             span.set_tags(tags)
         _store_span(item, span)
 
-        if TEST_SKIPPING_LEVEL == TEST and coverage_enabled() and not is_skipped_by_itr:
+        if _get_test_skipping_level() == TEST and coverage_enabled() and not is_skipped_by_itr:
             _initialize(str(item.config.rootdir))
             _coverage_start()
         # Run the actual test
         yield
         # Finish coverage for the test suite if coverage is enabled
-        if TEST_SKIPPING_LEVEL == TEST and coverage_enabled() and not is_skipped_by_itr:
+        if _get_test_skipping_level() == TEST and coverage_enabled() and not is_skipped_by_itr:
             _coverage_end(span)
 
         nextitem_pytest_module_item = _find_pytest_item(nextitem, pytest.Module)
@@ -443,7 +442,7 @@ def pytest_runtest_protocol(item, nextitem):
         ):
             _mark_test_status(pytest_module_item, test_suite_span)
             # Finish coverage for the test suite if coverage is enabled
-            if TEST_SKIPPING_LEVEL == SUITE and coverage_enabled() and not is_skipped_by_itr:
+            if _get_test_skipping_level() == SUITE and coverage_enabled() and not is_skipped_by_itr:
                 _coverage_end(test_suite_span)
             test_suite_span.finish()
 
