@@ -492,7 +492,8 @@ bytecode = [
     "bytecode~=0.12.0; python_version=='3.5'",
     "bytecode~=0.13.0; python_version=='3.6'",
     "bytecode~=0.13.0; python_version=='3.7'",
-    "bytecode; python_version>='3.8'",
+    "bytecode; python_version>='3.8' and python_version<'3.11'",
+    "bytecode>=0.14.0; python_version>='3.11'",
 ]
 
 setup(
