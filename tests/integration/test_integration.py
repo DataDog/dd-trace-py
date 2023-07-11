@@ -1004,7 +1004,7 @@ def test_no_warnings():
 def test_civisibility_event_endpoints():
     with override_env(dict(DD_API_KEY="foobar.baz")):
         t = Tracer()
-        t.configure(writer=CIVisibilityWriter(reuse_connections=True, code_coverage=bool(compat.PY3)))
+        t.configure(writer=CIVisibilityWriter(reuse_connections=True, coverage_enabled=bool(compat.PY3)))
         t._writer._conn = mock.MagicMock()
         with mock.patch("ddtrace.internal.writer.Response.from_http_response") as from_http_response:
             from_http_response.return_value.__class__ = Response

@@ -409,7 +409,7 @@ def test_civisibilitywriter_coverage_agentless_url():
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
         )
     ):
-        dummy_writer = DummyCIVisibilityWriter(code_coverage=True)
+        dummy_writer = DummyCIVisibilityWriter(coverage_enabled=True)
         assert dummy_writer.intake_url == "https://citestcycle-intake.datadoghq.com"
 
         cov_client = dummy_writer._clients[1]
@@ -427,7 +427,7 @@ def test_civisibilitywriter_coverage_agentless_with_intake_url_param():
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
         )
     ):
-        dummy_writer = DummyCIVisibilityWriter(intake_url="https://some-url.com", code_coverage=True)
+        dummy_writer = DummyCIVisibilityWriter(intake_url="https://some-url.com", coverage_enabled=True)
         assert dummy_writer.intake_url == "https://some-url.com"
 
         cov_client = dummy_writer._clients[1]
@@ -444,7 +444,7 @@ def test_civisibilitywriter_coverage_evp_proxy_url():
             DD_API_KEY="foobar.baz",
         )
     ):
-        dummy_writer = DummyCIVisibilityWriter(use_evp=True, code_coverage=True)
+        dummy_writer = DummyCIVisibilityWriter(use_evp=True, coverage_enabled=True)
 
         test_client = dummy_writer._clients[0]
         assert test_client.ENDPOINT == "/evp_proxy/v2/api/v2/citestcycle"

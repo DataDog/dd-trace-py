@@ -86,7 +86,7 @@ class CIVisibilityWriter(HTTPWriter):
         reuse_connections=None,  # type: Optional[bool]
         headers=None,  # type: Optional[Dict[str, str]]
         use_evp=False,  # type: bool
-        code_coverage=False,  # type: bool
+        coverage_enabled=False,  # type: bool
     ):
         intake_cov_url = None
         if use_evp:
@@ -101,7 +101,7 @@ class CIVisibilityWriter(HTTPWriter):
         clients = (
             [CIVisibilityProxiedEventClient()] if use_evp else [CIVisibilityAgentlessEventClient()]
         )  # type: List[WriterClientBase]
-        if code_coverage:
+        if coverage_enabled:
             if not intake_cov_url:
                 intake_cov_url = "%s.%s" % (AGENTLESS_COVERAGE_BASE_URL, os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE))
             clients.append(

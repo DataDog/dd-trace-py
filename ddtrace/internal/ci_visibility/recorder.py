@@ -116,7 +116,7 @@ class CIVisibility(Service):
 
         self._collect_coverage_enabled = self._should_collect_coverage(self._code_coverage_enabled_by_api)
 
-        self._configure_writer(code_coverage=self._collect_coverage_enabled)
+        self._configure_writer(coverage_enabled=self._collect_coverage_enabled)
         self._git_client = None
 
         if ddconfig._ci_visibility_intelligent_testrunner_enabled:
@@ -204,7 +204,7 @@ class CIVisibility(Service):
         attributes = parsed["data"]["attributes"]
         return attributes["code_coverage"], attributes["tests_skipping"]
 
-    def _configure_writer(self, code_coverage=False, requests_mode=None):
+    def _configure_writer(self, coverage_enabled=False, requests_mode=None):
         writer = None
         if requests_mode is None:
             requests_mode = self._requests_mode
@@ -213,14 +213,14 @@ class CIVisibility(Service):
             headers = {"dd-api-key": self._api_key}
             writer = CIVisibilityWriter(
                 headers=headers,
-                code_coverage=code_coverage,
+                coverage_enabled=coverage_enabled,
             )
         elif requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS:
             writer = CIVisibilityWriter(
                 intake_url=agent.get_trace_url(),
                 headers={EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_EVENT_VALUE},
                 use_evp=True,
-                code_coverage=code_coverage,
+                coverage_enabled=coverage_enabled,
             )
         if writer is not None:
             self.tracer.configure(writer=writer)
