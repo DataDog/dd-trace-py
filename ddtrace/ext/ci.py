@@ -262,7 +262,7 @@ def extract_buildkite(env):
         if env_variable.startswith(BUILDKITE_AGENT_META_DATA_PREFIX):
             key = env_variable.replace(BUILDKITE_AGENT_META_DATA_PREFIX, "").lower()
             value = env.get(env_variable)
-            node_label_list.append(key + ":" + value)
+            node_label_list.append("{}:{}".format(key, value))
     node_label_list.sort(reverse=True)
     return {
         git.BRANCH: env.get("BUILDKITE_BRANCH"),
