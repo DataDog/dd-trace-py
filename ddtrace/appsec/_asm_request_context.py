@@ -337,7 +337,7 @@ def _start_context(remote_ip, headers, headers_case_sensitive, block_request_cal
         return resources
 
 
-RESOURCES = contextvars.ContextVar("asm_resources")
+RESOURCES = contextvars.ContextVar("asm_resources")  # type: contextvars.ContextVar[Optional[_DataHandler]]
 
 
 def _on_context_started(ctx):
