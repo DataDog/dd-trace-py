@@ -56,7 +56,7 @@ def _initialize(root_dir):
     if COVERAGE_SINGLETON is None:
         coverage_kwargs = {
             "data_file": None,
-            "source": [root_dir],
+            "source": [ROOT_DIR],
             "config_file": False,
             "omit": [
                 "*/site-packages/*",
@@ -73,8 +73,7 @@ def _coverage_end(span):
     span_id = str(span.trace_id)
     COVERAGE_SINGLETON.stop()
     span.set_tag(COVERAGE_TAG_NAME, build_payload(COVERAGE_SINGLETON, test_id=span_id))
-    COVERAGE_SINGLETON._collector._clear_data()
-    COVERAGE_SINGLETON._collector.data.clear()
+    COVERAGE_SINGLETON.erase()
 
 
 def segments(lines):
