@@ -359,12 +359,24 @@ def _on_wrapped_view(kwargs):
     return return_value
 
 
+def _on_set_request_tags(request):
+    if _is_iast_enabled():
+        from ddtrace.appsec.iast._taint_utils import LazyTaintDict
+
+        return LazyTaintDict(
+            request.cookies,
+            origins=(IAST.HTTP_REQUEST_COOKIE_NAME, IAST.HTTP_REQUEST_COOKIE_VALUE),
+            override_pyobject_tainted=True,
+        )
+
+
 def _start_context(remote_ip, headers, headers_case_sensitive, block_request_callable):
     if config._appsec_enabled:
         resources = _DataHandler()
         asm_request_context_set(remote_ip, headers, headers_case_sensitive, block_request_callable)
         core.on("wsgi.block_decided", _on_block_decided)
         core.on("flask.wrapped_view", _on_wrapped_view)
+        core.on("flask.set_request_tags", _on_set_request_tags)
         return resources
 
 

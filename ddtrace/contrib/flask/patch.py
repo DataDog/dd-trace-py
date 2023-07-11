@@ -750,14 +750,9 @@ def _set_request_tags(span):
             span.resource = " ".join((request.method, request.url_rule.rule))
             span.set_tag_str(FLASK_URL_RULE, request.url_rule.rule)
 
-        if _is_iast_enabled():
-            from ddtrace.appsec.iast._taint_utils import LazyTaintDict
-
-            request.cookies = LazyTaintDict(
-                request.cookies,
-                origins=(IAST.HTTP_REQUEST_COOKIE_NAME, IAST.HTTP_REQUEST_COOKIE_VALUE),
-                override_pyobject_tainted=True,
-            )
+        results, exceptions = core.dispatch("flask.set_request_tags", [request])
+        if not any(exceptions) and results[0] is not None:
+            request.cookies = results[0]
 
         if not span.get_tag(FLASK_VIEW_ARGS) and request.view_args and config.flask.get("collect_view_args"):
             for k, v in request.view_args.items():
