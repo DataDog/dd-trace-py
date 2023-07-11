@@ -447,11 +447,18 @@ def _on_request_span_modifier(request, environ, _HAS_JSON_MIXIN):
     return req_body
 
 
+def _on_start_response():
+    log.debug("Flask WAF call for Suspicious Request Blocking on response")
+    call_waf_callback()
+    return get_headers().get("Accept", "").lower()
+
+
 def _start_context(remote_ip, headers, headers_case_sensitive, block_request_callable):
     if config._appsec_enabled:
         resources = _DataHandler()
         asm_request_context_set(remote_ip, headers, headers_case_sensitive, block_request_callable)
         core.on("wsgi.block_decided", _on_block_decided)
+        core.on("flask.start_response", _on_start_response)
         core.on("flask.wrapped_view", _on_wrapped_view)
         core.on("flask.set_request_tags", _on_set_request_tags)
         core.on("flask.traced_request.pre", _on_pre_tracedrequest)

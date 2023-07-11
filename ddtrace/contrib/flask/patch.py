@@ -147,16 +147,14 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
             req_span, config.flask, status_code=code, response_headers=headers, route=req_span.get_tag(FLASK_URL_RULE)
         )
 
-        if config._appsec_enabled and not core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=req_span):
-            log.debug("Flask WAF call for Suspicious Request Blocking on response")
-            _asm_request_context.call_waf_callback()
+        if not core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=req_span):
+            headers_from_context = ""
+            results, exceptions = core.dispatch("flask.start_response", [])
+            if not any(exceptions) and results and results[0]:
+                headers_from_context = results[0]
             if core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=req_span):
                 # response code must be set here, or it will be too late
-                ctype = (
-                    "text/html"
-                    if "text/html" in _asm_request_context.get_headers().get("Accept", "").lower()
-                    else "text/json"
-                )
+                ctype = "text/html" if "text/html" in headers_from_context else "text/json"
                 response_headers = [("content-type", ctype)]
                 result = start_response("403 FORBIDDEN", response_headers)
                 trace_utils.set_http_meta(req_span, config.flask, status_code="403", response_headers=response_headers)
