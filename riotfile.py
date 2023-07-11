@@ -155,6 +155,7 @@ venv = Venv(
             name="mypy",
             command="mypy {cmdargs}",
             create=True,
+            skip_dev_install=True,
             pkgs={
                 "mypy": "==0.991",
                 "envier": "==0.4.0",
