@@ -24,7 +24,6 @@ from six.moves.urllib.parse import quote
 
 import ddtrace
 from ddtrace import config
-from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec import utils
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.ext import SpanKind
