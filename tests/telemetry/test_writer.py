@@ -97,12 +97,12 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
             {
                 "name": "trace_propagation_style_extract",
                 "origin": "unknown",
-                "value": "['tracecontext', 'datadog']",
+                "value": "datadog",
             },
             {
                 "name": "trace_propagation_style_inject",
                 "origin": "unknown",
-                "value": "['tracecontext', 'datadog']",
+                "value": "datadog",
             },
         ],
         "error": {

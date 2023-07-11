@@ -46,6 +46,7 @@ def flask_default_env(flask_wsgi_application):
             # Avoid noisy database spans being output on app startup/teardown.
             "DD_TRACE_SQLITE3_ENABLED": "0",
             "FLASK_APP": flask_wsgi_application,
+            "DD_TRACE_PROPAGATION_STYLE": "tracecontext,datadog",
         }
     )
     return env
