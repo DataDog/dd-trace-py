@@ -1,4 +1,5 @@
 import contextlib
+import contextvars
 from typing import TYPE_CHECKING
 
 from ddtrace import config
@@ -318,26 +319,54 @@ def asm_request_context_manager(
     """
     The ASM context manager
     """
-    if config._appsec_enabled:
-        resources = _on_context_started(remote_ip, headers, headers_case_sensitive, block_request_callable)
+    resources = _start_context(remote_ip, headers, headers_case_sensitive, block_request_callable)
+    if resources is not None:
         try:
             yield resources
         finally:
-            _on_context_ended(resources)
+            _end_context(resources)
     else:
         yield None
 
 
-def _on_context_started(remote_ip, headers, headers_case_sensitive, block_request_callable):
-    resources = _DataHandler()
-    asm_request_context_set(remote_ip, headers, headers_case_sensitive, block_request_callable)
-    core.on("wsgi.block_decided", _on_block_decided)
-    return resources
+def _start_context(remote_ip, headers, headers_case_sensitive, block_request_callable):
+    if config._appsec_enabled:
+        resources = _DataHandler()
+        asm_request_context_set(remote_ip, headers, headers_case_sensitive, block_request_callable)
+        core.on("wsgi.block_decided", _on_block_decided)
+        return resources
 
 
-def _on_context_ended(resources):
+RESOURCES = contextvars.ContextVar("asm_resources")
+
+
+def _on_context_started(ctx):
+    resources = _start_context(
+        ctx.get_item("remote_addr"),
+        ctx.get_item("headers"),
+        ctx.get_item("headers_case_sensitive"),
+        ctx.get_item("block_request_callable"),
+    )
+    token = RESOURCES.set(resources)
+    ctx.set_item("token_resources", token)
+
+
+def _end_context(resources):
     resources.finalise()
     core.set_item("asm_env", None)
+
+
+def _on_context_ended(ctx):
+    resources = RESOURCES.get()
+    if resources is not None:
+        _end_context(resources)
+        token = ctx.get_item("token_resources")
+        if token:
+            RESOURCES.reset(token)
+
+
+core.on("context.started.wsgi.__call__", _on_context_started)
+core.on("context.ended.wsgi.__call__", _on_context_ended)
 
 
 def _on_block_decided(callback):

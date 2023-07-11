@@ -164,7 +164,9 @@ class _DDWSGIMiddlewareBase(object):
         headers = get_request_headers(environ)
         closing_iterator = ()
         not_blocked = True
-        with _asm_request_context.asm_request_context_manager(environ.get("REMOTE_ADDR"), headers, True):
+        with core.context_with_data(
+            "wsgi.__call__", remote_addr=environ.get("REMOTE_ADDR"), headers=headers, headers_case_sensitive=True
+        ):
             req_span = self.tracer.trace(
                 self._request_span_name,
                 service=trace_utils.int_service(self._pin, self._config),
