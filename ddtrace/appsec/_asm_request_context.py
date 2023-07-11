@@ -1,5 +1,4 @@
 import contextlib
-import contextvars
 from typing import TYPE_CHECKING
 
 from ddtrace import config
@@ -17,6 +16,11 @@ if TYPE_CHECKING:
     from typing import List
     from typing import Optional
     from typing import Tuple
+
+try:
+    import contextvars
+except ImportError:
+    import ddtrace.vendor.contextvars as contextvars  # type: ignore
 
 
 log = get_logger(__name__)
