@@ -5,7 +5,6 @@ from six import BytesIO
 import xmltodict
 
 from ddtrace import config
-from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
@@ -27,6 +26,8 @@ _BODY_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
 
 
 def _on_wrapped_view(kwargs):
+    from ddtrace.appsec import _asm_request_context
+
     return_value = [None, None]
     # if Appsec is enabled, we can try to block as we have the path parameters at that point
     if config._appsec_enabled and _asm_request_context.in_context():
@@ -63,6 +64,8 @@ def _on_set_request_tags(request):
 
 def _on_pre_tracedrequest(block_request_callable, span):
     if config._appsec_enabled:
+        from ddtrace.appsec import _asm_request_context
+
         _asm_request_context.set_block_request_callable(functools.partial(block_request_callable, span))
         if core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span):
             _asm_request_context.block_request()
@@ -70,6 +73,8 @@ def _on_pre_tracedrequest(block_request_callable, span):
 
 def _on_post_finalizerequest(rv):
     if config._api_security_enabled and config._appsec_enabled and getattr(rv, "is_sequence", False):
+        from ddtrace.appsec import _asm_request_context
+
         # start_response was not called yet, set the HTTP response headers earlier
         _asm_request_context.set_headers_response(list(rv.headers))
         _asm_request_context.set_body_response(rv.response)
@@ -126,12 +131,16 @@ def _on_request_span_modifier(request, environ, _HAS_JSON_MIXIN):
 
 
 def _on_start_response():
+    from ddtrace.appsec import _asm_request_context
+
     log.debug("Flask WAF call for Suspicious Request Blocking on response")
     _asm_request_context.call_waf_callback()
     return _asm_request_context.get_headers().get("Accept", "").lower()
 
 
 def _on_block_decided(callback):
+    from ddtrace.appsec import _asm_request_context
+
     _asm_request_context.set_value(_asm_request_context._CALLBACKS, "flask_block", callback)
 
 
