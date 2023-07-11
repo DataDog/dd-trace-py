@@ -424,7 +424,7 @@ def pytest_runtest_protocol(item, nextitem):
         yield
         # Finish coverage for the test suite if coverage is enabled
         if TEST_SKIPPING_LEVEL == TEST and coverage_enabled() and not is_skipped_by_itr:
-            _coverage_end(test_suite_span)
+            _coverage_end(span)
 
         nextitem_pytest_module_item = _find_pytest_item(nextitem, pytest.Module)
         if test_suite_span is not None and (
