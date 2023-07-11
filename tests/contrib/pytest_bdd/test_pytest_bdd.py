@@ -219,13 +219,11 @@ class TestPytest(TracerTestCase):
         assert len(spans) == 3
         assert spans[0].get_tag(ERROR_MSG)
 
-    @pytest.mark.romain
     def test_get_step_func_args_json_empty(self):
         self.monkeypatch.setattr("ddtrace.contrib.pytest_bdd.plugin._extract_step_func_args", lambda *args: None)
 
         assert _get_step_func_args_json(None, lambda: None, None) is None
 
-    @pytest.mark.romain
     def test_get_step_func_args_json_valid(self):
         self.monkeypatch.setattr(
             "ddtrace.contrib.pytest_bdd.plugin._extract_step_func_args", lambda *args: {"func_arg": "test string"}
@@ -233,7 +231,6 @@ class TestPytest(TracerTestCase):
 
         assert _get_step_func_args_json(None, lambda: None, None) == '{"func_arg": "test string"}'
 
-    @pytest.mark.romain
     def test_get_step_func_args_json_invalid(self):
         self.monkeypatch.setattr(
             "ddtrace.contrib.pytest_bdd.plugin._extract_step_func_args", lambda *args: {"func_arg": set()}
