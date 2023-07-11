@@ -2,8 +2,10 @@ import contextlib
 from typing import TYPE_CHECKING
 
 from ddtrace import config
+from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
+from ddtrace.appsec.iast._util import _is_iast_enabled
 from ddtrace.internal import core
 from ddtrace.internal.compat import parse
 from ddtrace.internal.logger import get_logger
@@ -333,11 +335,36 @@ def asm_request_context_manager(
         yield None
 
 
+def _on_wrapped_view(kwargs):
+    return_value = [None, None]
+    # if Appsec is enabled, we can try to block as we have the path parameters at that point
+    if config._appsec_enabled and in_context():
+        log.debug("Flask WAF call for Suspicious Request Blocking on request")
+        if kwargs:
+            set_waf_address(SPAN_DATA_NAMES.REQUEST_PATH_PARAMS, kwargs)
+        call_waf_callback()
+        if is_blocked():
+            callback_block = get_value(_CALLBACKS, "flask_block")
+            return_value[0] = callback_block
+
+    # If IAST is enabled, taint the Flask function kwargs (path parameters)
+    if _is_iast_enabled() and kwargs:
+        from ddtrace.appsec.iast._input_info import Input_info
+        from ddtrace.appsec.iast._taint_tracking import taint_pyobject
+
+        _kwargs = {}
+        for k, v in kwargs.items():
+            _kwargs[k] = taint_pyobject(v, Input_info(k, v, IAST.HTTP_REQUEST_PATH_PARAMETER))
+        return_value[1] = _kwargs
+    return return_value
+
+
 def _start_context(remote_ip, headers, headers_case_sensitive, block_request_callable):
     if config._appsec_enabled:
         resources = _DataHandler()
         asm_request_context_set(remote_ip, headers, headers_case_sensitive, block_request_callable)
         core.on("wsgi.block_decided", _on_block_decided)
+        core.on("flask.wrapped_view", _on_wrapped_view)
         return resources
 
 
