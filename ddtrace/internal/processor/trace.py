@@ -1,6 +1,5 @@
 import abc
 from collections import defaultdict
-import threading
 from typing import Dict
 from typing import Iterable
 from typing import List
