@@ -133,6 +133,21 @@ def _on_block_decided(callback):
     _asm_request_context.set_value(_asm_request_context._CALLBACKS, "flask_block", callback)
 
 
+def _on_request_init(instance):
+    if _is_iast_enabled():
+        try:
+            from ddtrace.appsec.iast._input_info import Input_info
+            from ddtrace.appsec.iast._taint_tracking import taint_pyobject
+
+            taint_pyobject(
+                instance.query_string,
+                Input_info(IAST.HTTP_REQUEST_QUERYSTRING, instance.query_string, IAST.HTTP_REQUEST_QUERYSTRING),
+            )
+            taint_pyobject(instance.path, Input_info(IAST.HTTP_REQUEST_PATH, instance.path, IAST.HTTP_REQUEST_PATH))
+        except Exception:
+            log.debug("Unexpected exception while tainting pyobject", exc_info=True)
+
+
 def listen():
     core.on("wsgi.block_decided", _on_block_decided)
     core.on("flask.start_response", _on_start_response)
@@ -141,3 +156,4 @@ def listen():
     core.on("flask.traced_request.pre", _on_pre_tracedrequest)
     core.on("flask.finalize_request.post", _on_post_finalizerequest)
     core.on("flask.request_span_modifier", _on_request_span_modifier)
+    core.on("flask.request_init", _on_request_init)

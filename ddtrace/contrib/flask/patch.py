@@ -107,20 +107,9 @@ flask_version_str = getattr(flask, "__version__", "0.0.0")
 flask_version = parse_version(flask_version_str)
 
 
-def taint_request_init(wrapped, instance, args, kwargs):
+def wrapped_request_init(wrapped, instance, args, kwargs):
     wrapped(*args, **kwargs)
-    if _is_iast_enabled():
-        try:
-            from ddtrace.appsec.iast._input_info import Input_info
-            from ddtrace.appsec.iast._taint_tracking import taint_pyobject
-
-            taint_pyobject(
-                instance.query_string,
-                Input_info(IAST.HTTP_REQUEST_QUERYSTRING, instance.query_string, IAST.HTTP_REQUEST_QUERYSTRING),
-            )
-            taint_pyobject(instance.path, Input_info(IAST.HTTP_REQUEST_PATH, instance.path, IAST.HTTP_REQUEST_PATH))
-        except Exception:
-            log.debug("Unexpected exception while tainting pyobject", exc_info=True)
+    core.dispatch("flask.request_init", [instance])
 
 
 class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
@@ -228,7 +217,7 @@ def patch():
         "ImmutableMultiDict.__getitem__",
         functools.partial(if_iast_taint_returned_object_for, IAST.HTTP_REQUEST_PARAMETER),
     )
-    _w("werkzeug.wrappers.request", "Request.__init__", taint_request_init)
+    _w("werkzeug.wrappers.request", "Request.__init__", wrapped_request_init)
     _w(
         "werkzeug.wrappers.request",
         "Request.get_data",
