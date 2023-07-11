@@ -110,7 +110,7 @@ Global Configuration
 
    The service name reported by default for LangChain requests.
 
-   Alternatively, you can set this option with the ``DD_SERVICE`` or ``DD_OPENAI_SERVICE`` environment
+   Alternatively, you can set this option with the ``DD_SERVICE`` or ``DD_LANGCHAIN_SERVICE`` environment
    variables.
 
    Default: ``DD_SERVICE``
@@ -178,17 +178,6 @@ Global Configuration
 
    Default: ``0.1``
 
-
-Instance Configuration
-~~~~~~~~~~~~~~~~~~~~~~
-
-To configure the LangChain integration on a per-instance basis use the
-``Pin`` API::
-
-    import langchain
-    from ddtrace import Pin, config
-
-    Pin.override(langchain, service="my-langchain-service")
 """  # noqa: E501
 from ...internal.utils.importlib import require_modules
 

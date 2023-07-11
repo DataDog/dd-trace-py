@@ -61,3 +61,8 @@ vectorstores = (
     "MatchingEngine",
     "AwaDB",
 )
+
+API_KEY = "langchain.request.api_key"
+PROVIDER = "langchain.request.provider"
+MODEL = "langchain.request.model"
+TYPE = "langchain.request.type"
