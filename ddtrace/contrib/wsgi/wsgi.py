@@ -15,6 +15,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Callable
     from typing import Dict
     from typing import Iterable
+    from typing import Mapping
     from typing import Optional
 
     from ddtrace import Pin
@@ -272,13 +273,16 @@ def construct_url(environ):
 
 
 def get_request_headers(environ):
+    # type: (Mapping[str, str]) -> Mapping[str, str]
     """
     Manually grab the request headers from the environ dictionary.
     """
-    request_headers = {}
+    request_headers = {}  # type: Mapping[str, str]
     for key in environ.keys():
-        if key.startswith("HTTP"):
-            request_headers[from_wsgi_header(key)] = environ[key]
+        if key.startswith("HTTP_"):
+            name = from_wsgi_header(key)
+            if name:
+                request_headers[name] = environ[key]
     return request_headers
 
 
