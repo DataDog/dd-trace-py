@@ -441,7 +441,7 @@ class Debugger(Service):
             if not isinstance(probe, LineLocationMixin):
                 continue
             line = probe.line
-            assert line is not None
+            assert line is not None  # nosec
             functions = FunctionDiscovery.from_module(module).at_line(line)
             if not functions:
                 message = "Cannot inject probe %s: no functions at line %d within source file %s" % (
@@ -531,7 +531,7 @@ class Debugger(Service):
                     if not isinstance(probe, LineLocationMixin):
                         continue
                     line = probe.line
-                    assert line is not None, probe
+                    assert line is not None, probe  # nosec
                     functions = FunctionDiscovery.from_module(module).at_line(line)
                     for function in (cast(FullyNamedWrappedFunction, _) for _ in functions):
                         probes_for_function[function].append(probe)
@@ -561,10 +561,8 @@ class Debugger(Service):
             if not isinstance(probe, FunctionLocationMixin):
                 continue
 
-            assert probe.module == module.__name__, "Imported module name matches probe definition"
-
             try:
-                assert probe.module is not None and probe.func_qname is not None
+                assert probe.module is not None and probe.func_qname is not None  # nosec
                 function = FunctionDiscovery.from_module(module).by_name(probe.func_qname)
             except ValueError:
                 message = "Cannot inject probe %s: no function '%s' in module %s" % (
@@ -579,7 +577,7 @@ class Debugger(Service):
             if hasattr(function, "__dd_wrappers__"):
                 # TODO: Check if this can be made into a set instead
                 wrapper = cast(FullyNamedWrappedFunction, function)
-                assert wrapper.__dd_wrappers__, "Function has debugger wrappers"
+                assert wrapper.__dd_wrappers__, "Function has debugger wrappers"  # nosec
                 wrapper.__dd_wrappers__[probe.probe_id] = probe
                 log.debug(
                     "[%s][P: %s] Function probe %r added to already wrapped %r",
@@ -605,7 +603,7 @@ class Debugger(Service):
         for probe in probes:
             self._probe_registry.register(probe)
             try:
-                assert probe.module is not None
+                assert probe.module is not None  # nosec
                 self.__watchdog__.register_module_hook(probe.module, self._probe_wrapping_hook)
             except Exception:
                 self._probe_registry.set_exc_info(probe, sys.exc_info())
@@ -626,16 +624,16 @@ class Debugger(Service):
 
             (registered_probe,) = registered_probes
 
-            assert probe.module is not None
+            assert probe.module is not None  # nosec
             module = sys.modules.get(probe.module, None)
             if module is not None:
                 # The module is still loaded, so we can try to unwrap the function
                 touched_modules.add(probe.module)
-                assert probe.func_qname is not None
+                assert probe.func_qname is not None  # nosec
                 function = FunctionDiscovery.from_module(module).by_name(probe.func_qname)
                 if hasattr(function, "__dd_wrappers__"):
                     wrapper = cast(FullyNamedWrappedFunction, function)
-                    assert wrapper.__dd_wrappers__, "Function has debugger wrappers"
+                    assert wrapper.__dd_wrappers__, "Function has debugger wrappers"  # nosec
                     del wrapper.__dd_wrappers__[probe.probe_id]
                     if not wrapper.__dd_wrappers__:
                         del wrapper.__dd_wrappers__
