@@ -512,3 +512,16 @@ def test_ddtrace_auto_imports():
 
     for module in MODULES_TO_CHECK:
         assert module not in sys.modules, module
+
+
+@pytest.mark.subprocess(ddtrace_run=True, env=dict(DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE="1"))
+def test_ddtrace_re_module():
+    import re
+
+    re.Scanner(
+        (
+            ("frozen", None),
+            (r"[a-zA-Z0-9_]+", lambda s, t: t),
+            (r"[\s,<>]", None),
+        )
+    )
