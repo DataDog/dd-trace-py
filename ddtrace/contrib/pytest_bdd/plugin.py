@@ -57,6 +57,18 @@ def _extract_step_func_args(step, step_func, step_func_args):
     return parameters or None
 
 
+def _get_step_func_args_json(step, step_func, step_func_args):
+    """Get step function args as JSON, catching serialization errors"""
+    try:
+        extracted_step_func_args = _extract_step_func_args(step, step_func, step_func_args)
+        if extracted_step_func_args:
+            return json.dumps(extracted_step_func_args)
+        return None
+    except TypeError as err:
+        log.debug("Could not serialize arguments", exc_info=True)
+        return json.dumps({"error_serializing_args": str(err)})
+
+
 def pytest_configure(config):
     if config.pluginmanager.hasplugin("pytest-bdd"):
         config.pluginmanager.register(_PytestBddPlugin(), "_datadog-pytest-bdd")
@@ -112,9 +124,9 @@ class _PytestBddPlugin:
     def pytest_bdd_after_step(request, feature, scenario, step, step_func, step_func_args):
         span = _extract_span(step_func)
         if span is not None:
-            step_func_args = _extract_step_func_args(step, step_func, step_func_args)
+            step_func_args_json = _get_step_func_args_json(step, step_func, step_func_args)
             if step_func_args:
-                span.set_tag(test.PARAMETERS, json.dumps(step_func_args))
+                span.set_tag(test.PARAMETERS, step_func_args_json)
             span.finish()
 
     @staticmethod
@@ -126,8 +138,8 @@ class _PytestBddPlugin:
             else:
                 # PY2 compatibility workaround
                 _, _, tb = sys.exc_info()
-            step_func_args = _extract_step_func_args(step, step_func, step_func_args)
+            step_func_args_json = _get_step_func_args_json(step, step_func, step_func_args)
             if step_func_args:
-                span.set_tag(test.PARAMETERS, json.dumps(step_func_args))
+                span.set_tag(test.PARAMETERS, step_func_args_json)
             span.set_exc_info(type(exception), exception, tb)
             span.finish()
