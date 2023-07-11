@@ -13,6 +13,7 @@ from ddtrace import config
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import USER_KEEP
+from ddtrace.internal import forksafe
 from ddtrace.internal import gitmetadata
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.constants import MAX_UINT_64BITS
@@ -180,7 +181,7 @@ class SpanAggregator(SpanProcessor):
         type=DefaultDict[int, "_Trace"],
         repr=False,
     )
-    _lock = attr.ib(init=False, factory=threading.Lock, repr=False)
+    _lock = attr.ib(init=False, factory=forksafe.RLock, repr=False)
     # Tracks the number of spans created and tags each count with the api that was used
     # ex: otel api, opentracing api, datadog api
     _span_api_to_count = attr.ib(
