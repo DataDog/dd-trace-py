@@ -111,7 +111,7 @@ def test_extract_git_metadata(git_repo):
     assert extracted_tags["git.commit.committer.name"] == "Jane Doe"
     assert extracted_tags["git.commit.committer.email"] == "jane@doe.com"
     assert extracted_tags["git.commit.committer.date"] == "2021-01-20T04:37:21-0400"
-    assert extracted_tags["git.branch"] == "main"
+    assert extracted_tags["git.branch"] == "master"
     assert extracted_tags.get("git.commit.sha") is not None  # Commit hash will always vary, just ensure a value is set
 
 
