@@ -253,7 +253,7 @@ jobs:
           command: riot run -s codespell
       - run:
           name: "Run riotfile.py tests"
-          command: riot run -s riot-helpers
+          command: riot run -s --pass-env riot-helpers
       - run:
           name: "Test agent snapshot check"
           command: riot run -s snapshot-fmt && git diff --exit-code

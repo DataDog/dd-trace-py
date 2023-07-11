@@ -216,7 +216,7 @@ venv = Venv(
             name="riot-helpers",
             # DEV: pytest really doesn't want to execute only `riotfile.py`, call doctest directly
             command="python -m doctest {cmdargs} riotfile.py",
-            pkgs={"riot": latest},
+            pkgs={"git+https://github.com/DataDog/riot@fix/dev-package-dedicated-venv": latest},
         ),
         Venv(
             pys=["3"],
