@@ -1,12 +1,8 @@
 import functools
-import json
 
 import flask
-from six import BytesIO
 import werkzeug
-from werkzeug.exceptions import BadRequest
 from werkzeug.exceptions import abort
-import xmltodict
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
@@ -191,53 +187,9 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
         span.set_tag_str(FLASK_VERSION, flask_version_str)
 
         req_body = None
-        if config._appsec_enabled and request.method in _BODY_METHODS:
-            content_type = request.content_type
-            wsgi_input = environ.get("wsgi.input", "")
-
-            # Copy wsgi input if not seekable
-            if wsgi_input:
-                try:
-                    seekable = wsgi_input.seekable()
-                except AttributeError:
-                    seekable = False
-                if not seekable:
-                    content_length = int(environ.get("CONTENT_LENGTH", 0))
-                    body = wsgi_input.read(content_length) if content_length else wsgi_input.read()
-                    environ["wsgi.input"] = BytesIO(body)
-
-            try:
-                if content_type == "application/json" or content_type == "text/json":
-                    if _HAS_JSON_MIXIN and hasattr(request, "json") and request.json:
-                        req_body = request.json
-                    else:
-                        req_body = json.loads(request.data.decode("UTF-8"))
-                elif content_type in ("application/xml", "text/xml"):
-                    req_body = xmltodict.parse(request.get_data())
-                elif hasattr(request, "form"):
-                    req_body = request.form.to_dict()
-                else:
-                    # no raw body
-                    req_body = None
-            except (
-                AttributeError,
-                RuntimeError,
-                TypeError,
-                BadRequest,
-                ValueError,
-                JSONDecodeError,
-                xmltodict.expat.ExpatError,
-                xmltodict.ParsingInterrupted,
-            ):
-                log.warning("Failed to parse werkzeug request body", exc_info=True)
-            finally:
-                # Reset wsgi input to the beginning
-                if wsgi_input:
-                    if seekable:
-                        wsgi_input.seek(0)
-                    else:
-                        environ["wsgi.input"] = BytesIO(body)
-
+        results, exceptions = core.dispatch("flask.request_span_modifier", [request, environ, _HAS_JSON_MIXIN])
+        if not any(exceptions) and results and results[0]:
+            req_body = results[0]
         trace_utils.set_http_meta(
             span,
             config.flask,
@@ -511,10 +463,7 @@ def traced_finalize_request(wrapped, instance, args, kwargs):
     Wrapper for flask.app.Flask.finalize_request
     """
     rv = wrapped(*args, **kwargs)
-    if config._api_security_enabled and config._appsec_enabled and getattr(rv, "is_sequence", False):
-        # start_response was not called yet, set the HTTP response headers earlier
-        _asm_request_context.set_headers_response(list(rv.headers))
-        _asm_request_context.set_body_response(rv.response)
+    core.dispatch("flask.finalize_request.post", [rv])
     return rv
 
 
