@@ -1377,7 +1377,7 @@ class PytestTestCase(TracerTestCase):
         )
 
         with override_global_config({"_ci_visibility_code_coverage_enabled": True}):
-            self.inline_run("--ddtrace", os.path.basename(py_cov_file.strpath))
+            self.inline_run("--ddtrace", "--log-cli-level", "debug", os.path.basename(py_cov_file.strpath))
         spans = self.pop_spans()
 
         test_span = spans[0]
