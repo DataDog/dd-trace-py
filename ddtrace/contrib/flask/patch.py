@@ -14,7 +14,6 @@ from ddtrace.ext import SpanKind
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
-from ...appsec import _asm_request_context
 from ...appsec import utils
 from ...internal import core
 from ...internal.schema import schematize_service_name
