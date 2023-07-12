@@ -100,6 +100,12 @@ class MemoryCollector(collector.PeriodicCollector):
 
     def snapshot(self):
         thread_id_ignore_set = self._get_thread_id_ignore_set()
+        try:
+            events = _memalloc.heap()
+        except RuntimeError:
+            # DEV: This can happen if either _memalloc has not been started or has been stopped.
+            LOG.debug("Unable to collect heap events from process %d", os.getpid(), exc_info=True)
+            return tuple()
         return (
             tuple(
                 MemoryHeapSampleEvent(
@@ -111,7 +117,7 @@ class MemoryCollector(collector.PeriodicCollector):
                     size=size,
                     sample_size=self.heap_sample_size,
                 )
-                for (stack, nframes, thread_id), size in _memalloc.heap()
+                for (stack, nframes, thread_id), size in events
                 if not self.ignore_profiler or thread_id not in thread_id_ignore_set
             ),
         )
