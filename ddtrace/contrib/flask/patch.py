@@ -148,12 +148,12 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
             req_span, config.flask, status_code=code, response_headers=headers, route=req_span.get_tag(FLASK_URL_RULE)
         )
 
-        if not core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=req_span):
+        if not core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
             headers_from_context = ""
             results, exceptions = core.dispatch("flask.start_response", [])
             if not any(exceptions) and results and results[0]:
                 headers_from_context = results[0]
-            if core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=req_span):
+            if core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
                 # response code must be set here, or it will be too late
                 ctype = "text/html" if "text/html" in headers_from_context else "text/json"
                 response_headers = [("content-type", ctype)]
