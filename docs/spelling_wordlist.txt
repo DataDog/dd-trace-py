@@ -39,6 +39,7 @@ backend
 backends
 backport
 backported
+backporting
 bdd
 bikeshedding
 booleans
@@ -64,10 +65,12 @@ Cython
 datadog
 datadoghq
 datastore
+datastores
 dbapi
 ddtrace
 deprecations
 django
+docstring
 doctest
 dogpile
 dogpile.cache
@@ -115,6 +118,7 @@ kubernetes
 kwarg
 kwargs
 lifecycle
+linters
 lookups
 loopback
 macOS
@@ -195,11 +199,13 @@ starlette
 statsd
 stringable
 subclass
+subdirectory
 subdomains
 submodule
 submodules
 substring
 testagent
+TestCase
 timestamp
 tokenizer
 tracestate
@@ -208,6 +214,7 @@ uWSGI
 unbuffered
 unicode
 uninstrumented
+unittest
 unix
 unpatch
 unpatched

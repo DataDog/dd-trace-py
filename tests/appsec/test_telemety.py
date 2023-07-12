@@ -8,7 +8,7 @@ from ddtrace.appsec.ddwaf import version
 from ddtrace.appsec.processor import AppSecSpanProcessor
 from ddtrace.contrib.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
-from ddtrace.internal.telemetry import telemetry_metrics_writer
+from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_APPSEC
 from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_DISTRIBUTION
 from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_GENERATE_METRICS
@@ -22,24 +22,24 @@ from tests.utils import override_global_config
 
 
 @pytest.fixture
-def mock_telemetry_metrics_writer():
-    telemetry_metrics_writer.disable()
-    telemetry_metrics_writer.enable()
-    metrics_result = telemetry_metrics_writer._namespace._metrics_data
+def mock_telemetry_lifecycle_writer():
+    telemetry_writer.disable()
+    telemetry_writer.enable()
+    metrics_result = telemetry_writer._namespace._metrics_data
     assert len(metrics_result[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE_TAG_APPSEC]) == 0
     assert len(metrics_result[TELEMETRY_TYPE_DISTRIBUTION][TELEMETRY_NAMESPACE_TAG_APPSEC]) == 0
-    yield telemetry_metrics_writer
-    telemetry_metrics_writer._namespace.flush()
+    yield telemetry_writer
+    telemetry_writer._namespace.flush()
 
 
 @pytest.fixture
-def mock_logs_telemetry_metrics_writer():
-    telemetry_metrics_writer.disable()
-    telemetry_metrics_writer.enable()
-    metrics_result = telemetry_metrics_writer._logs
+def mock_logs_telemetry_lifecycle_writer():
+    telemetry_writer.disable()
+    telemetry_writer.enable()
+    metrics_result = telemetry_writer._logs
     assert len(metrics_result) == 0
-    yield telemetry_metrics_writer
-    telemetry_metrics_writer.reset_queues()
+    yield telemetry_writer
+    telemetry_writer.reset_queues()
 
 
 def _assert_generate_metrics(metrics_result, is_rule_triggered=False, is_blocked_request=False):
@@ -75,48 +75,44 @@ def _assert_distributions_metrics(metrics_result, is_rule_triggered=False, is_bl
             pytest.fail("Unexpected distributions_metrics {}".format(metric.name))
 
 
-def test_metrics_when_appsec_doesnt_runs(mock_telemetry_metrics_writer, tracer):
-    with override_global_config(dict(_appsec_enabled=False, _telemetry_metrics_enabled=True)):
+def test_metrics_when_appsec_doesnt_runs(mock_telemetry_lifecycle_writer, tracer):
+    with override_global_config(dict(_appsec_enabled=False)):
         tracer.configure(api_version="v0.4", appsec_enabled=False)
-        mock_telemetry_metrics_writer._namespace.flush()
+        mock_telemetry_lifecycle_writer._namespace.flush()
         with tracer.trace("test", span_type=SpanTypes.WEB) as span:
             set_http_meta(
                 span,
                 Config(),
             )
-    metrics_data = mock_telemetry_metrics_writer._namespace._metrics_data
+    metrics_data = mock_telemetry_lifecycle_writer._namespace._metrics_data
     assert len(metrics_data[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE_TAG_APPSEC]) == 0
     assert len(metrics_data[TELEMETRY_TYPE_DISTRIBUTION][TELEMETRY_NAMESPACE_TAG_APPSEC]) == 0
 
 
-def test_metrics_when_appsec_runs(mock_telemetry_metrics_writer, tracer):
-    with override_global_config(dict(_appsec_enabled=True, _telemetry_metrics_enabled=True)):
-        mock_telemetry_metrics_writer._namespace.flush()
+def test_metrics_when_appsec_runs(mock_telemetry_lifecycle_writer, tracer):
+    with override_global_config(dict(_appsec_enabled=True)):
+        mock_telemetry_lifecycle_writer._namespace.flush()
         _enable_appsec(tracer)
         with tracer.trace("test", span_type=SpanTypes.WEB) as span:
             set_http_meta(
                 span,
                 Config(),
             )
-    _assert_generate_metrics(mock_telemetry_metrics_writer._namespace._metrics_data)
+    _assert_generate_metrics(mock_telemetry_lifecycle_writer._namespace._metrics_data)
 
 
-def test_metrics_when_appsec_attack(mock_telemetry_metrics_writer, tracer):
-    with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)), override_global_config(
-        dict(_appsec_enabled=True, _telemetry_metrics_enabled=True)
-    ):
-        mock_telemetry_metrics_writer._namespace.flush()
+def test_metrics_when_appsec_attack(mock_telemetry_lifecycle_writer, tracer):
+    with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)), override_global_config(dict(_appsec_enabled=True)):
+        mock_telemetry_lifecycle_writer._namespace.flush()
         _enable_appsec(tracer)
         with tracer.trace("test", span_type=SpanTypes.WEB) as span:
             set_http_meta(span, Config(), request_cookies={"attack": "1' or '1' = '1'"})
-    _assert_generate_metrics(mock_telemetry_metrics_writer._namespace._metrics_data, is_rule_triggered=True)
+    _assert_generate_metrics(mock_telemetry_lifecycle_writer._namespace._metrics_data, is_rule_triggered=True)
 
 
-def test_metrics_when_appsec_block(mock_telemetry_metrics_writer, tracer):
-    with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)), override_global_config(
-        dict(_appsec_enabled=True, _telemetry_metrics_enabled=True)
-    ):
-        mock_telemetry_metrics_writer._namespace.flush()
+def test_metrics_when_appsec_block(mock_telemetry_lifecycle_writer, tracer):
+    with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)), override_global_config(dict(_appsec_enabled=True)):
+        mock_telemetry_lifecycle_writer._namespace.flush()
         _enable_appsec(tracer)
         with _asm_request_context.asm_request_context_manager(_BLOCKED_IP, {}):
             with tracer.trace("test", span_type=SpanTypes.WEB) as span:
@@ -126,25 +122,26 @@ def test_metrics_when_appsec_block(mock_telemetry_metrics_writer, tracer):
                 )
 
     _assert_generate_metrics(
-        mock_telemetry_metrics_writer._namespace._metrics_data, is_rule_triggered=True, is_blocked_request=True
+        mock_telemetry_lifecycle_writer._namespace._metrics_data, is_rule_triggered=True, is_blocked_request=True
     )
 
 
-def test_log_metric_error_ddwaf_init(mock_logs_telemetry_metrics_writer):
-    with override_global_config(dict(_appsec_enabled=True, _telemetry_metrics_enabled=True)), override_env(
+def test_log_metric_error_ddwaf_init(mock_logs_telemetry_lifecycle_writer):
+    with override_global_config(dict(_appsec_enabled=True)), override_env(
         dict(DD_APPSEC_RULES=os.path.join(ROOT_DIR, "rules-with-2-errors.json"))
     ):
         AppSecSpanProcessor()
 
-        assert len(mock_logs_telemetry_metrics_writer._logs) == 1
-        assert mock_logs_telemetry_metrics_writer._logs[0]["message"] == "WAF init error. Invalid rules"
-        assert mock_logs_telemetry_metrics_writer._logs[0]["stack_trace"].startswith("DDWAF.__init__: invalid rules")
-        assert "waf_version:{}".format(version()) in mock_logs_telemetry_metrics_writer._logs[0]["tags"]
+        list_metrics_logs = list(mock_logs_telemetry_lifecycle_writer._logs)
+        assert len(list_metrics_logs) == 1
+        assert list_metrics_logs[0]["message"] == "WAF init error. Invalid rules"
+        assert list_metrics_logs[0]["stack_trace"].startswith("DDWAF.__init__: invalid rules")
+        assert "waf_version:{}".format(version()) in list_metrics_logs[0]["tags"]
 
 
-def test_log_metric_error_ddwaf_timeout(mock_logs_telemetry_metrics_writer, tracer):
+def test_log_metric_error_ddwaf_timeout(mock_logs_telemetry_lifecycle_writer, tracer):
     with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)), override_global_config(
-        dict(_appsec_enabled=True, _telemetry_metrics_enabled=True, _waf_timeout=0.0)
+        dict(_appsec_enabled=True, _waf_timeout=0.0)
     ):
         _enable_appsec(tracer)
         with _asm_request_context.asm_request_context_manager(_BLOCKED_IP, {}):
@@ -154,19 +151,21 @@ def test_log_metric_error_ddwaf_timeout(mock_logs_telemetry_metrics_writer, trac
                     Config(),
                 )
 
-        print(mock_logs_telemetry_metrics_writer._logs)
-        assert len(mock_logs_telemetry_metrics_writer._logs) == 2
-        assert mock_logs_telemetry_metrics_writer._logs[0]["message"] == "WAF run. Timeout errors"
-        assert mock_logs_telemetry_metrics_writer._logs[0].get("stack_trace") is None
-        assert "waf_version:{}".format(version()) in mock_logs_telemetry_metrics_writer._logs[0]["tags"]
+        list_metrics_logs = list(mock_logs_telemetry_lifecycle_writer._logs)
+        assert len(list_metrics_logs) == 1
+        assert list_metrics_logs[0]["message"] == "WAF run. Timeout errors"
+        assert list_metrics_logs[0].get("stack_trace") is None
+        assert "waf_version:{}".format(version()) in list_metrics_logs[0]["tags"]
 
 
 @pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
-def test_log_metric_error_ddwaf_update(mock_logs_telemetry_metrics_writer):
-    with override_global_config(dict(_appsec_enabled=True, _telemetry_metrics_enabled=True)):
+def test_log_metric_error_ddwaf_update(mock_logs_telemetry_lifecycle_writer):
+    with override_global_config(dict(_appsec_enabled=True)):
         span_processor = AppSecSpanProcessor()
         span_processor._update_rules("{}")
-        assert len(mock_logs_telemetry_metrics_writer._logs) == 1
-        assert mock_logs_telemetry_metrics_writer._logs[0]["message"] == "Error updating ASM rules. Invalid rules"
-        assert mock_logs_telemetry_metrics_writer._logs[0].get("stack_trace") is None
-        assert "waf_version:{}".format(version()) in mock_logs_telemetry_metrics_writer._logs[0]["tags"]
+
+        list_metrics_logs = list(mock_logs_telemetry_lifecycle_writer._logs)
+        assert len(list_metrics_logs) == 1
+        assert list_metrics_logs[0]["message"] == "Error updating ASM rules. Invalid rules"
+        assert list_metrics_logs[0].get("stack_trace") is None
+        assert "waf_version:{}".format(version()) in list_metrics_logs[0]["tags"]

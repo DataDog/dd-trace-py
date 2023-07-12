@@ -52,6 +52,7 @@
       "kafka.tombstone": "False",
       "kafka.topic": "test_analytics_with_rate",
       "language": "python",
+      "messaging.kafka.bootstrap.servers": "localhost:29092",
       "messaging.system": "kafka",
       "runtime-id": "5b3c44e99f134672b64de5b1f6276287",
       "span.kind": "producer"
