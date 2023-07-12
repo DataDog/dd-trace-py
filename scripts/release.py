@@ -16,15 +16,16 @@ for release candidates, patches, and minor releases.
 Setup:
 1. Create a Personal access token (classic), not a fine grained one, on Github: 
 https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token#creating-a-personal-access-token-classic # noqa
-2. Give the Github token repo, user, audit_log, and project permissions. It should look like this https://a.cl.ly/7KuzKv88 
-here: https://github.com/settings/tokens
-3. Add `export GH_TOKEN=<github token>` to your `.zshrc` file.
+2. Give the Github token repo, user, audit_log, project permissions. On the next page authorize your token for Datadog SSO.
+3. Add `export GH_TOKEN=<github token>` to your `.zhrc` file.
 
 4. Get API key and Application key for staging: https://ddstaging.datadoghq.com/organization-settings/api-keys
 5. Add export DD_API_KEY_STAGING=<api_key> and  export DD_APP_KEY_STAGING=<app_key> to your `.zhrc` file.
 
-6. Create an activate a virtual environment, and install required packages : 
-`python -m venv venv && source venv/bin/activate && pip install pygithub requests datadog-api-client`
+6. Install pandoc with `brew install pandoc`
+
+Create an activate a virtual environment, and install required packages : 
+`python -m venv venv && source venv/bin/activate && pip install pygithub requests datadog-api-client reno`
 
 
 Usage:
@@ -252,17 +253,24 @@ def create_notebook(dd_repo, name, rn, base, rc, patch):
             )
             return
 
-    diff_raw = subprocess.check_output(
-        "git cherry -v {last_version} 1.x".format(last_version=last_version),
-        shell=True,
-        cwd=os.pardir,
-    ).decode("utf8")
+    commit_hashes = (
+        subprocess.check_output(
+            'git log {last_version}..1.x --oneline | cut -d " " -f 1'.format(last_version=last_version),
+            shell=True,
+            cwd=os.pardir,
+        )
+        .decode("utf8")
+        .strip("\n")
+        .split("\n")
+    )
 
-    commit_hashes = re.findall("[0-9a-f]{5,40}", diff_raw)
     commits = []
     # get the commit objects
     for commit_hash in commit_hashes:
-        commits.append(dd_repo.get_commit(commit_hash))
+        try:
+            commits.append(dd_repo.get_commit(commit_hash))
+        except Exception:
+            print("Couldn't get commit hash %s for notebook, please add this manually" % commit_hash)
 
     # get list of authors for when we make the slack announcement
     author_slack_handles = []
@@ -275,7 +283,7 @@ def create_notebook(dd_repo, name, rn, base, rc, patch):
         files = commit.files
         for file in files:
             filename = file.filename
-            if "releasenotes/notes/" in filename:
+            if filename.startswith("releasenotes/notes/"):
                 # we need to make another api call to get ContentFile object so we can see what's in there
                 rn_file_content = dd_repo.get_contents(filename).decoded_content.decode("utf8")
                 # try to grab a good portion of the release note for us to use to insert in our reno release notes
