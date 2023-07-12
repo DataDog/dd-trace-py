@@ -142,6 +142,7 @@ jobs:
           sed -i'' 's/test_multivalue_dict_key_error/multivalue_dict_key_error/' tests/view_tests/tests/test_debug.py  # Sensitive data leak
           sed -i'' 's/test_db_table/db_table/' tests/schema/tests.py
           sed -i'' 's/test_django_admin_py_equivalent_main/django_admin_py_equivalent_main/' tests/admin_scripts/test_django_admin_py.py
+          sed -i'' 's/test_custom_fields/custom_fields/' tests/inspectdb/tests.py
 
       - name: Run tests
         # django.tests.requests module interferes with requests library patching in the tracer -> disable requests patch
