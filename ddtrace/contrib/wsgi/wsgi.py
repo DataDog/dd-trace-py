@@ -47,6 +47,46 @@ log = get_logger(__name__)
 
 propagator = HTTPPropagator
 
+
+def _on_context_started(ctx):
+    tracer = ctx.get_item("tracer")
+    _pin = ctx.get_item("_pin")
+    _config = ctx.get_item("_config")
+    req_span = tracer.trace(
+        ctx.get_item("_request_span_name"),
+        service=trace_utils.int_service(_pin, _config),
+        span_type=SpanTypes.WEB,
+    )
+    ctx.set_item("span", req_span)
+
+
+def _make_block_content(_config, environ, headers, span):
+    ctype = "text/html" if "text/html" in headers.get("Accept", "").lower() else "text/json"
+    content = utils._get_blocked_template(ctype).encode("UTF-8")
+    try:
+        span.set_tag_str(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-length", str(len(content)))
+        span.set_tag_str(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type", ctype)
+        span.set_tag_str(http.STATUS_CODE, "403")
+        url = construct_url(environ)
+        query_string = environ.get("QUERY_STRING")
+        _set_url_tag(_config, span, url, query_string)
+        if query_string and _config.trace_query_string:
+            span.set_tag_str(http.QUERY_STRING, query_string)
+        method = environ.get("REQUEST_METHOD")
+        if method:
+            span.set_tag_str(http.METHOD, method)
+        user_agent = _get_request_header_user_agent(headers, headers_are_case_sensitive=True)
+        if user_agent:
+            span.set_tag_str(http.USER_AGENT, user_agent)
+    except Exception as e:
+        log.warning("Could not set some span tags on blocked request: %s", str(e))  # noqa: G200
+
+    return ctype, content
+
+
+core.on("context.started.wsgi.__call__", _on_context_started)
+core.on("wsgi.block.started", _make_block_content)
+
 config._add(
     "wsgi",
     dict(
@@ -134,29 +174,6 @@ class _DDWSGIMiddlewareBase(object):
         "Returns the name of a response span. Example: `flask.response`"
         raise NotImplementedError
 
-    def _make_block_content(self, environ, headers, span):
-        ctype = "text/html" if "text/html" in headers.get("Accept", "").lower() else "text/json"
-        content = utils._get_blocked_template(ctype).encode("UTF-8")
-        try:
-            span.set_tag_str(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-length", str(len(content)))
-            span.set_tag_str(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type", ctype)
-            span.set_tag_str(http.STATUS_CODE, "403")
-            url = construct_url(environ)
-            query_string = environ.get("QUERY_STRING")
-            _set_url_tag(self._config, span, url, query_string)
-            if query_string and self._config.trace_query_string:
-                span.set_tag_str(http.QUERY_STRING, query_string)
-            method = environ.get("REQUEST_METHOD")
-            if method:
-                span.set_tag_str(http.METHOD, method)
-            user_agent = _get_request_header_user_agent(headers, headers_are_case_sensitive=True)
-            if user_agent:
-                span.set_tag_str(http.USER_AGENT, user_agent)
-        except Exception as e:
-            log.warning("Could not set some span tags on blocked request: %s", str(e))  # noqa: G200
-
-        return ctype, content
-
     def __call__(self, environ, start_response):
         # type: (Iterable, Callable) -> _TracedIterable
         trace_utils.activate_distributed_headers(self.tracer, int_config=self._config, request_headers=environ)
@@ -165,22 +182,26 @@ class _DDWSGIMiddlewareBase(object):
         closing_iterator = ()
         not_blocked = True
         with core.context_with_data(
-            "wsgi.__call__", remote_addr=environ.get("REMOTE_ADDR"), headers=headers, headers_case_sensitive=True
-        ):
-            req_span = self.tracer.trace(
-                self._request_span_name,
-                service=trace_utils.int_service(self._pin, self._config),
-                span_type=SpanTypes.WEB,
-            )
+            "wsgi.__call__",
+            remote_addr=environ.get("REMOTE_ADDR"),
+            headers=headers,
+            headers_case_sensitive=True,
+            tracer=self.tracer,
+            _pin=self._pin,
+            _config=self._config,
+            _request_span_name=self._request_span_name,
+        ) as ctx:
+            req_span = ctx.get_item("span")
+            assert req_span is not None
 
             if core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
-                ctype, content = self._make_block_content(environ, headers, req_span)
+                ctype, content = core.dispatch("wsgi.block.started", [self._config, environ, headers, req_span])[0][0]
                 start_response("403 FORBIDDEN", [("content-type", ctype)])
                 closing_iterator = [content]
                 not_blocked = False
 
             def blocked_view():
-                ctype, content = self._make_block_content(environ, headers, req_span)
+                ctype, content = core.dispatch("wsgi.block.started", [self._config, environ, headers, req_span])[0][0]
                 return content, 403, [("content-type", ctype)]
 
             core.dispatch("wsgi.block_decided", [blocked_view])
@@ -208,7 +229,7 @@ class _DDWSGIMiddlewareBase(object):
                     req_span.finish()
                     raise
                 if core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
-                    _, content = self._make_block_content(environ, headers, req_span)
+                    _, content = core.dispatch("wsgi.block.started", [self._config, environ, headers, req_span])[0][0]
                     closing_iterator = [content]
 
             # start flask.response span. This span will be finished after iter(result) is closed.
