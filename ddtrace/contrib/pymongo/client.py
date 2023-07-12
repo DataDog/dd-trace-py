@@ -229,6 +229,10 @@ class TracedSocket(ObjectProxy):
             log.exception("error parsing spec. skipping trace")
 
         pin = ddtrace.Pin.get_from(self)
+        if type(kwargs["client"]) == TracedMongoClient:
+            # Pymongo's internals check that the session's client is the same as the actual client used
+            # using `is` instead of `==`
+            kwargs["client"] = kwargs["client"].__wrapped__
         # skip tracing if we don't have a piece of data we need
         if not dbname or not cmd or not pin or not pin.enabled():
             return self.__wrapped__.command(dbname, spec, *args, **kwargs)
@@ -246,6 +250,10 @@ class TracedSocket(ObjectProxy):
             log.exception("error parsing msg")
 
         pin = ddtrace.Pin.get_from(self)
+        if type(kwargs["client"]) == TracedMongoClient:
+            # Pymongo's internals check that the session's client is the same as the actual client used
+            # using `is` instead of `==`
+            kwargs["client"] = kwargs["client"].__wrapped__
         # if we couldn't parse it, don't try to trace it.
         if not cmd or not pin or not pin.enabled():
             return self.__wrapped__.write_command(*args, **kwargs)
