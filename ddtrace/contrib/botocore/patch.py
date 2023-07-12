@@ -511,7 +511,7 @@ def patched_api_call(original_func, instance, args, kwargs):
                 if "MessageAttributeNames" not in params:
                     params.update({"MessageAttributeNames": ["_datadog"]})
                 elif "_datadog" not in params["MessageAttributeNames"]:
-                    params.update({"MessageAttributeNames": params["MessageAttributeNames"] + ["_datadog"]})
+                    params.update({"MessageAttributeNames": list(params["MessageAttributeNames"]) + ["_datadog"]})
 
                 result = original_func(*args, **kwargs)
                 _set_response_metadata_tags(span, result)
