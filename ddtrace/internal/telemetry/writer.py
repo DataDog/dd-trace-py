@@ -27,6 +27,7 @@ from ..service import ServiceStatus
 from ..utils.formats import asbool
 from ..utils.time import StopWatch
 from ..utils.version import _pep440_to_semver
+from .constants import TELEMETRY_RUNTIMEMETRICS_ENABLED
 from .constants import TELEMETRY_TYPE_DISTRIBUTION
 from .constants import TELEMETRY_TYPE_GENERATE_METRICS
 from .constants import TELEMETRY_TYPE_LOGS
@@ -260,6 +261,7 @@ class TelemetryWriter(PeriodicService):
                 ("ddtrace_bootstrapped", config._ddtrace_bootstrapped, "unknown"),
                 ("ddtrace_auto_used", "ddtrace.auto" in sys.modules, "unknown"),
                 ("otel_enabled", config._otel_enabled, "unknown"),
+                (TELEMETRY_RUNTIMEMETRICS_ENABLED, config._runtime_metrics_enabled, "unknown"),
             ]
         )
 
