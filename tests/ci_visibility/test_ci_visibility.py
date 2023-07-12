@@ -734,7 +734,7 @@ def test_get_filtered_revisions():
 
 def test_is_shallow_repository_true():
     with mock.patch(
-        "ddtrace.internal.ci_visibility.git_client.is_shallow_repository", return_value=True
+        "ddtrace.internal.ci_visibility.git_client._is_shallow_repository", return_value=True
     ) as mock_is_shallow_repository:
         assert CIVisibilityGitClient._is_shallow_repository(cwd="/path/to/repo") is True
         mock_is_shallow_repository.assert_called_once_with(cwd="/path/to/repo")
@@ -742,13 +742,13 @@ def test_is_shallow_repository_true():
 
 def test_is_shallow_repository_false():
     with mock.patch(
-        "ddtrace.internal.ci_visibility.git_client.is_shallow_repository", return_value=False
+        "ddtrace.internal.ci_visibility.git_client._is_shallow_repository", return_value=False
     ) as mock_is_shallow_repository:
         assert CIVisibilityGitClient._is_shallow_repository(cwd="/path/to/repo") is False
         mock_is_shallow_repository.assert_called_once_with(cwd="/path/to/repo")
 
 
 def test_unshallow_repository():
-    with mock.patch("ddtrace.internal.ci_visibility.git_client.unshallow_repository") as mock_unshallow_repository:
+    with mock.patch("ddtrace.internal.ci_visibility.git_client._unshallow_repository") as mock_unshallow_repository:
         CIVisibilityGitClient._unshallow_repository(cwd="/path/to/repo")
         mock_unshallow_repository.assert_called_once_with(cwd="/path/to/repo")
