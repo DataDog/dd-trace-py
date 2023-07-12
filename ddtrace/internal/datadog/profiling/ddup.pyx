@@ -68,7 +68,7 @@ IF UNAME_SYSNAME == "Linux" and UNAME_MACHINE == "x86_64":
             url: Optional[str]) -> None:
 
         # Try to provide a ddtrace-specific default service if one is not given
-        service = service if service else DEFAULT_SERVICE_NAME
+        service = service or DEFAULT_SERVICE_NAME
         ddup_config_service(ensure_binary(service))
 
         # If otherwise no values are provided, the uploader will omit the fields
