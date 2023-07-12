@@ -9,7 +9,7 @@ from ddtrace.appsec.iast._util import _is_python_version_supported
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
 from ddtrace.ext import SpanTypes
-from ddtrace.internal import _context
+from ddtrace.internal import core
 from tests.utils import DummyTracer
 from tests.utils import override_env
 from tests.utils import override_global_config
@@ -38,7 +38,7 @@ def test_appsec_iast_processor():
         span = traced_function(tracer)
         tracer._on_span_finish(span)
 
-        span_report = _context.get_item(IAST.CONTEXT_KEY, span=span)
+        span_report = core.get_item(IAST.CONTEXT_KEY, span=span)
         result = span.get_tag(IAST.JSON)
 
         assert len(span_report.vulnerabilities) == 1

@@ -108,6 +108,7 @@ def cleanup_loaded_modules():
             "concurrent",
             "typing",
             "re",  # referenced by the typing module
+            "sre_constants",  # imported by re at runtime
             "logging",
             "attr",
             "google.protobuf",  # the upb backend in >= 4.21 does not like being unloaded
@@ -165,7 +166,7 @@ try:
 
         DynamicInstrumentation.enable()
 
-    if asbool(os.getenv("DD_RUNTIME_METRICS_ENABLED")):
+    if config._runtime_metrics_enabled:
         RuntimeWorker.enable()
 
     if asbool(os.getenv("DD_IAST_ENABLED", False)):
