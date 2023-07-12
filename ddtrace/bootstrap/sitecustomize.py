@@ -166,7 +166,7 @@ try:
 
         DynamicInstrumentation.enable()
 
-    if asbool(os.getenv("DD_RUNTIME_METRICS_ENABLED")):
+    if config._runtime_metrics_enabled:
         RuntimeWorker.enable()
 
     if asbool(os.getenv("DD_IAST_ENABLED", False)):

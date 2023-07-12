@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    profiling: Handles a race condition, which would occasionally throw an
+    error, which would read ``"RuntimeError: the memalloc module was not started."``
+       
