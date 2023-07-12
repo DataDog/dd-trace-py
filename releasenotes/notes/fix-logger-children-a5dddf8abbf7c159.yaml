@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    internal: call _fixupChildren when retrieving ``DDLogger``
+    internal: call ``_fixupChildren`` when retrieving ``DDLogger``
