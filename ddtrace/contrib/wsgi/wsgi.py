@@ -60,9 +60,11 @@ def _on_context_started(ctx):
     ctx.set_item("span", req_span)
 
 
-def _make_block_content(_config, environ, ctx):
+def _make_block_content(ctx):
     span = ctx.get_item("span")
     headers = ctx.get_item("headers")
+    _config = ctx.get_item("_config")
+    environ = ctx.get_item("environ")
     assert span is not None
     ctype = "text/html" if "text/html" in headers.get("Accept", "").lower() else "text/json"
     content = utils._get_blocked_template(ctype).encode("UTF-8")
@@ -190,6 +192,7 @@ class _DDWSGIMiddlewareBase(object):
             headers=headers,
             headers_case_sensitive=True,
             tracer=self.tracer,
+            environ=environ,
             _pin=self._pin,
             _config=self._config,
             _request_span_name=self._request_span_name,
@@ -198,13 +201,13 @@ class _DDWSGIMiddlewareBase(object):
             assert req_span is not None
 
             if core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
-                ctype, content = core.dispatch("wsgi.block.started", [self._config, environ, ctx])[0][0]
+                ctype, content = core.dispatch("wsgi.block.started", [ctx])[0][0]
                 start_response("403 FORBIDDEN", [("content-type", ctype)])
                 closing_iterator = [content]
                 not_blocked = False
 
             def blocked_view():
-                ctype, content = core.dispatch("wsgi.block.started", [self._config, environ, ctx])[0][0]
+                ctype, content = core.dispatch("wsgi.block.started", [ctx])[0][0]
                 return content, 403, [("content-type", ctype)]
 
             core.dispatch("wsgi.block_decided", [blocked_view])
@@ -232,7 +235,7 @@ class _DDWSGIMiddlewareBase(object):
                     req_span.finish()
                     raise
                 if core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
-                    _, content = core.dispatch("wsgi.block.started", [self._config, environ, ctx])[0][0]
+                    _, content = core.dispatch("wsgi.block.started", [ctx])[0][0]
                     closing_iterator = [content]
 
             # start flask.response span. This span will be finished after iter(result) is closed.
