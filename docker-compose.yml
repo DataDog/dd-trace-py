@@ -165,6 +165,7 @@ services:
         environment:
             - TOX_SKIP_DIST=True
         network_mode: host
+        userns_mode: host
         working_dir: /root/project/
         volumes:
           - ddagent:/tmp/ddagent

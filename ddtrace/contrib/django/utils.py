@@ -2,6 +2,7 @@ import json
 from typing import Any
 from typing import Dict
 from typing import List
+from typing import Mapping
 from typing import Text
 from typing import Union
 
@@ -19,7 +20,7 @@ from ddtrace.ext import user as _user
 from ddtrace.propagation._utils import from_wsgi_header
 
 from .. import trace_utils
-from ...internal import _context
+from ...internal import core
 from ...internal.logger import get_logger
 from ...internal.utils.formats import stringify_cache_args
 from ...vendor.wrapt import FunctionWrapper
@@ -285,10 +286,11 @@ def _extract_body(request):
 
 
 def _get_request_headers(request):
+    # type: (Any) -> Mapping[str, str]
     if DJANGO22:
-        request_headers = request.headers
+        request_headers = request.headers  # type: Mapping[str, str]
     else:
-        request_headers = {}
+        request_headers = {}  # type: Mapping[str, str]
         for header, value in request.META.items():
             name = from_wsgi_header(header)
             if name:
@@ -392,8 +394,8 @@ def _after_request_tags(pin, span, request, response):
                 request_cookies=request.COOKIES,
                 request_path_params=request.resolver_match.kwargs if request.resolver_match is not None else None,
                 request_body=_extract_body(request),
-                peer_ip=_context.get_item("http.request.remote_ip", span=span),
-                headers_are_case_sensitive=_context.get_item("http.request.headers_case_sensitive", span=span),
+                peer_ip=core.get_item("http.request.remote_ip", span=span),
+                headers_are_case_sensitive=core.get_item("http.request.headers_case_sensitive", span=span),
             )
             if config._appsec_enabled and config._api_security_enabled:
                 _asm_request_context.set_body_response(response.content)
