@@ -60,9 +60,11 @@ def _on_context_started(ctx):
     ctx.set_item("span", req_span)
 
 
-def _make_block_content(_config, environ, headers, span):
+def _make_block_content(_config, environ, headers, ctx):
     ctype = "text/html" if "text/html" in headers.get("Accept", "").lower() else "text/json"
     content = utils._get_blocked_template(ctype).encode("UTF-8")
+    span = ctx.get_item("span")
+    assert span is not None
     try:
         span.set_tag_str(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-length", str(len(content)))
         span.set_tag_str(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type", ctype)
@@ -195,13 +197,13 @@ class _DDWSGIMiddlewareBase(object):
             assert req_span is not None
 
             if core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
-                ctype, content = core.dispatch("wsgi.block.started", [self._config, environ, headers, req_span])[0][0]
+                ctype, content = core.dispatch("wsgi.block.started", [self._config, environ, headers, ctx])[0][0]
                 start_response("403 FORBIDDEN", [("content-type", ctype)])
                 closing_iterator = [content]
                 not_blocked = False
 
             def blocked_view():
-                ctype, content = core.dispatch("wsgi.block.started", [self._config, environ, headers, req_span])[0][0]
+                ctype, content = core.dispatch("wsgi.block.started", [self._config, environ, headers, ctx])[0][0]
                 return content, 403, [("content-type", ctype)]
 
             core.dispatch("wsgi.block_decided", [blocked_view])
@@ -229,7 +231,7 @@ class _DDWSGIMiddlewareBase(object):
                     req_span.finish()
                     raise
                 if core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
-                    _, content = core.dispatch("wsgi.block.started", [self._config, environ, headers, req_span])[0][0]
+                    _, content = core.dispatch("wsgi.block.started", [self._config, environ, headers, ctx])[0][0]
                     closing_iterator = [content]
 
             # start flask.response span. This span will be finished after iter(result) is closed.
