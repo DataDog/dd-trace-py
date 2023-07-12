@@ -67,7 +67,7 @@ def _on_pre_tracedrequest(block_request_callable, span):
         from ddtrace.appsec import _asm_request_context
 
         _asm_request_context.set_block_request_callable(functools.partial(block_request_callable, span))
-        if core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span):
+        if core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
             _asm_request_context.block_request()
 
 

@@ -614,7 +614,7 @@ def _set_block_tags(span):
 
 def _block_request_callable(span):
     request = flask.request
-    core.set_item(WAF_CONTEXT_NAMES.BLOCKED, True, span=span)
+    core.set_item(WAF_CONTEXT_NAMES.BLOCKED, True)
     _set_block_tags(span)
     ctype = "text/html" if "text/html" in request.headers.get("Accept", "").lower() else "text/json"
     abort(flask.Response(utils._get_blocked_template(ctype), content_type=ctype, status=403))
