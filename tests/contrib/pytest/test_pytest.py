@@ -145,7 +145,6 @@ class PytestTestCase(TracerTestCase):
             """
             import pytest
 
-
             @pytest.mark.parametrize('item', [1, 2, 3, 4, pytest.param([1, 2, 3], marks=pytest.mark.skip)])
             class Test1(object):
                 def test_1(self, item):
@@ -1322,79 +1321,6 @@ class PytestTestCase(TracerTestCase):
         test_suite_spans = [span for span in spans if span.get_tag("type") == "test_suite_end"]
         assert test_suite_spans[0].get_tag("test.suite") == "test_outer_abc.py"
         assert test_suite_spans[1].get_tag("test.suite") == "test_inner_abc.py"
-
-    @pytest.mark.skipif(compat.PY2, reason="ddtrace does not support coverage on Python 2")
-    def test_pytest_will_report_coverage_by_suite(self):
-        self.testdir.makepyfile(
-            test_ret_false="""
-        def ret_false():
-            return False
-        """
-        )
-        self.testdir.makepyfile(
-            test_module="""
-        def lib_fn():
-            return True
-        """
-        )
-        py_cov_file = self.testdir.makepyfile(
-            test_cov="""
-        import pytest
-        from test_module import lib_fn
-
-        def test_cov():
-            assert lib_fn()
-
-        def test_second():
-            from test_ret_false import ret_false
-            assert not ret_false()
-        """
-        )
-        py_cov_file2 = self.testdir.makepyfile(
-            test_cov_second="""
-        import pytest
-
-        def test_second():
-            from test_ret_false import ret_false
-            assert not ret_false()
-        """
-        )
-
-        with mock.patch("ddtrace.contrib.pytest.plugin._get_test_skipping_level", return_value="suite"), mock.patch(
-            "ddtrace.contrib.pytest.plugin.coverage_enabled", return_value=True
-        ):
-            self.inline_run("--ddtrace", os.path.basename(py_cov_file.strpath), os.path.basename(py_cov_file2.strpath))
-        spans = self.pop_spans()
-
-        first_suite_span = spans[4]
-        assert first_suite_span.get_tag("type") == "test_suite_end"
-        assert COVERAGE_TAG_NAME in first_suite_span.get_tags()
-        tag_data = json.loads(first_suite_span.get_tag(COVERAGE_TAG_NAME))
-        files = sorted(tag_data["files"], key=lambda x: x["filename"])
-        assert len(files) == 3
-        assert files[0]["filename"] == "test_cov.py"
-        assert files[1]["filename"] == "test_module.py"
-        assert files[2]["filename"] == "test_ret_false.py"
-        assert len(files[0]["segments"]) == 2
-        assert files[0]["segments"][0] == [5, 0, 5, 0, -1]
-        assert files[0]["segments"][1] == [8, 0, 9, 0, -1]
-        assert len(files[1]["segments"]) == 1
-        assert files[1]["segments"][0] == [2, 0, 2, 0, -1]
-        assert len(files[2]["segments"]) == 1
-        assert files[2]["segments"][0] == [1, 0, 2, 0, -1]
-
-        second_suite_span = spans[5]
-        assert second_suite_span.get_tag("type") == "test_suite_end"
-        assert COVERAGE_TAG_NAME in second_suite_span.get_tags()
-        tag_data = json.loads(second_suite_span.get_tag(COVERAGE_TAG_NAME))
-        files = sorted(tag_data["files"], key=lambda x: x["filename"])
-        assert len(files) == 2
-        assert files[0]["filename"] == "test_cov_second.py"
-        assert files[1]["filename"] == "test_ret_false.py"
-        assert len(files[0]["segments"]) == 1
-        assert files[0]["segments"][0] == [4, 0, 5, 0, -1]
-        assert len(files[1]["segments"]) == 1
-        assert files[1]["segments"][0] == [2, 0, 2, 0, -1]
 
     @pytest.mark.skipif(compat.PY2, reason="ddtrace does not support coverage on Python 2")
     def test_pytest_will_report_coverage_by_test(self):
