@@ -13,8 +13,8 @@ from ddtrace.ext.git import extract_git_version
 from ddtrace.ext.git import extract_latest_commits
 from ddtrace.ext.git import extract_remote_url
 from ddtrace.ext.git import get_rev_list
-from ddtrace.ext.git import is_shallow_repository
-from ddtrace.ext.git import unshallow_repository
+from ddtrace.ext.git import _is_shallow_repository
+from ddtrace.ext.git import _unshallow_repository
 from ddtrace.internal.agent import get_trace_url
 from ddtrace.internal.compat import JSONDecodeError
 from ddtrace.internal.logger import get_logger
@@ -172,12 +172,12 @@ class CIVisibilityGitClient(object):
     @classmethod
     def _is_shallow_repository(cls, cwd=None):
         # type () -> bool
-        return is_shallow_repository(cwd=cwd)
+        return _is_shallow_repository(cwd=cwd)
 
     @classmethod
     def _unshallow_repository(cls, cwd=None):
         # type () -> None
-        unshallow_repository(cwd=cwd)
+        _unshallow_repository(cwd=cwd)
 
 
 class CIVisibilityGitClientSerializerV1(object):

@@ -257,13 +257,13 @@ def test_get_rev_list_git_lt_223(git_repo):
 
 def test_is_shallow_repository_true(git_repo):
     with mock.patch("ddtrace.ext.git._git_subprocess_cmd", return_value="true") as mock_git_subprocess:
-        assert git.is_shallow_repository(cwd=git_repo) is True
+        assert git._is_shallow_repository(cwd=git_repo) is True
         mock_git_subprocess.assert_called_once_with("rev-parse --is-shallow-repository", cwd=git_repo)
 
 
 def test_is_shallow_repository_false(git_repo):
     with mock.patch("ddtrace.ext.git._git_subprocess_cmd", return_value="false") as mock_git_subprocess:
-        assert git.is_shallow_repository(cwd=git_repo) is False
+        assert git._is_shallow_repository(cwd=git_repo) is False
         mock_git_subprocess.assert_called_once_with("rev-parse --is-shallow-repository", cwd=git_repo)
 
 
@@ -275,7 +275,7 @@ def test_unshallow_repository(git_repo):
             "ddtrace.ext.git.extract_commit_sha", return_value="mycommitshaaaaaaaaaaaa123"
         ) as mock_extract_sha:
             with mock.patch("ddtrace.ext.git._git_subprocess_cmd") as mock_git_subprocess:
-                git.unshallow_repository(cwd=git_repo)
+                git._unshallow_repository(cwd=git_repo)
 
                 mock_defaultremotename.assert_called_once_with(git_repo)
                 mock_extract_sha.assert_called_once_with(git_repo)

@@ -269,13 +269,13 @@ def build_git_packfiles(revisions, cwd=None):
         yield prefix
 
 
-def is_shallow_repository(cwd=None):
+def _is_shallow_repository(cwd=None):
     # type: (Optional[str]) -> bool
     output = _git_subprocess_cmd("rev-parse --is-shallow-repository", cwd=cwd)
     return output.strip() == "true"
 
 
-def unshallow_repository(cwd=None):
+def _unshallow_repository(cwd=None):
     # type (Optional[str]) -> None
     remote_name = extract_clone_defaultremotename(cwd)
     head_sha = extract_commit_sha(cwd)
