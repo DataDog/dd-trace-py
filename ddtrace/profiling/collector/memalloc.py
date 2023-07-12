@@ -104,22 +104,25 @@ class MemoryCollector(collector.PeriodicCollector):
     def snapshot(self):
         thread_id_ignore_set = self._get_thread_id_ignore_set()
 
-        stacks = [
-            ((stack, nframes, thread_id), size)
-            for (stack, nframes, thread_id), size in _memalloc.heap()
-            if not self.ignore_profiler or thread_id not in thread_id_ignore_set
-        ]
+        try:
+            events = _memalloc.heap()
+        except RuntimeError:
+            # DEV: This can happen if either _memalloc has not been started or has been stopped.
+            LOG.debug("Unable to collect heap events from process %d", os.getpid(), exc_info=True)
+            return tuple()
+
         if self._export_libdd_enabled:
-            for (frames, nframes, thread_id), size in stacks:
-                ddup.start_sample(nframes)
-                ddup.push_heap(size)
-                ddup.push_threadinfo(
-                    thread_id, _threading.get_thread_native_id(thread_id), _threading.get_thread_name(thread_id)
-                )
-                ddup.push_class_name(frames[0].class_name)
-                for frame in frames:
-                    ddup.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
-                ddup.flush_sample()
+            for (frames, nframes, thread_id), size in events:
+                if not self.ignore_profiler or thread_id not in thread_id_ignore_set:
+                    ddup.start_sample(nframes)
+                    ddup.push_heap(size)
+                    ddup.push_threadinfo(
+                        thread_id, _threading.get_thread_native_id(thread_id), _threading.get_thread_name(thread_id)
+                    )
+                    ddup.push_class_name(frames[0].class_name)
+                    for frame in frames:
+                        ddup.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
+                    ddup.flush_sample()
 
         if self._export_py_enabled:
             return (
@@ -133,9 +136,12 @@ class MemoryCollector(collector.PeriodicCollector):
                         size=size,
                         sample_size=self.heap_sample_size,
                     )
-                    for (frames, nframes, thread_id), size in stacks
+                    for (frames, nframes, thread_id), size in events
+                    if not self.ignore_profiler or thread_id not in thread_id_ignore_set
                 ),
             )
+        else:
+            return tuple()
 
     def collect(self):
         # TODO: The event timestamp is slightly off since it's going to be the time we copy the data from the
