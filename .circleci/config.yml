@@ -76,7 +76,7 @@ commands:
     description: "Install riot"
     steps:
       # Make sure we install and run riot on Python 3
-      - run: pip3 install git+https://github.com/DataDog/riot@fix/dev-package-dedicated-venv
+      - run: pip3 install riot=0.17.4
 
   save_pip_cache:
     description: "Save pip cache directory"
@@ -253,7 +253,7 @@ jobs:
           command: riot run -s codespell
       - run:
           name: "Run riotfile.py tests"
-          command: riot run -s --pass-env riot-helpers
+          command: riot run -s riot-helpers
       - run:
           name: "Test agent snapshot check"
           command: riot run -s snapshot-fmt && git diff --exit-code
