@@ -197,9 +197,6 @@ class _DDWSGIMiddlewareBase(object):
             _config=self._config,
             _request_span_name=self._request_span_name,
         ) as ctx:
-            req_span = ctx.get_item("span")
-            assert req_span is not None
-
             if core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
                 ctype, content = core.dispatch("wsgi.block.started", [ctx])[0][0]
                 start_response("403 FORBIDDEN", [("content-type", ctype)])
@@ -213,26 +210,26 @@ class _DDWSGIMiddlewareBase(object):
             core.dispatch("wsgi.block_decided", [blocked_view])
 
             if not_blocked:
-                req_span.set_tag_str(COMPONENT, self._config.integration_name)
+                ctx.get_item("span").set_tag_str(COMPONENT, self._config.integration_name)
                 # set span.kind to the type of operation being performed
-                req_span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
-                self._request_span_modifier(req_span, environ)
+                ctx.get_item("span").set_tag_str(SPAN_KIND, SpanKind.SERVER)
+                self._request_span_modifier(ctx.get_item("span"), environ)
                 try:
                     app_span = self.tracer.trace(self._application_span_name)
 
                     app_span.set_tag_str(COMPONENT, self._config.integration_name)
 
                     intercept_start_response = functools.partial(
-                        self._traced_start_response, start_response, req_span, app_span
+                        self._traced_start_response, start_response, ctx.get_item("span"), app_span
                     )
                     closing_iterator = self.app(environ, intercept_start_response)
                     self._application_span_modifier(app_span, environ, closing_iterator)
                     app_span.finish()
                 except BaseException:
-                    req_span.set_exc_info(*sys.exc_info())
+                    ctx.get_item("span").set_exc_info(*sys.exc_info())
                     app_span.set_exc_info(*sys.exc_info())
                     app_span.finish()
-                    req_span.finish()
+                    ctx.get_item("span").finish()
                     raise
                 if core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
                     _, content = core.dispatch("wsgi.block.started", [ctx])[0][0]
@@ -240,13 +237,13 @@ class _DDWSGIMiddlewareBase(object):
 
             # start flask.response span. This span will be finished after iter(result) is closed.
             # start_span(child_of=...) is used to ensure correct parenting.
-            resp_span = self.tracer.start_span(self._response_span_name, child_of=req_span, activate=True)
+            resp_span = self.tracer.start_span(self._response_span_name, child_of=ctx.get_item("span"), activate=True)
 
             resp_span.set_tag_str(COMPONENT, self._config.integration_name)
 
             self._response_span_modifier(resp_span, closing_iterator)
 
-            return _TracedIterable(iter(closing_iterator), resp_span, req_span)
+            return _TracedIterable(iter(closing_iterator), resp_span, ctx.get_item("span"))
 
     def _traced_start_response(self, start_response, request_span, app_span, status, environ, exc_info=None):
         # type: (Callable, Span, Span, str, Dict, Any) -> None
