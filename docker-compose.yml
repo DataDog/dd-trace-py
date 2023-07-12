@@ -138,7 +138,7 @@ services:
           - ddagent:/tmp/ddagent:rw
     testagent:
         # image: ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:latest
-        image: williamconti549/dd-apm-test-agent:service-naming
+        image: williamconti549/dd-apm-test-agent:service-naming-2
         ports:
             - "127.0.0.1:9126:8126"
         volumes:
@@ -149,6 +149,7 @@ services:
             - SNAPSHOT_CI
             - DD_POOL_TRACE_CHECK_FAILURES=true
             - DD_DISABLE_ERROR_RESPONSES=true
+            - ENABLED_CHECKS=trace_content_length,trace_stall,meta_tracer_version_header,trace_count_header,trace_peer_service,trace_dd_service
     vertica:
         image: sumitchawla/vertica
         environment:
