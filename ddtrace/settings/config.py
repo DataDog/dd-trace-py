@@ -304,7 +304,7 @@ class Config(object):
         self._ci_visibility_agentless_enabled = asbool(os.getenv("DD_CIVISIBILITY_AGENTLESS_ENABLED", default=False))
         self._ci_visibility_agentless_url = os.getenv("DD_CIVISIBILITY_AGENTLESS_URL", default="")
         self._ci_visibility_intelligent_testrunner_enabled = asbool(
-            os.getenv("DD_CIVISIBILITY_ITR_ENABLED", default=False)
+            os.getenv("DD_CIVISIBILITY_ITR_ENABLED", default=True)
         )
         self._ci_visibility_code_coverage_enabled = asbool(
             os.getenv("DD_CIVISIBILITY_CODE_COVERAGE_ENABLED", default=False)

@@ -126,6 +126,12 @@ class CIVisibility(Service):
                 self._git_client = CIVisibilityGitClient(
                     api_key=self._api_key or "", app_key=self._app_key, requests_mode=self._requests_mode
                 )
+        elif self._test_skipping_enabled_by_api:
+            log.warning(
+                "Datadog Intelligent Test Runner is enabled, but environment variable "
+                "DD_CIVISIBILITY_ITR_ENABLED is false: disabling Intelligent Test Runner"
+            )
+
         try:
             from ddtrace.internal.codeowners import Codeowners
 
@@ -138,10 +144,6 @@ class CIVisibility(Service):
     def _check_enabled_features(self):
         # type: () -> Tuple[bool, bool]
         if not self._app_key:
-            return False, False
-
-        # DEV: Remove this ``if`` once ITR is in GA
-        if not ddconfig._ci_visibility_intelligent_testrunner_enabled:
             return False, False
 
         _headers = {
