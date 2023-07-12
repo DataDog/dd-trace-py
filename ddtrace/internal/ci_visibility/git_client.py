@@ -7,14 +7,14 @@ from typing import Optional  # noqa
 from typing import Tuple  # noqa
 
 from ddtrace.ext import ci
+from ddtrace.ext.git import _is_shallow_repository
+from ddtrace.ext.git import _unshallow_repository
 from ddtrace.ext.git import build_git_packfiles
 from ddtrace.ext.git import extract_commit_sha
 from ddtrace.ext.git import extract_git_version
 from ddtrace.ext.git import extract_latest_commits
 from ddtrace.ext.git import extract_remote_url
 from ddtrace.ext.git import get_rev_list
-from ddtrace.ext.git import _is_shallow_repository
-from ddtrace.ext.git import _unshallow_repository
 from ddtrace.internal.agent import get_trace_url
 from ddtrace.internal.compat import JSONDecodeError
 from ddtrace.internal.logger import get_logger
