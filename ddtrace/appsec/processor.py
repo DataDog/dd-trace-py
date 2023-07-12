@@ -30,7 +30,7 @@ from ddtrace.constants import RUNTIME_FAMILY
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.trace_utils import _normalize_tag_name
 from ddtrace.ext import SpanTypes
-from ddtrace.internal import _context
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.processor import SpanProcessor
 from ddtrace.internal.rate_limiter import RateLimiter
@@ -265,14 +265,14 @@ class AppSecSpanProcessor(SpanProcessor):
 
         If `custom_data_values` is specified, it must be a dictionary where the key is the
         `WAF_DATA_NAMES` key and the value the custom value. If not used, the values will
-        be retrieved from the `_context`. This can be used when you don't want to store
-        the value in the `_context` before checking the `WAF`.
+        be retrieved from the `core`. This can be used when you don't want to store
+        the value in the `core` before checking the `WAF`.
         """
 
         if span.span_type != SpanTypes.WEB:
             return
 
-        if _context.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span):
+        if core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span):
             return
 
         data = {}
@@ -302,7 +302,7 @@ class AppSecSpanProcessor(SpanProcessor):
         blocked = WAF_ACTIONS.BLOCK in waf_results.actions
         _asm_request_context.set_waf_results(waf_results, self._ddwaf.info, blocked)
         if blocked:
-            _context.set_item(WAF_CONTEXT_NAMES.BLOCKED, True, span=span)
+            core.set_item(WAF_CONTEXT_NAMES.BLOCKED, True, span=span)
 
         try:
             info = self._ddwaf.info
@@ -385,7 +385,7 @@ class AppSecSpanProcessor(SpanProcessor):
         try:
             if span.span_type == SpanTypes.WEB:
                 # Force to set respond headers at the end
-                headers_req = _context.get_item(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, span=span)
+                headers_req = core.get_item(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, span=span)
                 if headers_req:
                     _set_headers(span, headers_req, kind="response")
 
