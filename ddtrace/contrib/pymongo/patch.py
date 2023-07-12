@@ -34,11 +34,15 @@ def patch():
     # We should progressively get rid of TracedMongoClient. We now try to
     # wrap methods individually. cf #1501
     setattr(pymongo, "MongoClient", TracedMongoClient)
+    # Motor imports from the package for some reason
+    # https://github.com/mongodb/motor/blob/master/motor/core.py#L102
+    setattr(pymongo.mongo_client, "MongoClient", TracedMongoClient)
 
 
 def unpatch():
     unpatch_pymongo_module()
     setattr(pymongo, "MongoClient", _MongoClient)
+    setattr(pymongo.mongo_client, "MongoClient", _MongoClient)
 
 
 def patch_pymongo_module():

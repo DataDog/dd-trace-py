@@ -45,8 +45,11 @@ log = get_logger(__name__)
 
 _DEFAULT_SERVICE = schematize_service_name("pymongo")
 
+class TracedMongoClientMeta(type):
+    def __getattr__(cls, name):
+        return getattr(_MongoClient, name)
 
-class TracedMongoClient(ObjectProxy):
+class TracedMongoClient(ObjectProxy, metaclass=TracedMongoClientMeta):
     def __init__(self, client=None, *args, **kwargs):
         # To support the former trace_mongo_client interface, we have to keep this old interface
         # TODO(Benjamin): drop it in a later version
@@ -284,6 +287,14 @@ class TracedSocket(ObjectProxy):
         if self.address:
             set_address_tags(s, self.address)
         return s
+
+    def validate_session(self, client, session):
+        """Validate this session before use with the wrapped client.
+
+        Raises error if the client is not the one that created the session.
+        """
+
+        return self.__wrapped__.validate_session(client.__wrapped__, session)
 
 
 def normalize_filter(f=None):
