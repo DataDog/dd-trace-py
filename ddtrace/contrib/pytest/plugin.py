@@ -425,22 +425,22 @@ def pytest_runtest_protocol(item, nextitem):
         if _get_test_skipping_level() == TEST and coverage_enabled() and not is_skipped_by_itr:
             _coverage_end(span)
 
-        nextitem_pytest_module_item = _find_pytest_item(nextitem, pytest.Module)
-        if test_suite_span is not None and (
-            nextitem is None or nextitem_pytest_module_item != pytest_module_item and not test_suite_span.finished
-        ):
-            _mark_test_status(pytest_module_item, test_suite_span)
-            # Finish coverage for the test suite if coverage is enabled
-            if _get_test_skipping_level() == SUITE and coverage_enabled() and not is_skipped_by_itr:
-                _coverage_end(test_suite_span)
-            test_suite_span.finish()
+    nextitem_pytest_module_item = _find_pytest_item(nextitem, pytest.Module)
+    if test_suite_span is not None and (
+        nextitem is None or nextitem_pytest_module_item != pytest_module_item and not test_suite_span.finished
+    ):
+        _mark_test_status(pytest_module_item, test_suite_span)
+        # Finish coverage for the test suite if coverage is enabled
+        if _get_test_skipping_level() == SUITE and coverage_enabled() and not is_skipped_by_itr:
+            _coverage_end(test_suite_span)
+        test_suite_span.finish()
 
-        nextitem_pytest_package_item = _find_pytest_item(nextitem, pytest.Package)
-        if test_module_span is not None and (
-            nextitem is None or nextitem_pytest_package_item != pytest_package_item and not test_module_span.finished
-        ):
-            _mark_test_status(pytest_package_item, test_module_span)
-            test_module_span.finish()
+    nextitem_pytest_package_item = _find_pytest_item(nextitem, pytest.Package)
+    if test_module_span is not None and (
+        nextitem is None or nextitem_pytest_package_item != pytest_package_item and not test_module_span.finished
+    ):
+        _mark_test_status(pytest_package_item, test_module_span)
+        test_module_span.finish()
 
 
 @pytest.hookimpl(hookwrapper=True)
