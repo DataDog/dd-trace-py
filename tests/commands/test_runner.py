@@ -468,3 +468,16 @@ def test_no_args():
     p.wait()
     assert p.returncode == 1
     assert six.b("usage:") in p.stdout.read()
+
+
+@pytest.mark.subprocess(ddtrace_run=True, env=dict(DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE="1"))
+def test_ddtrace_re_module():
+    import re
+
+    re.Scanner(
+        (
+            ("frozen", None),
+            (r"[a-zA-Z0-9_]+", lambda s, t: t),
+            (r"[\s,<>]", None),
+        )
+    )
