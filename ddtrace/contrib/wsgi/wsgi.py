@@ -110,7 +110,8 @@ def _on_app_success(application_span_modifier, ctx, closing_iterator):
     app_span.finish()
 
 
-def _on_app_exception(ctx, app_span):
+def _on_app_exception(ctx):
+    app_span = ctx.get_item("app_span")
     ctx.get_item("span").set_exc_info(*sys.exc_info())
     app_span.set_exc_info(*sys.exc_info())
     app_span.finish()
