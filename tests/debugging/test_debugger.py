@@ -852,7 +852,7 @@ def test_debugger_run_module():
     # This is also where the sitecustomize resides, so we set the PYTHONPATH
     # accordingly. This is responsible for booting the test debugger
     env = os.environ.copy()
-    env["PYTHONPATH"] = cwd
+    env["PYTHONPATH"] = os.pathsep.join((cwd, env.get("PYTHONPATH", "")))
 
     out, err, status, _ = call_program(sys.executable, "-m", "target", cwd=cwd, env=env)
 
