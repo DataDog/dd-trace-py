@@ -41,22 +41,26 @@ def get_logger(name):
     # DEV: This is a simplified version of `logging.Manager.getLogger`
     #   https://github.com/python/cpython/blob/48769a28ad6ef4183508951fa6a378531ace26a4/Lib/logging/__init__.py#L1221-L1253  # noqa
     # DEV: _fixupParents could be adding a placeholder, we want to replace it if that's the case
-    if name not in manager.loggerDict or isinstance(manager.loggerDict[name], logging.PlaceHolder):
-        manager.loggerDict[name] = DDLogger(name=name)
-
-    # Get our logger
-    logger = cast(DDLogger, manager.loggerDict[name])
-
-    # If this log manager has a `_fixupParents` method then call it on our logger
-    # DEV: This helper is used to ensure our logger has an appropriate `Logger.parent` set,
-    #      without this then we cannot take advantage of the root loggers handlers
-    #   https://github.com/python/cpython/blob/7c7839329c2c66d051960ab1df096aed1cc9343e/Lib/logging/__init__.py#L1272-L1294  # noqa
-    # DEV: `_fixupParents` has been around for awhile, but add the `hasattr` guard... just in case.
-    if hasattr(manager, "_fixupParents"):
-        manager._fixupParents(logger)
+    if name in manager.loggerDict:
+        logger = manager.loggerDict[name]
+        if isinstance(manager.loggerDict[name], logging.PlaceHolder):
+            placeholder = logger
+            logger = DDLogger(name=name)
+            manager.loggerDict[name] = logger
+            # DEV: `_fixupChildren` and `_fixupParents` have been around for awhile,
+            # DEV: but add the `hasattr` guard... just in case.
+            if hasattr(manager, "_fixupChildren"):
+                manager._fixupChildren(placeholder, logger)
+            if hasattr(manager, "_fixupParents"):
+                manager._fixupParents(logger)
+    else:
+        logger = DDLogger(name=name)
+        manager.loggerDict[name] = logger
+        if hasattr(manager, "_fixupParents"):
+            manager._fixupParents(logger)
 
     # Return our logger
-    return logger
+    return cast(DDLogger, logger)
 
 
 def hasHandlers(self):
