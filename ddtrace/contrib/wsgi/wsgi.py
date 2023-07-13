@@ -89,8 +89,40 @@ def _make_block_content(ctx):
     return ctype, content
 
 
+def _on_request_prepare(ctx, middleware, start_response):
+    ctx.get_item("span").set_tag_str(COMPONENT, middleware._config.integration_name)
+    # set span.kind to the type of operation being performed
+    ctx.get_item("span").set_tag_str(SPAN_KIND, SpanKind.SERVER)
+    middleware._request_span_modifier(ctx.get_item("span"), ctx.get_item("environ"))
+    app_span = middleware.tracer.trace(middleware._application_span_name)
+
+    app_span.set_tag_str(COMPONENT, middleware._config.integration_name)
+    ctx.set_item("app_span", app_span)
+
+    intercept_start_response = functools.partial(
+        middleware._traced_start_response, start_response, ctx.get_item("span"), app_span
+    )
+    ctx.set_item("intercept_start_response", intercept_start_response)
+
+
+def _on_app_success(middleware, ctx, closing_iterator):
+    app_span = ctx.get_item("app_span")
+    middleware._application_span_modifier(app_span, ctx.get_item("environ"), closing_iterator)
+    app_span.finish()
+
+
+def _on_app_exception(ctx, app_span):
+    ctx.get_item("span").set_exc_info(*sys.exc_info())
+    app_span.set_exc_info(*sys.exc_info())
+    app_span.finish()
+    ctx.get_item("span").finish()
+
+
 core.on("context.started.wsgi.__call__", _on_context_started)
 core.on("wsgi.block.started", _make_block_content)
+core.on("wsgi.request.prepare", _on_request_prepare)
+core.on("wsgi.app.success", _on_app_success)
+core.on("wsgi.app.exception", _on_app_exception)
 
 config._add(
     "wsgi",
@@ -210,27 +242,14 @@ class _DDWSGIMiddlewareBase(object):
             core.dispatch("wsgi.block_decided", [blocked_view])
 
             if not_blocked:
-                ctx.get_item("span").set_tag_str(COMPONENT, self._config.integration_name)
-                # set span.kind to the type of operation being performed
-                ctx.get_item("span").set_tag_str(SPAN_KIND, SpanKind.SERVER)
-                self._request_span_modifier(ctx.get_item("span"), environ)
+                core.dispatch("wsgi.request.prepare", [ctx, self, start_response])
                 try:
-                    app_span = self.tracer.trace(self._application_span_name)
-
-                    app_span.set_tag_str(COMPONENT, self._config.integration_name)
-
-                    intercept_start_response = functools.partial(
-                        self._traced_start_response, start_response, ctx.get_item("span"), app_span
-                    )
-                    closing_iterator = self.app(environ, intercept_start_response)
-                    self._application_span_modifier(app_span, environ, closing_iterator)
-                    app_span.finish()
+                    closing_iterator = self.app(environ, ctx.get_item("intercept_start_response"))
                 except BaseException:
-                    ctx.get_item("span").set_exc_info(*sys.exc_info())
-                    app_span.set_exc_info(*sys.exc_info())
-                    app_span.finish()
-                    ctx.get_item("span").finish()
+                    core.dispatch("wsgi.app.exception", [ctx])
                     raise
+                else:
+                    core.dispatch("wsgi.app.success", [self, ctx, closing_iterator])
                 if core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
                     _, content = core.dispatch("wsgi.block.started", [ctx])[0][0]
                     closing_iterator = [content]
