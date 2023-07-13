@@ -76,7 +76,7 @@ commands:
     description: "Install riot"
     steps:
       # Make sure we install and run riot on Python 3
-      - run: pip3 install riot==0.17.3
+      - run: pip3 install riot==0.17.4
 
   save_pip_cache:
     description: "Save pip cache directory"
@@ -1042,13 +1042,6 @@ jobs:
           wait: rabbitmq
           pattern: 'kombu'
 
-  benchmarks:
-    <<: *contrib_job_large
-    steps:
-      - run_test:
-          store_coverage: false
-          pattern: '^benchmarks'
-
   jinja2:
     <<: *contrib_job
     docker:
@@ -1112,7 +1105,6 @@ requires_tests: &requires_tests
     - algoliasearch
     - asgi
     - aws_lambda
-    - benchmarks
     - boto
     - bottle
     - cassandra
@@ -1213,7 +1205,6 @@ workflows:
       - algoliasearch: *requires_base_venvs
       - asgi: *requires_base_venvs
       - aws_lambda: *requires_base_venvs
-      - benchmarks: *requires_base_venvs
       - boto: *requires_base_venvs
       - bottle: *requires_base_venvs
       - cassandra: *requires_base_venvs
