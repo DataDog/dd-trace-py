@@ -1,11 +1,7 @@
-import functools
 import sys
 from typing import TYPE_CHECKING
 
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
-
-from ..trace_utils import _get_request_header_user_agent
-from ..trace_utils import _set_url_tag
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -25,8 +21,7 @@ from six.moves.urllib.parse import quote
 
 import ddtrace
 from ddtrace import config
-from ddtrace.appsec import utils
-from ddtrace.appsec._constants import SPAN_DATA_NAMES
+from ddtrace import trace_handlers
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
@@ -47,97 +42,7 @@ log = get_logger(__name__)
 
 propagator = HTTPPropagator
 
-
-def _on_context_started(ctx):
-    tracer = ctx.get_item("tracer")
-    _pin = ctx.get_item("_pin")
-    _config = ctx.get_item("_config")
-    req_span = tracer.trace(
-        ctx.get_item("_request_span_name"),
-        service=trace_utils.int_service(_pin, _config),
-        span_type=SpanTypes.WEB,
-    )
-    ctx.set_item("span", req_span)
-
-
-def _make_block_content(ctx):
-    span = ctx.get_item("span")
-    headers = ctx.get_item("headers")
-    _config = ctx.get_item("_config")
-    environ = ctx.get_item("environ")
-    assert span is not None
-    ctype = "text/html" if "text/html" in headers.get("Accept", "").lower() else "text/json"
-    content = utils._get_blocked_template(ctype).encode("UTF-8")
-    try:
-        span.set_tag_str(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-length", str(len(content)))
-        span.set_tag_str(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type", ctype)
-        span.set_tag_str(http.STATUS_CODE, "403")
-        url = construct_url(environ)
-        query_string = environ.get("QUERY_STRING")
-        _set_url_tag(_config, span, url, query_string)
-        if query_string and _config.trace_query_string:
-            span.set_tag_str(http.QUERY_STRING, query_string)
-        method = environ.get("REQUEST_METHOD")
-        if method:
-            span.set_tag_str(http.METHOD, method)
-        user_agent = _get_request_header_user_agent(headers, headers_are_case_sensitive=True)
-        if user_agent:
-            span.set_tag_str(http.USER_AGENT, user_agent)
-    except Exception as e:
-        log.warning("Could not set some span tags on blocked request: %s", str(e))  # noqa: G200
-
-    return ctype, content
-
-
-def _on_request_prepare(ctx, start_response, traced_start_response, request_span_modifier):
-    _config = ctx.get_item("_config")
-    ctx.get_item("span").set_tag_str(COMPONENT, _config.integration_name)
-    # set span.kind to the type of operation being performed
-    ctx.get_item("span").set_tag_str(SPAN_KIND, SpanKind.SERVER)
-    request_span_modifier(ctx.get_item("span"), ctx.get_item("environ"))
-    app_span = ctx.get_item("tracer").trace(ctx.get_item("_application_span_name"))
-
-    app_span.set_tag_str(COMPONENT, _config.integration_name)
-    ctx.set_item("app_span", app_span)
-
-    intercept_start_response = functools.partial(traced_start_response, start_response, ctx.get_item("span"), app_span)
-    ctx.set_item("intercept_start_response", intercept_start_response)
-
-
-def _on_app_success(application_span_modifier, ctx, closing_iterator):
-    app_span = ctx.get_item("app_span")
-    application_span_modifier(app_span, ctx.get_item("environ"), closing_iterator)
-    app_span.finish()
-
-
-def _on_app_exception(ctx):
-    app_span = ctx.get_item("app_span")
-    ctx.get_item("span").set_exc_info(*sys.exc_info())
-    app_span.set_exc_info(*sys.exc_info())
-    app_span.finish()
-    ctx.get_item("span").finish()
-
-
-def _on_request_complete(ctx, closing_iterator, response_span_modifier):
-    # start flask.response span. This span will be finished after iter(result) is closed.
-    # start_span(child_of=...) is used to ensure correct parenting.
-    resp_span = ctx.get_item("tracer").start_span(
-        ctx.get_item("_response_span_name"), child_of=ctx.get_item("span"), activate=True
-    )
-
-    resp_span.set_tag_str(COMPONENT, ctx.get_item("_config").integration_name)
-
-    response_span_modifier(resp_span, closing_iterator)
-
-    return _TracedIterable(iter(closing_iterator), resp_span, ctx.get_item("span"))
-
-
-core.on("context.started.wsgi.__call__", _on_context_started)
-core.on("wsgi.block.started", _make_block_content)
-core.on("wsgi.request.prepare", _on_request_prepare)
-core.on("wsgi.app.success", _on_app_success)
-core.on("wsgi.app.exception", _on_app_exception)
-core.on("wsgi.request.complete", _on_request_complete)
+trace_handlers.listen()
 
 config._add(
     "wsgi",
@@ -192,7 +97,62 @@ class _TracedIterable(wrapt.ObjectProxy):
         return super(_TracedIterable, self).__getattribute__(name)
 
 
-class _DDWSGIMiddlewareBase(object):
+class _ContextBuilderWSGIMiddlewareBase(object):
+    """Base WSGI middleware class.
+
+    :param application: The WSGI application to apply the middleware to.
+    :param tracer: Tracer instance to use the middleware with. Defaults to the global tracer.
+    :param int_config: Integration specific configuration object.
+    :param pin: Set tracing metadata on a particular traced connection
+    """
+
+    def __init__(self, application, int_config):
+        # type: (Iterable, Config) -> None
+        self.app = application
+        self._config = int_config
+
+    def __call__(self, environ, start_response):
+        # type: (Iterable, Callable) -> _TracedIterable
+        headers = get_request_headers(environ)
+        closing_iterator = ()
+        not_blocked = True
+        with core.context_with_data(
+            "wsgi.__call__",
+            remote_addr=environ.get("REMOTE_ADDR"),
+            headers=headers,
+            headers_case_sensitive=True,
+            environ=environ,
+            middleware=self,
+        ) as ctx:
+            if core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
+                ctype, content = core.dispatch("wsgi.block.started", [ctx])[0][0]
+                start_response("403 FORBIDDEN", [("content-type", ctype)])
+                closing_iterator = [content]
+                not_blocked = False
+
+            def blocked_view():
+                ctype, content = core.dispatch("wsgi.block.started", [ctx])[0][0]
+                return content, 403, [("content-type", ctype)]
+
+            core.dispatch("wsgi.block_decided", [blocked_view])
+
+            if not_blocked:
+                core.dispatch("wsgi.request.prepare", [ctx, start_response])
+                try:
+                    closing_iterator = self.app(environ, ctx.get_item("intercept_start_response"))
+                except BaseException:
+                    core.dispatch("wsgi.app.exception", [ctx])
+                    raise
+                else:
+                    core.dispatch("wsgi.app.success", [ctx, closing_iterator])
+                if core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
+                    _, content = core.dispatch("wsgi.block.started", [ctx])[0][0]
+                    closing_iterator = [content]
+
+            return core.dispatch("wsgi.request.complete", [ctx, closing_iterator])[0][0]
+
+
+class _DDWSGIMiddlewareBase(_ContextBuilderWSGIMiddlewareBase):
     """Base WSGI middleware class.
 
     :param application: The WSGI application to apply the middleware to.
@@ -203,9 +163,8 @@ class _DDWSGIMiddlewareBase(object):
 
     def __init__(self, application, tracer, int_config, pin):
         # type: (Iterable, Tracer, Config, Pin) -> None
-        self.app = application
+        super(_DDWSGIMiddlewareBase, self).__init__(application, int_config)
         self.tracer = tracer
-        self._config = int_config
         self._pin = pin
 
     @property
@@ -225,56 +184,6 @@ class _DDWSGIMiddlewareBase(object):
         # type: () -> str
         "Returns the name of a response span. Example: `flask.response`"
         raise NotImplementedError
-
-    def __call__(self, environ, start_response):
-        # type: (Iterable, Callable) -> _TracedIterable
-        trace_utils.activate_distributed_headers(self.tracer, int_config=self._config, request_headers=environ)
-
-        headers = get_request_headers(environ)
-        closing_iterator = ()
-        not_blocked = True
-        with core.context_with_data(
-            "wsgi.__call__",
-            remote_addr=environ.get("REMOTE_ADDR"),
-            headers=headers,
-            headers_case_sensitive=True,
-            tracer=self.tracer,
-            environ=environ,
-            _pin=self._pin,
-            _config=self._config,
-            _request_span_name=self._request_span_name,
-            _application_span_name=self._application_span_name,
-            _response_span_name=self._response_span_name,
-        ) as ctx:
-            if core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
-                ctype, content = core.dispatch("wsgi.block.started", [ctx])[0][0]
-                start_response("403 FORBIDDEN", [("content-type", ctype)])
-                closing_iterator = [content]
-                not_blocked = False
-
-            def blocked_view():
-                ctype, content = core.dispatch("wsgi.block.started", [ctx])[0][0]
-                return content, 403, [("content-type", ctype)]
-
-            core.dispatch("wsgi.block_decided", [blocked_view])
-
-            if not_blocked:
-                core.dispatch(
-                    "wsgi.request.prepare",
-                    [ctx, start_response, self._traced_start_response, self._request_span_modifier],
-                )
-                try:
-                    closing_iterator = self.app(environ, ctx.get_item("intercept_start_response"))
-                except BaseException:
-                    core.dispatch("wsgi.app.exception", [ctx])
-                    raise
-                else:
-                    core.dispatch("wsgi.app.success", [self._application_span_modifier, ctx, closing_iterator])
-                if core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
-                    _, content = core.dispatch("wsgi.block.started", [ctx])[0][0]
-                    closing_iterator = [content]
-
-            return core.dispatch("wsgi.request.complete", [ctx, closing_iterator, self._response_span_modifier])[0][0]
 
     def _traced_start_response(self, start_response, request_span, app_span, status, environ, exc_info=None):
         # type: (Callable, Span, Span, str, Dict, Any) -> None
