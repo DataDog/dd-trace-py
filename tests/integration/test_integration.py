@@ -795,24 +795,22 @@ def test_flush_log(caplog, encoding, monkeypatch):
 
 
 @pytest.mark.parametrize("logs_injection,debug_mode,patch_logging", itertools.product([True, False], repeat=3))
-def test_regression_logging_in_context(tmpdir, logs_injection, debug_mode, patch_logging):
+def test_regression_logging_in_context(run_python_code_in_subprocess, logs_injection, debug_mode, patch_logging):
     """
     When logs injection is enabled and the logger is patched
         When a parent span closes before a child
             The application does not deadlock due to context lock acquisition
     """
-    f = tmpdir.join("test.py")
-    f.write(
-        """
+    code = """
 import ddtrace
-ddtrace.patch(logging=%s)
+ddtrace.patch(logging={})
 
 s1 = ddtrace.tracer.trace("1")
 s2 = ddtrace.tracer.trace("2")
 s1.finish()
 s2.finish()
-""".lstrip()
-        % str(patch_logging)
+""".format(
+        str(patch_logging)
     )
 
     env = os.environ.copy()
@@ -824,15 +822,9 @@ s2.finish()
         }
     )
 
-    p = subprocess.Popen(
-        [sys.executable, "test.py"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=str(tmpdir), env=env
-    )
-    try:
-        p.wait(timeout=25)
-    except TypeError:
-        # timeout argument added in Python 3.3
-        p.wait()
-    assert p.returncode == 0
+    # If we deadlock (longer than 5 seconds), we'll raise `subprocess.TimeoutExpired` and fail
+    _, err, status, _ = run_python_code_in_subprocess(code, env=env, timeout=5)
+    assert status == 0, err
 
 
 @pytest.mark.parametrize(
