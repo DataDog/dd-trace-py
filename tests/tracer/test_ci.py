@@ -227,3 +227,73 @@ def test_os_runtime_metadata_tagging():
     assert extracted_tags.get(ci.OS_VERSION) is not None
     assert extracted_tags.get(ci.RUNTIME_NAME) is not None
     assert extracted_tags.get(ci.RUNTIME_VERSION) is not None
+
+
+def test_get_rev_list_no_args_git_ge_223(git_repo):
+    with mock.patch("ddtrace.ext.git._git_subprocess_cmd") as mock_git_subprocess, mock.patch(
+        "ddtrace.ext.git.extract_git_version", return_value=(2, 23, 0)
+    ):
+        mock_git_subprocess.return_value = ["commithash1", "commithash2"]
+        assert git.get_rev_list(cwd=git_repo) == ["commithash1", "commithash2"]
+        mock_git_subprocess.assert_called_once_with(
+            ["rev-list", "--objects", "--filter=blob:none", '--since="1 month ago"', "--no-object-names", "HEAD"],
+            cwd=git_repo,
+        )
+
+
+def test_get_rev_list_git_lt_223(git_repo):
+    with mock.patch("ddtrace.ext.git._git_subprocess_cmd") as mock_git_subprocess, mock.patch(
+        "ddtrace.ext.git.extract_git_version", return_value=(2, 22, 0)
+    ):
+        mock_git_subprocess.return_value = ["commithash1", "commithash2"]
+        assert git.get_rev_list(
+            excluded_commit_shas=["exclude1", "exclude2"], included_commit_shas=["include1", "include2"], cwd=git_repo
+        ) == ["commithash1", "commithash2"]
+        mock_git_subprocess.assert_called_once_with(
+            ["rev-list", "--objects", "--filter=blob:none", "HEAD", "^exclude1", "^exclude2", "include1", "include2"],
+            cwd=git_repo,
+        )
+
+
+def test_is_shallow_repository_true(git_repo):
+    with mock.patch("ddtrace.ext.git._git_subprocess_cmd", return_value="true") as mock_git_subprocess:
+        assert git._is_shallow_repository(cwd=git_repo) is True
+        mock_git_subprocess.assert_called_once_with("rev-parse --is-shallow-repository", cwd=git_repo)
+
+
+def test_is_shallow_repository_false(git_repo):
+    with mock.patch("ddtrace.ext.git._git_subprocess_cmd", return_value="false") as mock_git_subprocess:
+        assert git._is_shallow_repository(cwd=git_repo) is False
+        mock_git_subprocess.assert_called_once_with("rev-parse --is-shallow-repository", cwd=git_repo)
+
+
+def test_unshallow_repository(git_repo):
+    with mock.patch(
+        "ddtrace.ext.git.extract_clone_defaultremotename", return_value="myremote"
+    ) as mock_defaultremotename:
+        with mock.patch(
+            "ddtrace.ext.git.extract_commit_sha", return_value="mycommitshaaaaaaaaaaaa123"
+        ) as mock_extract_sha:
+            with mock.patch("ddtrace.ext.git._git_subprocess_cmd") as mock_git_subprocess:
+                git._unshallow_repository(cwd=git_repo)
+
+                mock_defaultremotename.assert_called_once_with(git_repo)
+                mock_extract_sha.assert_called_once_with(git_repo)
+                mock_git_subprocess.assert_called_once_with(
+                    [
+                        "fetch",
+                        "--update-shallow",
+                        "--filter=blob:none",
+                        "--recurse-submodules=no",
+                        '--shallow-since="1 month ago"',
+                        "myremote",
+                        "mycommitshaaaaaaaaaaaa123",
+                    ],
+                    cwd=git_repo,
+                )
+
+
+def test_extract_clone_defaultremotename():
+    with mock.patch("ddtrace.ext.git._git_subprocess_cmd", return_value="default_remote_name") as mock_git_subprocess:
+        assert git.extract_clone_defaultremotename(cwd=git_repo) == "default_remote_name"
+        mock_git_subprocess.assert_called_once_with("config --default origin --get clone.defaultRemoteName")
