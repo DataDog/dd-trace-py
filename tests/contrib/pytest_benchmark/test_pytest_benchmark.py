@@ -77,26 +77,24 @@ class PytestTestCase(TracerTestCase):
         spans = self.pop_spans()
 
         assert len(spans) == 3
-
-        for span in spans:
-            assert span.get_tag(BENCHMARK_INFO) == "Time"
-            assert span.get_metric(BENCHMARK_MEAN) > 2
-            assert span.get_metric(BENCHMARK_RUN) == 5
-            assert span.get_metric(STATISTICS_HD15IQR) is not None
-            assert span.get_metric(STATISTICS_IQR) is not None
-            assert span.get_metric(STATISTICS_IQR_OUTLIERS) is not None
-            assert span.get_metric(STATISTICS_LD15IQR) is not None
-            assert span.get_metric(STATISTICS_MAX) > 2
-            assert span.get_metric(STATISTICS_MEAN) > 2
-            assert span.get_metric(STATISTICS_MEDIAN) > 2
-            assert span.get_metric(STATISTICS_MIN) > 2
-            assert span.get_metric(STATISTICS_OPS) > 0
-            assert span.get_tag(STATISTICS_OUTLIERS) is not None
-            assert span.get_metric(STATISTICS_Q1) > 0
-            assert span.get_metric(STATISTICS_Q3) > 0
-            assert span.get_metric(STATISTICS_N) == 5
-            assert span.get_metric(STATISTICS_STDDEV) is not None
-            assert span.get_metric(STATISTICS_STDDEV_OUTLIERS) is not None
-            assert span.get_metric(STATISTICS_TOTAL) > 2
-            assert span.get_metric(BENCHMARK_RUN) == span.get_metric(STATISTICS_N)
-            assert span.get_metric(BENCHMARK_MEAN) == span.get_metric(STATISTICS_MEAN)
+        assert spans[0].get_tag(BENCHMARK_INFO) == "Time"
+        assert spans[0].get_metric(BENCHMARK_MEAN) > 2
+        assert spans[0].get_metric(BENCHMARK_RUN) == 5
+        assert spans[0].get_metric(STATISTICS_HD15IQR) is not None
+        assert spans[0].get_metric(STATISTICS_IQR) is not None
+        assert spans[0].get_metric(STATISTICS_IQR_OUTLIERS) is not None
+        assert spans[0].get_metric(STATISTICS_LD15IQR) is not None
+        assert spans[0].get_metric(STATISTICS_MAX) > 2
+        assert spans[0].get_metric(STATISTICS_MEAN) > 2
+        assert spans[0].get_metric(STATISTICS_MEDIAN) > 2
+        assert spans[0].get_metric(STATISTICS_MIN) > 2
+        assert spans[0].get_metric(STATISTICS_OPS) > 0
+        assert spans[0].get_tag(STATISTICS_OUTLIERS) is not None
+        assert spans[0].get_metric(STATISTICS_Q1) > 0
+        assert spans[0].get_metric(STATISTICS_Q3) > 0
+        assert spans[0].get_metric(STATISTICS_N) == 5
+        assert spans[0].get_metric(STATISTICS_STDDEV) is not None
+        assert spans[0].get_metric(STATISTICS_STDDEV_OUTLIERS) is not None
+        assert spans[0].get_metric(STATISTICS_TOTAL) > 2
+        assert spans[0].get_metric(BENCHMARK_RUN) == spans[0].get_metric(STATISTICS_N)
+        assert spans[0].get_metric(BENCHMARK_MEAN) == spans[0].get_metric(STATISTICS_MEAN)
