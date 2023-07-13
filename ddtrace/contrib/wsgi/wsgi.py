@@ -89,19 +89,18 @@ def _make_block_content(ctx):
     return ctype, content
 
 
-def _on_request_prepare(ctx, middleware, start_response):
-    ctx.get_item("span").set_tag_str(COMPONENT, middleware._config.integration_name)
+def _on_request_prepare(ctx, start_response, traced_start_response, request_span_modifier):
+    _config = ctx.get_item("_config")
+    ctx.get_item("span").set_tag_str(COMPONENT, _config.integration_name)
     # set span.kind to the type of operation being performed
     ctx.get_item("span").set_tag_str(SPAN_KIND, SpanKind.SERVER)
-    middleware._request_span_modifier(ctx.get_item("span"), ctx.get_item("environ"))
-    app_span = middleware.tracer.trace(middleware._application_span_name)
+    request_span_modifier(ctx.get_item("span"), ctx.get_item("environ"))
+    app_span = ctx.get_item("tracer").trace(ctx.get_item("_application_span_name"))
 
-    app_span.set_tag_str(COMPONENT, middleware._config.integration_name)
+    app_span.set_tag_str(COMPONENT, _config.integration_name)
     ctx.set_item("app_span", app_span)
 
-    intercept_start_response = functools.partial(
-        middleware._traced_start_response, start_response, ctx.get_item("span"), app_span
-    )
+    intercept_start_response = functools.partial(traced_start_response, start_response, ctx.get_item("span"), app_span)
     ctx.set_item("intercept_start_response", intercept_start_response)
 
 
@@ -243,6 +242,8 @@ class _DDWSGIMiddlewareBase(object):
             _pin=self._pin,
             _config=self._config,
             _request_span_name=self._request_span_name,
+            _application_span_name=self._application_span_name,
+            _response_span_name=self._response_span_name,
         ) as ctx:
             if core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
                 ctype, content = core.dispatch("wsgi.block.started", [ctx])[0][0]
@@ -257,7 +258,10 @@ class _DDWSGIMiddlewareBase(object):
             core.dispatch("wsgi.block_decided", [blocked_view])
 
             if not_blocked:
-                core.dispatch("wsgi.request.prepare", [ctx, self, start_response])
+                core.dispatch(
+                    "wsgi.request.prepare",
+                    [ctx, start_response, self._traced_start_response, self._request_span_modifier],
+                )
                 try:
                     closing_iterator = self.app(environ, ctx.get_item("intercept_start_response"))
                 except BaseException:
