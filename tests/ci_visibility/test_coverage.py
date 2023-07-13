@@ -1,16 +1,6 @@
-#!/usr/bin/env python3
-from ast import literal_eval
-from os import getcwd
-
 import pytest
 
-from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
-from ddtrace.internal.ci_visibility.coverage import Coverage
-from ddtrace.internal.ci_visibility.coverage import _coverage_end
-from ddtrace.internal.ci_visibility.coverage import _coverage_start
-from ddtrace.internal.ci_visibility.coverage import _initialize
 from ddtrace.internal.ci_visibility.coverage import segments
-from ddtrace.internal.ci_visibility.recorder import CITracer
 
 
 SOME_EXPECTED_COVERED_FILES = (
@@ -32,22 +22,3 @@ SOME_EXPECTED_COVERED_FILES = (
 )
 def test_segments(lines, expected_segments):
     assert segments(lines) == expected_segments
-
-
-@pytest.mark.skipif(Coverage is None, reason="Coverage not available")
-def test_cover():
-    tracer = CITracer()
-    span = tracer.start_span("cover_span")
-
-    _initialize(getcwd())
-    _coverage_start()
-    pytest.main(["tests/utils.py"])
-    _coverage_end(span)
-
-    res = literal_eval(span.get_tag(COVERAGE_TAG_NAME))
-
-    assert "files" in res
-
-    covered_files = [x["filename"] for x in res["files"]]
-    for filename in SOME_EXPECTED_COVERED_FILES:
-        assert filename in covered_files

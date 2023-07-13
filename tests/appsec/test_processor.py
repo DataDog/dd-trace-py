@@ -15,7 +15,7 @@ from ddtrace.appsec.processor import _transform_headers
 from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
-from ddtrace.internal import _context
+from ddtrace.internal import core
 from tests.utils import override_env
 from tests.utils import override_global_config
 from tests.utils import snapshot
@@ -226,8 +226,8 @@ def test_ip_block(tracer):
                 )
 
             assert "triggers" in json.loads(span.get_tag(APPSEC.JSON))
-            assert _context.get_item("http.request.remote_ip", span) == _BLOCKED_IP
-            assert _context.get_item("http.request.blocked", span)
+            assert core.get_item("http.request.remote_ip", span) == _BLOCKED_IP
+            assert core.get_item("http.request.blocked", span)
 
 
 def test_ip_not_block(tracer):
@@ -240,8 +240,8 @@ def test_ip_not_block(tracer):
                     Config(),
                 )
 
-            assert _context.get_item("http.request.remote_ip", span) == _ALLOWED_IP
-            assert _context.get_item("http.request.blocked", span) is None
+            assert core.get_item("http.request.remote_ip", span) == _ALLOWED_IP
+            assert core.get_item("http.request.blocked", span) is None
 
 
 def test_ip_update_rules_and_block(tracer):
@@ -267,8 +267,8 @@ def test_ip_update_rules_and_block(tracer):
                     Config(),
                 )
 
-                assert _context.get_item("http.request.remote_ip", span) == _BLOCKED_IP
-                assert _context.get_item("http.request.blocked", span)
+                assert core.get_item("http.request.remote_ip", span) == _BLOCKED_IP
+                assert core.get_item("http.request.blocked", span)
 
 
 def test_ip_update_rules_expired_no_block(tracer):
@@ -294,8 +294,8 @@ def test_ip_update_rules_expired_no_block(tracer):
                     Config(),
                 )
 
-            assert _context.get_item("http.request.remote_ip", span) == _BLOCKED_IP
-            assert _context.get_item("http.request.blocked", span) is None
+            assert core.get_item("http.request.remote_ip", span) == _BLOCKED_IP
+            assert core.get_item("http.request.blocked", span) is None
 
 
 @snapshot(
@@ -661,11 +661,11 @@ def test_asm_context_registration(tracer_appsec):
 
     # For a web type span, a context manager is added, but then removed
     with tracer.trace("test", span_type=SpanTypes.WEB) as span:
-        assert _asm_request_context._ASM.get().span_asm_context
-    assert _asm_request_context._ASM.get().span_asm_context is None
+        assert core.get_item("asm_env") is not None
+    assert core.get_item("asm_env") is None
 
     # Regression test, if the span type changes after being created, we always removed
     with tracer.trace("test", span_type=SpanTypes.WEB) as span:
         span.span_type = SpanTypes.HTTP
-        assert _asm_request_context._ASM.get().span_asm_context
-    assert _asm_request_context._ASM.get().span_asm_context is None
+        assert core.get_item("asm_env") is not None
+    assert core.get_item("asm_env") is None
