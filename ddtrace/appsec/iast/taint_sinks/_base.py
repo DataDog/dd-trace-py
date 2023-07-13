@@ -17,7 +17,7 @@ from ddtrace.appsec.iast.reporter import IastSpanReporter
 from ddtrace.appsec.iast.reporter import Location
 from ddtrace.appsec.iast.reporter import Source
 from ddtrace.appsec.iast.reporter import Vulnerability
-from ddtrace.internal import _context
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.cache import LFUCache
 from ddtrace.settings import _config
@@ -79,7 +79,6 @@ class VulnerabilityBase(Operation):
 
         TODO: check deduplications if DD_IAST_DEDUPLICATION_ENABLED is true
         """
-
         if cls.acquire_quota():
             if not tracer or not hasattr(tracer, "current_root_span"):
                 log.debug("Not tracer or tracer has no root span")
@@ -91,10 +90,8 @@ class VulnerabilityBase(Operation):
                 return None
 
             frame_info = get_info_frame(CWD)
-            if not frame_info:
-                return None
-
-            file_name, line_number = frame_info
+            if frame_info:
+                file_name, line_number = frame_info
 
             # Remove CWD prefix
             if file_name.startswith(CWD):
@@ -114,7 +111,7 @@ class VulnerabilityBase(Operation):
 
             _set_metric_iast_executed_sink(cls.vulnerability_type)
 
-            report = _context.get_item(IAST.CONTEXT_KEY, span=span)
+            report = core.get_item(IAST.CONTEXT_KEY, span=span)
             if report:
                 report.vulnerabilities.add(
                     Vulnerability(
@@ -123,6 +120,7 @@ class VulnerabilityBase(Operation):
                         location=Location(path=file_name, line=line_number, spanId=span.span_id),
                     )
                 )
+
             else:
                 report = IastSpanReporter(
                     vulnerabilities={
@@ -139,7 +137,7 @@ class VulnerabilityBase(Operation):
             redacted_report = cls._redacted_report_cache.get(
                 hash(report), lambda x: cls._redact_report(cast(IastSpanReporter, report))
             )
-            _context.set_item(IAST.CONTEXT_KEY, redacted_report, span=span)
+            core.set_item(IAST.CONTEXT_KEY, redacted_report, span=span)
 
     @classmethod
     def _extract_sensitive_tokens(cls, report):
