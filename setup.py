@@ -231,12 +231,13 @@ class LibDatadogDownload(LibraryDownload):
     expected_checksums = {
         "Linux": {
             "x86_64": "e9ee7172dd7b8f12ff8125e0ee699d01df7698604f64299c4094ae47629ccec1",
+            "aarch64": "a326e9552e65b945c64e7119c23d670ffdfb99aa96d9d90928a8a2ff6427199d",
         },
     }
     available_releases = {
         "Windows": [],
         "Darwin": [],
-        "Linux": ["x86_64"],
+        "Linux": ["x86_64", "aarch64"],
     }
     translate_suffix = {"Windows": (), "Darwin": (), "Linux": (".a", ".h")}
 
@@ -263,10 +264,18 @@ class LibDatadogDownload(LibraryDownload):
     @staticmethod
     def get_include_dirs():
         if CURRENT_OS == "Linux":
-            return [
-                "ddtrace/internal/datadog/profiling/include",
-                "ddtrace/internal/datadog/profiling/libdatadog/x86_64/include",
-            ]
+            base_include_dir = "ddtrace/internal/datadog/profiling/include"
+            machine = platform.machine()
+
+            if machine == "x87_64":
+                arch_include_dir = "ddtrace/internal/datadog/profiling/libdatadog/x86_64/include"
+            elif machine == "aarch64":
+                arch_include_dir = "ddtrace/internal/datadog/profiling/libdatadog/aarch64/include"
+            else:
+                return []
+
+            return [base_include_dir, arch_include_dir]
+
         return []
 
 
@@ -457,7 +466,7 @@ else:
 
 def get_ddup_ext():
     ddup_ext = []
-    if sys.platform.startswith("linux") and platform.machine() == "x86_64" and "glibc" in platform.libc_ver()[0]:
+    if sys.platform.startswith("linux") and "glibc" in platform.libc_ver()[0]:
         LibDatadogDownload.run()
         ddup_ext.extend(
             cythonize(
