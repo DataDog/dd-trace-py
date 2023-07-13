@@ -1530,6 +1530,60 @@ if __name__ == "__main__":
     assert status == 0, (out, err)
 
 
+@pytest.mark.parametrize("global_service_name", [None, "mysvc"])
+@pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
+def test_schematized_default_db_service_name(
+    ddtrace_run_python_code_in_subprocess, schema_version, global_service_name
+):
+    expected_service_name = {
+        None: "defaultdb",
+        "v0": "defaultdb",
+        "v1": global_service_name or _DEFAULT_SPAN_SERVICE_NAMES["v1"],
+    }[schema_version]
+    code = """
+import pytest
+import sys
+
+import django
+
+from tests.contrib.django.conftest import *
+from tests.utils import override_config
+
+@pytest.mark.django_db
+def test_connection(client, test_spans):
+    from django.contrib.auth.models import User
+
+    users = User.objects.count()
+    assert users == 0
+
+    test_spans.assert_span_count(1)
+    spans = test_spans.get_spans()
+
+    span = spans[0]
+    assert span.name == "sqlite.query"
+    assert span.service == "{}"
+    assert span.span_type == "sql"
+    assert span.get_tag("django.db.vendor") == "sqlite"
+    assert span.get_tag("django.db.alias") == "default"
+
+if __name__ == "__main__":
+    sys.exit(pytest.main(["-x", __file__]))
+    """.format(
+        expected_service_name
+    )
+
+    env = os.environ.copy()
+    if schema_version is not None:
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
+    if global_service_name is not None:
+        env["DD_SERVICE"] = global_service_name
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(
+        code,
+        env=env,
+    )
+    assert status == 0, (out, err)
+
+
 @pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
 def test_schematized_operation_name(ddtrace_run_python_code_in_subprocess, schema_version):
     expected_operation_name = {None: "django.request", "v0": "django.request", "v1": "http.server.request"}[
