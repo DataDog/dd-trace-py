@@ -19,6 +19,7 @@ from ddtrace.internal.agent import get_connection
 from ddtrace.internal.agent import get_trace_url
 from ddtrace.internal.ci_visibility.filters import TraceCiVisibilityFilter
 from ddtrace.internal.compat import JSONDecodeError
+from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import parse
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
@@ -41,6 +42,11 @@ from .writer import CIVisibilityWriter
 log = get_logger(__name__)
 
 TEST_SKIPPING_LEVEL = "suite"
+
+
+if PY2:
+    # Purposely shadowing a missing python builtin
+    from socket import timeout as TimeoutError  # noqa: A001
 
 
 def _extract_repository_name_from_url(repository_url):
