@@ -67,6 +67,8 @@ def _store_span(item, span):
 
 def _mark_failed(item):
     """Store test failed status at `pytest.Item` instance."""
+    if item.parent:
+        _mark_failed(item.parent)
     setattr(item, "_failed", True)
 
 
@@ -77,6 +79,8 @@ def _check_failed(item):
 
 def _mark_not_skipped(item):
     """Mark test suite/module/session `pytest.Item` as not skipped."""
+    if item.parent:
+        _mark_not_skipped(item.parent)
     setattr(item, "_fully_skipped", False)
 
 
