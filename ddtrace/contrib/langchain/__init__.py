@@ -22,32 +22,38 @@ The following metrics are collected by default by the LangChain integration.
 
 .. py:data:: langchain.request.duration
 
-   Type: ``distribution``
+   type: ``distribution``
+   description: The duration of the LangChain request in seconds.
 
 
 .. py:data:: langchain.request.error
 
-   Type: ``count``
+   type: ``count``
+   description: The number of errors from requests made with LangChain.
 
 
 .. py:data:: langchain.tokens.prompt
 
-   Type: ``distribution``
+   type: ``distribution``
+   description: The number of tokens used in the prompt of a LangChain request.
 
 
 .. py:data:: langchain.tokens.completion
 
-   Type: ``distribution``
+   type: ``distribution``
+   description: The number of tokens used in the completion of a LangChain response.
 
 
 .. py:data:: langchain.tokens.total
 
-   Type: ``distribution``
+   type: ``distribution``
+   description: The total number of tokens used in the prompt and completion of a LangChain request/response.
 
 
 .. py:data:: langchain.tokens.total_cost
 
-   Type: ``count``
+   type: ``count``
+   description: The estimated cost in USD based on token usage.
 
 
 (beta) Prompt and Completion Sampling

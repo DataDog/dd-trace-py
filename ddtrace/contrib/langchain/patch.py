@@ -9,10 +9,14 @@ import langchain
 from langchain.callbacks.openai_info import get_openai_token_cost_for_model
 
 from ddtrace import config
+from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib._trace_utils_llm import BaseLLMIntegration
 from ddtrace.contrib.langchain.constants import API_KEY
+from ddtrace.contrib.langchain.constants import COMPLETION_TOKENS
 from ddtrace.contrib.langchain.constants import MODEL
+from ddtrace.contrib.langchain.constants import PROMPT_TOKENS
 from ddtrace.contrib.langchain.constants import PROVIDER
+from ddtrace.contrib.langchain.constants import TOTAL_COST
 from ddtrace.contrib.langchain.constants import TYPE
 from ddtrace.contrib.langchain.constants import text_embedding_models
 from ddtrace.contrib.langchain.constants import vectorstores
@@ -69,13 +73,17 @@ class _LangChainIntegration(BaseLLMIntegration):
     @classmethod
     def _logs_tags(cls, span):
         # type: (Span) -> str
-        api_key = span.get_tag("langchain.request.api_key") or ""
-        tags = "env:%s,version:%s,langchain.request.provider:%s,langchain.request.model:%s,langchain.request.type:%s,langchain.request.api_key:%s" % (  # noqa: E501
+        api_key = span.get_tag(API_KEY) or ""
+        tags = "env:%s,version:%s,%s:%s,%s:%s,%s:%s,%s:%s" % (  # noqa: E501
             (config.env or ""),
             (config.version or ""),
+            PROVIDER,
             (span.get_tag(PROVIDER) or ""),
-            (span.get_tag("langchain.request.model") or ""),
-            (span.get_tag("langchain.request.type") or ""),
+            MODEL,
+            (span.get_tag(MODEL) or ""),
+            TYPE,
+            (span.get_tag(TYPE) or ""),
+            API_KEY,
             api_key,
         )
         return tags
@@ -84,20 +92,20 @@ class _LangChainIntegration(BaseLLMIntegration):
     def _metrics_tags(cls, span):
         # type: (Span) -> list
         provider = span.get_tag(PROVIDER) or ""
-        api_key = span.get_tag("langchain.request.api_key") or ""
+        api_key = span.get_tag(API_KEY) or ""
         tags = [
             "version:%s" % (config.version or ""),
             "env:%s" % (config.env or ""),
             "service:%s" % (span.service or ""),
-            "langchain.request.provider:%s" % provider,
-            "langchain.request.model:%s" % (span.get_tag("langchain.request.model") or ""),
-            "langchain.request.type:%s" % (span.get_tag("langchain.request.type") or ""),
-            "langchain.request.api_key:%s" % api_key,
+            "%s:%s" % (PROVIDER, provider),
+            "%s:%s" % (MODEL, span.get_tag(MODEL) or ""),
+            "%s:%s" % (TYPE, span.get_tag(TYPE) or ""),
+            "%s:%s" % (API_KEY, api_key),
             "error:%d" % span.error,
         ]
-        err_type = span.get_tag("error.type")
+        err_type = span.get_tag(ERROR_TYPE)
         if err_type:
-            tags.append("error_type:%s" % err_type)
+            tags.append("%s:%s" % (ERROR_TYPE, err_type))
         return tags
 
     def record_usage(self, span, usage):
@@ -109,7 +117,7 @@ class _LangChainIntegration(BaseLLMIntegration):
             if not num_tokens:
                 continue
             self.metric(span, "dist", "tokens.%s" % token_type, num_tokens)
-        total_cost = span.get_metric("langchain.tokens.total_cost")
+        total_cost = span.get_metric(TOTAL_COST)
         if total_cost:
             self.metric(span, "incr", "tokens.total_cost", total_cost)
 
@@ -158,22 +166,20 @@ def _tag_openai_token_usage(span, llm_output, propagated_cost=0, propagate=False
         current_metric_value = span.get_metric("langchain.tokens.%s_tokens" % token_type) or 0
         metric_value = llm_output["token_usage"].get("%s_tokens" % token_type, 0)
         span.set_metric("langchain.tokens.%s_tokens" % token_type, current_metric_value + metric_value)
-    total_cost = span.get_metric("langchain.tokens.total_cost") or 0
+    total_cost = span.get_metric(TOTAL_COST) or 0
     if not propagate:
         try:
             completion_cost = get_openai_token_cost_for_model(
-                span.get_tag("langchain.request.model"),
-                span.get_metric("langchain.tokens.completion_tokens"),
+                span.get_tag(MODEL),
+                span.get_metric(COMPLETION_TOKENS),
                 is_completion=True,
             )
-            prompt_cost = get_openai_token_cost_for_model(
-                span.get_tag("langchain.request.model"), span.get_metric("langchain.tokens.prompt_tokens")
-            )
+            prompt_cost = get_openai_token_cost_for_model(span.get_tag(MODEL), span.get_metric(PROMPT_TOKENS))
             total_cost = completion_cost + prompt_cost
         except ValueError:
             # If not in langchain's openai model catalog, the above helpers will raise a ValueError.
             log.debug("Cannot calculate token/cost as the model is not in LangChain's OpenAI model catalog.")
-    span.set_metric("langchain.tokens.total_cost", propagated_cost + total_cost)
+    span.set_metric(TOTAL_COST, propagated_cost + total_cost)
     if span._parent is not None:
         _tag_openai_token_usage(span._parent, llm_output, propagated_cost=propagated_cost + total_cost, propagate=True)
 
@@ -650,7 +656,7 @@ def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
                 instance._index.configuration.server_variables.get("project_name", ""),
             )
             api_key = instance._index.configuration.api_key.get("ApiKeyAuth", "")
-            span.set_tag_str("langchain.request.api_key", "...%s" % api_key[-4:])  # override api_key for Pinecone
+            span.set_tag_str(API_KEY, "...%s" % api_key[-4:])  # override api_key for Pinecone
         documents = func(*args, **kwargs)
         span.set_metric("langchain.response.document_count", len(documents))
         for idx, document in enumerate(documents):
