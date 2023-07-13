@@ -1,5 +1,6 @@
 import pytest
-
+from ddtrace.contrib.pytest.plugin import _extract_span
+from ddtrace.contrib.pytest_benchmark.constants import BENCHMARK_INFO, PLUGIN_METRICS
 
 def pytest_configure(config):
     if config.pluginmanager.hasplugin("benchmark"):
@@ -8,22 +9,16 @@ def pytest_configure(config):
 
 class _PytestBenchmarkPlugin:
     def __init__(self):
-        self.benchmark_storage = {}
         pass
-    def pytest_benchmark_group_stats(self, config, benchmarks, group_by):
-        print(f'dd-trace-py: benchmark hook info')
-        for test_benchmark in benchmarks:
-            full_name = test_benchmark['fullname']
-            self.benchmark_storage[test_benchmark['fullname']] = test_benchmark
-            print(f'saved test: {full_name} with data {self.benchmark_storage[test_benchmark["fullname"]]}')
+
 
     @pytest.hookimpl()
     def pytest_runtest_makereport(self, item, call):
         fixture_exists = hasattr(item, "funcargs") and item.funcargs.get("benchmark")
         if fixture_exists and fixture_exists.stats:
-            print(f'\nPrinting stats for {fixture_exists.stats.fullname}')
-            print(f'min: {fixture_exists.stats.stats.min}')
-            print(f'mean: {fixture_exists.stats.stats.mean}')
-            print(f'median: {fixture_exists.stats.stats.median}')
-            print(f'max: {fixture_exists.stats.stats.max}\n')
-
+            stat_object = fixture_exists.stats.stats
+            span = _extract_span(item)
+            span.set_tag_str(BENCHMARK_INFO, 'Time')
+            for span_path, tag in PLUGIN_METRICS.items():
+                if hasattr(stat_object, tag):
+                    span.set_tag(span_path, getattr(stat_object, tag))
