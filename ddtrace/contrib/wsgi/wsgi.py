@@ -104,9 +104,9 @@ def _on_request_prepare(ctx, start_response, traced_start_response, request_span
     ctx.set_item("intercept_start_response", intercept_start_response)
 
 
-def _on_app_success(middleware, ctx, closing_iterator):
+def _on_app_success(application_span_modifier, ctx, closing_iterator):
     app_span = ctx.get_item("app_span")
-    middleware._application_span_modifier(app_span, ctx.get_item("environ"), closing_iterator)
+    application_span_modifier(app_span, ctx.get_item("environ"), closing_iterator)
     app_span.finish()
 
 
@@ -117,16 +117,16 @@ def _on_app_exception(ctx, app_span):
     ctx.get_item("span").finish()
 
 
-def _on_request_complete(ctx, middleware, closing_iterator):
+def _on_request_complete(ctx, closing_iterator, response_span_modifier):
     # start flask.response span. This span will be finished after iter(result) is closed.
     # start_span(child_of=...) is used to ensure correct parenting.
-    resp_span = middleware.tracer.start_span(
-        middleware._response_span_name, child_of=ctx.get_item("span"), activate=True
+    resp_span = ctx.get_item("tracer").start_span(
+        ctx.get_item("_response_span_name"), child_of=ctx.get_item("span"), activate=True
     )
 
-    resp_span.set_tag_str(COMPONENT, middleware._config.integration_name)
+    resp_span.set_tag_str(COMPONENT, ctx.get_item("_config").integration_name)
 
-    middleware._response_span_modifier(resp_span, closing_iterator)
+    response_span_modifier(resp_span, closing_iterator)
 
     return _TracedIterable(iter(closing_iterator), resp_span, ctx.get_item("span"))
 
@@ -268,12 +268,12 @@ class _DDWSGIMiddlewareBase(object):
                     core.dispatch("wsgi.app.exception", [ctx])
                     raise
                 else:
-                    core.dispatch("wsgi.app.success", [self, ctx, closing_iterator])
+                    core.dispatch("wsgi.app.success", [self._application_span_modifier, ctx, closing_iterator])
                 if core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
                     _, content = core.dispatch("wsgi.block.started", [ctx])[0][0]
                     closing_iterator = [content]
 
-            return core.dispatch("wsgi.request.complete", [ctx, self, closing_iterator])[0][0]
+            return core.dispatch("wsgi.request.complete", [ctx, closing_iterator, self._response_span_modifier])[0][0]
 
     def _traced_start_response(self, start_response, request_span, app_span, status, environ, exc_info=None):
         # type: (Callable, Span, Span, str, Dict, Any) -> None
