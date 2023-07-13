@@ -118,11 +118,26 @@ def _on_app_exception(ctx, app_span):
     ctx.get_item("span").finish()
 
 
+def _on_request_complete(ctx, middleware, closing_iterator):
+    # start flask.response span. This span will be finished after iter(result) is closed.
+    # start_span(child_of=...) is used to ensure correct parenting.
+    resp_span = middleware.tracer.start_span(
+        middleware._response_span_name, child_of=ctx.get_item("span"), activate=True
+    )
+
+    resp_span.set_tag_str(COMPONENT, middleware._config.integration_name)
+
+    middleware._response_span_modifier(resp_span, closing_iterator)
+
+    return _TracedIterable(iter(closing_iterator), resp_span, ctx.get_item("span"))
+
+
 core.on("context.started.wsgi.__call__", _on_context_started)
 core.on("wsgi.block.started", _make_block_content)
 core.on("wsgi.request.prepare", _on_request_prepare)
 core.on("wsgi.app.success", _on_app_success)
 core.on("wsgi.app.exception", _on_app_exception)
+core.on("wsgi.request.complete", _on_request_complete)
 
 config._add(
     "wsgi",
@@ -254,15 +269,7 @@ class _DDWSGIMiddlewareBase(object):
                     _, content = core.dispatch("wsgi.block.started", [ctx])[0][0]
                     closing_iterator = [content]
 
-            # start flask.response span. This span will be finished after iter(result) is closed.
-            # start_span(child_of=...) is used to ensure correct parenting.
-            resp_span = self.tracer.start_span(self._response_span_name, child_of=ctx.get_item("span"), activate=True)
-
-            resp_span.set_tag_str(COMPONENT, self._config.integration_name)
-
-            self._response_span_modifier(resp_span, closing_iterator)
-
-            return _TracedIterable(iter(closing_iterator), resp_span, ctx.get_item("span"))
+            return core.dispatch("wsgi.request.complete", [ctx, self, closing_iterator])[0][0]
 
     def _traced_start_response(self, start_response, request_span, app_span, status, environ, exc_info=None):
         # type: (Callable, Span, Span, str, Dict, Any) -> None
