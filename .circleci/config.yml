@@ -72,11 +72,7 @@ commands:
     description: "Install riot"
     steps:
       # Make sure we install and run riot on Python 3
-<<<<<<< HEAD
-      - run: pip3 install riot==0.17.2
-=======
       - run: pip3 install riot==0.17.4
->>>>>>> c0174f873 (ci: upgrade riot to fix dev packages (#5972))
 
   save_pip_cache:
     description: "Save pip cache directory"
