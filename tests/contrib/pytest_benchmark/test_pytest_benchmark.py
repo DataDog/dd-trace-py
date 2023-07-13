@@ -4,7 +4,27 @@ import pytest
 
 import ddtrace
 from ddtrace.contrib.pytest.plugin import is_enabled
-from ddtrace.contrib.pytest_benchmark.constants import BENCHMARK_INFO, BENCHMARK_MEAN, BENCHMARK_RUN, STATISTICS_HD15IQR, STATISTICS_IQR, STATISTICS_IQR_OUTLIERS, STATISTICS_LD15IQR, STATISTICS_MAX, STATISTICS_MEAN, STATISTICS_MIN, STATISTICS_OPS, STATISTICS_Q1, STATISTICS_Q3, STATISTICS_N, STATISTICS_STDDEV, STATISTICS_STDDEV_OUTLIERS, STATISTICS_TOTAL, STATISTICS_MEDIAN, STATISTICS_OUTLIERS
+from ddtrace.contrib.pytest_benchmark.constants import (
+    BENCHMARK_INFO,
+    BENCHMARK_MEAN,
+    BENCHMARK_RUN,
+    STATISTICS_HD15IQR,
+    STATISTICS_IQR,
+    STATISTICS_IQR_OUTLIERS,
+    STATISTICS_LD15IQR,
+    STATISTICS_MAX,
+    STATISTICS_MEAN,
+    STATISTICS_MIN,
+    STATISTICS_OPS,
+    STATISTICS_Q1,
+    STATISTICS_Q3,
+    STATISTICS_N,
+    STATISTICS_STDDEV,
+    STATISTICS_STDDEV_OUTLIERS,
+    STATISTICS_TOTAL,
+    STATISTICS_MEDIAN,
+    STATISTICS_OUTLIERS,
+)
 from ddtrace.internal.ci_visibility import CIVisibility
 from tests.ci_visibility.test_encoder import _patch_dummy_writer
 from tests.utils import TracerTestCase
@@ -59,7 +79,7 @@ class PytestTestCase(TracerTestCase):
         assert len(spans) == 3
 
         for span in spans:
-            assert span.get_tag(BENCHMARK_INFO) == 'Time'
+            assert span.get_tag(BENCHMARK_INFO) == "Time"
             assert span.get_metric(BENCHMARK_MEAN) > 2
             assert span.get_metric(BENCHMARK_RUN) == 5
             assert span.get_metric(STATISTICS_HD15IQR) is not None
@@ -80,8 +100,3 @@ class PytestTestCase(TracerTestCase):
             assert span.get_metric(STATISTICS_TOTAL) > 2
             assert span.get_metric(BENCHMARK_RUN) == span.get_metric(STATISTICS_N)
             assert span.get_metric(BENCHMARK_MEAN) == span.get_metric(STATISTICS_MEAN)
-
-
-
-
-
