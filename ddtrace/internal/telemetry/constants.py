@@ -12,3 +12,8 @@ TELEMETRY_TYPE_DISTRIBUTION = "distributions"
 TELEMETRY_TYPE_LOGS = "logs"
 
 TELEMETRY_RUNTIMEMETRICS_ENABLED = "runtimemetrics_enabled"
+TELEMETRY_TRACING_ENABLED = "trace_enabled"
+TELEMETRY_PROFILING_ENABLED = "profiling_enabled"
+TELEMETRY_ASM_ENABLED = "appsec_enabled"
+TELEMETRY_DYNAMIC_INSTRUMENTATION_ENABLED = "dynamic_instrumentation_enabled"
+TELEMETRY_DSM_ENABLED = "data_streams_enabled"

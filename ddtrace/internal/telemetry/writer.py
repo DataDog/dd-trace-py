@@ -15,6 +15,8 @@ from ...internal import atexit
 from ...internal import forksafe
 from ...internal.compat import parse
 from ...settings import _config as config
+from ...settings.profiling import config as profiling_config
+from ...settings.dynamic_instrumentation import DynamicInstrumentationConfig
 from ..agent import get_connection
 from ..agent import get_trace_url
 from ..compat import get_connection_response
@@ -27,11 +29,16 @@ from ..service import ServiceStatus
 from ..utils.formats import asbool
 from ..utils.time import StopWatch
 from ..utils.version import _pep440_to_semver
+from .constants import TELEMETRY_ASM_ENABLED
+from .constants import TELEMETRY_DSM_ENABLED
+from .constants import TELEMETRY_DYNAMIC_INSTRUMENTATION_ENABLED
 from .constants import TELEMETRY_METRIC_TYPE_COUNT
 from .constants import TELEMETRY_METRIC_TYPE_DISTRIBUTIONS
 from .constants import TELEMETRY_METRIC_TYPE_GAUGE
 from .constants import TELEMETRY_METRIC_TYPE_RATE
+from .constants import TELEMETRY_PROFILING_ENABLED
 from .constants import TELEMETRY_RUNTIMEMETRICS_ENABLED
+from .constants import TELEMETRY_TRACING_ENABLED
 from .constants import TELEMETRY_TYPE_DISTRIBUTION
 from .constants import TELEMETRY_TYPE_GENERATE_METRICS
 from .constants import TELEMETRY_TYPE_LOGS
@@ -252,10 +259,15 @@ class TelemetryWriter(PeriodicService):
             # app-started events should only be sent by the main process
             return
         #  List of configurations to be collected
+        # inline import to avoid circular imports
+
         self.add_configurations(
             [
-                ("data_streams_enabled", config._data_streams_enabled, "unknown"),
-                ("appsec_enabled", config._appsec_enabled, "unknown"),
+                (TELEMETRY_TRACING_ENABLED, config._tracing_enabled, "unknown"),
+                (TELEMETRY_DSM_ENABLED, config._data_streams_enabled, "unknown"),
+                (TELEMETRY_ASM_ENABLED, config._appsec_enabled, "unknown"),
+                (TELEMETRY_PROFILING_ENABLED, profiling_config.enabled, "unknown"),
+                (TELEMETRY_DYNAMIC_INSTRUMENTATION_ENABLED, DynamicInstrumentationConfig().enabled, "unknown"),
                 ("trace_propagation_style_inject", str(config._propagation_style_inject), "unknown"),
                 ("trace_propagation_style_extract", str(config._propagation_style_extract), "unknown"),
                 ("ddtrace_bootstrapped", config._ddtrace_bootstrapped, "unknown"),

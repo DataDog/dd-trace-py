@@ -69,46 +69,17 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
     events[0]["payload"]["configuration"].sort(key=lambda c: c["name"])
     payload = {
         "configuration": [
-            {
-                "name": "appsec_enabled",
-                "origin": "unknown",
-                "value": False,
-            },
-            {
-                "name": "data_streams_enabled",
-                "origin": "unknown",
-                "value": False,
-            },
-            {
-                "name": "ddtrace_auto_used",
-                "origin": "unknown",
-                "value": False,
-            },
-            {
-                "name": "ddtrace_bootstrapped",
-                "origin": "unknown",
-                "value": False,
-            },
-            {
-                "name": "otel_enabled",
-                "origin": "unknown",
-                "value": False,
-            },
-            {
-                "name": "runtimemetrics_enabled",
-                "origin": "unknown",
-                "value": False,
-            },
-            {
-                "name": "trace_propagation_style_extract",
-                "origin": "unknown",
-                "value": "['tracecontext', 'datadog']",
-            },
-            {
-                "name": "trace_propagation_style_inject",
-                "origin": "unknown",
-                "value": "['tracecontext', 'datadog']",
-            },
+            {"name": "appsec_enabled", "origin": "unknown", "value": False},
+            {"name": "data_streams_enabled", "origin": "unknown", "value": False},
+            {"name": "ddtrace_auto_used", "origin": "unknown", "value": False},
+            {"name": "ddtrace_bootstrapped", "origin": "unknown", "value": False},
+            {"name": "dynamic_instrumentation_enabled", "origin": "unknown", "value": False},
+            {"name": "otel_enabled", "origin": "unknown", "value": False},
+            {"name": "profiling_enabled", "origin": "unknown", "value": False},
+            {"name": "runtimemetrics_enabled", "origin": "unknown", "value": False},
+            {"name": "trace_enabled", "origin": "unknown", "value": True},
+            {"name": "trace_propagation_style_extract", "origin": "unknown", "value": "['tracecontext', 'datadog']"},
+            {"name": "trace_propagation_style_inject", "origin": "unknown", "value": "['tracecontext', 'datadog']"},
         ],
         "error": {
             "code": 0,
@@ -137,7 +108,11 @@ telemetry_writer.disable()
 
     env = os.environ.copy()
     # Change configuration default values
+    env["DD_TRACE_ENABLED"] = "false"
     env["DD_DATA_STREAMS_ENABLED"] = "true"
+    env["DD_APPSEC_ENABLED"] = "true"
+    env["DD_PROFILING_ENABLED"] = "true"
+    env["DD_DYNAMIC_INSTRUMENTATION_ENABLED"] = "true"
     env["DD_TRACE_PROPAGATION_STYLE_EXTRACT"] = "b3multi"
     env["DD_TRACE_PROPAGATION_STYLE_INJECT"] = "datadog"
     env["DD_TRACE_OTEL_ENABLED"] = "true"
@@ -150,46 +125,17 @@ telemetry_writer.disable()
     events = test_agent_session.get_events()
     events[0]["payload"]["configuration"].sort(key=lambda c: c["name"])
     configuration = [
-        {
-            "name": "appsec_enabled",
-            "origin": "unknown",
-            "value": False,
-        },
-        {
-            "name": "data_streams_enabled",
-            "origin": "unknown",
-            "value": True,
-        },
-        {
-            "name": "ddtrace_auto_used",
-            "origin": "unknown",
-            "value": True,
-        },
-        {
-            "name": "ddtrace_bootstrapped",
-            "origin": "unknown",
-            "value": True,
-        },
-        {
-            "name": "otel_enabled",
-            "origin": "unknown",
-            "value": True,
-        },
-        {
-            "name": "runtimemetrics_enabled",
-            "origin": "unknown",
-            "value": True,
-        },
-        {
-            "name": "trace_propagation_style_extract",
-            "origin": "unknown",
-            "value": "['b3multi']",
-        },
-        {
-            "name": "trace_propagation_style_inject",
-            "origin": "unknown",
-            "value": "['datadog']",
-        },
+        {"name": "appsec_enabled", "origin": "unknown", "value": True},
+        {"name": "data_streams_enabled", "origin": "unknown", "value": True},
+        {"name": "ddtrace_auto_used", "origin": "unknown", "value": True},
+        {"name": "ddtrace_bootstrapped", "origin": "unknown", "value": True},
+        {"name": "dynamic_instrumentation_enabled", "origin": "unknown", "value": True},
+        {"name": "otel_enabled", "origin": "unknown", "value": True},
+        {"name": "profiling_enabled", "origin": "unknown", "value": True},
+        {"name": "runtimemetrics_enabled", "origin": "unknown", "value": True},
+        {"name": "trace_enabled", "origin": "unknown", "value": False},
+        {"name": "trace_propagation_style_extract", "origin": "unknown", "value": "['b3multi']"},
+        {"name": "trace_propagation_style_inject", "origin": "unknown", "value": "['datadog']"},
     ]
 
     assert events[0]["payload"]["configuration"] == configuration
