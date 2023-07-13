@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    botocore: Enables Data Streams Monitoring for SQS when `MessageAttributes` are passed in
+    as a tuple in addition to when they are passed in as a list.
