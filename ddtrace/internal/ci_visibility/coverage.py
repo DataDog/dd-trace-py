@@ -7,8 +7,6 @@ from ddtrace import config
 from ddtrace.internal import compat
 from ddtrace.internal.logger import get_logger
 
-from .constants import COVERAGE_TAG_NAME
-
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Dict
@@ -29,7 +27,6 @@ except ImportError:
     Coverage = None  # type: ignore[misc,assignment]
     EXECUTE_ATTR = ""
 
-COVERAGE_SINGLETON = None
 ROOT_DIR = None
 
 
@@ -47,33 +44,20 @@ def enabled():
     return False
 
 
-def _initialize(root_dir):
+def _initialize_coverage(root_dir):
     global ROOT_DIR
     if ROOT_DIR is None:
         ROOT_DIR = root_dir
 
-    global COVERAGE_SINGLETON
-    if COVERAGE_SINGLETON is None:
-        coverage_kwargs = {
-            "data_file": None,
-            "source": [ROOT_DIR],
-            "config_file": False,
-            "omit": [
-                "*/site-packages/*",
-            ],
-        }
-        COVERAGE_SINGLETON = Coverage(**coverage_kwargs)
-
-
-def _coverage_start():
-    COVERAGE_SINGLETON.start()
-
-
-def _coverage_end(span):
-    span_id = str(span.trace_id)
-    COVERAGE_SINGLETON.stop()
-    span.set_tag(COVERAGE_TAG_NAME, build_payload(COVERAGE_SINGLETON, test_id=span_id))
-    COVERAGE_SINGLETON.erase()
+    coverage_kwargs = {
+        "data_file": None,
+        "source": [ROOT_DIR],
+        "config_file": False,
+        "omit": [
+            "*/site-packages/*",
+        ],
+    }
+    return Coverage(**coverage_kwargs)
 
 
 def segments(lines):
