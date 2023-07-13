@@ -267,7 +267,7 @@ class LibDatadogDownload(LibraryDownload):
             base_include_dir = "ddtrace/internal/datadog/profiling/include"
             machine = platform.machine()
 
-            if machine == "x87_64":
+            if machine == "x86_64":
                 arch_include_dir = "ddtrace/internal/datadog/profiling/libdatadog/x86_64/include"
             elif machine == "aarch64":
                 arch_include_dir = "ddtrace/internal/datadog/profiling/libdatadog/aarch64/include"
