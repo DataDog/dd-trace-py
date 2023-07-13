@@ -172,7 +172,11 @@ class CIVisibility(Service):
                 },
             }
         }
-        response = _do_request("POST", url, json.dumps(payload), _headers)
+        try:
+            response = _do_request("POST", url, json.dumps(payload), _headers)
+        except TimeoutError:
+            log.warning("Request timeout while fetching enabled features")
+            return False, False
         try:
             parsed = json.loads(response.body)
         except JSONDecodeError:
@@ -260,7 +264,12 @@ class CIVisibility(Service):
             log.warning("Cannot make requests to skippable endpoint if mode is not agentless or evp proxy")
             return
 
-        response = _do_request("POST", url, json.dumps(payload), _headers)
+        try:
+            response = _do_request("POST", url, json.dumps(payload), _headers)
+        except TimeoutError:
+            log.warning("Request timeout while fetching skippable tests")
+            self._test_suites_to_skip = []
+            return
 
         if response.status >= 400:
             log.warning("Test skips request responded with status %d", response.status)
