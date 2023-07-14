@@ -1030,6 +1030,34 @@ def test_chain_logs(langchain, ddtrace_config_langchain, request_vcr, mock_logs,
     mock_metrics.count.assert_not_called()
 
 
+def test_chat_prompt_template_does_not_parse_template(langchain, mock_tracer):
+    """
+    Test that tracing a chain with a ChatPromptTemplate does not try to parse the template,
+    as ChatPromptTemplates contain multiple messages each with their own prompt template and
+    are not trivial to tag.
+    """
+    with mock.patch("langchain.chat_models.openai.ChatOpenAI._generate", side_effect=Exception("Mocked Error")):
+        with pytest.raises(Exception) as exc_info:
+            chat = langchain.chat_models.ChatOpenAI(temperature=0)
+            template = "You are a helpful assistant that translates english to pirate."
+            system_message_prompt = langchain.prompts.chat.SystemMessagePromptTemplate.from_template(template)
+            example_human = langchain.prompts.chat.HumanMessagePromptTemplate.from_template("Hi")
+            example_ai = langchain.prompts.chat.AIMessagePromptTemplate.from_template("Argh me mateys")
+            human_template = "{text}"
+            human_message_prompt = langchain.prompts.chat.HumanMessagePromptTemplate.from_template(human_template)
+            chat_prompt = langchain.prompts.chat.ChatPromptTemplate.from_messages(
+                [system_message_prompt, example_human, example_ai, human_message_prompt]
+            )
+            chain = langchain.chains.LLMChain(llm=chat, prompt=chat_prompt)
+            chain.run("I love programming.")
+        assert str(exc_info.value) == "Mocked Error"
+    traces = mock_tracer.pop_traces()
+    chain_span = traces[0][0]
+    assert chain_span.get_tag("langchain.request.inputs.text") == "I love programming."
+    assert chain_span.get_tag("langchain.request.type") == "chain"
+    assert chain_span.get_tag("langchain.request.prompt") is None
+
+
 @pytest.mark.snapshot
 def test_pinecone_vectorstore_similarity_search(langchain, request_vcr):
     """
