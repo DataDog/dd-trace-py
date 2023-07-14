@@ -1069,6 +1069,13 @@ jobs:
       - run_test:
           pattern: 'algoliasearch'
 
+  langchain:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: "langchain"
+          snapshot: true
+
   build_docs:
     # build documentation and store as an artifact
     executor: ddtrace_dev
@@ -1137,6 +1144,7 @@ requires_tests: &requires_tests
     - jinja2
     - kafka
     - kombu
+    - langchain
     - mako
     - mariadb
     - molten
@@ -1237,6 +1245,7 @@ workflows:
       - jinja2: *requires_base_venvs
       - kafka: *requires_base_venvs
       - kombu: *requires_base_venvs
+      - langchain: *requires_base_venvs
       - mako: *requires_base_venvs
       - mariadb: *requires_base_venvs
       - molten: *requires_base_venvs
