@@ -148,9 +148,7 @@ def test_request_ipblock_match_403():
             },
         )
         assert result.status_code == 403
-        as_bytes = (
-            bytes(constants.APPSEC_BLOCKED_RESPONSE_HTML, "utf-8") if PY3 else constants.APPSEC_BLOCKED_RESPONSE_HTML
-        )
+        as_bytes = bytes(constants.BLOCKED_RESPONSE_HTML, "utf-8") if PY3 else constants.BLOCKED_RESPONSE_HTML
         assert result.content == as_bytes
 
 
@@ -182,7 +180,5 @@ def test_request_ipblock_match_403_json():
             },
         )
         assert result.status_code == 403
-        as_bytes = (
-            bytes(constants.APPSEC_BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else constants.APPSEC_BLOCKED_RESPONSE_JSONP
-        )
+        as_bytes = bytes(constants.BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else constants.BLOCKED_RESPONSE_JSONP
         assert result.content == as_bytes
