@@ -154,7 +154,7 @@ class ProbeRegistry(dict):
         location = _get_probe_location(probe)
 
         # Pending probes must have valid location information
-        assert location is not None, probe
+        assert location is not None, probe  # nosec
 
         pending_probes = self._pending[location]
         try:
@@ -203,7 +203,7 @@ class ProbeRegistry(dict):
     def __contains__(self, probe):
         # type: (object) -> bool
         """Check if a probe is in the registry."""
-        assert isinstance(probe, Probe)
+        assert isinstance(probe, Probe), probe  # nosec
 
         with self._lock:
             return super(ProbeRegistry, self).__contains__(probe.probe_id)
