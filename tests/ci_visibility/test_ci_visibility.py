@@ -24,6 +24,7 @@ from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClientSeria
 from ddtrace.internal.ci_visibility.recorder import CITracer as Tracer
 from ddtrace.internal.ci_visibility.recorder import _extract_repository_name_from_url
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
+from ddtrace.internal.compat import PY2
 from ddtrace.internal.utils.http import Response
 from ddtrace.span import Span
 from tests.utils import DummyCIVisibilityWriter
@@ -31,6 +32,10 @@ from tests.utils import DummyTracer
 from tests.utils import override_env
 from tests.utils import override_global_config
 
+
+if PY2:
+    # Purposely shadowing a missing python builtin
+    from socket import timeout as TimeoutError  # noqa: A001
 
 AGENT_VERSION = os.environ.get("AGENT_VERSION")
 
@@ -122,6 +127,46 @@ def test_ci_visibility_service_enable_with_app_key_and_itr_disabled(_do_request)
         CIVisibility.enable(service="test-service")
         assert CIVisibility._instance._code_coverage_enabled_by_api is False
         assert CIVisibility._instance._test_skipping_enabled_by_api is False
+        CIVisibility.disable()
+
+
+@mock.patch("ddtrace.internal.ci_visibility.recorder._do_request", side_effect=TimeoutError)
+def test_ci_visibility_service_settings_timeout(_do_request):
+    with override_env(
+        dict(
+            DD_API_KEY="foobar.baz",
+            DD_APP_KEY="foobar",
+            DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+            DD_CIVISIBILITY_ITR_ENABLED="1",
+        )
+    ):
+        ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+        _do_request.return_value = Response(
+            status=200,
+            body='{"data":{"id":"1234","type":"ci_app_tracers_test_service_settings","attributes":'
+            '{"code_coverage":true,"tests_skipping":true}}}',
+        )
+        CIVisibility.enable(service="test-service")
+        assert CIVisibility._instance._code_coverage_enabled_by_api is False
+        assert CIVisibility._instance._test_skipping_enabled_by_api is False
+        CIVisibility.disable()
+
+
+@mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features", return_value=(True, True))
+@mock.patch("ddtrace.internal.ci_visibility.recorder._do_request", side_effect=TimeoutError)
+def test_ci_visibility_service_skippable_timeout(_do_request, _check_enabled_features):
+    with override_env(
+        dict(
+            DD_API_KEY="foobar.baz",
+            DD_APP_KEY="foobar",
+            DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+            DD_CIVISIBILITY_ITR_ENABLED="1",
+        )
+    ):
+        ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+        CIVisibility.enable(service="test-service")
+        assert CIVisibility._instance._test_suites_to_skip == []
+
         CIVisibility.disable()
 
 

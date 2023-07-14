@@ -14,6 +14,7 @@ from ddtrace.internal.agent import get_connection
 from ddtrace.internal.agent import get_trace_url
 from ddtrace.internal.ci_visibility.filters import TraceCiVisibilityFilter
 from ddtrace.internal.compat import JSONDecodeError
+from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import parse
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
@@ -55,6 +56,11 @@ def _get_test_skipping_level():
 
 
 TEST_SKIPPING_LEVEL = _get_test_skipping_level()
+
+
+if PY2:
+    # Purposely shadowing a missing python builtin
+    from socket import timeout as TimeoutError  # noqa: A001
 
 
 def _extract_repository_name_from_url(repository_url):
@@ -203,7 +209,11 @@ class CIVisibility(Service):
                 },
             }
         }
-        response = _do_request("POST", url, json.dumps(payload), _headers)
+        try:
+            response = _do_request("POST", url, json.dumps(payload), _headers)
+        except TimeoutError:
+            log.warning("Request timeout while fetching enabled features")
+            return False, False
         try:
             body = response.body
             if isinstance(body, bytes):
@@ -294,7 +304,12 @@ class CIVisibility(Service):
             log.warning("Cannot make requests to skippable endpoint if mode is not agentless or evp proxy")
             return
 
-        response = _do_request("POST", url, json.dumps(payload), _headers)
+        try:
+            response = _do_request("POST", url, json.dumps(payload), _headers)
+        except TimeoutError:
+            log.warning("Request timeout while fetching skippable tests")
+            self._test_suites_to_skip = []
+            return
 
         if response.status >= 400:
             log.warning("Test skips request responded with status %d", response.status)
