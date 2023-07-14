@@ -149,7 +149,13 @@ def _on_request_complete(ctx, closing_iterator):
     return _TracedIterable(iter(closing_iterator), resp_span, req_span)
 
 
-def _on_response_started(middleware, request_span, app_span, status, environ, start_span=True):
+def _on_response_context_started(ctx):
+    status = ctx.get_item("status")
+    request_span = ctx.get_item("request_span")
+    middleware = ctx.get_item("middleware")
+    environ = ctx.get_item("environ")
+    start_span = ctx.get_item("start_span")
+    app_span = ctx.get_item("app_span")
     status_code, status_msg = status.split(" ", 1)
     trace_utils.set_http_meta(request_span, middleware._config, status_code=status_code, response_headers=environ)
     if start_span:
@@ -165,7 +171,7 @@ def _on_response_started(middleware, request_span, app_span, status, environ, st
         span.set_tag_str(COMPONENT, middleware._config.integration_name)
         # set span.kind to the type of operation being performed
         span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
-        return span
+        ctx.set_item("response_span", span)
 
 
 def _on_response_prepared(resp_span, response):
@@ -187,11 +193,11 @@ def _on_request_prepared(middleware, req_span, url, request_headers, environ):
 
 def listen():
     core.on("context.started.wsgi.__call__", _on_context_started)
+    core.on("context.started.wsgi.response", _on_response_context_started)
     core.on("wsgi.block.started", _make_block_content)
     core.on("wsgi.request.prepare", _on_request_prepare)
     core.on("wsgi.request.prepared", _on_request_prepared)
     core.on("wsgi.app.success", _on_app_success)
     core.on("wsgi.app.exception", _on_app_exception)
     core.on("wsgi.request.complete", _on_request_complete)
-    core.on("wsgi.response.start", _on_response_started)
     core.on("wsgi.response.prepared", _on_response_prepared)

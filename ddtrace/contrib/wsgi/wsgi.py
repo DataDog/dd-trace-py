@@ -123,8 +123,16 @@ class _DDWSGIMiddlewareBase(object):
     def _traced_start_response(self, start_response, request_span, app_span, status, environ, exc_info=None):
         # type: (Callable, Span, Span, str, Dict, Any) -> None
         """sets the status code on a request span when start_response is called"""
-        core.dispatch("wsgi.response.start", [self, request_span, app_span, status, environ, False])
-        return start_response(status, environ, exc_info)
+        with core.context_with_data(
+            "wsgi.response",
+            middleware=self,
+            request_span=request_span,
+            app_span=app_span,
+            status=status,
+            environ=environ,
+            start_span=False,
+        ):
+            return start_response(status, environ, exc_info)
 
     def _request_span_modifier(self, req_span, environ, parsed_headers=None):
         # type: (Span, Dict, Optional[Dict]) -> None
@@ -202,8 +210,17 @@ class DDWSGIMiddleware(_DDWSGIMiddlewareBase):
         self.span_modifier = span_modifier
 
     def _traced_start_response(self, start_response, request_span, app_span, status, environ, exc_info=None):
-        with core.dispatch("wsgi.response.start", [self, request_span, app_span, status, environ])[0][0]:
-            return start_response(status, environ, exc_info)
+        with core.context_with_data(
+            "wsgi.response",
+            middleware=self,
+            request_span=request_span,
+            app_span=app_span,
+            status=status,
+            environ=environ,
+            start_span=True,
+        ) as ctx:
+            with ctx.get_item("response_span"):
+                return start_response(status, environ, exc_info)
 
     def _request_span_modifier(self, req_span, environ, parsed_headers=None):
         url = construct_url(environ)
