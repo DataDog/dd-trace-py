@@ -1,12 +1,13 @@
 import os
+import re
 
 import pytest
 
 
 def test_enable(test_agent_session, run_python_code_in_subprocess):
     code = """
-from ddtrace.internal.telemetry import telemetry_lifecycle_writer
-telemetry_lifecycle_writer.enable()
+from ddtrace.internal.telemetry import telemetry_writer
+telemetry_writer.enable()
 """
 
     stdout, stderr, status, _ = run_python_code_in_subprocess(code)
@@ -42,12 +43,15 @@ def test_telemetry_enabled_on_first_tracer_flush(test_agent_session, ddtrace_run
     assert status == 0, stderr
     assert stderr == b""
     # Ensure telemetry events were sent to the agent (snapshot ensures one trace was generated)
+    # Note event order is reversed e.g. event[0] is actually the last event
     events = test_agent_session.get_events()
-    assert len(events) == 4
-    assert events[0]["request_type"] == "app-integrations-change"
-    assert events[1]["request_type"] == "app-closing"
-    assert events[2]["request_type"] == "app-dependencies-loaded"
+    assert len(events) == 5
+    events.sort(key=lambda x: (x["request_type"], x["seq_id"]), reverse=False)
+    assert events[0]["request_type"] == "app-closing"
+    assert events[1]["request_type"] == "app-dependencies-loaded"
+    assert events[2]["request_type"] == "app-integrations-change"
     assert events[3]["request_type"] == "app-started"
+    assert events[4]["request_type"] == "generate-metrics"
 
 
 def test_enable_fork(test_agent_session, run_python_code_in_subprocess):
@@ -56,16 +60,16 @@ def test_enable_fork(test_agent_session, run_python_code_in_subprocess):
 import os
 
 from ddtrace.internal.runtime import get_runtime_id
-from ddtrace.internal.telemetry import telemetry_lifecycle_writer
+from ddtrace.internal.telemetry import telemetry_writer
 
 # We have to start before forking since fork hooks are not enabled until after enabling
-telemetry_lifecycle_writer.enable()
+telemetry_writer.enable()
 
 if os.fork() == 0:
     # Send multiple started events to confirm none get sent
-    telemetry_lifecycle_writer._app_started_event()
-    telemetry_lifecycle_writer._app_started_event()
-    telemetry_lifecycle_writer._app_started_event()
+    telemetry_writer._app_started_event()
+    telemetry_writer._app_started_event()
+    telemetry_writer._app_started_event()
 else:
     # Print the parent process runtime id for validation
     print(get_runtime_id())
@@ -97,20 +101,20 @@ def test_enable_fork_heartbeat(test_agent_session, run_python_code_in_subprocess
 import os
 
 from ddtrace.internal.runtime import get_runtime_id
-from ddtrace.internal.telemetry import telemetry_lifecycle_writer
+from ddtrace.internal.telemetry import telemetry_writer
 
-telemetry_lifecycle_writer.enable()
+telemetry_writer.enable()
 # Reset queue to avoid sending app-started event
-telemetry_lifecycle_writer.reset_queues()
+telemetry_writer.reset_queues()
 
 if os.fork() > 0:
     # Print the parent process runtime id for validation
     print(get_runtime_id())
 
 # Call periodic to send heartbeat event
-telemetry_lifecycle_writer.periodic()
+telemetry_writer.periodic()
 # Disable telemetry writer to avoid sending app-closed event
-telemetry_lifecycle_writer.disable()
+telemetry_writer.disable()
     """
 
     stdout, stderr, status, _ = run_python_code_in_subprocess(code)
@@ -134,8 +138,8 @@ def test_heartbeat_interval_configuration(run_python_code_in_subprocess):
     env = os.environ.copy()
     env["DD_TELEMETRY_HEARTBEAT_INTERVAL"] = heartbeat_interval
     code = """
-from ddtrace.internal.telemetry import telemetry_lifecycle_writer
-assert telemetry_lifecycle_writer.interval == {}
+from ddtrace.internal.telemetry import telemetry_writer
+assert telemetry_writer.interval == {}
     """.format(
         heartbeat_interval
     )
@@ -154,7 +158,7 @@ import logging
 import os
 
 logging.basicConfig() # required for python 2.7
-ddtrace.internal.telemetry.telemetry_lifecycle_writer.enable()
+ddtrace.internal.telemetry.telemetry_writer.enable()
 os.fork()
 """,
     )
@@ -190,18 +194,21 @@ tracer.trace("hello").finish()
 
     events = test_agent_session.get_events()
 
-    assert len(events) == 3
+    assert len(events) == 4
 
     # Same runtime id is used
     assert events[0]["runtime_id"] == events[1]["runtime_id"]
-    assert events[0]["request_type"] == "app-closing"
-    assert events[1]["request_type"] == "app-dependencies-loaded"
-    assert events[2]["request_type"] == "app-started"
-    assert events[2]["payload"]["error"]["code"] == 1
-    assert (
-        "ddtrace/internal/processor/trace.py/trace.py:225: error applying processor FailingFilture()"
-        in events[2]["payload"]["error"]["message"]
+
+    app_started_events = [event for event in events if event["request_type"] == "app-started"]
+    assert len(app_started_events) == 1
+    assert app_started_events[0]["payload"]["error"]["code"] == 1
+    assert "error applying processor FailingFilture()" in app_started_events[0]["payload"]["error"]["message"]
+    pattern = re.compile(
+        ".*ddtrace/internal/processor/trace.py/trace.py:[0-9]+: error applying processor FailingFilture()"
     )
+    assert pattern.match(app_started_events[0]["payload"]["error"]["message"]), app_started_events[0]["payload"][
+        "error"
+    ]["message"]
 
 
 def test_app_started_error_unhandled_exception(test_agent_session, run_python_code_in_subprocess):
@@ -249,15 +256,20 @@ tracer.trace("test").finish()
     assert expected_stderr in stderr
 
     events = test_agent_session.get_events()
-    assert len(events) == 4
-    # Same runtime id is used
-    assert events[0]["runtime_id"] == events[1]["runtime_id"] == events[2]["runtime_id"] == events[3]["runtime_id"]
-    assert events[0]["request_type"] == "app-integrations-change"
-    assert events[1]["request_type"] == "app-closing"
-    assert events[2]["request_type"] == "app-dependencies-loaded"
-    assert events[3]["request_type"] == "app-started"
 
+    assert len(events) == 5
+    # Same runtime id is used
     assert (
-        events[0]["payload"]["integrations"][0]["error"]
+        events[0]["runtime_id"]
+        == events[1]["runtime_id"]
+        == events[2]["runtime_id"]
+        == events[3]["runtime_id"]
+        == events[4]["runtime_id"]
+    )
+    integrations_events = [event for event in events if event["request_type"] == "app-integrations-change"]
+
+    assert len(integrations_events) == 1
+    assert (
+        integrations_events[0]["payload"]["integrations"][0]["error"]
         == "failed to import ddtrace module 'ddtrace.contrib.sqlite3' when patching on import"
     )

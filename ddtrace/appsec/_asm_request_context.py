@@ -4,15 +4,9 @@ from typing import TYPE_CHECKING
 from ddtrace import config
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
-from ddtrace.internal import _context
+from ddtrace.internal import core
 from ddtrace.internal.compat import parse
 from ddtrace.internal.logger import get_logger
-
-
-try:
-    import contextvars
-except ImportError:
-    import ddtrace.vendor.contextvars as contextvars  # type: ignore
 
 
 if TYPE_CHECKING:
@@ -26,15 +20,7 @@ if TYPE_CHECKING:
 
 log = get_logger(__name__)
 
-"""
-Stopgap module for providing ASM context for the blocking features wrapping some
-contextvars. When using this, note that context vars are always thread-local so each
-thread will have a different context.
-"""
-
-# FIXME: remove these and use the new context API once implemented and allowing
-# contexts without spans
-
+# Stopgap module for providing ASM context for the blocking features wrapping some contextvars.
 
 _WAF_ADDRESSES = "waf_addresses"
 _CALLBACKS = "callbacks"
@@ -43,6 +29,9 @@ _CONTEXT_CALL = "context"
 _WAF_CALL = "waf_run"
 _BLOCK_CALL = "block"
 _WAF_RESULTS = "waf_results"
+
+
+GLOBAL_CALLBACKS = {}  # type: dict[str, Any]
 
 
 class ASM_Environment:
@@ -62,31 +51,36 @@ class ASM_Environment:
         self.addresses_sent = set()  # type: set[str]
 
 
-_ASM = contextvars.ContextVar("ASM_contextvar", default=ASM_Environment())
+def _get_asm_context():
+    env = core.get_item("asm_env")
+    if env is None:
+        env = ASM_Environment()
+        core.set_item("asm_env", env)
+    return env
 
 
 def free_context_available():  # type: () -> bool
-    env = _ASM.get()
+    env = _get_asm_context()
     return env.active and env.span is None
 
 
 def in_context():  # type: () -> bool
-    env = _ASM.get()
+    env = _get_asm_context()
     return env.active
 
 
 def is_blocked():  # type: () -> bool
     try:
-        env = _ASM.get()
+        env = _get_asm_context()
         if not env.active or env.span is None:
             return False
-        return _context.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=env.span)
+        return bool(core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=env.span))
     except BaseException:
         return False
 
 
 def register(span, span_asm_context=None):
-    env = _ASM.get()
+    env = _get_asm_context()
     if not env.active:
         log.debug("registering a span with no active asm context")
         return
@@ -95,9 +89,13 @@ def register(span, span_asm_context=None):
 
 
 def unregister(span):
-    env = _ASM.get()
+    env = _get_asm_context()
     if env.span_asm_context is not None and env.span is span:
         env.span_asm_context.__exit__(None, None, None)
+    elif env.span is span:
+        # needed for api security flushing information before end of the span
+        for function in GLOBAL_CALLBACKS.get(_CONTEXT_CALL, []):
+            function(env)
 
 
 class _DataHandler:
@@ -115,31 +113,46 @@ class _DataHandler:
 
         self._id = _DataHandler.main_id
         self.active = True
-        self.token = _ASM.set(env)
+        self.execution_context = core.ExecutionContext(__name__, **{"asm_env": env})
 
         env.telemetry[_WAF_RESULTS] = [], [], []
         env.callbacks[_CONTEXT_CALL] = []
 
     def finalise(self):
         if self.active:
-            env = _ASM.get()
+            env = core.get_item("asm_env")
             # assert _CONTEXT_ID.get() == self._id
-            callbacks = env.callbacks.get(_CONTEXT_CALL)
+            callbacks = GLOBAL_CALLBACKS.get(_CONTEXT_CALL, []) + env.callbacks.get(_CONTEXT_CALL)
             if callbacks is not None:
                 for function in callbacks:
-                    function()
-                _ASM.reset(self.token)
+                    function(env)
+                self.execution_context.end()
             self.active = False
 
 
 def set_value(category, address, value):  # type: (str, str, Any) -> None
-    env = _ASM.get()
+    env = _get_asm_context()
     if not env.active:
         log.debug("setting %s address %s with no active asm context", category, address)
         return
     asm_context_attr = getattr(env, category, None)
     if asm_context_attr is not None:
         asm_context_attr[address] = value
+
+
+def set_headers_response(headers):  # type: (Any) -> None
+    if headers is not None:
+        set_waf_address(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, headers, _get_asm_context().span)
+
+
+def set_body_response(body_response):
+    # local import to avoid circular import
+    from ddtrace.appsec.utils import parse_response_body
+
+    parsed_body = parse_response_body(body_response)
+
+    if parse_response_body is not None:
+        set_waf_address(SPAN_DATA_NAMES.RESPONSE_BODY, parsed_body)
 
 
 def set_waf_address(address, value, span=None):  # type: (str, Any, Any) -> None
@@ -151,13 +164,13 @@ def set_waf_address(address, value, span=None):  # type: (str, Any, Any) -> None
     else:
         set_value(_WAF_ADDRESSES, address, value)
     if span is None:
-        span = _ASM.get().span
+        span = _get_asm_context().span
     if span:
-        _context.set_item(address, value, span=span)
+        core.set_item(address, value, span=span)
 
 
 def get_value(category, address, default=None):  # type: (str, str, Any) -> Any
-    env = _ASM.get()
+    env = _get_asm_context()
     if not env.active:
         log.debug("getting %s address %s with no active asm context", category, address)
         return default
@@ -171,10 +184,30 @@ def get_waf_address(address, default=None):  # type: (str, Any) -> Any
     return get_value(_WAF_ADDRESSES, address, default=default)
 
 
-def add_context_callback(function):  # type: (Any) -> None
-    callbacks = get_value(_CALLBACKS, _CONTEXT_CALL)
+def get_waf_addresses(default=None):  # type: (Any) -> Any
+    env = _get_asm_context()
+    if not env.active:
+        log.debug("getting WAF addresses with no active asm context")
+        return default
+    return env.waf_addresses
+
+
+def add_context_callback(function, global_callback=False):  # type: (Any, bool) -> None
+    if global_callback:
+        callbacks = GLOBAL_CALLBACKS.setdefault(_CONTEXT_CALL, [])
+    else:
+        callbacks = get_value(_CALLBACKS, _CONTEXT_CALL)
     if callbacks is not None:
         callbacks.append(function)
+
+
+def remove_context_callback(function, global_callback=False):  # type: (Any, bool) -> None
+    if global_callback:
+        callbacks = GLOBAL_CALLBACKS.get(_CONTEXT_CALL)
+    else:
+        callbacks = get_value(_CALLBACKS, _CONTEXT_CALL)
+    if callbacks:
+        callbacks[:] = list([cb for cb in callbacks if cb != function])
 
 
 def set_waf_callback(value):  # type: (Any) -> None
@@ -194,7 +227,7 @@ def call_waf_callback(custom_data=None):
 
 def set_ip(ip):  # type: (Optional[str]) -> None
     if ip is not None:
-        set_waf_address(SPAN_DATA_NAMES.REQUEST_HTTP_IP, ip, _ASM.get().span)
+        set_waf_address(SPAN_DATA_NAMES.REQUEST_HTTP_IP, ip, _get_asm_context().span)
 
 
 def get_ip():  # type: () -> Optional[str]
@@ -208,7 +241,7 @@ def get_ip():  # type: () -> Optional[str]
 
 def set_headers(headers):  # type: (Any) -> None
     if headers is not None:
-        set_waf_address(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, headers, _ASM.get().span)
+        set_waf_address(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, headers, _get_asm_context().span)
 
 
 def get_headers():  # type: () -> Optional[Any]
@@ -216,7 +249,7 @@ def get_headers():  # type: () -> Optional[Any]
 
 
 def set_headers_case_sensitive(case_sensitive):  # type: (bool) -> None
-    set_waf_address(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES_CASE, case_sensitive, _ASM.get().span)
+    set_waf_address(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES_CASE, case_sensitive, _get_asm_context().span)
 
 
 def get_headers_case_sensitive():  # type: () -> bool
@@ -245,7 +278,7 @@ def block_request():  # type: () -> None
 
 
 def get_data_sent():  # type: () -> set[str] | None
-    env = _ASM.get()
+    env = _get_asm_context()
     if not env.active:
         log.debug("getting addresses sent with no active asm context")
         return set()
@@ -292,5 +325,6 @@ def asm_request_context_manager(
             yield resources
         finally:
             resources.finalise()
+            core.set_item("asm_env", None)
     else:
         yield None

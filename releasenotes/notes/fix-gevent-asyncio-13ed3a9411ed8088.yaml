@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fixed an issue that prevented the library from working as expected when a
+    combination of gevent and asyncio-based frameworks that rely on the
+    functionalities of the ssl module is used.

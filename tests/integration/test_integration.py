@@ -26,8 +26,8 @@ from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import MsgpackEncoderV03 as Encoder
 from ddtrace.internal.runtime import container
+from ddtrace.internal.utils.http import Response
 from ddtrace.internal.writer import AgentWriter
-from tests.utils import AnyExc
 from tests.utils import AnyFloat
 from tests.utils import AnyInt
 from tests.utils import AnyStr
@@ -157,11 +157,10 @@ def test_uds_wrong_socket_path(encoding, monkeypatch):
         t.shutdown()
     calls = [
         mock.call(
-            "failed to send, dropping %d traces to intake at %s after %d retries (%s)",
+            "failed to send, dropping %d traces to intake at %s after %d retries",
             1,
             "unix:///tmp/ddagent/nosockethere/{}/traces".format(encoding if encoding else "v0.5"),
             3,
-            AnyExc(),
         )
     ]
     log.error.assert_has_calls(calls)
@@ -327,33 +326,33 @@ def test_metrics_partial_flush_disabled(encoding, monkeypatch):
 @allencodings
 def test_single_trace_too_large(encoding, monkeypatch):
     monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
-    # setting writer interval to 5 seconds so that buffer can fit larger traces
-    monkeypatch.setenv("DD_TRACE_WRITER_INTERVAL_SECONDS", "10.0")
 
     t = Tracer()
     assert t._partial_flush_enabled is True
-    with mock.patch("ddtrace.internal.writer.writer.log") as log:
-        key = "a" * 250
-        with t.trace("huge"):
-            for i in range(200000):
-                with t.trace("operation") as s:
-                    # Need to make the strings unique so that the v0.5 encoding doesn’t compress the data
-                    s.set_tag(key + str(i), key + str(i))
-        t.shutdown()
-        assert (
-            mock.call(
-                "trace buffer (%s traces %db/%db) cannot fit trace of size %db, dropping (writer status: %s)",
-                AnyInt(),
-                AnyInt(),
-                AnyInt(),
-                AnyInt(),
-                AnyStr(),
-            )
-            in log.warning.mock_calls
-        ), log.mock_calls[
-            :20
-        ]  # limits number of logs, this test could generate hundreds of thousands of logs.
-        log.error.assert_not_called()
+    # This test asserts that a BufferFull exception is raised. We need to ensure the encoders queue is not flushed
+    # while trace chunks are being queued.
+    with mock.patch.object(AgentWriter, "flush_queue", return_value=None):
+        with mock.patch("ddtrace.internal.writer.writer.log") as log:
+            key = "a" * 250
+            with t.trace("huge"):
+                for i in range(30000):
+                    with t.trace("operation") as s:
+                        # Need to make the strings unique so that the v0.5 encoding doesn’t compress the data
+                        s.set_tag(key + str(i), key + str(i))
+            assert (
+                mock.call(
+                    "trace buffer (%s traces %db/%db) cannot fit trace of size %db, dropping (writer status: %s)",
+                    AnyInt(),
+                    AnyInt(),
+                    AnyInt(),
+                    AnyInt(),
+                    AnyStr(),
+                )
+                in log.warning.mock_calls
+            ), log.mock_calls[
+                :20
+            ]  # limits number of logs, this test could generate hundreds of thousands of logs.
+            log.error.assert_not_called()
 
 
 @allencodings
@@ -390,11 +389,10 @@ def test_trace_bad_url(encoding, monkeypatch):
 
     calls = [
         mock.call(
-            "failed to send, dropping %d traces to intake at %s after %d retries (%s)",
+            "failed to send, dropping %d traces to intake at %s after %d retries",
             1,
             "http://bad:1111/{}/traces".format(encoding if encoding else "v0.5"),
             3,
-            AnyExc(),
         )
     ]
     log.error.assert_has_calls(calls)
@@ -795,24 +793,22 @@ def test_flush_log(caplog, encoding, monkeypatch):
 
 
 @pytest.mark.parametrize("logs_injection,debug_mode,patch_logging", itertools.product([True, False], repeat=3))
-def test_regression_logging_in_context(tmpdir, logs_injection, debug_mode, patch_logging):
+def test_regression_logging_in_context(run_python_code_in_subprocess, logs_injection, debug_mode, patch_logging):
     """
     When logs injection is enabled and the logger is patched
         When a parent span closes before a child
             The application does not deadlock due to context lock acquisition
     """
-    f = tmpdir.join("test.py")
-    f.write(
-        """
+    code = """
 import ddtrace
-ddtrace.patch(logging=%s)
+ddtrace.patch(logging={})
 
 s1 = ddtrace.tracer.trace("1")
 s2 = ddtrace.tracer.trace("2")
 s1.finish()
 s2.finish()
-""".lstrip()
-        % str(patch_logging)
+""".format(
+        str(patch_logging)
     )
 
     env = os.environ.copy()
@@ -824,15 +820,9 @@ s2.finish()
         }
     )
 
-    p = subprocess.Popen(
-        [sys.executable, "test.py"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=str(tmpdir), env=env
-    )
-    try:
-        p.wait(timeout=10)
-    except TypeError:
-        # timeout argument added in Python 3.3
-        p.wait()
-    assert p.returncode == 0
+    # If we deadlock (longer than 5 seconds), we'll raise `subprocess.TimeoutExpired` and fail
+    _, err, status, _ = run_python_code_in_subprocess(code, env=env, timeout=5)
+    assert status == 0, err
 
 
 @pytest.mark.parametrize(
@@ -1010,6 +1000,7 @@ def test_civisibility_event_endpoints():
             t.configure(writer=CIVisibilityWriter(reuse_connections=True))
             t._writer._conn = mock.MagicMock()
             with mock.patch("ddtrace.internal.writer.Response.from_http_response") as from_http_response:
+                from_http_response.return_value.__class__ = Response
                 from_http_response.return_value.status = 200
                 s = t.trace("operation", service="svc-no-cov")
                 s.finish()

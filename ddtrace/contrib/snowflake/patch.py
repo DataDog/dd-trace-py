@@ -6,6 +6,7 @@ from ddtrace.vendor import wrapt
 
 from ...ext import db
 from ...ext import net
+from ...internal.schema import schematize_service_name
 from ...internal.utils.formats import asbool
 from ..dbapi import TracedConnection
 from ..dbapi import TracedCursor
@@ -15,7 +16,7 @@ from ..trace_utils import unwrap
 config._add(
     "snowflake",
     dict(
-        _default_service="snowflake",
+        _default_service=schematize_service_name("snowflake"),
         # FIXME: consistent prefix span names with other dbapi integrations
         # The snowflake integration was introduced following a different pattern
         # than all other dbapi-compliant integrations. It sets span names to

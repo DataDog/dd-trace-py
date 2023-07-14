@@ -12,6 +12,9 @@ from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import MESSAGING_SYSTEM
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY
+from ddtrace.internal.schema import schematize_messaging_operation
+from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.pin import Pin
@@ -23,11 +26,21 @@ _Consumer = confluent_kafka.Consumer
 
 config._add(
     "kafka",
-    dict(_default_service="kafka"),
+    dict(
+        _default_service=schematize_service_name("kafka"),
+    ),
 )
 
 
 class TracedProducer(confluent_kafka.Producer):
+    def __init__(self, config, *args, **kwargs):
+        super(TracedProducer, self).__init__(config, *args, **kwargs)
+        self._dd_bootstrap_servers = (
+            config.get("bootstrap.servers")
+            if config.get("bootstrap.servers") is not None
+            else config.get("metadata.broker.list")
+        )
+
     def produce(self, topic, value=None, *args, **kwargs):
         super(TracedProducer, self).produce(topic, value, *args, **kwargs)
 
@@ -95,7 +108,7 @@ def traced_produce(func, instance, args, kwargs):
         kwargs["headers"] = headers
 
     with pin.tracer.trace(
-        kafkax.PRODUCE,
+        schematize_messaging_operation(kafkax.PRODUCE, provider="kafka", direction=SpanDirection.OUTBOUND),
         service=trace_utils.ext_service(pin, config.kafka),
         span_type=SpanTypes.WORKER,
     ) as span:
@@ -107,6 +120,8 @@ def traced_produce(func, instance, args, kwargs):
         span.set_tag(kafkax.PARTITION, partition)
         span.set_tag_str(kafkax.TOMBSTONE, str(value is None))
         span.set_tag(SPAN_MEASURED_KEY)
+        if instance._dd_bootstrap_servers is not None:
+            span.set_tag_str(kafkax.HOST_LIST, instance._dd_bootstrap_servers)
         rate = config.kafka.get_analytics_sample_rate()
         if rate is not None:
             span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, rate)
@@ -119,7 +134,7 @@ def traced_poll(func, instance, args, kwargs):
         return func(*args, **kwargs)
 
     with pin.tracer.trace(
-        kafkax.CONSUME,
+        schematize_messaging_operation(kafkax.CONSUME, provider="kafka", direction=SpanDirection.PROCESSING),
         service=trace_utils.ext_service(pin, config.kafka),
         span_type=SpanTypes.WORKER,
     ) as span:

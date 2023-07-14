@@ -155,6 +155,7 @@ venv = Venv(
             name="mypy",
             command="mypy {cmdargs}",
             create=True,
+            skip_dev_install=True,
             pkgs={
                 "mypy": "==0.991",
                 "envier": "==0.4.0",
@@ -215,7 +216,7 @@ venv = Venv(
             name="riot-helpers",
             # DEV: pytest really doesn't want to execute only `riotfile.py`, call doctest directly
             command="python -m doctest {cmdargs} riotfile.py",
-            pkgs={"riot": latest},
+            pkgs={"riot": "==0.17.4"},
         ),
         Venv(
             pys=["3"],
@@ -522,6 +523,7 @@ venv = Venv(
             pkgs={
                 "msgpack": latest,
                 "httpretty": "==0.9.7",
+                "typing-extensions": latest,
             },
             venvs=[
                 Venv(pys="2.7"),
@@ -649,7 +651,6 @@ venv = Venv(
                 # Split into <3.8 and >=3.8 to pin importlib_metadata dependency for kombu
                 Venv(
                     # celery dropped support for Python 2.7/3.5 in 5.0
-                    pys=select_pys(max_version="3.7"),
                     pkgs={
                         "pytest": "~=3.10",
                         "celery": [
@@ -661,6 +662,11 @@ venv = Venv(
                         "pytest-cov": "==2.3.0",
                         "pytest-mock": "==2.0.0",
                     },
+                    venvs=[
+                        Venv(pys=select_pys(max_version="3.6")),
+                        # exceptiongroup latest specified to avoid riot bug: https://github.com/DataDog/riot/issues/211
+                        Venv(pys="3.7", pkgs={"exceptiongroup": latest}),
+                    ],
                 ),
                 Venv(
                     # celery added support for Python 3.9 in 4.x
@@ -765,6 +771,7 @@ venv = Venv(
                             ">=17,<18",
                         ],
                         "more_itertools": "<8.11.0",
+                        "typing-extensions": latest,
                     },
                 ),
                 Venv(
@@ -963,6 +970,7 @@ venv = Venv(
                 "celery": "~=5.0.5",
                 "gevent": latest,
                 "requests": latest,
+                "typing-extensions": latest,
             },
             pys=select_pys(min_version="3.8"),
         ),
@@ -1152,7 +1160,6 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    pys=select_pys(max_version="3.9"),
                     pkgs={
                         "flask": "~=0.12.0",
                         "Werkzeug": ["<1.0"],
@@ -1170,6 +1177,10 @@ venv = Venv(
                         # DEV: Breaking change made in 2.1.0 release
                         "markupsafe": "<2.0",
                     },
+                    venvs=[
+                        Venv(pys=select_pys(max_version="3.7")),
+                        Venv(pys=select_pys(min_version="3.8", max_version="3.9"), pkgs={"exceptiongroup": latest}),
+                    ],
                 ),
                 Venv(
                     # flask-caching dropped support for Python 3.5 in 1.8
@@ -2380,6 +2391,7 @@ venv = Venv(
                     "~=1.3.0",
                     latest,
                 ],
+                "typing-extensions": latest,
             },
         ),
         Venv(
@@ -2535,24 +2547,27 @@ venv = Venv(
         Venv(
             name="openai",
             command="pytest {cmdargs} tests/contrib/openai",
-            env={"SKLEARN_ALLOW_DEPRECATED_SKLEARN_PACKAGE_INSTALL": "True"},
-            pys=select_pys(min_version="3.8"),
             pkgs={
                 "vcrpy": "==4.2.1",
                 "urllib3": "~=1.26",  # vcrpy errors with urllib3 2.x https://github.com/kevin1024/vcrpy/issues/688
                 "pytest-asyncio": latest,
+                "pillow": latest,
             },
             venvs=[
                 Venv(
+                    # openai[embeddings] broken install with sklearn was never fixed on 0.26
+                    # https://github.com/openai/openai-python/issues/210
+                    pys="3.7",
+                    env={"SKLEARN_ALLOW_DEPRECATED_SKLEARN_PACKAGE_INSTALL": "True"},
                     pkgs={
-                        "openai[embeddings]": ["==0.27.2", latest],
+                        "openai": "==0.26.5",
+                        "scikit-learn": "==1.0.2",
                     },
                 ),
                 Venv(
+                    pys=select_pys(min_version="3.7"),
                     pkgs={
-                        # openai[embeddings] broken install with sklearn was never fixed on 0.26
-                        "openai": "==0.26.5",  # https://github.com/openai/openai-python/issues/210
-                        "scikit-learn": "==1.2.2",
+                        "openai[embeddings]": ["==0.27.2", latest],
                     },
                 ),
             ],
@@ -2767,6 +2782,24 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="langchain",
+            command="pytest {cmdargs} tests/contrib/langchain",
+            pys=select_pys(min_version="3.9"),
+            pkgs={
+                "langchain": ["==0.0.192", latest],
+                "openai": latest,
+                "vcrpy": latest,
+                "pytest-asyncio": latest,
+                "tiktoken": latest,
+                "pinecone-client": latest,
+                "cohere": latest,
+                "huggingface-hub": latest,
+                "ai21": latest,
+                "exceptiongroup": latest,
+                "psutil": latest,
+            },
+        ),
+        Venv(
             name="molten",
             command="pytest {cmdargs} tests/contrib/molten",
             pys=select_pys(min_version="3.6"),
@@ -2857,14 +2890,12 @@ venv = Venv(
                     venvs=[
                         Venv(
                             pkgs={
-                                "tenacity": latest,
                                 "protobuf": latest,
                             }
                         ),
                         # Minimum requirements
                         Venv(
                             pkgs={
-                                "tenacity": "==5.0.1",
                                 "protobuf": "==3.0.0",
                             }
                         ),
@@ -2905,16 +2936,15 @@ venv = Venv(
                             venvs=[
                                 Venv(
                                     pkgs={
-                                        "tenacity": latest,
                                         "protobuf": latest,
                                     },
                                 ),
                                 # Minimum requirements
                                 Venv(
                                     pkgs={
-                                        "tenacity": "==5.0.1",
                                         "protobuf": "==3.8.0",
                                     },
+                                    create=True,  # Needed bp Python 3.5 because of namespace packages
                                 ),
                                 # Gevent
                                 Venv(
@@ -2944,14 +2974,12 @@ venv = Venv(
                             venvs=[
                                 Venv(
                                     pkgs={
-                                        "tenacity": latest,
                                         "protobuf": latest,
                                     },
                                 ),
                                 # Minimum requirements
                                 Venv(
                                     pkgs={
-                                        "tenacity": "==6.0.0",
                                         "protobuf": "==3.8.0",
                                     },
                                 ),
@@ -2983,14 +3011,12 @@ venv = Venv(
                             venvs=[
                                 Venv(
                                     pkgs={
-                                        "tenacity": latest,
                                         "protobuf": latest,
                                     },
                                 ),
                                 # Minimum requirements
                                 Venv(
                                     pkgs={
-                                        "tenacity": "==7.0.0",
                                         "protobuf": "==3.19.0",
                                     },
                                 ),
@@ -3022,14 +3048,12 @@ venv = Venv(
                             venvs=[
                                 Venv(
                                     pkgs={
-                                        "tenacity": latest,
                                         "protobuf": latest,
                                     },
                                 ),
                                 # Minimum requirements
                                 Venv(
                                     pkgs={
-                                        "tenacity": "==8.0.0",
                                         "protobuf": "==3.19.0",
                                     },
                                 ),
@@ -3061,14 +3085,12 @@ venv = Venv(
                             venvs=[
                                 Venv(
                                     pkgs={
-                                        "tenacity": latest,
                                         "protobuf": latest,
                                     },
                                 ),
                                 # Minimum requirements
                                 Venv(
                                     pkgs={
-                                        "tenacity": "==8.2.0",
                                         "protobuf": "==4.22.0",
                                     },
                                 ),

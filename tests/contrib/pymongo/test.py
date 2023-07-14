@@ -654,6 +654,21 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         assert len(spans) == 1
         assert spans[0].name == "mongodb.query"
 
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_peer_service_tagging(self):
+        tracer = DummyTracer()
+        client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
+        Pin.get_from(client).clone(tracer=tracer).onto(client)
+        # We do not wish to trace tcp spans here
+        Pin.get_from(pymongo.server.Server).remove_from(pymongo.server.Server)
+        db_name = "testdb"
+        client[db_name].drop_collection("whatever")
+        spans = tracer.pop()
+        assert len(spans) == 1
+        for span in spans:
+            assert span.get_tag("mongodb.db") == db_name
+            assert span.get_tag("peer.service") == db_name
+
     def test_patch_with_disabled_tracer(self):
         tracer, client = self.get_tracer_and_client()
         tracer.configure(enabled=False)

@@ -3,6 +3,8 @@ from importlib import import_module
 from ddtrace import config
 from ddtrace._tracing import _limits
 from ddtrace.contrib.trace_utils import ext_service
+from ddtrace.contrib.trace_utils import extract_netloc_and_query_info_from_url
+from ddtrace.ext import net
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
@@ -106,6 +108,12 @@ def _get_perform_request(elasticsearch):
             span.set_tag_str(metadata.METHOD, method)
             span.set_tag_str(metadata.URL, url)
             span.set_tag_str(metadata.PARAMS, encoded_params)
+            for connection in instance.connection_pool.connections:
+                hostname, _ = extract_netloc_and_query_info_from_url(connection.host)
+                if hostname:
+                    span.set_tag_str(net.TARGET_HOST, hostname)
+                    break
+
             if config.elasticsearch.trace_query_string:
                 span.set_tag_str(http.QUERY_STRING, encoded_params)
 
@@ -151,7 +159,7 @@ def _get_perform_request(elasticsearch):
                 if took:
                     span.set_metric(metadata.TOOK, int(took))
             except Exception:
-                pass
+                log.debug("Unexpected exception", exc_info=True)
 
             if status:
                 span.set_tag(http.STATUS_CODE, status)

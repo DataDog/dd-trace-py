@@ -10,6 +10,7 @@ from six import BytesIO
 from ddtrace import Span
 from ddtrace import __version__ as ddtrace_version
 from ddtrace.filters import TraceFilter
+from ddtrace.internal import telemetry
 
 
 _Span = Span
@@ -66,6 +67,19 @@ class _DropTraces(TraceFilter):
 
 def drop_traces(tracer):
     tracer.configure(settings={"FILTERS": [_DropTraces()]})
+
+
+def drop_telemetry_events():
+    # Avoids sending instrumentation telemetry payloads to the agent
+    try:
+        if telemetry.telemetry_writer.is_periodic:
+            telemetry.telemetry_writer.stop()
+        telemetry.telemetry_writer.reset_queues()
+        telemetry.telemetry_writer.enable(start_worker_thread=False)
+    except AttributeError:
+        # telemetry.telemetry_writer is not defined in this version of dd-trace-py
+        # Telemetry events will not be mocked!
+        pass
 
 
 def gen_span(name):

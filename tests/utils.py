@@ -94,7 +94,6 @@ def override_global_config(values):
         "retrieve_client_ip",
         "report_hostname",
         "health_metrics_enabled",
-        "_telemetry_metrics_enabled",
         "_propagation_style_extract",
         "_propagation_style_inject",
         "_x_datadog_tags_max_length",
@@ -107,6 +106,7 @@ def override_global_config(values):
         "_raise",
         "_trace_compute_stats",
         "_appsec_enabled",
+        "_api_security_enabled",
         "_waf_timeout",
         "_iast_enabled",
         "_obfuscation_query_string_pattern",
@@ -114,6 +114,11 @@ def override_global_config(values):
         "global_query_string_obfuscation_disabled",
         "_ci_visibility_agentless_url",
         "_ci_visibility_agentless_enabled",
+        "_subexec_sensitive_user_wildcards",
+        "_automatic_login_events_mode",
+        "_user_model_login_field",
+        "_user_model_email_field",
+        "_user_model_name_field",
     ]
 
     # Grab the current values of all keys

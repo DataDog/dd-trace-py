@@ -17,7 +17,7 @@ def _configure_ddtrace():
 
     # Also insert the bootstrap dir in the path of the current python process.
     sys.path.insert(0, bootstrap_dir)
-    print("[info] datadog autoinstrumentation: successfully configured python package, python path is %r" % new_python_path)
+    print("[info] datadog autoinstrumentation: successfully configured python package, python path is %r" % new_python_path, file=sys.stderr)
 
 
 # Avoid infinite loop when attempting to install ddtrace. This flag is set when
@@ -34,9 +34,7 @@ if "DDTRACE_PYTHON_INSTALL_IN_PROGRESS" not in os.environ:
         pkgs_path = os.path.join(script_dir, "ddtrace_pkgs")
         site_pkgs_path = os.path.join(script_dir, "site-packages")
 
-        # Now see if ddtrace has been installed already by us.
-        # If it has we can skip installing and just configure.
-        # Otherwise attempt to install the package.
+        print("[info] datadog autoinstrumentation: installing python package", file=sys.stderr)
 
         # Add the custom site-packages directory to the Python path to load the ddtrace package.
         sys.path.insert(0, site_pkgs_path)
@@ -48,7 +46,7 @@ if "DDTRACE_PYTHON_INSTALL_IN_PROGRESS" not in os.environ:
             # The package needs to be installed.
             import subprocess
 
-            print("[info] datadog autoinstrumentation: installing python package")
+            print("[info] datadog autoinstrumentation: installing python package", file=sys.stderr)
 
             # Copy the env, including any existing PYTHONPATH.
             env = os.environ.copy()
@@ -58,7 +56,7 @@ if "DDTRACE_PYTHON_INSTALL_IN_PROGRESS" not in os.environ:
 
             # Get pip to use a tmp directory in the volume mount to avoid cross-device link errors.
             env["TMPDIR"] = os.path.join(script_dir, "tmp")
-            print(env["TMPDIR"])
+            print(env["TMPDIR"], file=sys.stderr)
 
             try:
                 subprocess.run(
@@ -85,15 +83,15 @@ if "DDTRACE_PYTHON_INSTALL_IN_PROGRESS" not in os.environ:
                     check=True,
                 )
             except BaseException as e:
-                print("[error] datadog autoinstrumentation: failed to install python package %s" % str(e))
+                print("[error] datadog autoinstrumentation: failed to install python package %s" % str(e), file=sys.stderr)
             else:
-                print("[info] datadog autoinstrumentation: successfully installed python package")
+                print("[info] datadog autoinstrumentation: successfully installed python package", file=sys.stderr)
                 _configure_ddtrace()
         else:
-            print("[info] datadog autoinstrumentation: detected previous installation")
+            print("[info] datadog autoinstrumentation: detected previous installation", file=sys.stderr)
             _configure_ddtrace()
     except BaseException as e:
-        print("[error] datadog autoinstrumentation: failed to import ddtrace python package %s" % str(e))
+        print("[error] datadog autoinstrumentation: failed to import ddtrace python package %s" % str(e), file=sys.stderr)
     else:
-        print("[warning] datadog autoinstrumentation: ddtrace installed by user")
+        print("[warning] datadog autoinstrumentation: ddtrace installed by user, skipping install", file=sys.stderr)
         _configure_ddtrace()

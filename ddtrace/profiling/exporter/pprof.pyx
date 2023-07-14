@@ -9,6 +9,7 @@ import attr
 import six
 
 from ddtrace import ext
+from ddtrace.internal import packages
 from ddtrace.internal._encoding import ListStringTable as _StringTable
 from ddtrace.internal.compat import ensure_str
 from ddtrace.internal.utils import config
@@ -18,7 +19,6 @@ from ddtrace.profiling import recorder
 from ddtrace.profiling.collector import _lock
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import stack_event
-from ddtrace.profiling.exporter import _packages
 
 
 if hasattr(typing, "TypedDict"):
@@ -441,7 +441,7 @@ class _PprofConverter(object):
                 {
                     _
                     for _ in (
-                        (_packages.filename_to_package(filename), filename)
+                        (packages.filename_to_package(filename), filename)
                         for filename, lineno, funcname in self._locations
                     )
                     if _[0] is not None

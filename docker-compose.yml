@@ -137,7 +137,7 @@ services:
         volumes:
           - ddagent:/tmp/ddagent:rw
     testagent:
-        image: ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:latest
+        image: ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:v1.10.1
         ports:
             - "127.0.0.1:9126:8126"
         volumes:
@@ -161,6 +161,7 @@ services:
         environment:
             - TOX_SKIP_DIST=True
         network_mode: host
+        userns_mode: host
         working_dir: /root/project/
         volumes:
           - ddagent:/tmp/ddagent

@@ -16,10 +16,11 @@ from ddtrace.appsec.iast._util import _is_iast_enabled
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
 from ...appsec import _asm_request_context
 from ...appsec import utils
-from ...internal import _context
+from ...internal import core
 from ...internal.schema import schematize_service_name
 from ...internal.schema import schematize_url_operation
 
@@ -128,7 +129,7 @@ def taint_request_init(wrapped, instance, args, kwargs):
 
 
 class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
-    _request_span_name = schematize_url_operation("flask.request", protocol="http", direction="inbound")
+    _request_span_name = schematize_url_operation("flask.request", protocol="http", direction=SpanDirection.INBOUND)
     _application_span_name = "flask.application"
     _response_span_name = "flask.response"
 
@@ -150,10 +151,10 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
             req_span, config.flask, status_code=code, response_headers=headers, route=req_span.get_tag(FLASK_URL_RULE)
         )
 
-        if config._appsec_enabled and not _context.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=req_span):
+        if config._appsec_enabled and not core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=req_span):
             log.debug("Flask WAF call for Suspicious Request Blocking on response")
             _asm_request_context.call_waf_callback()
-            if _context.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=req_span):
+            if core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=req_span):
                 # response code must be set here, or it will be too late
                 ctype = (
                     "text/html"
@@ -297,6 +298,9 @@ def patch():
     _w("flask", "Flask.preprocess_request", request_tracer("preprocess_request"))
     _w("flask", "Flask.add_url_rule", traced_add_url_rule)
     _w("flask", "Flask.endpoint", traced_endpoint)
+
+    _w("flask", "Flask.finalize_request", traced_finalize_request)
+
     if flask_version >= (2, 0, 0):
         _w("flask", "Flask.register_error_handler", traced_register_error_handler)
     else:
@@ -445,6 +449,8 @@ def unpatch():
         "templating._render",
     ]
 
+    props.append("Flask.finalize_request")
+
     if flask_version >= (2, 0, 0):
         props.append("Flask.register_error_handler")
     else:
@@ -498,6 +504,18 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
     environ, start_response = args
     middleware = _FlaskWSGIMiddleware(wrapped, pin.tracer, config.flask, pin)
     return middleware(environ, start_response)
+
+
+def traced_finalize_request(wrapped, instance, args, kwargs):
+    """
+    Wrapper for flask.app.Flask.finalize_request
+    """
+    rv = wrapped(*args, **kwargs)
+    if config._api_security_enabled and config._appsec_enabled and getattr(rv, "is_sequence", False):
+        # start_response was not called yet, set the HTTP response headers earlier
+        _asm_request_context.set_headers_response(list(rv.headers))
+        _asm_request_context.set_body_response(rv.response)
+    return rv
 
 
 def traced_blueprint_register(wrapped, instance, args, kwargs):
@@ -648,7 +666,7 @@ def _set_block_tags(span):
 
 def _block_request_callable(span):
     request = flask.request
-    _context.set_item(WAF_CONTEXT_NAMES.BLOCKED, True, span=span)
+    core.set_item(WAF_CONTEXT_NAMES.BLOCKED, True, span=span)
     _set_block_tags(span)
     ctype = "text/html" if "text/html" in request.headers.get("Accept", "").lower() else "text/json"
     abort(flask.Response(utils._get_blocked_template(ctype), content_type=ctype, status=403))
@@ -679,7 +697,7 @@ def request_tracer(name):
             request_span.set_tag_str(COMPONENT, config.flask.integration_name)
 
             request_span._ignore_exception(werkzeug.exceptions.NotFound)
-            if config._appsec_enabled and _context.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span):
+            if config._appsec_enabled and core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span):
                 _asm_request_context.block_request()
             return wrapped(*args, **kwargs)
 

@@ -5,6 +5,7 @@ import bm.utils as utils
 from opentelemetry.trace import get_tracer
 from opentelemetry.trace import set_tracer_provider
 
+from ddtrace import config
 from ddtrace import tracer
 from ddtrace.opentelemetry import TracerProvider  # Requires ``ddtrace>=1.11``
 
@@ -20,6 +21,7 @@ class OtelSpan(bm.Scenario):
     ltags = bm.var(type=int)
     nmetrics = bm.var(type=int)
     finishspan = bm.var_bool()
+    telemetry = bm.var_bool()
 
     def run(self):
         # run scenario to also set tags on spans
@@ -34,8 +36,10 @@ class OtelSpan(bm.Scenario):
         # Note - if finishspan is False the span will be gc'd when the SpanAggregrator._traces is reset
         # (ex: tracer.configure(filter) is called)
         finishspan = self.finishspan
+        config._telemetry_enabled = self.telemetry
         # Recreate span processors and configure global tracer to avoid sending traces to the agent
         utils.drop_traces(tracer)
+        utils.drop_telemetry_events()
 
         def _(loops):
             for _ in range(loops):

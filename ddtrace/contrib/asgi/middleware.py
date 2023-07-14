@@ -12,10 +12,11 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_url_operation
+from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
 from .. import trace_utils
 from ...appsec._constants import WAF_CONTEXT_NAMES
-from ...internal import _context
+from ...internal import core
 from ...internal.compat import reraise
 from ...internal.logger import get_logger
 from .utils import guarantee_single_callable
@@ -82,7 +83,7 @@ def span_from_scope(scope):
 
 
 def _request_blocked(span):
-    return span and config._appsec_enabled and _context.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span)
+    return span and config._appsec_enabled and core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span)
 
 
 async def _blocked_asgi_app(scope, receive, send):
@@ -136,7 +137,7 @@ class TraceMiddleware:
 
         resource = " ".join((scope["method"], scope["path"]))
         operation_name = self.integration_config.get("request_span_name", "asgi.request")
-        operation_name = schematize_url_operation(operation_name, direction="inbound", protocol="http")
+        operation_name = schematize_url_operation(operation_name, direction=SpanDirection.INBOUND, protocol="http")
 
         with _asm_request_context.asm_request_context_manager(ip, headers):
             span = self.tracer.trace(

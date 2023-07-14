@@ -4,13 +4,13 @@ import sys
 from typing import TYPE_CHECKING
 
 from ddtrace.appsec import _asm_request_context
+from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.internal.compat import parse
 from ddtrace.internal.compat import to_bytes_py2
-from ddtrace.internal.constants import APPSEC_BLOCKED_RESPONSE_HTML
-from ddtrace.internal.constants import APPSEC_BLOCKED_RESPONSE_JSON
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.internal.utils.http import _get_blocked_template  # noqa
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -81,54 +81,6 @@ def _appsec_rc_capabilities(test_tracer=None):
     return result
 
 
-_HTML_BLOCKED_TEMPLATE_CACHE = None  # type: Optional[str]
-_JSON_BLOCKED_TEMPLATE_CACHE = None  # type: Optional[str]
-
-
-def _get_blocked_template(accept_header_value):
-    # type: (str) -> str
-
-    global _HTML_BLOCKED_TEMPLATE_CACHE
-    global _JSON_BLOCKED_TEMPLATE_CACHE
-
-    need_html_template = False
-
-    if accept_header_value and "text/html" in accept_header_value.lower():
-        need_html_template = True
-
-    if need_html_template and _HTML_BLOCKED_TEMPLATE_CACHE:
-        return _HTML_BLOCKED_TEMPLATE_CACHE
-
-    if not need_html_template and _JSON_BLOCKED_TEMPLATE_CACHE:
-        return _JSON_BLOCKED_TEMPLATE_CACHE
-
-    if need_html_template:
-        template_path = os.getenv("DD_APPSEC_HTTP_BLOCKED_TEMPLATE_HTML")
-    else:
-        template_path = os.getenv("DD_APPSEC_HTTP_BLOCKED_TEMPLATE_JSON")
-
-    if template_path:
-        try:
-            with open(template_path, "r") as template_file:
-                content = template_file.read()
-
-            if need_html_template:
-                _HTML_BLOCKED_TEMPLATE_CACHE = content
-            else:
-                _JSON_BLOCKED_TEMPLATE_CACHE = content
-            return content
-        except (OSError, IOError) as e:
-            log.warning("Could not load custom template at %s: %s", template_path, str(e))  # noqa: G200
-
-    # No user-defined template at this point
-    if need_html_template:
-        _HTML_BLOCKED_TEMPLATE_CACHE = APPSEC_BLOCKED_RESPONSE_HTML
-        return APPSEC_BLOCKED_RESPONSE_HTML
-
-    _JSON_BLOCKED_TEMPLATE_CACHE = APPSEC_BLOCKED_RESPONSE_JSON
-    return APPSEC_BLOCKED_RESPONSE_JSON
-
-
 def parse_form_params(body):
     # type: (unicode) -> dict[unicode, unicode|list[unicode]]
     """Return a dict of form data after HTTP form parsing"""
@@ -182,3 +134,51 @@ def parse_form_multipart(body):
         msg = email.message_from_string("MIME-Version: 1.0\nContent-Type: %s\n%s" % (content_type, body))
         return parse_message(msg)
     return {}
+
+
+def parse_response_body(raw_body):
+    import json
+
+    import xmltodict
+
+    from ddtrace.appsec._constants import SPAN_DATA_NAMES
+    from ddtrace.contrib.trace_utils import _get_header_value_case_insensitive
+
+    if not raw_body:
+        return
+
+    if isinstance(raw_body, dict):
+        return raw_body
+
+    headers = _asm_request_context.get_waf_address(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES)
+    if not headers:
+        return
+    content_type = _get_header_value_case_insensitive(
+        dict(headers),
+        "content-type",
+    )
+    if not content_type:
+        return
+
+    def access_body(bd):
+        if isinstance(bd, list) and isinstance(bd[0], (str, bytes)):
+            bd = bd[0][:0].join(bd)
+        if getattr(bd, "decode", False):
+            bd = bd.decode("UTF-8", errors="ignore")
+        if len(bd) >= API_SECURITY.MAX_PAYLOAD_SIZE:
+            raise ValueError("response body larger than 16MB")
+        return bd
+
+    req_body = None
+    try:
+        # TODO handle charset
+        if "json" in content_type:
+            req_body = json.loads(access_body(raw_body))
+        elif "xml" in content_type:
+            req_body = xmltodict.parse(access_body(raw_body))
+        else:
+            return
+    except BaseException:
+        log.debug("Failed to parse response body", exc_info=True)
+    else:
+        return req_body

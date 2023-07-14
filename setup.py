@@ -1,16 +1,17 @@
 import hashlib
 import os
 import platform
+import re
 import shutil
 import sys
 import tarfile
-import glob
 
-from setuptools import setup, find_packages, Extension
-from setuptools.command.build_ext import build_ext as BuildExtCommand
+from setuptools import Extension, find_packages, setup
+from setuptools.command.build_ext import build_ext
 from setuptools.command.build_py import build_py as BuildPyCommand
 from pkg_resources import get_build_platform
 from distutils.command.clean import clean as CleanCommand
+
 
 try:
     # ORDER MATTERS
@@ -24,7 +25,6 @@ except ImportError:
         "version >=18.\nSee the quickstart documentation for more information:\n"
         "https://ddtrace.readthedocs.io/en/stable/installation_quickstart.html"
     )
-
 
 if sys.version_info >= (3, 0):
     from urllib.error import HTTPError
@@ -42,6 +42,7 @@ DEBUG_COMPILE = "DD_COMPILE_DEBUG" in os.environ
 IS_PYSTON = hasattr(sys, "pyston_version_info")
 
 LIBDDWAF_DOWNLOAD_DIR = os.path.join(HERE, os.path.join("ddtrace", "appsec", "ddwaf", "libddwaf"))
+IAST_DIR = os.path.join(HERE, os.path.join("ddtrace", "appsec", "iast", "_taint_tracking"))
 
 CURRENT_OS = platform.system()
 
@@ -282,10 +283,81 @@ class CleanLibraries(CleanCommand):
     def remove_artifacts():
         shutil.rmtree(LIBDDWAF_DOWNLOAD_DIR, True)
         shutil.rmtree(LIBDATADOG_PROF_DOWNLOAD_DIR, True)
+        shutil.rmtree(os.path.join(IAST_DIR, "*.so"), True)
 
     def run(self):
         CleanLibraries.remove_artifacts()
         CleanCommand.run(self)
+
+
+class CMakeBuild(build_ext):
+    def build_extension(self, ext):
+        tmp_iast_file_path = os.path.abspath(self.get_ext_fullpath(ext.name))
+        tmp_iast_path = os.path.join(os.path.dirname(tmp_iast_file_path))
+        tmp_filename = tmp_iast_file_path.replace(tmp_iast_path + os.path.sep, "")
+
+        cmake_list_path = os.path.join(IAST_DIR, "CMakeLists.txt")
+        if (
+            sys.version_info >= (3, 6, 0)
+            and ext.name == "ddtrace.appsec.iast._taint_tracking._native"
+            and os.path.exists(cmake_list_path)
+        ):
+            import shutil
+
+            os.makedirs(tmp_iast_path, exist_ok=True)
+
+            import subprocess
+
+            cmake_command = os.environ.get("CMAKE_COMMAND", "cmake")
+            build_type = "RelWithDebInfo" if DEBUG_COMPILE else "Release"
+            build_args = ["--config", build_type]
+            cmake_args = [
+                "-S",
+                IAST_DIR,
+                "-DCMAKE_LIBRARY_OUTPUT_DIRECTORY={}".format(tmp_iast_path),
+                "-B",
+                tmp_iast_path,
+                "-DPYTHON_EXECUTABLE={}".format(sys.executable),
+                "-DCMAKE_BUILD_TYPE={}".format(build_type),
+            ]
+
+            if CURRENT_OS == "Windows":
+                cmake_args.extend(["-A", "x64" if platform.architecture()[0] == "64bit" else "Win32"])
+
+            if CURRENT_OS == "Darwin" and sys.version_info >= (3, 8, 0):
+                # Cross-compile support for macOS - respect ARCHFLAGS if set
+                # Darwin Universal2 should bundle both architectures
+                archs = re.findall(r"-arch (\S+)", os.environ.get("ARCHFLAGS", ""))
+                if archs:
+                    cmake_args += [
+                        "-DBUILD_MACOS=ON",
+                        "-DCMAKE_OSX_ARCHITECTURES={}".format(";".join(archs)),
+                    ]
+
+            # Set CMAKE_BUILD_PARALLEL_LEVEL to control the parallel build level
+            # across all generators.
+            if "CMAKE_BUILD_PARALLEL_LEVEL" not in os.environ:
+                # self.parallel is a Python 3 only way to set parallel jobs by hand
+                # using -j in the build_ext call, not supported by pip or PyPA-build.
+                if hasattr(self, "parallel") and self.parallel:
+                    # CMake 3.12+ only.
+                    build_args += ["-j{}".format(self.parallel)]
+
+            cmake_cmd_with_args = [cmake_command] + cmake_args
+            subprocess.run(cmake_cmd_with_args, cwd=tmp_iast_path, check=True)
+
+            build_command = [cmake_command, "--build", tmp_iast_path] + build_args
+            subprocess.run(build_command, cwd=tmp_iast_path, check=True)
+
+            for directory_to_remove in ["_deps", "CMakeFiles"]:
+                shutil.rmtree(os.path.join(tmp_iast_path, directory_to_remove))
+            for file_to_remove in ["Makefile", "cmake_install.cmake", "compile_commands.json", "CMakeCache.txt"]:
+                if os.path.exists(os.path.join(tmp_iast_path, file_to_remove)):
+                    os.remove(os.path.join(tmp_iast_path, file_to_remove))
+
+            shutil.copy(os.path.join(IAST_DIR, tmp_filename), tmp_iast_file_path)
+        else:
+            build_ext.build_extension(self, ext)
 
 
 long_description = """
@@ -378,21 +450,41 @@ if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
             )
         )
         if sys.version_info >= (3, 6, 0):
-            ext_modules.append(
-                Extension(
-                    "ddtrace.appsec.iast._taint_tracking._native",
-                    # Sort source files for reproducibility
-                    sources=sorted(
-                        glob.glob(
-                            os.path.join("ddtrace", "appsec", "iast", "_taint_tracking", "**", "*.cpp"),
-                            recursive=True,
-                        )
-                    ),
-                    extra_compile_args=debug_compile_args + ["-std=c++17"],
-                )
-            )
+            ext_modules.append(Extension("ddtrace.appsec.iast._taint_tracking._native", sources=[], parallel=8))
 else:
     ext_modules = []
+
+
+def get_ddup_ext():
+    ddup_ext = []
+    if sys.platform.startswith("linux") and platform.machine() == "x86_64" and "glibc" in platform.libc_ver()[0]:
+        LibDatadogDownload.run()
+        ddup_ext.extend(
+            cythonize(
+                [
+                    Cython.Distutils.Extension(
+                        "ddtrace.internal.datadog.profiling.ddup",
+                        sources=[
+                            "ddtrace/internal/datadog/profiling/src/exporter.cpp",
+                            "ddtrace/internal/datadog/profiling/src/interface.cpp",
+                            "ddtrace/internal/datadog/profiling/ddup.pyx",
+                        ],
+                        include_dirs=LibDatadogDownload.get_include_dirs(),
+                        extra_objects=LibDatadogDownload.get_extra_objects(),
+                        extra_compile_args=["-std=c++17"],
+                        language="c++",
+                    )
+                ],
+                compile_time_env={
+                    "PY_MAJOR_VERSION": sys.version_info.major,
+                    "PY_MINOR_VERSION": sys.version_info.minor,
+                    "PY_MICRO_VERSION": sys.version_info.micro,
+                },
+                force=True,
+                annotate=os.getenv("_DD_CYTHON_ANNOTATE") == "1",
+            )
+        )
+    return ddup_ext
 
 
 bytecode = [
@@ -424,8 +516,10 @@ setup(
     license="BSD",
     packages=find_packages(exclude=["tests*", "benchmarks"]),
     package_data={
+        "ddtrace": ["py.typed"],
         "ddtrace.appsec": ["rules.json"],
         "ddtrace.appsec.ddwaf": [os.path.join("libddwaf", "*", "lib", "libddwaf.*")],
+        "ddtrace.appsec.iast._taint_tracking": ["CMakeLists.txt"],
     },
     python_requires=">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*",
     zip_safe=False,
@@ -439,7 +533,6 @@ setup(
         "protobuf>=3; python_version>='3.7'",
         "protobuf>=3,<4.0; python_version=='3.6'",
         "protobuf>=3,<3.18; python_version<'3.6'",
-        "tenacity>=5",
         "attrs>=20; python_version>'2.7'",
         "attrs>=20,<22; python_version=='2.7'",
         "contextlib2<1.0; python_version=='2.7'",
@@ -449,12 +542,12 @@ setup(
         "typing_extensions",
         "importlib_metadata; python_version<'3.8'",
         "pathlib2; python_version<'3.5'",
-        "jsonschema",
         "xmltodict>=0.12",
         "ipaddress; python_version<'3.7'",
         "envier",
         "pep562; python_version<'3.7'",
         "opentelemetry-api>=1; python_version>='3.7'",
+        "cmake>=3.24.2; python_version>='3.6'",
     ]
     + bytecode,
     extras_require={
@@ -464,7 +557,7 @@ setup(
     },
     tests_require=["flake8"],
     cmdclass={
-        "build_ext": BuildExtCommand,
+        "build_ext": CMakeBuild,
         "build_py": LibraryDownloader,
         "clean": CleanLibraries,
     },
@@ -554,5 +647,6 @@ setup(
         annotate=os.getenv("_DD_CYTHON_ANNOTATE") == "1",
     )
     + get_exts_for("wrapt")
-    + get_exts_for("psutil"),
+    + get_exts_for("psutil")
+    + get_ddup_ext(),
 )

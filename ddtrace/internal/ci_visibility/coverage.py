@@ -1,6 +1,7 @@
-import contextlib
+from itertools import groupby
 import json
 import os
+from typing import Dict
 from typing import Iterable
 from typing import List
 from typing import Optional
@@ -18,13 +19,15 @@ log = get_logger(__name__)
 try:
     from coverage import Coverage
     from coverage import version_info as coverage_version
-    from coverage.numbits import numbits_to_nums
 
     # this public attribute became private after coverage==6.3
     EXECUTE_ATTR = "_execute" if coverage_version > (6, 3) else "execute"
 except ImportError:
     Coverage = None  # type: ignore[misc,assignment]
     EXECUTE_ATTR = ""
+
+COVERAGE_SINGLETON = None
+ROOT_DIR = None
 
 
 def enabled():
@@ -41,54 +44,62 @@ def enabled():
     return False
 
 
-@contextlib.contextmanager
-def cover(span, root=None, **kwargs):
-    """Calculates code coverage on the given span and saves it as a tag"""
-    coverage_kwargs = {
-        "data_file": None,
-        "source": [root] if root else None,
-        "config_file": False,
-    }
-    coverage_kwargs.update(kwargs)
-    cov = Coverage(**coverage_kwargs)
-    cov.start()
-    test_id = str(span.trace_id)
-    cov.switch_context(test_id)
-    yield cov
-    cov.stop()
-    span.set_tag(COVERAGE_TAG_NAME, build_payload(cov, test_id=test_id, root=root))
+def _initialize(root_dir):
+    global ROOT_DIR
+    if ROOT_DIR is None:
+        ROOT_DIR = root_dir
+
+    global COVERAGE_SINGLETON
+    if COVERAGE_SINGLETON is None:
+        coverage_kwargs = {
+            "data_file": None,
+            "source": [root_dir],
+            "config_file": False,
+            "omit": [
+                "*/site-packages/*",
+            ],
+        }
+        COVERAGE_SINGLETON = Coverage(**coverage_kwargs)
+
+
+def _coverage_start():
+    COVERAGE_SINGLETON.start()
+
+
+def _coverage_end(span):
+    span_id = str(span.trace_id)
+    COVERAGE_SINGLETON.stop()
+    span.set_tag(COVERAGE_TAG_NAME, build_payload(COVERAGE_SINGLETON, test_id=span_id))
+    COVERAGE_SINGLETON._collector._clear_data()
+    COVERAGE_SINGLETON._collector.data.clear()
 
 
 def segments(lines):
-    # type: (Iterable[int]) -> Iterable[Tuple[int, int, int, int, int]]
+    # type: (Iterable[int]) -> List[Tuple[int, int, int, int, int]]
     """Extract the relevant report data for a single file."""
+    _segments = []
+    for key, g in groupby(enumerate(sorted(lines)), lambda x: x[1] - x[0]):
+        group = list(g)
+        start = group[0][1]
+        end = group[-1][1]
+        _segments.append((start, 0, end, 0, -1))
 
-    def as_segments(it):
-        # type: (Iterable[int]) -> Tuple[int, int, int, int, int]
-        sequence = list(it)  # type: List[int]
-        return (sequence[0], 0, sequence[-1], 0, -1)
-
-    return [as_segments(sorted(lines))]
+    return _segments
 
 
 def _lines(coverage, context):
-    data = coverage.get_data()
-    context_id = data._context_id(context)
-    data._start_using()
-    with data._connect() as con:
-        query = (
-            "select file.path, line_bits.numbits "
-            "from line_bits "
-            "join file on line_bits.file_id = file.id "
-            "where context_id = ?"
-        )
-        data = [context_id]
-        bitmaps = list(getattr(con, EXECUTE_ATTR)(query, data))
-        return {row[0]: numbits_to_nums(row[1]) for row in bitmaps if not row[0].startswith("..")}
+    # type: (Coverage, Optional[str]) -> Dict[str, List[Tuple[int, int, int, int, int]]]
+    if not coverage._collector or not coverage._collector.data:
+        return {}
+
+    return {
+        k: segments(v.keys()) if isinstance(v, dict) else segments(v)  # type: ignore
+        for k, v in coverage._collector.data.items()
+    }
 
 
-def build_payload(coverage, test_id=None, root=None):
-    # type: (Coverage, Optional[str], Optional[str]) -> str
+def build_payload(coverage, test_id=None):
+    # type: (Coverage, Optional[str]) -> str
     """
     Generate a CI Visibility coverage payload, formatted as follows:
 
@@ -119,8 +130,12 @@ def build_payload(coverage, test_id=None, root=None):
         {
             "files": [
                 {
-                    "filename": os.path.relpath(filename, root) if root is not None else filename,
-                    "segments": segments(lines),
+                    "filename": os.path.relpath(filename, ROOT_DIR) if ROOT_DIR is not None else filename,
+                    "segments": lines,
+                }
+                if lines
+                else {
+                    "filename": os.path.relpath(filename, ROOT_DIR) if ROOT_DIR is not None else filename,
                 }
                 for filename, lines in _lines(coverage, test_id).items()
             ]
