@@ -1,10 +1,6 @@
 import functools
 import sys
 
-from six.moves.urllib.parse import quote
-
-from ddtrace.appsec import utils
-from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.trace_utils import _get_request_header_user_agent
@@ -14,7 +10,9 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.constants import RESPONSE_HEADERS
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils import http as http_utils
 from ddtrace.vendor import wrapt
 
 
@@ -84,10 +82,10 @@ def _make_block_content(ctx, construct_url):
     environ = ctx.get_item("environ")
     assert req_span is not None
     ctype = "text/html" if "text/html" in headers.get("Accept", "").lower() else "text/json"
-    content = utils._get_blocked_template(ctype).encode("UTF-8")
+    content = http_utils._get_blocked_template(ctype).encode("UTF-8")
     try:
-        req_span.set_tag_str(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-length", str(len(content)))
-        req_span.set_tag_str(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type", ctype)
+        req_span.set_tag_str(RESPONSE_HEADERS + ".content-length", str(len(content)))
+        req_span.set_tag_str(RESPONSE_HEADERS + ".content-type", ctype)
         req_span.set_tag_str(http.STATUS_CODE, "403")
         url = construct_url(environ)
         query_string = environ.get("QUERY_STRING")

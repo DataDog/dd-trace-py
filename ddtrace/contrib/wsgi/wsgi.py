@@ -1,6 +1,7 @@
 import sys
 from typing import TYPE_CHECKING
 
+from ddtrace.internal.constants import RESPONSE_HEADERS
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
 
@@ -26,6 +27,7 @@ from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.propagation._utils import from_wsgi_header
@@ -33,9 +35,9 @@ from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.vendor import wrapt
 
 from .. import trace_utils
-from ...appsec._constants import WAF_CONTEXT_NAMES
 from ...constants import SPAN_KIND
 from ...internal import core
+from ...internal.utils import http as http_utils
 
 
 log = get_logger(__name__)
@@ -77,7 +79,7 @@ class _ContextBuilderWSGIMiddlewareBase(object):
             environ=environ,
             middleware=self,
         ) as ctx:
-            if core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
+            if core.get_item(HTTP_REQUEST_BLOCKED):
                 ctype, content = core.dispatch("wsgi.block.started", [ctx, construct_url])[0][0]
                 start_response("403 FORBIDDEN", [("content-type", ctype)])
                 closing_iterator = [content]
@@ -98,7 +100,7 @@ class _ContextBuilderWSGIMiddlewareBase(object):
                     raise
                 else:
                     core.dispatch("wsgi.app.success", [ctx, closing_iterator])
-                if core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
+                if core.get_item(HTTP_REQUEST_BLOCKED):
                     _, content = core.dispatch("wsgi.block.started", [ctx, construct_url])[0][0]
                     closing_iterator = [content]
 
