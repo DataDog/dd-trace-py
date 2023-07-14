@@ -1,6 +1,5 @@
 import math
 import platform
-import sys
 import typing as t
 
 from envier import En
@@ -206,7 +205,7 @@ class ProfilingConfig(En):
         )
 
         # For now, only allow libdd to be enabled if the user asks for it
-        libdd_enabled = En.d(bool, lambda c: c._libdd_enabled and _is_glibc_linux_x86_64())
+        libdd_enabled = En.d(bool, lambda c: c._libdd_enabled and _is_valid_libdatadog())
 
         py_enabled = En.v(
             bool,
