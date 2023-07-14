@@ -1,7 +1,5 @@
-import sys
 from typing import TYPE_CHECKING
 
-from ddtrace.internal.constants import RESPONSE_HEADERS
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
 
@@ -23,10 +21,6 @@ from six.moves.urllib.parse import quote
 import ddtrace
 from ddtrace import config
 from ddtrace import trace_handlers
-from ddtrace.ext import SpanKind
-from ddtrace.ext import SpanTypes
-from ddtrace.ext import http
-from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
@@ -35,9 +29,7 @@ from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.vendor import wrapt
 
 from .. import trace_utils
-from ...constants import SPAN_KIND
 from ...internal import core
-from ...internal.utils import http as http_utils
 
 
 log = get_logger(__name__)
