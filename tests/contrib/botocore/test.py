@@ -7,6 +7,7 @@ import zipfile
 
 import botocore.exceptions
 import botocore.session
+import mock
 from moto import mock_dynamodb
 from moto import mock_ec2
 from moto import mock_events
@@ -1090,67 +1091,71 @@ class BotocoreTest(TracerTestCase):
     @mock_sqs
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     def test_data_streams_sns_to_sqs(self):
-        with self.override_config("botocore", dict(tag_all_params=True)):
-            sns = self.session.create_client("sns", region_name="us-east-1", endpoint_url="http://localhost:4566")
+        # DEV: We want to mock time to ensure we only create a single bucket
+        with mock.patch("time.time") as mt:
+            mt.return_value = 1642544540
 
-            topic = sns.create_topic(Name="testTopic")
+            with self.override_config("botocore", dict(tag_all_params=True)):
+                sns = self.session.create_client("sns", region_name="us-east-1", endpoint_url="http://localhost:4566")
 
-            topic_arn = topic["TopicArn"]
-            sqs_url = self.sqs_test_queue["QueueUrl"]
-            url_parts = sqs_url.split("/")
-            sqs_arn = "arn:aws:sqs:{}:{}:{}".format("us-east-1", url_parts[-2], url_parts[-1])
-            sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_arn)
+                topic = sns.create_topic(Name="testTopic")
 
-            Pin.get_from(sns).clone(tracer=self.tracer).onto(sns)
-            Pin.get_from(self.sqs_client).clone(tracer=self.tracer).onto(self.sqs_client)
+                topic_arn = topic["TopicArn"]
+                sqs_url = self.sqs_test_queue["QueueUrl"]
+                url_parts = sqs_url.split("/")
+                sqs_arn = "arn:aws:sqs:{}:{}:{}".format("us-east-1", url_parts[-2], url_parts[-1])
+                sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_arn)
 
-            sns.publish(TopicArn=topic_arn, Message="test")
+                Pin.get_from(sns).clone(tracer=self.tracer).onto(sns)
+                Pin.get_from(self.sqs_client).clone(tracer=self.tracer).onto(self.sqs_client)
 
-            self.get_spans()
+                sns.publish(TopicArn=topic_arn, Message="test")
 
-            # get SNS messages via SQS
-            self.sqs_client.receive_message(QueueUrl=self.sqs_test_queue["QueueUrl"], WaitTimeSeconds=2)
+                self.get_spans()
 
-            # clean up resources
-            sns.delete_topic(TopicArn=topic_arn)
+                # get SNS messages via SQS
+                self.sqs_client.receive_message(QueueUrl=self.sqs_test_queue["QueueUrl"], WaitTimeSeconds=2)
 
-            pin = Pin.get_from(sns)
-            buckets = pin.tracer.data_streams_processor._buckets
-            assert len(buckets) == 1, "Expected 1 bucket but found {}".format(len(buckets))
-            _, first = list(buckets.items())[0]
+                # clean up resources
+                sns.delete_topic(TopicArn=topic_arn)
 
-            assert (
-                first[
-                    (
-                        "direction:out,topic:arn:aws:sns:us-east-1:000000000000:testTopic,type:sns",
-                        3337976778666780987,
-                        0,
-                    )
-                ].full_pathway_latency._count
-                >= 1
-            )
-            assert (
-                first[
-                    (
-                        "direction:out,topic:arn:aws:sns:us-east-1:000000000000:testTopic,type:sns",
-                        3337976778666780987,
-                        0,
-                    )
-                ].edge_latency._count
-                >= 1
-            )
-            assert (
-                first[
-                    ("direction:in,topic:Test,type:sqs", 13854213076663332654, 3337976778666780987)
-                ].full_pathway_latency._count
-                >= 1
-            )
-            assert (
-                first[
-                    ("direction:in,topic:Test,type:sqs", 13854213076663332654, 3337976778666780987)
-                ].edge_latency._count
-                >= 1
-            )
+                pin = Pin.get_from(sns)
+                buckets = pin.tracer.data_streams_processor._buckets
+                assert len(buckets) == 1, "Expected 1 bucket but found {}".format(len(buckets))
+                _, first = list(buckets.items())[0]
+
+                assert (
+                    first[
+                        (
+                            "direction:out,topic:arn:aws:sns:us-east-1:000000000000:testTopic,type:sns",
+                            3337976778666780987,
+                            0,
+                        )
+                    ].full_pathway_latency._count
+                    >= 1
+                )
+                assert (
+                    first[
+                        (
+                            "direction:out,topic:arn:aws:sns:us-east-1:000000000000:testTopic,type:sns",
+                            3337976778666780987,
+                            0,
+                        )
+                    ].edge_latency._count
+                    >= 1
+                )
+                assert (
+                    first[
+                        ("direction:in,topic:Test,type:sqs", 13854213076663332654, 3337976778666780987)
+                    ].full_pathway_latency._count
+                    >= 1
+                )
+                assert (
+                    first[
+                        ("direction:in,topic:Test,type:sqs", 13854213076663332654, 3337976778666780987)
+                    ].edge_latency._count
+                    >= 1
+                )
 
     @mock_sqs
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
