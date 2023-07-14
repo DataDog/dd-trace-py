@@ -28,7 +28,6 @@ from ddtrace.propagation._utils import from_wsgi_header
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.vendor import wrapt
 
-from .. import trace_utils
 from ...internal import core
 
 
@@ -47,16 +46,21 @@ config._add(
 )
 
 
-class _ContextBuilderWSGIMiddlewareBase(object):
-    """
+class _DDWSGIMiddlewareBase(object):
+    """Base WSGI middleware class.
+
     :param application: The WSGI application to apply the middleware to.
+    :param tracer: Tracer instance to use the middleware with. Defaults to the global tracer.
     :param int_config: Integration specific configuration object.
+    :param pin: Set tracing metadata on a particular traced connection
     """
 
-    def __init__(self, application, int_config):
-        # type: (Iterable, Config) -> None
+    def __init__(self, application, tracer, int_config, pin):
+        # type: (Iterable, Tracer, Config, Pin) -> None
         self.app = application
+        self.tracer = tracer
         self._config = int_config
+        self._pin = pin
 
     def __call__(self, environ, start_response):
         # type: (Iterable, Callable) -> wrapt.ObjectProxy
@@ -97,22 +101,6 @@ class _ContextBuilderWSGIMiddlewareBase(object):
                     closing_iterator = [content]
 
             return core.dispatch("wsgi.request.complete", [ctx, closing_iterator])[0][0]
-
-
-class _DDWSGIMiddlewareBase(_ContextBuilderWSGIMiddlewareBase):
-    """Base WSGI middleware class.
-
-    :param application: The WSGI application to apply the middleware to.
-    :param tracer: Tracer instance to use the middleware with. Defaults to the global tracer.
-    :param int_config: Integration specific configuration object.
-    :param pin: Set tracing metadata on a particular traced connection
-    """
-
-    def __init__(self, application, tracer, int_config, pin):
-        # type: (Iterable, Tracer, Config, Pin) -> None
-        super(_DDWSGIMiddlewareBase, self).__init__(application, int_config)
-        self.tracer = tracer
-        self._pin = pin
 
     @property
     def _request_span_name(self):
