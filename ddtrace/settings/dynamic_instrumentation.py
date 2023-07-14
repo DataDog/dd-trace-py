@@ -1,6 +1,6 @@
 from envier import En
 
-from ddtrace import config
+from ddtrace.settings import _config as config
 from ddtrace.internal.agent import get_trace_url
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.utils.config import get_application_name
