@@ -31,6 +31,7 @@ from ddtrace.vendor.wrapt.wrappers import FunctionWrapper
 __all__ = [
     "httplib",
     "iteritems",
+    "PRE_PY36",
     "PY2",
     "Queue",
     "stringify",
@@ -44,6 +45,7 @@ __all__ = [
 PYTHON_VERSION_INFO = sys.version_info
 PY2 = sys.version_info[0] == 2
 PY3 = sys.version_info[0] == 3
+PRE_PY36 = sys.version_info[:2] < (3, 6)
 
 if not PY2:
     long = int

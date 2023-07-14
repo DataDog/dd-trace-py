@@ -20,6 +20,7 @@ from ddtrace.internal.agent import get_connection
 from ddtrace.internal.agent import get_trace_url
 from ddtrace.internal.ci_visibility.filters import TraceCiVisibilityFilter
 from ddtrace.internal.compat import JSONDecodeError
+from ddtrace.internal.compat import PRE_PY36
 from ddtrace.internal.compat import parse
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
@@ -45,7 +46,7 @@ TEST_SKIPPING_LEVEL = "suite"
 DEFAULT_TIMEOUT = 15
 
 
-if sys.version_info[:2] < (3, 6):
+if PRE_PY36:
     # Purposely shadowing a missing python builtin
     from socket import timeout as TimeoutError  # noqa: A001
 
