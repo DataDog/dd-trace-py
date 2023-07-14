@@ -239,7 +239,7 @@ class LibDatadogDownload(LibraryDownload):
         "Darwin": [],
         "Linux": ["x86_64", "aarch64"],
     }
-    translate_suffix = {"Windows": (), "Darwin": (), "Linux": (".a", ".h")}
+    translate_suffix = {"Windows": (".lib", ".h"), "Darwin": (".a", ".h"), "Linux": (".a", ".h")}
 
     @classmethod
     def get_package_name(cls, arch, os):
@@ -252,28 +252,20 @@ class LibDatadogDownload(LibraryDownload):
 
     @staticmethod
     def get_extra_objects():
-        arch = "x86_64"
         base_name = "libdatadog_profiling"
-        if CURRENT_OS != "Windows":
-            base_name += ".a"
-        base_path = os.path.join("ddtrace", "internal", "datadog", "profiling", "libdatadog", arch, "lib", base_name)
-        if CURRENT_OS == "Linux":
+        arch = platform.machine()
+        if arch in LibDatadogDownload.available_releases[CURRENT_OS]:
+            base_name += LibDatadogDownload.translate_suffix[CURRENT_OS][0] # always static lib extension
+            base_path = os.path.join("ddtrace", "internal", "datadog", "profiling", "libdatadog", arch, "lib", base_name)
             return [base_path]
         return []
 
     @staticmethod
     def get_include_dirs():
-        if CURRENT_OS == "Linux":
+        arch = platform.machine()
+        if arch in LibDatadogDownload.available_releases[CURRENT_OS]:
             base_include_dir = "ddtrace/internal/datadog/profiling/include"
-            machine = platform.machine()
-
-            if machine == "x86_64":
-                arch_include_dir = "ddtrace/internal/datadog/profiling/libdatadog/x86_64/include"
-            elif machine == "aarch64":
-                arch_include_dir = "ddtrace/internal/datadog/profiling/libdatadog/aarch64/include"
-            else:
-                return []
-
+            arch_include_dir = os.path.join("ddtrace", "internal", "datadog", "profiling", "libdatadog", arch, "include")
             return [base_include_dir, arch_include_dir]
 
         return []
