@@ -54,12 +54,9 @@ config._add(
 
 
 class _ContextBuilderWSGIMiddlewareBase(object):
-    """Base WSGI middleware class.
-
+    """
     :param application: The WSGI application to apply the middleware to.
-    :param tracer: Tracer instance to use the middleware with. Defaults to the global tracer.
     :param int_config: Integration specific configuration object.
-    :param pin: Set tracing metadata on a particular traced connection
     """
 
     def __init__(self, application, int_config):
@@ -225,22 +222,16 @@ class DDWSGIMiddleware(_DDWSGIMiddlewareBase):
 
     def _traced_start_response(self, start_response, request_span, app_span, status, environ, exc_info=None):
         status_code, status_msg = status.split(" ", 1)
-        request_span.set_tag_str(http.STATUS_MSG, status_msg)
-        trace_utils.set_http_meta(request_span, self._config, status_code=status_code, response_headers=environ)
+        results, exceptions = core.dispatch(
+            "wsgi.response.start", [self, request_span, app_span, status_msg, status_code, environ]
+        )
+        assert not any(exceptions)
+        context_manager = results[0]
 
-        with self.tracer.start_span(
-            "wsgi.start_response",
-            child_of=app_span,
-            service=trace_utils.int_service(None, self._config),
-            span_type=SpanTypes.WEB,
-            activate=True,
-        ) as span:
-            span.set_tag_str(COMPONENT, self._config.integration_name)
-
-            # set span.kind to the type of operation being performed
-            span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
-
+        try:
             return start_response(status, environ, exc_info)
+        finally:
+            context_manager.__exit__(*sys.exc_info())
 
     def _request_span_modifier(self, req_span, environ, parsed_headers=None):
         url = construct_url(environ)
