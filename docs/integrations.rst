@@ -249,6 +249,12 @@ kombu
 ^^^^^
 .. automodule:: ddtrace.contrib.kombu
 
+.. _langchain:
+
+LangChain
+^^^^^^^^^
+.. automodule:: ddtrace.contrib.langchain
+
 
 .. _mako:
 

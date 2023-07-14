@@ -17,8 +17,8 @@ import six
 from ddtrace.constants import USER_ID_KEY
 from ddtrace.internal import compat
 from ddtrace.internal.compat import parse
-from ddtrace.internal.constants import APPSEC_BLOCKED_RESPONSE_HTML
-from ddtrace.internal.constants import APPSEC_BLOCKED_RESPONSE_JSON
+from ddtrace.internal.constants import BLOCKED_RESPONSE_HTML
+from ddtrace.internal.constants import BLOCKED_RESPONSE_JSON
 from ddtrace.internal.constants import W3C_TRACESTATE_ORIGIN_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_SAMPLING_PRIORITY_KEY
 from ddtrace.internal.http import HTTPConnection
@@ -357,8 +357,8 @@ def _get_blocked_template(accept_header_value):
 
     # No user-defined template at this point
     if need_html_template:
-        _HTML_BLOCKED_TEMPLATE_CACHE = APPSEC_BLOCKED_RESPONSE_HTML
-        return APPSEC_BLOCKED_RESPONSE_HTML
+        _HTML_BLOCKED_TEMPLATE_CACHE = BLOCKED_RESPONSE_HTML
+        return BLOCKED_RESPONSE_HTML
 
-    _JSON_BLOCKED_TEMPLATE_CACHE = APPSEC_BLOCKED_RESPONSE_JSON
-    return APPSEC_BLOCKED_RESPONSE_JSON
+    _JSON_BLOCKED_TEMPLATE_CACHE = BLOCKED_RESPONSE_JSON
+    return BLOCKED_RESPONSE_JSON
