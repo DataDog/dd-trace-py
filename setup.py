@@ -254,8 +254,10 @@ class LibDatadogDownload(LibraryDownload):
         base_name = "libdatadog_profiling"
         arch = platform.machine()
         if arch in LibDatadogDownload.available_releases[CURRENT_OS]:
-            base_name += LibDatadogDownload.translate_suffix[CURRENT_OS][0] # always static lib extension
-            base_path = os.path.join("ddtrace", "internal", "datadog", "profiling", "libdatadog", arch, "lib", base_name)
+            base_name += LibDatadogDownload.translate_suffix[CURRENT_OS][0]  # always static lib extension
+            base_path = os.path.join(
+                "ddtrace", "internal", "datadog", "profiling", "libdatadog", arch, "lib", base_name
+            )
             return [base_path]
         return []
 
@@ -264,7 +266,9 @@ class LibDatadogDownload(LibraryDownload):
         arch = platform.machine()
         if arch in LibDatadogDownload.available_releases[CURRENT_OS]:
             base_include_dir = "ddtrace/internal/datadog/profiling/include"
-            arch_include_dir = os.path.join("ddtrace", "internal", "datadog", "profiling", "libdatadog", arch, "include")
+            arch_include_dir = os.path.join(
+                "ddtrace", "internal", "datadog", "profiling", "libdatadog", arch, "include"
+            )
             return [base_include_dir, arch_include_dir]
 
         return []
