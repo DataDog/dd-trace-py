@@ -166,7 +166,6 @@ class LibraryDownload:
             )
 
             try:
-                print("Downloading from %s" % (download_address))
                 filename, http_response = urlretrieve(download_address, archive_name)
             except HTTPError as e:
                 print("No archive found for dynamic library {}: {}".format(cls.name, archive_dir))
@@ -188,7 +187,6 @@ class LibraryDownload:
                 dynfiles = [c for c in tar.getmembers() if c.name.endswith(suffixes)]
 
             with tarfile.open(filename, "r|gz", errorlevel=2) as tar:
-                print("extracting files:", [c.name for c in dynfiles])
                 tar.extractall(members=dynfiles, path=HERE)
                 os.rename(os.path.join(HERE, archive_dir), arch_dir)
 
@@ -265,10 +263,8 @@ class LibDatadogDownload(LibraryDownload):
     def get_include_dirs():
         arch = platform.machine()
         if arch in LibDatadogDownload.available_releases[CURRENT_OS]:
-            print("Getting include dirs!")
             base_include_dir = "ddtrace/internal/datadog/profiling/include"
             arch_include_dir = os.path.join("ddtrace", "internal", "datadog", "profiling", "libdatadog", arch, "include")
-            print("the base dir is %s\n and the other is %s" % (base_include_dir, arch_include_dir))
             return [base_include_dir, arch_include_dir]
 
         return []
@@ -461,7 +457,8 @@ else:
 
 def get_ddup_ext():
     ddup_ext = []
-    if sys.platform.startswith("linux") and "glibc" in platform.libc_ver()[0]:
+    arch = platform.machine()
+    if "glibc" in platform.libc_ver()[0] and arch in LibDatadogDownload.available_releases[CURRENT_OS]:
         LibDatadogDownload.run()
         ddup_ext.extend(
             cythonize(

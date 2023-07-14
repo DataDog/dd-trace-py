@@ -39,9 +39,9 @@ def _derive_default_heap_sample_size(heap_config, default_heap_sample_size=1024 
     return int(max(math.ceil(total_mem / max_samples), default_heap_sample_size))
 
 
-def _is_glibc_linux_x86_64():
+def _is_valid_libdatadog():
     # type: () -> bool
-    return sys.platform.startswith("linux") and platform.machine() == "x86_64" and "glibc" in platform.libc_ver()[0]
+    return platform.machine() in ["x86_64", "aarch64"] and "glibc" in platform.libc_ver()[0]
 
 
 class ProfilingConfig(En):
