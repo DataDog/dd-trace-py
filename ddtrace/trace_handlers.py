@@ -167,11 +167,30 @@ def _on_response_started(middleware, request_span, app_span, status, environ):
     return span
 
 
+def _on_response_prepared(resp_span, response):
+    if hasattr(response, "__class__"):
+        resp_class = getattr(getattr(response, "__class__"), "__name__", None)
+        if resp_class:
+            resp_span.set_tag_str("result_class", resp_class)
+
+
+def _on_request_prepared(middleware, req_span, url, request_headers, environ):
+    method = environ.get("REQUEST_METHOD")
+    query_string = environ.get("QUERY_STRING")
+    trace_utils.set_http_meta(
+        req_span, middleware._config, method=method, url=url, query=query_string, request_headers=request_headers
+    )
+    if middleware.span_modifier:
+        middleware.span_modifier(req_span, environ)
+
+
 def listen():
     core.on("context.started.wsgi.__call__", _on_context_started)
     core.on("wsgi.block.started", _make_block_content)
     core.on("wsgi.request.prepare", _on_request_prepare)
+    core.on("wsgi.request.prepared", _on_request_prepared)
     core.on("wsgi.app.success", _on_app_success)
     core.on("wsgi.app.exception", _on_app_exception)
     core.on("wsgi.request.complete", _on_request_complete)
     core.on("wsgi.response.start", _on_response_started)
+    core.on("wsgi.response.prepared", _on_response_prepared)

@@ -220,17 +220,8 @@ class DDWSGIMiddleware(_DDWSGIMiddlewareBase):
 
     def _request_span_modifier(self, req_span, environ, parsed_headers=None):
         url = construct_url(environ)
-        method = environ.get("REQUEST_METHOD")
-        query_string = environ.get("QUERY_STRING")
         request_headers = parsed_headers if parsed_headers is not None else get_request_headers(environ)
-        trace_utils.set_http_meta(
-            req_span, self._config, method=method, url=url, query=query_string, request_headers=request_headers
-        )
-        if self.span_modifier:
-            self.span_modifier(req_span, environ)
+        core.dispatch("wsgi.request.prepared", [self, req_span, url, request_headers, environ])
 
     def _response_span_modifier(self, resp_span, response):
-        if hasattr(response, "__class__"):
-            resp_class = getattr(getattr(response, "__class__"), "__name__", None)
-            if resp_class:
-                resp_span.set_tag_str("result_class", resp_class)
+        core.dispatch("wsgi.response.prepared", [resp_span, response])
