@@ -1255,3 +1255,258 @@ with get_request_vcr().use_cassette("openai_completion_sync.yaml"):
     assert status == 0, err
     assert out == b""
     assert err == b""
+
+
+@pytest.mark.parametrize(
+    "ddtrace_config_langchain",
+    [
+        # Default service, env, version
+        dict(
+            _api_key="<not-real-but-it's-something>",
+            metrics_enabled=False,
+            logs_enabled=True,
+            log_prompt_completion_sample_rate=1.0,
+        ),
+    ],
+)
+def test_llm_logs_when_response_not_completed(
+    langchain, ddtrace_config_langchain, mock_logs, mock_metrics, mock_tracer
+):
+    """Test that errors get logged even if the response is not returned."""
+    with mock.patch("langchain.llms.openai.OpenAI._generate", side_effect=Exception("Mocked Error")):
+        with pytest.raises(Exception) as exc_info:
+            llm = langchain.llms.OpenAI()
+            llm("Can you please not return an error?")
+        assert str(exc_info.value) == "Mocked Error"
+    span = mock_tracer.pop_traces()[0][0]
+    trace_id, span_id = span.trace_id, span.span_id
+
+    assert mock_logs.enqueue.call_count == 1
+    mock_logs.assert_has_calls(
+        [
+            mock.call.start(),
+            mock.call.enqueue(
+                {
+                    "timestamp": mock.ANY,
+                    "message": "sampled langchain.llms.openai.OpenAI",
+                    "hostname": mock.ANY,
+                    "ddsource": "langchain",
+                    "service": "",
+                    "status": "error",
+                    "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:text-davinci-003,langchain.request.type:llm,langchain.request.api_key:...key>",  # noqa: E501
+                    "dd.trace_id": str(trace_id),
+                    "dd.span_id": str(span_id),
+                    "prompts": ["Can you please not return an error?"],
+                    "choices": [],
+                }
+            ),
+        ]
+    )
+
+
+@pytest.mark.parametrize(
+    "ddtrace_config_langchain",
+    [
+        # Default service, env, version
+        dict(
+            _api_key="<not-real-but-it's-something>",
+            metrics_enabled=False,
+            logs_enabled=True,
+            log_prompt_completion_sample_rate=1.0,
+        ),
+    ],
+)
+def test_chat_model_logs_when_response_not_completed(
+    langchain, ddtrace_config_langchain, mock_logs, mock_metrics, mock_tracer
+):
+    """Test that errors get logged even if the response is not returned."""
+    with mock.patch("langchain.chat_models.openai.ChatOpenAI._generate", side_effect=Exception("Mocked Error")):
+        with pytest.raises(Exception) as exc_info:
+            chat = langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
+            chat([langchain.schema.HumanMessage(content="Can you please not return an error?")])
+        assert str(exc_info.value) == "Mocked Error"
+    span = mock_tracer.pop_traces()[0][0]
+    trace_id, span_id = span.trace_id, span.span_id
+
+    assert mock_logs.enqueue.call_count == 1
+    mock_logs.assert_has_calls(
+        [
+            mock.call.start(),
+            mock.call.enqueue(
+                {
+                    "timestamp": mock.ANY,
+                    "message": "sampled langchain.chat_models.openai.ChatOpenAI",
+                    "hostname": mock.ANY,
+                    "ddsource": "langchain",
+                    "service": "",
+                    "status": "error",
+                    "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:gpt-3.5-turbo,langchain.request.type:chat_model,langchain.request.api_key:...key>",  # noqa: E501
+                    "dd.trace_id": str(trace_id),
+                    "dd.span_id": str(span_id),
+                    "messages": [
+                        [
+                            {
+                                "content": "Can you please not return an error?",
+                                "message_type": "HumanMessage",
+                            }
+                        ]
+                    ],
+                    "choices": [],
+                }
+            ),
+        ]
+    )
+
+
+@pytest.mark.parametrize(
+    "ddtrace_config_langchain",
+    [
+        # Default service, env, version
+        dict(
+            _api_key="<not-real-but-it's-something>",
+            metrics_enabled=False,
+            logs_enabled=True,
+            log_prompt_completion_sample_rate=1.0,
+        ),
+    ],
+)
+def test_embedding_logs_when_response_not_completed(
+    langchain, ddtrace_config_langchain, mock_logs, mock_metrics, mock_tracer
+):
+    """Test that errors get logged even if the response is not returned."""
+    with mock.patch(
+        "langchain.embeddings.openai.OpenAIEmbeddings._embedding_func", side_effect=Exception("Mocked Error")
+    ):
+        with pytest.raises(Exception) as exc_info:
+            embeddings = langchain.embeddings.OpenAIEmbeddings()
+            embeddings.embed_query("Can you please not return an error?")
+        assert str(exc_info.value) == "Mocked Error"
+    span = mock_tracer.pop_traces()[0][0]
+    trace_id, span_id = span.trace_id, span.span_id
+
+    assert mock_logs.enqueue.call_count == 1
+    mock_logs.assert_has_calls(
+        [
+            mock.call.start(),
+            mock.call.enqueue(
+                {
+                    "timestamp": mock.ANY,
+                    "message": "sampled langchain.embeddings.openai.OpenAIEmbeddings",
+                    "hostname": mock.ANY,
+                    "ddsource": "langchain",
+                    "service": "",
+                    "status": "error",
+                    "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:text-embedding-ada-002,langchain.request.type:embedding,langchain.request.api_key:...key>",  # noqa: E501
+                    "dd.trace_id": str(trace_id),
+                    "dd.span_id": str(span_id),
+                    "inputs": ["Can you please not return an error?"],
+                }
+            ),
+        ]
+    )
+
+
+@pytest.mark.parametrize(
+    "ddtrace_config_langchain",
+    [
+        # Default service, env, version
+        dict(
+            _api_key="<not-real-but-it's-something>",
+            metrics_enabled=False,
+            logs_enabled=True,
+            log_prompt_completion_sample_rate=1.0,
+        ),
+    ],
+)
+def test_chain_logs_when_response_not_completed(
+    langchain, ddtrace_config_langchain, mock_logs, mock_metrics, mock_tracer
+):
+    """Test that errors get logged even if the response is not returned."""
+    with mock.patch("langchain.llms.openai.OpenAI._generate", side_effect=Exception("Mocked Error")):
+        with pytest.raises(Exception) as exc_info:
+            chain = langchain.chains.LLMMathChain(llm=langchain.llms.OpenAI(temperature=0))
+            chain.run("Can you please not return an error?")
+        assert str(exc_info.value) == "Mocked Error"
+    traces = mock_tracer.pop_traces()
+    mid_chain_span = traces[0][1]
+
+    assert mock_logs.enqueue.call_count == 3  # This operation includes 2 chains and 1 LLM call
+    mock_logs.assert_has_calls(
+        [
+            mock.call.enqueue(
+                {
+                    "timestamp": mock.ANY,
+                    "message": "sampled langchain.chains.llm.LLMChain",
+                    "hostname": mock.ANY,
+                    "ddsource": "langchain",
+                    "service": "",
+                    "status": "error",
+                    "ddtags": "env:,version:,langchain.request.provider:,langchain.request.model:,langchain.request.type:chain,langchain.request.api_key:",  # noqa: E501
+                    "dd.trace_id": str(mid_chain_span.trace_id),
+                    "dd.span_id": str(mid_chain_span.span_id),
+                    "inputs": mock.ANY,
+                    "prompt": mock.ANY,
+                    "outputs": {},
+                }
+            ),
+        ],
+        any_order=True,
+    )
+
+
+@pytest.mark.parametrize(
+    "ddtrace_config_langchain",
+    [
+        # Default service, env, version
+        dict(
+            _api_key="<not-real-but-it's-something>",
+            metrics_enabled=False,
+            logs_enabled=True,
+            log_prompt_completion_sample_rate=1.0,
+        ),
+    ],
+)
+def test_vectorstore_logs_error(langchain, ddtrace_config_langchain, mock_logs, mock_metrics, mock_tracer):
+    """Test that errors get logged even if the response is not returned."""
+    with mock.patch(
+        "langchain.embeddings.openai.OpenAIEmbeddings._embedding_func", side_effect=Exception("Mocked Error")
+    ):
+        with pytest.raises(Exception) as exc_info:
+            import pinecone
+
+            pinecone.init(
+                api_key=os.getenv("PINECONE_API_KEY", "<not-a-real-key>"),
+                environment=os.getenv("PINECONE_ENV", "<not-a-real-env>"),
+            )
+            embed = langchain.embeddings.OpenAIEmbeddings(
+                model="text-embedding-ada-002", openai_api_key=os.getenv("OPENAI_API_KEY", "<not-a-real-key>")
+            )
+            index = pinecone.Index(index_name="langchain-retrieval")
+            vectorstore = langchain.vectorstores.Pinecone(index, embed.embed_query, "text")
+            vectorstore.similarity_search("Can you please not return an error?", 1)
+        assert str(exc_info.value) == "Mocked Error"
+    traces = mock_tracer.pop_traces()
+    vectorstore_span = traces[0][0]
+
+    assert mock_logs.enqueue.call_count == 2  # This operation includes 1 vectorstore call and 1 embeddings call
+    mock_logs.assert_has_calls(
+        [
+            mock.call.enqueue(
+                {
+                    "timestamp": mock.ANY,
+                    "message": "sampled langchain.vectorstores.pinecone.Pinecone",
+                    "hostname": mock.ANY,
+                    "ddsource": "langchain",
+                    "service": "",
+                    "status": "error",
+                    "ddtags": "env:,version:,langchain.request.provider:pinecone,langchain.request.model:,langchain.request.type:similarity_search,langchain.request.api_key:...key>",  # noqa: E501
+                    "dd.trace_id": str(vectorstore_span.trace_id),
+                    "dd.span_id": str(vectorstore_span.span_id),
+                    "query": "Can you please not return an error?",
+                    "k": 1,
+                    "documents": [],
+                }
+            ),
+        ],
+        any_order=True,
+    )

@@ -198,6 +198,7 @@ def traced_llm_generate(langchain, pin, func, instance, args, kwargs):
         model=model,
         api_key=_extract_api_key(instance),
     )
+    completions = None
     try:
         if integration.is_pc_sampled_span(span):
             for idx, prompt in enumerate(prompts):
@@ -234,16 +235,19 @@ def traced_llm_generate(langchain, pin, func, instance, args, kwargs):
         span.finish()
         integration.metric(span, "dist", "request.duration", span.duration_ns)
         if integration.is_pc_sampled_log(span):
+            if completions is None:
+                log_completions = []
+            else:
+                log_completions = [
+                    [{"text": completion.text} for completion in completions] for completions in completions.generations
+                ]
             integration.log(
                 span,
                 "info" if span.error == 0 else "error",
                 "sampled %s.%s" % (instance.__module__, instance.__class__.__name__),
                 attrs={
                     "prompts": prompts,
-                    "choices": [
-                        [{"text": completion.text} for completion in completions]
-                        for completions in completions.generations
-                    ],
+                    "choices": log_completions,
                 },
             )
     return completions
@@ -263,6 +267,7 @@ async def traced_llm_agenerate(langchain, pin, func, instance, args, kwargs):
         model=model,
         api_key=_extract_api_key(instance),
     )
+    completions = None
     try:
         if integration.is_pc_sampled_span(span):
             for idx, prompt in enumerate(prompts):
@@ -299,16 +304,19 @@ async def traced_llm_agenerate(langchain, pin, func, instance, args, kwargs):
         span.finish()
         integration.metric(span, "dist", "request.duration", span.duration_ns)
         if integration.is_pc_sampled_log(span):
+            if completions is None:
+                log_completions = []
+            else:
+                log_completions = [
+                    [{"text": completion.text} for completion in completions] for completions in completions.generations
+                ]
             integration.log(
                 span,
                 "info" if span.error == 0 else "error",
                 "sampled %s.%s" % (instance.__module__, instance.__class__.__name__),
                 attrs={
                     "prompts": prompts,
-                    "choices": [
-                        [{"text": completion.text} for completion in completions]
-                        for completions in completions.generations
-                    ],
+                    "choices": log_completions,
                 },
             )
     return completions
@@ -327,6 +335,7 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
         model=_extract_model_name(instance),
         api_key=_extract_api_key(instance),
     )
+    chat_completions = None
     try:
         for message_set_idx, message_set in enumerate(chat_messages):
             for message_idx, message in enumerate(message_set):
@@ -370,6 +379,19 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
         span.finish()
         integration.metric(span, "dist", "request.duration", span.duration_ns)
         if integration.is_pc_sampled_log(span):
+            if chat_completions is None:
+                log_chat_completions = []
+            else:
+                log_chat_completions = [
+                    [
+                        {
+                            "content": message.text,
+                            "message_type": message.message.__class__.__name__,
+                        }
+                        for message in messages
+                    ]
+                    for messages in chat_completions.generations
+                ]
             integration.log(
                 span,
                 "info" if span.error == 0 else "error",
@@ -385,16 +407,7 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
                         ]
                         for messages in chat_messages
                     ],
-                    "choices": [
-                        [
-                            {
-                                "content": message.text,
-                                "message_type": message.message.__class__.__name__,
-                            }
-                            for message in messages
-                        ]
-                        for messages in chat_completions.generations
-                    ],
+                    "choices": log_chat_completions,
                 },
             )
     return chat_completions
@@ -413,6 +426,7 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
         model=_extract_model_name(instance),
         api_key=_extract_api_key(instance),
     )
+    chat_completions = None
     try:
         for message_set_idx, message_set in enumerate(chat_messages):
             for message_idx, message in enumerate(message_set):
@@ -456,6 +470,19 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
         span.finish()
         integration.metric(span, "dist", "request.duration", span.duration_ns)
         if integration.is_pc_sampled_log(span):
+            if chat_completions is None:
+                log_chat_completions = []
+            else:
+                log_chat_completions = [
+                    [
+                        {
+                            "content": message.text,
+                            "message_type": message.message.__class__.__name__,
+                        }
+                        for message in messages
+                    ]
+                    for messages in chat_completions.generations
+                ]
             integration.log(
                 span,
                 "info" if span.error == 0 else "error",
@@ -471,16 +498,7 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
                         ]
                         for messages in chat_messages
                     ],
-                    "choices": [
-                        [
-                            {
-                                "content": message.text,
-                                "message_type": message.message.__class__.__name__,
-                            }
-                            for message in messages
-                        ]
-                        for messages in chat_completions.generations
-                    ],
+                    "choices": log_chat_completions,
                 },
             )
     return chat_completions
@@ -538,6 +556,7 @@ def traced_embedding(langchain, pin, func, instance, args, kwargs):
 def traced_chain_call(langchain, pin, func, instance, args, kwargs):
     integration = langchain._datadog_integration
     span = integration.trace(pin, "%s.%s" % (instance.__module__, instance.__class__.__name__), interface_type="chain")
+    final_outputs = {}
     try:
         inputs = args[0]
         if not isinstance(inputs, dict):
@@ -582,6 +601,7 @@ def traced_chain_call(langchain, pin, func, instance, args, kwargs):
 async def traced_chain_acall(langchain, pin, func, instance, args, kwargs):
     integration = langchain._datadog_integration
     span = integration.trace(pin, "%s.%s" % (instance.__module__, instance.__class__.__name__), interface_type="chain")
+    final_outputs = {}
     try:
         inputs = args[0]
         if not isinstance(inputs, dict):
@@ -635,6 +655,7 @@ def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
         provider=provider,
         api_key=_extract_api_key(instance),
     )
+    documents = []
     try:
         if integration.is_pc_sampled_span(span):
             span.set_tag_str("langchain.request.query", integration.trunc(query))
