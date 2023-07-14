@@ -4,17 +4,21 @@ import flask
 import werkzeug
 from werkzeug.exceptions import abort
 
-from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
+from ddtrace.internal.constants import HTTP_REQUEST_BODY
+from ddtrace.internal.constants import HTTP_REQUEST_HEADER
+from ddtrace.internal.constants import HTTP_REQUEST_HEADER_NAME
+from ddtrace.internal.constants import HTTP_REQUEST_PARAMETER
+from ddtrace.internal.constants import HTTP_REQUEST_QUERY
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
-from ...appsec import utils
 from ...internal import core
 from ...internal.schema import schematize_service_name
 from ...internal.schema import schematize_url_operation
+from ...internal.utils import http as http_utils
 
 
 # Not all versions of flask/werkzeug have this mixin
@@ -148,12 +152,12 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
             req_span, config.flask, status_code=code, response_headers=headers, route=req_span.get_tag(FLASK_URL_RULE)
         )
 
-        if not core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
+        if not core.get_item(HTTP_REQUEST_BLOCKED):
             headers_from_context = ""
             results, exceptions = core.dispatch("flask.start_response", [])
             if not any(exceptions) and results and results[0]:
                 headers_from_context = results[0]
-            if core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
+            if core.get_item(HTTP_REQUEST_BLOCKED):
                 # response code must be set here, or it will be too late
                 ctype = "text/html" if "text/html" in headers_from_context else "text/json"
                 response_headers = [("content-type", ctype)]
@@ -218,29 +222,29 @@ def patch():
     wrap_with_event(
         "werkzeug.datastructures",
         "Headers.items",
-        (IAST.HTTP_REQUEST_HEADER_NAME, IAST.HTTP_REQUEST_HEADER),
+        (HTTP_REQUEST_HEADER_NAME, HTTP_REQUEST_HEADER),
     )
     wrap_with_event(
         "werkzeug.datastructures",
         "EnvironHeaders.__getitem__",
-        IAST.HTTP_REQUEST_HEADER,
+        HTTP_REQUEST_HEADER,
     )
     wrap_with_event(
         "werkzeug.datastructures",
         "ImmutableMultiDict.__getitem__",
-        IAST.HTTP_REQUEST_PARAMETER,
+        HTTP_REQUEST_PARAMETER,
     )
     _w("werkzeug.wrappers.request", "Request.__init__", wrapped_request_init)
     wrap_with_event(
         "werkzeug.wrappers.request",
         "Request.get_data",
-        IAST.HTTP_REQUEST_BODY,
+        HTTP_REQUEST_BODY,
     )
     if flask_version < (2, 0, 0):
         wrap_with_event(
             "werkzeug._internal",
             "_DictAccessorProperty.__get__",
-            IAST.HTTP_REQUEST_QUERYSTRING,
+            HTTP_REQUEST_QUERY,
         )
 
     # flask.app.Flask methods that have custom tracing (add metadata, wrap functions, etc)
@@ -614,10 +618,10 @@ def _set_block_tags(span):
 
 def _block_request_callable(span):
     request = flask.request
-    core.set_item(WAF_CONTEXT_NAMES.BLOCKED, True)
+    core.set_item(HTTP_REQUEST_BLOCKED, True)
     _set_block_tags(span)
     ctype = "text/html" if "text/html" in request.headers.get("Accept", "").lower() else "text/json"
-    abort(flask.Response(utils._get_blocked_template(ctype), content_type=ctype, status=403))
+    abort(flask.Response(http_utils._get_blocked_template(ctype), content_type=ctype, status=403))
 
 
 def request_tracer(name):
