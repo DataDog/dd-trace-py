@@ -62,6 +62,24 @@ class _DDWSGIMiddlewareBase(object):
         self._config = int_config
         self._pin = pin
 
+    @property
+    def _request_span_name(self):
+        # type: () -> str
+        "Returns the name of a request span. Example: `flask.request`"
+        raise NotImplementedError
+
+    @property
+    def _application_span_name(self):
+        # type: () -> str
+        "Returns the name of an application span. Example: `flask.application`"
+        raise NotImplementedError
+
+    @property
+    def _response_span_name(self):
+        # type: () -> str
+        "Returns the name of a response span. Example: `flask.response`"
+        raise NotImplementedError
+
     def __call__(self, environ, start_response):
         # type: (Iterable, Callable) -> wrapt.ObjectProxy
         headers = get_request_headers(environ)
@@ -101,24 +119,6 @@ class _DDWSGIMiddlewareBase(object):
                     closing_iterator = [content]
 
             return core.dispatch("wsgi.request.complete", [ctx, closing_iterator])[0][0]
-
-    @property
-    def _request_span_name(self):
-        # type: () -> str
-        "Returns the name of a request span. Example: `flask.request`"
-        raise NotImplementedError
-
-    @property
-    def _application_span_name(self):
-        # type: () -> str
-        "Returns the name of an application span. Example: `flask.application`"
-        raise NotImplementedError
-
-    @property
-    def _response_span_name(self):
-        # type: () -> str
-        "Returns the name of a response span. Example: `flask.response`"
-        raise NotImplementedError
 
     def _traced_start_response(self, start_response, request_span, app_span, status, environ, exc_info=None):
         # type: (Callable, Span, Span, str, Dict, Any) -> None
