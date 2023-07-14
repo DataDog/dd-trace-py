@@ -10,13 +10,13 @@ from ddtrace.appsec.iast.reporter import IastSpanReporter
 from ddtrace.appsec.iast.reporter import Location
 from ddtrace.appsec.iast.reporter import Source
 from ddtrace.appsec.iast.reporter import Vulnerability
+from ddtrace.internal import core
 
 
 if python_supported_by_iast():
     from ddtrace.appsec.iast.taint_sinks._base import VulnerabilityBase
     from ddtrace.appsec.iast.taint_sinks.sql_injection import SqlInjection
 
-from ddtrace.internal import _context
 from ddtrace.internal.utils.cache import LFUCache
 from tests.utils import override_env
 
@@ -209,7 +209,7 @@ def test_scrub_cache(tracer):
             oce.acquire_request(span)
             VulnerabilityBase._redacted_report_cache = LFUCache()
             SqlInjection.report(evidence_value=valueParts1, sources=[s1])
-            span_report1 = _context.get_item(IAST.CONTEXT_KEY, span=span)
+            span_report1 = core.get_item(IAST.CONTEXT_KEY, span=span)
             assert span_report1, "no report: check that get_info_frame is not skipping this frame"
             assert list(span_report1.vulnerabilities)[0].evidence == Evidence(
                 value=None,
@@ -227,7 +227,7 @@ def test_scrub_cache(tracer):
         with tracer.trace("test2") as span:
             oce.acquire_request(span)
             SqlInjection.report(evidence_value=valueParts1_copy1, sources=[s1])
-            span_report2 = _context.get_item(IAST.CONTEXT_KEY, span=span)
+            span_report2 = core.get_item(IAST.CONTEXT_KEY, span=span)
             assert list(span_report2.vulnerabilities)[0].evidence == Evidence(
                 value=None,
                 pattern=None,
@@ -246,7 +246,7 @@ def test_scrub_cache(tracer):
         with tracer.trace("test3") as span:
             oce.acquire_request(span)
             SqlInjection.report(evidence_value=valueParts2, sources=[s1])
-            span_report3 = _context.get_item(IAST.CONTEXT_KEY, span=span)
+            span_report3 = core.get_item(IAST.CONTEXT_KEY, span=span)
             assert list(span_report3.vulnerabilities)[0].evidence == Evidence(
                 value=None,
                 pattern=None,
@@ -265,7 +265,7 @@ def test_scrub_cache(tracer):
         with tracer.trace("test4") as span:
             oce.acquire_request(span)
             SqlInjection.report(evidence_value=valueParts1_copy2, sources=[s2])
-            span_report4 = _context.get_item(IAST.CONTEXT_KEY, span=span)
+            span_report4 = core.get_item(IAST.CONTEXT_KEY, span=span)
             assert list(span_report4.vulnerabilities)[0].evidence == Evidence(
                 value=None,
                 pattern=None,
@@ -284,7 +284,7 @@ def test_scrub_cache(tracer):
         with tracer.trace("test4") as span:
             oce.acquire_request(span)
             SqlInjection.report(evidence_value=valueParts1_copy3, sources=[s2])
-            span_report5 = _context.get_item(IAST.CONTEXT_KEY, span=span)
+            span_report5 = core.get_item(IAST.CONTEXT_KEY, span=span)
             assert list(span_report5.vulnerabilities)[0].evidence == Evidence(
                 value=None,
                 pattern=None,
