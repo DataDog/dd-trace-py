@@ -53,50 +53,6 @@ config._add(
 )
 
 
-class _TracedIterable(wrapt.ObjectProxy):
-    def __init__(self, wrapped, span, parent_span):
-        super(_TracedIterable, self).__init__(wrapped)
-        self._self_span = span
-        self._self_parent_span = parent_span
-        self._self_span_finished = False
-
-    def __iter__(self):
-        return self
-
-    def __next__(self):
-        try:
-            return next(self.__wrapped__)
-        except StopIteration:
-            self._finish_spans()
-            raise
-        except Exception:
-            self._self_span.set_exc_info(*sys.exc_info())
-            self._finish_spans()
-            raise
-
-    # PY2 Support
-    next = __next__
-
-    def close(self):
-        if getattr(self.__wrapped__, "close", None):
-            self.__wrapped__.close()
-        self._finish_spans()
-
-    def _finish_spans(self):
-        if not self._self_span_finished:
-            self._self_span.finish()
-            self._self_parent_span.finish()
-            self._self_span_finished = True
-
-    def __getattribute__(self, name):
-        if name == "__len__":
-            # __len__ is defined by the parent class, wrapt.ObjectProxy.
-            # However this attribute should not be defined for iterables.
-            # By definition, iterables should not support len(...).
-            raise AttributeError("__len__ is not supported")
-        return super(_TracedIterable, self).__getattribute__(name)
-
-
 class _ContextBuilderWSGIMiddlewareBase(object):
     """Base WSGI middleware class.
 
@@ -112,7 +68,7 @@ class _ContextBuilderWSGIMiddlewareBase(object):
         self._config = int_config
 
     def __call__(self, environ, start_response):
-        # type: (Iterable, Callable) -> _TracedIterable
+        # type: (Iterable, Callable) -> wrapt.ObjectProxy
         headers = get_request_headers(environ)
         closing_iterator = ()
         not_blocked = True
@@ -125,13 +81,13 @@ class _ContextBuilderWSGIMiddlewareBase(object):
             middleware=self,
         ) as ctx:
             if core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
-                ctype, content = core.dispatch("wsgi.block.started", [ctx])[0][0]
+                ctype, content = core.dispatch("wsgi.block.started", [ctx, construct_url])[0][0]
                 start_response("403 FORBIDDEN", [("content-type", ctype)])
                 closing_iterator = [content]
                 not_blocked = False
 
             def blocked_view():
-                ctype, content = core.dispatch("wsgi.block.started", [ctx])[0][0]
+                ctype, content = core.dispatch("wsgi.block.started", [ctx, construct_url])[0][0]
                 return content, 403, [("content-type", ctype)]
 
             core.dispatch("wsgi.block_decided", [blocked_view])
@@ -146,7 +102,7 @@ class _ContextBuilderWSGIMiddlewareBase(object):
                 else:
                     core.dispatch("wsgi.app.success", [ctx, closing_iterator])
                 if core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
-                    _, content = core.dispatch("wsgi.block.started", [ctx])[0][0]
+                    _, content = core.dispatch("wsgi.block.started", [ctx, construct_url])[0][0]
                     closing_iterator = [content]
 
             return core.dispatch("wsgi.request.complete", [ctx, closing_iterator])[0][0]

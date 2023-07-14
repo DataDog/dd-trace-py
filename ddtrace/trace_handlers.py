@@ -65,32 +65,6 @@ class _TracedIterable(wrapt.ObjectProxy):
         return super(_TracedIterable, self).__getattribute__(name)
 
 
-def construct_url(environ):
-    """
-    https://www.python.org/dev/peps/pep-3333/#url-reconstruction
-    """
-    url = environ["wsgi.url_scheme"] + "://"
-
-    if environ.get("HTTP_HOST"):
-        url += environ["HTTP_HOST"]
-    else:
-        url += environ["SERVER_NAME"]
-
-        if environ["wsgi.url_scheme"] == "https":
-            if environ["SERVER_PORT"] != "443":
-                url += ":" + environ["SERVER_PORT"]
-        else:
-            if environ["SERVER_PORT"] != "80":
-                url += ":" + environ["SERVER_PORT"]
-
-    url += quote(environ.get("SCRIPT_NAME", ""))
-    url += quote(environ.get("PATH_INFO", ""))
-    if environ.get("QUERY_STRING"):
-        url += "?" + environ["QUERY_STRING"]
-
-    return url
-
-
 def _on_context_started(ctx):
     middleware = ctx.get_item("middleware")
     environ = ctx.get_item("environ")
@@ -103,7 +77,7 @@ def _on_context_started(ctx):
     ctx.set_item("req_span", req_span)
 
 
-def _make_block_content(ctx):
+def _make_block_content(ctx, construct_url):
     middleware = ctx.get_item("middleware")
     req_span = ctx.get_item("req_span")
     headers = ctx.get_item("headers")
