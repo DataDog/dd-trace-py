@@ -27,6 +27,7 @@ from ddtrace.internal.agent import get_stats_url
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.pin import Pin
 
 
@@ -545,8 +546,9 @@ def traced_chain_call(langchain, pin, func, instance, args, kwargs):
         if integration.is_pc_sampled_span(span):
             for k, v in inputs.items():
                 span.set_tag_str("langchain.request.inputs.%s" % k, integration.trunc(str(v)))
-            if hasattr(instance, "prompt"):
-                span.set_tag_str("langchain.request.prompt", integration.trunc(str(instance.prompt.template)))
+            template = deep_getattr(instance, "prompt.template")
+            if template:
+                span.set_tag_str("langchain.request.prompt", integration.trunc(str(template)))
         final_outputs = func(*args, **kwargs)
         if integration.is_pc_sampled_span(span):
             for k, v in final_outputs.items():
@@ -589,8 +591,9 @@ async def traced_chain_acall(langchain, pin, func, instance, args, kwargs):
         if integration.is_pc_sampled_span(span):
             for k, v in inputs.items():
                 span.set_tag_str("langchain.request.inputs.%s" % k, integration.trunc(str(v)))
-            if hasattr(instance, "prompt"):
-                span.set_tag_str("langchain.request.prompt", integration.trunc(str(instance.prompt.template)))
+            template = deep_getattr(instance, "prompt.template")
+            if template:
+                span.set_tag_str("langchain.request.prompt", integration.trunc(str(template)))
         final_outputs = await func(*args, **kwargs)
         if integration.is_pc_sampled_span(span):
             for k, v in final_outputs.items():
