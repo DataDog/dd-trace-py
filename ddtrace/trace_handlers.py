@@ -149,22 +149,23 @@ def _on_request_complete(ctx, closing_iterator):
     return _TracedIterable(iter(closing_iterator), resp_span, req_span)
 
 
-def _on_response_started(middleware, request_span, app_span, status, environ):
+def _on_response_started(middleware, request_span, app_span, status, environ, start_span=True):
     status_code, status_msg = status.split(" ", 1)
-    request_span.set_tag_str(http.STATUS_MSG, status_msg)
     trace_utils.set_http_meta(request_span, middleware._config, status_code=status_code, response_headers=environ)
+    if start_span:
+        request_span.set_tag_str(http.STATUS_MSG, status_msg)
 
-    span = middleware.tracer.start_span(
-        "wsgi.start_response",
-        child_of=app_span,
-        service=trace_utils.int_service(None, middleware._config),
-        span_type=SpanTypes.WEB,
-        activate=True,
-    )
-    span.set_tag_str(COMPONENT, middleware._config.integration_name)
-    # set span.kind to the type of operation being performed
-    span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
-    return span
+        span = middleware.tracer.start_span(
+            "wsgi.start_response",
+            child_of=app_span,
+            service=trace_utils.int_service(None, middleware._config),
+            span_type=SpanTypes.WEB,
+            activate=True,
+        )
+        span.set_tag_str(COMPONENT, middleware._config.integration_name)
+        # set span.kind to the type of operation being performed
+        span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
+        return span
 
 
 def _on_response_prepared(resp_span, response):

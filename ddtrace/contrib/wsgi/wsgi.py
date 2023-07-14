@@ -135,8 +135,7 @@ class _DDWSGIMiddlewareBase(_ContextBuilderWSGIMiddlewareBase):
     def _traced_start_response(self, start_response, request_span, app_span, status, environ, exc_info=None):
         # type: (Callable, Span, Span, str, Dict, Any) -> None
         """sets the status code on a request span when start_response is called"""
-        status_code, _ = status.split(" ", 1)
-        trace_utils.set_http_meta(request_span, self._config, status_code=status_code)
+        core.dispatch("wsgi.response.start", [self, request_span, app_span, status, environ, False])
         return start_response(status, environ, exc_info)
 
     def _request_span_modifier(self, req_span, environ, parsed_headers=None):
