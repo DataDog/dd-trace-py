@@ -13,6 +13,7 @@ to be run at specific points during pytest execution. The most important hooks u
 """
 from doctest import DocTest
 import json
+import os
 import re
 from typing import Dict
 
@@ -159,9 +160,19 @@ def _get_module_name(item):
     return item.module.__name__
 
 
-def _get_suite_name(item):
-    """Extract suite name from a `pytest.Item` instance."""
-    return item.nodeid.rpartition("/")[-1]
+def _get_suite_name(item, test_module_path=None):
+    """
+    Extract suite name from a `pytest.Item` instance.
+    If the test_module_span doesn't exist, the suite name will be reported in full.
+    """
+    if test_module_path:
+        if not item.nodeid.startswith(test_module_path):
+            log.warning("Suite path is not under module path: '%s' '%s'", item.nodeid, test_module_path)
+            return item.nodeid
+        else:
+            suite_path = os.path.relpath(item.nodeid, start=test_module_path)
+            return suite_path
+    return item.nodeid
 
 
 def _start_test_module_span(item):
@@ -218,13 +229,15 @@ def _start_test_suite_span(item, should_enable_coverage=False):
     test_suite_span.set_tag_str(test.COMMAND, _get_pytest_command(item.config))
     test_suite_span.set_tag_str(_EVENT_TYPE, _SUITE_TYPE)
     test_suite_span.set_tag_str(_SUITE_ID, str(test_suite_span.span_id))
-    test_suite_span.set_tag_str(test.SUITE, _get_suite_name(item))
     if test_session_span is not None:
         test_suite_span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
+    test_module_path = None
     if test_module_span is not None:
         test_suite_span.set_tag_str(_MODULE_ID, str(test_module_span.span_id))
         test_suite_span.set_tag_str(test.MODULE, test_module_span.get_tag(test.MODULE))
-        test_suite_span.set_tag_str(test.MODULE_PATH, test_module_span.get_tag(test.MODULE_PATH))
+        test_module_path = test_module_span.get_tag(test.MODULE_PATH)
+        test_suite_span.set_tag_str(test.MODULE_PATH, test_module_path)
+    test_suite_span.set_tag_str(test.SUITE, _get_suite_name(item, test_module_path))
     _store_span(item, test_suite_span)
 
     if should_enable_coverage:
