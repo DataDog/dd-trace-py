@@ -90,8 +90,10 @@ class VulnerabilityBase(Operation):
                 return None
 
             frame_info = get_info_frame(CWD)
-            if frame_info:
-                file_name, line_number = frame_info
+            if not frame_info:
+                return None
+
+            file_name, line_number = frame_info
 
             # Remove CWD prefix
             if file_name.startswith(CWD):
