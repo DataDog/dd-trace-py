@@ -166,6 +166,7 @@ class LibraryDownload:
             )
 
             try:
+                print("Downloading from %s" % (download_address))
                 filename, http_response = urlretrieve(download_address, archive_name)
             except HTTPError as e:
                 print("No archive found for dynamic library {}: {}".format(cls.name, archive_dir))
