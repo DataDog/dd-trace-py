@@ -47,5 +47,17 @@ BLOCKED_RESPONSE_JSON = (
     '{"errors": [{"title": "You\'ve been blocked", "detail": "Sorry, you cannot access '
     'this page. Please contact the customer service team. Security provided by Datadog."}]}'
 )
+HTTP_REQUEST_BLOCKED = "http.request.blocked"
+RESPONSE_HEADERS = "http.response.headers"
+HTTP_REQUEST_QUERY = "http.request.query"
+HTTP_REQUEST_COOKIE_VALUE = "http.request.cookie.value"
+HTTP_REQUEST_COOKIE_NAME = "http.request.cookie.name"
+HTTP_REQUEST_PATH = "http.request.path"
+HTTP_REQUEST_HEADER_NAME = "http.request.header.name"
+HTTP_REQUEST_HEADER = "http.request.header"
+HTTP_REQUEST_PARAMETER = "http.request.parameter"
+HTTP_REQUEST_BODY = "http.request.body"
+HTTP_REQUEST_PATH_PARAMETER = "http.request.path.parameter"
+REQUEST_PATH_PARAMS = "http.request.path_params"
 
 MESSAGING_SYSTEM = "messaging.system"
