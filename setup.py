@@ -264,8 +264,10 @@ class LibDatadogDownload(LibraryDownload):
     def get_include_dirs():
         arch = platform.machine()
         if arch in LibDatadogDownload.available_releases[CURRENT_OS]:
+            print("Getting include dirs!")
             base_include_dir = "ddtrace/internal/datadog/profiling/include"
             arch_include_dir = os.path.join("ddtrace", "internal", "datadog", "profiling", "libdatadog", arch, "include")
+            print("the base dir is %s\n and the other is %s" % (base_include_dir, arch_include_dir))
             return [base_include_dir, arch_include_dir]
 
         return []
