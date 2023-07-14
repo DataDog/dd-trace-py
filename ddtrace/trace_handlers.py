@@ -151,7 +151,8 @@ def _on_request_complete(ctx, closing_iterator):
     return _TracedIterable(iter(closing_iterator), resp_span, req_span)
 
 
-def _on_response_started(middleware, request_span, app_span, status_msg, status_code, environ):
+def _on_response_started(middleware, request_span, app_span, status, environ):
+    status_code, status_msg = status.split(" ", 1)
     request_span.set_tag_str(http.STATUS_MSG, status_msg)
     trace_utils.set_http_meta(request_span, middleware._config, status_code=status_code, response_headers=environ)
 

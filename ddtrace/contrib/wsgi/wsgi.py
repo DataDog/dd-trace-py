@@ -221,17 +221,8 @@ class DDWSGIMiddleware(_DDWSGIMiddlewareBase):
         self.span_modifier = span_modifier
 
     def _traced_start_response(self, start_response, request_span, app_span, status, environ, exc_info=None):
-        status_code, status_msg = status.split(" ", 1)
-        results, exceptions = core.dispatch(
-            "wsgi.response.start", [self, request_span, app_span, status_msg, status_code, environ]
-        )
-        assert not any(exceptions)
-        context_manager = results[0]
-
-        try:
+        with core.dispatch("wsgi.response.start", [self, request_span, app_span, status, environ])[0][0]:
             return start_response(status, environ, exc_info)
-        finally:
-            context_manager.__exit__(*sys.exc_info())
 
     def _request_span_modifier(self, req_span, environ, parsed_headers=None):
         url = construct_url(environ)
