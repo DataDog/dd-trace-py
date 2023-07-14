@@ -1,6 +1,7 @@
 import contextlib
 import json
 import os
+import sys
 import time
 
 import mock
@@ -24,7 +25,6 @@ from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClientSeria
 from ddtrace.internal.ci_visibility.recorder import CITracer as Tracer
 from ddtrace.internal.ci_visibility.recorder import _extract_repository_name_from_url
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
-from ddtrace.internal.compat import PY2
 from ddtrace.internal.utils.http import Response
 from ddtrace.span import Span
 from tests.utils import DummyCIVisibilityWriter
@@ -33,7 +33,9 @@ from tests.utils import override_env
 from tests.utils import override_global_config
 
 
-if PY2:
+TEST_SHA = "b3672ea5cbc584124728c48a443825d2940e0ddd"
+
+if sys.version_info[:2] < (3, 6):
     # Purposely shadowing a missing python builtin
     from socket import timeout as TimeoutError  # noqa: A001
 

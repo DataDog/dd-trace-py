@@ -158,6 +158,7 @@ venv = Venv(
             name="mypy",
             command="mypy {cmdargs}",
             create=True,
+            skip_dev_install=True,
             pkgs={
                 "mypy": "==0.991",
                 "envier": "==0.4.0",
@@ -218,7 +219,7 @@ venv = Venv(
             name="riot-helpers",
             # DEV: pytest really doesn't want to execute only `riotfile.py`, call doctest directly
             command="python -m doctest {cmdargs} riotfile.py",
-            pkgs={"riot": latest},
+            pkgs={"riot": "==0.17.4"},
         ),
         Venv(
             pys=["3"],
@@ -2943,6 +2944,7 @@ venv = Venv(
                                     pkgs={
                                         "protobuf": "==3.8.0",
                                     },
+                                    create=True,  # Needed bp Python 3.5 because of namespace packages
                                 ),
                                 # Gevent
                                 Venv(

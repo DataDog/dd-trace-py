@@ -2,6 +2,7 @@ from collections import defaultdict
 import json
 import os
 from typing import TYPE_CHECKING
+import sys
 from uuid import uuid4
 
 from ddtrace import config as ddconfig
@@ -14,7 +15,6 @@ from ddtrace.internal.agent import get_connection
 from ddtrace.internal.agent import get_trace_url
 from ddtrace.internal.ci_visibility.filters import TraceCiVisibilityFilter
 from ddtrace.internal.compat import JSONDecodeError
-from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import parse
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
@@ -58,7 +58,7 @@ def _get_test_skipping_level():
 TEST_SKIPPING_LEVEL = _get_test_skipping_level()
 
 
-if PY2:
+if sys.version_info[:2] < (3, 6):
     # Purposely shadowing a missing python builtin
     from socket import timeout as TimeoutError  # noqa: A001
 
