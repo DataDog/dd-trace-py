@@ -1,7 +1,6 @@
 import contextlib
 import json
 import os
-import sys
 import time
 
 import mock
@@ -16,7 +15,7 @@ from ddtrace.internal.ci_visibility.filters import TraceCiVisibilityFilter
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClient
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClientSerializerV1
 from ddtrace.internal.ci_visibility.recorder import _extract_repository_name_from_url
-from ddtrace.internal.compat import PRE_PY36
+from ddtrace.internal.compat import TimeoutError
 from ddtrace.internal.utils.http import Response
 from ddtrace.span import Span
 from tests.utils import DummyCIVisibilityWriter
@@ -26,10 +25,6 @@ from tests.utils import override_global_config
 
 
 TEST_SHA = "b3672ea5cbc584124728c48a443825d2940e0ddd"
-
-if PRE_PY36:
-    # Purposely shadowing a missing python builtin
-    from socket import timeout as TimeoutError  # noqa: A001
 
 
 def test_filters_test_spans():
