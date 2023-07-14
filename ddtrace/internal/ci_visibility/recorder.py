@@ -1,5 +1,6 @@
 import json
 import os
+import sys
 from typing import Any
 from typing import Dict
 from typing import List
@@ -19,7 +20,6 @@ from ddtrace.internal.agent import get_connection
 from ddtrace.internal.agent import get_trace_url
 from ddtrace.internal.ci_visibility.filters import TraceCiVisibilityFilter
 from ddtrace.internal.compat import JSONDecodeError
-from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import parse
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
@@ -44,7 +44,7 @@ log = get_logger(__name__)
 TEST_SKIPPING_LEVEL = "suite"
 
 
-if PY2:
+if sys.version_info[:2] < (3, 6):
     # Purposely shadowing a missing python builtin
     from socket import timeout as TimeoutError  # noqa: A001
 
