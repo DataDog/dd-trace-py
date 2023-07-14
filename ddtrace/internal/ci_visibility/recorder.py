@@ -1,8 +1,8 @@
 from collections import defaultdict
 import json
 import os
-from typing import TYPE_CHECKING
 import sys
+from typing import TYPE_CHECKING
 from uuid import uuid4
 
 from ddtrace import config as ddconfig
@@ -56,6 +56,7 @@ def _get_test_skipping_level():
 
 
 TEST_SKIPPING_LEVEL = _get_test_skipping_level()
+DEFAULT_TIMEOUT = 15
 
 
 if sys.version_info[:2] < (3, 6):
@@ -81,7 +82,7 @@ def _get_git_repo():
 def _do_request(method, url, payload, headers):
     # type: (str, str, str, Dict) -> Response
     try:
-        conn = get_connection(url)
+        conn = get_connection(url, timeout=DEFAULT_TIMEOUT)
         log.debug("Sending request: %s %s %s %s", method, url, payload, headers)
         conn.request("POST", url, payload, headers)
         resp = compat.get_connection_response(conn)
