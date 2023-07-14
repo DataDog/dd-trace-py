@@ -12,6 +12,8 @@ from ddtrace.appsec.iast._patch import if_iast_taint_returned_object_for
 from ddtrace.appsec.iast._patch import if_iast_taint_yield_tuple_for
 from ddtrace.appsec.iast._util import _is_iast_enabled
 from ddtrace.internal import core
+from ddtrace.internal.constants import HTTP_REQUEST_PATH
+from ddtrace.internal.constants import HTTP_REQUEST_QUERY
 from ddtrace.internal.logger import get_logger
 
 
@@ -152,9 +154,9 @@ def _on_request_init(instance):
 
             taint_pyobject(
                 instance.query_string,
-                Input_info(IAST.HTTP_REQUEST_QUERYSTRING, instance.query_string, IAST.HTTP_REQUEST_QUERYSTRING),
+                Input_info(HTTP_REQUEST_QUERY, instance.query_string, HTTP_REQUEST_QUERY),
             )
-            taint_pyobject(instance.path, Input_info(IAST.HTTP_REQUEST_PATH, instance.path, IAST.HTTP_REQUEST_PATH))
+            taint_pyobject(instance.path, Input_info(HTTP_REQUEST_PATH, instance.path, HTTP_REQUEST_PATH))
         except Exception:
             log.debug("Unexpected exception while tainting pyobject", exc_info=True)
 
