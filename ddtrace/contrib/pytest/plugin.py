@@ -163,15 +163,13 @@ def _get_module_name(item):
 def _get_suite_name(item, test_module_path=None):
     """
     Extract suite name from a `pytest.Item` instance.
-    If the test_module_span doesn't exist, the suite name will be reported in full.
+    If the module path doesn't exist, the suite path will be reported in full.
     """
     if test_module_path:
         if not item.nodeid.startswith(test_module_path):
             log.warning("Suite path is not under module path: '%s' '%s'", item.nodeid, test_module_path)
-            return item.nodeid
-        else:
-            suite_path = os.path.relpath(item.nodeid, start=test_module_path)
-            return suite_path
+        suite_path = os.path.relpath(item.nodeid, start=test_module_path)
+        return suite_path
     return item.nodeid
 
 
