@@ -32,10 +32,6 @@ from ..utils.version import _pep440_to_semver
 from .constants import TELEMETRY_ASM_ENABLED
 from .constants import TELEMETRY_DSM_ENABLED
 from .constants import TELEMETRY_DYNAMIC_INSTRUMENTATION_ENABLED
-from .constants import TELEMETRY_METRIC_TYPE_COUNT
-from .constants import TELEMETRY_METRIC_TYPE_DISTRIBUTIONS
-from .constants import TELEMETRY_METRIC_TYPE_GAUGE
-from .constants import TELEMETRY_METRIC_TYPE_RATE
 from .constants import TELEMETRY_PROFILING_ENABLED
 from .constants import TELEMETRY_RUNTIMEMETRICS_ENABLED
 from .constants import TELEMETRY_TRACING_ENABLED
@@ -45,7 +41,11 @@ from .constants import TELEMETRY_TYPE_LOGS
 from .data import get_application
 from .data import get_dependencies
 from .data import get_host_info
+from .metrics import CountMetric
+from .metrics import DistributionMetric
+from .metrics import GaugeMetric
 from .metrics import MetricTagType
+from .metrics import RateMetric
 from .metrics_namespaces import MetricNamespace
 from .metrics_namespaces import NamespaceMetricType
 
@@ -395,7 +395,7 @@ class TelemetryWriter(PeriodicService):
         """
         if self.status == ServiceStatus.RUNNING or self.enable():
             self._namespace.add_metric(
-                TELEMETRY_METRIC_TYPE_GAUGE,
+                GaugeMetric,
                 namespace,
                 name,
                 value,
@@ -410,7 +410,7 @@ class TelemetryWriter(PeriodicService):
         """
         if self.status == ServiceStatus.RUNNING or self.enable():
             self._namespace.add_metric(
-                TELEMETRY_METRIC_TYPE_RATE,
+                RateMetric,
                 namespace,
                 name,
                 value,
@@ -425,7 +425,7 @@ class TelemetryWriter(PeriodicService):
         """
         if self.status == ServiceStatus.RUNNING or self.enable():
             self._namespace.add_metric(
-                TELEMETRY_METRIC_TYPE_COUNT,
+                CountMetric,
                 namespace,
                 name,
                 value,
@@ -439,7 +439,7 @@ class TelemetryWriter(PeriodicService):
         """
         if self.status == ServiceStatus.RUNNING or self.enable():
             self._namespace.add_metric(
-                TELEMETRY_METRIC_TYPE_DISTRIBUTIONS,
+                DistributionMetric,
                 namespace,
                 name,
                 value,
