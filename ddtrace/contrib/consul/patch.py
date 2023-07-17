@@ -1,12 +1,19 @@
 import consul
 
 from ddtrace import config
+from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...ext import consul as consulx
+from ...ext import net
+from ...internal.schema import schematize_service_name
+from ...internal.schema import schematize_url_operation
 from ...internal.utils import get_argument_value
 from ...internal.utils.wrappers import unwrap as _u
 from ...pin import Pin
@@ -20,7 +27,7 @@ def patch():
         return
     setattr(consul, "__datadog_patch", True)
 
-    pin = Pin(service=consulx.SERVICE)
+    pin = Pin(service=schematize_service_name(consulx.SERVICE))
     pin.onto(consul.Consul.KV)
 
     for f_name in _KV_FUNCS:
@@ -49,13 +56,25 @@ def wrap_function(name):
         path = get_argument_value(args, kwargs, 0, "key")
         resource = name.upper()
 
-        with pin.tracer.trace(consulx.CMD, service=pin.service, resource=resource, span_type=SpanTypes.HTTP) as span:
+        with pin.tracer.trace(
+            schematize_url_operation(consulx.CMD, protocol="http", direction=SpanDirection.OUTBOUND),
+            service=pin.service,
+            resource=resource,
+            span_type=SpanTypes.HTTP,
+        ) as span:
+            span.set_tag_str(COMPONENT, config.consul.integration_name)
+
+            span.set_tag_str(net.TARGET_HOST, instance.agent.http.host)
+
+            # set span.kind to the type of request being performed
+            span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+
             span.set_tag(SPAN_MEASURED_KEY)
             rate = config.consul.get_analytics_sample_rate()
             if rate is not None:
                 span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, rate)
-            span.set_tag(consulx.KEY, path)
-            span.set_tag(consulx.CMD, resource)
+            span.set_tag_str(consulx.KEY, path)
+            span.set_tag_str(consulx.CMD, resource)
             return wrapped(*args, **kwargs)
 
     return trace_func

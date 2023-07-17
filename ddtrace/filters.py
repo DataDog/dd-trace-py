@@ -7,12 +7,12 @@ from typing import TYPE_CHECKING
 import ddtrace
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import ci
+from ddtrace.ext import http
 from ddtrace.internal.processor.trace import TraceProcessor
+from ddtrace.vendor.debtcollector import removals
 
-from .ext import http
 
-
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from ddtrace import Span
 
 
@@ -75,6 +75,11 @@ class FilterRequestsOnUrl(TraceFilter):
         return trace
 
 
+@removals.removed_class(
+    "TraceCiVisibilityFilter",
+    message="TraceCiVisibilityFilter is deprecated and will be removed from the public API.",
+    removal_version="2.0.0",
+)
 class TraceCiVisibilityFilter(TraceFilter):
     def process_trace(self, trace):
         # type: (List[Span]) -> Optional[List[Span]]
@@ -86,5 +91,5 @@ class TraceCiVisibilityFilter(TraceFilter):
             return None
 
         # DEV: it might not be necessary to add library_version when using agentless mode
-        local_root.set_tag(ci.LIBRARY_VERSION, ddtrace.__version__)
+        local_root.set_tag_str(ci.LIBRARY_VERSION, ddtrace.__version__)
         return trace

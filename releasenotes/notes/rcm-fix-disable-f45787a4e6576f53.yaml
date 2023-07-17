@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Ensure DD_REMOTE_CONFIGURATION_ENABLED environment variable disables remote config if set to False

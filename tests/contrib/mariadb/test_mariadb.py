@@ -1,3 +1,6 @@
+import os
+from typing import Tuple
+
 import mariadb
 import pytest
 
@@ -13,12 +16,24 @@ from tests.utils import override_config
 from tests.utils import snapshot
 
 
+MARIADB_VERSION = mariadb.__version_info__  # type: Tuple[int, int, int, str, int]
+SNAPSHOT_VARIANTS = {
+    "pre_1_1": MARIADB_VERSION < (1, 1, 0),
+    "post_1_1": MARIADB_VERSION
+    >= (
+        1,
+        1,
+    ),
+}
+
+
 @pytest.fixture
 def tracer():
     tracer = DummyTracer()
     patch()
     try:
         yield tracer
+        tracer.pop_traces()
     finally:
         unpatch()
 
@@ -49,14 +64,17 @@ def test_simple_query(connection, tracer):
     assert span.name == "mariadb.query"
     assert span.span_type == "sql"
     assert span.error == 0
-    assert span.get_metric("out.port") == 3306
+    assert span.get_metric("network.destination.port") == 3306
 
     assert_dict_issuperset(
         span.get_tags(),
         {
             "out.host": u"127.0.0.1",
             "db.name": u"test",
+            "db.system": u"mariadb",
             "db.user": u"test",
+            "component": u"mariadb",
+            "span.kind": "client",
         },
     )
 
@@ -71,6 +89,7 @@ def test_query_executemany(connection, tracer):
             dummy_key VARCHAR(32) PRIMARY KEY,
             dummy_value TEXT NOT NULL)"""
     )
+    cursor.execute("DELETE FROM dummy")
     tracer.enabled = True
 
     stmt = "INSERT INTO dummy (dummy_key, dummy_value) VALUES (%s, %s)"
@@ -115,19 +134,28 @@ def test_analytics_default(connection, tracer):
     assert span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
 
 
-@pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc"))
-@snapshot(async_mode=False)
-def test_user_specified_dd_service_snapshot():
-    """
-    When a user specifies a service for the app
-        The mariadb integration should not use it.
-    """
-    import mariadb
+@pytest.mark.parametrize(
+    "service_schema",
+    [
+        (None, None),
+        (None, "v0"),
+        (None, "v1"),
+        ("mysvc", None),
+        ("mysvc", "v0"),
+        ("mysvc", "v1"),
+    ],
+)
+@pytest.mark.snapshot(variants=SNAPSHOT_VARIANTS)
+def test_schematized_service_and_operation(ddtrace_run_python_code_in_subprocess, service_schema):
+    service, schema = service_schema
+    code = """
+import pytest
+import sys
+import mariadb
 
-    from ddtrace import config  # noqa
-    from ddtrace import patch
-    from ddtrace import tracer
+from ddtrace import patch
 
+def test():
     patch(mariadb=True)
     from tests.contrib.config import MARIADB_CONFIG
 
@@ -135,12 +163,23 @@ def test_user_specified_dd_service_snapshot():
     cursor = connection.cursor()
     cursor.execute("SELECT 1")
     rows = cursor.fetchall()
-    assert len(rows) == 1
-    tracer.shutdown()
+
+if __name__ == "__main__":
+    sys.exit(pytest.main(["-x", __file__]))
+    """
+    env = os.environ.copy()
+    if schema:
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema
+    if service:
+        env["DD_SERVICE"] = service
+
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    assert status == 0, (err.decode(), out.decode())
+    assert err == b"", err.decode()
 
 
 @pytest.mark.subprocess(env=dict(DD_MARIADB_SERVICE="mysvc"))
-@snapshot(async_mode=False)
+@pytest.mark.snapshot(variants=SNAPSHOT_VARIANTS)
 def test_user_specified_dd_mariadb_service_snapshot():
     """
     When a user specifies a service for the app
@@ -148,9 +187,7 @@ def test_user_specified_dd_mariadb_service_snapshot():
     """
     import mariadb
 
-    from ddtrace import config  # noqa
     from ddtrace import patch
-    from ddtrace import tracer
 
     patch(mariadb=True)
     from tests.contrib.config import MARIADB_CONFIG
@@ -160,10 +197,9 @@ def test_user_specified_dd_mariadb_service_snapshot():
     cursor.execute("SELECT 1")
     rows = cursor.fetchall()
     assert len(rows) == 1
-    tracer.shutdown()
 
 
-@snapshot(include_tracer=True)
+@snapshot(include_tracer=True, variants=SNAPSHOT_VARIANTS)
 def test_simple_query_snapshot(tracer):
     with get_connection(tracer) as connection:
         cursor = connection.cursor()
@@ -172,7 +208,7 @@ def test_simple_query_snapshot(tracer):
         assert len(rows) == 1
 
 
-@snapshot(include_tracer=True, ignores=["meta.error.stack"])
+@snapshot(include_tracer=True, variants=SNAPSHOT_VARIANTS, ignores=["meta.error.stack"])
 def test_simple_malformed_query_snapshot(tracer):
     with get_connection(tracer) as connection:
         cursor = connection.cursor()
@@ -180,7 +216,7 @@ def test_simple_malformed_query_snapshot(tracer):
             cursor.execute("SELEC 1")
 
 
-@snapshot(include_tracer=True)
+@snapshot(include_tracer=True, variants=SNAPSHOT_VARIANTS)
 def test_simple_query_fetchall_snapshot(tracer):
     with override_config("mariadb", dict(trace_fetch_methods=True)):
         with get_connection(tracer) as connection:
@@ -190,7 +226,7 @@ def test_simple_query_fetchall_snapshot(tracer):
             assert len(rows) == 1
 
 
-@snapshot(include_tracer=True)
+@snapshot(include_tracer=True, variants=SNAPSHOT_VARIANTS)
 def test_query_with_several_rows_snapshot(tracer):
     with get_connection(tracer) as connection:
         cursor = connection.cursor()
@@ -200,7 +236,7 @@ def test_query_with_several_rows_snapshot(tracer):
         assert len(rows) == 3
 
 
-@snapshot(include_tracer=True)
+@snapshot(include_tracer=True, variants=SNAPSHOT_VARIANTS)
 def test_query_with_several_rows_fetchall_snapshot(tracer):
     with override_config("mariadb", dict(trace_fetch_methods=True)):
         with get_connection(tracer) as connection:
@@ -211,7 +247,7 @@ def test_query_with_several_rows_fetchall_snapshot(tracer):
             assert len(rows) == 3
 
 
-@snapshot(include_tracer=True)
+@snapshot(include_tracer=True, variants=SNAPSHOT_VARIANTS)
 def test_query_many_fetchall_snapshot(tracer):
     with override_config("mariadb", dict(trace_fetch_methods=True)):
         with get_connection(tracer) as connection:
@@ -226,6 +262,7 @@ def test_query_many_fetchall_snapshot(tracer):
                     dummy_key VARCHAR(32) PRIMARY KEY,
                     dummy_value TEXT NOT NULL)"""
             )
+            cursor.execute("DELETE FROM dummy")
             tracer.enabled = True
 
             stmt = "INSERT INTO dummy (dummy_key, dummy_value) VALUES (%s, %s)"
@@ -240,13 +277,13 @@ def test_query_many_fetchall_snapshot(tracer):
             assert len(rows) == 2
 
 
-@snapshot(include_tracer=True)
+@snapshot(include_tracer=True, variants=SNAPSHOT_VARIANTS)
 def test_commit_snapshot(tracer):
     with get_connection(tracer) as connection:
         connection.commit()
 
 
-@snapshot(include_tracer=True)
+@snapshot(include_tracer=True, variants=SNAPSHOT_VARIANTS)
 def test_query_proc_snapshot(tracer):
     with get_connection(tracer) as connection:
         # create a procedure
@@ -267,7 +304,7 @@ def test_query_proc_snapshot(tracer):
         cursor.callproc(proc, data)
 
 
-@snapshot(include_tracer=True)
+@snapshot(include_tracer=True, variants=SNAPSHOT_VARIANTS)
 def test_analytics_with_rate_snapshot(tracer):
     with override_config("mariadb", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
         with get_connection(tracer) as connection:
@@ -277,7 +314,7 @@ def test_analytics_with_rate_snapshot(tracer):
             assert len(rows) == 1
 
 
-@snapshot(include_tracer=True)
+@snapshot(include_tracer=True, variants=SNAPSHOT_VARIANTS)
 def test_analytics_without_rate_snapshot(tracer):
     with override_config("mariadb", dict(analytics_enabled=True)):
         with get_connection(tracer) as connection:

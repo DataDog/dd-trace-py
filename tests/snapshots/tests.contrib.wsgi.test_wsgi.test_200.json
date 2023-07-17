@@ -7,23 +7,27 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "web",
+    "error": 0,
     "meta": {
+      "_dd.p.dm": "-0",
+      "component": "wsgi",
       "http.method": "GET",
-      "http.response.headers.my-response-header": "test_response_value",
       "http.status_code": "200",
       "http.status_msg": "OK",
       "http.url": "http://localhost:80/",
-      "runtime-id": "95c79fa6df0d4378985caf03beebf928"
+      "language": "python",
+      "runtime-id": "cc84154dcff748af9e376e7721ea8b0b",
+      "span.kind": "server"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 55611
+      "process_id": 41758
     },
-    "duration": 438000,
-    "start": 1631829206143672000
+    "duration": 280000,
+    "start": 1669654618366665000
   },
      {
        "name": "wsgi.application",
@@ -32,8 +36,13 @@
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
-       "duration": 212000,
-       "start": 1631829206143769000
+       "type": "",
+       "error": 0,
+       "meta": {
+         "component": "wsgi"
+       },
+       "duration": 92000,
+       "start": 1669654618366773000
      },
         {
           "name": "wsgi.start_response",
@@ -43,8 +52,13 @@
           "span_id": 4,
           "parent_id": 2,
           "type": "web",
-          "duration": 57000,
-          "start": 1631829206143905000
+          "error": 0,
+          "meta": {
+            "component": "wsgi",
+            "span.kind": "server"
+          },
+          "duration": 35000,
+          "start": 1669654618366810000
         },
      {
        "name": "wsgi.response",
@@ -53,9 +67,12 @@
        "trace_id": 0,
        "span_id": 3,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "meta": {
+         "component": "wsgi",
          "result_class": "list"
        },
-       "duration": 21000,
-       "start": 1631829206144002000
+       "duration": 50000,
+       "start": 1669654618366882000
      }]]

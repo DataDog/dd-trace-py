@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    redis: Adds tracing support for `redis.cluster.RedisCluster`.

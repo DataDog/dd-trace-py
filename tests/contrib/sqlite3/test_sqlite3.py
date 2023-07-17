@@ -1,5 +1,7 @@
 import sqlite3
+import sys
 import time
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -12,10 +14,24 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib.sqlite3.patch import TracedSQLiteCursor
 from ddtrace.contrib.sqlite3.patch import patch
 from ddtrace.contrib.sqlite3.patch import unpatch
+from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import assert_is_not_measured
+
+
+if TYPE_CHECKING:  # pragma: no cover
+    from typing import Generator
+
+
+@pytest.fixture
+def patched_conn():
+    # type: () -> Generator[sqlite3.Cursor, None, None]
+    patch()
+    conn = sqlite3.connect(":memory:")
+    yield conn
+    unpatch()
 
 
 class TestSQLite(TracerTestCase):
@@ -58,6 +74,9 @@ class TestSQLite(TracerTestCase):
             root = self.get_root_span()
             assert_is_measured(root)
             self.assertIsNone(root.get_tag("sql.query"))
+            self.assertEqual(root.get_tag("component"), "sqlite")
+            self.assertEqual(root.get_tag("span.kind"), "client")
+            self.assertEqual(root.get_tag("db.system"), "sqlite")
             assert start <= root.start <= end
             assert root.duration <= end - start
             self.reset()
@@ -73,6 +92,9 @@ class TestSQLite(TracerTestCase):
             root = self.get_root_span()
             assert_is_measured(root)
             self.assertIsNone(root.get_tag("sql.query"))
+            self.assertEqual(root.get_tag("component"), "sqlite")
+            self.assertEqual(root.get_tag("span.kind"), "client")
+            self.assertEqual(root.get_tag("db.system"), "sqlite")
             self.assertIsNotNone(root.get_tag(ERROR_STACK))
             self.assertIn("OperationalError", root.get_tag(ERROR_TYPE))
             self.assertIn("no such table", root.get_tag(ERROR_MSG))
@@ -125,6 +147,7 @@ class TestSQLite(TracerTestCase):
 
             # Assert query
             assert_is_measured(query_span)
+            self.assertEqual(query_span.get_tag("db.system"), "sqlite")
             query_span.assert_structure(dict(name="sqlite.query", resource=q))
 
             # Assert fetchone
@@ -137,6 +160,7 @@ class TestSQLite(TracerTestCase):
                     error=0,
                 ),
             )
+            self.assertEqual(fetchone_span.get_tag("db.system"), "sqlite")
             self.assertIsNone(fetchone_span.get_tag("sql.query"))
 
     def test_sqlite_fetchmany_is_traced(self):
@@ -160,6 +184,7 @@ class TestSQLite(TracerTestCase):
             # Assert query
             assert_is_measured(query_span)
             query_span.assert_structure(dict(name="sqlite.query", resource=q))
+            self.assertEqual(query_span.get_tag("db.system"), "sqlite")
 
             # Assert fetchmany
             assert_is_not_measured(fetchmany_span)
@@ -173,6 +198,7 @@ class TestSQLite(TracerTestCase):
                 ),
             )
             self.assertIsNone(fetchmany_span.get_tag("sql.query"))
+            self.assertEqual(fetchmany_span.get_tag("db.system"), "sqlite")
 
     def test_sqlite_ot(self):
         """Ensure sqlite works with the opentracer."""
@@ -308,10 +334,10 @@ class TestSQLite(TracerTestCase):
             span = spans[0]
             self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_app_service(self):
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_app_service_v0(self):
         """
-        When a user specifies a service for the app
+        v0: When a user specifies a service for the app
             The sqlite3 integration should not use it.
         """
         # Ensure that the service name was configured
@@ -330,8 +356,32 @@ class TestSQLite(TracerTestCase):
         span = spans[0]
         assert span.service != "mysvc"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SQLITE_SERVICE="my-svc"))
-    def test_user_specified_service(self):
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_app_service_v1(self):
+        """
+        v1: When a user specifies a service for the app
+            The sqlite3 integration should use it.
+        """
+        # Ensure that the service name was configured
+        from ddtrace import config
+
+        assert config.service == "mysvc"
+
+        q = "select * from sqlite_master"
+        connection = self._given_a_traced_connection(self.tracer)
+        cursor = connection.execute(q)
+        cursor.fetchall()
+
+        spans = self.get_spans()
+
+        self.assertEqual(len(spans), 1)
+        span = spans[0]
+        assert span.service == "mysvc"
+
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(DD_SQLITE_SERVICE="my-svc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0")
+    )
+    def test_user_specified_service_v0(self):
         q = "select * from sqlite_master"
         connection = self._given_a_traced_connection(self.tracer)
         cursor = connection.execute(q)
@@ -343,6 +393,60 @@ class TestSQLite(TracerTestCase):
         span = spans[0]
         assert span.service == "my-svc"
 
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(DD_SQLITE_SERVICE="my-svc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1")
+    )
+    def test_user_specified_service_v1(self):
+        q = "select * from sqlite_master"
+        connection = self._given_a_traced_connection(self.tracer)
+        cursor = connection.execute(q)
+        cursor.fetchall()
+
+        spans = self.get_spans()
+
+        self.assertEqual(len(spans), 1)
+        span = spans[0]
+        assert span.service == "my-svc"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_unspecified_service_v1(self):
+        q = "select * from sqlite_master"
+        connection = self._given_a_traced_connection(self.tracer)
+        cursor = connection.execute(q)
+        cursor.fetchall()
+
+        spans = self.get_spans()
+
+        self.assertEqual(len(spans), 1)
+        span = spans[0]
+        assert span.service == DEFAULT_SPAN_SERVICE_NAME
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_span_name_v0_schema(self):
+        q = "select * from sqlite_master"
+        connection = self._given_a_traced_connection(self.tracer)
+        cursor = connection.execute(q)
+        cursor.fetchall()
+
+        spans = self.get_spans()
+
+        self.assertEqual(len(spans), 1)
+        span = spans[0]
+        assert span.name == "sqlite.query"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_span_name_v1_schema(self):
+        q = "select * from sqlite_master"
+        connection = self._given_a_traced_connection(self.tracer)
+        cursor = connection.execute(q)
+        cursor.fetchall()
+
+        spans = self.get_spans()
+
+        self.assertEqual(len(spans), 1)
+        span = spans[0]
+        assert span.name == "sqlite.query"
+
     def test_context_manager(self):
         conn = self._given_a_traced_connection(self.tracer)
         with conn as conn2:
@@ -351,3 +455,18 @@ class TestSQLite(TracerTestCase):
             cursor.fetchall()
             spans = self.get_spans()
             assert len(spans) == 1
+
+
+def test_iterator_usage(patched_conn):
+    """Ensure sqlite3 patched cursors can be used as iterators."""
+    rows = next(patched_conn.execute("select 1"))
+    assert len(rows) == 1
+
+
+@pytest.mark.skipif(sys.version_info < (3, 7), reason="Connection.backup was added in Python 3.7")
+def test_backup(patched_conn):
+    """Ensure sqlite3 patched connections backup function can be used"""
+    destination = sqlite3.connect(":memory:")
+
+    with destination:
+        patched_conn.backup(destination, pages=1)

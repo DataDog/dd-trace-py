@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    dynamic instrumentation: This change fixes a bug whereby probes that have
+    been disabled/removed from the front-end would not be removed by the client
+    library.

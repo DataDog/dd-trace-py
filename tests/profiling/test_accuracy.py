@@ -1,13 +1,10 @@
 # -*- encoding: utf-8 -*-
-import collections
 import os
 import time
 
 import pytest
 
 from ddtrace.internal import compat
-from ddtrace.profiling import profiler
-from ddtrace.profiling.collector import stack_event
 
 
 TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False)
@@ -61,18 +58,25 @@ CPU_TOLERANCE = 0.05
 
 
 def almost_equal(value, target, tolerance=TOLERANCE):
-    return target * (1 + tolerance) >= value >= target * (1 - tolerance)
+    return abs(value - target) / target <= tolerance
 
 
 def total_time(time_data, funcname):
     return sum(functime[funcname] for functime in time_data.values())
 
 
-# This test does not work with gevent since sleeping is interrupted by gevent monkey patched version.
-@pytest.mark.skipif(TESTING_GEVENT, reason="Test not compatible with gevent")
-def test_accuracy(monkeypatch):
+@pytest.mark.subprocess(env=dict(DD_PROFILING_MAX_TIME_USAGE_PCT="100"))
+def test_accuracy():
+    import collections
+
+    from ddtrace.profiling import profiler
+    from ddtrace.profiling.collector import stack_event
+    from tests.profiling.test_accuracy import CPU_TOLERANCE
+    from tests.profiling.test_accuracy import almost_equal
+    from tests.profiling.test_accuracy import spend_16
+    from tests.profiling.test_accuracy import total_time
+
     # Set this to 100 so we don't sleep too often and mess with the precision.
-    monkeypatch.setenv("DD_PROFILING_MAX_TIME_USAGE_PCT", "100")
     p = profiler.Profiler()
     # don't export data
     p._profiler._scheduler = None

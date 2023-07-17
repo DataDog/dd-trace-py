@@ -1,0 +1,155 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+if ! which gh &>/dev/null;
+then
+   echo "gh cli tool is required in order to continue"
+   echo "MacOS install via: brew install gh"
+   echo "https://github.com/cli/cli#installation"
+   exit 1
+fi
+
+if ! which jq &>/dev/null;
+then
+   echo "jq tool is required in order to continue"
+   echo "MacOS install via: brew install jq"
+   echo "https://stedolan.github.io/jq/"
+   exit 1
+fi
+
+usage () {
+    echo "Usage:"
+    echo "  $0 PR_NUMBER BRANCH_NAME [, BRANCH_NAME, ...]"
+    echo ""
+    echo "  PR_NUMBER     - the GitHub PR number to backport. example: 4376"
+    echo "  BRANCH_NAME   - the name of the branch to backport PR_NUMBER to. example: 1.8"
+    echo ""
+    echo "Examples:"
+    echo ""
+
+    echo "  Backport PR #3489 to branch 0.61"
+    echo "    $0 3489 0.61"
+    echo ""
+    echo "  Backport PR #4376 to branches 1.8, 1.7, and 1.5"
+    echo "    $0 4376 1.8 1.7 1.5"
+}
+
+if [ $# -lt 2 ];
+then
+    echo "Error:"
+    echo "  Too few arguments, must supply at least PR_NUMBER and 1 BRANCH_NAME"
+    echo ""
+    usage
+    exit 1
+fi
+
+
+PR_NUMBER="${1}"
+shift 1
+TO_BRANCHES="$@"
+
+# Determine the remote to use
+# DEV: If anything here fails, then default to 'origin'
+# DEV: We might have https://github.com/DataDog/dd-trace-py, or git@github.com:DataDog/dd-trace-py.
+REMOTE=origin
+
+if git remote -v show | grep -qe "[Dd]ata[Dd]og/dd-trace-py\(\.git\)\? (push)" > /dev/null
+then
+    REMOTE=$(git remote -v show | grep -e "[Dd]ata[Dd]og/dd-trace-py\(\.git\)\? (push)" | awk '{print $1}')
+else
+    echo "🟠 Failed to automatically determine the remote to use, falling back to 'origin'"
+    REMOTE="origin"
+fi
+
+
+if [[ -z "${PR_NUMBER}" ]];
+then
+    echo "Error:"
+    echo "  Must supply a PR number to backport"
+    echo ""
+    usage
+    exit 1
+fi
+
+if [[ -z "${TO_BRANCHES}" ]];
+then
+    echo "Error:"
+    echo "  Must supply at least 1 branch to backport to"
+    echo ""
+    usage
+    exit 1
+fi
+
+
+# Download data about the PR
+echo "Fetching data for PR ${PR_NUMBER}"
+pr_data="$(gh pr view --json "state,title,mergeCommit,author,labels,body" ${PR_NUMBER})"
+
+# Verify that we are going to have a merge commit
+if "$(echo "${pr_data}" | jq -e '.state != "MERGED"')";
+then
+    echo "PR ${PR_NUMBER} has not been merged yet"
+    exit 1
+fi
+
+# Extract data from the original PR
+merge_commit_sha="$(echo "${pr_data}" | jq -r '.mergeCommit.oid')"
+original_title="$(echo "${pr_data}" | jq -r '.title')"
+original_body="$(echo "${pr_data}" | jq -r '.body')"
+original_author="$(echo "${pr_data}" | jq -r '.author.login')"
+original_labels="$(echo "${pr_data}" | jq -r '[.labels[].name] | join(",")')"
+
+# Get the current branch so we can switch back to it when we are done
+current_branch="$(git rev-parse --abbrev-ref HEAD)"
+
+# Try to make sure we have the latest data from remote
+git fetch --all &>/dev/null || true
+
+for base_branch in "$@";
+do
+  echo "Backporting ${PR_NUMBER} (sha: ${merge_commit_sha}) to ${base_branch}"
+  branch_name="backport-${PR_NUMBER}-to-${base_branch}"
+  if ! git switch --detach "${REMOTE}/${base_branch}"
+  then
+    echo "🟠 Cannot switch to base branch ${base_branch}, skipping ..."
+    continue
+  fi
+  git switch -C "${branch_name}"
+
+  echo "Cherry-picking ${merge_commit_sha} (git commit signing required here)"
+  if ! git cherry-pick -x "${merge_commit_sha}";
+  then
+      echo "Cherry-pick failed. In a separate shell, please:"
+      echo "  1. Manually resolve merge conflicts"
+      echo "  2. git add resolved files"
+      echo "  3. Run git cherry-pick --continue to complete the merge"
+      echo ""
+      read -p "Press any key to continue once conflict is manually resolved..." -n1 -s
+      echo ""
+  fi
+  echo "Pushing branch ${branch_name}"
+  git push --set-upstream ${REMOTE} "${branch_name}"
+
+  echo "Creating pull request"
+  IFS='' read -r -d '' new_body <<EOF || true
+Backport of #${PR_NUMBER} to ${base_branch}
+
+${original_body}
+EOF
+  new_title="${original_title} [backport #${PR_NUMBER} to ${base_branch}]"
+  gh pr create --base "${base_branch}" --title "${new_title}" --body "${new_body}" --assignee "@me,${original_author}" --label "${original_labels}"
+
+  echo "Enabling auto-merge on PR"
+  gh pr merge --auto "${branch_name}"
+
+  echo "Opening PR in the browser for review"
+  gh pr view --web "${branch_name}"
+
+  # Back to the original branch and delete the temporary branch
+  echo "Switching back to ${current_branch} and deleting temporary branch ${branch_name}"
+  git switch "${current_branch}"
+  git branch -D "${branch_name}"
+done
+
+echo "✨ 🍰 ✨ All done! ✨ 🍰 ✨"

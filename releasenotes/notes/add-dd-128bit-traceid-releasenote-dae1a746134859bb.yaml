@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    tracing: Adds support for 128 bit trace ids. To generate and propagate 128 bit trace ids using Datadog distributed tracing headers set the following configuration: ``DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED=True``. Support for B3 and W3C distributed tracing headers will be added in a future change.

@@ -24,6 +24,12 @@ enabled before using the middleware::
     tracer.configure(context_provider=AsyncioContextProvider())
 
 
+When registering your own ASGI middleware using FastAPI's ``add_middleware()`` function,
+keep in mind that Datadog spans close after your middleware's call to ``await self.app()`` returns.
+This means that accesses of span data from within the middleware should be performed
+prior to this call.
+
+
 Configuration
 ~~~~~~~~~~~~~
 

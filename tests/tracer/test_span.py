@@ -18,6 +18,7 @@ from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.constants import VERSION_KEY
 from ddtrace.ext import SpanTypes
 from ddtrace.span import Span
+from tests.subprocesstest import run_in_subprocess
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import assert_is_not_measured
@@ -35,6 +36,16 @@ class SpanTestCase(TracerTestCase):
         assert s2.trace_id == 1
         assert s2.span_id == 2
         assert s2.parent_id == 1
+
+    @run_in_subprocess(env_overrides=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="true"))
+    def test_128bit_trace_ids(self):
+        s = Span(name="test.span")
+        assert s.trace_id >= 2 ** 64
+        assert s._trace_id_64bits < 2 ** 64
+
+        trace_id_binary = format(s.trace_id, "b")
+        trace_id64_binary = format(s._trace_id_64bits, "b")
+        assert int(trace_id64_binary, 2) == int(trace_id_binary[-64:], 2)
 
     def test_tags(self):
         s = Span(name="test.span")
@@ -388,7 +399,7 @@ def test_span_key(span_log):
     assert s.get_tag(123.32) is None
 
 
-def test_span_finished():
+def test_spans_finished():
     span = Span(None)
     assert span.finished is False
     assert span.duration_ns is None
@@ -414,8 +425,8 @@ def test_span_unicode_set_tag():
     span = Span(None)
     span.set_tag("key", u"😌")
     span.set_tag("😐", u"😌")
-    span._set_str_tag("key", u"😌")
-    span._set_str_tag(u"😐", u"😌")
+    span.set_tag_str("key", u"😌")
+    span.set_tag_str(u"😐", u"😌")
 
 
 @pytest.mark.skipif(sys.version_info.major != 2, reason="This test only applies Python 2")
@@ -423,7 +434,7 @@ def test_span_unicode_set_tag():
 def test_span_binary_unicode_set_tag(span_log):
     span = Span(None)
     span.set_tag("key", "🤔")
-    span._set_str_tag("key_str", "🤔")
+    span.set_tag_str("key_str", "🤔")
     # only span.set_tag() will fail
     span_log.warning.assert_called_once_with("error setting tag %s, ignoring it", "key", exc_info=True)
     assert "key" not in span.get_tags()
@@ -435,7 +446,7 @@ def test_span_binary_unicode_set_tag(span_log):
 def test_span_bytes_string_set_tag(span_log):
     span = Span(None)
     span.set_tag("key", b"\xf0\x9f\xa4\x94")
-    span._set_str_tag("key_str", b"\xf0\x9f\xa4\x94")
+    span.set_tag_str("key_str", b"\xf0\x9f\xa4\x94")
     assert span.get_tag("key") == "b'\\xf0\\x9f\\xa4\\x94'"
     assert span.get_tag("key_str") == "🤔"
     span_log.warning.assert_not_called()
@@ -444,7 +455,7 @@ def test_span_bytes_string_set_tag(span_log):
 @mock.patch("ddtrace.span.log")
 def test_span_encoding_set_str_tag(span_log):
     span = Span(None)
-    span._set_str_tag("foo", u"/?foo=bar&baz=정상처리".encode("euc-kr"))
+    span.set_tag_str("foo", u"/?foo=bar&baz=정상처리".encode("euc-kr"))
     span_log.warning.assert_not_called()
     assert span.get_tag("foo") == u"/?foo=bar&baz=����ó��"
 
@@ -452,7 +463,7 @@ def test_span_encoding_set_str_tag(span_log):
 def test_span_nonstring_set_str_tag_exc():
     span = Span(None)
     with pytest.raises(TypeError):
-        span._set_str_tag("foo", dict(a=1))
+        span.set_tag_str("foo", dict(a=1))
     assert "foo" not in span.get_tags()
 
 
@@ -460,7 +471,7 @@ def test_span_nonstring_set_str_tag_exc():
 def test_span_nonstring_set_str_tag_warning(span_log):
     with override_global_config(dict(_raise=False)):
         span = Span(None)
-        span._set_str_tag("foo", dict(a=1))
+        span.set_tag_str("foo", dict(a=1))
         span_log.warning.assert_called_once_with(
             "Failed to set text tag '%s'",
             "foo",

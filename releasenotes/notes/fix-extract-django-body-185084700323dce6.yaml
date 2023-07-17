@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    ASM: fix extract_body for Django such that users of Django Rest Framework can still use custom parsers.

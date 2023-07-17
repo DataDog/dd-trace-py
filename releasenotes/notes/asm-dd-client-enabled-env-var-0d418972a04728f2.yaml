@@ -1,0 +1,3 @@
+features:
+  - |
+    tracing: Add support for enabling collecting of HTTP request client IP addresses as the ``http.client_ip`` span tag. You can set the ``DD_TRACE_CLIENT_IP_ENABLED`` environment variable to ``true`` to enable. This feature is disabled by default.

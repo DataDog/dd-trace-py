@@ -1,0 +1,48 @@
+[[
+  {
+    "name": "root",
+    "service": "",
+    "resource": "root",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "language": "python",
+      "runtime-id": "29953bb1123f44a79c3c786defdb1bd5"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 34011
+    },
+    "duration": 312973000,
+    "start": 1675884560029513000
+  },
+     {
+       "name": "task",
+       "service": "",
+       "resource": "task",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "language": "python",
+         "runtime-id": "d0c70dc4dfb240c78a993aed893ddb46",
+         "tracestate": "dd=s:1;t.dm:-0"
+       },
+       "metrics": {
+         "_dd.top_level": 1,
+         "_dd.tracer_kr": 1.0,
+         "_sampling_priority_v1": 1,
+         "process_id": 34016
+       },
+       "duration": 21789000,
+       "start": 1675884560245607000
+     }]]

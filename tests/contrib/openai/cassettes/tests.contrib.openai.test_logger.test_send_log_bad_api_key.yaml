@@ -1,0 +1,36 @@
+interactions:
+- request:
+    body: '[{"timestamp": 1682540723305.4048, "message": "test msg", "hostname": "dev-mbp",
+      "ddsource": "python", "service": "", "status": "info", "ddtags": ""}]'
+    headers:
+      Content-Type:
+      - application/json
+      DD-API-KEY:
+      - XXXXXX
+    method: POST
+    uri: https://http-intake.logs.datadoghq.com/api/v2/logs
+  response:
+    body:
+      string: '{"errors":[{"status":"403","title":"Forbidden","detail":"API key is
+        invalid"}]}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '79'
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 26 Apr 2023 20:25:23 GMT
+      accept-encoding:
+      - identity,gzip,x-gzip,deflate,x-deflate,zstd
+      cross-origin-resource-policy:
+      - cross-origin
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-content-type-options:
+      - nosniff
+    status:
+      code: 403
+      message: Forbidden
+version: 1

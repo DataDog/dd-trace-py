@@ -1,0 +1,4 @@
+---
+deprecations:
+  - |
+    ``DD_REMOTECONFIG_POLL_SECONDS`` environment variable is deprecated and will be removed in v2.0. Please use ``DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS`` instead.

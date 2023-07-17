@@ -1,7 +1,10 @@
+import os
+
 from opentracing.scope_managers.asyncio import AsyncioScopeManager
 import pytest
 
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.aiohttp.middlewares import CONFIG_KEY
 from ddtrace.contrib.aiohttp.middlewares import trace_app
@@ -37,8 +40,66 @@ async def test_handler(app_tracer, aiohttp_client):
     assert "GET /" == span.resource
     assert str(client.make_url("/")) == span.get_tag(http.URL)
     assert "GET" == span.get_tag("http.method")
+    assert "aiohttp" == span.get_tag("component")
     assert_span_http_status_code(span, 200)
     assert 0 == span.error
+    assert span.get_tag("span.kind") == "server"
+
+
+@pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
+def test_service_operation_schema(ddtrace_run_python_code_in_subprocess, schema_version):
+    """
+    vO/None:
+        operation: module_name.request
+        service name: DD_SERVICE
+    v1:
+        operation: http.server.request
+        service name: DD_SERVICE
+    """
+    expected_service_name = {
+        None: "aiohttp-web",
+        "v0": "aiohttp-web",
+        "v1": None,  # causes a fallback in the test to DEFAULT_SPAN_SERVICE_NAME
+    }[schema_version]
+    expected_span_name = {None: "aiohttp.request", "v0": "aiohttp.request", "v1": "http.server.request"}[schema_version]
+    code = """
+import pytest
+import asyncio
+from tests.conftest import *
+from tests.contrib.aiohttp.conftest import *
+from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+
+def test(app_tracer, loop, aiohttp_client):
+    async def async_test(app_tracer, aiohttp_client):
+        app, tracer = None, None
+        if asyncio.iscoroutine(app_tracer):
+            app, tracer = await app_tracer
+        else:
+            app, tracer =  app_tracer
+        client = await aiohttp_client(app)
+        request = await client.request("GET", "/")
+        assert 200 == request.status
+        text = await request.text()
+        traces = tracer.pop_traces()
+        span = traces[0][0]
+        assert span.service == "{}" or DEFAULT_SPAN_SERVICE_NAME
+        assert span.name == "{}"
+    asyncio.set_event_loop(asyncio.new_event_loop())
+    loop.run_until_complete(async_test(app_tracer, aiohttp_client))
+
+
+if __name__ == "__main__":
+    import sys
+    sys.exit(pytest.main(["-x", __file__]))
+    """.format(
+        expected_service_name, expected_span_name
+    )
+    env = os.environ.copy()
+    if schema_version:
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
+    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
+    assert status == 0, (err.decode(), out.decode())
+    assert err == b""
 
 
 @pytest.mark.parametrize(
@@ -71,7 +132,9 @@ async def test_param_handler(app_tracer, aiohttp_client, loop, query_string, tra
     span = traces[0][0]
     # with the right fields
     assert "GET /echo/{name}" == span.resource
-    assert str(client.make_url("/echo/team")) == span.get_tag(http.URL)
+    assert str(client.make_url("/echo/team" + fqs)) == span.get_tag(http.URL)
+    assert "aiohttp" == span.get_tag("component")
+    assert span.get_tag("span.kind") == "server"
     assert_span_http_status_code(span, 200)
     if app[CONFIG_KEY].get("trace_query_string"):
         assert query_string == span.get_tag(http.QUERY_STRING)
@@ -94,6 +157,8 @@ async def test_404_handler(app_tracer, aiohttp_client):
     assert "404" == span.resource
     assert str(client.make_url("/404/not_found")) == span.get_tag(http.URL)
     assert "GET" == span.get_tag("http.method")
+    assert "aiohttp" == span.get_tag("component")
+    assert span.get_tag("span.kind") == "server"
     assert_span_http_status_code(span, 404)
 
 
@@ -111,6 +176,8 @@ async def test_server_error(app_tracer, aiohttp_client):
     assert len(traces[0]) == 1
     span = traces[0][0]
     assert span.get_tag("http.method") == "GET"
+    assert span.get_tag("component") == "aiohttp"
+    assert span.get_tag("span.kind") == "server"
     assert_span_http_status_code(span, 500)
     assert span.error == 1
 
@@ -129,6 +196,8 @@ async def test_500_response_code(app_tracer, aiohttp_client):
     assert len(traces[0]) == 1
     span = traces[0][0]
     assert span.get_tag("http.method") == "GET"
+    assert span.get_tag("component") == "aiohttp"
+    assert span.get_tag("span.kind") == "server"
     assert_span_http_status_code(span, 503)
     assert span.error == 1
 
@@ -162,6 +231,8 @@ async def test_coroutine_chaining(app_tracer, aiohttp_client):
     assert "aiohttp.coro_2" == coroutine.name
     assert handler.span_id == coroutine.parent_id
     assert root.trace_id == coroutine.trace_id
+    assert root.get_tag("component") == "aiohttp"
+    assert root.get_tag("span.kind") == "server"
 
 
 async def test_static_handler(app_tracer, aiohttp_client, loop):
@@ -182,6 +253,8 @@ async def test_static_handler(app_tracer, aiohttp_client, loop):
     assert "GET /statics" == span.resource
     assert str(client.make_url("/statics/empty.txt")) == span.get_tag(http.URL)
     assert "GET" == span.get_tag("http.method")
+    assert span.get_tag("component") == "aiohttp"
+    assert span.get_tag("span.kind") == "server"
     assert_span_http_status_code(span, 200)
 
 
@@ -217,8 +290,10 @@ async def test_exception(app_tracer, aiohttp_client):
     span = spans[0]
     assert 1 == span.error
     assert "GET /exception" == span.resource
-    assert "error" == span.get_tag("error.msg")
+    assert "error" == span.get_tag(ERROR_MSG)
     assert "Exception: error" in span.get_tag("error.stack")
+    assert span.get_tag("component") == "aiohttp"
+    assert span.get_tag("span.kind") == "server"
 
 
 async def test_async_exception(app_tracer, aiohttp_client):
@@ -235,8 +310,10 @@ async def test_async_exception(app_tracer, aiohttp_client):
     span = spans[0]
     assert 1 == span.error
     assert "GET /async_exception" == span.resource
-    assert "error" == span.get_tag("error.msg")
+    assert "error" == span.get_tag(ERROR_MSG)
     assert "Exception: error" in span.get_tag("error.stack")
+    assert span.get_tag("component") == "aiohttp"
+    assert span.get_tag("span.kind") == "server"
 
 
 async def test_wrapped_coroutine(app_tracer, aiohttp_client):
@@ -416,6 +493,8 @@ def _assert_200_parenting(client, traces):
     assert "GET /" == inner_span.resource
     assert str(client.make_url("/")) == inner_span.get_tag(http.URL)
     assert "GET" == inner_span.get_tag("http.method")
+    assert "aiohttp" == inner_span.get_tag("component")
+    assert inner_span.get_tag("span.kind") == "server"
     assert_span_http_status_code(inner_span, 200)
     assert 0 == inner_span.error
 

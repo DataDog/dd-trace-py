@@ -1,0 +1,4 @@
+---
+issues:
+  - |
+    gunicorn: ddtrace-run does not work with gunicorn. To instrument a gunicorn application, follow the instructions `here <https://ddtrace.readthedocs.io/en/latest/integrations.html#gunicorn>`_.

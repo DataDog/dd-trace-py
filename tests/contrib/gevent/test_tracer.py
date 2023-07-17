@@ -5,6 +5,7 @@ import gevent.pool
 from opentracing.scope_managers.gevent import GeventScopeManager
 
 import ddtrace
+from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
 from ddtrace.context import Context
@@ -287,7 +288,7 @@ class TestGeventTracer(TracerTestCase):
         assert 1 == len(traces[0])
         span = traces[0][0]
         assert 1 == span.error
-        assert "Custom exception" == span.get_tag("error.msg")
+        assert "Custom exception" == span.get_tag(ERROR_MSG)
         assert "Traceback (most recent call last)" in span.get_tag("error.stack")
 
     def _assert_spawn_multiple_greenlets(self, spans):
@@ -400,6 +401,7 @@ class TestGeventTracer(TracerTestCase):
             import aiobotocore  # noqa
         import botocore  # noqa
         import elasticsearch  # noqa
+        import opensearchpy  # noqa
         import pynamodb  # noqa
         import requests  # noqa
 
@@ -411,6 +413,6 @@ class TestGeventTracer(TracerTestCase):
 
         p.wait()
         stdout, stderr = p.stdout.read(), p.stderr.read()
-        assert p.returncode == 0, stderr
-        assert b"Test success" in stdout
-        assert b"RecursionError" not in stderr
+        assert p.returncode == 0, stderr.decode()
+        assert b"Test success" in stdout, stdout.decode()
+        assert b"RecursionError" not in stderr, stderr.decode()

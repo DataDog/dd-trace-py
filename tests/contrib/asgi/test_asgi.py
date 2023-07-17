@@ -1,5 +1,6 @@
 import asyncio
 from functools import partial
+import os
 import random
 import sys
 
@@ -7,8 +8,10 @@ from asgiref.testing import ApplicationCommunicator
 import httpx
 import pytest
 
+from ddtrace.constants import ERROR_MSG
 from ddtrace.contrib.asgi import TraceMiddleware
 from ddtrace.contrib.asgi import span_from_scope
+from ddtrace.internal.schema.span_attribute_schema import _DEFAULT_SPAN_SERVICE_NAMES
 from ddtrace.propagation import http as http_propagation
 from tests.utils import DummyTracer
 from tests.utils import override_http_config
@@ -182,7 +185,117 @@ async def test_basic_asgi(scope, tracer, test_spans):
     assert request_span.span_type == "web"
     assert request_span.error == 0
     assert request_span.get_tag("http.status_code") == "200"
+    assert request_span.get_tag("component") == "asgi"
+    assert request_span.get_tag("span.kind") == "server"
     _check_span_tags(scope, request_span)
+
+
+@pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
+def test_span_attribute_schema_operation_name(ddtrace_run_python_code_in_subprocess, schema_version):
+    expected_span_name = {None: "asgi.request", "v0": "asgi.request", "v1": "http.server.request"}[schema_version]
+    code = """
+import pytest
+from tests.conftest import *
+from tests.contrib.asgi.test_asgi import basic_app
+from tests.contrib.asgi.test_asgi import scope
+from tests.contrib.asgi.test_asgi import tracer
+from asgiref.testing import ApplicationCommunicator
+from ddtrace.contrib.asgi import TraceMiddleware
+from ddtrace.contrib.asgi import span_from_scope
+
+@pytest.mark.asyncio
+async def test(scope, tracer, test_spans):
+    app = TraceMiddleware(basic_app, tracer=tracer)
+    instance = ApplicationCommunicator(app, scope)
+    await instance.send_input({{"type": "http.request", "body": b""}})
+    response_start = await instance.receive_output(1)
+    assert response_start == {{
+        "type": "http.response.start",
+        "status": 200,
+        "headers": [[b"Content-Type", b"text/plain"]],
+    }}
+    response_body = await instance.receive_output(1)
+    assert response_body == {{
+        "type": "http.response.body",
+        "body": b"*",
+    }}
+
+    spans = test_spans.pop_traces()
+    assert len(spans) == 1
+    assert len(spans[0]) == 1
+    request_span = spans[0][0]
+    assert request_span.name == "{}"
+
+if __name__ == "__main__":
+    import sys
+    sys.exit(pytest.main(["-x", __file__]))
+    """.format(
+        expected_span_name
+    )
+    env = os.environ.copy()
+    if schema_version:
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
+    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
+    assert status == 0, (err, out)
+    assert err == b""
+
+
+@pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
+@pytest.mark.parametrize("global_service_name", [None, "mysvc"])
+def test_span_attribute_schema_service_name(ddtrace_run_python_code_in_subprocess, schema_version, global_service_name):
+    expected_service_name = {
+        None: global_service_name or "",
+        "v0": global_service_name or "",
+        "v1": global_service_name or _DEFAULT_SPAN_SERVICE_NAMES["v1"],
+    }[schema_version]
+    code = """
+import pytest
+from tests.conftest import *
+from tests.contrib.asgi.test_asgi import basic_app
+from tests.contrib.asgi.test_asgi import scope
+from tests.contrib.asgi.test_asgi import tracer
+from asgiref.testing import ApplicationCommunicator
+from ddtrace.contrib.asgi import TraceMiddleware
+from ddtrace.contrib.asgi import span_from_scope
+
+@pytest.mark.asyncio
+async def test(scope, tracer, test_spans):
+    app = TraceMiddleware(basic_app, tracer=tracer)
+    instance = ApplicationCommunicator(app, scope)
+    await instance.send_input({{"type": "http.request", "body": b""}})
+    response_start = await instance.receive_output(1)
+    assert response_start == {{
+        "type": "http.response.start",
+        "status": 200,
+        "headers": [[b"Content-Type", b"text/plain"]],
+    }}
+    response_body = await instance.receive_output(1)
+    assert response_body == {{
+        "type": "http.response.body",
+        "body": b"*",
+    }}
+
+    spans = test_spans.pop_traces()
+    assert len(spans) == 1
+    assert len(spans[0]) == 1
+    request_span = spans[0][0]
+    service = "{}"
+    assert request_span.service == (service or None)
+
+if __name__ == "__main__":
+    import sys
+    sys.exit(pytest.main(["-x", __file__]))
+    """.format(
+        expected_service_name
+    )
+    env = os.environ.copy()
+    if global_service_name:
+        env["DD_SERVICE"] = global_service_name
+    if schema_version:
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
+    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
+    assert status == 0, (err, out)
+    assert err == b""
 
 
 @pytest.mark.asyncio
@@ -210,6 +323,8 @@ async def test_double_callable_asgi(scope, tracer, test_spans):
     assert request_span.span_type == "web"
     assert request_span.error == 0
     assert request_span.get_tag("http.status_code") == "200"
+    assert request_span.get_tag("component") == "asgi"
+    assert request_span.get_tag("span.kind") == "server"
     _check_span_tags(scope, request_span)
 
 
@@ -240,6 +355,8 @@ async def test_query_string(scope, tracer, test_spans):
         assert request_span.span_type == "web"
         assert request_span.error == 0
         assert request_span.get_tag("http.status_code") == "200"
+        assert request_span.get_tag("component") == "asgi"
+        assert request_span.get_tag("span.kind") == "server"
         _check_span_tags(scope, request_span)
 
 
@@ -259,8 +376,10 @@ async def test_asgi_error(scope, tracer, test_spans):
     assert request_span.span_type == "web"
     assert request_span.error == 1
     assert request_span.get_tag("http.status_code") == "500"
-    assert request_span.get_tag("error.msg") == "Test"
+    assert request_span.get_tag(ERROR_MSG) == "Test"
     assert request_span.get_tag("error.type") == "builtins.RuntimeError"
+    assert request_span.get_tag("component") == "asgi"
+    assert request_span.get_tag("span.kind") == "server"
     assert 'raise RuntimeError("Test")' in request_span.get_tag("error.stack")
     _check_span_tags(scope, request_span)
 
@@ -281,6 +400,8 @@ async def test_asgi_500(scope, tracer, test_spans):
     assert request_span.span_type == "web"
     assert request_span.error == 1
     assert request_span.get_tag("http.status_code") == "500"
+    assert request_span.get_tag("component") == "asgi"
+    assert request_span.get_tag("span.kind") == "server"
 
 
 @pytest.mark.asyncio
@@ -302,8 +423,10 @@ async def test_asgi_error_custom(scope, tracer, test_spans):
     assert request_span.span_type == "web"
     assert request_span.error == 1
     assert request_span.get_tag("http.status_code") == "501"
-    assert request_span.get_tag("error.msg") == "Test"
+    assert request_span.get_tag(ERROR_MSG) == "Test"
     assert request_span.get_tag("error.type") == "builtins.RuntimeError"
+    assert request_span.get_tag("component") == "asgi"
+    assert request_span.get_tag("span.kind") == "server"
     assert 'raise RuntimeError("Test")' in request_span.get_tag("error.stack")
     _check_span_tags(scope, request_span)
 
@@ -340,6 +463,8 @@ async def test_distributed_tracing(scope, tracer, test_spans):
     assert request_span.trace_id == 5678
     assert request_span.error == 0
     assert request_span.get_tag("http.status_code") == "200"
+    assert request_span.get_tag("component") == "asgi"
+    assert request_span.get_tag("span.kind") == "server"
     _check_span_tags(scope, request_span)
 
 
@@ -366,15 +491,19 @@ async def test_multiple_requests(tracer, test_spans):
     assert r1_span.name == "asgi.request"
     assert r1_span.span_type == "web"
     assert r1_span.get_tag("http.method") == "GET"
-    assert r1_span.get_tag("http.url") == "http://testserver/"
+    assert r1_span.get_tag("http.url") == "http://testserver/?sleep=true"
     assert r1_span.get_tag("http.query.string") == "sleep=true"
+    assert r1_span.get_tag("component") == "asgi"
+    assert r1_span.get_tag("span.kind") == "server"
 
     r2_span = spans[0][0]
     assert r2_span.name == "asgi.request"
     assert r2_span.span_type == "web"
     assert r2_span.get_tag("http.method") == "GET"
-    assert r2_span.get_tag("http.url") == "http://testserver/"
+    assert r2_span.get_tag("http.url") == "http://testserver/?sleep=true"
     assert r2_span.get_tag("http.query.string") == "sleep=true"
+    assert r2_span.get_tag("component") == "asgi"
+    assert r2_span.get_tag("span.kind") == "server"
 
 
 @pytest.mark.asyncio
@@ -529,3 +658,29 @@ async def test_tasks_asgi_with_more_body(scope, tracer, test_spans):
     # typical duration without background task should be in less than 10 ms
     # duration with background task will take approximately 1.1s
     assert request_span.duration < 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("host", ["hostserver", "hostserver:5454"])
+async def test_host_header(scope, tracer, test_spans, host):
+    app = TraceMiddleware(basic_app, tracer=tracer)
+    async with httpx.AsyncClient(app=app) as client:
+        response = await client.get("http://testserver/", headers={"host": host})
+        assert response.status_code == 200
+
+        assert test_spans.spans
+        request_span = test_spans.spans[0]
+        assert request_span.get_tag("http.url") == "http://%s/" % (host,)
+
+
+@pytest.mark.asyncio
+async def test_response_headers(scope, tracer, test_spans):
+    with override_http_config("asgi", {"trace_headers": ["content-type"]}):
+        app = TraceMiddleware(basic_app, tracer=tracer)
+        async with httpx.AsyncClient(app=app) as client:
+            response = await client.get("http://testserver/")
+            assert response.status_code == 200
+
+            assert test_spans.spans
+            request_span = test_spans.spans[0]
+            assert "http.response.headers.content-type" in request_span.get_tags().keys()

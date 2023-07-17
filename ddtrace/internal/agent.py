@@ -1,12 +1,18 @@
+import json
 import os
+import socket
 from typing import TypeVar
 from typing import Union
 
-from ddtrace.internal.compat import parse
+from ddtrace.internal.compat import ensure_str
+from ddtrace.internal.logger import get_logger
 
 from .http import HTTPConnection
 from .http import HTTPSConnection
 from .uds import UDSHTTPConnection
+from .utils.http import DEFAULT_TIMEOUT
+from .utils.http import get_connection
+from .utils.http import verify_url  # noqa
 
 
 DEFAULT_HOSTNAME = "localhost"
@@ -15,21 +21,36 @@ DEFAULT_UNIX_TRACE_PATH = "/var/run/datadog/apm.socket"
 DEFAULT_UNIX_DSD_PATH = "/var/run/datadog/dsd.socket"
 DEFAULT_STATS_PORT = 8125
 DEFAULT_TRACE_URL = "http://%s:%s" % (DEFAULT_HOSTNAME, DEFAULT_TRACE_PORT)
-DEFAULT_TIMEOUT = 2.0
 
 ConnectionType = Union[HTTPSConnection, HTTPConnection, UDSHTTPConnection]
 
 T = TypeVar("T")
 
+log = get_logger(__name__)
+
+
+# This method returns if a hostname is an IPv6 address
+def is_ipv6_hostname(hostname):
+    # type: (Union[T, str]) -> bool
+    if not isinstance(hostname, str):
+        return False
+    try:
+        socket.inet_pton(socket.AF_INET6, hostname)
+        return True
+    except socket.error:  # not a valid address
+        return False
+
 
 def get_trace_hostname(default=DEFAULT_HOSTNAME):
     # type: (Union[T, str]) -> Union[T, str]
-    return os.environ.get("DD_AGENT_HOST", os.environ.get("DD_TRACE_AGENT_HOSTNAME", default))
+    hostname = os.environ.get("DD_AGENT_HOST", os.environ.get("DD_TRACE_AGENT_HOSTNAME", default))
+    return "[{}]".format(hostname) if is_ipv6_hostname(hostname) else hostname
 
 
 def get_stats_hostname(default=DEFAULT_HOSTNAME):
     # type: (Union[T, str]) -> Union[T, str]
-    return os.environ.get("DD_AGENT_HOST", os.environ.get("DD_DOGSTATSD_HOST", default))
+    hostname = os.environ.get("DD_AGENT_HOST", os.environ.get("DD_DOGSTATSD_HOST", default))
+    return "[{}]".format(hostname) if is_ipv6_hostname(hostname) else hostname
 
 
 def get_trace_port(default=DEFAULT_TRACE_PORT):
@@ -92,38 +113,22 @@ def get_stats_url():
     return url
 
 
-def verify_url(url):
-    # type: (str) -> parse.ParseResult
-    """Verify that a URL can be used to communicate with the Datadog Agent.
-    Returns a parse.ParseResult.
-    Raises a ``ValueError`` if the URL is not supported by the Agent.
-    """
-    parsed = parse.urlparse(url)
-    schemes = ("http", "https", "unix")
-    if parsed.scheme not in schemes:
-        raise ValueError(
-            "Unsupported protocol '%s' in Agent URL '%s'. Must be one of: %s" % (parsed.scheme, url, ", ".join(schemes))
-        )
-    elif parsed.scheme in ["http", "https"] and not parsed.hostname:
-        raise ValueError("Invalid hostname in Agent URL '%s'" % url)
-    elif parsed.scheme == "unix" and not parsed.path:
-        raise ValueError("Invalid file path in Agent URL '%s'" % url)
+def info():
+    agent_url = get_trace_url()
+    _conn = get_connection(agent_url, timeout=get_trace_agent_timeout())
+    try:
+        _conn.request("GET", "info", headers={"content-type": "application/json"})
+        resp = _conn.getresponse()
+        data = resp.read()
+    finally:
+        _conn.close()
 
-    return parsed
+    if resp.status == 404:
+        # Remote configuration is not enabled or unsupported by the agent
+        return None
 
+    if resp.status < 200 or resp.status >= 300:
+        log.warning("Unexpected error: HTTP error status %s, reason %s", resp.status, resp.reason)
+        return None
 
-def get_connection(url, timeout=DEFAULT_TIMEOUT):
-    # type: (str, float) -> ConnectionType
-    """Return an HTTP connection to the given URL."""
-    parsed = verify_url(url)
-    hostname = parsed.hostname or ""
-    path = parsed.path or "/"
-
-    if parsed.scheme == "https":
-        return HTTPSConnection.with_base_path(hostname, parsed.port, base_path=path, timeout=timeout)
-    elif parsed.scheme == "http":
-        return HTTPConnection.with_base_path(hostname, parsed.port, base_path=path, timeout=timeout)
-    elif parsed.scheme == "unix":
-        return UDSHTTPConnection(path, hostname, parsed.port, timeout=timeout)
-
-    raise ValueError("Unsupported protocol '%s'" % parsed.scheme)
+    return json.loads(ensure_str(data))

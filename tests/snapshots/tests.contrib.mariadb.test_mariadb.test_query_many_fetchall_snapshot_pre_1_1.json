@@ -1,0 +1,102 @@
+[[
+  {
+    "name": "mariadb.query",
+    "service": "mariadb",
+    "resource": "INSERT INTO dummy (dummy_key, dummy_value) VALUES (%s, %s)",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "component": "mariadb",
+      "db.name": "test",
+      "db.system": "mariadb",
+      "db.user": "test",
+      "language": "python",
+      "out.host": "127.0.0.1",
+      "runtime-id": "82fe6b527e8b4430bec59269ebe73552",
+      "span.kind": "client",
+      "sql.executemany": "true"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "db.row_count": 2,
+      "network.destination.port": 3306,
+      "process_id": 9600
+    },
+    "duration": 1315000,
+    "start": 1667513575045174000
+  }],
+[
+  {
+    "name": "mariadb.query",
+    "service": "mariadb",
+    "resource": "SELECT dummy_key, dummy_value FROM dummy ORDER BY dummy_key",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "component": "mariadb",
+      "db.name": "test",
+      "db.system": "mariadb",
+      "db.user": "test",
+      "language": "python",
+      "out.host": "127.0.0.1",
+      "runtime-id": "82fe6b527e8b4430bec59269ebe73552",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "db.row_count": 0,
+      "network.destination.port": 3306,
+      "process_id": 9600
+    },
+    "duration": 1370000,
+    "start": 1667513575046749000
+  }],
+[
+  {
+    "name": "mariadb.query.fetchall",
+    "service": "mariadb",
+    "resource": "SELECT dummy_key, dummy_value FROM dummy ORDER BY dummy_key",
+    "trace_id": 2,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "component": "mariadb",
+      "db.name": "test",
+      "db.system": "mariadb",
+      "db.user": "test",
+      "language": "python",
+      "out.host": "127.0.0.1",
+      "runtime-id": "82fe6b527e8b4430bec59269ebe73552",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "db.row_count": 2,
+      "network.destination.port": 3306,
+      "process_id": 9600
+    },
+    "duration": 50000,
+    "start": 1667513575048182000
+  }]]

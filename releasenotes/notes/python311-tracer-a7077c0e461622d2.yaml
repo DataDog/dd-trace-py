@@ -1,0 +1,15 @@
+---
+prelude: >
+  Initial library support has been added for Python 3.11.
+
+
+  .. note::
+    Continuous Profiler and Dynamic Instrumentation are not yet compatible and must be disabled in order to use the library with Python 3.11. Support for them will be added in a future release. To track the status, see the `Support Python 3.11 <https://github.com/DataDog/dd-trace-py/issues/4149>`_ issue on GitHub.
+
+
+features:
+  - |
+    tracer: added support for Python 3.11.
+upgrade:
+  - |
+    Python 3.11: Continuous Profiler and Dynamic Instrumentation must be disabled as they do not current support Python 3.11.

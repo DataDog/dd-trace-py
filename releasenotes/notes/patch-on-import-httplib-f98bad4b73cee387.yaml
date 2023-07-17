@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    httplib: Fixes an issue with patching of http client upon import

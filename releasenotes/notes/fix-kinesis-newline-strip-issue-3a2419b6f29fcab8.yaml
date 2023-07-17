@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    botocore: Before this change, the botocore integration stripped newlines from the JSON string encoded in the data blob of Amazon Kinesis records. This change includes a terminating newline if it is present in the decoded data.

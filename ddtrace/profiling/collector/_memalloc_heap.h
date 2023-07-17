@@ -1,9 +1,9 @@
 #ifndef _DDTRACE_MEMALLOC_HEAP_H
 #define _DDTRACE_MEMALLOC_HEAP_H
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <stdbool.h>
 
 #include <Python.h>
 
@@ -21,12 +21,12 @@ PyObject*
 memalloc_heap();
 
 bool
-memalloc_heap_track(uint16_t max_nframe, void* ptr, size_t size);
+memalloc_heap_track(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorDomain domain);
 void
 memalloc_heap_untrack(void* ptr);
 
 #define MEMALLOC_HEAP_PTR_ARRAY_COUNT_TYPE uint64_t
 #define MEMALLOC_HEAP_PTR_ARRAY_MAX_COUNT UINT64_MAX
-DO_ARRAY(void *, ptr, MEMALLOC_HEAP_PTR_ARRAY_COUNT_TYPE, DO_NOTHING)
+DO_ARRAY(void*, ptr, MEMALLOC_HEAP_PTR_ARRAY_COUNT_TYPE, DO_NOTHING)
 
 #endif

@@ -125,6 +125,13 @@ Consul
 .. automodule:: ddtrace.contrib.consul
 
 
+.. _datadog_lambda:
+
+Datadog Lambda
+^^^^^^^^^^^^^^
+.. automodule:: ddtrace.contrib.aws_lambda
+
+
 .. _djangorestframework:
 .. _django:
 
@@ -189,11 +196,25 @@ gevent
 .. automodule:: ddtrace.contrib.gevent
 
 
+.. _graphql:
+
+graphql
+^^^^^^^
+.. automodule:: ddtrace.contrib.graphql
+
+
 .. _grpc:
 
 Grpc
 ^^^^
 .. automodule:: ddtrace.contrib.grpc
+
+
+.. _gunicorn:
+
+gunicorn
+^^^^^^^^
+.. automodule:: ddtrace.contrib.gunicorn
 
 
 .. _httplib:
@@ -215,12 +236,24 @@ Jinja2
 ^^^^^^
 .. automodule:: ddtrace.contrib.jinja2
 
+.. _kafka:
+
+Kafka
+^^^^^
+
+.. automodule:: ddtrace.contrib.kafka
 
 .. _kombu:
 
 kombu
 ^^^^^
 .. automodule:: ddtrace.contrib.kombu
+
+.. _langchain:
+
+LangChain
+^^^^^^^^^
+.. automodule:: ddtrace.contrib.langchain
 
 
 .. _mako:
@@ -264,6 +297,13 @@ mysql-connector
 mysqlclient
 ^^^^^^^^^^^^
 .. automodule:: ddtrace.contrib.mysqldb
+
+
+.. _openai:
+
+OpenAI
+^^^^^^
+.. automodule:: ddtrace.contrib.openai
 
 
 .. _pylibmc:

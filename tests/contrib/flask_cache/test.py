@@ -5,6 +5,7 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.flask_cache import get_traced_cache
 from ddtrace.contrib.flask_cache.tracers import CACHE_BACKEND
 from ddtrace.ext import net
+from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_dict_issuperset
@@ -42,9 +43,35 @@ class FlaskCacheTest(TracerTestCase):
         expected_meta = {
             "flask_cache.key": u"á_complex_operation",
             "flask_cache.backend": "simple",
+            "component": "flask_cache",
         }
 
         assert_dict_issuperset(span.get_tags(), expected_meta)
+
+    def test_simple_cache_get_rowcount_existing_key(self):
+        self.cache.set(u"á_complex_operation", u"with_á_value\nin two lines")
+        self.cache.get(u"á_complex_operation")
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 2)
+        get_span = spans[1]
+
+        self.assertEqual(get_span.service, self.SERVICE)
+        self.assertEqual(get_span.resource, "get")
+
+        assert_dict_issuperset(get_span.get_metrics(), {"db.row_count": 1})
+
+    def test_simple_cache_get_rowcount_missing_key(self):
+        self.cache.get(u"á_complex_operation")
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 1)
+        get_span = spans[0]
+
+        self.assertEqual(get_span.service, self.SERVICE)
+        self.assertEqual(get_span.resource, "get")
+
+        assert_dict_issuperset(get_span.get_metrics(), {"db.row_count": 0})
 
     def test_simple_cache_set(self):
         self.cache.set(u"á_complex_operation", u"with_á_value\nin two lines")
@@ -61,6 +88,7 @@ class FlaskCacheTest(TracerTestCase):
         expected_meta = {
             "flask_cache.key": u"á_complex_operation",
             "flask_cache.backend": "simple",
+            "component": "flask_cache",
         }
 
         assert_dict_issuperset(span.get_tags(), expected_meta)
@@ -80,6 +108,7 @@ class FlaskCacheTest(TracerTestCase):
         expected_meta = {
             "flask_cache.key": u"á_complex_number",
             "flask_cache.backend": "simple",
+            "component": "flask_cache",
         }
 
         assert_dict_issuperset(span.get_tags(), expected_meta)
@@ -99,6 +128,7 @@ class FlaskCacheTest(TracerTestCase):
         expected_meta = {
             "flask_cache.key": u"á_complex_operation",
             "flask_cache.backend": "simple",
+            "component": "flask_cache",
         }
 
         assert_dict_issuperset(span.get_tags(), expected_meta)
@@ -118,6 +148,7 @@ class FlaskCacheTest(TracerTestCase):
         expected_meta = {
             "flask_cache.key": "['complex_operation', 'another_complex_op']",
             "flask_cache.backend": "simple",
+            "component": "flask_cache",
         }
 
         assert_dict_issuperset(span.get_tags(), expected_meta)
@@ -136,6 +167,7 @@ class FlaskCacheTest(TracerTestCase):
 
         expected_meta = {
             "flask_cache.backend": "simple",
+            "component": "flask_cache",
         }
 
         assert_dict_issuperset(span.get_tags(), expected_meta)
@@ -155,9 +187,72 @@ class FlaskCacheTest(TracerTestCase):
         expected_meta = {
             "flask_cache.key": "['first_complex_op', 'second_complex_op']",
             "flask_cache.backend": "simple",
+            "component": "flask_cache",
         }
 
         assert_dict_issuperset(span.get_tags(), expected_meta)
+
+    def test_simple_cache_get_many_rowcount_all_existing(self):
+        self.cache.set_many(
+            {
+                "first_complex_op": 10,
+                "second_complex_op": 20,
+            }
+        )
+        self.cache.get_many("first_complex_op", "second_complex_op")
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 2)
+        get_span = spans[1]
+
+        self.assertEqual(get_span.service, self.SERVICE)
+        self.assertEqual(get_span.resource, "get_many")
+
+        assert_dict_issuperset(get_span.get_metrics(), {"db.row_count": 2})
+
+    def test_simple_cache_get_many_rowcount_1_existing(self):
+        self.cache.set_many(
+            {
+                "first_complex_op": 10,
+                "second_complex_op": 20,
+            }
+        )
+        result = self.cache.get_many("first_complex_op", "missing_complex_op")
+
+        assert len(result) == 2
+        assert result[0] == 10
+        assert result[1] is None
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 2)
+        get_span = spans[1]
+
+        self.assertEqual(get_span.service, self.SERVICE)
+        self.assertEqual(get_span.resource, "get_many")
+
+        assert_dict_issuperset(get_span.get_metrics(), {"db.row_count": 1})
+
+    def test_simple_cache_get_many_rowcount_0_existing(self):
+        self.cache.set_many(
+            {
+                "first_complex_op": 10,
+                "second_complex_op": 20,
+            }
+        )
+        result = self.cache.get_many("missing_complex_op1", "missing_complex_op2")
+
+        assert len(result) == 2
+        assert result[0] is None
+        assert result[1] is None
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 2)
+        get_span = spans[1]
+
+        self.assertEqual(get_span.service, self.SERVICE)
+        self.assertEqual(get_span.resource, "get_many")
+
+        assert_dict_issuperset(get_span.get_metrics(), {"db.row_count": 0})
 
     def test_simple_cache_set_many(self):
         self.cache.set_many(
@@ -187,7 +282,7 @@ class FlaskCacheTest(TracerTestCase):
             self.assertEqual(span.span_type, "cache")
             self.assertEqual(span.get_tag(CACHE_BACKEND), "simple")
             self.assertTrue(net.TARGET_HOST not in span.get_tags())
-            self.assertTrue(net.TARGET_PORT not in span.get_tags())
+            self.assertTrue("network.destination.port" not in span.get_tags())
 
     def test_default_span_tags_for_redis(self):
         # create the TracedCache instance for a Flask app
@@ -204,7 +299,7 @@ class FlaskCacheTest(TracerTestCase):
             self.assertEqual(span.span_type, "cache")
             self.assertEqual(span.get_tag(CACHE_BACKEND), "redis")
             self.assertEqual(span.get_tag(net.TARGET_HOST), "localhost")
-            self.assertEqual(span.get_metric(net.TARGET_PORT), self.TEST_REDIS_PORT)
+            self.assertEqual(span.get_metric("network.destination.port"), self.TEST_REDIS_PORT)
 
     def test_default_span_tags_memcached(self):
         # create the TracedCache instance for a Flask app
@@ -221,7 +316,7 @@ class FlaskCacheTest(TracerTestCase):
             self.assertEqual(span.span_type, "cache")
             self.assertEqual(span.get_tag(CACHE_BACKEND), "memcached")
             self.assertEqual(span.get_tag(net.TARGET_HOST), "127.0.0.1")
-            self.assertEqual(span.get_metric(net.TARGET_PORT), self.TEST_MEMCACHED_PORT)
+            self.assertEqual(span.get_metric("network.destination.port"), self.TEST_MEMCACHED_PORT)
 
     def test_simple_cache_get_ot(self):
         """OpenTracing version of test_simple_cache_get."""
@@ -256,6 +351,7 @@ class FlaskCacheTest(TracerTestCase):
         expected_meta = {
             "flask_cache.key": u"á_complex_operation",
             "flask_cache.backend": "simple",
+            "component": "flask_cache",
         }
 
         assert_dict_issuperset(dd_span.get_tags(), expected_meta)
@@ -283,12 +379,12 @@ class FlaskCacheTest(TracerTestCase):
         self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
 
 
-class TestFlaskCacheSettings(TracerTestCase):
+class TestFlaskCacheSchematization(TracerTestCase):
     TEST_REDIS_PORT = REDIS_CONFIG["port"]
     TEST_MEMCACHED_PORT = MEMCACHED_CONFIG["port"]
 
     def setUp(self):
-        super(TestFlaskCacheSettings, self).setUp()
+        super(TestFlaskCacheSchematization, self).setUp()
 
         # create the TracedCache instance for a Flask app
         Cache = get_traced_cache(self.tracer)
@@ -296,7 +392,7 @@ class TestFlaskCacheSettings(TracerTestCase):
         self.cache = Cache(app, config={"CACHE_TYPE": "simple"})
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_user_specified_service(self):
+    def test_schematization_service_default(self):
         """
         When a service name is specified by the user
             The flask-cache integration should use it as the service name
@@ -306,4 +402,108 @@ class TestFlaskCacheSettings(TracerTestCase):
         spans = self.get_spans()
 
         for span in spans:
-            span.service == "mysvc"
+            assert span.service == "mysvc", "Expected service name to be 'mysvc' but was '{}'".format(span.service)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_schematization_service_v0(self):
+        """
+        When a service name is specified by the user
+            The flask-cache integration should use it as the service name
+        """
+
+        self.cache.get(u"á_complex_operation")
+        spans = self.get_spans()
+
+        for span in spans:
+            assert span.service == "mysvc", "Expected service name to be 'mysvc' but was '{}'".format(span.service)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_schematization_service_v1(self):
+        """
+        When a service name is specified by the user
+            The flask-cache integration should use it as the service name
+        """
+
+        self.cache.get(u"á_complex_operation")
+        spans = self.get_spans()
+        import os
+
+        assert os.environ.get("DD_TRACE_SPAN_ATTRIBUTE_SCHEMA") == "v1"
+
+        for span in spans:
+            assert span.service == "mysvc", "Expected service name to be 'mysvc' but was '{}'".format(span.service)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict())
+    def test_schematization_undefined_service_default(self):
+        """
+        When a service name is specified by the user
+            The flask-cache integration should use it as the service name
+        """
+
+        self.cache.get(u"á_complex_operation")
+        spans = self.get_spans()
+
+        for span in spans:
+            assert span.service == "flask-cache", "Expected service name to be 'flask-cache' but was '{}'".format(
+                span.service
+            )
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_schematization_undefined_service_v0(self):
+        """
+        When a service name is specified by the user
+            The flask-cache integration should use it as the service name
+        """
+
+        self.cache.get(u"á_complex_operation")
+        spans = self.get_spans()
+
+        for span in spans:
+            assert span.service == "flask-cache", "Expected service name to be 'flask-cache' but was '{}'".format(
+                span.service
+            )
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_schematization_undefined_service_v1(self):
+        """
+        When a service name is specified by the user
+            The flask-cache integration should use it as the service name
+        """
+
+        self.cache.get(u"á_complex_operation")
+        spans = self.get_spans()
+
+        for span in spans:
+            assert (
+                span.service == DEFAULT_SPAN_SERVICE_NAME
+            ), "Expected service name to be 'internal.schema.DEFAULT_SEVICE_NAME' but was '{}'".format(span.service)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_schematization_operation_name_v0(self):
+        """
+        When a service name is specified by the user
+            The flask-cache integration should use it as the service name
+        """
+
+        self.cache.get(u"á_complex_operation")
+        spans = self.get_spans()
+
+        for span in spans:
+            assert span.name == "flask_cache.cmd", "Expected span name to be 'flask_cache.command' but was '{}'".format(
+                span.name
+            )
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_schematization_operation_name_v1(self):
+        """
+        When a service name is specified by the user
+            The flask-cache integration should use it as the service name
+        """
+
+        self.cache.get(u"á_complex_operation")
+        spans = self.get_spans()
+
+        for span in spans:
+            assert (
+                span.name == "flask_cache.command"
+            ), "Expected span name to be 'flask_cache.command' but was '{}'".format(span.name)

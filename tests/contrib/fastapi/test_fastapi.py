@@ -1,6 +1,8 @@
 import asyncio
+import os
 import sys
 
+import fastapi
 from fastapi.testclient import TestClient
 import httpx
 import pytest
@@ -11,6 +13,8 @@ from ddtrace.contrib.fastapi import patch as fastapi_patch
 from ddtrace.contrib.fastapi import unpatch as fastapi_unpatch
 from ddtrace.contrib.starlette.patch import patch as patch_starlette
 from ddtrace.contrib.starlette.patch import unpatch as unpatch_starlette
+from ddtrace.internal.schema.span_attribute_schema import _DEFAULT_SPAN_SERVICE_NAMES
+from ddtrace.internal.utils.version import parse_version
 from ddtrace.propagation import http as http_propagation
 from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
@@ -49,6 +53,23 @@ def test_spans(tracer):
 def application(tracer):
     application = app.get_app()
     yield application
+
+
+@pytest.fixture
+def snapshot_app_with_middleware():
+    fastapi_patch()
+
+    application = app.get_app()
+
+    @application.middleware("http")
+    async def traced_middlware(request, call_next):
+        with ddtrace.tracer.trace("traced_middlware"):
+            response = await call_next(request)
+            return response
+
+    yield application
+
+    fastapi_unpatch()
 
 
 @pytest.fixture
@@ -94,6 +115,8 @@ def test_read_homepage(client, tracer, test_spans):
     assert request_span.get_tag("http.url") == "http://testserver/"
     assert request_span.get_tag("http.status_code") == "200"
     assert request_span.get_tag("http.query.string") is None
+    assert request_span.get_tag("component") == "fastapi"
+    assert request_span.get_tag("span.kind") == "server"
 
     assert serialize_span.service == "fastapi"
     assert serialize_span.name == "fastapi.serialize_response"
@@ -112,10 +135,13 @@ def test_read_item_success(client, tracer, test_spans):
     assert request_span.service == "fastapi"
     assert request_span.name == "fastapi.request"
     assert request_span.resource == "GET /items/{item_id}"
+    assert request_span.get_tag("http.route") == "/items/{item_id}"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/items/foo"
     assert request_span.get_tag("http.status_code") == "200"
+    assert request_span.get_tag("component") == "fastapi"
+    assert request_span.get_tag("span.kind") == "server"
 
     assert_serialize_span(serialize_span)
 
@@ -132,10 +158,13 @@ def test_read_item_bad_token(client, tracer, test_spans):
     assert request_span.service == "fastapi"
     assert request_span.name == "fastapi.request"
     assert request_span.resource == "GET /items/{item_id}"
+    assert request_span.get_tag("http.route") == "/items/{item_id}"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/items/bar"
     assert request_span.get_tag("http.status_code") == "401"
+    assert request_span.get_tag("component") == "fastapi"
+    assert request_span.get_tag("span.kind") == "server"
 
 
 def test_read_item_nonexistent_item(client, tracer, test_spans):
@@ -150,10 +179,13 @@ def test_read_item_nonexistent_item(client, tracer, test_spans):
     assert request_span.service == "fastapi"
     assert request_span.name == "fastapi.request"
     assert request_span.resource == "GET /items/{item_id}"
+    assert request_span.get_tag("http.route") == "/items/{item_id}"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/items/foobar"
     assert request_span.get_tag("http.status_code") == "404"
+    assert request_span.get_tag("component") == "fastapi"
+    assert request_span.get_tag("span.kind") == "server"
 
 
 def test_read_item_query_string(client, tracer, test_spans):
@@ -170,11 +202,14 @@ def test_read_item_query_string(client, tracer, test_spans):
     assert request_span.service == "fastapi"
     assert request_span.name == "fastapi.request"
     assert request_span.resource == "GET /items/{item_id}"
+    assert request_span.get_tag("http.route") == "/items/{item_id}"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
-    assert request_span.get_tag("http.url") == "http://testserver/items/foo"
+    assert request_span.get_tag("http.url") == "http://testserver/items/foo?q=query"
     assert request_span.get_tag("http.status_code") == "200"
     assert request_span.get_tag("http.query.string") == "q=query"
+    assert request_span.get_tag("component") == "fastapi"
+    assert request_span.get_tag("span.kind") == "server"
 
     assert_serialize_span(serialize_span)
 
@@ -193,11 +228,14 @@ def test_200_multi_query_string(client, tracer, test_spans):
     assert request_span.service == "fastapi"
     assert request_span.name == "fastapi.request"
     assert request_span.resource == "GET /items/{item_id}"
+    assert request_span.get_tag("http.route") == "/items/{item_id}"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
-    assert request_span.get_tag("http.url") == "http://testserver/items/foo"
+    assert request_span.get_tag("http.url") == "http://testserver/items/foo?name=Foo&q=query"
     assert request_span.get_tag("http.status_code") == "200"
     assert request_span.get_tag("http.query.string") == "name=Foo&q=query"
+    assert request_span.get_tag("component") == "fastapi"
+    assert request_span.get_tag("span.kind") == "server"
 
     assert_serialize_span(serialize_span)
 
@@ -219,11 +257,14 @@ def test_create_item_success(client, tracer, test_spans):
     assert request_span.service == "fastapi"
     assert request_span.name == "fastapi.request"
     assert request_span.resource == "POST /items/"
+    assert request_span.get_tag("http.route") == "/items/"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "POST"
     assert request_span.get_tag("http.url") == "http://testserver/items/"
     assert request_span.get_tag("http.status_code") == "200"
     assert request_span.get_tag("http.query.string") is None
+    assert request_span.get_tag("component") == "fastapi"
+    assert request_span.get_tag("span.kind") == "server"
 
     assert_serialize_span(serialize_span)
 
@@ -245,11 +286,14 @@ def test_create_item_bad_token(client, tracer, test_spans):
     assert request_span.service == "fastapi"
     assert request_span.name == "fastapi.request"
     assert request_span.resource == "POST /items/"
+    assert request_span.get_tag("http.route") == "/items/"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "POST"
     assert request_span.get_tag("http.url") == "http://testserver/items/"
     assert request_span.get_tag("http.status_code") == "401"
     assert request_span.get_tag("http.query.string") is None
+    assert request_span.get_tag("component") == "fastapi"
+    assert request_span.get_tag("span.kind") == "server"
 
 
 def test_create_item_duplicate_item(client, tracer, test_spans):
@@ -269,11 +313,14 @@ def test_create_item_duplicate_item(client, tracer, test_spans):
     assert request_span.service == "fastapi"
     assert request_span.name == "fastapi.request"
     assert request_span.resource == "POST /items/"
+    assert request_span.get_tag("http.route") == "/items/"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "POST"
     assert request_span.get_tag("http.url") == "http://testserver/items/"
     assert request_span.get_tag("http.status_code") == "400"
     assert request_span.get_tag("http.query.string") is None
+    assert request_span.get_tag("component") == "fastapi"
+    assert request_span.get_tag("span.kind") == "server"
 
 
 def test_invalid_path(client, tracer, test_spans):
@@ -288,30 +335,19 @@ def test_invalid_path(client, tracer, test_spans):
     assert request_span.service == "fastapi"
     assert request_span.name == "fastapi.request"
     assert request_span.resource == "GET /invalid_path"
+    assert request_span.get_tag("http.route") is None
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/invalid_path"
     assert request_span.get_tag("http.status_code") == "404"
+    assert request_span.get_tag("component") == "fastapi"
+    assert request_span.get_tag("span.kind") == "server"
 
 
-def test_500_error_raised(client, tracer, test_spans):
+@snapshot(ignores=["meta.error.stack"])
+def test_500_error_raised(snapshot_client):
     with pytest.raises(RuntimeError):
-        client.get("/500", headers={"X-Token": "DataDog"})
-    spans = test_spans.pop_traces()
-    assert len(spans) == 1
-    assert len(spans[0]) == 1
-
-    request_span = spans[0][0]
-    assert request_span.service == "fastapi"
-    assert request_span.name == "fastapi.request"
-    assert request_span.resource == "GET /500"
-    assert request_span.error == 1
-    assert request_span.get_tag("http.method") == "GET"
-    assert request_span.get_tag("http.url") == "http://testserver/500"
-    assert request_span.get_tag("http.status_code") == "500"
-    assert request_span.get_tag("error.msg") == "Server error"
-    assert request_span.get_tag("error.type") == "builtins.RuntimeError"
-    assert 'raise RuntimeError("Server error")' in request_span.get_tag("error.stack")
+        snapshot_client.get("/500")
 
 
 def test_streaming_response(client, tracer, test_spans):
@@ -326,11 +362,14 @@ def test_streaming_response(client, tracer, test_spans):
     assert request_span.service == "fastapi"
     assert request_span.name == "fastapi.request"
     assert request_span.resource == "GET /stream"
+    assert request_span.get_tag("http.route") == "/stream"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/stream"
     assert request_span.get_tag("http.query.string") is None
     assert request_span.get_tag("http.status_code") == "200"
+    assert request_span.get_tag("component") == "fastapi"
+    assert request_span.get_tag("span.kind") == "server"
 
 
 def test_file_response(client, tracer, test_spans):
@@ -345,11 +384,14 @@ def test_file_response(client, tracer, test_spans):
     assert request_span.service == "fastapi"
     assert request_span.name == "fastapi.request"
     assert request_span.resource == "GET /file"
+    assert request_span.get_tag("http.route") == "/file"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/file"
     assert request_span.get_tag("http.query.string") is None
     assert request_span.get_tag("http.status_code") == "200"
+    assert request_span.get_tag("component") == "fastapi"
+    assert request_span.get_tag("span.kind") == "server"
 
 
 def test_path_param_aggregate(client, tracer, test_spans):
@@ -364,10 +406,13 @@ def test_path_param_aggregate(client, tracer, test_spans):
     assert request_span.service == "fastapi"
     assert request_span.name == "fastapi.request"
     assert request_span.resource == "GET /users/{userid:str}"
+    assert request_span.get_tag("http.route") == "/users/{userid:str}"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/users/testUserID"
     assert request_span.get_tag("http.status_code") == "200"
+    assert request_span.get_tag("component") == "fastapi"
+    assert request_span.get_tag("span.kind") == "server"
 
     assert_serialize_span(serialize_span)
 
@@ -385,10 +430,13 @@ def test_mid_path_param_aggregate(client, tracer, test_spans):
     assert request_span.service == "fastapi"
     assert request_span.name == "fastapi.request"
     assert request_span.resource == "GET /users/{userid:str}/info"
+    assert request_span.get_tag("http.route") == "/users/{userid:str}/info"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/users/testUserID/info"
     assert request_span.get_tag("http.status_code") == "200"
+    assert request_span.get_tag("component") == "fastapi"
+    assert request_span.get_tag("span.kind") == "server"
 
     assert_serialize_span(serialize_span)
 
@@ -406,10 +454,13 @@ def test_multi_path_param_aggregate(client, tracer, test_spans):
     assert request_span.service == "fastapi"
     assert request_span.name == "fastapi.request"
     assert request_span.resource == "GET /users/{userid:str}/{attribute:str}"
+    assert request_span.get_tag("http.route") == "/users/{userid:str}/{attribute:str}"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/users/testUserID/name"
     assert request_span.get_tag("http.status_code") == "200"
+    assert request_span.get_tag("component") == "fastapi"
+    assert request_span.get_tag("span.kind") == "server"
 
     assert_serialize_span(serialize_span)
 
@@ -438,6 +489,8 @@ def test_distributed_tracing(client, tracer, test_spans):
     assert request_span.get_tag("http.status_code") == "200"
     assert request_span.parent_id == 5555
     assert request_span.trace_id == 9999
+    assert request_span.get_tag("component") == "fastapi"
+    assert request_span.get_tag("span.kind") == "server"
 
     assert_serialize_span(serialize_span)
 
@@ -506,11 +559,14 @@ def test_w_patch_starlette(client, tracer, test_spans):
         assert request_span.service == "fastapi"
         assert request_span.name == "fastapi.request"
         assert request_span.resource == "GET /file"
+        assert request_span.get_tag("http.route") == "/file"
         assert request_span.error == 0
         assert request_span.get_tag("http.method") == "GET"
         assert request_span.get_tag("http.url") == "http://testserver/file"
         assert request_span.get_tag("http.query.string") is None
         assert request_span.get_tag("http.status_code") == "200"
+        assert request_span.get_tag("component") == "fastapi"
+        assert request_span.get_tag("span.kind") == "server"
     finally:
         unpatch_starlette()
 
@@ -578,3 +634,65 @@ def test_background_task(client, tracer, test_spans):
     # typical duration without background task should be in less than 10 ms
     # duration with background task will take approximately 1.1s
     assert request_span.duration < 1
+
+
+@pytest.mark.parametrize("host", ["hostserver", "hostserver:5454"])
+def test_host_header(client, tracer, test_spans, host):
+    """Tests if background tasks have been excluded from span duration"""
+    r = client.get("/asynctask", headers={"host": host})
+    assert r.status_code == 200
+
+    assert test_spans.spans
+    request_span = test_spans.spans[0]
+    assert request_span.get_tag("http.url") == "http://%s/asynctask" % (host,)
+
+
+@snapshot()
+def test_tracing_in_middleware(snapshot_app_with_middleware):
+    """Test if fastapi middlewares are traced"""
+    with TestClient(snapshot_app_with_middleware) as test_client:
+        r = test_client.get("/", headers={"sleep": "False"})
+        assert r.status_code == 200
+
+
+@pytest.mark.parametrize(
+    "schema_tuples",
+    [
+        (None, None, "fastapi", "fastapi.request"),
+        (None, "v0", "fastapi", "fastapi.request"),
+        (None, "v1", _DEFAULT_SPAN_SERVICE_NAMES["v1"], "http.server.request"),
+        ("mysvc", None, "mysvc", "fastapi.request"),
+        ("mysvc", "v0", "mysvc", "fastapi.request"),
+        ("mysvc", "v1", "mysvc", "http.server.request"),
+    ],
+)
+@pytest.mark.snapshot(
+    variants={
+        "6_9": (0, 60) <= parse_version(fastapi.__version__) < (0, 90),
+        "9": parse_version(fastapi.__version__) >= (0, 90),  # 0.90+ has an extra serialize step
+    }
+)
+def test_schematization(ddtrace_run_python_code_in_subprocess, schema_tuples):
+    service_override, schema_version, expected_service, expected_operation = schema_tuples
+    code = """
+import pytest
+import sys
+
+from tests.contrib.fastapi.test_fastapi import snapshot_app
+from tests.contrib.fastapi.test_fastapi import snapshot_client
+
+def test_read_homepage(snapshot_client):
+    snapshot_client.get("/sub-app/hello/name")
+
+if __name__ == "__main__":
+    sys.exit(pytest.main(["-x", __file__]))
+    """
+    env = os.environ.copy()
+    if service_override:
+        env["DD_SERVICE"] = service_override
+    if schema_version:
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
+    env["DD_TRACE_REQUESTS_ENABLED"] = "false"
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    assert status == 0, out.decode()
+    assert err == b"", err.decode()

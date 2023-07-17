@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    lib-injection: Use package versions published to PyPI to install the
+      library. Formerly the published image was installing the package from
+      source using the tagged commit SHA which resulted in slow and potentially
+      failing installs.

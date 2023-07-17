@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    lib-injection: The ddtrace package is now provided via the Docker image
+    rather than relying on a run-time ``pip install``. This solves issues like
+    containers blocking network requests, installation overhead during
+    application startup, permissions issues with the install.

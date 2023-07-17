@@ -47,6 +47,24 @@ class Metrics(object):
                 ".".join((self.name, name)), value, [":".join(_) for _ in tags.items()] if tags else None
             )
 
+        def gauge(self, name, value=1.0, tags=None):
+            # type: (str, float, Optional[Dict[str, str]]) -> None
+            if not self.metrics.enabled:
+                return None
+
+            self.metrics._client.gauge(
+                ".".join((self.name, name)), value, [":".join(_) for _ in tags.items()] if tags else None
+            )
+
+        def histogram(self, name, value=1.0, tags=None):
+            # type: (str, float, Optional[Dict[str, str]]) -> None
+            if not self.metrics.enabled:
+                return None
+
+            self.metrics._client.histogram(
+                ".".join((self.name, name)), value, [":".join(_) for _ in tags.items()] if tags else None
+            )
+
         def distribution(self, name, value=1.0, tags=None):
             # type: (str, float, Optional[Dict[str, str]]) -> None
             if not self.metrics.enabled:

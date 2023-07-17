@@ -1,0 +1,11 @@
+---
+fixes:
+  - |
+    ASM: Solve some corner cases where a Flask blocking request would fail because 
+    headers would be already sent.
+  - |
+    ASM: Solve the content-type not always being correct in blocking responses.
+  - |
+    ASM: Ensure the blocking responses have the following tags: `http.url`, `http.query_string`,
+    `http.useragent`, `http.method`, `http.response.headers.content-type` and 
+    `http.response.headers.content-length`.

@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    openai: Resolves an issue where using an array of tokens or an array of token arrays 
+    for the Embeddings endpoint caused an AttributeError.

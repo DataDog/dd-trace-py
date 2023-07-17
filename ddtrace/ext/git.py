@@ -1,17 +1,23 @@
 """
 tags for common git attributes
 """
+import contextlib
+import logging
 import os
+import random
 import re
 import subprocess
 from typing import Dict
+from typing import Generator
 from typing import MutableMapping
 from typing import Optional
 from typing import Tuple
+from typing import Union
 
 import six
 
 from ddtrace.internal import compat
+from ddtrace.internal.compat import TemporaryDirectory
 from ddtrace.internal.logger import get_logger
 
 
@@ -65,16 +71,24 @@ def normalize_ref(name):
     return _RE_TAGS.sub("", _RE_ORIGIN.sub("", _RE_REFS.sub("", name))) if name is not None else None
 
 
-def _git_subprocess_cmd(cmd, cwd=None):
-    # type: (str, Optional[str]) -> str
+def is_ref_a_tag(ref):
+    # type: (Optional[str]) -> bool
+    return "tags/" in ref if ref else False
+
+
+def _git_subprocess_cmd(cmd, cwd=None, std_in=None):
+    # type: (Union[str, list[str]], Optional[str], Optional[bytes]) -> str
     """Helper for invoking the git CLI binary."""
-    git_cmd = cmd.split(" ")
+    if isinstance(cmd, six.string_types):
+        git_cmd = cmd.split(" ")
+    else:
+        git_cmd = cmd  # type: list[str]  # type: ignore[no-redef]
     git_cmd.insert(0, "git")
-    process = subprocess.Popen(git_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=cwd)
-    stdout, stderr = process.communicate()
+    process = subprocess.Popen(git_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE, cwd=cwd)
+    stdout, stderr = process.communicate(input=std_in)
     if process.returncode == 0:
         return compat.ensure_text(stdout).strip()
-    raise ValueError(stderr)
+    raise ValueError(compat.ensure_text(stderr).strip())
 
 
 def extract_user_info(cwd=None):
@@ -87,6 +101,34 @@ def extract_user_info(cwd=None):
         "author": (author_name, author_email, author_date),
         "committer": (committer_name, committer_email, committer_date),
     }
+
+
+def extract_git_version(cwd=None):
+    output = _git_subprocess_cmd("--version")
+    version_info = tuple([int(part) for part in output.split()[-1].split(".")])
+    return version_info
+
+
+def extract_remote_url(cwd=None):
+    remote_url = _git_subprocess_cmd("config --get remote.origin.url", cwd=cwd)
+    return remote_url
+
+
+def extract_latest_commits(cwd=None):
+    latest_commits = _git_subprocess_cmd(["log", "--format=%H", "-n", "1000" '--since="1 month ago"'], cwd=cwd)
+    return latest_commits.split("\n") if latest_commits else []
+
+
+def get_rev_list_excluding_commits(commit_shas, cwd=None):
+    command = ["rev-list", "--objects", "--filter=blob:none"]
+    if extract_git_version(cwd=cwd) >= (2, 23, 0):
+        command.append('--since="1 month ago"')
+        command.append("--no-object-names")
+    command.append("HEAD")
+    exclusions = ["^%s" % sha for sha in commit_shas]
+    command.extend(exclusions)
+    commits = _git_subprocess_cmd(command, cwd=cwd)
+    return commits
 
 
 def extract_repository_url(cwd=None):
@@ -144,8 +186,10 @@ def extract_git_metadata(cwd=None):
         tags[COMMIT_SHA] = extract_commit_sha(cwd=cwd)
     except GitNotFoundError:
         log.error("Git executable not found, cannot extract git metadata.")
-    except ValueError:
-        log.error("Error extracting git metadata, received non-zero return code.", exc_info=True)
+    except ValueError as e:
+        debug_mode = log.isEnabledFor(logging.DEBUG)
+        stderr = str(e)
+        log.error("Error extracting git metadata: %s", stderr, exc_info=debug_mode)
 
     return tags
 
@@ -158,13 +202,10 @@ def extract_user_git_metadata(env=None):
     branch = normalize_ref(env.get("DD_GIT_BRANCH"))
     tag = normalize_ref(env.get("DD_GIT_TAG"))
 
-    if env.get("DD_GIT_TAG"):
-        branch = None
-
     # if DD_GIT_BRANCH is a tag, we associate its value to TAG instead of BRANCH
-    if "origin/tags" in env.get("DD_GIT_BRANCH", "") or "refs/heads/tags" in env.get("DD_GIT_BRANCH", ""):
+    if is_ref_a_tag(env.get("DD_GIT_BRANCH")):
+        tag = branch
         branch = None
-        tag = normalize_ref(env.get("DD_GIT_BRANCH"))
 
     tags = {}
     tags[REPOSITORY_URL] = env.get("DD_GIT_REPOSITORY_URL")
@@ -180,3 +221,35 @@ def extract_user_git_metadata(env=None):
     tags[COMMIT_COMMITTER_NAME] = env.get("DD_GIT_COMMIT_COMMITTER_NAME")
 
     return tags
+
+
+@contextlib.contextmanager
+def build_git_packfiles(revisions, cwd=None):
+    # type: (str, Optional[str]) -> Generator
+    basename = str(random.randint(1, 1000000))
+    try:
+        with TemporaryDirectory() as tempdir:
+            prefix = "{tempdir}/{basename}".format(tempdir=tempdir, basename=basename)
+            _git_subprocess_cmd(
+                "pack-objects --compression=9 --max-pack-size=3m %s" % prefix, cwd=cwd, std_in=revisions.encode("utf-8")
+            )
+            yield prefix
+    except ValueError:
+        # The generation of pack files in the temporary folder (`TemporaryDirectory()`)
+        # sometimes fails in certain CI setups with the error message
+        # `unable to rename temporary pack file: Invalid cross-device link`.
+        # The reason why is unclear.
+        #
+        # A workaround is to attempt to generate the pack files in `cwd`.
+        # While this works most of the times, it's not ideal since it affects the git status.
+        # This workaround is intended to be temporary.
+        #
+        # TODO: fix issue and remove workaround.
+        if not cwd:
+            cwd = os.getcwd()
+
+        prefix = "{tempdir}/{basename}".format(tempdir=cwd, basename=basename)
+        _git_subprocess_cmd(
+            "pack-objects --compression=9 --max-pack-size=3m %s" % prefix, cwd=cwd, std_in=revisions.encode("utf-8")
+        )
+        yield prefix

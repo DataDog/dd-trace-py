@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: This fix resolves an issue in Python 3.11 where a PyFrameObject strong reference count was not properly
+    decremented in the stack collector.

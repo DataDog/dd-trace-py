@@ -23,6 +23,15 @@ Or use :func:`patch()<ddtrace.patch>` to manually enable the integration::
     Pin.override(es.transport, service='elasticsearch-videos')
     es.indices.create(index='videos', ignore=400)
 
+OpenSearch is also supported (`opensearch-py`)::
+
+    from ddtrace import patch
+    from opensearchpy import OpenSearch
+
+    patch(elasticsearch=True)
+    os = OpenSearch()
+    # Example of instrumented query
+    os.indices.create(index='books', ignore=400)
 
 
 Configuration

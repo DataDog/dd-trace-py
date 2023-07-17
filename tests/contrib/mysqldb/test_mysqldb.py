@@ -5,6 +5,7 @@ from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.mysqldb.patch import patch
 from ddtrace.contrib.mysqldb.patch import unpatch
+from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_dict_issuperset
@@ -57,13 +58,16 @@ class MySQLCore(object):
         assert span.name == "mysql.query"
         assert span.span_type == "sql"
         assert span.error == 0
-        assert span.get_metric("out.port") == 3306
+        assert span.get_metric("network.destination.port") == 3306
         assert_dict_issuperset(
             span.get_tags(),
             {
                 "out.host": u"127.0.0.1",
                 "db.name": u"test",
+                "db.system": u"mysql",
                 "db.user": u"test",
+                "component": u"mysqldb",
+                "span.kind": u"client",
             },
         )
 
@@ -84,13 +88,16 @@ class MySQLCore(object):
             assert span.name == "mysql.query"
             assert span.span_type == "sql"
             assert span.error == 0
-            assert span.get_metric("out.port") == 3306
+            assert span.get_metric("network.destination.port") == 3306
             assert_dict_issuperset(
                 span.get_tags(),
                 {
                     "out.host": u"127.0.0.1",
                     "db.name": u"test",
+                    "db.system": u"mysql",
                     "db.user": u"test",
+                    "component": u"mysqldb",
+                    "span.kind": u"client",
                 },
             )
             fetch_span = spans[1]
@@ -112,13 +119,16 @@ class MySQLCore(object):
         assert span.name == "mysql.query"
         assert span.span_type == "sql"
         assert span.error == 0
-        assert span.get_metric("out.port") == 3306
+        assert span.get_metric("network.destination.port") == 3306
         assert_dict_issuperset(
             span.get_tags(),
             {
                 "out.host": u"127.0.0.1",
                 "db.name": u"test",
+                "db.system": u"mysql",
                 "db.user": u"test",
+                "component": u"mysqldb",
+                "span.kind": u"client",
             },
         )
 
@@ -139,13 +149,16 @@ class MySQLCore(object):
             assert span.name == "mysql.query"
             assert span.span_type == "sql"
             assert span.error == 0
-            assert span.get_metric("out.port") == 3306
+            assert span.get_metric("network.destination.port") == 3306
             assert_dict_issuperset(
                 span.get_tags(),
                 {
                     "out.host": u"127.0.0.1",
                     "db.name": u"test",
+                    "db.system": u"mysql",
                     "db.user": u"test",
+                    "component": u"mysqldb",
+                    "span.kind": u"client",
                 },
             )
             fetch_span = spans[1]
@@ -292,13 +305,16 @@ class MySQLCore(object):
         assert span.name == "mysql.query"
         assert span.span_type == "sql"
         assert span.error == 0
-        assert span.get_metric("out.port") == 3306
+        assert span.get_metric("network.destination.port") == 3306
         assert_dict_issuperset(
             span.get_tags(),
             {
                 "out.host": u"127.0.0.1",
                 "db.name": u"test",
+                "db.system": u"mysql",
                 "db.user": u"test",
+                "component": u"mysqldb",
+                "span.kind": u"client",
             },
         )
         assert span.get_tag("sql.query") is None
@@ -330,13 +346,16 @@ class MySQLCore(object):
         assert dd_span.name == "mysql.query"
         assert dd_span.span_type == "sql"
         assert dd_span.error == 0
-        assert dd_span.get_metric("out.port") == 3306
+        assert dd_span.get_metric("network.destination.port") == 3306
         assert_dict_issuperset(
             dd_span.get_tags(),
             {
                 "out.host": u"127.0.0.1",
                 "db.name": u"test",
+                "db.system": u"mysql",
                 "db.user": u"test",
+                "component": u"mysqldb",
+                "span.kind": u"client",
             },
         )
 
@@ -368,13 +387,16 @@ class MySQLCore(object):
             assert dd_span.name == "mysql.query"
             assert dd_span.span_type == "sql"
             assert dd_span.error == 0
-            assert dd_span.get_metric("out.port") == 3306
+            assert dd_span.get_metric("network.destination.port") == 3306
             assert_dict_issuperset(
                 dd_span.get_tags(),
                 {
                     "out.host": u"127.0.0.1",
                     "db.name": u"test",
+                    "db.system": u"mysql",
                     "db.user": u"test",
+                    "component": u"mysqldb",
+                    "span.kind": u"client",
                 },
             )
 
@@ -441,10 +463,10 @@ class MySQLCore(object):
             span = spans[0]
             self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_user_specified_service(self):
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_user_specified_service_v0(self):
         """
-        When a user specifies a service for the app
+        v0: When a user specifies a service for the app
             The mysql integration should not use it.
         """
         # Ensure that the service name was configured
@@ -461,6 +483,27 @@ class MySQLCore(object):
         spans = tracer.pop()
 
         assert spans[0].service != "mysvc"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_user_specified_service_v1(self):
+        """
+        v1: When a user specifies a service for the app
+            The mysql integration should not it.
+        """
+        # Ensure that the service name was configured
+        from ddtrace import config
+
+        assert config.service == "mysvc"
+
+        conn, tracer = self._get_conn_tracer()
+
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1")
+        rows = cursor.fetchall()
+        assert len(rows) == 1
+        spans = tracer.pop()
+
+        assert spans[0].service == "mysvc"
 
     @pytest.mark.skipif((1, 4) < MySQLdb.version_info < (2, 0), reason="context manager interface not supported")
     def test_contextmanager_connection(self):
@@ -484,13 +527,16 @@ class MySQLCore(object):
             assert span.name == "mysql.query"
             assert span.span_type == "sql"
             assert span.error == 0
-            assert span.get_metric("out.port") == 3306
+            assert span.get_metric("network.destination.port") == 3306
             assert_dict_issuperset(
                 span.get_tags(),
                 {
                     "out.host": u"127.0.0.1",
                     "db.name": u"test",
+                    "db.system": u"mysql",
                     "db.user": u"test",
+                    "component": u"mysqldb",
+                    "span.kind": u"client",
                 },
             )
 
@@ -581,13 +627,16 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
             assert span.name == "mysql.query"
             assert span.span_type == "sql"
             assert span.error == 0
-            assert span.get_metric("out.port") == 3306
+            assert span.get_metric("network.destination.port") == 3306
             assert_dict_issuperset(
                 span.get_tags(),
                 {
                     "out.host": u"127.0.0.1",
                     "db.name": u"test",
+                    "db.system": u"mysql",
                     "db.user": u"test",
+                    "component": u"mysqldb",
+                    "span.kind": u"client",
                 },
             )
             assert span.get_tag("sql.query") is None
@@ -616,8 +665,10 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
         span = spans[0]
         assert span.service == "pin-svc"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_MYSQLDB_SERVICE="mysvc"))
-    def test_user_specified_service_integration(self):
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(DD_MYSQLDB_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0")
+    )
+    def test_user_specified_service_integration_v0(self):
         conn, tracer = self._get_conn_tracer()
 
         cursor = conn.cursor()
@@ -627,6 +678,32 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
         spans = tracer.pop()
 
         assert spans[0].service == "mysvc"
+
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(DD_MYSQLDB_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1")
+    )
+    def test_user_specified_service_integration_v1(self):
+        conn, tracer = self._get_conn_tracer()
+
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1")
+        rows = cursor.fetchall()
+        assert len(rows) == 1
+        spans = tracer.pop()
+
+        assert spans[0].service == "mysvc"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_unspecified_service_v1(self):
+        conn, tracer = self._get_conn_tracer()
+
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1")
+        rows = cursor.fetchall()
+        assert len(rows) == 1
+        spans = tracer.pop()
+
+        assert spans[0].service == DEFAULT_SPAN_SERVICE_NAME
 
     def test_trace_connect(self):
         # No span when trace_connect is False (the default)
@@ -660,3 +737,25 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
         assert span.name == "MySQLdb.connection.connect"
         assert span.span_type == "sql"
         assert span.error == 0
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_span_name_schema_v0(self):
+        conn, tracer = self._get_conn_tracer()
+
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1")
+        spans = tracer.pop()
+
+        span = spans[0]
+        assert span.name == "mysql.query"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_span_name_schema_v1(self):
+        conn, tracer = self._get_conn_tracer()
+
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1")
+        spans = tracer.pop()
+
+        span = spans[0]
+        assert span.name == "mysql.query"

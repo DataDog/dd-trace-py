@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    Enable traces to be sent before an impending timeout for ``datadog_lambda>=4.66.0``.
+    Use ``DD_APM_FLUSH_DEADLINE`` to override the default flush deadline.
+    The default is the AWS Lambda function configured timeout limit.

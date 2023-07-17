@@ -30,7 +30,6 @@ class NoopWriter(TraceWriter):
         pass
 
 
-@bm.register
 class Threading(bm.Scenario):
     nthreads = bm.var(type=int)
     ntraces = bm.var(type=int)

@@ -1,11 +1,16 @@
 from ddtrace import config
+from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...ext import http
 from ...internal.compat import stringify
+from ...internal.schema import schematize_url_operation
 from ..asyncio import context_provider
 
 
@@ -40,11 +45,16 @@ async def trace_middleware(app, handler):
 
         # trace the handler
         request_span = tracer.trace(
-            "aiohttp.request",
+            schematize_url_operation("aiohttp.request", protocol="http", direction=SpanDirection.INBOUND),
             service=service,
             span_type=SpanTypes.WEB,
         )
         request_span.set_tag(SPAN_MEASURED_KEY)
+
+        request_span.set_tag_str(COMPONENT, config.aiohttp.integration_name)
+
+        # set span.kind tag equal to type of request
+        request_span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
 
         # Configure trace search sample rate
         # DEV: aiohttp is special case maintains separate configuration from config api
@@ -101,7 +111,7 @@ async def on_prepare(request, response):
     if trace_query_string is None:
         trace_query_string = config.http.trace_query_string
     if trace_query_string:
-        request_span.set_tag(http.QUERY_STRING, request.query_string)
+        request_span.set_tag_str(http.QUERY_STRING, request.query_string)
 
     trace_utils.set_http_meta(
         request_span,

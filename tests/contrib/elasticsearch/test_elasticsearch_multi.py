@@ -54,16 +54,6 @@ def test_elasticsearch(tmpdir):
 
 
 @snapshot(async_mode=False)
-def test_elasticsearch2(tmpdir):
-    do_test(tmpdir, "elasticsearch2")
-
-
-@snapshot(async_mode=False)
-def test_elasticsearch5(tmpdir):
-    do_test(tmpdir, "elasticsearch5")
-
-
-@snapshot(async_mode=False)
 def test_elasticsearch6(tmpdir):
     do_test(tmpdir, "elasticsearch6")
 

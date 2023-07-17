@@ -1,7 +1,11 @@
+from inspect import isgeneratorfunction
+import ipaddress
+import os
 import platform
 import random
 import re
 import sys
+from tempfile import mkdtemp
 import textwrap
 import threading
 from types import BuiltinFunctionType
@@ -16,6 +20,7 @@ from typing import Text
 from typing import Tuple
 from typing import Type
 from typing import Union
+import warnings
 
 import six
 
@@ -30,6 +35,7 @@ __all__ = [
     "Queue",
     "stringify",
     "StringIO",
+    "TimeoutError",
     "urlencode",
     "parse",
     "reraise",
@@ -39,6 +45,12 @@ __all__ = [
 PYTHON_VERSION_INFO = sys.version_info
 PY2 = sys.version_info[0] == 2
 PY3 = sys.version_info[0] == 3
+
+try:
+    from builtin import TimeoutError
+except ImportError:
+    # Purposely shadowing a missing python builtin
+    from socket import timeout as TimeoutError  # noqa: A001
 
 if not PY2:
     long = int
@@ -83,6 +95,27 @@ if PYTHON_VERSION_INFO >= (3, 7):
     pattern_type = re.Pattern
 else:
     pattern_type = re._pattern_type  # type: ignore[misc,attr-defined]
+
+try:
+    from inspect import getfullargspec  # noqa
+
+    def is_not_void_function(f, argspec):
+        return (
+            argspec.args
+            or argspec.varargs
+            or argspec.varkw
+            or argspec.defaults
+            or argspec.kwonlyargs
+            or argspec.kwonlydefaults
+            or isgeneratorfunction(f)
+        )
+
+
+except ImportError:
+    from inspect import getargspec as getfullargspec  # type: ignore[assignment]  # noqa: F401
+
+    def is_not_void_function(f, argspec):
+        return argspec.args or argspec.varargs or argspec.keywords or argspec.defaults or isgeneratorfunction(f)
 
 
 def is_integer(obj):
@@ -149,7 +182,7 @@ else:
 
 
 if PYTHON_VERSION_INFO[0:2] >= (3, 5):
-    from asyncio import iscoroutinefunction
+    from inspect import iscoroutinefunction
 
     # Execute from a string to get around syntax errors from `yield from`
     # DEV: The idea to do this was stolen from `six`
@@ -158,7 +191,6 @@ if PYTHON_VERSION_INFO[0:2] >= (3, 5):
         textwrap.dedent(
             """
     import functools
-    import asyncio
 
 
     def make_async_decorator(tracer, coro, *params, **kw_params):
@@ -245,6 +277,28 @@ else:
     CONTEXTVARS_IS_AVAILABLE = True
 
 
+try:
+    from pep562 import Pep562  # noqa
+
+    def ensure_pep562(module_name):
+        # type: (str) -> None
+        if sys.version_info < (3, 7):
+            Pep562(module_name)
+
+
+except ImportError:
+
+    def ensure_pep562(module_name):
+        # type: (str) -> None
+        pass
+
+
+try:
+    from collections.abc import Iterable  # noqa
+except ImportError:
+    from collections import Iterable  # type: ignore[no-redef, attr-defined]  # noqa
+
+
 def maybe_stringify(obj):
     # type: (Any) -> Optional[str]
     if obj is not None:
@@ -252,7 +306,26 @@ def maybe_stringify(obj):
     return None
 
 
-BUILTIN_SIMPLE_TYPES = frozenset([int, float, str, bytes, bool, type(None), type, long])
+def to_bytes_py2(n, length, byteorder):
+    # type: (int, int, str) -> Text
+    """
+    Convert a string to bytes in the format expected by the remote config
+    capabilities string, considering the byteorder, which is needed
+    for Python 2.
+    """
+    if byteorder == "little":
+        order = range(length)
+    elif byteorder == "big":
+        order = reversed(range(length))  # type: ignore[assignment]
+    else:
+        raise ValueError("byteorder must be either 'little' or 'big'")
+
+    return "".join(chr((n >> i * 8) & 0xFF) for i in order)
+
+
+NoneType = type(None)
+
+BUILTIN_SIMPLE_TYPES = frozenset([int, float, str, bytes, bool, NoneType, type, long])
 BUILTIN_CONTAINER_TYPES = frozenset([list, tuple, dict, set])
 BUILTIN_TYPES = BUILTIN_SIMPLE_TYPES | BUILTIN_CONTAINER_TYPES
 
@@ -288,3 +361,132 @@ except ImportError:
     Collection = Union[List, Set, Tuple]  # type: ignore[misc,assignment]
 
 ExcInfoType = Union[Tuple[Type[BaseException], BaseException, Optional[TracebackType]], Tuple[None, None, None]]
+
+
+try:
+    from json import JSONDecodeError
+except ImportError:
+    JSONDecodeError = ValueError  # type: ignore[misc,assignment]
+
+
+def ip_is_global(ip):
+    # type: (str) -> bool
+    """
+    is_global is Python 3+ only. This could raise a ValueError if the IP is not valid.
+    """
+    parsed_ip = ipaddress.ip_address(six.text_type(ip))
+
+    if PY3:
+        return parsed_ip.is_global
+
+    return not (parsed_ip.is_loopback or parsed_ip.is_private)
+
+
+# https://stackoverflow.com/a/19299884
+class TemporaryDirectory(object):
+    """Create and return a temporary directory.  This has the same
+    behavior as mkdtemp but can be used as a context manager.  For
+    example:
+
+        with TemporaryDirectory() as tmpdir:
+            ...
+
+    Upon exiting the context, the directory and everything contained
+    in it are removed.
+    """
+
+    def __init__(self, suffix="", prefix="tmp", _dir=None):
+        self._closed = False
+        self.name = None  # Handle mkdtemp raising an exception
+        self.name = mkdtemp(suffix, prefix, _dir)
+
+    def __repr__(self):
+        return "<{} {!r}>".format(self.__class__.__name__, self.name)
+
+    def __enter__(self):
+        return self.name
+
+    def cleanup(self, _warn=False):
+        if self.name and not self._closed:
+            try:
+                self._rmtree(self.name)
+            except (TypeError, AttributeError) as ex:
+                # Issue #10188: Emit a warning on stderr
+                # if the directory could not be cleaned
+                # up due to missing globals
+                if "None" not in str(ex):
+                    raise
+                return
+            self._closed = True
+            if _warn:
+                self._warn("Implicitly cleaning up {!r}".format(self), ResourceWarning)
+
+    def __exit__(self, exc, value, tb):
+        self.cleanup()
+
+    def __del__(self):
+        # Issue a ResourceWarning if implicit cleanup needed
+        self.cleanup(_warn=True)
+
+    # XXX (ncoghlan): The following code attempts to make
+    # this class tolerant of the module nulling out process
+    # that happens during CPython interpreter shutdown
+    # Alas, it doesn't actually manage it. See issue #10188
+    _listdir = staticmethod(os.listdir)
+    _path_join = staticmethod(os.path.join)
+    _isdir = staticmethod(os.path.isdir)
+    _islink = staticmethod(os.path.islink)
+    _remove = staticmethod(os.remove)
+    _rmdir = staticmethod(os.rmdir)
+    _warn = warnings.warn
+
+    def _rmtree(self, path):
+        # Essentially a stripped down version of shutil.rmtree.  We can't
+        # use globals because they may be None'ed out at shutdown.
+        for name in self._listdir(path):
+            fullname = self._path_join(path, name)
+            try:
+                isdir = self._isdir(fullname) and not self._islink(fullname)
+            except OSError:
+                isdir = False
+            if isdir:
+                self._rmtree(fullname)
+            else:
+                try:
+                    self._remove(fullname)
+                except OSError:
+                    pass
+        try:
+            self._rmdir(path)
+        except OSError:
+            pass
+
+
+try:
+    from shlex import quote as shquote
+except ImportError:
+    import re
+
+    _find_unsafe = re.compile(r"[^\w@%+=:,./-]").search
+
+    def shquote(s):
+        # type: (str) -> str
+        """Return a shell-escaped version of the string *s*."""
+        if not s:
+            return "''"
+        if _find_unsafe(s) is None:
+            return s
+
+        # use single quotes, and put single quotes into double quotes
+        # the string $'b is then quoted as '$'"'"'b'
+        return "'" + s.replace("'", "'\"'\"'") + "'"
+
+
+try:
+    from shlex import join as shjoin
+except ImportError:
+
+    def shjoin(args):  # type: ignore[misc]
+        # type: (Iterable[str]) -> str
+        """Return a shell-escaped string from *args*."""
+        return " ".join(shquote(arg) for arg in args)

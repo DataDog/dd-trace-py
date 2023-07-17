@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
 import logging
+import os
 import re
 import time
 
 import cherrypy
 from cherrypy.test import helper
+import pytest
 from six.moves.urllib.parse import quote as url_quote
 
 import ddtrace
@@ -19,7 +21,7 @@ from tests.utils import TracerTestCase
 from tests.utils import assert_span_http_status_code
 from tests.utils import snapshot
 
-from .web import TestApp
+from .web import StubApp
 
 
 logger = logging.getLogger()
@@ -35,7 +37,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
     @staticmethod
     def setup_server():
         cherrypy.tree.mount(
-            TestApp(),
+            StubApp(),
             "/",
             {
                 "/": {"tools.tracer.on": True},
@@ -130,6 +132,8 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         assert s.error == 0
         assert_span_http_status_code(s, 200)
         assert s.get_tag(http.METHOD) == "GET"
+        assert s.get_tag("component") == "cherrypy"
+        assert s.get_tag("span.kind") == "server"
 
     def test_alias(self):
         self.getPage("/aliases")
@@ -147,6 +151,8 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         assert s.error == 0
         assert_span_http_status_code(s, 200)
         assert s.get_tag(http.METHOD) == "GET"
+        assert s.get_tag("component") == "cherrypy"
+        assert s.get_tag("span.kind") == "server"
 
     def test_handleme(self):
         self.getPage("/handleme")
@@ -163,6 +169,8 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         assert s.error == 0
         assert_span_http_status_code(s, 418)
         assert s.get_tag(http.METHOD) == "GET"
+        assert s.get_tag("component") == "cherrypy"
+        assert s.get_tag("span.kind") == "server"
 
     def test_error(self):
         self.getPage("/error")
@@ -179,6 +187,8 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         assert_span_http_status_code(s, 500)
         assert s.error == 1
         assert s.get_tag(http.METHOD) == "GET"
+        assert s.get_tag("component") == "cherrypy"
+        assert s.get_tag("span.kind") == "server"
 
     def test_fatal(self):
         self.getPage("/fatal")
@@ -197,6 +207,8 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         assert s.get_tag(http.METHOD) == "GET"
         assert "ZeroDivisionError" in s.get_tag(ERROR_TYPE), s.get_tags()
         assert "by zero" in s.get_tag(ERROR_MSG)
+        assert s.get_tag("component") == "cherrypy"
+        assert s.get_tag("span.kind") == "server"
         assert re.search('File ".*/contrib/cherrypy/web.py", line [0-9]+, in fatal', s.get_tag(ERROR_STACK))
 
     def test_unicode(self):
@@ -220,6 +232,8 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         assert_span_http_status_code(s, 200)
         assert s.get_tag(http.METHOD) == "GET"
         assert s.get_tag(http.URL) == u"http://127.0.0.1:54583/üŋïĉóđē"
+        assert s.get_tag("component") == "cherrypy"
+        assert s.get_tag("span.kind") == "server"
 
     def test_404(self):
         self.getPage(u"/404/test")
@@ -237,6 +251,8 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         assert_span_http_status_code(s, 404)
         assert s.get_tag(http.METHOD) == "GET"
         assert s.get_tag(http.URL) == u"http://127.0.0.1:54583/404/test"
+        assert s.get_tag("component") == "cherrypy"
+        assert s.get_tag("span.kind") == "server"
 
     def test_propagation(self):
         self.getPage(
@@ -336,6 +352,8 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         assert s.error == 0
         assert_span_http_status_code(s, 200)
         assert s.get_tag(http.METHOD) == "GET"
+        assert s.get_tag("component") == "cherrypy"
+        assert s.get_tag("span.kind") == "server"
 
     def test_http_request_header_tracing(self):
         config.cherrypy.http.trace_headers(["Host", "my-header"])
@@ -456,7 +474,7 @@ class TestCherrypySnapshot(helper.CPWebCase):
     @staticmethod
     def setup_server():
         cherrypy.tree.mount(
-            TestApp(),
+            StubApp(),
             "/",
             {
                 "/": {"tools.tracer.on": True},
@@ -479,7 +497,7 @@ class TestCherrypySnapshot(helper.CPWebCase):
         self.assertHeader("Content-Type", "text/html;charset=utf-8")
         self.assertBody("child")
 
-    @snapshot(ignores=["meta.error.stack", "meta.error.type", "meta.error.msg"])
+    @snapshot(ignores=["meta.error.stack", "meta.error.type", "meta.error.message"])
     def test_success(self):
         self.getPage("/")
         time.sleep(0.1)
@@ -487,14 +505,132 @@ class TestCherrypySnapshot(helper.CPWebCase):
         self.assertHeader("Content-Type", "text/html;charset=utf-8")
         self.assertBody("Hello world!")
 
-    @snapshot(ignores=["meta.error.stack", "meta.error.type", "meta.error.msg"])
+    @snapshot(ignores=["meta.error.stack", "meta.error.type", "meta.error.message"])
     def test_error(self):
         self.getPage("/error")
         time.sleep(0.1)
         self.assertErrorPage(500)
 
-    @snapshot(ignores=["meta.error.stack", "meta.error.type", "meta.error.msg"])
+    @snapshot(ignores=["meta.error.stack", "meta.error.type", "meta.error.message"])
     def test_fatal(self):
         self.getPage("/fatal")
         time.sleep(0.1)
         self.assertErrorPage(500)
+
+
+@pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
+def test_service_name_schema(ddtrace_run_python_code_in_subprocess, schema_version):
+    expected_service_name = {
+        None: "cherrypy",
+        "v0": "cherrypy",
+        "v1": "mysvc",
+    }[schema_version]
+    code = """
+import pytest
+import cherrypy
+import time
+from cherrypy.test import helper
+from tests.utils import TracerTestCase
+from tests.contrib.cherrypy.web import StubApp
+from ddtrace.contrib.cherrypy import TraceMiddleware
+class TestCherrypy(TracerTestCase, helper.CPWebCase):
+    @staticmethod
+    def setup_server():
+        cherrypy.tree.mount(
+            StubApp(),
+            "/",
+            {{
+                "/": {{"tools.tracer.on": True}},
+            }},
+        )
+
+    def setUp(self):
+        super(TestCherrypy, self).setUp()
+        self.traced_app = TraceMiddleware(
+            cherrypy,
+            self.tracer,
+            distributed_tracing=True,
+        )
+
+    def test(self):
+        import os
+
+        self.getPage("/")
+        time.sleep(0.1)
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        s = spans[0]
+        assert s.service == "{}", "Schema Version: {{}}".format(os.environ.get("DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"))
+
+if __name__ == "__main__":
+    import sys
+    sys.exit(pytest.main(["-x", __file__]))
+    """.format(
+        expected_service_name
+    )
+    env = os.environ.copy()
+    if schema_version:
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
+    env["DD_SERVICE"] = "mysvc"
+    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
+    assert status == 0, (err, out)
+    assert err == b""
+
+
+@pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
+def test_operation_name_schema(ddtrace_run_python_code_in_subprocess, schema_version):
+    expected_operation_name = {
+        None: "cherrypy.request",
+        "v0": "cherrypy.request",
+        "v1": "http.server.request",
+    }[schema_version]
+    code = """
+import pytest
+import cherrypy
+import time
+from cherrypy.test import helper
+from tests.utils import TracerTestCase
+from tests.contrib.cherrypy.web import StubApp
+from ddtrace.contrib.cherrypy import TraceMiddleware
+class TestCherrypy(TracerTestCase, helper.CPWebCase):
+    @staticmethod
+    def setup_server():
+        cherrypy.tree.mount(
+            StubApp(),
+            "/",
+            {{
+                "/": {{"tools.tracer.on": True}},
+            }},
+        )
+
+    def setUp(self):
+        super(TestCherrypy, self).setUp()
+        self.traced_app = TraceMiddleware(
+            cherrypy,
+            self.tracer,
+            distributed_tracing=True,
+        )
+
+    def test(self):
+        import os
+
+        self.getPage("/")
+        time.sleep(0.1)
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        s = spans[0]
+        assert s.name == "{}", "Schema Version: {{}}".format(os.environ.get("DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"))
+
+if __name__ == "__main__":
+    import sys
+    sys.exit(pytest.main(["-x", __file__]))
+    """.format(
+        expected_operation_name
+    )
+    env = os.environ.copy()
+    if schema_version:
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
+    env["DD_SERVICE"] = "mysvc"
+    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
+    assert status == 0, (err, out)
+    assert err == b""

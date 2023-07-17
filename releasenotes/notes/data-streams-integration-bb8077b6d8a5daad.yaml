@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    data_streams: Add data streams core integration and instrument the confluent Kafka library with it.
+    For more information, check out the docs, https://docs.datadoghq.com/data_streams/

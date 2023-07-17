@@ -28,6 +28,13 @@ pull_request_rules:
       - "#approved-reviews-by>=1"
     actions:
       update: {}
+  - name: update approved PRs
+    conditions:
+      - label!=manual merge
+      - check-success=test
+      - "#approved-reviews-by>=2"
+    actions:
+      update: {}
   - name: warn on conflicts
     conditions:
       - conflict
@@ -36,11 +43,11 @@ pull_request_rules:
         message: "@{{author}} this pull request is now in conflict 😩"
       label:
         add:
-          - conflict
+          - conflicts
   - name: remove conflict label if not needed
     conditions:
       - -conflict
     actions:
       label:
         remove:
-          - conflict
+          - conflicts

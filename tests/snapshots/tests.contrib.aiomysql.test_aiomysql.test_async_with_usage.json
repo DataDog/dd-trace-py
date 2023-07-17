@@ -1,0 +1,36 @@
+[[
+  {
+    "name": "mysql.query",
+    "service": "",
+    "resource": "SELECT 1",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "component": "aiomysql",
+      "db.name": "test",
+      "db.system": "mysql",
+      "db.user": "test",
+      "language": "python",
+      "out.host": "127.0.0.1",
+      "runtime-id": "f09816a4d96c4c51abaf8769c10b0a7a",
+      "span.kind": "client",
+      "sql.query": "SELECT 1"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "db.row_count": 1,
+      "db.rownumber": 0,
+      "network.destination.port": 3306,
+      "process_id": 89502
+    },
+    "duration": 1370000,
+    "start": 1656453688953207000
+  }]]

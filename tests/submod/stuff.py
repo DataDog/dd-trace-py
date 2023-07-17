@@ -123,3 +123,24 @@ class PropertyStuff(object):
         self._foo = "foo"
 
     foo = property(operator.attrgetter("_foo"))
+
+
+from ddtrace.internal.compat import monotonic_ns  # noqa
+
+
+def durationstuff(ns):
+    end = monotonic_ns() + ns
+    while monotonic_ns() < end:
+        pass
+
+
+def mutator(arg):
+    arg.append(42)
+
+
+def age_checker(people, age, name=None):
+    return filter(lambda person: person.age > age, people)
+
+
+def caller(f, *args, **kwargs):
+    return f(*args, **kwargs)

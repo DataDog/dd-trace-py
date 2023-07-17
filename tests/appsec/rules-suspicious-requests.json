@@ -1,0 +1,213 @@
+{
+  "version": "2.2",
+  "rules": [
+    {
+      "id": "tst-037-001",
+      "name": "Test block on query",
+      "tags": {
+        "type": "lfi",
+        "crs_id": "000001",
+        "category": "attack_attempt"
+      },
+      "conditions": [
+        {
+          "parameters": {
+            "inputs": [
+              {
+                "address": "server.request.query"
+              }
+            ],
+            "regex": "xtrace"
+          },
+          "operator": "match_regex"
+        }
+      ],
+      "transformers": [],
+      "on_match": [
+        "block"
+      ]
+    },
+    {
+      "id": "tst-037-002",
+      "name": "Test block on uri",
+      "tags": {
+        "type": "lfi",
+        "crs_id": "000002",
+        "category": "attack_attempt"
+      },
+      "conditions": [
+        {
+          "parameters": {
+            "inputs": [
+              {
+                "address": "server.request.uri.raw"
+              }
+            ],
+            "regex": "\\.git"
+          },
+          "operator": "match_regex"
+        }
+      ],
+      "transformers": [],
+      "on_match": [
+        "block"
+      ]
+    },
+    {
+      "id": "tst-037-003",
+      "name": "Test block on body",
+      "tags": {
+        "type": "lfi",
+        "crs_id": "000003",
+        "category": "attack_attempt"
+      },
+      "conditions": [
+        {
+          "parameters": {
+            "inputs": [
+              {
+                "address": "server.request.body"
+              }
+            ],
+            "regex": "asldhkuqwgervf"
+          },
+          "operator": "match_regex"
+        }
+      ],
+      "transformers": [],
+      "on_match": [
+        "block"
+      ]
+    },
+    {
+      "id": "tst-037-004",
+      "name": "Test block on header",
+      "tags": {
+        "type": "lfi",
+        "crs_id": "000004",
+        "category": "attack_attempt"
+      },
+      "conditions": [
+        {
+          "parameters": {
+            "inputs": [
+              {
+                "address": "server.request.headers.no_cookies"
+              }
+            ],
+            "regex": "01972498723465"
+          },
+          "operator": "match_regex"
+        }
+      ],
+      "transformers": [],
+      "on_match": [
+        "block"
+      ]
+    },
+    {
+      "id": "tst-037-007",
+      "name": "Test block on path params",
+      "tags": {
+        "type": "lfi",
+        "crs_id": "000007",
+        "category": "attack_attempt"
+      },
+      "conditions": [
+        {
+          "parameters": {
+            "inputs": [
+              {
+                "address": "server.request.path_params"
+              }
+            ],
+            "regex": "AiKfOeRcvG45"
+          },
+          "operator": "match_regex"
+        }
+      ],
+      "transformers": [],
+      "on_match": [
+        "block"
+      ]
+    },
+    {
+      "id": "tst-037-008",
+      "name": "Test block on cookies",
+      "tags": {
+        "type": "lfi",
+        "crs_id": "000008",
+        "category": "attack_attempt"
+      },
+      "conditions": [
+        {
+          "parameters": {
+            "inputs": [
+              {
+                "address": "server.request.cookies"
+              }
+            ],
+            "regex": "jdfoSDGFkivRG_234"
+          },
+          "operator": "match_regex"
+        }
+      ],
+      "transformers": [],
+      "on_match": [
+        "block"
+      ]
+    },
+    {
+      "id": "tst-037-009",
+      "name": "Test block on response header",
+      "tags": {
+        "type": "lfi",
+        "crs_id": "000009",
+        "category": "attack_attempt"
+      },
+      "conditions": [
+        {
+          "parameters": {
+            "inputs": [
+              {
+                "address": "server.response.headers.no_cookies"
+              }
+            ],
+            "regex": "MagicKey_Al4h7iCFep9s1"
+          },
+          "operator": "match_regex"
+        }
+      ],
+      "transformers": [],
+      "on_match": [
+        "block"
+      ]
+    },
+    {
+      "id": "tst-037-010",
+      "name": "Test block on uri.raw format",
+      "tags": {
+        "type": "lfi",
+        "crs_id": "000010",
+        "category": "attack_attempt"
+      },
+      "conditions": [
+        {
+          "parameters": {
+            "inputs": [
+              {
+                "address": "server.request.uri.raw"
+              }
+            ],
+            "regex": "^/we_should_block$"
+          },
+          "operator": "match_regex"
+        }
+      ],
+      "transformers": [],
+      "on_match": [
+        "block"
+      ]
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 import pytest
 from tornado import template
 
+from ddtrace.constants import ERROR_MSG
 from ddtrace.ext import http
 from tests.utils import assert_span_http_status_code
 
@@ -41,6 +42,9 @@ class TestTornadoTemplate(TornadoTestCase):
         assert "templates/page.html" == template_span.get_tag("tornado.template_name")
         assert template_span.parent_id == request_span.span_id
         assert 0 == template_span.error
+        assert request_span.get_tag("component") == "tornado"
+        assert request_span.get_tag("span.kind") == "server"
+        assert template_span.get_tag("component") == "tornado"
 
     def test_template_renderer(self):
         # it should trace the Template generation even outside web handlers
@@ -59,6 +63,7 @@ class TestTornadoTemplate(TornadoTestCase):
         assert "render_string" == template_span.resource
         assert "render_string" == template_span.get_tag("tornado.template_name")
         assert 0 == template_span.error
+        assert template_span.get_tag("component") == "tornado"
 
     def test_template_partials(self):
         # it should trace the template rendering when partials are used
@@ -115,6 +120,10 @@ class TestTornadoTemplate(TornadoTestCase):
         assert "templates/item.html" == template_span.get_tag("tornado.template_name")
         assert template_span.parent_id == template_root.span_id
         assert 0 == template_span.error
+        assert request_span.get_tag("component") == "tornado"
+        assert request_span.get_tag("span.kind") == "server"
+        assert template_root.get_tag("component") == "tornado"
+        assert template_span.get_tag("component") == "tornado"
 
     def test_template_exception_handler(self):
         # it should trace template rendering exceptions
@@ -134,7 +143,7 @@ class TestTornadoTemplate(TornadoTestCase):
         assert_span_http_status_code(request_span, 500)
         assert self.get_url("/template_exception/") == request_span.get_tag(http.URL)
         assert 1 == request_span.error
-        assert "ModuleThatDoesNotExist" in request_span.get_tag("error.msg")
+        assert "ModuleThatDoesNotExist" in request_span.get_tag(ERROR_MSG)
         assert "AttributeError" in request_span.get_tag("error.stack")
 
         template_span = traces[0][1]
@@ -145,8 +154,11 @@ class TestTornadoTemplate(TornadoTestCase):
         assert "templates/exception.html" == template_span.get_tag("tornado.template_name")
         assert template_span.parent_id == request_span.span_id
         assert 1 == template_span.error
-        assert "ModuleThatDoesNotExist" in template_span.get_tag("error.msg")
+        assert "ModuleThatDoesNotExist" in template_span.get_tag(ERROR_MSG)
         assert "AttributeError" in template_span.get_tag("error.stack")
+        assert request_span.get_tag("component") == "tornado"
+        assert request_span.get_tag("span.kind") == "server"
+        assert template_span.get_tag("component") == "tornado"
 
     def test_template_renderer_exception(self):
         # it should trace the Template exceptions generation even outside web handlers
@@ -165,5 +177,6 @@ class TestTornadoTemplate(TornadoTestCase):
         assert "render_string" == template_span.resource
         assert "render_string" == template_span.get_tag("tornado.template_name")
         assert 1 == template_span.error
-        assert "is not defined" in template_span.get_tag("error.msg")
+        assert "is not defined" in template_span.get_tag(ERROR_MSG)
         assert "NameError" in template_span.get_tag("error.stack")
+        assert template_span.get_tag("component") == "tornado"

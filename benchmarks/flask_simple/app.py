@@ -1,7 +1,9 @@
+import hashlib
 import random
 
 from flask import Flask
 from flask import render_template_string
+from flask import request
 
 
 app = Flask(__name__)
@@ -10,6 +12,9 @@ app = Flask(__name__)
 @app.route("/")
 def index():
     rand_numbers = [random.random() for _ in range(20)]
+    m = hashlib.md5()
+    m.update(b"Insecure hash")
+    rand_numbers.append(m.digest())
     return render_template_string(
         """
 <!DOCTYPE html>
@@ -40,3 +45,9 @@ def index():
     """,
         rand_numbers=rand_numbers,
     )
+
+
+@app.route("/post-view", methods=["POST"])
+def post_view():
+    data = request.data
+    return data, 200

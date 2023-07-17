@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 from typing import Union
 
 import ddtrace
+from ddtrace.internal.utils.cache import callonce
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.sampler import DatadogSampler
@@ -17,11 +18,15 @@ from ddtrace.sampler import DatadogSampler
 from .logger import get_logger
 
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from ddtrace import Tracer
 
 
 logger = get_logger(__name__)
+
+# The architecture function spawns the file subprocess on the interpreter
+# executable. We make sure we call this once and cache the result.
+architecture = callonce(lambda: platform.architecture())
 
 
 def in_venv():
@@ -118,7 +123,7 @@ def collect(tracer):
         # eg. 12.5.0
         os_version=platform.release(),
         is_64_bit=sys.maxsize > 2 ** 32,
-        architecture=platform.architecture()[0],
+        architecture=architecture()[0],
         vm=platform.python_implementation(),
         version=ddtrace.__version__,
         lang="python",
@@ -148,6 +153,10 @@ def collect(tracer):
         integrations=integration_configs,
         partial_flush_enabled=tracer._partial_flush_enabled,
         partial_flush_min_spans=tracer._partial_flush_min_spans,
+        asm_enabled=ddtrace.config._appsec_enabled,
+        iast_enabled=ddtrace.config._iast_enabled,
+        waf_timeout=ddtrace.config._waf_timeout,
+        remote_config_enabled=os.getenv("DD_REMOTE_CONFIGURATION_ENABLED", "true"),
     )
 
 
@@ -166,6 +175,9 @@ def pretty_collect(tracer, color=True):
 
     info_pretty = """{blue}{bold}Tracer Configurations:{end}
     Tracer enabled: {tracer_enabled}
+    Application Security enabled: {appsec_enabled}
+    Remote Configuration enabled: {remote_config_enabled}
+    IAST enabled (experimental): {iast_enabled}
     Debug logging: {debug}
     Writing traces to: {agent_url}
     Agent error: {agent_error}
@@ -175,6 +187,7 @@ def pretty_collect(tracer, color=True):
     Priority sampling enabled: {priority_sampling_enabled}
     Partial flushing enabled: {partial_flush_enabled}
     Partial flush minimum number of spans: {partial_flush_min_spans}
+    WAF timeout: {waf_timeout} msecs
     {green}{bold}Tagging:{end}
     DD Service: {service}
     DD Env: {env}
@@ -182,6 +195,9 @@ def pretty_collect(tracer, color=True):
     Global Tags: {global_tags}
     Tracer Tags: {tracer_tags}""".format(
         tracer_enabled=info.get("tracer_enabled"),
+        appsec_enabled=info.get("asm_enabled"),
+        remote_config_enabled=info.get("remote_config_enabled"),
+        iast_enabled=info.get("iast_enabled"),
         debug=info.get("debug"),
         agent_url=info.get("agent_url") or "Not writing at the moment, is your tracer running?",
         agent_error=info.get("agent_error") or "None",
@@ -195,6 +211,7 @@ def pretty_collect(tracer, color=True):
         env=info.get("env") or "None",
         dd_version=info.get("dd_version") or "None",
         global_tags=info.get("global_tags") or "None",
+        waf_timeout=info.get("waf_timeout"),
         tracer_tags=info.get("tracer_tags") or "None",
         blue=bcolors.OKBLUE,
         green=bcolors.OKGREEN,

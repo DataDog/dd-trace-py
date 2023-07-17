@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    ASM: This fix resolves an issue where the WAF rule file specified by DD_APPSEC_RULES was wrongly
+    updated and modified by remote config.

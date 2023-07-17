@@ -28,7 +28,8 @@ from .constants import VERSION_KEY
 from .context import Context
 from .ext import http
 from .ext import net
-from .internal import _rand
+from .internal._rand import rand64bits as _rand64bits
+from .internal._rand import rand128bits as _rand128bits
 from .internal.compat import NumericType
 from .internal.compat import StringIO
 from .internal.compat import ensure_text
@@ -37,7 +38,11 @@ from .internal.compat import iteritems
 from .internal.compat import numeric_types
 from .internal.compat import stringify
 from .internal.compat import time_ns
+from .internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
+from .internal.constants import SPAN_API_DATADOG
 from .internal.logger import get_logger
+from .internal.sampling import SamplingMechanism
+from .internal.sampling import update_sampling_decision
 
 
 _NUMERIC_TAGS = (ANALYTICS_SAMPLE_RATE_KEY,)
@@ -48,6 +53,18 @@ _MetricDictType = Dict[_TagNameType, NumericType]
 log = get_logger(__name__)
 
 
+def _get_64_lowest_order_bits_as_int(large_int):
+    # type: (int) -> int
+    """Get the 64 lowest order bits from a 128bit integer"""
+    return _MAX_UINT_64BITS & large_int
+
+
+def _get_64_highest_order_bits_as_hex(large_int):
+    # type: (int) -> str
+    """Get the 64 highest order bits from a 128bit integer"""
+    return "{:032x}".format(large_int)[:16]
+
+
 class Span(object):
 
     __slots__ = [
@@ -55,6 +72,7 @@ class Span(object):
         "service",
         "name",
         "_resource",
+        "_span_api",
         "span_id",
         "trace_id",
         "parent_id",
@@ -88,6 +106,7 @@ class Span(object):
         start=None,  # type: Optional[int]
         context=None,  # type: Optional[Context]
         on_finish=None,  # type: Optional[List[Callable[[Span], None]]]
+        span_api=SPAN_API_DATADOG,  # type: str
     ):
         # type: (...) -> None
         """
@@ -124,6 +143,7 @@ class Span(object):
         self.service = service
         self._resource = [resource or name]
         self.span_type = span_type
+        self._span_api = span_api
 
         # tags / metadata
         self._meta = {}  # type: _MetaDictType
@@ -135,8 +155,13 @@ class Span(object):
         self.duration_ns = None  # type: Optional[int]
 
         # tracing
-        self.trace_id = trace_id or _rand.rand64bits()  # type: int
-        self.span_id = span_id or _rand.rand64bits()  # type: int
+        if trace_id is not None:
+            self.trace_id = trace_id  # type: int
+        elif config._128_bit_trace_id_enabled:
+            self.trace_id = _rand128bits()
+        else:
+            self.trace_id = _rand64bits()
+        self.span_id = span_id or _rand64bits()  # type: int
         self.parent_id = parent_id  # type: Optional[int]
         self._on_finish_callbacks = [] if on_finish is None else on_finish
 
@@ -162,11 +187,21 @@ class Span(object):
             self._store = {}
         self._store[key] = val
 
+    def _set_ctx_items(self, items):
+        # type: (Dict[str, Any]) -> None
+        if not self._store:
+            self._store = {}
+        self._store.update(items)
+
     def _get_ctx_item(self, key):
         # type: (str) -> Optional[Any]
         if not self._store:
             return None
         return self._store.get(key)
+
+    @property
+    def _trace_id_64bits(self):
+        return _get_64_lowest_order_bits_as_int(self.trace_id)
 
     @property
     def start(self):
@@ -226,12 +261,18 @@ class Span(object):
 
         :param finish_time: The end time of the span, in seconds. Defaults to ``now``.
         """
+        if finish_time is None:
+            self._finish_ns(time_ns())
+        else:
+            self._finish_ns(int(finish_time * 1e9))
+
+    def _finish_ns(self, finish_time_ns):
+        # type: (int) -> None
         if self.duration_ns is not None:
             return
 
-        ft = time_ns() if finish_time is None else int(finish_time * 1e9)
         # be defensive so we don't die if start isn't set
-        self.duration_ns = ft - (self.start_ns or ft)
+        self.duration_ns = finish_time_ns - (self.start_ns or finish_time_ns)
 
         for cb in self._on_finish_callbacks:
             cb(self)
@@ -297,9 +338,11 @@ class Span(object):
 
         elif key == MANUAL_KEEP_KEY:
             self.context.sampling_priority = USER_KEEP
+            update_sampling_decision(self.context, SamplingMechanism.MANUAL, True)
             return
         elif key == MANUAL_DROP_KEY:
             self.context.sampling_priority = USER_REJECT
+            update_sampling_decision(self.context, SamplingMechanism.MANUAL, False)
             return
         elif key == SERVICE_KEY:
             self.service = value
@@ -322,7 +365,7 @@ class Span(object):
         except Exception:
             log.warning("error setting tag %s, ignoring it", key, exc_info=True)
 
-    def _set_str_tag(self, key, value):
+    def set_tag_str(self, key, value):
         # type: (_TagNameType, Text) -> None
         """Set a value for a tag. Values are coerced to unicode in Python 2 and
         str in Python 3, with decoding errors in conversion being replaced with
@@ -407,7 +450,7 @@ class Span(object):
         """Return all metrics."""
         return self._metrics.copy()
 
-    def set_traceback(self, limit=20):
+    def set_traceback(self, limit=30):
         # type: (int) -> None
         """If the current stack has an exception, tag the span with the
         relevant error info. If not, set the span to the current python stack.
@@ -430,10 +473,12 @@ class Span(object):
             return
 
         self.error = 1
+        self._set_exc_tags(exc_type, exc_val, exc_tb)
 
+    def _set_exc_tags(self, exc_type, exc_val, exc_tb):
         # get the traceback
         buff = StringIO()
-        traceback.print_exception(exc_type, exc_val, exc_tb, file=buff, limit=20)
+        traceback.print_exception(exc_type, exc_val, exc_tb, file=buff, limit=30)
         tb = buff.getvalue()
 
         # readable version of type (e.g. exceptions.ZeroDivisionError)
@@ -442,14 +487,6 @@ class Span(object):
         self._meta[ERROR_MSG] = stringify(exc_val)
         self._meta[ERROR_TYPE] = exc_type_str
         self._meta[ERROR_STACK] = tb
-
-    def _remove_exc_info(self):
-        # type: () -> None
-        """Remove all exception related information from the span."""
-        self.error = 0
-        self._remove_tag(ERROR_MSG)
-        self._remove_tag(ERROR_TYPE)
-        self._remove_tag(ERROR_STACK)
 
     def _pprint(self):
         # type: () -> str
@@ -482,6 +519,18 @@ class Span(object):
         if self._context is None:
             self._context = Context(trace_id=self.trace_id, span_id=self.span_id)
         return self._context
+
+    def finish_with_ancestors(self):
+        # type: () -> None
+        """Finish this span along with all (accessible) ancestors of this span.
+
+        This method is useful if a sudden program shutdown is required and finishing
+        the trace is desired.
+        """
+        span = self  # type: Optional[Span]
+        while span is not None:
+            span.finish()
+            span = span._parent
 
     def __enter__(self):
         return self

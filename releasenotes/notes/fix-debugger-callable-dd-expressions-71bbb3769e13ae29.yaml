@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    dynamic instrumentation: Fixed an issue with expressions in metric probes
+    that prevented them from being evaluated.

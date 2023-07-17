@@ -25,7 +25,7 @@ def injected_hook(f, hook, arg):
 
     eject_hook(f, hook, line, arg)
 
-    if sys.version_info[:2] not in {(3, 5), (3, 6)}:
+    if sys.version_info[:2] not in {(3, 5), (3, 6)} and sys.version_info < (3, 11):
         assert f.__code__ == code
     assert f.__code__ is not code
 

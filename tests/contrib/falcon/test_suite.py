@@ -40,6 +40,8 @@ class FalconTestCase(FalconTestMixin):
         assert span.resource == "GET 404"
         assert_span_http_status_code(span, 404)
         assert span.get_tag(httpx.URL) == "http://falconframework.org/fake_endpoint"
+        assert span.get_tag("component") == "falcon"
+        assert span.get_tag("span.kind") == "server"
         assert httpx.QUERY_STRING not in span.get_tags()
         assert span.parent_id is None
         assert span.error == 0
@@ -66,6 +68,8 @@ class FalconTestCase(FalconTestMixin):
         assert span.get_tag(httpx.URL) == "http://falconframework.org/exception"
         assert span.parent_id is None
         assert span.error == 1
+        assert span.get_tag("component") == "falcon"
+        assert span.get_tag("span.kind") == "server"
 
     def test_200(self, query_string="", trace_query_string=False):
         out = self.make_test_call("/200", expected_status_code=200, query_string=query_string)
@@ -81,8 +85,10 @@ class FalconTestCase(FalconTestMixin):
         assert span.service == self._service
         assert span.resource == "GET tests.contrib.falcon.app.resources.Resource200"
         assert_span_http_status_code(span, 200)
-        fqs = ("?" + query_string) if query_string and trace_query_string else ""
+        fqs = ("?" + query_string) if query_string else ""
         assert span.get_tag(httpx.URL) == "http://falconframework.org/200" + fqs
+        assert span.get_tag("component") == "falcon"
+        assert span.get_tag("span.kind") == "server"
         if config.falcon.trace_query_string:
             assert span.get_tag(httpx.QUERY_STRING) == query_string
         else:
@@ -174,6 +180,8 @@ class FalconTestCase(FalconTestMixin):
         assert span.get_tag(httpx.URL) == "http://falconframework.org/201"
         assert span.parent_id is None
         assert span.error == 0
+        assert span.get_tag("component") == "falcon"
+        assert span.get_tag("span.kind") == "server"
 
     def test_500(self):
         out = self.make_test_call("/500", expected_status_code=500)
@@ -192,6 +200,8 @@ class FalconTestCase(FalconTestMixin):
         assert span.get_tag(httpx.URL) == "http://falconframework.org/500"
         assert span.parent_id is None
         assert span.error == 1
+        assert span.get_tag("component") == "falcon"
+        assert span.get_tag("span.kind") == "server"
 
     def test_404_exception(self):
         self.make_test_call("/not_found", expected_status_code=404)
@@ -209,6 +219,8 @@ class FalconTestCase(FalconTestMixin):
         assert span.get_tag(httpx.URL) == "http://falconframework.org/not_found"
         assert span.parent_id is None
         assert span.error == 0
+        assert span.get_tag("component") == "falcon"
+        assert span.get_tag("span.kind") == "server"
 
     def test_404_exception_no_stacktracer(self):
         # it should not have the stacktrace when a 404 exception is raised
@@ -226,6 +238,8 @@ class FalconTestCase(FalconTestMixin):
         assert span.get_tag(ERROR_TYPE) is None
         assert span.parent_id is None
         assert span.error == 0
+        assert span.get_tag("component") == "falcon"
+        assert span.get_tag("span.kind") == "server"
 
     def test_200_ot(self):
         """OpenTracing version of test_200."""

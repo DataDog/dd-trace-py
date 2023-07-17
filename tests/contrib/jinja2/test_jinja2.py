@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import os.path
 
 # 3rd party
@@ -44,6 +45,7 @@ class Jinja2Test(TracerTestCase):
             assert span.service is None
             assert span.span_type == "template"
             assert span.get_tag("jinja2.template_name") == "<memory>"
+            assert span.get_tag("component") == "jinja2"
 
         assert spans[0].name == "jinja2.compile"
         assert_is_not_measured(spans[0])
@@ -62,11 +64,39 @@ class Jinja2Test(TracerTestCase):
             assert span.service is None
             assert span.span_type == "template"
             assert span.get_tag("jinja2.template_name") == "<memory>"
+            assert span.get_tag("component") == "jinja2"
 
         assert spans[0].name == "jinja2.compile"
         assert_is_not_measured(spans[0])
         assert spans[1].name == "jinja2.render"
         assert_is_measured(spans[1])
+
+    def test_custom_template_name(self):
+        """
+        Regression test for #4008
+
+        https://github.com/DataDog/dd-trace-py/issues/4008
+        """
+        # pytest.mark.parametrize is not supported for unittest test methods
+        cases = [
+            ("custom-name", "custom-name"),
+            (1, "1"),
+            (u"😐", u"😐"),
+        ]
+        for template_name, expected in cases:
+            t = jinja2.environment.Template("Hello {{name}}!")
+            t.name = template_name
+            assert "".join(t.generate(name="Jinja")) == "Hello Jinja!"
+
+            # tests
+            spans = self.pop_spans()
+            assert len(spans) == 2
+
+            render_span = spans[1]
+            assert render_span.name == "jinja2.render"
+            assert render_span.get_tag("jinja2.template_name") == expected
+            assert render_span.get_tag("component") == "jinja2"
+            assert render_span.resource == expected
 
     def test_file_template(self):
         loader = jinja2.loaders.FileSystemLoader(TMPL_DIR)

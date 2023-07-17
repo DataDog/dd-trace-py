@@ -32,6 +32,8 @@ typedef struct
     void* ptr;
     /* Memory size allocated in bytes */
     size_t size;
+    /* Domain allocated */
+    PyMemAllocatorDomain domain;
     /* Thread ID */
     unsigned long thread_id;
     /* List of frames, top frame first */
@@ -50,7 +52,7 @@ void
 traceback_free(traceback_t* tb);
 
 traceback_t*
-memalloc_get_traceback(uint16_t max_nframe, void* ptr, size_t size);
+memalloc_get_traceback(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorDomain domain);
 
 PyObject*
 traceback_to_tuple(traceback_t* tb);
@@ -59,6 +61,6 @@ traceback_to_tuple(traceback_t* tb);
 #define TRACEBACK_ARRAY_MAX_COUNT UINT16_MAX
 #define TRACEBACK_ARRAY_COUNT_TYPE uint16_t
 
-DO_ARRAY(traceback_t *, traceback, TRACEBACK_ARRAY_COUNT_TYPE, traceback_free)
+DO_ARRAY(traceback_t*, traceback, TRACEBACK_ARRAY_COUNT_TYPE, traceback_free)
 
 #endif

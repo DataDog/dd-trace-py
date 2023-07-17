@@ -1,16 +1,21 @@
 from ddtrace import config
+from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
+from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.schema import schematize_cloud_api_operation
+from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.pin import Pin
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from .. import trace_utils
+from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
 
 
 DD_PATCH_ATTR = "_datadog_patch"
 
-SERVICE_NAME = "algoliasearch"
+SERVICE_NAME = schematize_service_name("algoliasearch")
 APP_NAME = "algoliasearch"
 
 try:
@@ -104,17 +109,22 @@ def _patched_search(func, instance, wrapt_args, wrapt_kwargs):
         return func(*wrapt_args, **wrapt_kwargs)
 
     with pin.tracer.trace(
-        "algoliasearch.search",
+        schematize_cloud_api_operation("algoliasearch.search", cloud_provider="algoliasearch", cloud_service="search"),
         service=trace_utils.ext_service(pin, config.algoliasearch),
         span_type=SpanTypes.HTTP,
     ) as span:
+        span.set_tag_str(COMPONENT, config.algoliasearch.integration_name)
+
+        # set span.kind to the type of request being performed
+        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+
         span.set_tag(SPAN_MEASURED_KEY)
 
         if not span.sampled:
             return func(*wrapt_args, **wrapt_kwargs)
 
         if config.algoliasearch.collect_query_text:
-            span.set_tag("query.text", wrapt_kwargs.get("query", wrapt_args[0]))
+            span.set_tag_str("query.text", wrapt_kwargs.get("query", wrapt_args[0]))
 
         query_args = wrapt_kwargs.get(function_query_arg_name, wrapt_args[1] if len(wrapt_args) > 1 else None)
 

@@ -20,6 +20,7 @@
 from datetime import datetime
 import os.path
 import re
+import sys
 from typing import Any
 from typing import Optional
 
@@ -65,7 +66,14 @@ class VersionTagFilter(Filter):
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
-extensions = ["sphinx.ext.autodoc", "sphinx.ext.extlinks", "reno.sphinxext", "sphinxcontrib.spelling"]
+extensions = [
+    "sphinx.ext.autodoc",
+    "sphinx.ext.extlinks",
+    "sphinx.ext.intersphinx",
+    "reno.sphinxext",
+    "sphinxcontrib.spelling",
+    "sphinx_copybutton",  # https://sphinx-copybutton.readthedocs.io/
+]
 
 # Add filters for sphinxcontrib.spelling
 spelling_filters = [VersionTagFilter]
@@ -78,6 +86,11 @@ templates_path = ["_templates"]
 #
 # source_suffix = ['.rst', '.md']
 source_suffix = ".rst"
+
+# Enable links to the python standard doc.
+intersphinx_mapping = {
+    "python": ("https://docs.python.org/3", None),
+}
 
 # The encoding of source files.
 #
@@ -163,14 +176,25 @@ todo_include_todos = False
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = "alabaster"
+html_theme = "furo"
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
 # documentation.
 #
+# See https://pradyunsg.me/furo/customisation/
+DATADOG_DARK_PURPLE = "#632CA6"
+
 html_theme_options = {
-    "description": "Datadog's Python APM client",
+    "light_css_variables": {
+        "color-brand-primary": DATADOG_DARK_PURPLE,
+        "color-brand-content": DATADOG_DARK_PURPLE,
+    },
+    "dark_css_variables": {
+        # TODO: update to use a correct color, since dark purple is hard to read
+        # "color-brand-primary": DATADOG_DARK_PURPLE,
+        # "color-brand-content": DATADOG_DARK_PURPLE,
+    },
 }
 
 # Add any paths that contain custom themes here, relative to this directory.
@@ -194,7 +218,7 @@ html_theme_options = {
 # the docs.  This file should be a Windows icon file (.ico) being 16x16 or 32x32
 # pixels large.
 #
-# html_favicon = None
+html_favicon = "favicon.ico"
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
@@ -220,7 +244,7 @@ html_theme_options = {
 
 # Custom sidebar templates, maps document names to template names.
 #
-html_sidebars = {"**": ["about.html", "navigation.html", "relations.html", "searchbox.html"]}
+# html_sidebars = {"**": [""]}
 
 # Additional templates that should be rendered to pages, maps page names to
 # template names.
@@ -667,7 +691,114 @@ class DDTraceReleaseNotesDirective(rst.Directive):
         return node.children
 
 
+class DDTraceConfigurationOptionsDirective(rst.Directive):
+    r"""
+    Directive class to handle ``.. ddtrace-configuration-options::`` directive.
+
+    For example::
+
+        .. ddtrace-configuration-options::
+    """
+
+    has_content = True
+
+    def run(self):
+        options = yaml.load("\n".join(self.content), Loader=yaml.CLoader)
+
+        results = statemachine.ViewList()
+        for var_name, value in options.items():
+            skip_label = value.get("skip_label") == "true"
+            var_label = var_name.lower().replace("_", "-")
+            var_description = value["description"]
+            var_type = value.get("type") or "String"
+            var_default = value.get("default") or "(no value)"
+            var_version_added = value.get("version_added")
+
+            if not skip_label:
+                results.append(".. _`{}`:".format(var_label), "", 0)
+                results.append("", "", 0)
+            results.append(".. py:data:: {}".format(var_name), "", 0)
+            results.append("", "", 0)
+            for line in var_description.splitlines():
+                results.append("    " + line.lstrip(), "", 0)
+
+            results.append("", "", 0)
+            results.append("    **Type**: {}".format(var_type), "", 0)
+            results.append("", "", 0)
+            results.append("    **Default**: {}".format(var_default), "", 0)
+            results.append("", "", 0)
+
+            if var_version_added:
+                for version, note in var_version_added.items():
+                    if note:
+                        results.append("    *Changed in version {}*: {}".format(version, note), "", 0)
+                    else:
+                        results.append("    *New in version {}.*".format(version), "", 0)
+                    results.append("", "", 0)
+
+        # Generate the RST nodes to return for rendering
+        node = nodes.section()
+        node.document = self.state.document
+        self.state.nested_parse(results, 0, node)
+        return node.children
+
+
+def asbool(argument):
+    return argument.lower() in {"yes", "true", "t", "1", "y", "on"}
+
+
+class DDEnvierConfigurationDirective(rst.Directive):
+    required_arguments = 1
+    optional_arguments = 0
+    final_argument_whitespace = True
+    option_spec = {
+        "recursive": asbool,
+    }
+
+    def run(self):
+        module_name, _, config_class = self.arguments[0].partition(":")
+        __import__(module_name)
+        module = sys.modules[module_name]
+
+        config_spec = None
+        for part in config_class.split("."):
+            config_spec = getattr(module, part)
+        if config_spec is None:
+            raise ValueError("Could not find configuration spec class {} from {}".format(config_class, module_name))
+
+        recursive = self.options.get("recursive", False)
+
+        results = statemachine.ViewList()
+
+        for var_name, var_type, var_default, var_description in config_spec.help_info(recursive=recursive):
+            var_name = var_name.replace("``", "")
+
+            var_label = var_name.lower().replace("_", "-")
+
+            results.append(".. _`{}`:".format(var_label), "", 0)
+            results.append("", "", 0)
+
+            results.append(".. py:data:: {}".format(var_name), "", 0)
+            results.append("", "", 0)
+            for line in var_description.splitlines():
+                results.append("    " + line.lstrip(), "", 0)
+
+            results.append("", "", 0)
+            results.append("    **Type**: {}".format(var_type), "", 0)
+            results.append("", "", 0)
+            results.append("    **Default**: {}".format(var_default), "", 0)
+            results.append("", "", 0)
+
+        # Generate the RST nodes to return for rendering
+        node = nodes.section()
+        node.document = self.state.document
+        self.state.nested_parse(results, 0, node)
+        return node.children
+
+
 def setup(app):
     app.add_directive("ddtrace-release-notes", DDTraceReleaseNotesDirective)
+    app.add_directive("ddtrace-configuration-options", DDTraceConfigurationOptionsDirective)
+    app.add_directive("ddtrace-envier-configuration", DDEnvierConfigurationDirective)
     metadata_dict = {"version": "1.0.0", "parallel_read_safe": True}
     return metadata_dict

@@ -7,21 +7,26 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "worker",
+    "error": 0,
     "meta": {
-      "job.id": "701bc7c5-a0b2-4cf6-9eec-ed92ffa40758",
+      "_dd.p.dm": "-0",
+      "component": "rq",
+      "job.id": "2797c14a-7b40-4d56-8de8-45c0f5f16729",
       "job.origin": "q",
       "job.status": "finished",
-      "runtime-id": "41d44bd751cc478ea0852543f2937622"
+      "language": "python",
+      "runtime-id": "d475baa7b1254d59a6514370b88b3fd4",
+      "span.kind": "consumer"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 188
+      "process_id": 50211
     },
-    "duration": 26261800,
-    "start": 1645641611011363100
+    "duration": 15707000,
+    "start": 1672864523705609000
   },
      {
        "name": "rq.job.perform",
@@ -30,11 +35,14 @@
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "meta": {
-         "job.id": "701bc7c5-a0b2-4cf6-9eec-ed92ffa40758"
+         "component": "rq",
+         "job.id": "2797c14a-7b40-4d56-8de8-45c0f5f16729"
        },
-       "duration": 17457900,
-       "start": 1645641611014810600
+       "duration": 2780000,
+       "start": 1672864523711977000
      }],
 [
   {
@@ -45,19 +53,24 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "worker",
+    "error": 0,
     "meta": {
+      "_dd.p.dm": "-0",
+      "component": "rq",
       "job.func_name": "tests.contrib.rq.jobs.job_add1",
-      "job.id": "701bc7c5-a0b2-4cf6-9eec-ed92ffa40758",
+      "job.id": "2797c14a-7b40-4d56-8de8-45c0f5f16729",
+      "language": "python",
       "queue.name": "q",
-      "runtime-id": "4a98fd02eb3a44439fbc6932305112f4"
+      "runtime-id": "70c5dc2645ba42f4a47c8b89c961f267",
+      "span.kind": "producer"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 179
+      "process_id": 50181
     },
-    "duration": 2891900,
-    "start": 1645641609307262100
+    "duration": 3373000,
+    "start": 1672864523141654000
   }]]

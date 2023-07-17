@@ -2,6 +2,9 @@ import grpc
 
 from ddtrace import config
 from ddtrace.internal.compat import to_unicode
+from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.schema import schematize_url_operation
+from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.vendor import wrapt
 
 from . import constants
@@ -9,7 +12,9 @@ from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import ERROR_MSG
 from ...constants import ERROR_TYPE
+from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanKind
 from ...ext import SpanTypes
 from .utils import set_grpc_method_meta
 
@@ -38,8 +43,8 @@ def _handle_server_exception(server_context, span):
         code = to_unicode(server_context._state.code)
         details = to_unicode(server_context._state.details)
         span.error = 1
-        span._set_str_tag(ERROR_MSG, details)
-        span._set_str_tag(ERROR_TYPE, code)
+        span.set_tag_str(ERROR_MSG, details)
+        span.set_tag_str(ERROR_TYPE, code)
 
 
 def _wrap_response_iterator(response_iterator, server_context, span):
@@ -67,15 +72,21 @@ class _TracedRpcMethodHandler(wrapt.ObjectProxy):
         trace_utils.activate_distributed_headers(tracer, int_config=config.grpc_server, request_headers=headers)
 
         span = tracer.trace(
-            "grpc",
+            schematize_url_operation("grpc", protocol="grpc", direction=SpanDirection.INBOUND),
             span_type=SpanTypes.GRPC,
             service=trace_utils.int_service(self._pin, config.grpc_server),
             resource=self._handler_call_details.method,
         )
+
+        span.set_tag_str(COMPONENT, config.grpc_server.integration_name)
+
+        # set span.kind tag equal to type of span
+        span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
+
         span.set_tag(SPAN_MEASURED_KEY)
 
         set_grpc_method_meta(span, self._handler_call_details.method, method_kind)
-        span._set_str_tag(constants.GRPC_SPAN_KIND_KEY, constants.GRPC_SPAN_KIND_VALUE_SERVER)
+        span.set_tag_str(constants.GRPC_SPAN_KIND_KEY, constants.GRPC_SPAN_KIND_VALUE_SERVER)
 
         sample_rate = config.grpc_server.get_analytics_sample_rate()
         if sample_rate is not None:

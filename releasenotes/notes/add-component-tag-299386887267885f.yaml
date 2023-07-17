@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    The component tag has been added for all auto-instrumented spans. The value of the component tag is equal
+    to the name of the integration that produced the span.
+
