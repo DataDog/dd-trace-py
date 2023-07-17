@@ -295,5 +295,5 @@ def test_unshallow_repository(git_repo):
 
 def test_extract_clone_defaultremotename():
     with mock.patch("ddtrace.ext.git._git_subprocess_cmd", return_value="default_remote_name") as mock_git_subprocess:
-        assert git.extract_clone_defaultremotename(cwd=git_repo) == "default_remote_name"
+        assert git._extract_clone_defaultremotename(cwd=git_repo) == "default_remote_name"
         mock_git_subprocess.assert_called_once_with("config --default origin --get clone.defaultRemoteName")
