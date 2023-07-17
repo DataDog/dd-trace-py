@@ -644,9 +644,8 @@ def request_tracer(name):
             flask_config=config.flask,
             current_span=current_span,
             block_request_callable=_block_request_callable,
-        ) as ctx:
-            with ctx.get_item("flask_request"):
-                return wrapped(*args, **kwargs)
+        ) as ctx, ctx.get_item("flask_request"):
+            return wrapped(*args, **kwargs)
 
     return _traced_request
 
