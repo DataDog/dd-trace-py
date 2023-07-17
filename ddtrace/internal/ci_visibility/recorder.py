@@ -262,6 +262,8 @@ class CIVisibility(Service):
 
         response = _do_request("POST", url, json.dumps(payload), _headers)
 
+        self._test_suites_to_skip = []
+
         if response.status >= 400:
             log.warning("Test skips request responded with status %d", response.status)
             return
@@ -271,7 +273,6 @@ class CIVisibility(Service):
             log.warning("Test skips request responded with invalid JSON '%s'", response.body)
             return
 
-        self._test_suites_to_skip = []
         for item in parsed["data"]:
             if item["type"] == TEST_SKIPPING_LEVEL and "suite" in item["attributes"]:
                 module = item["attributes"].get("configurations", {}).get("test.bundle", "").replace(".", "/")
