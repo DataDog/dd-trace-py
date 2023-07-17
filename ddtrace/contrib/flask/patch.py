@@ -295,8 +295,8 @@ def patch():
 
     # flask.templating traced functions
     _w("flask.templating", "_render", traced_render)
-    _w("flask", "render_template", traced_render_template)
-    _w("flask", "render_template_string", traced_render_template_string)
+    _w("flask", "render_template", _build_render_template_wrapper("render_template"))
+    _w("flask", "render_template_string", _build_render_template_wrapper("render_template_string"))
 
     # flask.blueprints.Blueprint traced hook decorators
     bp_hooks = [
@@ -524,28 +524,20 @@ def traced_flask_hook(wrapped, instance, args, kwargs):
     return wrapped(wrap_function(instance, func))
 
 
-def traced_render_template(wrapped, instance, args, kwargs):
-    """Wrapper for flask.templating.render_template"""
-    pin = Pin._find(wrapped, instance, get_current_app())
-    if not pin or not pin.enabled():
-        return wrapped(*args, **kwargs)
+def _build_render_template_wrapper(name):
+    name = "flask.%s" % name
 
-    with pin.tracer.trace("flask.render_template", span_type=SpanTypes.TEMPLATE) as span:
-        span.set_tag_str(COMPONENT, config.flask.integration_name)
+    def traced_render(wrapped, instance, args, kwargs):
+        pin = Pin._find(wrapped, instance, get_current_app())
+        if not pin or not pin.enabled():
+            return wrapped(*args, **kwargs)
 
-        return wrapped(*args, **kwargs)
+        with core.context_with_data(
+            "flask.render_template", name=name, pin=pin, flask_config=config.flask
+        ) as ctx, ctx.get_item(name + ".call"):
+            return wrapped(*args, **kwargs)
 
-
-def traced_render_template_string(wrapped, instance, args, kwargs):
-    """Wrapper for flask.templating.render_template_string"""
-    pin = Pin._find(wrapped, instance, get_current_app())
-    if not pin or not pin.enabled():
-        return wrapped(*args, **kwargs)
-
-    with core.context_with_data(
-        "flask.render_template_string", name="flask.render_template_string", pin=pin, flask_config=config.flask
-    ) as ctx, ctx.get_item("render_call"):
-        return wrapped(*args, **kwargs)
+    return traced_render
 
 
 def traced_render(wrapped, instance, args, kwargs):

@@ -263,10 +263,11 @@ def _on_flask_render(span, template, flask_config):
         span.set_tag_str("flask.template_name", name)
 
 
-def _on_render_template_string_context_started_flask(ctx):
-    span = ctx.get_item("pin").tracer.trace(ctx.get_item("name"), span_type=SpanTypes.TEMPLATE)
+def _on_render_template_context_started_flask(ctx):
+    name = ctx.get_item("name")
+    span = ctx.get_item("pin").tracer.trace(name, span_type=SpanTypes.TEMPLATE)
     span.set_tag_str(COMPONENT, ctx.get_item("flask_config").integration_name)
-    ctx.set_item("render_call", span)
+    ctx.set_item(name + ".call", span)
 
 
 def listen():
@@ -284,4 +285,4 @@ def listen():
     core.on("flask.render", _on_flask_render)
     core.on("context.started.flask._traced_request", _on_traced_request_context_started_flask)
     core.on("context.started.flask.jsonify", _on_jsonify_context_started_flask)
-    core.on("context.started.flask.render_template_string", _on_render_template_string_context_started_flask)
+    core.on("context.started.flask.render_template", _on_render_template_context_started_flask)
