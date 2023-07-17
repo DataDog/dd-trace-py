@@ -239,9 +239,9 @@ jobs:
       - run:
           name: "Flake8 check"
           command: riot run -s flake8
-#      - run:
-#          name: "Slots check"
-#          command: riot run -s slotscheck
+      - run:
+          name: "Slots check"
+          command: riot run -s slotscheck
       - run:
           name: "Mypy check"
           command: riot run -s mypy
