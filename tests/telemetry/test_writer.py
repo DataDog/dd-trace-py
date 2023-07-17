@@ -69,15 +69,15 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
     events[0]["payload"]["configuration"].sort(key=lambda c: c["name"])
     payload = {
         "configuration": [
-            {"name": "appsec_enabled", "origin": "unknown", "value": False},
-            {"name": "data_streams_enabled", "origin": "unknown", "value": False},
+            {"name": "DD_APPSEC_ENABLED", "origin": "unknown", "value": False},
+            {"name": "DD_DATA_STREAMS_ENABLED", "origin": "unknown", "value": False},
+            {"name": "DD_DYNAMIC_INSTRUMENTATION_ENABLED", "origin": "unknown", "value": False},
+            {"name": "DD_PROFILING_ENABLED", "origin": "unknown", "value": False},
+            {"name": "DD_TRACE_ENABLED", "origin": "unknown", "value": True},
             {"name": "ddtrace_auto_used", "origin": "unknown", "value": False},
             {"name": "ddtrace_bootstrapped", "origin": "unknown", "value": False},
-            {"name": "dynamic_instrumentation_enabled", "origin": "unknown", "value": False},
             {"name": "otel_enabled", "origin": "unknown", "value": False},
-            {"name": "profiling_enabled", "origin": "unknown", "value": False},
             {"name": "runtimemetrics_enabled", "origin": "unknown", "value": False},
-            {"name": "trace_enabled", "origin": "unknown", "value": True},
             {"name": "trace_propagation_style_extract", "origin": "unknown", "value": "['tracecontext', 'datadog']"},
             {"name": "trace_propagation_style_inject", "origin": "unknown", "value": "['tracecontext', 'datadog']"},
         ],
@@ -124,21 +124,19 @@ telemetry_writer.disable()
 
     events = test_agent_session.get_events()
     events[0]["payload"]["configuration"].sort(key=lambda c: c["name"])
-    configuration = [
-        {"name": "appsec_enabled", "origin": "unknown", "value": True},
-        {"name": "data_streams_enabled", "origin": "unknown", "value": True},
+    assert events[0]["payload"]["configuration"] == [
+        {"name": "DD_APPSEC_ENABLED", "origin": "unknown", "value": True},
+        {"name": "DD_DATA_STREAMS_ENABLED", "origin": "unknown", "value": True},
+        {"name": "DD_DYNAMIC_INSTRUMENTATION_ENABLED", "origin": "unknown", "value": True},
+        {"name": "DD_PROFILING_ENABLED", "origin": "unknown", "value": True},
+        {"name": "DD_TRACE_ENABLED", "origin": "unknown", "value": False},
         {"name": "ddtrace_auto_used", "origin": "unknown", "value": True},
         {"name": "ddtrace_bootstrapped", "origin": "unknown", "value": True},
-        {"name": "dynamic_instrumentation_enabled", "origin": "unknown", "value": True},
         {"name": "otel_enabled", "origin": "unknown", "value": True},
-        {"name": "profiling_enabled", "origin": "unknown", "value": True},
         {"name": "runtimemetrics_enabled", "origin": "unknown", "value": True},
-        {"name": "trace_enabled", "origin": "unknown", "value": False},
         {"name": "trace_propagation_style_extract", "origin": "unknown", "value": "['b3multi']"},
         {"name": "trace_propagation_style_inject", "origin": "unknown", "value": "['datadog']"},
     ]
-
-    assert events[0]["payload"]["configuration"] == configuration
 
 
 def test_app_dependencies_loaded_event(telemetry_writer, test_agent_session, mock_time):
