@@ -643,9 +643,7 @@ def request_tracer(name):
             pin=pin,
         ) as ctx:
             request_span = ctx.get_item("flask_request")
-            core.dispatch(
-                "flask.traced_request.pre", [config.flask, _block_request_callable, current_span, request_span]
-            )
+            core.dispatch("flask.traced_request.pre", [ctx, config.flask, _block_request_callable, current_span])
             with request_span:
                 return wrapped(*args, **kwargs)
 

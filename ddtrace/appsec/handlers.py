@@ -64,7 +64,7 @@ def _on_set_request_tags(request, span, flask_config):
         )
 
 
-def _on_pre_tracedrequest(flask_config, block_request_callable, current_span, req_span):
+def _on_pre_tracedrequest(ctx, flask_config, block_request_callable, current_span):
     if config._appsec_enabled:
         from ddtrace.appsec import _asm_request_context
 

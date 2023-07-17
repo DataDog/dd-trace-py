@@ -222,7 +222,8 @@ def _set_request_tags(request, span, flask_config):
         log.debug('failed to set tags for "flask.request" span', exc_info=True)
 
 
-def _on_pre_tracedrequest(flask_config, block_request_callable, current_span, request_span):
+def _on_pre_tracedrequest(ctx, flask_config, block_request_callable, current_span):
+    request_span = ctx.get_item("flask_request")
     request_span.set_tag_str(COMPONENT, flask_config.integration_name)
     request_span._ignore_exception(NotFound)
 
