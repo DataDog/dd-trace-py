@@ -422,6 +422,7 @@ def pytest_runtest_protocol(item, nextitem):
             # Finish coverage for the test suite if coverage is enabled
             if coverage_enabled():
                 _coverage_end(test_suite_span)
+
             test_suite_span.finish()
 
         nextitem_pytest_package_item = _find_pytest_item(nextitem, pytest.Package)

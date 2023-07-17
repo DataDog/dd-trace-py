@@ -22,6 +22,7 @@ from ddtrace.internal.compat import JSONDecodeError
 from ddtrace.internal.compat import parse
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
+from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.writer.writer import Response
 from ddtrace.settings import IntegrationConfig
 
@@ -90,6 +91,7 @@ class CIVisibility(Service):
         self._service = service
         self._codeowners = None
         self._root_dir = None
+        self._itr_test_skipping_is_enabled = False
 
         int_service = None
         if self.config is not None:
@@ -126,10 +128,13 @@ class CIVisibility(Service):
                 self._git_client = CIVisibilityGitClient(
                     api_key=self._api_key or "", app_key=self._app_key, requests_mode=self._requests_mode
                 )
-        elif self._test_skipping_enabled_by_api:
+
+        if self._test_skipping_enabled_by_api:
+            self._configure_itr(self._api_key, self._app_key, self._requests_mode)
+        elif asbool(os.getenv("DD_CIVISIBILITY_ITR_ENABLED")):
             log.warning(
-                "Datadog Intelligent Test Runner is enabled, but environment variable "
-                "DD_CIVISIBILITY_ITR_ENABLED is false: disabling Intelligent Test Runner"
+                "Environment variable DD_CIVISIBILITY_ITR_ENABLED is true but the Datadog Intelligent "
+                "Test Runner is not enabled for this service."
             )
 
         try:
@@ -140,6 +145,27 @@ class CIVisibility(Service):
             log.warning("CODEOWNERS file is not available")
         except Exception:
             log.warning("Failed to load CODEOWNERS", exc_info=True)
+
+    def _configure_itr(self, api_key, app_key, requests_mode):
+        if not ddconfig._ci_visibility_intelligent_testrunner_enabled:
+            log.warning(
+                "Datadog Intelligent Test Runner is enabled in API, but disabled in configuration or by"
+                "DD_CIVISIBILITY_ITR_ENABLED environment variable."
+            )
+            return
+        elif app_key is None:
+            log.warning("Environment variable DD_APPLICATION_KEY not set, so no git metadata will be uploaded.")
+            return
+        elif requests_mode == REQUESTS_MODE.TRACES:
+            log.warning("Cannot start git client if mode is not agentless or evp proxy.")
+            return
+        elif not self._code_coverage_enabled_by_api:
+            log.warning("Coverage data is not enabled.")
+
+        log.info("Datadog Intelligent Test Runner is enabled.")
+
+        self._itr_test_skipping_is_enabled = True
+        self._git_client = CIVisibilityGitClient(api_key=api_key or "", app_key=app_key, requests_mode=requests_mode)
 
     def _check_enabled_features(self):
         # type: () -> Tuple[bool, bool]
@@ -225,7 +251,7 @@ class CIVisibility(Service):
     def test_skipping_enabled(cls):
         if not cls.enabled:
             return False
-        return cls._instance and cls._instance._test_skipping_enabled_by_api
+        return cls._instance and cls._instance._itr_test_skipping_is_enabled
 
     def _fetch_tests_to_skip(self):
         # Make sure git uploading has finished
@@ -264,6 +290,8 @@ class CIVisibility(Service):
 
         response = _do_request("POST", url, json.dumps(payload), _headers)
 
+        self._test_suites_to_skip = []
+
         if response.status >= 400:
             log.warning("Test skips request responded with status %d", response.status)
             return
@@ -273,7 +301,6 @@ class CIVisibility(Service):
             log.warning("Test skips request responded with invalid JSON '%s'", response.body)
             return
 
-        self._test_suites_to_skip = []
         for item in parsed["data"]:
             if item["type"] == TEST_SKIPPING_LEVEL and "suite" in item["attributes"]:
                 module = item["attributes"].get("configurations", {}).get("test.bundle", "").replace(".", "/")
