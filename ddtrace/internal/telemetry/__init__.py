@@ -7,6 +7,7 @@ To start the service manually, invoke the ``enable`` method::
     telemetry_writer.enable()
 """
 import sys
+import os
 
 from .writer import TelemetryWriter
 
@@ -34,6 +35,24 @@ def _excepthook(tp, value, traceback):
         telemetry_writer._app_started_event()
         telemetry_writer.app_shutdown()
         telemetry_writer.disable()
+
+    if filename:
+        dir_parts = filename.split(os.path.sep)
+        # Check if exception was raised in the  `ddtrace.contrib` package
+        if "ddtrace" in dir_parts and "contrib" in dir_parts:
+            ddtrace_index = dir_parts.index("ddtrace")
+            contrib_index = dir_parts.index("contrib")
+            # Check if the filename has the following format:
+            # `../ddtrace/contrib/integration_name/..(subpath and/or file)...`
+            if ddtrace_index + 1 == contrib_index and len(dir_parts) - 2 > contrib_index:
+                integration_name = dir_parts[contrib_index + 1]
+                telemetry_writer.add_count_metric(
+                    "tracers",
+                    "integration_errors",
+                    1,
+                    (("integration_name", integration_name), ("error_type", tp.__name__)),
+                )
+
     return _ORIGINAL_EXCEPTHOOK(tp, value, traceback)
 
 
