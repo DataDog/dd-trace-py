@@ -21,6 +21,10 @@ class _PytestBenchmarkPlugin:
         if fixture_exists and fixture_exists.stats:
             stat_object = fixture_exists.stats.stats
             span = _extract_span(item)
+
+            if span is None:
+                return
+
             span.set_tag_str(BENCHMARK_INFO, "Time")
             for span_path, tag in PLUGIN_METRICS.items():
                 if hasattr(stat_object, tag):
