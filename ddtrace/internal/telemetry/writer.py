@@ -15,8 +15,9 @@ from ...internal import atexit
 from ...internal import forksafe
 from ...internal.compat import parse
 from ...settings import _config as config
-from ...settings.profiling import config as profiling_config
 from ...settings.dynamic_instrumentation import DynamicInstrumentationConfig
+from ...settings.exception_debugging import ExceptionDebuggingConfig
+from ...settings.profiling import config as profiling_config
 from ..agent import get_connection
 from ..agent import get_trace_url
 from ..compat import get_connection_response
@@ -32,6 +33,7 @@ from ..utils.version import _pep440_to_semver
 from .constants import TELEMETRY_ASM_ENABLED
 from .constants import TELEMETRY_DSM_ENABLED
 from .constants import TELEMETRY_DYNAMIC_INSTRUMENTATION_ENABLED
+from .constants import TELEMETRY_EXCEPTION_DEBUGGING_ENABLED
 from .constants import TELEMETRY_PROFILING_ENABLED
 from .constants import TELEMETRY_RUNTIMEMETRICS_ENABLED
 from .constants import TELEMETRY_TRACING_ENABLED
@@ -267,6 +269,7 @@ class TelemetryWriter(PeriodicService):
                 (TELEMETRY_ASM_ENABLED, config._appsec_enabled, "unknown"),
                 (TELEMETRY_PROFILING_ENABLED, profiling_config.enabled, "unknown"),
                 (TELEMETRY_DYNAMIC_INSTRUMENTATION_ENABLED, DynamicInstrumentationConfig().enabled, "unknown"),
+                (TELEMETRY_EXCEPTION_DEBUGGING_ENABLED, ExceptionDebuggingConfig().enabled, "unknown"),
                 ("trace_propagation_style_inject", str(config._propagation_style_inject), "unknown"),
                 ("trace_propagation_style_extract", str(config._propagation_style_extract), "unknown"),
                 ("ddtrace_bootstrapped", config._ddtrace_bootstrapped, "unknown"),

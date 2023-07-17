@@ -72,6 +72,7 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
             {"name": "DD_APPSEC_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_DATA_STREAMS_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_DYNAMIC_INSTRUMENTATION_ENABLED", "origin": "unknown", "value": False},
+            {"name": "DD_EXCEPTION_DEBUGGING_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_PROFILING_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_TRACE_ENABLED", "origin": "unknown", "value": True},
             {"name": "ddtrace_auto_used", "origin": "unknown", "value": False},
@@ -117,6 +118,7 @@ telemetry_writer.disable()
     env["DD_TRACE_PROPAGATION_STYLE_INJECT"] = "datadog"
     env["DD_TRACE_OTEL_ENABLED"] = "true"
     env["DD_RUNTIME_METRICS_ENABLED"] = "true"
+    env["DD_EXCEPTION_DEBUGGING_ENABLED"] = "true"
 
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
 
@@ -128,6 +130,7 @@ telemetry_writer.disable()
         {"name": "DD_APPSEC_ENABLED", "origin": "unknown", "value": True},
         {"name": "DD_DATA_STREAMS_ENABLED", "origin": "unknown", "value": True},
         {"name": "DD_DYNAMIC_INSTRUMENTATION_ENABLED", "origin": "unknown", "value": True},
+        {"name": "DD_EXCEPTION_DEBUGGING_ENABLED", "origin": "unknown", "value": True},
         {"name": "DD_PROFILING_ENABLED", "origin": "unknown", "value": True},
         {"name": "DD_TRACE_ENABLED", "origin": "unknown", "value": False},
         {"name": "ddtrace_auto_used", "origin": "unknown", "value": True},
