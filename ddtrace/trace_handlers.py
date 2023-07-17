@@ -230,6 +230,12 @@ def _on_traced_request_context_started_flask(ctx):
     request_span._ignore_exception(NotFound)
 
 
+def _on_jsonify_context_started_flask(ctx):
+    span = ctx.get_item("pin").tracer.trace(ctx.get_item("name"))
+    span.set_tag_str(COMPONENT, ctx.get_item("flask_config").integration_name)
+    ctx.set_item("flask_jsonify_call", span)
+
+
 def listen():
     core.on("context.started.wsgi.__call__", _on_context_started)
     core.on("context.started.wsgi.response", _on_response_context_started)
@@ -242,3 +248,4 @@ def listen():
     core.on("wsgi.response.prepared", _on_response_prepared)
     core.on("flask.set_request_tags", _set_request_tags)
     core.on("context.started.flask._traced_request", _on_traced_request_context_started_flask)
+    core.on("context.started.flask.jsonify", _on_jsonify_context_started_flask)

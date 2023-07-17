@@ -669,7 +669,7 @@ def traced_jsonify(wrapped, instance, args, kwargs):
     if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)
 
-    with pin.tracer.trace("flask.jsonify") as span:
-        span.set_tag_str(COMPONENT, config.flask.integration_name)
-
+    with core.context_with_data(
+        "flask.jsonify", name="flask.jsonify", flask_config=config.flask, pin=pin
+    ) as ctx, ctx.get_item("flask_jsonify_call"):
         return wrapped(*args, **kwargs)
