@@ -35,10 +35,6 @@ from tests.utils import override_global_config
 
 TEST_SHA = "b3672ea5cbc584124728c48a443825d2940e0ddd"
 
-if sys.version_info[:2] < (3, 6):
-    # Purposely shadowing a missing python builtin
-    from socket import timeout as TimeoutError  # noqa: A001
-
 AGENT_VERSION = os.environ.get("AGENT_VERSION")
 
 TEST_SHA = "b3672ea5cbc584124728c48a443825d2940e0ddd"
@@ -143,11 +139,6 @@ def test_ci_visibility_service_settings_timeout(_do_request):
         )
     ):
         ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
-        _do_request.return_value = Response(
-            status=200,
-            body='{"data":{"id":"1234","type":"ci_app_tracers_test_service_settings","attributes":'
-            '{"code_coverage":true,"tests_skipping":true}}}',
-        )
         CIVisibility.enable(service="test-service")
         assert CIVisibility._instance._code_coverage_enabled_by_api is False
         assert CIVisibility._instance._test_skipping_enabled_by_api is False
@@ -168,7 +159,6 @@ def test_ci_visibility_service_skippable_timeout(_do_request, _check_enabled_fea
         ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
         CIVisibility.enable(service="test-service")
         assert CIVisibility._instance._test_suites_to_skip == []
-
         CIVisibility.disable()
 
 

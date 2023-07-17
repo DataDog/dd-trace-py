@@ -150,13 +150,15 @@ def _get_pytest_command(config):
 
 def _get_module_path(item):
     """Extract module path from a `pytest.Item` instance."""
-    if not isinstance(item, pytest.Package):
+    if not isinstance(item, (pytest.Package, pytest.Module)):
         return None
     return item.nodeid.rpartition("/")[0]
 
 
-def _get_module_name(item):
+def _get_module_name(item, is_package=True):
     """Extract module name (fully qualified) from a `pytest.Item` instance."""
+    if not is_package:
+        return item.nodeid.rpartition("/")[0].replace("/", ".")
     return item.module.__name__
 
 
@@ -173,11 +175,21 @@ def _get_suite_name(item, test_module_path=None):
     return item.nodeid
 
 
-def _start_test_module_span(item):
+def _start_test_module_span(pytest_package_item=None, pytest_module_item=None):
     """
     Starts a test module span at the start of a new pytest test package.
     Note that ``item`` is a ``pytest.Package`` object referencing the test module being run.
     """
+    is_package = True
+    item = pytest_package_item
+
+    if pytest_package_item is None and pytest_module_item is not None:
+        item = pytest_module_item
+        is_package = False
+
+    if not item:
+        return None
+
     test_session_span = _extract_span(item.session)
     test_module_span = _CIVisibility._instance.tracer._start_span(
         "pytest.test_module",
@@ -195,9 +207,11 @@ def _start_test_module_span(item):
     if test_session_span is not None:
         test_module_span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
     test_module_span.set_tag_str(_MODULE_ID, str(test_module_span.span_id))
-    test_module_span.set_tag_str(test.MODULE, _get_module_name(item))
+    test_module_span.set_tag_str(test.MODULE, _get_module_name(item, is_package))
     test_module_span.set_tag_str(test.MODULE_PATH, _get_module_path(item))
-    _store_span(item, test_module_span)
+    test_module_span._set_ctx_item("is_package", is_package)
+    if is_package:
+        _store_span(item, test_module_span)
     return test_module_span
 
 
@@ -380,16 +394,10 @@ def pytest_runtest_protocol(item, nextitem):
     pytest_module_item = _find_pytest_item(item, pytest.Module)
     pytest_package_item = _find_pytest_item(pytest_module_item, pytest.Package)
 
-    is_skipped_by_itr = [
-        marker
-        for marker in item.iter_markers(name="skip")
-        if "reason" in marker.kwargs and marker.kwargs["reason"] == SKIPPED_BY_ITR
-    ]
-
     test_module_span = _extract_span(pytest_package_item)
     if pytest_package_item is not None and test_module_span is None:
         if test_module_span is None:
-            test_module_span = _start_test_module_span(pytest_package_item)
+            test_module_span = _start_test_module_span(pytest_package_item, pytest_module_item)
 
     test_suite_span = _extract_span(pytest_module_item)
     if pytest_module_item is not None and test_suite_span is None:
@@ -478,12 +486,18 @@ def pytest_runtest_protocol(item, nextitem):
             _detach_coverage(pytest_module_item, test_suite_span)
         test_suite_span.finish()
 
-    nextitem_pytest_package_item = _find_pytest_item(nextitem, pytest.Package)
-    if test_module_span is not None and (
-        nextitem is None or nextitem_pytest_package_item != pytest_package_item and not test_module_span.finished
-    ):
-        _mark_test_status(pytest_package_item, test_module_span)
-        test_module_span.finish()
+        if not test_module_span._get_ctx_item("is_package"):
+            test_module_span.set_tag_str(test.STATUS, test_suite_span.get_tag(test.STATUS))
+            test_module_span.finish()
+        else:
+            nextitem_pytest_package_item = _find_pytest_item(nextitem, pytest.Package)
+            if test_module_span is not None and (
+                nextitem is None
+                or nextitem_pytest_package_item != pytest_package_item
+                and not test_module_span.finished
+            ):
+                _mark_test_status(pytest_package_item, test_module_span)
+                test_module_span.finish()
 
 
 @pytest.hookimpl(hookwrapper=True)
