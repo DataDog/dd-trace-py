@@ -187,9 +187,6 @@ def _start_test_module_span(pytest_package_item=None, pytest_module_item=None):
         item = pytest_module_item
         is_package = False
 
-    if not item:
-        return None
-
     test_session_span = _extract_span(item.session)
     test_module_span = _CIVisibility._instance.tracer._start_span(
         "pytest.test_module",
@@ -215,24 +212,18 @@ def _start_test_module_span(pytest_package_item=None, pytest_module_item=None):
     return test_module_span
 
 
-def _start_test_suite_span(item, should_enable_coverage=False):
+def _start_test_suite_span(item, test_module_span=None, should_enable_coverage=False):
     """
     Starts a test suite span at the start of a new pytest test module.
     Note that ``item`` is a ``pytest.Module`` object referencing the test file being run.
     """
     test_session_span = _extract_span(item.session)
-    parent_span = test_session_span
-    test_module_span = None
-    if isinstance(item.parent, pytest.Package):
-        test_module_span = _extract_span(item.parent)
-        parent_span = test_module_span
-
     test_suite_span = _CIVisibility._instance.tracer._start_span(
         "pytest.test_suite",
         service=_CIVisibility._instance._service,
         span_type=SpanTypes.TEST,
         activate=True,
-        child_of=parent_span,
+        child_of=test_module_span,
     )
     test_suite_span.set_tag_str(COMPONENT, "pytest")
     test_suite_span.set_tag_str(SPAN_KIND, KIND)
@@ -395,15 +386,15 @@ def pytest_runtest_protocol(item, nextitem):
     pytest_package_item = _find_pytest_item(pytest_module_item, pytest.Package)
 
     test_module_span = _extract_span(pytest_package_item)
-    if pytest_package_item is not None and test_module_span is None:
-        if test_module_span is None:
-            test_module_span = _start_test_module_span(pytest_package_item, pytest_module_item)
+    if test_module_span is None:
+        test_module_span = _start_test_module_span(pytest_package_item, pytest_module_item)
 
     test_suite_span = _extract_span(pytest_module_item)
     if pytest_module_item is not None and test_suite_span is None:
         # Start coverage for the test suite if coverage is enabled
         test_suite_span = _start_test_suite_span(
             pytest_module_item,
+            test_module_span=test_module_span,
             should_enable_coverage=(
                 _get_test_skipping_level() == SUITE and coverage_enabled() and not is_skipped_by_itr
             ),
