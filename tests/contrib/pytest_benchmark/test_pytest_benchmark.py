@@ -60,7 +60,7 @@ class PytestTestCase(TracerTestCase):
         py_file = self.testdir.makepyfile(
             """
             import time
-            
+
             def sum_longer(value):
                 time.sleep(2)
                 return value
