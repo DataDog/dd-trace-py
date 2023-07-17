@@ -227,6 +227,11 @@ def _on_pre_tracedrequest(flask_config, block_request_callable, current_span, re
     request_span._ignore_exception(NotFound)
 
 
+def _on_traced_request_context_started_flask(ctx):
+    request_span = ctx.get_item("pin").tracer.trace(ctx.get_item("name"), service=ctx.get_item("service"))
+    ctx.set_item("flask_request", request_span)
+
+
 def listen():
     core.on("context.started.wsgi.__call__", _on_context_started)
     core.on("context.started.wsgi.response", _on_response_context_started)
@@ -239,3 +244,4 @@ def listen():
     core.on("wsgi.response.prepared", _on_response_prepared)
     core.on("flask.set_request_tags", _set_request_tags)
     core.on("flask.traced_request.pre", _on_pre_tracedrequest)
+    core.on("context.started.flask._traced_request", _on_traced_request_context_started_flask)

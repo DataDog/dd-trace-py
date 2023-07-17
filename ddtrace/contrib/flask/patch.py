@@ -640,8 +640,9 @@ def request_tracer(name):
             "flask._traced_request",
             name=".".join(("flask", name)),
             service=trace_utils.int_service(pin, config.flask, pin),
+            pin=pin,
         ) as ctx:
-            request_span = pin.tracer.trace(ctx.get_item("name"), service=ctx.get_item("service"))
+            request_span = ctx.get_item("flask_request")
             core.dispatch(
                 "flask.traced_request.pre", [config.flask, _block_request_callable, current_span, request_span]
             )
