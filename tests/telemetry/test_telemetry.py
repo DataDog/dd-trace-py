@@ -214,6 +214,7 @@ tracer.trace("hello").finish()
 def test_app_started_error_unhandled_exception(test_agent_session, run_python_code_in_subprocess):
     env = os.environ.copy()
     env["DD_SPAN_SAMPLING_RULES"] = "invalid_rules"
+    env["DD_INSTRUMENTATION_TELEMETRY_ENABLED"] = "true"
 
     _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace", env=env)
     assert status == 1, stderr
