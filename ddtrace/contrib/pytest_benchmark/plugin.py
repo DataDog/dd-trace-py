@@ -5,6 +5,7 @@ from ddtrace.contrib.pytest_benchmark.constants import BENCHMARK_INFO
 from ddtrace.contrib.pytest_benchmark.constants import PLUGIN_METRICS
 from ddtrace.contrib.pytest_benchmark.constants import PLUGIN_OUTLIERS
 
+
 def pytest_configure(config):
     if config.pluginmanager.hasplugin("benchmark"):
         config.pluginmanager.register(_PytestBenchmarkPlugin(), "_datadog-pytest-benchmark")
