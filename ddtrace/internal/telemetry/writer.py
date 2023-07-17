@@ -15,8 +15,8 @@ from ...internal import atexit
 from ...internal import forksafe
 from ...internal.compat import parse
 from ...settings import _config as config
-from ...settings.dynamic_instrumentation import DynamicInstrumentationConfig
-from ...settings.exception_debugging import ExceptionDebuggingConfig
+from ...settings.dynamic_instrumentation import config as di_config
+from ...settings.exception_debugging import config as ed_config
 from ...settings.profiling import config as profiling_config
 from ..agent import get_connection
 from ..agent import get_trace_url
@@ -268,8 +268,8 @@ class TelemetryWriter(PeriodicService):
                 (TELEMETRY_DSM_ENABLED, config._data_streams_enabled, "unknown"),
                 (TELEMETRY_ASM_ENABLED, config._appsec_enabled, "unknown"),
                 (TELEMETRY_PROFILING_ENABLED, profiling_config.enabled, "unknown"),
-                (TELEMETRY_DYNAMIC_INSTRUMENTATION_ENABLED, DynamicInstrumentationConfig().enabled, "unknown"),
-                (TELEMETRY_EXCEPTION_DEBUGGING_ENABLED, ExceptionDebuggingConfig().enabled, "unknown"),
+                (TELEMETRY_DYNAMIC_INSTRUMENTATION_ENABLED, di_config.enabled, "unknown"),
+                (TELEMETRY_EXCEPTION_DEBUGGING_ENABLED, ed_config.enabled, "unknown"),
                 ("trace_propagation_style_inject", str(config._propagation_style_inject), "unknown"),
                 ("trace_propagation_style_extract", str(config._propagation_style_extract), "unknown"),
                 ("ddtrace_bootstrapped", config._ddtrace_bootstrapped, "unknown"),
