@@ -82,8 +82,11 @@ class CIVisibilityGitClient(object):
 
         if cls._is_shallow_repository(cwd=cwd) and extract_git_version(cwd=cwd) >= (2, 27, 0):
             log.debug("Shallow repository detected on git > 2.27 detected, unshallowing")
-            cls._unshallow_repository(cwd=cwd)
-            log.debug("Unshallowing done")
+            try:
+                cls._unshallow_repository(cwd=cwd)
+                log.debug("Unshallowing done")
+            except ValueError:
+                log.warning("Failed to unshallow repository, continuing to send pack data", exc_info=True)
 
         latest_commits = cls._get_latest_commits(cwd=cwd)
         backend_commits = cls._search_commits(requests_mode, base_url, repo_url, latest_commits, serializer, _response)
