@@ -542,9 +542,9 @@ def traced_render_template_string(wrapped, instance, args, kwargs):
     if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)
 
-    with pin.tracer.trace("flask.render_template_string", span_type=SpanTypes.TEMPLATE) as span:
-        span.set_tag_str(COMPONENT, config.flask.integration_name)
-
+    with core.context_with_data(
+        "flask.render_template_string", name="flask.render_template_string", pin=pin, flask_config=config.flask
+    ) as ctx, ctx.get_item("render_call"):
         return wrapped(*args, **kwargs)
 
 
