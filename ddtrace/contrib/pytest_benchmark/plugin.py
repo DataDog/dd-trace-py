@@ -1,7 +1,9 @@
 import pytest
-from ddtrace.contrib.pytest.plugin import _extract_span
-from ddtrace.contrib.pytest_benchmark.constants import BENCHMARK_INFO, PLUGIN_METRICS, PLUGIN_OUTLIERS
 
+from ddtrace.contrib.pytest.plugin import _extract_span
+from ddtrace.contrib.pytest_benchmark.constants import BENCHMARK_INFO
+from ddtrace.contrib.pytest_benchmark.constants import PLUGIN_METRICS
+from ddtrace.contrib.pytest_benchmark.constants import PLUGIN_OUTLIERS
 
 def pytest_configure(config):
     if config.pluginmanager.hasplugin("benchmark"):

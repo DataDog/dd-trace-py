@@ -4,27 +4,25 @@ import pytest
 
 import ddtrace
 from ddtrace.contrib.pytest.plugin import is_enabled
-from ddtrace.contrib.pytest_benchmark.constants import (
-    BENCHMARK_INFO,
-    BENCHMARK_MEAN,
-    BENCHMARK_RUN,
-    STATISTICS_HD15IQR,
-    STATISTICS_IQR,
-    STATISTICS_IQR_OUTLIERS,
-    STATISTICS_LD15IQR,
-    STATISTICS_MAX,
-    STATISTICS_MEAN,
-    STATISTICS_MIN,
-    STATISTICS_OPS,
-    STATISTICS_Q1,
-    STATISTICS_Q3,
-    STATISTICS_N,
-    STATISTICS_STDDEV,
-    STATISTICS_STDDEV_OUTLIERS,
-    STATISTICS_TOTAL,
-    STATISTICS_MEDIAN,
-    STATISTICS_OUTLIERS,
-)
+from ddtrace.contrib.pytest_benchmark.constants import BENCHMARK_INFO
+from ddtrace.contrib.pytest_benchmark.constants import BENCHMARK_MEAN
+from ddtrace.contrib.pytest_benchmark.constants import BENCHMARK_RUN
+from ddtrace.contrib.pytest_benchmark.constants import STATISTICS_HD15IQR
+from ddtrace.contrib.pytest_benchmark.constants import STATISTICS_IQR
+from ddtrace.contrib.pytest_benchmark.constants import STATISTICS_IQR_OUTLIERS
+from ddtrace.contrib.pytest_benchmark.constants import STATISTICS_LD15IQR
+from ddtrace.contrib.pytest_benchmark.constants import STATISTICS_MAX
+from ddtrace.contrib.pytest_benchmark.constants import STATISTICS_MEAN
+from ddtrace.contrib.pytest_benchmark.constants import STATISTICS_MEDIAN
+from ddtrace.contrib.pytest_benchmark.constants import STATISTICS_MIN
+from ddtrace.contrib.pytest_benchmark.constants import STATISTICS_N
+from ddtrace.contrib.pytest_benchmark.constants import STATISTICS_OPS
+from ddtrace.contrib.pytest_benchmark.constants import STATISTICS_OUTLIERS
+from ddtrace.contrib.pytest_benchmark.constants import STATISTICS_Q1
+from ddtrace.contrib.pytest_benchmark.constants import STATISTICS_Q3
+from ddtrace.contrib.pytest_benchmark.constants import STATISTICS_STDDEV
+from ddtrace.contrib.pytest_benchmark.constants import STATISTICS_STDDEV_OUTLIERS
+from ddtrace.contrib.pytest_benchmark.constants import STATISTICS_TOTAL
 from ddtrace.internal.ci_visibility import CIVisibility
 from tests.ci_visibility.test_encoder import _patch_dummy_writer
 from tests.utils import TracerTestCase
