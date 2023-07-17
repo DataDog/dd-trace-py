@@ -10,6 +10,9 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.constants import FLASK_ENDPOINT
+from ddtrace.internal.constants import FLASK_URL_RULE
+from ddtrace.internal.constants import FLASK_VIEW_ARGS
 from ddtrace.internal.constants import RESPONSE_HEADERS
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import http as http_utils
@@ -191,6 +194,32 @@ def _on_request_prepared(middleware, req_span, url, request_headers, environ):
         middleware.span_modifier(req_span, environ)
 
 
+def _set_request_tags(request, span, flask_config):
+    try:
+        span.set_tag_str(COMPONENT, flask_config.integration_name)
+
+        if span.name.split(".")[-1] == "request":
+            span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
+
+        # DEV: This name will include the blueprint name as well (e.g. `bp.index`)
+        if not span.get_tag(FLASK_ENDPOINT) and request.endpoint:
+            span.resource = " ".join((request.method, request.endpoint))
+            span.set_tag_str(FLASK_ENDPOINT, request.endpoint)
+
+        if not span.get_tag(FLASK_URL_RULE) and request.url_rule and request.url_rule.rule:
+            span.resource = " ".join((request.method, request.url_rule.rule))
+            span.set_tag_str(FLASK_URL_RULE, request.url_rule.rule)
+
+        if not span.get_tag(FLASK_VIEW_ARGS) and request.view_args and flask_config.get("collect_view_args"):
+            for k, v in request.view_args.items():
+                # DEV: Do not use `set_tag_str` here since view args can be string/int/float/path/uuid/etc
+                #      https://flask.palletsprojects.com/en/1.1.x/api/#url-route-registrations
+                span.set_tag(".".join((FLASK_VIEW_ARGS, k)), v)
+            trace_utils.set_http_meta(span, flask_config, request_path_params=request.view_args)
+    except Exception:
+        log.debug('failed to set tags for "flask.request" span', exc_info=True)
+
+
 def listen():
     core.on("context.started.wsgi.__call__", _on_context_started)
     core.on("context.started.wsgi.response", _on_response_context_started)
@@ -201,3 +230,4 @@ def listen():
     core.on("wsgi.app.exception", _on_app_exception)
     core.on("wsgi.request.complete", _on_request_complete)
     core.on("wsgi.response.prepared", _on_response_prepared)
+    core.on("flask.set_request_tags", _set_request_tags)

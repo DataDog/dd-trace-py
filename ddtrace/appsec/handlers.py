@@ -53,11 +53,11 @@ def _on_wrapped_view(kwargs):
     return return_value
 
 
-def _on_set_request_tags(request):
+def _on_set_request_tags(request, span, flask_config):
     if _is_iast_enabled():
         from ddtrace.appsec.iast._taint_utils import LazyTaintDict
 
-        return LazyTaintDict(
+        request.cookies = LazyTaintDict(
             request.cookies,
             origins=(IAST.HTTP_REQUEST_COOKIE_NAME, IAST.HTTP_REQUEST_COOKIE_VALUE),
             override_pyobject_tainted=True,
