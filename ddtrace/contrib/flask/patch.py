@@ -636,14 +636,16 @@ def request_tracer(name):
 
         core.dispatch("flask.set_request_tags", [flask.request, current_span, config.flask])
 
-        with pin.tracer.trace(
-            ".".join(("flask", name)),
+        with core.context_with_data(
+            "flask._traced_request",
+            name=".".join(("flask", name)),
             service=trace_utils.int_service(pin, config.flask, pin),
-        ) as request_span:
-            core.dispatch(
-                "flask.traced_request.pre", [config.flask, _block_request_callable, current_span, request_span]
-            )
-            return wrapped(*args, **kwargs)
+        ) as ctx:
+            with pin.tracer.trace(ctx.get_item("name"), service=ctx.get_item("service")) as request_span:
+                core.dispatch(
+                    "flask.traced_request.pre", [config.flask, _block_request_callable, current_span, request_span]
+                )
+                return wrapped(*args, **kwargs)
 
     return _traced_request
 
