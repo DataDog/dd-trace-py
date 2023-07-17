@@ -19,6 +19,7 @@ from ddtrace.internal.agent import get_connection
 from ddtrace.internal.agent import get_trace_url
 from ddtrace.internal.ci_visibility.filters import TraceCiVisibilityFilter
 from ddtrace.internal.compat import JSONDecodeError
+from ddtrace.internal.compat import TimeoutError
 from ddtrace.internal.compat import parse
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
@@ -41,6 +42,7 @@ from .writer import CIVisibilityWriter
 log = get_logger(__name__)
 
 TEST_SKIPPING_LEVEL = "suite"
+DEFAULT_TIMEOUT = 15
 
 
 def _extract_repository_name_from_url(repository_url):
@@ -61,7 +63,7 @@ def _get_git_repo():
 def _do_request(method, url, payload, headers):
     # type: (str, str, str, Dict) -> Response
     try:
-        conn = get_connection(url)
+        conn = get_connection(url, timeout=DEFAULT_TIMEOUT)
         log.debug("Sending request: %s %s %s %s", method, url, payload, headers)
         conn.request("POST", url, payload, headers)
         resp = compat.get_connection_response(conn)
@@ -172,7 +174,11 @@ class CIVisibility(Service):
                 },
             }
         }
-        response = _do_request("POST", url, json.dumps(payload), _headers)
+        try:
+            response = _do_request("POST", url, json.dumps(payload), _headers)
+        except TimeoutError:
+            log.warning("Request timeout while fetching enabled features")
+            return False, False
         try:
             parsed = json.loads(response.body)
         except JSONDecodeError:
@@ -260,7 +266,12 @@ class CIVisibility(Service):
             log.warning("Cannot make requests to skippable endpoint if mode is not agentless or evp proxy")
             return
 
-        response = _do_request("POST", url, json.dumps(payload), _headers)
+        try:
+            response = _do_request("POST", url, json.dumps(payload), _headers)
+        except TimeoutError:
+            log.warning("Request timeout while fetching skippable tests")
+            self._test_suites_to_skip = []
+            return
 
         self._test_suites_to_skip = []
 

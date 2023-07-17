@@ -1,0 +1,92 @@
+interactions:
+- request:
+    body: '{"prompt": ["Paraphrase this text:\n\n        \n Chains allow us to combine
+      multiple \n components together to create a single, coherent application. \n
+      For example, we can create a chain that takes user input, format it with a PromptTemplate,
+      \n and then passes the formatted response to an LLM. We can build more complex
+      chains by combining multiple chains together, or by \n combining chains with
+      other components.\n \n\n        In the style of a a 90s rapper.\n\n        Paraphrase:
+      "], "model": "text-davinci-003", "temperature": 0.7, "max_tokens": 256, "top_p":
+      1, "frequency_penalty": 0, "presence_penalty": 0, "n": 1, "logit_bias": {}}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '643'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - OpenAI/v1 PythonBindings/0.27.8
+      X-OpenAI-Client-User-Agent:
+      - '{"bindings_version": "0.27.8", "httplib": "requests", "lang": "python", "lang_version":
+        "3.10.5", "platform": "macOS-13.4-arm64-arm-64bit", "publisher": "openai",
+        "uname": "Darwin 22.5.0 Darwin Kernel Version 22.5.0: Mon Apr 24 20:52:24
+        PDT 2023; root:xnu-8796.121.2~5/RELEASE_ARM64_T6000 arm64"}'
+    method: POST
+    uri: https://api.openai.com/v1/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"cmpl-7TcyG7cN81zNV3sWTHke4jEByO717\",\n  \"object\":
+        \"text_completion\",\n  \"created\": 1687295672,\n  \"model\": \"text-davinci-003\",\n
+        \ \"choices\": [\n    {\n      \"text\": \"\\nChains be like a link, let us
+        connect the pieces, creatin' a single app. We can write a chain to take input,
+        format it with a PromptTemplate, then send it to an LLM. We can get more complex,
+        linkin' chains together, mixin' them with other parts, no problemo.\",\n      \"index\":
+        0,\n      \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n    }\n
+        \ ],\n  \"usage\": {\n    \"prompt_tokens\": 105,\n    \"completion_tokens\":
+        69,\n    \"total_tokens\": 174\n  }\n}\n"
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 7da7059efa3da244-YYZ
+      Cache-Control:
+      - no-cache, must-revalidate
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 20 Jun 2023 21:14:33 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      access-control-allow-origin:
+      - '*'
+      alt-svc:
+      - h3=":443"; ma=86400
+      openai-model:
+      - text-davinci-003
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '1288'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      x-ratelimit-limit-requests:
+      - '3000'
+      x-ratelimit-limit-tokens:
+      - '250000'
+      x-ratelimit-remaining-requests:
+      - '2999'
+      x-ratelimit-remaining-tokens:
+      - '249744'
+      x-ratelimit-reset-requests:
+      - 20ms
+      x-ratelimit-reset-tokens:
+      - 61ms
+      x-request-id:
+      - c8405a5a8b3587a99678b9e61f56063f
+    status:
+      code: 200
+      message: OK
+version: 1
