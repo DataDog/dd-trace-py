@@ -1,6 +1,8 @@
 import functools
 import sys
 
+from werkzeug.exceptions import NotFound
+
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.trace_utils import _get_request_header_user_agent
@@ -220,6 +222,11 @@ def _set_request_tags(request, span, flask_config):
         log.debug('failed to set tags for "flask.request" span', exc_info=True)
 
 
+def _on_pre_tracedrequest(flask_config, block_request_callable, current_span, request_span):
+    request_span.set_tag_str(COMPONENT, flask_config.integration_name)
+    request_span._ignore_exception(NotFound)
+
+
 def listen():
     core.on("context.started.wsgi.__call__", _on_context_started)
     core.on("context.started.wsgi.response", _on_response_context_started)
@@ -231,3 +238,4 @@ def listen():
     core.on("wsgi.request.complete", _on_request_complete)
     core.on("wsgi.response.prepared", _on_response_prepared)
     core.on("flask.set_request_tags", _set_request_tags)
+    core.on("flask.traced_request.pre", _on_pre_tracedrequest)

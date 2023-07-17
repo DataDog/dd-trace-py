@@ -630,20 +630,19 @@ def request_tracer(name):
 
         This wrapper will add identifier tags to the current span from `flask.app.Flask.wsgi_app`.
         """
-        span = pin.tracer.current_span()
-        if not pin.enabled or not span:
+        current_span = pin.tracer.current_span()
+        if not pin.enabled or not current_span:
             return wrapped(*args, **kwargs)
 
-        core.dispatch("flask.set_request_tags", [flask.request, span, config.flask])
+        core.dispatch("flask.set_request_tags", [flask.request, current_span, config.flask])
 
         with pin.tracer.trace(
             ".".join(("flask", name)),
             service=trace_utils.int_service(pin, config.flask, pin),
         ) as request_span:
-            request_span.set_tag_str(COMPONENT, config.flask.integration_name)
-
-            request_span._ignore_exception(werkzeug.exceptions.NotFound)
-            core.dispatch("flask.traced_request.pre", [_block_request_callable, span])
+            core.dispatch(
+                "flask.traced_request.pre", [config.flask, _block_request_callable, current_span, request_span]
+            )
             return wrapped(*args, **kwargs)
 
     return _traced_request

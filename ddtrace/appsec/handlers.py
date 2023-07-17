@@ -64,11 +64,11 @@ def _on_set_request_tags(request, span, flask_config):
         )
 
 
-def _on_pre_tracedrequest(block_request_callable, span):
+def _on_pre_tracedrequest(flask_config, block_request_callable, current_span, req_span):
     if config._appsec_enabled:
         from ddtrace.appsec import _asm_request_context
 
-        _asm_request_context.set_block_request_callable(functools.partial(block_request_callable, span))
+        _asm_request_context.set_block_request_callable(functools.partial(block_request_callable, current_span))
         if core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
             _asm_request_context.block_request()
 
