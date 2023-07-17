@@ -105,6 +105,23 @@ threads::
         thread.start()
         thread.join()
 
+When the :ref:`futures` integration is enabled, the context is automatically propagated
+to :class:`~concurrent.futures.ThreadPoolExecutor` tasks::
+
+    from concurrent.futures import ThreadPoolExecutor
+    from ddtrace import tracer
+
+    @tracer.wrap()
+    def eat(dessert):  # each task will get its own span, child of the eat_all_the_things span
+        tracer.current_span().resource = dessert   # customize the local span
+        print(f"This {dessert} is delicious!")
+
+    @tracer.wrap()
+    def eat_all_the_things():
+        with ThreadPoolExecutor() as e:
+            e.submit(eat, "cookie")
+            e.map(eat, ("panna cotta", "tiramisu", "gelato"))
+
 
 Tracing Across Processes
 ^^^^^^^^^^^^^^^^^^^^^^^^
@@ -168,8 +185,8 @@ Tracing Across Asyncio Tasks
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 By default the active context will by propagated across tasks on creation as
-the `contextvars`_ context is copied between tasks. If this is not desirable
-then ``None`` can be activated in the new task::
+the :mod:`contextvars` context is copied between tasks. If this is not
+desirable then ``None`` can be activated in the new task::
 
     tracer.context_provider.activate(None)
 
@@ -186,9 +203,10 @@ for :meth:`ddtrace.Tracer.start_span`.
 Context Providers
 ^^^^^^^^^^^^^^^^^
 
-The default context provider used in the tracer uses contextvars_ to store
-the active context per execution. This means that any asynchronous library
-that uses `contextvars`_ will have support for automatic context management.
+The default context provider used in the tracer uses :mod:`contextvars`
+to store the active context per execution. This means that any asynchronous
+library that uses :mod:`contextvars` will have support for automatic
+context management.
 
 If there is a case where the default is insufficient then a custom context
 provider can be used. It must implement the
@@ -196,9 +214,6 @@ provider can be used. It must implement the
 with::
 
     tracer.configure(context_provider=MyContextProvider)
-
-
-.. _contextvars: https://docs.python.org/3/library/contextvars.html
 
 
 .. _disttracing:
@@ -373,6 +388,14 @@ Examples::
     # Integration level config, e.g. 'falcon'
     config.falcon.http.trace_query_string = True
 
+The sensitive query strings (e.g: token, password) are obfuscated by default.
+
+It is possible to configure the obfuscation regexp by setting the ``DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN`` environment variable.
+
+To disable query string obfuscation, set the ``DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN`` environment variable to empty string ("")
+
+If the ``DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN`` environment variable is set to an invalid regexp, the query strings will not be traced.
+
 ..  _http-headers-tracing:
 
 Headers tracing
@@ -408,6 +431,7 @@ The following rules apply:
     configuration, only for the specific integration.
   - if you do not configure a specific integration, then the default global configuration applies, if any.
   - if no configuration is provided (neither global nor integration-specific), then headers are not traced.
+
 
 Once you configure your application for tracing, you will have the headers attached to the trace as tags, with a
 structure like in the following example::
@@ -668,25 +692,3 @@ Example with uWSGI ini file:
 .. code-block:: bash
 
   uwsgi --ini uwsgi.ini
-
-
-.. _gunicorn:
-
-Gunicorn
---------
-
-``ddtrace`` supports `Gunicorn <https://gunicorn.org>`__.
-
-However, if you are using the ``gevent`` worker class, you have to make sure
-``gevent`` monkey patching is done before loading the ``ddtrace`` library.
-
-There are different options to make that happen:
-
-- If you rely on ``ddtrace-run``, you must set ``DD_GEVENT_PATCH_ALL=1`` in
-  your environment to have gevent patched first-thing.
-
-- Replace ``ddtrace-run`` by using ``import ddtrace.bootstrap.sitecustomize``
-  as the first import of your application.
-
-- Use a `post_worker_init <https://docs.gunicorn.org/en/stable/settings.html#post-worker-init>`_
-  hook to import ``ddtrace.bootstrap.sitecustomize``.

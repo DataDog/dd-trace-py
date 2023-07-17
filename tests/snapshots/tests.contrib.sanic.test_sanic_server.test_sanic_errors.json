@@ -7,21 +7,27 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "web",
+    "error": 0,
     "meta": {
+      "_dd.p.dm": "-0",
+      "component": "sanic",
       "http.method": "GET",
       "http.status_code": "404",
       "http.url": "http://0.0.0.0:8000/not_found",
-      "runtime-id": "3d723a2da3d64eb9a002fc85bf8867b7"
+      "http.useragent": "python-requests/2.28.1",
+      "language": "python",
+      "runtime-id": "8ff87ef796b5444799ac6c8af5117899",
+      "span.kind": "server"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 90749
+      "process_id": 90749
     },
-    "duration": 1497000,
-    "start": 1643465628968961000
+    "duration": 195000,
+    "start": 1667243828573811000
   }],
 [
   {
@@ -34,22 +40,27 @@
     "type": "web",
     "error": 1,
     "meta": {
-      "error.msg": "division by zero",
-      "error.stack": "Traceback (most recent call last):\n  File \"handle_request\", line 83, in handle_request\n    class Sanic(BaseSanic, metaclass=TouchUpMeta):\n  File \"/Users/brett.langdon/datadog/dd-trace-py/tests/contrib/sanic/run_server.py\", line 31, in internal_error\n    1 / 0\nZeroDivisionError: division by zero\n",
+      "_dd.p.dm": "-0",
+      "component": "sanic",
+      "error.message": "division by zero",
+      "error.stack": "Traceback (most recent call last):\n  File \"handle_request\", line 83, in handle_request\n    class Sanic(BaseSanic, metaclass=TouchUpMeta):\n  File \"/Users/william.conti/Documents/dd-trace/dd-trace-py/tests/contrib/sanic/run_server.py\", line 38, in internal_error\n    1 / 0\nZeroDivisionError: division by zero\n",
       "error.type": "builtins.ZeroDivisionError",
       "http.method": "GET",
       "http.status_code": "500",
       "http.url": "http://0.0.0.0:8000/internal_error",
-      "runtime-id": "3d723a2da3d64eb9a002fc85bf8867b7",
-      "sanic.route.name": "test_sanic_server.internal_error"
+      "http.useragent": "python-requests/2.28.1",
+      "language": "python",
+      "runtime-id": "8ff87ef796b5444799ac6c8af5117899",
+      "sanic.route.name": "test_sanic_server.internal_error",
+      "span.kind": "server"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 90749
+      "process_id": 90749
     },
-    "duration": 733000,
-    "start": 1643465628981693000
+    "duration": 973000,
+    "start": 1667243828611475000
   }]]

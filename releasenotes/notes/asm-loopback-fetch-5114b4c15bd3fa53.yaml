@@ -1,0 +1,3 @@
+features:
+  - |
+    ASM: also fetch loopback IPs if client IP fetching is enabled (either via ASM or DD_TRACE_CLIENT_IP_ENABLED).

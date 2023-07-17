@@ -156,7 +156,7 @@ class TestSpanCompatibility(object):
 
     def test_tag_peer_port(self, nop_span):
         nop_span.set_tag("peer.port", 55555)
-        assert nop_span._get_metric("out.port") == 55555
+        assert nop_span._get_metric("network.destination.port") == 55555
 
     def test_tag_sampling_priority(self, nop_span):
         nop_span.set_tag("sampling.priority", "2")

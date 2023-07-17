@@ -217,8 +217,8 @@ ddtrace_logger.debug('debug log')
         out, err, status, pid = run_in_subprocess(code)
         assert status == 0, err
         assert re.search(LOG_PATTERN, str(err)) is None
-        assert b"warning log" in err
-        assert b"debug log" not in err
+        assert b"warning log" in err, err.decode()
+        assert b"debug log" not in err, err.decode()
         assert out == b""
 
 
@@ -230,7 +230,7 @@ def test_warn_logs_can_go_to_file(run_python_code_in_subprocess, ddtrace_run_pyt
     env = os.environ.copy()
     log_file = tmpdir.strpath + "/testlog.log"
     env["DD_TRACE_LOG_FILE"] = log_file
-    env["DD_TRACE_FILE_SIZE_BYTES"] = "200000"
+    env["DD_TRACE_LOG_FILE_SIZE_BYTES"] = "200000"
     patch_code = """
 import logging
 import ddtrace
@@ -264,8 +264,8 @@ ddtrace_logger.warning('warning log')
     ]:
         out, err, status, pid = run_in_subprocess(code, env=env)
         assert status == 0, err
-        assert err == b""
-        assert out == b""
+        assert err == b"", err.decode()
+        assert out == b"", out.decode()
         with open(log_file) as file:
             first_line = file.readline()
             assert len(first_line) > 0
@@ -325,8 +325,8 @@ ddtrace_logger.debug('debug log')
     assert status == 0, err
     assert re.search(LOG_PATTERN, str(err)) is None
     assert "program executable" in str(err)  # comes from ddtrace-run debug logging
-    assert b"warning log" in err
-    assert b"debug log" in err
+    assert b"warning log" in err, err.decode()
+    assert b"debug log" in err, err.decode()
     assert out == b""
 
 
@@ -346,7 +346,7 @@ def test_debug_logs_can_go_to_file_backup_count(
     log_file = tmpdir.strpath + "/testlog.log"
     env["DD_TRACE_LOG_FILE"] = log_file
     env["DD_TRACE_DEBUG"] = "true"
-    env["DD_TRACE_FILE_SIZE_BYTES"] = "10"
+    env["DD_TRACE_LOG_FILE_SIZE_BYTES"] = "10"
     code = """
 import logging
 import os
@@ -400,7 +400,7 @@ for attempt in range(100):
 """
 
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
-    assert status == 0, err
+    assert status == 0, err.decode()
 
     if PY2:
         assert 'No handlers could be found for logger "ddtrace' in err
@@ -421,7 +421,7 @@ def test_unknown_log_level_error(run_python_code_in_subprocess, ddtrace_run_pyth
     log_file = tmpdir.strpath + "/testlog.log"
     env["DD_TRACE_LOG_FILE"] = log_file
     env["DD_TRACE_DEBUG"] = "true"
-    env["DD_TRACE_FILE_SIZE_BYTES"] = "10"
+    env["DD_TRACE_LOG_FILE_SIZE_BYTES"] = "10"
     code = """
 import logging
 import ddtrace

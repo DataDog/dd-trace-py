@@ -13,6 +13,7 @@ ddtrace/profiling/collector/_traceback.c
 ddtrace/profiling/collector/stack.c
 ddtrace/profiling/exporter/pprof.c
 ddtrace/profiling/_build.c
+ddtrace/internal/datadog/profiling/ddup.cpp
 ddtrace/internal/_encoding.c
 ddtrace/internal/_rand.c
 ddtrace/internal/_tagset.c
@@ -21,6 +22,11 @@ ddtrace/internal/_tagset.c
 
 # Cython annotate HTML files
 ddtrace/**/*.html
+
+# Dynamic binary libraries
+ddtrace/appsec/ddwaf/libddwaf/
+libddwaf*.sha256
+ddtrace/internal/datadog/profiling/libdatadog/
 
 # Distribution / packaging
 .Python
@@ -64,6 +70,8 @@ coverage.json
 *,cover
 .hypothesis/
 .pytest_cache/
+test.db
+.benchmarks/**/*.json
 
 # Translations
 *.mo
@@ -82,6 +90,7 @@ instance/
 
 # Sphinx documentation
 docs/_build/
+_readthedocs/
 
 # PyBuilder
 target/
@@ -93,7 +102,7 @@ target/
 .python-version
 
 # celery beat schedule file
-celerybeat-schedule
+celerybeat-schedule*
 
 # docker-compose env file
 # it must be versioned to keep track of backing services defaults
@@ -118,7 +127,16 @@ ENV/
 .vscode/
 
 # Riot
-.riot/
+.riot/venv*
+.riot/requirements/*.in
 
 # Auto-generated version file
 ddtrace/_version.py
+
+# Benchmarks
+artifacts/
+
+# IAST cpp
+ddtrace/appsec/iast/_taint_tracking/cmake-build-debug/*
+ddtrace/appsec/iast/_taint_tracking/_deps/*
+ddtrace/appsec/iast/_taint_tracking/CMakeFiles/*

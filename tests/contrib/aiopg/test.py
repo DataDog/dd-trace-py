@@ -9,6 +9,7 @@ from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.aiopg.patch import patch
 from ddtrace.contrib.aiopg.patch import unpatch
+from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.contrib.asyncio.utils import AsyncioTestCase
 from tests.contrib.asyncio.utils import mark_asyncio
 from tests.contrib.config import POSTGRES_CONFIG
@@ -75,6 +76,8 @@ class AiopgTestCase(AsyncioTestCase):
         assert span.span_type == "sql"
         assert start <= span.start <= end
         assert span.duration <= end - start
+        assert span.get_tag("component") == "aiopg"
+        assert span.get_tag("span.kind") == "client"
 
         # Ensure OpenTracing compatibility
         ot_tracer = init_tracer("aiopg_svc", tracer)
@@ -97,6 +100,8 @@ class AiopgTestCase(AsyncioTestCase):
         assert dd_span.get_tag("sql.query") == q
         assert dd_span.error == 0
         assert dd_span.span_type == "sql"
+        assert dd_span.get_tag("component") == "aiopg"
+        assert span.get_tag("span.kind") == "client"
 
         # run a query with an error and ensure all is well
         q = "select * from some_non_existant_table"
@@ -116,8 +121,10 @@ class AiopgTestCase(AsyncioTestCase):
         assert span.service == service
         assert span.get_tag("sql.query") == q
         assert span.error == 1
-        assert span.get_metric("out.port") == TEST_PORT
+        assert span.get_metric("network.destination.port") == TEST_PORT
         assert span.span_type == "sql"
+        assert span.get_tag("component") == "aiopg"
+        assert span.get_tag("span.kind") == "client"
 
     @mark_asyncio
     def test_disabled_execute(self):
@@ -184,11 +191,15 @@ class AiopgTestCase(AsyncioTestCase):
         assert spans, spans
         assert len(spans) == 1
 
-    @run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_user_specified_service(self):
+    @mark_asyncio
+    @run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_user_specified_service_v0(self):
         """
-        When a user specifies a service for the app
-            The aiopg integration should not use it.
+        v0: When a user specifies a service for the app
+            The aiopg integration does use it.
+
+            **note** Unlike other integrations, the current behavior already matches v1 behavior,
+            as the service specified by aiopg is overwritten with `service=None` by psycopg
         """
         # Ensure that the service name was configured
         from ddtrace import config
@@ -203,7 +214,73 @@ class AiopgTestCase(AsyncioTestCase):
         spans = self.get_spans()
         assert spans, spans
         assert len(spans) == 1
-        assert spans[0].service != "mysvc"
+        assert spans[0].service == "mysvc"
+
+    @mark_asyncio
+    @run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_user_specified_service_v1(self):
+        """
+        v1: When a user specifies a service for the app
+            The aiopg integration should use it.
+        """
+        # Ensure that the service name was configured
+        from ddtrace import config
+
+        assert config.service == "mysvc"
+
+        conn = yield from aiopg.connect(**POSTGRES_CONFIG)
+        Pin.get_from(conn).clone(tracer=self.tracer).onto(conn)
+        yield from (yield from conn.cursor()).execute("select 'blah'")
+        conn.close()
+
+        spans = self.get_spans()
+        assert spans, spans
+        assert len(spans) == 1
+        assert spans[0].service == "mysvc"
+
+    @mark_asyncio
+    @run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_unspecified_service_v1(self):
+        """
+        v1: When a user specifies a service for the app
+            The aiopg integration should use it.
+        """
+        # Ensure that the service name was configured
+        conn = yield from aiopg.connect(**POSTGRES_CONFIG)
+        Pin.get_from(conn).clone(tracer=self.tracer).onto(conn)
+        yield from (yield from conn.cursor()).execute("select 'blah'")
+        conn.close()
+
+        spans = self.get_spans()
+        assert spans, spans
+        assert len(spans) == 1
+        assert spans[0].service == DEFAULT_SPAN_SERVICE_NAME
+
+    @mark_asyncio
+    @run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_trace_span_name_v0_schema(self):
+        conn = yield from aiopg.connect(**POSTGRES_CONFIG)
+        Pin.get_from(conn).clone(tracer=self.tracer).onto(conn)
+        yield from (yield from conn.cursor()).execute("select 'blah'")
+        conn.close()
+
+        spans = self.get_spans()
+        assert spans, spans
+        assert len(spans) == 1
+        assert spans[0].name == "postgres.query"
+
+    @mark_asyncio
+    @run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_trace_span_name_v1_schema(self):
+        conn = yield from aiopg.connect(**POSTGRES_CONFIG)
+        Pin.get_from(conn).clone(tracer=self.tracer).onto(conn)
+        yield from (yield from conn.cursor()).execute("select 'blah'")
+        conn.close()
+
+        spans = self.get_spans()
+        assert spans, spans
+        assert len(spans) == 1
+        assert spans[0].name == "postgresql.query"
 
 
 class AiopgAnalyticsTestCase(AiopgTestCase):

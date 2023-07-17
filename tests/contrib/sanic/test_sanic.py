@@ -1,4 +1,5 @@
 import asyncio
+import os
 import random
 import re
 
@@ -9,7 +10,6 @@ from sanic.config import DEFAULT_CONFIG
 from sanic.exceptions import InvalidUsage
 from sanic.exceptions import ServerError
 from sanic.response import json
-from sanic.response import stream
 from sanic.response import text
 from sanic.server import HttpProtocol
 
@@ -18,6 +18,7 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
+from ddtrace.internal.schema.span_attribute_schema import _DEFAULT_SPAN_SERVICE_NAMES
 from ddtrace.propagation import http as http_propagation
 from tests.utils import override_config
 from tests.utils import override_http_config
@@ -26,6 +27,18 @@ from tests.utils import override_http_config
 # Helpers for handling response objects across sanic versions
 
 sanic_version = tuple(map(int, sanic_version.split(".")))
+
+
+try:
+    from sanic.response import ResponseStream
+
+    def stream(*args, **kwargs):
+        return ResponseStream(*args, **kwargs)
+
+
+except ImportError:
+    # stream was removed in sanic v22.6.0
+    from sanic.response import stream
 
 
 def _response_status(response):
@@ -83,7 +96,7 @@ def app(tracer):
             await response.write("foo,")
             await response.write("bar")
 
-        return stream(sample_streaming_fn, content_type="text/csv")
+        return stream(sample_streaming_fn, content_type="text/csv", headers={})
 
     @app.route("/error400")
     async def error_400(request):
@@ -91,7 +104,9 @@ def app(tracer):
 
     @app.route("/error")
     async def error(request):
-        raise ServerError("Something bad happened", status_code=500)
+        server_error = ServerError("Something bad happened")
+        server_error.status_code = 500
+        raise server_error
 
     @app.route("/invalid")
     async def invalid(request):
@@ -146,6 +161,8 @@ else:
         dict(analytics_enabled=True, analytics_sample_rate=0.5),
         dict(analytics_enabled=False, analytics_sample_rate=0.5),
         dict(distributed_tracing=False),
+        dict(http_tag_query_string=True),
+        dict(http_tag_query_string=False),
     ],
     ids=[
         "default",
@@ -155,6 +172,8 @@ else:
         "enable_analytics_custom_sample_rate",
         "disable_analytics_custom_sample_rate",
         "disable_distributed_tracing",
+        "http_tag_query_string_enabled",
+        "http_tag_query_string_disabled",
     ],
 )
 def integration_config(request):
@@ -197,7 +216,8 @@ async def test_basic_app(tracer, client, integration_config, integration_http_co
     assert request_span.name == "sanic.request"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
-    assert re.search("/hello$", request_span.get_tag("http.url"))
+    assert request_span.get_tag("component") == "sanic"
+    assert request_span.get_tag("span.kind") == "server"
     assert request_span.get_tag("http.status_code") == "200"
     assert request_span.resource == "GET /hello"
 
@@ -214,6 +234,12 @@ async def test_basic_app(tracer, client, integration_config, integration_http_co
         assert request_span.get_tag("http.query.string") == "foo=bar"
     else:
         assert request_span.get_tag("http.query.string") is None
+
+    if integration_config.get("http_tag_query_string_enabled"):
+        assert re.search(r"/hello\?foo\=bar$", request_span.get_tag("http.url"))
+
+    if integration_config.get("http_tag_query_string_disabled"):
+        assert re.search(r"/hello$", request_span.get_tag("http.url"))
 
     if integration_config.get("analytics_enabled"):
         analytics_sample_rate = integration_config.get("analytics_sample_rate") or 1.0
@@ -261,6 +287,8 @@ async def test_streaming_response(tracer, client, test_spans):
     assert request_span.service == "sanic"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
+    assert request_span.get_tag("component") == "sanic"
+    assert request_span.get_tag("span.kind") == "server"
     assert re.search("/stream_response$", request_span.get_tag("http.url"))
     assert request_span.get_tag("http.query.string") is None
     assert request_span.get_tag("http.status_code") == "200"
@@ -288,6 +316,8 @@ async def test_error_app(tracer, client, test_spans, status_code, url, content):
     assert request_span.get_tag(ERROR_MSG) is None
     assert request_span.get_tag(ERROR_TYPE) is None
     assert request_span.get_tag(ERROR_STACK) is None
+    assert request_span.get_tag("component") == "sanic"
+    assert request_span.get_tag("span.kind") == "server"
 
     assert request_span.get_tag("http.method") == "GET"
     assert re.search(f"{url}$", request_span.get_tag("http.url"))
@@ -309,6 +339,8 @@ async def test_exception(tracer, client, test_spans):
     assert request_span.service == "sanic"
     assert request_span.error == 1
     assert request_span.get_tag("http.method") == "GET"
+    assert request_span.get_tag("component") == "sanic"
+    assert request_span.get_tag("span.kind") == "server"
     assert re.search("/error$", request_span.get_tag("http.url"))
     assert request_span.get_tag("http.query.string") is None
     assert request_span.get_tag("http.status_code") == "500"
@@ -353,6 +385,8 @@ async def test_invalid_response_type_str(tracer, client, test_spans):
     assert request_span.service == "sanic"
     assert request_span.error == 1
     assert request_span.get_tag("http.method") == "GET"
+    assert request_span.get_tag("component") == "sanic"
+    assert request_span.get_tag("span.kind") == "server"
     assert re.search("/invalid$", request_span.get_tag("http.url"))
     assert request_span.get_tag("http.query.string") is None
     assert request_span.get_tag("http.status_code") == "500"
@@ -374,6 +408,8 @@ async def test_invalid_response_type_empty(tracer, client, test_spans):
     assert re.search("/empty$", request_span.get_tag("http.url"))
     assert request_span.get_tag("http.query.string") is None
     assert request_span.get_tag("http.status_code") == "500"
+    assert request_span.get_tag("component") == "sanic"
+    assert request_span.get_tag("span.kind") == "server"
 
 
 @pytest.mark.asyncio
@@ -400,3 +436,108 @@ async def test_endpoint_with_numeric_arg(tracer, client, test_spans):
     response = await client.get("/42/count")
     assert _response_status(response) == 200
     assert (await _response_text(response)) == '{"hello":42}'
+
+
+@pytest.mark.parametrize("service_name", [None, "mysvc"])
+@pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
+def test_service_name_schematization(ddtrace_run_python_code_in_subprocess, schema_version, service_name):
+    expected_service_name = {
+        None: service_name or "sanic",
+        "v0": service_name or "sanic",
+        "v1": service_name or _DEFAULT_SPAN_SERVICE_NAMES["v1"],
+    }[schema_version]
+    code = """
+import asyncio
+import pytest
+import sys
+
+# prevent circular import issue
+import sanic
+
+# import fixtures
+from tests.conftest import *
+from tests.contrib.sanic.conftest import *
+from tests.contrib.sanic.test_sanic import app
+from tests.contrib.sanic.test_sanic import client
+from tests.contrib.sanic.test_sanic import integration_config
+from tests.contrib.sanic.test_sanic import integration_http_config
+from tests.contrib.sanic.test_sanic import _response_status
+
+from ddtrace.propagation import http as http_propagation
+
+async def test(client, integration_config, integration_http_config, test_spans):
+    response = await client.get("/hello", params=[("foo", "bar")])
+    assert _response_status(response) == 200
+
+    spans = test_spans.pop_traces()
+    assert len(spans) == 1
+    assert len(spans[0]) == 2
+    request_span = spans[0][0]
+    assert request_span.service == "{}"
+
+if __name__ == "__main__":
+    sys.exit(pytest.main(["-x", __file__]))
+    """.format(
+        expected_service_name
+    )
+
+    env = os.environ.copy()
+    if schema_version is not None:
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
+    if service_name is not None:
+        env["DD_SERVICE"] = service_name
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(
+        code,
+        env=env,
+    )
+    assert status == 0, out or err
+
+
+@pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
+def test_operation_name_schematization(ddtrace_run_python_code_in_subprocess, schema_version):
+    expected_operation_name = {None: "sanic.request", "v0": "sanic.request", "v1": "http.server.request"}[
+        schema_version
+    ]
+    code = """
+import asyncio
+import pytest
+import sys
+
+# prevent circular import issue
+import sanic
+
+# import fixtures
+from tests.conftest import *
+from tests.contrib.sanic.conftest import *
+from tests.contrib.sanic.test_sanic import app
+from tests.contrib.sanic.test_sanic import client
+from tests.contrib.sanic.test_sanic import integration_config
+from tests.contrib.sanic.test_sanic import integration_http_config
+from tests.contrib.sanic.test_sanic import _response_status
+
+from ddtrace.propagation import http as http_propagation
+
+async def test(client, integration_config, integration_http_config, test_spans):
+    response = await client.get("/hello", params=[("foo", "bar")])
+    assert _response_status(response) == 200
+
+    spans = test_spans.pop_traces()
+    assert len(spans) == 1
+    assert len(spans[0]) == 2
+    request_span = spans[0][0]
+    assert request_span.name == "{}"
+
+if __name__ == "__main__":
+    sys.exit(pytest.main(["-x", __file__]))
+    """.format(
+        expected_operation_name
+    )
+
+    env = os.environ.copy()
+    if schema_version is not None:
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(
+        code,
+        env=env,
+    )
+    assert status == 0, out or err

@@ -1,4 +1,5 @@
 import os
+import signal
 import subprocess
 
 import pytest
@@ -19,8 +20,9 @@ def sanic_client():
     env = os.environ.copy()
     env["SANIC_PORT"] = str(SERVER_PORT)
     args = ["ddtrace-run", "python", RUN_SERVER_PY]
-    subp = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=True, env=env)
-
+    subp = subprocess.Popen(
+        args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=True, env=env, preexec_fn=os.setsid
+    )
     client = Client("http://0.0.0.0:{}".format(SERVER_PORT))
     client.wait(path="/hello")
     try:
@@ -28,7 +30,8 @@ def sanic_client():
     finally:
         resp = client.get_ignored("/shutdown-tracer")
         assert resp.status_code == 200
-        subp.terminate()
+        # sanic server can spawn child processes, ensure child process are killed
+        os.killpg(os.getpgid(subp.pid), signal.SIGTERM)
         try:
             # Give the server 3 seconds to shutdown, then kill it
             subp.wait(3)
@@ -37,6 +40,7 @@ def sanic_client():
 
 
 @pytest.mark.snapshot(
+    ignores=["meta.http.useragent"],
     variants={
         "": sanic_version >= (21, 9, 0),
         "pre_21.9": sanic_version < (21, 9, 0),
@@ -53,7 +57,7 @@ def test_multiple_requests_sanic_http(sanic_client):
 
 
 @pytest.mark.snapshot(
-    ignores=["meta.error.stack"],
+    ignores=["meta.error.stack", "meta.http.useragent"],
     variants={
         "": sanic_version >= (21, 9, 0),
         "pre_21.9": sanic_version < (21, 9, 0),

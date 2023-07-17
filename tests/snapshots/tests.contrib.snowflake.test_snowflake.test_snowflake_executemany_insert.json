@@ -7,14 +7,21 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "sql",
+    "error": 0,
     "meta": {
+      "_dd.p.dm": "-0",
+      "component": "snowflake",
       "db.application": "PythonConnector",
       "db.name": "mock-db-name",
       "db.schema": "mock-schema-name",
+      "db.system": "snowflake",
       "db.user": "mock-user",
       "db.warehouse": "mock-warehouse-name",
+      "language": "python",
       "out.host": "mock-account.snowflakecomputing.com",
-      "runtime-id": "441ecb845fa54dc18d63e7f4e83860bf",
+      "runtime-id": "f82097569d3141b8ba61409269818dec",
+      "sfqid": "mocksfqid-29244a72-90a0-4309-9168-9dcf67721f6d",
+      "span.kind": "client",
       "sql.executemany": "true"
     },
     "metrics": {
@@ -23,11 +30,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "db.rowcount": 2,
-      "out.port": 443,
-      "sql.rows": 2,
-      "system.pid": 79541
+      "db.row_count": 2,
+      "network.destination.port": 443,
+      "process_id": 88705
     },
-    "duration": 3123000,
-    "start": 1634218671542916000
+    "duration": 1311000,
+    "start": 1667243941882777000
   }]]

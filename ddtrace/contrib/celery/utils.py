@@ -2,6 +2,7 @@ from typing import Any
 from typing import Dict
 from weakref import WeakValueDictionary
 
+from ddtrace.contrib.trace_utils import set_flattened_tags
 from ddtrace.span import Span
 
 from .constants import CTX_KEY
@@ -33,27 +34,37 @@ TAG_KEYS = frozenset(
 )
 
 
+def should_skip_context_value(key, value):
+    # type: (str, Any) -> bool
+    # Skip this key if it is not set
+    if value is None or value == "":
+        return True
+
+    # Skip `timelimit` if it is not set (its default/unset value is a
+    # tuple or a list of `None` values
+    if key == "timelimit" and all(_ is None for _ in value):
+        return True
+
+    # Skip `retries` if its value is `0`
+    if key == "retries" and value == 0:
+        return True
+
+    return False
+
+
 def set_tags_from_context(span, context):
     # type: (Span, Dict[str, Any]) -> None
     """Helper to extract meta values from a Celery Context"""
 
+    context_tags = []
     for key, tag_name in TAG_KEYS:
         value = context.get(key)
-
-        # Skip this key if it is not set
-        if value is None or value == "":
+        if should_skip_context_value(key, value):
             continue
 
-        # Skip `timelimit` if it is not set (its default/unset value is a
-        # tuple or a list of `None` values
-        if key == "timelimit" and all(_ is None for _ in value):
-            continue
+        context_tags.append((tag_name, value))
 
-        # Skip `retries` if its value is `0`
-        if key == "retries" and value == 0:
-            continue
-
-        span.set_tag(tag_name, value)
+    set_flattened_tags(span, context_tags)
 
 
 def attach_span(task, task_id, span, is_publish=False):

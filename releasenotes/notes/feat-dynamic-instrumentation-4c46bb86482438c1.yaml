@@ -1,0 +1,11 @@
+---
+prelude: >
+    Dynamic instrumentation allows instrumenting a running service dynamically
+    to extract runtime information that could be useful for, e.g., debugging
+    purposes, or to add extra metrics without having to make code changes and
+    re-deploy the service. See https://ddtrace.readthedocs.io/en/stable/configuration.html
+    for more details.
+features:
+  - |
+    Introduced the public interface for the dynamic instrumentation service. See
+    https://ddtrace.readthedocs.io/en/stable/configuration.html for more details.

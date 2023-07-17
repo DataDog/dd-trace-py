@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    httpx: Add support for ``httpx<0.14.0,>=0.9.0``.
+fixes:
+  - |
+    httpx: Only patch ``httpx.AsyncClient`` for ``httpx>=0.11.0``.

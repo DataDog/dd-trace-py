@@ -5,11 +5,16 @@ from bottle import response
 
 import ddtrace
 from ddtrace import config
+from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanKind
 from ...ext import SpanTypes
+from ...internal.schema import schematize_url_operation
 from ...internal.utils.formats import asbool
 
 
@@ -43,11 +48,16 @@ class TracePlugin(object):
             )
 
             with self.tracer.trace(
-                "bottle.request",
+                schematize_url_operation("bottle.request", protocol="http", direction=SpanDirection.INBOUND),
                 service=self.service,
                 resource=resource,
                 span_type=SpanTypes.WEB,
             ) as s:
+                s.set_tag_str(COMPONENT, config.bottle.integration_name)
+
+                # set span.kind to the type of request being performed
+                s.set_tag_str(SPAN_KIND, SpanKind.SERVER)
+
                 s.set_tag(SPAN_MEASURED_KEY)
                 # set analytics sample rate with global config enabled
                 s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.bottle.get_analytics_sample_rate(use_global_config=True))

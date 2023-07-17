@@ -68,6 +68,7 @@ urlpatterns = [
     re_path(r"re-path.*/", repath_view),
     path("path/", path_view),
     path("include/", include("tests.contrib.django.django_app.extra_urls")),
+    path("appsec/", include("tests.contrib.django.django_app.appsec_urls")),
     # This must precede composed-view.
     handler(r"^some-static-view/$", TemplateView.as_view(template_name="my-template.html")),
     handler(r"^composed-template-view/$", views.ComposedTemplateView.as_view(), name="composed-template-view"),
@@ -76,4 +77,5 @@ urlpatterns = [
     handler(r"^404-view/$", views.not_found_view, name="404-view"),
     handler(r"^shutdown-tracer/$", shutdown, name="shutdown-tracer"),
     handler(r"^alter-resource/$", views.alter_resource),
+    handler(r"^identify/$", views.identify, name="identify"),
 ]

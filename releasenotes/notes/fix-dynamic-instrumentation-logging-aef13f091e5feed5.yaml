@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    dynamic instrumentation: remove unnecessary log line from application start up

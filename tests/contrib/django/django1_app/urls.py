@@ -1,3 +1,4 @@
+from django.conf.urls import include
 from django.conf.urls import url
 from django.views.decorators.cache import cache_page
 from django.views.generic import TemplateView
@@ -28,4 +29,6 @@ urlpatterns = [
     url(r"^composed-get-view/$", views.ComposedGetView.as_view(), name="composed-get-view"),
     url(r"^composed-view/$", views.ComposedView.as_view(), name="composed-view"),
     url(r"^alter-resource/$", views.alter_resource, name="alter-resource"),
+    url(r"^identify/$", views.identify, name="identify"),
+    url("appsec/", include("tests.contrib.django.django_app.appsec_urls")),
 ]

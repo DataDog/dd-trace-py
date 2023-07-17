@@ -1,15 +1,10 @@
 name: System Tests
 
 on:
-  pull_request:
+  push:
   workflow_dispatch: {}
   schedule:
-    - cron:  '00 04 * * 2-6'
-  push:
-    branches:
-      - master
-      - 0.x
-      - 1.x
+    - cron: '00 04 * * 2-6'
 
 jobs:
   system-tests:
@@ -26,6 +21,11 @@ jobs:
       WEBLOG_VARIANT: ${{ matrix.weblog-variant }}
       DD_API_KEY: ${{ secrets.DD_API_KEY }}
     steps:
+      - name: Setup python 3.9
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+  
       - name: Checkout system tests
         uses: actions/checkout@v3
         with:
@@ -35,6 +35,7 @@ jobs:
         uses: actions/checkout@v3
         with:
           path: 'binaries/dd-trace-py'
+          fetch-depth: 0
 
       - name: Build
         run: ./build.sh
@@ -42,8 +43,59 @@ jobs:
       - name: Run
         run: ./run.sh
 
+      - name: Run REMOTE_CONFIG_MOCKED_BACKEND_ASM_FEATURES
+        run: ./run.sh REMOTE_CONFIG_MOCKED_BACKEND_ASM_FEATURES
+
+      - name: Run REMOTE_CONFIG_MOCKED_BACKEND_LIVE_DEBUGGING
+        run: ./run.sh REMOTE_CONFIG_MOCKED_BACKEND_LIVE_DEBUGGING
+
+      - name: Run REMOTE_CONFIG_MOCKED_BACKEND_ASM_DD
+        run: ./run.sh REMOTE_CONFIG_MOCKED_BACKEND_ASM_DD
+
+      - name: Run APPSEC_MISSING_RULES
+        run: ./run.sh APPSEC_MISSING_RULES
+
+      - name: Run APPSEC_CUSTOM_RULES
+        run: ./run.sh APPSEC_CUSTOM_RULES
+
+      - name: Run APPSEC_CORRUPTED_RULES
+        run: ./run.sh APPSEC_CORRUPTED_RULES
+
+      - name: Run APPSEC_RULES_MONITORING_WITH_ERRORS
+        run: ./run.sh APPSEC_RULES_MONITORING_WITH_ERRORS
+
+      - name: Run APPSEC_BLOCKING
+        run: ./run.sh APPSEC_BLOCKING
+
+      - name: Run APPSEC_DISABLED
+        run: ./run.sh APPSEC_DISABLED
+
+      - name: Run APPSEC_LOW_WAF_TIMEOUT
+        run: ./run.sh APPSEC_LOW_WAF_TIMEOUT
+
+      - name: Run APPSEC_CUSTOM_OBFUSCATION
+        run: ./run.sh APPSEC_CUSTOM_OBFUSCATION
+
+      - name: Run APPSEC_RATE_LIMITER
+        run: ./run.sh APPSEC_RATE_LIMITER
+
+      - name: Run APPSEC_BLOCKING_FULL_DENYLIST
+        run: ./run.sh APPSEC_BLOCKING_FULL_DENYLIST
+
+      - name: Run APPSEC_REQUEST_BLOCKING
+        run: ./run.sh APPSEC_REQUEST_BLOCKING
+
+      - name: Run APPSEC_RUNTIME_ACTIVATION
+        run: ./run.sh APPSEC_RUNTIME_ACTIVATION
+
+      - name: Run APPSEC_WAF_TELEMETRY
+        run: ./run.sh APPSEC_WAF_TELEMETRY
+
+      - name: Run SAMPLING
+        run: ./run.sh SAMPLING
+
       # even on failures, we want to have artifact to be able to investigate
-      # The compress step speed up a lot the uplaod artifact process
+      # The compress step speed up a lot the upload artifact process
       - name: Compress artifact
         if: ${{ always() }}  
         run: tar -czvf artifact.tar.gz $(ls | grep logs)
@@ -53,4 +105,32 @@ jobs:
         if: ${{ always() }}
         with:
           name: logs_${{ matrix.weblog-variant }}
+          path: artifact.tar.gz
+
+  parametric:
+    runs-on: ubuntu-latest
+    env:
+      TEST_LIBRARY: python
+      PYTHON_DDTRACE_PACKAGE: git+https://github.com/Datadog/dd-trace-py.git@${{ github.sha }}
+    steps:
+      - name: Checkout system tests
+        uses: actions/checkout@v3
+        with:
+          repository: 'DataDog/system-tests'
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      - name: Build
+        run: ./build.sh -i runner
+      - name: Run
+        run: ./run.sh PARAMETRIC
+
+      - name: Compress artifact
+        if: ${{ always() }}  
+        run: tar -czvf artifact.tar.gz $(ls | grep logs)
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        if: ${{ always() }}
+        with:
+          name: logs_parametric
           path: artifact.tar.gz

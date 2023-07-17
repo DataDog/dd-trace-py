@@ -6,6 +6,7 @@ import sys
 import django
 import pytest
 
+from tests.utils import package_installed
 from tests.utils import snapshot
 from tests.webclient import Client
 
@@ -58,7 +59,7 @@ def daphne_client(django_asgi, additional_env=None):
 
 
 @pytest.mark.skipif(django.VERSION < (2, 0), reason="")
-@snapshot(variants={"21x": (2, 0) <= django.VERSION < (2, 2), "": django.VERSION >= (2, 2)})
+@snapshot(variants={"": django.VERSION >= (2, 2)})
 def test_urlpatterns_include(client):
     """
     When a view is specified using `django.urls.include`
@@ -69,9 +70,7 @@ def test_urlpatterns_include(client):
 
 @snapshot(
     variants={
-        "18x": django.VERSION < (1, 9),
         "111x": (1, 9) <= django.VERSION < (1, 12),
-        "21x": (1, 12) < django.VERSION < (2, 2),
         "": django.VERSION >= (2, 2),
     }
 )
@@ -86,9 +85,7 @@ def test_middleware_trace_callable_view(client):
 )
 @snapshot(
     variants={
-        "18x": django.VERSION < (1, 9),
         "111x": (1, 9) <= django.VERSION < (1, 12),
-        "21x": (1, 12) < django.VERSION < (2, 2),
         "": django.VERSION >= (2, 2),
     }
 )
@@ -98,23 +95,26 @@ def test_middleware_trace_partial_based_view(client):
 
 
 @pytest.mark.django_db
-@snapshot(
-    variants={
-        "18x": django.VERSION < (1, 9),
-        "111x": (1, 9) <= django.VERSION < (1, 12),
-        "21x": (1, 12) < django.VERSION < (2, 2),
-        "": django.VERSION >= (2, 2),
-    }
-)
-def test_safe_string_encoding(client):
-    assert client.get("/safe-template/").status_code == 200
+def test_safe_string_encoding(client, snapshot_context):
+    """test_safe_string_encoding.
+    If we use @snapshot decorator in a Django snapshot test, the first test adds DB creation traces. Until the
+    first request is executed, the SQlite DB isn't create and Django executes the migrations and the snapshot
+    raises: Received unmatched spans: 'sqlite.query'
+    """
+    client.get("/safe-template/")
+    with snapshot_context(
+        variants={
+            "111x": (1, 9) <= django.VERSION < (1, 12),
+            "": django.VERSION >= (2, 2),
+        },
+        ignores=["metrics._dd.tracer_kr"],
+    ):
+        assert client.get("/safe-template/").status_code == 200
 
 
 @snapshot(
     variants={
-        "18x": django.VERSION < (1, 9),
         "111x": (1, 9) <= django.VERSION < (1, 12),
-        "21x": (1, 12) < django.VERSION < (2, 2),
         "": django.VERSION >= (2, 2),
     }
 )
@@ -141,29 +141,85 @@ def psycopg2_patched(transactional_db):
     unpatch()
 
 
-@snapshot(ignores=["meta.out.host"])
 @pytest.mark.django_db
-def test_psycopg_query_default(client, psycopg2_patched):
-    """Execute a psycopg2 query on a Django database wrapper"""
-    from django.db import connections
-    from psycopg2.sql import SQL
+def test_psycopg2_query_default(client, snapshot_context, psycopg2_patched):
+    """Execute a psycopg2 query on a Django database wrapper.
 
-    query = SQL("""select 'one' as x""")
-    conn = connections["postgres"]
-    with conn.cursor() as cur:
-        cur.execute(query)
-        rows = cur.fetchall()
-        assert len(rows) == 1, rows
-        assert rows[0][0] == "one"
+    If we use @snapshot decorator in a Django snapshot test, the first test adds DB creation traces
+    """
+    if django.VERSION >= (4, 2, 0) and package_installed("psycopg"):
+        # skip test if both versions are available as psycopg2.sql.SQL statement will cause an error from psycopg3
+        pytest.skip(reason="Django versions over 4.2.0 use psycopg3 if both psycopg3 and psycopg2 are installed.")
+
+    from django.db import connections
+    from psycopg2.sql import SQL as SQL2
+
+    with snapshot_context(ignores=["meta.out.host", "metrics._dd.tracer_kr"]):
+        query = SQL2("""select 'one' as x""")
+        conn = connections["postgres"]
+        with conn.cursor() as cur:
+            cur.execute(query)
+            rows = cur.fetchall()
+            assert len(rows) == 1, rows
+            assert rows[0][0] == "one"
+
+
+@pytest.fixture()
+def psycopg3_patched(transactional_db):
+
+    # If Django version >= 4.2.0, check if psycopg3 is installed,
+    # as we test Django>=4.2 with psycopg2 solely installed and not psycopg3 to ensure both work.
+    if django.VERSION < (4, 2, 0):
+        pytest.skip(reason="Psycopg3 not supported in django<4.2")
+    else:
+        from django.db import connections
+
+        from ddtrace.contrib.psycopg.patch import patch
+        from ddtrace.contrib.psycopg.patch import unpatch
+
+        patch()
+
+        # # force recreate connection to ensure psycopg3 patching has occurred
+        del connections["postgres"]
+        connections["postgres"].close()
+        connections["postgres"].connect()
+
+        yield
+
+        unpatch()
+
+
+@pytest.mark.django_db
+@pytest.mark.skipif(django.VERSION < (4, 2, 0), reason="Psycopg3 not supported in django<4.2")
+def test_psycopg3_query_default(client, snapshot_context, psycopg3_patched):
+    """Execute a psycopg3 query on a Django database wrapper.
+
+    If we use @snapshot decorator in a Django snapshot test, the first test adds DB creation traces
+    """
+
+    if not package_installed("psycopg"):
+        # skip test if psycopg3 is not installed as we need to test psycopg2 standalone with Django>=4.2.0
+        pytest.skip(reason="Psycopg3 not installed. Focusing on testing psycopg2 with Django>=4.2.0")
+
+    from django.db import connections
+    from psycopg.sql import SQL
+
+    with snapshot_context(ignores=["meta.out.host", "metrics._dd.tracer_kr"]):
+        query = SQL("""select 'one' as x""")
+        conn = connections["postgres"]
+        with conn.cursor() as cur:
+            cur.execute(query)
+            rows = cur.fetchall()
+            assert len(rows) == 1, rows
+            assert rows[0][0] == "one"
 
 
 @pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")
 @snapshot(
     variants={
-        "30": (3, 0, 0) <= django.VERSION < (3, 1, 0),
-        "31": (3, 1, 0) <= django.VERSION < (3, 2, 0),
         "3x": django.VERSION >= (3, 2, 0),
     },
+    ignores=["meta.http.useragent"],
     token_override="tests.contrib.django.test_django_snapshots.test_asgi_200",
 )
 @pytest.mark.parametrize("django_asgi", ["application", "channels_application"])
@@ -175,7 +231,7 @@ def test_asgi_200(django_asgi):
 
 
 @pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")
-@snapshot()
+@snapshot(ignores=["meta.http.useragent"])
 def test_asgi_200_simple_app():
     # The path simple-asgi-app/ routes to an ASGI Application that is not traced
     # This test should generate an empty snapshot
@@ -186,7 +242,7 @@ def test_asgi_200_simple_app():
 
 
 @pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")
-@snapshot()
+@snapshot(ignores=["meta.http.useragent"])
 def test_asgi_200_traced_simple_app():
     with daphne_client("channels_application") as client:
         resp = client.get("/traced-simple-asgi-app/")
@@ -196,10 +252,8 @@ def test_asgi_200_traced_simple_app():
 
 @pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")
 @snapshot(
-    ignores=["meta.error.stack"],
+    ignores=["meta.error.stack", "meta.http.useragent"],
     variants={
-        "30": (3, 0, 0) <= django.VERSION < (3, 1, 0),
-        "31": (3, 1, 0) <= django.VERSION < (3, 2, 0),
         "3x": django.VERSION >= (3, 2, 0),
     },
 )
@@ -209,28 +263,10 @@ def test_asgi_500():
         assert resp.status_code == 500
 
 
-@pytest.mark.skipif(django.VERSION < (3, 2, 0), reason="Only want to test with latest Django")
-@snapshot(ignores=["meta.error.stack", "meta.http.request.headers.user-agent"])
-def test_appsec_enabled():
-    with daphne_client("application", additional_env={"DD_APPSEC_ENABLED": "true"}) as client:
-        resp = client.get("/")
-        assert resp.status_code == 200
-        assert resp.content == b"Hello, test app."
-
-
-@pytest.mark.skipif(django.VERSION < (3, 2, 0), reason="Only want to test with latest Django")
-@snapshot(ignores=["meta.error.stack", "meta.http.request.headers.user-agent"])
-def test_appsec_enabled_attack():
-    with daphne_client("application", additional_env={"DD_APPSEC_ENABLED": "true"}) as client:
-        resp = client.get("/.git")
-        assert resp.status_code == 404
-
-
 @pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")
 @snapshot(
+    ignores=["meta.http.useragent"],
     variants={
-        "30": (3, 0, 0) <= django.VERSION < (3, 1, 0),
-        "31": (3, 1, 0) <= django.VERSION < (3, 2, 0),
         "3x": django.VERSION >= (3, 2, 0),
     },
 )
@@ -244,9 +280,8 @@ def test_templates_enabled():
 
 @pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")
 @snapshot(
+    ignores=["meta.http.useragent"],
     variants={
-        "30": (3, 0, 0) <= django.VERSION < (3, 1, 0),
-        "31": (3, 1, 0) <= django.VERSION < (3, 2, 0),
         "3x": django.VERSION >= (3, 2, 0),
     },
 )
@@ -256,3 +291,12 @@ def test_templates_disabled():
         resp = client.get("/template-view/")
         assert resp.status_code == 200
         assert resp.content == b"some content\n"
+
+
+@snapshot(ignores=["meta.http.useragent"])
+@pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")
+def test_django_resource_handler():
+    # regression test for: DataDog/dd-trace-py/issues/5711
+    with daphne_client("application", additional_env={"DD_DJANGO_USE_HANDLER_RESOURCE_FORMAT": "true"}) as client:
+        # Request a class based view
+        assert client.get("simple/").status_code == 200

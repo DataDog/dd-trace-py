@@ -1,0 +1,6 @@
+---
+issues:
+  - |
+    profiling: There is currently a known performance regression issue with the profiler's code provenance feature. 
+    Note that this feature is disabled by default and will only be enabled if 
+    ``DD_PROFILING_ENABLE_CODE_PROVENANCE`` is set to true.

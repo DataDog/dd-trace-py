@@ -1,0 +1,17 @@
+name: Testrunner
+
+on:
+  push:
+    branches:
+      - '1.x'
+
+jobs:
+  build-and-publish:
+    uses: ./.github/workflows/build-and-publish-image.yml
+    with:
+      tags: 'ghcr.io/datadog/dd-trace-py/testrunner:${{ github.sha }},ghcr.io/datadog/dd-trace-py/testrunner:latest'
+      platforms: 'linux/amd64,linux/arm64/v8'
+      build-args: ''
+      context: ./docker
+    secrets:
+      token: ${{ secrets.GITHUB_TOKEN }}

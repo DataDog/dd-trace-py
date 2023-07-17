@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    starlette: Add http.route tag to ``starlette.request`` spans.
+  - |
+    fastapi: Add http.route tag to ``fastapi.request`` spans.

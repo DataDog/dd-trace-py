@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix for ValueError when ``@`` is not present in network location but other part of the url.

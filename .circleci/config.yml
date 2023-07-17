@@ -2,22 +2,31 @@ version: 2.1
 
 default_resource_class: &default_resource_class medium
 cimg_base_image: &cimg_base_image cimg/base:stable
-python39_image: &python39_image cimg/python:3.9
-ddtrace_dev_image: &ddtrace_dev_image datadog/dd-trace-py:buster
+python310_image: &python310_image cimg/python:3.10
+ddtrace_dev_image: &ddtrace_dev_image ghcr.io/datadog/dd-trace-py/testrunner:latest
 redis_image: &redis_image redis:4.0-alpine
 memcached_image: &memcached_image memcached:1.5-alpine
 cassandra_image: &cassandra_image cassandra:3.11.7
 consul_image: &consul_image consul:1.6.0
 moto_image: &moto_image palazzem/moto:1.0.1
 mysql_image: &mysql_image mysql:5.7
-postgres_image: &postgres_image postgres:10.5-alpine
+postgres_image: &postgres_image postgres:12-alpine
 mongo_image: &mongo_image mongo:3.6
 httpbin_image: &httpbin_image kennethreitz/httpbin@sha256:2c7abc4803080c22928265744410173b6fea3b898872c01c5fd0f0f9df4a59fb
 vertica_image: &vertica_image sumitchawla/vertica:latest
 rabbitmq_image: &rabbitmq_image rabbitmq:3.7-alpine
+testagent_image: &testagent_image ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:v1.10.1
+
+parameters:
+  coverage:
+    type: boolean
+    default: false
+  riot_run_latest:
+    type: boolean
+    default: false
 
 orbs:
-  win: circleci/windows@2.2.0
+  win: circleci/windows@5.0
 
 machine_executor: &machine_executor
   machine:
@@ -33,13 +42,17 @@ machine_executor: &machine_executor
         command: |
           pyenv global 3.9.4
 
+contrib_job_large: &contrib_job_large
+  executor: ddtrace_dev
+  parallelism: 12
+
 contrib_job: &contrib_job
   executor: ddtrace_dev
   parallelism: 4
 
 contrib_job_small: &contrib_job_small
   executor: ddtrace_dev_small
-  parallelism: 1
+  parallelism: 2
 
 commands:
   save_coverage:
@@ -59,51 +72,26 @@ commands:
       - store_artifacts:
           path: coverage
 
-  setup_tox:
-    description: "Install tox"
-    steps:
-      - run: pip install -U tox
-
   setup_riot:
     description: "Install riot"
     steps:
       # Make sure we install and run riot on Python 3
-      - run: pip3 install riot
-
-  restore_tox_cache:
-    description: "Restore .tox directory from previous runs for faster installs"
-    steps:
-      - restore_cache:
-          # In the cache key:
-          #   - .Environment.CIRCLE_JOB: We do separate tox environments by job name, so caching and restoring is
-          #                              much faster.
-          key: tox-cache-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}
-
-  save_tox_cache:
-    description: "Save .tox directory into cache for faster installs next time"
-    steps:
-      - save_cache:
-          # In the cache key:
-          #   - .Environment.CIRCLE_JOB: We do separate tox environments by job name, so caching and restoring is
-          #                              much faster.
-          key: tox-cache-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}
-          paths:
-            - ".tox"
+      - run: pip3 install riot==0.17.4
 
   save_pip_cache:
     description: "Save pip cache directory"
     steps:
       - save_cache:
           # DEV: Cache misses can still occur as venvs are not necessarily always created on the same node index
-          key: pip-cache-{{ .Environment.CIRCLE_JOB }}-{{ .Environment.CIRCLE_NODE_INDEX }}-{{ checksum "riotfile.py" }}-{{ checksum "setup.py" }}
+          key: pip-cache-xdg-{{ .Environment.CIRCLE_JOB }}-{{ .Environment.CIRCLE_NODE_INDEX }}-{{ checksum "riotfile.py" }}-{{ checksum "setup.py" }}
           paths:
-            - ".cache/pip"
+            - "~/.cache/pip"
 
   restore_pip_cache:
     description: "Restore pip cache directory"
     steps:
       - restore_cache:
-          key: pip-cache-{{ .Environment.CIRCLE_JOB }}-{{ .Environment.CIRCLE_NODE_INDEX }}-{{ checksum "riotfile.py" }}-{{ checksum "setup.py" }}
+          key: pip-cache-xdg-{{ .Environment.CIRCLE_JOB }}-{{ .Environment.CIRCLE_NODE_INDEX }}-{{ checksum "riotfile.py" }}-{{ checksum "setup.py" }}
 
   start_docker_services:
     description: "Start Docker services"
@@ -156,93 +144,36 @@ commands:
             - run:
                 environment:
                   DD_TRACE_AGENT_URL: http://localhost:9126
-
+                  RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
                 command: |
-                  mv .riot .ddriot
-                  ./scripts/tested_pythons | circleci tests split | xargs -I PY ./scripts/ddtest riot -v run --python=PY --exitfirst --pass-env -s '<< parameters.pattern >>'
+                  # Sort the hashes to ensure a consistent ordering/division between each node
+                  riot list --hash-only '<<parameters.pattern>>' | sort | circleci tests split | xargs -n 1 -I {} ./scripts/ddtest riot -v run --exitfirst --pass-env -s {} $([[ << pipeline.parameters.coverage >> == false ]] && echo '--no-cov' )
+                  ./scripts/check-diff ".riot/requirements/" "Changes detected after running riot. Consider deleting changed files, running scripts/compile-and-prune-test-requirements and committing the result."
       - unless:
           condition:
               << parameters.snapshot >>
           steps:
+            - setup_riot
             - when:
                 condition:
                   << parameters.wait >>
                 steps:
-                  - setup_tox
                   - run:
                       name: "Waiting for << parameters.wait >>"
-                      command: tox -e 'wait' << parameters.wait >>
-            - setup_riot
+                      command: riot -v run 'wait' << parameters.wait >>
             - run:
-                command: "./scripts/tested_pythons | circleci tests split | xargs -I PY riot -v run --python=PY --exitfirst --pass-env -s '<< parameters.pattern >>'"
+                environment:
+                  RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
+                command: |
+                  # Sort the hashes to ensure a consistent ordering/division between each node
+                  riot list --hash-only '<<parameters.pattern>>' | sort | circleci tests split | xargs -n 1 -I {} riot -v run --exitfirst --pass-env -s {} $([[ << pipeline.parameters.coverage >> == false ]] && echo '--no-cov' )
+                  ./scripts/check-diff ".riot/requirements/" "Changes detected after running riot. Consider deleting changed files, running scripts/compile-and-prune-test-requirements and committing the result."
       - save_pip_cache
       - when:
           condition:
-            << parameters.store_coverage >>
-          steps:
-            - save_coverage
-      - store_test_results:
-          path: test-results
-      - store_artifacts:
-          path: test-results
-
-  run_tox_scenario_with_testagent:
-    description: Run scripts/run-tox-scenario with setup, caching persistence and the testagent
-    parameters:
-      pattern:
-        type: string
-      wait:
-        type: string
-        default: ""
-    steps:
-      - checkout
-      - restore_tox_cache
-      - when:
-          condition:
-            << parameters.wait >>
-          steps:
-            - run:
-                name: "Waiting for << parameters.wait >>"
-                command: tox -e 'wait' << parameters.wait >>
-      - start_docker_services:
-          env: SNAPSHOT_CI=1
-          services: memcached redis testagent
-      - run:
-          name: "Run scripts/run-tox-scenario"
-          environment:
-            DD_TRACE_AGENT_URL: http://localhost:9126
-          command: ./scripts/ddtest scripts/run-tox-scenario '<< parameters.pattern >>'
-      - save_tox_cache
-
-  run_tox_scenario:
-    description: "Run scripts/run-tox-scenario with setup, caching and persistence"
-    parameters:
-      pattern:
-        type: string
-      wait:
-        type: string
-        default: ""
-      store_coverage:
-        type: boolean
-        default: true
-    steps:
-      - checkout
-      - setup_tox
-      - restore_tox_cache
-      - when:
-          condition:
-            << parameters.wait >>
-          steps:
-            - run:
-                name: "Waiting for << parameters.wait >>"
-                command: tox -e 'wait' << parameters.wait >>
-      - run:
-          name: "Run scripts/run-tox-scenario"
-          command: scripts/run-tox-scenario '<< parameters.pattern >>'
-      - save_tox_cache
-      - when:
-          condition:
-            << parameters.store_coverage >>
+            and:
+              - << pipeline.parameters.coverage >>
+              - << parameters.store_coverage >>
           steps:
             - save_coverage
       - store_test_results:
@@ -255,9 +186,9 @@ executors:
     docker:
       - image: *cimg_base_image
     resource_class: medium
-  python39:
+  python310:
     docker:
-      - image: *python39_image
+      - image: *python310_image
     resource_class: large
   ddtrace_dev:
     docker:
@@ -289,9 +220,16 @@ postgres_server: &postgres_server
     - POSTGRES_USER=postgres
     - POSTGRES_DB=postgres
 
+testagent: &testagent
+  image: *testagent_image
+  environment:
+    - LOG_LEVEL=WARNING
+    - SNAPSHOT_DIR=/snapshots
+    - SNAPSHOT_CI=1
+
 jobs:
   pre_check:
-    executor: python39
+    executor: python310
     steps:
       - checkout
       - setup_riot
@@ -308,11 +246,23 @@ jobs:
           name: "Mypy check"
           command: riot run -s mypy
       - run:
+          name: "cython-lint check"
+          command: riot run -s cython-lint
+      - run:
           name: "Codespell check"
           command: riot run -s codespell
       - run:
+          name: "Run riotfile.py tests"
+          command: riot run -s riot-helpers
+      - run:
           name: "Test agent snapshot check"
           command: riot run -s snapshot-fmt && git diff --exit-code
+      - run:
+          name: "Run scripts/*.py tests"
+          command: riot run -s scripts
+      - run:
+          name: "Running security analysis checks with bandit"
+          command: riot -v run -s bandit
 
   ccheck:
     executor: cimg_base
@@ -325,54 +275,59 @@ jobs:
       - run: DD_COMPILE_DEBUG=1 DD_TESTING_RAISE=1 CC=gcc-10 CXX=g++-10 pip -vvv install .
 
   coverage_report:
-    executor: python39
+    executor: python310
     steps:
-      - checkout
-      - attach_workspace:
-          at: .
-      - run: pip install coverage codecov diff_cover
-      - run: ls -hal *.coverage
-      # Combine all job coverage reports into one
-      - run: coverage combine *.coverage
-      # Upload coverage report to Codecov
-      # DEV: Do not use the bash uploader, it cannot be trusted
-      - run: codecov
-      # Generate and save xml report
-      # DEV: "--ignore-errors" to skip over files that are missing
-      - run: coverage xml --ignore-errors
-      - store_artifacts:
-          path: coverage.xml
-      # Generate and save JSON report
-      # DEV: "--ignore-errors" to skip over files that are missing
-      - run: coverage json --ignore-errors
-      - store_artifacts:
-          path: coverage.json
-      # Print ddtrace/ report to stdout
-      # DEV: "--ignore-errors" to skip over files that are missing
-      - run: coverage report --ignore-errors --omit=tests/
-      # Print tests/ report to stdout
-      # DEV: "--ignore-errors" to skip over files that are missing
-      - run: coverage report --ignore-errors --omit=ddtrace/
-      # Print diff-cover report to stdout (compares against origin/1.x)
-      - run: diff-cover --compare-branch $(git rev-parse --abbrev-ref origin/HEAD) coverage.xml
+      - when:
+          condition:
+            << pipeline.parameters.coverage >>
+          steps:
+            - checkout
+            - attach_workspace:
+                at: .
+            - run: pip install coverage codecov diff_cover
+            - run: ls -hal *.coverage
+            # Combine all job coverage reports into one
+            - run: coverage combine *.coverage
+            # Upload coverage report to Codecov
+            # DEV: Do not use the bash uploader, it cannot be trusted
+            - run: codecov
+            # Generate and save xml report
+            # DEV: "--ignore-errors" to skip over files that are missing
+            - run: coverage xml --ignore-errors
+            - store_artifacts:
+                path: coverage.xml
+            # Generate and save JSON report
+            # DEV: "--ignore-errors" to skip over files that are missing
+            - run: coverage json --ignore-errors
+            - store_artifacts:
+                path: coverage.json
+            # Print ddtrace/ report to stdout
+            # DEV: "--ignore-errors" to skip over files that are missing
+            - run: coverage report --ignore-errors --omit=tests/
+            # Print tests/ report to stdout
+            # DEV: "--ignore-errors" to skip over files that are missing
+            - run: coverage report --ignore-errors --omit=ddtrace/
+            # Print diff-cover report to stdout (compares against origin/1.x)
+            - run: diff-cover --compare-branch $(git rev-parse --abbrev-ref origin/HEAD) coverage.xml
+      - unless:
+          condition:
+            << pipeline.parameters.coverage >>
+          steps:
+            - run: echo "No coverage data collected. Set run workflow manually with pipeline parameter 'coverage=true'."
+
 
   build_base_venvs:
     resource_class: large
     docker:
       - image: *ddtrace_dev_image
-    parallelism: 7
+    parallelism: 8
     steps:
       - checkout
       - setup_riot
       - run:
-          name: "Run riotfile.py tests"
-          command: riot run -s riot-helpers
-      - run:
-          name: "Run scripts/*.py tests"
-          command: riot run -s scripts
-      - run:
           name: "Generate base virtual environments."
-          command: "./scripts/tested_pythons | circleci tests split | xargs -I PY riot -v generate --python=PY"
+          # DEV: riot list -i tracer lists all supported Python versions
+          command: "riot list -i tracer | circleci tests split | xargs -I PY riot -v generate --python=PY"
       - persist_to_workspace:
           root: .
           paths:
@@ -384,6 +339,13 @@ jobs:
       - run_test:
           pattern: 'appsec'
           snapshot: true
+    
+  aws_lambda:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: 'aws_lambda'
+          snapshot: true
 
   internal:
     <<: *contrib_job
@@ -391,77 +353,102 @@ jobs:
       - run_test:
           pattern: "internal"
 
-  tracer:
+  datastreams:
     <<: *contrib_job
-    parallelism: 7
+    steps:
+      - run_test:
+          pattern: "datastreams"
+
+  tracer:
+    <<: *contrib_job_large
     steps:
       - run_test:
           pattern: "tracer"
 
+  ci_visibility:
+    <<: *contrib_job
+    steps:
+      - run_test:
+          pattern: "ci_visibility"
+
+  sourcecode:
+    <<: *contrib_job
+    steps:
+      - run_test:
+          pattern: "sourcecode"
+
+  telemetry:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: "telemetry"
+          snapshot: true
+          store_coverage: false
+
   debugger:
     <<: *contrib_job
-    parallelism: 7
     steps:
       - run_test:
           pattern: "debugger"
 
-  opentracer:
-    <<: *contrib_job
-    parallelism: 7
+  openai:
+    <<: *machine_executor
+    parallelism: 4
     steps:
-      - run_tox_scenario:
-          pattern: '^py..-opentracer'
+      - run_test:
+          pattern: 'openai'
+          snapshot: true
+
+  opentracer:
+    <<: *contrib_job_large
+    steps:
+      - run_test:
+          pattern: 'opentracer'
+
+  opentelemetry:
+    parallelism: 4
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: 'opentelemetry'
+          snapshot: true
 
   profile:
     <<: *contrib_job
     resource_class: large
-    parallelism: 7
+    # There are 32 jobs, so 2 per-node
+    parallelism: 16
     steps:
-      - run_tox_scenario:
+      - run_test:
           store_coverage: false
-          pattern: '^py.\+-profile'
-
-  integration_agent5:
-    <<: *machine_executor
-    steps:
-      - attach_workspace:
-          at: .
-      - checkout
-      - start_docker_services:
-          services: ddagent5
-      - run:
-          command: |
-            mv .riot .ddriot
-            ./scripts/ddtest riot -v run --pass-env -s 'integration-v5'
+          # We don't want to run the profile-diff venvs
+          pattern: 'profile$'
 
   integration_agent:
     <<: *machine_executor
+    parallelism: 2
     steps:
       - attach_workspace:
           at: .
       - checkout
+      - setup_riot
       - start_docker_services:
           services: ddagent
       - run:
+          environment:
+            RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
           command: |
-            mv .riot .ddriot
-            ./scripts/ddtest riot -v run --pass-env -s 'integration-latest'
+            # Sort the hashes to ensure a consistent ordering/division between each node
+            riot list --hash-only 'integration-latest' | sort | circleci tests split | xargs -n 1 -I {} ./scripts/ddtest riot -v run --pass-env -s {}
+            ./scripts/check-diff ".riot/requirements/" "Changes detected after running riot. Consider deleting changed files, running scripts/compile-and-prune-test-requirements and committing the result."
 
   integration_testagent:
     <<: *machine_executor
     steps:
-      - attach_workspace:
-          at: .
-      - checkout
-      - start_docker_services:
-          env: SNAPSHOT_CI=1
-          services: testagent
-      - run:
-          environment:
-            DD_TRACE_AGENT_URL: http://localhost:9126
-          command: |
-            mv .riot .ddriot
-            ./scripts/ddtest riot -v run --pass-env -s 'integration-snapshot'
+      - run_test:
+          snapshot: true
+          store_coverage: false
+          pattern: 'integration-snapshot'
 
   vendor:
     <<: *contrib_job_small
@@ -471,15 +458,9 @@ jobs:
       - run_test:
           pattern: 'vendor'
 
-  futures:
-    <<: *contrib_job_small
-    steps:
-      - run_tox_scenario:
-          pattern: '^futures_contrib-'
-
   boto:
     <<: *machine_executor
-    parallelism: 4
+    parallelism: 6
     steps:
       - run_test:
           pattern: '^boto'  # run boto and botocore
@@ -497,16 +478,20 @@ jobs:
           pattern: 'ddtracerun'
 
   test_logging:
-    <<: *contrib_job_small
+    <<: *contrib_job
     steps:
       - run_test:
           pattern: 'test_logging'
 
-  asyncio:
-    <<: *contrib_job_small
+  stdlib:
+    <<: *contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+      - *testagent
+    parallelism: 4
     steps:
-      - run_tox_scenario:
-          pattern: '^asyncio_contrib-'
+      - run_test:
+          pattern: 'asyncio$|sqlite3$|futures$|dbapi$|dbapi_async$'
 
   asyncpg:
     <<: *machine_executor
@@ -517,14 +502,17 @@ jobs:
           docker_services: 'postgres'
 
   pylons:
-    <<: *contrib_job
+    <<: *contrib_job_small
+    docker:
+      - image: *ddtrace_dev_image
+      - *testagent
     steps:
-      - run_tox_scenario:
-          pattern: '^pylons_contrib-'
+      - run_test:
+          pattern: 'pylons'
 
   aiohttp:
     <<: *machine_executor
-    parallelism: 6
+    parallelism: 3
     steps:
       - run_test:
           pattern: 'aiohttp'  # includes aiohttp_jinja2
@@ -532,22 +520,31 @@ jobs:
           docker_services: 'httpbin_local'
 
   asgi:
-    <<: *contrib_job_small
+    <<: *contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+      - *testagent
     steps:
       - run_test:
           pattern: 'asgi$'
 
   tornado:
     <<: *contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+      - *testagent
     steps:
-      - run_tox_scenario:
-          pattern: '^tornado_contrib-'
+      - run_test:
+          pattern: 'tornado'
 
   bottle:
     <<: *contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+      - *testagent
     steps:
-      - run_tox_scenario:
-          pattern: '^bottle_contrib\(_autopatch\)\?-'
+      - run_test:
+          pattern: 'bottle'
 
   cassandra:
     <<: *contrib_job
@@ -559,44 +556,46 @@ jobs:
         environment:
           - MAX_HEAP_SIZE=512M
           - HEAP_NEWSIZE=256M
+      - *testagent
     steps:
       - run_test:
           wait: cassandra
           pattern: 'cassandra'
 
   celery:
-    <<: *contrib_job
-    parallelism: 7
+    <<: *contrib_job_large
     docker:
       - image: *ddtrace_dev_image
       - image: redis:4.0-alpine
       - image: *rabbitmq_image
+      - *testagent
     steps:
       - run_test:
           pattern: 'celery'
 
   cherrypy:
     <<: *machine_executor
-    parallelism: 6
+    parallelism: 4
     steps:
       - run_test:
           pattern: 'cherrypy'
           snapshot: true
 
   consul:
-    <<: *contrib_job
+    <<: *contrib_job_small
     docker:
       - image: *ddtrace_dev_image
       - image: *consul_image
+      - *testagent
     steps:
-      - run_tox_scenario:
-          pattern: '^consul_contrib-'
+      - run_test:
+          pattern: 'consul'
 
   dogpile_cache:
     <<: *contrib_job
     steps:
-      - run_tox_scenario:
-          pattern: '^dogpile_contrib-'
+      - run_test:
+          pattern: 'dogpile_cache'
 
   elasticsearch:
     <<: *machine_executor
@@ -605,20 +604,23 @@ jobs:
       - run_test:
           pattern: 'elasticsearch'
           snapshot: true
-          docker_services: 'elasticsearch'
+          docker_services: 'elasticsearch opensearch'
 
   falcon:
     <<: *contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+      - *testagent
     steps:
       - run_test:
           pattern: 'falcon'
 
   django:
     <<: *machine_executor
-    parallelism: 6
+    parallelism: 4
     steps:
       - run_test:
-          pattern: 'django$'
+          pattern: 'django($|_celery)'
           snapshot: true
           docker_services: "memcached redis postgres"
 
@@ -631,7 +633,7 @@ jobs:
 
   djangorestframework:
     <<: *machine_executor
-    parallelism: 6
+    parallelism: 2
     steps:
       - run_test:
           pattern: 'djangorestframework'
@@ -640,47 +642,75 @@ jobs:
 
   fastapi:
     <<: *machine_executor
+    parallelism: 2
     steps:
       - run_test:
           pattern: "fastapi"
           snapshot: true
 
   flask:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - image: *redis_image
-      - image: *memcached_image
+    <<: *machine_executor
+    parallelism: 4
     steps:
       - run_test:
           # Run both flask and flask_cache test suites
           # TODO: Re-enable coverage for Flask tests
           store_coverage: false
-          pattern: 'flask(_cache)?'
+          snapshot: true
+          pattern: "flask"
+          docker_services: "memcached redis"
 
   gevent:
     <<: *contrib_job
-    parallelism: 7
+    docker:
+      - image: *ddtrace_dev_image
+      - *testagent
     steps:
-      - run_tox_scenario:
-          pattern: '^gevent_contrib-'
+      - run_test:
+          pattern: 'gevent'
+
+  graphene:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: "graphene"
+          snapshot: true
+
+  graphql:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: "graphql"
+          snapshot: true
 
   grpc:
     <<: *machine_executor
-    parallelism: 7
+    parallelism: 2
     steps:
       - run_test:
           pattern: "grpc"
           snapshot: true
 
-  httplib:
-    <<: *contrib_job
+  gunicorn:
+    <<: *machine_executor
+    parallelism: 8
     steps:
-      - run_tox_scenario:
-          pattern: '^httplib_contrib'
+      - run_test:
+          pattern: "gunicorn"
+          snapshot: true
+          docker_services: 'ddagent'
+
+  httplib:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: "httplib"
+          snapshot: true
+          docker_services: 'httpbin_local'
 
   httpx:
     <<: *machine_executor
+    parallelism: 4
     steps:
       - run_test:
           pattern: 'httpx'
@@ -697,15 +727,19 @@ jobs:
 
   molten:
     <<: *contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+      - *testagent
     steps:
-      - run_tox_scenario:
-          pattern: '^molten_contrib-'
+      - run_test:
+          pattern: 'molten'
 
   mysqlconnector:
     <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
       - *mysql_server
+      - *testagent
     steps:
       - run_test:
           wait: mysql
@@ -716,35 +750,44 @@ jobs:
     docker:
       - image: *ddtrace_dev_image
       - *mysql_server
+      - *testagent
     steps:
-      - run_tox_scenario:
+      - run_test:
           wait: mysql
-          pattern: '^mysqldb_contrib-.*-mysqlclient'
+          pattern: 'mysqldb'
 
   pymysql:
     <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
       - *mysql_server
+      - *testagent
     steps:
-      - run_tox_scenario:
+      - run_test:
           wait: mysql
-          pattern: '^pymysql_contrib-'
+          pattern: 'pymysql'
 
   pylibmc:
     <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
       - image: *memcached_image
+      - *testagent
     steps:
-      - run_tox_scenario:
-          pattern: '^pylibmc_contrib-'
+      - run_test:
+          pattern: 'pylibmc'
 
   pytest:
-    executor: ddtrace_dev
+    <<: *contrib_job
     steps:
       - run_test:
           pattern: 'pytest$'
+
+  asynctest:
+    executor: ddtrace_dev
+    steps:
+      - run_test:
+          pattern: 'asynctest$'
 
   pytestbdd:
     executor: ddtrace_dev
@@ -757,13 +800,13 @@ jobs:
     docker:
       - image: *ddtrace_dev_image
       - image: *memcached_image
+      - *testagent
     steps:
       - run_test:
           pattern: "pymemcache"
 
   mongoengine:
     <<: *machine_executor
-    parallelism: 1
     steps:
       - run_test:
           pattern: 'mongoengine'
@@ -775,12 +818,16 @@ jobs:
     docker:
       - image: *ddtrace_dev_image
       - image: *mongo_image
+      - *testagent
     steps:
       - run_test:
           pattern: "pymongo"
 
   pynamodb:
     <<: *contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+      - *testagent
     steps:
       - run_test:
           pattern: "pynamodb"
@@ -789,9 +836,10 @@ jobs:
     <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
+      - *testagent
     steps:
-      - run_tox_scenario:
-          pattern: '^pyodbc_contrib-'
+      - run_test:
+          pattern: 'pyodbc'
 
   pyramid:
     <<: *machine_executor
@@ -804,19 +852,15 @@ jobs:
     <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
+      - *testagent
       - *httpbin_local
     steps:
       - run_test:
           pattern: "requests"
 
-  requestsgevent:
-    <<: *contrib_job
-    steps:
-      - run_tox_scenario:
-          pattern: '^requests_gevent_contrib-'
-
   sanic:
     <<: *machine_executor
+    parallelism: 4
     steps:
       - run_test:
           pattern: "sanic"
@@ -832,15 +876,17 @@ jobs:
 
   starlette:
     <<: *machine_executor
+    parallelism: 2
     steps:
       - run_test:
           pattern: "starlette"
           snapshot: true
 
   sqlalchemy:
-    <<: *contrib_job
+    <<: *contrib_job_small
     docker:
       - image: *ddtrace_dev_image
+      - *testagent
       - *postgres_server
       - *mysql_server
     steps:
@@ -848,18 +894,21 @@ jobs:
           wait: postgres mysql
           pattern: "sqlalchemy"
 
-  dbapi:
-    <<: *contrib_job
-    steps:
-      - run_tox_scenario:
-          pattern: '^dbapi_contrib-'
-
   psycopg:
     <<: *machine_executor
     parallelism: 4
     steps:
       - run_test:
-          pattern: "psycopg"
+          pattern: "psycopg$"
+          snapshot: true
+          docker_services: "postgres"
+
+  psycopg2:
+    <<: *machine_executor
+    parallelism: 4
+    steps:
+      - run_test:
+          pattern: "psycopg2"
           snapshot: true
           docker_services: "postgres"
 
@@ -868,6 +917,7 @@ jobs:
     docker:
       - image: *ddtrace_dev_image
       - image: *moto_image
+      - *testagent
     steps:
        - run_test:
           pattern: 'aiobotocore'
@@ -882,10 +932,11 @@ jobs:
           snapshot: true
 
   aiopg:
-    <<: *contrib_job
+    <<: *contrib_job_small
     docker:
       - image: *ddtrace_dev_image
       - *postgres_server
+      - *testagent
     steps:
       - run_test:
           wait: postgres
@@ -893,7 +944,7 @@ jobs:
 
   aioredis:
     <<: *machine_executor
-    parallelism: 4
+    parallelism: 2
     steps:
       - run_test:
           docker_services: 'redis'
@@ -902,7 +953,6 @@ jobs:
 
   aredis:
     <<: *machine_executor
-    parallelism: 4
     steps:
       - run_test:
           docker_services: 'redis'
@@ -911,7 +961,6 @@ jobs:
 
   yaaredis:
     <<: *machine_executor
-    parallelism: 4
     steps:
       - run_test:
           docker_services: 'redis'
@@ -920,10 +969,9 @@ jobs:
 
   redis:
     <<: *machine_executor
-    parallelism: 4
     steps:
       - run_test:
-          docker_services: 'redis'
+          docker_services: 'redis rediscluster'
           pattern: 'redis$'
           snapshot: true
 
@@ -937,7 +985,7 @@ jobs:
 
   rq:
     <<: *machine_executor
-    parallelism: 4
+    parallelism: 2
     steps:
       - run_test:
           pattern: "rq"
@@ -956,15 +1004,16 @@ jobs:
     <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
+      - *testagent
       - image: *vertica_image
         environment:
           - VP_TEST_USER=dbadmin
           - VP_TEST_PASSWORD=abc123
           - VP_TEST_DATABASE=docker
     steps:
-      - run_tox_scenario:
+      - run_test:
           wait: vertica
-          pattern: '^vertica_contrib-'
+          pattern: 'vertica'
 
   wsgi:
     <<: *machine_executor
@@ -973,47 +1022,59 @@ jobs:
           pattern: "wsgi"
           snapshot: true
 
+  kafka:
+    <<: *machine_executor
+    parallelism: 2
+    steps:
+      - run_test:
+          pattern: 'kafka'
+          snapshot: true
+          docker_services: 'kafka'
+
   kombu:
     <<: *contrib_job
-    parallelism: 7
     docker:
       - image: *ddtrace_dev_image
       - image: *rabbitmq_image
-    steps:
-      - run_tox_scenario:
-          wait: rabbitmq
-          pattern: '^kombu_contrib-'
-
-  sqlite3:
-    <<: *contrib_job
-    steps:
-      - run_tox_scenario:
-          pattern: '^sqlite3_contrib-'
-
-  benchmarks:
-    <<: *contrib_job
+      - *testagent
     steps:
       - run_test:
-          store_coverage: false
-          pattern: '^benchmarks'
+          wait: rabbitmq
+          pattern: 'kombu'
 
   jinja2:
     <<: *contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+      - *testagent
     steps:
       - run_test:
           pattern: 'jinja2'
 
   mako:
-    <<: *contrib_job_small
+    <<: *contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+      - *testagent
     steps:
       - run_test:
           pattern: 'mako'
 
   algoliasearch:
     <<: *contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+      - *testagent
     steps:
-      - run_tox_scenario:
-          pattern: '^algoliasearch_contrib-'
+      - run_test:
+          pattern: 'algoliasearch'
+
+  langchain:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: "langchain"
+          snapshot: true
 
   build_docs:
     # build documentation and store as an artifact
@@ -1047,19 +1108,19 @@ requires_tests: &requires_tests
     - aiomysql
     - aiopg
     - aioredis
-    - asyncio
     - asyncpg
     - algoliasearch
     - asgi
-    - benchmarks
+    - aws_lambda
     - boto
     - bottle
     - cassandra
     - celery
     - cherrypy
+    - ci_visibility
     - consul
-    - dbapi
     - ddtracerun
+    - datastreams
     - dogpile_cache
     - django
     - django_hosts
@@ -1068,26 +1129,33 @@ requires_tests: &requires_tests
     - falcon
     - fastapi
     - flask
-    - futures
     - gevent
+    - graphql
+    - graphene
     - grpc
+    - gunicorn
     - httplib
     - httpx
-    - integration_agent5
+    - internal
     - integration_agent
     - integration_testagent
     - vendor
     - profile
     - jinja2
+    - kafka
     - kombu
+    - langchain
     - mako
     - mariadb
     - molten
     - mongoengine
     - mysqlconnector
     - mysqlpython
+    - openai
     - opentracer
+    - opentelemetry
     - psycopg
+    - psycopg2
     - pylibmc
     - pylons
     - pymemcache
@@ -1097,6 +1165,7 @@ requires_tests: &requires_tests
     - pyodbc
     - pyramid
     - pytest
+    - asynctest
     - pytestbdd
     - aredis
     - yaaredis
@@ -1107,10 +1176,12 @@ requires_tests: &requires_tests
     - sanic
     - snowflake
     - sqlalchemy
-    - sqlite3
+    - sourcecode 
     - starlette
+    - stdlib
     - test_logging
     - tracer
+    - telemetry
     - debugger
     - appsec
     - tornado
@@ -1138,18 +1209,18 @@ workflows:
       - aiomysql: *requires_base_venvs
       - aiopg: *requires_base_venvs
       - aioredis: *requires_base_venvs
-      - asyncio: *requires_base_venvs
       - asyncpg: *requires_base_venvs
       - algoliasearch: *requires_base_venvs
       - asgi: *requires_base_venvs
-      - benchmarks: *requires_base_venvs
+      - aws_lambda: *requires_base_venvs
       - boto: *requires_base_venvs
       - bottle: *requires_base_venvs
       - cassandra: *requires_base_venvs
       - celery: *requires_base_venvs
       - cherrypy: *requires_base_venvs
+      - ci_visibility: *requires_base_venvs
       - consul: *requires_base_venvs
-      - dbapi: *requires_base_venvs
+      - datastreams: *requires_base_venvs
       - ddtracerun: *requires_base_venvs
       - django: *requires_base_venvs
       - django_hosts: *requires_base_venvs
@@ -1159,27 +1230,33 @@ workflows:
       - falcon: *requires_base_venvs
       - fastapi: *requires_base_venvs
       - flask: *requires_base_venvs
-      - futures: *requires_base_venvs
       - gevent: *requires_base_venvs
+      - graphene: *requires_base_venvs
+      - graphql: *requires_base_venvs
       - grpc: *requires_base_venvs
+      - gunicorn: *requires_base_venvs
       - httplib: *requires_base_venvs
       - httpx: *requires_base_venvs
-      - integration_agent5: *requires_base_venvs
       - integration_agent: *requires_base_venvs
       - integration_testagent: *requires_base_venvs
       - internal: *requires_base_venvs
       - vendor: *requires_base_venvs
       - profile: *requires_base_venvs
       - jinja2: *requires_base_venvs
+      - kafka: *requires_base_venvs
       - kombu: *requires_base_venvs
+      - langchain: *requires_base_venvs
       - mako: *requires_base_venvs
       - mariadb: *requires_base_venvs
       - molten: *requires_base_venvs
       - mongoengine: *requires_base_venvs
       - mysqlconnector: *requires_base_venvs
       - mysqlpython: *requires_base_venvs
+      - openai: *requires_base_venvs
       - opentracer: *requires_base_venvs
+      - opentelemetry: *requires_base_venvs
       - psycopg: *requires_base_venvs
+      - psycopg2: *requires_base_venvs
       - pylibmc: *requires_base_venvs
       - pylons: *requires_base_venvs
       - pymemcache: *requires_base_venvs
@@ -1189,6 +1266,7 @@ workflows:
       - pyodbc: *requires_base_venvs
       - pyramid: *requires_base_venvs
       - pytest: *requires_base_venvs
+      - asynctest: *requires_base_venvs
       - pytestbdd: *requires_base_venvs
       - aredis: *requires_base_venvs
       - yaaredis: *requires_base_venvs
@@ -1199,27 +1277,17 @@ workflows:
       - sanic: *requires_base_venvs
       - snowflake: *requires_base_venvs
       - starlette: *requires_base_venvs
+      - stdlib: *requires_base_venvs
       - sqlalchemy: *requires_base_venvs
-      - sqlite3: *requires_base_venvs
+      - sourcecode: *requires_base_venvs
       - test_logging: *requires_base_venvs
       - tornado: *requires_base_venvs
       - tracer: *requires_base_venvs
+      - telemetry: *requires_base_venvs
       - debugger: *requires_base_venvs
       - appsec: *requires_base_venvs
       - urllib3: *requires_base_venvs
       - vertica: *requires_base_venvs
       - wsgi: *requires_base_venvs
-
       # Final reports
       - coverage_report: *requires_tests
-
-  test_nightly:
-    <<: *workflow_test
-    triggers:
-      - schedule:
-          cron: "0 0 * * *"
-          filters:
-            branches:
-              only:
-                - 0.x
-                - 1.x

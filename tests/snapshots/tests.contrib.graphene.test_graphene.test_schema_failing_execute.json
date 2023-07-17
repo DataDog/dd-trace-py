@@ -1,0 +1,101 @@
+[[
+  {
+    "name": "graphql.request",
+    "service": "graphql",
+    "resource": "{ patron { id name age } }",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "graphql",
+    "error": 1,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "component": "graphql",
+      "error.message": "exception was raised in a graphene query\n\nGraphQL request:3:7\n2 |     {\n3 |       patron {\n  |       ^\n4 |         id",
+      "error.type": "graphql.error.graphql_error.GraphQLError",
+      "language": "python",
+      "runtime-id": "9cdfa74761ee41b8a9a989a2e4eab332"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 9620
+    },
+    "duration": 6447083,
+    "start": 1686684417701375966
+  },
+     {
+       "name": "graphql.parse",
+       "service": "graphql",
+       "resource": "graphql.parse",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "graphql",
+       "error": 0,
+       "meta": {
+         "component": "graphql",
+         "graphql.source": "{ patron { id name age } }"
+       },
+       "duration": 170417,
+       "start": 1686684417701833424
+     },
+     {
+       "name": "graphql.validate",
+       "service": "graphql",
+       "resource": "graphql.validate",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "graphql",
+       "error": 0,
+       "meta": {
+         "component": "graphql",
+         "graphql.source": "{ patron { id name age } }"
+       },
+       "duration": 1409583,
+       "start": 1686684417702052716
+     },
+     {
+       "name": "graphql.execute",
+       "service": "graphql",
+       "resource": "{ patron { id name age } }",
+       "trace_id": 0,
+       "span_id": 4,
+       "parent_id": 1,
+       "type": "graphql",
+       "error": 1,
+       "meta": {
+         "component": "graphql",
+         "error.message": "exception was raised in a graphene query\n\nGraphQL request:3:7\n2 |     {\n3 |       patron {\n  |       ^\n4 |         id",
+         "error.type": "graphql.error.graphql_error.GraphQLError",
+         "graphql.operation.type": "query",
+         "graphql.source": "{ patron { id name age } }"
+       },
+       "metrics": {
+         "_dd.measured": 1
+       },
+       "duration": 4237458,
+       "start": 1686684417703531216
+     },
+        {
+          "name": "graphql.resolve",
+          "service": "graphql",
+          "resource": "patron",
+          "trace_id": 0,
+          "span_id": 5,
+          "parent_id": 4,
+          "type": "graphql",
+          "error": 1,
+          "meta": {
+            "component": "graphql",
+            "error.message": "exception was raised in a graphene query",
+            "error.stack": "Traceback (most recent call last):\n  File \"/root/project/ddtrace/contrib/graphql/patch.py\", line 236, in _resolver_middleware\n    return next_middleware(root, info, **args)\n  File \"/root/project/tests/contrib/graphene/test_graphene.py\", line 26, in resolve_patron\n    raise Exception(\"exception was raised in a graphene query\")\nException: exception was raised in a graphene query\n",
+            "error.type": "builtins.Exception"
+          },
+          "duration": 3819708,
+          "start": 1686684417703705258
+        }]]

@@ -1,0 +1,6 @@
+---
+other:
+  - |
+    aws_lambda: Updates how `DD_APM_FLUSH_DEADLINE_MILLISECONDS` is used. Previously, we would set the deadline as the
+    environment variable value, if set. Now, when the remaining time in an AWS Lambda invocation is less than `DD_APM_FLUSH_DEADLINE_MILLISECONDS`, the tracer will attempt to submit the current active spans and all finished spans.
+    the value in the environment variable is used to subtract from the deadline. The default is still 100ms.

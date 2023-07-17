@@ -7,13 +7,13 @@ from ddtrace.contrib.grpc import utils
 def test_parse_method_path_with_package():
     method_path = "/package.service/method"
     parsed = utils.parse_method_path(method_path)
-    assert parsed == ("package", "service", "method")
+    assert parsed == ("package.service", "package", "service", "method")
 
 
 def test_parse_method_path_without_package():
     method_path = "/service/method"
     parsed = utils.parse_method_path(method_path)
-    assert parsed == (None, "service", "method")
+    assert parsed == ("service", None, "service", "method")
 
 
 @mock.patch("ddtrace.contrib.grpc.utils.log")
@@ -48,17 +48,21 @@ def test_parse_target_from_args(mock_log, args, kwargs, result, log_warning_call
         (
             "localhost",
             1234,
-            [mock.call("grpc.host", "localhost"), mock.call("grpc.port", "1234"), mock.call("span.kind", "client")],
+            [
+                mock.call("grpc.host", "localhost"),
+                mock.call("network.destination.port", "1234"),
+                mock.call("span.kind", "client"),
+            ],
         ),
         ("localhost", None, [mock.call("grpc.host", "localhost"), mock.call("span.kind", "client")]),
-        (None, 1234, [mock.call("grpc.port", "1234"), mock.call("span.kind", "client")]),
+        (None, 1234, [mock.call("network.destination.port", "1234"), mock.call("span.kind", "client")]),
         (None, None, [mock.call("span.kind", "client")]),
     ],
 )
 def test_set_grpc_client_meta(host, port, calls):
     span = mock.MagicMock()
     utils.set_grpc_client_meta(span, host, port)
-    span._set_str_tag.assert_has_calls(calls)
+    span.set_tag_str.assert_has_calls(calls)
 
 
 @pytest.mark.parametrize(
@@ -68,6 +72,7 @@ def test_set_grpc_client_meta(host, port, calls):
             "/package.service/method",
             "unary",
             [
+                mock.call("rpc.service", "package.service"),
                 mock.call("grpc.method.path", "/package.service/method"),
                 mock.call("grpc.method.package", "package"),
                 mock.call("grpc.method.service", "service"),
@@ -79,6 +84,7 @@ def test_set_grpc_client_meta(host, port, calls):
             "/service/method",
             "unary",
             [
+                mock.call("rpc.service", "service"),
                 mock.call("grpc.method.path", "/service/method"),
                 mock.call("grpc.method.service", "service"),
                 mock.call("grpc.method.name", "method"),
@@ -90,4 +96,4 @@ def test_set_grpc_client_meta(host, port, calls):
 def test_set_grpc_method_meta(method, method_kind, calls):
     span = mock.MagicMock()
     utils.set_grpc_method_meta(span, method, method_kind)
-    span._set_str_tag.assert_has_calls(calls)
+    span.set_tag_str.assert_has_calls(calls)

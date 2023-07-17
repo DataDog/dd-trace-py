@@ -14,13 +14,14 @@ from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.context import Context as DatadogContext
 from ddtrace.internal.compat import NumericType
+from ddtrace.internal.constants import SPAN_API_OPENTRACING
 from ddtrace.span import Span as DatadogSpan
 
 from .span_context import SpanContext
 from .tags import Tags
 
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from .tracer import Tracer
 
 
@@ -42,7 +43,7 @@ class Span(OpenTracingSpan):
         self.finished = False
         self._lock = threading.Lock()
         # use a datadog span
-        self._dd_span = DatadogSpan(operation_name, context=context._dd_context)
+        self._dd_span = DatadogSpan(operation_name, context=context._dd_context, span_api=SPAN_API_OPENTRACING)
 
     def finish(self, finish_time=None):
         # type: (Optional[float]) -> None
@@ -146,7 +147,7 @@ class Span(OpenTracingSpan):
         elif key == Tags.RESOURCE_NAME or key == OTTags.DATABASE_STATEMENT:
             self._dd_span.resource = value
         elif key == OTTags.PEER_HOSTNAME:
-            self._dd_span.set_tag(Tags.TARGET_HOST, value)
+            self._dd_span.set_tag_str(Tags.TARGET_HOST, value)
         elif key == OTTags.PEER_PORT:
             self._dd_span.set_tag(Tags.TARGET_PORT, value)
         elif key == Tags.SAMPLING_PRIORITY:

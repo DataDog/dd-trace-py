@@ -13,6 +13,11 @@ Or use :func:`patch()<ddtrace.patch>` to manually enable the integration::
     from ddtrace import patch
     patch(botocore=True)
 
+To patch only specific botocore modules, pass a list of the module names instead::
+
+    from ddtrace import patch
+    patch(botocore=['s3', 'sns'])
+
 Configuration
 ~~~~~~~~~~~~~
 
@@ -52,6 +57,40 @@ Configuration
 
     See :ref:`HTTP - Custom Error Codes<http-custom-error>` documentation for more examples.
 
+.. py:data:: ddtrace.config.botocore['tag_no_params']
+
+    This opts out of the default behavior of collecting a narrow set of API parameters as span tags.
+
+    To not collect any API parameters, ``ddtrace.config.botocore.tag_no_params = True`` or by setting the environment
+    variable ``DD_AWS_TAG_NO_PARAMS=true``.
+
+
+    Default: ``False``
+
+.. py:data:: ddtrace.config.botocore['tag_all_params']
+
+    **Deprecated**: This retains the deprecated behavior of adding span tags for
+    all API parameters that are not explicitly excluded by the integration.
+    These deprecated span tags will be added along with the API parameters
+    enabled by default.
+
+    This configuration is ignored if ``tag_no_parms`` (``DD_AWS_TAG_NO_PARAMS``)
+    is set to ``True``.
+
+    To collect all API parameters, ``ddtrace.config.botocore.tag_all_params =
+    True`` or by setting the environment variable ``DD_AWS_TAG_ALL_PARAMS=true``.
+
+
+    Default: ``False``
+
+.. py:data:: ddtrace.config.botocore['instrument_internals']
+
+    This opts into collecting spans for some internal functions, including ``parsers.ResponseParser.parse``.
+
+    Can also be enabled with the ``DD_BOTOCORE_INSTRUMENT_INTERNALS`` environment variable.
+
+    Default: ``False``
+
 
 Example::
 
@@ -71,5 +110,6 @@ required_modules = ["botocore.client"]
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
         from .patch import patch
+        from .patch import patch_submodules
 
-        __all__ = ["patch"]
+        __all__ = ["patch", "patch_submodules"]

@@ -1,13 +1,18 @@
 from celery import registry
+from celery.utils import nodenames
 
 from ddtrace import Pin
 from ddtrace import config
+from ddtrace.internal.constants import COMPONENT
 
 from . import constants as c
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanKind
 from ...ext import SpanTypes
+from ...ext import net
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
 from .utils import attach_span
@@ -43,6 +48,13 @@ def trace_prerun(*args, **kwargs):
     # propagate the `Span` in the current task Context
     service = config.celery["worker_service_name"]
     span = pin.tracer.trace(c.WORKER_ROOT_SPAN, service=service, resource=task.name, span_type=SpanTypes.WORKER)
+
+    # set span.kind to the type of request being performed
+    span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
+
+    # set component tag equal to name of integration
+    span.set_tag_str(COMPONENT, config.celery.integration_name)
+
     # set analytics sample rate
     rate = config.celery.get_analytics_sample_rate()
     if rate is not None:
@@ -69,7 +81,7 @@ def trace_postrun(*args, **kwargs):
         return
     else:
         # request context tags
-        span.set_tag(c.TASK_TAG_KEY, c.TASK_RUN)
+        span.set_tag_str(c.TASK_TAG_KEY, c.TASK_RUN)
         set_tags_from_context(span, kwargs)
         set_tags_from_context(span, task.request.__dict__)
         span.finish()
@@ -99,15 +111,24 @@ def trace_before_publish(*args, **kwargs):
     # in the task_after_publish signal
     service = config.celery["producer_service_name"]
     span = pin.tracer.trace(c.PRODUCER_ROOT_SPAN, service=service, resource=task_name)
+
+    span.set_tag_str(COMPONENT, config.celery.integration_name)
+
+    # set span.kind to the type of request being performed
+    span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
+
     # set analytics sample rate
     rate = config.celery.get_analytics_sample_rate()
     if rate is not None:
         span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, rate)
 
     span.set_tag(SPAN_MEASURED_KEY)
-    span.set_tag(c.TASK_TAG_KEY, c.TASK_APPLY_ASYNC)
-    span.set_tag("celery.id", task_id)
+    span.set_tag_str(c.TASK_TAG_KEY, c.TASK_APPLY_ASYNC)
+    span.set_tag_str("celery.id", task_id)
     set_tags_from_context(span, kwargs)
+    if kwargs.get("headers") is not None:
+        # required to extract hostname from origin header on `celery>=4.0`
+        set_tags_from_context(span, kwargs["headers"])
 
     # Note: adding tags from `traceback` or `state` calls will make an
     # API call to the backend for the properties so we should rely
@@ -140,6 +161,11 @@ def trace_after_publish(*args, **kwargs):
     if span is None:
         return
     else:
+        nodename = span.get_tag("celery.hostname")
+        if nodename is not None:
+            _, host = nodenames.nodesplit(nodename)
+            span.set_tag_str(net.TARGET_HOST, host)
+
         span.finish()
         detach_span(task, task_id, is_publish=True)
 
@@ -188,4 +214,4 @@ def trace_retry(*args, **kwargs):
 
     # Add retry reason metadata to span
     # DEV: Use `str(reason)` instead of `reason.message` in case we get something that isn't an `Exception`
-    span.set_tag(c.TASK_RETRY_REASON_KEY, str(reason))
+    span.set_tag_str(c.TASK_RETRY_REASON_KEY, str(reason))

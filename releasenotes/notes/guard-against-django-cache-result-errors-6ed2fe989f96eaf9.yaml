@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    django: Adds catch to guard against a ValueError, AttributeError, or NotImplementedError from being thrown when evaluating
+    a django cache result for ``db.row_count`` tag.

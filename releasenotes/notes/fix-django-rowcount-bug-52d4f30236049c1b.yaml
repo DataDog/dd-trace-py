@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    django: Adds fix for bug where Django cache return object throws an error if it does not implement ``__bool__()``.

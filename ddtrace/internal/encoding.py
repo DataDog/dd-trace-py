@@ -17,7 +17,7 @@ from .logger import get_logger
 __all__ = ["MsgpackEncoderV03", "MsgpackEncoderV05", "ListStringTable", "MSGPACK_ENCODERS"]
 
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from ..span import Span
 
 
@@ -52,9 +52,9 @@ class _EncoderBase(object):
 
     @staticmethod
     def _span_to_dict(span):
-        # type: () -> Dict[str, Any]
+        # type: (Span) -> Dict[str, Any]
         d = {
-            "trace_id": span.trace_id,
+            "trace_id": span._trace_id_64bits,
             "parent_id": span.parent_id,
             "span_id": span.span_id,
             "service": span.service,

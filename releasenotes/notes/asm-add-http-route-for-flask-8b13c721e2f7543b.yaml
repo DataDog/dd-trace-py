@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    tracing: add http.route tag to root span for Flask framework.

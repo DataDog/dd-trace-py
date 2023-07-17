@@ -1,6 +1,7 @@
 import pytest
 from sqlalchemy.exc import OperationalError
 
+from ddtrace.constants import ERROR_MSG
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 
@@ -38,11 +39,13 @@ class SQLiteTestCase(SQLAlchemyTestMixin, TracerTestCase):
         self.assertEqual(span.service, self.SERVICE)
         self.assertEqual(span.resource, "SELECT * FROM a_wrong_table")
         self.assertEqual(span.get_tag("sql.db"), self.SQL_DB)
-        self.assertIsNone(span.get_tag("sql.rows") or span.get_metric("sql.rows"))
+        self.assertIsNone(span.get_metric("db.row_count"))
+        self.assertEqual(span.get_tag("component"), "sqlalchemy")
+        self.assertEqual(span.get_tag("span.kind"), "client")
         self.assertEqual(span.span_type, "sql")
         self.assertTrue(span.duration > 0)
         # check the error
         self.assertEqual(span.error, 1)
-        self.assertEqual(span.get_tag("error.msg"), "no such table: a_wrong_table")
+        self.assertEqual(span.get_tag(ERROR_MSG), "no such table: a_wrong_table")
         self.assertTrue("OperationalError" in span.get_tag("error.type"))
         self.assertTrue("OperationalError: no such table: a_wrong_table" in span.get_tag("error.stack"))

@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    django: Adds the ``DD_DJANGO_INCLUDE_USER_NAME`` option to toggle whether the integration sets the ``django.user.name`` tag.

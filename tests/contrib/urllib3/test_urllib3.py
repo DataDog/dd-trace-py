@@ -10,6 +10,7 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib.urllib3 import patch
 from ddtrace.contrib.urllib3 import unpatch
 from ddtrace.ext import http
+from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.pin import Pin
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
@@ -50,6 +51,9 @@ class TestUrllib3(BaseUrllib3TestCase):
         assert len(spans) == 1
         s = spans[0]
         assert s.get_tag(http.URL) == URL_200
+        assert s.get_tag("component") == "urllib3"
+        assert s.get_tag("span.kind") == "client"
+        assert s.get_tag("out.host") == "localhost"
 
         # Test an absolute URL
         r = pool.request("GET", URL_200)
@@ -65,6 +69,9 @@ class TestUrllib3(BaseUrllib3TestCase):
         assert len(spans) == 1
         s = spans[0]
         assert s.get_tag(http.URL) == "http://" + SOCKET + "/"
+        assert s.get_tag("component") == "urllib3"
+        assert s.get_tag("span.kind") == "client"
+        assert s.get_tag("out.host") == "localhost"
 
     def test_resource_path(self):
         """Tests that a successful request tags a single span with the URL"""
@@ -74,6 +81,9 @@ class TestUrllib3(BaseUrllib3TestCase):
         assert len(spans) == 1
         s = spans[0]
         assert s.get_tag("http.url") == URL_200
+        assert s.get_tag("component") == "urllib3"
+        assert s.get_tag("span.kind") == "client"
+        assert s.get_tag("out.host") == "localhost"
 
     def test_tracer_disabled(self):
         """Tests a disabled tracer produces no spans on request"""
@@ -115,6 +125,9 @@ class TestUrllib3(BaseUrllib3TestCase):
             assert s.get_tag(http.STATUS_CODE) == "200"
             assert s.get_tag(http.URL) == URL_200
             assert s.get_tag("http.request.headers.accept") == "*"
+            assert s.get_tag("component") == "urllib3"
+            assert s.get_tag("span.kind") == "client"
+            assert s.get_tag("out.host") == "localhost"
 
     def test_untraced_request(self):
         """Disabling tracing with unpatch should submit no spans"""
@@ -147,6 +160,9 @@ class TestUrllib3(BaseUrllib3TestCase):
         assert s.get_tag(http.METHOD) == "GET"
         assert s.get_tag(http.URL) == URL_200
         assert s.get_tag(http.STATUS_CODE) == "200"
+        assert s.get_tag("component") == "urllib3"
+        assert s.get_tag("span.kind") == "client"
+        assert s.get_tag("out.host") == "localhost"
         assert s.error == 0
         assert s.span_type == "http"
         assert http.QUERY_STRING not in s.get_tags()
@@ -165,6 +181,9 @@ class TestUrllib3(BaseUrllib3TestCase):
         assert s.get_tag(http.METHOD) == "GET"
         assert s.get_tag(http.STATUS_CODE) == "200"
         assert s.get_tag(http.URL) == URL_200_QS
+        assert s.get_tag("component") == "urllib3"
+        assert s.get_tag("span.kind") == "client"
+        assert s.get_tag("out.host") == "localhost"
         assert s.error == 0
         assert s.span_type == "http"
         assert s.get_tag(http.QUERY_STRING) == query_string
@@ -179,6 +198,9 @@ class TestUrllib3(BaseUrllib3TestCase):
         assert s.get_tag(http.METHOD) == "POST"
         assert s.get_tag(http.STATUS_CODE) == "500"
         assert s.get_tag(http.URL) == URL_500
+        assert s.get_tag("component") == "urllib3"
+        assert s.get_tag("span.kind") == "client"
+        assert s.get_tag("out.host") == "localhost"
         assert s.error == 1
 
     def test_connection_retries(self):
@@ -222,6 +244,102 @@ class TestUrllib3(BaseUrllib3TestCase):
         s = spans[0]
 
         assert s.service == "clients"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    def test_schematized_service_name_default(self):
+        """Test the user-set service name is set on the span"""
+        with self.override_config("urllib3", dict(split_by_domain=False)):
+            out = self.http.request("GET", URL_200)
+        assert out.status == 200
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        s = spans[0]
+
+        assert s.service == "urllib3"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_schematized_service_name_v0(self):
+        """Test the user-set service name is set on the span"""
+        with self.override_config("urllib3", dict(split_by_domain=False)):
+            out = self.http.request("GET", URL_200)
+        assert out.status == 200
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        s = spans[0]
+
+        assert s.service == "urllib3"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_schematized_service_name_v1(self):
+        """Test the user-set service name is set on the span"""
+        with self.override_config("urllib3", dict(split_by_domain=False)):
+            out = self.http.request("GET", URL_200)
+        assert out.status == 200
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        s = spans[0]
+
+        assert s.service == "mysvc"
+
+    @TracerTestCase.run_in_subprocess()
+    def test_schematized_unspecified_service_name_default(self):
+        """Test the user-set service name is set on the span"""
+        with self.override_config("urllib3", dict(split_by_domain=False)):
+            out = self.http.request("GET", URL_200)
+        assert out.status == 200
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        s = spans[0]
+
+        assert s.service == "urllib3"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_schematized_unspecified_service_name_v0(self):
+        """Test the user-set service name is set on the span"""
+        with self.override_config("urllib3", dict(split_by_domain=False)):
+            out = self.http.request("GET", URL_200)
+        assert out.status == 200
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        s = spans[0]
+
+        assert s.service == "urllib3"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_schematized_unspecified_service_name_v1(self):
+        """Test the user-set service name is set on the span"""
+        with self.override_config("urllib3", dict(split_by_domain=False)):
+            out = self.http.request("GET", URL_200)
+        assert out.status == 200
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        s = spans[0]
+
+        assert s.service == DEFAULT_SPAN_SERVICE_NAME
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_schematized_operation_name_v0(self):
+        """Test the user-set service name is set on the span"""
+        with self.override_config("urllib3", dict(split_by_domain=False)):
+            out = self.http.request("GET", URL_200)
+        assert out.status == 200
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        s = spans[0]
+
+        assert s.name == "urllib3.request"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_schematized_operation_name_v1(self):
+        """Test the user-set service name is set on the span"""
+        with self.override_config("urllib3", dict(split_by_domain=False)):
+            out = self.http.request("GET", URL_200)
+        assert out.status == 200
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        s = spans[0]
+
+        assert s.name == "http.client.request"
 
     def test_parent_service_name_split_by_domain(self):
         """
@@ -303,6 +421,8 @@ class TestUrllib3(BaseUrllib3TestCase):
 
         assert dd_span.get_tag(http.METHOD) == "GET"
         assert dd_span.get_tag(http.STATUS_CODE) == "200"
+        assert dd_span.get_tag("component") == "urllib3"
+        assert dd_span.get_tag("span.kind") == "client"
         assert dd_span.error == 0
         assert dd_span.span_type == "http"
 
@@ -371,6 +491,9 @@ class TestUrllib3(BaseUrllib3TestCase):
                 "x-datadog-trace-id": str(s.trace_id),
                 "x-datadog-parent-id": str(s.span_id),
                 "x-datadog-sampling-priority": "1",
+                "x-datadog-tags": "_dd.p.dm=-0",
+                "traceparent": s.context._traceparent,
+                "tracestate": s.context._tracestate,
             }
             m_make_request.assert_called_with(
                 mock.ANY, "GET", "/status/200", body=None, chunked=mock.ANY, headers=expected_headers, timeout=mock.ANY

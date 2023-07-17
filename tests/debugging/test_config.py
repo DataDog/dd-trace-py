@@ -1,9 +1,6 @@
 from contextlib import contextmanager
 
-import pytest
-
-from ddtrace.debugging._config import DEFAULT_PROBE_API_URL
-from ddtrace.debugging._config import DebuggerConfig
+from ddtrace.debugging._config import DynamicInstrumentationConfig
 from ddtrace.internal.agent import get_trace_url
 from ddtrace.internal.utils.config import get_application_name
 from ddtrace.internal.utils.formats import parse_tags_str
@@ -11,31 +8,18 @@ from ddtrace.version import get_version
 from tests.utils import override_env
 
 
-@pytest.mark.parametrize(
-    "dd_site, probe_api_url",
-    [
-        ("datadoghq.com", "https://app.datadoghq.com"),
-        ("datadoghq.eu", "https://app.datadoghq.eu"),
-        ("", DEFAULT_PROBE_API_URL),
-    ],
-)
-def test_probe_api_url(dd_site, probe_api_url):
-    with override_env(dict(DD_SITE=dd_site)):
-        DebuggerConfig().probe_api_url == probe_api_url
-
-
 @contextmanager
 def debugger_config(**kwargs):
     with override_env(kwargs):
-        import ddtrace.debugging._config
         from ddtrace.settings import Config
+        import ddtrace.settings.dynamic_instrumentation
 
-        old_config = ddtrace.debugging._config.tracer_config
-        ddtrace.debugging._config.tracer_config = Config()
+        old_config = ddtrace.settings.dynamic_instrumentation.config
+        ddtrace.settings.dynamic_instrumentation.config = Config()
 
-        yield DebuggerConfig()
+        yield DynamicInstrumentationConfig()
 
-        ddtrace.debugging._config.tracer_config = old_config
+        ddtrace.settings.dynamic_instrumentation.config = old_config
 
 
 def test_tags():
@@ -52,11 +36,11 @@ def test_tags():
 
 
 def test_snapshot_intake_url():
-    DebuggerConfig().snapshot_intake_url == get_trace_url()
+    DynamicInstrumentationConfig()._intake_url == get_trace_url()
 
 
 def test_service_name():
-    assert DebuggerConfig().service_name == get_application_name()
+    assert DynamicInstrumentationConfig().service_name == get_application_name()
 
     with debugger_config(DD_SERVICE="test-service") as config:
         assert config.service_name == "test-service"

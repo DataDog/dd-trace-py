@@ -5,13 +5,19 @@ from pyramid.settings import asbool
 # project
 import ddtrace
 from ddtrace import config
+from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.vendor import wrapt
 
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...internal.logger import get_logger
+from ...internal.schema import schematize_service_name
+from ...internal.schema import schematize_url_operation
 from .constants import SETTINGS_ANALYTICS_ENABLED
 from .constants import SETTINGS_ANALYTICS_SAMPLE_RATE
 from .constants import SETTINGS_DISTRIBUTED_TRACING
@@ -49,14 +55,16 @@ def trace_render(func, instance, args, kwargs):
         log.debug("No tracer found in request, will not be traced")
         return func(*args, **kwargs)
 
-    with tracer.trace("pyramid.render", span_type=SpanTypes.TEMPLATE):
+    with tracer.trace("pyramid.render", span_type=SpanTypes.TEMPLATE) as span:
+        span.set_tag_str(COMPONENT, config.pyramid.integration_name)
+
         return func(*args, **kwargs)
 
 
 def trace_tween_factory(handler, registry):
     # configuration
     settings = registry.settings
-    service = settings.get(SETTINGS_SERVICE) or "pyramid"
+    service = settings.get(SETTINGS_SERVICE) or schematize_service_name("pyramid")
     tracer = settings.get(SETTINGS_TRACER) or ddtrace.tracer
     enabled = asbool(settings.get(SETTINGS_TRACE_ENABLED, tracer.enabled))
     distributed_tracing = asbool(settings.get(SETTINGS_DISTRIBUTED_TRACING, True))
@@ -68,7 +76,13 @@ def trace_tween_factory(handler, registry):
                 tracer, int_config=config.pyramid, request_headers=request.headers, override=distributed_tracing
             )
 
-            with tracer.trace("pyramid.request", service=service, resource="404", span_type=SpanTypes.WEB) as span:
+            span_name = schematize_url_operation("pyramid.request", protocol="http", direction=SpanDirection.INBOUND)
+            with tracer.trace(span_name, service=service, resource="404", span_type=SpanTypes.WEB) as span:
+                span.set_tag_str(COMPONENT, config.pyramid.integration_name)
+
+                # set span.kind to the type of operation being performed
+                span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
+
                 span.set_tag(SPAN_MEASURED_KEY)
                 # Configure trace search sample rate
                 # DEV: pyramid is special case maintains separate configuration from config api
@@ -97,7 +111,7 @@ def trace_tween_factory(handler, registry):
                     # set request tags
                     if request.matched_route:
                         span.resource = "{} {}".format(request.method, request.matched_route.name)
-                        span.set_tag("pyramid.route.name", request.matched_route.name)
+                        span.set_tag_str("pyramid.route.name", request.matched_route.name)
                     # set response tags
                     if response:
                         status = response.status_code
@@ -114,6 +128,7 @@ def trace_tween_factory(handler, registry):
                         query=request.query_string,
                         request_headers=request.headers,
                         response_headers=response_headers,
+                        route=request.matched_route.pattern if request.matched_route else None,
                     )
                 return response
 

@@ -18,6 +18,7 @@ from ddtrace.contrib.cassandra.patch import unpatch
 from ddtrace.contrib.cassandra.session import SERVICE
 from ddtrace.ext import cassandra as cassx
 from ddtrace.ext import net
+from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.contrib.config import CASSANDRA_CONFIG
 from tests.opentracer.utils import init_tracer
 from tests.utils import DummyTracer
@@ -129,11 +130,14 @@ class CassandraBase(object):
         assert query.span_type == "cassandra"
 
         assert query.get_tag(cassx.KEYSPACE) == self.TEST_KEYSPACE
-        assert query.get_metric(net.TARGET_PORT) == self.TEST_PORT
-        assert query.get_metric(cassx.ROW_COUNT) == 1
+        assert query.get_metric("db.row_count") == 1
+        assert query.get_metric("network.destination.port") == self.TEST_PORT
         assert query.get_tag(cassx.PAGE_NUMBER) is None
         assert query.get_tag(cassx.PAGINATED) == "False"
         assert query.get_tag(net.TARGET_HOST) == "127.0.0.1"
+        assert query.get_tag("component") == "cassandra"
+        assert query.get_tag("span.kind") == "client"
+        assert query.get_tag("db.system") == "cassandra"
 
         # confirm no analytics sample rate set by default
         assert query.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
@@ -202,11 +206,14 @@ class CassandraBase(object):
         assert dd_span.span_type == "cassandra"
 
         assert dd_span.get_tag(cassx.KEYSPACE) == self.TEST_KEYSPACE
-        assert dd_span.get_metric(net.TARGET_PORT) == self.TEST_PORT
-        assert dd_span.get_metric(cassx.ROW_COUNT) == 1
+        assert dd_span.get_metric("db.row_count") == 1
+        assert dd_span.get_metric("network.destination.port") == self.TEST_PORT
         assert dd_span.get_tag(cassx.PAGE_NUMBER) is None
         assert dd_span.get_tag(cassx.PAGINATED) == "False"
         assert dd_span.get_tag(net.TARGET_HOST) == "127.0.0.1"
+        assert dd_span.get_tag("component") == "cassandra"
+        assert dd_span.get_tag("span.kind") == "client"
+        assert dd_span.get_tag("db.system") == "cassandra"
 
     def test_query_async(self):
         def execute_fn(session, query):
@@ -262,14 +269,15 @@ class CassandraBase(object):
             assert query.span_type == "cassandra"
 
             assert query.get_tag(cassx.KEYSPACE) == self.TEST_KEYSPACE
-            assert query.get_metric(net.TARGET_PORT) == self.TEST_PORT
+            assert query.get_metric("network.destination.port") == self.TEST_PORT
             if i == 3:
-                assert query.get_metric(cassx.ROW_COUNT) == 0
+                assert query.get_metric("db.row_count") == 0
             else:
-                assert query.get_metric(cassx.ROW_COUNT) == 1
+                assert query.get_metric("db.row_count") == 1
             assert query.get_tag(net.TARGET_HOST) == "127.0.0.1"
             assert query.get_tag(cassx.PAGINATED) == "True"
             assert query.get_metric(cassx.PAGE_NUMBER) == i + 1
+            assert query.get_tag("db.system") == "cassandra"
 
     def test_trace_with_service(self):
         session, tracer = self._traced_session()
@@ -462,10 +470,10 @@ class TestCassandraConfig(TracerTestCase):
         Pin.get_from(self.cluster).clone(tracer=self.tracer).onto(self.cluster)
         self.session = self.cluster.connect(self.TEST_KEYSPACE)
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_user_specified_service(self):
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_user_specified_service_v0(self):
         """
-        When a user specifies a service for the app
+        v0: When a user specifies a service for the app
             The cassandra integration should not use it.
         """
         # Ensure that the service name was configured
@@ -479,3 +487,65 @@ class TestCassandraConfig(TracerTestCase):
         assert len(spans) == 1
         query = spans[0]
         assert query.service != "mysvc"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_user_specified_service_v1(self):
+        """
+        v1: When a user specifies a service for the app
+            The cassandra integration should use it.
+        """
+        # Ensure that the service name was configured
+        from ddtrace import config
+
+        assert config.service == "mysvc"
+
+        self.session.execute(self.TEST_QUERY)
+        spans = self.pop_spans()
+        assert spans
+        assert len(spans) == 1
+        query = spans[0]
+        assert query.service == "mysvc"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_unspecified_service_v1(self):
+        """
+        v1: When a user does not specify a service for the app
+            dd-trace-py should default to internal.schema.DEFAULT_SPAN_SERVICE_NAME
+        """
+        # Ensure that the service name was configured
+        from ddtrace import config
+
+        assert config.service == DEFAULT_SPAN_SERVICE_NAME
+
+        self.session.execute(self.TEST_QUERY)
+        spans = self.pop_spans()
+        assert spans
+        assert len(spans) == 1
+        query = spans[0]
+        assert query.service == DEFAULT_SPAN_SERVICE_NAME
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_span_name_v0_schema(self):
+        """
+        When a user specifies a service for the app
+            The cassandra integration should not use it.
+        """
+        self.session.execute(self.TEST_QUERY)
+        spans = self.pop_spans()
+        assert spans
+        assert len(spans) == 1
+        query = spans[0]
+        assert query.name == "cassandra.query"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_span_name_v1_schema(self):
+        """
+        When a user specifies a service for the app
+            The cassandra integration should not use it.
+        """
+        self.session.execute(self.TEST_QUERY)
+        spans = self.pop_spans()
+        assert spans
+        assert len(spans) == 1
+        query = spans[0]
+        assert query.name == "cassandra.query"

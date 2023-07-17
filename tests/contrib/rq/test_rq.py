@@ -1,5 +1,6 @@
 import os
 import subprocess
+import sys
 import time
 
 import pytest
@@ -20,7 +21,7 @@ from .jobs import job_fail
 
 
 # Span data which isn't static to ignore in the snapshots.
-snapshot_ignores = ["meta.job.id", "meta.error.stack"]
+snapshot_ignores = ["meta.job.id", "meta.error.stack", "meta.traceparent", "meta.tracestate"]
 
 rq_version = tuple(int(x) for x in rq.__version__.split(".")[:3])
 
@@ -134,7 +135,10 @@ def test_enqueue(queue, distributed_tracing_enabled, worker_service_name):
         distributed_tracing_enabled,
         worker_service_name,
     )
-    with snapshot_context(token, ignores=snapshot_ignores):
+    num_traces_expected = None
+    if not (sys.version_info.major == 3 and sys.version_info.minor == 5):
+        num_traces_expected = 2 if distributed_tracing_enabled is False else 1
+    with snapshot_context(token, ignores=snapshot_ignores, wait_for_num_traces=num_traces_expected):
         env = os.environ.copy()
         env["DD_TRACE_REDIS_ENABLED"] = "false"
         if distributed_tracing_enabled is not None:
@@ -154,3 +158,53 @@ def test_enqueue(queue, distributed_tracing_enabled, worker_service_name):
             p.terminate()
             # Wait for trace to be sent
             time.sleep(0.5)
+
+
+@pytest.mark.snapshot(
+    ignores=snapshot_ignores + ["meta.error.message", "meta.error.type"],
+    variants={
+        "": rq_version >= (1, 10, 1),  # Exception handling changed in 1.10.1
+        "pre_1_10_1": rq_version < (1, 10, 1),
+    },
+)
+@pytest.mark.parametrize(
+    "service_schema",
+    [
+        (None, None),
+        (None, "v0"),
+        (None, "v1"),
+        ("mysvc", None),
+        ("mysvc", "v0"),
+        ("mysvc", "v1"),
+    ],
+)
+def test_schematization(ddtrace_run_python_code_in_subprocess, service_schema):
+    service, schema = service_schema
+    code = """
+import pytest
+import rq
+import sys
+from tests.contrib.rq.test_rq import queue
+from tests.contrib.rq.test_rq import connection
+from tests.contrib.rq.jobs import JobClass
+from tests.contrib.rq.jobs import job_add1
+from tests.contrib.rq.jobs import job_fail
+
+def test_worker_class_job(queue):
+    queue.enqueue(JobClass(), 4, key="abc")
+    queue.fetch_job("abc")
+    worker = rq.SimpleWorker([queue], connection=queue.connection)
+    worker.work(burst=True)
+
+if __name__ == "__main__":
+    sys.exit(pytest.main(["-x", __file__]))
+    """
+    env = os.environ.copy()
+    if service:
+        env["DD_SERVICE"] = service
+    if schema:
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema
+    env["DD_TRACE_REDIS_ENABLED"] = "false"
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    assert status == 0, (err.decode(), out.decode())
+    assert err == b"", err.decode()

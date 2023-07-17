@@ -1,10 +1,30 @@
 import flask
+from flask.testing import FlaskClient
 
 from ddtrace import Pin
 from ddtrace.contrib.flask import patch
 from ddtrace.contrib.flask import unpatch
 from ddtrace.vendor import wrapt
 from tests.utils import TracerTestCase
+
+
+class DDFlaskTestClient(FlaskClient):
+    def __init__(self, *args, **kwargs):
+        super(DDFlaskTestClient, self).__init__(*args, **kwargs)
+
+    def open(self, *args, **kwargs):
+        # From pep-333: If an iterable returned by the application has a close() method,
+        # the server or gateway must call that method upon completion of the current request.
+        # FlaskClient does not align with this specification so we must do this manually.
+        # Closing the application iterable will finish the flask.request and flask.response
+        # spans.
+        res = super(DDFlaskTestClient, self).open(*args, **kwargs)
+        res.make_sequence()
+        if hasattr(res, "close"):
+            # Note - werkzeug>=2.0 (used in flask>=2.0) calls response.close() for non streamed responses:
+            # https://github.com/pallets/werkzeug/blame/b1911cd0a054f92fa83302cdb520d19449c0b87b/src/werkzeug/test.py#L1114
+            res.close()
+        return res
 
 
 class BaseFlaskTestCase(TracerTestCase):
@@ -14,6 +34,7 @@ class BaseFlaskTestCase(TracerTestCase):
         patch()
 
         self.app = flask.Flask(__name__, template_folder="test_templates/")
+        self.app.test_client_class = DDFlaskTestClient
         self.client = self.app.test_client()
         Pin.override(self.app, tracer=self.tracer)
 

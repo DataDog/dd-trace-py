@@ -1,22 +1,44 @@
 """
 The aiobotocore integration will trace all AWS calls made with the ``aiobotocore``
-library. This integration isn't enabled when applying the default patching.
-To enable it, you must run ``patch_all(aiobotocore=True)``
+library. This integration is not enabled by default.
 
-::
+Enabling
+~~~~~~~~
 
-    import aiobotocore.session
+The aiobotocore integration is not enabled by default. Use
+:func:`patch()<ddtrace.patch>` to enable the integration::
+
     from ddtrace import patch
-
-    # If not patched yet, you can patch botocore specifically
     patch(aiobotocore=True)
 
-    # This will report spans with the default instrumentation
-    aiobotocore.session.get_session()
-    lambda_client = session.create_client('lambda', region_name='us-east-1')
+Configuration
+~~~~~~~~~~~~~
 
-    # This query generates a trace
-    lambda_client.list_functions()
+.. py:data:: ddtrace.config.aiobotocore['tag_no_params']
+
+    This opts out of the default behavior of adding span tags for a narrow set of API parameters.
+
+    To not collect any API parameters, ``ddtrace.config.aiobotocore.tag_no_params = True`` or by setting the environment
+    variable ``DD_AWS_TAG_NO_PARAMS=true``.
+
+
+    Default: ``False``
+
+.. py:data:: ddtrace.config.aiobotocore['tag_all_params']
+
+    **Deprecated**: This retains the deprecated behavior of adding span tags for
+    all API parameters that are not explicitly excluded by the integration.
+    These deprecated span tags will be added along with the API parameters
+    enabled by default.
+
+    This configuration is ignored if ``tag_no_parms`` (``DD_AWS_TAG_NO_PARAMS``)
+    is set to ``True``.
+
+    To collect all API parameters, ``ddtrace.config.botocore.tag_all_params =
+    True`` or by setting the environment variable ``DD_AWS_TAG_ALL_PARAMS=true``.
+
+
+    Default: ``False``
 """
 from ...internal.utils.importlib import require_modules
 

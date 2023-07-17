@@ -1,0 +1,9 @@
+---
+prelude: >
+    profiling: Code provenance is a feature that enhances the
+    "My code" experience in the Datadog UI by allowing the tracer to report
+    packaging metadata about installed source files. This information is used
+    to distinguish between user and third-party code.
+features:
+  - |
+    profiling: Code provenance is enabled by default.

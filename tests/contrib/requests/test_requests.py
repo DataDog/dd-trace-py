@@ -19,6 +19,7 @@ from ddtrace.contrib.requests import unpatch
 from ddtrace.contrib.requests.connection import _extract_hostname
 from ddtrace.contrib.requests.connection import _extract_query_string
 from ddtrace.ext import http
+from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
@@ -30,6 +31,7 @@ from tests.utils import override_global_tracer
 SOCKET = "httpbin.org"
 URL_200 = "http://{}/status/200".format(SOCKET)
 URL_500 = "http://{}/status/500".format(SOCKET)
+URL_AUTH_200 = "http://user:pass@{}/status/200".format(SOCKET)
 
 
 class BaseRequestTestCase(object):
@@ -58,6 +60,9 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         assert len(spans) == 1
         s = spans[0]
         assert s.get_tag("http.url") == URL_200
+        assert s.get_tag("component") == "requests"
+        assert s.get_tag("span.kind") == "client"
+        assert s.get_tag("out.host") == SOCKET
 
     def test_tracer_disabled(self):
         # ensure all valid combinations of args / kwargs work
@@ -86,6 +91,9 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
             assert len(spans) == 1
             s = spans[0]
             assert s.get_tag(http.METHOD) == "GET"
+            assert s.get_tag("component") == "requests"
+            assert s.get_tag("span.kind") == "client"
+            assert s.get_tag("out.host") == SOCKET
             assert_span_http_status_code(s, 200)
 
     def test_untraced_request(self):
@@ -120,10 +128,20 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
 
         assert_is_measured(s)
         assert s.get_tag(http.METHOD) == "GET"
+        assert s.get_tag("component") == "requests"
+        assert s.get_tag("span.kind") == "client"
+        assert s.get_tag("out.host") == SOCKET
         assert_span_http_status_code(s, 200)
         assert s.error == 0
         assert s.span_type == "http"
         assert http.QUERY_STRING not in s.get_tags()
+
+    def test_auth_200(self):
+        self.session.get(URL_AUTH_200)
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        s = spans[0]
+        assert s.get_tag(http.URL) == URL_200
 
     def test_200_send(self):
         # when calling send directly
@@ -139,6 +157,9 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
 
         assert_is_measured(s)
         assert s.get_tag(http.METHOD) == "GET"
+        assert s.get_tag("component") == "requests"
+        assert s.get_tag("span.kind") == "client"
+        assert s.get_tag("out.host") == SOCKET
         assert_span_http_status_code(s, 200)
         assert s.error == 0
         assert s.span_type == "http"
@@ -161,6 +182,9 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         assert s.error == 0
         assert s.span_type == "http"
         assert s.get_tag(http.QUERY_STRING) == query_string
+        assert s.get_tag("component") == "requests"
+        assert s.get_tag("span.kind") == "client"
+        assert s.get_tag("out.host") == SOCKET
 
     def test_requests_module_200(self):
         # ensure the requests API is instrumented even without
@@ -175,6 +199,9 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
 
             assert_is_measured(s)
             assert s.get_tag(http.METHOD) == "GET"
+            assert s.get_tag("component") == "requests"
+            assert s.get_tag("span.kind") == "client"
+            assert s.get_tag("out.host") == SOCKET
             assert_span_http_status_code(s, 200)
             assert s.error == 0
             assert s.span_type == "http"
@@ -189,6 +216,9 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
 
         assert_is_measured(s)
         assert s.get_tag(http.METHOD) == "POST"
+        assert s.get_tag("component") == "requests"
+        assert s.get_tag("span.kind") == "client"
+        assert s.get_tag("out.host") == SOCKET
         assert_span_http_status_code(s, 500)
         assert s.error == 1
 
@@ -206,6 +236,9 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
 
         assert_is_measured(s)
         assert s.get_tag(http.METHOD) == "GET"
+        assert s.get_tag("component") == "requests"
+        assert s.get_tag("span.kind") == "client"
+        assert s.get_tag("out.host") == "doesnotexist.google.com"
         assert s.error == 1
         assert "Failed to establish a new connection" in s.get_tag(ERROR_MSG)
         assert "Failed to establish a new connection" in s.get_tag(ERROR_STACK)
@@ -222,6 +255,9 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
 
         assert_is_measured(s)
         assert s.get_tag(http.METHOD) == "GET"
+        assert s.get_tag("component") == "requests"
+        assert s.get_tag("span.kind") == "client"
+        assert s.get_tag("out.host") == SOCKET
         assert_span_http_status_code(s, 500)
         assert s.error == 1
 
@@ -302,6 +338,25 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         assert s.name == "requests.request"
         assert s.service == "clients"
 
+    def test_split_by_domain_with_ampersat(self):
+        # Regression test for: https://github.com/DataDog/dd-trace-py/issues/4062
+        # ensure a service name is generated by the domain name
+        cfg = config.get_from(self.session)
+        cfg["split_by_domain"] = True
+        # domain name should take precedence over monkey_service
+        cfg["service_name"] = "monkey_service"
+        url = URL_200 + "?email=monkey_monkey@zoo_mail.ca"
+
+        out = self.session.get(url)
+        assert out.status_code == 200
+
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        s = spans[0]
+
+        assert s.get_tag("out.host") == SOCKET
+        assert s.service == "httpbin.org"
+
     def test_split_by_domain(self):
         # ensure a service name is generated by the domain name
         # of the ongoing call
@@ -314,6 +369,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         assert len(spans) == 1
         s = spans[0]
 
+        assert s.get_tag("out.host") == SOCKET
         assert s.service == "httpbin.org"
 
     def test_split_by_domain_precedence(self):
@@ -328,6 +384,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         assert len(spans) == 1
         s = spans[0]
 
+        assert s.get_tag("out.host") == SOCKET
         assert s.service == "httpbin.org"
 
     def test_split_by_domain_wrong(self):
@@ -353,6 +410,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         assert len(spans) == 1
         s = spans[0]
 
+        assert s.get_tag("out.host") == SOCKET
         assert s.service == "httpbin.org"
 
     def test_split_by_domain_includes_port(self):
@@ -366,6 +424,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         assert len(spans) == 1
         s = spans[0]
 
+        assert s.get_tag("out.host") == SOCKET
         assert s.service == "httpbin.org:80"
 
     def test_split_by_domain_includes_port_path(self):
@@ -379,6 +438,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         assert len(spans) == 1
         s = spans[0]
 
+        assert s.get_tag("out.host") == SOCKET
         assert s.service == "httpbin.org:80"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_REQUESTS_SERVICE="override"))
@@ -401,6 +461,62 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         assert out.status_code == 200
         spans = self.pop_spans()
         assert spans[0].service == "override"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    def test_schematization_service_name_default(self):
+        out = self.session.get(URL_200)
+        assert out.status_code == 200
+        spans = self.pop_spans()
+        assert spans[0].service == "requests"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_schematization_service_name_v0(self):
+        out = self.session.get(URL_200)
+        assert out.status_code == 200
+        spans = self.pop_spans()
+        assert spans[0].service == "requests"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_schematization_service_name_v1(self):
+        out = self.session.get(URL_200)
+        assert out.status_code == 200
+        spans = self.pop_spans()
+        assert spans[0].service == "mysvc"
+
+    @TracerTestCase.run_in_subprocess()
+    def test_schematization_unspecified_service_name_default(self):
+        out = self.session.get(URL_200)
+        assert out.status_code == 200
+        spans = self.pop_spans()
+        assert spans[0].service == "requests"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_schematization_unspecified_service_name_v0(self):
+        out = self.session.get(URL_200)
+        assert out.status_code == 200
+        spans = self.pop_spans()
+        assert spans[0].service == "requests"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_schematization_unspecified_service_name_v1(self):
+        out = self.session.get(URL_200)
+        assert out.status_code == 200
+        spans = self.pop_spans()
+        assert spans[0].service == DEFAULT_SPAN_SERVICE_NAME
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_schematization_operation_name_v0(self):
+        out = self.session.get(URL_200)
+        assert out.status_code == 200
+        spans = self.pop_spans()
+        assert spans[0].name == "requests.request"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_schematization_operation_name_v1(self):
+        out = self.session.get(URL_200)
+        assert out.status_code == 200
+        spans = self.pop_spans()
+        assert spans[0].name == "http.client.request"
 
     def test_global_config_service(self):
         with self.override_config("requests", dict(service="override")):
@@ -592,6 +708,13 @@ session.get("http://httpbin.org/status/200")
 )
 def test_extract_hostname(uri, hostname):
     assert _extract_hostname(uri) == hostname
+
+
+def test_extract_hostname_invalid_port():
+    if sys.version_info < (3, 6):
+        assert _extract_hostname("http://localhost:-1/") == "localhost"
+    else:
+        assert _extract_hostname("http://localhost:-1/") == "localhost:?"
 
 
 @pytest.mark.parametrize(

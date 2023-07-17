@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    graphene: Adds support for Python 3.11.
+  - |
+    graphql: Adds support for Python 3.11.

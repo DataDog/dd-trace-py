@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    snowflake: add snowflake query id tag to ``sql.query`` span

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    ASM: fix calling `set_user` without a created span raising a `ValueError`.

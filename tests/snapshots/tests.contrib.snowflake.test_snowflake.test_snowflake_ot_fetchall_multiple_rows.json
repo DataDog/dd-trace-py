@@ -6,18 +6,22 @@
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
-      "runtime-id": "441ecb845fa54dc18d63e7f4e83860bf"
+      "_dd.p.dm": "-0",
+      "language": "python",
+      "runtime-id": "f82097569d3141b8ba61409269818dec"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 79541
+      "process_id": 88705
     },
-    "duration": 4333896,
-    "start": 1634218675238127104
+    "duration": 1471984,
+    "start": 1667243944604950016
   },
      {
        "name": "sql.query",
@@ -27,21 +31,25 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "sql",
+       "error": 0,
        "meta": {
+         "component": "snowflake",
          "db.application": "PythonConnector",
          "db.name": "mock-db-name",
          "db.schema": "mock-schema-name",
+         "db.system": "snowflake",
          "db.user": "mock-user",
          "db.warehouse": "mock-warehouse-name",
-         "out.host": "mock-account.snowflakecomputing.com"
+         "out.host": "mock-account.snowflakecomputing.com",
+         "sfqid": "mocksfqid-29244a72-90a0-4309-9168-9dcf67721f6d",
+         "span.kind": "client"
        },
        "metrics": {
          "_dd.measured": 1,
          "_dd.top_level": 1,
-         "db.rowcount": 2,
-         "out.port": 443,
-         "sql.rows": 2
+         "db.row_count": 2,
+         "network.destination.port": 443
        },
-       "duration": 3877000,
-       "start": 1634218675238459000
+       "duration": 1312000,
+       "start": 1667243944605067000
      }]]

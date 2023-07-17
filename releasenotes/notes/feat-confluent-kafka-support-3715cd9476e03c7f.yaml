@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    kafka: Adds instrumentation support for ``confluent-kafka>=1.7``. See the 
+    ``confluent-kafka<https://ddtrace.readthedocs.io/en/stable/integrations.html#kafka>`` 
+    documentation for more information.

@@ -1,7 +1,19 @@
 name: Build
 
 on:
+  push:
+    branches:
+      - '[0-9].[0-9]*'
+      - '[0-9].x'
+      # special branches used to test this workflow
+      # before merging/releasing
+      - build_deploy*
   pull_request:
+    paths:
+      - "setup.py"
+      - "**.c"
+      - "**.pyx"
+      - "ddtrace/vendor/**"
   release:
     types:
       - published
@@ -21,13 +33,15 @@ jobs:
     strategy:
       matrix:
         include:
-         - os: ubuntu-18.04
+         - os: ubuntu-latest
            archs: x86_64 i686
-         - os: ubuntu-18.04
+         - os: ubuntu-latest
            archs: aarch64
          - os: windows-latest
            archs: AMD64 x86
          - os: macos-latest
+           # universal2 and arm64 builds require CPython 3.8 or newer:
+           # https://cibuildwheel.readthedocs.io/en/stable/faq/#universal2
            archs: x86_64 universal2
     steps:
       - uses: actions/checkout@v3
@@ -60,6 +74,10 @@ jobs:
           CIBW_TEST_COMMAND: python {project}/tests/smoke_test.py
           # Testing arm on MacOS is currently not supported by Github
           CIBW_TEST_SKIP: "*-macosx_universal2:arm64"
+          # Workaround for Macos 11.0 versioning issue, a.k.a.
+          # `platform.mac_ver()` reports incorrect MacOS version at 11.0
+          # See: https://stackoverflow.com/a/65402241
+          CIBW_ENVIRONMENT_MACOS: SYSTEM_VERSION_COMPAT=0
 
       - uses: actions/upload-artifact@v3
         with:
@@ -71,9 +89,9 @@ jobs:
     strategy:
       matrix:
         include:
-         - os: ubuntu-18.04
+         - os: ubuntu-latest
            archs: x86_64 i686
-         - os: ubuntu-18.04
+         - os: ubuntu-latest
            archs: aarch64
          - os: windows-latest
            archs: AMD64 x86
@@ -97,7 +115,7 @@ jobs:
           platforms: all
 
       - name: Build wheels python 3.6 and above
-        uses: pypa/cibuildwheel@2.7.0
+        uses: pypa/cibuildwheel@v2.12.3
         env:
           # configure cibuildwheel to build native archs ('auto'), and some
           # emulated ones
@@ -107,6 +125,10 @@ jobs:
           CIBW_TEST_COMMAND: python {project}/tests/smoke_test.py
           # Testing arm on MacOS is currently not supported by Github
           CIBW_TEST_SKIP: "*-macosx_universal2:arm64"
+          # Workaround for Macos 11.0 versioning issue, a.k.a.
+          # `platform.mac_ver()` reports incorrect MacOS version at 11.0
+          # See: https://stackoverflow.com/a/65402241
+          CIBW_ENVIRONMENT_MACOS: SYSTEM_VERSION_COMPAT=0
 
       - uses: actions/upload-artifact@v3
         with:
@@ -150,7 +172,7 @@ jobs:
 
       - name: Install build dependencies
         # Rust + Cargo are needed for Cryptography
-        run: apk add git gcc g++ musl-dev libffi-dev openssl-dev bash rust cargo
+        run: apk add git gcc g++ musl-dev libffi-dev openssl-dev bash rust cargo make cmake
 
       - name: Check source package
         run: |
@@ -192,3 +214,12 @@ jobs:
           # due to a duplicate wheel being present which will ensure that the rest
           # of the wheels will be uploaded if some are uploaded manually.
           skip_existing: true
+
+  build-and-publish-init-image:
+    needs: [upload_pypi]
+    uses: ./.github/workflows/lib-inject-publish.yml
+    secrets:
+      token: ${{ secrets.GITHUB_TOKEN }}
+    with:
+      ddtrace-version: ${{ github.ref_name }}
+      image-tag: ${{ github.ref_name }}

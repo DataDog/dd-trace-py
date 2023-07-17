@@ -4,15 +4,20 @@ import sys
 import six
 
 from ddtrace import config
+from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.vendor import wrapt
 
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_KIND
+from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...internal.compat import PY2
 from ...internal.compat import httplib
 from ...internal.compat import parse
 from ...internal.logger import get_logger
+from ...internal.schema import schematize_url_operation
 from ...internal.utils.formats import asbool
 from ...pin import Pin
 from ...propagation.http import HTTPPropagator
@@ -20,6 +25,7 @@ from ..trace_utils import unwrap as _u
 
 
 span_name = "httplib.request" if PY2 else "http.client.request"
+span_name = schematize_url_operation(span_name, protocol="http", direction=SpanDirection.OUTBOUND)
 
 log = get_logger(__name__)
 
@@ -28,6 +34,7 @@ config._add(
     "httplib",
     {
         "distributed_tracing": asbool(os.getenv("DD_HTTPLIB_DISTRIBUTED_TRACING", default=True)),
+        "default_http_tag_query_string": os.getenv("DD_HTTP_CLIENT_TAG_QUERY_STRING", "true"),
     },
 )
 
@@ -74,6 +81,12 @@ def _wrap_request(func, instance, args, kwargs):
     try:
         # Create a new span and attach to this instance (so we can retrieve/update/close later on the response)
         span = pin.tracer.trace(span_name, span_type=SpanTypes.HTTP)
+
+        span.set_tag_str(COMPONENT, config.httplib.integration_name)
+
+        # set span.kind to the type of operation being performed
+        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+
         setattr(instance, "_datadog_span", span)
 
         # propagate distributed tracing headers
@@ -113,6 +126,12 @@ def _wrap_putrequest(func, instance, args, kwargs):
         else:
             # Create a new span and attach to this instance (so we can retrieve/update/close later on the response)
             span = pin.tracer.trace(span_name, span_type=SpanTypes.HTTP)
+
+            span.set_tag_str(COMPONENT, config.httplib.integration_name)
+
+            # set span.kind to the type of operation being performed
+            span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+
             setattr(instance, "_datadog_span", span)
 
         method, path = args[:2]
@@ -128,7 +147,9 @@ def _wrap_putrequest(func, instance, args, kwargs):
         sanitized_url = parse.urlunparse(
             (parsed.scheme, parsed.netloc, parsed.path, parsed.params, None, parsed.fragment)  # drop query
         )
-        trace_utils.set_http_meta(span, config.httplib, method=method, url=sanitized_url, query=parsed.query)
+        trace_utils.set_http_meta(
+            span, config.httplib, method=method, url=sanitized_url, target_host=instance.host, query=parsed.query
+        )
 
         # set analytics sample rate
         span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.httplib.get_analytics_sample_rate())

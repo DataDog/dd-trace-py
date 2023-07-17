@@ -7,22 +7,29 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "web",
+    "error": 0,
     "meta": {
+      "_dd.p.dm": "-0",
+      "component": "fastapi",
       "http.method": "POST",
+      "http.route": "/items/",
       "http.status_code": "200",
       "http.url": "http://testserver/items/",
+      "http.useragent": "testclient",
       "http.version": "1.1",
-      "runtime-id": "ca13d92107a949fcb9e9070e1bf4ffa3"
+      "language": "python",
+      "runtime-id": "b8877d54f2b54d3eaab636d5b4efc312",
+      "span.kind": "server"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 88983
+      "process_id": 2060
     },
-    "duration": 1456000,
-    "start": 1646400964981676000
+    "duration": 383000,
+    "start": 1667242400759718000
   },
      {
        "name": "fastapi.serialize_response",
@@ -31,8 +38,10 @@
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
-       "duration": 222000,
-       "start": 1646400964982594000
+       "type": "",
+       "error": 0,
+       "duration": 80000,
+       "start": 1656543965510900000
      }],
 [
   {
@@ -43,22 +52,29 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "web",
+    "error": 0,
     "meta": {
+      "_dd.p.dm": "-0",
+      "component": "fastapi",
       "http.method": "GET",
+      "http.route": "/items/{item_id}",
       "http.status_code": "200",
       "http.url": "http://testserver/items/test_id",
+      "http.useragent": "testclient",
       "http.version": "1.1",
-      "runtime-id": "ca13d92107a949fcb9e9070e1bf4ffa3"
+      "language": "python",
+      "runtime-id": "b8877d54f2b54d3eaab636d5b4efc312",
+      "span.kind": "server"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 88983
+      "process_id": 2060
     },
-    "duration": 479000,
-    "start": 1646400964985955000
+    "duration": 287000,
+    "start": 1667242400761197000
   },
      {
        "name": "fastapi.serialize_response",
@@ -67,6 +83,8 @@
        "trace_id": 1,
        "span_id": 2,
        "parent_id": 1,
-       "duration": 112000,
-       "start": 1646400964986203000
+       "type": "",
+       "error": 0,
+       "duration": 65000,
+       "start": 1656543965512188000
      }]]

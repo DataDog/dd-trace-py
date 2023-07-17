@@ -4,13 +4,14 @@ from typing import Dict
 from typing import List
 from typing import Tuple
 
+import ddtrace
 from ddtrace.internal.compat import PY3
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.packages import get_distributions
 from ddtrace.internal.runtime.container import get_container_info
 from ddtrace.internal.utils.cache import cached
 
-from ...version import get_version
+from ...settings import _config as config
 from ..hostname import get_hostname
 
 
@@ -31,12 +32,20 @@ def _get_container_id():
 
 def _get_os_version():
     # type: () -> str
-    """Returns the os version for applications running on Unix, Mac or Windows 32-bit"""
-    mver, _, _ = platform.mac_ver()
-    _, wver, _, _ = platform.win32_ver()
-    _, lver = platform.libc_ver()
+    """Returns the os version for applications running on Mac or Windows 32-bit"""
+    try:
+        mver, _, _ = platform.mac_ver()
+        if mver:
+            return mver
 
-    return mver or wver or lver or ""
+        _, wver, _, _ = platform.win32_ver()
+        if wver:
+            return wver
+    except OSError:
+        # We were unable to lookup the proper version
+        pass
+
+    return ""
 
 
 @cached()
@@ -54,9 +63,10 @@ def _get_application(key):
         "env": env or "",
         "language_name": "python",
         "language_version": _format_version_info(sys.version_info),
-        "tracer_version": get_version(),
+        "tracer_version": ddtrace.__version__,
         "runtime_name": platform.python_implementation(),
         "runtime_version": _format_version_info(sys.implementation.version) if PY3 else "",
+        "products": _get_products(),
     }
 
 
@@ -68,10 +78,18 @@ def get_dependencies():
 
 
 def get_application(service, version, env):
+    # type: (str, str, str) -> Dict
     """Creates a dictionary to store application data using ddtrace configurations and the System-Specific module"""
     # We cache the application dict to reduce overhead since service, version, or env configurations
     # can change during runtime
     return _get_application((service, version, env))
+
+
+def _get_products():
+    # type: () -> Dict
+    return {
+        "appsec": {"version": ddtrace.__version__, "enabled": config._appsec_enabled},
+    }
 
 
 _host_info = None
@@ -83,7 +101,7 @@ def get_host_info():
     global _host_info
     if _host_info is None:
         _host_info = {
-            "os": platform.platform(aliased=True, terse=True),
+            "os": platform.system(),
             "hostname": get_hostname(),
             "os_version": _get_os_version(),
             "kernel_name": platform.system(),

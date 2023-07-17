@@ -177,6 +177,17 @@ def test_rate_limiter_effective_rate_starting_rate():
     assert limiter.prev_window_rate == 0.5
 
 
+def test_rate_limiter_3():
+    limiter = RateLimiter(rate_limit=2)
+    for i in range(3):
+        decision = limiter.is_allowed(compat.monotonic_ns())
+        # the first two should be allowed, the third should not
+        if i < 2:
+            assert decision is True
+        else:
+            assert decision is False
+
+
 @pytest.mark.parametrize("rate_limit", list(range(10)))
 def test_rate_limiter_with_jitter_expected_calls(rate_limit):
     limiter = BudgetRateLimiterWithJitter(limit_rate=rate_limit)

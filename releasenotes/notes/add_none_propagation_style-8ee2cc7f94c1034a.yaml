@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    tracing: This introduces ``none`` as a supported propagator for trace context extraction and injection. 
+    When ``none`` is the only propagator listed, the corresponding trace context operation is disabled. 
+    If there are other propagators in the inject or extract list, the none propagator has no effect. 
+    For example ``DD_TRACE_PROPAGATION_STYLE=none``
