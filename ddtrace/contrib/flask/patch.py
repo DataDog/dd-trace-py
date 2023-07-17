@@ -634,14 +634,13 @@ def request_tracer(name):
         if not pin.enabled or not current_span:
             return wrapped(*args, **kwargs)
 
-        core.dispatch("flask.set_request_tags", [flask.request, current_span, config.flask])
-
         with core.context_with_data(
             "flask._traced_request",
             name=".".join(("flask", name)),
             service=trace_utils.int_service(pin, config.flask, pin),
             pin=pin,
             flask_config=config.flask,
+            flask_request=flask.request,
             current_span=current_span,
             block_request_callable=_block_request_callable,
         ) as ctx, ctx.get_item("flask_request_span"):

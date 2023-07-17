@@ -65,6 +65,7 @@ def _on_set_request_tags(request, span, flask_config):
 
 
 def _on_pre_tracedrequest(ctx):
+    _on_set_request_tags(ctx.get_item("flask_request"), ctx.get_item("current_span"), ctx.get_item("flask_config"))
     block_request_callable = ctx.get_item("block_request_callable")
     current_span = ctx.get_item("current_span")
     if config._appsec_enabled:

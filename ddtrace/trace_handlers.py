@@ -223,6 +223,7 @@ def _set_request_tags(request, span, flask_config):
 
 
 def _on_traced_request_context_started_flask(ctx):
+    _set_request_tags(ctx.get_item("flask_request"), ctx.get_item("current_span"), ctx.get_item("flask_config"))
     request_span = ctx.get_item("pin").tracer.trace(ctx.get_item("name"), service=ctx.get_item("service"))
     ctx.set_item("flask_request_span", request_span)
     request_span.set_tag_str(COMPONENT, ctx.get_item("flask_config").integration_name)
