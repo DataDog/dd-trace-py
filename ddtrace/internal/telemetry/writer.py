@@ -259,7 +259,6 @@ class TelemetryWriter(PeriodicService):
             # app-started events should only be sent by the main process
             return
         #  List of configurations to be collected
-        # inline import to avoid circular imports
 
         self.add_configurations(
             [
