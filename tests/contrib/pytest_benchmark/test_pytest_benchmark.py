@@ -58,7 +58,7 @@ class PytestTestCase(TracerTestCase):
         return self.testdir.runpytest_subprocess(*args)
 
     def test_span_contains_benchmark(self):
-        """Test with --ddtrace-patch-all."""
+        """Test with benchmark."""
         py_file = self.testdir.makepyfile(
             """
             import time
@@ -96,5 +96,46 @@ class PytestTestCase(TracerTestCase):
         assert spans[0].get_metric(STATISTICS_STDDEV) is not None
         assert spans[0].get_metric(STATISTICS_STDDEV_OUTLIERS) is not None
         assert spans[0].get_metric(STATISTICS_TOTAL) > 2
+        assert spans[0].get_metric(BENCHMARK_RUN) == spans[0].get_metric(STATISTICS_N)
+        assert spans[0].get_metric(BENCHMARK_MEAN) == spans[0].get_metric(STATISTICS_MEAN)
+
+    def test_span_no_benchmark(self):
+        """Test without benchmark."""
+        py_file = self.testdir.makepyfile(
+            """
+            import time
+
+            def sum_longer(value):
+                time.sleep(2)
+                return value
+            def test_sum_longer():
+                assert sum_longer(5) == 5
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        rec = self.inline_run("--ddtrace", file_name)
+        rec.assertoutcome(passed=1)
+        spans = self.pop_spans()
+
+        assert len(spans) == 3
+        assert spans[0].get_tag(BENCHMARK_INFO) is None
+        assert spans[0].get_metric(BENCHMARK_MEAN) is None
+        assert spans[0].get_metric(BENCHMARK_RUN) is None
+        assert spans[0].get_metric(STATISTICS_HD15IQR) is None
+        assert spans[0].get_metric(STATISTICS_IQR) is None
+        assert spans[0].get_metric(STATISTICS_IQR_OUTLIERS) is None
+        assert spans[0].get_metric(STATISTICS_LD15IQR) is None
+        assert spans[0].get_metric(STATISTICS_MAX) is None
+        assert spans[0].get_metric(STATISTICS_MEAN) is None
+        assert spans[0].get_metric(STATISTICS_MEDIAN) is None
+        assert spans[0].get_metric(STATISTICS_MIN) is None
+        assert spans[0].get_metric(STATISTICS_OPS) is None
+        assert spans[0].get_tag(STATISTICS_OUTLIERS) is None
+        assert spans[0].get_metric(STATISTICS_Q1) is None
+        assert spans[0].get_metric(STATISTICS_Q3) is None
+        assert spans[0].get_metric(STATISTICS_N) is None
+        assert spans[0].get_metric(STATISTICS_STDDEV) is None
+        assert spans[0].get_metric(STATISTICS_STDDEV_OUTLIERS) is None
+        assert spans[0].get_metric(STATISTICS_TOTAL) is None
         assert spans[0].get_metric(BENCHMARK_RUN) == spans[0].get_metric(STATISTICS_N)
         assert spans[0].get_metric(BENCHMARK_MEAN) == spans[0].get_metric(STATISTICS_MEAN)
