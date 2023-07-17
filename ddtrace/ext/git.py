@@ -95,6 +95,7 @@ def _extract_clone_defaultremotename(cwd=None):
     output = _git_subprocess_cmd("config --default origin --get clone.defaultRemoteName")
     return output
 
+
 def _is_shallow_repository(cwd=None):
     # type: (Optional[str]) -> bool
     output = _git_subprocess_cmd("rev-parse --is-shallow-repository", cwd=cwd)
