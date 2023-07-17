@@ -19,6 +19,7 @@ SUPPORTED_PYTHON_VERSIONS = [
     (3, 9),
     (3, 10),
     (3, 11),
+    (3, 12),
 ]  # type: List[Tuple[int, int]]
 
 
@@ -36,6 +37,8 @@ def version_to_str(version):
     '3.10'
     >>> version_to_str((3, 11))
     '3.11'
+    >>> version_to_str((3, 12))
+    '3.12'
     >>> version_to_str((3, ))
     '3'
     """
@@ -56,6 +59,8 @@ def str_to_version(version):
     (3, 10)
     >>> str_to_version("3.11")
     (3, 11)
+    >>> str_to_version("3.12")
+    (3, 12)
     >>> str_to_version("3")
     (3,)
     """
@@ -71,9 +76,9 @@ def select_pys(min_version=MIN_PYTHON_VERSION, max_version=MAX_PYTHON_VERSION):
     """Helper to select python versions from the list of versions we support
 
     >>> select_pys()
-    ['2.7', '3.5', '3.6', '3.7', '3.8', '3.9', '3.10', '3.11']
+    ['2.7', '3.5', '3.6', '3.7', '3.8', '3.9', '3.10', '3.11', '3.12']
     >>> select_pys(min_version='3')
-    ['3.5', '3.6', '3.7', '3.8', '3.9', '3.10', '3.11']
+    ['3.5', '3.6', '3.7', '3.8', '3.9', '3.10', '3.11', '3.12']
     >>> select_pys(max_version='3')
     ['2.7']
     >>> select_pys(min_version='3.5', max_version='3.8')
