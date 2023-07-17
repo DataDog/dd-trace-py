@@ -21,7 +21,6 @@ from ddtrace.internal.compat import PY2
 from tests.ci_visibility.test_encoder import _patch_dummy_writer
 from tests.utils import TracerTestCase
 from tests.utils import override_env
-from tests.utils import override_global_config
 
 
 class PytestTestCase(TracerTestCase):
@@ -1342,7 +1341,9 @@ class PytestTestCase(TracerTestCase):
         """
         )
 
-        with override_global_config({"_ci_visibility_code_coverage_enabled": True}):
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features", return_value=(True, False)
+        ):
             self.inline_run("--ddtrace", os.path.basename(py_cov_file.strpath))
         spans = self.pop_spans()
 
