@@ -223,6 +223,24 @@ def _set_request_tags(request, span, flask_config):
         log.debug('failed to set tags for "flask.request" span', exc_info=True)
 
 
+def _on_start_response_pre(request, span, flask_config, status_code, headers):
+    code, _, _ = status_code.partition(" ")
+    # If values are accessible, set the resource as `<method> <path>` and add other request tags
+    _set_request_tags(request, span, flask_config)
+    # Override root span resource name to be `<method> 404` for 404 requests
+    # DEV: We do this because we want to make it easier to see all unknown requests together
+    #      Also, we do this to reduce the cardinality on unknown urls
+    # DEV: If we have an endpoint or url rule tag, then we don't need to do this,
+    #      we still want `GET /product/<int:product_id>` grouped together,
+    #      even if it is a 404
+    if not span.get_tag(FLASK_ENDPOINT) and not span.get_tag(FLASK_URL_RULE):
+        span.resource = " ".join((request.method, code))
+
+    trace_utils.set_http_meta(
+        span, flask_config, status_code=code, response_headers=headers, route=span.get_tag(FLASK_URL_RULE)
+    )
+
+
 def _on_traced_request_context_started_flask(ctx):
     _set_request_tags(ctx.get_item("flask_request"), ctx.get_item("current_span"), ctx.get_item("flask_config"))
     request_span = ctx.get_item("pin").tracer.trace(ctx.get_item("name"), service=ctx.get_item("service"))
@@ -280,7 +298,7 @@ def listen():
     core.on("wsgi.app.exception", _on_app_exception)
     core.on("wsgi.request.complete", _on_request_complete)
     core.on("wsgi.response.prepared", _on_response_prepared)
-    core.on("flask.set_request_tags", _set_request_tags)
+    core.on("flask.start_response.pre", _on_start_response_pre)
     core.on("flask.blocked_request_callable", _on_flask_blocked_request)
     core.on("flask.render", _on_flask_render)
     core.on("context.started.flask._traced_request", _on_traced_request_context_started_flask)

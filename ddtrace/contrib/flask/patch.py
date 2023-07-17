@@ -128,22 +128,7 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
     _response_span_name = "flask.response"
 
     def _traced_start_response(self, start_response, req_span, app_span, status_code, headers, exc_info=None):
-        code, _, _ = status_code.partition(" ")
-        # If values are accessible, set the resource as `<method> <path>` and add other request tags
-        core.dispatch("flask.set_request_tags", [flask.request, req_span, config.flask])
-
-        # Override root span resource name to be `<method> 404` for 404 requests
-        # DEV: We do this because we want to make it easier to see all unknown requests together
-        #      Also, we do this to reduce the cardinality on unknown urls
-        # DEV: If we have an endpoint or url rule tag, then we don't need to do this,
-        #      we still want `GET /product/<int:product_id>` grouped together,
-        #      even if it is a 404
-        if not req_span.get_tag(FLASK_ENDPOINT) and not req_span.get_tag(FLASK_URL_RULE):
-            req_span.resource = " ".join((flask.request.method, code))
-
-        trace_utils.set_http_meta(
-            req_span, config.flask, status_code=code, response_headers=headers, route=req_span.get_tag(FLASK_URL_RULE)
-        )
+        core.dispatch("flask.start_response.pre", [flask.request, req_span, config.flask, status_code, headers])
 
         if not core.get_item(HTTP_REQUEST_BLOCKED):
             headers_from_context = ""

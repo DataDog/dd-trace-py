@@ -174,7 +174,6 @@ def listen():
     core.on("wsgi.block_decided", _on_block_decided)
     core.on("flask.start_response", _on_start_response)
     core.on("flask.wrapped_view", _on_wrapped_view)
-    core.on("flask.set_request_tags", _on_set_request_tags)
     core.on("context.started.flask._traced_request", _on_pre_tracedrequest)
     core.on("flask.finalize_request.post", _on_post_finalizerequest)
     core.on("flask.request_span_modifier", _on_request_span_modifier)
