@@ -236,7 +236,7 @@ def extract_bitbucket(env):
     return {
         git.BRANCH: env.get("BITBUCKET_BRANCH"),
         git.COMMIT_SHA: env.get("BITBUCKET_COMMIT"),
-        git.REPOSITORY_URL: env.get("BITBUCKET_GIT_SSH_ORIGIN"),
+        git.REPOSITORY_URL: env.get("BITBUCKET_GIT_SSH_ORIGIN") or env.get("BITBUCKET_GIT_HTTP_ORIGIN"),
         git.TAG: env.get("BITBUCKET_TAG"),
         JOB_URL: url,
         PIPELINE_ID: env.get("BITBUCKET_PIPELINE_UUID", "").strip("{}}") or None,
