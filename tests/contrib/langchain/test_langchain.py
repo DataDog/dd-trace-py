@@ -1032,9 +1032,9 @@ def test_chain_logs(langchain, ddtrace_config_langchain, request_vcr, mock_logs,
 
 def test_chat_prompt_template_does_not_parse_template(langchain, mock_tracer):
     """
-    Test that tracing a chain with a ChatPromptTemplate does not try to parse the template,
-    as ChatPromptTemplates contain multiple messages each with their own prompt template and
-    are not trivial to tag.
+    Test that tracing a chain with a ChatPromptTemplate does not try to directly parse the template,
+    as ChatPromptTemplates do not contain a specific template attribute (which will lead to an attribute error)
+    but instead contain multiple messages each with their own prompt template and are not trivial to tag.
     """
     with mock.patch("langchain.chat_models.openai.ChatOpenAI._generate", side_effect=Exception("Mocked Error")):
         with pytest.raises(Exception) as exc_info:
