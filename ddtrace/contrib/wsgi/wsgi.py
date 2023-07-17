@@ -15,6 +15,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Callable
     from typing import Dict
     from typing import Iterable
+    from typing import Mapping
     from typing import Optional
 
     from ddtrace import Pin
@@ -40,7 +41,7 @@ from .. import trace_utils
 from ...appsec import utils
 from ...appsec._constants import WAF_CONTEXT_NAMES
 from ...constants import SPAN_KIND
-from ...internal import _context
+from ...internal import core
 
 
 log = get_logger(__name__)
@@ -175,7 +176,7 @@ class _DDWSGIMiddlewareBase(object):
 
             if self.tracer._appsec_enabled:
                 # [IP Blocking]
-                if _context.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=req_span):
+                if core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=req_span):
                     ctype, content = self._make_block_content(environ, headers, req_span)
                     start_response("403 FORBIDDEN", [("content-type", ctype)])
                     closing_iterator = [content]
@@ -210,7 +211,7 @@ class _DDWSGIMiddlewareBase(object):
                     app_span.finish()
                     req_span.finish()
                     raise
-                if self.tracer._appsec_enabled and _context.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=req_span):
+                if self.tracer._appsec_enabled and core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=req_span):
                     # [Suspicious Request Blocking on request or response]
                     _, content = self._make_block_content(environ, headers, req_span)
                     closing_iterator = [content]
@@ -272,13 +273,16 @@ def construct_url(environ):
 
 
 def get_request_headers(environ):
+    # type: (Mapping[str, str]) -> Mapping[str, str]
     """
     Manually grab the request headers from the environ dictionary.
     """
-    request_headers = {}
+    request_headers = {}  # type: Mapping[str, str]
     for key in environ.keys():
-        if key.startswith("HTTP"):
-            request_headers[from_wsgi_header(key)] = environ[key]
+        if key.startswith("HTTP_"):
+            name = from_wsgi_header(key)
+            if name:
+                request_headers[name] = environ[key]
     return request_headers
 
 
