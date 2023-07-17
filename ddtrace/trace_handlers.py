@@ -222,15 +222,11 @@ def _set_request_tags(request, span, flask_config):
         log.debug('failed to set tags for "flask.request" span', exc_info=True)
 
 
-def _on_pre_tracedrequest(ctx, flask_config, block_request_callable, current_span):
-    request_span = ctx.get_item("flask_request")
-    request_span.set_tag_str(COMPONENT, flask_config.integration_name)
-    request_span._ignore_exception(NotFound)
-
-
 def _on_traced_request_context_started_flask(ctx):
     request_span = ctx.get_item("pin").tracer.trace(ctx.get_item("name"), service=ctx.get_item("service"))
     ctx.set_item("flask_request", request_span)
+    request_span.set_tag_str(COMPONENT, ctx.get_item("flask_config").integration_name)
+    request_span._ignore_exception(NotFound)
 
 
 def listen():
@@ -244,5 +240,4 @@ def listen():
     core.on("wsgi.request.complete", _on_request_complete)
     core.on("wsgi.response.prepared", _on_response_prepared)
     core.on("flask.set_request_tags", _set_request_tags)
-    core.on("flask.traced_request.pre", _on_pre_tracedrequest)
     core.on("context.started.flask._traced_request", _on_traced_request_context_started_flask)

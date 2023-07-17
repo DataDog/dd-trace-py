@@ -64,7 +64,9 @@ def _on_set_request_tags(request, span, flask_config):
         )
 
 
-def _on_pre_tracedrequest(ctx, flask_config, block_request_callable, current_span):
+def _on_pre_tracedrequest(ctx):
+    block_request_callable = ctx.get_item("block_request_callable")
+    current_span = ctx.get_item("current_span")
     if config._appsec_enabled:
         from ddtrace.appsec import _asm_request_context
 
@@ -172,7 +174,7 @@ def listen():
     core.on("flask.start_response", _on_start_response)
     core.on("flask.wrapped_view", _on_wrapped_view)
     core.on("flask.set_request_tags", _on_set_request_tags)
-    core.on("flask.traced_request.pre", _on_pre_tracedrequest)
+    core.on("context.started.flask._traced_request", _on_pre_tracedrequest)
     core.on("flask.finalize_request.post", _on_post_finalizerequest)
     core.on("flask.request_span_modifier", _on_request_span_modifier)
     core.on("flask.request_init", _on_request_init)
