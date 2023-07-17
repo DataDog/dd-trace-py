@@ -11,6 +11,7 @@ from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.internal import core
+from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import FLASK_ENDPOINT
 from ddtrace.internal.constants import FLASK_URL_RULE
@@ -255,6 +256,13 @@ def _on_flask_blocked_request(span):
         log.warning("Could not set some span tags on blocked request: %s", str(e))  # noqa: G200
 
 
+def _on_flask_render(span, template, flask_config):
+    name = maybe_stringify(getattr(template, "name", None) or flask_config.get("template_default_name"))
+    if name is not None:
+        span.resource = name
+        span.set_tag_str("flask.template_name", name)
+
+
 def listen():
     core.on("context.started.wsgi.__call__", _on_context_started)
     core.on("context.started.wsgi.response", _on_response_context_started)
@@ -267,5 +275,6 @@ def listen():
     core.on("wsgi.response.prepared", _on_response_prepared)
     core.on("flask.set_request_tags", _set_request_tags)
     core.on("flask.blocked_request_callable", _on_flask_blocked_request)
+    core.on("flask.render", _on_flask_render)
     core.on("context.started.flask._traced_request", _on_traced_request_context_started_flask)
     core.on("context.started.flask.jsonify", _on_jsonify_context_started_flask)

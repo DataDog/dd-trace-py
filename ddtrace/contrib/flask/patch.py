@@ -38,13 +38,9 @@ from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...contrib.wsgi.wsgi import _DDWSGIMiddlewareBase
 from ...ext import SpanTypes
-from ...ext import http
-from ...internal.compat import maybe_stringify
 from ...internal.logger import get_logger
 from ...internal.utils import get_argument_value
 from ...internal.utils.version import parse_version
-from ..trace_utils import _get_request_header_user_agent
-from ..trace_utils import _set_url_tag
 from ..trace_utils import unwrap as _u
 from .helpers import get_current_app
 from .helpers import simple_tracer
@@ -567,10 +563,7 @@ def traced_render(wrapped, instance, args, kwargs):
         return wrapped(*args, **kwargs)
 
     def _wrap(template, context, app):
-        name = maybe_stringify(getattr(template, "name", None) or config.flask.get("template_default_name"))
-        if name is not None:
-            span.resource = name
-            span.set_tag_str("flask.template_name", name)
+        core.dispatch("flask.render", [span, template, config.flask])
         return wrapped(*args, **kwargs)
 
     return _wrap(*args, **kwargs)
