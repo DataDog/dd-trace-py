@@ -222,19 +222,20 @@ def test_app_started_error_unhandled_exception(test_agent_session, run_python_co
 
     events = test_agent_session.get_events()
 
-    assert len(events) == 2
+    assert len(events) == 3
 
     # Same runtime id is used
     assert events[0]["runtime_id"] == events[1]["runtime_id"]
     assert events[0]["request_type"] == "app-closing"
-    assert events[1]["request_type"] == "app-started"
-    assert events[1]["payload"]["error"]["code"] == 1
+    assert events[1]["request_type"] == "app-dependencies-loaded"
+    assert events[2]["request_type"] == "app-started"
+    assert events[2]["payload"]["error"]["code"] == 1
     assert (
-        "/test.py:1: Unable to parse DD_SPAN_SAMPLING_RULES='invalid_rules'" in events[1]["payload"]["error"]["message"]
+        "/test.py:1: Unable to parse DD_SPAN_SAMPLING_RULES='invalid_rules'" in events[2]["payload"]["error"]["message"]
     )
 
 
-def test_integration_error(test_agent_session, run_python_code_in_subprocess):
+def test_handled_integration_error(test_agent_session, run_python_code_in_subprocess):
     code = """
 import logging
 logging.basicConfig()
@@ -246,10 +247,9 @@ del sqlite3.connect
 
 from ddtrace import patch, tracer
 patch(raise_errors=False, sqlite3=True)
-tracer.trace("test").finish()
 """
 
-    stdout, stderr, status, _ = run_python_code_in_subprocess(code)
+    _, stderr, status, _ = run_python_code_in_subprocess(code)
 
     assert status == 0, stderr
     expected_stderr = b"failed to import"
@@ -273,3 +273,13 @@ tracer.trace("test").finish()
         integrations_events[0]["payload"]["integrations"][0]["error"]
         == "failed to import ddtrace module 'ddtrace.contrib.sqlite3' when patching on import"
     )
+
+    metric_events = [event for event in events if event["request_type"] == "generate-metrics"]
+
+    assert len(metric_events) == 1
+    assert metric_events[0]["payload"]["namespace"] == "tracers"
+    assert len(metric_events[0]["payload"]["series"]) == 1
+    assert metric_events[0]["payload"]["series"][0]["metric"] == "integration_errors"
+    assert metric_events[0]["payload"]["series"][0]["type"] == "count"
+    assert len(metric_events[0]["payload"]["series"][0]["points"]) == 1
+    assert metric_events[0]["payload"]["series"][0]["points"][0][1] == 1

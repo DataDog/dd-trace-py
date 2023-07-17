@@ -28,14 +28,6 @@ def _excepthook(tp, value, traceback):
         filename = traceback.tb_frame.f_code.co_filename
     telemetry_writer.add_error(1, str(value), filename, lineno)
 
-    if not telemetry_writer.started and telemetry_writer.enable(start_worker_thread=False):
-        # Starting/stopping the telemetry worker thread in a sys.excepthook causes deadlocks in gunicorn.
-        # Here we avoid starting the telemetry worker thread by manually queuing and sending
-        # app-started and app-closed events.
-        telemetry_writer._app_started_event()
-        telemetry_writer.app_shutdown()
-        telemetry_writer.disable()
-
     if filename:
         dir_parts = filename.split(os.path.sep)
         # Check if exception was raised in the  `ddtrace.contrib` package
@@ -52,6 +44,9 @@ def _excepthook(tp, value, traceback):
                     1,
                     (("integration_name", integration_name), ("error_type", tp.__name__)),
                 )
+
+    telemetry_writer.app_shutdown()
+    telemetry_writer.disable()
 
     return _ORIGINAL_EXCEPTHOOK(tp, value, traceback)
 
