@@ -85,7 +85,7 @@ def _on_post_finalizerequest(rv):
         _asm_request_context.set_body_response(rv.response)
 
 
-def _on_request_span_modifier(request, environ, _HAS_JSON_MIXIN):
+def _on_request_span_modifier(span, flask_config, request, environ, _HAS_JSON_MIXIN, flask_version, flask_version_str):
     req_body = None
     if config._appsec_enabled and request.method in _BODY_METHODS:
         content_type = request.content_type

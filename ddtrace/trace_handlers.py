@@ -3,7 +3,9 @@ import sys
 
 from werkzeug.exceptions import NotFound
 
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
+from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.trace_utils import _get_request_header_user_agent
 from ddtrace.contrib.trace_utils import _set_url_tag
@@ -288,6 +290,39 @@ def _on_render_template_context_started_flask(ctx):
     ctx.set_item(name + ".call", span)
 
 
+def _on_request_span_modifier(span, flask_config, request, environ, _HAS_JSON_MIXIN, flask_version, flask_version_str):
+    # Default resource is method and path:
+    #   GET /
+    #   POST /save
+    # We will override this below in `traced_dispatch_request` when we have a `
+    # RequestContext` and possibly a url rule
+    span.resource = " ".join((request.method, request.path))
+
+    span.set_tag(SPAN_MEASURED_KEY)
+    # set analytics sample rate with global config enabled
+    sample_rate = flask_config.get_analytics_sample_rate(use_global_config=True)
+    if sample_rate is not None:
+        span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
+
+    span.set_tag_str(flask_version, flask_version_str)
+
+
+def _on_request_span_modifier_post(span, flask_config, request, req_body):
+    trace_utils.set_http_meta(
+        span,
+        flask_config,
+        method=request.method,
+        url=request.base_url,
+        raw_uri=request.url,
+        query=request.query_string,
+        parsed_query=request.args,
+        request_headers=request.headers,
+        request_cookies=request.cookies,
+        request_body=req_body,
+        peer_ip=request.remote_addr,
+    )
+
+
 def listen():
     core.on("context.started.wsgi.__call__", _on_context_started)
     core.on("context.started.wsgi.response", _on_response_context_started)
@@ -300,6 +335,8 @@ def listen():
     core.on("wsgi.response.prepared", _on_response_prepared)
     core.on("flask.start_response.pre", _on_start_response_pre)
     core.on("flask.blocked_request_callable", _on_flask_blocked_request)
+    core.on("flask.request_span_modifier", _on_request_span_modifier)
+    # core.on("flask.request_span_modifier.post", _on_request_span_modifier_post)
     core.on("flask.render", _on_flask_render)
     core.on("context.started.flask._traced_request", _on_traced_request_context_started_flask)
     core.on("context.started.flask.jsonify", _on_jsonify_context_started_flask)

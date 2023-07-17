@@ -152,25 +152,16 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
         # DEV: This executes before a request context is created
         request = _RequestType(environ)
 
-        # Default resource is method and path:
-        #   GET /
-        #   POST /save
-        # We will override this below in `traced_dispatch_request` when we have a `
-        # RequestContext` and possibly a url rule
-        span.resource = " ".join((request.method, request.path))
-
-        span.set_tag(SPAN_MEASURED_KEY)
-        # set analytics sample rate with global config enabled
-        sample_rate = config.flask.get_analytics_sample_rate(use_global_config=True)
-        if sample_rate is not None:
-            span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
-
-        span.set_tag_str(FLASK_VERSION, flask_version_str)
-
         req_body = None
-        results, exceptions = core.dispatch("flask.request_span_modifier", [request, environ, _HAS_JSON_MIXIN])
-        if not any(exceptions) and results and results[0]:
-            req_body = results[0]
+        results, exceptions = core.dispatch(
+            "flask.request_span_modifier",
+            [span, config.flask, request, environ, _HAS_JSON_MIXIN, FLASK_VERSION, flask_version_str],
+        )
+        if not any(exceptions) and results and any(results):
+            for result in results:
+                if result is not None:
+                    req_body = result
+                    break
         trace_utils.set_http_meta(
             span,
             config.flask,
