@@ -317,16 +317,16 @@ def extract_circle_ci(env):
 def extract_codefresh(env):
     # type: (MutableMapping[str, str]) -> Dict[str, Optional[str]]
     """Extract CI tags from Codefresh environ."""
+    build_id = env.get("CF_BUILD_ID")
     return {
         git.BRANCH: env.get("CF_BRANCH"),
-        PIPELINE_ID: env.get("CF_BUILD_ID"),
+        PIPELINE_ID: build_id,
         PIPELINE_NAME: env.get("CF_PIPELINE_NAME"),
-        PIPELINE_NUMBER: env.get("CIRCLE_BUILD_NUM"),
-        PIPELINE_URL: "https://g.codefresh.io/build/{0}".format(env.get("CF_BUILD_ID")),
+        PIPELINE_URL: "https://g.codefresh.io/build/{0}".format(build_id),
         JOB_NAME: env.get("CF_STEP_NAME"),
         PROVIDER_NAME: "codefresh",
         _CI_ENV_VARS: json.dumps(
-            {"CF_BUILD_ID": env.get("CF_BUILD_ID")},
+            {"CF_BUILD_ID": build_id},
             separators=(",", ":"),
         ),
     }

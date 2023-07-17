@@ -44,6 +44,8 @@ def test_ci_providers(monkeypatch, name, environment, tags):
     for key, value in tags.items():
         if key == ci.NODE_LABELS:
             assert Counter(json.loads(extracted_tags[key])) == Counter(json.loads(value))
+        elif key == ci._CI_ENV_VARS:
+            assert json.loads(extracted_tags[key]) == json.loads(value)
         else:
             assert extracted_tags[key] == value, "wrong tags in {0} for {1}".format(name, environment)
 
