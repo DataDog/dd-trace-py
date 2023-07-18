@@ -3,9 +3,9 @@ import sys
 from typing import TYPE_CHECKING
 
 from ddtrace.appsec import _asm_request_context
+from ddtrace.internal.constants import RESPONSE_HEADERS
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
-from ...appsec._constants import SPAN_DATA_NAMES
 from ..trace_utils import _get_request_header_user_agent
 from ..trace_utils import _set_url_tag
 
@@ -31,6 +31,7 @@ from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.propagation._utils import from_wsgi_header
@@ -38,10 +39,9 @@ from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.vendor import wrapt
 
 from .. import trace_utils
-from ...appsec import utils
-from ...appsec._constants import WAF_CONTEXT_NAMES
 from ...constants import SPAN_KIND
 from ...internal import core
+from ...internal.utils import http as http_utils
 
 
 log = get_logger(__name__)
@@ -137,10 +137,10 @@ class _DDWSGIMiddlewareBase(object):
 
     def _make_block_content(self, environ, headers, span):
         ctype = "text/html" if "text/html" in headers.get("Accept", "").lower() else "text/json"
-        content = utils._get_blocked_template(ctype).encode("UTF-8")
+        content = http_utils._get_blocked_template(ctype).encode("UTF-8")
         try:
-            span.set_tag_str(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-length", str(len(content)))
-            span.set_tag_str(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type", ctype)
+            span.set_tag_str(RESPONSE_HEADERS + ".content-length", str(len(content)))
+            span.set_tag_str(RESPONSE_HEADERS + ".content-type", ctype)
             span.set_tag_str(http.STATUS_CODE, "403")
             url = construct_url(environ)
             query_string = environ.get("QUERY_STRING")
@@ -165,9 +165,7 @@ class _DDWSGIMiddlewareBase(object):
         headers = get_request_headers(environ)
         closing_iterator = ()
         not_blocked = True
-        with _asm_request_context.asm_request_context_manager(
-            environ.get("REMOTE_ADDR"), headers, headers_case_sensitive=True
-        ):
+        with _asm_request_context.asm_request_context_manager(environ.get("REMOTE_ADDR"), headers, True):
             req_span = self.tracer.trace(
                 self._request_span_name,
                 service=trace_utils.int_service(self._pin, self._config),
@@ -175,19 +173,17 @@ class _DDWSGIMiddlewareBase(object):
             )
 
             if self.tracer._appsec_enabled:
-                # [IP Blocking]
-                if core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=req_span):
+                if core.get_item(HTTP_REQUEST_BLOCKED, span=req_span):
                     ctype, content = self._make_block_content(environ, headers, req_span)
                     start_response("403 FORBIDDEN", [("content-type", ctype)])
                     closing_iterator = [content]
                     not_blocked = False
 
-                # [Suspicious Request Blocking on request]
                 def blocked_view():
                     ctype, content = self._make_block_content(environ, headers, req_span)
                     return content, 403, [("content-type", ctype)]
 
-                _asm_request_context.set_value(_asm_request_context._CALLBACKS, "flask_block", blocked_view)
+                core.dispatch("wsgi.block_decided", [blocked_view])
 
             if not_blocked:
                 req_span.set_tag_str(COMPONENT, self._config.integration_name)
@@ -211,8 +207,7 @@ class _DDWSGIMiddlewareBase(object):
                     app_span.finish()
                     req_span.finish()
                     raise
-                if self.tracer._appsec_enabled and core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=req_span):
-                    # [Suspicious Request Blocking on request or response]
+                if self.tracer._appsec_enabled and core.get_item(HTTP_REQUEST_BLOCKED, span=req_span):
                     _, content = self._make_block_content(environ, headers, req_span)
                     closing_iterator = [content]
 
