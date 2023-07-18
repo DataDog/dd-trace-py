@@ -44,15 +44,7 @@ def wrap_view(instance, func, name=None, resource=None):
     return trace_func(func)
 
 
-def wrap_function(instance, func, name=None, resource=None):
-    """
-    Helper function to wrap common flask.app.Flask methods.
-
-    This helper will first ensure that a Pin is available and enabled before tracing
-    """
-    if not name:
-        name = func_name(func)
-
+def _wrap_call(func, instance, name, resource):
     @function_wrapper
     def trace_func(wrapped, _instance, args, kwargs):
         pin = Pin._find(wrapped, _instance, instance, get_current_app())
@@ -64,6 +56,10 @@ def wrap_function(instance, func, name=None, resource=None):
             return wrapped(*args, **kwargs)
 
     return trace_func(func)
+
+
+def wrap_function(instance, func, name=None, resource=None):
+    return _wrap_call(func, instance, name or func_name(func), resource)
 
 
 def wrap_signal(app, signal, func):

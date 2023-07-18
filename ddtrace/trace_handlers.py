@@ -305,17 +305,6 @@ def _on_render_template_context_started_flask(ctx):
     ctx.set_item(name + ".call", span)
 
 
-def _on_signal_context_started_flask(ctx):
-    flask_config = ctx.get_item("flask_config")
-    pin = ctx.get_item("pin")
-    name = ctx.get_item("name")
-    signal = ctx.get_item("signal")
-    span = pin.tracer.trace(name, service=trace_utils.int_service(pin, flask_config))
-    span.set_tag_str(COMPONENT, flask_config.integration_name)
-    span.set_tag_str("flask.signal", signal)
-    ctx.set_item("flask_call", span)
-
-
 def _on_function_context_started_flask(ctx):
     pin = ctx.get_item("pin")
     name = ctx.get_item("name")
@@ -388,5 +377,5 @@ def listen():
     core.on("context.started.flask._patched_request", _on_traced_request_context_started_flask)
     core.on("context.started.flask.jsonify", _on_jsonify_context_started_flask)
     core.on("context.started.flask.render_template", _on_render_template_context_started_flask)
-    core.on("context.started.flask.signal", _on_signal_context_started_flask)
+    core.on("context.started.flask.signal", _on_function_context_started_flask)
     core.on("context.started.flask.function", _on_function_context_started_flask)
