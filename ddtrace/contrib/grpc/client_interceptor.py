@@ -1,18 +1,18 @@
 import collections
 from contextlib import contextmanager
-from ddtrace import tracer
-from ddtrace.span import Span
-from ddtrace.tracer import Tracer
 
 import grpc
 
 from ddtrace import config
+from ddtrace import tracer
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.compat import stringify
 from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.span import Span
+from ddtrace.tracer import Tracer
 from ddtrace.vendor import wrapt
 
 from . import constants

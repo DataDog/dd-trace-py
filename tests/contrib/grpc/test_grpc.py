@@ -298,7 +298,7 @@ class GrpcTestCase(TracerTestCase):
         self._check_client_span(spans[2], "grpc2", "SayHello", "unary")
 
     def test_span_parent_is_maintained(self):
-        with self.tracer.trace('root') as span:
+        with self.tracer.trace("root") as span:
             with grpc.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel:
                 stub = HelloStub(channel)
                 result = stub.SayHello(HelloRequest(name="test"))
@@ -790,6 +790,7 @@ class _RaiseExceptionClientInterceptor(grpc.UnaryUnaryClientInterceptor):
 
     def intercept_unary_unary(self, continuation, client_call_details, request):
         return self._intercept_call(continuation, client_call_details, request)
+
 
 class _SpanActivatationClientInterceptor(grpc.UnaryUnaryClientInterceptor):
     def __init__(self, tracer) -> None:
