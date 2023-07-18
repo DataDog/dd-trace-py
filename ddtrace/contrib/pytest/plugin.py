@@ -40,7 +40,6 @@ from ddtrace.internal.ci_visibility.constants import SUITE_TYPE as _SUITE_TYPE
 from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.ci_visibility.coverage import _initialize_coverage
 from ddtrace.internal.ci_visibility.coverage import build_payload as build_coverage_payload
-from ddtrace.internal.ci_visibility.coverage import enabled as coverage_enabled
 from ddtrace.internal.ci_visibility.recorder import _get_test_skipping_level
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
@@ -376,7 +375,9 @@ def pytest_runtest_protocol(item, nextitem):
         test_suite_span = _start_test_suite_span(
             pytest_module_item,
             should_enable_coverage=(
-                _get_test_skipping_level() == SUITE and coverage_enabled() and not is_skipped_by_itr
+                _get_test_skipping_level() == SUITE
+                and _CIVisibility._instance._collect_coverage_enabled
+                and not is_skipped_by_itr
             ),
         )
 
@@ -437,7 +438,11 @@ def pytest_runtest_protocol(item, nextitem):
             span.set_tags(tags)
         _store_span(item, span)
 
-        coverage_per_test = _get_test_skipping_level() == TEST and coverage_enabled() and not is_skipped_by_itr
+        coverage_per_test = (
+            _get_test_skipping_level() == TEST
+            and _CIVisibility._instance._collect_coverage_enabled
+            and not is_skipped_by_itr
+        )
         if coverage_per_test:
             _attach_coverage(item)
         # Run the actual test

@@ -1350,7 +1350,9 @@ class PytestTestCase(TracerTestCase):
         """
         )
 
-        with mock.patch("ddtrace.contrib.pytest.plugin.coverage_enabled", return_value=True):
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features", return_value=(True, False)
+        ):
             self.inline_run("--ddtrace", os.path.basename(py_cov_file.strpath))
         spans = self.pop_spans()
 
