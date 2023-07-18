@@ -326,6 +326,9 @@ def _on_function_context_started_flask(ctx):
         kwargs["resource"] = resource
     span = pin.tracer.trace(name, **kwargs)
     span.set_tag_str(COMPONENT, flask_config.integration_name)
+    signal = ctx.get_item("signal")
+    if signal:
+        span.set_tag_str("flask.signal", signal)
     ctx.set_item("flask_call", span)
 
 
