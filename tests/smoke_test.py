@@ -1,5 +1,5 @@
-from platform import system
 from platform import mac_ver
+from platform import system
 import sys
 
 import ddtrace.appsec.ddwaf

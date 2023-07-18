@@ -3,10 +3,10 @@ import json
 import django
 import pytest
 
-from ddtrace.internal import core
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec.iast import oce
 from ddtrace.appsec.iast._util import _is_python_version_supported as python_supported_by_iast
+from ddtrace.internal import core
 from ddtrace.internal.compat import urlencode
 from tests.utils import assert_span_http_status_code
 from tests.utils import override_env
