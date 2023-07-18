@@ -6,7 +6,7 @@
 #
 atomicwrites==1.4.1
 attrs==21.4.0
-backports.functools-lru-cache==1.6.4
+backports.functools-lru-cache==1.6.6
 configparser==4.0.2
 contextlib2==0.6.0.post1
 coverage==5.5
@@ -23,8 +23,8 @@ more-itertools==5.0.0
 msgpack==1.0.5
 opentracing==2.4.0
 packaging==20.9
-parse-type==0.6.0
-parse==1.19.0
+parse-type==0.6.2
+parse==1.19.1
 pathlib2==2.3.7.post1
 pluggy==0.13.1
 py==1.11.0
