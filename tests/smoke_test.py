@@ -9,6 +9,8 @@ import ddtrace.bootstrap.sitecustomize as module
 def mac_supported_iast_version():
     if system() == "Darwin":
         mac_version = [int(i) for i in mac_ver()[0].split(".")]
+        print("mac_version!!!!!!!!!!!!!!!!!!")
+        print(mac_version)
         return mac_version > [10, 9]
     return True
 
