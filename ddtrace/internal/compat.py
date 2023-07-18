@@ -35,6 +35,7 @@ __all__ = [
     "Queue",
     "stringify",
     "StringIO",
+    "TimeoutError",
     "urlencode",
     "parse",
     "reraise",
@@ -44,6 +45,12 @@ __all__ = [
 PYTHON_VERSION_INFO = sys.version_info
 PY2 = sys.version_info[0] == 2
 PY3 = sys.version_info[0] == 3
+
+try:
+    from builtin import TimeoutError
+except ImportError:
+    # Purposely shadowing a missing python builtin
+    from socket import timeout as TimeoutError  # noqa: A001
 
 if not PY2:
     long = int
