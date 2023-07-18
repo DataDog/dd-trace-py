@@ -8,11 +8,6 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
-from ddtrace.internal.constants import HTTP_REQUEST_BODY
-from ddtrace.internal.constants import HTTP_REQUEST_HEADER
-from ddtrace.internal.constants import HTTP_REQUEST_HEADER_NAME
-from ddtrace.internal.constants import HTTP_REQUEST_PARAMETER
-from ddtrace.internal.constants import HTTP_REQUEST_QUERY
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
 from ...internal import core
@@ -218,34 +213,38 @@ def patch():
     setattr(flask, "_datadog_patch", True)
 
     Pin().onto(flask.Flask)
+    try:
+        from ddtrace.appsec.iast._taint_tracking import OriginType
 
-    wrap_with_event(
-        "werkzeug.datastructures",
-        "Headers.items",
-        (HTTP_REQUEST_HEADER_NAME, HTTP_REQUEST_HEADER),
-    )
-    wrap_with_event(
-        "werkzeug.datastructures",
-        "EnvironHeaders.__getitem__",
-        HTTP_REQUEST_HEADER,
-    )
-    wrap_with_event(
-        "werkzeug.datastructures",
-        "ImmutableMultiDict.__getitem__",
-        HTTP_REQUEST_PARAMETER,
-    )
-    _w("werkzeug.wrappers.request", "Request.__init__", wrapped_request_init)
-    wrap_with_event(
-        "werkzeug.wrappers.request",
-        "Request.get_data",
-        HTTP_REQUEST_BODY,
-    )
-    if flask_version < (2, 0, 0):
         wrap_with_event(
-            "werkzeug._internal",
-            "_DictAccessorProperty.__get__",
-            HTTP_REQUEST_QUERY,
+            "werkzeug.datastructures",
+            "Headers.items",
+            (OriginType.HEADER_NAME, OriginType.HEADER),
         )
+        wrap_with_event(
+            "werkzeug.datastructures",
+            "EnvironHeaders.__getitem__",
+            OriginType.HEADER,
+        )
+        wrap_with_event(
+            "werkzeug.datastructures",
+            "ImmutableMultiDict.__getitem__",
+            OriginType.PARAMETER,
+        )
+        _w("werkzeug.wrappers.request", "Request.__init__", wrapped_request_init)
+        wrap_with_event(
+            "werkzeug.wrappers.request",
+            "Request.get_data",
+            OriginType.BODY,
+        )
+        if flask_version < (2, 0, 0):
+            wrap_with_event(
+                "werkzeug._internal",
+                "_DictAccessorProperty.__get__",
+                OriginType.QUERY,
+            )
+    except Exception:
+        log.debug("Unexpected exception while patch IAST functions", exc_info=True)
 
     # flask.app.Flask methods that have custom tracing (add metadata, wrap functions, etc)
     _w("flask", "Flask.wsgi_app", traced_wsgi_app)
