@@ -298,62 +298,50 @@ class CMakeBuild(build_ext):
 
         cmake_list_path = os.path.join(IAST_DIR, "CMakeLists.txt")
 
-        def mac_supported_iast_version():
-            if CURRENT_OS == "Darwin":
-                # TODO: MacOS 10.9 or lower has a old GCC version but
-                #  cibuildwheel has a GCC old version in newest mac versions
-                # from platform import mac_ver
-                # mac_version = [int(i) for i in mac_ver()[0].split(".")]
-                # return mac_version > [10, 9]
-                return False
-            return True
-
         if (
             sys.version_info >= (3, 6, 0)
             and ext.name == "ddtrace.appsec.iast._taint_tracking._native"
             and os.path.exists(cmake_list_path)
-            and mac_supported_iast_version()
         ):
+            os.makedirs(tmp_iast_path, exist_ok=True)
+
+            import subprocess
+
+            cmake_command = os.environ.get("CMAKE_COMMAND", "cmake")
+            build_type = "RelWithDebInfo" if DEBUG_COMPILE else "Release"
+            build_args = ["--config", build_type]
+            cmake_args = [
+                "-S",
+                IAST_DIR,
+                "-DCMAKE_LIBRARY_OUTPUT_DIRECTORY={}".format(tmp_iast_path),
+                "-B",
+                tmp_iast_path,
+                "-DPYTHON_EXECUTABLE={}".format(sys.executable),
+                "-DCMAKE_BUILD_TYPE={}".format(build_type),
+            ]
+
+            if CURRENT_OS == "Windows":
+                cmake_args.extend(["-A", "x64" if platform.architecture()[0] == "64bit" else "Win32"])
+
+            if CURRENT_OS == "Darwin" and sys.version_info >= (3, 8, 0):
+                # Cross-compile support for macOS - respect ARCHFLAGS if set
+                # Darwin Universal2 should bundle both architectures
+                archs = re.findall(r"-arch (\S+)", os.environ.get("ARCHFLAGS", ""))
+                if archs:
+                    cmake_args += [
+                        "-DBUILD_MACOS=ON",
+                        "-DCMAKE_OSX_ARCHITECTURES={}".format(";".join(archs)),
+                    ]
+
+            # Set CMAKE_BUILD_PARALLEL_LEVEL to control the parallel build level
+            # across all generators.
+            if "CMAKE_BUILD_PARALLEL_LEVEL" not in os.environ:
+                # self.parallel is a Python 3 only way to set parallel jobs by hand
+                # using -j in the build_ext call, not supported by pip or PyPA-build.
+                if hasattr(self, "parallel") and self.parallel:
+                    # CMake 3.12+ only.
+                    build_args += ["-j{}".format(self.parallel)]
             try:
-                os.makedirs(tmp_iast_path, exist_ok=True)
-
-                import subprocess
-
-                cmake_command = os.environ.get("CMAKE_COMMAND", "cmake")
-                build_type = "RelWithDebInfo" if DEBUG_COMPILE else "Release"
-                build_args = ["--config", build_type]
-                cmake_args = [
-                    "-S",
-                    IAST_DIR,
-                    "-DCMAKE_LIBRARY_OUTPUT_DIRECTORY={}".format(tmp_iast_path),
-                    "-B",
-                    tmp_iast_path,
-                    "-DPYTHON_EXECUTABLE={}".format(sys.executable),
-                    "-DCMAKE_BUILD_TYPE={}".format(build_type),
-                ]
-
-                if CURRENT_OS == "Windows":
-                    cmake_args.extend(["-A", "x64" if platform.architecture()[0] == "64bit" else "Win32"])
-
-                if CURRENT_OS == "Darwin" and sys.version_info >= (3, 8, 0):
-                    # Cross-compile support for macOS - respect ARCHFLAGS if set
-                    # Darwin Universal2 should bundle both architectures
-                    archs = re.findall(r"-arch (\S+)", os.environ.get("ARCHFLAGS", ""))
-                    if archs:
-                        cmake_args += [
-                            "-DBUILD_MACOS=ON",
-                            "-DCMAKE_OSX_ARCHITECTURES={}".format(";".join(archs)),
-                        ]
-
-                # Set CMAKE_BUILD_PARALLEL_LEVEL to control the parallel build level
-                # across all generators.
-                if "CMAKE_BUILD_PARALLEL_LEVEL" not in os.environ:
-                    # self.parallel is a Python 3 only way to set parallel jobs by hand
-                    # using -j in the build_ext call, not supported by pip or PyPA-build.
-                    if hasattr(self, "parallel") and self.parallel:
-                        # CMake 3.12+ only.
-                        build_args += ["-j{}".format(self.parallel)]
-
                 cmake_cmd_with_args = [cmake_command] + cmake_args
                 subprocess.run(cmake_cmd_with_args, cwd=tmp_iast_path, check=True)
 
@@ -465,7 +453,16 @@ if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
                 extra_compile_args=debug_compile_args,
             )
         )
-        if sys.version_info >= (3, 6, 0):
+
+        def mac_supported_iast_version():
+            if CURRENT_OS == "Darwin":
+                from platform import mac_ver
+
+                mac_version = [int(i) for i in mac_ver()[0].split(".")]
+                return mac_version > [10, 9]
+            return True
+
+        if sys.version_info >= (3, 6, 0) and mac_supported_iast_version():
             ext_modules.append(Extension("ddtrace.appsec.iast._taint_tracking._native", sources=[], parallel=8))
 else:
     ext_modules = []
