@@ -291,7 +291,10 @@ def _on_flask_blocked_request(span):
         log.warning("Could not set some span tags on blocked request: %s", str(e))  # noqa: G200
 
 
-def _on_flask_render(span, template, flask_config):
+def _on_flask_render(template, flask_config):
+    span = core.get_item("current_span")
+    if not span:
+        return
     name = maybe_stringify(getattr(template, "name", None) or flask_config.get("template_default_name"))
     if name is not None:
         span.resource = name
@@ -303,6 +306,7 @@ def _on_render_template_context_started_flask(ctx):
     span = ctx.get_item("pin").tracer.trace(name, span_type=SpanTypes.TEMPLATE)
     span.set_tag_str(COMPONENT, ctx.get_item("flask_config").integration_name)
     ctx.set_item(name + ".call", span)
+    ctx.set_item("current_span", span)
 
 
 def _on_function_context_started_flask(ctx):

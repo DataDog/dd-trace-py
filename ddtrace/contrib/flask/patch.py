@@ -496,13 +496,12 @@ def patched_render(wrapped, instance, args, kwargs):
     This method is called for render_template or render_template_string
     """
     pin = Pin._find(wrapped, instance, get_current_app())
-    span = pin.tracer.current_span()
 
-    if not pin.enabled or not span:
+    if not pin.enabled:
         return wrapped(*args, **kwargs)
 
     def _wrap(template, context, app):
-        core.dispatch("flask.render", [span, template, config.flask])
+        core.dispatch("flask.render", [template, config.flask])
         return wrapped(*args, **kwargs)
 
     return _wrap(*args, **kwargs)
