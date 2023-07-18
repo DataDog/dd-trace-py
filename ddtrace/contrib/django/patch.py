@@ -962,7 +962,7 @@ def _patch(django):
 
 
 def wrap_wsgi_environ(wrapped, _instance, args, kwargs):
-    try:
+    if _is_iast_enabled():
         if not args:
             return wrapped(*args, **kwargs)
 
@@ -972,8 +972,7 @@ def wrap_wsgi_environ(wrapped, _instance, args, kwargs):
         return wrapped(
             *((LazyTaintDict(args[0], origins=(OriginType.HEADER_NAME, OriginType.HEADER)),) + args[1:]), **kwargs
         )
-    except Exception:
-        log.debug("Unexpected exception while patch IAST functions", exc_info=True)
+
     return wrapped(*args, **kwargs)
 
 
