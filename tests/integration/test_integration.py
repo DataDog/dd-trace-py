@@ -401,6 +401,7 @@ def test_trace_bad_url(encoding, monkeypatch):
 
 
 @allencodings
+@pytest.mark.skipif(AGENT_VERSION == "testagent", reason="FIXME: Test agent doesn't support this for some reason.")
 def test_writer_headers(encoding, monkeypatch):
     monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
 
