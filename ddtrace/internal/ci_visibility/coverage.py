@@ -7,8 +7,6 @@ from typing import List
 from typing import Optional
 from typing import Tuple
 
-from ddtrace import config
-from ddtrace.internal import compat
 from ddtrace.internal.logger import get_logger
 
 from .constants import COVERAGE_TAG_NAME
@@ -30,18 +28,8 @@ COVERAGE_SINGLETON = None
 ROOT_DIR = None
 
 
-def enabled():
-    if config._ci_visibility_code_coverage_enabled:
-        if compat.PY2:
-            return False
-        if Coverage is None:
-            log.warning(
-                "CI Visibility code coverage tracking is enabled, but the `coverage` package is not installed. "
-                "To use code coverage tracking, please install `coverage` from https://pypi.org/project/coverage/"
-            )
-            return False
-        return True
-    return False
+def is_coverage_available():
+    return Coverage is not None
 
 
 def _initialize(root_dir):

@@ -120,7 +120,7 @@ class _DataHandler:
 
     def finalise(self):
         if self.active:
-            env = core.get_item("asm_env")
+            env = self.execution_context.get_item("asm_env")
             # assert _CONTEXT_ID.get() == self._id
             callbacks = GLOBAL_CALLBACKS.get(_CONTEXT_CALL, []) + env.callbacks.get(_CONTEXT_CALL)
             if callbacks is not None:
@@ -319,12 +319,26 @@ def asm_request_context_manager(
     The ASM context manager
     """
     if config._appsec_enabled:
-        resources = _DataHandler()
-        asm_request_context_set(remote_ip, headers, headers_case_sensitive, block_request_callable)
+        resources = _on_context_started(remote_ip, headers, headers_case_sensitive, block_request_callable)
         try:
             yield resources
         finally:
-            resources.finalise()
-            core.set_item("asm_env", None)
+            _on_context_ended(resources)
     else:
         yield None
+
+
+def _on_context_started(remote_ip, headers, headers_case_sensitive, block_request_callable):
+    resources = _DataHandler()
+    asm_request_context_set(remote_ip, headers, headers_case_sensitive, block_request_callable)
+    core.on("wsgi.block_decided", _on_block_decided)
+    return resources
+
+
+def _on_context_ended(resources):
+    resources.finalise()
+    core.set_item("asm_env", None)
+
+
+def _on_block_decided(callback):
+    set_value(_CALLBACKS, "flask_block", callback)
