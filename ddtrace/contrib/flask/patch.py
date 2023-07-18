@@ -36,8 +36,8 @@ from ...internal.utils import get_argument_value
 from ...internal.utils.version import parse_version
 from ..trace_utils import unwrap as _u
 from .helpers import get_current_app
-from .helpers import simple_tracer
-from .helpers import with_instance_pin
+from .wrappers import simple_tracer
+from .wrappers import with_instance_pin
 from .wrappers import wrap_function
 from .wrappers import wrap_signal
 from .wrappers import wrap_view

@@ -309,10 +309,11 @@ def _on_function_context_started_flask(ctx):
     pin = ctx.get_item("pin")
     name = ctx.get_item("name")
     flask_config = ctx.get_item("flask_config")
-    resource = ctx.get_item("resource")
     kwargs = {"service": trace_utils.int_service(pin, flask_config)}
-    if resource:
-        kwargs["resource"] = resource
+    for kwarg in ("span_type", "resource"):
+        kwarg_value = ctx.get_item(kwarg)
+        if kwarg_value:
+            kwargs[kwarg] = kwarg_value
     span = pin.tracer.trace(name, **kwargs)
     span.set_tag_str(COMPONENT, flask_config.integration_name)
     signal = ctx.get_item("signal")
