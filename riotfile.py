@@ -1817,9 +1817,11 @@ venv = Venv(
                             pkgs={
                                 "pytest-bdd": [
                                     ">=4.0,<5.0",
-                                    # FIXME: add support for v6.1
-                                    ">=6.0,<6.1",
-                                ]
+                                    ">=6.0,<7.0",
+                                ],
+                                "typing-extensions": [
+                                    latest,
+                                ],
                             },
                         ),
                         Venv(
@@ -1827,9 +1829,12 @@ venv = Venv(
                             pkgs={
                                 "pytest-bdd": [
                                     ">=4.0,<5.0",
-                                    # FIXME: add support for v6.1
-                                    ">=6.0,<6.1",
-                                ]
+                                    ">=6.0,<7.0",
+                                    latest,
+                                ],
+                                "typing-extensions": [
+                                    latest,
+                                ],
                             },
                         ),
                     ],
@@ -2780,6 +2785,24 @@ venv = Venv(
                     pkgs={"mysqlclient": ["~=2.1", latest]},
                 ),
             ],
+        ),
+        Venv(
+            name="langchain",
+            command="pytest {cmdargs} tests/contrib/langchain",
+            pys=select_pys(min_version="3.9"),
+            pkgs={
+                "langchain": ["==0.0.192", latest],
+                "openai": latest,
+                "vcrpy": latest,
+                "pytest-asyncio": latest,
+                "tiktoken": latest,
+                "pinecone-client": latest,
+                "cohere": latest,
+                "huggingface-hub": latest,
+                "ai21": latest,
+                "exceptiongroup": latest,
+                "psutil": latest,
+            },
         ),
         Venv(
             name="molten",

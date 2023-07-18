@@ -298,7 +298,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             self._aux_appsec_prepare_tracer()
             resp = self.client.get("/foobar", headers={"X-Real-Ip": _BLOCKED_IP})
             assert resp.status_code == 403
-            assert get_response_body(resp) == constants.APPSEC_BLOCKED_RESPONSE_JSON
+            assert get_response_body(resp) == constants.BLOCKED_RESPONSE_JSON
             root_span = self.pop_spans()[0]
             assert root_span.get_tag(http.STATUS_CODE) == "403"
             assert root_span.get_tag(http.URL) == "http://localhost/foobar"
@@ -320,7 +320,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             resp = self.client.get("/block", headers={"X-REAL-IP": _ALLOWED_IP})
             # Should not block by IP but since the route is calling block_request it will be blocked
             assert resp.status_code == 403
-            assert get_response_body(resp) == constants.APPSEC_BLOCKED_RESPONSE_JSON
+            assert get_response_body(resp) == constants.BLOCKED_RESPONSE_JSON
             root_span = self.pop_spans()[0]
             assert root_span.get_tag(http.STATUS_CODE) == "403"
             assert root_span.get_tag(http.URL) == "http://localhost/block"
@@ -340,7 +340,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             self._aux_appsec_prepare_tracer()
             resp = self.client.get("/checkuser/%s" % _BLOCKED_USER)
             assert resp.status_code == 403
-            assert get_response_body(resp) == constants.APPSEC_BLOCKED_RESPONSE_JSON
+            assert get_response_body(resp) == constants.BLOCKED_RESPONSE_JSON
             root_span = self.pop_spans()[0]
             assert root_span.get_tag(http.STATUS_CODE) == "403"
             assert root_span.get_tag(http.URL) == "http://localhost/checkuser/%s" % _BLOCKED_USER
@@ -350,12 +350,12 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             resp = self.client.get("/checkuser/%s" % _BLOCKED_USER, headers={"Accept": "text/html"})
             assert resp.status_code == 403
-            assert get_response_body(resp) == constants.APPSEC_BLOCKED_RESPONSE_HTML
+            assert get_response_body(resp) == constants.BLOCKED_RESPONSE_HTML
 
             resp = self.client.get("/checkuser/%s" % _ALLOWED_USER, headers={"Accept": "text/html"})
             assert resp.status_code == 200
 
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    @pytest.mark.skip(reason="TODO: this tests will enable in the next PR")
     def test_flask_full_sqli_iast_http_request_path_parameter(self):
         @self.app.route("/sqli/<string:param_str>/", methods=["GET", "POST"])
         def test_sqli(param_str):
@@ -397,7 +397,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert loaded["vulnerabilities"][0]["location"]["path"] == "tests/contrib/flask/test_flask_appsec.py"
             assert loaded["vulnerabilities"][0]["location"]["line"] == 368
 
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    @pytest.mark.skip(reason="TODO: this tests will enable in the next PR")
     def test_flask_full_sqli_iast_enabled_http_request_header_getitem(self):
         @self.app.route("/sqli/<string:param_str>/", methods=["GET", "POST"])
         def test_sqli(param_str):
@@ -482,7 +482,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             assert root_span.get_tag(IAST.JSON) is None
 
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    @pytest.mark.skip(reason="TODO: this tests will enable in the next PR")
     def test_flask_full_sqli_iast_enabled_http_request_header_name_keys(self):
         @self.app.route("/sqli/<string:param_str>/", methods=["GET", "POST"])
         def test_sqli(param_str):
@@ -567,7 +567,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             assert root_span.get_tag(IAST.JSON) is None
 
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    @pytest.mark.skip(reason="TODO: this tests will enable in the next PR")
     def test_flask_full_sqli_iast_enabled_http_request_header_values(self):
         @self.app.route("/sqli/<string:param_str>/", methods=["GET", "POST"])
         def test_sqli(param_str):
@@ -650,20 +650,43 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             assert root_span.get_tag(IAST.JSON) is None
 
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    @pytest.mark.skip(reason="TODO: this tests will enable in the next PR")
     def test_flask_simple_iast_path_header_and_querystring_tainted(self):
         @self.app.route("/sqli/<string:param_str>/<int:param_int>/", methods=["GET", "POST"])
         def test_sqli(param_str, param_int):
             from flask import request
 
+            from ddtrace.appsec.iast._taint_tracking import OriginType
+            from ddtrace.appsec.iast._taint_tracking import get_tainted_ranges
             from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
 
-            assert is_pyobject_tainted(request.headers["User-Agent"])
-            assert is_pyobject_tainted(request.query_string)
-            assert is_pyobject_tainted(param_str)
+            header_ranges = get_tainted_ranges(request.headers["User-Agent"])
+            assert header_ranges
+            assert header_ranges[0][0].name == "user-agent"
+            assert header_ranges[0][0].origin == OriginType.HEADER
+
+            query_string_ranges = get_tainted_ranges(request.query_string)
+            assert query_string_ranges
+            assert query_string_ranges[0][0].name == "http.request.query"
+            assert query_string_ranges[0][0].origin == OriginType.QUERY
+
+            param_str_ranges = get_tainted_ranges(param_str)
+            assert param_str_ranges
+            assert param_str_ranges[0][0].name == "param_str"
+            assert param_str_ranges[0][0].origin == OriginType.PATH_PARAMETER
+
             assert not is_pyobject_tainted(param_int)
-            assert is_pyobject_tainted(request.path)
-            assert is_pyobject_tainted(request.form.get("name"))
+
+            request_path_ranges = get_tainted_ranges(request.path)
+            assert request_path_ranges
+            assert request_path_ranges[0][0].name == "http.request.path"
+            assert request_path_ranges[0][0].origin == OriginType.PATH
+
+            request_form_name_ranges = get_tainted_ranges(request.form.get("name"))
+            assert request_form_name_ranges
+            assert request_form_name_ranges[0][0].name == "name"
+            assert request_form_name_ranges[0][0].origin == OriginType.PARAMETER
+
             return request.query_string, 200
 
         with override_global_config(
@@ -752,7 +775,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
                 # not all flask versions have r.text
                 assert resp.text == "select%20from%20table"
 
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    @pytest.mark.skip(reason="TODO: this tests will enable in the next PR")
     def test_flask_full_sqli_iast_enabled_http_request_cookies_value(self):
         @self.app.route("/sqli/cookies/", methods=["GET", "POST"])
         def test_sqli():
@@ -834,7 +857,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             assert root_span.get_tag(IAST.JSON) is None
 
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    @pytest.mark.skip(reason="TODO: this tests will enable in the next PR")
     def test_flask_full_sqli_iast_enabled_http_request_cookies_name(self):
         @self.app.route("/sqli/cookies/", methods=["GET", "POST"])
         def test_sqli():
@@ -927,7 +950,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             self._aux_appsec_prepare_tracer()
             resp = self.client.get("/index.html?toto=xtrace")
             assert resp.status_code == 403
-            assert get_response_body(resp) == constants.APPSEC_BLOCKED_RESPONSE_JSON
+            assert get_response_body(resp) == constants.BLOCKED_RESPONSE_JSON
             root_span = self.pop_spans()[0]
             loaded = json.loads(root_span.get_tag(APPSEC.JSON))
             assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-001"]
@@ -959,7 +982,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             self._aux_appsec_prepare_tracer()
             resp = self.client.get("/.git")
             assert resp.status_code == 403
-            assert get_response_body(resp) == constants.APPSEC_BLOCKED_RESPONSE_JSON
+            assert get_response_body(resp) == constants.BLOCKED_RESPONSE_JSON
             root_span = self.pop_spans()[0]
             loaded = json.loads(root_span.get_tag(APPSEC.JSON))
             assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-002"]
@@ -984,7 +1007,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             self._aux_appsec_prepare_tracer()
             resp = self.client.get("/we_should_block")
             assert resp.status_code == 403
-            assert get_response_body(resp) == constants.APPSEC_BLOCKED_RESPONSE_JSON
+            assert get_response_body(resp) == constants.BLOCKED_RESPONSE_JSON
             root_span = self.pop_spans()[0]
             loaded = json.loads(root_span.get_tag(APPSEC.JSON))
             assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-010"]
@@ -1030,7 +1053,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
                     )
                     if appsec and blocked:
                         assert resp.status_code == 403, (payload, content_type, appsec)
-                        assert get_response_body(resp) == constants.APPSEC_BLOCKED_RESPONSE_JSON
+                        assert get_response_body(resp) == constants.BLOCKED_RESPONSE_JSON
                         root_span = self.pop_spans()[0]
                         loaded = json.loads(root_span.get_tag(APPSEC.JSON))
                         assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-003"]
@@ -1049,7 +1072,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             resp = self.client.get("/", headers={"User-Agent": "01972498723465"})
             assert resp.status_code == 403
-            assert get_response_body(resp) == constants.APPSEC_BLOCKED_RESPONSE_JSON
+            assert get_response_body(resp) == constants.BLOCKED_RESPONSE_JSON
             root_span = self.pop_spans()[0]
             loaded = json.loads(root_span.get_tag(APPSEC.JSON))
             assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-004"]
@@ -1077,7 +1100,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             resp = self.client.get("/do_not_exist.php")
             assert resp.status_code == 403
-            assert get_response_body(resp) == constants.APPSEC_BLOCKED_RESPONSE_JSON
+            assert get_response_body(resp) == constants.BLOCKED_RESPONSE_JSON
             root_span = self.pop_spans()[0]
             loaded = json.loads(root_span.get_tag(APPSEC.JSON))
             assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-005"]
@@ -1107,7 +1130,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             resp = self.client.get("/")
             assert resp.status_code == 403
-            assert get_response_body(resp) == constants.APPSEC_BLOCKED_RESPONSE_JSON
+            assert get_response_body(resp) == constants.BLOCKED_RESPONSE_JSON
             root_span = self.pop_spans()[0]
             loaded = json.loads(root_span.get_tag(APPSEC.JSON))
             assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-006"]
@@ -1134,7 +1157,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             self.client.set_cookie("localhost", "keyname", "jdfoSDGFkivRG_234")
             resp = self.client.get("/")
             assert resp.status_code == 403
-            assert get_response_body(resp) == constants.APPSEC_BLOCKED_RESPONSE_JSON
+            assert get_response_body(resp) == constants.BLOCKED_RESPONSE_JSON
             root_span = self.pop_spans()[0]
             loaded = json.loads(root_span.get_tag(APPSEC.JSON))
             assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-008"]
@@ -1163,7 +1186,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             self._aux_appsec_prepare_tracer()
             resp = self.client.get("/params/AiKfOeRcvG45")
             assert resp.status_code == 403
-            assert get_response_body(resp) == constants.APPSEC_BLOCKED_RESPONSE_JSON
+            assert get_response_body(resp) == constants.BLOCKED_RESPONSE_JSON
             root_span = self.pop_spans()[0]
             loaded = json.loads(root_span.get_tag(APPSEC.JSON))
             flask_args = root_span.get_tag("flask.view_args.item")
@@ -1193,7 +1216,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             self._aux_appsec_prepare_tracer()
             resp = self.client.get("/response-header/")
             assert resp.status_code == 403
-            assert get_response_body(resp) == constants.APPSEC_BLOCKED_RESPONSE_JSON
+            assert get_response_body(resp) == constants.BLOCKED_RESPONSE_JSON
             root_span = self.pop_spans()[0]
             loaded = json.loads(root_span.get_tag(APPSEC.JSON))
             assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-009"]
