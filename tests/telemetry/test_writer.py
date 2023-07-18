@@ -7,6 +7,8 @@ import httpretty
 import mock
 import pytest
 
+from ddtrace.internal.telemetry.constants import TELEMETRY_PROPAGATION_STYLE_EXTRACT
+from ddtrace.internal.telemetry.constants import TELEMETRY_PROPAGATION_STYLE_INJECT
 from ddtrace.internal.telemetry.data import get_application
 from ddtrace.internal.telemetry.data import get_dependencies
 from ddtrace.internal.telemetry.data import get_host_info
@@ -70,6 +72,16 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
     payload = {
         "configuration": [
             {
+                "name": TELEMETRY_PROPAGATION_STYLE_EXTRACT,
+                "origin": "unknown",
+                "value": "datadog",
+            },
+            {
+                "name": TELEMETRY_PROPAGATION_STYLE_INJECT,
+                "origin": "unknown",
+                "value": "datadog",
+            },
+            {
                 "name": "appsec_enabled",
                 "origin": "unknown",
                 "value": False,
@@ -98,16 +110,6 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
                 "name": "runtimemetrics_enabled",
                 "origin": "unknown",
                 "value": False,
-            },
-            {
-                "name": "trace_propagation_style_extract",
-                "origin": "unknown",
-                "value": "datadog",
-            },
-            {
-                "name": "trace_propagation_style_inject",
-                "origin": "unknown",
-                "value": "datadog",
             },
         ],
         "error": {
@@ -151,6 +153,16 @@ telemetry_writer.disable()
     events[0]["payload"]["configuration"].sort(key=lambda c: c["name"])
     configuration = [
         {
+            "name": TELEMETRY_PROPAGATION_STYLE_EXTRACT,
+            "origin": "unknown",
+            "value": "['b3multi']",
+        },
+        {
+            "name": TELEMETRY_PROPAGATION_STYLE_INJECT,
+            "origin": "unknown",
+            "value": "datadog",
+        },
+        {
             "name": "appsec_enabled",
             "origin": "unknown",
             "value": False,
@@ -179,16 +191,6 @@ telemetry_writer.disable()
             "name": "runtimemetrics_enabled",
             "origin": "unknown",
             "value": True,
-        },
-        {
-            "name": "trace_propagation_style_extract",
-            "origin": "unknown",
-            "value": "['b3multi']",
-        },
-        {
-            "name": "trace_propagation_style_inject",
-            "origin": "unknown",
-            "value": "['datadog']",
         },
     ]
 
@@ -258,7 +260,7 @@ def test_app_client_configuration_changed_event(telemetry_writer, test_agent_ses
     """asserts that queuing a configuration sends a valid telemetry request"""
 
     telemetry_writer.add_configuration("appsec_enabled", True)
-    telemetry_writer.add_configuration("trace_propagation_style_extract", "['datadog']")
+    telemetry_writer.add_configuration(TELEMETRY_PROPAGATION_STYLE_EXTRACT, "datadog")
     telemetry_writer.add_configuration("appsec_enabled", False, "env_var")
 
     telemetry_writer.periodic()
@@ -278,9 +280,9 @@ def test_app_client_configuration_changed_event(telemetry_writer, test_agent_ses
             "value": False,
         },
         {
-            "name": "trace_propagation_style_extract",
+            "name": TELEMETRY_PROPAGATION_STYLE_EXTRACT,
             "origin": "unknown",
-            "value": "['datadog']",
+            "value": "datadog",
         },
     ]
 
