@@ -35,8 +35,8 @@ from ...internal.logger import get_logger
 from ...internal.utils import get_argument_value
 from ...internal.utils.version import parse_version
 from ..trace_utils import unwrap as _u
-from .helpers import get_current_app
-from .wrappers import simple_tracer
+from .wrappers import get_current_app
+from .wrappers import simple_call_wrapper
 from .wrappers import with_instance_pin
 from .wrappers import wrap_function
 from .wrappers import wrap_signal
@@ -241,9 +241,9 @@ def patch():
         flask_app_traces.append("try_trigger_before_first_request_functions")
 
     for name in flask_app_traces:
-        _w("flask", "Flask.{}".format(name), simple_tracer("flask.{}".format(name)))
+        _w("flask", "Flask.{}".format(name), simple_call_wrapper("flask.{}".format(name)))
     # flask static file helpers
-    _w("flask", "send_file", simple_tracer("flask.send_file"))
+    _w("flask", "send_file", simple_call_wrapper("flask.send_file"))
 
     # flask.json.jsonify
     _w("flask", "jsonify", patched_jsonify)

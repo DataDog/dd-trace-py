@@ -1,3 +1,5 @@
+import flask
+
 from ddtrace import config
 from ddtrace.internal import core
 from ddtrace.vendor.wrapt import function_wrapper
@@ -5,10 +7,19 @@ from ddtrace.vendor.wrapt import function_wrapper
 from ...internal.logger import get_logger
 from ...internal.utils.importlib import func_name
 from ...pin import Pin
-from .helpers import get_current_app
 
 
 log = get_logger(__name__)
+
+
+def get_current_app():
+    """Helper to get the flask.app.Flask from the current app context"""
+    try:
+        return flask.current_app
+    except RuntimeError:
+        # raised if current_app is None: https://github.com/pallets/flask/blob/2.1.3/src/flask/globals.py#L40
+        pass
+    return None
 
 
 def _wrap_call(
@@ -62,7 +73,7 @@ def wrap_signal(app, signal, func):
     return _wrap_call_with_pin_check(func, app, func_name(func), signal=signal)
 
 
-def simple_tracer(name, span_type=None):
+def simple_call_wrapper(name, span_type=None):
     """Generate a simple tracer that wraps the function call with `with tracer.trace()`"""
 
     @with_instance_pin
