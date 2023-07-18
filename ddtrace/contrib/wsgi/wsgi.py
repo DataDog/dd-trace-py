@@ -20,7 +20,7 @@ from six.moves.urllib.parse import quote
 
 import ddtrace
 from ddtrace import config
-from ddtrace import trace_handlers
+from ddtrace.apm import trace_handlers
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
