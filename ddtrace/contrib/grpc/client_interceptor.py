@@ -11,8 +11,6 @@ from ddtrace.internal.compat import stringify
 from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
-from ddtrace.span import Span
-from ddtrace.tracer import Tracer
 from ddtrace.vendor import wrapt
 
 from . import constants
@@ -193,8 +191,8 @@ class _ClientInterceptor(
     def _intercept_client_call(self, method_kind, client_call_details):
         tracer = self._pin.tracer
 
-        # This used to use .trace instead, which caused spans to leak when using the .future interface. Instead we now just create the span and
-        # activate it at points where we call the continuations
+        # This used to use .trace instead, which caused spans to leak when using the .future interface. Instead we now
+        # just create the span and activate it at points where we call the continuations
         parent = tracer.current_span()
         span = tracer.start_span(
             schematize_url_operation("grpc", protocol="grpc", direction=SpanDirection.OUTBOUND),

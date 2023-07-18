@@ -298,10 +298,10 @@ class GrpcTestCase(TracerTestCase):
         self._check_client_span(spans[2], "grpc2", "SayHello", "unary")
 
     def test_span_parent_is_maintained(self):
-        with self.tracer.trace("root") as span:
+        with self.tracer.trace("root"):
             with grpc.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel:
                 stub = HelloStub(channel)
-                result = stub.SayHello(HelloRequest(name="test"))
+                stub.SayHello(HelloRequest(name="test"))
 
         spans = self.get_spans_with_sync_and_assert(size=3, should_retry=True)
         root = spans[0]
