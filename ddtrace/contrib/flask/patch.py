@@ -200,8 +200,8 @@ def patch():
 
     # flask.app.Flask methods that have custom tracing (add metadata, wrap functions, etc)
     _w("flask", "Flask.wsgi_app", traced_wsgi_app)
-    _w("flask", "Flask.dispatch_request", request_tracer("dispatch_request"))
-    _w("flask", "Flask.preprocess_request", request_tracer("preprocess_request"))
+    _w("flask", "Flask.dispatch_request", request_patcher("dispatch_request"))
+    _w("flask", "Flask.preprocess_request", request_patcher("preprocess_request"))
     _w("flask", "Flask.add_url_rule", traced_add_url_rule)
     _w("flask", "Flask.endpoint", traced_endpoint)
 
@@ -545,9 +545,9 @@ def _block_request_callable(call):
     abort(flask.Response(http_utils._get_blocked_template(ctype), content_type=ctype, status=403))
 
 
-def request_tracer(name):
+def request_patcher(name):
     @with_instance_pin
-    def _traced_request(pin, wrapped, instance, args, kwargs):
+    def _patched_request(pin, wrapped, instance, args, kwargs):
         """
         Wrapper to trace a Flask function while trying to extract endpoint information
           (endpoint, url_rule, view_args, etc)
@@ -559,7 +559,7 @@ def request_tracer(name):
             return wrapped(*args, **kwargs)
 
         with core.context_with_data(
-            "flask._traced_request",
+            "flask._patched_request",
             name=".".join(("flask", name)),
             service=trace_utils.int_service(pin, config.flask, pin),
             pin=pin,
@@ -570,7 +570,7 @@ def request_tracer(name):
         ) as ctx, ctx.get_item("flask_request_span"):
             return wrapped(*args, **kwargs)
 
-    return _traced_request
+    return _patched_request
 
 
 def traced_signal_receivers_for(signal):

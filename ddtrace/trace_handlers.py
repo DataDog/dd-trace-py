@@ -244,10 +244,13 @@ def _on_start_response_pre(request, span, flask_config, status_code, headers):
 
 
 def _on_traced_request_context_started_flask(ctx):
-    _set_request_tags(ctx.get_item("flask_request"), ctx.get_item("current_span"), ctx.get_item("flask_config"))
-    request_span = ctx.get_item("pin").tracer.trace(ctx.get_item("name"), service=ctx.get_item("service"))
+    pin = ctx.get_item("pin")
+    flask_config = ctx.get_item("flask_config")
+    service = trace_utils.int_service(pin, flask_config, pin)
+    _set_request_tags(ctx.get_item("flask_request"), ctx.get_item("current_span"), flask_config)
+    request_span = pin.tracer.trace(ctx.get_item("name"), service=service)
     ctx.set_item("flask_request_span", request_span)
-    request_span.set_tag_str(COMPONENT, ctx.get_item("flask_config").integration_name)
+    request_span.set_tag_str(COMPONENT, flask_config.integration_name)
     request_span._ignore_exception(NotFound)
 
 
@@ -343,6 +346,6 @@ def listen():
     core.on("flask.request_span_modifier.post", _on_request_span_modifier_post)
     core.on("flask.render", _on_flask_render)
     core.on("flask.start_response.blocked", _on_start_response_blocked)
-    core.on("context.started.flask._traced_request", _on_traced_request_context_started_flask)
+    core.on("context.started.flask._patched_request", _on_traced_request_context_started_flask)
     core.on("context.started.flask.jsonify", _on_jsonify_context_started_flask)
     core.on("context.started.flask.render_template", _on_render_template_context_started_flask)
