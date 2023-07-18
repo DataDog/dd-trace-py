@@ -17,8 +17,10 @@ from ddtrace.internal import atexit
 from ddtrace.internal import compat
 from ddtrace.internal.agent import get_connection
 from ddtrace.internal.agent import get_trace_url
+from ddtrace.internal.ci_visibility.coverage import is_coverage_available
 from ddtrace.internal.ci_visibility.filters import TraceCiVisibilityFilter
 from ddtrace.internal.compat import JSONDecodeError
+from ddtrace.internal.compat import TimeoutError
 from ddtrace.internal.compat import parse
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
@@ -42,6 +44,7 @@ from .writer import CIVisibilityWriter
 log = get_logger(__name__)
 
 TEST_SKIPPING_LEVEL = "suite"
+DEFAULT_TIMEOUT = 15
 
 
 def _extract_repository_name_from_url(repository_url):
@@ -62,7 +65,7 @@ def _get_git_repo():
 def _do_request(method, url, payload, headers):
     # type: (str, str, str, Dict) -> Response
     try:
-        conn = get_connection(url)
+        conn = get_connection(url, timeout=DEFAULT_TIMEOUT)
         log.debug("Sending request: %s %s %s %s", method, url, payload, headers)
         conn.request("POST", url, payload, headers)
         resp = compat.get_connection_response(conn)
@@ -113,10 +116,11 @@ class CIVisibility(Service):
         elif self._agent_evp_proxy_is_available():
             self._requests_mode = REQUESTS_MODE.EVP_PROXY_EVENTS
 
-        self._configure_writer()
-
         self._code_coverage_enabled_by_api, self._test_skipping_enabled_by_api = self._check_enabled_features()
 
+        self._collect_coverage_enabled = self._should_collect_coverage(self._code_coverage_enabled_by_api)
+
+        self._configure_writer(coverage_enabled=self._collect_coverage_enabled)
         self._git_client = None
 
         if ddconfig._ci_visibility_intelligent_testrunner_enabled:
@@ -145,6 +149,21 @@ class CIVisibility(Service):
             log.warning("CODEOWNERS file is not available")
         except Exception:
             log.warning("Failed to load CODEOWNERS", exc_info=True)
+
+    @staticmethod
+    def _should_collect_coverage(coverage_enabled_by_api):
+        if not coverage_enabled_by_api:
+            return False
+        if compat.PY2:
+            log.warning("CI Visibility code coverage tracking is enabled, but Python 2 is not supported.")
+            return False
+        if not is_coverage_available():
+            log.warning(
+                "CI Visibility code coverage tracking is enabled, but either the `coverage` package is not installed."
+                "To use code coverage tracking, please install `coverage` from https://pypi.org/project/coverage/"
+            )
+            return False
+        return True
 
     def _configure_itr(self, api_key, app_key, requests_mode):
         if not ddconfig._ci_visibility_intelligent_testrunner_enabled:
@@ -200,7 +219,11 @@ class CIVisibility(Service):
                 },
             }
         }
-        response = _do_request("POST", url, json.dumps(payload), _headers)
+        try:
+            response = _do_request("POST", url, json.dumps(payload), _headers)
+        except TimeoutError:
+            log.warning("Request timeout while fetching enabled features")
+            return False, False
         try:
             parsed = json.loads(response.body)
         except JSONDecodeError:
@@ -215,7 +238,7 @@ class CIVisibility(Service):
         attributes = parsed["data"]["attributes"]
         return attributes["code_coverage"], attributes["tests_skipping"]
 
-    def _configure_writer(self, requests_mode=None):
+    def _configure_writer(self, coverage_enabled=False, requests_mode=None):
         writer = None
         if requests_mode is None:
             requests_mode = self._requests_mode
@@ -224,12 +247,14 @@ class CIVisibility(Service):
             headers = {"dd-api-key": self._api_key}
             writer = CIVisibilityWriter(
                 headers=headers,
+                coverage_enabled=coverage_enabled,
             )
         elif requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS:
             writer = CIVisibilityWriter(
                 intake_url=agent.get_trace_url(),
                 headers={EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_EVENT_VALUE},
                 use_evp=True,
+                coverage_enabled=coverage_enabled,
             )
         if writer is not None:
             self.tracer.configure(writer=writer)
@@ -288,7 +313,14 @@ class CIVisibility(Service):
             log.warning("Cannot make requests to skippable endpoint if mode is not agentless or evp proxy")
             return
 
-        response = _do_request("POST", url, json.dumps(payload), _headers)
+        try:
+            response = _do_request("POST", url, json.dumps(payload), _headers)
+        except TimeoutError:
+            log.warning("Request timeout while fetching skippable tests")
+            self._test_suites_to_skip = []
+            return
+
+        self._test_suites_to_skip = []
 
         self._test_suites_to_skip = []
 

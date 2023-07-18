@@ -91,6 +91,35 @@ def _git_subprocess_cmd(cmd, cwd=None, std_in=None):
     raise ValueError(compat.ensure_text(stderr).strip())
 
 
+def _extract_clone_defaultremotename(cwd=None):
+    output = _git_subprocess_cmd("config --default origin --get clone.defaultRemoteName")
+    return output
+
+
+def _is_shallow_repository(cwd=None):
+    # type: (Optional[str]) -> bool
+    output = _git_subprocess_cmd("rev-parse --is-shallow-repository", cwd=cwd)
+    return output.strip() == "true"
+
+
+def _unshallow_repository(cwd=None):
+    # type (Optional[str]) -> None
+    remote_name = _extract_clone_defaultremotename(cwd)
+    head_sha = extract_commit_sha(cwd)
+
+    cmd = [
+        "fetch",
+        "--update-shallow",
+        "--filter=blob:none",
+        "--recurse-submodules=no",
+        '--shallow-since="1 month ago"',
+        remote_name,
+        head_sha,
+    ]
+
+    _git_subprocess_cmd(cmd, cwd=cwd)
+
+
 def extract_user_info(cwd=None):
     # type: (Optional[str]) -> Dict[str, Tuple[str, str, str]]
     """Extract commit author info from the git repository in the current directory or one specified by ``cwd``."""
@@ -101,11 +130,6 @@ def extract_user_info(cwd=None):
         "author": (author_name, author_email, author_date),
         "committer": (committer_name, committer_email, committer_date),
     }
-
-
-def extract_clone_defaultremotename(cwd=None):
-    output = _git_subprocess_cmd("config --default origin --get clone.defaultRemoteName")
-    return output
 
 
 def extract_git_version(cwd=None):
@@ -267,27 +291,3 @@ def build_git_packfiles(revisions, cwd=None):
             "pack-objects --compression=9 --max-pack-size=3m %s" % prefix, cwd=cwd, std_in=revisions.encode("utf-8")
         )
         yield prefix
-
-
-def _is_shallow_repository(cwd=None):
-    # type: (Optional[str]) -> bool
-    output = _git_subprocess_cmd("rev-parse --is-shallow-repository", cwd=cwd)
-    return output.strip() == "true"
-
-
-def _unshallow_repository(cwd=None):
-    # type (Optional[str]) -> None
-    remote_name = extract_clone_defaultremotename(cwd)
-    head_sha = extract_commit_sha(cwd)
-
-    cmd = [
-        "fetch",
-        "--update-shallow",
-        "--filter=blob:none",
-        "--recurse-submodules=no",
-        '--shallow-since="1 month ago"',
-        remote_name,
-        head_sha,
-    ]
-
-    _git_subprocess_cmd(cmd, cwd=cwd)

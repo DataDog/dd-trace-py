@@ -9,7 +9,7 @@ from ddtrace.appsec.iast import oce
 from ddtrace.constants import MANUAL_KEEP_KEY
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.ext import SpanTypes
-from ddtrace.internal import _context
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.processor import SpanProcessor
 
@@ -46,7 +46,7 @@ class AppSecIastSpanProcessor(SpanProcessor):
 
         span.set_metric(IAST.ENABLED, 1.0)
 
-        data = _context.get_item(IAST.CONTEXT_KEY, span=span)
+        data = core.get_item(IAST.CONTEXT_KEY, span=span)
 
         if data:
             span.set_tag_str(IAST.JSON, json.dumps(attr.asdict(data, filter=lambda attr, x: x is not None)))
