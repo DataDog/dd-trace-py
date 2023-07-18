@@ -20,15 +20,17 @@ __all__ = ["telemetry_writer"]
 _ORIGINAL_EXCEPTHOOK = sys.excepthook
 
 
-def _excepthook(tp, value, traceback):
-    filename = None
-    lineno = None
-    if traceback and traceback.tb_frame and traceback.tb_frame.f_code:
+def _excepthook(tp, value, root_traceback):
+    if root_traceback is not None:
+        # Get the frame which raised the exception
+        traceback = root_traceback
+        while traceback.tb_next:
+            traceback = traceback.tb_next
+
         lineno = traceback.tb_frame.f_code.co_firstlineno
         filename = traceback.tb_frame.f_code.co_filename
-    telemetry_writer.add_error(1, str(value), filename, lineno)
+        telemetry_writer.add_error(1, str(value), filename, lineno)
 
-    if filename:
         dir_parts = filename.split(os.path.sep)
         # Check if exception was raised in the  `ddtrace.contrib` package
         if "ddtrace" in dir_parts and "contrib" in dir_parts:
@@ -45,10 +47,10 @@ def _excepthook(tp, value, traceback):
                     (("integration_name", integration_name), ("error_type", tp.__name__)),
                 )
 
-    telemetry_writer.app_shutdown()
-    telemetry_writer.disable()
+        telemetry_writer.app_shutdown()
+        telemetry_writer.disable()
 
-    return _ORIGINAL_EXCEPTHOOK(tp, value, traceback)
+    return _ORIGINAL_EXCEPTHOOK(tp, value, root_traceback)
 
 
 def install_excepthook():

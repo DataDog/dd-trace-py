@@ -2,6 +2,7 @@ import os
 import re
 
 import pytest
+import six
 
 
 def test_enable(test_agent_session, run_python_code_in_subprocess):
@@ -230,9 +231,9 @@ def test_app_started_error_unhandled_exception(test_agent_session, run_python_co
     assert events[1]["request_type"] == "app-dependencies-loaded"
     assert events[2]["request_type"] == "app-started"
     assert events[2]["payload"]["error"]["code"] == 1
-    assert (
-        "/test.py:1: Unable to parse DD_SPAN_SAMPLING_RULES='invalid_rules'" in events[2]["payload"]["error"]["message"]
-    )
+
+    assert "ddtrace/internal/sampling.py" in events[2]["payload"]["error"]["message"]
+    assert "Unable to parse DD_SPAN_SAMPLING_RULES='invalid_rules'" in events[2]["payload"]["error"]["message"]
 
 
 def test_handled_integration_error(test_agent_session, run_python_code_in_subprocess):
@@ -283,3 +284,60 @@ patch(raise_errors=False, sqlite3=True)
     assert metric_events[0]["payload"]["series"][0]["type"] == "count"
     assert len(metric_events[0]["payload"]["series"][0]["points"]) == 1
     assert metric_events[0]["payload"]["series"][0]["points"][0][1] == 1
+
+
+def test_unhandled_integration_error(test_agent_session, run_python_code_in_subprocess):
+    code = """
+import logging
+logging.basicConfig()
+
+import ddtrace
+ddtrace.patch(flask=True)
+
+import flask
+f = flask.Flask("hi")
+
+# Call flask.wsgi_app with an incorrect number of args
+f.wsgi_app()
+"""
+
+    _, stderr, status, _ = run_python_code_in_subprocess(code)
+
+    assert status == 1, stderr
+
+    if six.PY2:
+        assert b"ValueError: need more than 0 values to unpack" in stderr, stderr
+    else:
+        assert b"not enough values to unpack (expected 2, got 0)" in stderr, stderr
+
+    events = test_agent_session.get_events()
+
+    assert len(events) == 5
+    # Same runtime id is used
+    assert (
+        events[0]["runtime_id"]
+        == events[1]["runtime_id"]
+        == events[2]["runtime_id"]
+        == events[3]["runtime_id"]
+        == events[4]["runtime_id"]
+    )
+
+    app_started_event = [event for event in events if event["request_type"] == "app-started"]
+    assert len(app_started_event) == 1
+    assert app_started_event[0]["payload"]["error"]["code"] == 1
+    assert "ddtrace/contrib/flask/patch.py" in app_started_event[0]["payload"]["error"]["message"]
+    if six.PY2:
+        assert b"need more than 0 values to unpack" in app_started_event[0]["payload"]["error"]["message"]
+    else:
+        assert "not enough values to unpack (expected 2, got 0)" in app_started_event[0]["payload"]["error"]["message"]
+
+    metric_events = [event for event in events if event["request_type"] == "generate-metrics"]
+
+    assert len(metric_events) == 1
+    assert metric_events[0]["payload"]["namespace"] == "tracers"
+    assert len(metric_events[0]["payload"]["series"]) == 1
+    assert metric_events[0]["payload"]["series"][0]["metric"] == "integration_errors"
+    assert metric_events[0]["payload"]["series"][0]["type"] == "count"
+    assert len(metric_events[0]["payload"]["series"][0]["points"]) == 1
+    assert metric_events[0]["payload"]["series"][0]["points"][0][1] == 1
+    assert metric_events[0]["payload"]["series"][0]["tags"] == ["integration_name:flask", "error_type:valueerror"]
