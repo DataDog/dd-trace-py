@@ -155,7 +155,7 @@ telemetry_writer.disable()
         {
             "name": TELEMETRY_PROPAGATION_STYLE_EXTRACT,
             "origin": "unknown",
-            "value": "['b3multi']",
+            "value": "b3multi",
         },
         {
             "name": TELEMETRY_PROPAGATION_STYLE_INJECT,
