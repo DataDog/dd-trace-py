@@ -5,7 +5,7 @@ import pytest
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.internal import core
 from ddtrace.internal.compat import urlencode
-from ddtrace.internal.constants import APPSEC_BLOCKED_RESPONSE_JSON
+from ddtrace.internal.constants import BLOCKED_RESPONSE_JSON
 from tests.appsec.test_processor import RULES_GOOD_PATH
 from tests.appsec.test_processor import _BLOCKED_IP
 from tests.appsec.test_telemety import _assert_generate_metrics
@@ -31,7 +31,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             resp = self.client.get("/", headers={"X-Real-Ip": _BLOCKED_IP})
             assert resp.status_code == 403
             if hasattr(resp, "text"):
-                assert resp.text == APPSEC_BLOCKED_RESPONSE_JSON
+                assert resp.text == BLOCKED_RESPONSE_JSON
 
         _assert_generate_metrics(
             self.mock_telemetry_lifecycle_writer._namespace._metrics_data,

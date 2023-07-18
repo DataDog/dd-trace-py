@@ -3,6 +3,10 @@ from typing import TYPE_CHECKING
 
 import six
 
+from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
+from ddtrace.internal.constants import REQUEST_PATH_PARAMS
+from ddtrace.internal.constants import RESPONSE_HEADERS
+
 
 if TYPE_CHECKING:
     from typing import Any
@@ -106,12 +110,12 @@ class SPAN_DATA_NAMES(object):
     REQUEST_URI_RAW = "http.request.uri"
     REQUEST_ROUTE = "http.request.route"
     REQUEST_METHOD = "http.request.method"
-    REQUEST_PATH_PARAMS = "http.request.path_params"
+    REQUEST_PATH_PARAMS = REQUEST_PATH_PARAMS
     REQUEST_COOKIES = "http.request.cookies"
     REQUEST_HTTP_IP = "http.request.remote_ip"
     REQUEST_USER_ID = "usr.id"
     RESPONSE_STATUS = "http.response.status"
-    RESPONSE_HEADERS_NO_COOKIES = "http.response.headers"
+    RESPONSE_HEADERS_NO_COOKIES = RESPONSE_HEADERS
     RESPONSE_BODY = "http.response.body"
 
 
@@ -135,7 +139,7 @@ class WAF_CONTEXT_NAMES(object):
     """string names used by the library for tagging data from requests in context"""
 
     RESULTS = "http.request.waf.results"
-    BLOCKED = "http.request.blocked"
+    BLOCKED = HTTP_REQUEST_BLOCKED
     CALLBACK = "http.request.waf.callback"
 
 

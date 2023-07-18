@@ -106,6 +106,7 @@ def patch_conn(django, conn):
         else:
             database_prefix = config.django.database_service_name_prefix
             service = "{}{}{}".format(database_prefix, alias, "db")
+            service = schematize_service_name(service)
 
         vendor = getattr(conn, "vendor", "db")
         prefix = sqlx.normalize_vendor(vendor)
