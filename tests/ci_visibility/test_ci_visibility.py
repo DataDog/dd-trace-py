@@ -15,6 +15,7 @@ from ddtrace.internal.ci_visibility.filters import TraceCiVisibilityFilter
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClient
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClientSerializerV1
 from ddtrace.internal.ci_visibility.recorder import _extract_repository_name_from_url
+from ddtrace.internal.compat import TimeoutError
 from ddtrace.internal.utils.http import Response
 from ddtrace.span import Span
 from tests.utils import DummyCIVisibilityWriter
@@ -96,6 +97,40 @@ def test_ci_visibility_service_enable_with_app_key_and_itr_disabled(_do_request)
         CIVisibility.enable(service="test-service")
         assert CIVisibility._instance._code_coverage_enabled_by_api is False
         assert CIVisibility._instance._test_skipping_enabled_by_api is False
+        CIVisibility.disable()
+
+
+@mock.patch("ddtrace.internal.ci_visibility.recorder._do_request", side_effect=TimeoutError)
+def test_ci_visibility_service_settings_timeout(_do_request):
+    with override_env(
+        dict(
+            DD_API_KEY="foobar.baz",
+            DD_APP_KEY="foobar",
+            DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+            DD_CIVISIBILITY_ITR_ENABLED="1",
+        )
+    ):
+        ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+        CIVisibility.enable(service="test-service")
+        assert CIVisibility._instance._code_coverage_enabled_by_api is False
+        assert CIVisibility._instance._test_skipping_enabled_by_api is False
+        CIVisibility.disable()
+
+
+@mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features", return_value=(True, True))
+@mock.patch("ddtrace.internal.ci_visibility.recorder._do_request", side_effect=TimeoutError)
+def test_ci_visibility_service_skippable_timeout(_do_request, _check_enabled_features):
+    with override_env(
+        dict(
+            DD_API_KEY="foobar.baz",
+            DD_APP_KEY="foobar",
+            DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+            DD_CIVISIBILITY_ITR_ENABLED="1",
+        )
+    ):
+        ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+        CIVisibility.enable(service="test-service")
+        assert CIVisibility._instance._test_suites_to_skip == []
         CIVisibility.disable()
 
 
@@ -408,8 +443,8 @@ def test_civisibilitywriter_coverage_agentless_url():
             DD_API_KEY="foobar.baz",
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
         )
-    ), mock.patch("ddtrace.internal.ci_visibility.writer.coverage_enabled", return_value=True):
-        dummy_writer = DummyCIVisibilityWriter()
+    ):
+        dummy_writer = DummyCIVisibilityWriter(coverage_enabled=True)
         assert dummy_writer.intake_url == "https://citestcycle-intake.datadoghq.com"
 
         cov_client = dummy_writer._clients[1]
@@ -426,8 +461,8 @@ def test_civisibilitywriter_coverage_agentless_with_intake_url_param():
             DD_API_KEY="foobar.baz",
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
         )
-    ), mock.patch("ddtrace.internal.ci_visibility.writer.coverage_enabled", return_value=True):
-        dummy_writer = DummyCIVisibilityWriter(intake_url="https://some-url.com")
+    ):
+        dummy_writer = DummyCIVisibilityWriter(intake_url="https://some-url.com", coverage_enabled=True)
         assert dummy_writer.intake_url == "https://some-url.com"
 
         cov_client = dummy_writer._clients[1]
@@ -443,8 +478,8 @@ def test_civisibilitywriter_coverage_evp_proxy_url():
         dict(
             DD_API_KEY="foobar.baz",
         )
-    ), mock.patch("ddtrace.internal.ci_visibility.writer.coverage_enabled", return_value=True):
-        dummy_writer = DummyCIVisibilityWriter(use_evp=True)
+    ):
+        dummy_writer = DummyCIVisibilityWriter(use_evp=True, coverage_enabled=True)
 
         test_client = dummy_writer._clients[0]
         assert test_client.ENDPOINT == "/evp_proxy/v2/api/v2/citestcycle"

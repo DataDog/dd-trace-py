@@ -117,6 +117,8 @@ kombu
 kubernetes
 kwarg
 kwargs
+LLM
+langchain
 lifecycle
 linters
 lookups

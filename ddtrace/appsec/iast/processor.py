@@ -6,10 +6,11 @@ import attr
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec.iast import oce
+from ddtrace.appsec.iast._util import _is_iast_enabled
 from ddtrace.constants import MANUAL_KEEP_KEY
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.ext import SpanTypes
-from ddtrace.internal import _context
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.processor import SpanProcessor
 
@@ -46,10 +47,24 @@ class AppSecIastSpanProcessor(SpanProcessor):
 
         span.set_metric(IAST.ENABLED, 1.0)
 
-        data = _context.get_item(IAST.CONTEXT_KEY, span=span)
+        data = core.get_item(IAST.CONTEXT_KEY, span=span)
 
         if data:
-            span.set_tag_str(IAST.JSON, json.dumps(attr.asdict(data, filter=lambda attr, x: x is not None)))
+            if _is_iast_enabled():
+                from ddtrace.appsec.iast._taint_tracking import OriginType  # noqa: F401
+                from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import origin_to_str  # noqa: F401
+
+                class OriginTypeEncoder(json.JSONEncoder):
+                    def default(self, obj):
+                        if isinstance(obj, OriginType):
+                            # if the obj is uuid, we simply return the value of uuid
+                            return origin_to_str(obj)
+                        return json.JSONEncoder.default(self, obj)
+
+                span.set_tag_str(
+                    IAST.JSON,
+                    json.dumps(attr.asdict(data, filter=lambda attr, x: x is not None), cls=OriginTypeEncoder),
+                )
 
             span.set_tag(MANUAL_KEEP_KEY)
             if span.get_tag(ORIGIN_KEY) is None:
