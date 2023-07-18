@@ -14,7 +14,7 @@ from ddtrace.ext.git import extract_commit_sha
 from ddtrace.ext.git import extract_git_version
 from ddtrace.ext.git import extract_latest_commits
 from ddtrace.ext.git import extract_remote_url
-from ddtrace.ext.git import get_rev_list
+from ddtrace.ext.git import _get_rev_list
 from ddtrace.internal.agent import get_trace_url
 from ddtrace.internal.compat import JSONDecodeError
 from ddtrace.internal.logger import get_logger
@@ -146,7 +146,7 @@ class CIVisibilityGitClient(object):
     @classmethod
     def _get_filtered_revisions(cls, excluded_commits, included_commits=None, cwd=None):
         # type: (list[str], Optional[list[str]], Optional[str]) -> str
-        return get_rev_list(excluded_commits, included_commits, cwd=cwd)
+        return _get_rev_list(excluded_commits, included_commits, cwd=cwd)
 
     @classmethod
     def _build_packfiles(cls, revisions, cwd=None):
