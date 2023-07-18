@@ -246,7 +246,7 @@ class Tracer(object):
         # traces
         self._pid = getpid()
 
-        self.enabled = config._tracing_enabled
+        self.enabled = asbool(os.getenv("DD_TRACE_ENABLED", default=True))
         self.context_provider = DefaultContextProvider()
         self._sampler = DatadogSampler()  # type: BaseSampler
         if asbool(os.getenv("DD_PRIORITY_SAMPLING", True)):
