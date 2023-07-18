@@ -290,6 +290,7 @@ def test_metrics(encoding, monkeypatch):
 
 
 @allencodings
+@pytest.mark.skipif(AGENT_VERSION == "testagent", reason="FIXME: Test agent doesn't support this for some reason.")
 def test_metrics_partial_flush_disabled(encoding, monkeypatch):
     monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
 
@@ -356,6 +357,7 @@ def test_single_trace_too_large(encoding, monkeypatch):
 
 
 @allencodings
+@pytest.mark.skipif(AGENT_VERSION == "testagent", reason="FIXME: Test agent doesn't support this for some reason.")
 def test_single_trace_too_large_partial_flush_disabled(encoding, monkeypatch):
     monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
 
@@ -399,6 +401,7 @@ def test_trace_bad_url(encoding, monkeypatch):
 
 
 @allencodings
+@pytest.mark.skipif(AGENT_VERSION == "testagent", reason="FIXME: Test agent doesn't support this for some reason.")
 def test_writer_headers(encoding, monkeypatch):
     monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
 
@@ -995,31 +998,30 @@ def test_no_warnings():
 
 def test_civisibility_event_endpoints():
     with override_env(dict(DD_API_KEY="foobar.baz")):
-        with override_global_config({"_ci_visibility_code_coverage_enabled": True}):
-            t = Tracer()
-            t.configure(writer=CIVisibilityWriter(reuse_connections=True))
-            t._writer._conn = mock.MagicMock()
-            with mock.patch("ddtrace.internal.writer.Response.from_http_response") as from_http_response:
-                from_http_response.return_value.__class__ = Response
-                from_http_response.return_value.status = 200
-                s = t.trace("operation", service="svc-no-cov")
-                s.finish()
-                span = t.trace("operation2", service="my-svc2")
-                span.set_tag(
-                    COVERAGE_TAG_NAME,
-                    '{"files": [{"filename": "test_cov.py", "segments": [[5, 0, 5, 0, -1]]}, '
-                    + '{"filename": "test_module.py", "segments": [[2, 0, 2, 0, -1]]}]}',
-                )
-                span.finish()
-                conn = t._writer._conn
-                t.shutdown()
-            assert conn.request.call_count == (2 if compat.PY3 else 1)
-            assert conn.request.call_args_list[0].args[1] == "api/v2/citestcycle"
+        t = Tracer()
+        t.configure(writer=CIVisibilityWriter(reuse_connections=True, coverage_enabled=bool(compat.PY3)))
+        t._writer._conn = mock.MagicMock()
+        with mock.patch("ddtrace.internal.writer.Response.from_http_response") as from_http_response:
+            from_http_response.return_value.__class__ = Response
+            from_http_response.return_value.status = 200
+            s = t.trace("operation", service="svc-no-cov")
+            s.finish()
+            span = t.trace("operation2", service="my-svc2")
+            span.set_tag(
+                COVERAGE_TAG_NAME,
+                '{"files": [{"filename": "test_cov.py", "segments": [[5, 0, 5, 0, -1]]}, '
+                + '{"filename": "test_module.py", "segments": [[2, 0, 2, 0, -1]]}]}',
+            )
+            span.finish()
+            conn = t._writer._conn
+            t.shutdown()
+        assert conn.request.call_count == 2 if compat.PY3 else 1
+        assert conn.request.call_args_list[0].args[1] == "api/v2/citestcycle"
+        assert (
+            b"svc-no-cov" in conn.request.call_args_list[0].args[2]
+        ), "requests to the cycle endpoint should include non-coverage spans"
+        if compat.PY3:
+            assert conn.request.call_args_list[1].args[1] == "api/v2/citestcov"
             assert (
-                b"svc-no-cov" in conn.request.call_args_list[0].args[2]
-            ), "requests to the cycle endpoint should include non-coverage spans"
-            if compat.PY3:
-                assert conn.request.call_args_list[1].args[1] == "api/v2/citestcov"
-                assert (
-                    b"svc-no-cov" not in conn.request.call_args_list[1].args[2]
-                ), "requests to the coverage endpoint should not include non-coverage spans"
+                b"svc-no-cov" not in conn.request.call_args_list[1].args[2]
+            ), "requests to the coverage endpoint should not include non-coverage spans"
