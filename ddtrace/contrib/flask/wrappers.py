@@ -58,8 +58,9 @@ def wrap_function(instance, func, name=None, resource=None):
         pin = Pin._find(wrapped, _instance, instance, get_current_app())
         if not pin or not pin.enabled():
             return wrapped(*args, **kwargs)
-        with pin.tracer.trace(name, service=trace_utils.int_service(pin, config.flask), resource=resource) as span:
-            span.set_tag_str(COMPONENT, config.flask.integration_name)
+        with core.context_with_data(
+            "flask.function", name=name, pin=pin, flask_config=config.flask, resource=resource
+        ) as ctx, ctx.get_item("flask_function_call"):
             return wrapped(*args, **kwargs)
 
     return trace_func(func)

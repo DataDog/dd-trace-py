@@ -316,6 +316,16 @@ def _on_signal_context_started_flask(ctx):
     ctx.set_item("flask_signal_call", span)
 
 
+def _on_function_context_started_flask(ctx):
+    pin = ctx.get_item("pin")
+    name = ctx.get_item("name")
+    flask_config = ctx.get_item("flask_config")
+    resource = ctx.get_item("resource")
+    span = pin.tracer.trace(name, service=trace_utils.int_service(pin, flask_config), resource=resource)
+    span.set_tag_str(COMPONENT, flask_config.integration_name)
+    ctx.set_item("flask_function_call", span)
+
+
 def _on_request_span_modifier(span, flask_config, request, environ, _HAS_JSON_MIXIN, flask_version, flask_version_str):
     # Default resource is method and path:
     #   GET /
@@ -373,3 +383,4 @@ def listen():
     core.on("context.started.flask.jsonify", _on_jsonify_context_started_flask)
     core.on("context.started.flask.render_template", _on_render_template_context_started_flask)
     core.on("context.started.flask.signal", _on_signal_context_started_flask)
+    core.on("context.started.flask.function", _on_function_context_started_flask)
