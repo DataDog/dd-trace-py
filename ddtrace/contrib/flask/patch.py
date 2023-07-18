@@ -249,7 +249,7 @@ def patch():
     _w("flask", "send_file", simple_tracer("flask.send_file"))
 
     # flask.json.jsonify
-    _w("flask", "jsonify", traced_jsonify)
+    _w("flask", "jsonify", patched_jsonify)
 
     # flask.templating traced functions
     _w("flask.templating", "_render", traced_render)
@@ -588,7 +588,7 @@ def traced_signal_receivers_for(signal):
     return outer
 
 
-def traced_jsonify(wrapped, instance, args, kwargs):
+def patched_jsonify(wrapped, instance, args, kwargs):
     pin = Pin._find(wrapped, instance, get_current_app())
     if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)
