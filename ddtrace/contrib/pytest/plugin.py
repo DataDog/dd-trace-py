@@ -39,7 +39,6 @@ from ddtrace.internal.ci_visibility.constants import SUITE_TYPE as _SUITE_TYPE
 from ddtrace.internal.ci_visibility.coverage import _coverage_end
 from ddtrace.internal.ci_visibility.coverage import _coverage_start
 from ddtrace.internal.ci_visibility.coverage import _initialize
-from ddtrace.internal.ci_visibility.coverage import enabled as coverage_enabled
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 
@@ -388,7 +387,7 @@ def pytest_runtest_protocol(item, nextitem):
         if pytest_module_item is not None and test_suite_span is None:
             test_suite_span = _start_test_suite_span(pytest_module_item, test_module_span)
             # Start coverage for the test suite if coverage is enabled
-            if coverage_enabled():
+            if _CIVisibility._instance._collect_coverage_enabled:
                 _initialize(str(item.config.rootdir))
                 _coverage_start()
 
@@ -458,7 +457,7 @@ def pytest_runtest_protocol(item, nextitem):
         ):
             _mark_test_status(pytest_module_item, test_suite_span)
             # Finish coverage for the test suite if coverage is enabled
-            if coverage_enabled():
+            if _CIVisibility._instance._collect_coverage_enabled:
                 _coverage_end(test_suite_span)
             test_suite_span.finish()
 
