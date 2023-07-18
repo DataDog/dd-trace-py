@@ -359,6 +359,7 @@ class CMakeBuild(build_ext):
                 shutil.copy(os.path.join(IAST_DIR, tmp_filename), tmp_iast_file_path)
             except Exception as e:
                 print("WARNING: Failed to build IAST extensions, skipping: %s" % e)
+                build_ext.build_extension(self, ext)
         else:
             build_ext.build_extension(self, ext)
 
