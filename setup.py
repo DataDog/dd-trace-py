@@ -304,7 +304,7 @@ class CMakeBuild(build_ext):
                 from platform import mac_ver
 
                 mac_version = [int(i) for i in mac_ver()[0].split(".")]
-                return mac_version > [10, 9]
+                return mac_version > [10, 9] and sys.version_info > (3, 7, 0)
             return True
 
         try:
