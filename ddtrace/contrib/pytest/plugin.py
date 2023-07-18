@@ -71,6 +71,16 @@ def _store_span(item, span):
     setattr(item, "_datadog_span", span)
 
 
+def _extract_module_span(item):
+    """Extract span from `pytest.Item` instance."""
+    return getattr(item, "_datadog_span_module", None)
+
+
+def _store_module_span(item, span):
+    """Store span at `pytest.Item` instance."""
+    setattr(item, "_datadog_span_module", span)
+
+
 def _mark_failed(item):
     """Store test failed status at `pytest.Item` instance."""
     if item.parent:
@@ -187,20 +197,23 @@ def _start_test_module_span(pytest_package_item=None, pytest_module_item=None):
     test_module_span.set_tag_str(test.MODULE_PATH, _get_module_path(item))
     if is_package:
         _store_span(item, test_module_span)
+    else:
+        _store_module_span(item, test_module_span)
     return test_module_span, is_package
 
 
-def _start_test_suite_span(item):
+def _start_test_suite_span(item, test_module_span=None):
     """
     Starts a test suite span at the start of a new pytest test module.
     Note that ``item`` is a ``pytest.Module`` object referencing the test file being run.
     """
     test_session_span = _extract_span(item.session)
-    parent_span = test_session_span
-    test_module_span = None
-    if isinstance(item.parent, pytest.Package):
+    if test_module_span is None and isinstance(item.parent, pytest.Package):
         test_module_span = _extract_span(item.parent)
-        parent_span = test_module_span
+
+    parent_span = test_module_span
+    if parent_span is None:
+        parent_span = test_session_span
 
     test_suite_span = _CIVisibility._instance.tracer._start_span(
         "pytest.test_suite",
@@ -360,14 +373,20 @@ def pytest_runtest_protocol(item, nextitem):
         pytest_module_item = _find_pytest_item(item, pytest.Module)
         pytest_package_item = _find_pytest_item(pytest_module_item, pytest.Package)
 
-        test_module_span = _extract_span(pytest_package_item)
         module_is_package = True
+
+        test_module_span = _extract_span(pytest_package_item)
+        if not test_module_span:
+            test_module_span = _extract_module_span(pytest_module_item)
+            if test_module_span:
+                module_is_package = False
+
         if test_module_span is None:
             test_module_span, module_is_package = _start_test_module_span(pytest_package_item, pytest_module_item)
 
         test_suite_span = _extract_span(pytest_module_item)
         if pytest_module_item is not None and test_suite_span is None:
-            test_suite_span = _start_test_suite_span(pytest_module_item)
+            test_suite_span = _start_test_suite_span(pytest_module_item, test_module_span)
             # Start coverage for the test suite if coverage is enabled
             if coverage_enabled():
                 _initialize(str(item.config.rootdir))
