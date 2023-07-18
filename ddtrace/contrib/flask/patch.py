@@ -547,17 +547,12 @@ def _block_request_callable(call):
 def request_patcher(name):
     @with_instance_pin
     def _patched_request(pin, wrapped, instance, args, kwargs):
-        current_span = pin.tracer.current_span()
-        if not pin.enabled or not current_span:
-            return wrapped(*args, **kwargs)
-
         with core.context_with_data(
             "flask._patched_request",
             name=".".join(("flask", name)),
             pin=pin,
             flask_config=config.flask,
             flask_request=flask.request,
-            current_span=current_span,
             block_request_callable=_block_request_callable,
         ) as ctx, ctx.get_item("flask_request_span"):
             return wrapped(*args, **kwargs)

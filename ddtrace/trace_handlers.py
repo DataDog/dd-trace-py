@@ -14,6 +14,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal.compat import maybe_stringify
+from ddtrace.internal.compat import nullcontext
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import FLASK_ENDPOINT
 from ddtrace.internal.constants import FLASK_URL_RULE
@@ -250,9 +251,15 @@ def _on_traced_request_context_started_flask(ctx):
     This wrapper will add identifier tags to the current span from `flask.app.Flask.wsgi_app`.
     """
     pin = ctx.get_item("pin")
+    current_span = pin.tracer.current_span()
+    if not pin.enabled or not current_span:
+        ctx.set_item("flask_request_span", nullcontext())
+        return
+
+    ctx.set_item("current_span", current_span)
     flask_config = ctx.get_item("flask_config")
     service = trace_utils.int_service(pin, flask_config, pin)
-    _set_request_tags(ctx.get_item("flask_request"), ctx.get_item("current_span"), flask_config)
+    _set_request_tags(ctx.get_item("flask_request"), current_span, flask_config)
     request_span = pin.tracer.trace(ctx.get_item("name"), service=service)
     ctx.set_item("flask_request_span", request_span)
     request_span.set_tag_str(COMPONENT, flask_config.integration_name)
