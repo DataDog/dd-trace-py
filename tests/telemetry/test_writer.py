@@ -275,14 +275,14 @@ def test_app_client_configuration_changed_event(telemetry_writer, test_agent_ses
     # assert the latest configuration value is send to the agent
     assert received_configurations == [
         {
-            "name": "appsec_enabled",
-            "origin": "env_var",
-            "value": False,
-        },
-        {
             "name": TELEMETRY_PROPAGATION_STYLE_EXTRACT,
             "origin": "unknown",
             "value": "datadog",
+        },
+        {
+            "name": "appsec_enabled",
+            "origin": "env_var",
+            "value": False,
         },
     ]
 
