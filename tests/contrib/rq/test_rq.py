@@ -9,8 +9,8 @@ import rq
 
 from ddtrace import Pin
 from ddtrace.contrib.rq import patch
-from ddtrace.contrib.rq import rq_version
 from ddtrace.contrib.rq import unpatch
+from ddtrace.contrib.rq.patch import rq_version
 from tests.utils import override_config
 from tests.utils import snapshot
 from tests.utils import snapshot_context
