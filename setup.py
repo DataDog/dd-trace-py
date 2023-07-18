@@ -292,7 +292,6 @@ class CleanLibraries(CleanCommand):
 
 class CMakeBuild(build_ext):
     def build_extension(self, ext):
-
         tmp_iast_file_path = os.path.abspath(self.get_ext_fullpath(ext.name))
         tmp_iast_path = os.path.join(os.path.dirname(tmp_iast_file_path))
         tmp_filename = tmp_iast_file_path.replace(tmp_iast_path + os.path.sep, "")
@@ -304,7 +303,7 @@ class CMakeBuild(build_ext):
                 from platform import mac_ver
 
                 mac_version = [int(i) for i in mac_ver()[0].split(".")]
-                return mac_version > [10, 9] and sys.version_info > (3, 7, 0)
+                return mac_version > [10, 9]
             return True
 
         try:
@@ -314,8 +313,6 @@ class CMakeBuild(build_ext):
                 and os.path.exists(cmake_list_path)
                 and mac_supported_iast_version()
             ):
-                import shutil
-
                 os.makedirs(tmp_iast_path, exist_ok=True)
 
                 import subprocess
@@ -360,18 +357,20 @@ class CMakeBuild(build_ext):
 
                 build_command = [cmake_command, "--build", tmp_iast_path] + build_args
                 subprocess.run(build_command, cwd=tmp_iast_path, check=True)
-
-                for directory_to_remove in ["_deps", "CMakeFiles"]:
-                    shutil.rmtree(os.path.join(tmp_iast_path, directory_to_remove))
-                for file_to_remove in ["Makefile", "cmake_install.cmake", "compile_commands.json", "CMakeCache.txt"]:
-                    if os.path.exists(os.path.join(tmp_iast_path, file_to_remove)):
-                        os.remove(os.path.join(tmp_iast_path, file_to_remove))
-
-                shutil.copy(os.path.join(IAST_DIR, tmp_filename), tmp_iast_file_path)
             else:
                 build_ext.build_extension(self, ext)
         except Exception as e:
             print("WARNING: Failed to build IAST extensions, skipping: %s" % e)
+        finally:
+            import shutil
+
+            for directory_to_remove in ["_deps", "CMakeFiles"]:
+                shutil.rmtree(os.path.join(tmp_iast_path, directory_to_remove))
+            for file_to_remove in ["Makefile", "cmake_install.cmake", "compile_commands.json", "CMakeCache.txt"]:
+                if os.path.exists(os.path.join(tmp_iast_path, file_to_remove)):
+                    os.remove(os.path.join(tmp_iast_path, file_to_remove))
+
+            shutil.copy(os.path.join(IAST_DIR, tmp_filename), tmp_iast_file_path)
 
 
 long_description = """
