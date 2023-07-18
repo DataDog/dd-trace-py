@@ -70,8 +70,6 @@ def wrap_function(instance, func, name=None, resource=None):
 
 
 def simple_call_wrapper(name, span_type=None):
-    """Generate a simple tracer that wraps the function call with `with tracer.trace()`"""
-
     @with_instance_pin
     def wrapper(pin, wrapped, instance, args, kwargs):
         return _wrap_call(wrapped, pin, name, span_type=span_type, args=args, kwargs=kwargs)
