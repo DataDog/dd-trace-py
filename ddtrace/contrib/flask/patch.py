@@ -488,13 +488,6 @@ def _build_render_template_wrapper(name):
 
 
 def patched_render(wrapped, instance, args, kwargs):
-    """
-    Wrapper for flask.templating._render
-
-    This wrapper is used for setting template tags on the span.
-
-    This method is called for render_template or render_template_string
-    """
     pin = Pin._find(wrapped, instance, get_current_app())
 
     if not pin.enabled:
