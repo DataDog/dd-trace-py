@@ -1,13 +1,21 @@
 from platform import system
+from platform import mac_ver
 import sys
 
 import ddtrace.appsec.ddwaf
 import ddtrace.bootstrap.sitecustomize as module
 
 
+def mac_supported_iast_version():
+    if system() == "Darwin":
+        mac_version = [int(i) for i in mac_ver()[0].split(".")]
+        return mac_version > [10, 9]
+    return True
+
+
 if __name__ == "__main__":
     # ASM IAST smoke test
-    if sys.version_info >= (3, 6, 0) and system() != "Windows":
+    if sys.version_info >= (3, 6, 0) and system() != "Windows" and mac_supported_iast_version():
         from ddtrace.appsec.iast._taint_tracking._native import ops
 
         assert ops
