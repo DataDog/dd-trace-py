@@ -129,7 +129,7 @@ def retrieve_task_id(context):
     """
     headers = context.get("headers")
     body = context.get("body")
-    if headers and headers.get('task'):
+    if headers and headers.get("task"):
         # Protocol Version 2 (default from Celery 4.0)
         return headers.get("id")
     else:
