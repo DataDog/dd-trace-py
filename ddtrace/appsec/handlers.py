@@ -5,11 +5,10 @@ from six import BytesIO
 import xmltodict
 
 from ddtrace import config
-from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
 from ddtrace.appsec.iast._util import _is_iast_enabled
 from ddtrace.internal import core
+from ddtrace.internal.constants import REQUEST_PATH_PARAMS
 from ddtrace.internal.logger import get_logger
 
 
@@ -31,7 +30,7 @@ def _on_wrapped_view(kwargs):
     if config._appsec_enabled and _asm_request_context.in_context():
         log.debug("Flask WAF call for Suspicious Request Blocking on request")
         if kwargs:
-            _asm_request_context.set_waf_address(SPAN_DATA_NAMES.REQUEST_PATH_PARAMS, kwargs)
+            _asm_request_context.set_waf_address(REQUEST_PATH_PARAMS, kwargs)
         _asm_request_context.call_waf_callback()
         if _asm_request_context.is_blocked():
             callback_block = _asm_request_context.get_value(_asm_request_context._CALLBACKS, "flask_block")
@@ -39,23 +38,26 @@ def _on_wrapped_view(kwargs):
 
     # If IAST is enabled, taint the Flask function kwargs (path parameters)
     if _is_iast_enabled() and kwargs:
-        from ddtrace.appsec.iast._input_info import Input_info
+        from ddtrace.appsec.iast._taint_tracking import OriginType
         from ddtrace.appsec.iast._taint_tracking import taint_pyobject
 
         _kwargs = {}
         for k, v in kwargs.items():
-            _kwargs[k] = taint_pyobject(v, Input_info(k, v, IAST.HTTP_REQUEST_PATH_PARAMETER))
+            _kwargs[k] = taint_pyobject(
+                pyobject=v, source_name=k, source_value=v, source_origin=OriginType.PATH_PARAMETER
+            )
         return_value[1] = _kwargs
     return return_value
 
 
 def _on_set_request_tags(request):
     if _is_iast_enabled():
+        from ddtrace.appsec.iast._taint_tracking import OriginType
         from ddtrace.appsec.iast._taint_utils import LazyTaintDict
 
         return LazyTaintDict(
             request.cookies,
-            origins=(IAST.HTTP_REQUEST_COOKIE_NAME, IAST.HTTP_REQUEST_COOKIE_VALUE),
+            origins=(OriginType.COOKIE_NAME, OriginType.COOKIE),
             override_pyobject_tainted=True,
         )
 
