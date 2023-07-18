@@ -748,8 +748,6 @@ def test_run_protocol_does_not_unshallow_git_lt_227():
             _upload_packfiles=mock.DEFAULT,
         ):
             with mock.patch.object(CIVisibilityGitClient, "_unshallow_repository") as mock_unshallow_repository:
-                # import pdb;
-                # pdb.set_trace()
                 CIVisibilityGitClient._run_protocol(None, None, None)
 
             mock_unshallow_repository.assert_not_called()
