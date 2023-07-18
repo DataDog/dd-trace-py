@@ -367,8 +367,9 @@ class CMakeBuild(build_ext):
                 for file_to_remove in ["Makefile", "cmake_install.cmake", "compile_commands.json", "CMakeCache.txt"]:
                     if os.path.exists(os.path.join(tmp_iast_path, file_to_remove)):
                         os.remove(os.path.join(tmp_iast_path, file_to_remove))
-
-                shutil.copy(os.path.join(IAST_DIR, tmp_filename), tmp_iast_file_path)
+                iast_artifact = os.path.join(IAST_DIR, tmp_filename)
+                if os.path.exists(iast_artifact):
+                    shutil.copy(iast_artifact, tmp_iast_file_path)
         else:
             build_ext.build_extension(self, ext)
 
