@@ -7,6 +7,8 @@ import httpretty
 import mock
 import pytest
 
+from ddtrace.internal.telemetry.constants import TELEMETRY_PROPAGATION_STYLE_EXTRACT
+from ddtrace.internal.telemetry.constants import TELEMETRY_PROPAGATION_STYLE_INJECT
 from ddtrace.internal.telemetry.data import get_application
 from ddtrace.internal.telemetry.data import get_dependencies
 from ddtrace.internal.telemetry.data import get_host_info
@@ -70,12 +72,12 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
     payload = {
         "configuration": [
             {
-                "name": "DD_TRACE_PROPAGATION_STYLE_EXTRACT",
+                "name": TELEMETRY_PROPAGATION_STYLE_EXTRACT,
                 "origin": "unknown",
                 "value": "tracecontext,datadog",
             },
             {
-                "name": "DD_TRACE_PROPAGATION_STYLE_INJECT",
+                "name": TELEMETRY_PROPAGATION_STYLE_INJECT,
                 "origin": "unknown",
                 "value": "tracecontext,datadog",
             },
@@ -138,8 +140,8 @@ telemetry_writer.disable()
     env = os.environ.copy()
     # Change configuration default values
     env["DD_DATA_STREAMS_ENABLED"] = "true"
-    env["DD_TRACE_PROPAGATION_STYLE_EXTRACT"] = "b3multi"
-    env["DD_TRACE_PROPAGATION_STYLE_INJECT"] = "datadog"
+    env[TELEMETRY_PROPAGATION_STYLE_EXTRACT] = "b3multi"
+    env[TELEMETRY_PROPAGATION_STYLE_INJECT] = "datadog"
     env["DD_TRACE_OTEL_ENABLED"] = "true"
     env["DD_RUNTIME_METRICS_ENABLED"] = "true"
 
@@ -151,12 +153,12 @@ telemetry_writer.disable()
     events[0]["payload"]["configuration"].sort(key=lambda c: c["name"])
     configuration = [
         {
-            "name": "DD_TRACE_PROPAGATION_STYLE_EXTRACT",
+            "name": TELEMETRY_PROPAGATION_STYLE_EXTRACT,
             "origin": "unknown",
             "value": "b3multi",
         },
         {
-            "name": "DD_TRACE_PROPAGATION_STYLE_INJECT",
+            "name": TELEMETRY_PROPAGATION_STYLE_INJECT,
             "origin": "unknown",
             "value": "datadog",
         },
@@ -258,7 +260,7 @@ def test_app_client_configuration_changed_event(telemetry_writer, test_agent_ses
     """asserts that queuing a configuration sends a valid telemetry request"""
 
     telemetry_writer.add_configuration("appsec_enabled", True)
-    telemetry_writer.add_configuration("DD_TRACE_PROPAGATION_STYLE_EXTRACT", "datadog")
+    telemetry_writer.add_configuration(TELEMETRY_PROPAGATION_STYLE_EXTRACT, "datadog")
     telemetry_writer.add_configuration("appsec_enabled", False, "env_var")
 
     telemetry_writer.periodic()
@@ -273,7 +275,7 @@ def test_app_client_configuration_changed_event(telemetry_writer, test_agent_ses
     # assert the latest configuration value is send to the agent
     assert received_configurations == [
         {
-            "name": "DD_TRACE_PROPAGATION_STYLE_EXTRACT",
+            "name": TELEMETRY_PROPAGATION_STYLE_EXTRACT,
             "origin": "unknown",
             "value": "datadog",
         },
