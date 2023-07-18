@@ -269,7 +269,7 @@ def test_is_shallow_repository_false(git_repo):
 
 def test_unshallow_repository(git_repo):
     with mock.patch(
-        "ddtrace.ext.git.extract_clone_defaultremotename", return_value="myremote"
+        "ddtrace.ext.git._extract_clone_defaultremotename", return_value="myremote"
     ) as mock_defaultremotename:
         with mock.patch(
             "ddtrace.ext.git.extract_commit_sha", return_value="mycommitshaaaaaaaaaaaa123"
