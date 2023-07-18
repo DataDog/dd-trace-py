@@ -1,4 +1,3 @@
-from platform import mac_ver
 from platform import system
 import sys
 
@@ -8,8 +7,10 @@ import ddtrace.bootstrap.sitecustomize as module
 
 def mac_supported_iast_version():
     if system() == "Darwin":
-        mac_version = [int(i) for i in mac_ver()[0].split(".")]
-        return mac_version > [10, 9]
+        # TODO: MacOS 10.9 or lower has a old GCC version but cibuildwheel has a GCC old version in newest mac versions
+        # mac_version = [int(i) for i in mac_ver()[0].split(".")]
+        # mac_version > [10, 9]
+        return False
     return True
 
 
