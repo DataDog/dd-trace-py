@@ -6,8 +6,8 @@ To start the service manually, invoke the ``enable`` method::
     from ddtrace.internal.telemetry import telemetry_writer
     telemetry_writer.enable()
 """
-import sys
 import os
+import sys
 
 from .writer import TelemetryWriter
 
