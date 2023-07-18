@@ -313,7 +313,7 @@ def _on_signal_context_started_flask(ctx):
     span = pin.tracer.trace(name, service=trace_utils.int_service(pin, flask_config))
     span.set_tag_str(COMPONENT, flask_config.integration_name)
     span.set_tag_str("flask.signal", signal)
-    ctx.set_item("flask_signal_call", span)
+    ctx.set_item("flask_call", span)
 
 
 def _on_function_context_started_flask(ctx):
@@ -321,9 +321,12 @@ def _on_function_context_started_flask(ctx):
     name = ctx.get_item("name")
     flask_config = ctx.get_item("flask_config")
     resource = ctx.get_item("resource")
-    span = pin.tracer.trace(name, service=trace_utils.int_service(pin, flask_config), resource=resource)
+    kwargs = {"service": trace_utils.int_service(pin, flask_config)}
+    if resource:
+        kwargs["resource"] = resource
+    span = pin.tracer.trace(name, **kwargs)
     span.set_tag_str(COMPONENT, flask_config.integration_name)
-    ctx.set_item("flask_function_call", span)
+    ctx.set_item("flask_call", span)
 
 
 def _on_request_span_modifier(span, flask_config, request, environ, _HAS_JSON_MIXIN, flask_version, flask_version_str):

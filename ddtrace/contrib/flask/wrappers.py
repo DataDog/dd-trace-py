@@ -60,7 +60,7 @@ def wrap_function(instance, func, name=None, resource=None):
             return wrapped(*args, **kwargs)
         with core.context_with_data(
             "flask.function", name=name, pin=pin, flask_config=config.flask, resource=resource
-        ) as ctx, ctx.get_item("flask_function_call"):
+        ) as ctx, ctx.get_item("flask_call"):
             return wrapped(*args, **kwargs)
 
     return trace_func(func)
@@ -82,7 +82,7 @@ def wrap_signal(app, signal, func):
 
         with core.context_with_data(
             "flask.signal", name=name, signal=signal, pin=pin, flask_config=config.flask
-        ) as ctx, ctx.get_item("flask_signal_call"):
+        ) as ctx, ctx.get_item("flask_call"):
             return wrapped(*args, **kwargs)
 
     return patch_func(func)
