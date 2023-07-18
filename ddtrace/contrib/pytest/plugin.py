@@ -168,8 +168,7 @@ def _get_module_name(item, is_package=True):
     """Extract module name (fully qualified) from a `pytest.Item` instance."""
     if is_package:
         return item.module.__name__
-    return item.nodeid.rpartition("/")[0].replace("/", ".")       
-    return item.module.__name__
+    return item.nodeid.rpartition("/")[0].replace("/", ".")
 
 
 def _get_suite_name(item, test_module_path=None):
@@ -223,7 +222,7 @@ def _start_test_module_span(pytest_package_item=None, pytest_module_item=None):
     return test_module_span, is_package
 
 
-def _start_test_suite_span(item, test_module_span=None, should_enable_coverage=False):
+def _start_test_suite_span(item, test_module_span, should_enable_coverage=False):
     """
     Starts a test suite span at the start of a new pytest test module.
     Note that ``item`` is a ``pytest.Module`` object referencing the test file being run.
@@ -440,23 +439,22 @@ def pytest_runtest_protocol(item, nextitem):
         span.set_tag_str(_EVENT_TYPE, SpanTypes.TEST)
         span.set_tag_str(test.NAME, item.name)
         span.set_tag_str(test.COMMAND, _get_pytest_command(item.config))
+
         if test_session_span is not None:
             span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
 
-        if test_module_span is not None:
             span.set_tag_str(_MODULE_ID, str(test_module_span.span_id))
             span.set_tag_str(test.MODULE, test_module_span.get_tag(test.MODULE))
             span.set_tag_str(test.MODULE_PATH, test_module_span.get_tag(test.MODULE_PATH))
 
-        if test_suite_span is not None:
-            span.set_tag_str(_SUITE_ID, str(test_suite_span.span_id))
-            test_class_hierarchy = _get_test_class_hierarchy(item)
-            if test_class_hierarchy:
-                span.set_tag_str(test.CLASS_HIERARCHY, test_class_hierarchy)
-            if hasattr(item, "dtest") and isinstance(item.dtest, DocTest):
-                span.set_tag_str(test.SUITE, "{}.py".format(item.dtest.globs["__name__"]))
-            else:
-                span.set_tag_str(test.SUITE, test_suite_span.get_tag(test.SUITE))
+        span.set_tag_str(_SUITE_ID, str(test_suite_span.span_id))
+        test_class_hierarchy = _get_test_class_hierarchy(item)
+        if test_class_hierarchy:
+            span.set_tag_str(test.CLASS_HIERARCHY, test_class_hierarchy)
+        if hasattr(item, "dtest") and isinstance(item.dtest, DocTest):
+            span.set_tag_str(test.SUITE, "{}.py".format(item.dtest.globs["__name__"]))
+        else:
+            span.set_tag_str(test.SUITE, test_suite_span.get_tag(test.SUITE))
 
         span.set_tag_str(test.TYPE, SpanTypes.TEST)
         span.set_tag_str(test.FRAMEWORK_VERSION, pytest.__version__)
@@ -499,9 +497,7 @@ def pytest_runtest_protocol(item, nextitem):
             _detach_coverage(item, span)
 
     nextitem_pytest_module_item = _find_pytest_item(nextitem, pytest.Module)
-    if test_suite_span is not None and (
-        nextitem is None or nextitem_pytest_module_item != pytest_module_item and not test_suite_span.finished
-    ):
+    if nextitem is None or nextitem_pytest_module_item != pytest_module_item and not test_suite_span.finished:
         _mark_test_status(pytest_module_item, test_suite_span)
         # Finish coverage for the test suite if coverage is enabled
         if (
@@ -512,12 +508,12 @@ def pytest_runtest_protocol(item, nextitem):
             _detach_coverage(pytest_module_item, test_suite_span)
         test_suite_span.finish()
 
-        if not test_module_span._get_ctx_item("is_package"):
+        if not module_is_package:
             test_module_span.set_tag_str(test.STATUS, test_suite_span.get_tag(test.STATUS))
             test_module_span.finish()
         else:
             nextitem_pytest_package_item = _find_pytest_item(nextitem, pytest.Package)
-            if test_module_span is not None and (
+            if (
                 nextitem is None
                 or nextitem_pytest_package_item != pytest_package_item
                 and not test_module_span.finished
