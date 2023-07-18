@@ -18,41 +18,90 @@ on:
     types:
       - published
   workflow_dispatch:
-    inputs:
-      expectedVersion:
-        description: 'Expected version string'
-        required: true
   schedule:
     # Nightly builds after weekdays
     - cron:  0 2 * * 2-6
 
 jobs:
+  generate_wheels_matrix:
+    name: Generate wheels matrix
+    runs-on: ubuntu-latest
+    outputs:
+      include: ${{ steps.set-matrix.outputs.include }}
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install cibuildwheel
+        run: pipx install cibuildwheel==2.12.3
+      - id: set-matrix
+        run: |
+          MATRIX=$(
+            {
+              cibuildwheel --print-build-identifiers --platform linux \
+              | jq -nRc '{"only": inputs, "os": "ubuntu-latest"}' \
+              && cibuildwheel --print-build-identifiers --platform macos \
+              | jq -nRc '{"only": inputs, "os": "macos-latest"}' \
+              && cibuildwheel --print-build-identifiers --platform windows \
+              | jq -nRc '{"only": inputs, "os": "windows-latest"}'
+            } | jq -sc
+          )
+          echo $MATRIX
+          echo "include=$MATRIX" >> $GITHUB_OUTPUT
+    env:
+      CIBW_ARCHS_LINUX: x86_64 i686 aarch64
+      CIBW_ARCHS_MACOS: x86_64 universal2
+      CIBW_ARCHS_WINDOWS: AMD64 x86
+      CIBW_SKIP: "cp35* pp*"
+
   build_wheels_py27_35:
-    name: Build and test wheels on ${{ matrix.os }} (${{ matrix.archs }})
+    name: Build wheel ${{ matrix.pyver}} on ${{ matrix.os }} ${{ matrix.arch }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         include:
          - os: ubuntu-latest
-           archs: x86_64 i686
+           pyver: cp27
+           arch: x86_64
          - os: ubuntu-latest
-           archs: aarch64
+           pyver: cp27
+           arch: i686
          - os: windows-latest
-           archs: AMD64 x86
+           pyver: cp27
+           arch: AMD64
+         - os: windows-latest
+           pyver: cp27
+           arch: x86
          - os: macos-latest
-           # universal2 and arm64 builds require CPython 3.8 or newer:
-           # https://cibuildwheel.readthedocs.io/en/stable/faq/#universal2
-           archs: x86_64 universal2
+           pyver: cp27
+           arch: x86_64
+         - os: macos-latest
+           pyver: cp27
+           arch: universal2
+         - os: ubuntu-latest
+           pyver: cp35
+           arch: x86_64
+         - os: ubuntu-latest
+           pyver: cp35
+           arch: i686
+         - os: ubuntu-latest
+           pyver: cp35
+           arch: aarch64
+         - os: windows-latest
+           pyver: cp35
+           arch: AMD64
+         - os: windows-latest
+           pyver: cp35
+           arch: x86
+         - os: macos-latest
+           pyver: cp35
+           arch: x86_64
+         - os: macos-latest
+           pyver: cp35
+           arch: universal2
     steps:
       - uses: actions/checkout@v3
         # Include all history and tags
         with:
           fetch-depth: 0
-
-      - uses: actions/setup-python@v4
-        name: Install Python
-        with:
-          python-version: '3.8'
 
       - name: Set up QEMU
         if: runner.os == 'Linux'
@@ -60,16 +109,11 @@ jobs:
         with:
           platforms: all
 
-      - name: Build wheels python 2.7 and 3.5
+      - name: Build wheel
         uses: joerick/cibuildwheel@v1.12.0
         env:
-          # configure cibuildwheel to build native archs ('auto'), and some
-          # emulated ones
-          CIBW_ARCHS: ${{ matrix.archs }}
-          # PyPY is not supported
-          # Windows 2.7 wheels no longer can be built https://github.com/DataDog/dd-trace-py/pull/2344
-          CIBW_SKIP: cp27-win*
-          CIBW_BUILD: cp27* cp35*
+          CIBW_BUILD: ${{ matrix.pyver}}-*
+          CIBW_ARCHS: ${{ matrix.arch }}
           # Run a smoke test on every supported platform
           CIBW_TEST_COMMAND: python {project}/tests/smoke_test.py
           # Testing arm on MacOS is currently not supported by Github
@@ -83,44 +127,29 @@ jobs:
         with:
           path: ./wheelhouse/*.whl
 
+
   build_wheels_py3:
-    name: Build and test wheels on ${{ matrix.os }} (${{ matrix.archs }})
+    name: Build wheel ${{ matrix.only }} on ${{ matrix.os }}
+    needs: generate_wheels_matrix
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        include:
-         - os: ubuntu-latest
-           archs: x86_64 i686
-         - os: ubuntu-latest
-           archs: aarch64
-         - os: windows-latest
-           archs: AMD64 x86
-         - os: macos-latest
-           archs: x86_64 universal2
+        include: ${{ fromJson(needs.generate_wheels_matrix.outputs.include) }}
     steps:
       - uses: actions/checkout@v3
         # Include all history and tags
         with:
           fetch-depth: 0
-
-      - uses: actions/setup-python@v4
-        name: Install Python
-        with:
-          python-version: '3.8'
-
       - name: Set up QEMU
         if: runner.os == 'Linux'
         uses: docker/setup-qemu-action@v2
         with:
           platforms: all
-
-      - name: Build wheels python 3.6 and above
+      - name: Build wheel
         uses: pypa/cibuildwheel@v2.12.3
+        with:
+          only: ${{ matrix.only }}
         env:
-          # configure cibuildwheel to build native archs ('auto'), and some
-          # emulated ones
-          CIBW_ARCHS: ${{ matrix.archs }}
-          CIBW_BUILD: cp3*
           # Run a smoke test on every supported platform
           CIBW_TEST_COMMAND: python {project}/tests/smoke_test.py
           # Testing arm on MacOS is currently not supported by Github
@@ -129,7 +158,6 @@ jobs:
           # `platform.mac_ver()` reports incorrect MacOS version at 11.0
           # See: https://stackoverflow.com/a/65402241
           CIBW_ENVIRONMENT_MACOS: SYSTEM_VERSION_COMPAT=0
-
       - uses: actions/upload-artifact@v3
         with:
           path: ./wheelhouse/*.whl
@@ -189,22 +217,13 @@ jobs:
   upload_pypi:
     needs: [build_wheels_py27_35, build_wheels_py3, test_alpine_sdist]
     runs-on: ubuntu-latest
-    if: (github.event_name == 'release' && github.event.action == 'published') || (github.event_name == 'workflow_dispatch')
+    if: (github.event_name == 'release' && github.event.action == 'published')
     steps:
       - uses: actions/download-artifact@v3
         with:
           name: artifact
           path: dist
 
-      - uses: actions/checkout@v3
-        if: github.event_name == 'workflow_dispatch'
-        # Include all history and tags
-        with:
-          fetch-depth: 0
-      - name: Validate deploy version
-        if: github.event_name == 'workflow_dispatch'
-        run: |
-          ./scripts/validate-version "${{ github.event.inputs.expectedVersion }}"
       - uses: pypa/gh-action-pypi-publish@master
         with:
           user: __token__
