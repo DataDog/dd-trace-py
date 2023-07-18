@@ -434,7 +434,8 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_cookies_value(client, 
         line, hash_value = get_line_and_hash("iast_enabled_sqli_http_cookies_value", vuln_type)
         loaded = json.loads(root_span.get_tag(IAST.JSON))
         # TODO: what's the correct?
-        # assert loaded["sources"] == [{"origin": "http.request.header", "name": "HTTP_COOKIE", "value": "master=master"}]
+        # assert loaded["sources"] == [{"origin": "http.request.header", "
+        # name": "HTTP_COOKIE", "value": "master=master"}]
         # assert loaded["sources"] == [{"origin": "http.request.cookie.value", "name": "master", "value": "master"}]
         assert loaded["vulnerabilities"][0]["type"] == "SQL_INJECTION"
         assert loaded["vulnerabilities"][0]["hash"] == hash_value
