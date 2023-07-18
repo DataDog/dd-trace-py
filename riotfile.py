@@ -1817,9 +1817,11 @@ venv = Venv(
                             pkgs={
                                 "pytest-bdd": [
                                     ">=4.0,<5.0",
-                                    # FIXME: add support for v6.1
-                                    ">=6.0,<6.1",
-                                ]
+                                    ">=6.0,<7.0",
+                                ],
+                                "typing-extensions": [
+                                    latest,
+                                ],
                             },
                         ),
                         Venv(
@@ -1827,9 +1829,12 @@ venv = Venv(
                             pkgs={
                                 "pytest-bdd": [
                                     ">=4.0,<5.0",
-                                    # FIXME: add support for v6.1
-                                    ">=6.0,<6.1",
-                                ]
+                                    ">=6.0,<7.0",
+                                    latest,
+                                ],
+                                "typing-extensions": [
+                                    latest,
+                                ],
                             },
                         ),
                     ],
