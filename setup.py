@@ -292,16 +292,27 @@ class CleanLibraries(CleanCommand):
 
 class CMakeBuild(build_ext):
     def build_extension(self, ext):
+
         tmp_iast_file_path = os.path.abspath(self.get_ext_fullpath(ext.name))
         tmp_iast_path = os.path.join(os.path.dirname(tmp_iast_file_path))
         tmp_filename = tmp_iast_file_path.replace(tmp_iast_path + os.path.sep, "")
 
         cmake_list_path = os.path.join(IAST_DIR, "CMakeLists.txt")
+
+        def mac_supported_iast_version():
+            if CURRENT_OS == "Darwin":
+                from platform import mac_ver
+
+                mac_version = [int(i) for i in mac_ver()[0].split(".")]
+                return mac_version > [10, 9]
+            return True
+
         try:
             if (
                 sys.version_info >= (3, 6, 0)
                 and ext.name == "ddtrace.appsec.iast._taint_tracking._native"
                 and os.path.exists(cmake_list_path)
+                and mac_supported_iast_version()
             ):
                 import shutil
 
