@@ -2,6 +2,7 @@ import functools
 
 import flask
 import werkzeug
+from werkzeug.exceptions import NotFound
 from werkzeug.exceptions import abort
 
 from ddtrace.internal.constants import COMPONENT
@@ -644,6 +645,7 @@ def request_tracer(name):
             flask_config=config.flask,
             current_span=current_span,
             block_request_callable=_block_request_callable,
+            ignored_exception_type=NotFound,
         ) as ctx:
             with ctx.get_item("flask_request"):
                 return wrapped(*args, **kwargs)
