@@ -297,12 +297,12 @@ class CMakeBuild(build_ext):
         tmp_filename = tmp_iast_file_path.replace(tmp_iast_path + os.path.sep, "")
 
         cmake_list_path = os.path.join(IAST_DIR, "CMakeLists.txt")
-        if (
-            sys.version_info >= (3, 6, 0)
-            and ext.name == "ddtrace.appsec.iast._taint_tracking._native"
-            and os.path.exists(cmake_list_path)
-        ):
-            try:
+        try:
+            if (
+                sys.version_info >= (3, 6, 0)
+                and ext.name == "ddtrace.appsec.iast._taint_tracking._native"
+                and os.path.exists(cmake_list_path)
+            ):
                 import shutil
 
                 os.makedirs(tmp_iast_path, exist_ok=True)
@@ -357,10 +357,10 @@ class CMakeBuild(build_ext):
                         os.remove(os.path.join(tmp_iast_path, file_to_remove))
 
                 shutil.copy(os.path.join(IAST_DIR, tmp_filename), tmp_iast_file_path)
-            except Exception as e:
-                print("WARNING: Failed to build IAST extensions, skipping: %s" % e)
-        else:
-            build_ext.build_extension(self, ext)
+            else:
+                build_ext.build_extension(self, ext)
+        except Exception as e:
+            print("WARNING: Failed to build IAST extensions, skipping: %s" % e)
 
 
 long_description = """
