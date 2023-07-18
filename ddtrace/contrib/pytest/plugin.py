@@ -146,8 +146,9 @@ def _get_module_path(item):
 
 def _get_module_name(item, is_package=True):
     """Extract module name (fully qualified) from a `pytest.Item` instance."""
-    if not is_package:
-        return item.nodeid.rpartition("/")[0].replace("/", ".")
+    if is_package:
+        return item.module.__name__
+    return item.nodeid.rpartition("/")[0].replace("/", ".")       
     return item.module.__name__
 
 
