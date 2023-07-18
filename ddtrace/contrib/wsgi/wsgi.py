@@ -165,9 +165,7 @@ class _DDWSGIMiddlewareBase(object):
         headers = get_request_headers(environ)
         closing_iterator = ()
         not_blocked = True
-        with _asm_request_context.asm_request_context_manager(
-            environ.get("REMOTE_ADDR"), headers, headers_case_sensitive=True
-        ):
+        with _asm_request_context.asm_request_context_manager(environ.get("REMOTE_ADDR"), headers, True):
             req_span = self.tracer.trace(
                 self._request_span_name,
                 service=trace_utils.int_service(self._pin, self._config),
@@ -175,19 +173,17 @@ class _DDWSGIMiddlewareBase(object):
             )
 
             if self.tracer._appsec_enabled:
-                # [IP Blocking]
                 if core.get_item(HTTP_REQUEST_BLOCKED, span=req_span):
                     ctype, content = self._make_block_content(environ, headers, req_span)
                     start_response("403 FORBIDDEN", [("content-type", ctype)])
                     closing_iterator = [content]
                     not_blocked = False
 
-                # [Suspicious Request Blocking on request]
                 def blocked_view():
                     ctype, content = self._make_block_content(environ, headers, req_span)
                     return content, 403, [("content-type", ctype)]
 
-                _asm_request_context.set_value(_asm_request_context._CALLBACKS, "flask_block", blocked_view)
+                core.dispatch("wsgi.block_decided", [blocked_view])
 
             if not_blocked:
                 req_span.set_tag_str(COMPONENT, self._config.integration_name)
@@ -212,7 +208,6 @@ class _DDWSGIMiddlewareBase(object):
                     req_span.finish()
                     raise
                 if self.tracer._appsec_enabled and core.get_item(HTTP_REQUEST_BLOCKED, span=req_span):
-                    # [Suspicious Request Blocking on request or response]
                     _, content = self._make_block_content(environ, headers, req_span)
                     closing_iterator = [content]
 

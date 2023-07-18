@@ -3,8 +3,6 @@ import json
 import os
 from typing import TYPE_CHECKING
 
-from ddtrace import config
-from ddtrace.internal import compat
 from ddtrace.internal.logger import get_logger
 
 
@@ -30,18 +28,8 @@ except ImportError:
 ROOT_DIR = None
 
 
-def enabled():
-    if config._ci_visibility_code_coverage_enabled:
-        if compat.PY2:
-            return False
-        if Coverage is None:
-            log.warning(
-                "CI Visibility code coverage tracking is enabled, but the `coverage` package is not installed. "
-                "To use code coverage tracking, please install `coverage` from https://pypi.org/project/coverage/"
-            )
-            return False
-        return True
-    return False
+def is_coverage_available():
+    return Coverage is not None
 
 
 def _initialize_coverage(root_dir):

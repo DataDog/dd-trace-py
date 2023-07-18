@@ -41,7 +41,6 @@ from ddtrace.internal.ci_visibility.constants import SUITE_TYPE as _SUITE_TYPE
 from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.ci_visibility.coverage import _initialize_coverage
 from ddtrace.internal.ci_visibility.coverage import build_payload as build_coverage_payload
-from ddtrace.internal.ci_visibility.coverage import enabled as coverage_enabled
 from ddtrace.internal.ci_visibility.recorder import _get_test_skipping_level
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
@@ -89,6 +88,16 @@ def _detach_coverage(item, span):
     span.set_tag(COVERAGE_TAG_NAME, build_coverage_payload(item._coverage, test_id=span_id))
     item._coverage.erase()
     del item._coverage
+
+
+def _extract_module_span(item):
+    """Extract span from `pytest.Item` instance."""
+    return getattr(item, "_datadog_span_module", None)
+
+
+def _store_module_span(item, span):
+    """Store span at `pytest.Item` instance."""
+    setattr(item, "_datadog_span_module", span)
 
 
 def _mark_failed(item):
@@ -206,10 +215,11 @@ def _start_test_module_span(pytest_package_item=None, pytest_module_item=None):
     test_module_span.set_tag_str(_MODULE_ID, str(test_module_span.span_id))
     test_module_span.set_tag_str(test.MODULE, _get_module_name(item, is_package))
     test_module_span.set_tag_str(test.MODULE_PATH, _get_module_path(item))
-    test_module_span._set_ctx_item("is_package", is_package)
     if is_package:
         _store_span(item, test_module_span)
-    return test_module_span
+    else:
+        _store_module_span(item, test_module_span)
+    return test_module_span, is_package
 
 
 def _start_test_suite_span(item, test_module_span=None, should_enable_coverage=False):
@@ -218,6 +228,13 @@ def _start_test_suite_span(item, test_module_span=None, should_enable_coverage=F
     Note that ``item`` is a ``pytest.Module`` object referencing the test file being run.
     """
     test_session_span = _extract_span(item.session)
+    if test_module_span is None and isinstance(item.parent, pytest.Package):
+        test_module_span = _extract_span(item.parent)
+
+    parent_span = test_module_span
+    if parent_span is None:
+        parent_span = test_session_span
+
     test_suite_span = _CIVisibility._instance.tracer._start_span(
         "pytest.test_suite",
         service=_CIVisibility._instance._service,
@@ -385,9 +402,16 @@ def pytest_runtest_protocol(item, nextitem):
     pytest_module_item = _find_pytest_item(item, pytest.Module)
     pytest_package_item = _find_pytest_item(pytest_module_item, pytest.Package)
 
+    module_is_package = True
+
     test_module_span = _extract_span(pytest_package_item)
+    if not test_module_span:
+        test_module_span = _extract_module_span(pytest_module_item)
+        if test_module_span:
+            module_is_package = False
+
     if test_module_span is None:
-        test_module_span = _start_test_module_span(pytest_package_item, pytest_module_item)
+        test_module_span, module_is_package = _start_test_module_span(pytest_package_item, pytest_module_item)
 
     test_suite_span = _extract_span(pytest_module_item)
     if pytest_module_item is not None and test_suite_span is None:
@@ -396,7 +420,9 @@ def pytest_runtest_protocol(item, nextitem):
             pytest_module_item,
             test_module_span=test_module_span,
             should_enable_coverage=(
-                _get_test_skipping_level() == SUITE and coverage_enabled() and not is_skipped_by_itr
+                _get_test_skipping_level() == SUITE
+                and _CIVisibility._instance._collect_coverage_enabled
+                and not is_skipped_by_itr
             ),
         )
 
@@ -458,7 +484,11 @@ def pytest_runtest_protocol(item, nextitem):
             span.set_tags(tags)
         _store_span(item, span)
 
-        coverage_per_test = _get_test_skipping_level() == TEST and coverage_enabled() and not is_skipped_by_itr
+        coverage_per_test = (
+            _get_test_skipping_level() == TEST
+            and _CIVisibility._instance._collect_coverage_enabled
+            and not is_skipped_by_itr
+        )
         if coverage_per_test:
             _attach_coverage(item)
         # Run the actual test
@@ -473,7 +503,11 @@ def pytest_runtest_protocol(item, nextitem):
     ):
         _mark_test_status(pytest_module_item, test_suite_span)
         # Finish coverage for the test suite if coverage is enabled
-        if _get_test_skipping_level() == SUITE and coverage_enabled() and not is_skipped_by_itr:
+        if (
+            _get_test_skipping_level() == SUITE
+            and _CIVisibility._instance._collect_coverage_enabled
+            and not is_skipped_by_itr
+        ):
             _detach_coverage(pytest_module_item, test_suite_span)
         test_suite_span.finish()
 

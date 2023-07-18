@@ -1,7 +1,6 @@
 import contextlib
 import json
 import os
-import sys
 import time
 
 import mock
@@ -476,8 +475,8 @@ def test_civisibilitywriter_coverage_agentless_url():
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
         ),
         pop=POP_CI_VISIBILITY_KEYS,
-    ), mock.patch("ddtrace.internal.ci_visibility.writer.coverage_enabled", return_value=True):
-        dummy_writer = DummyCIVisibilityWriter()
+    ):
+        dummy_writer = DummyCIVisibilityWriter(coverage_enabled=True)
         assert dummy_writer.intake_url == "https://citestcycle-intake.datadoghq.com"
 
         cov_client = dummy_writer._clients[1]
@@ -495,8 +494,8 @@ def test_civisibilitywriter_coverage_agentless_with_intake_url_param():
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
         ),
         pop=POP_CI_VISIBILITY_KEYS,
-    ), mock.patch("ddtrace.internal.ci_visibility.writer.coverage_enabled", return_value=True):
-        dummy_writer = DummyCIVisibilityWriter(intake_url="https://some-url.com")
+    ):
+        dummy_writer = DummyCIVisibilityWriter(intake_url="https://some-url.com", coverage_enabled=True)
         assert dummy_writer.intake_url == "https://some-url.com"
 
         cov_client = dummy_writer._clients[1]
@@ -513,8 +512,8 @@ def test_civisibilitywriter_coverage_evp_proxy_url():
             DD_API_KEY="foobar.baz",
         ),
         pop=POP_CI_VISIBILITY_KEYS,
-    ), mock.patch("ddtrace.internal.ci_visibility.writer.coverage_enabled", return_value=True):
-        dummy_writer = DummyCIVisibilityWriter(use_evp=True)
+    ):
+        dummy_writer = DummyCIVisibilityWriter(use_evp=True, coverage_enabled=True)
 
         test_client = dummy_writer._clients[0]
         assert test_client.ENDPOINT == "/evp_proxy/v2/api/v2/citestcycle"
