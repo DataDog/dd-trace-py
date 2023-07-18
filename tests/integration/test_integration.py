@@ -793,24 +793,22 @@ def test_flush_log(caplog, encoding, monkeypatch):
 
 
 @pytest.mark.parametrize("logs_injection,debug_mode,patch_logging", itertools.product([True, False], repeat=3))
-def test_regression_logging_in_context(tmpdir, logs_injection, debug_mode, patch_logging):
+def test_regression_logging_in_context(run_python_code_in_subprocess, logs_injection, debug_mode, patch_logging):
     """
     When logs injection is enabled and the logger is patched
         When a parent span closes before a child
             The application does not deadlock due to context lock acquisition
     """
-    f = tmpdir.join("test.py")
-    f.write(
-        """
+    code = """
 import ddtrace
-ddtrace.patch(logging=%s)
+ddtrace.patch(logging={})
 
 s1 = ddtrace.tracer.trace("1")
 s2 = ddtrace.tracer.trace("2")
 s1.finish()
 s2.finish()
-""".lstrip()
-        % str(patch_logging)
+""".format(
+        str(patch_logging)
     )
 
     env = os.environ.copy()
@@ -822,15 +820,9 @@ s2.finish()
         }
     )
 
-    p = subprocess.Popen(
-        [sys.executable, "test.py"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=str(tmpdir), env=env
-    )
-    try:
-        p.wait(timeout=25)
-    except TypeError:
-        # timeout argument added in Python 3.3
-        p.wait()
-    assert p.returncode == 0
+    # If we deadlock (longer than 5 seconds), we'll raise `subprocess.TimeoutExpired` and fail
+    _, err, status, _ = run_python_code_in_subprocess(code, env=env, timeout=5)
+    assert status == 0, err
 
 
 @pytest.mark.parametrize(
@@ -1003,31 +995,30 @@ def test_no_warnings():
 
 def test_civisibility_event_endpoints():
     with override_env(dict(DD_API_KEY="foobar.baz")):
-        with override_global_config({"_ci_visibility_code_coverage_enabled": True}):
-            t = Tracer()
-            t.configure(writer=CIVisibilityWriter(reuse_connections=True))
-            t._writer._conn = mock.MagicMock()
-            with mock.patch("ddtrace.internal.writer.Response.from_http_response") as from_http_response:
-                from_http_response.return_value.__class__ = Response
-                from_http_response.return_value.status = 200
-                s = t.trace("operation", service="svc-no-cov")
-                s.finish()
-                span = t.trace("operation2", service="my-svc2")
-                span.set_tag(
-                    COVERAGE_TAG_NAME,
-                    '{"files": [{"filename": "test_cov.py", "segments": [[5, 0, 5, 0, -1]]}, '
-                    + '{"filename": "test_module.py", "segments": [[2, 0, 2, 0, -1]]}]}',
-                )
-                span.finish()
-                conn = t._writer._conn
-                t.shutdown()
-            assert conn.request.call_count == (2 if compat.PY3 else 1)
-            assert conn.request.call_args_list[0].args[1] == "api/v2/citestcycle"
+        t = Tracer()
+        t.configure(writer=CIVisibilityWriter(reuse_connections=True, coverage_enabled=bool(compat.PY3)))
+        t._writer._conn = mock.MagicMock()
+        with mock.patch("ddtrace.internal.writer.Response.from_http_response") as from_http_response:
+            from_http_response.return_value.__class__ = Response
+            from_http_response.return_value.status = 200
+            s = t.trace("operation", service="svc-no-cov")
+            s.finish()
+            span = t.trace("operation2", service="my-svc2")
+            span.set_tag(
+                COVERAGE_TAG_NAME,
+                '{"files": [{"filename": "test_cov.py", "segments": [[5, 0, 5, 0, -1]]}, '
+                + '{"filename": "test_module.py", "segments": [[2, 0, 2, 0, -1]]}]}',
+            )
+            span.finish()
+            conn = t._writer._conn
+            t.shutdown()
+        assert conn.request.call_count == 2 if compat.PY3 else 1
+        assert conn.request.call_args_list[0].args[1] == "api/v2/citestcycle"
+        assert (
+            b"svc-no-cov" in conn.request.call_args_list[0].args[2]
+        ), "requests to the cycle endpoint should include non-coverage spans"
+        if compat.PY3:
+            assert conn.request.call_args_list[1].args[1] == "api/v2/citestcov"
             assert (
-                b"svc-no-cov" in conn.request.call_args_list[0].args[2]
-            ), "requests to the cycle endpoint should include non-coverage spans"
-            if compat.PY3:
-                assert conn.request.call_args_list[1].args[1] == "api/v2/citestcov"
-                assert (
-                    b"svc-no-cov" not in conn.request.call_args_list[1].args[2]
-                ), "requests to the coverage endpoint should not include non-coverage spans"
+                b"svc-no-cov" not in conn.request.call_args_list[1].args[2]
+            ), "requests to the coverage endpoint should not include non-coverage spans"

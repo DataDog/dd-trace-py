@@ -26,51 +26,69 @@ The following metrics are collected by default by the OpenAI integration.
 
 
 .. important::
-   Metrics only reflect usage of the supported completions, chat completions, and embedding endpoints. Usage of other
-   OpenAI endpoints will not be recorded.
+   Ratelimit and token metrics only reflect usage of the supported completions, chat completions, and embedding
+    endpoints. Usage of other OpenAI endpoints will not be recorded as they are not provided.
 
 
 .. py:data:: openai.request.duration
+
+   The duration of the OpenAI request in seconds.
 
    Type: ``distribution``
 
 
 .. py:data:: openai.request.error
 
+   The number of errors from requests made to OpenAI.
+
    Type: ``count``
 
 
 .. py:data:: openai.ratelimit.requests
+
+   The maximum number of OpenAI requests permitted before exhausting the rate limit.
 
    Type: ``gauge``
 
 
 .. py:data:: openai.ratelimit.tokens
 
+   The maximum number of OpenAI tokens permitted before exhausting the rate limit.
+
    Type: ``gauge``
 
 
 .. py:data:: openai.ratelimit.remaining.requests
+
+   The remaining number of OpenAI requests permitted before exhausting the rate limit.
 
    Type: ``gauge``
 
 
 .. py:data:: openai.ratelimit.remaining.tokens
 
+   The remaining number of OpenAI tokens permitted before exhausting the rate limit.
+
    Type: ``gauge``
 
 
 .. py:data:: openai.tokens.prompt
+
+   The number of tokens used in the prompt of an OpenAI request.
 
    Type: ``distribution``
 
 
 .. py:data:: openai.tokens.completion
 
+   The number of tokens used in the completion of a OpenAI response.
+
    Type: ``distribution``
 
 
 .. py:data:: openai.tokens.total
+
+   The total number of tokens used in the prompt and completion of a OpenAI request/response.
 
    Type: ``distribution``
 

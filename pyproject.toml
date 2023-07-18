@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools >= 40.6.0", "setuptools_scm[toml] >=4,<6.1", "cython", "cmake"]
+requires = ["setuptools >= 40.6.0", "setuptools_scm[toml] >=4,<6.1", "cython<3", "cmake"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools_scm]
@@ -108,11 +108,6 @@ exclude_dirs = [
   "ddtrace/appsec/iast/_patch.py",
   "ddtrace/appsec/iast/_taint_tracking/__init__.py",
   "ddtrace/commands/ddtrace_run.py",
-  "ddtrace/debugging/_debugger.py",
-  "ddtrace/debugging/_function/discovery.py",
-  "ddtrace/debugging/_probe/registry.py",
-  "ddtrace/debugging/_probe/status.py",
-  "ddtrace/debugging/_signal/metric_sample.py",
   "ddtrace/ext/git.py",
   "ddtrace/ext/test.py",
   "ddtrace/internal/module.py",
