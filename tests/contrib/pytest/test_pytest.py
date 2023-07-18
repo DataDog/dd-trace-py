@@ -1375,6 +1375,39 @@ class PytestTestCase(TracerTestCase):
         assert test_suite_spans[0].get_tag("test.suite") == "test_outer_abc.py"
         assert test_suite_spans[1].get_tag("test.suite") == "test_inner_abc.py"
 
+    def test_pytest_module_path_empty(self):
+        """
+        Test that running pytest without module will create an empty module span with empty path.
+        """
+        self.testdir.makepyfile(
+            test_module="""
+        def lib_fn():
+            return True
+        """
+        )
+        # py_cov_file =
+        self.testdir.makepyfile(
+            test_cov="""
+        import pytest
+        from test_module import lib_fn
+
+        def test_cov():
+            assert lib_fn()
+        """
+        )
+        self.testdir.chdir()
+        self.inline_run("--ddtrace")
+        spans = self.pop_spans()
+
+        assert len(spans) == 4
+        test_module_spans = [span for span in spans if span.get_tag("type") == "test_module_end"]
+        assert len(test_module_spans) == 1
+        assert test_module_spans[0].get_tag("test.module") == ""
+        assert test_module_spans[0].get_tag("test.module_path") == ""
+        test_suite_spans = [span for span in spans if span.get_tag("type") == "test_suite_end"]
+        assert len(test_suite_spans) == 1
+        assert test_suite_spans[0].get_tag("test.suite") == "test_cov.py"
+
     @pytest.mark.skipif(compat.PY2, reason="ddtrace does not support coverage on Python 2")
     def test_pytest_will_report_coverage(self):
         self.testdir.makepyfile(
