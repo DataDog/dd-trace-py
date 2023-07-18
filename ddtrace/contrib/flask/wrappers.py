@@ -44,14 +44,14 @@ def wrap_view(instance, func, name=None, resource=None):
     return trace_func(func)
 
 
-def _wrap_call(func, instance, name, resource):
+def _wrap_call(func, instance, name, resource=None, signal=None):
     @function_wrapper
     def trace_func(wrapped, _instance, args, kwargs):
         pin = Pin._find(wrapped, _instance, instance, get_current_app())
         if not pin or not pin.enabled():
             return wrapped(*args, **kwargs)
         with core.context_with_data(
-            "flask.function", name=name, pin=pin, flask_config=config.flask, resource=resource
+            "flask.function", name=name, pin=pin, flask_config=config.flask, resource=resource, signal=signal
         ) as ctx, ctx.get_item("flask_call"):
             return wrapped(*args, **kwargs)
 
@@ -59,26 +59,8 @@ def _wrap_call(func, instance, name, resource):
 
 
 def wrap_function(instance, func, name=None, resource=None):
-    return _wrap_call(func, instance, name or func_name(func), resource)
+    return _wrap_call(func, instance, name or func_name(func), resource=resource)
 
 
 def wrap_signal(app, signal, func):
-    """
-    Helper used to wrap signal handlers
-
-    We will attempt to find the pin attached to the flask.app.Flask app
-    """
-    name = func_name(func)
-
-    @function_wrapper
-    def patch_func(wrapped, instance, args, kwargs):
-        pin = Pin._find(wrapped, instance, app, get_current_app())
-        if not pin or not pin.enabled():
-            return wrapped(*args, **kwargs)
-
-        with core.context_with_data(
-            "flask.signal", name=name, signal=signal, pin=pin, flask_config=config.flask
-        ) as ctx, ctx.get_item("flask_call"):
-            return wrapped(*args, **kwargs)
-
-    return patch_func(func)
+    return _wrap_call(func, app, func_name(func), signal=signal)
