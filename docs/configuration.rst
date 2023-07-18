@@ -416,7 +416,7 @@ The following environment variables for the tracer are supported:
    DD_TRACE_SPAN_AGGREGATOR_RLOCK:
      type: Boolean
      default: False
-     description: Whether the ``SpanAggregator`` should use an Rlock or a Lock.
+     description: Whether the ``SpanAggregator`` should use an RLock or a Lock.
 
    DD_IAST_ENABLED:
      type: Boolean
