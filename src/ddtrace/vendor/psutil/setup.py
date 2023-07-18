@@ -46,9 +46,9 @@ def get_extensions():
     if BSD:
         macros.append(("PSUTIL_BSD", 1))
 
-    sources = ["ddtrace/vendor/psutil/_psutil_common.c"]
+    sources = ["src/ddtrace/vendor/psutil/_psutil_common.c"]
     if POSIX:
-        sources.append("ddtrace/vendor/psutil/_psutil_posix.c")
+        sources.append("src/ddtrace/vendor/psutil/_psutil_posix.c")
 
     if WINDOWS:
 
@@ -76,14 +76,14 @@ def get_extensions():
         )
 
         sources += [
-            "ddtrace/vendor/psutil/_psutil_windows.c",
-            "ddtrace/vendor/psutil/arch/windows/process_info.c",
-            "ddtrace/vendor/psutil/arch/windows/process_handles.c",
-            "ddtrace/vendor/psutil/arch/windows/security.c",
-            "ddtrace/vendor/psutil/arch/windows/inet_ntop.c",
-            "ddtrace/vendor/psutil/arch/windows/services.c",
-            "ddtrace/vendor/psutil/arch/windows/global.c",
-            "ddtrace/vendor/psutil/arch/windows/wmi.c",
+            "src/ddtrace/vendor/psutil/_psutil_windows.c",
+            "src/ddtrace/vendor/psutil/arch/windows/process_info.c",
+            "src/ddtrace/vendor/psutil/arch/windows/process_handles.c",
+            "src/ddtrace/vendor/psutil/arch/windows/security.c",
+            "src/ddtrace/vendor/psutil/arch/windows/inet_ntop.c",
+            "src/ddtrace/vendor/psutil/arch/windows/services.c",
+            "src/ddtrace/vendor/psutil/arch/windows/global.c",
+            "src/ddtrace/vendor/psutil/arch/windows/wmi.c",
         ]
         ext = Extension(
             "ddtrace.vendor.psutil._psutil_windows",
@@ -107,8 +107,8 @@ def get_extensions():
     elif MACOS:
         macros.append(("PSUTIL_OSX", 1))
         sources += [
-            "ddtrace/vendor/psutil/_psutil_osx.c",
-            "ddtrace/vendor/psutil/arch/osx/process_info.c",
+            "src/ddtrace/vendor/psutil/_psutil_osx.c",
+            "src/ddtrace/vendor/psutil/arch/osx/process_info.c",
         ]
         ext = Extension(
             "ddtrace.vendor.psutil._psutil_osx",
@@ -120,10 +120,10 @@ def get_extensions():
     elif FREEBSD:
         macros.append(("PSUTIL_FREEBSD", 1))
         sources += [
-            "ddtrace/vendor/psutil/_psutil_bsd.c",
-            "ddtrace/vendor/psutil/arch/freebsd/specific.c",
-            "ddtrace/vendor/psutil/arch/freebsd/sys_socks.c",
-            "ddtrace/vendor/psutil/arch/freebsd/proc_socks.c",
+            "src/ddtrace/vendor/psutil/_psutil_bsd.c",
+            "src/ddtrace/vendor/psutil/arch/freebsd/specific.c",
+            "src/ddtrace/vendor/psutil/arch/freebsd/sys_socks.c",
+            "src/ddtrace/vendor/psutil/arch/freebsd/proc_socks.c",
         ]
         ext = Extension(
             "ddtrace.vendor.psutil._psutil_bsd", sources=sources, define_macros=macros, libraries=["devstat"],
@@ -133,7 +133,7 @@ def get_extensions():
         macros.append(("PSUTIL_OPENBSD", 1))
         ext = Extension(
             "ddtrace.vendor.psutil._psutil_bsd",
-            sources=sources + ["ddtrace/vendor/psutil/_psutil_bsd.c", "ddtrace/vendor/psutil/arch/openbsd/specific.c"],
+            sources=sources + ["src/ddtrace/vendor/psutil/_psutil_bsd.c", "src/ddtrace/vendor/psutil/arch/openbsd/specific.c"],
             define_macros=macros,
             libraries=["kvm"],
         )
@@ -141,9 +141,9 @@ def get_extensions():
     elif NETBSD:
         macros.append(("PSUTIL_NETBSD", 1))
         sources += [
-            "ddtrace/vendor/psutil/_psutil_bsd.c",
-            "ddtrace/vendor/psutil/arch/netbsd/specific.c",
-            "ddtrace/vendor/psutil/arch/netbsd/socks.c",
+            "src/ddtrace/vendor/psutil/_psutil_bsd.c",
+            "src/ddtrace/vendor/psutil/arch/netbsd/specific.c",
+            "src/ddtrace/vendor/psutil/arch/netbsd/socks.c",
         ]
         ext = Extension("ddtrace.vendor.psutil._psutil_bsd", sources=sources, define_macros=macros, libraries=["kvm"],)
 
@@ -180,16 +180,16 @@ def get_extensions():
             macros.append(ETHTOOL_MACRO)
         ext = Extension(
             "ddtrace.vendor.psutil._psutil_linux",
-            sources=sources + ["ddtrace/vendor/psutil/_psutil_linux.c"],
+            sources=sources + ["src/ddtrace/vendor/psutil/_psutil_linux.c"],
             define_macros=macros,
         )
 
     elif SUNOS:
         macros.append(("PSUTIL_SUNOS", 1))
         sources += [
-            "ddtrace/vendor/psutil/_psutil_sunos.c",
-            "ddtrace/vendor/psutil/arch/solaris/v10/ifaddrs.c",
-            "ddtrace/vendor/psutil/arch/solaris/environ.c",
+            "src/ddtrace/vendor/psutil/_psutil_sunos.c",
+            "src/ddtrace/vendor/psutil/arch/solaris/v10/ifaddrs.c",
+            "src/ddtrace/vendor/psutil/arch/solaris/environ.c",
         ]
         ext = Extension(
             "ddtrace.vendor.psutil._psutil_sunos",
@@ -201,10 +201,10 @@ def get_extensions():
     elif AIX:
         macros.append(("PSUTIL_AIX", 1))
         sources += [
-            "ddtrace/vendor/psutil/_psutil_aix.c",
-            "ddtrace/vendor/psutil/arch/aix/net_connections.c",
-            "ddtrace/vendor/psutil/arch/aix/common.c",
-            "ddtrace/vendor/psutil/arch/aix/ifaddrs.c",
+            "src/ddtrace/vendor/psutil/_psutil_aix.c",
+            "src/ddtrace/vendor/psutil/arch/aix/net_connections.c",
+            "src/ddtrace/vendor/psutil/arch/aix/common.c",
+            "src/ddtrace/vendor/psutil/arch/aix/ifaddrs.c",
         ]
         ext = Extension(
             "ddtrace.vendor.psutil._psutil_aix", sources=sources, libraries=["perfstat"], define_macros=macros,
@@ -217,10 +217,10 @@ def get_extensions():
         if SUNOS:
             posix_extension.libraries.append("socket")
             if platform.release() == "5.10":
-                posix_extension.sources.append("ddtrace/vendor/psutil/arch/solaris/v10/ifaddrs.c")
+                posix_extension.sources.append("src/ddtrace/vendor/psutil/arch/solaris/v10/ifaddrs.c")
                 posix_extension.define_macros.append(("PSUTIL_SUNOS10", 1))
         elif AIX:
-            posix_extension.sources.append("ddtrace/vendor/psutil/arch/aix/ifaddrs.c")
+            posix_extension.sources.append("src/ddtrace/vendor/psutil/arch/aix/ifaddrs.c")
 
         return [ext, posix_extension]
     else:

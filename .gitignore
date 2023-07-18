@@ -4,29 +4,29 @@ __pycache__/
 *$py.class
 
 # C extensions
-ddtrace/appsec/_ddwaf.cpp
-ddtrace/appsec/include
-ddtrace/appsec/share
-ddtrace/profiling/collector/_task.c
-ddtrace/profiling/_threading.c
-ddtrace/profiling/collector/_traceback.c
-ddtrace/profiling/collector/stack.c
-ddtrace/profiling/exporter/pprof.c
-ddtrace/profiling/_build.c
-ddtrace/internal/datadog/profiling/ddup.cpp
-ddtrace/internal/_encoding.c
-ddtrace/internal/_rand.c
-ddtrace/internal/_tagset.c
+src/ddtrace/appsec/_ddwaf.cpp
+src/ddtrace/appsec/include
+src/ddtrace/appsec/share
+src/ddtrace/profiling/collector/_task.c
+src/ddtrace/profiling/_threading.c
+src/ddtrace/profiling/collector/_traceback.c
+src/ddtrace/profiling/collector/stack.c
+src/ddtrace/profiling/exporter/pprof.c
+src/ddtrace/profiling/_build.c
+src/ddtrace/internal/datadog/profiling/ddup.cpp
+src/ddtrace/internal/_encoding.c
+src/ddtrace/internal/_rand.c
+src/ddtrace/internal/_tagset.c
 *.so
 *.a
 
 # Cython annotate HTML files
-ddtrace/**/*.html
+src/ddtrace/**/*.html
 
 # Dynamic binary libraries
-ddtrace/appsec/ddwaf/libddwaf/
+src/ddtrace/appsec/ddwaf/libddwaf/
 libddwaf*.sha256
-ddtrace/internal/datadog/profiling/libdatadog/
+src/ddtrace/internal/datadog/profiling/libdatadog/
 
 # Distribution / packaging
 .Python
@@ -131,12 +131,12 @@ ENV/
 .riot/requirements/*.in
 
 # Auto-generated version file
-ddtrace/_version.py
+src/ddtrace/_version.py
 
 # Benchmarks
 artifacts/
 
 # IAST cpp
-ddtrace/appsec/iast/_taint_tracking/cmake-build-debug/*
-ddtrace/appsec/iast/_taint_tracking/_deps/*
-ddtrace/appsec/iast/_taint_tracking/CMakeFiles/*
+src/ddtrace/appsec/iast/_taint_tracking/cmake-build-debug/*
+src/ddtrace/appsec/iast/_taint_tracking/_deps/*
+src/ddtrace/appsec/iast/_taint_tracking/CMakeFiles/*

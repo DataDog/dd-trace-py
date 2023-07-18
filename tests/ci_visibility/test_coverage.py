@@ -45,8 +45,8 @@ def test_cover():
     for filename in [x["filename"] for x in res["files"]]:
         assert filename.endswith(
             (
-                "ddtrace/internal/module.py",
-                "ddtrace/contrib/pytest/plugin.py",
-                "ddtrace/internal/ci_visibility/coverage.py",
+                "src/ddtrace/internal/module.py",
+                "src/ddtrace/contrib/pytest/plugin.py",
+                "src/ddtrace/internal/ci_visibility/coverage.py",
             )
         )

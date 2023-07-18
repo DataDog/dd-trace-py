@@ -76,18 +76,18 @@ When designing a change, one of the first decisions to make is where it should b
 of the main functional areas of the library.
 
 A **product** is a unit of code within the library that implements functionality specific to a small set of
-customer-facing Datadog products. Examples include the `appsec module <https://github.com/DataDog/dd-trace-py/tree/1.x/ddtrace/appsec>`_
+customer-facing Datadog products. Examples include the `appsec module <https://github.com/DataDog/dd-trace-py/tree/1.x/src/ddtrace/appsec>`_
 implementing functionality for `Application Security Management <https://www.datadoghq.com/product/application-security-management/>`_
-and the `profiling <https://github.com/DataDog/dd-trace-py/tree/1.x/ddtrace/profiling>`_ module implementing
+and the `profiling <https://github.com/DataDog/dd-trace-py/tree/1.x/src/ddtrace/profiling>`_ module implementing
 functionality for `Continuous Profiling <https://docs.datadoghq.com/profiler/>`_. Ideally it only contains code
 that is specific to the Datadog product being supported, and no code related to Integrations.
 
-An **integration** is one of the modules in the `contrib <https://github.com/DataDog/dd-trace-py/tree/f26a526a6f79870e6e6a21d281f4796a434616bb/ddtrace/contrib>`_
+An **integration** is one of the modules in the `contrib <https://github.com/DataDog/dd-trace-py/tree/f26a526a6f79870e6e6a21d281f4796a434616bb/src/ddtrace/contrib>`_
 directory, hooking our code into the internal logic of a given Python library. Ideally it only contains code
 that is specific to the library being integrated with, and no code related to Products.
 
 The **core** of the library is the abstraction layer that allows Products and Integrations to keep their concerns
-separate. It is implemented in the Python files in the `top level of ddtracepy <https://github.com/DataDog/dd-trace-py/tree/1.x/ddtrace>`_
+separate. It is implemented in the Python files in the `top level of ddtracepy <https://github.com/DataDog/dd-trace-py/tree/1.x/src/ddtrace>`_
 and in the `internal` module. As an implementation detail, the core logic also happens to directly support
 `Application Performance Monitoring <https://docs.datadoghq.com/tracing/>`_.
 

@@ -41,15 +41,15 @@ DEBUG_COMPILE = "DD_COMPILE_DEBUG" in os.environ
 
 IS_PYSTON = hasattr(sys, "pyston_version_info")
 
-LIBDDWAF_DOWNLOAD_DIR = os.path.join(HERE, os.path.join("ddtrace", "appsec", "ddwaf", "libddwaf"))
-IAST_DIR = os.path.join(HERE, os.path.join("ddtrace", "appsec", "iast", "_taint_tracking"))
+LIBDDWAF_DOWNLOAD_DIR = os.path.join(HERE, os.path.join("src", "ddtrace", "appsec", "ddwaf", "libddwaf"))
+IAST_DIR = os.path.join(HERE, os.path.join("src", "ddtrace", "appsec", "iast", "_taint_tracking"))
 
 CURRENT_OS = platform.system()
 
 LIBDDWAF_VERSION = "1.11.0"
 
 LIBDATADOG_PROF_DOWNLOAD_DIR = os.path.join(
-    HERE, os.path.join("ddtrace", "internal", "datadog", "profiling", "libdatadog")
+    HERE, os.path.join("src", "ddtrace", "internal", "datadog", "profiling", "libdatadog")
 )
 
 LIBDATADOG_PROF_VERSION = "v2.1.0"
@@ -255,7 +255,7 @@ class LibDatadogDownload(LibraryDownload):
         base_name = "libdatadog_profiling"
         if CURRENT_OS != "Windows":
             base_name += ".a"
-        base_path = os.path.join("ddtrace", "internal", "datadog", "profiling", "libdatadog", arch, "lib", base_name)
+        base_path = os.path.join("src", "ddtrace", "internal", "datadog", "profiling", "libdatadog", arch, "lib", base_name)
         if CURRENT_OS == "Linux":
             return [base_path]
         return []
@@ -264,8 +264,8 @@ class LibDatadogDownload(LibraryDownload):
     def get_include_dirs():
         if CURRENT_OS == "Linux":
             return [
-                "ddtrace/internal/datadog/profiling/include",
-                "ddtrace/internal/datadog/profiling/libdatadog/x86_64/include",
+                "src/ddtrace/internal/datadog/profiling/include",
+                "src/ddtrace/internal/datadog/profiling/libdatadog/x86_64/include",
             ]
         return []
 
@@ -387,7 +387,7 @@ documentation][visualization docs].
 def get_exts_for(name):
     try:
         mod = load_module_from_project_file(
-            "ddtrace.vendor.{}.setup".format(name), "ddtrace/vendor/{}/setup.py".format(name)
+            "ddtrace.vendor.{}.setup".format(name), "src/ddtrace/vendor/{}/setup.py".format(name)
         )
         return mod.get_extensions()
     except Exception as e:
@@ -431,9 +431,9 @@ if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
         Extension(
             "ddtrace.profiling.collector._memalloc",
             sources=[
-                "ddtrace/profiling/collector/_memalloc.c",
-                "ddtrace/profiling/collector/_memalloc_tb.c",
-                "ddtrace/profiling/collector/_memalloc_heap.c",
+                "src/ddtrace/profiling/collector/_memalloc.c",
+                "src/ddtrace/profiling/collector/_memalloc_tb.c",
+                "src/ddtrace/profiling/collector/_memalloc_heap.c",
             ],
             extra_compile_args=debug_compile_args,
         ),
@@ -444,7 +444,7 @@ if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
                 "ddtrace.appsec.iast._stacktrace",
                 # Sort source files for reproducibility
                 sources=[
-                    "ddtrace/appsec/iast/_stacktrace.c",
+                    "src/ddtrace/appsec/iast/_stacktrace.c",
                 ],
                 extra_compile_args=debug_compile_args,
             )
@@ -465,9 +465,9 @@ def get_ddup_ext():
                     Cython.Distutils.Extension(
                         "ddtrace.internal.datadog.profiling.ddup",
                         sources=[
-                            "ddtrace/internal/datadog/profiling/src/exporter.cpp",
-                            "ddtrace/internal/datadog/profiling/src/interface.cpp",
-                            "ddtrace/internal/datadog/profiling/ddup.pyx",
+                            "src/ddtrace/internal/datadog/profiling/src/exporter.cpp",
+                            "src/ddtrace/internal/datadog/profiling/src/interface.cpp",
+                            "src/ddtrace/internal/datadog/profiling/ddup.pyx",
                         ],
                         include_dirs=LibDatadogDownload.get_include_dirs(),
                         extra_objects=LibDatadogDownload.get_extra_objects(),
@@ -584,57 +584,57 @@ setup(
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
     ],
-    use_scm_version={"write_to": "ddtrace/_version.py"},
+    use_scm_version={"write_to": "src/ddtrace/_version.py"},
     setup_requires=["setuptools_scm[toml]>=4", "cython<3"],
     ext_modules=ext_modules
     + cythonize(
         [
             Cython.Distutils.Extension(
                 "ddtrace.internal._rand",
-                sources=["ddtrace/internal/_rand.pyx"],
+                sources=["src/ddtrace/internal/_rand.pyx"],
                 language="c",
             ),
             Cython.Distutils.Extension(
                 "ddtrace.internal._tagset",
-                sources=["ddtrace/internal/_tagset.pyx"],
+                sources=["src/ddtrace/internal/_tagset.pyx"],
                 language="c",
             ),
             Extension(
                 "ddtrace.internal._encoding",
-                ["ddtrace/internal/_encoding.pyx"],
+                ["src/ddtrace/internal/_encoding.pyx"],
                 include_dirs=["."],
                 libraries=encoding_libraries,
                 define_macros=encoding_macros,
             ),
             Cython.Distutils.Extension(
                 "ddtrace.profiling.collector.stack",
-                sources=["ddtrace/profiling/collector/stack.pyx"],
+                sources=["src/ddtrace/profiling/collector/stack.pyx"],
                 language="c",
                 extra_compile_args=extra_compile_args,
             ),
             Cython.Distutils.Extension(
                 "ddtrace.profiling.collector._traceback",
-                sources=["ddtrace/profiling/collector/_traceback.pyx"],
+                sources=["src/ddtrace/profiling/collector/_traceback.pyx"],
                 language="c",
             ),
             Cython.Distutils.Extension(
                 "ddtrace.profiling._threading",
-                sources=["ddtrace/profiling/_threading.pyx"],
+                sources=["src/ddtrace/profiling/_threading.pyx"],
                 language="c",
             ),
             Cython.Distutils.Extension(
                 "ddtrace.profiling.collector._task",
-                sources=["ddtrace/profiling/collector/_task.pyx"],
+                sources=["src/ddtrace/profiling/collector/_task.pyx"],
                 language="c",
             ),
             Cython.Distutils.Extension(
                 "ddtrace.profiling.exporter.pprof",
-                sources=["ddtrace/profiling/exporter/pprof.pyx"],
+                sources=["src/ddtrace/profiling/exporter/pprof.pyx"],
                 language="c",
             ),
             Cython.Distutils.Extension(
                 "ddtrace.profiling._build",
-                sources=["ddtrace/profiling/_build.pyx"],
+                sources=["src/ddtrace/profiling/_build.pyx"],
                 language="c",
             ),
         ],
