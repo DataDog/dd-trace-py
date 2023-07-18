@@ -1,0 +1,3 @@
+---
+fixes:
+  - celery: fixes distributed tracing headers for celery tasks
