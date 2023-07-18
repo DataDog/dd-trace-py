@@ -305,14 +305,13 @@ class CMakeBuild(build_ext):
                 mac_version = [int(i) for i in mac_ver()[0].split(".")]
                 return mac_version > [10, 9]
             return True
-
-        try:
-            if (
-                sys.version_info >= (3, 6, 0)
-                and ext.name == "ddtrace.appsec.iast._taint_tracking._native"
-                and os.path.exists(cmake_list_path)
-                and mac_supported_iast_version()
-            ):
+        if (
+            sys.version_info >= (3, 6, 0)
+            and ext.name == "ddtrace.appsec.iast._taint_tracking._native"
+            and os.path.exists(cmake_list_path)
+            and mac_supported_iast_version()
+        ):
+            try:
                 os.makedirs(tmp_iast_path, exist_ok=True)
 
                 import subprocess
@@ -357,20 +356,21 @@ class CMakeBuild(build_ext):
 
                 build_command = [cmake_command, "--build", tmp_iast_path] + build_args
                 subprocess.run(build_command, cwd=tmp_iast_path, check=True)
-            else:
-                build_ext.build_extension(self, ext)
-        except Exception as e:
-            print("WARNING: Failed to build IAST extensions, skipping: %s" % e)
-        finally:
-            import shutil
+            except Exception as e:
+                print("WARNING: Failed to build IAST extensions, skipping: %s" % e)
+            finally:
+                import shutil
 
-            for directory_to_remove in ["_deps", "CMakeFiles"]:
-                shutil.rmtree(os.path.join(tmp_iast_path, directory_to_remove))
-            for file_to_remove in ["Makefile", "cmake_install.cmake", "compile_commands.json", "CMakeCache.txt"]:
-                if os.path.exists(os.path.join(tmp_iast_path, file_to_remove)):
-                    os.remove(os.path.join(tmp_iast_path, file_to_remove))
+                for directory_to_remove in ["_deps", "CMakeFiles"]:
+                    shutil.rmtree(os.path.join(tmp_iast_path, directory_to_remove))
+                for file_to_remove in ["Makefile", "cmake_install.cmake", "compile_commands.json", "CMakeCache.txt"]:
+                    if os.path.exists(os.path.join(tmp_iast_path, file_to_remove)):
+                        os.remove(os.path.join(tmp_iast_path, file_to_remove))
 
-            shutil.copy(os.path.join(IAST_DIR, tmp_filename), tmp_iast_file_path)
+                shutil.copy(os.path.join(IAST_DIR, tmp_filename), tmp_iast_file_path)
+        else:
+            build_ext.build_extension(self, ext)
+
 
 
 long_description = """
