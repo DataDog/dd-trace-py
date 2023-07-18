@@ -538,22 +538,15 @@ def traced_register_error_handler(wrapped, instance, args, kwargs):
 
 
 def _block_request_callable(call):
-    request = flask.request
     core.set_item(HTTP_REQUEST_BLOCKED, True)
     core.dispatch("flask.blocked_request_callable", [call])
-    ctype = "text/html" if "text/html" in request.headers.get("Accept", "").lower() else "text/json"
+    ctype = "text/html" if "text/html" in flask.request.headers.get("Accept", "").lower() else "text/json"
     abort(flask.Response(http_utils._get_blocked_template(ctype), content_type=ctype, status=403))
 
 
 def request_patcher(name):
     @with_instance_pin
     def _patched_request(pin, wrapped, instance, args, kwargs):
-        """
-        Wrapper to trace a Flask function while trying to extract endpoint information
-          (endpoint, url_rule, view_args, etc)
-
-        This wrapper will add identifier tags to the current span from `flask.app.Flask.wsgi_app`.
-        """
         current_span = pin.tracer.current_span()
         if not pin.enabled or not current_span:
             return wrapped(*args, **kwargs)
@@ -561,7 +554,6 @@ def request_patcher(name):
         with core.context_with_data(
             "flask._patched_request",
             name=".".join(("flask", name)),
-            service=trace_utils.int_service(pin, config.flask, pin),
             pin=pin,
             flask_config=config.flask,
             flask_request=flask.request,

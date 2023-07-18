@@ -244,6 +244,11 @@ def _on_start_response_pre(request, span, flask_config, status_code, headers):
 
 
 def _on_traced_request_context_started_flask(ctx):
+    """
+    trace a Flask function while trying to extract endpoint information (endpoint, url_rule, view_args, etc)
+
+    This wrapper will add identifier tags to the current span from `flask.app.Flask.wsgi_app`.
+    """
     pin = ctx.get_item("pin")
     flask_config = ctx.get_item("flask_config")
     service = trace_utils.int_service(pin, flask_config, pin)
