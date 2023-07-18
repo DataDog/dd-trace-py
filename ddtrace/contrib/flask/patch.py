@@ -4,9 +4,6 @@ import flask
 import werkzeug
 from werkzeug.exceptions import abort
 
-from ddtrace.internal.constants import COMPONENT
-from ddtrace.internal.constants import FLASK_ENDPOINT
-from ddtrace.internal.constants import FLASK_URL_RULE
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.constants import HTTP_REQUEST_BODY
 from ddtrace.internal.constants import HTTP_REQUEST_HEADER
@@ -34,10 +31,7 @@ from ddtrace import config
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from .. import trace_utils
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...constants import SPAN_MEASURED_KEY
 from ...contrib.wsgi.wsgi import _DDWSGIMiddlewareBase
-from ...ext import SpanTypes
 from ...internal.logger import get_logger
 from ...internal.utils import get_argument_value
 from ...internal.utils.version import parse_version
@@ -140,7 +134,7 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
                 ctype = "text/html" if "text/html" in headers_from_context else "text/json"
                 response_headers = [("content-type", ctype)]
                 result = start_response("403 FORBIDDEN", response_headers)
-                trace_utils.set_http_meta(req_span, config.flask, status_code="403", response_headers=response_headers)
+                core.dispatch("flask.start_response.blocked", [req_span, config.flask, response_headers])
             else:
                 result = start_response(status_code, headers)
         else:
@@ -162,19 +156,7 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
                 if result is not None:
                     req_body = result
                     break
-        trace_utils.set_http_meta(
-            span,
-            config.flask,
-            method=request.method,
-            url=request.base_url,
-            raw_uri=request.url,
-            query=request.query_string,
-            parsed_query=request.args,
-            request_headers=request.headers,
-            request_cookies=request.cookies,
-            request_body=req_body,
-            peer_ip=request.remote_addr,
-        )
+        core.dispatch("flask.request_span_modifier.post", [span, config.flask, request, req_body])
 
 
 def patch():

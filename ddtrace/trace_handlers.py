@@ -323,6 +323,10 @@ def _on_request_span_modifier_post(span, flask_config, request, req_body):
     )
 
 
+def _on_start_response_blocked(req_span, flask_config, response_headers):
+    trace_utils.set_http_meta(req_span, flask_config, status_code="403", response_headers=response_headers)
+
+
 def listen():
     core.on("context.started.wsgi.__call__", _on_context_started)
     core.on("context.started.wsgi.response", _on_response_context_started)
@@ -336,8 +340,9 @@ def listen():
     core.on("flask.start_response.pre", _on_start_response_pre)
     core.on("flask.blocked_request_callable", _on_flask_blocked_request)
     core.on("flask.request_span_modifier", _on_request_span_modifier)
-    # core.on("flask.request_span_modifier.post", _on_request_span_modifier_post)
+    core.on("flask.request_span_modifier.post", _on_request_span_modifier_post)
     core.on("flask.render", _on_flask_render)
+    core.on("flask.start_response.blocked", _on_start_response_blocked)
     core.on("context.started.flask._traced_request", _on_traced_request_context_started_flask)
     core.on("context.started.flask.jsonify", _on_jsonify_context_started_flask)
     core.on("context.started.flask.render_template", _on_render_template_context_started_flask)
