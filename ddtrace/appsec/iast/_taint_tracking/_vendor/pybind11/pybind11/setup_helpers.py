@@ -174,7 +174,9 @@ class Pybind11Extension(_Extension):  # type: ignore[misc]
     @cxx_std.setter
     def cxx_std(self, level: int) -> None:
         if self._cxx_level:
-            warnings.warn("You cannot safely change the cxx_level after setting it!", stacklevel=2)
+            warnings.warn(
+                "You cannot safely change the cxx_level after setting it!", stacklevel=2
+            )
 
         # MSVC 2015 Update 3 and later only have 14 (and later 17) modes, so
         # force a valid flag here.
@@ -288,7 +290,9 @@ class build_ext(_build_ext):  # type: ignore[misc] # noqa: N801
         super().build_extensions()
 
 
-def intree_extensions(paths: Iterable[str], package_dir: Optional[Dict[str, str]] = None) -> List[Pybind11Extension]:
+def intree_extensions(
+    paths: Iterable[str], package_dir: Optional[Dict[str, str]] = None
+) -> List[Pybind11Extension]:
     """
     Generate Pybind11Extensions from source files directly located in a Python
     source tree.
@@ -319,7 +323,10 @@ def intree_extensions(paths: Iterable[str], package_dir: Optional[Dict[str, str]
                 exts.append(Pybind11Extension(qualified_name, [path]))
                 break
         else:
-            msg = f"path {path} is not a child of any of the directories listed " f"in 'package_dir' ({package_dir})"
+            msg = (
+                f"path {path} is not a child of any of the directories listed "
+                f"in 'package_dir' ({package_dir})"
+            )
             raise ValueError(msg)
 
     return exts
