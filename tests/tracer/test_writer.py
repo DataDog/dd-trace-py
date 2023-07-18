@@ -183,8 +183,8 @@ class AgentWriterTests(BaseTestCase):
 
             assert writer_metrics_reset.call_count == 1
 
-            assert 1 == writer._metrics["http.errors"]["count"]
-            assert 10 == writer._metrics["http.dropped.traces"]["count"]
+            assert 1 == writer._metrics["http.errors"][("type:err",)]
+            assert 10 == writer._metrics["http.dropped.traces"][tuple()]
 
     def test_drop_reason_trace_too_big(self):
         statsd = mock.Mock()
@@ -203,8 +203,8 @@ class AgentWriterTests(BaseTestCase):
             writer_metrics_reset.assert_called_once()
 
         client_count = len(writer._clients)
-        assert client_count == writer._metrics["buffer.dropped.traces"]["count"]
-        assert ["reason:t_too_big"] == writer._metrics["buffer.dropped.traces"]["tags"]
+        assert client_count == writer._metrics["buffer.dropped.traces"][("reason:t_too_big",)]
+        assert [("reason:t_too_big",)] == list(writer._metrics["buffer.dropped.traces"].keys())
 
     def test_drop_reason_buffer_full(self):
         statsd = mock.Mock()
@@ -221,8 +221,8 @@ class AgentWriterTests(BaseTestCase):
             writer_metrics_reset.assert_called_once()
 
             client_count = len(writer._clients)
-            assert client_count == writer._metrics["buffer.dropped.traces"]["count"]
-            assert ["reason:full"] == writer._metrics["buffer.dropped.traces"]["tags"]
+            assert client_count == writer._metrics["buffer.dropped.traces"][("reason:full",)]
+            assert [("reason:full",)] == list(writer._metrics["buffer.dropped.traces"].keys())
 
     def test_drop_reason_encoding_error(self):
         n_traces = 10
@@ -245,7 +245,7 @@ class AgentWriterTests(BaseTestCase):
             assert writer_metrics_reset.call_count == 1
 
             expected_count = n_traces * len(writer._clients)
-            assert expected_count == writer._metrics["encoder.dropped.traces"]["count"]
+            assert expected_count == writer._metrics["encoder.dropped.traces"][tuple()]
 
     def test_keep_rate(self):
         statsd = mock.Mock()
