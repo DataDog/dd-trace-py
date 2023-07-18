@@ -377,5 +377,4 @@ def listen():
     core.on("context.started.flask._patched_request", _on_traced_request_context_started_flask)
     core.on("context.started.flask.jsonify", _on_jsonify_context_started_flask)
     core.on("context.started.flask.render_template", _on_render_template_context_started_flask)
-    core.on("context.started.flask.signal", _on_function_context_started_flask)
-    core.on("context.started.flask.function", _on_function_context_started_flask)
+    core.on("context.started.flask.call", _on_function_context_started_flask)
