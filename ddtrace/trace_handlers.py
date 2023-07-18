@@ -1,8 +1,6 @@
 import functools
 import sys
 
-from werkzeug.exceptions import NotFound
-
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
@@ -263,7 +261,7 @@ def _on_traced_request_context_started_flask(ctx):
     request_span = pin.tracer.trace(ctx.get_item("name"), service=service)
     ctx.set_item("flask_request_span", request_span)
     request_span.set_tag_str(COMPONENT, flask_config.integration_name)
-    request_span._ignore_exception(NotFound)
+    request_span._ignore_exception(ctx.get_item("ignored_exception_type"))
 
 
 def _on_jsonify_context_started_flask(ctx):
