@@ -57,6 +57,7 @@ def _gunicorn_settings_factory(
     debug_mode=False,  # type: bool
     dd_service=None,  # type: Optional[str]
     schema_version=None,  # type: Optional[str]
+    rlock=False,  # type: bool
 ):
     # type: (...) -> GunicornServerSettings
     """Factory for creating gunicorn settings with simple defaults if settings are not defined."""
@@ -73,6 +74,8 @@ def _gunicorn_settings_factory(
         env["DD_SERVICE"] = dd_service
     if schema_version is not None:
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
+    if rlock is not None:
+        env["DD_TRACE_SPAN_AGGREGATOR_RLOCK"] = "true"
     return GunicornServerSettings(
         env=env,
         directory=directory,
@@ -168,8 +171,9 @@ SETTINGS_GEVENT_SPANAGGREGATOR_RLOCK = _gunicorn_settings_factory(
     worker_class="gevent",
     use_ddtracerun=False,
     import_auto_in_app=True,
-    rlock = True
+    rlock=True,
 )
+
 
 @pytest.mark.skipif(sys.version_info >= (3, 11), reason="Gunicorn is only supported up to 3.10")
 @pytest.mark.parametrize(

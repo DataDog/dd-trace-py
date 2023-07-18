@@ -1,6 +1,5 @@
 import abc
 from collections import defaultdict
-from contextlib import contextmanager
 import threading
 from typing import Dict
 from typing import Iterable
@@ -182,9 +181,9 @@ class SpanAggregator(SpanProcessor):
         repr=False,
     )
     if config._span_aggregator_rlock:
-        _lock = attr.ib(init=False, factory=threading.RLock, repr=False) # type: ignore
+        _lock = attr.ib(init=False, factory=threading.RLock, repr=False)  # type: ignore
     else:
-        _lock = attr.ib(init=False, factory=threading.Lock, repr=False) # type: ignore
+        _lock = attr.ib(init=False, factory=threading.Lock, repr=False)  # type: ignore
     # Tracks the number of spans created and tags each count with the api that was used
     # ex: otel api, opentracing api, datadog api
     _span_metrics = attr.ib(
