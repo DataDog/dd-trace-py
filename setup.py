@@ -454,15 +454,7 @@ if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
             )
         )
 
-        def mac_supported_iast_version():
-            if CURRENT_OS == "Darwin":
-                from platform import mac_ver
-
-                mac_version = [int(i) for i in mac_ver()[0].split(".")]
-                return mac_version > [10, 9]
-            return True
-
-        if sys.version_info >= (3, 6, 0) and mac_supported_iast_version():
+        if sys.version_info >= (3, 6, 0):
             ext_modules.append(Extension("ddtrace.appsec.iast._taint_tracking._native", sources=[], parallel=8))
 else:
     ext_modules = []
