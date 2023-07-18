@@ -642,6 +642,7 @@ setup(
             "PY_MAJOR_VERSION": sys.version_info.major,
             "PY_MINOR_VERSION": sys.version_info.minor,
             "PY_MICRO_VERSION": sys.version_info.micro,
+            "PY_VERSION_HEX": sys.hexversion,
         },
         force=True,
         annotate=os.getenv("_DD_CYTHON_ANNOTATE") == "1",
