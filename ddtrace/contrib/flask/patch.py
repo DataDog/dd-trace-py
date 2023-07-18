@@ -33,13 +33,14 @@ from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 from ...contrib.wsgi.wsgi import _DDWSGIMiddlewareBase
 from ...internal.logger import get_logger
 from ...internal.utils import get_argument_value
+from ...internal.utils.importlib import func_name
 from ...internal.utils.version import parse_version
 from ..trace_utils import unwrap as _u
+from .wrappers import _wrap_call_with_pin_check
 from .wrappers import get_current_app
 from .wrappers import simple_call_wrapper
 from .wrappers import with_instance_pin
 from .wrappers import wrap_function
-from .wrappers import wrap_signal
 from .wrappers import wrap_view
 
 
@@ -460,7 +461,6 @@ def patched_endpoint(wrapped, instance, args, kwargs):
     endpoint = kwargs.get("endpoint", args[0])
 
     def _wrapper(func):
-        # DEV: `wrap_function` will call `func_name(func)` for us
         return wrapped(endpoint)(wrap_function(instance, func, resource=endpoint))
 
     return _wrapper
@@ -553,7 +553,7 @@ def patched_signal_receivers_for(signal):
         if isinstance(sender, flask.Flask):
             app = sender
         for receiver in wrapped(*args, **kwargs):
-            yield wrap_signal(app, signal, receiver)
+            yield _wrap_call_with_pin_check(receiver, app, func_name(receiver), signal=signal)
 
     return outer
 

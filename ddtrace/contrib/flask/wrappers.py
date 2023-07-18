@@ -69,10 +69,6 @@ def wrap_function(instance, func, name=None, resource=None):
     return _wrap_call_with_pin_check(func, instance, name or func_name(func), resource=resource)
 
 
-def wrap_signal(app, signal, func):
-    return _wrap_call_with_pin_check(func, app, func_name(func), signal=signal)
-
-
 def simple_call_wrapper(name, span_type=None):
     """Generate a simple tracer that wraps the function call with `with tracer.trace()`"""
 
