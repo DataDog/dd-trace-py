@@ -15,7 +15,7 @@ mongo_image: &mongo_image mongo:3.6
 httpbin_image: &httpbin_image kennethreitz/httpbin@sha256:2c7abc4803080c22928265744410173b6fea3b898872c01c5fd0f0f9df4a59fb
 vertica_image: &vertica_image sumitchawla/vertica:latest
 rabbitmq_image: &rabbitmq_image rabbitmq:3.7-alpine
-testagent_image: &testagent_image ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:v1.10.1
+testagent_image: &testagent_image ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:v1.11.0
 
 parameters:
   coverage:
@@ -131,6 +131,9 @@ commands:
       install_git:
         type: boolean
         default: false
+      trace_agent_url:
+        type: string
+        default: "http://localhost:9126"
     steps:
       - attach_workspace:
           at: .
@@ -153,7 +156,7 @@ commands:
                 services: testagent << parameters.docker_services >>
             - run:
                 environment:
-                  DD_TRACE_AGENT_URL: http://localhost:9126
+                  DD_TRACE_AGENT_URL: << parameters.trace_agent_url >> 
                   RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
                 command: |
                   # Sort the hashes to ensure a consistent ordering/division between each node
@@ -171,6 +174,14 @@ commands:
                   - run:
                       name: "Waiting for << parameters.wait >>"
                       command: riot -v run 'wait' << parameters.wait >>
+            - when:
+                condition:
+                  << parameters.trace_agent_url >> != ""
+                steps:
+                  - run:
+                      command: |
+                        echo 'export DD_TRACE_AGENT_URL=<< parameters.trace_agent_url >>' >> "$BASH_ENV"
+                        source "$BASH_ENV"
             - run:
                 environment:
                   RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
@@ -190,6 +201,10 @@ commands:
           path: test-results
       - store_artifacts:
           path: test-results
+      - run:
+          name: Get APM Test Agent Trace Check Results
+          when: always
+          command: bash ./scripts/get-test-agent-results.sh
 
 executors:
   cimg_base:
@@ -233,9 +248,13 @@ postgres_server: &postgres_server
 testagent: &testagent
   image: *testagent_image
   environment:
-    - LOG_LEVEL=WARNING
+    - LOG_LEVEL=DEBUG
     - SNAPSHOT_DIR=/snapshots
+    - PORT=9126
     - SNAPSHOT_CI=1
+    - DD_POOL_TRACE_CHECK_FAILURES=true
+    - DD_DISABLE_ERROR_RESPONSES=true
+    - ENABLED_CHECKS=trace_content_length,trace_stall,meta_tracer_version_header,trace_count_header,trace_peer_service,trace_dd_service
 
 jobs:
   pre_check:
@@ -376,12 +395,14 @@ jobs:
     steps:
       - run_test:
           pattern: "tracer"
+          trace_agent_url: ""
 
   ci_visibility:
     <<: *contrib_job
     steps:
       - run_test:
           pattern: "ci_visibility"
+          trace_agent_url: ""
 
   sourcecode:
     <<: *contrib_job
@@ -438,6 +459,7 @@ jobs:
           store_coverage: false
           # We don't want to run the profile-diff venvs
           pattern: 'profile$'
+          trace_agent_url: ""
 
   integration_agent:
     <<: *machine_executor
@@ -466,6 +488,7 @@ jobs:
           store_coverage: false
           pattern: 'integration-snapshot'
           install_git: true
+          trace_agent_url: ""
 
   vendor:
     <<: *contrib_job_small
@@ -494,6 +517,7 @@ jobs:
       - run_test:
           store_coverage: false
           pattern: 'ddtracerun'
+          trace_agent_url: ""
 
   test_logging:
     <<: *contrib_job
@@ -528,6 +552,7 @@ jobs:
     steps:
       - run_test:
           pattern: 'pylons'
+          trace_agent_url: "http://localhost:8126"
 
   aiohttp:
     <<: *machine_executor
@@ -588,7 +613,15 @@ jobs:
       - image: *ddtrace_dev_image
       - image: redis:4.0-alpine
       - image: *rabbitmq_image
-      - *testagent
+      - image: *testagent_image
+        environment:
+        - LOG_LEVEL=DEBUG
+        - SNAPSHOT_DIR=/snapshots
+        - PORT=9126
+        - SNAPSHOT_CI=1
+        - DD_POOL_TRACE_CHECK_FAILURES=true
+        - DD_DISABLE_ERROR_RESPONSES=true
+        - ENABLED_CHECKS=trace_stall,meta_tracer_version_header,trace_content_length,trace_peer_service,trace_dd_service # disable flaky content length check
     steps:
       - run_test:
           pattern: 'celery'
