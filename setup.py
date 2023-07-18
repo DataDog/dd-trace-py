@@ -305,6 +305,7 @@ class CMakeBuild(build_ext):
                 mac_version = [int(i) for i in mac_ver()[0].split(".")]
                 return mac_version > [10, 9]
             return True
+
         if (
             sys.version_info >= (3, 6, 0)
             and ext.name == "ddtrace.appsec.iast._taint_tracking._native"
@@ -370,7 +371,6 @@ class CMakeBuild(build_ext):
                 shutil.copy(os.path.join(IAST_DIR, tmp_filename), tmp_iast_file_path)
         else:
             build_ext.build_extension(self, ext)
-
 
 
 long_description = """
