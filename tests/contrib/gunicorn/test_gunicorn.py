@@ -164,7 +164,12 @@ SETTINGS_GEVENT_DDTRACERUN_DEBUGMODE_MODULE_CLONE = _gunicorn_settings_factory(
     debug_mode=True,
     enable_module_cloning=True,
 )
-
+SETTINGS_GEVENT_SPANAGGREGATOR_RLOCK = _gunicorn_settings_factory(
+    worker_class="gevent",
+    use_ddtracerun=False,
+    import_auto_in_app=True,
+    rlock = True
+)
 
 @pytest.mark.skipif(sys.version_info >= (3, 11), reason="Gunicorn is only supported up to 3.10")
 @pytest.mark.parametrize(
@@ -175,6 +180,7 @@ SETTINGS_GEVENT_DDTRACERUN_DEBUGMODE_MODULE_CLONE = _gunicorn_settings_factory(
         SETTINGS_GEVENT_DDTRACERUN,
         SETTINGS_GEVENT_DDTRACERUN_MODULE_CLONE,
         SETTINGS_GEVENT_DDTRACERUN_DEBUGMODE_MODULE_CLONE,
+        SETTINGS_GEVENT_SPANAGGREGATOR_RLOCK,
     ],
 )
 def test_no_known_errors_occur(gunicorn_server_settings, tmp_path):

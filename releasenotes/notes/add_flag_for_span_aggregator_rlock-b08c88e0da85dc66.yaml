@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    sqlalchemy: This fix resolves an issue where sqlalchemy rollbacks could intermittently cause deadlocks.
+    If experiencing this issue, set ``DD_TRACE_SPAN_AGGREGATOR_RLOCK=True``
