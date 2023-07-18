@@ -95,11 +95,37 @@ class DDLoggerTestCase(BaseTestCase):
 
         # If a PlaceHolder is in place of the logger
         # We should return the DDLogger
-        placeholder = logging.PlaceHolder("test")
-        self.manager.loggerDict["test.name.logger"] = placeholder
-        log = get_logger("test.name.logger")
-        self.assertEqual(log.name, "test.name.logger")
+        self.assertIsInstance(self.manager.loggerDict["new.test"], logging.PlaceHolder)
+        log = get_logger("new.test")
+        self.assertEqual(log.name, "new.test")
         self.assertIsInstance(log, DDLogger)
+
+    def test_get_logger_children(self):
+        """
+        When using `get_logger` to get a logger
+            We appropriately assign children loggers
+
+        DEV: This test case is to ensure we are calling `manager._fixupChildren(logger)`
+        """
+        root = get_logger("test")
+        root.setLevel(logging.WARNING)
+
+        child_logger = get_logger("test.newplaceholder.long.component")
+        self.assertEqual(child_logger.parent, root)
+
+        parent_logger = get_logger("test.newplaceholder")
+        self.assertEqual(child_logger.parent, parent_logger)
+
+        parent_logger.setLevel(logging.INFO)
+        # Because the child logger's level remains unset, it should inherit
+        # the level of its closest parent, which is INFO.
+        # If we did not properly maintain the logger tree, this would fail
+        # because child_logger would be set to the default when it was created
+        # which was logging.WARNING.
+        self.assertEqual(child_logger.getEffectiveLevel(), logging.INFO)
+
+        # Clean up for future tests.
+        root.setLevel(logging.NOTSET)
 
     def test_get_logger_parents(self):
         """

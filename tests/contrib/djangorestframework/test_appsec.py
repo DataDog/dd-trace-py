@@ -3,10 +3,10 @@ import json
 import django
 import pytest
 
+from ddtrace.internal import core
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec.iast import oce
 from ddtrace.appsec.iast._util import _is_python_version_supported as python_supported_by_iast
-from ddtrace.internal import _context
 from ddtrace.internal.compat import urlencode
 from tests.utils import assert_span_http_status_code
 from tests.utils import override_env
@@ -23,7 +23,7 @@ def test_djangorest_request_body_urlencoded(client, test_spans, tracer):
         client.post("/users/", payload, content_type="application/x-www-form-urlencoded")
         root_span = test_spans.spans[0]
         assert_span_http_status_code(root_span, 500)
-        query = dict(_context.get_item("http.request.body", span=root_span))
+        query = dict(core.get_item("http.request.body", span=root_span))
 
         assert root_span.get_tag("_dd.appsec.json") is None
         assert root_span.get_tag("component") == "django"
