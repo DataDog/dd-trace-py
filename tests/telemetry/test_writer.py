@@ -124,7 +124,7 @@ telemetry_writer.disable()
     env["DD_RUNTIME_METRICS_ENABLED"] = "true"
     env["DD_EXCEPTION_DEBUGGING_ENABLED"] = "true"
     if PY2:
-        # Prevents gevent importerror when profiling/debugger are enabled
+        # Prevents gevent importerror when profiling is enabled
         env["DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE"] = "false"
 
     _, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
