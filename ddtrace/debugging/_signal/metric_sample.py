@@ -62,7 +62,7 @@ class MetricSample(LogSignal):
     def sample(self, _locals):
         probe = cast(MetricProbeMixin, self.probe)
 
-        assert probe.kind is not None and probe.name is not None
+        assert probe.kind is not None and probe.name is not None  # nosec
 
         value = float(probe.value(_locals)) if probe.value is not None else 1
 

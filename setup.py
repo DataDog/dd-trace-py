@@ -514,7 +514,7 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     license="BSD",
-    packages=find_packages(exclude=["tests*", "benchmarks"]),
+    packages=find_packages(exclude=["tests*", "benchmarks*"]),
     package_data={
         "ddtrace": ["py.typed"],
         "ddtrace.appsec": ["rules.json"],
@@ -586,7 +586,7 @@ setup(
         "Programming Language :: Python :: 3.11",
     ],
     use_scm_version={"write_to": "ddtrace/_version.py"},
-    setup_requires=["setuptools_scm[toml]>=4", "cython"],
+    setup_requires=["setuptools_scm[toml]>=4", "cython<3"],
     ext_modules=ext_modules
     + cythonize(
         [
