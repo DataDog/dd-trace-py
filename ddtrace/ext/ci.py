@@ -253,10 +253,10 @@ def extract_buildkite(env):
     """Extract CI tags from Buildkite environ."""
     # Get alL keys which start with BUILDKITE_AGENT_META_DATA_x
     node_label_list = []  # type: list[str]
-    BUILDKITE_AGENT_META_DATA_PREFIX = "BUILDKITE_AGENT_META_DATA_"
+    buildkite_agent_meta_data_prefix = "BUILDKITE_AGENT_META_DATA_"
     for env_variable in env:
-        if env_variable.startswith(BUILDKITE_AGENT_META_DATA_PREFIX):
-            key = env_variable.replace(BUILDKITE_AGENT_META_DATA_PREFIX, "").lower()
+        if env_variable.startswith(buildkite_agent_meta_data_prefix):
+            key = env_variable.replace(buildkite_agent_meta_data_prefix, "").lower()
             value = env.get(env_variable)
             node_label_list.append("{}:{}".format(key, value))
     return {
@@ -322,7 +322,7 @@ def extract_codefresh(env):
         git.BRANCH: env.get("CF_BRANCH"),
         PIPELINE_ID: build_id,
         PIPELINE_NAME: env.get("CF_PIPELINE_NAME"),
-        PIPELINE_URL: "https://g.codefresh.io/build/{0}".format(build_id),
+        PIPELINE_URL: env.get("CF_BUILD_URL"),
         JOB_NAME: env.get("CF_STEP_NAME"),
         PROVIDER_NAME: "codefresh",
         _CI_ENV_VARS: json.dumps(
