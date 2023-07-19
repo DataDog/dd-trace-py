@@ -1,6 +1,14 @@
+#include <memory>
 #include <pybind11/pybind11.h>
 
+#include "Constants.h"
+#include "TaintTracking/Source.h"
+#include "TaintTracking/_taint_tracking.h"
 #include "TaintedObject/TaintedObject.h"
+
+#define PY_MODULE_NAME_ASPECTS                                                                                         \
+    PY_MODULE_NAME "."                                                                                                 \
+                   "aspects"
 
 using namespace pybind11::literals;
 namespace py = pybind11;
@@ -15,13 +23,15 @@ static PyMethodDef OpsMethods[] = {
 };
 
 static struct PyModuleDef ops = { PyModuleDef_HEAD_INIT,
-                                  .m_name = "ddtrace.appsec.iast._taint_tracking._native",
+                                  .m_name = PY_MODULE_NAME_ASPECTS,
                                   .m_doc = "Taint tracking operations",
                                   .m_size = -1,
                                   .m_methods = OpsMethods };
 
 PYBIND11_MODULE(_native, m)
 {
+    pyexport_m_taint_tracking(m);
+
     // Note: the order of these definitions matter. For example,
     // stacktrace_element definitions must be before the ones of the
     // classes inheriting from it.
