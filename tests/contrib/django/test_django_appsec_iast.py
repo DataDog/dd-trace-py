@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 import json
-import re
 
 import mock
 import pytest
@@ -9,8 +8,6 @@ from ddtrace import config
 from ddtrace._monkey import patch_iast
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec.iast import oce
-from ddtrace.appsec.iast._util import _is_python_version_supported as python_supported_by_iast
-from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import urlencode
 from tests.utils import override_global_config
 
@@ -45,15 +42,6 @@ def _aux_appsec_get_root_span(
 
 
 TEST_FILE = "tests/contrib/django/django_app/appsec_urls.py"
-
-
-def get_line(label, filename=TEST_FILE):
-    """get the line number after the label comment in source file `filename`"""
-    with open(filename, "r") as file_in:
-        for nb_line, line in enumerate(file_in):
-            if re.search("label " + re.escape(label), line):
-                return nb_line + 2
-    assert False, "label %s not found" % label
 
 
 @pytest.mark.skip(reason="TODO: this tests will enable in the next PR")
