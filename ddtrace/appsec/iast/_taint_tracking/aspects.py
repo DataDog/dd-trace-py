@@ -90,12 +90,6 @@ def bytearray_aspect(*args, **kwargs):
     return result
 
 
-# TODO
-# def stringio_aspect(*args, **kwargs):
-#     # type: (Any, Any) -> StringIO
-#     return StringIO(*args, **kwargs)
-
-
 def modulo_aspect(candidate_text, candidate_tuple):
     # type: (Any, Any) -> Any
     if not isinstance(candidate_text, TEXT_TYPES):
@@ -169,7 +163,6 @@ def format_aspect(
     if not isinstance(candidate_text, TEXT_TYPES):
         return candidate_text.format(*args, **kwargs)
 
-    # try:
     params = tuple(args) + tuple(kwargs.values())
     ranges_orig, candidate_text_ranges = are_all_text_all_ranges(candidate_text, params)
     if not ranges_orig:
@@ -186,41 +179,17 @@ def format_aspect(
 
     new_args = list(map(fun, args))
     new_kwargs = {key: fun(value) for key, value in iteritems(kwargs)}
-    # invert_dict(range_guid_map)
-
-    # import string
-    #
-    # class MyFormatter(string.Formatter):
-    #     def format_field(self, value, format_spec):
-    #         r = r'(([\s\S])?([<>=\^]))?([\+\- ])?([#])?([0])?(\d)*([,])?((\.)(\d)*)?([sbcdoxXneEfFgGn%])?'
-    #
-    #         from collections import namedtuple as nt
-    #         FormatSpec = nt('FormatSpec', 'fill align sign alt zero_padding width comma decimal precision type')
-    #
-    #         import re
-    #         spec = FormatSpec(*re.fullmatch(r, format_spec).group(2, 3, 4, 5, 6, 7, 8, 10, 11, 12))
-    #         spec = spec._replace(width=str(int(spec.width) + 26))
-    #
-    #         return super(MyFormatter, self).format(value + '    ', ''.join(s for s in spec if s is not None))
-    #
-    # fmt = MyFormatter()
-    # print(fmt.format(new_template, *new_args, **new_kwargs))
 
     return _convert_escaped_text_to_tainted_text(
         new_template.format(*new_args, **new_kwargs),
         ranges_orig=ranges_orig,
     )
-    #
-    # except Exception as exc:
-    #     return candidate_text.format(*args, **kwargs)
 
 
-# TODO: add tests
 def format_map_aspect(candidate_text, *args, **kwargs):  # type: (str, Any, Any) -> str
     if not isinstance(candidate_text, TEXT_TYPES):
         return candidate_text.format_map(*args, **kwargs)
 
-    # try:
     mapping = parse_params(0, "mapping", None, *args, **kwargs)
     mapping_tuple = tuple(mapping if not isinstance(mapping, dict) else mapping.values())
     ranges_orig, candidate_text_ranges = are_all_text_all_ranges(
@@ -243,12 +212,8 @@ def format_map_aspect(candidate_text, *args, **kwargs):  # type: (str, Any, Any)
         ),
         ranges_orig=ranges_orig,
     )
-    #
-    # except Exception as exc:
-    #     return candidate_text.format_map(*args, **kwargs)
 
 
-# TODO: add tests
 def format_value_aspect(
     element,  # type: Any
     options=0,  # type: int

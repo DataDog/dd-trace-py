@@ -6,8 +6,6 @@ import os
 from sys import builtin_module_names
 from typing import TYPE_CHECKING
 
-from ddtrace.internal.utils.formats import asbool
-
 
 if TYPE_CHECKING:
     from types import ModuleType
@@ -36,7 +34,6 @@ if IAST.DENY_MODULES in os.environ:
 ENCODING = ""
 
 log = get_logger(__name__)
-_PATCHED_MODULES = set()
 
 
 def get_encoding(module_path):  # type: (str) -> str
@@ -97,8 +94,7 @@ def visit_ast(
         module_name=module_name,
     )
     modified_ast = visitor.visit(parsed_ast)
-    if asbool(os.environ.get(IAST.ENV_DEBUG, "false")):
-        _PATCHED_MODULES.add(tuple([module_path, visitor.ast_modified]))
+
     if not visitor.ast_modified:
         return None
 

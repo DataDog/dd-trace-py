@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 from _ast import Expr
 from _ast import ImportFrom
 import ast
