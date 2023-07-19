@@ -406,12 +406,10 @@ def pytest_runtest_protocol(item, nextitem):
             span.set_tag_str(test.COMMAND, _get_pytest_command(item.config))
             span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
 
-            # if test_module_span is not None:
             span.set_tag_str(_MODULE_ID, str(test_module_span.span_id))
             span.set_tag_str(test.MODULE, test_module_span.get_tag(test.MODULE))
             span.set_tag_str(test.MODULE_PATH, test_module_span.get_tag(test.MODULE_PATH))
 
-            # if test_suite_span is not None:
             span.set_tag_str(_SUITE_ID, str(test_suite_span.span_id))
             test_class_hierarchy = _get_test_class_hierarchy(item)
             if test_class_hierarchy:
