@@ -6,6 +6,9 @@
 #include <sstream>
 #include <string.h>
 
+#include "../Constants.h"
+
+// #define PY_MODULE_NAME_SOURCE PY_MODULE_NAME "." "Source"
 using namespace std;
 namespace py = pybind11;
 
