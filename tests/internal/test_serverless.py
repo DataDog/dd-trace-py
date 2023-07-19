@@ -14,13 +14,6 @@ def test_dont_spawn_mini_agent_if_not_cloud_function(mock_popen):
         mock_popen.assert_not_called()
 
 
-# @mock.patch("ddtrace.internal.serverless.mini_agent.Popen")
-# def test_spawn_mini_agent_if_newer_gcp_function_runtime(mock_popen):
-#     with override_env((dict(K_SERVICE="test_function", FUNCTION_TARGET="function_target"))):
-#         maybe_start_serverless_mini_agent()
-#         mock_popen.assert_called_once()
-
-
 @mock.patch("ddtrace.internal.serverless.mini_agent.Popen")
 def test_spawn_mini_agent_if_gcp_function_runtime(mock_popen):
     with override_global_config(dict(_is_gcp_function=True)):
@@ -30,7 +23,6 @@ def test_spawn_mini_agent_if_gcp_function_runtime(mock_popen):
 
 @mock.patch("ddtrace.internal.serverless.mini_agent.Popen")
 def test_spawn_mini_agent_if_azure_function(mock_popen):
-    # with override_env((dict(FUNCTIONS_WORKER_RUNTIME="dummy_runtime", AzureWebJobsStorage="dummy_value"))):
     with override_global_config(dict(_is_azure_function_consumption_plan=True)):
         maybe_start_serverless_mini_agent()
         mock_popen.assert_called_once()
