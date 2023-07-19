@@ -311,6 +311,11 @@ class Config(object):
             # Replaces the default otel api runtime context with DDRuntimeContext
             # https://github.com/open-telemetry/opentelemetry-python/blob/v1.16.0/opentelemetry-api/src/opentelemetry/context/__init__.py#L53
             os.environ["OTEL_PYTHON_CONTEXT"] = "ddcontextvars_context"
+            if "tracecontext" not in self._propagation_style_extract:
+                self._propagation_style_extract = ["tracecontext"] + self._propagation_style_extract
+            if "tracecontext" not in self._propagation_style_inject:
+                self._propagation_style_inject = ["tracecontext"] + self._propagation_style_inject
+
         self._ddtrace_bootstrapped = False
 
     def __getattr__(self, name):
