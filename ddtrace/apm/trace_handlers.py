@@ -75,7 +75,7 @@ def _on_context_started(ctx):
     environ = ctx.get_item("environ")
     trace_utils.activate_distributed_headers(middleware.tracer, int_config=middleware._config, request_headers=environ)
     req_span = middleware.tracer.trace(
-        middleware._request_span_name,
+        middleware._request_call_name if hasattr(middleware, "_request_call_name") else middleware._request_span_name,
         service=trace_utils.int_service(middleware._pin, middleware._config),
         span_type=SpanTypes.WEB,
     )

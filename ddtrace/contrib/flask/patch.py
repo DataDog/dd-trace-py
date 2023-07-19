@@ -113,7 +113,7 @@ def wrap_with_event(module, name, origin):
 
 
 class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
-    _request_span_name = schematize_url_operation("flask.request", protocol="http", direction=SpanDirection.INBOUND)
+    _request_call_name = schematize_url_operation("flask.request", protocol="http", direction=SpanDirection.INBOUND)
     _application_span_name = "flask.application"
     _response_span_name = "flask.response"
 
