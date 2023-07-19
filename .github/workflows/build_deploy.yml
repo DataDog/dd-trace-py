@@ -176,6 +176,7 @@ jobs:
       - build_wheels_py39
       - build_wheels_py310
       - build_wheels_py311
+      - build_wheels_py312
       - test_alpine_sdist
     runs-on: ubuntu-latest
     if: (github.event_name == 'release' && github.event.action == 'published')
@@ -184,6 +185,10 @@ jobs:
         with:
           name: artifact
           path: dist
+
+      - name: Remove unsupported 3.12 wheels
+        run: |
+          rm -f dist/*cp312*.whl
 
       - uses: pypa/gh-action-pypi-publish@master
         with:
