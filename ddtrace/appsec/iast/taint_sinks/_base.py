@@ -40,8 +40,6 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Text
     from typing import Union
 
-    from ddtrace.appsec.iast._input_info import Input_info
-
 log = get_logger(__name__)
 
 CWD = os.path.abspath(os.getcwd())
@@ -74,7 +72,7 @@ class VulnerabilityBase(Operation):
 
     @classmethod
     def report(cls, evidence_value="", sources=None):
-        # type: (Union[Text|List[Dict[str, Any]]], Optional[List[Input_info]]) -> None
+        # type: (Union[Text|List[Dict[str, Any]]], Optional[List[Source]]) -> None
         """Build a IastSpanReporter instance to report it in the `AppSecIastSpanProcessor` as a string JSON
 
         TODO: check deduplications if DD_IAST_DEDUPLICATION_ENABLED is true

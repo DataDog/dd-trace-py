@@ -22,5 +22,5 @@ def test_path_traversal(iast_span_defaults):
     span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
     assert list(span_report.vulnerabilities)[0].type == VULN_PATH_TRAVERSAL
     assert list(span_report.vulnerabilities)[0].location.path == FIXTURES_PATH
-    assert list(span_report.vulnerabilities)[0].location.line == 17
+    assert list(span_report.vulnerabilities)[0].location.line == 18
     assert list(span_report.vulnerabilities)[0].evidence.value == file_path
