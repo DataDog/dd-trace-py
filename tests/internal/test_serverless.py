@@ -15,7 +15,7 @@ def test_dont_spawn_mini_agent_if_not_cloud_function(mock_popen):
 
 
 @mock.patch("ddtrace.internal.serverless.mini_agent.Popen")
-def test_spawn_mini_agent_if_gcp_function_runtime(mock_popen):
+def test_spawn_mini_agent_if_gcp_function(mock_popen):
     with override_global_config(dict(_is_gcp_function=True)):
         maybe_start_serverless_mini_agent()
         mock_popen.assert_called_once()
