@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    ci-visibility: This fix resolves an issue where test modules could be non-existent, causing errors in the CI Visibility product.
+    pytest: This fix resolves an issue where test modules could be non-existent, causing errors in the CI Visibility product.
