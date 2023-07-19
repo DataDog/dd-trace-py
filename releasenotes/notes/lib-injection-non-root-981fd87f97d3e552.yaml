@@ -4,4 +4,4 @@ fixes:
     lib-injection: Adds support for non-root users in containers by installing
       the ddtrace (and its dependencies) to the volume mount in which the
       wheels are provided to the application container. This avoids write
-      permissions being required in the application to install the packages.
+      permissions being required in the application container to install the packages.

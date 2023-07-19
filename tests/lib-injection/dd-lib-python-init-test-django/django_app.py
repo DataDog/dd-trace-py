@@ -14,9 +14,9 @@ ALLOWED_HOSTS = ["*"]
 def index(request):
     import ddtrace
 
-    if ddtrace.__version__ != "1.13.0":
+    if ddtrace.__version__ != "1.16.1":
         print(
-            "Assertion failure: unexpected ddtrace version received. Got %r when expecting '1.13.0'"
+            "Assertion failure: unexpected ddtrace version received. Got %r when expecting '1.16.1'"
             % ddtrace.__version__
         )
         # Hard exit so traces aren't flushed.

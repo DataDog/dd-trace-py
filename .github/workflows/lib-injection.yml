@@ -58,51 +58,20 @@ jobs:
       fail-fast: false
     steps:
       - uses: actions/checkout@v3
-      - name: Create a docker network for the app and test agent
+      - name: Build and run the app
         run: |
-          docker network create test-inject
-      - name: Run the test agent
-        run: |
-          docker run \
-            -d \
-            --name=testagent \
-            --network=test-inject \
-            -p 8126:8126 \
-            ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:v1.7.2
-      - name: Prepare the volume to mimic what the init container will provide
-        run: |
+          SRC=$(pwd)
           cd lib-injection
-          mkdir -p datadog_init/ddtrace_pkgs datadog_init/site-packages datadog_init/tmp
-          cp sitecustomize.py datadog_init/
-          ./dl_wheels.py \
-            --ddtrace-version=v1.13 \
-            --python-version=3.11 \
-            --python-version=3.10 \
-            --python-version=3.9 \
-            --python-version=3.8 \
-            --python-version=3.7 \
-            --arch x86_64 \
-            --platform manylinux2014 \
-            --output-dir datadog_init/ddtrace_pkgs \
-            --verbose
-      - name: Build test app
-        run: |
-          docker build \
-            -t ${{ matrix.variant }} \
-            tests/lib-injection/${{ matrix.variant }}/
-      - name: Run the app
-        run: |
-          docker run -d \
-            --name ${{ matrix.variant }} \
-            --network test-inject \
-            -p 18080:18080 \
-            -e PYTHONPATH=/datadog_init \
-            -e DD_TRACE_AGENT_URL=http://testagent:8126 \
-            -v $PWD/lib-injection/datadog_init:/datadog_init \
-            ${{matrix.variant}}
+          mkdir -p tmp/ddtrace
+          export DDTRACE_PYTHON_VERSION=v1.16.1
+          export APP_CONTEXT=$SRC/tests/lib-injection/${{matrix.variant}}
+          export APP_DOCKERFILE=$SRC/tests/lib-injection/${{matrix.variant}}/Dockerfile
+          export TEMP_DIR=$PWD/tmp/ddtrace
+          docker-compose build
+          docker-compose up -d
           # Wait for the app to start
           sleep 20
-          docker logs ${{matrix.variant}}
+          docker-compose logs
       - name: Test the app
         run: |
           curl http://localhost:18080
@@ -116,4 +85,4 @@ jobs:
       - name: Output app logs (LOOK HERE IF THE JOB FAILS)
         if: success() || failure()
         run: |
-          docker logs ${{ matrix.variant }}
+          docker-compose logs

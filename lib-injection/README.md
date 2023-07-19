@@ -30,6 +30,18 @@ The files copied to the volume are:
 
 The `PYTHONPATH` environment variable is set to the shared volume directory
 which contains `sitecustomize.py` and `ddtrace_pkgs`. The environment variable
-is injected into the the application container. This enables the
+is injected into the application container. This enables the
 `sitecustomize.py` file to execute on any Python interpreter startup which
 results in the automatic instrument being applied to the application.
+
+
+## Testing
+
+To test this feature locally use the provided `docker-compose.yml`.
+
+```bash
+export DDTRACE_PYTHON_VERSION=v1.16.1
+export APP_CONTEXT=$SRC/tests/lib-injection/dd-lib-python-init-test-django
+export APP_DOCKERFILE=$SRC/tests/lib-injection/dd-lib-python-init-test-django/Dockerfile
+rm -r /tmp/ddtrace_test && docker-compose build && docker-compose run -it app_local
+```

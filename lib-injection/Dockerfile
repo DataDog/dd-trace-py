@@ -26,17 +26,9 @@ RUN python3 dl_wheels.py \
 FROM busybox
 COPY --from=0 /build/pkgs /datadog-init/ddtrace_pkgs
 
-# Need a custom site-packages directory for containers that run with an unprivileged user.
-RUN mkdir /datadog-init/site-packages
-
-# Need a tmp directory for pip to use when installing the wheels to the custom site-packages directory
-# above.
-RUN mkdir /datadog-init/tmp
-
 ARG UID=10000
 RUN addgroup -g 10000 -S datadog && \
     adduser -u ${UID} -S datadog -G datadog
-RUN chown -R datadog:datadog /datadog-init/ddtrace_pkgs
 USER ${UID}
 WORKDIR /datadog-init
 ADD sitecustomize.py /datadog-init/sitecustomize.py
