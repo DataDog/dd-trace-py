@@ -18,6 +18,7 @@ from ..internal import gitmetadata
 from ..internal.constants import PROPAGATION_STYLE_ALL
 from ..internal.constants import PROPAGATION_STYLE_B3
 from ..internal.constants import _PROPAGATION_STYLE_DEFAULT
+from ..internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
 from ..internal.logger import get_logger
 from ..internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ..internal.utils.formats import asbool
@@ -311,10 +312,11 @@ class Config(object):
             # Replaces the default otel api runtime context with DDRuntimeContext
             # https://github.com/open-telemetry/opentelemetry-python/blob/v1.16.0/opentelemetry-api/src/opentelemetry/context/__init__.py#L53
             os.environ["OTEL_PYTHON_CONTEXT"] = "ddcontextvars_context"
-            if "tracecontext" not in self._propagation_style_extract:
-                self._propagation_style_extract = ["tracecontext"] + self._propagation_style_extract
-            if "tracecontext" not in self._propagation_style_inject:
-                self._propagation_style_inject = ["tracecontext"] + self._propagation_style_inject
+            # make propagation work automatically when otel enabled
+            if _PROPAGATION_STYLE_W3C_TRACECONTEXT not in self._propagation_style_extract:
+                self._propagation_style_extract.append(_PROPAGATION_STYLE_W3C_TRACECONTEXT)
+            if _PROPAGATION_STYLE_W3C_TRACECONTEXT not in self._propagation_style_inject:
+                self._propagation_style_inject.append(_PROPAGATION_STYLE_W3C_TRACECONTEXT)
 
         self._ddtrace_bootstrapped = False
 
