@@ -305,53 +305,11 @@ class TestRedisPatch(TracerTestCase):
         assert span.service == "mysvc", span.service
 
     @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_REDIS_SERVICE="myredis", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1")
-    )
-    def test_env_user_specified_redis_service_v1(self):
-        self.r.get("cheese")
-        span = self.get_spans()[0]
-        assert span.service == "myredis", span.service
-
-        self.reset()
-
-        # Global config
-        with self.override_config("redis", dict(service="cfg-redis")):
-            self.r.get("cheese")
-            span = self.get_spans()[0]
-            assert span.service == "cfg-redis", span.service
-
-        self.reset()
-
-        # Manual override
-        Pin.override(self.r, service="mysvc", tracer=self.tracer)
-        self.r.get("cheese")
-        span = self.get_spans()[0]
-        assert span.service == "mysvc", span.service
-
-    @TracerTestCase.run_in_subprocess(
         env_overrides=dict(
             DD_SERVICE="app-svc", DD_REDIS_SERVICE="env-specified-redis-svc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"
         )
     )
     def test_service_precedence_v0(self):
-        self.r.get("cheese")
-        span = self.get_spans()[0]
-        assert span.service == "env-specified-redis-svc", span.service
-
-        self.reset()
-
-        # Do a manual override
-        Pin.override(self.r, service="override-redis", tracer=self.tracer)
-        self.r.get("cheese")
-        span = self.get_spans()[0]
-        assert span.service == "override-redis", span.service
-
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(
-            DD_SERVICE="app-svc", DD_REDIS_SERVICE="env-specified-redis-svc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"
-        )
-    )
-    def test_service_precedence_v1(self):
         self.r.get("cheese")
         span = self.get_spans()[0]
         assert span.service == "env-specified-redis-svc", span.service
