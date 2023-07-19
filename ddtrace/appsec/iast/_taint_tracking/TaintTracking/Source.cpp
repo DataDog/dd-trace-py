@@ -4,7 +4,7 @@
 #include <string>
 #include <utility>
 
-#include "TaintTracking/Source.h"
+#include "Source.h"
 
 using namespace std;
 namespace py = pybind11;
