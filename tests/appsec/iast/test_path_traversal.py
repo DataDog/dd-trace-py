@@ -17,6 +17,10 @@ ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
 def test_path_traversal(iast_span_defaults):
+    from ddtrace.appsec.iast._taint_tracking import setup
+
+    setup(bytes.join, bytearray.join)
+
     file_path = os.path.join(ROOT_DIR, "fixtures", "path_traversal_test_file.txt")
     pt_open(file_path)
     span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
