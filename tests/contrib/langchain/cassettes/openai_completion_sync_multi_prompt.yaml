@@ -1,0 +1,94 @@
+interactions:
+- request:
+    body: '{"prompt": ["What is the best way to teach a baby multiple languages?",
+      "How many times has Spongebob failed his road test?"], "model": "text-davinci-003",
+      "temperature": 0.7, "max_tokens": 256, "top_p": 1, "frequency_penalty": 0, "presence_penalty":
+      0, "n": 1, "logit_bias": {}}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '279'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - OpenAI/v1 PythonBindings/0.27.8
+      X-OpenAI-Client-User-Agent:
+      - '{"bindings_version": "0.27.8", "httplib": "requests", "lang": "python", "lang_version":
+        "3.10.5", "platform": "macOS-13.4-arm64-arm-64bit", "publisher": "openai",
+        "uname": "Darwin 22.5.0 Darwin Kernel Version 22.5.0: Mon Apr 24 20:52:24
+        PDT 2023; root:xnu-8796.121.2~5/RELEASE_ARM64_T6000 arm64"}'
+    method: POST
+    uri: https://api.openai.com/v1/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"cmpl-7UJs2Rfqv8Lct2GoadGz04UrCweAp\",\n  \"object\":
+        \"text_completion\",\n  \"created\": 1687460578,\n  \"model\": \"text-davinci-003\",\n
+        \ \"choices\": [\n    {\n      \"text\": \"\\n\\nThe best way to teach a baby
+        multiple languages is to start as early as possible and to make the learning
+        experience fun and engaging. Create an immersive environment and speak to
+        them in both languages, alternating between the two often. Use as much visual
+        stimulation as possible, like pictures, videos, and music, to help them learn
+        and remember words. Read books in multiple languages to them, and use repetition
+        and reinforcement whenever possible. Finally, be patient and encouraging throughout
+        the learning process.\",\n      \"index\": 0,\n      \"logprobs\": null,\n
+        \     \"finish_reason\": \"stop\"\n    },\n    {\n      \"text\": \"\\n\\nSpongebob
+        has failed his road test a total of three times.\",\n      \"index\": 1,\n
+        \     \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n    }\n  ],\n
+        \ \"usage\": {\n    \"prompt_tokens\": 24,\n    \"completion_tokens\": 114,\n
+        \   \"total_tokens\": 138\n  }\n}\n"
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 7db6bfa97c6a4327-EWR
+      Cache-Control:
+      - no-cache, must-revalidate
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Thu, 22 Jun 2023 19:03:03 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      access-control-allow-origin:
+      - '*'
+      alt-svc:
+      - h3=":443"; ma=86400
+      openai-model:
+      - text-davinci-003
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '5028'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      x-ratelimit-limit-requests:
+      - '3000'
+      x-ratelimit-limit-tokens:
+      - '250000'
+      x-ratelimit-remaining-requests:
+      - '2999'
+      x-ratelimit-remaining-tokens:
+      - '249487'
+      x-ratelimit-reset-requests:
+      - 20ms
+      x-ratelimit-reset-tokens:
+      - 122ms
+      x-request-id:
+      - de897ed5573bbdf5e1ac01bcdcbad33c
+    status:
+      code: 200
+      message: OK
+version: 1
