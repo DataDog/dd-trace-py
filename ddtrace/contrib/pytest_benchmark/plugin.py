@@ -1,5 +1,7 @@
 import pytest
 
+from ddtrace.ext.test import TEST_TYPE
+
 from ddtrace.contrib.pytest.plugin import _extract_span
 from ddtrace.contrib.pytest_benchmark.constants import BENCHMARK_INFO
 from ddtrace.contrib.pytest_benchmark.constants import PLUGIN_METRICS
@@ -25,6 +27,7 @@ class _PytestBenchmarkPlugin:
             if span is None:
                 return
 
+            span.set_tag_str(TEST_TYPE, "benchmark")
             span.set_tag_str(BENCHMARK_INFO, "Time")
             for span_path, tag in PLUGIN_METRICS.items():
                 if hasattr(stat_object, tag):

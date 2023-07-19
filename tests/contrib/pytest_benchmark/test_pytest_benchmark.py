@@ -3,6 +3,9 @@ import os
 import pytest
 
 import ddtrace
+
+from ddtrace.ext.test import TEST_TYPE
+
 from ddtrace.contrib.pytest.plugin import is_enabled
 from ddtrace.contrib.pytest_benchmark.constants import BENCHMARK_INFO
 from ddtrace.contrib.pytest_benchmark.constants import BENCHMARK_MEAN
@@ -75,6 +78,7 @@ class PytestTestCase(TracerTestCase):
         spans = self.pop_spans()
 
         assert len(spans) == 3
+        assert spans[0].get_tag(TEST_TYPE) == "benchmark"
         assert spans[0].get_tag(BENCHMARK_INFO) == "Time"
         assert spans[0].get_metric(BENCHMARK_MEAN) > 2
         assert spans[0].get_metric(BENCHMARK_RUN) == 5
@@ -116,6 +120,7 @@ class PytestTestCase(TracerTestCase):
         spans = self.pop_spans()
 
         assert len(spans) == 3
+        assert spans[0].get_tag(TEST_TYPE) == "test"
         assert spans[0].get_tag(BENCHMARK_INFO) is None
         assert spans[0].get_metric(BENCHMARK_MEAN) is None
         assert spans[0].get_metric(BENCHMARK_RUN) is None
