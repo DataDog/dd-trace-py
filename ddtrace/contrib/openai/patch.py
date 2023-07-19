@@ -8,6 +8,7 @@ from ddtrace.contrib._trace_utils_llm import BaseLLMIntegration
 from ddtrace.internal.agent import get_stats_url
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.wrapping import wrap
 
@@ -26,6 +27,7 @@ log = get_logger(__name__)
 config._add(
     "openai",
     {
+        "_default_service": schematize_service_name("openai"),
         "logs_enabled": asbool(os.getenv("DD_OPENAI_LOGS_ENABLED", False)),
         "metrics_enabled": asbool(os.getenv("DD_OPENAI_METRICS_ENABLED", True)),
         "span_prompt_completion_sample_rate": float(os.getenv("DD_OPENAI_SPAN_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)),
@@ -333,7 +335,8 @@ def _patched_make_session(func, args, kwargs):
     This should technically be a ``peer.service`` but this concept doesn't exist yet.
     """
     session = func(*args, **kwargs)
-    Pin.override(session, service="openai")
+    service = schematize_service_name("openai")
+    Pin.override(session, service=service)
     return session
 
 
