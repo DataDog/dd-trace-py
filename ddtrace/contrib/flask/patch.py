@@ -18,6 +18,7 @@ from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
 from ...appsec import _asm_request_context
+from ...appsec.iast._metrics import _set_metric_iast_instrumented_source
 from ...internal import core
 from ...internal.schema import schematize_service_name
 from ...internal.schema import schematize_url_operation
@@ -131,6 +132,8 @@ def taint_request_init(wrapped, instance, args, kwargs):
                 source_value=instance.path,
                 source_origin=OriginType.PATH,
             )
+            _set_metric_iast_instrumented_source(OriginType.PATH)
+            _set_metric_iast_instrumented_source(OriginType.QUERY)
         except Exception:
             log.debug("Unexpected exception while tainting pyobject", exc_info=True)
 
@@ -278,28 +281,38 @@ def patch():
             "Headers.items",
             functools.partial(if_iast_taint_yield_tuple_for, (OriginType.HEADER_NAME, OriginType.HEADER)),
         )
-        _w(
-            "werkzeug.datastructures",
-            "EnvironHeaders.__getitem__",
-            functools.partial(if_iast_taint_returned_object_for, OriginType.HEADER),
-        )
+        _set_metric_iast_instrumented_source(OriginType.HEADER_NAME)
+        _set_metric_iast_instrumented_source(OriginType.HEADER)
+
         _w(
             "werkzeug.datastructures",
             "ImmutableMultiDict.__getitem__",
             functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER),
         )
+        _set_metric_iast_instrumented_source(OriginType.PARAMETER)
+
+        _w(
+            "werkzeug.datastructures",
+            "EnvironHeaders.__getitem__",
+            functools.partial(if_iast_taint_returned_object_for, OriginType.HEADER),
+        )
+        _set_metric_iast_instrumented_source(OriginType.HEADER)
+
         _w("werkzeug.wrappers.request", "Request.__init__", taint_request_init)
         _w(
             "werkzeug.wrappers.request",
             "Request.get_data",
             functools.partial(if_iast_taint_returned_object_for, OriginType.BODY),
         )
+        _set_metric_iast_instrumented_source(OriginType.BODY)
+
         if flask_version < (2, 0, 0):
             _w(
                 "werkzeug._internal",
                 "_DictAccessorProperty.__get__",
                 functools.partial(if_iast_taint_returned_object_for, OriginType.QUERY),
             )
+            _set_metric_iast_instrumented_source(OriginType.QUERY)
     except Exception:
         log.debug("Unexpected exception while patch IAST functions", exc_info=True)
 
@@ -770,6 +783,8 @@ def _set_request_tags(span):
                 origins=(OriginType.COOKIE_NAME, OriginType.COOKIE),
                 override_pyobject_tainted=True,
             )
+            _set_metric_iast_instrumented_source(OriginType.COOKIE_NAME)
+            _set_metric_iast_instrumented_source(OriginType.COOKIE)
 
         if not span.get_tag(FLASK_VIEW_ARGS) and request.view_args and config.flask.get("collect_view_args"):
             for k, v in request.view_args.items():
