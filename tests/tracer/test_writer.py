@@ -154,6 +154,37 @@ class AgentWriterTests(BaseTestCase):
                 any_order=True,
             )
 
+    def test_generate_health_metrics_with_different_tags(self):
+        statsd = mock.Mock()
+        with override_global_config(dict(health_metrics_enabled=True)):
+            writer = self.WRITER_CLASS("http://asdf:1234", dogstatsd=statsd, sync_mode=False)
+
+            # Queue 3 health metrics where each metric has the same name but different tags
+            writer.write([Span(name="name", trace_id=1, span_id=1, parent_id=None)])
+            writer._metrics_dist("test_trace.queued", 1, ("k1:v1",))
+            writer.write([Span(name="name", trace_id=2, span_id=2, parent_id=None)])
+            writer._metrics_dist(
+                "test_trace.queued",
+                1,
+                (
+                    "k2:v2",
+                    "k22:v22",
+                ),
+            )
+            writer.write([Span(name="name", trace_id=3, span_id=3, parent_id=None)])
+            writer._metrics_dist("test_trace.queued", 1)
+
+            writer.flush_queue()
+            # Ensure the health metrics are submitted with the expected tags
+            statsd.distribution.assert_has_calls(
+                [
+                    mock.call("datadog.%s.test_trace.queued" % writer.STATSD_NAMESPACE, 1, tags=["k1:v1"]),
+                    mock.call("datadog.%s.test_trace.queued" % writer.STATSD_NAMESPACE, 1, tags=["k2:v2", "k22:v22"]),
+                    mock.call("datadog.%s.test_trace.queued" % writer.STATSD_NAMESPACE, 1, tags=[]),
+                ],
+                any_order=True,
+            )
+
     def test_write_sync(self):
         statsd = mock.Mock()
         with override_global_config(dict(health_metrics_enabled=True)):

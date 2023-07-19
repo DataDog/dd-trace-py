@@ -243,7 +243,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         if tags in self._metrics[name]:
             self._metrics[name][tags] += count
         else:
-            self._metrics[name] = {tags: count}
+            self._metrics[name][tags] = count
 
     def _metrics_reset(self):
         # type: () -> None
