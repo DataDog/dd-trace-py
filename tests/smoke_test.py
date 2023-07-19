@@ -5,9 +5,18 @@ import ddtrace.appsec.ddwaf
 import ddtrace.bootstrap.sitecustomize as module
 
 
+def mac_supported_iast_version():
+    if system() == "Darwin":
+        # TODO: MacOS 10.9 or lower has a old GCC version but cibuildwheel has a GCC old version in newest mac versions
+        # mac_version = [int(i) for i in mac_ver()[0].split(".")]
+        # mac_version > [10, 9]
+        return False
+    return True
+
+
 if __name__ == "__main__":
     # ASM IAST smoke test
-    if sys.version_info >= (3, 6, 0) and system() != "Windows":
+    if sys.version_info >= (3, 6, 0) and system() != "Windows" and mac_supported_iast_version():
         from ddtrace.appsec.iast._taint_tracking._native import ops
 
         assert ops
