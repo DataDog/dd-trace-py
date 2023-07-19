@@ -1,11 +1,10 @@
 import pytest
 
-from ddtrace.ext.test import TEST_TYPE
-
 from ddtrace.contrib.pytest.plugin import _extract_span
 from ddtrace.contrib.pytest_benchmark.constants import BENCHMARK_INFO
 from ddtrace.contrib.pytest_benchmark.constants import PLUGIN_METRICS
 from ddtrace.contrib.pytest_benchmark.constants import PLUGIN_OUTLIERS
+from ddtrace.ext.test import TEST_TYPE
 
 
 def pytest_configure(config):

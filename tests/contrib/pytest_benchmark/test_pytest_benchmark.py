@@ -3,9 +3,6 @@ import os
 import pytest
 
 import ddtrace
-
-from ddtrace.ext.test import TEST_TYPE
-
 from ddtrace.contrib.pytest.plugin import is_enabled
 from ddtrace.contrib.pytest_benchmark.constants import BENCHMARK_INFO
 from ddtrace.contrib.pytest_benchmark.constants import BENCHMARK_MEAN
@@ -26,6 +23,7 @@ from ddtrace.contrib.pytest_benchmark.constants import STATISTICS_Q3
 from ddtrace.contrib.pytest_benchmark.constants import STATISTICS_STDDEV
 from ddtrace.contrib.pytest_benchmark.constants import STATISTICS_STDDEV_OUTLIERS
 from ddtrace.contrib.pytest_benchmark.constants import STATISTICS_TOTAL
+from ddtrace.ext.test import TEST_TYPE
 from ddtrace.internal.ci_visibility import CIVisibility
 from tests.ci_visibility.test_encoder import _patch_dummy_writer
 from tests.utils import TracerTestCase
