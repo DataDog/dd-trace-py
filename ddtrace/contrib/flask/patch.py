@@ -114,10 +114,10 @@ def wrap_with_event(module, name, origin):
 
 class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
     _request_call_name = schematize_url_operation("flask.request", protocol="http", direction=SpanDirection.INBOUND)
-    _application_span_name = "flask.application"
-    _response_span_name = "flask.response"
+    _application_call_name = "flask.application"
+    _response_call_name = "flask.response"
 
-    def _traced_start_response(self, start_response, req_span, app_span, status_code, headers, exc_info=None):
+    def _wrapped_start_response(self, start_response, req_span, app_span, status_code, headers, exc_info=None):
         core.dispatch("flask.start_response.pre", [flask.request, req_span, config.flask, status_code, headers])
 
         if not core.get_item(HTTP_REQUEST_BLOCKED):

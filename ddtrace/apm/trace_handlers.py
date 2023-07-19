@@ -123,18 +123,33 @@ def _on_request_prepare(ctx, start_response):
         else middleware._request_span_modifier
     )
     modifier(req_span, ctx.get_item("environ"))
-    app_span = middleware.tracer.trace(middleware._application_span_name)
+    app_span = middleware.tracer.trace(
+        middleware._application_call_name
+        if hasattr(middleware, "_application_call_name")
+        else middleware._application_span_name
+    )
 
     app_span.set_tag_str(COMPONENT, middleware._config.integration_name)
     ctx.set_item("app_span", app_span)
 
-    intercept_start_response = functools.partial(middleware._traced_start_response, start_response, req_span, app_span)
+    wrapped = (
+        middleware._wrapped_start_response
+        if hasattr(middleware, "_wrapped_start_response")
+        else middleware._traced_start_response
+    )
+    intercept_start_response = functools.partial(wrapped, start_response, req_span, app_span)
     ctx.set_item("intercept_start_response", intercept_start_response)
 
 
 def _on_app_success(ctx, closing_iterator):
     app_span = ctx.get_item("app_span")
-    ctx.get_item("middleware")._application_span_modifier(app_span, ctx.get_item("environ"), closing_iterator)
+    middleware = ctx.get_item("middleware")
+    modifier = (
+        middleware._application_call_modifier
+        if hasattr(middleware, "_application_call_modifier")
+        else middleware._application_span_modifier
+    )
+    modifier(app_span, ctx.get_item("environ"), closing_iterator)
     app_span.finish()
 
 
@@ -152,11 +167,22 @@ def _on_request_complete(ctx, closing_iterator):
     req_span = ctx.get_item("req_span")
     # start flask.response span. This span will be finished after iter(result) is closed.
     # start_span(child_of=...) is used to ensure correct parenting.
-    resp_span = middleware.tracer.start_span(middleware._response_span_name, child_of=req_span, activate=True)
+    resp_span = middleware.tracer.start_span(
+        middleware._response_call_name
+        if hasattr(middleware, "_response_call_name")
+        else middleware._response_span_name,
+        child_of=req_span,
+        activate=True,
+    )
 
     resp_span.set_tag_str(COMPONENT, middleware._config.integration_name)
 
-    middleware._response_span_modifier(resp_span, closing_iterator)
+    modifier = (
+        middleware._response_call_modifier
+        if hasattr(middleware, "_response_call_modifier")
+        else middleware._response_span_modifier
+    )
+    modifier(resp_span, closing_iterator)
 
     return _TracedIterable(iter(closing_iterator), resp_span, req_span)
 
