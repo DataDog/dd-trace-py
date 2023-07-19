@@ -91,7 +91,7 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
     assert events[0] == _get_request_body(payload, "app-started")
 
 
-def test_app_started_event_configuration_override(test_agent_session, run_python_code_in_subprocess):
+def test_app_started_event_configuration_override(test_agent_session, ddtrace_run_python_code_in_subprocess):
     """
     asserts that default configuration value
     is changed and queues a valid telemetry request
@@ -127,7 +127,7 @@ telemetry_writer.disable()
         # Prevents gevent importerror when profiling is enabled
         env["DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE"] = "false"
 
-    _, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
 
     assert status == 0, stderr
 
