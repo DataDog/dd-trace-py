@@ -117,7 +117,7 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
     _application_call_name = "flask.application"
     _response_call_name = "flask.response"
 
-    def _wrapped_start_response(self, start_response, req_span, app_span, status_code, headers, exc_info=None):
+    def _wrapped_start_response(self, start_response, req_span, status_code, headers, exc_info=None):
         core.dispatch("flask.start_response.pre", [flask.request, req_span, config.flask, status_code, headers])
 
         if not core.get_item(HTTP_REQUEST_BLOCKED):
@@ -130,7 +130,7 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
                 ctype = "text/html" if "text/html" in headers_from_context else "text/json"
                 response_headers = [("content-type", ctype)]
                 result = start_response("403 FORBIDDEN", response_headers)
-                core.dispatch("flask.start_response.blocked", [req_span, config.flask, response_headers])
+                core.dispatch("flask.start_response.blocked", [config.flask, response_headers])
             else:
                 result = start_response(status_code, headers)
         else:
