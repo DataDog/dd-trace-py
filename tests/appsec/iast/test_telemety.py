@@ -45,7 +45,7 @@ def test_metric_verbosity(lvl, env_lvl, expected_result):
 
 
 @pytest.mark.skipif(not _is_python_version_supported(), reason="Python version not supported by IAST")
-def test_metric_executed_sink(mock_telemetry_metrics_writer):
+def test_metric_executed_sink(mock_telemetry_lifecycle_writer):
     with override_env(dict(DD_IAST_TELEMETRY_VERBOSITY="INFORMATION")), override_global_config(
         dict(_iast_enabled=True)
     ):
@@ -53,7 +53,7 @@ def test_metric_executed_sink(mock_telemetry_metrics_writer):
 
         tracer = DummyTracer(iast_enabled=True)
 
-        mock_telemetry_metrics_writer._namespace.flush()
+        mock_telemetry_lifecycle_writer._namespace.flush()
         with tracer.trace("test", span_type=SpanTypes.WEB):
             import hashlib
 
@@ -63,7 +63,7 @@ def test_metric_executed_sink(mock_telemetry_metrics_writer):
             num_vulnerabilities = 10
             for i in range(0, num_vulnerabilities):
                 m.digest()
-        metrics_result = mock_telemetry_metrics_writer._namespace._metrics_data
+        metrics_result = mock_telemetry_lifecycle_writer._namespace._metrics_data
 
     generate_metrics = metrics_result[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE_TAG_IAST]
     assert len(generate_metrics) == 1, "Expected 1 generate_metrics"
@@ -73,20 +73,20 @@ def test_metric_executed_sink(mock_telemetry_metrics_writer):
 
 
 @pytest.mark.skipif(not _is_python_version_supported(), reason="Python version not supported by IAST")
-def test_metric_instrumented_propagation(mock_telemetry_metrics_writer):
+def test_metric_instrumented_propagation(mock_telemetry_lifecycle_writer):
     with override_env(dict(DD_IAST_TELEMETRY_VERBOSITY="INFORMATION")), override_global_config(
         dict(_iast_enabled=True)
     ):
         _iast_patched_module("tests.appsec.iast.fixtures.aspects.str_methods")
 
-    metrics_result = mock_telemetry_metrics_writer._namespace._metrics_data
+    metrics_result = mock_telemetry_lifecycle_writer._namespace._metrics_data
     generate_metrics = metrics_result[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE_TAG_IAST]
     assert len(generate_metrics) == 1, "Expected 1 generate_metrics"
     assert [metric.name for metric in generate_metrics.values()] == ["instrumented.propagation"]
 
 
 @pytest.mark.skipif(not _is_python_version_supported(), reason="Python version not supported by IAST")
-def test_metric_request_tainted(mock_telemetry_metrics_writer):
+def test_metric_request_tainted(mock_telemetry_lifecycle_writer):
     with override_env(dict(DD_IAST_TELEMETRY_VERBOSITY="INFORMATION")), override_global_config(
         dict(_iast_enabled=True)
     ):
@@ -105,7 +105,7 @@ def test_metric_request_tainted(mock_telemetry_metrics_writer):
             )
         tracer._on_span_finish(span)
 
-    metrics_result = mock_telemetry_metrics_writer._namespace._metrics_data
+    metrics_result = mock_telemetry_lifecycle_writer._namespace._metrics_data
 
     generate_metrics = metrics_result[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE_TAG_IAST]
     assert len(generate_metrics) == 2, "Expected 1 generate_metrics"
