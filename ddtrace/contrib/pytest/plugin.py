@@ -457,7 +457,11 @@ def pytest_runtest_protocol(item, nextitem):
     ):
         _mark_test_status(pytest_module_item, test_suite_span)
         # Finish coverage for the test suite if coverage is enabled
-        if _get_test_skipping_level() == SUITE and coverage_enabled() and not is_skipped_by_itr:
+        if (
+            _get_test_skipping_level() == SUITE
+            and _CIVisibility._instance._collect_coverage_enabled
+            and not is_skipped_by_itr
+        ):
             _detach_coverage(pytest_module_item, test_suite_span)
         test_suite_span.finish()
 

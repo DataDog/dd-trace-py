@@ -74,7 +74,7 @@ class PytestTestCase(TracerTestCase):
         )
 
         with mock.patch("ddtrace.contrib.pytest.plugin._get_test_skipping_level", return_value="suite"), mock.patch(
-            "ddtrace.contrib.pytest.plugin.coverage_enabled", return_value=True
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features", return_value=(True, False)
         ):
             self.inline_run("--ddtrace", os.path.basename(py_cov_file.strpath), os.path.basename(py_cov_file2.strpath))
         spans = self.pop_spans()
