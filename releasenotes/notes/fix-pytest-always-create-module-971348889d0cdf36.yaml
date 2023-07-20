@@ -1,4 +1,6 @@
 ---
+prelude: >
+    CI Visibility: Breaking change: test.suite and test.full_name are changed, so any visualisation or monitor that uses these fields is potentially affected
 fixes:
   - |
     pytest: This fix resolves an issue where test modules could be non-existent, causing errors in the CI Visibility product.
