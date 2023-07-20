@@ -2,6 +2,7 @@ import functools
 
 import flask
 import werkzeug
+from werkzeug.exceptions import BadRequest
 from werkzeug.exceptions import abort
 
 from ddtrace.appsec.iast._patch import if_iast_taint_returned_object_for
@@ -191,7 +192,9 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
         span.set_tag_str(FLASK_VERSION, flask_version_str)
 
         req_body = None
-        results, exceptions = core.dispatch("flask.request_span_modifier", [request, environ, _HAS_JSON_MIXIN])
+        results, exceptions = core.dispatch(
+            "flask.request_span_modifier", [request, environ, _HAS_JSON_MIXIN, BadRequest]
+        )
         if not any(exceptions) and results and results[0]:
             req_body = results[0]
         trace_utils.set_http_meta(
