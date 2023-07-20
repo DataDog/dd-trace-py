@@ -32,7 +32,7 @@ pastescript==3.3.0
 pathlib2==2.3.7.post1
 pluggy==0.13.1
 py==1.11.0
-pygments==2.5.2
+pygments==2.15.0
 pylons==1.0.3
 pyparsing==2.4.7
 pyrsistent==0.16.1

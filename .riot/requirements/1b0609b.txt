@@ -27,7 +27,7 @@ packaging==23.0
 pbr==5.11.1
 pluggy==1.0.0
 pyenchant==3.2.2
-pygments==2.14.0
+pygments==2.15.0
 pytest==7.2.2
 pytest-cov==4.0.0
 pytest-mock==3.10.0
