@@ -5,7 +5,7 @@
 #    pip-compile --no-annotate .riot/requirements/181f251.in
 #
 aiobotocore==2.3.1
-aiohttp==3.8.4
+aiohttp==3.8.5
 aioitertools==0.11.0
 aiosignal==1.2.0
 async-generator==1.10

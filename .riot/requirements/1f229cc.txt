@@ -4,7 +4,7 @@
 #
 #    pip-compile --no-annotate .riot/requirements/1f229cc.in
 #
-aiohttp==2.3.10
+aiohttp==3.8.5
 async-timeout==3.0.1
 attrs==22.1.0
 chardet==4.0.0
