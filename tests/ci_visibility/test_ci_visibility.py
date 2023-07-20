@@ -755,7 +755,7 @@ def test_run_protocol_does_not_unshallow_git_lt_227():
 
 def test_get_filtered_revisions():
     with mock.patch(
-        "ddtrace.internal.ci_visibility.git_client.get_rev_list", return_value=["rev1", "rev2"]
+        "ddtrace.internal.ci_visibility.git_client._get_rev_list", return_value=["rev1", "rev2"]
     ) as mock_get_rev_list:
         assert CIVisibilityGitClient._get_filtered_revisions(
             ["excluded1", "excluded2"], included_commits=["included1", "included2"], cwd="/path/to/repo"
