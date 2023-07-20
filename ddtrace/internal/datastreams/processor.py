@@ -336,7 +336,7 @@ class DataStreamsCtx:
         return fnv1_64(struct.pack("<Q", node_hash) + struct.pack("<Q", parent_hash))
 
     def set_checkpoint(self, tags, now_sec=time.time()):
-        # type: (List[str], Optional[float]) -> None
+        # type: (List[str], float) -> None
         tags = sorted(tags)
         direction = ""
         for t in tags:
