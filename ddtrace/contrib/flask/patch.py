@@ -2,6 +2,7 @@ import functools
 
 import flask
 import werkzeug
+from werkzeug.exceptions import BadRequest
 from werkzeug.exceptions import NotFound
 from werkzeug.exceptions import abort
 
@@ -153,6 +154,7 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
             _HAS_JSON_MIXIN,
             FLASK_VERSION,
             flask_version_str,
+            BadRequest,
         )
         if not any(exceptions) and results and any(results):
             for result in results:
