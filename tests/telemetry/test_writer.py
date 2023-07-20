@@ -89,6 +89,8 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
                 "origin": "unknown",
                 "value": False,
             },
+            {"name": TELEMETRY_PROPAGATION_STYLE_EXTRACT, "origin": "unknown", "value": "datadog"},
+            {"name": TELEMETRY_PROPAGATION_STYLE_INJECT, "origin": "unknown", "value": "datadog"},
             {
                 "name": "otel_enabled",
                 "origin": "unknown",
@@ -170,6 +172,8 @@ telemetry_writer.disable()
             "origin": "unknown",
             "value": True,
         },
+        {"name": TELEMETRY_PROPAGATION_STYLE_EXTRACT, "origin": "unknown", "value": "b3multi"},
+        {"name": TELEMETRY_PROPAGATION_STYLE_INJECT, "origin": "unknown", "value": "datadog"},
         {
             "name": "otel_enabled",
             "origin": "unknown",
@@ -280,7 +284,7 @@ def test_app_client_configuration_changed_event(telemetry_writer, test_agent_ses
         {
             "name": "trace_propagation_style_extract",
             "origin": "unknown",
-            "value": "['datadog']",
+            "value": "datadog",
         },
     ]
 
