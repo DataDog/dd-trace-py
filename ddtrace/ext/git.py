@@ -149,10 +149,10 @@ def extract_latest_commits(cwd=None):
 
 
 def get_rev_list_excluding_commits(commit_shas, cwd=None):
-    return get_rev_list(excluded_commit_shas=commit_shas, cwd=cwd)
+    return _get_rev_list(excluded_commit_shas=commit_shas, cwd=cwd)
 
 
-def get_rev_list(excluded_commit_shas=None, included_commit_shas=None, cwd=None):
+def _get_rev_list(excluded_commit_shas=None, included_commit_shas=None, cwd=None):
     # type: (Optional[list[str]], Optional[list[str]], Optional[str]) -> str
     command = ["rev-list", "--objects", "--filter=blob:none"]
     if extract_git_version(cwd=cwd) >= (2, 23, 0):

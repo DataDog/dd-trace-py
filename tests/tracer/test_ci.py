@@ -234,7 +234,7 @@ def test_get_rev_list_no_args_git_ge_223(git_repo):
         "ddtrace.ext.git.extract_git_version", return_value=(2, 23, 0)
     ):
         mock_git_subprocess.return_value = ["commithash1", "commithash2"]
-        assert git.get_rev_list(cwd=git_repo) == ["commithash1", "commithash2"]
+        assert git._get_rev_list(cwd=git_repo) == ["commithash1", "commithash2"]
         mock_git_subprocess.assert_called_once_with(
             ["rev-list", "--objects", "--filter=blob:none", '--since="1 month ago"', "--no-object-names", "HEAD"],
             cwd=git_repo,
@@ -246,7 +246,7 @@ def test_get_rev_list_git_lt_223(git_repo):
         "ddtrace.ext.git.extract_git_version", return_value=(2, 22, 0)
     ):
         mock_git_subprocess.return_value = ["commithash1", "commithash2"]
-        assert git.get_rev_list(
+        assert git._get_rev_list(
             excluded_commit_shas=["exclude1", "exclude2"], included_commit_shas=["include1", "include2"], cwd=git_repo
         ) == ["commithash1", "commithash2"]
         mock_git_subprocess.assert_called_once_with(

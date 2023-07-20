@@ -194,6 +194,7 @@ class Config(object):
 
         header_tags = parse_tags_str(os.getenv("DD_TRACE_HEADER_TAGS", ""))
         self.http = HttpConfig(header_tags=header_tags)
+        self._tracing_enabled = asbool(os.getenv("DD_TRACE_ENABLED", default=True))
 
         # Master switch for turning on and off trace search by default
         # this weird invocation of getenv is meant to read the DD_ANALYTICS_ENABLED
