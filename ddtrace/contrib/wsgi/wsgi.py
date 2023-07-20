@@ -46,47 +46,6 @@ config._add(
 )
 
 
-def _entrypoint(middleware, environ, start_response):
-    # type: (Iterable, Callable) -> wrapt.ObjectProxy
-    headers = get_request_headers(environ)
-    closing_iterator = ()
-    not_blocked = True
-    with core.context_with_data(
-        "wsgi.__call__",
-        remote_addr=environ.get("REMOTE_ADDR"),
-        headers=headers,
-        headers_case_sensitive=True,
-        environ=environ,
-        middleware=middleware,
-    ) as ctx:
-        if core.get_item(HTTP_REQUEST_BLOCKED):
-            ctype, content = core.dispatch("wsgi.block.started", [ctx, construct_url])[0][0]
-            start_response("403 FORBIDDEN", [("content-type", ctype)])
-            closing_iterator = [content]
-            not_blocked = False
-
-        def blocked_view():
-            ctype, content = core.dispatch("wsgi.block.started", [ctx, construct_url])[0][0]
-            return content, 403, [("content-type", ctype)]
-
-        core.dispatch("wsgi.block_decided", [blocked_view])
-
-        if not_blocked:
-            core.dispatch("wsgi.request.prepare", [ctx, start_response])
-            try:
-                closing_iterator = middleware.app(environ, ctx.get_item("intercept_start_response"))
-            except BaseException:
-                core.dispatch("wsgi.app.exception", [ctx])
-                raise
-            else:
-                core.dispatch("wsgi.app.success", [ctx, closing_iterator])
-            if core.get_item(HTTP_REQUEST_BLOCKED):
-                _, content = core.dispatch("wsgi.block.started", [ctx, construct_url])[0][0]
-                closing_iterator = [content]
-
-        return core.dispatch("wsgi.request.complete", [ctx, closing_iterator])[0][0]
-
-
 class _DDWSGIMiddlewareBase(object):
     """Base WSGI middleware class.
 
@@ -122,7 +81,44 @@ class _DDWSGIMiddlewareBase(object):
         raise NotImplementedError
 
     def __call__(self, environ, start_response):
-        return _entrypoint(self, environ, start_response)
+        # type: (Iterable, Callable) -> wrapt.ObjectProxy
+        headers = get_request_headers(environ)
+        closing_iterator = ()
+        not_blocked = True
+        with core.context_with_data(
+            "wsgi.__call__",
+            remote_addr=environ.get("REMOTE_ADDR"),
+            headers=headers,
+            headers_case_sensitive=True,
+            environ=environ,
+            middleware=self,
+        ) as ctx:
+            if core.get_item(HTTP_REQUEST_BLOCKED):
+                ctype, content = core.dispatch("wsgi.block.started", [ctx, construct_url])[0][0]
+                start_response("403 FORBIDDEN", [("content-type", ctype)])
+                closing_iterator = [content]
+                not_blocked = False
+
+            def blocked_view():
+                ctype, content = core.dispatch("wsgi.block.started", [ctx, construct_url])[0][0]
+                return content, 403, [("content-type", ctype)]
+
+            core.dispatch("wsgi.block_decided", [blocked_view])
+
+            if not_blocked:
+                core.dispatch("wsgi.request.prepare", [ctx, start_response])
+                try:
+                    closing_iterator = self.app(environ, ctx.get_item("intercept_start_response"))
+                except BaseException:
+                    core.dispatch("wsgi.app.exception", [ctx])
+                    raise
+                else:
+                    core.dispatch("wsgi.app.success", [ctx, closing_iterator])
+                if core.get_item(HTTP_REQUEST_BLOCKED):
+                    _, content = core.dispatch("wsgi.block.started", [ctx, construct_url])[0][0]
+                    closing_iterator = [content]
+
+            return core.dispatch("wsgi.request.complete", [ctx, closing_iterator])[0][0]
 
     def _traced_start_response(self, start_response, request_span, app_span, status, environ, exc_info=None):
         # type: (Callable, Span, Span, str, Dict, Any) -> None
