@@ -1,7 +1,7 @@
 [[
   {
     "name": "openai.request",
-    "service": "openai",
+    "service": "",
     "resource": "createCompletion",
     "trace_id": 0,
     "span_id": 1,
@@ -61,7 +61,8 @@
          "span.kind": "client"
        },
        "metrics": {
-         "_dd.measured": 1
+         "_dd.measured": 1,
+         "_dd.top_level": 1
        },
        "duration": 2784209,
        "start": 1689782074137572458
