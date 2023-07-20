@@ -139,22 +139,21 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
 
     def _request_call_modifier(self, ctx, parsed_headers=None):
         environ = ctx.get_item("environ")
-        span = ctx.get_item("req_span")
         # Create a werkzeug request from the `environ` to make interacting with it easier
         # DEV: This executes before a request context is created
         request = _RequestType(environ)
 
         req_body = None
         results, exceptions = core.dispatch(
-            "flask.request_span_modifier",
-            [span, config.flask, request, environ, _HAS_JSON_MIXIN, FLASK_VERSION, flask_version_str],
+            "flask.request_call_modifier",
+            [ctx, config.flask, request, environ, _HAS_JSON_MIXIN, FLASK_VERSION, flask_version_str],
         )
         if not any(exceptions) and results and any(results):
             for result in results:
                 if result is not None:
                     req_body = result
                     break
-        core.dispatch("flask.request_span_modifier.post", [span, config.flask, request, req_body])
+        core.dispatch("flask.request_call_modifier.post", [ctx, config.flask, request, req_body])
 
 
 def patch():
@@ -534,7 +533,7 @@ def request_patcher(name):
             flask_request=flask.request,
             block_request_callable=_block_request_callable,
             ignored_exception_type=NotFound,
-        ) as ctx, ctx.get_item("flask_request_span"):
+        ) as ctx, ctx.get_item("flask_request_call"):
             return wrapped(*args, **kwargs)
 
     return _patched_request

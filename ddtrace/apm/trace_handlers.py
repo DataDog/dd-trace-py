@@ -285,7 +285,7 @@ def _on_traced_request_context_started_flask(ctx):
     pin = ctx.get_item("pin")
     current_span = pin.tracer.current_span()
     if not pin.enabled or not current_span:
-        ctx.set_item("flask_request_span", nullcontext())
+        ctx.set_item("flask_request_call", nullcontext())
         return
 
     ctx.set_item("current_span", current_span)
@@ -293,7 +293,7 @@ def _on_traced_request_context_started_flask(ctx):
     service = trace_utils.int_service(pin, flask_config, pin)
     _set_request_tags(ctx.get_item("flask_request"), current_span, flask_config)
     request_span = pin.tracer.trace(ctx.get_item("name"), service=service)
-    ctx.set_item("flask_request_span", request_span)
+    ctx.set_item("flask_request_call", request_span)
     request_span.set_tag_str(COMPONENT, flask_config.integration_name)
     request_span._ignore_exception(ctx.get_item("ignored_exception_type"))
 
@@ -358,7 +358,8 @@ def _on_function_context_started_flask(ctx):
     ctx.set_item("flask_call", span)
 
 
-def _on_request_span_modifier(span, flask_config, request, environ, _HAS_JSON_MIXIN, flask_version, flask_version_str):
+def _on_request_span_modifier(ctx, flask_config, request, environ, _HAS_JSON_MIXIN, flask_version, flask_version_str):
+    span = ctx.get_item("req_span")
     # Default resource is method and path:
     #   GET /
     #   POST /save
@@ -375,7 +376,8 @@ def _on_request_span_modifier(span, flask_config, request, environ, _HAS_JSON_MI
     span.set_tag_str(flask_version, flask_version_str)
 
 
-def _on_request_span_modifier_post(span, flask_config, request, req_body):
+def _on_request_span_modifier_post(ctx, flask_config, request, req_body):
+    span = ctx.get_item("req_span")
     trace_utils.set_http_meta(
         span,
         flask_config,
@@ -409,8 +411,8 @@ def listen():
     core.on("wsgi.response.prepared", _on_response_prepared)
     core.on("flask.start_response.pre", _on_start_response_pre)
     core.on("flask.blocked_request_callable", _on_flask_blocked_request)
-    core.on("flask.request_span_modifier", _on_request_span_modifier)
-    core.on("flask.request_span_modifier.post", _on_request_span_modifier_post)
+    core.on("flask.request_call_modifier", _on_request_span_modifier)
+    core.on("flask.request_call_modifier.post", _on_request_span_modifier_post)
     core.on("flask.render", _on_flask_render)
     core.on("flask.start_response.blocked", _on_start_response_blocked)
     core.on("context.started.flask._patched_request", _on_traced_request_context_started_flask)

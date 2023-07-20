@@ -87,7 +87,7 @@ def _on_post_finalizerequest(rv):
         _asm_request_context.set_body_response(rv.response)
 
 
-def _on_request_span_modifier(span, flask_config, request, environ, _HAS_JSON_MIXIN, flask_version, flask_version_str):
+def _on_request_span_modifier(ctx, flask_config, request, environ, _HAS_JSON_MIXIN, flask_version, flask_version_str):
     req_body = None
     if config._appsec_enabled and request.method in _BODY_METHODS:
         content_type = request.content_type
@@ -186,7 +186,7 @@ def listen():
     core.on("flask.wrapped_view", _on_wrapped_view)
     core.on("context.started.flask._patched_request", _on_pre_tracedrequest)
     core.on("flask.finalize_request.post", _on_post_finalizerequest)
-    core.on("flask.request_span_modifier", _on_request_span_modifier)
+    core.on("flask.request_call_modifier", _on_request_span_modifier)
     core.on("flask.request_init", _on_request_init)
 
 
