@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-from ddtrace.appsec.iast._input_info import Input_info
 from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
 from ddtrace.appsec.iast._taint_tracking import taint_pyobject
 from ddtrace.internal.logger import get_logger
@@ -26,7 +25,9 @@ class LazyTaintDict(dict):
             and (not is_pyobject_tainted(value) or self.override_pyobject_tainted)
         ):
             try:
-                value = taint_pyobject(value, Input_info(key, value, self.origin_value))
+                value = taint_pyobject(
+                    pyobject=value, source_name=key, source_value=value, source_origin=self.origin_value
+                )
                 super(LazyTaintDict, self).__setitem__(key, value)
             except SystemError:
                 # TODO: Find the root cause for
@@ -47,13 +48,13 @@ class LazyTaintDict(dict):
         for k, v in super(LazyTaintDict, self).items():
             if k and isinstance(k, (str, bytes, bytearray)) and not is_pyobject_tainted(k):
                 try:
-                    k = taint_pyobject(k, Input_info(k, k, self.origin_key))
+                    k = taint_pyobject(pyobject=k, source_name=k, source_value=k, source_origin=self.origin_key)
                 except Exception:
                     log.debug("Unexpected exception while tainting key", exc_info=True)
 
             if v and isinstance(v, (str, bytes, bytearray)) and not is_pyobject_tainted(v):
                 try:
-                    v = taint_pyobject(v, Input_info(k, v, self.origin_value))
+                    v = taint_pyobject(pyobject=v, source_name=k, source_value=v, source_origin=self.origin_value)
                     super(LazyTaintDict, self).__setitem__(k, v)
                 except Exception:
                     log.debug("Unexpected exception while tainting value", exc_info=True)
