@@ -85,6 +85,20 @@ def select_pys(min_version=MIN_PYTHON_VERSION, max_version=MAX_PYTHON_VERSION):
     return [version_to_str(version) for version in SUPPORTED_PYTHON_VERSIONS if min_version <= version <= max_version]
 
 
+class CVenv(Venv):
+    """Conditional virtualenv
+
+    Run the command on the condition that the needs_testrun.py script returns
+    non-zero exit code.
+    """
+
+    def __init__(self, *args, **kwargs):
+        name = kwargs["name"]
+        command = kwargs["command"]
+        kwargs["command"] = f"scripts/needs_testrun.py {name} || {command}"
+        super().__init__(*args, **kwargs)
+
+
 venv = Venv(
     pkgs={
         "mock": latest,
@@ -517,7 +531,7 @@ venv = Venv(
                 ),
             ],
         ),
-        Venv(
+        CVenv(
             name="debugger",
             command="pytest {cmdargs} tests/debugging/",
             pkgs={
