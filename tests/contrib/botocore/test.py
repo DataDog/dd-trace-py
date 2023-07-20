@@ -2703,7 +2703,7 @@ class BotocoreTest(TracerTestCase):
 
         return decoded_record_data
 
-    def _test_kinesis_put_record_trace_injection(self, test_name, data, client=None):
+    def _test_kinesis_put_record_trace_injection(self, test_name, data, client=None, include_stream_arn=True):
         if not client:
             client = self.session.create_client("kinesis", region_name="us-east-1")
 
@@ -2713,7 +2713,10 @@ class BotocoreTest(TracerTestCase):
         partition_key = "1234"
 
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(client)
-        client.put_record(StreamName=stream_name, Data=data, PartitionKey=partition_key, StreamARN=stream_arn)
+        if include_stream_arn:
+            client.put_record(StreamName=stream_name, Data=data, PartitionKey=partition_key, StreamARN=stream_arn)
+        else:
+            client.put_record(StreamName=stream_name, Data=data, PartitionKey=partition_key)
 
         # assert commons for span
         span = self._kinesis_assert_spans()
@@ -2960,6 +2963,27 @@ class BotocoreTest(TracerTestCase):
             ].edge_latency._count
             >= 1
         )
+
+    @mock_kinesis
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
+    def test_kinesis_data_streams_enabled_no_stream_arn(self):
+        # (dict -> json string)[]
+        data = json.dumps({"json": "string"})
+        client = self.session.create_client("kinesis", region_name="us-east-1")
+
+        self._test_kinesis_put_record_trace_injection("data_streams", data, client=client, include_stream_arn=False)
+
+        pin = Pin.get_from(client)
+        buckets = pin.tracer.data_streams_processor._buckets
+        assert len(buckets) == 1 
+        _, first = list(buckets.items())[0]
+
+
+        in_tags = ",".join(["direction:in",
+                             "topic:arn:aws:kinesis:us-east-1:123456789012:stream/kinesis_put_record_data_streams",
+                             "type:kinesis"])
+        assert first[(in_tags, 614755353881974019, 0)].full_pathway_latency._count >= 1
+        assert first[(in_tags, 614755353881974019, 0)].edge_latency._count >= 1
 
     @mock_kinesis
     def test_kinesis_put_records_bytes_trace_injection(self):
