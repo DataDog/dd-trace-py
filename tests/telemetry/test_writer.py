@@ -136,7 +136,6 @@ telemetry_writer.disable()
 
     events = test_agent_session.get_events()
     events[0]["payload"]["configuration"].sort(key=lambda c: c["name"])
-
     assert events[0]["payload"]["configuration"] == [
         {"name": "DD_APPSEC_ENABLED", "origin": "unknown", "value": True},
         {"name": "DD_DATA_STREAMS_ENABLED", "origin": "unknown", "value": True},
@@ -144,8 +143,9 @@ telemetry_writer.disable()
         {"name": "DD_EXCEPTION_DEBUGGING_ENABLED", "origin": "unknown", "value": True},
         {"name": "DD_PROFILING_ENABLED", "origin": "unknown", "value": True},
         {"name": "DD_TRACE_ENABLED", "origin": "unknown", "value": False},
-        {"name": TELEMETRY_PROPAGATION_STYLE_EXTRACT, "origin": "unknown", "value": "b3multi"},
-        {"name": TELEMETRY_PROPAGATION_STYLE_INJECT, "origin": "unknown", "value": "datadog"},
+        # tracecontext is appended for propagation styles because otel is set to true
+        {"name": TELEMETRY_PROPAGATION_STYLE_EXTRACT, "origin": "unknown", "value": "b3multi,tracecontext"},
+        {"name": TELEMETRY_PROPAGATION_STYLE_INJECT, "origin": "unknown", "value": "datadog,tracecontext"},
         {"name": "ddtrace_auto_used", "origin": "unknown", "value": True},
         {"name": "ddtrace_bootstrapped", "origin": "unknown", "value": True},
         {"name": "otel_enabled", "origin": "unknown", "value": True},
