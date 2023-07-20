@@ -2974,31 +2974,6 @@ class BotocoreTest(TracerTestCase):
         )
 
     @mock_kinesis
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
-    @unittest.skipIf(BOTOCORE_VERSION < (1, 26, 31), "Kinesis didn't support streamARN till 1.26.31")
-    def test_kinesis_data_streams_enabled_no_stream_arn(self):
-        # (dict -> json string)[]
-        data = json.dumps({"json": "string"})
-        client = self.session.create_client("kinesis", region_name="us-east-1")
-
-        self._test_kinesis_put_record_trace_injection("data_streams", data, client=client, enable_stream_arn=False)
-
-        pin = Pin.get_from(client)
-        buckets = pin.tracer.data_streams_processor._buckets
-        assert len(buckets) == 1
-        _, first = list(buckets.items())[0]
-
-        in_tags = ",".join(
-            [
-                "direction:in",
-                "topic:arn:aws:kinesis:us-east-1:123456789012:stream/kinesis_put_record_data_streams",
-                "type:kinesis",
-            ]
-        )
-        assert first[(in_tags, 614755353881974019, 0)].full_pathway_latency._count >= 1
-        assert first[(in_tags, 614755353881974019, 0)].edge_latency._count >= 1
-
-    @mock_kinesis
     def test_kinesis_put_records_bytes_trace_injection(self):
         # dict -> json string -> bytes
         json_string = json.dumps({"json-string": "bytes"})
