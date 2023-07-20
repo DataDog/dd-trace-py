@@ -85,7 +85,7 @@ def _on_post_finalizerequest(rv):
         _asm_request_context.set_body_response(rv.response)
 
 
-def _on_request_span_modifier(request, environ, _HAS_JSON_MIXIN):
+def _on_request_span_modifier(request, environ, _HAS_JSON_MIXIN, exception_type):
     req_body = None
     if config._appsec_enabled and request.method in _BODY_METHODS:
         content_type = request.content_type
@@ -116,6 +116,7 @@ def _on_request_span_modifier(request, environ, _HAS_JSON_MIXIN):
                 # no raw body
                 req_body = None
         except (
+            exception_type,
             AttributeError,
             RuntimeError,
             TypeError,
@@ -124,7 +125,7 @@ def _on_request_span_modifier(request, environ, _HAS_JSON_MIXIN):
             xmltodict.expat.ExpatError,
             xmltodict.ParsingInterrupted,
         ):
-            log.warning("Failed to parse werkzeug request body", exc_info=True)
+            log.warning("Failed to parse request body", exc_info=True)
         finally:
             # Reset wsgi input to the beginning
             if wsgi_input:
