@@ -2,6 +2,7 @@ from typing import AsyncGenerator
 from typing import Generator
 
 from .utils import _est_tokens
+from .utils import _compute_prompt_token_count
 from .utils import _format_openai_api_key
 
 
@@ -179,11 +180,16 @@ class _CompletionHook(_BaseCompletionHook):
                     span.set_tag_str("openai.request.prompt.%d" % idx, integration.trunc(str(p)))
         if kwargs.get("stream"):
             num_prompt_tokens = 0
+            # TODO: need to figure out a way to return 2 things:
+            #  estimated/calculated token number
+            #  whether or not this token count is an estimate/calculation
+            prompt_tokens_metadata = _compute_prompt_token_count(prompt, kwargs.get("model"))
+            print(prompt_tokens_metadata)
             if isinstance(prompt, str):
-                num_prompt_tokens += _est_tokens(prompt)
+                num_prompt_tokens += _est_tokens(prompt, kwargs.get("model"))
             else:
                 for p in prompt:
-                    num_prompt_tokens += _est_tokens(p)
+                    num_prompt_tokens += _est_tokens(p, kwargs.get("model"))
             span.set_metric("openai.response.usage.prompt_tokens", num_prompt_tokens)
         return
 
