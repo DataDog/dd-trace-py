@@ -27,6 +27,7 @@ parameters:
 
 orbs:
   win: circleci/windows@5.0
+  gh: circleci/github-cli@2.2.0
 
 machine_executor: &machine_executor
   machine:
@@ -140,6 +141,7 @@ commands:
           condition:
               << parameters.snapshot >>
           steps:
+            - gh/setup
             - setup_riot
             - start_docker_services:
                 env: SNAPSHOT_CI=1
@@ -149,13 +151,19 @@ commands:
                   DD_TRACE_AGENT_URL: << parameters.trace_agent_url >> 
                   RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
                 command: |
-                  # Sort the hashes to ensure a consistent ordering/division between each node
-                  riot list --hash-only '<<parameters.pattern>>' | sort | circleci tests split | xargs -n 1 -I {} ./scripts/ddtest riot -v run --exitfirst --pass-env -s {} $([[ << pipeline.parameters.coverage >> == false ]] && echo '--no-cov' )
-                  ./scripts/check-diff ".riot/requirements/" "Changes detected after running riot. Consider deleting changed files, running scripts/compile-and-prune-test-requirements and committing the result."
+                  if scripts/needs_testrun.py -v '<<parameters.pattern>>'
+                  then
+                    # Sort the hashes to ensure a consistent ordering/division between each node
+                    riot list --hash-only '<<parameters.pattern>>' | sort | circleci tests split | xargs -n 1 -I {} ./scripts/ddtest riot -v run --exitfirst --pass-env -s {} $([[ << pipeline.parameters.coverage >> == false ]] && echo '--no-cov' )
+                    ./scripts/check-diff ".riot/requirements/" "Changes detected after running riot. Consider deleting changed files, running scripts/compile-and-prune-test-requirements and committing the result."
+                  else
+                    echo "No changes detected, skipping test run."
+                  fi
       - unless:
           condition:
               << parameters.snapshot >>
           steps:
+            - gh/setup
             - setup_riot
             - when:
                 condition:
@@ -176,9 +184,14 @@ commands:
                 environment:
                   RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
                 command: |
-                  # Sort the hashes to ensure a consistent ordering/division between each node
-                  riot list --hash-only '<<parameters.pattern>>' | sort | circleci tests split | xargs -n 1 -I {} riot -v run --exitfirst --pass-env -s {} $([[ << pipeline.parameters.coverage >> == false ]] && echo '--no-cov' )
-                  ./scripts/check-diff ".riot/requirements/" "Changes detected after running riot. Consider deleting changed files, running scripts/compile-and-prune-test-requirements and committing the result."
+                  if scripts/needs_testrun.py -v '<<parameters.pattern>>'
+                  then
+                    # Sort the hashes to ensure a consistent ordering/division between each node
+                    riot list --hash-only '<<parameters.pattern>>' | sort | circleci tests split | xargs -n 1 -I {} riot -v run --exitfirst --pass-env -s {} $([[ << pipeline.parameters.coverage >> == false ]] && echo '--no-cov' )
+                    ./scripts/check-diff ".riot/requirements/" "Changes detected after running riot. Consider deleting changed files, running scripts/compile-and-prune-test-requirements and committing the result."
+                  else
+                    echo "No changes detected, skipping test run."
+                  fi
       - save_pip_cache
       - when:
           condition:
@@ -452,6 +465,7 @@ jobs:
       - attach_workspace:
           at: .
       - checkout
+      - gh/setup
       - setup_riot
       - start_docker_services:
           services: ddagent
@@ -459,9 +473,14 @@ jobs:
           environment:
             RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
           command: |
-            # Sort the hashes to ensure a consistent ordering/division between each node
-            riot list --hash-only 'integration-latest' | sort | circleci tests split | xargs -n 1 -I {} ./scripts/ddtest riot -v run --pass-env -s {}
-            ./scripts/check-diff ".riot/requirements/" "Changes detected after running riot. Consider deleting changed files, running scripts/compile-and-prune-test-requirements and committing the result."
+            if scripts/needs_testrun.py -v 'integration-latest'
+            then
+              # Sort the hashes to ensure a consistent ordering/division between each node
+              riot list --hash-only 'integration-latest' | sort | circleci tests split | xargs -n 1 -I {} ./scripts/ddtest riot -v run --pass-env -s {}
+              ./scripts/check-diff ".riot/requirements/" "Changes detected after running riot. Consider deleting changed files, running scripts/compile-and-prune-test-requirements and committing the result."
+            else
+              echo "No changes detected, skipping test run."
+            fi
 
   integration_testagent:
     <<: *machine_executor

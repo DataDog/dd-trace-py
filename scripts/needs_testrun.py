@@ -3,7 +3,6 @@
 from argparse import ArgumentParser
 import fnmatch
 import json
-import os
 from pathlib import Path
 from subprocess import check_output
 import sys
@@ -14,12 +13,15 @@ def get_changed_files() -> t.List[str]:
     return (
         check_output(
             [
-                "git",
-                "diff-tree",
-                "--no-commit-id",
-                "--name-only",
-                "HEAD",
-                "-r",
+                "gh",
+                "pr",
+                "list",
+                "--search",
+                check_output(["git", "rev-parse", "HEAD"]).decode("utf-8").strip(),
+                "--json",
+                "files",
+                "--jq",
+                ".[].files[].path",
             ]
         )
         .decode("utf-8")
@@ -52,10 +54,6 @@ def get_patterns(suite: str) -> t.List[str]:
 
 
 def main() -> bool:
-    if not os.environ.get("CI", False):
-        # We're not running in CI, so we run the tests always
-        return True
-
     argp = ArgumentParser()
     argp.add_argument("suite", help="The suite to use", type=str)
     argp.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
@@ -65,12 +63,22 @@ def main() -> bool:
     patterns = get_patterns(args.suite)
     if not patterns:
         # We don't have patterns so we run the tests
+        if args.verbose:
+            print(f"No patterns for suite '{args.suite}', running all tests")
         return True
 
-    changed_files = get_changed_files()
+    try:
+        changed_files = get_changed_files()
+    except Exception as e:
+        print(f"Failed to get changed files: {e}. Running tests")
+        return True
     if not changed_files:
         # No files changed, no need to run the tests
+        if args.verbose:
+            print("No files changed, not running tests")
         return False
+
+    matches = [_ for p in patterns for _ in fnmatch.filter(changed_files, p)]
 
     if args.verbose:
         print("Changed files:", end="\n  ")
@@ -79,11 +87,14 @@ def main() -> bool:
         print(f"Patterns for suite '{args.suite}':", end="\n  ")
         print("\n  ".join(patterns))
         print()
-        print("Changed files matching patterns:", end="\n  ")
-        print("\n  ".join(_ for pattern in patterns for _ in fnmatch.filter(changed_files, pattern)))
+        if matches:
+            print("Changed files matching patterns:", end="\n  ")
+            print("\n  ".join(matches))
+        else:
+            print("No changed files match patterns")
 
-    return any(fnmatch.filter(changed_files, pattern) for pattern in patterns)
+    return bool(matches)
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(not main())
