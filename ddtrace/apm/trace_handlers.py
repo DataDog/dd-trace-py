@@ -132,13 +132,12 @@ def _on_request_prepare(ctx, start_response):
     app_span.set_tag_str(COMPONENT, middleware._config.integration_name)
     ctx.set_item("app_span", app_span)
 
-    if hasattr(middleware, "_wrapped_start_response"):
-        wrapped = middleware._wrapped_start_response
-        args = [start_response, req_span]
-    else:
-        wrapped = middleware._traced_start_response
-        args = [start_response, req_span, app_span]
-    intercept_start_response = functools.partial(wrapped, *args)
+    wrapped = (
+        middleware._wrapped_start_response
+        if hasattr(middleware, "_wrapped_start_response")
+        else middleware._traced_start_response
+    )
+    intercept_start_response = functools.partial(wrapped, start_response, req_span, app_span)
     ctx.set_item("intercept_start_response", intercept_start_response)
 
 
@@ -389,10 +388,8 @@ def _on_request_span_modifier_post(span, flask_config, request, req_body):
     )
 
 
-def _on_start_response_blocked(flask_config, response_headers):
-    trace_utils.set_http_meta(
-        core.get_item("req_span"), flask_config, status_code="403", response_headers=response_headers
-    )
+def _on_start_response_blocked(req_span, flask_config, response_headers):
+    trace_utils.set_http_meta(req_span, flask_config, status_code="403", response_headers=response_headers)
 
 
 def listen():
