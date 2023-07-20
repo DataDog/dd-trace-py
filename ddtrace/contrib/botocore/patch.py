@@ -154,7 +154,7 @@ def get_stream_arn(params):
 
     Return the name of the stream given the params
     """
-    stream_arn = params.get("StreamARN")
+    stream_arn = params.get("StreamARN", "")
     return stream_arn
 
 

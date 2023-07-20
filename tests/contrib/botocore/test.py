@@ -2828,6 +2828,7 @@ class BotocoreTest(TracerTestCase):
 
     @mock_kinesis
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
+    @unittest.skipIf(BOTOCORE_VERSION < (1, 26, 31), "Kinesis didn't support streamARN till 1.26.31")
     def test_kinesis_data_streams_enabled_put_records(self):
         # (dict -> json string)[]
         data = json.dumps({"json": "string"})
@@ -2898,6 +2899,7 @@ class BotocoreTest(TracerTestCase):
 
     @mock_kinesis
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
+    @unittest.skipIf(BOTOCORE_VERSION < (1, 26, 31), "Kinesis didn't support streamARN till 1.26.31")
     def test_kinesis_data_streams_enabled_put_record(self):
         # (dict -> json string)[]
         data = json.dumps({"json": "string"})
@@ -2966,6 +2968,7 @@ class BotocoreTest(TracerTestCase):
 
     @mock_kinesis
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
+    @unittest.skipIf(BOTOCORE_VERSION < (1, 26, 31), "Kinesis didn't support streamARN till 1.26.31")
     def test_kinesis_data_streams_enabled_no_stream_arn(self):
         # (dict -> json string)[]
         data = json.dumps({"json": "string"})
