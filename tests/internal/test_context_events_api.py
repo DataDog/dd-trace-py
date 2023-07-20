@@ -2,6 +2,7 @@ import threading
 import unittest
 
 import mock
+import pytest
 
 from ddtrace.internal import core
 
@@ -116,6 +117,14 @@ class TestContextEventsApi(unittest.TestCase):
             core.set_item(data_key, data_value)
             assert core.get_item(data_key) == data_value
         assert core.get_item(data_key) is None
+
+    def test_core_set_item_overwrite_attempt(self):
+        data_key = "my.cool.data"
+        data_value = "ban.ana2"
+        with core.context_with_data("foobar", **{data_key: data_value}):
+            with pytest.raises(ValueError):
+                core.set_item(data_key, "something else")
+            assert core.get_item(data_key) == data_value
 
     def test_core_context_relationship_across_threads(self):
         data_key = "banana"

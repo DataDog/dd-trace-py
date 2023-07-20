@@ -6,6 +6,7 @@ from ddtrace.appsec import handlers
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
 from ddtrace.internal import core
+from ddtrace.internal.compat import contextvars
 from ddtrace.internal.compat import parse
 from ddtrace.internal.logger import get_logger
 
@@ -17,11 +18,6 @@ if TYPE_CHECKING:
     from typing import List
     from typing import Optional
     from typing import Tuple
-
-try:
-    import contextvars
-except ImportError:
-    import ddtrace.vendor.contextvars as contextvars  # type: ignore
 
 
 log = get_logger(__name__)
@@ -342,9 +338,6 @@ def _start_context(remote_ip, headers, headers_case_sensitive, block_request_cal
         return resources
 
 
-RESOURCES = contextvars.ContextVar("asm_resources")  # type: contextvars.ContextVar[Optional[_DataHandler]]
-
-
 def _on_context_started(ctx):
     resources = _start_context(
         ctx.get_item("remote_addr"),
@@ -352,8 +345,7 @@ def _on_context_started(ctx):
         ctx.get_item("headers_case_sensitive"),
         ctx.get_item("block_request_callable"),
     )
-    token = RESOURCES.set(resources)
-    ctx.set_item("token_resources", token)
+    ctx.set_item("resources", resources)
 
 
 def _end_context(resources):
@@ -362,12 +354,9 @@ def _end_context(resources):
 
 
 def _on_context_ended(ctx):
-    resources = RESOURCES.get()
+    resources = ctx.get_item("resources")
     if resources is not None:
         _end_context(resources)
-        token = ctx.get_item("token_resources")
-        if token:
-            RESOURCES.reset(token)
 
 
 core.on("context.started.wsgi.__call__", _on_context_started)

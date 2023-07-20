@@ -143,7 +143,6 @@ class ExecutionContext:
         if self.identifier == ROOT_CONTEXT_ID:
             raise ValueError("Cannot add parent to root context")
         self._parents.append(context)
-        self._data.update(context._data)
 
     @classmethod
     @contextmanager
@@ -171,6 +170,8 @@ class ExecutionContext:
 
     def set_item(self, data_key, data_value):
         # type: (str, Optional[Any]) -> None
+        if data_key in self._data:
+            raise ValueError("Cannot overwrite ExecutionContext data key '%s'", data_key)
         self._data[data_key] = data_value
 
     def set_items(self, keys_values):
