@@ -331,6 +331,18 @@ f.wsgi_app()
     else:
         assert "not enough values to unpack (expected 2, got 0)" in app_started_event[0]["payload"]["error"]["message"]
 
+    integration_events = [event for event in events if event["request_type"] == "app-integrations-change"]
+    integrations = integration_events[0]["payload"]["integrations"]
+    assert len(integrations) == 1
+    assert integrations[0]["name"] == "flask"
+    assert integrations[0]["enabled"] == True
+    assert integrations[0]["compatible"] == False
+    assert "ddtrace/contrib/flask/patch.py:" in integrations[0]["error"]
+    if six.PY2:
+        assert b"need more than 0 values to unpack" in integrations[0]["error"]
+    else:
+        assert "not enough values to unpack (expected 2, got 0)" in integrations[0]["error"]
+
     metric_events = [event for event in events if event["request_type"] == "generate-metrics"]
 
     assert len(metric_events) == 1

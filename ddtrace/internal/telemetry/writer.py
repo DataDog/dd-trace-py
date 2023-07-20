@@ -138,7 +138,7 @@ class TelemetryWriter(PeriodicService):
     def __init__(self):
         # type: () -> None
         super(TelemetryWriter, self).__init__(interval=_get_heartbeat_interval_or_default())
-        self._integrations_queue = []  # type: List[Dict]
+        self._integrations_queue = dict()  # type: Dict[str, Dict]
         # Currently telemetry only supports reporting a single error.
         # If we'd like to report multiple errors in the future
         # we could hack it in by xor-ing error codes and concatenating strings
@@ -224,8 +224,8 @@ class TelemetryWriter(PeriodicService):
         """
         return self.status is ServiceStatus.RUNNING and self._worker and self._worker.is_alive()
 
-    def add_integration(self, integration_name, patched, auto_patched, error_msg):
-        # type: (str, bool, bool, str) -> None
+    def add_integration(self, integration_name, patched, auto_patched=None, error_msg=None):
+        # type: (str, bool, Optional[bool], Optional[str]) -> None
         """
         Creates and queues the names and settings of a patched module
 
@@ -233,17 +233,19 @@ class TelemetryWriter(PeriodicService):
         :param bool auto_enabled: True if module is enabled in _monkey.PATCH_MODULES
         """
         # Integrations can be patched before the telemetry writer is enabled.
-        integration = {
-            "name": integration_name,
-            "version": "",
-            "enabled": patched,
-            "auto_enabled": auto_patched,
-            "compatible": error_msg == "",
-            "error": error_msg,  # the integration error only takes a message, no code
-        }
-        # Reset the error after it has been reported.
-        self._error = (0, "")
-        self._integrations_queue.append(integration)
+        with self._lock:
+            if integration_name not in self._integrations_queue:
+                self._integrations_queue[integration_name] = {"name": integration_name}
+
+            self._integrations_queue[integration_name]["version"] = ""
+            self._integrations_queue[integration_name]["enabled"] = patched
+
+            if auto_patched is not None:
+                self._integrations_queue[integration_name]["auto_enabled"] = auto_patched
+
+            if error_msg is not None:
+                self._integrations_queue[integration_name]["compatible"] = error_msg == ""
+                self._integrations_queue[integration_name]["error"] = error_msg
 
     def add_error(self, code, msg, filename, line_number):
         # type: (int, str, Optional[str], Optional[int]) -> None
@@ -323,8 +325,8 @@ class TelemetryWriter(PeriodicService):
         # type: () -> List[Dict]
         """Flushes and returns a list of all queued integrations"""
         with self._lock:
-            integrations = self._integrations_queue
-            self._integrations_queue = []
+            integrations = list(self._integrations_queue.values())
+            self._integrations_queue = dict()
         return integrations
 
     def _flush_configuration_queue(self):
@@ -516,7 +518,7 @@ class TelemetryWriter(PeriodicService):
     def reset_queues(self):
         # type: () -> None
         self._events_queue = []
-        self._integrations_queue = []
+        self._integrations_queue = dict()
         self._namespace.flush()
         self._logs = set()
 
