@@ -1,6 +1,16 @@
 #!/bin/bash
 set -euo pipefail
 
+# Download ddtrace dependencies
+pip download \
+    --disable-pip-version-check \
+    --dest $WHEELS_DIR \
+    --only-binary :all: \
+    --pre \
+    --find-links $WHEELS_DIR \
+    --no-cache-dir \
+    $WHEELS_DIR/ddtrace*dev*.whl
+
 # Install ddtrace using only from local wheels
 pip install \
     --pre \

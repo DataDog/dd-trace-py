@@ -4,9 +4,9 @@
 *                                   @DataDog/apm-core-python
 
 # Framework Integrations
-ddtrace/ext/                        @DataDog/apm-core-python @DataDog/apm-framework-integrations-reviewers-py
-ddtrace/contrib/                    @DataDog/apm-core-python @DataDog/apm-framework-integrations-reviewers-py
-ddtrace/internal/schema/            @DataDog/apm-core-python @DataDog/apm-framework-integrations-reviewers-py
+src/ddtrace/ext/                        @DataDog/apm-core-python @DataDog/apm-framework-integrations-reviewers-py
+src/ddtrace/contrib/                    @DataDog/apm-core-python @DataDog/apm-framework-integrations-reviewers-py
+src/ddtrace/internal/schema/            @DataDog/apm-core-python @DataDog/apm-framework-integrations-reviewers-py
 tests/                              @DataDog/apm-core-python @DataDog/apm-framework-integrations-reviewers-py
 
 # Files which can be approved by anyone
@@ -25,30 +25,30 @@ tests/runtime                       @DataDog/apm-core-python
 tests/tracer                        @DataDog/apm-core-python
 
 # CI App
-ddtrace/contrib/pytest/             @DataDog/apm-core-python @DataDog/ci-app-libraries
-ddtrace/contrib/pytest_bdd/         @DataDog/apm-core-python @DataDog/ci-app-libraries
+src/ddtrace/contrib/pytest/             @DataDog/apm-core-python @DataDog/ci-app-libraries
+src/ddtrace/contrib/pytest_bdd/         @DataDog/apm-core-python @DataDog/ci-app-libraries
 tests/contrib/pytest                @DataDog/apm-core-python @DataDog/ci-app-libraries
 tests/contrib/pytest_bdd            @DataDog/apm-core-python @DataDog/ci-app-libraries
-ddtrace/ext/ci.py                   @DataDog/apm-core-python @DataDog/ci-app-libraries
-ddtrace/ext/test.py                 @DataDog/apm-core-python @DataDog/ci-app-libraries
-ddtrace/internal/codeowners.py      @DataDog/apm-core-python @datadog/ci-app-libraries
-ddtrace/internal/ci_visibility/     @DataDog/apm-core-python @DataDog/ci-app-libraries
+src/ddtrace/ext/ci.py                   @DataDog/apm-core-python @DataDog/ci-app-libraries
+src/ddtrace/ext/test.py                 @DataDog/apm-core-python @DataDog/ci-app-libraries
+src/ddtrace/internal/codeowners.py      @DataDog/apm-core-python @datadog/ci-app-libraries
+src/ddtrace/internal/ci_visibility/     @DataDog/apm-core-python @DataDog/ci-app-libraries
 tests/internal/ci_visibility/       @DataDog/apm-core-python @DataDog/ci-app-libraries
 
 # Debugger
-ddtrace/debugging/                  @DataDog/debugger-python
-ddtrace/settings/dynamic_instrumentation.py     @DataDog/debugger-python
-ddtrace/internal/injection.py       @DataDog/debugger-python @DataDog/apm-core-python
-ddtrace/internal/wrapping.py        @DataDog/debugger-python @DataDog/apm-core-python
-ddtrace/internal/module.py          @DataDog/debugger-python @DataDog/apm-core-python
+src/ddtrace/debugging/                  @DataDog/debugger-python
+src/ddtrace/settings/dynamic_instrumentation.py     @DataDog/debugger-python
+src/ddtrace/internal/injection.py       @DataDog/debugger-python @DataDog/apm-core-python
+src/ddtrace/internal/wrapping.py        @DataDog/debugger-python @DataDog/apm-core-python
+src/ddtrace/internal/module.py          @DataDog/debugger-python @DataDog/apm-core-python
 tests/debugging/                    @DataDog/debugger-python
 tests/internal/test_injection.py    @DataDog/debugger-python @DataDog/apm-core-python
 tests/internal/test_wrapping.py     @DataDog/debugger-python @DataDog/apm-core-python
 tests/internal/test_module.py       @DataDog/debugger-python @DataDog/apm-core-python
 
 # ASM
-ddtrace/appsec/                     @DataDog/asm-python
-ddtrace/contrib/subprocess/         @DataDog/asm-python
+src/ddtrace/appsec/                     @DataDog/asm-python
+src/ddtrace/contrib/subprocess/         @DataDog/asm-python
 tests/appsec/                       @DataDog/asm-python
 tests/contrib/dbapi/test_dbapi_appsec.py    @DataDog/asm-python
 tests/contrib/subprocess            @DataDog/asm-python
@@ -59,11 +59,11 @@ tests/snapshots/tests*appsec*.json  @DataDog/asm-python
 tests/contrib/*/test*appsec*.py     @DataDog/asm-python
 
 # Profiling
-ddtrace/profiling                   @DataDog/profiling-python @DataDog/apm-core-python
+src/ddtrace/profiling                   @DataDog/profiling-python @DataDog/apm-core-python
 tests/profiling                     @DataDog/profiling-python @DataDog/apm-core-python
 
 # Remote Config
-ddtrace/internal/remoteconfig       @DataDog/remote-config @DataDog/apm-core-python
+src/ddtrace/internal/remoteconfig       @DataDog/remote-config @DataDog/apm-core-python
 tests/internal/remoteconfig         @DataDog/remote-config @DataDog/apm-core-python
 
 # Guild
@@ -81,4 +81,4 @@ mypy.ini                            @DataDog/python-guild  @DataDog/apm-core-pyt
 .github/PULL_REQUEST_TEMPLATE.md    @DataDog/python-guild  @DataDog/apm-core-python
 .github/ISSUE_TEMPLATE.md           @DataDog/python-guild  @DataDog/apm-core-python
 .github/CODEOWNERS                  @DataDog/python-guild  @DataDog/apm-core-python
-ddtrace/internal/compat.py          @DataDog/python-guild  @DataDog/apm-core-python
+src/ddtrace/internal/compat.py          @DataDog/python-guild  @DataDog/apm-core-python

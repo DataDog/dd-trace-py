@@ -255,7 +255,9 @@ class LibDatadogDownload(LibraryDownload):
         base_name = "libdatadog_profiling"
         if CURRENT_OS != "Windows":
             base_name += ".a"
-        base_path = os.path.join("src", "ddtrace", "internal", "datadog", "profiling", "libdatadog", arch, "lib", base_name)
+        base_path = os.path.join(
+            "src", "ddtrace", "internal", "datadog", "profiling", "libdatadog", arch, "lib", base_name
+        )
         if CURRENT_OS == "Linux":
             return [base_path]
         return []
@@ -514,7 +516,8 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     license="BSD",
-    packages=find_packages(exclude=["tests*", "benchmarks*"]),
+    packages=find_packages(where="src", include=["*"]),
+    package_dir={"": "src"},
     package_data={
         "ddtrace": ["py.typed"],
         "ddtrace.appsec": ["rules.json"],

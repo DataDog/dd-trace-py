@@ -193,3 +193,7 @@ exclude_dirs = [
   "src/ddtrace/profiling/collector/_lock.py",
   "src/ddtrace/sourcecode/_utils.py",
 ]
+
+[tool.cibuildwheel]
+build = ["cp27-*", "cp35-*", "cp36-*", "cp37-*", "cp38-*", "cp39-*", "cp310-*", "cp311-*"]
+test-command = ["python {project}/tests/smoke_test.py"]
