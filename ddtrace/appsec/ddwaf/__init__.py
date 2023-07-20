@@ -42,9 +42,9 @@ except OSError:
 
 
 class DDWaf_result(object):
-    __slots__ = ["data", "actions", "runtime", "total_runtime", "timeout", "truncation"]
+    __slots__ = ["data", "actions", "runtime", "total_runtime", "timeout", "truncation", "derivatives"]
 
-    def __init__(self, data, actions, runtime, total_runtime, timeout, truncation):
+    def __init__(self, data, actions, runtime, total_runtime, timeout, truncation, derivatives):
         # type: (DDWaf_result, text_type|None, list[text_type], float, float, bool, int) -> None
         self.data = data
         self.actions = actions
@@ -52,6 +52,7 @@ class DDWaf_result(object):
         self.total_runtime = total_runtime
         self.timeout = timeout
         self.truncation = truncation
+        self.derivatives = derivatives
 
 
 class DDWaf_info(object):
@@ -156,7 +157,7 @@ if _DDWAF_LOADED:
 
             if not ctx:
                 LOGGER.debug("DDWaf.run: dry run. no context created.")
-                return DDWaf_result(None, [], 0, (time.time() - start) * 1e6, False, 0)
+                return DDWaf_result(None, [], 0, (time.time() - start) * 1e6, False, 0, None)
 
             result = ddwaf_result()
             observator = _observator()
@@ -171,6 +172,7 @@ if _DDWAF_LOADED:
                 (time.time() - start) * 1e6,
                 result.timeout,
                 observator.truncation,
+                result.derivatives.struct,
             )
 
     def version():
@@ -196,7 +198,7 @@ else:
         ):
             # type: (...) -> DDWaf_result
             LOGGER.debug("DDWaf features disabled. dry run")
-            return DDWaf_result(None, [], 0.0, 0.0, False, 0)
+            return DDWaf_result(None, [], 0.0, 0.0, False, 0, None)
 
         def update_rules(self, _):
             # type: (dict[text_type, DDWafRulesType]) -> bool

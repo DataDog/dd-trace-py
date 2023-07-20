@@ -97,6 +97,7 @@ class WAF_DATA_NAMES(object):
     REQUEST_USER_ID = "usr.id"
     RESPONSE_STATUS = "server.response.status"
     RESPONSE_HEADERS_NO_COOKIES = "server.response.headers.no_cookies"
+    RESPONSE_BODY = "server.response.body"
 
 
 @six.add_metaclass(Constant_Class)  # required for python2/3 compatibility

@@ -135,6 +135,56 @@ def _get_rate_limiter():
     # type: () -> RateLimiter
     return RateLimiter(int(os.getenv("DD_APPSEC_TRACE_RATE_LIMIT", DEFAULT.TRACE_RATE_LIMIT)))
 
+API_SECURITY_WAF_CONFIG = {
+  "preprocessors": [
+    {
+      "id": "extract-schema",
+      "generator": "extract_schema",
+      "parameters": {
+        "mappings": [
+          {
+            "inputs": [
+              {"address": "server.request.path_params"}
+            ],
+            "output": "_dd.appsec.s.req.params"
+          },
+          {
+            "inputs": [
+              {"address": "server.request.query"}
+            ],
+            "output": "_dd.appsec.s.req.query"
+          },
+          {
+            "inputs": [
+              {"address": "server.request.headers.no_cookies"}
+            ],
+            "output": "_dd.appsec.s.req.headers"
+          },
+          {
+            "inputs": [
+              {"address": "server.request.body"}
+            ],
+            "output": "_dd.appsec.s.req.body"
+          },
+          {
+            "inputs": [
+              {"address": "server.response.headers.no_cookies"}
+            ],
+            "output": "_dd.appsec.s.res.headers"
+          },
+          {
+            "inputs": [
+              {"address": "server.response.body"}
+            ],
+            "output": "_dd.appsec.s.res.body"
+          }
+        ]
+      },
+      "evaluate": True,
+      "output": True
+    }
+  ],
+}
 
 @attr.s(eq=False)
 class AppSecSpanProcessor(SpanProcessor):
@@ -155,6 +205,7 @@ class AppSecSpanProcessor(SpanProcessor):
             try:
                 with open(self.rules, "r") as f:
                     rules = json.load(f)
+                rules.update(API_SECURITY_WAF_CONFIG)
             except EnvironmentError as err:
                 if err.errno == errno.ENOENT:
                     log.error(
@@ -194,6 +245,10 @@ class AppSecSpanProcessor(SpanProcessor):
         self._mark_needed(WAF_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES)
         # we always need the response headers
         self._mark_needed(WAF_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES)
+
+        self._mark_needed(WAF_DATA_NAMES.REQUEST_QUERY)
+        self._mark_needed(WAF_DATA_NAMES.REQUEST_BODY)
+        self._mark_needed(WAF_DATA_NAMES.RESPONSE_BODY)
 
     def _update_rules(self, new_rules):
         # type: (Dict[str, Any]) -> bool
@@ -298,6 +353,10 @@ class AppSecSpanProcessor(SpanProcessor):
         waf_results = self._ddwaf.run(ctx, data, config._waf_timeout)
         if waf_results and waf_results.data:
             log.debug("[DDAS-011-00] ASM In-App WAF returned: %s. Timeout %s", waf_results.data, waf_results.timeout)
+
+        if waf_results and waf_results.derivatives:
+            for key, value in waf_results.derivatives.items():
+                span.set_tag_str(key, json.dumps(value))
 
         blocked = WAF_ACTIONS.BLOCK in waf_results.actions
         _asm_request_context.set_waf_results(waf_results, self._ddwaf.info, blocked)

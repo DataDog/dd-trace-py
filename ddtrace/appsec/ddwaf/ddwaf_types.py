@@ -76,6 +76,8 @@ class DDWAF_OBJ_TYPE(IntEnum):
     DDWAF_OBJ_MAP = 1 << 4
     # Value shall be decode as bool
     DDWAF_OBJ_BOOL = 1 << 5
+    DDWAF_OBJ_FLOAT = 1 << 6
+    DDWAF_OBJ_NULL = 1 << 7
 
 
 class DDWAF_RET_CODE(IntEnum):
@@ -135,16 +137,18 @@ class ddwaf_object(ctypes.Structure):
                 return string[: max_string_length - 1]
             return string
 
-        if isinstance(struct, bool):
+        if struct is None:
+            ddwaf_object_null(self)
+        elif isinstance(struct, bool):
             ddwaf_object_bool(self, struct)
         elif isinstance(struct, (int, long)):
-            ddwaf_object_signed(self, struct)
+            ddwaf_object_signed_force(self, struct)
         elif isinstance(struct, unicode):
             ddwaf_object_string(self, truncate_string(struct.encode("UTF-8", errors="ignore")))
         elif isinstance(struct, bytes):
             ddwaf_object_string(self, truncate_string(struct))
         elif isinstance(struct, float):
-            ddwaf_object_string(self, truncate_string(unicode(struct).encode("UTF-8", errors="ignore")))
+            ddwaf_object_float(self, struct)
         elif isinstance(struct, list):
             if max_depth <= 0:
                 observator.truncation |= _TRUNC_CONTAINER_DEPTH
@@ -185,14 +189,12 @@ class ddwaf_object(ctypes.Structure):
                 )
                 if obj.type:  # discards invalid objects
                     ddwaf_object_map_add(map_o, res_key, obj)
-        elif struct is not None:
+        else:
             struct = str(struct)
             if isinstance(struct, bytes):  # Python 2
                 ddwaf_object_string(self, truncate_string(struct))
             else:  # Python 3
                 ddwaf_object_string(self, truncate_string(struct.encode("UTF-8", errors="ignore")))
-        else:
-            ddwaf_object_invalid(self)
 
     @classmethod
     def create_without_limits(cls, struct):
@@ -203,7 +205,7 @@ class ddwaf_object(ctypes.Structure):
     def struct(self):
         # type: (ddwaf_object) -> Union[None, int, unicode, list[Any], dict[unicode, Any]]
         """pretty printing of the python ddwaf_object"""
-        if self.type == DDWAF_OBJ_TYPE.DDWAF_OBJ_INVALID:
+        if self.type in (DDWAF_OBJ_TYPE.DDWAF_OBJ_NULL, DDWAF_OBJ_TYPE.DDWAF_OBJ_INVALID):
             return None
         if self.type == DDWAF_OBJ_TYPE.DDWAF_OBJ_SIGNED:
             return self.value.intValue
@@ -220,6 +222,8 @@ class ddwaf_object(ctypes.Structure):
             }
         if self.type == DDWAF_OBJ_TYPE.DDWAF_OBJ_BOOL:
             return self.value.boolean
+        if self.type == DDWAF_OBJ_TYPE.DDWAF_OBJ_FLOAT:
+            return self.value.floatValue
         log.debug("ddwaf_object struct: unknown object type: %s", repr(type(self.type)))
         return None
 
@@ -235,6 +239,7 @@ class ddwaf_value(ctypes.Union):
         ("stringValue", ctypes.c_char_p),
         ("uintValue", ctypes.c_ulonglong),
         ("intValue", ctypes.c_longlong),
+        ("floatValue", ctypes.c_double),
         ("array", ddwaf_object_p),
         ("boolean", ctypes.c_bool),
     ]
@@ -254,13 +259,15 @@ class ddwaf_result(ctypes.Structure):
         ("timeout", ctypes.c_bool),
         ("events", ddwaf_object),
         ("actions", ddwaf_object),
+        ("derivatives", ddwaf_object),
         ("total_runtime", ctypes.c_uint64),
     ]
 
     def __repr__(self):
-        return "total_runtime=%r, events=%r, timeout=%r, action=[%r]" % (
+        return "total_runtime=%r, events=%r, derivatives=%r, timeout=%r, action=[%r]" % (
             self.total_runtime,
             self.events.struct,
+            self.derivatives.struct,
             self.timeout.struct,
             self.actions,
         )
@@ -460,6 +467,11 @@ ddwaf_object_invalid = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p)(
     ((3, "object"),),
 )
 
+ddwaf_object_null = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p)(
+    ("ddwaf_object_null", ddwaf),
+    ((3, "object"),),
+)
+
 ddwaf_object_string = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_char_p)(
     ("ddwaf_object_string", ddwaf),
     (
@@ -478,6 +490,14 @@ ddwaf_object_unsigned = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.
     ),
 )
 
+ddwaf_object_unsigned_force = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_uint64)(
+    ("ddwaf_object_unsigned_force", ddwaf),
+    (
+        (3, "object"),
+        (1, "value"),
+    ),
+)
+
 ddwaf_object_signed = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_int64)(
     ("ddwaf_object_signed", ddwaf),
     (
@@ -486,10 +506,24 @@ ddwaf_object_signed = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_
     ),
 )
 
-# object_(un)signed_forced : not used ?
+ddwaf_object_signed_force = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_int64)(
+    ("ddwaf_object_signed_force", ddwaf),
+    (
+        (3, "object"),
+        (1, "value"),
+    ),
+)
 
 ddwaf_object_bool = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_bool)(
     ("ddwaf_object_bool", ddwaf),
+    (
+        (3, "object"),
+        (1, "value"),
+    ),
+)
+
+ddwaf_object_float = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_double)(
+    ("ddwaf_object_float", ddwaf),
     (
         (3, "object"),
         (1, "value"),
