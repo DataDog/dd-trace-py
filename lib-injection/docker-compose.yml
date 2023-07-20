@@ -39,7 +39,6 @@ services:
       - lib_inject
     build:
       context: ${APP_CONTEXT}
-      dockerfile: ${APP_DOCKERFILE}
     ports:
       - "0.0.0.0:18080:18080"
     environment:

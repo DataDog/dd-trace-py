@@ -60,17 +60,16 @@ jobs:
       - uses: actions/checkout@v3
       - name: Build and run the app
         run: |
-          SRC=$(pwd)
+          SRC="$(pwd)"
           cd lib-injection
-          mkdir -p tmp/ddtrace
-          export DDTRACE_PYTHON_VERSION=v1.16.1
-          export APP_CONTEXT=$SRC/tests/lib-injection/${{matrix.variant}}
-          export APP_DOCKERFILE=$SRC/tests/lib-injection/${{matrix.variant}}/Dockerfile
-          export TEMP_DIR=$PWD/tmp/ddtrace
+          export DDTRACE_PYTHON_VERSION="v1.16.1"
+          export APP_CONTEXT="${SRC}/tests/lib-injection/${{matrix.variant}}"
+          export TEMP_DIR="${SRC}/tmp/ddtrace"
+          mkdir -p "${TEMP_DIR}"
           docker-compose build
           docker-compose up -d
           # Wait for the app to start
-          sleep 20
+          sleep 60
           docker-compose logs
       - name: Test the app
         run: |

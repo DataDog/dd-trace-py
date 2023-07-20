@@ -21,6 +21,7 @@ The downloaded wheels can then be installed locally using:
 """
 import argparse
 import itertools
+import os
 import subprocess
 import sys
 
@@ -73,34 +74,47 @@ args = parser.parse_args()
 dl_dir = args.output_dir
 print("saving wheels to %s" % dl_dir)
 
-for python_version, arch, platform in itertools.product(args.python_version, args.arch, args.platform):
-    print("Downloading %s %s %s wheel" % (python_version, arch, platform))
-    abi = "cp%s" % python_version.replace(".", "")
-    # Have to special-case these versions of Python for some reason.
-    if python_version in ["2.7", "3.5", "3.6", "3.7"]:
-        abi += "m"
 
-    # See the docs for an explanation of all the options used:
-    # https://pip.pypa.io/en/stable/cli/pip_download/
-    #   only-binary=:all: is specified to ensure we get all the dependencies of ddtrace as well.
-    cmd = [
-        sys.executable,
-        "-m",
-        "pip",
-        "download",
-        "ddtrace==%s" % args.ddtrace_version,
-        "--platform",
-        "%s_%s" % (platform, arch),
-        "--python-version",
-        python_version,
-        "--abi",
-        abi,
-        "--only-binary=:all:",
-        "--dest",
-        dl_dir,
-    ]
-    if args.verbose:
-        print(" ".join(cmd))
+for python_version in args.python_version:
+    for arch, platform in itertools.product(args.arch, args.platform):
+        print("Downloading %s %s %s wheel" % (python_version, arch, platform))
+        abi = "cp%s" % python_version.replace(".", "")
+        # Have to special-case these versions of Python for some reason.
+        if python_version in ["2.7", "3.5", "3.6", "3.7"]:
+            abi += "m"
 
-    if not args.dry_run:
-        subprocess.run(cmd, capture_output=not args.verbose, check=True)
+        # See the docs for an explanation of all the options used:
+        # https://pip.pypa.io/en/stable/cli/pip_download/
+        #   only-binary=:all: is specified to ensure we get all the dependencies of ddtrace as well.
+        cmd = [
+            sys.executable,
+            "-m",
+            "pip",
+            "download",
+            "ddtrace==%s" % args.ddtrace_version,
+            "--platform",
+            "%s_%s" % (platform, arch),
+            "--python-version",
+            python_version,
+            "--abi",
+            abi,
+            "--only-binary=:all:",
+            "--dest",
+            dl_dir,
+        ]
+        if args.verbose:
+            print(" ".join(cmd))
+
+        if not args.dry_run:
+            subprocess.run(cmd, capture_output=not args.verbose, check=True)
+
+    wheel_files = [f for f in os.listdir(dl_dir) if f.endswith(".whl")]
+    for whl in wheel_files:
+        wheel_file = os.path.join(dl_dir, whl)
+        print("Unpacking %s" % wheel_file)
+        # -q for quieter output, else we get all the files being unzipped.
+        subprocess.run(
+            ["unzip", "-q", "-o", wheel_file, "-d", os.path.join(dl_dir, "site-packages-ddtrace-py%s" % python_version)]
+        )
+        # Remove the wheel as it has been unpacked
+        os.remove(wheel_file)
