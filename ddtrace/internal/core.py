@@ -170,9 +170,12 @@ class ExecutionContext:
 
     def set_item(self, data_key, data_value):
         # type: (str, Optional[Any]) -> None
+        self._data[data_key] = data_value
+
+    def set_safe(self, data_key, data_value):
         if data_key in self._data:
             raise ValueError("Cannot overwrite ExecutionContext data key '%s'", data_key)
-        self._data[data_key] = data_value
+        return self.set_item(data_key, data_value)
 
     def set_items(self, keys_values):
         # type: (Dict[str, Optional[Any]]) -> None
@@ -224,6 +227,11 @@ def set_item(data_key, data_value, span=None):
         span._local_root._set_ctx_item(data_key, data_value)
     else:
         _CURRENT_CONTEXT.get().set_item(data_key, data_value)  # type: ignore
+
+
+def set_safe(data_key, data_value):
+    # type: (str, Optional[Any]) -> None
+    _CURRENT_CONTEXT.get().set_safe(data_key, data_value)  # type: ignore
 
 
 def set_items(keys_values, span=None):

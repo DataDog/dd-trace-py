@@ -123,8 +123,10 @@ class TestContextEventsApi(unittest.TestCase):
         data_value = "ban.ana2"
         with core.context_with_data("foobar", **{data_key: data_value}):
             with pytest.raises(ValueError):
-                core.set_item(data_key, "something else")
+                core.set_safe(data_key, "something else")
             assert core.get_item(data_key) == data_value
+            core.set_item(data_key, "something else")
+            assert core.get_item(data_key) == "something else"
 
     def test_core_context_relationship_across_threads(self):
         data_key = "banana"
