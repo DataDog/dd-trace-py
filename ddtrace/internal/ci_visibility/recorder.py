@@ -308,8 +308,6 @@ class CIVisibility(Service):
             return
 
         self._test_suites_to_skip = []
-        if TEST_SKIPPING_LEVEL == SUITE:
-            self._test_suites_to_skip = []
 
         if response.status >= 400:
             log.warning("Test skips request responded with status %d", response.status)
