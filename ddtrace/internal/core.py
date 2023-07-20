@@ -221,17 +221,18 @@ def get_items(data_keys, span=None):
         return _CURRENT_CONTEXT.get().get_items(data_keys)  # type: ignore
 
 
+def set_safe(data_key, data_value):
+    # type: (str, Optional[Any]) -> None
+    _CURRENT_CONTEXT.get().set_safe(data_key, data_value)  # type: ignore
+
+
+# NB Don't call these set_* functions from `ddtrace.contrib`, only from product code!
 def set_item(data_key, data_value, span=None):
     # type: (str, Optional[Any], Optional[Span]) -> None
     if span is not None and span._local_root is not None:
         span._local_root._set_ctx_item(data_key, data_value)
     else:
         _CURRENT_CONTEXT.get().set_item(data_key, data_value)  # type: ignore
-
-
-def set_safe(data_key, data_value):
-    # type: (str, Optional[Any]) -> None
-    _CURRENT_CONTEXT.get().set_safe(data_key, data_value)  # type: ignore
 
 
 def set_items(keys_values, span=None):

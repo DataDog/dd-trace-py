@@ -10,6 +10,7 @@ from ddtrace.appsec.iast._patch import if_iast_taint_returned_object_for
 from ddtrace.appsec.iast._patch import if_iast_taint_yield_tuple_for
 from ddtrace.appsec.iast._util import _is_iast_enabled
 from ddtrace.internal import core
+from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.constants import HTTP_REQUEST_PATH
 from ddtrace.internal.constants import HTTP_REQUEST_QUERY
 from ddtrace.internal.constants import REQUEST_PATH_PARAMS
@@ -180,6 +181,10 @@ def _on_werkzeug(*args):
     return if_iast_taint_returned_object_for(*args)
 
 
+def _on_flask_blocked_request():
+    core.set_item(HTTP_REQUEST_BLOCKED, True)
+
+
 def listen():
     core.on("wsgi.block_decided", _on_block_decided)
     core.on("flask.start_response", _on_start_response)
@@ -188,6 +193,7 @@ def listen():
     core.on("flask.finalize_request.post", _on_post_finalizerequest)
     core.on("flask.request_call_modifier", _on_request_span_modifier)
     core.on("flask.request_init", _on_request_init)
+    core.on("flask.blocked_request_callable", _on_flask_blocked_request)
 
 
 core.on("flask.werkzeug.datastructures.Headers.items", _on_werkzeug)
