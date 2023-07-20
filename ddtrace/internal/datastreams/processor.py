@@ -269,19 +269,23 @@ class DataStreamsProcessor(PeriodicService):
         data_streams_context = self.decode_pathway(encoded_pathway)
         return data_streams_context
 
-    def new_pathway(self):
-        # type: () -> DataStreamsCtx
-        now_sec = time.time()
+    def new_pathway(self, now_sec=time.time()):
+        """
+        type: (Optional[int]) -> DataStreamsCtx
+        :param now_sec: optional start time of this path. Use for services like Kinesis which
+                           we aren't getting path information for.
+        """
+
         ctx = DataStreamsCtx(self, 0, now_sec, now_sec)
         return ctx
 
-    def set_checkpoint(self, tags):
+    def set_checkpoint(self, tags, now_sec=time.time()):
         if hasattr(self._current_context, "value"):
             ctx = self._current_context.value
         else:
             ctx = self.new_pathway()
             self._current_context.value = ctx
-        ctx.set_checkpoint(tags)
+        ctx.set_checkpoint(tags, now_sec=now_sec)
         return ctx
 
 
@@ -331,9 +335,8 @@ class DataStreamsCtx:
         node_hash = fnv1_64(b)
         return fnv1_64(struct.pack("<Q", node_hash) + struct.pack("<Q", parent_hash))
 
-    def set_checkpoint(self, tags):
-        # type: (List[str]) -> None
-        now_sec = time.time()
+    def set_checkpoint(self, tags, now_sec=time.time()):
+        # type: (List[str], Optional[float]) -> None
         tags = sorted(tags)
         direction = ""
         for t in tags:
