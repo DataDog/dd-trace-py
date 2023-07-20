@@ -137,7 +137,9 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
             result = start_response(status_code, headers)
         return result
 
-    def _request_call_modifier(self, span, environ, parsed_headers=None):
+    def _request_call_modifier(self, ctx, parsed_headers=None):
+        environ = ctx.get_item("environ")
+        span = ctx.get_item("req_span")
         # Create a werkzeug request from the `environ` to make interacting with it easier
         # DEV: This executes before a request context is created
         request = _RequestType(environ)

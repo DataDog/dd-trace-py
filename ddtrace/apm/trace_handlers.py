@@ -117,12 +117,13 @@ def _on_request_prepare(ctx, start_response):
     req_span.set_tag_str(COMPONENT, middleware._config.integration_name)
     # set span.kind to the type of operation being performed
     req_span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
-    modifier = (
-        middleware._request_call_modifier
-        if hasattr(middleware, "_request_call_modifier")
-        else middleware._request_span_modifier
-    )
-    modifier(req_span, ctx.get_item("environ"))
+    if hasattr(middleware, "_request_call_modifier"):
+        modifier = middleware._request_call_modifier
+        args = [ctx]
+    else:
+        modifier = middleware._request_span_modifier
+        args = [req_span, ctx.get_item("environ")]
+    modifier(*args)
     app_span = middleware.tracer.trace(
         middleware._application_call_name
         if hasattr(middleware, "_application_call_name")
