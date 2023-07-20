@@ -134,7 +134,7 @@ def _on_request_prepare(ctx, start_response):
 
     if hasattr(middleware, "_wrapped_start_response"):
         wrapped = middleware._wrapped_start_response
-        args = [start_response, req_span]
+        args = [start_response, ctx]
     else:
         wrapped = middleware._traced_start_response
         args = [start_response, req_span, app_span]
@@ -256,7 +256,8 @@ def _set_request_tags(request, span, flask_config):
         log.debug('failed to set tags for "flask.request" span', exc_info=True)
 
 
-def _on_start_response_pre(request, span, flask_config, status_code, headers):
+def _on_start_response_pre(request, ctx, flask_config, status_code, headers):
+    span = ctx.get_item("req_span")
     code, _, _ = status_code.partition(" ")
     # If values are accessible, set the resource as `<method> <path>` and add other request tags
     _set_request_tags(request, span, flask_config)
