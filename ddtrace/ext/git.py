@@ -91,6 +91,35 @@ def _git_subprocess_cmd(cmd, cwd=None, std_in=None):
     raise ValueError(compat.ensure_text(stderr).strip())
 
 
+def _extract_clone_defaultremotename(cwd=None):
+    output = _git_subprocess_cmd("config --default origin --get clone.defaultRemoteName")
+    return output
+
+
+def _is_shallow_repository(cwd=None):
+    # type: (Optional[str]) -> bool
+    output = _git_subprocess_cmd("rev-parse --is-shallow-repository", cwd=cwd)
+    return output.strip() == "true"
+
+
+def _unshallow_repository(cwd=None):
+    # type (Optional[str]) -> None
+    remote_name = _extract_clone_defaultremotename(cwd)
+    head_sha = extract_commit_sha(cwd)
+
+    cmd = [
+        "fetch",
+        "--update-shallow",
+        "--filter=blob:none",
+        "--recurse-submodules=no",
+        '--shallow-since="1 month ago"',
+        remote_name,
+        head_sha,
+    ]
+
+    _git_subprocess_cmd(cmd, cwd=cwd)
+
+
 def extract_user_info(cwd=None):
     # type: (Optional[str]) -> Dict[str, Tuple[str, str, str]]
     """Extract commit author info from the git repository in the current directory or one specified by ``cwd``."""
@@ -120,13 +149,22 @@ def extract_latest_commits(cwd=None):
 
 
 def get_rev_list_excluding_commits(commit_shas, cwd=None):
+    return _get_rev_list(excluded_commit_shas=commit_shas, cwd=cwd)
+
+
+def _get_rev_list(excluded_commit_shas=None, included_commit_shas=None, cwd=None):
+    # type: (Optional[list[str]], Optional[list[str]], Optional[str]) -> str
     command = ["rev-list", "--objects", "--filter=blob:none"]
     if extract_git_version(cwd=cwd) >= (2, 23, 0):
         command.append('--since="1 month ago"')
         command.append("--no-object-names")
     command.append("HEAD")
-    exclusions = ["^%s" % sha for sha in commit_shas]
-    command.extend(exclusions)
+    if excluded_commit_shas:
+        exclusions = ["^%s" % sha for sha in excluded_commit_shas]
+        command.extend(exclusions)
+    if included_commit_shas:
+        inclusions = ["%s" % sha for sha in included_commit_shas]
+        command.extend(inclusions)
     commits = _git_subprocess_cmd(command, cwd=cwd)
     return commits
 
