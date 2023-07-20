@@ -71,7 +71,7 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
 
     events[0]["payload"]["configuration"].sort(key=lambda c: c["name"])
     payload = {
-        "configuration":
+        "configuration": [
             {"name": TELEMETRY_PROPAGATION_STYLE_EXTRACT, "origin": "unknown", "value": "['tracecontext', 'datadog']"},
             {"name": TELEMETRY_PROPAGATION_STYLE_INJECT, "origin": "unknown", "value": "['tracecontext', 'datadog']"},
             {"name": "DD_APPSEC_ENABLED", "origin": "unknown", "value": False},
