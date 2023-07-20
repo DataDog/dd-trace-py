@@ -119,7 +119,7 @@ class PytestTestCase(TracerTestCase):
         rec.assertoutcome(passed=1)
         spans = self.pop_spans()
 
-        assert len(spans) == 3
+        assert len(spans) == 4
 
     def test_pytest_command(self):
         """Test that the pytest run command is stored on a test span."""
@@ -157,7 +157,7 @@ class PytestTestCase(TracerTestCase):
         spans = self.pop_spans()
 
         expected_params = [1, 2, 3, 4, [1, 2, 3]]
-        assert len(spans) == 7
+        assert len(spans) == 8
         test_spans = [span for span in spans if span.get_tag("type") == "test"]
         for i in range(len(expected_params)):
             assert json.loads(test_spans[i].get_tag(test.PARAMETERS)) == {
@@ -216,7 +216,7 @@ class PytestTestCase(TracerTestCase):
             "test_parameterize_case_complex_objects.A",
             "{('x', 'y'): 12345}",
         ]
-        assert len(spans) == 9
+        assert len(spans) == 10
         test_spans = [span for span in spans if span.get_tag("type") == "test"]
         for i in range(len(expected_params_contains)):
             assert expected_params_contains[i] in test_spans[i].get_tag(test.PARAMETERS)
@@ -243,7 +243,7 @@ class PytestTestCase(TracerTestCase):
         rec.assertoutcome(passed=1)
         spans = self.pop_spans()
 
-        assert len(spans) == 3
+        assert len(spans) == 4
         test_span = spans[0]
         assert json.loads(test_span.get_tag(test.PARAMETERS)) == {
             "arguments": {"item": "Could not encode"},
@@ -269,7 +269,7 @@ class PytestTestCase(TracerTestCase):
         rec.assertoutcome(skipped=2)
         spans = self.pop_spans()
 
-        assert len(spans) == 4
+        assert len(spans) == 5
         test_spans = [span for span in spans if span.get_tag("type") == "test"]
         assert test_spans[0].get_tag(test.STATUS) == test.Status.SKIP.value
         assert test_spans[0].get_tag(test.SKIP_REASON) == "decorator"
@@ -300,7 +300,7 @@ class PytestTestCase(TracerTestCase):
         rec.assertoutcome(skipped=2)
         spans = self.pop_spans()
 
-        assert len(spans) == 4
+        assert len(spans) == 5
         test_spans = [span for span in spans if span.get_tag("type") == "test"]
         assert test_spans[0].get_tag(test.STATUS) == test.Status.SKIP.value
         assert test_spans[0].get_tag(test.SKIP_REASON) == "reason"
@@ -331,7 +331,7 @@ class PytestTestCase(TracerTestCase):
         rec.assertoutcome(skipped=2)
         spans = self.pop_spans()
 
-        assert len(spans) == 4
+        assert len(spans) == 5
         test_spans = [span for span in spans if span.get_tag("type") == "test"]
         assert test_spans[0].get_tag(test.STATUS) == test.Status.SKIP.value
         assert test_spans[0].get_tag(test.SKIP_REASON) == "reason"
@@ -361,7 +361,7 @@ class PytestTestCase(TracerTestCase):
         rec.assertoutcome(skipped=2)
         spans = self.pop_spans()
 
-        assert len(spans) == 4
+        assert len(spans) == 5
         test_spans = [span for span in spans if span.get_tag("type") == "test"]
         assert test_spans[0].get_tag(test.STATUS) == test.Status.PASS.value
         assert test_spans[0].get_tag(test.RESULT) == test.Status.XFAIL.value
@@ -388,7 +388,7 @@ class PytestTestCase(TracerTestCase):
         self.inline_run("--ddtrace", "--runxfail", file_name)
         spans = self.pop_spans()
 
-        assert len(spans) == 3
+        assert len(spans) == 4
         assert spans[0].get_tag(test.STATUS) == test.Status.FAIL.value
 
     def test_xfail_runxfail_passes(self):
@@ -407,7 +407,7 @@ class PytestTestCase(TracerTestCase):
         self.inline_run("--ddtrace", "--runxfail", file_name)
         spans = self.pop_spans()
 
-        assert len(spans) == 3
+        assert len(spans) == 4
         assert spans[0].get_tag(test.STATUS) == test.Status.PASS.value
 
     def test_xpass_not_strict(self):
@@ -430,7 +430,7 @@ class PytestTestCase(TracerTestCase):
         rec.assertoutcome(passed=2)
         spans = self.pop_spans()
 
-        assert len(spans) == 4
+        assert len(spans) == 5
         test_spans = [span for span in spans if span.get_tag("type") == "test"]
         assert test_spans[0].get_tag(test.STATUS) == test.Status.PASS.value
         assert test_spans[0].get_tag(test.RESULT) == test.Status.XPASS.value
@@ -457,7 +457,7 @@ class PytestTestCase(TracerTestCase):
         rec.assertoutcome(failed=1)
         spans = self.pop_spans()
 
-        assert len(spans) == 3
+        assert len(spans) == 4
         span = [span for span in spans if span.get_tag("type") == "test"][0]
         assert span.get_tag(test.STATUS) == test.Status.FAIL.value
         assert span.get_tag(test.RESULT) == test.Status.XPASS.value
@@ -482,7 +482,7 @@ class PytestTestCase(TracerTestCase):
         rec.assertoutcome(passed=1)
         spans = self.pop_spans()
 
-        assert len(spans) == 3
+        assert len(spans) == 4
         test_span = spans[0]
         assert test_span.get_tag("world") == "hello"
         assert test_span.get_tag("mark") == "dd_tags"
@@ -587,7 +587,7 @@ class PytestTestCase(TracerTestCase):
         encoder.put(spans)
         trace = encoder.encode()
         (decoded_trace,) = self.tracer.encoder._decode(trace)
-        assert len(decoded_trace) == 6
+        assert len(decoded_trace) == 7
         for span in decoded_trace:
             assert span[b"meta"][b"_dd.origin"] == b"ciapp-test"
 
@@ -595,7 +595,7 @@ class PytestTestCase(TracerTestCase):
         ci_agentless_encoder.put(spans)
         event_payload = ci_agentless_encoder.encode()
         decoded_event_payload = self.tracer.encoder._decode(event_payload)
-        assert len(decoded_event_payload[b"events"]) == 6
+        assert len(decoded_event_payload[b"events"]) == 7
         for event in decoded_event_payload[b"events"]:
             assert event[b"content"][b"meta"][b"_dd.origin"] == b"ciapp-test"
         pass
@@ -626,10 +626,11 @@ class PytestTestCase(TracerTestCase):
         rec.assertoutcome(passed=3)
         spans = self.pop_spans()
 
-        assert len(spans) == 6
+        assert len(spans) == 8
         non_session_spans = [span for span in spans if span.get_tag("type") != "test_session_end"]
         for span in non_session_spans:
-            assert span.get_tag(test.SUITE) == file_name
+            if span.get_tag("type") == "test_suite_end":
+                assert span.get_tag(test.SUITE) == file_name
         test_session_span = spans[5]
         if PY2:
             assert test_session_span.get_tag("test.command") == "pytest"
@@ -651,7 +652,7 @@ class PytestTestCase(TracerTestCase):
         rec.assertoutcome(passed=1)
         spans = self.pop_spans()
 
-        assert len(spans) == 3
+        assert len(spans) == 4
         assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) == 1
 
     def test_pytest_exception(self):
@@ -666,7 +667,7 @@ class PytestTestCase(TracerTestCase):
         self.inline_run("--ddtrace", file_name)
         spans = self.pop_spans()
 
-        assert len(spans) == 3
+        assert len(spans) == 4
         test_span = spans[0]
         assert test_span.get_tag(test.STATUS) == test.Status.FAIL.value
         assert test_span.get_tag("error.type").endswith("AssertionError") is True
@@ -690,7 +691,7 @@ class PytestTestCase(TracerTestCase):
         self.inline_run("--ddtrace", file_name)
         spans = self.pop_spans()
 
-        assert len(spans) == 3
+        assert len(spans) == 4
         test_span = spans[0]
         assert test_span.get_tag(test.STATUS) == test.Status.FAIL.value
         assert test_span.get_tag("error.type") is None
@@ -715,7 +716,7 @@ class PytestTestCase(TracerTestCase):
         self.inline_run("--ddtrace", file_name)
         spans = self.pop_spans()
 
-        assert len(spans) == 3
+        assert len(spans) == 4
         test_span = spans[0]
 
         assert test_span.get_tag(test.STATUS) == test.Status.FAIL.value
@@ -743,7 +744,7 @@ class PytestTestCase(TracerTestCase):
         self.inline_run("--ddtrace", file_name)
         spans = self.pop_spans()
 
-        assert len(spans) == 3
+        assert len(spans) == 4
         test_span = spans[0]
 
         assert test_span.get_tag(test.STATUS) == test.Status.FAIL.value
@@ -765,7 +766,7 @@ class PytestTestCase(TracerTestCase):
         self.inline_run("--ddtrace", file_name)
         spans = self.pop_spans()
 
-        assert len(spans) == 3
+        assert len(spans) == 4
         test_span = spans[2]
 
         assert test_span.get_tag(test.FRAMEWORK_VERSION) == pytest.__version__
@@ -795,7 +796,7 @@ class PytestTestCase(TracerTestCase):
 
         self.inline_run("--ddtrace", *file_names)
         spans = self.pop_spans()
-        assert len(spans) == 5
+        assert len(spans) == 7
         test_spans = [span for span in spans if span.get_tag("type") == "test"]
         assert json.loads(test_spans[0].get_tag(test.CODEOWNERS)) == ["@default-team"], test_spans[0]
         assert json.loads(test_spans[1].get_tag(test.CODEOWNERS)) == ["@team-b", "@backup-b"], test_spans[1]
@@ -826,7 +827,7 @@ class PytestTestCase(TracerTestCase):
         rec = self.inline_run("--ddtrace", file_name)
         rec.assertoutcome(passed=1)
         spans = self.pop_spans()
-        assert len(spans) == 3
+        assert len(spans) == 4
         test_span = spans[0]
         assert test_span.get_tag("test.class_hierarchy") == "TestNestedOuter.TestNestedInner"
 
@@ -842,13 +843,17 @@ class PytestTestCase(TracerTestCase):
         rec = self.inline_run("--ddtrace", file_name)
         rec.assertoutcome(passed=1)
         spans = self.pop_spans()
-        test_suite_span = spans[2]
+        test_suite_span = spans[3]
+        test_module_span = spans[2]
         test_session_span = spans[1]
         assert test_suite_span.get_tag("type") == "test_suite_end"
         assert test_suite_span.get_tag("test_session_id") == str(test_session_span.span_id)
-        assert test_suite_span.get_tag("test_module_id") is None
+        assert test_suite_span.get_tag("test_module_id") == str(test_module_span.span_id)
         assert test_suite_span.get_tag("test_suite_id") == str(test_suite_span.span_id)
         assert test_suite_span.get_tag("test.status") == "pass"
+        assert test_module_span.get_tag("test.status") == "pass"
+        assert test_module_span.get_tag("test.module") == ""
+        assert test_module_span.get_tag("test.status") == "pass"
         assert test_session_span.get_tag("test.status") == "pass"
         if PY2:
             assert test_suite_span.get_tag("test.command") == "pytest"
@@ -879,18 +884,23 @@ class PytestTestCase(TracerTestCase):
         self.inline_run("--ddtrace")
         spans = self.pop_spans()
 
-        assert len(spans) == 5
+        assert len(spans) == 7
         test_session_span = spans[2]
         assert test_session_span.name == "pytest.test_session"
         assert test_session_span.parent_id is None
         test_spans = [span for span in spans if span.get_tag("type") == "test"]
+        test_module_spans = [span for span in spans if span.get_tag("type") == "test_module_end"]
+        test_module_span_ids = [span.span_id for span in test_module_spans]
         for test_span in test_spans:
             assert test_span.name == "pytest.test"
             assert test_span.parent_id is None
         test_suite_spans = [span for span in spans if span.get_tag("type") == "test_suite_end"]
         for test_suite_span in test_suite_spans:
             assert test_suite_span.name == "pytest.test_suite"
-            assert test_suite_span.parent_id == test_session_span.span_id
+            assert test_suite_span.parent_id in test_module_span_ids
+        for test_module_span in test_module_spans:
+            assert test_module_span.name == "pytest.test_module"
+            assert test_module_span.parent_id == test_session_span.span_id
 
     def test_pytest_test_class_does_not_prematurely_end_test_suite(self):
         """Test that given a test class, the test suite span will not end prematurely."""
@@ -908,10 +918,11 @@ class PytestTestCase(TracerTestCase):
         rec = self.inline_run("--ddtrace")
         rec.assertoutcome(passed=3)
         spans = self.pop_spans()
-        assert len(spans) == 5
+        assert len(spans) == 6
         test_span_a_inside_class = spans[1]
         test_span_a_outside_after_class = spans[2]
-        test_suite_a_span = spans[4]
+        test_suite_a_span = spans[5]
+        assert test_suite_a_span.get_tag("type") == "test_suite_end"
         assert test_span_a_inside_class.get_tag("test.class_hierarchy") == "TestClass"
         assert test_suite_a_span.start_ns + test_suite_a_span.duration_ns >= test_span_a_outside_after_class.start_ns
 
@@ -935,11 +946,19 @@ class PytestTestCase(TracerTestCase):
         self.inline_run("--ddtrace")
         spans = self.pop_spans()
         test_session_span = spans[2]
-        test_a_suite_span = spans[3]
-        test_b_suite_span = spans[4]
+        test_a_module_span = spans[3]
+        assert test_a_module_span.get_tag("type") == "test_module_end"
+        test_a_suite_span = spans[4]
+        assert test_a_suite_span.get_tag("type") == "test_suite_end"
+        test_b_module_span = spans[5]
+        assert test_b_module_span.get_tag("type") == "test_module_end"
+        test_b_suite_span = spans[6]
+        assert test_b_suite_span.get_tag("type") == "test_suite_end"
         assert test_session_span.get_tag("test.status") == "fail"
         assert test_a_suite_span.get_tag("test.status") == "pass"
         assert test_b_suite_span.get_tag("test.status") == "fail"
+        assert test_a_module_span.get_tag("test.status") == "pass"
+        assert test_b_module_span.get_tag("test.status") == "fail"
 
     def test_pytest_suites_one_skip_does_not_propagate(self):
         """Test that if not all tests skip, the status does not propagate upwards."""
@@ -963,11 +982,19 @@ class PytestTestCase(TracerTestCase):
         self.inline_run("--ddtrace")
         spans = self.pop_spans()
         test_session_span = spans[2]
-        test_a_suite_span = spans[3]
-        test_b_suite_span = spans[4]
+        test_a_module_span = spans[3]
+        assert test_a_module_span.get_tag("type") == "test_module_end"
+        test_a_suite_span = spans[4]
+        assert test_a_suite_span.get_tag("type") == "test_suite_end"
+        test_b_module_span = spans[5]
+        assert test_b_module_span.get_tag("type") == "test_module_end"
+        test_b_suite_span = spans[6]
+        assert test_b_suite_span.get_tag("type") == "test_suite_end"
         assert test_session_span.get_tag("test.status") == "pass"
         assert test_a_suite_span.get_tag("test.status") == "pass"
         assert test_b_suite_span.get_tag("test.status") == "skip"
+        assert test_a_module_span.get_tag("test.status") == "pass"
+        assert test_b_module_span.get_tag("test.status") == "skip"
 
     def test_pytest_all_tests_pass_status_propagates(self):
         """Test that if all tests pass, the status propagates upwards."""
@@ -1006,11 +1033,16 @@ class PytestTestCase(TracerTestCase):
         spans = self.pop_spans()
         test_span_ok = spans[0]
         test_span_not_ok = spans[1]
-        test_suite_span = spans[3]
+        test_suite_span = spans[4]
         test_session_span = spans[2]
+        test_module_span = spans[3]
+        assert test_suite_span.get_tag("type") == "test_suite_end"
+        assert test_module_span.get_tag("type") == "test_module_end"
+        assert test_session_span.get_tag("type") == "test_session_end"
         assert test_span_ok.get_tag("test.status") == "pass"
         assert test_span_not_ok.get_tag("test.status") == "fail"
         assert test_suite_span.get_tag("test.status") == "fail"
+        assert test_module_span.get_tag("test.status") == "fail"
         assert test_session_span.get_tag("test.status") == "fail"
 
     def test_pytest_all_tests_skipped_propagates(self):
@@ -1058,11 +1090,16 @@ class PytestTestCase(TracerTestCase):
         spans = self.pop_spans()
         test_span_skipped = spans[0]
         test_span_ok = spans[1]
-        test_suite_span = spans[3]
+        test_suite_span = spans[4]
         test_session_span = spans[2]
+        test_module_span = spans[3]
+        assert test_suite_span.get_tag("type") == "test_suite_end"
+        assert test_module_span.get_tag("type") == "test_module_end"
+        assert test_session_span.get_tag("type") == "test_session_end"
         assert test_span_skipped.get_tag("test.status") == "skip"
         assert test_span_ok.get_tag("test.status") == "pass"
         assert test_suite_span.get_tag("test.status") == "pass"
+        assert test_module_span.get_tag("test.status") == "pass"
         assert test_session_span.get_tag("test.status") == "pass"
 
     def test_pytest_some_skipped_tests_does_not_propagate_in_testcase(self):
@@ -1088,12 +1125,17 @@ class PytestTestCase(TracerTestCase):
         spans = self.pop_spans()
         test_span_skipped = spans[0]
         test_span_ok = spans[1]
-        test_suite_span = spans[3]
+        test_suite_span = spans[4]
         test_session_span = spans[2]
+        test_module_span = spans[3]
+        assert test_suite_span.get_tag("type") == "test_suite_end"
+        assert test_module_span.get_tag("type") == "test_module_end"
+        assert test_session_span.get_tag("type") == "test_session_end"
         assert test_span_skipped.get_tag("test.status") == "skip"
         assert test_span_ok.get_tag("test.status") == "pass"
         assert test_suite_span.get_tag("test.status") == "pass"
         assert test_session_span.get_tag("test.status") == "pass"
+        assert test_module_span.get_tag("test.status") == "pass"
 
     def test_pytest_all_skipped_tests_does_propagate_in_testcase(self):
         """Test that if all tests are skipped, that status is propagated upwards."""
@@ -1119,12 +1161,17 @@ class PytestTestCase(TracerTestCase):
         spans = self.pop_spans()
         test_span_skipped = spans[0]
         test_span_ok = spans[1]
-        test_suite_span = spans[3]
+        test_suite_span = spans[4]
         test_session_span = spans[2]
+        test_module_span = spans[3]
+        assert test_suite_span.get_tag("type") == "test_suite_end"
+        assert test_module_span.get_tag("type") == "test_module_end"
+        assert test_session_span.get_tag("type") == "test_session_end"
         assert test_span_skipped.get_tag("test.status") == "skip"
         assert test_span_ok.get_tag("test.status") == "skip"
         assert test_suite_span.get_tag("test.status") == "skip"
         assert test_session_span.get_tag("test.status") == "skip"
+        assert test_module_span.get_tag("test.status") == "skip"
 
     def test_pytest_failed_tests_propagate_in_testcase(self):
         """Test that if any test fails, that status is propagated upwards."""
@@ -1148,12 +1195,17 @@ class PytestTestCase(TracerTestCase):
         spans = self.pop_spans()
         test_span_skipped = spans[0]
         test_span_ok = spans[1]
-        test_suite_span = spans[3]
+        test_suite_span = spans[4]
         test_session_span = spans[2]
+        test_module_span = spans[3]
+        assert test_suite_span.get_tag("type") == "test_suite_end"
+        assert test_module_span.get_tag("type") == "test_module_end"
+        assert test_session_span.get_tag("type") == "test_session_end"
         assert test_span_skipped.get_tag("test.status") == "fail"
         assert test_span_ok.get_tag("test.status") == "pass"
         assert test_suite_span.get_tag("test.status") == "fail"
         assert test_session_span.get_tag("test.status") == "fail"
+        assert test_module_span.get_tag("test.status") == "fail"
 
     def test_pytest_module(self):
         """Test that running pytest on a test package will generate a test module span."""
@@ -1322,6 +1374,39 @@ class PytestTestCase(TracerTestCase):
         assert test_suite_spans[0].get_tag("test.suite") == "test_outer_abc.py"
         assert test_suite_spans[1].get_tag("test.suite") == "test_inner_abc.py"
 
+    def test_pytest_module_path_empty(self):
+        """
+        Test that running pytest without module will create an empty module span with empty path.
+        """
+        self.testdir.makepyfile(
+            test_module="""
+        def lib_fn():
+            return True
+        """
+        )
+        # py_cov_file =
+        self.testdir.makepyfile(
+            test_cov="""
+        import pytest
+        from test_module import lib_fn
+
+        def test_cov():
+            assert lib_fn()
+        """
+        )
+        self.testdir.chdir()
+        self.inline_run("--ddtrace")
+        spans = self.pop_spans()
+
+        assert len(spans) == 4
+        test_module_spans = [span for span in spans if span.get_tag("type") == "test_module_end"]
+        assert len(test_module_spans) == 1
+        assert test_module_spans[0].get_tag("test.module") == ""
+        assert test_module_spans[0].get_tag("test.module_path") == ""
+        test_suite_spans = [span for span in spans if span.get_tag("type") == "test_suite_end"]
+        assert len(test_suite_spans) == 1
+        assert test_suite_spans[0].get_tag("test.suite") == "test_cov.py"
+
     @pytest.mark.skipif(compat.PY2, reason="ddtrace does not support coverage on Python 2")
     def test_pytest_will_report_coverage_by_test(self):
         self.testdir.makepyfile(
@@ -1399,7 +1484,7 @@ class PytestTestCase(TracerTestCase):
             self.inline_run("--ddtrace", file_name)
             spans = self.pop_spans()
 
-        assert len(spans) == 3
+        assert len(spans) == 4
         test_span = spans[0]
 
         assert test_span.get_tag(git.COMMIT_MESSAGE) == "this is a commit msg"
