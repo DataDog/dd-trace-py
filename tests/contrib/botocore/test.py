@@ -2975,13 +2975,16 @@ class BotocoreTest(TracerTestCase):
 
         pin = Pin.get_from(client)
         buckets = pin.tracer.data_streams_processor._buckets
-        assert len(buckets) == 1 
+        assert len(buckets) == 1
         _, first = list(buckets.items())[0]
 
-
-        in_tags = ",".join(["direction:in",
-                             "topic:arn:aws:kinesis:us-east-1:123456789012:stream/kinesis_put_record_data_streams",
-                             "type:kinesis"])
+        in_tags = ",".join(
+            [
+                "direction:in",
+                "topic:arn:aws:kinesis:us-east-1:123456789012:stream/kinesis_put_record_data_streams",
+                "type:kinesis",
+            ]
+        )
         assert first[(in_tags, 614755353881974019, 0)].full_pathway_latency._count >= 1
         assert first[(in_tags, 614755353881974019, 0)].edge_latency._count >= 1
 
