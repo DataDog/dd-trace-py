@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    CI Visibility: added pytest-benchmark support for ddtracer
