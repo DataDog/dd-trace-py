@@ -1,4 +1,5 @@
 from ddtrace.appsec.iast import oce
+from ddtrace.appsec.iast._metrics import _set_metric_iast_instrumented_sink
 from ddtrace.appsec.iast._patch import set_and_check_module_is_patched
 from ddtrace.appsec.iast._patch import set_module_unpatched
 from ddtrace.appsec.iast._patch import try_wrap_function_wrapper
@@ -28,7 +29,7 @@ def patch():
     """Wrap functions which interact with file system."""
     if not set_and_check_module_is_patched("builtins", default_attr="_datadog_path_traversal_patch"):
         return
-
+    _set_metric_iast_instrumented_sink(VULN_PATH_TRAVERSAL)
     try_wrap_function_wrapper("builtins", "open", wrapped_path_traversal)
 
 
