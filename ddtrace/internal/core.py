@@ -135,7 +135,6 @@ class ExecutionContext:
         if self.identifier == ROOT_CONTEXT_ID:
             raise ValueError("Cannot add parent to root context")
         self._parents.append(context)
-        self._data.update(context._data)
 
     @classmethod
     @contextmanager
@@ -164,6 +163,11 @@ class ExecutionContext:
     def set_item(self, data_key, data_value):
         # type: (str, Optional[Any]) -> None
         self._data[data_key] = data_value
+
+    def set_safe(self, data_key, data_value):
+        if data_key in self._data:
+            raise ValueError("Cannot overwrite ExecutionContext data key '%s'", data_key)
+        return self.set_item(data_key, data_value)
 
     def set_items(self, keys_values):
         # type: (Dict[str, Optional[Any]]) -> None
@@ -209,6 +213,12 @@ def get_items(data_keys, span=None):
         return _CURRENT_CONTEXT.get().get_items(data_keys)  # type: ignore
 
 
+def set_safe(data_key, data_value):
+    # type: (str, Optional[Any]) -> None
+    _CURRENT_CONTEXT.get().set_safe(data_key, data_value)  # type: ignore
+
+
+# NB Don't call these set_* functions from `ddtrace.contrib`, only from product code!
 def set_item(data_key, data_value, span=None):
     # type: (str, Optional[Any], Optional[Span]) -> None
     if span is not None and span._local_root is not None:
