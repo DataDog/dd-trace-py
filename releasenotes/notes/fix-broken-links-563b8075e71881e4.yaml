@@ -1,0 +1,3 @@
+fixes:
+  - |
+    CI visibility: added BITBUCKET_GIT_HTTP_ORIGIN environment variable and added Codefresh integration
