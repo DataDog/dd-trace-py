@@ -266,16 +266,14 @@ class TelemetryWriter(PeriodicService):
 
         self.add_configurations(
             [
-                ("data_streams_enabled", config._data_streams_enabled, "unknown"),
-                ("appsec_enabled", config._appsec_enabled, "unknown"),
-                (TELEMETRY_PROPAGATION_STYLE_INJECT, ",".join(config._propagation_style_inject), "unknown"),
-                (TELEMETRY_PROPAGATION_STYLE_EXTRACT, ",".join(config._propagation_style_extract), "unknown"),
                 (TELEMETRY_TRACING_ENABLED, config._tracing_enabled, "unknown"),
                 (TELEMETRY_DSM_ENABLED, config._data_streams_enabled, "unknown"),
                 (TELEMETRY_ASM_ENABLED, config._appsec_enabled, "unknown"),
                 (TELEMETRY_PROFILING_ENABLED, profiling_config.enabled, "unknown"),
                 (TELEMETRY_DYNAMIC_INSTRUMENTATION_ENABLED, di_config.enabled, "unknown"),
                 (TELEMETRY_EXCEPTION_DEBUGGING_ENABLED, ed_config.enabled, "unknown"),
+                (TELEMETRY_PROPAGATION_STYLE_INJECT, ",".join(config._propagation_style_inject), "unknown"),
+                (TELEMETRY_PROPAGATION_STYLE_EXTRACT, ",".join(config._propagation_style_extract), "unknown"),
                 ("ddtrace_bootstrapped", config._ddtrace_bootstrapped, "unknown"),
                 ("ddtrace_auto_used", "ddtrace.auto" in sys.modules, "unknown"),
                 ("otel_enabled", config._otel_enabled, "unknown"),

@@ -72,14 +72,14 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
     events[0]["payload"]["configuration"].sort(key=lambda c: c["name"])
     payload = {
         "configuration": [
-            {"name": TELEMETRY_PROPAGATION_STYLE_EXTRACT, "origin": "unknown", "value": "['tracecontext', 'datadog']"},
-            {"name": TELEMETRY_PROPAGATION_STYLE_INJECT, "origin": "unknown", "value": "['tracecontext', 'datadog']"},
             {"name": "DD_APPSEC_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_DATA_STREAMS_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_DYNAMIC_INSTRUMENTATION_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_EXCEPTION_DEBUGGING_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_PROFILING_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_TRACE_ENABLED", "origin": "unknown", "value": True},
+            {"name": TELEMETRY_PROPAGATION_STYLE_EXTRACT, "origin": "unknown", "value": "tracecontext,datadog"},
+            {"name": TELEMETRY_PROPAGATION_STYLE_INJECT, "origin": "unknown", "value": "tracecontext,datadog"},
             {"name": "ddtrace_auto_used", "origin": "unknown", "value": False},
             {"name": "ddtrace_bootstrapped", "origin": "unknown", "value": False},
             {"name": "otel_enabled", "origin": "unknown", "value": False},
@@ -90,6 +90,7 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
             "message": "",
         },
     }
+
     assert events[0] == _get_request_body(payload, "app-started")
 
 
@@ -117,11 +118,11 @@ telemetry_writer.disable()
     # Change configuration default values
     env["DD_TRACE_ENABLED"] = "false"
     env["DD_DATA_STREAMS_ENABLED"] = "true"
-    env[TELEMETRY_PROPAGATION_STYLE_EXTRACT] = "b3multi"
-    env[TELEMETRY_PROPAGATION_STYLE_INJECT] = "datadog"
     env["DD_APPSEC_ENABLED"] = "true"
     env["DD_PROFILING_ENABLED"] = "true"
     env["DD_DYNAMIC_INSTRUMENTATION_ENABLED"] = "true"
+    env[TELEMETRY_PROPAGATION_STYLE_EXTRACT] = "b3multi"
+    env[TELEMETRY_PROPAGATION_STYLE_INJECT] = "datadog"
     env["DD_TRACE_OTEL_ENABLED"] = "true"
     env["DD_RUNTIME_METRICS_ENABLED"] = "true"
     env["DD_EXCEPTION_DEBUGGING_ENABLED"] = "true"
@@ -135,15 +136,17 @@ telemetry_writer.disable()
 
     events = test_agent_session.get_events()
     events[0]["payload"]["configuration"].sort(key=lambda c: c["name"])
+
     assert events[0]["payload"]["configuration"] == [
-        {"name": TELEMETRY_PROPAGATION_STYLE_EXTRACT, "origin": "unknown", "value": "['b3multi']"},
-        {"name": TELEMETRY_PROPAGATION_STYLE_INJECT, "origin": "unknown", "value": "['datadog']"},
         {"name": "DD_APPSEC_ENABLED", "origin": "unknown", "value": True},
         {"name": "DD_DATA_STREAMS_ENABLED", "origin": "unknown", "value": True},
         {"name": "DD_DYNAMIC_INSTRUMENTATION_ENABLED", "origin": "unknown", "value": True},
         {"name": "DD_EXCEPTION_DEBUGGING_ENABLED", "origin": "unknown", "value": True},
         {"name": "DD_PROFILING_ENABLED", "origin": "unknown", "value": True},
+        # why is this showing up as True?
         {"name": "DD_TRACE_ENABLED", "origin": "unknown", "value": False},
+        {"name": TELEMETRY_PROPAGATION_STYLE_EXTRACT, "origin": "unknown", "value": "b3multi"},
+        {"name": TELEMETRY_PROPAGATION_STYLE_INJECT, "origin": "unknown", "value": "datadog"},
         {"name": "ddtrace_auto_used", "origin": "unknown", "value": True},
         {"name": "ddtrace_bootstrapped", "origin": "unknown", "value": True},
         {"name": "otel_enabled", "origin": "unknown", "value": True},
