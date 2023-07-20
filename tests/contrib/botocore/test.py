@@ -2659,8 +2659,12 @@ class BotocoreTest(TracerTestCase):
 
         return shard_id, stream["StreamARN"]
 
-    def _kinesis_get_records(self, client, shard_iterator, stream_arn):
-        response = client.get_records(ShardIterator=shard_iterator, StreamARN=stream_arn)
+    def _kinesis_get_records(self, client, shard_iterator, stream_arn, enable_stream_arn=False):
+        response = None
+        if enable_stream_arn:
+            response = client.get_records(ShardIterator=shard_iterator, StreamARN=stream_arn)
+        else:
+            response = client.get_records(ShardIterator=shard_iterator)
         records = response["Records"]
 
         return records
@@ -2703,7 +2707,7 @@ class BotocoreTest(TracerTestCase):
 
         return decoded_record_data
 
-    def _test_kinesis_put_record_trace_injection(self, test_name, data, client=None, include_stream_arn=True):
+    def _test_kinesis_put_record_trace_injection(self, test_name, data, client=None, enable_stream_arn=False):
         if not client:
             client = self.session.create_client("kinesis", region_name="us-east-1")
 
@@ -2713,7 +2717,7 @@ class BotocoreTest(TracerTestCase):
         partition_key = "1234"
 
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(client)
-        if include_stream_arn:
+        if enable_stream_arn:
             client.put_record(StreamName=stream_name, Data=data, PartitionKey=partition_key, StreamARN=stream_arn)
         else:
             client.put_record(StreamName=stream_name, Data=data, PartitionKey=partition_key)
@@ -2726,7 +2730,7 @@ class BotocoreTest(TracerTestCase):
         assert span.resource == "kinesis.putrecord"
 
         shard_iterator = self._kinesis_get_shard_iterator(client, stream_name, shard_id)
-        records = self._kinesis_get_records(client, shard_iterator, stream_arn)
+        records = self._kinesis_get_records(client, shard_iterator, stream_arn, enable_stream_arn=enable_stream_arn)
 
         # assert commons for records
         decoded_record_data = self._kinesis_assert_records(records, span)
@@ -2738,7 +2742,7 @@ class BotocoreTest(TracerTestCase):
 
         return decoded_record_data
 
-    def _test_kinesis_put_records_trace_injection(self, test_name, data, client=None):
+    def _test_kinesis_put_records_trace_injection(self, test_name, data, client=None, enable_stream_arn=False):
         if not client:
             client = self.session.create_client("kinesis", region_name="us-east-1")
 
@@ -2746,7 +2750,10 @@ class BotocoreTest(TracerTestCase):
         shard_id, stream_arn = self._kinesis_create_stream(client, stream_name)
 
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(client)
-        client.put_records(StreamName=stream_name, Records=data, StreamARN=stream_arn)
+        if enable_stream_arn:
+            client.put_records(StreamName=stream_name, Records=data, StreamARN=stream_arn)
+        else:
+            client.put_records(StreamName=stream_name, Records=data)
 
         # assert commons for span
         span = self._kinesis_assert_spans()
@@ -2756,7 +2763,7 @@ class BotocoreTest(TracerTestCase):
         assert span.resource == "kinesis.putrecords"
 
         shard_iterator = self._kinesis_get_shard_iterator(client, stream_name, shard_id)
-        records = self._kinesis_get_records(client, shard_iterator, stream_arn)
+        records = self._kinesis_get_records(client, shard_iterator, stream_arn, enable_stream_arn=enable_stream_arn)
 
         # assert commons for records
         decoded_record_data = self._kinesis_assert_records(records, span)
@@ -2835,7 +2842,7 @@ class BotocoreTest(TracerTestCase):
         records = self._kinesis_generate_records(data, 2)
         client = self.session.create_client("kinesis", region_name="us-east-1")
 
-        self._test_kinesis_put_records_trace_injection("data_streams", records, client=client)
+        self._test_kinesis_put_records_trace_injection("data_streams", records, client=client, enable_stream_arn=True)
 
         pin = Pin.get_from(client)
         buckets = pin.tracer.data_streams_processor._buckets
@@ -2905,7 +2912,7 @@ class BotocoreTest(TracerTestCase):
         data = json.dumps({"json": "string"})
         client = self.session.create_client("kinesis", region_name="us-east-1")
 
-        self._test_kinesis_put_record_trace_injection("data_streams", data, client=client)
+        self._test_kinesis_put_record_trace_injection("data_streams", data, client=client, enable_stream_arn=True)
 
         pin = Pin.get_from(client)
         buckets = pin.tracer.data_streams_processor._buckets
@@ -2974,7 +2981,7 @@ class BotocoreTest(TracerTestCase):
         data = json.dumps({"json": "string"})
         client = self.session.create_client("kinesis", region_name="us-east-1")
 
-        self._test_kinesis_put_record_trace_injection("data_streams", data, client=client, include_stream_arn=False)
+        self._test_kinesis_put_record_trace_injection("data_streams", data, client=client, enable_stream_arn=False)
 
         pin = Pin.get_from(client)
         buckets = pin.tracer.data_streams_processor._buckets
