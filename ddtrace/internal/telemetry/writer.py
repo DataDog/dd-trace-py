@@ -15,6 +15,9 @@ from ...internal import atexit
 from ...internal import forksafe
 from ...internal.compat import parse
 from ...settings import _config as config
+from ...settings.dynamic_instrumentation import config as di_config
+from ...settings.exception_debugging import config as ed_config
+from ...settings.profiling import config as profiling_config
 from ..agent import get_connection
 from ..agent import get_trace_url
 from ..compat import get_connection_response
@@ -29,7 +32,13 @@ from ..utils.time import StopWatch
 from ..utils.version import _pep440_to_semver
 from .constants import TELEMETRY_PROPAGATION_STYLE_EXTRACT
 from .constants import TELEMETRY_PROPAGATION_STYLE_INJECT
+from .constants import TELEMETRY_ASM_ENABLED
+from .constants import TELEMETRY_DSM_ENABLED
+from .constants import TELEMETRY_DYNAMIC_INSTRUMENTATION_ENABLED
+from .constants import TELEMETRY_EXCEPTION_DEBUGGING_ENABLED
+from .constants import TELEMETRY_PROFILING_ENABLED
 from .constants import TELEMETRY_RUNTIMEMETRICS_ENABLED
+from .constants import TELEMETRY_TRACING_ENABLED
 from .constants import TELEMETRY_TYPE_DISTRIBUTION
 from .constants import TELEMETRY_TYPE_GENERATE_METRICS
 from .constants import TELEMETRY_TYPE_LOGS
@@ -254,12 +263,19 @@ class TelemetryWriter(PeriodicService):
             # app-started events should only be sent by the main process
             return
         #  List of configurations to be collected
+
         self.add_configurations(
             [
                 ("data_streams_enabled", config._data_streams_enabled, "unknown"),
                 ("appsec_enabled", config._appsec_enabled, "unknown"),
                 (TELEMETRY_PROPAGATION_STYLE_INJECT, ",".join(config._propagation_style_inject), "unknown"),
                 (TELEMETRY_PROPAGATION_STYLE_EXTRACT, ",".join(config._propagation_style_extract), "unknown"),
+                (TELEMETRY_TRACING_ENABLED, config._tracing_enabled, "unknown"),
+                (TELEMETRY_DSM_ENABLED, config._data_streams_enabled, "unknown"),
+                (TELEMETRY_ASM_ENABLED, config._appsec_enabled, "unknown"),
+                (TELEMETRY_PROFILING_ENABLED, profiling_config.enabled, "unknown"),
+                (TELEMETRY_DYNAMIC_INSTRUMENTATION_ENABLED, di_config.enabled, "unknown"),
+                (TELEMETRY_EXCEPTION_DEBUGGING_ENABLED, ed_config.enabled, "unknown"),
                 ("ddtrace_bootstrapped", config._ddtrace_bootstrapped, "unknown"),
                 ("ddtrace_auto_used", "ddtrace.auto" in sys.modules, "unknown"),
                 ("otel_enabled", config._otel_enabled, "unknown"),
