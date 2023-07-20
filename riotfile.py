@@ -155,6 +155,7 @@ venv = Venv(
             name="mypy",
             command="mypy {cmdargs}",
             create=True,
+            skip_dev_install=True,
             pkgs={
                 "mypy": "==0.991",
                 "envier": "==0.4.0",
@@ -215,7 +216,7 @@ venv = Venv(
             name="riot-helpers",
             # DEV: pytest really doesn't want to execute only `riotfile.py`, call doctest directly
             command="python -m doctest {cmdargs} riotfile.py",
-            pkgs={"riot": latest},
+            pkgs={"riot": "==0.17.4"},
         ),
         Venv(
             pys=["3"],
@@ -1816,9 +1817,11 @@ venv = Venv(
                             pkgs={
                                 "pytest-bdd": [
                                     ">=4.0,<5.0",
-                                    # FIXME: add support for v6.1
-                                    ">=6.0,<6.1",
-                                ]
+                                    ">=6.0,<7.0",
+                                ],
+                                "typing-extensions": [
+                                    latest,
+                                ],
                             },
                         ),
                         Venv(
@@ -1826,9 +1829,12 @@ venv = Venv(
                             pkgs={
                                 "pytest-bdd": [
                                     ">=4.0,<5.0",
-                                    # FIXME: add support for v6.1
-                                    ">=6.0,<6.1",
-                                ]
+                                    ">=6.0,<7.0",
+                                    latest,
+                                ],
+                                "typing-extensions": [
+                                    latest,
+                                ],
                             },
                         ),
                     ],
@@ -2781,6 +2787,24 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="langchain",
+            command="pytest {cmdargs} tests/contrib/langchain",
+            pys=select_pys(min_version="3.9"),
+            pkgs={
+                "langchain": ["==0.0.192", latest],
+                "openai": latest,
+                "vcrpy": latest,
+                "pytest-asyncio": latest,
+                "tiktoken": latest,
+                "pinecone-client": latest,
+                "cohere": latest,
+                "huggingface-hub": latest,
+                "ai21": latest,
+                "exceptiongroup": latest,
+                "psutil": latest,
+            },
+        ),
+        Venv(
             name="molten",
             command="pytest {cmdargs} tests/contrib/molten",
             pys=select_pys(min_version="3.6"),
@@ -2925,6 +2949,7 @@ venv = Venv(
                                     pkgs={
                                         "protobuf": "==3.8.0",
                                     },
+                                    create=True,  # Needed bp Python 3.5 because of namespace packages
                                 ),
                                 # Gevent
                                 Venv(

@@ -6,6 +6,7 @@ from typing import Dict
 import httpretty
 import mock
 import pytest
+from six import PY2
 
 from ddtrace.internal.telemetry.data import get_application
 from ddtrace.internal.telemetry.data import get_dependencies
@@ -69,41 +70,18 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
     events[0]["payload"]["configuration"].sort(key=lambda c: c["name"])
     payload = {
         "configuration": [
-            {
-                "name": "appsec_enabled",
-                "origin": "unknown",
-                "value": False,
-            },
-            {
-                "name": "data_streams_enabled",
-                "origin": "unknown",
-                "value": False,
-            },
-            {
-                "name": "ddtrace_auto_used",
-                "origin": "unknown",
-                "value": False,
-            },
-            {
-                "name": "ddtrace_bootstrapped",
-                "origin": "unknown",
-                "value": False,
-            },
-            {
-                "name": "otel_enabled",
-                "origin": "unknown",
-                "value": False,
-            },
-            {
-                "name": "trace_propagation_style_extract",
-                "origin": "unknown",
-                "value": "['tracecontext', 'datadog']",
-            },
-            {
-                "name": "trace_propagation_style_inject",
-                "origin": "unknown",
-                "value": "['tracecontext', 'datadog']",
-            },
+            {"name": "DD_APPSEC_ENABLED", "origin": "unknown", "value": False},
+            {"name": "DD_DATA_STREAMS_ENABLED", "origin": "unknown", "value": False},
+            {"name": "DD_DYNAMIC_INSTRUMENTATION_ENABLED", "origin": "unknown", "value": False},
+            {"name": "DD_EXCEPTION_DEBUGGING_ENABLED", "origin": "unknown", "value": False},
+            {"name": "DD_PROFILING_ENABLED", "origin": "unknown", "value": False},
+            {"name": "DD_TRACE_ENABLED", "origin": "unknown", "value": True},
+            {"name": "ddtrace_auto_used", "origin": "unknown", "value": False},
+            {"name": "ddtrace_bootstrapped", "origin": "unknown", "value": False},
+            {"name": "otel_enabled", "origin": "unknown", "value": False},
+            {"name": "runtimemetrics_enabled", "origin": "unknown", "value": False},
+            {"name": "trace_propagation_style_extract", "origin": "unknown", "value": "['tracecontext', 'datadog']"},
+            {"name": "trace_propagation_style_inject", "origin": "unknown", "value": "['tracecontext', 'datadog']"},
         ],
         "error": {
             "code": 0,
@@ -120,6 +98,9 @@ def test_app_started_event_configuration_override(test_agent_session, ddtrace_ru
     which is then sent by periodic()
     """
     code = """
+import logging
+logging.basicConfig()
+
 import ddtrace.auto
 
 from ddtrace.internal.telemetry import telemetry_writer
@@ -132,10 +113,19 @@ telemetry_writer.disable()
 
     env = os.environ.copy()
     # Change configuration default values
+    env["DD_TRACE_ENABLED"] = "false"
     env["DD_DATA_STREAMS_ENABLED"] = "true"
+    env["DD_APPSEC_ENABLED"] = "true"
+    env["DD_PROFILING_ENABLED"] = "true"
+    env["DD_DYNAMIC_INSTRUMENTATION_ENABLED"] = "true"
     env["DD_TRACE_PROPAGATION_STYLE_EXTRACT"] = "b3multi"
     env["DD_TRACE_PROPAGATION_STYLE_INJECT"] = "datadog"
     env["DD_TRACE_OTEL_ENABLED"] = "true"
+    env["DD_RUNTIME_METRICS_ENABLED"] = "true"
+    env["DD_EXCEPTION_DEBUGGING_ENABLED"] = "true"
+    if PY2:
+        # Prevents gevent importerror when profiling is enabled
+        env["DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE"] = "false"
 
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
 
@@ -143,45 +133,20 @@ telemetry_writer.disable()
 
     events = test_agent_session.get_events()
     events[0]["payload"]["configuration"].sort(key=lambda c: c["name"])
-    configuration = [
-        {
-            "name": "appsec_enabled",
-            "origin": "unknown",
-            "value": False,
-        },
-        {
-            "name": "data_streams_enabled",
-            "origin": "unknown",
-            "value": True,
-        },
-        {
-            "name": "ddtrace_auto_used",
-            "origin": "unknown",
-            "value": True,
-        },
-        {
-            "name": "ddtrace_bootstrapped",
-            "origin": "unknown",
-            "value": True,
-        },
-        {
-            "name": "otel_enabled",
-            "origin": "unknown",
-            "value": True,
-        },
-        {
-            "name": "trace_propagation_style_extract",
-            "origin": "unknown",
-            "value": "['b3multi']",
-        },
-        {
-            "name": "trace_propagation_style_inject",
-            "origin": "unknown",
-            "value": "['datadog']",
-        },
+    assert events[0]["payload"]["configuration"] == [
+        {"name": "DD_APPSEC_ENABLED", "origin": "unknown", "value": True},
+        {"name": "DD_DATA_STREAMS_ENABLED", "origin": "unknown", "value": True},
+        {"name": "DD_DYNAMIC_INSTRUMENTATION_ENABLED", "origin": "unknown", "value": True},
+        {"name": "DD_EXCEPTION_DEBUGGING_ENABLED", "origin": "unknown", "value": True},
+        {"name": "DD_PROFILING_ENABLED", "origin": "unknown", "value": True},
+        {"name": "DD_TRACE_ENABLED", "origin": "unknown", "value": False},
+        {"name": "ddtrace_auto_used", "origin": "unknown", "value": True},
+        {"name": "ddtrace_bootstrapped", "origin": "unknown", "value": True},
+        {"name": "otel_enabled", "origin": "unknown", "value": True},
+        {"name": "runtimemetrics_enabled", "origin": "unknown", "value": True},
+        {"name": "trace_propagation_style_extract", "origin": "unknown", "value": "['b3multi']"},
+        {"name": "trace_propagation_style_inject", "origin": "unknown", "value": "['datadog']"},
     ]
-
-    assert events[0]["payload"]["configuration"] == configuration
 
 
 def test_app_dependencies_loaded_event(telemetry_writer, test_agent_session, mock_time):

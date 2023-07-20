@@ -15,6 +15,9 @@ from ...internal import atexit
 from ...internal import forksafe
 from ...internal.compat import parse
 from ...settings import _config as config
+from ...settings.dynamic_instrumentation import config as di_config
+from ...settings.exception_debugging import config as ed_config
+from ...settings.profiling import config as profiling_config
 from ..agent import get_connection
 from ..agent import get_trace_url
 from ..compat import get_connection_response
@@ -27,17 +30,24 @@ from ..service import ServiceStatus
 from ..utils.formats import asbool
 from ..utils.time import StopWatch
 from ..utils.version import _pep440_to_semver
-from .constants import TELEMETRY_METRIC_TYPE_COUNT
-from .constants import TELEMETRY_METRIC_TYPE_DISTRIBUTIONS
-from .constants import TELEMETRY_METRIC_TYPE_GAUGE
-from .constants import TELEMETRY_METRIC_TYPE_RATE
+from .constants import TELEMETRY_ASM_ENABLED
+from .constants import TELEMETRY_DSM_ENABLED
+from .constants import TELEMETRY_DYNAMIC_INSTRUMENTATION_ENABLED
+from .constants import TELEMETRY_EXCEPTION_DEBUGGING_ENABLED
+from .constants import TELEMETRY_PROFILING_ENABLED
+from .constants import TELEMETRY_RUNTIMEMETRICS_ENABLED
+from .constants import TELEMETRY_TRACING_ENABLED
 from .constants import TELEMETRY_TYPE_DISTRIBUTION
 from .constants import TELEMETRY_TYPE_GENERATE_METRICS
 from .constants import TELEMETRY_TYPE_LOGS
 from .data import get_application
 from .data import get_dependencies
 from .data import get_host_info
+from .metrics import CountMetric
+from .metrics import DistributionMetric
+from .metrics import GaugeMetric
 from .metrics import MetricTagType
+from .metrics import RateMetric
 from .metrics_namespaces import MetricNamespace
 from .metrics_namespaces import NamespaceMetricType
 
@@ -251,15 +261,21 @@ class TelemetryWriter(PeriodicService):
             # app-started events should only be sent by the main process
             return
         #  List of configurations to be collected
+
         self.add_configurations(
             [
-                ("data_streams_enabled", config._data_streams_enabled, "unknown"),
-                ("appsec_enabled", config._appsec_enabled, "unknown"),
+                (TELEMETRY_TRACING_ENABLED, config._tracing_enabled, "unknown"),
+                (TELEMETRY_DSM_ENABLED, config._data_streams_enabled, "unknown"),
+                (TELEMETRY_ASM_ENABLED, config._appsec_enabled, "unknown"),
+                (TELEMETRY_PROFILING_ENABLED, profiling_config.enabled, "unknown"),
+                (TELEMETRY_DYNAMIC_INSTRUMENTATION_ENABLED, di_config.enabled, "unknown"),
+                (TELEMETRY_EXCEPTION_DEBUGGING_ENABLED, ed_config.enabled, "unknown"),
                 ("trace_propagation_style_inject", str(config._propagation_style_inject), "unknown"),
                 ("trace_propagation_style_extract", str(config._propagation_style_extract), "unknown"),
                 ("ddtrace_bootstrapped", config._ddtrace_bootstrapped, "unknown"),
                 ("ddtrace_auto_used", "ddtrace.auto" in sys.modules, "unknown"),
                 ("otel_enabled", config._otel_enabled, "unknown"),
+                (TELEMETRY_RUNTIMEMETRICS_ENABLED, config._runtime_metrics_enabled, "unknown"),
             ]
         )
 
@@ -381,7 +397,7 @@ class TelemetryWriter(PeriodicService):
         """
         if self.status == ServiceStatus.RUNNING or self.enable():
             self._namespace.add_metric(
-                TELEMETRY_METRIC_TYPE_GAUGE,
+                GaugeMetric,
                 namespace,
                 name,
                 value,
@@ -396,7 +412,7 @@ class TelemetryWriter(PeriodicService):
         """
         if self.status == ServiceStatus.RUNNING or self.enable():
             self._namespace.add_metric(
-                TELEMETRY_METRIC_TYPE_RATE,
+                RateMetric,
                 namespace,
                 name,
                 value,
@@ -411,7 +427,7 @@ class TelemetryWriter(PeriodicService):
         """
         if self.status == ServiceStatus.RUNNING or self.enable():
             self._namespace.add_metric(
-                TELEMETRY_METRIC_TYPE_COUNT,
+                CountMetric,
                 namespace,
                 name,
                 value,
@@ -425,7 +441,7 @@ class TelemetryWriter(PeriodicService):
         """
         if self.status == ServiceStatus.RUNNING or self.enable():
             self._namespace.add_metric(
-                TELEMETRY_METRIC_TYPE_DISTRIBUTIONS,
+                DistributionMetric,
                 namespace,
                 name,
                 value,
