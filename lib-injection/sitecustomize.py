@@ -20,25 +20,18 @@ def _log(msg, *args, level="info"):
     print("%s:datadog.autoinstrumentation(pid: %d): " % (level.upper(), os.getpid()) + msg % args, file=sys.stderr)
 
 
+script_dir = os.path.dirname(__file__)
+pkgs_path = os.path.join(script_dir, "ddtrace_pkgs")
+_log("ddtrace_pkgs path is %r" % pkgs_path, level="debug")
+_log("ddtrace_pkgs contents: %r" % os.listdir(pkgs_path), level="debug")
+
 try:
     import ddtrace
 except ModuleNotFoundError:
     _log("user-installed ddtrace not found, configuring application to use injection site-packages")
 
-    import platform
-
-    libc, version = platform.libc_ver()
-
-    plat = "manylinux2014" if libc == "glibc" else "musllinux_1_1"
-    _log("detected platform %s" % plat, level="debug")
-
-    script_dir = os.path.dirname(__file__)
-    pkgs_path = os.path.join(script_dir, "ddtrace_pkgs")
-    _log("ddtrace_pkgs path is %r" % pkgs_path, level="debug")
-    _log("ddtrace_pkgs contents: %r" % os.listdir(pkgs_path), level="debug")
-
     python_version = ".".join(str(i) for i in sys.version_info[:2])
-    site_pkgs_path = os.path.join(pkgs_path, "site-packages-ddtrace-py%s-%s" % (python_version, plat))
+    site_pkgs_path = os.path.join(pkgs_path, "site-packages-ddtrace-py%s" % python_version)
     _log("site-packages path is %r" % site_pkgs_path, level="debug")
     if not os.path.exists(site_pkgs_path):
         _log("ddtrace site-packages not found in %r" % site_pkgs_path, level="error")

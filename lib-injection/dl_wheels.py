@@ -2,22 +2,18 @@
 """
 Script to download all required wheels (including dependencies) of the ddtrace
 Python package for relevant Python versions (+ abis), C library platforms and
-architectures and merge them into a "megawheel" directory.
+architectures and unpack them into Python-specific site-packages directories.
 
-This directory provides a portable installation of ddtrace which can be used
-on multiple platforms and architectures.
+These site-package directories provide a portable installation of ddtrace which can be
+used on multiple platforms and architectures.
 
-Currently the only OS supported is Linux.
+Currently, the only OS supported is Linux.
 
-This script has been tested with 21.0.0 and is confirmed to not work with
+This script has been tested with pip 21.0.0 and is confirmed to not work with
 20.0.2.
 
 Usage:
         ./dl_wheels.py --help
-
-
-The downloaded wheels can then be installed locally using:
-        pip install --no-index --find-links <dir_of_downloaded_wheels> ddtrace
 """
 import argparse
 import itertools
@@ -75,8 +71,8 @@ dl_dir = args.output_dir
 print("saving wheels to %s" % dl_dir)
 
 
-for python_version, platform in itertools.product(args.python_version, args.platform):
-    for arch in args.arch:
+for python_version in args.python_version:
+    for arch, platform in itertools.product(args.arch, args.platform):
         print("Downloading %s %s %s wheel" % (python_version, arch, platform))
         abi = "cp%s" % python_version.replace(".", "")
         # Have to special-case these versions of Python for some reason.
@@ -114,14 +110,7 @@ for python_version, platform in itertools.product(args.python_version, args.plat
         print("Unpacking %s" % wheel_file)
         # -q for quieter output, else we get all the files being unzipped.
         subprocess.run(
-            [
-                "unzip",
-                "-q",
-                "-o",
-                wheel_file,
-                "-d",
-                os.path.join(dl_dir, "site-packages-ddtrace-py%s-%s" % (python_version, platform)),
-            ]
+            ["unzip", "-q", "-o", wheel_file, "-d", os.path.join(dl_dir, "site-packages-ddtrace-py%s" % python_version)]
         )
         # Remove the wheel as it has been unpacked
         os.remove(wheel_file)

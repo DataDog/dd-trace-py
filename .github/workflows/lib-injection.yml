@@ -67,12 +67,13 @@ jobs:
           export APP_CONTEXT="${SRC}/tests/lib-injection/${{matrix.variant}}"
           export TEMP_DIR="${SRC}/tmp/ddtrace"
           mkdir -p "${TEMP_DIR}"
+          # Give the temp dir permissions, by default the docker user doesn't have permissions
+          # to write to the filesystem.
           chmod 777 $TEMP_DIR
-          docker-compose build
-          # Start the lib_inject to get the files copied
-          # This avoids a race condition with the startup of the application
-          docker-compose up lib_inject
-          docker-compose up -d
+          # Start the lib_inject to get the files copied. This avoids a race condition with the startup of the
+          # application.
+          docker-compose up --build lib_inject
+          docker-compose up --build -d
           # Wait for the app to start
           sleep 60
           docker-compose logs
