@@ -1,8 +1,8 @@
-import os
-import sys
-from subprocess import Popen
-
 from ddtrace import config
+import os
+from subprocess import Popen
+import sys
+
 from ..compat import PYTHON_VERSION_INFO
 from ..logger import get_logger
 
@@ -34,7 +34,8 @@ def get_rust_binary_path():
         return rust_binary_path
 
     if config._is_gcp_function:
-        python_folder_name = "python%d.%d" % PYTHON_VERSION_INFO[:2]
+        version_info = PYTHON_VERSION_INFO[:2]
+        python_folder_name = "python{}.{}".format(version_info[0], version_info[1])
         rust_binary_path = (
             "/layers/google.python.pip/pip/lib/{}/site-packages/"
             "datadog-serverless-agent-linux-amd64/datadog-serverless-trace-mini-agent"

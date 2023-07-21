@@ -1,9 +1,9 @@
 import mock
 
-from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.serverless import in_azure_function_consumption_plan
-from ddtrace.internal.serverless.mini_agent import maybe_start_serverless_mini_agent
+from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.serverless.mini_agent import get_rust_binary_path
+from ddtrace.internal.serverless.mini_agent import maybe_start_serverless_mini_agent
 from tests.utils import override_env
 from tests.utils import override_global_config
 
