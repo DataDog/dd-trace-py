@@ -79,7 +79,8 @@ class PytestTestCase(TracerTestCase):
             self.inline_run("--ddtrace", os.path.basename(py_cov_file.strpath), os.path.basename(py_cov_file2.strpath))
         spans = self.pop_spans()
 
-        first_suite_span = spans[4]
+        test_suite_spans = [span for span in spans if span.get_tag("type") == "test_suite_end"]
+        first_suite_span = test_suite_spans[0]
         assert first_suite_span.get_tag("type") == "test_suite_end"
         assert COVERAGE_TAG_NAME in first_suite_span.get_tags()
         tag_data = json.loads(first_suite_span.get_tag(COVERAGE_TAG_NAME))
@@ -96,7 +97,7 @@ class PytestTestCase(TracerTestCase):
         assert len(files[2]["segments"]) == 1
         assert files[2]["segments"][0] == [1, 0, 2, 0, -1]
 
-        second_suite_span = spans[5]
+        second_suite_span = test_suite_spans[-1]
         assert second_suite_span.get_tag("type") == "test_suite_end"
         assert COVERAGE_TAG_NAME in second_suite_span.get_tags()
         tag_data = json.loads(second_suite_span.get_tag(COVERAGE_TAG_NAME))
