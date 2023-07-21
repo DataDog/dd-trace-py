@@ -120,6 +120,8 @@ def override_global_config(values):
         "_user_model_login_field",
         "_user_model_email_field",
         "_user_model_name_field",
+        "_is_gcp_function",
+        "_is_azure_function_consumption_plan",
     ]
 
     # Grab the current values of all keys
