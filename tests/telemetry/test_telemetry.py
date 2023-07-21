@@ -335,8 +335,8 @@ f.wsgi_app()
     integrations = integration_events[0]["payload"]["integrations"]
     assert len(integrations) == 1
     assert integrations[0]["name"] == "flask"
-    assert integrations[0]["enabled"] == True
-    assert integrations[0]["compatible"] == False
+    assert integrations[0]["enabled"] is True
+    assert integrations[0]["compatible"] is False
     assert "ddtrace/contrib/flask/patch.py:" in integrations[0]["error"]
     if six.PY2:
         assert b"need more than 0 values to unpack" in integrations[0]["error"]
