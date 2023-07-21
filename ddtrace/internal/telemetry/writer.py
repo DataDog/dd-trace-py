@@ -108,7 +108,7 @@ class _TelemetryClient:
             else:
                 log.debug("failed to send telemetry to the Datadog Agent at %s. response: %s", self.url, resp.status)
         except Exception:
-            log.debug("failed to send telemetry to the Datadog Agent at %s.", self.url, exc_info=True)
+            log.debug("failed to send telemetry to the Datadog Agent at %s.", self.url)
         finally:
             if conn is not None:
                 conn.close()
