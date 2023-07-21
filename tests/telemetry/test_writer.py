@@ -71,6 +71,8 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
     events[0]["payload"]["configuration"].sort(key=lambda c: c["name"])
     payload = {
         "configuration": [
+            {"name": TELEMETRY_PROPAGATION_STYLE_EXTRACT, "origin": "unknown", "value": "datadog"},
+            {"name": TELEMETRY_PROPAGATION_STYLE_INJECT, "origin": "unknown", "value": "datadog"},
             {
                 "name": "appsec_enabled",
                 "origin": "unknown",
@@ -91,8 +93,6 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
                 "origin": "unknown",
                 "value": False,
             },
-            {"name": TELEMETRY_PROPAGATION_STYLE_EXTRACT, "origin": "unknown", "value": "datadog"},
-            {"name": TELEMETRY_PROPAGATION_STYLE_INJECT, "origin": "unknown", "value": "datadog"},
             {
                 "name": "otel_enabled",
                 "origin": "unknown",
@@ -144,6 +144,9 @@ telemetry_writer.disable()
     events = test_agent_session.get_events()
     events[0]["payload"]["configuration"].sort(key=lambda c: c["name"])
     configuration = [
+        # tracecontext is appended to propagation styles since otel tracer is enabled
+        {"name": TELEMETRY_PROPAGATION_STYLE_EXTRACT, "origin": "unknown", "value": "b3multi,tracecontext"},
+        {"name": TELEMETRY_PROPAGATION_STYLE_INJECT, "origin": "unknown", "value": "datadog,tracecontext"},
         {
             "name": "appsec_enabled",
             "origin": "unknown",
@@ -164,9 +167,6 @@ telemetry_writer.disable()
             "origin": "unknown",
             "value": True,
         },
-        # tracecontext is appended to propagation styles since otel tracer is enabled
-        {"name": TELEMETRY_PROPAGATION_STYLE_EXTRACT, "origin": "unknown", "value": "b3multi,tracecontext"},
-        {"name": TELEMETRY_PROPAGATION_STYLE_INJECT, "origin": "unknown", "value": "datadog,tracecontext"},
         {
             "name": "otel_enabled",
             "origin": "unknown",
@@ -178,7 +178,6 @@ telemetry_writer.disable()
             "value": True,
         },
     ]
-
     assert events[0]["payload"]["configuration"] == configuration
 
 
