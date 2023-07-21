@@ -4,12 +4,10 @@ from six import BytesIO
 import xmltodict
 
 from ddtrace import config
-from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
 from ddtrace.appsec.iast._patch import if_iast_taint_returned_object_for
 from ddtrace.appsec.iast._patch import if_iast_taint_yield_tuple_for
 from ddtrace.appsec.iast._util import _is_iast_enabled
 from ddtrace.internal import core
-from ddtrace.internal.constants import REQUEST_PATH_PARAMS
 from ddtrace.internal.logger import get_logger
 
 
@@ -23,7 +21,9 @@ log = get_logger(__name__)
 _BODY_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
 
 
-def _on_request_span_modifier(request, environ, _HAS_JSON_MIXIN, exception_type):
+def _on_request_span_modifier(
+    span, flask_config, request, environ, _HAS_JSON_MIXIN, flask_version, flask_version_str, exception_type
+):
     req_body = None
     if config._appsec_enabled and request.method in _BODY_METHODS:
         content_type = request.content_type
