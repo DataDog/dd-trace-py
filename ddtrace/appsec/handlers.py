@@ -1,4 +1,3 @@
-import functools
 import json
 
 from six import BytesIO
@@ -24,34 +23,6 @@ log = get_logger(__name__)
 _BODY_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
 
 
-def _on_wrapped_view(kwargs):
-    from ddtrace.appsec import _asm_request_context
-
-    return_value = [None, None]
-    # if Appsec is enabled, we can try to block as we have the path parameters at that point
-    if config._appsec_enabled and _asm_request_context.in_context():
-        log.debug("Flask WAF call for Suspicious Request Blocking on request")
-        if kwargs:
-            _asm_request_context.set_waf_address(REQUEST_PATH_PARAMS, kwargs)
-        _asm_request_context.call_waf_callback()
-        if _asm_request_context.is_blocked():
-            callback_block = _asm_request_context.get_value(_asm_request_context._CALLBACKS, "flask_block")
-            return_value[0] = callback_block
-
-    # If IAST is enabled, taint the Flask function kwargs (path parameters)
-    if _is_iast_enabled() and kwargs:
-        from ddtrace.appsec.iast._taint_tracking import OriginType
-        from ddtrace.appsec.iast._taint_tracking import taint_pyobject
-
-        _kwargs = {}
-        for k, v in kwargs.items():
-            _kwargs[k] = taint_pyobject(
-                pyobject=v, source_name=k, source_value=v, source_origin=OriginType.PATH_PARAMETER
-            )
-        return_value[1] = _kwargs
-    return return_value
-
-
 def _on_set_request_tags(request):
     if _is_iast_enabled():
         from ddtrace.appsec.iast._taint_tracking import OriginType
@@ -62,24 +33,6 @@ def _on_set_request_tags(request):
             origins=(OriginType.COOKIE_NAME, OriginType.COOKIE),
             override_pyobject_tainted=True,
         )
-
-
-def _on_pre_tracedrequest(block_request_callable, span):
-    if config._appsec_enabled:
-        from ddtrace.appsec import _asm_request_context
-
-        _asm_request_context.set_block_request_callable(functools.partial(block_request_callable, span))
-        if core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
-            _asm_request_context.block_request()
-
-
-def _on_post_finalizerequest(rv):
-    if config._api_security_enabled and config._appsec_enabled and getattr(rv, "is_sequence", False):
-        from ddtrace.appsec import _asm_request_context
-
-        # start_response was not called yet, set the HTTP response headers earlier
-        _asm_request_context.set_headers_response(list(rv.headers))
-        _asm_request_context.set_body_response(rv.response)
 
 
 def _on_request_span_modifier(request, environ, _HAS_JSON_MIXIN, exception_type):
@@ -177,14 +130,8 @@ def _on_werkzeug(*args):
 
 
 def listen():
-    core.on("wsgi.block_decided", _on_block_decided)
-    core.on("flask.start_response", _on_start_response)
-    core.on("flask.wrapped_view", _on_wrapped_view)
     core.on("flask.set_request_tags", _on_set_request_tags)
-    core.on("flask.traced_request.pre", _on_pre_tracedrequest)
-    core.on("flask.finalize_request.post", _on_post_finalizerequest)
     core.on("flask.request_span_modifier", _on_request_span_modifier)
-    core.on("flask.request_init", _on_request_init)
 
 
 core.on("flask.werkzeug.datastructures.Headers.items", _on_werkzeug)
