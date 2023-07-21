@@ -1,7 +1,8 @@
-from ddtrace import config
 import os
 from subprocess import Popen
 import sys
+
+from ddtrace import config
 
 from ..compat import PYTHON_VERSION_INFO
 from ..logger import get_logger
