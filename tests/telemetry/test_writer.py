@@ -94,16 +94,17 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
                 "value": '(?i)(?:p(?:ass)?w(?:or)?d|pass(?:_?phrase)?|secret|(?:api_?|private_?|public_?|access_?|secret_?)key(?:_?id)?|token|consumer_?(?:id|key|secret)|sign(?:ed|ature)?|auth(?:entication|orization)?)(?:(?:\\s|%20)*(?:=|%3D)[^&]+|(?:"|%22)(?:\\s|%20)*(?::|%3A)(?:\\s|%20)*(?:"|%22)(?:%2[^2]|%[^2]|[^"%])+(?:"|%22))|bearer(?:\\s|%20)+[a-z0-9\\._\\-]|token(?::|%3A)[a-z0-9]{13}|gh[opsu]_[0-9a-zA-Z]{36}|ey[I-L](?:[\\w=-]|%3D)+\\.ey[I-L](?:[\\w=-]|%3D)+(?:\\.(?:[\\w.+\\/=-]|%3D|%2F|%2B)+)?|[\\-]{5}BEGIN(?:[a-z\\s]|%20)+PRIVATE(?:\\s|%20)KEY[\\-]{5}[^\\-]+[\\-]{5}END(?:[a-z\\s]|%20)+PRIVATE(?:\\s|%20)KEY|ssh-rsa(?:\\s|%20)*(?:[a-z0-9\\/\\.+]|%2F|%5C|%2B){100,}',
             },
             {"name": "DD_TRACE_OTEL_ENABLED", "origin": "unknown", "value": False},
+            {"name": "DD_TRACE_PROPAGATION_STYLE_EXTRACT", "origin": "unknown", "value": "datadog"},
+            {"name": "DD_TRACE_PROPAGATION_STYLE_INJECT", "origin": "unknown", "value": "datadog"},
             {"name": "ddtrace_auto_used", "origin": "unknown", "value": False},
             {"name": "ddtrace_bootstrapped", "origin": "unknown", "value": False},
-            {"name": "trace_propagation_style_extract", "origin": "unknown", "value": "['tracecontext', 'datadog']"},
-            {"name": "trace_propagation_style_inject", "origin": "unknown", "value": "['tracecontext', 'datadog']"},
         ],
         "error": {
             "code": 0,
             "message": "",
         },
     }
+
     assert events[0] == _get_request_body(payload, "app-started")
 
 
@@ -148,8 +149,9 @@ telemetry_writer.disable()
     env["DD_TRACE_OTEL_ENABLED"] = "True"
     env["ddtrace_auto_used"] = "True"
     env["ddtrace_bootstrapped"] = "True"
-    env["race_propagation_style_extract"] = "['b3multi']"
-    env["trace_propagation_style_inject"] = "['datadog']"
+    env["DD_TRACE_PROPAGATION_STYLE_EXTRACT"] = "tracecontext"
+    env["DD_TRACE_PROPAGATION_STYLE_INJECT"] = "tracecontext"
+
     if PY2:
         # Prevents gevent importerror when profiling is enabled
         env["DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE"] = "false"
@@ -182,10 +184,10 @@ telemetry_writer.disable()
         {"name": "DD_TRACE_HEALTH_METRICS_ENABLED", "origin": "unknown", "value": True},
         {"name": "DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN", "origin": "unknown", "value": ".*"},
         {"name": "DD_TRACE_OTEL_ENABLED", "origin": "unknown", "value": True},
+        {"name": "DD_TRACE_PROPAGATION_STYLE_EXTRACT", "origin": "unknown", "value": "tracecontext"},
+        {"name": "DD_TRACE_PROPAGATION_STYLE_INJECT", "origin": "unknown", "value": "tracecontext"},
         {"name": "ddtrace_auto_used", "origin": "unknown", "value": True},
         {"name": "ddtrace_bootstrapped", "origin": "unknown", "value": True},
-        {"name": "trace_propagation_style_extract", "origin": "unknown", "value": "['tracecontext', 'datadog']"},
-        {"name": "trace_propagation_style_inject", "origin": "unknown", "value": "['tracecontext', 'datadog']"},
     ]
 
 
@@ -252,7 +254,7 @@ def test_app_client_configuration_changed_event(telemetry_writer, test_agent_ses
     """asserts that queuing a configuration sends a valid telemetry request"""
 
     telemetry_writer.add_configuration("appsec_enabled", True)
-    telemetry_writer.add_configuration("trace_propagation_style_extract", "['datadog']")
+    telemetry_writer.add_configuration("DD_TRACE_PROPAGATION_STYLE_EXTRACT", "datadog")
     telemetry_writer.add_configuration("appsec_enabled", False, "env_var")
 
     telemetry_writer.periodic()
@@ -267,14 +269,14 @@ def test_app_client_configuration_changed_event(telemetry_writer, test_agent_ses
     # assert the latest configuration value is send to the agent
     assert received_configurations == [
         {
+            "name": "DD_TRACE_PROPAGATION_STYLE_EXTRACT",
+            "origin": "unknown",
+            "value": "datadog",
+        },
+        {
             "name": "appsec_enabled",
             "origin": "env_var",
             "value": False,
-        },
-        {
-            "name": "trace_propagation_style_extract",
-            "origin": "unknown",
-            "value": "['datadog']",
         },
     ]
 

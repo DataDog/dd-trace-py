@@ -43,6 +43,8 @@ from .constants import TELEMETRY_LOGS_INJECTION_ENABLED
 from .constants import TELEMETRY_OBFUSCATION_QUERY_STRING_PATTERN
 from .constants import TELEMETRY_OTEL_ENABLED
 from .constants import TELEMETRY_PROFILING_ENABLED
+from .constants import TELEMETRY_PROPAGATION_STYLE_EXTRACT
+from .constants import TELEMETRY_PROPAGATION_STYLE_INJECT
 from .constants import TELEMETRY_REMOTE_CONFIGURATION_ENABLED
 from .constants import TELEMETRY_RUNTIMEMETRICS_ENABLED
 from .constants import TELEMETRY_SPAN_SAMPLING_RULES
@@ -283,8 +285,8 @@ class TelemetryWriter(PeriodicService):
                 (TELEMETRY_PROFILING_ENABLED, profiling_config.enabled, "unknown"),
                 (TELEMETRY_DYNAMIC_INSTRUMENTATION_ENABLED, di_config.enabled, "unknown"),
                 (TELEMETRY_EXCEPTION_DEBUGGING_ENABLED, ed_config.enabled, "unknown"),
-                ("trace_propagation_style_inject", str(config._propagation_style_inject), "unknown"),
-                ("trace_propagation_style_extract", str(config._propagation_style_extract), "unknown"),
+                (TELEMETRY_PROPAGATION_STYLE_INJECT, ",".join(config._propagation_style_inject), "unknown"),
+                (TELEMETRY_PROPAGATION_STYLE_EXTRACT, ",".join(config._propagation_style_extract), "unknown"),
                 ("ddtrace_bootstrapped", config._ddtrace_bootstrapped, "unknown"),
                 ("ddtrace_auto_used", "ddtrace.auto" in sys.modules, "unknown"),
                 (TELEMETRY_RUNTIMEMETRICS_ENABLED, config._runtime_metrics_enabled, "unknown"),
