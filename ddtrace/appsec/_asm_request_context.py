@@ -408,20 +408,16 @@ def _on_pre_tracedrequest(ctx):
     block_request_callable = ctx.get_item("block_request_callable")
     current_span = ctx.get_item("current_span")
     if config._appsec_enabled:
-        from ddtrace.appsec import _asm_request_context
-
-        _asm_request_context.set_block_request_callable(functools.partial(block_request_callable, current_span))
+        set_block_request_callable(functools.partial(block_request_callable, current_span))
         if core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
-            _asm_request_context.block_request()
+            block_request()
 
 
 def _on_post_finalizerequest(rv):
     if config._api_security_enabled and config._appsec_enabled and getattr(rv, "is_sequence", False):
-        from ddtrace.appsec import _asm_request_context
-
         # start_response was not called yet, set the HTTP response headers earlier
-        _asm_request_context.set_headers_response(list(rv.headers))
-        _asm_request_context.set_body_response(rv.response)
+        set_headers_response(list(rv.headers))
+        set_body_response(rv.response)
 
 
 def _on_start_response():
