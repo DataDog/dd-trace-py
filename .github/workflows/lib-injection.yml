@@ -66,6 +66,7 @@ jobs:
           export APP_CONTEXT="${SRC}/tests/lib-injection/${{matrix.variant}}"
           export TEMP_DIR="${SRC}/tmp/ddtrace"
           mkdir -p "${TEMP_DIR}"
+          chmod 777 $TEMP_DIR
           docker-compose build
           docker-compose up -d
           # Wait for the app to start

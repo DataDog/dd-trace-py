@@ -43,7 +43,7 @@ To test this feature locally use the provided `docker-compose.yml`.
 export DDTRACE_PYTHON_VERSION=v1.16.1
 export APP_CONTEXT=$REPO_ROOT/tests/lib-injection/dd-lib-python-init-test-django
 export TEMP_DIR="/tmp/ddtrace"
-rm -rf $TEMPDIR && docker-compose up --build app_local
+rm -rf $TEMP_DIR && docker-compose up --build lib_inject && docker-compose --build up
 ```
 
 Note that there may be a race condition between the app starting up and the library being copied into the volume.

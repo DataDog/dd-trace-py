@@ -31,37 +31,44 @@ _log("site-packages path is %r" % site_pkgs_path, level="debug")
 if not os.path.exists(site_pkgs_path):
     _log("ddtrace site-packages not found in %r" % site_pkgs_path, level="error")
 
-# Add the custom site-packages directory to the Python path to load the ddtrace package.
-sys.path.insert(0, site_pkgs_path)
-_log("sys.path %s" % sys.path, level="debug")
-
-if site_pkgs_path in sys.path_importer_cache:
-    del sys.path_importer_cache[site_pkgs_path]
-
 try:
-    import ddtrace  # noqa: F401
+    import ddtrace
+except ModuleNotFoundError:
+    _log("user-installed ddtrace not found, configuring application to use injection site-packages")
 
-except BaseException as e:
-    _log("failed to load ddtrace module: %s" % e, level="error")
-    raise
+    # Add the custom site-packages directory to the Python path to load the ddtrace package.
+    sys.path.insert(0, site_pkgs_path)
+    _log("sys.path %s" % sys.path, level="debug")
+
+    if site_pkgs_path in sys.path_importer_cache:
+        del sys.path_importer_cache[site_pkgs_path]
+
+    try:
+        import ddtrace  # noqa: F401
+
+    except BaseException as e:
+        _log("failed to load ddtrace module: %s" % e, level="error")
+        raise
+    else:
+        # This import has the same effect as ddtrace-run for the current process (auto-instrument all libraries).
+        import ddtrace.bootstrap.sitecustomize
+
+        # Modify the PYTHONPATH for any subprocesses that might be spawned:
+        #   - Remove the PYTHONPATH entry used to bootstrap this installation as it's no longer necessary
+        #     now that the package is installed.
+        #   - Add the custom site-packages directory to PYTHONPATH to ensure the ddtrace package can be loaded
+        #   - Add the ddtrace bootstrap dir to the PYTHONPATH to achieve the same effect as ddtrace-run.
+        python_path = os.getenv("PYTHONPATH", "").split(os.pathsep)
+        if script_dir in python_path:
+            python_path.remove(script_dir)
+        python_path.insert(0, site_pkgs_path)
+        bootstrap_dir = os.path.abspath(os.path.dirname(ddtrace.bootstrap.sitecustomize.__file__))
+        python_path.insert(0, bootstrap_dir)
+        python_path = os.pathsep.join(python_path)
+        os.environ["PYTHONPATH"] = python_path
+
+        # Also insert the bootstrap dir in the path of the current python process.
+        sys.path.insert(0, bootstrap_dir)
+        _log("successfully configured ddtrace package, python path is %r" % os.environ["PYTHONPATH"])
 else:
-    # This import has the same effect as ddtrace-run for the current process (auto-instrument all libraries).
-    import ddtrace.bootstrap.sitecustomize
-
-    # Modify the PYTHONPATH for any subprocesses that might be spawned:
-    #   - Remove the PYTHONPATH entry used to bootstrap this installation as it's no longer necessary
-    #     now that the package is installed.
-    #   - Add the custom site-packages directory to PYTHONPATH to ensure the ddtrace package can be loaded
-    #   - Add the ddtrace bootstrap dir to the PYTHONPATH to achieve the same effect as ddtrace-run.
-    python_path = os.getenv("PYTHONPATH", "").split(os.pathsep)
-    if script_dir in python_path:
-        python_path.remove(script_dir)
-    python_path.insert(0, site_pkgs_path)
-    bootstrap_dir = os.path.abspath(os.path.dirname(ddtrace.bootstrap.sitecustomize.__file__))
-    python_path.insert(0, bootstrap_dir)
-    python_path = os.pathsep.join(python_path)
-    os.environ["PYTHONPATH"] = python_path
-
-    # Also insert the bootstrap dir in the path of the current python process.
-    sys.path.insert(0, bootstrap_dir)
-    _log("successfully configured ddtrace package, python path is %r" % os.environ["PYTHONPATH"])
+    _log("user-installed ddtrace found, aborting", level="warning")

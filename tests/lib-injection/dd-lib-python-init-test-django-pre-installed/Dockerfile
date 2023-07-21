@@ -11,4 +11,4 @@ RUN pip install django==4.1.3 ddtrace==1.12.0
 
 # Many users run a non-root user, ensure this is supported by the injection mechanism
 USER 1000
-CMD python -m django runserver 0.0.0.0:18080
+CMD ddtrace-run python -m django runserver 0.0.0.0:18080
