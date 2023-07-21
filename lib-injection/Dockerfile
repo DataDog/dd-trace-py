@@ -18,7 +18,7 @@ RUN python3 dl_wheels.py \
         --ddtrace-version=${DDTRACE_PYTHON_VERSION} \
         --arch x86_64 \
         --arch aarch64 \
-        # --platform musllinux_1_1 \
+        --platform musllinux_1_1 \
         --platform manylinux2014 \
         --output-dir /build/pkgs \
         --verbose

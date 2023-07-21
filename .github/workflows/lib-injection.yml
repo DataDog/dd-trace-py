@@ -9,7 +9,7 @@ jobs:
     secrets:
       token: ${{ secrets.GITHUB_TOKEN }}
     with:
-      ddtrace-version: v1.10
+      ddtrace-version: v1.16.1
       image-tag: ${{ github.sha }}
 
   test:
@@ -51,6 +51,7 @@ jobs:
         variant: [
           'dd-lib-python-init-test-django',
           'dd-lib-python-init-test-django-gunicorn',
+          'dd-lib-python-init-test-django-gunicorn-alpine',
           'dd-lib-python-init-test-django-uvicorn',
           'dd-lib-python-init-test-django-no-perms',
           'dd-lib-python-init-test-django-pre-installed',
@@ -68,6 +69,9 @@ jobs:
           mkdir -p "${TEMP_DIR}"
           chmod 777 $TEMP_DIR
           docker-compose build
+          # Start the lib_inject to get the files copied
+          # This avoids a race condition with the startup of the application
+          docker-compose up lib_inject
           docker-compose up -d
           # Wait for the app to start
           sleep 60
