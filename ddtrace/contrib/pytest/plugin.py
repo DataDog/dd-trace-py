@@ -393,12 +393,6 @@ def pytest_runtest_protocol(item, nextitem):
     pytest_module_item = _find_pytest_item(item, pytest.Module)
     pytest_package_item = _find_pytest_item(pytest_module_item, pytest.Package)
 
-    is_skipped_by_itr = [
-        marker
-        for marker in item.iter_markers(name="skip")
-        if "reason" in marker.kwargs and marker.kwargs["reason"] == SKIPPED_BY_ITR
-    ]
-
     module_is_package = True
 
     test_module_span = _extract_span(pytest_package_item)
