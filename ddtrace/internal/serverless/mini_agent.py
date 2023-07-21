@@ -12,7 +12,6 @@ log = get_logger(__name__)
 
 def maybe_start_serverless_mini_agent():
     if not (config._is_gcp_function or config._is_azure_function_consumption_plan):
-        log.error("is not gcp or azure function, will not start serverless mini agent")
         return
 
     if sys.platform != "win32" and sys.platform != "linux":
