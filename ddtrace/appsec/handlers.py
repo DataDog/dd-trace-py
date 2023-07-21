@@ -1,4 +1,3 @@
-import functools
 import json
 
 from six import BytesIO
@@ -24,6 +23,7 @@ log = get_logger(__name__)
 _BODY_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
 
 
+<<<<<<< HEAD
 def _on_wrapped_view(kwargs):
     from ddtrace.appsec import _asm_request_context
 
@@ -86,6 +86,9 @@ def _on_post_finalizerequest(rv):
 
 
 def _on_request_span_modifier(span, flask_config, request, environ, _HAS_JSON_MIXIN, flask_version, flask_version_str, exception_type):
+=======
+def _on_request_span_modifier(request, environ, _HAS_JSON_MIXIN, exception_type):
+>>>>>>> emmett.butler/flask-core-blockedrequest
     req_body = None
     if config._appsec_enabled and request.method in _BODY_METHODS:
         content_type = request.content_type
@@ -180,13 +183,7 @@ def _on_werkzeug(*args):
 
 
 def listen():
-    core.on("wsgi.block_decided", _on_block_decided)
-    core.on("flask.start_response", _on_start_response)
-    core.on("flask.wrapped_view", _on_wrapped_view)
-    core.on("context.started.flask._traced_request", _on_pre_tracedrequest)
-    core.on("flask.finalize_request.post", _on_post_finalizerequest)
     core.on("flask.request_span_modifier", _on_request_span_modifier)
-    core.on("flask.request_init", _on_request_init)
 
 
 core.on("flask.werkzeug.datastructures.Headers.items", _on_werkzeug)
