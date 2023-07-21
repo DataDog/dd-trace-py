@@ -41,7 +41,6 @@ def get_rust_binary_path():
             "datadog-serverless-agent-linux-amd64/datadog-serverless-trace-mini-agent"
         ).format(python_folder_name)
     else:
-        # python is only supported on Linux Azure Functions
         rust_binary_path = (
             "/home/site/wwwroot/.python_packages/lib/site-packages/"
             "datadog-serverless-agent-linux-amd64/datadog-serverless-trace-mini-agent"
