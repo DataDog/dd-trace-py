@@ -9,7 +9,6 @@ import typing
 
 import ddtrace
 from ddtrace.internal.compat import PY2
-from ddtrace.internal.utils.formats import asbool
 
 
 if PY2:

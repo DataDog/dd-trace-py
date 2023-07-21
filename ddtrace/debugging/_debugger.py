@@ -18,7 +18,6 @@ from typing import cast
 from six import PY3
 
 import ddtrace
-from ddtrace import config as ddconfig
 from ddtrace.debugging._config import di_config
 from ddtrace.debugging._config import ed_config
 from ddtrace.debugging._encoding import BatchJsonEncoder
@@ -272,7 +271,7 @@ class Debugger(Service):
         if di_config.enabled:
             # TODO: this is only temporary and will be reverted once the DD_REMOTE_CONFIGURATION_ENABLED variable
             #  has been removed
-            if ddconfig._remote_config_enabled is False:
+            if asbool(os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", True)) is False:
                 os.environ["DD_REMOTE_CONFIGURATION_ENABLED"] = "true"
                 log.info("Disabled Remote Configuration enabled by Dynamic Instrumentation.")
 

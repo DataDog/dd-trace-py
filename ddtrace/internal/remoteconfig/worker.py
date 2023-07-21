@@ -1,7 +1,6 @@
 import logging
 import os
 
-from ddtrace import config
 from ddtrace.internal import agent
 from ddtrace.internal import atexit
 from ddtrace.internal import forksafe
@@ -51,7 +50,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
                 self._state = self._online
                 return
 
-        if asbool(os.environ.get("DD_TRACE_DEBUG")) or config._remote_config_enabled:
+        if asbool(os.environ.get("DD_TRACE_DEBUG")) or "DD_REMOTE_CONFIGURATION_ENABLED" in os.environ:
             LOG_LEVEL = logging.WARNING
         else:
             LOG_LEVEL = logging.DEBUG
@@ -87,7 +86,8 @@ class RemoteConfigPoller(periodic.PeriodicService):
     def enable(self):
         # type: () -> bool
         # TODO: this is only temporary. DD_REMOTE_CONFIGURATION_ENABLED variable will be deprecated
-        if config._remote_config_enabled and self._enable:
+        rc_env_enabled = asbool(os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", "true"))
+        if rc_env_enabled and self._enable:
             if self.status == ServiceStatus.RUNNING:
                 return True
 

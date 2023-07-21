@@ -3,7 +3,6 @@ import os
 import sys
 from typing import TYPE_CHECKING
 
-from ddtrace import config
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.constants import APPSEC_ENV
@@ -27,7 +26,7 @@ log = get_logger(__name__)
 
 def _appsec_rc_features_is_enabled():
     # type: () -> bool
-    if config._remote_config_enabled:
+    if asbool(os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", "true")):
         return APPSEC_ENV not in os.environ
     return False
 
@@ -60,7 +59,7 @@ def _appsec_rc_capabilities(test_tracer=None):
 
     value = 0b0
     result = ""
-    if config._remote_config_enabled:
+    if asbool(os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", "true")):
         if _appsec_rc_features_is_enabled():
             value |= 1 << 1  # Enable ASM_ACTIVATION
         if tracer._appsec_processor and _appsec_rc_file_is_not_static():

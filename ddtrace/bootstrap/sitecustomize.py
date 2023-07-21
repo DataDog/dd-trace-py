@@ -246,13 +246,14 @@ try:
         else:
             log.debug("additional sitecustomize found in: %s", sys.path)
 
-    if config._remote_config_enabled:
+    if asbool(os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", "true")):
         from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
         remoteconfig_poller.enable()
 
-    should_start_appsec_remoteconfig = config._appsec_enabled or config._remote_config_enabled
-
+    should_start_appsec_remoteconfig = config._appsec_enabled or asbool(
+        os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", "true")
+    )
     if should_start_appsec_remoteconfig:
         from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
 
