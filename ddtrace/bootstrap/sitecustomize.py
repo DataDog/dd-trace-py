@@ -20,7 +20,6 @@ from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker  # noqa
 from ddtrace.internal.utils.formats import asbool  # noqa
 from ddtrace.internal.utils.formats import parse_tags_str  # noqa
 from ddtrace.tracer import DD_LOG_FORMAT  # noqa
-from ddtrace.tracer import debug_mode  # noqa
 from ddtrace.vendor.debtcollector import deprecate  # noqa
 
 
@@ -36,8 +35,7 @@ if config.logs_injection:
 # upon initializing it the first time.
 # See https://github.com/python/cpython/blob/112e4afd582515fcdcc0cde5012a4866e5cfda12/Lib/logging/__init__.py#L1550
 # Debug mode from the tracer will do a basicConfig so only need to do this otherwise
-call_basic_config = asbool(os.environ.get("DD_CALL_BASIC_CONFIG", "false"))
-if not debug_mode and call_basic_config:
+if not config.debug_mode and config.call_basic_config:
     deprecate(
         "ddtrace.tracer.logging.basicConfig",
         message="`logging.basicConfig()` should be called in a user's application."
@@ -248,14 +246,12 @@ try:
         else:
             log.debug("additional sitecustomize found in: %s", sys.path)
 
-    if asbool(os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", "true")):
+    if config._remote_config_enabled:
         from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
         remoteconfig_poller.enable()
 
-    should_start_appsec_remoteconfig = config._appsec_enabled or asbool(
-        os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", "true")
-    )
+    should_start_appsec_remoteconfig = config._appsec_enabled or config._remote_config_enabled
 
     if should_start_appsec_remoteconfig:
         from ddtrace.appsec._remoteconfiguration import enable_appsec_rc

@@ -30,12 +30,25 @@ from ..service import ServiceStatus
 from ..utils.formats import asbool
 from ..utils.time import StopWatch
 from ..utils.version import _pep440_to_semver
+from .constants import TELEMETRY_128_BIT_TRACEID_GENERATION_ENABLED
+from .constants import TELEMETRY_128_BIT_TRACEID_LOGGING_ENABLED
+from .constants import TELEMETRY_ANALYTICS_ENABLED
 from .constants import TELEMETRY_ASM_ENABLED
+from .constants import TELEMETRY_CLIENT_IP_ENABLED
 from .constants import TELEMETRY_DSM_ENABLED
 from .constants import TELEMETRY_DYNAMIC_INSTRUMENTATION_ENABLED
+from .constants import TELEMETRY_ENABLED
 from .constants import TELEMETRY_EXCEPTION_DEBUGGING_ENABLED
+from .constants import TELEMETRY_LOGS_INJECTION_ENABLED
+from .constants import TELEMETRY_OBFUSCATION_QUERY_STRING_PATTERN
+from .constants import TELEMETRY_OTEL_ENABLED
 from .constants import TELEMETRY_PROFILING_ENABLED
+from .constants import TELEMETRY_REMOTE_CONFIGURATION_ENABLED
 from .constants import TELEMETRY_RUNTIMEMETRICS_ENABLED
+from .constants import TELEMETRY_SPAN_SAMPLING_RULES
+from .constants import TELEMETRY_TRACE_COMPUTE_STATS
+from .constants import TELEMETRY_TRACE_DEBUG
+from .constants import TELEMETRY_TRACE_HEALTH_METRICS_ENABLED
 from .constants import TELEMETRY_TRACING_ENABLED
 from .constants import TELEMETRY_TYPE_DISTRIBUTION
 from .constants import TELEMETRY_TYPE_GENERATE_METRICS
@@ -274,8 +287,27 @@ class TelemetryWriter(PeriodicService):
                 ("trace_propagation_style_extract", str(config._propagation_style_extract), "unknown"),
                 ("ddtrace_bootstrapped", config._ddtrace_bootstrapped, "unknown"),
                 ("ddtrace_auto_used", "ddtrace.auto" in sys.modules, "unknown"),
-                ("otel_enabled", config._otel_enabled, "unknown"),
                 (TELEMETRY_RUNTIMEMETRICS_ENABLED, config._runtime_metrics_enabled, "unknown"),
+                (TELEMETRY_TRACE_DEBUG, config.debug_mode, "unknown"),
+                (TELEMETRY_ENABLED, config._telemetry_enabled, "unknown"),
+                (TELEMETRY_ANALYTICS_ENABLED, config.analytics_enabled, "unknown"),
+                (TELEMETRY_CLIENT_IP_ENABLED, config.client_ip_header, "unknown"),
+                (TELEMETRY_LOGS_INJECTION_ENABLED, config.logs_injection, "unknown"),
+                (TELEMETRY_128_BIT_TRACEID_GENERATION_ENABLED, config._128_bit_trace_id_enabled, "unknown"),
+                (TELEMETRY_128_BIT_TRACEID_LOGGING_ENABLED, config._128_bit_trace_id_logging_enabled, "unknown"),
+                (TELEMETRY_TRACE_COMPUTE_STATS, config._trace_compute_stats, "unknown"),
+                (
+                    TELEMETRY_OBFUSCATION_QUERY_STRING_PATTERN,
+                    config._obfuscation_query_string_pattern.pattern.decode("ascii")
+                    if config._obfuscation_query_string_pattern
+                    else "",
+                    "unknown",
+                ),
+                (TELEMETRY_OTEL_ENABLED, config._otel_enabled, "unknown"),
+                (TELEMETRY_TRACE_HEALTH_METRICS_ENABLED, config.health_metrics_enabled, "unknown"),
+                (TELEMETRY_RUNTIMEMETRICS_ENABLED, config._runtime_metrics_enabled, "unknown"),
+                (TELEMETRY_REMOTE_CONFIGURATION_ENABLED, config._remote_config_enabled, "unknown"),
+                (TELEMETRY_SPAN_SAMPLING_RULES, config.sampling_rules, "unknown"),
             ]
         )
 

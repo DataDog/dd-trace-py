@@ -265,7 +265,9 @@ def _get_file_json():
 
 def _get_env_json():
     # type: () -> Optional[List[Dict[str, Any]]]
-    env_json_raw = os.getenv("DD_SPAN_SAMPLING_RULES")
+    from ddtrace.settings import _config as config
+
+    env_json_raw = config.sampling_rules
     if env_json_raw:
         return _load_span_sampling_json(env_json_raw)
     return None

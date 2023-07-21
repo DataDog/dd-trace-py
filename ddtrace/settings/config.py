@@ -192,6 +192,10 @@ class Config(object):
         # use a dict as underlying storing mechanism
         self._config = {}
 
+        self.debug_mode = asbool(os.getenv("DD_TRACE_DEBUG", default=False))
+        self.call_basic_config = asbool(os.environ.get("DD_CALL_BASIC_CONFIG", "false"))
+        self._remote_config_enabled = asbool(os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", "true"))
+
         header_tags = parse_tags_str(os.getenv("DD_TRACE_HEADER_TAGS", ""))
         self.http = HttpConfig(header_tags=header_tags)
         self._tracing_enabled = asbool(os.getenv("DD_TRACE_ENABLED", default=True))
@@ -240,6 +244,8 @@ class Config(object):
         self._128_bit_trace_id_enabled = asbool(os.getenv("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", False))
 
         self._128_bit_trace_id_logging_enabled = asbool(os.getenv("DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED", False))
+
+        self.sampling_rules = os.getenv("DD_SPAN_SAMPLING_RULES")
 
         # Propagation styles
         self._propagation_style_extract = self._propagation_style_inject = _parse_propagation_styles(
