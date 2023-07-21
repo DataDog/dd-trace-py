@@ -56,9 +56,6 @@ except ModuleNotFoundError:
     sys.path.insert(0, site_pkgs_path)
     _log("sys.path %s" % sys.path, level="debug")
 
-    if site_pkgs_path in sys.path_importer_cache:
-        del sys.path_importer_cache[site_pkgs_path]
-
     try:
         import ddtrace  # noqa: F401
 
