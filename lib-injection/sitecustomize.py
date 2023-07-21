@@ -6,7 +6,7 @@ import os
 import sys
 
 
-debug_mode = os.environ.get("DD_TRACE_DEBUG") in ("true", "1")
+debug_mode = os.environ.get("DD_TRACE_DEBUG", "").lower() in ("true", "1", "t")
 
 
 def _get_clib():
