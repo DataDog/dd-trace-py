@@ -101,16 +101,6 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
                 "origin": "unknown",
                 "value": False,
             },
-            {
-                "name": "trace_propagation_style_extract",
-                "origin": "unknown",
-                "value": "['tracecontext', 'datadog']",
-            },
-            {
-                "name": "trace_propagation_style_inject",
-                "origin": "unknown",
-                "value": "['tracecontext', 'datadog']",
-            },
         ],
         "error": {
             "code": 0,
@@ -172,8 +162,9 @@ telemetry_writer.disable()
             "origin": "unknown",
             "value": True,
         },
-        {"name": TELEMETRY_PROPAGATION_STYLE_EXTRACT, "origin": "unknown", "value": "b3multi"},
-        {"name": TELEMETRY_PROPAGATION_STYLE_INJECT, "origin": "unknown", "value": "datadog"},
+        # tracecontext is appended to propagation styles since otel tracer is enabled
+        {"name": TELEMETRY_PROPAGATION_STYLE_EXTRACT, "origin": "unknown", "value": "b3multi,tracecontext"},
+        {"name": TELEMETRY_PROPAGATION_STYLE_INJECT, "origin": "unknown", "value": "datadog,tracecontext"},
         {
             "name": "otel_enabled",
             "origin": "unknown",
@@ -183,16 +174,6 @@ telemetry_writer.disable()
             "name": "runtimemetrics_enabled",
             "origin": "unknown",
             "value": True,
-        },
-        {
-            "name": "trace_propagation_style_extract",
-            "origin": "unknown",
-            "value": "['b3multi']",
-        },
-        {
-            "name": "trace_propagation_style_inject",
-            "origin": "unknown",
-            "value": "['datadog']",
         },
     ]
 

@@ -27,11 +27,6 @@ from ..service import ServiceStatus
 from ..utils.formats import asbool
 from ..utils.time import StopWatch
 from ..utils.version import _pep440_to_semver
-from .constants import TELEMETRY_ASM_ENABLED
-from .constants import TELEMETRY_DSM_ENABLED
-from .constants import TELEMETRY_DYNAMIC_INSTRUMENTATION_ENABLED
-from .constants import TELEMETRY_EXCEPTION_DEBUGGING_ENABLED
-from .constants import TELEMETRY_PROFILING_ENABLED
 from .constants import TELEMETRY_PROPAGATION_STYLE_EXTRACT
 from .constants import TELEMETRY_PROPAGATION_STYLE_INJECT
 from .constants import TELEMETRY_RUNTIMEMETRICS_ENABLED
