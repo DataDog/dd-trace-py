@@ -132,6 +132,7 @@ def listen():
     core.on("flask.request_span_modifier", _on_request_span_modifier)
 
 
+core.on("flask.request_init", _on_request_init)
 core.on("flask.werkzeug.datastructures.Headers.items", _on_werkzeug)
 core.on("flask.werkzeug.datastructures.EnvironHeaders.__getitem__", _on_werkzeug)
 core.on("flask.werkzeug.datastructures.ImmutableMultiDict.__getitem__", _on_werkzeug)
