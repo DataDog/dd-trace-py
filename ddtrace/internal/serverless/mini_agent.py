@@ -22,10 +22,10 @@ def maybe_start_serverless_mini_agent():
     try:
         rust_binary_path = get_rust_binary_path()
 
-        log.debug("Trying to spawn the Serverless Mini Agent at path: {}".format(rust_binary_path))
+        log.debug("Trying to spawn the Serverless Mini Agent at path: %s", rust_binary_path)
         Popen(rust_binary_path)
     except Exception as e:
-        log.error("Error spawning Serverless Mini Agent process: {}".format(repr(e)))
+        log.error("Error spawning Serverless Mini Agent process: %s", repr(e))
 
 
 def get_rust_binary_path():
