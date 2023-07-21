@@ -62,6 +62,7 @@ urlpatterns = [
     handler(r"^partial-view/$", views.partial_view, name="partial-view"),
     handler(r"^lambda-view/$", views.lambda_view, name="lambda-view"),
     handler(r"^error-500/$", views.error_500, name="error-500"),
+    handler(r"^timeout/$", views.timeout, name="timeout-view"),
     handler(r"^template-view/$", views.template_view, name="template-view"),
     handler(r"^template-simple-view/$", views.template_simple_view, name="template-simple-view"),
     handler(r"^template-list-view/$", views.template_list_view, name="template-list-view"),
