@@ -244,7 +244,7 @@ def test_app_client_configuration_changed_event(telemetry_writer, test_agent_ses
     """asserts that queuing a configuration sends a valid telemetry request"""
 
     telemetry_writer.add_configuration("appsec_enabled", True)
-    telemetry_writer.add_configuration("trace_propagation_style_extract", "['datadog']")
+    telemetry_writer.add_configuration("trace_propagation_style_extract", "datadog")
     telemetry_writer.add_configuration("appsec_enabled", False, "env_var")
 
     telemetry_writer.periodic()
