@@ -7,6 +7,8 @@ import httpretty
 import mock
 import pytest
 
+from ddtrace.internal.telemetry.constants import TELEMETRY_PROPAGATION_STYLE_EXTRACT
+from ddtrace.internal.telemetry.constants import TELEMETRY_PROPAGATION_STYLE_INJECT
 from ddtrace.internal.telemetry.data import get_application
 from ddtrace.internal.telemetry.data import get_dependencies
 from ddtrace.internal.telemetry.data import get_host_info
