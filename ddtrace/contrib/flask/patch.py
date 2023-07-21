@@ -110,19 +110,14 @@ def wrapped_request_init(wrapped, instance, args, kwargs):
 
 
 def wrap_with_event(module, name, origin):
-    def dispatcher(_origin, *args):
-        results, exceptions = core.dispatch("flask.%s.%s" % (module, name), [_origin] + list(args))
-        if any(results):
-            for result in results:
-                if result is not None:
-                    return result
-        if any(exceptions):
-            for exc in exceptions:
-                if exc:
-                    raise exc
-        return ""
+    def dispatcher(*args):
+        results, exceptions = core.dispatch("flask.%s.%s" % (module, name), [origin] + list(args))
+        if exceptions and len(exceptions) and exceptions[0]:
+            raise exceptions[0]
+        if results and len(results):
+            return results[0]
 
-    _w(module, name, functools.partial(dispatcher, origin))
+    _w(module, name, dispatcher)
 
 
 class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
