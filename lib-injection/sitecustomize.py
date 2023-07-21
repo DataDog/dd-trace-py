@@ -9,6 +9,19 @@ import sys
 debug_mode = os.environ.get("DD_TRACE_DEBUG") in ("true", "1")
 
 
+def _get_clib():
+    """Return the C library used by the system.
+
+    If GNU is not detected then returns MUSL.
+    """
+    import platform
+
+    libc, version = platform.libc_ver()
+    if libc == "glibc":
+        return "gnu"
+    return "musl"
+
+
 def _log(msg, *args, level="info"):
     """Log a message to stderr.
 
@@ -20,18 +33,21 @@ def _log(msg, *args, level="info"):
     print("%s:datadog.autoinstrumentation(pid: %d): " % (level.upper(), os.getpid()) + msg % args, file=sys.stderr)
 
 
-script_dir = os.path.dirname(__file__)
-pkgs_path = os.path.join(script_dir, "ddtrace_pkgs")
-_log("ddtrace_pkgs path is %r" % pkgs_path, level="debug")
-_log("ddtrace_pkgs contents: %r" % os.listdir(pkgs_path), level="debug")
-
 try:
     import ddtrace
 except ModuleNotFoundError:
     _log("user-installed ddtrace not found, configuring application to use injection site-packages")
 
+    platform = "manylinux2014" if _get_clib() == "gnu" else "musllinux_1_1"
+    _log("detected platform %s" % platform, level="debug")
+
+    script_dir = os.path.dirname(__file__)
+    pkgs_path = os.path.join(script_dir, "ddtrace_pkgs")
+    _log("ddtrace_pkgs path is %r" % pkgs_path, level="debug")
+    _log("ddtrace_pkgs contents: %r" % os.listdir(pkgs_path), level="debug")
+
     python_version = ".".join(str(i) for i in sys.version_info[:2])
-    site_pkgs_path = os.path.join(pkgs_path, "site-packages-ddtrace-py%s" % python_version)
+    site_pkgs_path = os.path.join(pkgs_path, "site-packages-ddtrace-py%s-%s" % (python_version, platform))
     _log("site-packages path is %r" % site_pkgs_path, level="debug")
     if not os.path.exists(site_pkgs_path):
         _log("ddtrace site-packages not found in %r" % site_pkgs_path, level="error")

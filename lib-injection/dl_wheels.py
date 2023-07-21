@@ -14,6 +14,7 @@ This script has been tested with pip 21.0.0 and is confirmed to not work with
 
 Usage:
         ./dl_wheels.py --help
+
 """
 import argparse
 import itertools
@@ -71,8 +72,8 @@ dl_dir = args.output_dir
 print("saving wheels to %s" % dl_dir)
 
 
-for python_version in args.python_version:
-    for arch, platform in itertools.product(args.arch, args.platform):
+for python_version, platform in itertools.product(args.python_version, args.platform):
+    for arch in args.arch:
         print("Downloading %s %s %s wheel" % (python_version, arch, platform))
         abi = "cp%s" % python_version.replace(".", "")
         # Have to special-case these versions of Python for some reason.
@@ -110,7 +111,14 @@ for python_version in args.python_version:
         print("Unpacking %s" % wheel_file)
         # -q for quieter output, else we get all the files being unzipped.
         subprocess.run(
-            ["unzip", "-q", "-o", wheel_file, "-d", os.path.join(dl_dir, "site-packages-ddtrace-py%s" % python_version)]
+            [
+                "unzip",
+                "-q",
+                "-o",
+                wheel_file,
+                "-d",
+                os.path.join(dl_dir, "site-packages-ddtrace-py%s-%s" % (python_version, platform)),
+            ]
         )
         # Remove the wheel as it has been unpacked
         os.remove(wheel_file)
