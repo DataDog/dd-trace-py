@@ -57,6 +57,6 @@ class TestPytest(TracerTestCase):
         rec.assertoutcome(passed=1)
         spans = self.pop_spans()
 
-        assert len(spans) == 3
+        assert len(spans) == 4
         test_span = spans[0]
         assert test_span.get_tag(test.STATUS) == test.Status.PASS.value
