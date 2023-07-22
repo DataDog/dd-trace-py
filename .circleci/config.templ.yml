@@ -78,6 +78,11 @@ commands:
       # Make sure we install and run riot on Python 3
       - run: pip3 install riot==0.17.7
 
+  setup_hatch:
+    description: "Install hatch"
+    steps:
+      - run: pip3 install hatch==1.7.0 hatch-containers==0.7.0
+
   save_pip_cache:
     description: "Save pip cache directory"
     steps:
@@ -252,12 +257,25 @@ jobs:
     steps:
       - checkout
       - setup_riot
+      - setup_hatch
       - run:
-          name: "Formatting check"
-          command: riot -v run -s fmt && git diff --exit-code
+          name: "Style"
+          command: hatch run lint:style
       - run:
-          name: "Flake8 check"
-          command: riot -v run -s flake8
+          name: "Typing"
+          command: hatch run lint:typing
+      - run:
+          name: "Spelling"
+          command: hatch run lint:spelling
+      - run:
+          name: "Security"
+          command: hatch run lint:security
+      - run:
+          name: "Run riotfile.py tests"
+          command: hatch run lint:riot
+      - run:
+          name: "Style: Test snapshot"
+          command: hatch run lint:fmt-snapshots && git diff --exit-code
       - run:
           name: "Slots check"
           command: riot -v run slotscheck
@@ -265,23 +283,8 @@ jobs:
           name: "Mypy check"
           command: riot -v run -s mypy
       - run:
-          name: "cython-lint check"
-          command: riot -v run -s cython-lint
-      - run:
-          name: "Codespell check"
-          command: riot -v run -s codespell
-      - run:
-          name: "Run riotfile.py tests"
-          command: riot -v run -s riot-helpers
-      - run:
-          name: "Test agent snapshot check"
-          command: riot -v run -s snapshot-fmt && git diff --exit-code
-      - run:
           name: "Run scripts/*.py tests"
           command: riot -v run -s scripts
-      - run:
-          name: "Running security analysis checks with bandit"
-          command: riot -v run -s bandit
 
   ccheck:
     executor: cimg_base
@@ -1104,11 +1107,11 @@ jobs:
     # build documentation and store as an artifact
     executor: ddtrace_dev
     steps:
-      - setup_riot
+      - setup_hatch
       - checkout
       - run:
           command: |
-             riot -v run docs
+             hatch run docs:build
              mkdir -p /tmp/docs
              cp -r docs/_build/html/* /tmp/docs
       - store_artifacts:

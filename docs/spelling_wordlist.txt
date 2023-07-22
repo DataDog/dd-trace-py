@@ -182,6 +182,7 @@ renderers
 resolvers
 repo
 respawn
+riotfile
 rq
 rowcount
 runnable
