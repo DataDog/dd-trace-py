@@ -149,7 +149,7 @@ commands:
                   DD_TRACE_AGENT_URL: << parameters.trace_agent_url >> 
                   RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
                 command: |
-                  if scripts/needs_testrun.py -v "$CIRCLE_JOB"
+                  if scripts/needs_testrun.py -v "$CIRCLE_JOB" $CIRCLE_PR_NUMBER
                   then
                     # Sort the hashes to ensure a consistent ordering/division between each node
                     riot list --hash-only '<<parameters.pattern>>' | sort | circleci tests split | xargs -n 1 -I {} ./scripts/ddtest riot -v run --exitfirst --pass-env -s {} $([[ << pipeline.parameters.coverage >> == false ]] && echo '--no-cov' )
@@ -181,7 +181,7 @@ commands:
                 environment:
                   RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
                 command: |
-                  if scripts/needs_testrun.py -v "$CIRCLE_JOB"
+                  if scripts/needs_testrun.py -v "$CIRCLE_JOB" $CIRCLE_PR_NUMBER
                   then
                     # Sort the hashes to ensure a consistent ordering/division between each node
                     riot list --hash-only '<<parameters.pattern>>' | sort | circleci tests split | xargs -n 1 -I {} riot -v run --exitfirst --pass-env -s {} $([[ << pipeline.parameters.coverage >> == false ]] && echo '--no-cov' )
@@ -469,7 +469,7 @@ jobs:
           environment:
             RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
           command: |
-            if scripts/needs_testrun.py -v 'integration-latest'
+            if scripts/needs_testrun.py -v 'integration-latest' $CIRCLE_PR_NUMBER
             then
               # Sort the hashes to ensure a consistent ordering/division between each node
               riot list --hash-only 'integration-latest' | sort | circleci tests split | xargs -n 1 -I {} ./scripts/ddtest riot -v run --pass-env -s {}
