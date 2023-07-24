@@ -7,7 +7,6 @@ from tests.appsec.iast.aspects.conftest import _iast_patched_module
 
 try:
     from ddtrace.appsec._constants import IAST
-    from ddtrace.appsec.iast._ast.ast_patching import astpatch_module
     from ddtrace.appsec.iast.constants import VULN_PATH_TRAVERSAL
     from ddtrace.internal import core
 except (ImportError, AttributeError):
