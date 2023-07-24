@@ -5,54 +5,54 @@ from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.serverless.mini_agent import get_rust_binary_path
 from ddtrace.internal.serverless.mini_agent import maybe_start_serverless_mini_agent
 from tests.utils import override_env
-from tests.utils import override_global_config
 
 
 @mock.patch("ddtrace.internal.serverless.mini_agent.sys.platform", "linux")
 @mock.patch("ddtrace.internal.serverless.mini_agent.Popen")
-def test_dont_spawn_mini_agent_if_not_cloud_function(mock_popen):
-    with override_global_config(dict(_is_gcp_function=False, _is_azure_function_consumption_plan=False)):
-        maybe_start_serverless_mini_agent()
-        mock_popen.assert_not_called()
+@mock.patch("ddtrace.internal.serverless.mini_agent.in_azure_function_consumption_plan", lambda: False)
+@mock.patch("ddtrace.internal.serverless.mini_agent.in_gcp_function", lambda: False)
+def test_dont_spawn_mini_agent_if_not_cloud_or_azure_function(mock_popen):
+    maybe_start_serverless_mini_agent()
+    mock_popen.assert_not_called()
 
 
 @mock.patch("ddtrace.internal.serverless.mini_agent.sys.platform", "linux")
 @mock.patch("ddtrace.internal.serverless.mini_agent.Popen")
+@mock.patch("ddtrace.internal.serverless.mini_agent.in_gcp_function", lambda: True)
 def test_spawn_mini_agent_if_gcp_function(mock_popen):
-    with override_global_config(dict(_is_gcp_function=True)):
-        maybe_start_serverless_mini_agent()
-        mock_popen.assert_called_once()
+    maybe_start_serverless_mini_agent()
+    mock_popen.assert_called_once()
 
 
 @mock.patch("ddtrace.internal.serverless.mini_agent.sys.platform", "linux")
 @mock.patch("ddtrace.internal.serverless.mini_agent.Popen")
+@mock.patch("ddtrace.internal.serverless.mini_agent.in_azure_function_consumption_plan", lambda: True)
 def test_spawn_mini_agent_if_azure_function(mock_popen):
-    with override_global_config(dict(_is_azure_function_consumption_plan=True)):
-        maybe_start_serverless_mini_agent()
-        mock_popen.assert_called_once()
+    maybe_start_serverless_mini_agent()
+    mock_popen.assert_called_once()
 
 
 @mock.patch("ddtrace.internal.serverless.mini_agent.sys.platform", "linux")
 @mock.patch("ddtrace.internal.serverless.mini_agent.PYTHON_VERSION_INFO", (9, 99, 0, "final", 0))
+@mock.patch("ddtrace.internal.serverless.mini_agent.in_gcp_function", lambda: True)
 def test_spawn_mini_agent_gcp_function_correct_rust_binary_path():
-    with override_global_config(dict(_is_gcp_function=True)):
-        path = get_rust_binary_path()
-        expected_path = (
-            "/layers/google.python.pip/pip/lib/python9.99/site-packages/"
-            "datadog-serverless-agent-linux-amd64/datadog-serverless-trace-mini-agent"
-        )
-        assert path == expected_path
+    path = get_rust_binary_path()
+    expected_path = (
+        "/layers/google.python.pip/pip/lib/python9.99/site-packages/"
+        "datadog-serverless-agent-linux-amd64/datadog-serverless-trace-mini-agent"
+    )
+    assert path == expected_path
 
 
 @mock.patch("ddtrace.internal.serverless.mini_agent.sys.platform", "linux")
+@mock.patch("ddtrace.internal.serverless.mini_agent.in_azure_function_consumption_plan", lambda: True)
 def test_spawn_mini_agent_azure_function_linux_correct_rust_binary_path():
-    with override_global_config(dict(_is_azure_function_consumption_plan=True)):
-        path = get_rust_binary_path()
-        expected_path = (
-            "/home/site/wwwroot/.python_packages/lib/site-packages/"
-            "datadog-serverless-agent-linux-amd64/datadog-serverless-trace-mini-agent"
-        )
-        assert path == expected_path
+    path = get_rust_binary_path()
+    expected_path = (
+        "/home/site/wwwroot/.python_packages/lib/site-packages/"
+        "datadog-serverless-agent-linux-amd64/datadog-serverless-trace-mini-agent"
+    )
+    assert path == expected_path
 
 
 def test_is_deprecated_gcp_function():

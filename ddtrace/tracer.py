@@ -48,6 +48,8 @@ from .internal.processor.trace import TraceTagsProcessor
 from .internal.runtime import get_runtime_id
 from .internal.serverless import has_aws_lambda_agent_extension
 from .internal.serverless import in_aws_lambda
+from .internal.serverless import in_azure_function_consumption_plan
+from .internal.serverless import in_gcp_function
 from .internal.serverless.mini_agent import maybe_start_serverless_mini_agent
 from .internal.service import ServiceStatusError
 from .internal.utils.formats import asbool
@@ -1080,7 +1082,7 @@ class Tracer(object):
         elif in_aws_lambda() and has_aws_lambda_agent_extension():
             # If the Agent Lambda extension is available then an AgentWriter is used.
             return False
-        elif config._is_gcp_function or config._is_azure_function_consumption_plan:
+        elif in_gcp_function() or in_azure_function_consumption_plan():
             return False
         else:
             return in_aws_lambda()
@@ -1101,8 +1103,8 @@ class Tracer(object):
         """
         return (
             (in_aws_lambda() and has_aws_lambda_agent_extension())
-            or config._is_gcp_function
-            or config._is_azure_function_consumption_plan
+            or in_gcp_function()
+            or in_azure_function_consumption_plan()
         )
 
     @staticmethod

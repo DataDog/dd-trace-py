@@ -2,17 +2,17 @@ import os
 from subprocess import Popen
 import sys
 
-from ddtrace import config
-
 from ..compat import PYTHON_VERSION_INFO
 from ..logger import get_logger
+from ..serverless import in_azure_function_consumption_plan
+from ..serverless import in_gcp_function
 
 
 log = get_logger(__name__)
 
 
 def maybe_start_serverless_mini_agent():
-    if not (config._is_gcp_function or config._is_azure_function_consumption_plan):
+    if not (in_gcp_function() or in_azure_function_consumption_plan()):
         return
 
     if sys.platform != "win32" and sys.platform != "linux":
@@ -34,7 +34,7 @@ def get_rust_binary_path():
     if rust_binary_path is not None:
         return rust_binary_path
 
-    if config._is_gcp_function:
+    if in_gcp_function():
         version_info = PYTHON_VERSION_INFO[:2]
         python_folder_name = "python{}.{}".format(version_info[0], version_info[1])
         rust_binary_path = (

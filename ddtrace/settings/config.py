@@ -194,9 +194,6 @@ class Config(object):
         # use a dict as underlying storing mechanism
         self._config = {}
 
-        self._is_gcp_function = in_gcp_function()
-        self._is_azure_function_consumption_plan = in_azure_function_consumption_plan()
-
         header_tags = parse_tags_str(os.getenv("DD_TRACE_HEADER_TAGS", ""))
         self.http = HttpConfig(header_tags=header_tags)
         self._tracing_enabled = asbool(os.getenv("DD_TRACE_ENABLED", default=True))
@@ -216,10 +213,10 @@ class Config(object):
         self.env = os.getenv("DD_ENV") or self.tags.get("env")
         self.service = os.getenv("DD_SERVICE", default=self.tags.get("service", DEFAULT_SPAN_SERVICE_NAME))
 
-        if self.service is None and self._is_gcp_function:
+        if self.service is None and in_gcp_function():
             self.service = os.environ.get("K_SERVICE", os.environ.get("FUNCTION_NAME"))
 
-        if self.service is None and self._is_azure_function_consumption_plan:
+        if self.service is None and in_azure_function_consumption_plan():
             self.service = os.environ.get("WEBSITE_SITE_NAME")
 
         self.version = os.getenv("DD_VERSION", default=self.tags.get("version"))
@@ -278,7 +275,7 @@ class Config(object):
         # Raise certain errors only if in testing raise mode to prevent crashing in production with non-critical errors
         self._raise = asbool(os.getenv("DD_TESTING_RAISE", False))
 
-        trace_compute_stats_default = self._is_gcp_function or self._is_azure_function_consumption_plan
+        trace_compute_stats_default = in_gcp_function() or in_azure_function_consumption_plan()
         self._trace_compute_stats = asbool(
             os.getenv(
                 "DD_TRACE_COMPUTE_STATS", os.getenv("DD_TRACE_STATS_COMPUTATION_ENABLED", trace_compute_stats_default)
