@@ -261,25 +261,25 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         with self._caplog.at_level(logging.DEBUG), override_global_config(dict(_appsec_enabled=True)):
             self._aux_appsec_prepare_tracer()
             self.client.post("/", data="", content_type="application/json")
-            assert "Failed to parse werkzeug request body" in self._caplog.text
+            assert "Failed to parse request body" in self._caplog.text
 
     def test_flask_body_json_bad_logs_warning(self):
         with self._caplog.at_level(logging.DEBUG), override_global_config(dict(_appsec_enabled=True)):
             self._aux_appsec_prepare_tracer()
             self.client.post("/", data="not valid json", content_type="application/json")
-            assert "Failed to parse werkzeug request body" in self._caplog.text
+            assert "Failed to parse request body" in self._caplog.text
 
     def test_flask_body_xml_bad_logs_warning(self):
         with self._caplog.at_level(logging.DEBUG), override_global_config(dict(_appsec_enabled=True)):
             self._aux_appsec_prepare_tracer()
             self.client.post("/", data="bad xml", content_type="application/xml")
-            assert "Failed to parse werkzeug request body" in self._caplog.text
+            assert "Failed to parse request body" in self._caplog.text
 
     def test_flask_body_xml_empty_logs_warning(self):
         with self._caplog.at_level(logging.DEBUG), override_global_config(dict(_appsec_enabled=True)):
             self._aux_appsec_prepare_tracer()
             self.client.post("/", data="", content_type="application/xml")
-            assert "Failed to parse werkzeug request body" in self._caplog.text
+            assert "Failed to parse request body" in self._caplog.text
 
     def test_flask_ipblock_nomatch_200_json(self):
         @self.app.route("/")
