@@ -5,14 +5,14 @@ from six import BytesIO
 import xmltodict
 
 from ddtrace import config
-from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
+from ddtrace.appsec.iast._metrics import _set_metric_iast_instrumented_source
 from ddtrace.appsec.iast._patch import if_iast_taint_returned_object_for
 from ddtrace.appsec.iast._patch import if_iast_taint_yield_tuple_for
 from ddtrace.appsec.iast._util import _is_iast_enabled
 from ddtrace.internal import core
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
-from ddtrace.internal.constants import REQUEST_PATH_PARAMS
 from ddtrace.internal.logger import get_logger
+from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 
 try:
@@ -25,68 +25,9 @@ log = get_logger(__name__)
 _BODY_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
 
 
-def _on_wrapped_view(kwargs):
-    from ddtrace.appsec import _asm_request_context
-
-    return_value = [None, None]
-    # if Appsec is enabled, we can try to block as we have the path parameters at that point
-    if config._appsec_enabled and _asm_request_context.in_context():
-        log.debug("Flask WAF call for Suspicious Request Blocking on request")
-        if kwargs:
-            _asm_request_context.set_waf_address(REQUEST_PATH_PARAMS, kwargs)
-        _asm_request_context.call_waf_callback()
-        if _asm_request_context.is_blocked():
-            callback_block = _asm_request_context.get_value(_asm_request_context._CALLBACKS, "flask_block")
-            return_value[0] = callback_block
-
-    # If IAST is enabled, taint the Flask function kwargs (path parameters)
-    if _is_iast_enabled() and kwargs:
-        from ddtrace.appsec.iast._taint_tracking import OriginType
-        from ddtrace.appsec.iast._taint_tracking import taint_pyobject
-
-        _kwargs = {}
-        for k, v in kwargs.items():
-            _kwargs[k] = taint_pyobject(
-                pyobject=v, source_name=k, source_value=v, source_origin=OriginType.PATH_PARAMETER
-            )
-        return_value[1] = _kwargs
-    return return_value
-
-
-def _on_set_request_tags(request, span, flask_config):
-    if _is_iast_enabled():
-        from ddtrace.appsec.iast._taint_tracking import OriginType
-        from ddtrace.appsec.iast._taint_utils import LazyTaintDict
-
-        request.cookies = LazyTaintDict(
-            request.cookies,
-            origins=(OriginType.COOKIE_NAME, OriginType.COOKIE),
-            override_pyobject_tainted=True,
-        )
-
-
-def _on_pre_tracedrequest(ctx):
-    _on_set_request_tags(ctx.get_item("flask_request"), ctx.get_item("current_span"), ctx.get_item("flask_config"))
-    block_request_callable = ctx.get_item("block_request_callable")
-    current_span = ctx.get_item("current_span")
-    if config._appsec_enabled:
-        from ddtrace.appsec import _asm_request_context
-
-        _asm_request_context.set_block_request_callable(functools.partial(block_request_callable, current_span))
-        if core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
-            _asm_request_context.block_request()
-
-
-def _on_post_finalizerequest(rv):
-    if config._api_security_enabled and config._appsec_enabled and getattr(rv, "is_sequence", False):
-        from ddtrace.appsec import _asm_request_context
-
-        # start_response was not called yet, set the HTTP response headers earlier
-        _asm_request_context.set_headers_response(list(rv.headers))
-        _asm_request_context.set_body_response(rv.response)
-
-
-def _on_request_span_modifier(ctx, flask_config, request, environ, _HAS_JSON_MIXIN, flask_version, flask_version_str, exception_type):
+def _on_request_span_modifier(
+    ctx, flask_config, request, environ, _HAS_JSON_MIXIN, flask_version, flask_version_str, exception_type
+):
     req_body = None
     if config._appsec_enabled and request.method in _BODY_METHODS:
         content_type = request.content_type
@@ -137,21 +78,7 @@ def _on_request_span_modifier(ctx, flask_config, request, environ, _HAS_JSON_MIX
     return req_body
 
 
-def _on_start_response():
-    from ddtrace.appsec import _asm_request_context
-
-    log.debug("Flask WAF call for Suspicious Request Blocking on response")
-    _asm_request_context.call_waf_callback()
-    return _asm_request_context.get_headers().get("Accept", "").lower()
-
-
-def _on_block_decided(callback):
-    from ddtrace.appsec import _asm_request_context
-
-    _asm_request_context.set_value(_asm_request_context._CALLBACKS, "flask_block", callback)
-
-
-def _on_request_init(instance):
+def _on_request_init(wrapped, instance, args, kwargs):
     if _is_iast_enabled():
         try:
             from ddtrace.appsec.iast._taint_tracking import OriginType
@@ -170,14 +97,56 @@ def _on_request_init(instance):
                 source_value=instance.path,
                 source_origin=OriginType.PATH,
             )
+            _set_metric_iast_instrumented_source(OriginType.PATH)
+            _set_metric_iast_instrumented_source(OriginType.QUERY)
         except Exception:
             log.debug("Unexpected exception while tainting pyobject", exc_info=True)
 
 
-def _on_werkzeug(*args):
-    if isinstance(args[0], tuple):
-        return if_iast_taint_yield_tuple_for(*args)
-    return if_iast_taint_returned_object_for(*args)
+def _on_flask_patch(flask_version):
+    if _is_iast_enabled():
+        try:
+            from ddtrace.appsec.iast._taint_tracking import OriginType
+
+            _w(
+                "werkzeug.datastructures",
+                "Headers.items",
+                functools.partial(if_iast_taint_yield_tuple_for, (OriginType.HEADER_NAME, OriginType.HEADER)),
+            )
+            _set_metric_iast_instrumented_source(OriginType.HEADER_NAME)
+            _set_metric_iast_instrumented_source(OriginType.HEADER)
+
+            _w(
+                "werkzeug.datastructures",
+                "ImmutableMultiDict.__getitem__",
+                functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER),
+            )
+            _set_metric_iast_instrumented_source(OriginType.PARAMETER)
+
+            _w(
+                "werkzeug.datastructures",
+                "EnvironHeaders.__getitem__",
+                functools.partial(if_iast_taint_returned_object_for, OriginType.HEADER),
+            )
+            _set_metric_iast_instrumented_source(OriginType.HEADER)
+
+            _w("werkzeug.wrappers.request", "Request.__init__", _on_request_init)
+            _w(
+                "werkzeug.wrappers.request",
+                "Request.get_data",
+                functools.partial(if_iast_taint_returned_object_for, OriginType.BODY),
+            )
+            _set_metric_iast_instrumented_source(OriginType.BODY)
+
+            if flask_version < (2, 0, 0):
+                _w(
+                    "werkzeug._internal",
+                    "_DictAccessorProperty.__get__",
+                    functools.partial(if_iast_taint_returned_object_for, OriginType.QUERY),
+                )
+                _set_metric_iast_instrumented_source(OriginType.QUERY)
+        except Exception:
+            log.debug("Unexpected exception while patch IAST functions", exc_info=True)
 
 
 def _on_flask_blocked_request():
@@ -185,18 +154,9 @@ def _on_flask_blocked_request():
 
 
 def listen():
-    core.on("wsgi.block_decided", _on_block_decided)
-    core.on("flask.start_response", _on_start_response)
-    core.on("flask.wrapped_view", _on_wrapped_view)
-    core.on("context.started.flask._patched_request", _on_pre_tracedrequest)
-    core.on("flask.finalize_request.post", _on_post_finalizerequest)
     core.on("flask.request_call_modifier", _on_request_span_modifier)
     core.on("flask.request_init", _on_request_init)
     core.on("flask.blocked_request_callable", _on_flask_blocked_request)
 
 
-core.on("flask.werkzeug.datastructures.Headers.items", _on_werkzeug)
-core.on("flask.werkzeug.datastructures.EnvironHeaders.__getitem__", _on_werkzeug)
-core.on("flask.werkzeug.datastructures.ImmutableMultiDict.__getitem__", _on_werkzeug)
-core.on("flask.werkzeug.wrappers.request.Request.get_data", _on_werkzeug)
-core.on("flask.werkzeug._internal._DictAccessorProperty.__get__", _on_werkzeug)
+core.on("flask.patch", _on_flask_patch)
