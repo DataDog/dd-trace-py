@@ -16,14 +16,8 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import List
 
 
-PY2 = sys.version_info[0] < 3
-PY3 = not PY2
-PY30_38 = sys.version_info >= (3, 0, 0) and sys.version_info < (3, 9, 0)
+PY3 = sys.version_info[0] >= 3
 PY30_37 = sys.version_info >= (3, 0, 0) and sys.version_info < (3, 8, 0)
-PY27_37 = sys.version_info < (3, 8, 0)
-PY38 = sys.version_info[0] == 3 and sys.version_info[1] == 8
-PY39_PLUS = sys.version_info >= (3, 9, 0)
-PY36_PLUS = sys.version_info >= (3, 6, 0)
 PY38_PLUS = sys.version_info >= (3, 8, 0)
 
 
@@ -123,19 +117,16 @@ class AstVisitor(ast.NodeTransformer):
         self.replacements_disabled_for_functiondef = False
 
     def _is_string_node(self, node):  # type: (Any) -> bool
-        if PY3 and (isinstance(node, ast.Constant) and isinstance(node.value, (str, bytes, bytearray))):
-            return True
-
-        if PY27_37 and isinstance(node, ast.Str):
-            return True
-
         if PY30_37 and isinstance(node, ast.Bytes):
+            return True
+
+        if PY3 and (isinstance(node, ast.Constant) and isinstance(node.value, (str, bytes, bytearray))):
             return True
 
         return False
 
     def _is_numeric_node(self, node):  # type: (Any) -> bool
-        if PY27_37 and isinstance(node, ast.Num):
+        if PY30_37 and isinstance(node, ast.Num):
             return True
 
         if PY38_PLUS and (isinstance(node, ast.Constant) and isinstance(node.value, (int, float))):
@@ -173,7 +164,7 @@ class AstVisitor(ast.NodeTransformer):
         lineno = getattr(pos_from_node, "lineno", 1)
         col_offset = getattr(pos_from_node, "col_offset", 0)
 
-        if PY27_37:
+        if PY30_37:
             # No end_lineno or end_pos_offset
             return type_(lineno=lineno, col_offset=col_offset, **kwargs)
 
@@ -242,9 +233,6 @@ class AstVisitor(ast.NodeTransformer):
         if PY30_37:
             return ast.NameConstant(lineno=from_node.lineno, col_offset=from_node.col_offset, value=None)
 
-        if PY2:
-            return ast.Name(id="None", lineno=from_node.lineno, col_offset=from_node.col_offset, ctx=ctx)
-
         # 3.8+
         return ast.Constant(
             lineno=from_node.lineno,
@@ -256,8 +244,6 @@ class AstVisitor(ast.NodeTransformer):
         )
 
     def _call_node(self, from_node, func, args):  # type: (Any, Any, List[Any]) -> Any
-        if PY2:
-            return self._node(ast.Call, from_node, func=func, args=args, starargs=None, kwargs=None, keywords=[])
 
         return self._node(ast.Call, from_node, func=func, args=args, keywords=[])
 
