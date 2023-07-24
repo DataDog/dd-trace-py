@@ -1,3 +1,5 @@
+import functools
+
 import flask
 import werkzeug
 from werkzeug.exceptions import BadRequest
@@ -108,14 +110,12 @@ def wrapped_request_init(wrapped, instance, args, kwargs):
 
 
 def wrap_with_event(module, name, origin):
-    def dispatcher(*args):
-        results, exceptions = core.dispatch("flask.%s.%s" % (module, name), [origin] + list(args))
-        if exceptions and len(exceptions) and exceptions[0]:
-            raise exceptions[0]
-        if results and len(results):
-            return results[0]
+    def dispatcher(_origin, wrapped, instance, args, kwargs):
+        result = wrapped(*args, **kwargs)
+        core.dispatch("flask.%s.%s" % (module, name), [_origin, wrapped, result, instance, args, kwargs])
+        return result
 
-    _w(module, name, dispatcher)
+    _w(module, name, functools.partial(dispatcher, origin))
 
 
 class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):

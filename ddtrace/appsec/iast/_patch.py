@@ -133,9 +133,7 @@ def patch_builtins(klass, attr, value):
     ctypes.pythonapi.PyType_Modified(ctypes.py_object(klass))
 
 
-def if_iast_taint_returned_object_for(origin, wrapped, instance, args, kwargs):
-    value = wrapped(*args, **kwargs)
-
+def if_iast_taint_returned_object_for(origin, value, instance, args, kwargs):
     if _is_iast_enabled():
         try:
             from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
@@ -146,7 +144,6 @@ def if_iast_taint_returned_object_for(origin, wrapped, instance, args, kwargs):
                 return taint_pyobject(pyobject=value, source_name=name, source_value=value, source_origin=origin)
         except Exception:
             log.debug("Unexpected exception while tainting pyobject", exc_info=True)
-    return value
 
 
 def if_iast_taint_yield_tuple_for(origins, wrapped, instance, args, kwargs):
