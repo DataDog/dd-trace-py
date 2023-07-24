@@ -15,7 +15,6 @@ W3C_TRACESTATE_KEY = "tracestate"
 W3C_TRACEPARENT_KEY = "traceparent"
 W3C_TRACESTATE_ORIGIN_KEY = "o"
 W3C_TRACESTATE_SAMPLING_PRIORITY_KEY = "s"
-SAMPLING_DECISION_TRACE_TAG_KEY = "_dd.p.dm"
 DEFAULT_SERVICE_NAME = "unnamed_python_service"
 # Used to set the name of an integration on a span
 COMPONENT = "component"
