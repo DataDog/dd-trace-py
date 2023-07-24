@@ -2,6 +2,7 @@ import os
 
 import pytest
 
+from ddtrace.appsec.iast._util import _is_python_version_supported as python_supported_by_iast
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
 
 
@@ -17,6 +18,7 @@ FIXTURES_PATH = "tests/appsec/iast/fixtures/path_traversal.py"
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_path_traversal(iast_span_defaults):
     from ddtrace.appsec.iast._taint_tracking import setup
 

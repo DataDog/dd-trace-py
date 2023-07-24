@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
-import sys
-
 import pytest
 
+from ddtrace.appsec.iast._util import _is_python_version_supported as python_supported_by_iast
 
-PY36 = sys.version_info >= (3, 6, 0)
 
-if PY36:
+try:
     import astunparse
 
     from ddtrace.appsec.iast._ast.ast_patching import _in_python_stdlib_or_third_party
     from ddtrace.appsec.iast._ast.ast_patching import _should_iast_patch
     from ddtrace.appsec.iast._ast.ast_patching import astpatch_module
     from ddtrace.appsec.iast._ast.ast_patching import visit_ast
+except (ImportError, AttributeError):
+    pytest.skip("IAST not supported for this Python version", allow_module_level=True)
 
 
 @pytest.mark.parametrize(
@@ -23,7 +23,7 @@ if PY36:
         ("str", "test.py", "test"),
     ],
 )
-@pytest.mark.skipif(not PY36, reason="Python 3.6+ only")
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_visit_ast_unchanged(source_text, module_path, module_name):
     """
     Source texts not containing:
@@ -42,7 +42,7 @@ def test_visit_ast_unchanged(source_text, module_path, module_name):
         ("print('hi' + 'bye')", "test.py", "test"),
     ],
 )
-@pytest.mark.skipif(not PY36, reason="Python 3.6+ only")
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_visit_ast_changed(source_text, module_path, module_name):
     """
     Source texts containing:
@@ -60,7 +60,7 @@ def test_visit_ast_changed(source_text, module_path, module_name):
         ("tests.appsec.iast.fixtures.ast.str.function_str"),
     ],
 )
-@pytest.mark.skipif(not PY36, reason="Python 3.6+ only")
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_astpatch_module_changed(module_name):
     module_path, new_source = astpatch_module(__import__(module_name, fromlist=[None]))
     assert ("", "") != (module_path, new_source)
@@ -78,7 +78,7 @@ def test_astpatch_module_changed(module_name):
         ("tests.appsec.iast.fixtures.ast.add_operator.basic"),
     ],
 )
-@pytest.mark.skipif(not PY36, reason="Python 3.6+ only")
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_astpatch_module_changed_add_operator(module_name):
     module_path, new_source = astpatch_module(__import__(module_name, fromlist=[None]))
     assert ("", "") != (module_path, new_source)
@@ -97,7 +97,7 @@ def test_astpatch_module_changed_add_operator(module_name):
         ("tests.appsec.iast.fixtures.ast.str.future_import_function_str"),
     ],
 )
-@pytest.mark.skipif(not PY36, reason="Python 3.6+ only")
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_astpatch_source_changed_with_future_imports(module_name):
     module_path, new_source = astpatch_module(__import__(module_name, fromlist=[None]))
     assert ("", "") != (module_path, new_source)
@@ -126,12 +126,12 @@ import html"""
         ("tests.appsec.iast.fixtures.ast.str.empty_file"),
     ],
 )
-@pytest.mark.skipif(not PY36, reason="Python 3.6+ only")
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_astpatch_source_unchanged(module_name):
     assert ("", "") == astpatch_module(__import__(module_name, fromlist=[None]))
 
 
-@pytest.mark.skipif(not PY36, reason="Python 3.6+ only")
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_module_should_iast_patch():
     assert not _should_iast_patch("ddtrace.internal.module")
     assert not _should_iast_patch("ddtrace.appsec.iast")
@@ -157,6 +157,6 @@ def test_module_should_iast_patch():
         ("my_app", False),
     ],
 )
-@pytest.mark.skipif(not PY36, reason="Python 3.6+ only")
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_module_in_python_stdlib_or_third_party(module_name, result):
     assert _in_python_stdlib_or_third_party(module_name) == result
