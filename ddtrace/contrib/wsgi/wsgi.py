@@ -2,7 +2,6 @@ import functools
 import sys
 from typing import TYPE_CHECKING
 
-from ddtrace.appsec import _asm_request_context
 from ddtrace.internal.constants import RESPONSE_HEADERS
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
@@ -165,25 +164,26 @@ class _DDWSGIMiddlewareBase(object):
         headers = get_request_headers(environ)
         closing_iterator = ()
         not_blocked = True
-        with _asm_request_context.asm_request_context_manager(environ.get("REMOTE_ADDR"), headers, True):
+        with core.context_with_data(
+            "wsgi.__call__", remote_addr=environ.get("REMOTE_ADDR"), headers=headers, headers_case_sensitive=True
+        ):
             req_span = self.tracer.trace(
                 self._request_span_name,
                 service=trace_utils.int_service(self._pin, self._config),
                 span_type=SpanTypes.WEB,
             )
 
-            if self.tracer._appsec_enabled:
-                if core.get_item(HTTP_REQUEST_BLOCKED, span=req_span):
-                    ctype, content = self._make_block_content(environ, headers, req_span)
-                    start_response("403 FORBIDDEN", [("content-type", ctype)])
-                    closing_iterator = [content]
-                    not_blocked = False
+            if core.get_item(HTTP_REQUEST_BLOCKED):
+                ctype, content = self._make_block_content(environ, headers, req_span)
+                start_response("403 FORBIDDEN", [("content-type", ctype)])
+                closing_iterator = [content]
+                not_blocked = False
 
-                def blocked_view():
-                    ctype, content = self._make_block_content(environ, headers, req_span)
-                    return content, 403, [("content-type", ctype)]
+            def blocked_view():
+                ctype, content = self._make_block_content(environ, headers, req_span)
+                return content, 403, [("content-type", ctype)]
 
-                core.dispatch("wsgi.block_decided", [blocked_view])
+            core.dispatch("wsgi.block_decided", [blocked_view])
 
             if not_blocked:
                 req_span.set_tag_str(COMPONENT, self._config.integration_name)
@@ -207,7 +207,7 @@ class _DDWSGIMiddlewareBase(object):
                     app_span.finish()
                     req_span.finish()
                     raise
-                if self.tracer._appsec_enabled and core.get_item(HTTP_REQUEST_BLOCKED, span=req_span):
+                if core.get_item(HTTP_REQUEST_BLOCKED):
                     _, content = self._make_block_content(environ, headers, req_span)
                     closing_iterator = [content]
 
