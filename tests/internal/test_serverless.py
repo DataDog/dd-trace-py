@@ -75,7 +75,7 @@ def test_is_azure_function_consumption_plan_with_sku():
 
 
 def test_is_azure_function_consumption_plan_no_sku():
-    with override_env(dict(FUNCTIONS_WORKER_RUNTIME="python", FUNCTIONS_EXTENSION_VERSION="2", WEBSITE_SKU="Dynamic")):
+    with override_env(dict(FUNCTIONS_WORKER_RUNTIME="python", FUNCTIONS_EXTENSION_VERSION="2")):
         assert in_azure_function_consumption_plan() is True
 
 
