@@ -557,6 +557,8 @@ venv = Venv(
             command="python tests/wait-for-services.py {cmdargs}",
             # Default Python 3 (3.10) collections package breaks with kombu/vertica, so specify Python 3.9 instead.
             pys="3.9",
+            create=True,
+            skip_dev_install=True,
             pkgs={
                 "cassandra-driver": latest,
                 "psycopg2-binary": latest,
