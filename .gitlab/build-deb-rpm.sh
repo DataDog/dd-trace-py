@@ -8,7 +8,6 @@ echo -n $PYTHON_PACKAGE_VERSION > auto_inject-python.version
 
 source common_build_functions.sh
 
-# Download the megawheel
 mkdir -p dd-trace.dir/lib
 
 # Install known compatible pip as default version shipped in Ubuntu (20.0.2)
@@ -29,7 +28,7 @@ echo `pwd`
     --arch aarch64 \
     --platform musllinux_1_1 \
     --platform manylinux2014 \
-    --output-dir dd-trace.dir/lib \
+    --output-dir dd-trace.dir/lib/ddtrace_pkgs \
     --verbose
 
 cp ../lib-injection/sitecustomize.py dd-trace.dir/lib/
