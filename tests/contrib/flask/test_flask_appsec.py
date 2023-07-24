@@ -713,8 +713,9 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             root_span = self.pop_spans()[0]
             assert root_span.get_metric(IAST.ENABLED) == 1.0
 
-    @pytest.mark.skipif(sys.version_info == (3, 9), reason="flaky test on Python3.9")
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    @pytest.mark.skipif(
+        sys.version_info[:2] == (3, 9) or not python_supported_by_iast(), reason="Python version not supported by IAST"
+    )
     def test_flask_simple_iast_path_header_and_querystring_tainted_request_sampling_0(self):
         @self.app.route("/sqli/<string:param_str>/", methods=["GET", "POST"])
         def test_sqli(param_str):

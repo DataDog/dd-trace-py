@@ -92,6 +92,14 @@ class AstVisitor(ast.NodeTransformer):
                 "django.utils.html": {"": ("format_html", "format_html_join")},
             },
         }
+        self._sinkpoints_spec = {
+            "definitions_module": "ddtrace.appsec.iast.taint_sinks.path_traversal",
+            "alias_module": "ddtrace_taint_sinks",
+            "functions": {
+                "open": "ddtrace_taint_sinks.open_path_traversal",
+            },
+        }
+        self._sinkpoints_functions = self._sinkpoints_spec["functions"]
         self.ast_modified = False
         self.filename = filename
         self.module_name = module_name
@@ -274,6 +282,21 @@ class AstVisitor(ast.NodeTransformer):
             ],
         )
         module_node.body.insert(insert_position, replacements_import)
+
+        definitions_module = self._sinkpoints_spec["definitions_module"]
+        replacements_import = self._node(
+            ast.Import,
+            module_node,
+            names=[
+                ast.alias(
+                    lineno=1,
+                    col_offset=0,
+                    name=definitions_module,
+                    asname=self._sinkpoints_spec["alias_module"],
+                )
+            ],
+        )
+        module_node.body.insert(insert_position, replacements_import)
         # Must be called here instead of the start so the line offset is already
         # processed
         self.generic_visit(module_node)
@@ -308,6 +331,11 @@ class AstVisitor(ast.NodeTransformer):
             aspect = self._aspect_functions.get(func_name_node)
             if aspect:
                 call_node.func = self._attr_node(call_node, aspect)
+                self.ast_modified = call_modified = True
+
+            sink_point = self._sinkpoints_functions.get(func_name_node)
+            if sink_point:
+                call_node.func = self._attr_node(call_node, sink_point)
                 self.ast_modified = call_modified = True
         # Call [attr] -> Attribute [value]-> Attribute [value]-> Attribute
         # a.b.c.method()
