@@ -6,9 +6,7 @@ import xmltodict
 
 from ddtrace import config
 from ddtrace.appsec.iast._metrics import _set_metric_iast_instrumented_source
-from ddtrace.appsec.iast._patch import if_iast_taint_object
 from ddtrace.appsec.iast._patch import if_iast_taint_returned_object_for
-from ddtrace.appsec.iast._patch import if_iast_taint_tuple
 from ddtrace.appsec.iast._patch import if_iast_taint_yield_tuple_for
 from ddtrace.appsec.iast._util import _is_iast_enabled
 from ddtrace.internal import core
@@ -129,12 +127,6 @@ def _on_request_init(wrapped, instance, args, kwargs):
             _set_metric_iast_instrumented_source(OriginType.QUERY)
         except Exception:
             log.debug("Unexpected exception while tainting pyobject", exc_info=True)
-
-
-def _on_werkzeug(origin, result, args):
-    if isinstance(origin, tuple):
-        return if_iast_taint_tuple(origin, result)
-    return if_iast_taint_object(origin, result, args)
 
 
 def _on_flask_patch(flask_version):

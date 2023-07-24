@@ -135,38 +135,29 @@ def patch_builtins(klass, attr, value):
 
 def if_iast_taint_returned_object_for(origin, wrapped, instance, args, kwargs):
     value = wrapped(*args, **kwargs)
-    if_iast_taint_object(origin, value, args)
+
+    if _is_iast_enabled():
+        try:
+            from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
+            from ddtrace.appsec.iast._taint_tracking import taint_pyobject
+
+            if not is_pyobject_tainted(value):
+                name = str(args[0]) if len(args) else "http.request.body"
+                return taint_pyobject(pyobject=value, source_name=name, source_value=value, source_origin=origin)
+        except Exception:
+            log.debug("Unexpected exception while tainting pyobject", exc_info=True)
     return value
 
 
 def if_iast_taint_yield_tuple_for(origins, wrapped, instance, args, kwargs):
-    result = wrapped(*args, **kwargs)
-    for key, value in if_iast_taint_tuple(origins, result):
-        yield key, value
-
-
-def if_iast_taint_object(origin, result, args):
-    if _is_iast_enabled():
-        from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
-        from ddtrace.appsec.iast._taint_tracking import taint_pyobject
-
-        try:
-            if not is_pyobject_tainted(result):
-                name = str(args[0]) if len(args) else "http.request.body"
-                return taint_pyobject(pyobject=result, source_name=name, source_value=result, source_origin=origin)
-        except Exception:
-            log.debug("Unexpected exception while tainting pyobject", exc_info=True)
-
-
-def if_iast_taint_tuple(origins, result):
     if _is_iast_enabled():
         from ddtrace.appsec.iast._taint_tracking import taint_pyobject
 
-        for key, value in result:
+        for key, value in wrapped(*args, **kwargs):
             new_key = taint_pyobject(pyobject=key, source_name=key, source_value=key, source_origin=origins[0])
             new_value = taint_pyobject(pyobject=value, source_name=key, source_value=value, source_origin=origins[1])
             yield new_key, new_value
 
     else:
-        for key, value in result:
+        for key, value in wrapped(*args, **kwargs):
             yield key, value
