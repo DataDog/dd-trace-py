@@ -292,8 +292,8 @@ def _compile_operation(ast):
 
 def _compile_literal(ast):
     # type: (DDASTType) -> Optional[List[Instr]]
-    # literal  =>  <number> | true | false | "string"
-    if not isinstance(ast, (str, int, float, bool)):
+    # literal  =>  <number> | true | false | "string" | null
+    if not (isinstance(ast, (str, int, float, bool)) or ast is None):
         return None
 
     return [Instr("LOAD_CONST", ast)]
