@@ -1,5 +1,3 @@
-import functools
-
 import flask
 import werkzeug
 from werkzeug.exceptions import BadRequest
