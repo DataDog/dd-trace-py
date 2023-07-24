@@ -216,7 +216,7 @@ venv = Venv(
             name="riot-helpers",
             # DEV: pytest really doesn't want to execute only `riotfile.py`, call doctest directly
             command="python -m doctest {cmdargs} riotfile.py",
-            pkgs={"riot": "==0.17.4"},
+            pkgs={"riot": "==0.17.5"},
         ),
         Venv(
             pys=["3"],
