@@ -90,20 +90,6 @@ def _on_request_span_modifier(request, environ, _HAS_JSON_MIXIN, exception_type)
     return req_body
 
 
-def _on_start_response():
-    from ddtrace.appsec import _asm_request_context
-
-    log.debug("Flask WAF call for Suspicious Request Blocking on response")
-    _asm_request_context.call_waf_callback()
-    return _asm_request_context.get_headers().get("Accept", "").lower()
-
-
-def _on_block_decided(callback):
-    from ddtrace.appsec import _asm_request_context
-
-    _asm_request_context.set_value(_asm_request_context._CALLBACKS, "flask_block", callback)
-
-
 def _on_request_init(wrapped, instance, args, kwargs):
     if _is_iast_enabled():
         try:
