@@ -57,6 +57,7 @@ def _patch_dummy_writer():
     yield
     ddtrace.internal.ci_visibility.recorder.CIVisibilityWriter = original
 
+
 @mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features", return_value=(False, False))
 def test_ci_visibility_service_enable(_check_enabled_features_patch):
     with override_env(
@@ -77,6 +78,7 @@ def test_ci_visibility_service_enable(_check_enabled_features_patch):
             assert ci_visibility_instance._test_skipping_enabled_by_api is False
             assert any(isinstance(tracer_filter, TraceCiVisibilityFilter) for tracer_filter in dummy_tracer._filters)
             CIVisibility.disable()
+
 
 @mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features", return_value=(False, False))
 @mock.patch("ddtrace.internal.ci_visibility.recorder._do_request")
