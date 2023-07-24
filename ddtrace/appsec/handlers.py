@@ -1,14 +1,19 @@
+import functools
 import json
 
 from six import BytesIO
 import xmltodict
 
 from ddtrace import config
+from ddtrace.appsec.iast._metrics import _set_metric_iast_instrumented_source
 from ddtrace.appsec.iast._patch import if_iast_taint_object
+from ddtrace.appsec.iast._patch import if_iast_taint_returned_object_for
 from ddtrace.appsec.iast._patch import if_iast_taint_tuple
+from ddtrace.appsec.iast._patch import if_iast_taint_yield_tuple_for
 from ddtrace.appsec.iast._util import _is_iast_enabled
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
+from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 
 try:
@@ -25,6 +30,9 @@ def _on_set_request_tags(request):
     if _is_iast_enabled():
         from ddtrace.appsec.iast._taint_tracking import OriginType
         from ddtrace.appsec.iast._taint_utils import LazyTaintDict
+
+        _set_metric_iast_instrumented_source(OriginType.COOKIE_NAME)
+        _set_metric_iast_instrumented_source(OriginType.COOKIE)
 
         return LazyTaintDict(
             request.cookies,
@@ -98,7 +106,7 @@ def _on_block_decided(callback):
     _asm_request_context.set_value(_asm_request_context._CALLBACKS, "flask_block", callback)
 
 
-def _on_request_init(instance):
+def _on_request_init(wrapped, instance, args, kwargs):
     if _is_iast_enabled():
         try:
             from ddtrace.appsec.iast._taint_tracking import OriginType
@@ -117,6 +125,8 @@ def _on_request_init(instance):
                 source_value=instance.path,
                 source_origin=OriginType.PATH,
             )
+            _set_metric_iast_instrumented_source(OriginType.PATH)
+            _set_metric_iast_instrumented_source(OriginType.QUERY)
         except Exception:
             log.debug("Unexpected exception while tainting pyobject", exc_info=True)
 
@@ -127,14 +137,55 @@ def _on_werkzeug(origin, result, args):
     return if_iast_taint_object(origin, result, args)
 
 
+def _on_flask_patch(flask_version):
+    if _is_iast_enabled():
+        try:
+            from ddtrace.appsec.iast._taint_tracking import OriginType
+
+            _w(
+                "werkzeug.datastructures",
+                "Headers.items",
+                functools.partial(if_iast_taint_yield_tuple_for, (OriginType.HEADER_NAME, OriginType.HEADER)),
+            )
+            _set_metric_iast_instrumented_source(OriginType.HEADER_NAME)
+            _set_metric_iast_instrumented_source(OriginType.HEADER)
+
+            _w(
+                "werkzeug.datastructures",
+                "ImmutableMultiDict.__getitem__",
+                functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER),
+            )
+            _set_metric_iast_instrumented_source(OriginType.PARAMETER)
+
+            _w(
+                "werkzeug.datastructures",
+                "EnvironHeaders.__getitem__",
+                functools.partial(if_iast_taint_returned_object_for, OriginType.HEADER),
+            )
+            _set_metric_iast_instrumented_source(OriginType.HEADER)
+
+            _w("werkzeug.wrappers.request", "Request.__init__", _on_request_init)
+            _w(
+                "werkzeug.wrappers.request",
+                "Request.get_data",
+                functools.partial(if_iast_taint_returned_object_for, OriginType.BODY),
+            )
+            _set_metric_iast_instrumented_source(OriginType.BODY)
+
+            if flask_version < (2, 0, 0):
+                _w(
+                    "werkzeug._internal",
+                    "_DictAccessorProperty.__get__",
+                    functools.partial(if_iast_taint_returned_object_for, OriginType.QUERY),
+                )
+                _set_metric_iast_instrumented_source(OriginType.QUERY)
+        except Exception:
+            log.debug("Unexpected exception while patch IAST functions", exc_info=True)
+
+
 def listen():
     core.on("flask.set_request_tags", _on_set_request_tags)
     core.on("flask.request_span_modifier", _on_request_span_modifier)
 
 
-core.on("flask.request_init", _on_request_init)
-core.on("flask.werkzeug.datastructures.Headers.items", _on_werkzeug)
-core.on("flask.werkzeug.datastructures.EnvironHeaders.__getitem__", _on_werkzeug)
-core.on("flask.werkzeug.datastructures.ImmutableMultiDict.__getitem__", _on_werkzeug)
-core.on("flask.werkzeug.wrappers.request.Request.get_data", _on_werkzeug)
-core.on("flask.werkzeug._internal._DictAccessorProperty.__get__", _on_werkzeug)
+core.on("flask.patch", _on_flask_patch)
