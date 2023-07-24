@@ -202,7 +202,10 @@ class CIVisibility(Service):
         return attributes["code_coverage"], attributes["tests_skipping"]
 
     def _configure_itr(self, api_key, app_key, requests_mode):
-        # API status is primary driver for enabling ITR
+        if not app_key:
+            log.warning("Test skipping disabled: required environment variable DD_APPLICATION_KEY is not set.")
+            return
+
         if not self._test_skipping_enabled_by_api:
             log.debug("Test skipping is not enabled by API")
             if asbool(os.getenv("DD_CIVISIBILITY_ITR_ENABLED")):
@@ -217,9 +220,6 @@ class CIVisibility(Service):
                 "Test skipping disabled: Intelligent Test Runner is enabled for this service, but "
                 "disabled in tracer configuration or by DD_CIVISIBILITY_ITR_ENABLED environment variable."
             )
-            return
-        elif not app_key:
-            log.warning("Test skipping disabled: required environment variable DD_APPLICATION_KEY is not set.")
             return
         elif requests_mode == REQUESTS_MODE.TRACES:
             log.warning("Test skipping disabled: cannot start git client if mode is not agentless or evp proxy.")
