@@ -133,20 +133,32 @@ def patch_builtins(klass, attr, value):
     ctypes.pythonapi.PyType_Modified(ctypes.py_object(klass))
 
 
-def if_iast_taint_returned_object_for(origin, value, args):
+def if_iast_taint_returned_object_for(origin, wrapped, instance, args, kwargs):
+    value = wrapped(*args, **kwargs)
+    if_iast_taint_object(origin, value, args)
+    return value
+
+
+def if_iast_taint_yield_tuple_for(origins, wrapped, instance, args, kwargs):
+    result = wrapped(*args, **kwargs)
+    for key, value in if_iast_taint_tuple(origins, result):
+        yield key, value
+
+
+def if_iast_taint_object(origin, result, args):
     if _is_iast_enabled():
         from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
         from ddtrace.appsec.iast._taint_tracking import taint_pyobject
 
         try:
-            if not is_pyobject_tainted(value):
+            if not is_pyobject_tainted(result):
                 name = str(args[0]) if len(args) else "http.request.body"
-                return taint_pyobject(pyobject=value, source_name=name, source_value=value, source_origin=origin)
+                return taint_pyobject(pyobject=result, source_name=name, source_value=result, source_origin=origin)
         except Exception:
             log.debug("Unexpected exception while tainting pyobject", exc_info=True)
 
 
-def if_iast_taint_yield_tuple_for(origins, result):
+def if_iast_taint_tuple(origins, result):
     if _is_iast_enabled():
         from ddtrace.appsec.iast._taint_tracking import taint_pyobject
 

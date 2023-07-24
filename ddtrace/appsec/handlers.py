@@ -4,8 +4,8 @@ from six import BytesIO
 import xmltodict
 
 from ddtrace import config
-from ddtrace.appsec.iast._patch import if_iast_taint_returned_object_for
-from ddtrace.appsec.iast._patch import if_iast_taint_yield_tuple_for
+from ddtrace.appsec.iast._patch import if_iast_taint_object
+from ddtrace.appsec.iast._patch import if_iast_taint_tuple
 from ddtrace.appsec.iast._util import _is_iast_enabled
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
@@ -123,8 +123,8 @@ def _on_request_init(instance):
 
 def _on_werkzeug(origin, result, args):
     if isinstance(origin, tuple):
-        return if_iast_taint_yield_tuple_for(origin, result)
-    return if_iast_taint_returned_object_for(origin, result, args)
+        return if_iast_taint_tuple(origin, result)
+    return if_iast_taint_object(origin, result, args)
 
 
 def listen():
