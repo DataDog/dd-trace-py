@@ -4,6 +4,7 @@ from six import BytesIO
 import xmltodict
 
 from ddtrace import config
+from ddtrace.appsec.iast._metrics import _set_metric_iast_instrumented_source
 from ddtrace.appsec.iast._util import _is_iast_enabled
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
@@ -23,6 +24,9 @@ def _on_set_request_tags(request):
     if _is_iast_enabled():
         from ddtrace.appsec.iast._taint_tracking import OriginType
         from ddtrace.appsec.iast._taint_utils import LazyTaintDict
+
+        _set_metric_iast_instrumented_source(OriginType.COOKIE_NAME)
+        _set_metric_iast_instrumented_source(OriginType.COOKIE)
 
         return LazyTaintDict(
             request.cookies,
