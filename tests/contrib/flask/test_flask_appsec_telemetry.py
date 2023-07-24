@@ -6,10 +6,10 @@ from ddtrace.appsec._constants import APPSEC
 from ddtrace.internal import core
 from ddtrace.internal.compat import urlencode
 from ddtrace.internal.constants import BLOCKED_RESPONSE_JSON
+from tests.appsec.conftest import mock_telemetry_lifecycle_writer  # noqa: F401
 from tests.appsec.test_processor import RULES_GOOD_PATH
 from tests.appsec.test_processor import _BLOCKED_IP
 from tests.appsec.test_telemety import _assert_generate_metrics
-from tests.appsec.conftest import mock_telemetry_lifecycle_writer  # noqa: F401
 from tests.contrib.flask import BaseFlaskTestCase
 from tests.utils import override_env
 from tests.utils import override_global_config
