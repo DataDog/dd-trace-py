@@ -57,8 +57,8 @@ def _patch_dummy_writer():
     yield
     ddtrace.internal.ci_visibility.recorder.CIVisibilityWriter = original
 
-
-def test_ci_visibility_service_enable():
+@mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features", return_value=(False, False))
+def test_ci_visibility_service_enable(_check_enabled_features_patch):
     with override_env(
         dict(
             DD_API_KEY="foobar.baz",
@@ -78,9 +78,9 @@ def test_ci_visibility_service_enable():
             assert any(isinstance(tracer_filter, TraceCiVisibilityFilter) for tracer_filter in dummy_tracer._filters)
             CIVisibility.disable()
 
-
+@mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features", return_value=(False, False))
 @mock.patch("ddtrace.internal.ci_visibility.recorder._do_request")
-def test_ci_visibility_service_enable_with_app_key_and_itr_disabled(_do_request):
+def test_ci_visibility_service_enable_with_app_key_and_itr_disabled(_do_request, _check_enabled_features_patch):
     with override_env(
         dict(
             DD_API_KEY="foobar.baz",
@@ -174,6 +174,7 @@ def test_ci_visibility_service_enable_with_app_key_and_error_response(_do_reques
         CIVisibility.disable()
 
 
+@mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features", return_value=(False, False))
 def test_ci_visibility_service_disable():
     with override_env(dict(DD_API_KEY="foobar.baz")):
         with _patch_dummy_writer():
@@ -490,6 +491,7 @@ def test_civisibilitywriter_coverage_evp_proxy_url():
             _get_connection.assert_called_once_with("http://localhost:8126", 2.0)
 
 
+@mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features", return_value=(False, False))
 def test_civisibilitywriter_agentless_url_envvar():
     with override_env(
         dict(
@@ -506,6 +508,7 @@ def test_civisibilitywriter_agentless_url_envvar():
         CIVisibility.disable()
 
 
+@mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features", return_value=(False, False))
 def test_civisibilitywriter_evp_proxy_url():
     with override_env(dict(DD_API_KEY="foobar.baz",)), mock.patch(
         "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_is_available", return_value=True
@@ -518,6 +521,7 @@ def test_civisibilitywriter_evp_proxy_url():
         CIVisibility.disable()
 
 
+@mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features", return_value=(False, False))
 def test_civisibilitywriter_only_traces():
     with override_env(dict(DD_API_KEY="foobar.baz",)), mock.patch(
         "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_is_available", return_value=False
@@ -606,7 +610,7 @@ def test_civisibility_check_enabled_features_itr_enabled_request_called(_do_requ
                 {
                     "data": {
                         "id": "111-111-111",
-                        "type": "ci_app_test_service_libraries_settings",
+                        "type": "ci_app_test_ser    vice_libraries_settings",
                         "attributes": {
                             "service": "test-service",
                             "env": "staging",
@@ -639,7 +643,6 @@ def test_civisibility_check_enabled_features_itr_enabled_errors_not_found(_do_re
             DD_APP_KEY="foobar.baz",
             DD_CIVISIBILITY_AGENTLESS_URL="https://foo.bar",
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
-            DD_CIVISIBILITY_ITR_ENABLED="1",
         )
     ), mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibilityGitClient.start") as git_start:
         ddtrace.internal.ci_visibility.writer.config = ddtrace.settings.Config()
@@ -650,8 +653,8 @@ def test_civisibility_check_enabled_features_itr_enabled_errors_not_found(_do_re
         assert CIVisibility._instance._code_coverage_enabled_by_api is False
         assert CIVisibility._instance._test_skipping_enabled_by_api is False
 
-        # Git client is started
-        assert git_start.call_count == 1
+        # Git client should not start if ITR is not enabled
+        assert git_start.call_count == 0
         CIVisibility.disable()
 
 
@@ -680,8 +683,8 @@ def test_civisibility_check_enabled_features_itr_enabled_404_response(_do_reques
         assert CIVisibility._instance._code_coverage_enabled_by_api is False
         assert CIVisibility._instance._test_skipping_enabled_by_api is False
 
-        # Git client is started
-        assert git_start.call_count == 1
+        # Git client should not start if ITR is not enabled
+        assert git_start.call_count == 0
         CIVisibility.disable()
 
 
@@ -710,8 +713,8 @@ def test_civisibility_check_enabled_features_itr_enabled_malformed_response(_do_
         assert CIVisibility._instance._code_coverage_enabled_by_api is False
         assert CIVisibility._instance._test_skipping_enabled_by_api is False
 
-        # Git client is started
-        assert git_start.call_count == 1
+        # Git client should not start if ITR is not enabled
+        assert git_start.call_count == 0
 
         mock_log.warning.assert_called_with("Settings request responded with invalid JSON '%s'", "}")
         CIVisibility.disable()
