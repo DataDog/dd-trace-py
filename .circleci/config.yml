@@ -44,15 +44,15 @@ machine_executor: &machine_executor
 
 contrib_job_large: &contrib_job_large
   executor: ddtrace_dev
-  parallelism: 12
+  parallelism: 10
 
 contrib_job: &contrib_job
   executor: ddtrace_dev
-  parallelism: 4
+  parallelism: 2
 
 contrib_job_small: &contrib_job_small
   executor: ddtrace_dev_small
-  parallelism: 2
+  parallelism: 1
 
 commands:
   save_coverage:
@@ -76,7 +76,7 @@ commands:
     description: "Install riot"
     steps:
       # Make sure we install and run riot on Python 3
-      - run: pip3 install riot==0.17.4
+      - run: pip3 install riot==0.17.5
 
   save_pip_cache:
     description: "Save pip cache directory"
@@ -132,10 +132,10 @@ commands:
         type: string
         default: "http://localhost:9126"
     steps:
-      - attach_workspace:
-          at: .
       - checkout
       - restore_pip_cache
+      - attach_workspace:
+          at: .
       - when:
           condition:
               << parameters.snapshot >>
@@ -163,7 +163,7 @@ commands:
                 steps:
                   - run:
                       name: "Waiting for << parameters.wait >>"
-                      command: riot -v run 'wait' << parameters.wait >>
+                      command: riot -v run -s 'wait' << parameters.wait >>
             - when:
                 condition:
                   << parameters.trace_agent_url >> != ""
@@ -254,31 +254,31 @@ jobs:
       - setup_riot
       - run:
           name: "Formatting check"
-          command: riot run -s fmt && git diff --exit-code
+          command: riot -v run -s fmt && git diff --exit-code
       - run:
           name: "Flake8 check"
-          command: riot run -s flake8
+          command: riot -v run -s flake8
       - run:
           name: "Slots check"
-          command: riot run -s slotscheck
+          command: riot -v run -s slotscheck
       - run:
           name: "Mypy check"
-          command: riot run -s mypy
+          command: riot -v run -s mypy
       - run:
           name: "cython-lint check"
-          command: riot run -s cython-lint
+          command: riot -v run -s cython-lint
       - run:
           name: "Codespell check"
-          command: riot run -s codespell
+          command: riot -v run -s codespell
       - run:
           name: "Run riotfile.py tests"
-          command: riot run -s riot-helpers
+          command: riot -v run -s riot-helpers
       - run:
           name: "Test agent snapshot check"
-          command: riot run -s snapshot-fmt && git diff --exit-code
+          command: riot -v run -s snapshot-fmt && git diff --exit-code
       - run:
           name: "Run scripts/*.py tests"
-          command: riot run -s scripts
+          command: riot -v run -s scripts
       - run:
           name: "Running security analysis checks with bandit"
           command: riot -v run -s bandit
@@ -288,10 +288,9 @@ jobs:
     steps:
       - checkout
       - run: sudo apt-get update
-      - run: sudo apt-get install --yes clang-format gcc-10 g++-10 python3 python3-setuptools python3-pip cppcheck
+      - run: sudo apt-get install --yes clang-format cppcheck
       - run: scripts/cformat.sh
       - run: scripts/cppcheck.sh
-      - run: DD_COMPILE_DEBUG=1 DD_TESTING_RAISE=1 CC=gcc-10 CXX=g++-10 pip -vvv install .
 
   coverage_report:
     executor: python310
@@ -367,13 +366,13 @@ jobs:
           snapshot: true
 
   internal:
-    <<: *contrib_job
+    <<: *contrib_job_small
     steps:
       - run_test:
           pattern: "internal"
 
   datastreams:
-    <<: *contrib_job
+    <<: *contrib_job_small
     steps:
       - run_test:
           pattern: "datastreams"
@@ -386,14 +385,14 @@ jobs:
           trace_agent_url: ""
 
   ci_visibility:
-    <<: *contrib_job
+    <<: *contrib_job_small
     steps:
       - run_test:
           pattern: "ci_visibility"
           trace_agent_url: ""
 
   sourcecode:
-    <<: *contrib_job
+    <<: *contrib_job_small
     steps:
       - run_test:
           pattern: "sourcecode"
@@ -414,7 +413,7 @@ jobs:
 
   openai:
     <<: *machine_executor
-    parallelism: 4
+    parallelism: 2
     steps:
       - run_test:
           pattern: 'openai'
@@ -492,6 +491,7 @@ jobs:
 
   ddtracerun:
     <<: *contrib_job
+    parallelism: 8
     docker:
       - image: *ddtrace_dev_image
       - image: *redis_image
@@ -512,7 +512,6 @@ jobs:
     docker:
       - image: *ddtrace_dev_image
       - *testagent
-    parallelism: 4
     steps:
       - run_test:
           pattern: 'asyncio$|sqlite3$|futures$|dbapi$|dbapi_async$'
@@ -563,7 +562,7 @@ jobs:
           pattern: 'tornado'
 
   bottle:
-    <<: *contrib_job
+    <<: *contrib_job_small
     docker:
       - image: *ddtrace_dev_image
       - *testagent
@@ -608,7 +607,7 @@ jobs:
 
   cherrypy:
     <<: *machine_executor
-    parallelism: 4
+    parallelism: 2
     steps:
       - run_test:
           pattern: 'cherrypy'
@@ -694,7 +693,7 @@ jobs:
           docker_services: "memcached redis"
 
   gevent:
-    <<: *contrib_job
+    <<: *contrib_job_small
     docker:
       - image: *ddtrace_dev_image
       - *testagent
@@ -743,7 +742,7 @@ jobs:
 
   httpx:
     <<: *machine_executor
-    parallelism: 4
+    parallelism: 2
     steps:
       - run_test:
           pattern: 'httpx'
@@ -759,7 +758,7 @@ jobs:
           docker_services: "mariadb"
 
   molten:
-    <<: *contrib_job
+    <<: *contrib_job_small
     docker:
       - image: *ddtrace_dev_image
       - *testagent
@@ -776,7 +775,7 @@ jobs:
     steps:
       - run_test:
           wait: mysql
-          pattern: 'mysql'
+          pattern: 'mysql$'
 
   mysqlpython:
     <<: *contrib_job
@@ -787,7 +786,7 @@ jobs:
     steps:
       - run_test:
           wait: mysql
-          pattern: 'mysqldb'
+          pattern: 'mysqldb$'
 
   pymysql:
     <<: *contrib_job
@@ -798,10 +797,10 @@ jobs:
     steps:
       - run_test:
           wait: mysql
-          pattern: 'pymysql'
+          pattern: 'pymysql$'
 
   pylibmc:
-    <<: *contrib_job
+    <<: *contrib_job_small
     docker:
       - image: *ddtrace_dev_image
       - image: *memcached_image
@@ -932,16 +931,8 @@ jobs:
     parallelism: 4
     steps:
       - run_test:
-          pattern: "psycopg$"
-          snapshot: true
-          docker_services: "postgres"
-
-  psycopg2:
-    <<: *machine_executor
-    parallelism: 4
-    steps:
-      - run_test:
-          pattern: "psycopg2"
+          # We want psycopg and psycopg2 collected
+          pattern: "psycopg"
           snapshot: true
           docker_services: "postgres"
 
@@ -1076,7 +1067,7 @@ jobs:
           pattern: 'kombu'
 
   jinja2:
-    <<: *contrib_job
+    <<: *contrib_job_small
     docker:
       - image: *ddtrace_dev_image
       - *testagent
@@ -1188,7 +1179,6 @@ requires_tests: &requires_tests
     - opentracer
     - opentelemetry
     - psycopg
-    - psycopg2
     - pylibmc
     - pylons
     - pymemcache
@@ -1289,7 +1279,6 @@ workflows:
       - opentracer: *requires_base_venvs
       - opentelemetry: *requires_base_venvs
       - psycopg: *requires_base_venvs
-      - psycopg2: *requires_base_venvs
       - pylibmc: *requires_base_venvs
       - pylons: *requires_base_venvs
       - pymemcache: *requires_base_venvs
