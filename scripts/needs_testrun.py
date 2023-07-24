@@ -4,10 +4,12 @@ from argparse import ArgumentParser
 import fnmatch
 import json
 import logging
+import os
 from pathlib import Path
 import re
 from subprocess import check_output
 import sys
+import tempfile
 import typing as t
 from urllib.request import Request
 from urllib.request import urlopen
@@ -19,6 +21,93 @@ LOGGER = logging.getLogger(__name__)
 
 BASE_BRANCH_PATTERN = re.compile(r':<span class="css-truncate-target">([^<]+)')
 SUITESPECFILE = Path(__file__).parents[1] / "tests" / ".suitespec.json"
+
+SUITES = (
+    "aiobotocore",
+    "aiohttp",
+    "aiomysql",
+    "aiopg",
+    "aioredis",
+    "asyncpg",
+    "algoliasearch",
+    "asgi",
+    "aws_lambda",
+    "boto",
+    "bottle",
+    "cassandra",
+    "celery",
+    "cherrypy",
+    "ci_visibility",
+    "consul",
+    "datastreams",
+    "ddtracerun",
+    "debugger",
+    "dogpile_cache",
+    "django",
+    "django_hosts",
+    "djangorestframework",
+    "elasticsearch",
+    "falcon",
+    "fastapi",
+    "flask",
+    "gevent",
+    "graphql",
+    "graphene",
+    "grpc",
+    "gunicorn",
+    "httplib",
+    "httpx",
+    "internal",
+    "integration_agent",
+    "integration_testagent",
+    "vendor",
+    "profile",
+    "jinja2",
+    "kafka",
+    "kombu",
+    "langchain",
+    "mako",
+    "mariadb",
+    "molten",
+    "mongoengine",
+    "mysqlconnector",
+    "mysqlpython",
+    "openai",
+    "opentracer",
+    "opentelemetry",
+    "psycopg",
+    "pylibmc",
+    "pylons",
+    "pymemcache",
+    "pymongo",
+    "pymysql",
+    "pynamodb",
+    "pyodbc",
+    "pyramid",
+    "pytest",
+    "asynctest",
+    "pytestbdd",
+    "aredis",
+    "yaaredis",
+    "redis",
+    "rediscluster",
+    "requests",
+    "rq",
+    "sanic",
+    "snowflake",
+    "sqlalchemy",
+    "sourcecode",
+    "starlette",
+    "stdlib",
+    "test_logging",
+    "tracer",
+    "telemetry",
+    "appsec",
+    "tornado",
+    "urllib3",
+    "vertica",
+    "wsgi",
+)
 
 
 def get_base_branch(pr_number: int) -> str:
@@ -36,8 +125,10 @@ def get_base_branch(pr_number: int) -> str:
 def get_changed_files(pr_number: int) -> t.Set[str]:
     """Get the files changed in a PR
 
-    >>> sorted(get_changed_files(6412))
-    ['.circleci/config.yml', 'riotfile.py', 'scripts/needs_testrun.py', 'tests/.suitespec.json']
+    >>> sorted(get_changed_files(6388))  # doctest: +NORMALIZE_WHITESPACE
+    ['ddtrace/debugging/_expressions.py',
+    'releasenotes/notes/fix-debugger-expressions-none-literal-30f3328d2e386f40.yaml',
+    'tests/debugging/test_expressions.py']
     """
     try:
         # Try with the GitHub REST API for the most accurate result
@@ -106,6 +197,8 @@ def needs_testrun(suite: str, pr_number: int) -> bool:
 
     >>> needs_testrun("debugger", 6412)
     False
+    >>> needs_testrun("debugger", 6388)
+    True
     >>> needs_testrun("foobar", 6412)
     True
     """
@@ -145,6 +238,33 @@ def needs_testrun(suite: str, pr_number: int) -> bool:
         LOGGER.info("No changed files match patterns")
 
     return bool(matches)
+
+
+def for_each_testrun_needed(action: t.Callable[[str], None], cached: bool = True):
+    # Used in CircleCI config
+    tempdir = Path(tempfile.gettempdir())
+    pr_number = int(os.environ.get("CIRCLE_PR_NUMBER", 0))
+
+    for suite in SUITES:
+        if pr_number <= 0:
+            # If we don't have a valid PR number we run all tests
+            action(suite)
+            continue
+
+        cachefile = tempdir / f"needs-testrun-{suite}-{pr_number}"
+        if cached and cachefile.exists():
+            # If we cached the result of the previous run we can skip the check
+            if int(cachefile.read_text().strip()):
+                action(suite)
+            continue
+
+        needs_run = needs_testrun(suite, pr_number)
+        if needs_run:
+            action(suite)
+
+        if cached:
+            # Cache the result of the check to save on API calls
+            cachefile.write_text(str(int(needs_run)))
 
 
 def main() -> bool:
