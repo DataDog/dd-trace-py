@@ -288,10 +288,9 @@ jobs:
     steps:
       - checkout
       - run: sudo apt-get update
-      - run: sudo apt-get install --yes clang-format gcc-10 g++-10 python3 python3-setuptools python3-pip cppcheck
+      - run: sudo apt-get install --yes clang-format cppcheck
       - run: scripts/cformat.sh
       - run: scripts/cppcheck.sh
-      - run: DD_COMPILE_DEBUG=1 DD_TESTING_RAISE=1 CC=gcc-10 CXX=g++-10 pip -vvv install .
 
   coverage_report:
     executor: python310
