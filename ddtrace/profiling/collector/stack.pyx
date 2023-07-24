@@ -153,7 +153,7 @@ from cpython.object cimport PyObject
 
 
 # The head lock (the interpreter mutex) is only exposed in a data structure in Python ≥ 3.7
-IF UNAME_SYSNAME != "Windows" and PY_MAJOR_VERSION >= 3 and PY_MINOR_VERSION >= 7:
+IF UNAME_SYSNAME != "Windows" and PY_VERSION_HEX >= 0x03070000:
     FEATURES['stack-exceptions'] = True
 
     from cpython cimport PyInterpreterState
@@ -167,7 +167,7 @@ IF UNAME_SYSNAME != "Windows" and PY_MAJOR_VERSION >= 3 and PY_MINOR_VERSION >= 
     from cpython.pythread cimport PyThread_type_lock
     from cpython.pythread cimport WAIT_LOCK
 
-    IF PY_MINOR_VERSION >= 11:
+    IF PY_VERSION_HEX >= 0x030b0000:
         from cpython.ref cimport Py_XDECREF
 
     cdef extern from "<Python.h>":
@@ -179,19 +179,19 @@ IF UNAME_SYSNAME != "Windows" and PY_MAJOR_VERSION >= 3 and PY_MINOR_VERSION >= 
 
         _PyErr_StackItem * _PyErr_GetTopmostException(PyThreadState *tstate)
 
-        IF PY_MINOR_VERSION < 11:
+        IF PY_VERSION_HEX >= 0x030b0000:
+            ctypedef struct _PyErr_StackItem:
+                PyObject* exc_value
+        ELSE:
             ctypedef struct _PyErr_StackItem:
                 PyObject* exc_type
                 PyObject* exc_value
                 PyObject* exc_traceback
-        ELSE:
-            ctypedef struct _PyErr_StackItem:
-                PyObject* exc_value
 
         PyObject* PyException_GetTraceback(PyObject* exc)
         PyObject* Py_TYPE(PyObject* ob)
 
-    IF PY_MINOR_VERSION == 7:
+    IF PY_VERSION_HEX < 0x03080000:
         # Python 3.7
         cdef extern from "<internal/pystate.h>":
 
@@ -203,7 +203,7 @@ IF UNAME_SYSNAME != "Windows" and PY_MAJOR_VERSION >= 3 and PY_MINOR_VERSION >= 
 
             cdef extern _PyRuntimeState _PyRuntime
 
-    ELIF PY_MINOR_VERSION >= 8:
+    ELIF PY_VERSION_HEX >= 0x03080000:
         # Python 3.8
         cdef extern from "<internal/pycore_pystate.h>":
 
@@ -215,7 +215,7 @@ IF UNAME_SYSNAME != "Windows" and PY_MAJOR_VERSION >= 3 and PY_MINOR_VERSION >= 
 
             cdef extern _PyRuntimeState _PyRuntime
 
-        IF PY_MINOR_VERSION >= 9:
+        IF PY_VERSION_HEX >= 0x03090000:
             # Needed for accessing _PyGC_FINALIZED when we build with -DPy_BUILD_CORE
             cdef extern from "<internal/pycore_gc.h>":
                 pass
@@ -232,7 +232,7 @@ ELSE:
 cdef collect_threads(thread_id_ignore_list, thread_time, thread_span_links) with gil:
     cdef dict current_exceptions = {}
 
-    IF UNAME_SYSNAME != "Windows" and PY_MAJOR_VERSION >= 3 and PY_MINOR_VERSION >= 7:
+    IF UNAME_SYSNAME != "Windows" and PY_VERSION_HEX >= 0x03070000:
         cdef PyInterpreterState* interp
         cdef PyThreadState* tstate
         cdef _PyErr_StackItem* exc_info
@@ -255,7 +255,7 @@ cdef collect_threads(thread_id_ignore_list, thread_time, thread_span_links) with
                     while tstate:
                         # The frame can be NULL
                         # Python 3.11 moved PyFrameObject to internal C API and cannot be directly accessed from tstate
-                        IF PY_MINOR_VERSION >= 11:
+                        IF PY_VERSION_HEX >= 0x030b0000:
                             frame = PyThreadState_GetFrame(tstate)
                             if frame:
                                 running_threads[tstate.thread_id] = <object>frame

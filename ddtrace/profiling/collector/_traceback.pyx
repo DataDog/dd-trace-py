@@ -75,7 +75,7 @@ cpdef pyframe_to_frames(frame, max_nframes):
     nframes = 0
 
     while frame is not None:
-        IF PY_MAJOR_VERSION > 3 or (PY_MAJOR_VERSION == 3 and PY_MINOR_VERSION >= 11):
+        IF PY_VERSION_HEX >= 0x030b0000:
             if not isinstance(frame, FrameType):
                 log.warning(
                     "Got object of type '%s' instead of a frame object during stack unwinding", type(frame).__name__
@@ -84,7 +84,7 @@ cpdef pyframe_to_frames(frame, max_nframes):
 
         if nframes < max_nframes:
             code = frame.f_code
-            IF PY_MAJOR_VERSION > 3 or (PY_MAJOR_VERSION == 3 and PY_MINOR_VERSION >= 11):
+            IF PY_VERSION_HEX >= 0x030b0000:
                 if not isinstance(code, CodeType):
                     log.warning(
                         "Got object of type '%s' instead of a code object during stack unwinding", type(code).__name__
