@@ -1,5 +1,3 @@
-import functools
-
 import flask
 import werkzeug
 from werkzeug.exceptions import BadRequest
@@ -91,27 +89,6 @@ flask_version_str = getattr(flask, "__version__", "0.0.0")
 flask_version = parse_version(flask_version_str)
 
 
-def wrapped_request_init(wrapped, instance, args, kwargs):
-    wrapped(*args, **kwargs)
-    core.dispatch("flask.request_init", [instance])
-
-
-def wrap_with_event(module, name, origin):
-    def dispatcher(_origin, *args):
-        results, exceptions = core.dispatch("flask.%s.%s" % (module, name), [_origin] + list(args))
-        if any(results):
-            for result in results:
-                if result is not None:
-                    return result
-        if any(exceptions):
-            for exc in exceptions:
-                if exc:
-                    raise exc
-        return ""
-
-    _w(module, name, functools.partial(dispatcher, origin))
-
-
 class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
     _request_span_name = schematize_url_operation("flask.request", protocol="http", direction=SpanDirection.INBOUND)
     _application_span_name = "flask.application"
@@ -165,39 +142,7 @@ def patch():
     setattr(flask, "_datadog_patch", True)
 
     Pin().onto(flask.Flask)
-    try:
-        from ddtrace.appsec.iast._taint_tracking import OriginType
-
-        wrap_with_event(
-            "werkzeug.datastructures",
-            "Headers.items",
-            (OriginType.HEADER_NAME, OriginType.HEADER),
-        )
-        wrap_with_event(
-            "werkzeug.datastructures",
-            "EnvironHeaders.__getitem__",
-            OriginType.HEADER,
-        )
-        wrap_with_event(
-            "werkzeug.datastructures",
-            "ImmutableMultiDict.__getitem__",
-            OriginType.PARAMETER,
-        )
-        _w("werkzeug.wrappers.request", "Request.__init__", wrapped_request_init)
-        wrap_with_event(
-            "werkzeug.wrappers.request",
-            "Request.get_data",
-            OriginType.BODY,
-        )
-        if flask_version < (2, 0, 0):
-            wrap_with_event(
-                "werkzeug._internal",
-                "_DictAccessorProperty.__get__",
-                OriginType.QUERY,
-            )
-    except Exception:
-        log.debug("Unexpected exception while patch IAST functions", exc_info=True)
-
+    core.dispatch("flask.patch", [flask_version])
     # flask.app.Flask methods that have custom tracing (add metadata, wrap functions, etc)
     _w("flask", "Flask.wsgi_app", patched_wsgi_app)
     _w("flask", "Flask.dispatch_request", request_patcher("dispatch_request"))
