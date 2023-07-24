@@ -65,7 +65,10 @@ def test_astpatch_module_changed(module_name):
     module_path, new_source = astpatch_module(__import__(module_name, fromlist=[None]))
     assert ("", "") != (module_path, new_source)
     new_code = astunparse.unparse(new_source)
-    assert new_code.startswith("\nimport ddtrace.appsec.iast._taint_tracking.aspects as ddtrace_aspects")
+    assert new_code.startswith(
+        "\nimport ddtrace.appsec.iast.taint_sinks as ddtrace_taint_sinks"
+        "\nimport ddtrace.appsec.iast._taint_tracking.aspects as ddtrace_aspects"
+    )
     assert "ddtrace_aspects.str_aspect(" in new_code
 
 
@@ -80,7 +83,10 @@ def test_astpatch_module_changed_add_operator(module_name):
     module_path, new_source = astpatch_module(__import__(module_name, fromlist=[None]))
     assert ("", "") != (module_path, new_source)
     new_code = astunparse.unparse(new_source)
-    assert new_code.startswith("\nimport ddtrace.appsec.iast._taint_tracking.aspects as ddtrace_aspects")
+    assert new_code.startswith(
+        "\nimport ddtrace.appsec.iast.taint_sinks as ddtrace_taint_sinks"
+        "\nimport ddtrace.appsec.iast._taint_tracking.aspects as ddtrace_aspects"
+    )
     assert "ddtrace_aspects.add_aspect(" in new_code
 
 
@@ -103,6 +109,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
+import ddtrace.appsec.iast.taint_sinks as ddtrace_taint_sinks
 import ddtrace.appsec.iast._taint_tracking.aspects as ddtrace_aspects
 import html"""
     )

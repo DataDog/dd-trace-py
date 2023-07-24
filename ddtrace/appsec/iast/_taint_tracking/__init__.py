@@ -47,6 +47,7 @@ if TYPE_CHECKING:
 
 
 __all__ = [
+    "_convert_escaped_text_to_tainted_text",
     "new_pyobject_id",
     "setup",
     "Source",
@@ -66,7 +67,6 @@ __all__ = [
     "get_context",
     "create_context",
     "common_replace",
-    "_convert_escaped_text_to_tainted_text",
     "as_formatted_evidence",
     "parse_params",
 ]

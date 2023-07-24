@@ -93,7 +93,7 @@ class AstVisitor(ast.NodeTransformer):
             },
         }
         self._sinkpoints_spec = {
-            "definitions_module": "ddtrace.appsec.iast.taint_sinks.path_traversal",
+            "definitions_module": "ddtrace.appsec.iast.taint_sinks",
             "alias_module": "ddtrace_taint_sinks",
             "functions": {
                 "open": "ddtrace_taint_sinks.open_path_traversal",
