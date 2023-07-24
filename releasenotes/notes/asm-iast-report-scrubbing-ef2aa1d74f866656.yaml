@@ -1,4 +1,6 @@
 ---
-other:
+features:
   - |
-    ASM: scrub potentially sensitive information in the vulnerability report.
+    ASM: The vulnerability report now includes a feature to scrub potentially sensitive information. 
+    This scrubbing process looks for common patterns, and it can be further expanded using environment 
+    variables such as [DD_IAST_REDACTION_NAME_PATTERN and DD_IAST_REDACTION_VALUE_PATTERN](https://ddtrace.readthedocs.io/en/stable/configuration.html#DD_IAST_REDACTION_ENABLED)
