@@ -112,7 +112,7 @@ def wrapped_request_init(wrapped, instance, args, kwargs):
 def wrap_with_event(module, name, origin):
     def dispatcher(_origin, wrapped, instance, args, kwargs):
         result = wrapped(*args, **kwargs)
-        core.dispatch("flask.%s.%s" % (module, name), [_origin, wrapped, result, instance, args, kwargs])
+        core.dispatch("flask.%s.%s" % (module, name), [_origin, result, args])
         return result
 
     _w(module, name, functools.partial(dispatcher, origin))

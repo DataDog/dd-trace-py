@@ -121,10 +121,10 @@ def _on_request_init(instance):
             log.debug("Unexpected exception while tainting pyobject", exc_info=True)
 
 
-def _on_werkzeug(origin, wrapped, result, instance, args, kwargs):
+def _on_werkzeug(origin, result, args):
     if isinstance(origin, tuple):
-        return if_iast_taint_yield_tuple_for(origin, wrapped, instance, args, kwargs)
-    return if_iast_taint_returned_object_for(origin, result, instance, args, kwargs)
+        return if_iast_taint_yield_tuple_for(origin, result)
+    return if_iast_taint_returned_object_for(origin, result, args)
 
 
 def listen():
