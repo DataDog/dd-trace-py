@@ -33,7 +33,6 @@ from ...ext import aws
 from ...ext import http
 from ...internal.compat import parse
 from ...internal.constants import COMPONENT
-from ...internal.datastreams.processor import DataStreamsCtx
 from ...internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 from ...internal.logger import get_logger
 from ...internal.schema import schematize_cloud_api_operation
@@ -358,8 +357,9 @@ def record_data_streams_path_for_kinesis_stream(pin, params, results):
     processor = pin.tracer.data_streams_processor
     for record in results.get("Records", []):
         time_estimate = record.get("ApproximateArrivalTimestamp", datetime.now()).timestamp()
-        ctx = DataStreamsCtx(processor, 0, time_estimate, time_estimate)
-        ctx.set_checkpoint(["direction:in", "topic:" + stream_arn, "type:kinesis"])
+        processor.new_pathway(now_sec=time_estimate).set_checkpoint(
+            ["direction:in", "topic:" + stream_arn, "type:kinesis"]
+        )
 
 
 def inject_trace_to_kinesis_stream(params, span, pin=None, data_streams_enabled=False):
