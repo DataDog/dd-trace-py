@@ -216,7 +216,7 @@ venv = Venv(
             name="riot-helpers",
             # DEV: pytest really doesn't want to execute only `riotfile.py`, call doctest directly
             command="python -m doctest {cmdargs} riotfile.py",
-            pkgs={"riot": "==0.17.4"},
+            pkgs={"riot": "==0.17.5"},
         ),
         Venv(
             pys=["3"],
@@ -577,6 +577,8 @@ venv = Venv(
             command="python tests/wait-for-services.py {cmdargs}",
             # Default Python 3 (3.10) collections package breaks with kombu/vertica, so specify Python 3.9 instead.
             pys="3.9",
+            create=True,
+            skip_dev_install=True,
             pkgs={
                 "cassandra-driver": latest,
                 "psycopg2-binary": latest,
@@ -2538,6 +2540,7 @@ venv = Venv(
             name="opentelemetry",
             command="pytest {cmdargs} tests/opentelemetry",
             pys=select_pys(min_version="3.7"),
+            env={"DD_TRACE_OTEL_ENABLED": "true"},
             pkgs={
                 "pytest-asyncio": latest,
                 "opentelemetry-api": ["~=1.0.0", "~=1.3.0", "~=1.4.0", "~=1.8.0", "~=1.11.0", "~=1.15.0", latest],

@@ -44,6 +44,7 @@ from ddtrace.vendor.wrapt.importer import when_imported
 
 from .. import trace_utils
 from ...appsec._constants import WAF_CONTEXT_NAMES
+from ...appsec.iast._metrics import _set_metric_iast_instrumented_source
 from ...internal.utils import get_argument_value
 from ..trace_utils import _get_request_header_user_agent
 from ..trace_utils import _set_url_tag
@@ -969,6 +970,8 @@ def wrap_wsgi_environ(wrapped, _instance, args, kwargs):
         from ddtrace.appsec.iast._taint_tracking import OriginType  # noqa: F401
         from ddtrace.appsec.iast._taint_utils import LazyTaintDict
 
+        _set_metric_iast_instrumented_source(OriginType.HEADER_NAME)
+        _set_metric_iast_instrumented_source(OriginType.HEADER)
         return wrapped(
             *((LazyTaintDict(args[0], origins=(OriginType.HEADER_NAME, OriginType.HEADER)),) + args[1:]), **kwargs
         )
