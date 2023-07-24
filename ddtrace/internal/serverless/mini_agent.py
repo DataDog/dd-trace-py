@@ -38,7 +38,7 @@ def get_rust_binary_path():
         rust_binary_path = (
             "/layers/google.python.pip/pip/lib/python{}.{}/site-packages/"
             "datadog-serverless-agent-linux-amd64/datadog-serverless-trace-mini-agent"
-        ).format( PYTHON_VERSION_INFO[0],  PYTHON_VERSION_INFO[1])
+        ).format(PYTHON_VERSION_INFO[0], PYTHON_VERSION_INFO[1])
     else:
         rust_binary_path = (
             "/home/site/wwwroot/.python_packages/lib/site-packages/"
