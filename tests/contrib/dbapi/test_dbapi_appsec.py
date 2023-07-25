@@ -12,7 +12,6 @@ from tests.utils import TracerTestCase
 
 class TestTracedCursor(TracerTestCase):
     def setUp(self):
-        from ddtrace.appsec.iast._taint_dict import clear_taint_mapping
         from ddtrace.appsec.iast._taint_tracking import setup
 
         super(TestTracedCursor, self).setUp()
@@ -20,7 +19,6 @@ class TestTracedCursor(TracerTestCase):
         setattr(self.cursor.execute, "__name__", "execute")
 
         setup(bytes.join, bytearray.join)
-        clear_taint_mapping()
 
     @pytest.mark.skipif(not _is_python_version_supported(), reason="IAST compatible versions")
     def test_tainted_query(self):
