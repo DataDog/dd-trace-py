@@ -68,6 +68,7 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
     assert len(events) == 1
 
     events[0]["payload"]["configuration"].sort(key=lambda c: c["name"])
+
     payload = {
         "configuration": [
             {"name": "DD_APPSEC_ENABLED", "origin": "unknown", "value": False},
@@ -110,7 +111,6 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
             "message": "",
         },
     }
-
     assert events[0] == _get_request_body(payload, "app-started")
 
 
@@ -152,8 +152,6 @@ telemetry_writer.disable()
     env["DD_TRACE_HEALTH_METRICS_ENABLED"] = "True"
     env["DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN"] = ".*"
     env["DD_TRACE_OTEL_ENABLED"] = "True"
-    env["ddtrace_auto_used"] = "True"
-    env["ddtrace_bootstrapped"] = "True"
     env["DD_TRACE_PROPAGATION_STYLE_EXTRACT"] = "tracecontext"
     env["DD_TRACE_PROPAGATION_STYLE_INJECT"] = "tracecontext"
 
@@ -190,6 +188,7 @@ telemetry_writer.disable()
         {"name": "DD_TRACE_OTEL_ENABLED", "origin": "unknown", "value": True},
         {"name": "DD_TRACE_PROPAGATION_STYLE_EXTRACT", "origin": "unknown", "value": "tracecontext"},
         {"name": "DD_TRACE_PROPAGATION_STYLE_INJECT", "origin": "unknown", "value": "tracecontext"},
+        {"name": "ddtrace_auto_used", "origin": "unknown", "value": True},
         {"name": "ddtrace_bootstrapped", "origin": "unknown", "value": True},
     ]
 
