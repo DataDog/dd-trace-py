@@ -142,21 +142,21 @@
             "@bootstrap",
             "@core",
             "@tracing",
-            "@opentracer",
+            "@opentracer"
         ],
         "opentelemetry": [
             "@bootstrap",
             "@core",
             "@tracing",
-            "@opentelemetry",
+            "@opentelemetry"
         ],
         "profiling": [
             "@bootstrap",
             "@core",
-            "@profiling",
+            "@profiling"
         ],
         "vendor": [
-            "@vendor",
+            "@vendor"
         ],
         "boto": [
             "@bootstrap",
