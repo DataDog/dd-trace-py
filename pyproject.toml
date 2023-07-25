@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools >= 40.6.0", "setuptools_scm[toml] >=4,<6.1", "cython<3", "cmake"]
+requires = ["setuptools_scm[toml]>=4", "cython<3", "cmake>=3.24.2; python_version>='3.6'"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -10,8 +10,7 @@ readme = "README.md"
 # license-files = { paths = ["LICENSE.BSD3"] }
 requires-python = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*"
 authors = [
-    { name = "Datadog", email = "dev@datadoghq.com" },
-    { name = "Inc." },
+    { name = "Datadog, Inc.", email = "dev@datadoghq.com" },
 ]
 classifiers = [
     "Programming Language :: Python",
@@ -76,8 +75,43 @@ Documentation = "https://ddtrace.readthedocs.io/en/stable/"
 Homepage = "https://github.com/DataDog/dd-trace-py"
 "Source Code" = "https://github.com/DataDog/dd-trace-py/"
 
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["ddtrace"]
+namespaces = false
+
+[tool.setuptools.package-data]
+ddtrace = ["py.typed", "rules.json", "**/libddwaf.*", "**/_taint_tracking/CMakeLists.txt"]
+
+[tool.setuptools.exclude-package-data]
+# In migrating from setup.py these files needed to be excluded but there is
+# likely a better way to do this.
+"*" = [
+    "*.c",
+    "*.h",
+    "*.cpp",
+    "*.hpp",
+    "*.pyi",
+    "*.pyx",
+    "*.pxd",
+    "**/_taint_tracking/clean.sh",
+    "**/_taint_tracking/README.txt",
+    "**/pybind11/CMakeLists.txt",
+    "**/pybind11/py.typed",
+    "**/pybind11/tools/*.cmake",
+    "**/pybind11/tools/*.in",
+    "**/pybind11/tools/*.sh",
+    "**/pybind11/tools/pyproject.toml",
+    "**/pprof.proto",
+    "**/wrapt/LICENSE",
+    "**/README.md",
+]
+
 [tool.setuptools_scm]
 version_scheme = "release-branch-semver"
+write_to = "ddtrace/_version.py"
 
 [tool.isort]
 force_single_line = true

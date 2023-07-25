@@ -6,7 +6,7 @@ import shutil
 import sys
 import tarfile
 
-from setuptools import Extension, find_packages, setup
+from setuptools import Extension, setup
 from setuptools.command.build_ext import build_ext
 from setuptools.command.build_py import build_py as BuildPyCommand
 from pkg_resources import get_build_platform
@@ -371,30 +371,6 @@ class CMakeBuild(build_ext):
             build_ext.build_extension(self, ext)
 
 
-long_description = """
-# dd-trace-py
-
-`ddtrace` is Datadog's tracing library for Python.  It is used to trace requests
-as they flow across web servers, databases and microservices so that developers
-have great visibility into bottlenecks and troublesome requests.
-
-## Getting Started
-
-For a basic product overview, installation and quick start, check out our
-[setup documentation][setup docs].
-
-For more advanced usage and configuration, check out our [API
-documentation][api docs].
-
-For descriptions of terminology used in APM, take a look at the [official
-documentation][visualization docs].
-
-[setup docs]: https://docs.datadoghq.com/tracing/setup/python/
-[api docs]: https://ddtrace.readthedocs.io/
-[visualization docs]: https://docs.datadoghq.com/tracing/visualization/
-"""
-
-
 def get_exts_for(name):
     try:
         mod = load_module_from_project_file(
@@ -500,104 +476,12 @@ def get_ddup_ext():
     return ddup_ext
 
 
-bytecode = [
-    "dead-bytecode; python_version<'3.0'",  # backport of bytecode for Python 2.7
-    "bytecode~=0.12.0; python_version=='3.5'",
-    "bytecode~=0.13.0; python_version=='3.6'",
-    "bytecode~=0.13.0; python_version=='3.7'",
-    "bytecode; python_version>='3.8'",
-]
-
 setup(
-    name="ddtrace",
-    description="Datadog APM client library",
-    url="https://github.com/DataDog/dd-trace-py",
-    package_urls={
-        "Changelog": "https://ddtrace.readthedocs.io/en/stable/release_notes.html",
-        "Documentation": "https://ddtrace.readthedocs.io/en/stable/",
-    },
-    project_urls={
-        "Bug Tracker": "https://github.com/DataDog/dd-trace-py/issues",
-        "Source Code": "https://github.com/DataDog/dd-trace-py/",
-        "Changelog": "https://ddtrace.readthedocs.io/en/stable/release_notes.html",
-        "Documentation": "https://ddtrace.readthedocs.io/en/stable/",
-    },
-    author="Datadog, Inc.",
-    author_email="dev@datadoghq.com",
-    long_description=long_description,
-    long_description_content_type="text/markdown",
-    license="BSD",
-    packages=find_packages(exclude=["tests*", "benchmarks*"]),
-    package_data={
-        "ddtrace": ["py.typed"],
-        "ddtrace.appsec": ["rules.json"],
-        "ddtrace.appsec.ddwaf": [os.path.join("libddwaf", "*", "lib", "libddwaf.*")],
-        "ddtrace.appsec.iast._taint_tracking": ["CMakeLists.txt"],
-    },
-    python_requires=">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*",
-    zip_safe=False,
-    # enum34 is an enum backport for earlier versions of python
-    # funcsigs backport required for vendored debtcollector
-    install_requires=[
-        "ddsketch>=2.0.1",
-        "enum34; python_version<'3.4'",
-        "funcsigs>=1.0.0; python_version=='2.7'",
-        "typing; python_version<'3.5'",
-        "protobuf>=3; python_version>='3.7'",
-        "protobuf>=3,<4.0; python_version=='3.6'",
-        "protobuf>=3,<3.18; python_version<'3.6'",
-        "attrs>=20; python_version>'2.7'",
-        "attrs>=20,<22; python_version=='2.7'",
-        "contextlib2<1.0; python_version=='2.7'",
-        "cattrs<1.1; python_version<='3.6'",
-        "cattrs; python_version>='3.7'",
-        "six>=1.12.0",
-        "typing_extensions",
-        "importlib_metadata; python_version<'3.8'",
-        "pathlib2; python_version<'3.5'",
-        "xmltodict>=0.12",
-        "ipaddress; python_version<'3.7'",
-        "envier",
-        "pep562; python_version<'3.7'",
-        "opentelemetry-api>=1; python_version>='3.7'",
-    ]
-    + bytecode,
-    extras_require={
-        # users can include opentracing by having:
-        # install_requires=['ddtrace[opentracing]', ...]
-        "opentracing": ["opentracing>=2.0.0"],
-    },
-    tests_require=["flake8"],
     cmdclass={
         "build_ext": CMakeBuild,
         "build_py": LibraryDownloader,
         "clean": CleanLibraries,
     },
-    entry_points={
-        "console_scripts": [
-            "ddtrace-run = ddtrace.commands.ddtrace_run:main",
-        ],
-        "pytest11": [
-            "ddtrace = ddtrace.contrib.pytest.plugin",
-            "ddtrace.pytest_bdd = ddtrace.contrib.pytest_bdd.plugin",
-        ],
-        "opentelemetry_context": [
-            "ddcontextvars_context = ddtrace.opentelemetry._context:DDRuntimeContext",
-        ],
-    },
-    classifiers=[
-        "Programming Language :: Python",
-        "Programming Language :: Python :: 2.7",
-        "Programming Language :: Python :: 3.5",
-        "Programming Language :: Python :: 3.6",
-        "Programming Language :: Python :: 3.7",
-        "Programming Language :: Python :: 3.8",
-        "Programming Language :: Python :: 3.9",
-        "Programming Language :: Python :: 3.10",
-        "Programming Language :: Python :: 3.11",
-    ],
-    use_scm_version={"write_to": "ddtrace/_version.py"},
-    setup_requires=["setuptools_scm[toml]>=4", "cython<3", "cmake>=3.24.2; python_version>='3.6'"],
     ext_modules=ext_modules
     + cythonize(
         [
