@@ -297,6 +297,8 @@ def pytest_configure(config):
 def pytest_sessionstart(session):
     if _CIVisibility.enabled:
         log.debug("CI Visibility enabled - starting test session")
+        global _global_skipped_elements
+        _global_skipped_elements = 0
         test_session_span = _CIVisibility._instance.tracer.trace(
             "pytest.test_session",
             service=_CIVisibility._instance._service,
