@@ -71,7 +71,7 @@
             "@internal",
             "@contrib",
             "@bootstrap",
-            "@core",
+            "@core"
         ],
         "debugger": [
             "@debugging",
