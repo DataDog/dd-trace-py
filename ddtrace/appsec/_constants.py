@@ -4,15 +4,6 @@ from typing import TYPE_CHECKING
 import six
 
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
-from ddtrace.internal.constants import HTTP_REQUEST_BODY
-from ddtrace.internal.constants import HTTP_REQUEST_COOKIE_NAME
-from ddtrace.internal.constants import HTTP_REQUEST_COOKIE_VALUE
-from ddtrace.internal.constants import HTTP_REQUEST_HEADER
-from ddtrace.internal.constants import HTTP_REQUEST_HEADER_NAME
-from ddtrace.internal.constants import HTTP_REQUEST_PARAMETER
-from ddtrace.internal.constants import HTTP_REQUEST_PATH
-from ddtrace.internal.constants import HTTP_REQUEST_PATH_PARAMETER
-from ddtrace.internal.constants import HTTP_REQUEST_QUERY
 from ddtrace.internal.constants import REQUEST_PATH_PARAMS
 from ddtrace.internal.constants import RESPONSE_HEADERS
 
@@ -89,15 +80,6 @@ class IAST(object):
     PATCH_MODULES = "_DD_IAST_PATCH_MODULES"
     DENY_MODULES = "_DD_IAST_DENY_MODULES"
     SEP_MODULES = ","
-    HTTP_REQUEST_BODY = HTTP_REQUEST_BODY
-    HTTP_REQUEST_HEADER = HTTP_REQUEST_HEADER
-    HTTP_REQUEST_HEADER_NAME = HTTP_REQUEST_HEADER_NAME
-    HTTP_REQUEST_PARAMETER = HTTP_REQUEST_PARAMETER
-    HTTP_REQUEST_PATH = HTTP_REQUEST_PATH
-    HTTP_REQUEST_PATH_PARAMETER = HTTP_REQUEST_PATH_PARAMETER
-    HTTP_REQUEST_QUERYSTRING = HTTP_REQUEST_QUERY
-    HTTP_REQUEST_COOKIE_NAME = HTTP_REQUEST_COOKIE_NAME
-    HTTP_REQUEST_COOKIE_VALUE = HTTP_REQUEST_COOKIE_VALUE
 
 
 @six.add_metaclass(Constant_Class)  # required for python2/3 compatibility
@@ -141,6 +123,7 @@ class SPAN_DATA_NAMES(object):
 class API_SECURITY(object):
     """constants related to API Security"""
 
+    ENV_VAR_ENABLED = "DD_EXPERIMENTAL_API_SECURITY_ENABLED"
     REQUEST_HEADERS_NO_COOKIES = "_dd.appsec.s.req.headers"
     REQUEST_QUERY = "_dd.appsec.s.req.query"
     REQUEST_PATH_PARAMS = "_dd.appsec.s.req.params"

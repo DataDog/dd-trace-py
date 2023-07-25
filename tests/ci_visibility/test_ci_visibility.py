@@ -59,7 +59,6 @@ def _patch_dummy_writer():
 
 
 def test_ci_visibility_service_enable():
-
     with override_env(
         dict(
             DD_API_KEY="foobar.baz",
@@ -443,8 +442,8 @@ def test_civisibilitywriter_coverage_agentless_url():
             DD_API_KEY="foobar.baz",
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
         )
-    ), mock.patch("ddtrace.internal.ci_visibility.writer.coverage_enabled", return_value=True):
-        dummy_writer = DummyCIVisibilityWriter()
+    ):
+        dummy_writer = DummyCIVisibilityWriter(coverage_enabled=True)
         assert dummy_writer.intake_url == "https://citestcycle-intake.datadoghq.com"
 
         cov_client = dummy_writer._clients[1]
@@ -461,8 +460,8 @@ def test_civisibilitywriter_coverage_agentless_with_intake_url_param():
             DD_API_KEY="foobar.baz",
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
         )
-    ), mock.patch("ddtrace.internal.ci_visibility.writer.coverage_enabled", return_value=True):
-        dummy_writer = DummyCIVisibilityWriter(intake_url="https://some-url.com")
+    ):
+        dummy_writer = DummyCIVisibilityWriter(intake_url="https://some-url.com", coverage_enabled=True)
         assert dummy_writer.intake_url == "https://some-url.com"
 
         cov_client = dummy_writer._clients[1]
@@ -478,8 +477,8 @@ def test_civisibilitywriter_coverage_evp_proxy_url():
         dict(
             DD_API_KEY="foobar.baz",
         )
-    ), mock.patch("ddtrace.internal.ci_visibility.writer.coverage_enabled", return_value=True):
-        dummy_writer = DummyCIVisibilityWriter(use_evp=True)
+    ):
+        dummy_writer = DummyCIVisibilityWriter(use_evp=True, coverage_enabled=True)
 
         test_client = dummy_writer._clients[0]
         assert test_client.ENDPOINT == "/evp_proxy/v2/api/v2/citestcycle"
@@ -716,3 +715,73 @@ def test_civisibility_check_enabled_features_itr_enabled_malformed_response(_do_
 
         mock_log.warning.assert_called_with("Settings request responded with invalid JSON '%s'", "}")
         CIVisibility.disable()
+
+
+def test_run_protocol_unshallow_git_ge_227():
+    with mock.patch("ddtrace.internal.ci_visibility.git_client.extract_git_version", return_value=(2, 27, 0)):
+        with mock.patch.multiple(
+            CIVisibilityGitClient,
+            _get_repository_url=mock.DEFAULT,
+            _is_shallow_repository=classmethod(lambda *args, **kwargs: True),
+            _get_latest_commits=classmethod(lambda *args, **kwwargs: ["latest1", "latest2"]),
+            _search_commits=classmethod(lambda *args: ["latest1", "searched1", "searched2"]),
+            _get_filtered_revisions=mock.DEFAULT,
+            _build_packfiles=mock.DEFAULT,
+            _upload_packfiles=mock.DEFAULT,
+        ):
+            with mock.patch.object(CIVisibilityGitClient, "_unshallow_repository") as mock_unshallow_repository:
+                CIVisibilityGitClient._run_protocol(None, None, None)
+
+            mock_unshallow_repository.assert_called_once_with(cwd=None)
+
+
+def test_run_protocol_does_not_unshallow_git_lt_227():
+    with mock.patch("ddtrace.internal.ci_visibility.git_client.extract_git_version", return_value=(2, 26, 0)):
+        with mock.patch.multiple(
+            CIVisibilityGitClient,
+            _get_repository_url=mock.DEFAULT,
+            _is_shallow_repository=classmethod(lambda *args, **kwargs: True),
+            _get_latest_commits=classmethod(lambda *args, **kwargs: ["latest1", "latest2"]),
+            _search_commits=classmethod(lambda *args: ["latest1", "searched1", "searched2"]),
+            _get_filtered_revisions=mock.DEFAULT,
+            _build_packfiles=mock.DEFAULT,
+            _upload_packfiles=mock.DEFAULT,
+        ):
+            with mock.patch.object(CIVisibilityGitClient, "_unshallow_repository") as mock_unshallow_repository:
+                CIVisibilityGitClient._run_protocol(None, None, None)
+
+            mock_unshallow_repository.assert_not_called()
+
+
+def test_get_filtered_revisions():
+    with mock.patch(
+        "ddtrace.internal.ci_visibility.git_client._get_rev_list", return_value=["rev1", "rev2"]
+    ) as mock_get_rev_list:
+        assert CIVisibilityGitClient._get_filtered_revisions(
+            ["excluded1", "excluded2"], included_commits=["included1", "included2"], cwd="/path/to/repo"
+        ) == ["rev1", "rev2"]
+        mock_get_rev_list.assert_called_once_with(
+            ["excluded1", "excluded2"], ["included1", "included2"], cwd="/path/to/repo"
+        )
+
+
+def test_is_shallow_repository_true():
+    with mock.patch(
+        "ddtrace.internal.ci_visibility.git_client._is_shallow_repository", return_value=True
+    ) as mock_is_shallow_repository:
+        assert CIVisibilityGitClient._is_shallow_repository(cwd="/path/to/repo") is True
+        mock_is_shallow_repository.assert_called_once_with(cwd="/path/to/repo")
+
+
+def test_is_shallow_repository_false():
+    with mock.patch(
+        "ddtrace.internal.ci_visibility.git_client._is_shallow_repository", return_value=False
+    ) as mock_is_shallow_repository:
+        assert CIVisibilityGitClient._is_shallow_repository(cwd="/path/to/repo") is False
+        mock_is_shallow_repository.assert_called_once_with(cwd="/path/to/repo")
+
+
+def test_unshallow_repository():
+    with mock.patch("ddtrace.internal.ci_visibility.git_client._unshallow_repository") as mock_unshallow_repository:
+        CIVisibilityGitClient._unshallow_repository(cwd="/path/to/repo")
+        mock_unshallow_repository.assert_called_once_with(cwd="/path/to/repo")

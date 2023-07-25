@@ -1030,6 +1030,34 @@ def test_chain_logs(langchain, ddtrace_config_langchain, request_vcr, mock_logs,
     mock_metrics.count.assert_not_called()
 
 
+def test_chat_prompt_template_does_not_parse_template(langchain, mock_tracer):
+    """
+    Test that tracing a chain with a ChatPromptTemplate does not try to directly parse the template,
+    as ChatPromptTemplates do not contain a specific template attribute (which will lead to an attribute error)
+    but instead contain multiple messages each with their own prompt template and are not trivial to tag.
+    """
+    with mock.patch("langchain.chat_models.openai.ChatOpenAI._generate", side_effect=Exception("Mocked Error")):
+        with pytest.raises(Exception) as exc_info:
+            chat = langchain.chat_models.ChatOpenAI(temperature=0)
+            template = "You are a helpful assistant that translates english to pirate."
+            system_message_prompt = langchain.prompts.chat.SystemMessagePromptTemplate.from_template(template)
+            example_human = langchain.prompts.chat.HumanMessagePromptTemplate.from_template("Hi")
+            example_ai = langchain.prompts.chat.AIMessagePromptTemplate.from_template("Argh me mateys")
+            human_template = "{text}"
+            human_message_prompt = langchain.prompts.chat.HumanMessagePromptTemplate.from_template(human_template)
+            chat_prompt = langchain.prompts.chat.ChatPromptTemplate.from_messages(
+                [system_message_prompt, example_human, example_ai, human_message_prompt]
+            )
+            chain = langchain.chains.LLMChain(llm=chat, prompt=chat_prompt)
+            chain.run("I love programming.")
+        assert str(exc_info.value) == "Mocked Error"
+    traces = mock_tracer.pop_traces()
+    chain_span = traces[0][0]
+    assert chain_span.get_tag("langchain.request.inputs.text") == "I love programming."
+    assert chain_span.get_tag("langchain.request.type") == "chain"
+    assert chain_span.get_tag("langchain.request.prompt") is None
+
+
 @pytest.mark.snapshot
 def test_pinecone_vectorstore_similarity_search(langchain, request_vcr):
     """
@@ -1241,6 +1269,46 @@ def test_openai_integration(langchain, request_vcr, ddtrace_run_python_code_in_s
             "OPENAI_API_KEY": "<not-a-real-key>",
         }
     )
+    out, err, status, pid = ddtrace_run_python_code_in_subprocess(
+        """
+from langchain.llms import OpenAI
+import ddtrace
+from tests.contrib.langchain.test_langchain import get_request_vcr
+llm = OpenAI()
+with get_request_vcr().use_cassette("openai_completion_sync.yaml"):
+    llm("Can you explain what Descartes meant by 'I think, therefore I am'?")
+""",
+        env=env,
+    )
+    assert status == 0, err
+    assert out == b""
+    assert err == b""
+
+
+@pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Requires unnecessary cassette file for Python 3.9")
+@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
+@pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
+@pytest.mark.parametrize("service_name", [None, "mysvc"])
+def test_openai_service_name(
+    langchain, request_vcr, ddtrace_run_python_code_in_subprocess, schema_version, service_name
+):
+    env = os.environ.copy()
+    pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
+    if "PYTHONPATH" in env:
+        pypath.append(env["PYTHONPATH"])
+    env.update(
+        {
+            "PYTHONPATH": ":".join(pypath),
+            # Disable metrics because the test agent doesn't support metrics
+            "DD_LANGCHAIN_METRICS_ENABLED": "false",
+            "DD_OPENAI_METRICS_ENABLED": "false",
+            "OPENAI_API_KEY": "<not-a-real-key>",
+        }
+    )
+    if service_name:
+        env["DD_SERVICE"] = service_name
+    if schema_version:
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(
         """
 from langchain.llms import OpenAI
