@@ -90,6 +90,9 @@ class CIVisibilityGitClient(object):
 
         latest_commits = cls._get_latest_commits(cwd=cwd)
         backend_commits = cls._search_commits(requests_mode, base_url, repo_url, latest_commits, serializer, _response)
+        if backend_commits is None:
+            return
+
         commits_not_in_backend = list(set(latest_commits) - set(backend_commits))
 
         rev_list = cls._get_filtered_revisions(
@@ -111,14 +114,18 @@ class CIVisibilityGitClient(object):
 
     @classmethod
     def _get_latest_commits(cls, cwd=None):
-        # type: (Optional[str]) -> list[str]
+        # type: (Optional[str]) -> List[str]
         return extract_latest_commits(cwd=cwd)
 
     @classmethod
     def _search_commits(cls, requests_mode, base_url, repo_url, latest_commits, serializer, _response):
-        # type: (int, str, str, list[str], CIVisibilityGitClientSerializerV1, Optional[Response]) -> list[str]
+        # type: (int, str, str, List[str], CIVisibilityGitClientSerializerV1, Optional[Response]) -> Optional[List[str]]
         payload = serializer.search_commits_encode(repo_url, latest_commits)
         response = _response or cls._do_request(requests_mode, base_url, "/search_commits", payload, serializer)
+        if response.status >= 400:
+            log.warning("Response status: %s", response.status)
+            log.warning("Response body: %s", response.body)
+            return None
         result = serializer.search_commits_decode(response.body)
         return result
 
@@ -145,7 +152,7 @@ class CIVisibilityGitClient(object):
 
     @classmethod
     def _get_filtered_revisions(cls, excluded_commits, included_commits=None, cwd=None):
-        # type: (list[str], Optional[list[str]], Optional[str]) -> str
+        # type: (List[str], Optional[List[str]], Optional[str]) -> str
         return _get_rev_list(excluded_commits, included_commits, cwd=cwd)
 
     @classmethod
