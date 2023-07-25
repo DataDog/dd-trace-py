@@ -6,6 +6,7 @@ from typing import Union
 
 from ddtrace.internal.logger import get_logger
 
+
 try:
     from tiktoken import encoding_for_model
 
