@@ -273,8 +273,9 @@ def pytest_sessionstart(session):
     # Logs from here will be displayed without having to set DD_CALL_BASIC_CONFIG=1
     if is_enabled(session.config):
         _CIVisibility.enable(config=ddtrace.config.pytest)
-
-    if _CIVisibility.enabled:
+        if not _CIVisibility.enabled:
+            log.warning('CI Visibility was not able to start')
+            return
         log.debug("CI Visibility enabled - starting test session")
         test_session_span = _CIVisibility._instance.tracer.trace(
             "pytest.test_session",
