@@ -1,0 +1,43 @@
+{
+    "components": {
+        "core": [
+            "ddtrace/internal/*",
+            "ddtrace/__init__.py"
+        ],
+        "bootstrap": [
+            "ddtrace/bootstrap/*",
+            "ddtrace/commands/*",
+            "ddtrace/auto.py"
+        ],
+        "tracing": [
+            "ddtrace/_hooks.py",
+            "ddtrace/_logger.py",
+            "ddtrace/_monkey.py",
+            "ddtrace/constants.py",
+            "ddtrace/context.py",
+            "ddtrace/filter.py",
+            "ddtrace/pin.py",
+            "ddtrace/provider.py",
+            "ddtrace/sampler.py",
+            "ddtrace/span.py",
+            "ddtrace/tracer.py",
+            "ddtrace/settings/__init__.py",
+            "ddtrace/settings/config.py",
+            "ddtrace/settings/http.py",
+            "ddtrace/settings/integration.py"
+        ],
+        "debugging": [
+            "ddtrace/debugging/*",
+            "ddtrace/settings/dynamic_instrumentation.py",
+            "ddtrace/settings/exception_debugging.py"
+        ]
+    },
+    "suites": {
+        "debugger": [
+            "@debugging",
+            "@bootstrap",
+            "@core",
+            "@tracing"
+        ]
+    }
+}
