@@ -295,7 +295,7 @@
             "ddtrace/contrib/django/*",
             "ddtrace/contrib/dbapi/*",
             "ddtrace/contrib/dbapi_async/*",
-            "ddtrace/contrib/psycopg/*",
+            "ddtrace/contrib/psycopg/*"
         ],
         "django_hosts": [
             "@bootstrap",
