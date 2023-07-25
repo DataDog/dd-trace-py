@@ -26,8 +26,6 @@
             "ddtrace/settings/http.py",
             "ddtrace/settings/integration.py"
         ],
-        "aws_lambda": [
-        ],
         "datastreams": [
             "ddtrace/internal/datastreams/*"
         ],
