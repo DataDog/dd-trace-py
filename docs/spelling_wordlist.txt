@@ -65,6 +65,7 @@ Cython
 datadog
 datadoghq
 datastore
+datastores
 dbapi
 ddtrace
 deprecations
@@ -116,6 +117,8 @@ kombu
 kubernetes
 kwarg
 kwargs
+LLM
+langchain
 lifecycle
 linters
 lookups

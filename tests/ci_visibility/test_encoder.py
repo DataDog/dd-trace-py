@@ -116,7 +116,6 @@ def test_encode_traces_civisibility_v2_coverage():
     expected_cov = {
         b"test_session_id": int(coverage_span.get_tag(SESSION_ID)),
         b"test_suite_id": int(coverage_span.get_tag(SUITE_ID)),
-        b"span_id": coverage_span.span_id,
         b"files": [
             {k.encode("utf-8"): v.encode("utf-8") if isinstance(v, str) else v for k, v in file.items()}
             for file in coverage_data["files"]
@@ -231,6 +230,7 @@ class PytestEncodingTestCase(TracerTestCase):
         expected_meta.update({b"_dd.origin": b"ciapp-test"})
         expected_meta.pop(b"test_session_id")
         expected_meta.pop(b"test_suite_id")
+        expected_meta.pop(b"test_module_id")
         expected_metrics = {
             "{}".format(key).encode("utf-8"): value for key, value in sorted(given_test_span._metrics.items())
         }
@@ -246,6 +246,7 @@ class PytestEncodingTestCase(TracerTestCase):
                 b"service": given_test_span.service.encode("utf-8"),
                 b"span_id": given_test_span.span_id,
                 b"start": given_test_span.start_ns,
+                b"test_module_id": int(given_test_span.get_tag("test_module_id")),
                 b"test_session_id": int(given_test_span.get_tag("test_session_id")),
                 b"test_suite_id": int(given_test_span.get_tag("test_suite_id")),
                 b"trace_id": given_test_span.trace_id,
@@ -276,8 +277,9 @@ class PytestEncodingTestCase(TracerTestCase):
         ci_agentless_encoder.put(spans)
         event_payload = ci_agentless_encoder.encode()
         decoded_event_payload = self.tracer.encoder._decode(event_payload)
-        given_test_suite_span = spans[2]
-        given_test_suite_event = decoded_event_payload[b"events"][2]
+        given_test_suite_span = spans[3]
+        assert given_test_suite_span.get_tag("type") == "test_suite_end"
+        given_test_suite_event = decoded_event_payload[b"events"][3]
         expected_meta = {
             "{}".format(key).encode("utf-8"): "{}".format(value).encode("utf-8")
             for key, value in sorted(given_test_suite_span._meta.items())
@@ -285,6 +287,7 @@ class PytestEncodingTestCase(TracerTestCase):
         expected_meta.update({b"_dd.origin": b"ciapp-test"})
         expected_meta.pop(b"test_session_id")
         expected_meta.pop(b"test_suite_id")
+        expected_meta.pop(b"test_module_id")
         expected_metrics = {
             "{}".format(key).encode("utf-8"): value for key, value in sorted(given_test_suite_span._metrics.items())
         }
@@ -298,6 +301,7 @@ class PytestEncodingTestCase(TracerTestCase):
                 b"resource": given_test_suite_span.resource.encode("utf-8"),
                 b"service": given_test_suite_span.service.encode("utf-8"),
                 b"start": given_test_suite_span.start_ns,
+                b"test_module_id": int(given_test_suite_span.get_tag("test_module_id")),
                 b"test_session_id": int(given_test_suite_span.get_tag("test_session_id")),
                 b"test_suite_id": int(given_test_suite_span.get_tag("test_suite_id")),
                 b"type": given_test_suite_span.get_tag("type").encode("utf-8"),

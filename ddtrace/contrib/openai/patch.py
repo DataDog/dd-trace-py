@@ -8,6 +8,7 @@ from ddtrace.contrib._trace_utils_llm import BaseLLMIntegration
 from ddtrace.internal.agent import get_stats_url
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.wrapping import wrap
 
@@ -73,7 +74,8 @@ class _OpenAIIntegration(BaseLLMIntegration):
                 else:
                     span.set_tag_str("openai.%s" % attr, v)
 
-    def _logs_tags(self, span):
+    @classmethod
+    def _logs_tags(cls, span):
         tags = "env:%s,version:%s,openai.request.endpoint:%s,openai.request.method:%s,openai.request.model:%s,openai.organization.name:%s," "openai.user.api_key:%s" % (  # noqa: E501
             (config.env or ""),
             (config.version or ""),
@@ -85,7 +87,8 @@ class _OpenAIIntegration(BaseLLMIntegration):
         )
         return tags
 
-    def _metrics_tags(self, span):
+    @classmethod
+    def _metrics_tags(cls, span):
         tags = [
             "version:%s" % (config.version or ""),
             "env:%s" % (config.env or ""),
@@ -331,7 +334,8 @@ def _patched_make_session(func, args, kwargs):
     This should technically be a ``peer.service`` but this concept doesn't exist yet.
     """
     session = func(*args, **kwargs)
-    Pin.override(session, service="openai")
+    service = schematize_service_name("openai")
+    Pin.override(session, service=service)
     return session
 
 

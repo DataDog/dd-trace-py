@@ -11,6 +11,7 @@ from ddtrace.debugging._encoding import add_tags
 from ddtrace.debugging._metrics import metrics
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._signal import utils
+from ddtrace.internal import runtime
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.logger import get_logger
 
@@ -37,6 +38,7 @@ class ProbeStatusLogger(object):
                 "diagnostics": {
                     "probeId": probe.probe_id,
                     "probeVersion": probe.version,
+                    "runtimeId": runtime.get_runtime_id(),
                     "status": status,
                 }
             },
@@ -46,7 +48,7 @@ class ProbeStatusLogger(object):
 
         if exc_info is not None:
             exc_type, exc, tb = exc_info
-            assert exc_type is not None and tb is not None, exc_info
+            assert exc_type is not None and tb is not None, exc_info  # nosec
             payload["debugger"]["diagnostics"]["exception"] = {  # type: ignore[index]
                 "type": exc_type.__name__,
                 "message": str(exc),

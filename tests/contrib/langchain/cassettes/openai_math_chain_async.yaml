@@ -1,0 +1,85 @@
+interactions:
+- request:
+    body: '{"prompt": ["Translate a math problem into a expression that can be executed
+      using Python''s numexpr library. Use the output of running this code to answer
+      the question.\n\nQuestion: ${Question with math problem.}\n```text\n${single
+      line mathematical expression that solves the problem}\n```\n...numexpr.evaluate(text)...\n```output\n${Output
+      of running the code}\n```\nAnswer: ${Answer}\n\nBegin.\n\nQuestion: What is
+      37593 * 67?\n```text\n37593 * 67\n```\n...numexpr.evaluate(\"37593 * 67\")...\n```output\n2518731\n```\nAnswer:
+      2518731\n\nQuestion: 37593^(1/5)\n```text\n37593**(1/5)\n```\n...numexpr.evaluate(\"37593**(1/5)\")...\n```output\n8.222831614237718\n```\nAnswer:
+      8.222831614237718\n\nQuestion: what is two raised to the fifty-fourth power?\n"],
+      "model": "text-davinci-003", "temperature": 0.0, "max_tokens": 256, "top_p":
+      1, "frequency_penalty": 0, "presence_penalty": 0, "n": 1, "logit_bias": {},
+      "stop": ["```output"]}'
+    headers:
+      Content-Type:
+      - application/json
+      User-Agent:
+      - OpenAI/v1 PythonBindings/0.27.8
+      X-OpenAI-Client-User-Agent:
+      - '{"bindings_version": "0.27.8", "httplib": "requests", "lang": "python", "lang_version":
+        "3.10.5", "platform": "macOS-13.4-arm64-arm-64bit", "publisher": "openai",
+        "uname": "Darwin 22.5.0 Darwin Kernel Version 22.5.0: Mon Apr 24 20:52:24
+        PDT 2023; root:xnu-8796.121.2~5/RELEASE_ARM64_T6000 arm64"}'
+    method: post
+    uri: https://api.openai.com/v1/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"cmpl-7TcXe9BKSenEUt2754Mj9iQnYH9jt\",\n  \"object\":
+        \"text_completion\",\n  \"created\": 1687294022,\n  \"model\": \"text-davinci-003\",\n
+        \ \"choices\": [\n    {\n      \"text\": \"\\n```text\\n2**54\\n```\\n...numexpr.evaluate(\\\"2**54\\\")...\\n\",\n
+        \     \"index\": 0,\n      \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n
+        \   }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 236,\n    \"completion_tokens\":
+        24,\n    \"total_tokens\": 260\n  }\n}\n"
+    headers:
+      Access-Control-Allow-Origin:
+      - '*'
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 7da6dd5b2c7ca21a-YYZ
+      Cache-Control:
+      - no-cache, must-revalidate
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 20 Jun 2023 20:47:05 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      alt-svc:
+      - h3=":443"; ma=86400
+      openai-model:
+      - text-davinci-003
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '2214'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      x-ratelimit-limit-requests:
+      - '3000'
+      x-ratelimit-limit-tokens:
+      - '250000'
+      x-ratelimit-remaining-requests:
+      - '2999'
+      x-ratelimit-remaining-tokens:
+      - '249744'
+      x-ratelimit-reset-requests:
+      - 20ms
+      x-ratelimit-reset-tokens:
+      - 61ms
+      x-request-id:
+      - 757253e7d6d118ba26ec2f4b64e5cc85
+    status:
+      code: 200
+      message: OK
+    url: https://api.openai.com/v1/completions
+version: 1

@@ -5,6 +5,8 @@ from typing import List
 from typing import Optional
 from typing import Tuple
 
+from ddtrace.appsec._constants import API_SECURITY
+from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.constants import IAST_ENV
@@ -193,6 +195,7 @@ class Config(object):
 
         header_tags = parse_tags_str(os.getenv("DD_TRACE_HEADER_TAGS", ""))
         self.http = HttpConfig(header_tags=header_tags)
+        self._tracing_enabled = asbool(os.getenv("DD_TRACE_ENABLED", default=True))
 
         # Master switch for turning on and off trace search by default
         # this weird invocation of getenv is meant to read the DD_ANALYTICS_ENABLED
@@ -233,8 +236,7 @@ class Config(object):
         self.health_metrics_enabled = asbool(os.getenv("DD_TRACE_HEALTH_METRICS_ENABLED", default=False))
 
         self._telemetry_enabled = asbool(os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED", True))
-
-        self._telemetry_metrics_enabled = asbool(os.getenv("DD_TELEMETRY_METRICS_ENABLED", default=True))
+        self._runtime_metrics_enabled = asbool(os.getenv("DD_RUNTIME_METRICS_ENABLED", False))
 
         self._128_bit_trace_id_enabled = asbool(os.getenv("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", False))
 
@@ -273,8 +275,12 @@ class Config(object):
         )
         self._data_streams_enabled = asbool(os.getenv("DD_DATA_STREAMS_ENABLED", False))
         self._appsec_enabled = asbool(os.getenv(APPSEC_ENV, False))
+        self._automatic_login_events_mode = os.getenv(APPSEC.AUTOMATIC_USER_EVENTS_TRACKING, "safe")
+        self._user_model_login_field = os.getenv(APPSEC.USER_MODEL_LOGIN_FIELD, default="")
+        self._user_model_email_field = os.getenv(APPSEC.USER_MODEL_EMAIL_FIELD, default="")
+        self._user_model_name_field = os.getenv(APPSEC.USER_MODEL_NAME_FIELD, default="")
         self._iast_enabled = asbool(os.getenv(IAST_ENV, False))
-        self._api_security_enabled = asbool(os.getenv("_DD_API_SECURITY_ENABLED", False))
+        self._api_security_enabled = asbool(os.getenv(API_SECURITY.ENV_VAR_ENABLED, False))
         self._waf_timeout = DEFAULT.WAF_TIMEOUT
         try:
             self._waf_timeout = float(os.getenv("DD_APPSEC_WAF_TIMEOUT"))
@@ -302,15 +308,13 @@ class Config(object):
         self._ci_visibility_intelligent_testrunner_enabled = asbool(
             os.getenv("DD_CIVISIBILITY_ITR_ENABLED", default=False)
         )
-        self._ci_visibility_code_coverage_enabled = asbool(
-            os.getenv("DD_CIVISIBILITY_CODE_COVERAGE_ENABLED", default=False)
-        )
         self._otel_enabled = asbool(os.getenv("DD_TRACE_OTEL_ENABLED", False))
         if self._otel_enabled:
             # Replaces the default otel api runtime context with DDRuntimeContext
             # https://github.com/open-telemetry/opentelemetry-python/blob/v1.16.0/opentelemetry-api/src/opentelemetry/context/__init__.py#L53
             os.environ["OTEL_PYTHON_CONTEXT"] = "ddcontextvars_context"
         self._ddtrace_bootstrapped = False
+        self._span_aggregator_rlock = asbool(os.getenv("DD_TRACE_SPAN_AGGREGATOR_RLOCK", False))
 
     def __getattr__(self, name):
         if name not in self._config:
