@@ -26,6 +26,10 @@
             "ddtrace/settings/http.py",
             "ddtrace/settings/integration.py"
         ],
+        "contrib": [
+            "ddtrace/contrib/trace_utils.py",
+            "ddtrace/contrib/_trace_utils_llm.py"
+        ],
         "datastreams": [
             "ddtrace/internal/datastreams/*"
         ],
@@ -67,6 +71,7 @@
             "@bootstrap",
             "@core",
             "@tracing",
+            "@contrib",
             "ddtrace/contrib/kafka/*"
         ],
         "tracer": [
@@ -134,6 +139,7 @@
             "@bootstrap",
             "@core",
             "@tracing",
+            "@contrib",
             "ddtrace/contrib/openai/*"
         ],
         "opentracer": [
@@ -228,7 +234,8 @@
             "@bootstrap",
             "@core",
             "@tracing",
-            "ddtrace/contrib/asgi/*"
+            "ddtrace/contrib/asgi/*",
+            "ddtrace/contrib/asyncio/*"
         ],
         "bottle": [
             "@bootstrap",
@@ -270,6 +277,7 @@
             "@bootstrap",
             "@core",
             "@tracing",
+            "@contrib",
             "ddtrace/contrib/elasticsearch/*"
         ],
         "falcon": [
@@ -282,9 +290,12 @@
             "@bootstrap",
             "@core",
             "@tracing",
+            "@contrib",
+            "ddtrace/contrib/asgi/*",
             "ddtrace/contrib/django/*",
             "ddtrace/contrib/dbapi/*",
-            "ddtrace/contrib/dbapi_async/*"
+            "ddtrace/contrib/dbapi_async/*",
+            "ddtrace/contrib/psycopg/*",
         ],
         "django_hosts": [
             "@bootstrap",
@@ -302,7 +313,10 @@
             "@bootstrap",
             "@core",
             "@tracing",
-            "ddtrace/contrib/fastapi/*"
+            "ddtrace/contrib/fastapi/*",
+            "ddtrace/contrib/asgi/*",
+            "ddtrace/contrib/starlette/*",
+            "ddtrace/contrib/asyncio/*"
         ],
         "flask": [
             "@bootstrap",
@@ -351,6 +365,7 @@
             "@bootstrap",
             "@core",
             "@tracing",
+            "@contrib",
             "ddtrace/contrib/httpx/*"
         ],
         "mariadb": [
@@ -371,6 +386,7 @@
             "@bootstrap",
             "@core",
             "@tracing",
+            "@contrib",
             "ddtrace/contrib/mysqldb/*",
             "ddtrace/contrib/dbapi/*",
             "ddtrace/contrib/dbapi_async/*"
@@ -417,6 +433,7 @@
             "@bootstrap",
             "@core",
             "@tracing",
+            "ddtrace/contrib/pytest/*",
             "ddtrace/contrib/pytestbdd/*"
         ],
         "pymemcache": [
@@ -429,12 +446,14 @@
             "@bootstrap",
             "@core",
             "@tracing",
+            "ddtrace/contrib/pymongo/*",
             "ddtrace/contrib/mongoengine/*"
         ],
         "pymongo": [
             "@bootstrap",
             "@core",
             "@tracing",
+            "@contrib",
             "ddtrace/contrib/pymongo/*"
         ],
         "pynamodb": [
@@ -467,7 +486,8 @@
             "@bootstrap",
             "@core",
             "@tracing",
-            "ddtrace/contrib/sanic/*"
+            "ddtrace/contrib/sanic/*",
+            "ddtrace/contrib/asyncio/*"
         ],
         "snowflake": [
             "@bootstrap",
@@ -481,7 +501,9 @@
             "@bootstrap",
             "@core",
             "@tracing",
-            "ddtrace/contrib/starlette/*"
+            "ddtrace/contrib/starlette/*",
+            "ddtrace/contrib/asgi/*",
+            "ddtrace/contrib/asyncio/*"
         ],
         "sqlalchemy": [
             "@bootstrap",
@@ -491,10 +513,18 @@
             "ddtrace/contrib/dbapi/*",
             "ddtrace/contrib/dbapi_async/*"
         ],
+        "subprocess": [
+            "@bootstrap",
+            "@core",
+            "@tracing",
+            "@contrib",
+            "ddtrace/contrib/subprocess/*"
+        ],
         "psycopg": [
             "@bootstrap",
             "@core",
             "@tracing",
+            "@contrib",
             "ddtrace/contrib/psycopg/*",
             "ddtrace/contrib/dbapi/*",
             "ddtrace/contrib/dbapi_async/*"
@@ -527,37 +557,44 @@
             "@tracing",
             "ddtrace/contrib/aiopg/*",
             "ddtrace/contrib/dbapi/*",
-            "ddtrace/contrib/dbapi_async/*"
+            "ddtrace/contrib/dbapi_async/*",
+            "ddtrace/contrib/psycopg/*"
         ],
         "aioredis": [
             "@bootstrap",
             "@core",
             "@tracing",
-            "ddtrace/contrib/aioredis/*"
+            "ddtrace/contrib/aioredis/*",
+            "ddtrace/contrib/trace_utils_redis.py"
         ],
         "aredis": [
             "@bootstrap",
             "@core",
             "@tracing",
-            "ddtrace/contrib/aredis/*"
+            "ddtrace/contrib/aredis/*",
+            "ddtrace/contrib/trace_utils_redis.py"
         ],
         "yaaredis": [
             "@bootstrap",
             "@core",
             "@tracing",
-            "ddtrace/contrib/yaaredis/*"
+            "ddtrace/contrib/yaaredis/*",
+            "ddtrace/contrib/trace_utils_redis.py"
         ],
         "redis": [
             "@bootstrap",
             "@core",
             "@tracing",
-            "ddtrace/contrib/redis/*"
+            "ddtrace/contrib/redis/*",
+            "ddtrace/contrib/trace_utils_redis.py"
         ],
         "rediscluster": [
             "@bootstrap",
             "@core",
             "@tracing",
-            "ddtrace/contrib/rediscluster/*"
+            "ddtrace/contrib/rediscluster/*",
+            "ddtrace/contrib/redis/*",
+            "ddtrace/contrib/trace_utils_redis.py"
         ],
         "rq": [
             "@bootstrap",
@@ -611,6 +648,7 @@
             "@bootstrap",
             "@core",
             "@tracing",
+            "@contrib",
             "ddtrace/contrib/langchain/*"
         ]
     }
