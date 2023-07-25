@@ -6,7 +6,7 @@
 #
 attrs==22.1.0
 boto==2.49.0
-certifi==2021.10.8
+certifi==2023.7.22
 chardet==4.0.0
 coverage==5.5
 httpretty==0.8.10

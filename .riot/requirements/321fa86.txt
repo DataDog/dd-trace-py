@@ -8,7 +8,7 @@ atomicwrites==1.4.1
 attrs==21.4.0
 backports-abc==0.5
 backports.functools-lru-cache==1.6.4
-certifi==2021.10.8
+certifi==2023.7.22
 configparser==4.0.2
 contextlib2==0.6.0.post1
 coverage==5.5

@@ -5,7 +5,7 @@
 #    pip-compile --no-annotate .riot/requirements/19a3af1.in
 #
 attrs==22.1.0
-certifi==2021.10.8
+certifi==2023.7.22
 chardet==4.0.0
 coverage==5.5
 gevent==22.10.2

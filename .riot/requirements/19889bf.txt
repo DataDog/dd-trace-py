@@ -5,7 +5,7 @@
 #    pip-compile --no-annotate .riot/requirements/19889bf.in
 #
 attrs==22.2.0
-certifi==2022.12.7
+certifi==2023.7.22
 charset-normalizer==2.0.12
 coverage[toml]==6.2
 hypothesis==6.31.6

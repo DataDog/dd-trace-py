@@ -5,7 +5,7 @@
 #    pip-compile --no-annotate .riot/requirements/1489d92.in
 #
 attrs==22.1.0
-certifi==2021.10.8
+certifi==2023.7.22
 coverage==5.5
 elasticsearch==7.8.1
 hypothesis==5.33.2

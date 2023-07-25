@@ -8,7 +8,7 @@ asgiref==3.3.1
 attrs==22.1.0
 autobahn==20.7.1
 automat==22.10.0
-certifi==2021.10.8
+certifi==2023.7.22
 cffi==1.15.1
 chardet==4.0.0
 constantly==15.1.0
