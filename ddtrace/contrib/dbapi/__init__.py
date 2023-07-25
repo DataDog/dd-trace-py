@@ -36,6 +36,8 @@ config._add(
     ),
 )
 
+# trigger a dbapi test run
+
 
 class TracedCursor(wrapt.ObjectProxy):
     """TracedCursor wraps a psql cursor and traces its queries."""
