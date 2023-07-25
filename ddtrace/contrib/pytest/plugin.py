@@ -51,6 +51,8 @@ PATCH_ALL_HELP_MSG = "Call ddtrace.patch_all before running tests."
 
 log = get_logger(__name__)
 
+_global_skipped_elements = 0
+
 
 def encode_test_parameter(parameter):
     param_repr = repr(parameter)
@@ -315,6 +317,9 @@ def pytest_sessionfinish(session, exitstatus):
         log.debug("CI Visibility enabled - finishing test session")
         test_session_span = _extract_span(session)
         if test_session_span is not None:
+            if _CIVisibility.test_skipping_enabled():
+                test_session_span.set_tag(test.ITR_TEST_SKIPPING_TYPE, _get_test_skipping_level())
+                test_session_span.set_metric(test.ITR_TEST_SKIPPING_COUNT, _global_skipped_elements)
             _mark_test_status(session, test_session_span)
             test_session_span.finish()
         _CIVisibility.disable()
@@ -403,6 +408,15 @@ def pytest_runtest_protocol(item, nextitem):
 
     if test_module_span is None:
         test_module_span, module_is_package = _start_test_module_span(pytest_package_item, pytest_module_item)
+
+    if _CIVisibility.test_skipping_enabled() and test_module_span.get_metric(test.ITR_TEST_SKIPPING_COUNT) is None:
+        test_module_span.set_tag(test.ITR_TEST_SKIPPING_TYPE, _get_test_skipping_level())
+        test_module_span.set_metric(test.ITR_TEST_SKIPPING_COUNT, 0)
+
+    if is_skipped_by_itr:
+        test_module_span._metrics[test.ITR_TEST_SKIPPING_COUNT] += 1
+        global _global_skipped_elements
+        _global_skipped_elements += 1
 
     test_suite_span = _extract_span(pytest_module_item)
     if pytest_module_item is not None and test_suite_span is None:
@@ -548,6 +562,8 @@ def pytest_runtest_makereport(item, call):
         reason = _extract_reason(call)
         if reason is not None:
             span.set_tag_str(test.SKIP_REASON, str(reason))
+            if reason == SKIPPED_BY_ITR:
+                span.set_tag_str(test.SKIPPED_BY_ITR, "true")
     elif result.passed:
         _mark_not_skipped(item.parent)
         span.set_tag_str(test.STATUS, test.Status.PASS.value)
