@@ -60,7 +60,6 @@ _RANGE1 = TaintRange(0, 2, _SOURCE1)
 _RANGE2 = TaintRange(1, 3, _SOURCE2)
 
 
-@pytest.mark.skipif(sys.version_info[:2] in [(3, 9), (3, 10)], reason="flaky test on Python3.9")
 def test_unicode_fast_tainting():
     s = "somestr" * 4000
     s_check = "somestr" * 4000
