@@ -229,16 +229,9 @@ def test_add_integration(telemetry_writer, test_agent_session, mock_time):
     # assert integration change telemetry request was sent
     assert requests[0]["headers"]["DD-Telemetry-Request-Type"] == "app-integrations-change"
     # assert that the request had a valid request body
+    requests[0]["body"]["payload"]["integrations"].sort(key=lambda x: x["name"])
     expected_payload = {
         "integrations": [
-            {
-                "name": "integration-t",
-                "version": "",
-                "enabled": True,
-                "auto_enabled": True,
-                "compatible": True,
-                "error": "",
-            },
             {
                 "name": "integration-f",
                 "version": "",
@@ -246,6 +239,14 @@ def test_add_integration(telemetry_writer, test_agent_session, mock_time):
                 "auto_enabled": False,
                 "compatible": False,
                 "error": "terrible failure",
+            },
+            {
+                "name": "integration-t",
+                "version": "",
+                "enabled": True,
+                "auto_enabled": True,
+                "compatible": True,
+                "error": "",
             },
         ]
     }
