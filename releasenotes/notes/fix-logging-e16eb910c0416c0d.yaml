@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    fixed logging not working if pytest is not initiated
