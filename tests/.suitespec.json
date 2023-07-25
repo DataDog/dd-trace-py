@@ -2,12 +2,16 @@
     "components": {
         "core": [
             "ddtrace/internal/*",
-            "ddtrace/__init__.py"
+            "ddtrace/__init__.py",
+            "tests/internal/*",
+            "tests/integration/*",
+            "tests/lib-injection"
         ],
         "bootstrap": [
             "ddtrace/bootstrap/*",
             "ddtrace/commands/*",
-            "ddtrace/auto.py"
+            "ddtrace/auto.py",
+            "tests/commands/*"
         ],
         "tracing": [
             "ddtrace/_hooks.py",
@@ -24,40 +28,51 @@
             "ddtrace/settings/__init__.py",
             "ddtrace/settings/config.py",
             "ddtrace/settings/http.py",
-            "ddtrace/settings/integration.py"
+            "ddtrace/settings/integration.py",
+            "tests/tracer/*",
+            "tests/integration/*"
         ],
         "contrib": [
             "ddtrace/contrib/trace_utils.py",
             "ddtrace/contrib/_trace_utils_llm.py"
         ],
         "datastreams": [
-            "ddtrace/internal/datastreams/*"
+            "ddtrace/internal/datastreams/*",
+            "tests/datastreams/*"
         ],
         "debugging": [
             "ddtrace/debugging/*",
             "ddtrace/settings/dynamic_instrumentation.py",
-            "ddtrace/settings/exception_debugging.py"
+            "ddtrace/settings/exception_debugging.py",
+            "tests/debugging/*"
         ],
         "ci_visibility": [
-            "ddtrace/internal/ci_visibility/*"
+            "ddtrace/internal/ci_visibility/*",
+            "tests/ci_visibility/*"
         ],
         "sourcecode": [
-            "ddtrace/sourcecode/*"
+            "ddtrace/sourcecode/*",
+            "tests/sourcecode/*"
         ],
         "telemetry": [
-            "ddtrace/internal/telemetry/*"
+            "ddtrace/internal/telemetry/*",
+            "tests/telemetry/*"
         ],
         "opentracer": [
-            "ddtrace/opentracer/*"
+            "ddtrace/opentracer/*",
+            "tests/opentracer/*"
         ],
         "opentelemetry": [
-            "ddtrace/opentelemetry/*"
+            "ddtrace/opentelemetry/*",
+            "tests/opentelemetry/*"
         ],
         "profiling": [
-            "ddtrace/profiling/*"
+            "ddtrace/profiling/*",
+            "tests/profiling/*"
         ],
         "vendor": [
-            "ddtrace/vendor/*"
+            "ddtrace/vendor/*",
+            "tests/vendor/*"
         ]
     },
     "suites": {
