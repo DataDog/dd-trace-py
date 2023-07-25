@@ -279,7 +279,7 @@
         ],
         "langchain": [
             "ddtrace/contrib/langchain/*",
-        ],
+        ]
     },
     "suites": {
         "debugger": [
