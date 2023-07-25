@@ -853,8 +853,8 @@
             "@redis"
         ],
         "yaaredis": [
-            "@bootstrap",
             "@core",
+            "@bootstrap",
             "@tracing",
             "@redis"
         ],
