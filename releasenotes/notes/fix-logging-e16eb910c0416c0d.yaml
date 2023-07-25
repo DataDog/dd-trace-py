@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    fixed logging not working if pytest is not initiated
+    fixes pytest plugin debug logs not appearing because they were being sent before logger setup
