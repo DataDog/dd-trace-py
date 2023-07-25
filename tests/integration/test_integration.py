@@ -34,6 +34,7 @@ from tests.utils import AnyStr
 from tests.utils import call_program
 from tests.utils import override_env
 from tests.utils import override_global_config
+from tests.utils import snapshot_context
 
 
 AGENT_VERSION = os.environ.get("AGENT_VERSION")
@@ -746,20 +747,27 @@ def test_downgrade(encoding, monkeypatch):
 
 
 @allencodings
-def test_span_tags(encoding, monkeypatch):
-    monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
+@pytest.mark.snapshot()
+def test_span_tags(encoding, ddtrace_run_python_code_in_subprocess):
+    import os 
+    env = os.environ.copy()
+    env["DD_TRACE_API_VERSION"] = encoding
 
-    t = Tracer()
-    with mock.patch("ddtrace.internal.writer.writer.log") as log:
-        s = t.trace("operation", service="my-svc")
-        s.set_tag("env", "my-env")
-        s.set_metric("number", 123)
-        s.set_metric("number", 12.0)
-        s.set_metric("number", "1")
-        s.finish()
-        t.shutdown()
-    log.warning.assert_not_called()
-    log.error.assert_not_called()
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(
+    """
+import ddtrace
+
+s = ddtrace.tracer.trace("operation", service="my-svc")
+s.set_tag("env", "my-env")
+s.set_metric("number1", 123)
+s.set_metric("number2", 12.0)
+s.set_metric("number3", "1")
+s.finish()
+""",
+    env=env,
+)
+    assert status == 0, (out, err)
+    
 
 
 def test_synchronous_writer_shutdown():
