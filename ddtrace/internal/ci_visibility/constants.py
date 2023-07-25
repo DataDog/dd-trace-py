@@ -1,6 +1,9 @@
 from enum import IntEnum
 
 
+SUITE = "suite"
+TEST = "test"
+
 EVENT_TYPE = "type"
 
 
