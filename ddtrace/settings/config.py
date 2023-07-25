@@ -5,6 +5,7 @@ from typing import List
 from typing import Optional
 from typing import Tuple
 
+from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
 from ddtrace.constants import APPSEC_ENV
@@ -282,7 +283,7 @@ class Config(object):
         self._user_model_email_field = os.getenv(APPSEC.USER_MODEL_EMAIL_FIELD, default="")
         self._user_model_name_field = os.getenv(APPSEC.USER_MODEL_NAME_FIELD, default="")
         self._iast_enabled = asbool(os.getenv(IAST_ENV, False))
-        self._api_security_enabled = asbool(os.getenv("_DD_API_SECURITY_ENABLED", False))
+        self._api_security_enabled = asbool(os.getenv(API_SECURITY.ENV_VAR_ENABLED, False))
         self._waf_timeout = DEFAULT.WAF_TIMEOUT
         try:
             self._waf_timeout = float(os.getenv("DD_APPSEC_WAF_TIMEOUT"))
