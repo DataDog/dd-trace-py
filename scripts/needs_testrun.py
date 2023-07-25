@@ -240,10 +240,21 @@ def needs_testrun(suite: str, pr_number: int) -> bool:
     return bool(matches)
 
 
+def _get_pr_number():
+    number = os.environ.get("CIRCLE_PR_NUMBER")
+    if not number:
+        pr_url = os.environ.get("CIRCLE_PULL_REQUEST", "")
+        number = pr_url.split("/")[-1]
+    try:
+        return int(number)
+    except ValueError:
+        return 0
+
+
 def for_each_testrun_needed(action: t.Callable[[str], None], cached: bool = True):
     # Used in CircleCI config
     tempdir = Path(tempfile.gettempdir())
-    pr_number = int(os.environ.get("CIRCLE_PR_NUMBER", 0))
+    pr_number = _get_pr_number()
 
     for suite in SUITES:
         if pr_number <= 0:
