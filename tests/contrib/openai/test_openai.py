@@ -26,6 +26,9 @@ from tests.utils import override_global_config
 from tests.utils import snapshot_context
 
 
+TIKTOKEN_AVAILABLE = os.getenv("TIKTOKEN_AVAILABLE", False)
+
+
 # VCR is used to capture and store network requests made to OpenAI.
 # This is done to avoid making real calls to the API which could introduce
 # flakiness and cost.
@@ -1661,7 +1664,11 @@ def test_completion_stream(openai, openai_vcr, mock_metrics, mock_tracer):
         "error:0",
         "openai.estimated:true",
     ]
-    assert mock.call.distribution("tokens.prompt", 2, tags=expected_tags) in mock_metrics.mock_calls
+    if TIKTOKEN_AVAILABLE:
+        prompt_expected_tags = expected_tags[:-1]
+    else:
+        prompt_expected_tags = expected_tags
+    assert mock.call.distribution("tokens.prompt", 2, tags=prompt_expected_tags) in mock_metrics.mock_calls
     assert mock.call.distribution("tokens.completion", len(chunks), tags=expected_tags) in mock_metrics.mock_calls
     assert mock.call.distribution("tokens.total", len(chunks) + 2, tags=expected_tags) in mock_metrics.mock_calls
 
@@ -1692,12 +1699,23 @@ async def test_completion_async_stream(openai, openai_vcr, mock_metrics, mock_tr
         "error:0",
         "openai.estimated:true",
     ]
-    assert mock.call.distribution("tokens.prompt", 2, tags=expected_tags) in mock_metrics.mock_calls
+    if TIKTOKEN_AVAILABLE:
+        prompt_expected_tags = expected_tags[:-1]
+    else:
+        prompt_expected_tags = expected_tags
+    assert mock.call.distribution("tokens.prompt", 2, tags=prompt_expected_tags) in mock_metrics.mock_calls
     assert mock.call.distribution("tokens.completion", len(chunks), tags=expected_tags) in mock_metrics.mock_calls
     assert mock.call.distribution("tokens.total", len(chunks) + 2, tags=expected_tags) in mock_metrics.mock_calls
 
 
-@pytest.mark.snapshot(ignores=["meta.http.useragent"])
+@pytest.mark.snapshot(
+    ignores=[
+        "meta.http.useragent",
+        "metrics.openai.request.prompt_tokens_estimated",
+        "metrics.openai.response.usage.prompt_tokens",
+        "metrics.openai.response.usage.total_tokens",
+    ]
+)
 def test_chat_completion_stream(openai, openai_vcr, mock_metrics, snapshot_tracer):
     if not hasattr(openai, "ChatCompletion"):
         pytest.skip("ChatCompletion not supported for this version of openai")
@@ -1733,12 +1751,28 @@ def test_chat_completion_stream(openai, openai_vcr, mock_metrics, snapshot_trace
     assert mock.call.gauge("ratelimit.requests", 3, tags=expected_tags) in mock_metrics.mock_calls
     assert mock.call.gauge("ratelimit.remaining.requests", 2, tags=expected_tags) in mock_metrics.mock_calls
     expected_tags += ["openai.estimated:true"]
-    assert mock.call.distribution("tokens.prompt", 8, tags=expected_tags) in mock_metrics.mock_calls
+    if TIKTOKEN_AVAILABLE:
+        prompt_expected_tags = expected_tags[:-1]
+        prompt_tokens = 10
+    else:
+        prompt_expected_tags = expected_tags
+        prompt_tokens = 8
+    assert mock.call.distribution("tokens.prompt", prompt_tokens, tags=prompt_expected_tags) in mock_metrics.mock_calls
     assert mock.call.distribution("tokens.completion", len(chunks), tags=expected_tags) in mock_metrics.mock_calls
-    assert mock.call.distribution("tokens.total", len(chunks) + 8, tags=expected_tags) in mock_metrics.mock_calls
+    assert (
+        mock.call.distribution("tokens.total", len(chunks) + prompt_tokens, tags=expected_tags)
+        in mock_metrics.mock_calls
+    )
 
 
-@pytest.mark.snapshot(ignores=["meta.http.useragent"])
+@pytest.mark.snapshot(
+    ignores=[
+        "meta.http.useragent",
+        "metrics.openai.request.prompt_tokens_estimated",
+        "metrics.openai.response.usage.prompt_tokens",
+        "metrics.openai.response.usage.total_tokens",
+    ]
+)
 @pytest.mark.asyncio
 async def test_chat_completion_async_stream(openai, openai_vcr, mock_metrics, snapshot_tracer):
     if not hasattr(openai, "ChatCompletion"):
@@ -1780,9 +1814,18 @@ async def test_chat_completion_async_stream(openai, openai_vcr, mock_metrics, sn
     assert mock.call.gauge("ratelimit.remaining.requests", 3499, tags=expected_tags) in mock_metrics.mock_calls
     assert mock.call.gauge("ratelimit.remaining.tokens", 89971, tags=expected_tags) in mock_metrics.mock_calls
     expected_tags += ["openai.estimated:true"]
-    assert mock.call.distribution("tokens.prompt", 10, tags=expected_tags) in mock_metrics.mock_calls
+    if TIKTOKEN_AVAILABLE:
+        prompt_expected_tags = expected_tags[:-1]
+        prompt_tokens = 12
+    else:
+        prompt_expected_tags = expected_tags
+        prompt_tokens = 10
+    assert mock.call.distribution("tokens.prompt", prompt_tokens, tags=prompt_expected_tags) in mock_metrics.mock_calls
     assert mock.call.distribution("tokens.completion", len(chunks), tags=expected_tags) in mock_metrics.mock_calls
-    assert mock.call.distribution("tokens.total", len(chunks) + 10, tags=expected_tags) in mock_metrics.mock_calls
+    assert (
+        mock.call.distribution("tokens.total", len(chunks) + prompt_tokens, tags=expected_tags)
+        in mock_metrics.mock_calls
+    )
 
 
 @pytest.mark.snapshot(ignores=["meta.http.useragent"], async_mode=False)

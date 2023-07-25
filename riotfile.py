@@ -2557,7 +2557,6 @@ venv = Venv(
                 "urllib3": "~=1.26",  # vcrpy errors with urllib3 2.x https://github.com/kevin1024/vcrpy/issues/688
                 "pytest-asyncio": latest,
                 "pillow": latest,
-                "tiktoken": latest,
             },
             venvs=[
                 Venv(
@@ -2575,6 +2574,14 @@ venv = Venv(
                     pkgs={
                         "openai[embeddings]": ["==0.27.2", latest],
                     },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.8"),
+                    pkgs={
+                        "openai[embeddings]": [latest],
+                        "tiktoken": latest,
+                    },
+                    env={"TIKTOKEN_AVAILABLE": "True"},
                 ),
             ],
         ),

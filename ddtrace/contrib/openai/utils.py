@@ -1,57 +1,71 @@
 import re
-from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Tuple
 from typing import Union
 
-import tiktoken
+from ddtrace.internal.logger import get_logger
 
+try:
+    from tiktoken import encoding_for_model
+
+    tiktoken_available = True
+except ModuleNotFoundError:
+    tiktoken_available = False
+
+
+log = get_logger(__name__)
 
 _punc_regex = re.compile(r"[\w']+|[.,!?;~@#$%^&*()+/-]")
 
 
 def _compute_prompt_token_count(prompt, model):
-    # type: (Union[str, List[str], List[int], List[List[int]]], Optional[str]) -> Dict[str, Union[bool, int]]
-    # TODO: need to account for str, str array, token arrays and array of token arrays
-    metadata = {"num_prompt_tokens": 0, "estimated": False}
+    # type: (Union[str, List[int]], Optional[str]) -> Tuple[bool, int]
+    """
+    Takes in a prompt(s) and model pair, and returns a tuple of whether or not the number of prompt
+    tokens was estimated, and the estimated/calculated prompt token count.
+    """
+    num_prompt_tokens = 0
+    estimated = False
 
-    if model is not None:
+    if model is not None and tiktoken_available is True:
         try:
-            enc = tiktoken.encoding_by_model(model)
+            enc = encoding_for_model(model)
+            if isinstance(prompt, str):
+                num_prompt_tokens += len(enc.encode(prompt))
+            elif isinstance(prompt, list) and isinstance(prompt[0], int):
+                num_prompt_tokens += len(prompt)
+            return estimated, num_prompt_tokens
         except KeyError:
-            # tiktoken.encoding_by_model() will raise a KeyError if it doesn't have a tokenizer for the model
-            pass
-        if isinstance(prompt, str):
-            metadata["num_prompt_tokens"] += len(enc.encode(prompt))
+            # tiktoken.encoding_for_model() will raise a KeyError if it doesn't have a tokenizer for the model
+            estimated = True
+    else:
+        estimated = True
 
+    # If model is unavailable or tiktoken is not imported, then provide a very rough estimate of the number of tokens
+    return estimated, _est_tokens(prompt)
+
+
+def _est_tokens(prompt):
+    # type: (Union[str, List[int]]) -> int
+    """
+    Provide a very rough estimate of the number of tokens in a string prompt.
+    Note that if the prompt is passed in as a token array (list of ints), the token count
+    is just the length of the token array.
+    """
     # If model is unavailable or tiktoken is not imported, then provide a very rough estimate of the number of tokens
     # Approximate using the following assumptions:
     #    * English text
     #    * 1 token ~= 4 chars
     #    * 1 token ~= ¾ words
-    est1 = len(prompt) / 4
-    est2 = len(_punc_regex.findall(prompt)) * 0.75
-    est = round((1.5 * est1 + 0.5 * est2) / 2)
-    return est
-
-
-def _est_tokens(prompt, model):
-    # type: (str, Optional[str]) -> int
-    """Use tiktoken to calculate the number of tokens used in a prompt."""
-    if model is not None:
-        enc = tiktoken.encoding_by_model(model)
-        prompt_tokens = enc.encode(prompt)
-        return len(prompt_tokens)
-
-    # If model is unavailable or tiktoken is not imported, then provide a very rough estimate of the number of tokens
-    # Approximate using the following assumptions:
-    #    * English text
-    #    * 1 token ~= 4 chars
-    #    * 1 token ~= ¾ words
-    est1 = len(prompt) / 4
-    est2 = len(_punc_regex.findall(prompt)) * 0.75
-    est = round((1.5 * est1 + 0.5 * est2) / 2)
-    return est
+    est_tokens = 0
+    if isinstance(prompt, str):
+        est1 = len(prompt) / 4
+        est2 = len(_punc_regex.findall(prompt)) * 0.75
+        return round((1.5 * est1 + 0.5 * est2) / 2)
+    elif isinstance(prompt, list) and isinstance(prompt[0], int):
+        return len(prompt)
+    return est_tokens
 
 
 def _format_openai_api_key(openai_api_key):
