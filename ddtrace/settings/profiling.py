@@ -3,6 +3,7 @@ import platform
 import typing as t
 
 from envier import En
+from envier.validators import choice
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import parse_tags_str
@@ -217,3 +218,17 @@ class ProfilingConfig(En):
 
 
 config = ProfilingConfig()
+
+
+class ProfilingPrivateConfig(En):
+    __prefix__ = "_dd.profiling"
+
+    tb_backend = En.v(
+        str,
+        "tb.backend",
+        default="cy",
+        validator=choice({"cy", "py"}),
+    )
+
+
+private_config = ProfilingPrivateConfig()

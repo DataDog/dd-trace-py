@@ -13,7 +13,7 @@ from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
 from ddtrace.profiling import event
 from ddtrace.profiling.collector import _task
-from ddtrace.profiling.collector import _traceback
+from ddtrace.profiling.collector import traceback
 from ddtrace.settings.profiling import config
 from ddtrace.vendor import wrapt
 
@@ -100,7 +100,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
                 else:
                     frame = task_frame
 
-                frames, nframes = _traceback.pyframe_to_frames(frame, self._self_max_nframes)
+                frames, nframes = traceback.pyframe_to_frames(frame, self._self_max_nframes)
 
                 event = self.ACQUIRE_EVENT_CLASS(
                     lock_name=self._self_name,
@@ -138,7 +138,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
                         else:
                             frame = task_frame
 
-                        frames, nframes = _traceback.pyframe_to_frames(frame, self._self_max_nframes)
+                        frames, nframes = traceback.pyframe_to_frames(frame, self._self_max_nframes)
 
                         event = self.RELEASE_EVENT_CLASS(
                             lock_name=self._self_name,

@@ -3,6 +3,7 @@ import typing
 
 from .. import event
 
+def _extract_class_name(frame: types.FrameType) -> str: ...
 def traceback_to_frames(
     traceback: types.TracebackType, max_nframes: int
 ) -> typing.Tuple[typing.List[event.FrameType], int]: ...

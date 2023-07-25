@@ -1,6 +1,6 @@
 import sys
 
-from ddtrace.profiling.collector import _traceback
+from ddtrace.profiling.collector import traceback
 
 
 def _x():
@@ -11,8 +11,8 @@ def test_check_traceback_to_frames():
     try:
         _x()
     except Exception:
-        exc_type, exc_value, traceback = sys.exc_info()
-    frames, nframes = _traceback.traceback_to_frames(traceback, 10)
+        _, _, tb = sys.exc_info()
+    frames, nframes = traceback.traceback_to_frames(tb, 10)
     assert nframes == 2
 
     this_file = __file__.replace(".pyc", ".py")

@@ -90,3 +90,12 @@ def test_capture_sampler_bad_value():
 
     with pytest.raises(ValueError):
         collector.CaptureSampler(102)
+
+
+@pytest.mark.subprocess(env=dict(_DD_PROFILING_TB_BACKEND="py"))
+def test_collector_traceback_py_backend():
+    from ddtrace.profiling.collector import _traceback
+    from ddtrace.profiling.collector import traceback
+
+    assert traceback.pyframe_to_frames.__module__ is traceback.__name__
+    assert traceback.traceback_to_frames is not _traceback.traceback_to_frames

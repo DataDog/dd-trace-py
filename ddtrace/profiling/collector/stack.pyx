@@ -17,7 +17,7 @@ from ddtrace.internal.utils import formats
 from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
 from ddtrace.profiling.collector import _task
-from ddtrace.profiling.collector import _traceback
+from ddtrace.profiling.collector import traceback
 from ddtrace.profiling.collector import stack_event
 from ddtrace.settings.profiling import config
 
@@ -228,6 +228,26 @@ ELSE:
         PyObject* _PyThread_CurrentFrames()
 
 
+cdef collect_threads_py(thread_id_ignore_list, thread_time, thread_span_links) with gil:
+    running_threads = sys._current_frames().copy()
+    current_exceptions = {_id: (exc_type, exc_tb) for _id, (exc_type, _, exc_tb) in sys._current_exceptions().items()}
+
+    cpu_times = thread_time(running_threads.keys())
+
+    return tuple(
+        (
+            pthread_id,
+            native_thread_id,
+            _threading.get_thread_name(pthread_id),
+            running_threads[pthread_id],
+            current_exceptions.get(pthread_id),
+            thread_span_links.get_active_span_from_thread_id(pthread_id) if thread_span_links else None,
+            cpu_time,
+        )
+        for (pthread_id, native_thread_id), cpu_time in cpu_times.items()
+        if pthread_id not in thread_id_ignore_list
+    )
+
 
 cdef collect_threads(thread_id_ignore_list, thread_time, thread_span_links) with gil:
     cdef dict current_exceptions = {}
@@ -305,7 +325,6 @@ cdef collect_threads(thread_id_ignore_list, thread_time, thread_span_links) with
     )
 
 
-
 cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_time, thread_span_links, collect_endpoint):
     # Do not use `threading.enumerate` to not mess with locking (gevent!)
     thread_id_ignore_list = {
@@ -314,7 +333,10 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
         if getattr(thread, "_ddtrace_profiling_ignore", False)
     } if ignore_profiler else set()
 
-    running_threads = collect_threads(thread_id_ignore_list, thread_time, thread_span_links)
+    if pconfig.tb_backend == "py":
+        running_threads = collect_threads_py(thread_id_ignore_list, thread_time, thread_span_links)
+    else:
+        running_threads = collect_threads(thread_id_ignore_list, thread_time, thread_span_links)
 
     if thread_span_links:
         # FIXME also use native thread id
@@ -339,7 +361,7 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
             if task_pyframes is None:
                 continue
 
-            frames, nframes = _traceback.pyframe_to_frames(task_pyframes, max_nframes)
+            frames, nframes = traceback.pyframe_to_frames(task_pyframes, max_nframes)
 
             if use_libdd and nframes:
                 ddup.start_sample(nframes)
@@ -366,7 +388,7 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
                     )
                 )
 
-        frames, nframes = _traceback.pyframe_to_frames(thread_pyframes, max_nframes)
+        frames, nframes = traceback.pyframe_to_frames(thread_pyframes, max_nframes)
 
         if use_libdd and nframes:
             ddup.start_sample(nframes)
@@ -398,7 +420,7 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
         if exception is not None:
             exc_type, exc_traceback = exception
 
-            frames, nframes = _traceback.traceback_to_frames(exc_traceback, max_nframes)
+            frames, nframes = traceback.traceback_to_frames(exc_traceback, max_nframes)
 
             if use_libdd and nframes:
                 ddup.start_sample(nframes)
