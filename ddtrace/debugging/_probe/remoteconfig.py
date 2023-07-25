@@ -263,7 +263,7 @@ def build_probe(attribs):
         return MetricProbeFactory.build(args, attribs)
     if _type == ProbeType.SPAN_PROBE:
         return SpanProbeFactory.build(args, attribs)
-    if _type == ProbeType.SPAN_DECORATE_PROBE:
+    if _type == ProbeType.SPAN_DECORATION_PROBE:
         return SpanDecorationProbeFactory.build(args, attribs)
 
     raise ValueError("Unsupported probe type: %s" % _type)
