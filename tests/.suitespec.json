@@ -9,9 +9,6 @@
             "ddtrace/commands/*",
             "ddtrace/auto.py"
         ],
-        "internal": [
-            "ddtrace/*"
-        ],
         "tracing": [
             "ddtrace/_hooks.py",
             "ddtrace/_logger.py",
@@ -65,10 +62,9 @@
     },
     "suites": {
         "internal": [
-            "@internal"
+            "@core"
         ],
         "ddtracerun": [
-            "@internal",
             "@contrib",
             "@bootstrap",
             "@core"
