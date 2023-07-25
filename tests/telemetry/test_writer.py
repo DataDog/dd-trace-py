@@ -8,6 +8,8 @@ import mock
 import pytest
 from six import PY2
 
+from ddtrace.internal.telemetry.constants import TELEMETRY_PROPAGATION_STYLE_EXTRACT
+from ddtrace.internal.telemetry.constants import TELEMETRY_PROPAGATION_STYLE_INJECT
 from ddtrace.internal.telemetry.data import get_application
 from ddtrace.internal.telemetry.data import get_dependencies
 from ddtrace.internal.telemetry.data import get_host_info
@@ -76,22 +78,23 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
             {"name": "DD_EXCEPTION_DEBUGGING_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_PROFILING_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_TRACE_ENABLED", "origin": "unknown", "value": True},
+            {"name": TELEMETRY_PROPAGATION_STYLE_EXTRACT, "origin": "unknown", "value": "tracecontext,datadog"},
+            {"name": TELEMETRY_PROPAGATION_STYLE_INJECT, "origin": "unknown", "value": "tracecontext,datadog"},
             {"name": "ddtrace_auto_used", "origin": "unknown", "value": False},
             {"name": "ddtrace_bootstrapped", "origin": "unknown", "value": False},
             {"name": "otel_enabled", "origin": "unknown", "value": False},
             {"name": "runtimemetrics_enabled", "origin": "unknown", "value": False},
-            {"name": "trace_propagation_style_extract", "origin": "unknown", "value": "['tracecontext', 'datadog']"},
-            {"name": "trace_propagation_style_inject", "origin": "unknown", "value": "['tracecontext', 'datadog']"},
         ],
         "error": {
             "code": 0,
             "message": "",
         },
     }
+
     assert events[0] == _get_request_body(payload, "app-started")
 
 
-def test_app_started_event_configuration_override(test_agent_session, ddtrace_run_python_code_in_subprocess):
+def test_app_started_event_configuration_override(test_agent_session, run_python_code_in_subprocess):
     """
     asserts that default configuration value
     is changed and queues a valid telemetry request
@@ -118,8 +121,8 @@ telemetry_writer.disable()
     env["DD_APPSEC_ENABLED"] = "true"
     env["DD_PROFILING_ENABLED"] = "true"
     env["DD_DYNAMIC_INSTRUMENTATION_ENABLED"] = "true"
-    env["DD_TRACE_PROPAGATION_STYLE_EXTRACT"] = "b3multi"
-    env["DD_TRACE_PROPAGATION_STYLE_INJECT"] = "datadog"
+    env[TELEMETRY_PROPAGATION_STYLE_EXTRACT] = "b3multi"
+    env[TELEMETRY_PROPAGATION_STYLE_INJECT] = "datadog"
     env["DD_TRACE_OTEL_ENABLED"] = "true"
     env["DD_RUNTIME_METRICS_ENABLED"] = "true"
     env["DD_EXCEPTION_DEBUGGING_ENABLED"] = "true"
@@ -127,25 +130,27 @@ telemetry_writer.disable()
         # Prevents gevent importerror when profiling is enabled
         env["DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE"] = "false"
 
-    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    _, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
 
     assert status == 0, stderr
 
     events = test_agent_session.get_events()
     events[0]["payload"]["configuration"].sort(key=lambda c: c["name"])
+
     assert events[0]["payload"]["configuration"] == [
         {"name": "DD_APPSEC_ENABLED", "origin": "unknown", "value": True},
         {"name": "DD_DATA_STREAMS_ENABLED", "origin": "unknown", "value": True},
         {"name": "DD_DYNAMIC_INSTRUMENTATION_ENABLED", "origin": "unknown", "value": True},
         {"name": "DD_EXCEPTION_DEBUGGING_ENABLED", "origin": "unknown", "value": True},
         {"name": "DD_PROFILING_ENABLED", "origin": "unknown", "value": True},
+        # why is this showing up as True?
         {"name": "DD_TRACE_ENABLED", "origin": "unknown", "value": False},
+        {"name": TELEMETRY_PROPAGATION_STYLE_EXTRACT, "origin": "unknown", "value": "b3multi"},
+        {"name": TELEMETRY_PROPAGATION_STYLE_INJECT, "origin": "unknown", "value": "datadog"},
         {"name": "ddtrace_auto_used", "origin": "unknown", "value": True},
         {"name": "ddtrace_bootstrapped", "origin": "unknown", "value": True},
         {"name": "otel_enabled", "origin": "unknown", "value": True},
         {"name": "runtimemetrics_enabled", "origin": "unknown", "value": True},
-        {"name": "trace_propagation_style_extract", "origin": "unknown", "value": "['b3multi']"},
-        {"name": "trace_propagation_style_inject", "origin": "unknown", "value": "['datadog']"},
     ]
 
 
@@ -212,7 +217,7 @@ def test_app_client_configuration_changed_event(telemetry_writer, test_agent_ses
     """asserts that queuing a configuration sends a valid telemetry request"""
 
     telemetry_writer.add_configuration("appsec_enabled", True)
-    telemetry_writer.add_configuration("trace_propagation_style_extract", "['datadog']")
+    telemetry_writer.add_configuration(TELEMETRY_PROPAGATION_STYLE_EXTRACT, "datadog")
     telemetry_writer.add_configuration("appsec_enabled", False, "env_var")
 
     telemetry_writer.periodic()
@@ -227,14 +232,14 @@ def test_app_client_configuration_changed_event(telemetry_writer, test_agent_ses
     # assert the latest configuration value is send to the agent
     assert received_configurations == [
         {
+            "name": TELEMETRY_PROPAGATION_STYLE_EXTRACT,
+            "origin": "unknown",
+            "value": "datadog",
+        },
+        {
             "name": "appsec_enabled",
             "origin": "env_var",
             "value": False,
-        },
-        {
-            "name": "trace_propagation_style_extract",
-            "origin": "unknown",
-            "value": "['datadog']",
         },
     ]
 
