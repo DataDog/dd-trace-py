@@ -245,7 +245,9 @@ class Debugger(Service):
             },
             on_full=self._on_encoder_buffer_full,
         )
-        self._probe_registry = ProbeRegistry(self.__logger__(service_name, self._encoder))
+        status_logger = self.__logger__(service_name, self._encoder)
+
+        self._probe_registry = ProbeRegistry(status_logger=status_logger)
         self._uploader = self.__uploader__(self._encoder)
         self._collector = self.__collector__(self._encoder)
         self._services = [self._uploader]
@@ -277,7 +279,7 @@ class Debugger(Service):
 
             # Register the debugger with the RCM client.
             if not remoteconfig_poller.update_product_callback("LIVE_DEBUGGING", self._on_configuration):
-                di_callback = self.__rc_adapter__(None, self._on_configuration)
+                di_callback = self.__rc_adapter__(None, self._on_configuration, status_logger=status_logger)
                 remoteconfig_poller.register("LIVE_DEBUGGING", di_callback)
 
         log.debug("%s initialized (service name: %s)", self.__class__.__name__, service_name)
