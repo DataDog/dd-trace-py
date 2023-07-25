@@ -193,8 +193,8 @@ class Config(object):
         # use a dict as underlying storing mechanism
         self._config = {}
 
-        self.debug_mode = asbool(os.getenv("DD_TRACE_DEBUG", default=False))
-        self.call_basic_config = asbool(os.environ.get("DD_CALL_BASIC_CONFIG", "false"))
+        self._debug_mode = asbool(os.getenv("DD_TRACE_DEBUG", default=False))
+        self._call_basic_config = asbool(os.environ.get("DD_CALL_BASIC_CONFIG", "false"))
 
         header_tags = parse_tags_str(os.getenv("DD_TRACE_HEADER_TAGS", ""))
         self.http = HttpConfig(header_tags=header_tags)

@@ -84,7 +84,7 @@ DD_LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] 
     "[dd.service=%(dd.service)s dd.env=%(dd.env)s dd.version=%(dd.version)s"
     " dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s] "
 )
-if config.debug_mode and not hasHandlers(log) and config.call_basic_config:
+if config._debug_mode and not hasHandlers(log) and config._call_basic_config:
     debtcollector.deprecate(
         "ddtrace.tracer.logging.basicConfig",
         message="`logging.basicConfig()` should be called in a user's application."
@@ -540,7 +540,7 @@ class Tracer(object):
         self._generate_diagnostic_logs()
 
     def _generate_diagnostic_logs(self):
-        if config.debug_mode or asbool(environ.get("DD_TRACE_STARTUP_LOGS", False)):
+        if config._debug_mode or asbool(environ.get("DD_TRACE_STARTUP_LOGS", False)):
             try:
                 info = debug.collect(self)
             except Exception as e:

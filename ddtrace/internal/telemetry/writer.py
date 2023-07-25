@@ -34,6 +34,7 @@ from .constants import TELEMETRY_128_BIT_TRACEID_GENERATION_ENABLED
 from .constants import TELEMETRY_128_BIT_TRACEID_LOGGING_ENABLED
 from .constants import TELEMETRY_ANALYTICS_ENABLED
 from .constants import TELEMETRY_ASM_ENABLED
+from .constants import TELEMETRY_CALL_BASIC_CONFIG
 from .constants import TELEMETRY_CLIENT_IP_ENABLED
 from .constants import TELEMETRY_DSM_ENABLED
 from .constants import TELEMETRY_DYNAMIC_INSTRUMENTATION_ENABLED
@@ -288,11 +289,12 @@ class TelemetryWriter(PeriodicService):
                 ("ddtrace_bootstrapped", config._ddtrace_bootstrapped, "unknown"),
                 ("ddtrace_auto_used", "ddtrace.auto" in sys.modules, "unknown"),
                 (TELEMETRY_RUNTIMEMETRICS_ENABLED, config._runtime_metrics_enabled, "unknown"),
-                (TELEMETRY_TRACE_DEBUG, config.debug_mode, "unknown"),
+                (TELEMETRY_TRACE_DEBUG, config._debug_mode, "unknown"),
                 (TELEMETRY_ENABLED, config._telemetry_enabled, "unknown"),
                 (TELEMETRY_ANALYTICS_ENABLED, config.analytics_enabled, "unknown"),
                 (TELEMETRY_CLIENT_IP_ENABLED, config.client_ip_header, "unknown"),
                 (TELEMETRY_LOGS_INJECTION_ENABLED, config.logs_injection, "unknown"),
+                (TELEMETRY_CALL_BASIC_CONFIG, config._call_basic_config, "unknown"),
                 (TELEMETRY_128_BIT_TRACEID_GENERATION_ENABLED, config._128_bit_trace_id_enabled, "unknown"),
                 (TELEMETRY_128_BIT_TRACEID_LOGGING_ENABLED, config._128_bit_trace_id_logging_enabled, "unknown"),
                 (TELEMETRY_TRACE_COMPUTE_STATS, config._trace_compute_stats, "unknown"),

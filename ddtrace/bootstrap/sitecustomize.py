@@ -35,7 +35,7 @@ if config.logs_injection:
 # upon initializing it the first time.
 # See https://github.com/python/cpython/blob/112e4afd582515fcdcc0cde5012a4866e5cfda12/Lib/logging/__init__.py#L1550
 # Debug mode from the tracer will do a basicConfig so only need to do this otherwise
-if not config.debug_mode and config.call_basic_config:
+if not config._debug_mode and config._call_basic_config:
     deprecate(
         "ddtrace.tracer.logging.basicConfig",
         message="`logging.basicConfig()` should be called in a user's application."

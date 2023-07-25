@@ -91,7 +91,7 @@ def main():
     if args.profiling:
         os.environ["DD_PROFILING_ENABLED"] = "true"
 
-    if args.debug or ddtrace.config.debug_mode:
+    if args.debug or ddtrace.config._debug_mode:
         logging.basicConfig(level=logging.DEBUG)
         os.environ["DD_TRACE_DEBUG"] = "true"
 
