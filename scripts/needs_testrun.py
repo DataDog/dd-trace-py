@@ -2,6 +2,7 @@
 
 from argparse import ArgumentParser
 import fnmatch
+import functools
 import json
 import logging
 import os
@@ -122,6 +123,7 @@ def get_base_branch(pr_number: int) -> str:
     return BASE_BRANCH_PATTERN.search(pr_page_content).group(1)
 
 
+@functools.cache
 def get_changed_files(pr_number: int) -> t.Set[str]:
     """Get the files changed in a PR
 
