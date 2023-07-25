@@ -1,0 +1,132 @@
+interactions:
+- request:
+    body: '{"model": "ada", "prompt": "Hello world", "stream": true}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '57'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - OpenAI/v1 PythonBindings/0.27.8
+      X-OpenAI-Client-User-Agent:
+      - '{"bindings_version": "0.27.8", "httplib": "requests", "lang": "python", "lang_version":
+        "3.10.5", "platform": "macOS-13.4.1-arm64-arm-64bit", "publisher": "openai",
+        "uname": "Darwin 22.5.0 Darwin Kernel Version 22.5.0: Thu Jun  8 22:22:20
+        PDT 2023; root:xnu-8796.121.3~7/RELEASE_ARM64_T6000 arm64"}'
+    method: POST
+    uri: https://api.openai.com/v1/completions
+  response:
+    body:
+      string: 'data: {"id":"cmpl-7gJpq4wkxJGXKpDWJsHZgwDsFHNIX","object":"text_completion","created":1690320378,"choices":[{"text":"boarding","index":0,"logprobs":null,"finish_reason":null}],"model":"ada"}
+
+
+        data: {"id":"cmpl-7gJpq4wkxJGXKpDWJsHZgwDsFHNIX","object":"text_completion","created":1690320378,"choices":[{"text":",","index":0,"logprobs":null,"finish_reason":null}],"model":"ada"}
+
+
+        data: {"id":"cmpl-7gJpq4wkxJGXKpDWJsHZgwDsFHNIX","object":"text_completion","created":1690320378,"choices":[{"text":"
+        it","index":0,"logprobs":null,"finish_reason":null}],"model":"ada"}
+
+
+        data: {"id":"cmpl-7gJpq4wkxJGXKpDWJsHZgwDsFHNIX","object":"text_completion","created":1690320378,"choices":[{"text":"''s","index":0,"logprobs":null,"finish_reason":null}],"model":"ada"}
+
+
+        data: {"id":"cmpl-7gJpq4wkxJGXKpDWJsHZgwDsFHNIX","object":"text_completion","created":1690320378,"choices":[{"text":"
+        hard","index":0,"logprobs":null,"finish_reason":null}],"model":"ada"}
+
+
+        data: {"id":"cmpl-7gJpq4wkxJGXKpDWJsHZgwDsFHNIX","object":"text_completion","created":1690320378,"choices":[{"text":"
+        for","index":0,"logprobs":null,"finish_reason":null}],"model":"ada"}
+
+
+        data: {"id":"cmpl-7gJpq4wkxJGXKpDWJsHZgwDsFHNIX","object":"text_completion","created":1690320378,"choices":[{"text":"
+        me","index":0,"logprobs":null,"finish_reason":null}],"model":"ada"}
+
+
+        data: {"id":"cmpl-7gJpq4wkxJGXKpDWJsHZgwDsFHNIX","object":"text_completion","created":1690320378,"choices":[{"text":".","index":0,"logprobs":null,"finish_reason":null}],"model":"ada"}
+
+
+        data: {"id":"cmpl-7gJpq4wkxJGXKpDWJsHZgwDsFHNIX","object":"text_completion","created":1690320378,"choices":[{"text":"
+        I","index":0,"logprobs":null,"finish_reason":null}],"model":"ada"}
+
+
+        data: {"id":"cmpl-7gJpq4wkxJGXKpDWJsHZgwDsFHNIX","object":"text_completion","created":1690320378,"choices":[{"text":"''m","index":0,"logprobs":null,"finish_reason":null}],"model":"ada"}
+
+
+        data: {"id":"cmpl-7gJpq4wkxJGXKpDWJsHZgwDsFHNIX","object":"text_completion","created":1690320378,"choices":[{"text":"
+        do","index":0,"logprobs":null,"finish_reason":null}],"model":"ada"}
+
+
+        data: {"id":"cmpl-7gJpq4wkxJGXKpDWJsHZgwDsFHNIX","object":"text_completion","created":1690320378,"choices":[{"text":"ggy","index":0,"logprobs":null,"finish_reason":null}],"model":"ada"}
+
+
+        data: {"id":"cmpl-7gJpq4wkxJGXKpDWJsHZgwDsFHNIX","object":"text_completion","created":1690320378,"choices":[{"text":"-","index":0,"logprobs":null,"finish_reason":null}],"model":"ada"}
+
+
+        data: {"id":"cmpl-7gJpq4wkxJGXKpDWJsHZgwDsFHNIX","object":"text_completion","created":1690320378,"choices":[{"text":"k","index":0,"logprobs":null,"finish_reason":null}],"model":"ada"}
+
+
+        data: {"id":"cmpl-7gJpq4wkxJGXKpDWJsHZgwDsFHNIX","object":"text_completion","created":1690320378,"choices":[{"text":"need","index":0,"logprobs":null,"finish_reason":null}],"model":"ada"}
+
+
+        data: {"id":"cmpl-7gJpq4wkxJGXKpDWJsHZgwDsFHNIX","object":"text_completion","created":1690320378,"choices":[{"text":".","index":0,"logprobs":null,"finish_reason":"length"}],"model":"ada"}
+
+
+        data: [DONE]
+
+
+        '
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 7ec77afc392a0f4f-EWR
+      Cache-Control:
+      - no-cache, must-revalidate
+      Connection:
+      - keep-alive
+      Content-Type:
+      - text/event-stream
+      Date:
+      - Tue, 25 Jul 2023 21:26:18 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      access-control-allow-origin:
+      - '*'
+      alt-svc:
+      - h3=":443"; ma=86400
+      openai-model:
+      - ada
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '23'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      x-ratelimit-limit-requests:
+      - '3000'
+      x-ratelimit-limit-tokens:
+      - '250000'
+      x-ratelimit-remaining-requests:
+      - '2999'
+      x-ratelimit-remaining-tokens:
+      - '249983'
+      x-ratelimit-reset-requests:
+      - 20ms
+      x-ratelimit-reset-tokens:
+      - 3ms
+      x-request-id:
+      - 53d6238f987256b0b6de71eadc150517
+    status:
+      code: 200
+      message: OK
+version: 1
