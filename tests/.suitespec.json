@@ -91,6 +91,10 @@
             "ddtrace/opentracer/*",
             "tests/opentracer/*"
         ],
+        "tornado": [
+            "ddtrace/contrib/tornado/*",
+            "tests/contrib/tornado/*"
+        ],
         "pynamodb": [
             "ddtrace/contrib/pynamodb/*",
             "tests/contrib/pynamodb/*"
@@ -863,6 +867,12 @@
             "@core",
             "@tracing",
             "@redis"
+        ],
+        "tornado": [
+            "@bootstrap",
+            "@core",
+            "@tracing",
+            "@tornado"
         ],
         "rediscluster": [
             "@bootstrap",
