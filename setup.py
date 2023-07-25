@@ -297,13 +297,12 @@ class CMakeBuild(build_ext):
         tmp_filename = tmp_iast_file_path.replace(tmp_iast_path + os.path.sep, "")
 
         cmake_list_path = os.path.join(IAST_DIR, "CMakeLists.txt")
+
         if (
             sys.version_info >= (3, 6, 0)
             and ext.name == "ddtrace.appsec.iast._taint_tracking._native"
             and os.path.exists(cmake_list_path)
         ):
-            import shutil
-
             os.makedirs(tmp_iast_path, exist_ok=True)
 
             import subprocess
@@ -342,20 +341,25 @@ class CMakeBuild(build_ext):
                 if hasattr(self, "parallel") and self.parallel:
                     # CMake 3.12+ only.
                     build_args += ["-j{}".format(self.parallel)]
+            try:
+                cmake_cmd_with_args = [cmake_command] + cmake_args
+                subprocess.run(cmake_cmd_with_args, cwd=tmp_iast_path, check=True)
 
-            cmake_cmd_with_args = [cmake_command] + cmake_args
-            subprocess.run(cmake_cmd_with_args, cwd=tmp_iast_path, check=True)
+                build_command = [cmake_command, "--build", tmp_iast_path] + build_args
+                subprocess.run(build_command, cwd=tmp_iast_path, check=True)
+            except Exception as e:
+                print("WARNING: Failed to build IAST extensions, skipping: %s" % e)
+            finally:
+                import shutil
 
-            build_command = [cmake_command, "--build", tmp_iast_path] + build_args
-            subprocess.run(build_command, cwd=tmp_iast_path, check=True)
-
-            for directory_to_remove in ["_deps", "CMakeFiles"]:
-                shutil.rmtree(os.path.join(tmp_iast_path, directory_to_remove))
-            for file_to_remove in ["Makefile", "cmake_install.cmake", "compile_commands.json", "CMakeCache.txt"]:
-                if os.path.exists(os.path.join(tmp_iast_path, file_to_remove)):
-                    os.remove(os.path.join(tmp_iast_path, file_to_remove))
-
-            shutil.copy(os.path.join(IAST_DIR, tmp_filename), tmp_iast_file_path)
+                for directory_to_remove in ["_deps", "CMakeFiles"]:
+                    shutil.rmtree(os.path.join(tmp_iast_path, directory_to_remove))
+                for file_to_remove in ["Makefile", "cmake_install.cmake", "compile_commands.json", "CMakeCache.txt"]:
+                    if os.path.exists(os.path.join(tmp_iast_path, file_to_remove)):
+                        os.remove(os.path.join(tmp_iast_path, file_to_remove))
+                iast_artifact = os.path.join(IAST_DIR, tmp_filename)
+                if os.path.exists(iast_artifact):
+                    shutil.copy(iast_artifact, tmp_iast_file_path)
         else:
             build_ext.build_extension(self, ext)
 
@@ -449,6 +453,7 @@ if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
                 extra_compile_args=debug_compile_args,
             )
         )
+
         if sys.version_info >= (3, 6, 0):
             ext_modules.append(Extension("ddtrace.appsec.iast._taint_tracking._native", sources=[], parallel=8))
 else:
@@ -642,6 +647,7 @@ setup(
             "PY_MAJOR_VERSION": sys.version_info.major,
             "PY_MINOR_VERSION": sys.version_info.minor,
             "PY_MICRO_VERSION": sys.version_info.micro,
+            "PY_VERSION_HEX": sys.hexversion,
         },
         force=True,
         annotate=os.getenv("_DD_CYTHON_ANNOTATE") == "1",
