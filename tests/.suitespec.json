@@ -449,7 +449,7 @@
             "@tracing",
             "@opentelemetry"
         ],
-        "profiling": [
+        "profile": [
             "@bootstrap",
             "@core",
             "@profiling"
