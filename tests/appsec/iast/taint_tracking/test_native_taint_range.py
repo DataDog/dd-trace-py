@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import random
 import sys
 
 import pytest
@@ -61,8 +62,8 @@ _RANGE2 = TaintRange(1, 3, _SOURCE2)
 
 
 def test_unicode_fast_tainting():
-    s = "somestr" * 4000
-    s_check = "somestr" * 4000
+    s = "somestr" * random.randint(4000, 10000)
+    s_check = "somestr" * random.randint(4000, 10000)
     # Check that s is not interned since fast tainting only works on non-interned strings
     assert s is not s_check
     assert is_notinterned_notfasttainted_unicode(s)
