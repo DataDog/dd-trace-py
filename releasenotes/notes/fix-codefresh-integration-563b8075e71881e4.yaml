@@ -1,4 +1,6 @@
 ---
 features:
   - |
-    CI visibility: added BITBUCKET_GIT_HTTP_ORIGIN environment variable and added Codefresh integration
+    CI visibility: Adds BITBUCKET_GIT_HTTP_ORIGIN environment variable
+  - |
+    CI visibility: Adds CodeFresh integration
