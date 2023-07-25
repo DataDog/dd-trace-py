@@ -78,8 +78,8 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
             {"name": "DD_EXCEPTION_DEBUGGING_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_PROFILING_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_TRACE_ENABLED", "origin": "unknown", "value": True},
-            {"name": TELEMETRY_PROPAGATION_STYLE_EXTRACT, "origin": "unknown", "value": "datadog"},
-            {"name": TELEMETRY_PROPAGATION_STYLE_INJECT, "origin": "unknown", "value": "datadog"},
+            {"name": TELEMETRY_PROPAGATION_STYLE_EXTRACT, "origin": "unknown", "value": "tracecontext,datadog"},
+            {"name": TELEMETRY_PROPAGATION_STYLE_INJECT, "origin": "unknown", "value": "tracecontext,datadog"},
             {"name": "ddtrace_auto_used", "origin": "unknown", "value": False},
             {"name": "ddtrace_bootstrapped", "origin": "unknown", "value": False},
             {"name": "otel_enabled", "origin": "unknown", "value": False},
@@ -136,16 +136,17 @@ telemetry_writer.disable()
 
     events = test_agent_session.get_events()
     events[0]["payload"]["configuration"].sort(key=lambda c: c["name"])
+
     assert events[0]["payload"]["configuration"] == [
         {"name": "DD_APPSEC_ENABLED", "origin": "unknown", "value": True},
         {"name": "DD_DATA_STREAMS_ENABLED", "origin": "unknown", "value": True},
         {"name": "DD_DYNAMIC_INSTRUMENTATION_ENABLED", "origin": "unknown", "value": True},
         {"name": "DD_EXCEPTION_DEBUGGING_ENABLED", "origin": "unknown", "value": True},
         {"name": "DD_PROFILING_ENABLED", "origin": "unknown", "value": True},
+        # why is this showing up as True?
         {"name": "DD_TRACE_ENABLED", "origin": "unknown", "value": False},
-        # tracecontext is appended for propagation styles because otel is set to true
-        {"name": TELEMETRY_PROPAGATION_STYLE_EXTRACT, "origin": "unknown", "value": "b3multi,tracecontext"},
-        {"name": TELEMETRY_PROPAGATION_STYLE_INJECT, "origin": "unknown", "value": "datadog,tracecontext"},
+        {"name": TELEMETRY_PROPAGATION_STYLE_EXTRACT, "origin": "unknown", "value": "b3multi"},
+        {"name": TELEMETRY_PROPAGATION_STYLE_INJECT, "origin": "unknown", "value": "datadog"},
         {"name": "ddtrace_auto_used", "origin": "unknown", "value": True},
         {"name": "ddtrace_bootstrapped", "origin": "unknown", "value": True},
         {"name": "otel_enabled", "origin": "unknown", "value": True},
