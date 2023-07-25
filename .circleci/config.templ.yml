@@ -146,7 +146,7 @@ commands:
                 services: testagent << parameters.docker_services >>
             - run:
                 environment:
-                  DD_TRACE_AGENT_URL: << parameters.trace_agent_url >>
+                  DD_TRACE_AGENT_URL: << parameters.trace_agent_url >> 
                   RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
                 command: |
                   # Sort the hashes to ensure a consistent ordering/division between each node
@@ -357,7 +357,7 @@ jobs:
       - run_test:
           pattern: 'appsec'
           snapshot: true
-
+    
   aws_lambda:
     <<: *machine_executor
     steps:
@@ -1127,7 +1127,7 @@ requires_base_venvs: &requires_base_venvs
 
 requires_tests: &requires_tests
   requires:
-#[[[cog from needs_testrun import for_each_testrun_needed as fetn;fetn(lambda job: print(f"    - {job}"), cached=False) ]]]
+#[[[cog from needs_testrun import for_each_testrun_needed as fetn;fetn(lambda job: print(f"    - {job}")) ]]]
 #[[[end]]]
 
 
@@ -1146,7 +1146,7 @@ workflows:
       - build_docs: *requires_pre_check
 
       # Integration test suites
-#[[[cog from needs_testrun import for_each_testrun_needed as fetn;fetn(lambda job: print(f"      - {job}: *requires_base_venvs"), cached=False) ]]]
+#[[[cog from needs_testrun import for_each_testrun_needed as fetn;fetn(lambda job: print(f"      - {job}: *requires_base_venvs")) ]]]
 #[[[end]]]
       # Final reports
       - coverage_report: *requires_tests
