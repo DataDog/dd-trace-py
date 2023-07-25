@@ -123,6 +123,7 @@ class SPAN_DATA_NAMES(object):
 class API_SECURITY(object):
     """constants related to API Security"""
 
+    ENV_VAR_ENABLED = "DD_EXPERIMENTAL_API_SECURITY_ENABLED"
     REQUEST_HEADERS_NO_COOKIES = "_dd.appsec.s.req.headers"
     REQUEST_QUERY = "_dd.appsec.s.req.query"
     REQUEST_PATH_PARAMS = "_dd.appsec.s.req.params"
