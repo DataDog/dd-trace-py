@@ -805,6 +805,6 @@
             "@core",
             "@tracing",
             "@langchain",
-        ],
+        ]
     }
 }
