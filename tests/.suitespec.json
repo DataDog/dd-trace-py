@@ -47,7 +47,7 @@
             "tests/contrib/aioredis/*",
             "tests/contrib/aredis/*",
             "tests/contrib/yaaredis/*",
-            "ddtrace/contrib/trace_utils_redis.py",
+            "ddtrace/contrib/trace_utils_redis.py"
         ],
         "mongo": [
             "ddtrace/contrib/pymongo/*",
@@ -368,7 +368,7 @@
             "@core",
             "@tracing",
             "@contrib",
-            "@kafka",
+            "@kafka"
         ],
         "tracer": [
             "@tracing",
@@ -393,7 +393,7 @@
             "@asyncio",
             "@futures",
             "@sqlite3",
-            "@dbapi",
+            "@dbapi"
         ],
         "appsec": [
             "@bootstrap",
@@ -405,7 +405,7 @@
             "@bootstrap",
             "@core",
             "@tracing",
-            "@aws_lambda",
+            "@aws_lambda"
         ],
         "datastreams": [
             "@bootstrap",
