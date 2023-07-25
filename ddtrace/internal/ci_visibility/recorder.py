@@ -24,7 +24,6 @@ from ddtrace.internal.compat import TimeoutError
 from ddtrace.internal.compat import parse
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
-from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.writer.writer import Response
 from ddtrace.settings import IntegrationConfig
 
@@ -208,17 +207,12 @@ class CIVisibility(Service):
 
         if not self._test_skipping_enabled_by_api:
             log.debug("Test skipping is not enabled by API")
-            if asbool(os.getenv("DD_CIVISIBILITY_ITR_ENABLED")):
-                log.warning(
-                    "Test skipping disabled: environment variable DD_CIVISIBILITY_ITR_ENABLED is true but "
-                    "Datadog Intelligent Test Runner is not enabled for this service."
-                )
             return
 
-        if not ddconfig._ci_visibility_intelligent_testrunner_enabled:
+        if ddconfig._ci_visibility_intelligent_testrunner_disabled:
             log.warning(
                 "Test skipping disabled: Intelligent Test Runner is enabled for this service, but "
-                "disabled in tracer configuration or by DD_CIVISIBILITY_ITR_ENABLED environment variable."
+                "disabled by DD_CIVISIBILITY_ITR_DISABLED environment variable or tracer configuration."
             )
             return
         elif requests_mode == REQUESTS_MODE.TRACES:

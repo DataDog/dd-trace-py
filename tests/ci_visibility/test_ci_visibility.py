@@ -107,7 +107,6 @@ def test_ci_visibility_service_settings_timeout(_do_request):
             DD_API_KEY="foobar.baz",
             DD_APP_KEY="foobar",
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
-            DD_CIVISIBILITY_ITR_ENABLED="1",
         )
     ):
         ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
@@ -125,7 +124,6 @@ def test_ci_visibility_service_skippable_timeout(_do_request, _check_enabled_fea
             DD_API_KEY="foobar.baz",
             DD_APP_KEY="foobar",
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
-            DD_CIVISIBILITY_ITR_ENABLED="1",
         )
     ):
         ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
@@ -141,7 +139,6 @@ def test_ci_visibility_service_enable_with_app_key_and_itr_enabled(_do_request):
             DD_API_KEY="foobar.baz",
             DD_APP_KEY="foobar",
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
-            DD_CIVISIBILITY_ITR_ENABLED="1",
         )
     ), mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"):
         ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
@@ -230,7 +227,6 @@ def test_git_client_worker_agentless(_do_request, git_repo):
         dict(
             DD_API_KEY="foobar.baz",
             DD_APPLICATION_KEY="banana",
-            DD_CIVISIBILITY_ITR_ENABLED="1",
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
         )
     ):
@@ -263,13 +259,7 @@ def test_git_client_worker_evp_proxy(_do_request, git_repo):
         body='{"data":{"id":"1234","type":"ci_app_tracers_test_service_settings","attributes":'
         '{"code_coverage":true,"tests_skipping":true}}}',
     )
-    with override_env(
-        dict(
-            DD_API_KEY="foobar.baz",
-            DD_APPLICATION_KEY="banana",
-            DD_CIVISIBILITY_ITR_ENABLED="1",
-        )
-    ), mock.patch(
+    with override_env(dict(DD_API_KEY="foobar.baz", DD_APPLICATION_KEY="banana",)), mock.patch(
         "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_is_available", return_value=True
     ):
         ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
@@ -542,7 +532,6 @@ def test_civisibility_check_enabled_features_no_app_key_request_not_called(_do_r
             DD_API_KEY="foo.bar",
             DD_CIVISIBILITY_AGENTLESS_URL="https://foo.bar",
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
-            DD_CIVISIBILITY_ITR_ENABLED="1",
         )
     ):
         ddtrace.internal.ci_visibility.writer.config = ddtrace.settings.Config()
@@ -718,7 +707,7 @@ def test_configure_itr_disabled_by_env_var():
             DD_API_KEY="mock_api_key",
             DD_APP_KEY="mock_app_key",
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
-            DD_CIVISIBILITY_ITR_ENABLED="0",
+            DD_CIVISIBILITY_ITR_DISABLED="1",
         )
     ):
         with mock.patch.object(CIVisibility, "__init__", return_value=None):
@@ -740,7 +729,6 @@ def test_configure_itr_disabled_by_api():
             DD_API_KEY="foobar.baz",
             DD_APP_KEY="foobar",
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
-            DD_CIVISIBILITY_ITR_ENABLED="1",
         )
     ):
         with mock.patch.object(CIVisibility, "__init__", return_value=None):
@@ -762,13 +750,12 @@ def test_configure_itr_disabled_by_configuration():
             DD_API_KEY="foobar.baz",
             DD_APP_KEY="foobar",
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
-            DD_CIVISIBILITY_ITR_ENABLED="1",
         )
     ):
         with mock.patch.object(CIVisibility, "__init__", return_value=None):
             mock_civisibilty = CIVisibility()
             ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
-            ddtrace.internal.ci_visibility.recorder.ddconfig._ci_visibility_intelligent_testrunner_enabled = False
+            ddtrace.internal.ci_visibility.recorder.ddconfig._ci_visibility_intelligent_testrunner_disabled = True
             mock_civisibilty._test_skipping_enabled_by_api = True
             mock_civisibilty._code_coverage_enabled_by_api = True
             mock_civisibilty._git_client = None
@@ -784,7 +771,6 @@ def test_configure_itr_disabled_by_missing_app_key():
         dict(
             DD_APP_KEY="foobar",
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
-            DD_CIVISIBILITY_ITR_ENABLED="1",
         )
     ):
         with mock.patch.object(CIVisibility, "__init__", return_value=None):
@@ -806,7 +792,6 @@ def test_configure_itr_disabled_by_missing_bad_requests_mode():
             DD_API_KEY="foobar.baz",
             DD_APP_KEY="foobar",
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
-            DD_CIVISIBILITY_ITR_ENABLED="1",
         )
     ):
         with mock.patch.object(CIVisibility, "__init__", return_value=None):
@@ -828,7 +813,6 @@ def test_configure_itr_disabled_by_coverage_not_enabled():
             DD_API_KEY="foobar.baz",
             DD_APP_KEY="foobar",
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
-            DD_CIVISIBILITY_ITR_ENABLED="1",
         )
     ):
         with mock.patch.object(CIVisibility, "__init__", return_value=None):
@@ -850,7 +834,6 @@ def test_configure_itr_enabled_with_agentless_mode():
             DD_API_KEY="foobar.baz",
             DD_APP_KEY="foobar",
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
-            DD_CIVISIBILITY_ITR_ENABLED="1",
         )
     ):
         with mock.patch.object(CIVisibility, "__init__", return_value=None):
@@ -872,7 +855,6 @@ def test_configure_itr_enabled_with_evp_mode():
             DD_API_KEY="foobar.baz",
             DD_APP_KEY="foobar",
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
-            DD_CIVISIBILITY_ITR_ENABLED="1",
         )
     ):
         with mock.patch.object(CIVisibility, "__init__", return_value=None):
