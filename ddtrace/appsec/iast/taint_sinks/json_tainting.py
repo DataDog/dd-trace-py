@@ -36,7 +36,7 @@ def wrapped_loads(wrapped, instance, args, kwargs):
 
             if is_pyobject_tainted(args[0]) and obj:
                 # tainting object
-                sources = taint_ranges_as_evidence_info(obj)[1]
+                sources = taint_ranges_as_evidence_info(args[0])[1]
                 if not sources:
                     return obj
                 # take the first source as main source
@@ -50,4 +50,5 @@ def wrapped_loads(wrapped, instance, args, kwargs):
                 pass
         except Exception:
             log.debug("Unexpected exception while reporting vulnerability", exc_info=True)
+            raise
     return obj

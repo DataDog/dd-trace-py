@@ -2,6 +2,8 @@ import pytest
 
 from ddtrace.appsec.iast import oce
 from ddtrace.appsec.iast._util import _is_python_version_supported
+from ddtrace.appsec.iast.taint_sinks.json_tainting import patch as json_patch
+from ddtrace.appsec.iast.taint_sinks.json_tainting import unpatch_iast as json_unpatch
 from ddtrace.appsec.iast.taint_sinks.path_traversal import patch as path_traversal_patch
 from ddtrace.appsec.iast.taint_sinks.weak_cipher import patch as weak_cipher_patch
 from ddtrace.appsec.iast.taint_sinks.weak_cipher import unpatch_iast as weak_cipher_unpatch
@@ -18,11 +20,13 @@ def iast_span(tracer, env, request_sampling="100"):
             weak_hash_patch()
             weak_cipher_patch()
             path_traversal_patch()
+            json_patch()
             oce.acquire_request(span)
             yield span
             oce.release_request()
             weak_hash_unpatch()
             weak_cipher_unpatch()
+            json_unpatch()
 
 
 @pytest.fixture
