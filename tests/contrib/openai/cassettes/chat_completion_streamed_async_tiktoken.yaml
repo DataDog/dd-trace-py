@@ -1,0 +1,149 @@
+interactions:
+- request:
+    body: '{"model": "gpt-3.5-turbo", "messages": [{"role": "user", "content": "Who
+      is the captain of the toronto maple leafs?"}], "stream": true, "user": "ddtrace-test"}'
+    headers:
+      Content-Type:
+      - application/json
+      User-Agent:
+      - OpenAI/v1 PythonBindings/0.27.8
+      X-OpenAI-Client-User-Agent:
+      - '{"bindings_version": "0.27.8", "httplib": "requests", "lang": "python", "lang_version":
+        "3.10.5", "platform": "macOS-13.4.1-arm64-arm-64bit", "publisher": "openai",
+        "uname": "Darwin 22.5.0 Darwin Kernel Version 22.5.0: Thu Jun  8 22:22:20
+        PDT 2023; root:xnu-8796.121.3~7/RELEASE_ARM64_T6000 arm64"}'
+    method: post
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: 'data: {"id":"chatcmpl-7gaF7EVo7gdMFIJxnJQyXt0dayOPV","object":"chat.completion.chunk","created":1690383449,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"delta":{"role":"assistant","content":""},"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-7gaF7EVo7gdMFIJxnJQyXt0dayOPV","object":"chat.completion.chunk","created":1690383449,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"delta":{"content":"As"},"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-7gaF7EVo7gdMFIJxnJQyXt0dayOPV","object":"chat.completion.chunk","created":1690383449,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"delta":{"content":"
+        of"},"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-7gaF7EVo7gdMFIJxnJQyXt0dayOPV","object":"chat.completion.chunk","created":1690383449,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"delta":{"content":"
+        September"},"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-7gaF7EVo7gdMFIJxnJQyXt0dayOPV","object":"chat.completion.chunk","created":1690383449,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"delta":{"content":"
+        "},"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-7gaF7EVo7gdMFIJxnJQyXt0dayOPV","object":"chat.completion.chunk","created":1690383449,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"delta":{"content":"202"},"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-7gaF7EVo7gdMFIJxnJQyXt0dayOPV","object":"chat.completion.chunk","created":1690383449,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"delta":{"content":"1"},"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-7gaF7EVo7gdMFIJxnJQyXt0dayOPV","object":"chat.completion.chunk","created":1690383449,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"delta":{"content":","},"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-7gaF7EVo7gdMFIJxnJQyXt0dayOPV","object":"chat.completion.chunk","created":1690383449,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"delta":{"content":"
+        the"},"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-7gaF7EVo7gdMFIJxnJQyXt0dayOPV","object":"chat.completion.chunk","created":1690383449,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"delta":{"content":"
+        captain"},"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-7gaF7EVo7gdMFIJxnJQyXt0dayOPV","object":"chat.completion.chunk","created":1690383449,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"delta":{"content":"
+        of"},"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-7gaF7EVo7gdMFIJxnJQyXt0dayOPV","object":"chat.completion.chunk","created":1690383449,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"delta":{"content":"
+        the"},"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-7gaF7EVo7gdMFIJxnJQyXt0dayOPV","object":"chat.completion.chunk","created":1690383449,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"delta":{"content":"
+        Toronto"},"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-7gaF7EVo7gdMFIJxnJQyXt0dayOPV","object":"chat.completion.chunk","created":1690383449,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"delta":{"content":"
+        Maple"},"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-7gaF7EVo7gdMFIJxnJQyXt0dayOPV","object":"chat.completion.chunk","created":1690383449,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"delta":{"content":"
+        Leafs"},"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-7gaF7EVo7gdMFIJxnJQyXt0dayOPV","object":"chat.completion.chunk","created":1690383449,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"delta":{"content":"
+        is"},"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-7gaF7EVo7gdMFIJxnJQyXt0dayOPV","object":"chat.completion.chunk","created":1690383449,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"delta":{"content":"
+        John"},"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-7gaF7EVo7gdMFIJxnJQyXt0dayOPV","object":"chat.completion.chunk","created":1690383449,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"delta":{"content":"
+        T"},"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-7gaF7EVo7gdMFIJxnJQyXt0dayOPV","object":"chat.completion.chunk","created":1690383449,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"delta":{"content":"ava"},"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-7gaF7EVo7gdMFIJxnJQyXt0dayOPV","object":"chat.completion.chunk","created":1690383449,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"delta":{"content":"res"},"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-7gaF7EVo7gdMFIJxnJQyXt0dayOPV","object":"chat.completion.chunk","created":1690383449,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"delta":{"content":"."},"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-7gaF7EVo7gdMFIJxnJQyXt0dayOPV","object":"chat.completion.chunk","created":1690383449,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}
+
+
+        data: [DONE]
+
+
+        '
+    headers:
+      Access-Control-Allow-Origin:
+      - '*'
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 7ecd7ecc7fec4261-EWR
+      Cache-Control:
+      - no-cache, must-revalidate
+      Connection:
+      - keep-alive
+      Content-Type:
+      - text/event-stream
+      Date:
+      - Wed, 26 Jul 2023 14:57:29 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      alt-svc:
+      - h3=":443"; ma=86400
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '6'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      x-ratelimit-limit-requests:
+      - '10000'
+      x-ratelimit-limit-tokens:
+      - '1000000'
+      x-ratelimit-remaining-requests:
+      - '9999'
+      x-ratelimit-remaining-tokens:
+      - '999971'
+      x-ratelimit-reset-requests:
+      - 6ms
+      x-ratelimit-reset-tokens:
+      - 1ms
+      x-request-id:
+      - e71d2e514068a563b54253a406858180
+    status:
+      code: 200
+      message: OK
+    url: https://api.openai.com/v1/chat/completions
+version: 1

@@ -1672,7 +1672,7 @@ def test_completion_stream_no_tiktoken(openai, openai_vcr, mock_metrics, mock_tr
 
 @pytest.mark.skipif(not TIKTOKEN_AVAILABLE, reason="testing prompt token count calculation")
 def test_completion_stream_with_tiktoken(openai, openai_vcr, mock_metrics, mock_tracer):
-    with openai_vcr.use_cassette("completion_streamed.yaml"):
+    with openai_vcr.use_cassette("completion_streamed_tiktoken.yaml"):
         with mock.patch("ddtrace.contrib.openai.utils.encoding_for_model") as mock_encoding:
             mock_encoding.return_value.encode.side_effect = lambda x: [1, 2]
             resp = openai.Completion.create(model="ada", prompt="Hello world", stream=True)
@@ -1739,7 +1739,7 @@ async def test_completion_async_stream_no_tiktoken(openai, openai_vcr, mock_metr
 @pytest.mark.skipif(not TIKTOKEN_AVAILABLE, reason="testing prompt token count calculation")
 @pytest.mark.asyncio
 async def test_completion_async_stream_with_tiktoken(openai, openai_vcr, mock_metrics, mock_tracer):
-    with openai_vcr.use_cassette("completion_async_streamed.yaml"):
+    with openai_vcr.use_cassette("completion_async_streamed_tiktoken.yaml"):
         with mock.patch("ddtrace.contrib.openai.utils.encoding_for_model") as mock_encoding:
             mock_encoding.return_value.encode.side_effect = lambda x: [1, 2]
             resp = await openai.Completion.acreate(model="ada", prompt="Hello world", stream=True)
@@ -1820,7 +1820,7 @@ def test_chat_completion_stream_with_tiktoken(openai, openai_vcr, mock_metrics, 
     if not hasattr(openai, "ChatCompletion"):
         pytest.skip("ChatCompletion not supported for this version of openai")
 
-    with openai_vcr.use_cassette("chat_completion_streamed.yaml"):
+    with openai_vcr.use_cassette("chat_completion_streamed_tiktoken.yaml"):
         with mock.patch("ddtrace.contrib.openai.utils.encoding_for_model") as mock_encoding:
             mock_encoding.return_value.encode.side_effect = lambda x: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
             prompt_tokens = 10
@@ -1846,13 +1846,13 @@ def test_chat_completion_stream_with_tiktoken(openai, openai_vcr, mock_metrics, 
         "openai.request.endpoint:/v1/chat/completions",
         "openai.request.method:POST",
         "openai.organization.id:",
-        "openai.organization.name:user-f23xvdxbrssd56y1ghcjdcue",
+        "openai.organization.name:datadog-4",
         "openai.user.api_key:sk-...key>",
         "error:0",
     ]
     assert mock.call.distribution("request.duration", span.duration_ns, tags=expected_tags) in mock_metrics.mock_calls
-    assert mock.call.gauge("ratelimit.requests", 3, tags=expected_tags) in mock_metrics.mock_calls
-    assert mock.call.gauge("ratelimit.remaining.requests", 2, tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.gauge("ratelimit.requests", 10000, tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.gauge("ratelimit.remaining.requests", 9999, tags=expected_tags) in mock_metrics.mock_calls
     expected_tags += ["openai.estimated:true"]
     assert mock.call.distribution("tokens.prompt", prompt_tokens, tags=expected_tags[:-1]) in mock_metrics.mock_calls
     assert mock.call.distribution("tokens.completion", len(chunks), tags=expected_tags) in mock_metrics.mock_calls
@@ -1919,7 +1919,7 @@ async def test_chat_completion_async_stream_with_tiktoken(openai, openai_vcr, mo
     if not hasattr(openai, "ChatCompletion"):
         pytest.skip("ChatCompletion not supported for this version of openai")
 
-    with openai_vcr.use_cassette("chat_completion_streamed_async.yaml"):
+    with openai_vcr.use_cassette("chat_completion_streamed_async_tiktoken.yaml"):
         with mock.patch("ddtrace.contrib.openai.utils.encoding_for_model") as mock_encoding:
             mock_encoding.return_value.encode.side_effect = lambda x: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
             prompt_tokens = 12
@@ -1933,12 +1933,9 @@ async def test_chat_completion_async_stream_with_tiktoken(openai, openai_vcr, mo
             )
             span = snapshot_tracer.current_span()
             chunks = [c async for c in resp]
-            assert len(chunks) == 39
+            assert len(chunks) == 22
             completion = "".join([c["choices"][0]["delta"].get("content", "") for c in chunks])
-            assert (
-                completion
-                == "As an AI language model, I do not have access to real-time information but as of the 2021 season, the captain of the Toronto Maple Leafs is John Tavares."  # noqa: E501
-            )
+            assert completion == "As of September 2021, the captain of the Toronto Maple Leafs is John Tavares."
 
     expected_tags = [
         "version:",
@@ -1953,10 +1950,10 @@ async def test_chat_completion_async_stream_with_tiktoken(openai, openai_vcr, mo
         "error:0",
     ]
     assert mock.call.distribution("request.duration", span.duration_ns, tags=expected_tags) in mock_metrics.mock_calls
-    assert mock.call.gauge("ratelimit.requests", 3500, tags=expected_tags) in mock_metrics.mock_calls
-    assert mock.call.gauge("ratelimit.tokens", 90000, tags=expected_tags) in mock_metrics.mock_calls
-    assert mock.call.gauge("ratelimit.remaining.requests", 3499, tags=expected_tags) in mock_metrics.mock_calls
-    assert mock.call.gauge("ratelimit.remaining.tokens", 89971, tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.gauge("ratelimit.requests", 10000, tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.gauge("ratelimit.tokens", 1000000, tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.gauge("ratelimit.remaining.requests", 9999, tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.gauge("ratelimit.remaining.tokens", 999971, tags=expected_tags) in mock_metrics.mock_calls
     expected_tags += ["openai.estimated:true"]
     assert mock.call.distribution("tokens.prompt", prompt_tokens, tags=expected_tags[:-1]) in mock_metrics.mock_calls
     assert mock.call.distribution("tokens.completion", len(chunks), tags=expected_tags) in mock_metrics.mock_calls
