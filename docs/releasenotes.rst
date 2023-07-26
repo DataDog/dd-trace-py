@@ -1,3 +1,5 @@
+.. _release_notes:
+
 Release Notes
 =============
 
@@ -80,6 +82,8 @@ Categories
 Generated release note files are templates and include all possible categories.
 Remove all sections from your generated note except for the ones that apply to the
 change you're documenting.
+
+.. _release_notes_scope:
 
 Scope
 -----
