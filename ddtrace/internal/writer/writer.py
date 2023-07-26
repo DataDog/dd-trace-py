@@ -23,7 +23,6 @@ from .. import compat
 from .. import periodic
 from .. import service
 from ...constants import KEEP_SPANS_RATE_KEY
-from ...internal.serverless import in_gcp_function
 from ...internal.telemetry import telemetry_writer
 from ...internal.utils.formats import asbool
 from ...internal.utils.formats import parse_tags_str
@@ -37,6 +36,8 @@ from ..agent import get_connection
 from ..encoding import JSONEncoderV2
 from ..logger import get_logger
 from ..runtime import container
+from ..serverless import in_azure_function_consumption_plan
+from ..serverless import in_gcp_function
 from ..sma import SimpleMovingAverage
 from .writer_client import AgentWriterClientV3
 from .writer_client import AgentWriterClientV4
@@ -516,7 +517,9 @@ class AgentWriter(HTTPWriter):
         #      as a safety precaution.
         #      https://docs.python.org/3/library/sys.html#sys.platform
         is_windows = sys.platform.startswith("win") or sys.platform.startswith("cygwin")
-        default_api_version = "v0.4" if (is_windows or in_gcp_function()) else "v0.5"
+        default_api_version = (
+            "v0.4" if (is_windows or in_gcp_function() or in_azure_function_consumption_plan()) else "v0.5"
+        )
 
         self._api_version = (
             api_version
