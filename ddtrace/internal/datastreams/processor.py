@@ -335,8 +335,15 @@ class DataStreamsCtx:
         node_hash = fnv1_64(b)
         return fnv1_64(struct.pack("<Q", node_hash) + struct.pack("<Q", parent_hash))
 
-    def set_checkpoint(self, tags, now_sec=time.time()):
-        # type: (List[str], float) -> None
+    def set_checkpoint(self, tags, now_sec=time.time(), edge_start_sec_override=None, pathway_start_sec_override=None):
+        """
+        type: (List[str], float, float, float) -> None
+
+        :param tags: an list of tags identifying the pathway and direction
+        :param now_sec: The time in seconds to count as "now" when computing latencies
+        :param edge_start_sec_override: Use this to override the starting time of an edge
+        :param pathway_start_sec_override: Use this to override the starting time of a pathway
+        """
         tags = sorted(tags)
         direction = ""
         for t in tags:
@@ -356,6 +363,13 @@ class DataStreamsCtx:
             self.previous_direction = direction
             self.closest_opposite_direction_hash = self.hash
             self.closest_opposite_direction_edge_start = now_sec
+
+        if edge_start_sec_override:
+            self.current_edge_start_sec = edge_start_sec_override
+
+        if pathway_start_sec_override:
+            self.pathway_start_sec = pathway_start_sec_override
+
         parent_hash = self.hash
         hash_value = self._compute_hash(tags, parent_hash)
         edge_latency_sec = now_sec - self.current_edge_start_sec

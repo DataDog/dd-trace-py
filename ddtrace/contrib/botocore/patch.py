@@ -355,10 +355,13 @@ def record_data_streams_path_for_kinesis_stream(pin, params, results):
         return
 
     processor = pin.tracer.data_streams_processor
+    pathway = processor.new_pathway()
     for record in results.get("Records", []):
         time_estimate = record.get("ApproximateArrivalTimestamp", datetime.now()).timestamp()
-        processor.new_pathway(now_sec=time_estimate).set_checkpoint(
-            ["direction:in", "topic:" + stream_arn, "type:kinesis"]
+        pathway.set_checkpoint(
+            ["direction:in", "topic:" + stream_arn, "type:kinesis"],
+            edge_start_sec_override=time_estimate,
+            pathway_start_sec_override=time_estimate,
         )
 
 
@@ -371,12 +374,18 @@ def inject_trace_to_kinesis_stream(params, span, pin=None, data_streams_enabled=
     :data_streams_enabled: boolean for whether data streams monitoring is enabled
 
     Max data size per record is 1MB (https://aws.amazon.com/kinesis/data-streams/faqs/)
+
     """
     if data_streams_enabled:
         stream_arn = get_stream_arn(params)
-        if stream_arn:  # If stream ARN isn't specified, we give up
-            for _ in params.get("Records", ["fake_record"]):  # We fake a record to handle put_record
-                get_pathway(pin, "kinesis", stream_arn)  # Kinesis DSM doesn't inject any data
+        if stream_arn:  # If stream ARN isn't specified, we give up (it is not a required param)
+
+            # put_records has a "Records" entry but put_record does not, so we fake a record to
+            # collapse the logic for the two cases
+            for _ in params.get("Records", ["fake_record"]):
+                # In other DSM code, you'll see the pathway + context injection but not here.
+                # Kinesis DSM doesn't inject any data, so we only need to generate checkpoints.
+                get_pathway(pin, "kinesis", stream_arn)
 
     if "Records" in params:
         records = params["Records"]
