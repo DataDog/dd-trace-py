@@ -169,8 +169,8 @@ def get_patterns(suite: str) -> t.Set[str]:
     'ddtrace/sampler.py', 'ddtrace/settings/__init__.py', 'ddtrace/settings/config.py',
     'ddtrace/settings/dynamic_instrumentation.py', 'ddtrace/settings/exception_debugging.py',
     'ddtrace/settings/http.py', 'ddtrace/settings/integration.py', 'ddtrace/span.py', 'ddtrace/tracer.py',
-    'tests/commands/*', 'tests/debugging/*', 'tests/integration/*', 'tests/internal/*', 'tests/lib-injection',
-    'tests/tracer/*']
+    'riotfile.py', 'scripts/ddtest', 'tests/commands/*', 'tests/debugging/*', 'tests/integration/*',
+    'tests/internal/*', 'tests/lib-injection', 'tests/tracer/*']
     >>> get_patterns("foobar")
     set()
     """
@@ -199,7 +199,7 @@ def get_patterns(suite: str) -> t.Set[str]:
 def needs_testrun(suite: str, pr_number: int) -> bool:
     """Check if a testrun is needed for a suite and PR
 
-    >>> needs_testrun("debugger", 6412)
+    >>> needs_testrun("debugger", 6485)
     False
     >>> needs_testrun("debugger", 6388)
     True
