@@ -33,7 +33,8 @@
 /**
  * get_file_and_line
  *
- * Get the filename (path + filename) and line number of the original wrapped function to report it.
+ * Get the filename (path + filename) and line number of the original wrapped
+ *function to report it.
  *
  * @return Tuple, string and integer.
  **/
@@ -48,7 +49,6 @@ get_file_and_line(PyObject* Py_UNUSED(module), PyObject* args)
 
     PyObject *cwd_obj = Py_None, *cwd_bytes;
     char* cwd;
-    int err;
     if (!PyArg_ParseTuple(args, "O", &cwd_obj))
         return NULL;
     if (cwd_obj != Py_None) {

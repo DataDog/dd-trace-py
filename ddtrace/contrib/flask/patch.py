@@ -1,20 +1,14 @@
-import functools
-
 import flask
 import werkzeug
 from werkzeug.exceptions import BadRequest
 from werkzeug.exceptions import abort
 
-from ddtrace.appsec.iast._patch import if_iast_taint_returned_object_for
-from ddtrace.appsec.iast._patch import if_iast_taint_yield_tuple_for
-from ddtrace.appsec.iast._util import _is_iast_enabled
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
-from ...appsec.iast._metrics import _set_metric_iast_instrumented_source
 from ...internal import core
 from ...internal.schema import schematize_service_name
 from ...internal.schema import schematize_url_operation
@@ -108,32 +102,6 @@ flask_version_str = getattr(flask, "__version__", "0.0.0")
 flask_version = parse_version(flask_version_str)
 
 
-def taint_request_init(wrapped, instance, args, kwargs):
-    wrapped(*args, **kwargs)
-    if _is_iast_enabled():
-        try:
-            from ddtrace.appsec.iast._taint_tracking import OriginType
-            from ddtrace.appsec.iast._taint_tracking import taint_pyobject
-
-            # TODO: instance.query_string = ??
-            instance.query_string = taint_pyobject(
-                pyobject=instance.query_string,
-                source_name=OriginType.QUERY,
-                source_value=instance.query_string,
-                source_origin=OriginType.QUERY,
-            )
-            instance.path = taint_pyobject(
-                pyobject=instance.path,
-                source_name=OriginType.PATH,
-                source_value=instance.path,
-                source_origin=OriginType.PATH,
-            )
-            _set_metric_iast_instrumented_source(OriginType.PATH)
-            _set_metric_iast_instrumented_source(OriginType.QUERY)
-        except Exception:
-            log.debug("Unexpected exception while tainting pyobject", exc_info=True)
-
-
 class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
     _request_span_name = schematize_url_operation("flask.request", protocol="http", direction=SpanDirection.INBOUND)
     _application_span_name = "flask.application"
@@ -225,50 +193,7 @@ def patch():
     setattr(flask, "_datadog_patch", True)
 
     Pin().onto(flask.Flask)
-    if _is_iast_enabled():
-        try:
-            from ddtrace.appsec.iast._taint_tracking import OriginType
-
-            _w(
-                "werkzeug.datastructures",
-                "Headers.items",
-                functools.partial(if_iast_taint_yield_tuple_for, (OriginType.HEADER_NAME, OriginType.HEADER)),
-            )
-            _set_metric_iast_instrumented_source(OriginType.HEADER_NAME)
-            _set_metric_iast_instrumented_source(OriginType.HEADER)
-
-            _w(
-                "werkzeug.datastructures",
-                "ImmutableMultiDict.__getitem__",
-                functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER),
-            )
-            _set_metric_iast_instrumented_source(OriginType.PARAMETER)
-
-            _w(
-                "werkzeug.datastructures",
-                "EnvironHeaders.__getitem__",
-                functools.partial(if_iast_taint_returned_object_for, OriginType.HEADER),
-            )
-            _set_metric_iast_instrumented_source(OriginType.HEADER)
-
-            _w("werkzeug.wrappers.request", "Request.__init__", taint_request_init)
-            _w(
-                "werkzeug.wrappers.request",
-                "Request.get_data",
-                functools.partial(if_iast_taint_returned_object_for, OriginType.BODY),
-            )
-            _set_metric_iast_instrumented_source(OriginType.BODY)
-
-            if flask_version < (2, 0, 0):
-                _w(
-                    "werkzeug._internal",
-                    "_DictAccessorProperty.__get__",
-                    functools.partial(if_iast_taint_returned_object_for, OriginType.QUERY),
-                )
-                _set_metric_iast_instrumented_source(OriginType.QUERY)
-        except Exception:
-            log.debug("Unexpected exception while patch IAST functions", exc_info=True)
-
+    core.dispatch("flask.patch", [flask_version])
     # flask.app.Flask methods that have custom tracing (add metadata, wrap functions, etc)
     _w("flask", "Flask.wsgi_app", traced_wsgi_app)
     _w("flask", "Flask.dispatch_request", request_tracer("dispatch_request"))

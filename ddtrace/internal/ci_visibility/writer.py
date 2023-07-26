@@ -1,16 +1,11 @@
 import os
-from typing import Dict
-from typing import List
-from typing import Optional
+from typing import TYPE_CHECKING
 
 import ddtrace
 from ddtrace import config
-from ddtrace.vendor.dogstatsd import DogStatsd
 
 from .. import agent
 from .. import service
-from ...sampler import BasePrioritySampler
-from ...sampler import BaseSampler
 from ..runtime import get_runtime_id
 from ..writer import HTTPWriter
 from ..writer import WriterClientBase
@@ -26,6 +21,17 @@ from .constants import EVP_SUBDOMAIN_HEADER_COVERAGE_VALUE
 from .constants import EVP_SUBDOMAIN_HEADER_NAME
 from .encoder import CIVisibilityCoverageEncoderV02
 from .encoder import CIVisibilityEncoderV01
+
+
+if TYPE_CHECKING:  # pragma: no cover
+    from typing import Dict
+    from typing import List
+    from typing import Optional
+
+    from ddtrace.vendor.dogstatsd import DogStatsd
+
+    from ...sampler import BasePrioritySampler
+    from ...sampler import BaseSampler
 
 
 class CIVisibilityEventClient(WriterClientBase):

@@ -221,7 +221,7 @@ venv = Venv(
         Venv(
             pys=["3"],
             name="scripts",
-            command="python -m doctest {cmdargs} scripts/get-target-milestone.py",
+            command="python -m doctest {cmdargs} scripts/get-target-milestone.py scripts/needs_testrun.py",
         ),
         Venv(
             name="docs",
