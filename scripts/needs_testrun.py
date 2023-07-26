@@ -178,7 +178,14 @@ def get_patterns(suite: str) -> t.Set[str]:
         suitespec = json.load(f)
 
         compos = suitespec["components"]
-        suite_patterns = set(suitespec["suites"].get(suite, []))
+        if suite not in suitespec["suites"]:
+            return set()
+
+        suite_patterns = set(suitespec["suites"][suite])
+
+        # Include patterns from include-always components
+        for patterns in (patterns for compo, patterns in compos.items() if compo.startswith("$")):
+            suite_patterns |= set(patterns)
 
         def resolve(patterns: set) -> set:
             refs = {_ for _ in patterns if _.startswith("@")}
