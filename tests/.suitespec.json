@@ -9,9 +9,7 @@
             "ddtrace/__init__.py",
             "tests/internal/*",
             "tests/integration/*",
-            "tests/lib-injection",
-            "riotfile.py",
-            "scripts/ddtest"
+            "tests/lib-injection"
         ],
         "bootstrap": [
             "ddtrace/bootstrap/*",
