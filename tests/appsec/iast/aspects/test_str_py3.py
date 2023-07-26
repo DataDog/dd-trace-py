@@ -23,7 +23,7 @@ class TestOperatorsReplacement(BaseReplacement):
         string_input = create_taint_range_with_format(":+-foo-+:")
         assert as_formatted_evidence(string_input) == ":+-foo-+:"
 
-    @pytest.mark.skip(reason="Not fixed yet")
+    @pytest.mark.skip(reason="IAST isn't working correctly with Format strings")
     def test_string_build_string_tainted(self):  # type: () -> None
         # import tests.appsec.iast.fixtures.aspects.str_methods_py3 as mod
         from ddtrace.appsec.iast._taint_tracking import setup
@@ -38,7 +38,7 @@ class TestOperatorsReplacement(BaseReplacement):
         assert result == "foo     bar"
         assert as_formatted_evidence(result) == ":+-foo     bar-+:"
 
-    @pytest.mark.skip(reason="Not fixed yet")
+    @pytest.mark.skip(reason="IAST isn't working correctly with Format strings")
     def test_string_format_tainted(self):
         # type: () -> None
         from ddtrace.appsec.iast._taint_tracking import setup
