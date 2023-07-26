@@ -299,7 +299,6 @@ def _generate_in_subprocess(random_topic):
 @pytest.mark.snapshot(
     token="tests.contrib.kafka.test_kafka.test_service_override_env_var", ignores=["metrics.kafka.message_offset"]
 )
-@pytest.mark.flaky(retries=5)  # The kafka-confluent API encounters segfaults occasionally
 def test_service_override_env_var(ddtrace_run_python_code_in_subprocess, kafka_topic):
     code = """
 import sys
@@ -324,7 +323,6 @@ if __name__ == "__main__":
 
 
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
-@pytest.mark.flaky(retries=5)  # The kafka-confluent API encounters segfaults occasionally
 @pytest.mark.parametrize("service", [None, "mysvc"])
 @pytest.mark.parametrize("schema", [None, "v0", "v1"])
 def test_schematized_span_service_and_operation(ddtrace_run_python_code_in_subprocess, service, schema, kafka_topic):
