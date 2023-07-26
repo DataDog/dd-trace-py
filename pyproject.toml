@@ -227,3 +227,30 @@ exclude_dirs = [
   "ddtrace/profiling/collector/_lock.py",
   "ddtrace/sourcecode/_utils.py",
 ]
+
+# DEV: We use `conftest.py` as a local pytest plugin to configure hooks for collection
+[tool.pytest]
+# --cov-report is intentionally empty else pytest-cov will default to generating a report
+addopts = '''
+  --cov=ddtrace/
+  --cov=tests/
+  --cov-append
+  --cov-report=
+  --durations=10
+  --junitxml=test-results/junit.xml
+'''
+# DEV: The default is `test_*\.py` which will miss `test.py` files
+python_files = "test*\\.py"
+asyncio_mode = "auto"
+
+[tool.cibuildwheel]
+build = ["cp27-*", "cp35-*", "cp36-*", "cp37-*", "cp38-*", "cp39-*", "cp310-*", "cp311-*"]
+test-command = ["python {project}/tests/smoke_test.py"]
+# Skip trying to test arm64 builds on Intel Macs
+test-skip = "*-macosx_universal2:arm64"
+
+[tool.cibuildwheel.macos.environment]
+# Workaround for Macos 11.0 versioning issue, a.k.a.
+# `platform.mac_ver()` reports incorrect MacOS version at 11.0
+# See: https://stackoverflow.com/a/65402241
+SYSTEM_VERSION_COMPAT = "0"
