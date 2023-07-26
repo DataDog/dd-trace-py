@@ -169,8 +169,8 @@ def get_patterns(suite: str) -> t.Set[str]:
     'ddtrace/sampler.py', 'ddtrace/settings/__init__.py', 'ddtrace/settings/config.py',
     'ddtrace/settings/dynamic_instrumentation.py', 'ddtrace/settings/exception_debugging.py',
     'ddtrace/settings/http.py', 'ddtrace/settings/integration.py', 'ddtrace/span.py', 'ddtrace/tracer.py',
-    'tests/commands/*', 'tests/debugging/*', 'tests/integration/*', 'tests/internal/*', 'tests/lib-injection',
-    'tests/tracer/*']
+    'riotfile.py', 'scripts/ddtest', 'tests/commands/*', 'tests/debugging/*', 'tests/integration/*', 'tests/internal/*',
+    'tests/lib-injection', 'tests/tracer/*']
     >>> get_patterns("foobar")
     set()
     """
@@ -178,7 +178,14 @@ def get_patterns(suite: str) -> t.Set[str]:
         suitespec = json.load(f)
 
         compos = suitespec["components"]
-        suite_patterns = set(suitespec["suites"].get(suite, []))
+        if suite not in suitespec["suites"]:
+            return set()
+
+        suite_patterns = set(suitespec["suites"][suite])
+
+        # Include patterns from include-always components
+        for patterns in (patterns for compo, patterns in compos.items() if compo.startswith("$")):
+            suite_patterns |= set(patterns)
 
         def resolve(patterns: set) -> set:
             refs = {_ for _ in patterns if _.startswith("@")}
@@ -199,7 +206,7 @@ def get_patterns(suite: str) -> t.Set[str]:
 def needs_testrun(suite: str, pr_number: int) -> bool:
     """Check if a testrun is needed for a suite and PR
 
-    >>> needs_testrun("debugger", 6412)
+    >>> needs_testrun("debugger", 6410)
     False
     >>> needs_testrun("debugger", 6388)
     True
