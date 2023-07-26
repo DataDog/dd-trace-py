@@ -552,7 +552,6 @@ setup(
         "envier",
         "pep562; python_version<'3.7'",
         "opentelemetry-api>=1; python_version>='3.7'",
-        "cmake>=3.24.2; python_version>='3.6'",
     ]
     + bytecode,
     extras_require={
@@ -590,7 +589,7 @@ setup(
         "Programming Language :: Python :: 3.11",
     ],
     use_scm_version={"write_to": "ddtrace/_version.py"},
-    setup_requires=["setuptools_scm[toml]>=4", "cython<3"],
+    setup_requires=["setuptools_scm[toml]>=4", "cython<3", "cmake>=3.24.2; python_version>='3.6'"],
     ext_modules=ext_modules
     + cythonize(
         [
@@ -647,6 +646,7 @@ setup(
             "PY_MAJOR_VERSION": sys.version_info.major,
             "PY_MINOR_VERSION": sys.version_info.minor,
             "PY_MICRO_VERSION": sys.version_info.micro,
+            "PY_VERSION_HEX": sys.hexversion,
         },
         force=True,
         annotate=os.getenv("_DD_CYTHON_ANNOTATE") == "1",

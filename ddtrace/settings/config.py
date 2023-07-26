@@ -5,6 +5,7 @@ from typing import List
 from typing import Optional
 from typing import Tuple
 
+from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
 from ddtrace.constants import APPSEC_ENV
@@ -18,7 +19,6 @@ from ..internal import gitmetadata
 from ..internal.constants import PROPAGATION_STYLE_ALL
 from ..internal.constants import PROPAGATION_STYLE_B3
 from ..internal.constants import _PROPAGATION_STYLE_DEFAULT
-from ..internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
 from ..internal.logger import get_logger
 from ..internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ..internal.utils.formats import asbool
@@ -61,7 +61,7 @@ def _parse_propagation_styles(name, default):
     - "none"
 
 
-    The default value is ``"datadog"``.
+    The default value is ``"tracecontext,datadog"``.
 
 
     Examples::
@@ -193,6 +193,9 @@ class Config(object):
         # use a dict as underlying storing mechanism
         self._config = {}
 
+        self._debug_mode = asbool(os.getenv("DD_TRACE_DEBUG", default=False))
+        self._call_basic_config = asbool(os.environ.get("DD_CALL_BASIC_CONFIG", "false"))
+
         header_tags = parse_tags_str(os.getenv("DD_TRACE_HEADER_TAGS", ""))
         self.http = HttpConfig(header_tags=header_tags)
         self._tracing_enabled = asbool(os.getenv("DD_TRACE_ENABLED", default=True))
@@ -280,7 +283,7 @@ class Config(object):
         self._user_model_email_field = os.getenv(APPSEC.USER_MODEL_EMAIL_FIELD, default="")
         self._user_model_name_field = os.getenv(APPSEC.USER_MODEL_NAME_FIELD, default="")
         self._iast_enabled = asbool(os.getenv(IAST_ENV, False))
-        self._api_security_enabled = asbool(os.getenv("_DD_API_SECURITY_ENABLED", False))
+        self._api_security_enabled = asbool(os.getenv(API_SECURITY.ENV_VAR_ENABLED, False))
         self._waf_timeout = DEFAULT.WAF_TIMEOUT
         try:
             self._waf_timeout = float(os.getenv("DD_APPSEC_WAF_TIMEOUT"))
@@ -313,13 +316,8 @@ class Config(object):
             # Replaces the default otel api runtime context with DDRuntimeContext
             # https://github.com/open-telemetry/opentelemetry-python/blob/v1.16.0/opentelemetry-api/src/opentelemetry/context/__init__.py#L53
             os.environ["OTEL_PYTHON_CONTEXT"] = "ddcontextvars_context"
-            # make propagation work automatically when otel enabled
-            if _PROPAGATION_STYLE_W3C_TRACECONTEXT not in self._propagation_style_extract:
-                self._propagation_style_extract.append(_PROPAGATION_STYLE_W3C_TRACECONTEXT)
-            if _PROPAGATION_STYLE_W3C_TRACECONTEXT not in self._propagation_style_inject:
-                self._propagation_style_inject.append(_PROPAGATION_STYLE_W3C_TRACECONTEXT)
-
         self._ddtrace_bootstrapped = False
+        self._span_aggregator_rlock = asbool(os.getenv("DD_TRACE_SPAN_AGGREGATOR_RLOCK", False))
 
     def __getattr__(self, name):
         if name not in self._config:
