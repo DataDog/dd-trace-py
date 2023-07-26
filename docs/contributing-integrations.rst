@@ -46,13 +46,13 @@ The lists here are necessary, but not sufficient to add an integration. Please r
 
 General (all integrations):
 [ ] Includes tests (see "Testing" in this document)
-[ ] The CI suite is updated to include testsfor the integration
+[ ] The CI suite is updated to include tests for the integration
 
 Service Naming/Peer.Service (all integrations):
-[ ] The integration has (a) a default service name and (b) supports service name schematization
-[ ] The integration includes tests for the various service name schemas (`default`, `V0 schema`, `V1`) which are sent to the test agent
+[ ] The integration has (a) a default service name and (b) supports service name schema
+[ ] The integration includes tests for the various service name schema (`default`, `V0 schema`, `V1`) which are sent to the test agent
 [ ] The integration CI includes the test agent tests
-[ ] Operation/span names support OTel specifications for naming format and peer.service
+[ ] Operation/span names support Open Telemetry specifications for naming format and peer.service
 
 
 Library support
@@ -78,22 +78,23 @@ this is the Flask integration:
 
 Service Naming/Peer.Service
 ---------------------------
-Service Naming and Peer.Service help with automated service detection and modelling
+Service Naming and Peer.Service help with automated service detection and modeling
 by providing different default values for the service and operation name span
 attributes.  These attributes are adjusted by using environment variables which toggle 
-various schemas. Every integration is required to support the existing schemas.
+various schema. Every integration is required to support the existing schema.
 
-The API to support service name, peer.service, and schematization can be found here: <https://github.com/DataDog/dd-trace-py/blob/1.x/ddtrace/internal/schema/__init__.py#L52-L64>
+The API to support service name, peer.service, and schema can be found here: <https://github.com/DataDog/dd-trace-py/blob/1.x/ddtrace/internal/schema/__init__.py#L52-L64>
 
 The important elements are:
 1. Every integration needs a default service name, which is what the service name for spans will be when the integration is called.
 1. The default service name should be wrapped with `schematize_service_name()`
-1. If the span being created is a supported OTel format:
-    a. Wrap your operation name with the appropriate `schematize_*_operation` call (or add a new one)
-    a. If OTel specifies precursors for peer.service, ensure your span includes those as tags
+1. If the span being created is a supported Open Telemetry format:
+
+  1. Wrap your operation name with the appropriate `schematize_*_operation` call (or add a new one)
+  1. If Open Telemetry specifies precursors for peer.service, ensure your span includes those as tags
 
 
-The point of these changes is to allow service name schematization to toggle behaviors:
+The point of these changes is to allow service name schema to toggle behaviors:
 * `v0`: Each integration has a default integration name, which is used in the service map and to generate APM statistics
 * `v1`: Integrations now use the value of `DD_SERVICE` and the map/statistics are generated using peer.service.
 
