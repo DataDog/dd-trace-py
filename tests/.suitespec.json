@@ -715,7 +715,8 @@
             "@bootstrap",
             "@core",
             "@tracing",
-            "@pytest"
+            "@pytest",
+            "@ci_visibility"
         ],
         "asynctest": [
             "@bootstrap",
