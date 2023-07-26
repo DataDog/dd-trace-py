@@ -169,8 +169,8 @@ def get_patterns(suite: str) -> t.Set[str]:
     'ddtrace/sampler.py', 'ddtrace/settings/__init__.py', 'ddtrace/settings/config.py',
     'ddtrace/settings/dynamic_instrumentation.py', 'ddtrace/settings/exception_debugging.py',
     'ddtrace/settings/http.py', 'ddtrace/settings/integration.py', 'ddtrace/span.py', 'ddtrace/tracer.py',
-    'tests/commands/*', 'tests/debugging/*', 'tests/integration/*', 'tests/internal/*', 'tests/lib-injection',
-    'tests/tracer/*']
+    'riotfile.py', 'scripts/ddtest', 'tests/commands/*', 'tests/debugging/*', 'tests/integration/*',
+    'tests/internal/*', 'tests/lib-injection', 'tests/tracer/*']
     >>> get_patterns("foobar")
     set()
     """
