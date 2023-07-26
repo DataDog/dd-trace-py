@@ -82,7 +82,7 @@ class PSUtilRuntimeMetricCollector(RuntimeMetricCollector):
                 metrics[metric] = delta
 
             # Populate metrics that just take instantaneous reading
-            for metric, fun in self.abs_funs.items():
+            for metric, func in self.abs_funs.items():
                 try:
                     value = func(self.proc)
                 except Exception:
