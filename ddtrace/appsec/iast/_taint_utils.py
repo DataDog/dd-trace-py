@@ -24,7 +24,7 @@ class LazyTaintList:
     def __getitem__(self, key):
         value = self.obj[key]
         if value:
-            if isinstance(value, abc.Mapping) and not isinstance(value, LazyTaintDict):
+            if isinstance(value, abc.Mapping) and type(value) is not LazyTaintDict:
                 value = LazyTaintDict(
                     value, origins=self.origins, override_pyobject_tainted=self.override_pyobject_tainted
                 )
@@ -40,10 +40,10 @@ class LazyTaintList:
                     except SystemError:
                         # TODO: Find the root cause for
                         # SystemError: NULL object passed to Py_BuildValue
-                        log.debug("SystemError while tainting value: %s with key: %s", value, key, exc_info=True)
+                        log.error("IAST SystemError while tainting value: %s with key: %s", value, key, exc_info=True)
                     except Exception:
-                        log.debug("Unexpected exception while tainting value", exc_info=True)
-            elif isinstance(value, abc.Mapping) and not isinstance(value, LazyTaintList):
+                        log.error("IAST Unexpected exception while tainting value", exc_info=True)
+            elif isinstance(value, abc.Mapping) and type(value) is not LazyTaintList:
                 value = LazyTaintList(
                     value,
                     origins=self.origins,
@@ -53,7 +53,7 @@ class LazyTaintList:
         return value
 
     def __iter__(self):
-        return (self.obj[i] for i in range(len(self)))
+        return (self[i] for i in range(len(self.obj)))
 
     def __contains__(self, value):
         return value in self.obj
@@ -66,6 +66,10 @@ class LazyTaintList:
 
     def __getattr__(self, name):
         return getattr(self.obj, name)
+
+    @property  # type: ignore
+    def __class__(self):
+        return list
 
 
 class LazyTaintDict:
@@ -80,7 +84,7 @@ class LazyTaintDict:
         value = self.obj[key]
 
         if value:
-            if isinstance(value, abc.Mapping) and not isinstance(value, LazyTaintDict):
+            if isinstance(value, abc.Mapping) and type(value) is not LazyTaintDict:
                 value = LazyTaintDict(
                     value, origins=self.origins, override_pyobject_tainted=self.override_pyobject_tainted
                 )
@@ -93,10 +97,10 @@ class LazyTaintDict:
                     except SystemError:
                         # TODO: Find the root cause for
                         # SystemError: NULL object passed to Py_BuildValue
-                        log.debug("SystemError while tainting value: %s with key: %s", value, key, exc_info=True)
+                        log.debug("IAST SystemError while tainting value: %s with key: %s", value, key, exc_info=True)
                     except Exception:
-                        log.debug("Unexpected exception while tainting value", exc_info=True)
-            elif isinstance(value, abc.Sequence) and not isinstance(value, LazyTaintList):
+                        log.debug("IAST Unexpected exception while tainting value", exc_info=True)
+            elif isinstance(value, abc.Sequence) and type(value) is not LazyTaintList:
                 value = LazyTaintList(
                     value,
                     origins=self.origins,
@@ -145,6 +149,10 @@ class LazyTaintDict:
     def __getattr__(self, name):
         # type: (str) -> Any
         return getattr(self.obj, name)
+
+    @property  # type: ignore
+    def __class__(self):
+        return dict
 
 
 def supported_dbapi_integration(integration_name):

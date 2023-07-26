@@ -1,6 +1,7 @@
 from ddtrace import config
 from ddtrace.appsec.iast._patch import set_and_check_module_is_patched
 from ddtrace.appsec.iast._patch import set_module_unpatched
+from ddtrace.appsec.iast._patch import try_unwrap
 from ddtrace.appsec.iast._patch import try_wrap_function_wrapper
 from ddtrace.appsec.iast._taint_utils import LazyTaintDict
 from ddtrace.appsec.iast._taint_utils import LazyTaintList
@@ -16,6 +17,7 @@ _DEFAULT_ATTR = "_datadog_json_tainting_patch"
 def unpatch_iast():
     # type: () -> None
     set_module_unpatched("json", default_attr=_DEFAULT_ATTR)
+    try_unwrap("json", "loads")
 
 
 def patch():
@@ -42,9 +44,9 @@ def wrapped_loads(wrapped, instance, args, kwargs):
                 # take the first source as main source
                 source = sources[0]
                 if isinstance(obj, dict):
-                    obj = LazyTaintDict(obj, origins=(source.name, source.value))
+                    obj = LazyTaintDict(obj, origins=(source.origin, source.value))
                 elif isinstance(obj, list):
-                    obj = LazyTaintList(obj, origins=(source.name, source.value))
+                    obj = LazyTaintList(obj, origins=(source.origin, source.value))
                 elif isinstance(obj, (str, bytes, bytearray)):
                     obj = taint_pyobject(obj, source.name, source.value, source.origin)
                 pass
