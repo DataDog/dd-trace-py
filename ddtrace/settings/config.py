@@ -245,6 +245,9 @@ class Config(object):
 
         self._128_bit_trace_id_logging_enabled = asbool(os.getenv("DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED", False))
 
+        self._sampling_rules = os.getenv("DD_SPAN_SAMPLING_RULES")
+        self._sampling_rules_file = os.getenv("DD_SPAN_SAMPLING_RULES_FILE")
+
         # Propagation styles
         self._propagation_style_extract = self._propagation_style_inject = _parse_propagation_styles(
             "DD_TRACE_PROPAGATION_STYLE", default=_PROPAGATION_STYLE_DEFAULT
