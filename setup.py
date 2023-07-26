@@ -342,9 +342,12 @@ class CMakeBuild(build_ext):
             if "CMAKE_BUILD_PARALLEL_LEVEL" not in os.environ:
                 # self.parallel is a Python 3 only way to set parallel jobs by hand
                 # using -j in the build_ext call, not supported by pip or PyPA-build.
+                # DEV: -j is only supported in CMake 3.12+ only.
                 if hasattr(self, "parallel") and self.parallel:
-                    # CMake 3.12+ only.
                     build_args += ["-j{}".format(self.parallel)]
+                else:
+                    # Let CMake determine the parallelism to use
+                    build_args += ["-j"]
             try:
                 cmake_cmd_with_args = [cmake_command] + cmake_args
                 subprocess.run(cmake_cmd_with_args, cwd=tmp_iast_path, check=True)
