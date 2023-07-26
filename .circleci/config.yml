@@ -4,6 +4,15 @@ python310_image: &python310_image cimg/python:3.10
 
 setup: true
 
+parameters:
+  coverage:
+    type: boolean
+    default: false
+  riot_run_latest:
+    type: boolean
+    default: false
+
+
 orbs:
   continuation: circleci/continuation@0.1.2
 
