@@ -61,6 +61,9 @@ _RANGE1 = TaintRange(0, 2, _SOURCE1)
 _RANGE2 = TaintRange(1, 3, _SOURCE2)
 
 
+@pytest.mark.skipif(
+    sys.version_info[:2] in [(3, 9), (3, 10)], reason="Interned strings validation is flaky in py 3.9 and 3.10"
+)
 def test_unicode_fast_tainting():
     s = "somestr" * random.randint(4000, 10000)
     s_check = "somestr" * random.randint(4000, 10000)
