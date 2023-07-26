@@ -199,7 +199,7 @@ def get_patterns(suite: str) -> t.Set[str]:
 def needs_testrun(suite: str, pr_number: int) -> bool:
     """Check if a testrun is needed for a suite and PR
 
-    >>> needs_testrun("debugger", 6412)
+    >>> needs_testrun("debugger", 6485)
     False
     >>> needs_testrun("debugger", 6388)
     True
