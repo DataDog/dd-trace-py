@@ -60,10 +60,8 @@ CLASS_HIERARCHY = "test.class_hierarchy"
 # Test Codeowners
 CODEOWNERS = TEST_CODEOWNERS = "test.codeowners"
 
-# ITR Test skipping type
 ITR_TEST_SKIPPING_TYPE = "test.itr.tests_skipping.type"
 
-# ITR Test skipping type
 ITR_TEST_SKIPPING_COUNT = "test.itr.tests_skipping.count"
 
 
