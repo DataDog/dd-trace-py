@@ -75,7 +75,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert loaded["vulnerabilities"][0]["evidence"] == {
                 "valueParts": [{"value": "SELECT 1 FROM "}, {"value": "sqlite_master", "source": 0}]
             }
-            assert loaded["vulnerabilities"][0]["location"]["line"] == 47
+            assert loaded["vulnerabilities"][0]["location"]["line"] == 49
             assert loaded["vulnerabilities"][0]["location"]["path"] == "tests/contrib/flask/test_flask_appsec.py"
 
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
@@ -121,7 +121,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert loaded["vulnerabilities"][0]["evidence"] == {
                 "valueParts": [{"value": "SELECT 1 FROM "}, {"value": "sqlite_master", "source": 0}]
             }
-            assert loaded["vulnerabilities"][0]["location"]["line"] == 92
+            assert loaded["vulnerabilities"][0]["location"]["line"] == 94
             assert loaded["vulnerabilities"][0]["location"]["path"] == "tests/contrib/flask/test_flask_appsec.py"
 
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
@@ -167,7 +167,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert loaded["vulnerabilities"][0]["evidence"] == {
                 "valueParts": [{"value": "SELECT 1 FROM sqlite_"}, {"value": "Master", "source": 0}]
             }
-            assert loaded["vulnerabilities"][0]["location"]["line"] == 142
+            assert loaded["vulnerabilities"][0]["location"]["line"] == 144
             assert loaded["vulnerabilities"][0]["location"]["path"] == "tests/contrib/flask/test_flask_appsec.py"
 
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
@@ -211,7 +211,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert loaded["vulnerabilities"][0]["evidence"] == {
                 "valueParts": [{"value": "SELECT 1 FROM sqlite_"}, {"value": "master", "source": 0}]
             }
-            assert loaded["vulnerabilities"][0]["location"]["line"] == 186
+            assert loaded["vulnerabilities"][0]["location"]["line"] == 188
             assert loaded["vulnerabilities"][0]["location"]["path"] == "tests/contrib/flask/test_flask_appsec.py"
 
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
@@ -350,7 +350,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert loaded["vulnerabilities"][0]["evidence"] == {
                 "valueParts": [{"value": "SELECT 1 FROM "}, {"value": "sqlite_master", "source": 0}]
             }
-            assert loaded["vulnerabilities"][0]["location"]["line"] == 322
+            assert loaded["vulnerabilities"][0]["location"]["line"] == 324
             assert loaded["vulnerabilities"][0]["location"]["path"] == "tests/contrib/flask/test_flask_appsec.py"
 
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
@@ -401,7 +401,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
                     assert vulnerability["evidence"] == {
                         "valueParts": [{"value": "SELECT 1 FROM "}, {"value": "sqlite_master", "source": 0}]
                     }
-                    assert vulnerability["location"]["line"] == 367
+                    assert vulnerability["location"]["line"] == 369
                     assert vulnerability["location"]["path"] == "tests/contrib/flask/test_flask_appsec.py"
             assert {"SQL_INJECTION", "INSECURE_COOKIE"} == vulnerabilities
 
@@ -444,7 +444,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert loaded["vulnerabilities"][0]["evidence"] == {
                 "valueParts": [{"value": "SELECT 1 FROM "}, {"value": "sqlite_master", "source": 0}]
             }
-            assert loaded["vulnerabilities"][0]["location"]["line"] == 416
+            assert loaded["vulnerabilities"][0]["location"]["line"] == 418
             assert loaded["vulnerabilities"][0]["location"]["path"] == "tests/contrib/flask/test_flask_appsec.py"
 
 
