@@ -9,12 +9,13 @@ import pytest
 import six
 
 from ddtrace import Pin
-from ddtrace import tracer as dd_tracer
+from ddtrace import Tracer
 from ddtrace.contrib.kafka.patch import patch
 from ddtrace.contrib.kafka.patch import unpatch
 from ddtrace.filters import TraceFilter
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from tests.contrib.config import KAFKA_CONFIG
+from tests.utils import DummyTracer
 from tests.utils import override_config
 
 
@@ -30,15 +31,10 @@ else:
 class KafkaConsumerPollFilter(TraceFilter):
     def process_trace(self, trace):
         # Filter out all poll spans that have no received message
-        return (
-            None
-            if trace[0].name in {"kafka.consume", "kafka.process"}
-            and trace[0].get_tag("kafka.received_message") == "False"
-            else trace
-        )
+        if trace[0].name == "kafka.consume" and trace[0].get_tag("kafka.received_message") == "False":
+            return None
 
-
-dd_tracer.configure(settings={"FILTERS": [KafkaConsumerPollFilter()]})
+        return trace
 
 
 @pytest.fixture()
@@ -55,10 +51,23 @@ def kafka_topic(request):
 
 
 @pytest.fixture
+def dummy_tracer():
+    patch()
+    yield DummyTracer()
+    unpatch()
+
+
+@pytest.fixture
 def tracer():
     patch()
-    yield dd_tracer
-    unpatch()
+    t = Tracer()
+    t.configure(settings={"FILTERS": [KafkaConsumerPollFilter()]})
+    try:
+        yield t
+    finally:
+        t.flush()
+        t.shutdown()
+        unpatch()
 
 
 @pytest.fixture
@@ -96,6 +105,45 @@ def test_consumer_created_with_logger_does_not_raise(tracer):
         logger=logger,
     )
     consumer.close()
+
+
+@pytest.mark.parametrize(
+    "config,expect_servers",
+    [
+        ({"bootstrap.servers": BOOTSTRAP_SERVERS}, BOOTSTRAP_SERVERS),
+        ({"metadata.broker.list": BOOTSTRAP_SERVERS}, BOOTSTRAP_SERVERS),
+        ({}, None),
+    ],
+)
+def test_producer_bootstrap_servers(config, expect_servers, tracer):
+    producer = confluent_kafka.Producer(config)
+    if expect_servers is not None:
+        assert producer._dd_bootstrap_servers == expect_servers
+    else:
+        assert producer._dd_bootstrap_servers is None
+
+
+def test_produce_single_server(dummy_tracer, producer, kafka_topic):
+    Pin.override(producer, tracer=dummy_tracer)
+    producer.produce(kafka_topic, PAYLOAD, key=KEY)
+    producer.flush()
+
+    traces = dummy_tracer.pop_traces()
+    assert 1 == len(traces)
+    produce_span = traces[0][0]
+    assert produce_span.get_tag("messaging.kafka.bootstrap.servers") == BOOTSTRAP_SERVERS
+
+
+def test_produce_multiple_servers(dummy_tracer, kafka_topic):
+    producer = confluent_kafka.Producer({"bootstrap.servers": ",".join([BOOTSTRAP_SERVERS] * 3)})
+    Pin.override(producer, tracer=dummy_tracer)
+    producer.produce(kafka_topic, PAYLOAD, key=KEY)
+    producer.flush()
+
+    traces = dummy_tracer.pop_traces()
+    assert 1 == len(traces)
+    produce_span = traces[0][0]
+    assert produce_span.get_tag("messaging.kafka.bootstrap.servers") == ",".join([BOOTSTRAP_SERVERS] * 3)
 
 
 @pytest.mark.parametrize("tombstone", [False, True])
@@ -152,10 +200,10 @@ def retry_until_not_none(factory):
     return None
 
 
-def test_data_streams_kafka(consumer, producer, kafka_topic):
+def test_data_streams_kafka(tracer, consumer, producer, kafka_topic):
     PAYLOAD = bytes("data streams", encoding="utf-8") if six.PY3 else bytes("data streams")
     try:
-        del dd_tracer.data_streams_processor._current_context.value
+        del tracer.data_streams_processor._current_context.value
     except AttributeError:
         pass
     producer.produce(kafka_topic, PAYLOAD, key="test_key_2")
@@ -163,7 +211,7 @@ def test_data_streams_kafka(consumer, producer, kafka_topic):
     message = None
     while message is None or str(message.value()) != str(PAYLOAD):
         message = consumer.poll(1.0)
-    buckets = dd_tracer.data_streams_processor._buckets
+    buckets = tracer.data_streams_processor._buckets
     assert len(buckets) == 1
     _, first = list(buckets.items())[0]
     assert (
@@ -251,7 +299,6 @@ def _generate_in_subprocess(random_topic):
 @pytest.mark.snapshot(
     token="tests.contrib.kafka.test_kafka.test_service_override_env_var", ignores=["metrics.kafka.message_offset"]
 )
-@pytest.mark.flaky(retries=5)  # The kafka-confluent API encounters segfaults occasionally
 def test_service_override_env_var(ddtrace_run_python_code_in_subprocess, kafka_topic):
     code = """
 import sys
@@ -276,7 +323,6 @@ if __name__ == "__main__":
 
 
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
-@pytest.mark.flaky(retries=5)  # The kafka-confluent API encounters segfaults occasionally
 @pytest.mark.parametrize("service", [None, "mysvc"])
 @pytest.mark.parametrize("schema", [None, "v0", "v1"])
 def test_schematized_span_service_and_operation(ddtrace_run_python_code_in_subprocess, service, schema, kafka_topic):

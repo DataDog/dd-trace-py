@@ -10,10 +10,11 @@ from ddtrace.appsec.trace_utils import should_block_user
 from ddtrace.appsec.trace_utils import track_custom_event
 from ddtrace.appsec.trace_utils import track_user_login_failure_event
 from ddtrace.appsec.trace_utils import track_user_login_success_event
+from ddtrace.appsec.trace_utils import track_user_signup_event
 from ddtrace.contrib.trace_utils import set_user
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import user
-from ddtrace.internal import _context
+from ddtrace.internal import core
 from tests.appsec.test_processor import RULES_GOOD_PATH
 from tests.appsec.test_processor import tracer_appsec  # noqa: F401
 from tests.utils import TracerTestCase
@@ -160,6 +161,13 @@ class EventsSDKTestCase(TracerTestCase):
             failure_prefix = "%s.failure" % APPSEC.USER_LOGIN_EVENT_PREFIX
             assert root_span.get_tag("%s.%s" % (failure_prefix, user.EXISTS)) == "false"
 
+    def test_track_user_signup_event_exists(self):
+        with self.trace("test_signup_exists"):
+            track_user_signup_event(self.tracer, "john", True)
+            root_span = self.tracer.current_root_span()
+            assert root_span.get_tag(APPSEC.USER_SIGNUP_EVENT) == "true"
+            assert root_span.get_tag(user.ID) == "john"
+
     def test_custom_event(self):
         with self.trace("test_custom"):
             event = "some_event"
@@ -190,7 +198,7 @@ class EventsSDKTestCase(TracerTestCase):
                 assert span.get_tag(user.ROLE)
                 assert span.get_tag(user.SCOPE)
                 assert span.get_tag(user.SESSION_ID)
-                assert _context.get_item("http.request.blocked", span=span)
+                assert core.get_item("http.request.blocked", span=span)
 
     def test_no_span_doesnt_raise(self):
         from ddtrace import tracer

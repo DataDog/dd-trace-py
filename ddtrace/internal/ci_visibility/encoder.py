@@ -1,7 +1,5 @@
 import json
 import threading
-from typing import Any
-from typing import Dict
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
@@ -16,11 +14,14 @@ from ddtrace.internal.ci_visibility.constants import SESSION_ID
 from ddtrace.internal.ci_visibility.constants import SESSION_TYPE
 from ddtrace.internal.ci_visibility.constants import SUITE_ID
 from ddtrace.internal.ci_visibility.constants import SUITE_TYPE
+from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.encoding import JSONEncoderV2
 from ddtrace.internal.writer.writer import NoEncodableSpansError
 
 
 if TYPE_CHECKING:  # pragma: no cover
+    from typing import Any
+    from typing import Dict
     from typing import List
     from typing import Optional
 
@@ -195,9 +196,15 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
     @staticmethod
     def _convert_span(span, dd_origin):
         # type: (Span, str) -> Dict[str, Any]
-        return {
-            "span_id": span.span_id,
+        converted_span = {
             "test_session_id": int(span.get_tag(SESSION_ID) or "1"),
             "test_suite_id": int(span.get_tag(SUITE_ID) or "1"),
             "files": json.loads(span.get_tag(COVERAGE_TAG_NAME))["files"],
         }
+
+        from ddtrace.internal.ci_visibility.recorder import _get_test_skipping_level
+
+        if _get_test_skipping_level() == TEST:
+            converted_span["span_id"] = span.span_id
+
+        return converted_span

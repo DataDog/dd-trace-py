@@ -412,6 +412,11 @@ The following environment variables for the tracer are supported:
      type: Boolean
      default: True
      description: Send query strings in http.url tag in http server integrations.
+    
+   DD_TRACE_SPAN_AGGREGATOR_RLOCK:
+     type: Boolean
+     default: False
+     description: Whether the ``SpanAggregator`` should use an RLock or a Lock.
 
    DD_IAST_ENABLED:
      type: Boolean
@@ -478,6 +483,45 @@ The following environment variables for the tracer are supported:
      version_added:
         v1.13.0:
 
+   DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING:
+      type: String
+      default: "safe"
+      description: |
+         Sets the mode for the automated user login events tracking feature which sets some traces on each user login event. The
+         supported modes are ``safe`` which will only store the user id or primary key, ``extended`` which will also store
+         the username, email and full name and ``disabled``. Note that this feature requires ``DD_APPSEC_ENABLED`` to be 
+         set to ``true`` to work.  
+      version_added:
+         v1.15.0:
+
+   DD_USER_MODEL_LOGIN_FIELD:
+      type: String
+      default: ""
+      description: |
+         Field to be used to read the user login when using a custom ``User`` model for the automatic login events. This field will take precedence over automatic inference.
+         Please note that, if set, this field will be used to retrieve the user login even if ``DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING`` is set to ``safe`` and, 
+         in some cases, the selected field could hold potentially private information.
+      version_added:
+         v1.15.0:
+
+   DD_USER_MODEL_EMAIL_FIELD:
+      type: String
+      default: ""
+      description: |
+         Field to be used to read the user email when using a custom ``User`` model for the automatic login events. This field will take precedence over automatic inference.
+      version_added:
+         v1.15.0:
+
+   DD_USER_MODEL_NAME_FIELD:
+      type: String
+      default: ""
+      description: |
+         Field to be used to read the user name when using a custom ``User`` model for the automatic login events. This field will take precedence over automatic inference.
+      version_added:
+         v1.15.0:
+
+
+
 .. _Unified Service Tagging: https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging/
 
 
@@ -492,3 +536,9 @@ Dynamic Instrumentation
 -----------------------
 
 .. ddtrace-envier-configuration:: ddtrace.settings.dynamic_instrumentation:DynamicInstrumentationConfig
+
+
+Exception Debugging
+-------------------
+
+.. ddtrace-envier-configuration:: ddtrace.settings.exception_debugging:ExceptionDebuggingConfig

@@ -4,13 +4,14 @@ from typing import TYPE_CHECKING
 from ddtrace import tracer
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec.iast import oce
+from ddtrace.appsec.iast._metrics import _set_metric_iast_executed_sink
 from ddtrace.appsec.iast._overhead_control_engine import Operation
 from ddtrace.appsec.iast.reporter import Evidence
 from ddtrace.appsec.iast.reporter import IastSpanReporter
 from ddtrace.appsec.iast.reporter import Location
 from ddtrace.appsec.iast.reporter import Source
 from ddtrace.appsec.iast.reporter import Vulnerability
-from ddtrace.internal import _context
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 
 
@@ -27,8 +28,6 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import List
     from typing import Optional
     from typing import Text
-
-    from ddtrace.appsec.iast._input_info import Input_info
 
 log = get_logger(__name__)
 
@@ -57,12 +56,16 @@ class VulnerabilityBase(Operation):
 
     @classmethod
     def report(cls, evidence_value="", sources=None):
-        # type: (Text, Optional[List[Input_info]]) -> None
+        # type: (Text, Optional[List[Source]]) -> None
         """Build a IastSpanReporter instance to report it in the `AppSecIastSpanProcessor` as a string JSON
 
         TODO: check deduplications if DD_IAST_DEDUPLICATION_ENABLED is true
         """
         if cls.acquire_quota():
+            if not tracer or not hasattr(tracer, "current_root_span"):
+                log.debug("Not tracer or tracer has no root span")
+                return None
+
             span = tracer.current_root_span()
             if not span:
                 log.debug("No root span in the current execution. Skipping IAST taint sink.")
@@ -82,9 +85,13 @@ class VulnerabilityBase(Operation):
                     evidence = Evidence(valueParts=evidence_value)
                 else:
                     log.debug("Unexpected evidence_value type: %s", type(evidence_value))
+                    evidence = ""
 
                 if cls.is_not_reported(file_name, line_number):
-                    report = _context.get_item(IAST.CONTEXT_KEY, span=span)
+
+                    _set_metric_iast_executed_sink(cls.vulnerability_type)
+
+                    report = core.get_item(IAST.CONTEXT_KEY, span=span)
                     if report:
                         report.vulnerabilities.add(
                             Vulnerability(
@@ -106,4 +113,4 @@ class VulnerabilityBase(Operation):
                         )
                     if sources:
                         report.sources = {Source(origin=x.origin, name=x.name, value=x.value) for x in sources}
-                    _context.set_item(IAST.CONTEXT_KEY, report, span=span)
+                    core.set_item(IAST.CONTEXT_KEY, report, span=span)

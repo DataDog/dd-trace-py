@@ -93,12 +93,12 @@ class TraceInjectionDecodingError(Exception):
     pass
 
 
-def inject_trace_data_to_message_attributes(trace_data, entry, endpoint=None):
+def inject_trace_data_to_message_attributes(trace_data, entry, endpoint_service=None):
     # type: (Dict[str, str], Dict[str, Any], Optional[str]) -> None
     """
     :trace_data: trace headers and DSM pathway to be stored in the entry's MessageAttributes
     :entry: an SQS or SNS record
-    :endpoint: endpoint of message, "sqs" or "sns"
+    :endpoint_service: endpoint of message, "sqs" or "sns"
 
     Inject trace headers and DSM info into the SQS or SNS record's MessageAttributes
     """
@@ -106,11 +106,11 @@ def inject_trace_data_to_message_attributes(trace_data, entry, endpoint=None):
         entry["MessageAttributes"] = {}
     # Max of 10 message attributes.
     if len(entry["MessageAttributes"]) < 10:
-        if endpoint == "sqs":
+        if endpoint_service == "sqs":
             # Use String since changing this to Binary would be a breaking
             # change as other tracers expect this to be a String.
             entry["MessageAttributes"]["_datadog"] = {"DataType": "String", "StringValue": json.dumps(trace_data)}
-        elif endpoint == "sns":
+        elif endpoint_service == "sns":
             # Use Binary since SNS subscription filter policies fail silently
             # with JSON strings https://github.com/DataDog/datadog-lambda-js/pull/269
             # AWS will encode our value if it sees "Binary"
@@ -120,6 +120,17 @@ def inject_trace_data_to_message_attributes(trace_data, entry, endpoint=None):
     else:
         # In the event a record has 10 or more msg attributes we cannot add our _datadog msg attribute
         log.warning("skipping trace injection, max number (10) of MessageAttributes exceeded")
+
+
+def get_topic_arn(params):
+    # type: (str) -> str
+    """
+    :params: contains the params for the current botocore action
+
+    Return the name of the topic given the params
+    """
+    sns_arn = params["TopicArn"]
+    return sns_arn
 
 
 def get_queue_name(params):
@@ -134,7 +145,7 @@ def get_queue_name(params):
     return url.path.rsplit("/", 1)[-1]
 
 
-def get_pathway(pin, params):
+def get_pathway(pin, params, endpoint_service):
     # type: (Pin, Any) -> str
     """
     :pin: patch info for the botocore client
@@ -142,17 +153,27 @@ def get_pathway(pin, params):
 
     Set the data streams monitoring checkpoint and return the encoded pathway
     """
-    queue_name = get_queue_name(params)
-    pathway = pin.tracer.data_streams_processor.set_checkpoint(["direction:out", "topic:" + queue_name, "type:sqs"])
+    path_type = "type:{}".format(endpoint_service)
+    topic_identifier = None
+    if endpoint_service == "sqs":
+        topic_identifier = get_queue_name(params)
+    elif endpoint_service == "sns":
+        topic_identifier = get_topic_arn(params)
+    else:
+        log.debug("pathway being generated with unrecognized service, endpoint is not SNS or SQS")
+
+    pathway = pin.tracer.data_streams_processor.set_checkpoint(
+        ["direction:out", "topic:{}".format(topic_identifier), path_type]
+    )
     return pathway.encode_b64()
 
 
-def inject_trace_to_sqs_or_sns_batch_message(params, span, endpoint=None, pin=None, data_streams_enabled=False):
+def inject_trace_to_sqs_or_sns_batch_message(params, span, endpoint_service=None, pin=None, data_streams_enabled=False):
     # type: (Any, Span, Optional[str], Optional[Pin], Optional[bool]) -> None
     """
     :params: contains the params for the current botocore action
     :span: the span which provides the trace context to be propagated
-    :endpoint: endpoint of message, "sqs" or "sns"
+    :endpoint_service: endpoint of message, "sqs" or "sns"
     :pin: patch info for the botocore client
     :data_streams_enabled: boolean for whether data streams monitoring is enabled
 
@@ -168,16 +189,16 @@ def inject_trace_to_sqs_or_sns_batch_message(params, span, endpoint=None, pin=No
     entries = params.get("Entries", params.get("PublishBatchRequestEntries", []))
     for entry in entries:
         if data_streams_enabled:
-            trace_data[PROPAGATION_KEY_BASE_64] = get_pathway(pin, params)
-        inject_trace_data_to_message_attributes(trace_data, entry, endpoint)
+            trace_data[PROPAGATION_KEY_BASE_64] = get_pathway(pin, params, endpoint_service)
+        inject_trace_data_to_message_attributes(trace_data, entry, endpoint_service)
 
 
-def inject_trace_to_sqs_or_sns_message(params, span, endpoint=None, pin=None, data_streams_enabled=False):
+def inject_trace_to_sqs_or_sns_message(params, span, endpoint_service=None, pin=None, data_streams_enabled=False):
     # type: (Any, Span, Optional[str], Optional[Pin], Optional[bool]) -> None
     """
     :params: contains the params for the current botocore action
     :span: the span which provides the trace context to be propagated
-    :endpoint: endpoint of message, "sqs" or "sns"
+    :endpoint_service: endpoint of message, "sqs" or "sns"
     :pin: patch info for the botocore client
     :data_streams_enabled: boolean for whether data streams monitoring is enabled
 
@@ -187,9 +208,9 @@ def inject_trace_to_sqs_or_sns_message(params, span, endpoint=None, pin=None, da
     HTTPPropagator.inject(span.context, trace_data)
 
     if data_streams_enabled:
-        trace_data[PROPAGATION_KEY_BASE_64] = get_pathway(pin, params)
+        trace_data[PROPAGATION_KEY_BASE_64] = get_pathway(pin, params, endpoint_service)
 
-    inject_trace_data_to_message_attributes(trace_data, params, endpoint)
+    inject_trace_data_to_message_attributes(trace_data, params, endpoint_service)
 
 
 def inject_trace_to_eventbridge_detail(params, span):
@@ -438,14 +459,22 @@ def patched_api_call(original_func, instance, args, kwargs):
                         )
                     if endpoint_name == "sqs" and operation == "SendMessage":
                         inject_trace_to_sqs_or_sns_message(
-                            params, span, endpoint_name, pin, config._data_streams_enabled
+                            params,
+                            span,
+                            endpoint_service=endpoint_name,
+                            pin=pin,
+                            data_streams_enabled=config._data_streams_enabled,
                         )
                         span.name = schematize_cloud_messaging_operation(
                             trace_operation, cloud_provider="aws", cloud_service="sqs", direction=SpanDirection.OUTBOUND
                         )
                     if endpoint_name == "sqs" and operation == "SendMessageBatch":
                         inject_trace_to_sqs_or_sns_batch_message(
-                            params, span, endpoint_name, pin, config._data_streams_enabled
+                            params,
+                            span,
+                            endpoint_service=endpoint_name,
+                            pin=pin,
+                            data_streams_enabled=config._data_streams_enabled,
                         )
                         span.name = schematize_cloud_messaging_operation(
                             trace_operation, cloud_provider="aws", cloud_service="sqs", direction=SpanDirection.OUTBOUND
@@ -471,12 +500,24 @@ def patched_api_call(original_func, instance, args, kwargs):
                             direction=SpanDirection.OUTBOUND,
                         )
                     if endpoint_name == "sns" and operation == "Publish":
-                        inject_trace_to_sqs_or_sns_message(params, span, endpoint_name)
+                        inject_trace_to_sqs_or_sns_message(
+                            params,
+                            span,
+                            endpoint_service=endpoint_name,
+                            pin=pin,
+                            data_streams_enabled=config._data_streams_enabled,
+                        )
                         span.name = schematize_cloud_messaging_operation(
                             trace_operation, cloud_provider="aws", cloud_service="sns", direction=SpanDirection.OUTBOUND
                         )
                     if endpoint_name == "sns" and operation == "PublishBatch":
-                        inject_trace_to_sqs_or_sns_batch_message(params, span, endpoint_name)
+                        inject_trace_to_sqs_or_sns_batch_message(
+                            params,
+                            span,
+                            endpoint_service=endpoint_name,
+                            pin=pin,
+                            data_streams_enabled=config._data_streams_enabled,
+                        )
                         span.name = schematize_cloud_messaging_operation(
                             trace_operation, cloud_provider="aws", cloud_service="sns", direction=SpanDirection.OUTBOUND
                         )
@@ -511,7 +552,7 @@ def patched_api_call(original_func, instance, args, kwargs):
                 if "MessageAttributeNames" not in params:
                     params.update({"MessageAttributeNames": ["_datadog"]})
                 elif "_datadog" not in params["MessageAttributeNames"]:
-                    params.update({"MessageAttributeNames": params["MessageAttributeNames"] + ["_datadog"]})
+                    params.update({"MessageAttributeNames": list(params["MessageAttributeNames"]) + ["_datadog"]})
 
                 result = original_func(*args, **kwargs)
                 _set_response_metadata_tags(span, result)
@@ -519,32 +560,39 @@ def patched_api_call(original_func, instance, args, kwargs):
                 try:
                     if "Messages" in result:
                         for message in result["Messages"]:
-                            if (
+                            message_body = None
+                            context_json = None
+
+                            if "Body" in message:
+                                try:
+                                    message_body = json.loads(message["Body"])
+                                except ValueError:
+                                    log.debug("Unable to parse message body, treat as non-json")
+
+                            if message_body and message_body.get("Type") == "Notification":
+                                # This is potentially a DSM SNS notification
+                                if (
+                                    "MessageAttributes" in message_body
+                                    and "_datadog" in message_body["MessageAttributes"]
+                                    and message_body["MessageAttributes"]["_datadog"]["Type"] == "Binary"
+                                ):
+                                    context_json = json.loads(
+                                        base64.b64decode(
+                                            message_body["MessageAttributes"]["_datadog"]["Value"]
+                                        ).decode()
+                                    )
+                            elif (
                                 "MessageAttributes" in message
                                 and "_datadog" in message["MessageAttributes"]
                                 and "StringValue" in message["MessageAttributes"]["_datadog"]
                             ):
-                                if PROPAGATION_KEY_BASE_64 in json.loads(
-                                    message["MessageAttributes"]["_datadog"]["StringValue"]
-                                ):
-                                    pathway = json.loads(message["MessageAttributes"]["_datadog"]["StringValue"])[
-                                        PROPAGATION_KEY_BASE_64
-                                    ]
-                                    ctx = pin.tracer.data_streams_processor.decode_pathway_b64(pathway)
-                                    ctx.set_checkpoint(["direction:in", "topic:" + queue_name, "type:sqs"])
+                                # The message originated from SQS
+                                message_body = message
+                                context_json = json.loads(message_body["MessageAttributes"]["_datadog"]["StringValue"])
 
-                                else:
-                                    log.debug(
-                                        "Unable to find data streams context for the message. Data "
-                                        "streams monitoring was not enabled by the application "
-                                        "sending the message at the time of the send."
-                                    )
-                            else:
-                                log.debug(
-                                    "Unable to find trace context for the message. Please ensure that your Datadog "
-                                    "agent is correctly configured on the application sending the message and that "
-                                    "the SQS messages being sent have 9 or less Message Attributes."
-                                )
+                            pathway = context_json.get(PROPAGATION_KEY_BASE_64, None) if context_json else None
+                            ctx = pin.tracer.data_streams_processor.decode_pathway_b64(pathway)
+                            ctx.set_checkpoint(["direction:in", "topic:" + queue_name, "type:sqs"])
 
                 except Exception:
                     log.debug("Error receiving SQS message with data streams monitoring enabled", exc_info=True)

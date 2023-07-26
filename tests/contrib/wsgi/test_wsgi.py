@@ -333,6 +333,32 @@ def test_wsgi_traced_iterable(tracer, test_spans):
     assert not hasattr(resp, "__len__"), "Iterables should not define __len__ attribute"
 
 
+@pytest.mark.parametrize(
+    "extra,expected",
+    [
+        ({}, {}),
+        # This is a regression for #6284
+        # DEV: We were checking for `HTTP` prefix for headers instead of `HTTP_` which is required
+        ({"HTTPS": "on"}, {}),
+        # Normal header
+        ({"HTTP_HEADER": "value"}, {"Header": "value"}),
+    ],
+)
+def test_get_request_headers(extra, expected):
+    # Normal environ stuff
+    environ = {
+        "PATH_INFO": "/",
+        "wsgi.url_scheme": "http",
+        "SERVER_NAME": "localhost",
+        "SERVER_PORT": "80",
+        "REQUEST_METHOD": "GET",
+    }
+    environ.update(extra)
+
+    headers = wsgi.get_request_headers(environ)
+    assert headers == expected
+
+
 @pytest.mark.snapshot()
 @pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
 @pytest.mark.parametrize("service_name", [None, "mysvc"])
