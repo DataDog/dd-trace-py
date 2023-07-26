@@ -39,13 +39,13 @@ class PytestTestCase(TracerTestCase):
     @pytest.mark.skipif(compat.PY2, reason="ddtrace does not support coverage on Python 2")
     def test_pytest_will_report_coverage_by_suite(self):
         self.testdir.makepyfile(
-            test_ret_false="""
+            ret_false="""
         def ret_false():
             return False
         """
         )
         self.testdir.makepyfile(
-            test_module="""
+            lib_fn="""
         def lib_fn():
             return True
         """
@@ -53,13 +53,13 @@ class PytestTestCase(TracerTestCase):
         py_cov_file = self.testdir.makepyfile(
             test_cov="""
         import pytest
-        from test_module import lib_fn
+        from lib_fn import lib_fn
 
         def test_cov():
             assert lib_fn()
 
         def test_second():
-            from test_ret_false import ret_false
+            from ret_false import ret_false
             assert not ret_false()
         """
         )
@@ -68,7 +68,7 @@ class PytestTestCase(TracerTestCase):
         import pytest
 
         def test_second():
-            from test_ret_false import ret_false
+            from ret_false import ret_false
             assert not ret_false()
         """
         )
@@ -86,16 +86,16 @@ class PytestTestCase(TracerTestCase):
         tag_data = json.loads(first_suite_span.get_tag(COVERAGE_TAG_NAME))
         files = sorted(tag_data["files"], key=lambda x: x["filename"])
         assert len(files) == 3
-        assert files[0]["filename"] == "test_cov.py"
-        assert files[1]["filename"] == "test_module.py"
-        assert files[2]["filename"] == "test_ret_false.py"
-        assert len(files[0]["segments"]) == 2
-        assert files[0]["segments"][0] == [5, 0, 5, 0, -1]
-        assert files[0]["segments"][1] == [8, 0, 9, 0, -1]
+        assert files[0]["filename"] == "lib_fn.py"
+        assert files[1]["filename"] == "ret_false.py"
+        assert files[2]["filename"] == "test_cov.py"
+        assert len(files[0]["segments"]) == 1
+        assert files[0]["segments"][0] == [2, 0, 2, 0, -1]
         assert len(files[1]["segments"]) == 1
-        assert files[1]["segments"][0] == [2, 0, 2, 0, -1]
-        assert len(files[2]["segments"]) == 1
-        assert files[2]["segments"][0] == [1, 0, 2, 0, -1]
+        assert files[1]["segments"][0] == [1, 0, 2, 0, -1]
+        assert len(files[2]["segments"]) == 2
+        assert files[2]["segments"][0] == [5, 0, 5, 0, -1]
+        assert files[2]["segments"][1] == [8, 0, 9, 0, -1]
 
         second_suite_span = test_suite_spans[-1]
         assert second_suite_span.get_tag("type") == "test_suite_end"
@@ -103,9 +103,9 @@ class PytestTestCase(TracerTestCase):
         tag_data = json.loads(second_suite_span.get_tag(COVERAGE_TAG_NAME))
         files = sorted(tag_data["files"], key=lambda x: x["filename"])
         assert len(files) == 2
-        assert files[0]["filename"] == "test_cov_second.py"
-        assert files[1]["filename"] == "test_ret_false.py"
+        assert files[0]["filename"] == "ret_false.py"
+        assert files[1]["filename"] == "test_cov_second.py"
         assert len(files[0]["segments"]) == 1
-        assert files[0]["segments"][0] == [4, 0, 5, 0, -1]
+        assert files[0]["segments"][0] == [2, 0, 2, 0, -1]
         assert len(files[1]["segments"]) == 1
-        assert files[1]["segments"][0] == [2, 0, 2, 0, -1]
+        assert files[1]["segments"][0] == [4, 0, 5, 0, -1]
