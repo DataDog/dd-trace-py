@@ -5,7 +5,9 @@
             "ddtrace/__init__.py",
             "tests/internal/*",
             "tests/integration/*",
-            "tests/lib-injection"
+            "tests/lib-injection",
+            "riotfile.py",
+            "scripts/ddtest"
         ],
         "bootstrap": [
             "ddtrace/bootstrap/*",
