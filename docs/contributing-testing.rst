@@ -36,7 +36,7 @@ In addition, you will need `riot <https://ddriot.readthedocs.io/en/latest/>`_ an
     $ pip install riot==0.17.4
     $ pip install hatch==1.7.0
 
-Our test environments are managed with riot. However, we are migrating to hatch.
+Some of our test environments are managed with Riot, others with Hatch.
 
 For riot environments, you can run:
 
