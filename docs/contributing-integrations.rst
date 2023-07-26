@@ -40,6 +40,21 @@ All integrations live in ``ddtrace/contrib/`` and contain at least two files,
 The Pin API in ``ddtrace.pin`` is used to configure the instrumentation at runtime, including
 enabling and disabling the instrumentation and overriding the service name.
 
+Integration Checklists
+------------------------
+The lists here are necessary, but not sufficient to add an integration. Please read the full document.
+
+General (all integrations):
+[ ] Includes tests (see "Testing" in this document)
+[ ] The CI suite is updated to include testsfor the integration
+
+Service Naming/Peer.Service (all integrations):
+[ ] The integration has (a) a default service name and (b) supports service name schematization
+[ ] The integration includes tests for the various service name schemas (`default`, `V0 schema`, `V1`) which are sent to the test agent
+[ ] The integration CI includes the test agent tests
+[ ] Operation/span names support OTel specifications for naming format and peer.service
+
+
 Library support
 ---------------
 
@@ -59,6 +74,28 @@ this is the Flask integration:
 
     - `pulling out the version: <https://github.com/DataDog/dd-trace-py/blob/96dc6403e329da87fe40a1e912ce72f2b452d65c/ddtrace/contrib/flask/patch.py#L45-L58>`_
     - `using it to instrument a later-added feature <https://github.com/DataDog/dd-trace-py/blob/96dc6403e329da87fe40a1e912ce72f2b452d65c/ddtrace/contrib/flask/patch.py#L149-L151>`_
+
+
+Service Naming/Peer.Service
+---------------------------
+Service Naming and Peer.Service help with automated service detection and modelling
+by providing different default values for the service and operation name span
+attributes.  These attributes are adjusted by using environment variables which toggle 
+various schemas. Every integration is required to support the existing schemas.
+
+The API to support service name, peer.service, and schematization can be found here: <https://github.com/DataDog/dd-trace-py/blob/1.x/ddtrace/internal/schema/__init__.py#L52-L64>
+
+The important elements are:
+1. Every integration needs a default service name, which is what the service name for spans will be when the integration is called.
+1. The default service name should be wrapped with `schematize_service_name()`
+1. If the span being created is a supported OTel format:
+    a. Wrap your operation name with the appropriate `schematize_*_operation` call (or add a new one)
+    a. If OTel specifies precursors for peer.service, ensure your span includes those as tags
+
+
+The point of these changes is to allow service name schematization to toggle behaviors:
+* `v0`: Each integration has a default integration name, which is used in the service map and to generate APM statistics
+* `v1`: Integrations now use the value of `DD_SERVICE` and the map/statistics are generated using peer.service.
 
 
 Exceptions and Errors
