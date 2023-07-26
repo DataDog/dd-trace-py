@@ -1,5 +1,6 @@
+---
 prelude: >
-Data Streams Monitoring (DSM) has added support for AWS Kinesis
+  Data Streams Monitoring (DSM) has added support for AWS Kinesis
 
 features:
   - |
