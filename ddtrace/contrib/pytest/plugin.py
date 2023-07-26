@@ -35,13 +35,10 @@ from ddtrace.internal.ci_visibility.constants import MODULE_ID as _MODULE_ID
 from ddtrace.internal.ci_visibility.constants import MODULE_TYPE as _MODULE_TYPE
 from ddtrace.internal.ci_visibility.constants import SESSION_ID as _SESSION_ID
 from ddtrace.internal.ci_visibility.constants import SESSION_TYPE as _SESSION_TYPE
-from ddtrace.internal.ci_visibility.constants import SUITE
 from ddtrace.internal.ci_visibility.constants import SUITE_ID as _SUITE_ID
 from ddtrace.internal.ci_visibility.constants import SUITE_TYPE as _SUITE_TYPE
-from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.ci_visibility.coverage import _initialize_coverage
 from ddtrace.internal.ci_visibility.coverage import build_payload as build_coverage_payload
-from ddtrace.internal.ci_visibility.recorder import _get_test_skipping_level
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 
@@ -411,7 +408,7 @@ def pytest_runtest_protocol(item, nextitem):
             pytest_module_item,
             test_module_span,
             should_enable_coverage=(
-                _get_test_skipping_level() == SUITE
+                _CIVisibility._instance._suite_skipping_mode
                 and _CIVisibility._instance._collect_coverage_enabled
                 and not is_skipped_by_itr
             ),
@@ -473,7 +470,7 @@ def pytest_runtest_protocol(item, nextitem):
         _store_span(item, span)
 
         coverage_per_test = (
-            _get_test_skipping_level() == TEST
+            not _CIVisibility._instance._suite_skipping_mode
             and _CIVisibility._instance._collect_coverage_enabled
             and not is_skipped_by_itr
         )
@@ -490,7 +487,7 @@ def pytest_runtest_protocol(item, nextitem):
             _mark_test_status(pytest_module_item, test_suite_span)
             # Finish coverage for the test suite if coverage is enabled
             if (
-                _get_test_skipping_level() == SUITE
+                _CIVisibility._instance._suite_skipping_mode
                 and _CIVisibility._instance._collect_coverage_enabled
                 and not is_skipped_by_itr
             ):
