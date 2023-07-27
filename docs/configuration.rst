@@ -505,7 +505,7 @@ The following environment variables for the tracer are supported:
 
    DD_CIVISIBILITY_ITR_DISABLED:
      type: Boolean
-     default: True
+     default: False
      description: |
         Prevents configuring the ``CIVisibility`` service to generate and upload git packfiles in support
         of the Datadog Intelligent Test Runner.
