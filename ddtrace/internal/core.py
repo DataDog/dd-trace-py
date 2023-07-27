@@ -48,7 +48,7 @@ class EventHub:
         self._listeners = defaultdict(list)
 
     def dispatch(self, event_id, args, *other_args):
-        # type: (str, Any, ...) -> Tuple[List[Optional[Any]], List[Optional[Exception]]]
+        # type: (...) -> Tuple[List[Optional[Any]], List[Optional[Exception]]]
         if not isinstance(args, list):
             args = [args] + list(other_args)
         else:
@@ -92,7 +92,7 @@ def reset_listeners():
 
 
 def dispatch(event_id, args, *other_args):
-    # type: (str, List[Optional[Any]]) -> Tuple[List[Optional[Any]], List[Optional[Exception]]]
+    # type: (...) -> Tuple[List[Optional[Any]], List[Optional[Exception]]]
     return _EVENT_HUB.get().dispatch(event_id, args, *other_args)  # type: ignore
 
 
