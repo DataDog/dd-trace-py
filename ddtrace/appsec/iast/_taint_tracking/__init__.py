@@ -81,7 +81,7 @@ def taint_pyobject(pyobject, source_name, source_value, source_origin=None, star
     if not pyobject or not isinstance(pyobject, (str, bytes, bytearray)):
         return pyobject
 
-    if len_pyobject is None:
+    if not len_pyobject:
         len_pyobject = len(pyobject)
     pyobject = new_pyobject_id(pyobject, len_pyobject)
     if isinstance(source_name, (bytes, bytearray)):
