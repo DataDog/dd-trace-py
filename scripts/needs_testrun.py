@@ -2,7 +2,7 @@
 
 from argparse import ArgumentParser
 import fnmatch
-import functools
+from functools import cache
 import json
 import logging
 import os
@@ -10,7 +10,6 @@ from pathlib import Path
 import re
 from subprocess import check_output
 import sys
-import tempfile
 import typing as t
 from urllib.request import Request
 from urllib.request import urlopen
@@ -111,6 +110,7 @@ SUITES = (
 )
 
 
+@cache
 def get_base_branch(pr_number: int) -> str:
     """Get the base branch of a PR
 
@@ -123,7 +123,7 @@ def get_base_branch(pr_number: int) -> str:
     return BASE_BRANCH_PATTERN.search(pr_page_content).group(1)
 
 
-@functools.cache
+@cache
 def get_changed_files(pr_number: int) -> t.Set[str]:
     """Get the files changed in a PR
 
@@ -150,7 +150,7 @@ def get_changed_files(pr_number: int) -> t.Set[str]:
                     "diff",
                     "--name-only",
                     "HEAD",
-                    get_base_branch(),
+                    get_base_branch(pr_number),
                 ]
             )
             .decode("utf-8")
@@ -159,6 +159,7 @@ def get_changed_files(pr_number: int) -> t.Set[str]:
         )
 
 
+@cache
 def get_patterns(suite: str) -> t.Set[str]:
     """Get the patterns for a suite
 
@@ -169,8 +170,8 @@ def get_patterns(suite: str) -> t.Set[str]:
     'ddtrace/sampler.py', 'ddtrace/settings/__init__.py', 'ddtrace/settings/config.py',
     'ddtrace/settings/dynamic_instrumentation.py', 'ddtrace/settings/exception_debugging.py',
     'ddtrace/settings/http.py', 'ddtrace/settings/integration.py', 'ddtrace/span.py', 'ddtrace/tracer.py',
-    'tests/commands/*', 'tests/debugging/*', 'tests/integration/*', 'tests/internal/*', 'tests/lib-injection',
-    'tests/tracer/*']
+    'riotfile.py', 'scripts/ddtest', 'tests/commands/*', 'tests/debugging/*', 'tests/integration/*',
+    'tests/internal/*', 'tests/lib-injection', 'tests/tracer/*']
     >>> get_patterns("foobar")
     set()
     """
@@ -178,7 +179,14 @@ def get_patterns(suite: str) -> t.Set[str]:
         suitespec = json.load(f)
 
         compos = suitespec["components"]
-        suite_patterns = set(suitespec["suites"].get(suite, []))
+        if suite not in suitespec["suites"]:
+            return set()
+
+        suite_patterns = set(suitespec["suites"][suite])
+
+        # Include patterns from include-always components
+        for patterns in (patterns for compo, patterns in compos.items() if compo.startswith("$")):
+            suite_patterns |= set(patterns)
 
         def resolve(patterns: set) -> set:
             refs = {_ for _ in patterns if _.startswith("@")}
@@ -196,10 +204,11 @@ def get_patterns(suite: str) -> t.Set[str]:
         return resolve(suite_patterns)
 
 
+@cache
 def needs_testrun(suite: str, pr_number: int) -> bool:
     """Check if a testrun is needed for a suite and PR
 
-    >>> needs_testrun("debugger", 6412)
+    >>> needs_testrun("debugger", 6485)
     False
     >>> needs_testrun("debugger", 6388)
     True
@@ -255,9 +264,8 @@ def _get_pr_number():
         return 0
 
 
-def for_each_testrun_needed(action: t.Callable[[str], None], cached: bool = True):
+def for_each_testrun_needed(action: t.Callable[[str], None]):
     # Used in CircleCI config
-    tempdir = Path(tempfile.gettempdir())
     pr_number = _get_pr_number()
 
     for suite in SUITES:
@@ -266,20 +274,9 @@ def for_each_testrun_needed(action: t.Callable[[str], None], cached: bool = True
             action(suite)
             continue
 
-        cachefile = tempdir / f"needs-testrun-{suite}-{pr_number}"
-        if cached and cachefile.exists():
-            # If we cached the result of the previous run we can skip the check
-            if int(cachefile.read_text().strip()):
-                action(suite)
-            continue
-
         needs_run = needs_testrun(suite, pr_number)
         if needs_run:
             action(suite)
-
-        if cached:
-            # Cache the result of the check to save on API calls
-            cachefile.write_text(str(int(needs_run)))
 
 
 def main() -> bool:

@@ -41,6 +41,7 @@ def get_weak_cipher_algorithms():
 class WeakCipher(VulnerabilityBase):
     vulnerability_type = VULN_WEAK_CIPHER_TYPE
     evidence_type = EVIDENCE_ALGORITHM_TYPE
+    scrub_evidence = False
 
 
 def unpatch_iast():

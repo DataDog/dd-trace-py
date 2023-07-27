@@ -76,7 +76,7 @@ commands:
     description: "Install riot"
     steps:
       # Make sure we install and run riot on Python 3
-      - run: pip3 install riot==0.17.5
+      - run: pip3 install riot==0.17.7
 
   save_pip_cache:
     description: "Save pip cache directory"
@@ -260,7 +260,7 @@ jobs:
           command: riot -v run -s flake8
       - run:
           name: "Slots check"
-          command: riot -v run -s slotscheck
+          command: riot -v run slotscheck
       - run:
           name: "Mypy check"
           command: riot -v run -s mypy
@@ -1127,8 +1127,6 @@ requires_base_venvs: &requires_base_venvs
 
 requires_tests: &requires_tests
   requires:
-#[[[cog from needs_testrun import for_each_testrun_needed as fetn;fetn(lambda job: print(f"    - {job}")) ]]]
-#[[[end]]]
 
 
 workflows:
@@ -1145,8 +1143,5 @@ workflows:
       # Docs
       - build_docs: *requires_pre_check
 
-      # Integration test suites
-#[[[cog from needs_testrun import for_each_testrun_needed as fetn;fetn(lambda job: print(f"      - {job}: *requires_base_venvs")) ]]]
-#[[[end]]]
       # Final reports
       - coverage_report: *requires_tests
