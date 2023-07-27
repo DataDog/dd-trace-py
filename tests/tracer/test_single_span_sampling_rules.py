@@ -215,7 +215,6 @@ def test_default_to_env_if_both_env_and_file_config(tmpdir, caplog):
         assert len(sampling_rules) == 1
 
 
-
 def test_single_span_rule_no_match_empty_strings():
     rule = SpanSamplingRule(service="", name="", sample_rate=1.0, max_per_second=-1)
     span = traced_function(rule)
