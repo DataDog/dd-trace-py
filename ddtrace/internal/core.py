@@ -174,6 +174,7 @@ class ExecutionContext:
         self._data[data_key] = data_value
 
     def set_safe(self, data_key, data_value):
+        # type: (str, Optional[Any]) -> None
         if data_key in self._data:
             raise ValueError("Cannot overwrite ExecutionContext data key '%s'", data_key)
         return self.set_item(data_key, data_value)
