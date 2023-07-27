@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Fixes a corner case where the CI Visibility test runner was not properly
+    skipping tests in suite-skipping mode when PYTHONPATH was specified
+    manually, and pytest's get_fslocation_from_item() function reported a
+    fictitious relative path.
