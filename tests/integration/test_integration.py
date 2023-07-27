@@ -749,7 +749,6 @@ def test_downgrade(encoding, monkeypatch):
 @allencodings
 @pytest.mark.snapshot()
 def test_span_tags(encoding, ddtrace_run_python_code_in_subprocess):
-    import os 
     env = os.environ.copy()
     env["DD_TRACE_API_VERSION"] = encoding
 
