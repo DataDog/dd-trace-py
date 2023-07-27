@@ -84,7 +84,8 @@ def _make_block_content(ctx, construct_url):
     req_span = ctx.get_item("req_span")
     headers = ctx.get_item("headers")
     environ = ctx.get_item("environ")
-    assert req_span is not None
+    if req_span is None:
+        raise ValueError("request span not found")
     ctype = "text/html" if "text/html" in headers.get("Accept", "").lower() else "text/json"
     content = http_utils._get_blocked_template(ctype).encode("UTF-8")
     try:
