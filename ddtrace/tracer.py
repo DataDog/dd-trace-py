@@ -18,6 +18,10 @@ from ddtrace.internal.sampling import get_span_sampling_rules
 from ddtrace.internal.utils import _get_metas_to_propagate
 from ddtrace.settings.peer_service import _ps_config
 from ddtrace.vendor import debtcollector
+from ddtrace import traces 
+from ddtrace import data_stream_monitoring
+traces.initialize()
+data_stream_monitoring.initialize()
 
 from . import _hooks
 from ._monkey import patch
@@ -67,6 +71,7 @@ from .sampler import DatadogSampler
 from .sampler import RateByServiceSampler
 from .sampler import RateSampler
 from .span import Span
+
 
 
 if TYPE_CHECKING:  # pragma: no cover
