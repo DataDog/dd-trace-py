@@ -17,7 +17,6 @@ import os
 import re
 from typing import Dict
 
-from _pytest.nodes import get_fslocation_from_item
 import pytest
 
 import ddtrace
@@ -379,7 +378,7 @@ def pytest_collection_modifyitems(session, config, items):
     if _CIVisibility.test_skipping_enabled():
         skip = pytest.mark.skip(reason=SKIPPED_BY_ITR)
         for item in items:
-            if _CIVisibility._instance._should_skip_path(str(get_fslocation_from_item(item)[0]), item.name):
+            if _CIVisibility._instance._should_skip_path(item.path, item.name):
                 item.add_marker(skip)
 
 
