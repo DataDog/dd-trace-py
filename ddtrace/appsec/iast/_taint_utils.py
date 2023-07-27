@@ -146,6 +146,12 @@ class LazyTaintDict:
         # type: (str) -> Any
         return getattr(self.obj, name)
 
+    def __repr__(self):
+        return repr(self.obj)
+
+    def __eq__(self, other):
+        return self.obj == other
+
 
 def supported_dbapi_integration(integration_name):
     return integration_name in DBAPI_INTEGRATIONS or integration_name.startswith(DBAPI_PREFIXES)
