@@ -221,6 +221,7 @@ unix
 unpatch
 unpatched
 unregister
+unshallow
 unvendored
 uri
 url
