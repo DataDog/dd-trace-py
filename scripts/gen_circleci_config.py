@@ -9,9 +9,13 @@
 def gen_required_suites(template: dict) -> None:
     """Generate the list of test suites that need to be run."""
     from needs_testrun import for_each_testrun_needed as fetn
+    from suitespec import get_suites
+
+    suites = get_suites()
+    jobs = set(template["jobs"].keys())
 
     required_suites = template["requires_tests"]["requires"] = []
-    fetn(lambda suite: required_suites.append(suite))
+    fetn(suites=sorted(suites & jobs), action=lambda suite: required_suites.append(suite))
 
     requires_base_venvs = template["requires_base_venvs"]
     template["workflows"]["test"]["jobs"].extend([{suite: requires_base_venvs} for suite in required_suites])
