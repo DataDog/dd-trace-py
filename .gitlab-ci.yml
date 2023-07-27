@@ -60,7 +60,7 @@ deploy_to_di_backend:automatic:
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
       when: on_success
   trigger:
-    project: DataDog/debugger-backend
+    project: DataDog/debugger-demos
     branch: main
   variables:
     UPSTREAM_PROJECT_ID: $CI_PROJECT_ID
@@ -76,7 +76,7 @@ deploy_to_di_backend:manual:
     - when: manual
       allow_failure: true
   trigger:
-    project: DataDog/debugger-backend
+    project: DataDog/debugger-demos
     branch: main
   variables:
     UPSTREAM_PROJECT_ID: $CI_PROJECT_ID
