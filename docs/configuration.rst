@@ -443,6 +443,35 @@ The following environment variables for the tracer are supported:
      default: "DES,Blowfish,RC2,RC4,IDEA"
      description: Weak cipher algorithms that should be reported, comma separated.
 
+   DD_IAST_REDACTION_ENABLED:
+     type: Boolean
+     default: True
+     description: |
+        Replace potentially sensitive information in the vulnerability report, like passwords with ``*`` for non tainted strings and ``abcde...``
+        for tainted ones. This will use the regular expressions of the two next settings to decide what to scrub.
+     version_added:
+        v1.17.0:
+
+   DD_IAST_REDACTION_NAME_PATTERN:
+     type: String
+     default: |
+       ``(?i)^.*(?:p(?:ass)?w(?:or)?d|pass(?:_?phrase)?|secret|(?:api_?|private_?|public_?|access_?|secret_?)key(?:_?id)?|token|consumer_?(?:id|key|secret)|sign(?:ed|ature)?|auth(?:entication|orization)?)``
+     description: |
+        Regular expression containing key or name style strings matched against vulnerability origin and evidence texts.
+        If it matches, the scrubbing of the report will be enabled.
+     version_added:
+        v1.17.0:
+
+   DD_IAST_REDACTION_VALUE_PATTERN:
+     type: String
+     default: |
+       ``(?i)bearer\s+[a-z0-9\._\-]+|token:[a-z0-9]{13}|gh[opsu]_[0-9a-zA-Z]{36}|ey[I-L][\w=-]+\.ey[I-L][\w=-]+(\.[\w.+\/=-]+)?|[\-]{5}BEGIN[a-z\s]+PRIVATE\sKEY[\-]{5}[^\-]+[\-]{5}END[a-z\s]+PRIVATE\sKEY|ssh-rsa\s*[a-z0-9\/\.+]{100,}``
+     description: |
+        Regular expression containing value style strings matched against vulnerability origin and evidence texts.
+        If it matches, the scrubbing of the report will be enabled.
+     version_added:
+        v1.17.0:
+
    DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE:
      type: String
      default: "auto"
