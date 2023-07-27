@@ -87,11 +87,11 @@ The API to support service name, peer.service, and schema can be found here: <ht
 
 The important elements are:
 1. Every integration needs a default service name, which is what the service name for spans will be when the integration is called.
-1. The default service name should be wrapped with `schematize_service_name()`
-1. If the span being created is a supported Open Telemetry format:
+2. The default service name should be wrapped with `schematize_service_name()`
+3. If the span being created is a supported Open Telemetry format:
 
   1. Wrap your operation name with the appropriate `schematize_*_operation` call (or add a new one)
-  1. If Open Telemetry specifies precursors for peer.service, ensure your span includes those as tags
+  2. If Open Telemetry specifies precursors for peer.service, ensure your span includes those as tags
 
 
 The point of these changes is to allow service name schema to toggle behaviors:
