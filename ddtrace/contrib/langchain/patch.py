@@ -25,6 +25,7 @@ from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.agent import get_stats_url
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import deep_getattr
@@ -327,7 +328,7 @@ async def traced_llm_agenerate(langchain, pin, func, instance, args, kwargs):
 @with_traced_module
 def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
     llm_provider = instance._llm_type.split("-")[0]
-    chat_messages = get_argument_value(args, kwargs, 0, "chat_messages")
+    chat_messages = get_argument_value(args, kwargs, 0, "messages")
     integration = langchain._datadog_integration
     span = integration.trace(
         pin,
@@ -418,7 +419,7 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
 @with_traced_module
 async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwargs):
     llm_provider = instance._llm_type.split("-")[0]
-    chat_messages = get_argument_value(args, kwargs, 0, "chat_messages")
+    chat_messages = get_argument_value(args, kwargs, 0, "messages")
     integration = langchain._datadog_integration
     span = integration.trace(
         pin,
@@ -508,7 +509,15 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
 
 @with_traced_module
 def traced_embedding(langchain, pin, func, instance, args, kwargs):
-    input_texts = get_argument_value(args, kwargs, 0, "text")
+    """
+    This traces both embed_query(text) and embed_documents(texts), so we need to make sure
+    we get the right arg/kwarg.
+    """
+    try:
+        input_texts = get_argument_value(args, kwargs, 0, "texts")
+    except ArgumentError:
+        input_texts = get_argument_value(args, kwargs, 0, "text")
+
     provider = instance.__class__.__name__.split("Embeddings")[0].lower()
     integration = langchain._datadog_integration
     span = integration.trace(
@@ -560,7 +569,7 @@ def traced_chain_call(langchain, pin, func, instance, args, kwargs):
     span = integration.trace(pin, "%s.%s" % (instance.__module__, instance.__class__.__name__), interface_type="chain")
     final_outputs = {}
     try:
-        inputs = args[0]
+        inputs = get_argument_value(args, kwargs, 0, "inputs")
         if not isinstance(inputs, dict):
             inputs = {instance.input_keys[0]: inputs}
         if integration.is_pc_sampled_span(span):
@@ -606,7 +615,7 @@ async def traced_chain_acall(langchain, pin, func, instance, args, kwargs):
     span = integration.trace(pin, "%s.%s" % (instance.__module__, instance.__class__.__name__), interface_type="chain")
     final_outputs = {}
     try:
-        inputs = args[0]
+        inputs = get_argument_value(args, kwargs, 0, "inputs")
         if not isinstance(inputs, dict):
             inputs = {instance.input_keys[0]: inputs}
         if integration.is_pc_sampled_span(span):
