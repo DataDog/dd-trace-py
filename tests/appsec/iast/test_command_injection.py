@@ -1,21 +1,21 @@
+from copy import copy
 import os
 import subprocess
 import sys
-from copy import copy
 
 import pytest
 
 from ddtrace import Pin
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec.iast._taint_tracking import taint_pyobject, is_pyobject_tainted
-from ddtrace.appsec.iast._taint_tracking import OriginType  # noqa: F401
 from ddtrace.appsec.iast._ast.aspects import add_aspect
+from ddtrace.appsec.iast._taint_tracking import OriginType  # noqa: F401
+from ddtrace.appsec.iast._taint_tracking import taint_pyobject
 from ddtrace.appsec.iast.constants import VULN_CMDI
-from ddtrace.contrib.subprocess.patch import patch, SubprocessCmdLine
+from ddtrace.contrib.subprocess.patch import SubprocessCmdLine
+from ddtrace.contrib.subprocess.patch import patch
 from ddtrace.contrib.subprocess.patch import unpatch
-from tests.utils import override_global_config
-
 from ddtrace.internal import core
+from tests.utils import override_global_config
 
 
 @pytest.fixture(autouse=True)
@@ -50,8 +50,7 @@ def test_ossystem(tracer, iast_span_defaults):
         assert list(span_report.vulnerabilities)[0].location.path == "test_command_injection.py"
         assert list(span_report.vulnerabilities)[0].location.line == 45
         # FIXME: update this when the valueParts fixes from the scrubbing PR are merged
-        assert list(span_report.vulnerabilities)[0].evidence.valueParts == \
-            ["dir", "-l", _BAD_DIR]
+        assert list(span_report.vulnerabilities)[0].evidence.valueParts == ["dir", "-l", _BAD_DIR]
 
 
 def test_communicate(tracer, iast_span_defaults):
@@ -76,8 +75,7 @@ def test_communicate(tracer, iast_span_defaults):
         assert list(span_report.vulnerabilities)[0].location.path == "test_command_injection.py"
         assert list(span_report.vulnerabilities)[0].location.line == 69
         # FIXME: update this when the valueParts fixes from the scrubbing PR are merged
-        assert list(span_report.vulnerabilities)[0].evidence.valueParts == \
-               ["dir", "-l", _BAD_DIR]
+        assert list(span_report.vulnerabilities)[0].evidence.valueParts == ["dir", "-l", _BAD_DIR]
 
 
 def test_run(tracer, iast_span_defaults):
@@ -100,8 +98,7 @@ def test_run(tracer, iast_span_defaults):
         assert list(span_report.vulnerabilities)[0].location.path == "test_command_injection.py"
         assert list(span_report.vulnerabilities)[0].location.line == 95
         # FIXME: update this when the valueParts fixes from the scrubbing PR are merged
-        assert list(span_report.vulnerabilities)[0].evidence.valueParts == \
-               ["dir", "-l", _BAD_DIR]
+        assert list(span_report.vulnerabilities)[0].evidence.valueParts == ["dir", "-l", _BAD_DIR]
 
 
 def test_popen_wait(tracer, iast_span_defaults):
@@ -125,8 +122,7 @@ def test_popen_wait(tracer, iast_span_defaults):
         assert list(span_report.vulnerabilities)[0].location.path == "test_command_injection.py"
         assert list(span_report.vulnerabilities)[0].location.line == 119
         # FIXME: update this when the valueParts fixes from the scrubbing PR are merged
-        assert list(span_report.vulnerabilities)[0].evidence.valueParts == \
-               ["dir", "-l", _BAD_DIR]
+        assert list(span_report.vulnerabilities)[0].evidence.valueParts == ["dir", "-l", _BAD_DIR]
 
 
 def test_popen_wait_shell_true(tracer, iast_span_defaults):
@@ -150,8 +146,8 @@ def test_popen_wait_shell_true(tracer, iast_span_defaults):
         assert list(span_report.vulnerabilities)[0].location.path == "test_command_injection.py"
         assert list(span_report.vulnerabilities)[0].location.line == 144
         # FIXME: update this when the valueParts fixes from the scrubbing PR are merged
-        assert list(span_report.vulnerabilities)[0].evidence.valueParts == \
-               ["dir", "-l", _BAD_DIR]
+        assert list(span_report.vulnerabilities)[0].evidence.valueParts == ["dir", "-l", _BAD_DIR]
+
 
 _PARAMS = ["/bin/ls", "-l"]
 
@@ -196,11 +192,9 @@ def test_osspawn_variants(tracer, iast_span_defaults, function, mode, arguments)
             else:
                 function(mode, copied_args[0], *copied_args)
 
-
         span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
         assert span_report
         assert list(span_report.vulnerabilities)[0].type == VULN_CMDI
         assert list(span_report.vulnerabilities)[0].location.path == "test_command_injection.py"
         # FIXME: update this when the valueParts fixes from the scrubbing PR are merged
-        assert list(span_report.vulnerabilities)[0].evidence.valueParts == \
-               ["/bin/ls", "-l", _BAD_DIR]
+        assert list(span_report.vulnerabilities)[0].evidence.valueParts == ["/bin/ls", "-l", _BAD_DIR]
