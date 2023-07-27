@@ -255,7 +255,7 @@ class DatadogSampler(RateByServiceSampler):
                 default_sample_rate = float(sample_rate)
 
         if rate_limit is None:
-            rate_limit = ddconfig._trace_rate_limit
+            rate_limit = int(ddconfig._trace_rate_limit)
 
         if rules is None:
             env_sampling_rules = os.getenv("DD_TRACE_SAMPLING_RULES")

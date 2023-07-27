@@ -29,6 +29,7 @@ from ddtrace.span import Span
 from ..subprocesstest import run_in_subprocess
 from ..utils import DummyTracer
 from ..utils import override_env
+from ..utils import override_global_config
 
 
 @pytest.fixture
@@ -685,25 +686,24 @@ def test_datadog_sampler_init():
     assert sampler.limiter.rate_limit == DatadogSampler.DEFAULT_RATE_LIMIT
     assert sampler.rules == [SamplingRule(sample_rate=0.5)]
 
-    # From env variables
-    with override_env(dict(DD_TRACE_SAMPLE_RATE="0.5", DD_TRACE_RATE_LIMIT="10")):
+    with override_global_config(dict(_trace_sample_rate="0.5", _trace_rate_limit=10)):
         sampler = DatadogSampler()
         assert sampler.limiter.rate_limit == 10
         assert sampler.rules == [SamplingRule(sample_rate=0.5)]
 
     # DD_TRACE_SAMPLE_RATE=0
-    with override_env(dict(DD_TRACE_SAMPLE_RATE="0")):
+    with override_global_config(dict(_trace_sample_rate="0")):
         sampler = DatadogSampler()
         assert sampler.limiter.rate_limit == DatadogSampler.DEFAULT_RATE_LIMIT
         assert sampler.rules == [SamplingRule(sample_rate=0)]
 
     # Invalid env vars
-    with override_env(dict(DD_TRACE_SAMPLE_RATE="asdf")):
+    with override_global_config(dict(_trace_sample_rate="asdf")):
         with pytest.raises(ValueError):
             DatadogSampler()
 
     # Invalid env vars
-    with override_env(dict(DD_TRACE_RATE_LIMIT="asdf")):
+    with override_global_config(dict(_trace_rate_limit="asdf")):
         with pytest.raises(ValueError):
             DatadogSampler()
 
