@@ -50,7 +50,7 @@ General (all integrations):
 
 Service Naming/Peer.Service (all integrations):
 [ ] The integration has (a) a default service name and (b) supports service name schema
-[ ] The integration includes tests for the various service name schema (`default`, `V0 schema`, `V1`) which are sent to the test agent
+[ ] The integration includes tests for the various service name schema (`default`, `v0`, `v1`) which are sent to the test agent
 [ ] The integration CI includes the test agent tests
 [ ] Operation/span names support Open Telemetry specifications for naming format and peer.service
 
@@ -88,10 +88,10 @@ The API to support service name, peer.service, and schema can be found here: <ht
 The important elements are:
 1. Every integration needs a default service name, which is what the service name for spans will be when the integration is called.
 2. The default service name should be wrapped with `schematize_service_name()`
-3. If the span being created is a supported Open Telemetry format:
+3. If the span being created is a supported OpenTelemetry format:
 
   1. Wrap your operation name with the appropriate `schematize_*_operation` call (or add a new one)
-  2. If Open Telemetry specifies precursors for peer.service, ensure your span includes those as tags
+  2. If OpenTelemetry specifies precursors for peer.service, ensure your span includes those as tags
 
 
 The point of these changes is to allow service name schema to toggle behaviors:
