@@ -15,10 +15,12 @@ from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import SAMPLING_RULE_DECISION
 from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
+from ddtrace.context import Context
 from ddtrace.internal.compat import iteritems
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.sampling import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.sampling import SamplingMechanism
+from ddtrace.internal.sampling import update_sampling_decision
 from ddtrace.sampler import AllSampler
 from ddtrace.sampler import DatadogSampler
 from ddtrace.sampler import RateByServiceSampler
@@ -1033,3 +1035,28 @@ def test_datadog_sampler_update_rate_by_service_sample_rates(dummy_tracer):
         for k, v in iteritems(sampler._by_service_samplers):
             rates[k] = v.sample_rate
         assert case == rates, "%s != %s" % (case, rates)
+
+
+@pytest.fixture()
+def context():
+    yield Context()
+
+
+@pytest.mark.parametrize(
+    "sampling_mechanism,sampled,expected",
+    [
+        (SamplingMechanism.AGENT_RATE, True, "-1"),
+        (SamplingMechanism.TRACE_SAMPLING_RULE, True, "-3"),
+        (SamplingMechanism.DEFAULT, True, "-0"),
+        (SamplingMechanism.MANUAL, True, "-4"),
+        (SamplingMechanism.DEFAULT, True, "-0"),
+        (SamplingMechanism.DEFAULT, False, None),
+    ],
+)
+def test_trace_tag(context, sampling_mechanism, sampled, expected):
+
+    update_sampling_decision(context, sampling_mechanism, sampled)
+    if sampled:
+        assert context._meta["_dd.p.dm"] == expected
+    else:
+        assert "_dd.p.dm" not in context._meta
