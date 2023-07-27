@@ -74,6 +74,7 @@ reload_module = six.moves.reload_module
 
 ensure_text = six.ensure_text
 ensure_str = six.ensure_str
+ensure_binary = six.ensure_binary
 stringify = six.text_type
 string_type = six.string_types[0]
 text_type = six.text_type
