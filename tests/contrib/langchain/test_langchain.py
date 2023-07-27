@@ -181,7 +181,7 @@ def test_openai_llm_sync_multiple_prompts(langchain, request_vcr):
     llm = langchain.llms.OpenAI()
     with request_vcr.use_cassette("openai_completion_sync_multi_prompt.yaml"):
         llm.generate(
-            [
+            prompts=[
                 "What is the best way to teach a baby multiple languages?",
                 "How many times has Spongebob failed his road test?",
             ]
@@ -376,7 +376,7 @@ def test_llm_logs(langchain, ddtrace_config_langchain, request_vcr, mock_logs, m
 def test_openai_chat_model_sync_call(langchain, request_vcr):
     chat = langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
     with request_vcr.use_cassette("openai_chat_completion_sync_call.yaml"):
-        chat([langchain.schema.HumanMessage(content="When do you use 'whom' instead of 'who'?")])
+        chat(messages=[langchain.schema.HumanMessage(content="When do you use 'whom' instead of 'who'?")])
 
 
 @pytest.mark.skipif(sys.version_info >= (3, 10, 0), reason="Python 3.9 specific test")
@@ -622,13 +622,13 @@ def test_openai_embedding_document(langchain, request_vcr):
 @pytest.mark.snapshot
 def test_fake_embedding_query(langchain):
     embeddings = langchain.embeddings.FakeEmbeddings(size=99)
-    embeddings.embed_query("foo")
+    embeddings.embed_query(text="foo")
 
 
 @pytest.mark.snapshot
 def test_fake_embedding_document(langchain):
     embeddings = langchain.embeddings.FakeEmbeddings(size=99)
-    embeddings.embed_documents(["foo", "bar"])
+    embeddings.embed_documents(texts=["foo", "bar"])
 
 
 def test_openai_embedding_metrics(langchain, request_vcr, mock_metrics, mock_logs, snapshot_tracer):
