@@ -33,6 +33,14 @@ class TestContextEventsApi(unittest.TestCase):
         result = core.dispatch(event_name, [dynamic_value])[0][0]
         assert result == handler_return.format(dynamic_value)
 
+    def test_core_dispatch_star_args(self):
+        event_name = "my.cool.event"
+        dynamic_value = 42
+        handler_return = "from.event.{}"
+        core.on(event_name, lambda magic_number, forty_two: handler_return.format(magic_number))
+        result = core.dispatch(event_name, dynamic_value, 42)[0][0]
+        assert result == handler_return.format(dynamic_value)
+
     def test_core_dispatch_multiple_listeners(self):
         event_name = "my.cool.event"
         dynamic_value = 42

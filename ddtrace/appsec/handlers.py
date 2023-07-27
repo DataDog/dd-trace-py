@@ -79,6 +79,7 @@ def _on_request_span_modifier(
 
 
 def _on_request_init(wrapped, instance, args, kwargs):
+    wrapped(*args, **kwargs)
     if _is_iast_enabled():
         try:
             from ddtrace.appsec.iast._taint_tracking import OriginType

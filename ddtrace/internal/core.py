@@ -48,15 +48,16 @@ class EventHub:
         self._listeners = defaultdict(list)
 
     def dispatch(self, event_id, args, *other_args):
-        # type: (str, Any, ...) -> Tuple[List[Optional[Any]], List[Optional[Exception]]]
+        # type: (...) -> Tuple[List[Optional[Any]], List[Optional[Exception]]]
         if not isinstance(args, list):
             args = [args] + list(other_args)
         else:
-            assert not other_args, (
-                "When the first argument expected by the event handler is a list, all arguments "
-                "must be passed in a list. For example, use dispatch('foo', [[l1, l2], arg2]) "
-                "instead of dispatch('foo', [l1, l2], arg2)."
-            )
+            if other_args:
+                raise TypeError(
+                    "When the first argument expected by the event handler is a list, all arguments "
+                    "must be passed in a list. For example, use dispatch('foo', [[l1, l2], arg2]) "
+                    "instead of dispatch('foo', [l1, l2], arg2)."
+                )
         log.debug("Dispatching event %s", event_id)
         results = []
         exceptions = []
@@ -92,7 +93,7 @@ def reset_listeners():
 
 
 def dispatch(event_id, args, *other_args):
-    # type: (str, List[Optional[Any]]) -> Tuple[List[Optional[Any]], List[Optional[Exception]]]
+    # type: (...) -> Tuple[List[Optional[Any]], List[Optional[Exception]]]
     return _EVENT_HUB.get().dispatch(event_id, args, *other_args)  # type: ignore
 
 
