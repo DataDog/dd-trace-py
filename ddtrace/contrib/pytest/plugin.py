@@ -378,7 +378,7 @@ def pytest_collection_modifyitems(session, config, items):
     if _CIVisibility.test_skipping_enabled():
         skip = pytest.mark.skip(reason=SKIPPED_BY_ITR)
         for item in items:
-            if _CIVisibility._instance._should_skip_path(item.path, item.name):
+            if _CIVisibility._instance._should_skip_path(str(item.path), item.name):
                 item.add_marker(skip)
 
 
