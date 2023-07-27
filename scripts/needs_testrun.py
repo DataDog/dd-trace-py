@@ -2,6 +2,7 @@
 
 from argparse import ArgumentParser
 import fnmatch
+import functools
 import json
 import logging
 import os
@@ -122,6 +123,7 @@ def get_base_branch(pr_number: int) -> str:
     return BASE_BRANCH_PATTERN.search(pr_page_content).group(1)
 
 
+@functools.cache
 def get_changed_files(pr_number: int) -> t.Set[str]:
     """Get the files changed in a PR
 
@@ -162,11 +164,13 @@ def get_patterns(suite: str) -> t.Set[str]:
 
     >>> sorted(get_patterns("debugger"))  # doctest: +NORMALIZE_WHITESPACE
     ['ddtrace/__init__.py', 'ddtrace/_hooks.py', 'ddtrace/_logger.py', 'ddtrace/_monkey.py', 'ddtrace/auto.py',
-    'ddtrace/bootstrap/*', 'ddtrace/commands/*', 'ddtrace/constants.py', 'ddtrace/context.py', 'ddtrace/debugging/*',
-    'ddtrace/filter.py', 'ddtrace/internal/*', 'ddtrace/pin.py', 'ddtrace/provider.py', 'ddtrace/sampler.py',
-    'ddtrace/settings/__init__.py', 'ddtrace/settings/config.py', 'ddtrace/settings/dynamic_instrumentation.py',
-    'ddtrace/settings/exception_debugging.py', 'ddtrace/settings/http.py', 'ddtrace/settings/integration.py',
-    'ddtrace/span.py', 'ddtrace/tracer.py']
+    'ddtrace/bootstrap/*', 'ddtrace/commands/*', 'ddtrace/constants.py', 'ddtrace/context.py',
+    'ddtrace/debugging/*', 'ddtrace/filter.py', 'ddtrace/internal/*', 'ddtrace/pin.py', 'ddtrace/provider.py',
+    'ddtrace/sampler.py', 'ddtrace/settings/__init__.py', 'ddtrace/settings/config.py',
+    'ddtrace/settings/dynamic_instrumentation.py', 'ddtrace/settings/exception_debugging.py',
+    'ddtrace/settings/http.py', 'ddtrace/settings/integration.py', 'ddtrace/span.py', 'ddtrace/tracer.py',
+    'riotfile.py', 'scripts/ddtest', 'tests/commands/*', 'tests/debugging/*', 'tests/integration/*',
+    'tests/internal/*', 'tests/lib-injection', 'tests/tracer/*']
     >>> get_patterns("foobar")
     set()
     """
@@ -174,7 +178,14 @@ def get_patterns(suite: str) -> t.Set[str]:
         suitespec = json.load(f)
 
         compos = suitespec["components"]
-        suite_patterns = set(suitespec["suites"].get(suite, []))
+        if suite not in suitespec["suites"]:
+            return set()
+
+        suite_patterns = set(suitespec["suites"][suite])
+
+        # Include patterns from include-always components
+        for patterns in (patterns for compo, patterns in compos.items() if compo.startswith("$")):
+            suite_patterns |= set(patterns)
 
         def resolve(patterns: set) -> set:
             refs = {_ for _ in patterns if _.startswith("@")}
@@ -195,7 +206,7 @@ def get_patterns(suite: str) -> t.Set[str]:
 def needs_testrun(suite: str, pr_number: int) -> bool:
     """Check if a testrun is needed for a suite and PR
 
-    >>> needs_testrun("debugger", 6412)
+    >>> needs_testrun("debugger", 6485)
     False
     >>> needs_testrun("debugger", 6388)
     True
@@ -240,10 +251,21 @@ def needs_testrun(suite: str, pr_number: int) -> bool:
     return bool(matches)
 
 
+def _get_pr_number():
+    number = os.environ.get("CIRCLE_PR_NUMBER")
+    if not number:
+        pr_url = os.environ.get("CIRCLE_PULL_REQUEST", "")
+        number = pr_url.split("/")[-1]
+    try:
+        return int(number)
+    except ValueError:
+        return 0
+
+
 def for_each_testrun_needed(action: t.Callable[[str], None], cached: bool = True):
     # Used in CircleCI config
     tempdir = Path(tempfile.gettempdir())
-    pr_number = int(os.environ.get("CIRCLE_PR_NUMBER", 0))
+    pr_number = _get_pr_number()
 
     for suite in SUITES:
         if pr_number <= 0:
