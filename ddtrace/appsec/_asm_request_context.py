@@ -407,7 +407,7 @@ def _on_wrapped_view(kwargs):
 def _on_pre_tracedrequest(block_request_callable, span):
     if config._appsec_enabled:
         set_block_request_callable(functools.partial(block_request_callable, span))
-        if core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span):
+        if core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
             block_request()
 
 
