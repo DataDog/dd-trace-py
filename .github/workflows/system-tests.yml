@@ -2,6 +2,14 @@ name: System Tests
 
 on:
   push:
+    branches:
+      - 0.x
+      - 1.x
+  pull_request:
+    paths:
+      - ddtrace/*
+      - setup*
+      - pyproject.toml
   workflow_dispatch: {}
   schedule:
     - cron: '00 04 * * 2-6'
