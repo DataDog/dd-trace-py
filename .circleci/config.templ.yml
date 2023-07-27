@@ -1127,8 +1127,6 @@ requires_base_venvs: &requires_base_venvs
 
 requires_tests: &requires_tests
   requires:
-#[[[cog from needs_testrun import for_each_testrun_needed as fetn;fetn(lambda job: print(f"    - {job}")) ]]]
-#[[[end]]]
 
 
 workflows:
@@ -1145,8 +1143,5 @@ workflows:
       # Docs
       - build_docs: *requires_pre_check
 
-      # Integration test suites
-#[[[cog from needs_testrun import for_each_testrun_needed as fetn;fetn(lambda job: print(f"      - {job}: *requires_base_venvs")) ]]]
-#[[[end]]]
       # Final reports
       - coverage_report: *requires_tests

@@ -2,7 +2,7 @@
 
 from argparse import ArgumentParser
 import fnmatch
-import functools
+from functools import cache
 import json
 import logging
 import os
@@ -10,7 +10,6 @@ from pathlib import Path
 import re
 from subprocess import check_output
 import sys
-import tempfile
 import typing as t
 from urllib.request import Request
 from urllib.request import urlopen
@@ -111,6 +110,7 @@ SUITES = (
 )
 
 
+@cache
 def get_base_branch(pr_number: int) -> str:
     """Get the base branch of a PR
 
@@ -123,7 +123,7 @@ def get_base_branch(pr_number: int) -> str:
     return BASE_BRANCH_PATTERN.search(pr_page_content).group(1)
 
 
-@functools.cache
+@cache
 def get_changed_files(pr_number: int) -> t.Set[str]:
     """Get the files changed in a PR
 
@@ -150,7 +150,7 @@ def get_changed_files(pr_number: int) -> t.Set[str]:
                     "diff",
                     "--name-only",
                     "HEAD",
-                    get_base_branch(),
+                    get_base_branch(pr_number),
                 ]
             )
             .decode("utf-8")
@@ -159,6 +159,7 @@ def get_changed_files(pr_number: int) -> t.Set[str]:
         )
 
 
+@cache
 def get_patterns(suite: str) -> t.Set[str]:
     """Get the patterns for a suite
 
@@ -203,6 +204,7 @@ def get_patterns(suite: str) -> t.Set[str]:
         return resolve(suite_patterns)
 
 
+@cache
 def needs_testrun(suite: str, pr_number: int) -> bool:
     """Check if a testrun is needed for a suite and PR
 
@@ -262,9 +264,8 @@ def _get_pr_number():
         return 0
 
 
-def for_each_testrun_needed(action: t.Callable[[str], None], cached: bool = True):
+def for_each_testrun_needed(action: t.Callable[[str], None]):
     # Used in CircleCI config
-    tempdir = Path(tempfile.gettempdir())
     pr_number = _get_pr_number()
 
     for suite in SUITES:
@@ -273,20 +274,9 @@ def for_each_testrun_needed(action: t.Callable[[str], None], cached: bool = True
             action(suite)
             continue
 
-        cachefile = tempdir / f"needs-testrun-{suite}-{pr_number}"
-        if cached and cachefile.exists():
-            # If we cached the result of the previous run we can skip the check
-            if int(cachefile.read_text().strip()):
-                action(suite)
-            continue
-
         needs_run = needs_testrun(suite, pr_number)
         if needs_run:
             action(suite)
-
-        if cached:
-            # Cache the result of the check to save on API calls
-            cachefile.write_text(str(int(needs_run)))
 
 
 def main() -> bool:
