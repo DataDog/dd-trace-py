@@ -5,10 +5,11 @@ import pytest
 from ddtrace._monkey import IAST_PATCH
 from ddtrace._monkey import patch_iast
 from ddtrace.appsec._constants import IAST
+from ddtrace.appsec.iast._util import _is_python_version_supported
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
 from ddtrace.ext import SpanTypes
-from ddtrace.internal import _context
+from ddtrace.internal import core
 from tests.utils import DummyTracer
 from tests.utils import override_env
 from tests.utils import override_global_config
@@ -27,6 +28,7 @@ def traced_function(tracer):
     return span
 
 
+@pytest.mark.skipif(not _is_python_version_supported(), reason="IAST compatible versions")
 def test_appsec_iast_processor():
     with override_global_config(dict(_iast_enabled=True)):
         patch_iast(**IAST_PATCH)
@@ -36,7 +38,7 @@ def test_appsec_iast_processor():
         span = traced_function(tracer)
         tracer._on_span_finish(span)
 
-        span_report = _context.get_item(IAST.CONTEXT_KEY, span=span)
+        span_report = core.get_item(IAST.CONTEXT_KEY, span=span)
         result = span.get_tag(IAST.JSON)
 
         assert len(span_report.vulnerabilities) == 1
@@ -44,6 +46,7 @@ def test_appsec_iast_processor():
 
 
 @pytest.mark.parametrize("sampling_rate", ["0.0", "0.5", "1.0"])
+@pytest.mark.skipif(not _is_python_version_supported(), reason="Python version not supported by IAST")
 def test_appsec_iast_processor_ensure_span_is_manual_keep(sampling_rate):
     with override_env(dict(DD_TRACE_SAMPLE_RATE=sampling_rate)), override_global_config(dict(_iast_enabled=True)):
         patch_iast(**IAST_PATCH)

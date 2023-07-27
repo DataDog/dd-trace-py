@@ -1,18 +1,17 @@
 from itertools import groupby
 import json
 import os
-from typing import Dict
-from typing import Iterable
-from typing import List
-from typing import Optional
-from typing import Tuple
+from typing import TYPE_CHECKING
 
-from ddtrace import config
-from ddtrace.internal import compat
 from ddtrace.internal.logger import get_logger
 
-from .constants import COVERAGE_TAG_NAME
 
+if TYPE_CHECKING:  # pragma: no cover
+    from typing import Dict
+    from typing import Iterable
+    from typing import List
+    from typing import Optional
+    from typing import Tuple
 
 log = get_logger(__name__)
 
@@ -26,52 +25,27 @@ except ImportError:
     Coverage = None  # type: ignore[misc,assignment]
     EXECUTE_ATTR = ""
 
-COVERAGE_SINGLETON = None
 ROOT_DIR = None
 
 
-def enabled():
-    if config._ci_visibility_code_coverage_enabled:
-        if compat.PY2:
-            return False
-        if Coverage is None:
-            log.warning(
-                "CI Visibility code coverage tracking is enabled, but the `coverage` package is not installed. "
-                "To use code coverage tracking, please install `coverage` from https://pypi.org/project/coverage/"
-            )
-            return False
-        return True
-    return False
+def is_coverage_available():
+    return Coverage is not None
 
 
-def _initialize(root_dir):
+def _initialize_coverage(root_dir):
     global ROOT_DIR
     if ROOT_DIR is None:
         ROOT_DIR = root_dir
 
-    global COVERAGE_SINGLETON
-    if COVERAGE_SINGLETON is None:
-        coverage_kwargs = {
-            "data_file": None,
-            "source": [root_dir],
-            "config_file": False,
-            "omit": [
-                "*/site-packages/*",
-            ],
-        }
-        COVERAGE_SINGLETON = Coverage(**coverage_kwargs)
-
-
-def _coverage_start():
-    COVERAGE_SINGLETON.start()
-
-
-def _coverage_end(span):
-    span_id = str(span.trace_id)
-    COVERAGE_SINGLETON.stop()
-    span.set_tag(COVERAGE_TAG_NAME, build_payload(COVERAGE_SINGLETON, test_id=span_id))
-    COVERAGE_SINGLETON._collector._clear_data()
-    COVERAGE_SINGLETON._collector.data.clear()
+    coverage_kwargs = {
+        "data_file": None,
+        "source": [ROOT_DIR],
+        "config_file": False,
+        "omit": [
+            "*/site-packages/*",
+        ],
+    }
+    return Coverage(**coverage_kwargs)
 
 
 def segments(lines):

@@ -1,7 +1,6 @@
 from collections import defaultdict
 from contextlib import contextmanager
 import logging
-import threading
 from typing import TYPE_CHECKING
 
 
@@ -26,12 +25,12 @@ log = logging.getLogger(__name__)
 
 
 _CURRENT_CONTEXT = None
+_EVENT_HUB = None
 ROOT_CONTEXT_ID = "__root"
 
 
 class EventHub:
     def __init__(self):
-        self._dispatch_lock = threading.Lock()
         self.reset()
 
     def has_listeners(self, event_id):
@@ -40,49 +39,72 @@ class EventHub:
 
     def on(self, event_id, callback):
         # type: (str, Callable) -> None
-        with self._dispatch_lock:
+        if callback not in self._listeners[event_id]:
             self._listeners[event_id].append(callback)
 
     def reset(self):
-        with self._dispatch_lock:
-            self._listeners = defaultdict(list)
+        if hasattr(self, "_listeners"):
+            del self._listeners
+        self._listeners = defaultdict(list)
 
     def dispatch(self, event_id, args):
         # type: (str, List[Optional[Any]]) -> Tuple[List[Optional[Any]], List[Optional[Exception]]]
-        with self._dispatch_lock:
-            log.debug("Dispatching event %s", event_id)
-            results = []
-            exceptions = []
-            for listener in self._listeners.get(event_id, []):
-                log.debug("Calling listener %s", listener)
-                result = None
-                exception = None
-                try:
-                    result = listener(*args)
-                except Exception as exc:
-                    exception = exc
-                results.append(result)
-                exceptions.append(exception)
-            return results, exceptions
+        log.debug("Dispatching event %s", event_id)
+        results = []
+        exceptions = []
+        for listener in self._listeners.get(event_id, []):
+            log.debug("Calling listener %s", listener)
+            result = None
+            exception = None
+            try:
+                result = listener(*args)
+            except Exception as exc:
+                exception = exc
+            results.append(result)
+            exceptions.append(exception)
+        return results, exceptions
+
+
+_EVENT_HUB = contextvars.ContextVar("EventHub_var", default=EventHub())
+
+
+def has_listeners(event_id):
+    # type: (str) -> bool
+    return _EVENT_HUB.get().has_listeners(event_id)  # type: ignore
+
+
+def on(event_id, callback):
+    # type: (str, Callable) -> None
+    return _EVENT_HUB.get().on(event_id, callback)  # type: ignore
+
+
+def reset_listeners():
+    # type: () -> None
+    _EVENT_HUB.get().reset()  # type: ignore
+
+
+def dispatch(event_id, args):
+    # type: (str, List[Optional[Any]]) -> Tuple[List[Optional[Any]], List[Optional[Exception]]]
+    return _EVENT_HUB.get().dispatch(event_id, args)  # type: ignore
 
 
 class ExecutionContext:
-    __slots__ = ["identifier", "_data", "_parents", "_event_hub", "_span", "_token"]
+    __slots__ = ["identifier", "_data", "_parents", "_span", "_token"]
 
     def __init__(self, identifier, parent=None, span=None, **kwargs):
         self.identifier = identifier
         self._data = {}
         self._parents = []
-        self._event_hub = EventHub()
         self._span = span
         if parent is not None:
             self.addParent(parent)
         self._data.update(kwargs)
         if self._span is None and _CURRENT_CONTEXT is not None:
             self._token = _CURRENT_CONTEXT.set(self)
+        dispatch("context.started.%s" % self.identifier, [self])
 
     def __repr__(self):
-        return "ExecutionContext '" + self.identifier + "'"
+        return self.__class__.__name__ + " '" + self.identifier + "' @ " + str(id(self))
 
     @property
     def parents(self):
@@ -93,6 +115,7 @@ class ExecutionContext:
         return self._parents[0] if self._parents else None
 
     def end(self):
+        dispatch_result = dispatch("context.ended.%s" % self.identifier, [self])
         if self._span is None:
             try:
                 _CURRENT_CONTEXT.reset(self._token)
@@ -106,7 +129,7 @@ class ExecutionContext:
                 log.debug(
                     "Encountered LookupError during core contextvar reset() call. I don't know why this is possible."
                 )
-        return dispatch("context.ended.%s" % self.identifier, [])
+        return dispatch_result
 
     def addParent(self, context):
         if self.identifier == ROOT_CONTEXT_ID:
@@ -127,7 +150,8 @@ class ExecutionContext:
         # type: (str) -> Optional[Any]
         # NB mimic the behavior of `ddtrace.internal._context` by doing lazy inheritance
         current = self
-        while current is not None and current.identifier != ROOT_CONTEXT_ID:
+        while current is not None:
+            log.debug("Checking context '%s' for data at key '%s'", current.identifier, data_key)
             if data_key in current._data:
                 return current._data.get(data_key)
             current = current.parent
@@ -146,12 +170,27 @@ class ExecutionContext:
         for data_key, data_value in keys_values.items():
             self.set_item(data_key, data_value)
 
+    def root(self):
+        if self.identifier == ROOT_CONTEXT_ID:
+            return self
+        current = self
+        while current.parent is not None:
+            current = current.parent
+        return current
+
+
+def __getattr__(name):
+    if name == "root":
+        return _CURRENT_CONTEXT.get().root()
+    raise AttributeError
+
 
 _CURRENT_CONTEXT = contextvars.ContextVar("ExecutionContext_var", default=ExecutionContext(ROOT_CONTEXT_ID))
+_CONTEXT_CLASS = ExecutionContext
 
 
 def context_with_data(identifier, parent=None, **kwargs):
-    return ExecutionContext.context_with_data(identifier, parent=(parent or _CURRENT_CONTEXT.get()), **kwargs)
+    return _CONTEXT_CLASS.context_with_data(identifier, parent=(parent or _CURRENT_CONTEXT.get()), **kwargs)
 
 
 def get_item(data_key, span=None):
@@ -184,26 +223,3 @@ def set_items(keys_values, span=None):
         span._local_root._set_ctx_items(keys_values)
     else:
         _CURRENT_CONTEXT.get().set_items(keys_values)  # type: ignore
-
-
-def has_listeners(event_id):
-    # type: (str) -> bool
-    return _CURRENT_CONTEXT.get()._event_hub.has_listeners(event_id)  # type: ignore
-
-
-def on(event_id, callback):
-    # type: (str, Callable) -> None
-    return _CURRENT_CONTEXT.get()._event_hub.on(event_id, callback)  # type: ignore
-
-
-def reset_listeners():
-    # type: () -> None
-    current = _CURRENT_CONTEXT.get()  # type: ignore
-    while current is not None:
-        current._event_hub.reset()
-        current = current.parent
-
-
-def dispatch(event_id, args):
-    # type: (str, List[Optional[Any]]) -> Tuple[List[Optional[Any]], List[Optional[Exception]]]
-    return _CURRENT_CONTEXT.get()._event_hub.dispatch(event_id, args)  # type: ignore
