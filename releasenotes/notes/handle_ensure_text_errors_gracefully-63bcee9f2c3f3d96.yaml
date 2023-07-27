@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    kafka: Resolves ``UnicodeDecodeError`` raised when kafka messages key contain characters that are not supported by UTF-8 encoding.
