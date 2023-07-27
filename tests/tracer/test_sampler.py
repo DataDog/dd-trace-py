@@ -19,6 +19,7 @@ from ddtrace.internal.compat import iteritems
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.sampling import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.sampling import SamplingMechanism
+from ddtrace.internal.writer import AgentWriter
 from ddtrace.sampler import AllSampler
 from ddtrace.sampler import DatadogSampler
 from ddtrace.sampler import RateByServiceSampler
@@ -81,19 +82,14 @@ def create_span(tracer=None, name="test.span", service=""):
 class RateSamplerTest(unittest.TestCase):
     def test_set_sample_rate(self):
         sampler = RateSampler()
-        assert sampler.sample_rate == 1.0
+        assert sampler.sample_rate == 1.0, "RateSampler rate should default to 1.0"
 
         for rate in [0.001, 0.01, 0.1, 0.25, 0.5, 0.75, 0.99999999, 1.0, 1]:
             sampler.set_sample_rate(rate)
-            assert sampler.sample_rate == float(rate)
+            assert sampler.sample_rate == float(rate), "Setting the rate on a RateSampler should work"
 
             sampler.set_sample_rate(str(rate))
-            assert sampler.sample_rate == float(rate)
-
-    def test_set_sample_rate_str(self):
-        sampler = RateSampler()
-        sampler.set_sample_rate("0.5")
-        assert sampler.sample_rate == 0.5
+            assert sampler.sample_rate == float(rate), "The rate can be set as a string"
 
     def test_sample_rate_deviation(self):
         for sample_rate in [0.1, 0.25, 0.5, 1]:
@@ -109,12 +105,15 @@ class RateSamplerTest(unittest.TestCase):
 
             samples = tracer.pop()
 
-            # We must have at least 1 sample, check that it has its sample rate properly assigned
-            assert samples[0].get_metric(SAMPLE_RATE_METRIC_KEY) == sample_rate
+            assert samples[0].get_metric(SAMPLE_RATE_METRIC_KEY) == sample_rate, (
+                "Sampled span should have sample rate properly assigned"
+            )
 
-            # Less than 5% deviation when 'enough' iterations (arbitrary, just check if it converges)
             deviation = abs(len(samples) - (iterations * sample_rate)) / (iterations * sample_rate)
-            assert deviation < 0.05, "Deviation too high %f with sample_rate %f" % (deviation, sample_rate)
+            assert deviation < 0.05, (
+                "Actual sample rate should be within 5 percent of set sample "
+                "rate (actual: %f, set: %f)" % (deviation, sample_rate)
+            )
 
     def test_deterministic_behavior(self):
         """Test that for a given trace ID, the result is always the same"""
@@ -127,7 +126,9 @@ class RateSamplerTest(unittest.TestCase):
             span.finish()
 
             samples = tracer.pop()
-            assert len(samples) <= 1, "there should be 0 or 1 spans"
+            assert len(samples) <= 1, (
+                "evaluating sampling rules against a span should result in either dropping or not dropping it"
+            )
             sampled = 1 == len(samples)
             for j in range(10):
                 other_span = Span(str(i), trace_id=span.trace_id)
@@ -141,10 +142,11 @@ class RateSamplerTest(unittest.TestCase):
             tracer._sampler = RateSampler(sample_rate=-0.5)
 
     def test_sample_rate_0_does_not_reset_to_1(self):
-        # Regression test for case where a sample rate of 0 caused the sample rate to be reset to 1
         tracer = DummyTracer()
         tracer._sampler = RateSampler(sample_rate=0)
-        assert tracer._sampler.sample_rate == 0
+        assert tracer._sampler.sample_rate == 0, (
+            "Setting the sample rate to zero should result in the sample rate being zero"
+        )
 
 
 class RateByServiceSamplerTest(unittest.TestCase):
@@ -154,11 +156,21 @@ class RateByServiceSamplerTest(unittest.TestCase):
         ), "default key should correspond to no service and no env"
 
     def test_key(self):
-        assert RateByServiceSampler._default_key == RateByServiceSampler._key()
-        assert "service:mcnulty,env:" == RateByServiceSampler._key(service="mcnulty")
-        assert "service:,env:test" == RateByServiceSampler._key(env="test")
-        assert "service:mcnulty,env:test" == RateByServiceSampler._key(service="mcnulty", env="test")
-        assert "service:mcnulty,env:test" == RateByServiceSampler._key("mcnulty", "test")
+        assert RateByServiceSampler._default_key == RateByServiceSampler._key(), (
+            "_key() with no arguments returns the default key"
+        )
+        assert "service:mcnulty,env:" == RateByServiceSampler._key(service="mcnulty"), (
+            "_key call with service name returns expected result"
+        )
+        assert "service:,env:test" == RateByServiceSampler._key(env="test"), (
+            "_key call with env name returns expected result"
+        )
+        assert "service:mcnulty,env:test" == RateByServiceSampler._key(service="mcnulty", env="test"), (
+            "_key call with service and env name returns expected result"
+        )
+        assert "service:mcnulty,env:test" == RateByServiceSampler._key("mcnulty", "test"), (
+            "_key call with service and env name as positional args returns expected result"
+        )
 
     @run_in_subprocess(env=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="true"))
     def test_sample_rate_deviation_128bit_trace_id(self):
@@ -171,13 +183,11 @@ class RateByServiceSamplerTest(unittest.TestCase):
     def _test_sample_rate_deviation(self):
         for sample_rate in [0.1, 0.25, 0.5, 1]:
             tracer = DummyTracer()
-            writer = tracer._writer
             tracer.configure(sampler=AllSampler())
-            # We need to set the writer because tracer.configure overrides it,
-            # indeed, as we enable priority sampling, we must ensure the writer
-            # is priority sampling aware and pass it a reference on the
-            # priority sampler to send the feedback it gets from the agent
-            assert writer is not tracer._writer, "writer should have been updated by configure"
+            assert tracer._priority_sampler is not None
+            assert tracer._writer._priority_sampler is not None, (
+                "After configure() with a sampler argument, the tracer's writer should have a priority sampler"
+            )
             tracer._priority_sampler.set_sample_rate(sample_rate)
 
             iterations = int(1e4 / sample_rate)
