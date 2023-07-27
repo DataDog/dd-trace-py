@@ -34,7 +34,6 @@ from tests.utils import AnyStr
 from tests.utils import call_program
 from tests.utils import override_env
 from tests.utils import override_global_config
-from tests.utils import snapshot_context
 
 
 AGENT_VERSION = os.environ.get("AGENT_VERSION")
