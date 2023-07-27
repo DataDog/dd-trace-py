@@ -7,15 +7,20 @@ import pytest
 
 from ddtrace import Pin
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec.iast._ast.aspects import add_aspect
-from ddtrace.appsec.iast._taint_tracking import OriginType  # noqa: F401
-from ddtrace.appsec.iast._taint_tracking import taint_pyobject
 from ddtrace.appsec.iast.constants import VULN_CMDI
 from ddtrace.contrib.subprocess.patch import SubprocessCmdLine
 from ddtrace.contrib.subprocess.patch import patch
 from ddtrace.contrib.subprocess.patch import unpatch
 from ddtrace.internal import core
 from tests.utils import override_global_config
+
+
+try:
+    from ddtrace.appsec.iast._taint_tracking import OriginType  # noqa: F401
+    from ddtrace.appsec.iast._taint_tracking import taint_pyobject
+    from ddtrace.appsec.iast._taint_tracking.aspects import add_aspect
+except (ImportError, AttributeError):
+    pytest.skip("IAST not supported for this Python version", allow_module_level=True)
 
 
 @pytest.fixture(autouse=True)
