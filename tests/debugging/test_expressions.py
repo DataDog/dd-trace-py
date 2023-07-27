@@ -72,6 +72,7 @@ class CustomDict(dict):
         # Test argument predicates and operations
         ({"contains": [{"ref": "payload"}, "hello"]}, {"payload": "hello world"}, True),
         ({"eq": [{"ref": "hits"}, True]}, {"hits": True}, True),
+        ({"eq": [{"ref": "hits"}, None]}, {"hits": None}, True),
         ({"substring": [{"ref": "payload"}, 4, 7]}, {"payload": "hello world"}, "hello world"[4:7]),
         ({"any": [{"ref": "collection"}, {"isEmpty": {"ref": "@it"}}]}, {"collection": ["foo", "bar", ""]}, True),
         ({"startsWith": [{"ref": "local_string"}, "hello"]}, {"local_string": "hello world!"}, True),

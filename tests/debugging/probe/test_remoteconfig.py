@@ -2,6 +2,7 @@ import random
 from time import sleep
 from uuid import uuid4
 
+import mock
 import pytest
 
 from ddtrace.debugging._config import di_config
@@ -10,6 +11,7 @@ from ddtrace.debugging._probe.model import DEFAULT_SNAPSHOT_PROBE_RATE
 from ddtrace.debugging._probe.model import LogProbeMixin
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.model import ProbeType
+from ddtrace.debugging._probe.remoteconfig import InvalidProbeConfiguration
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
 from ddtrace.debugging._probe.remoteconfig import ProbeRCAdapter
 from ddtrace.debugging._probe.remoteconfig import _filter_by_env_and_version
@@ -25,7 +27,7 @@ class MockConfig(object):
         self.probes = {}
 
     @_filter_by_env_and_version
-    def get_probes(self, _id, _conf):
+    def get_probes(self, _conf, status_logger):
         return list(self.probes.values())
 
     def add_probes(self, probes):
@@ -56,6 +58,23 @@ def mock_config():
         yield mock_config
     finally:
         rc.get_probes = original_get_probes
+
+
+@pytest.fixture
+def mock_config_exc():
+    import ddtrace.debugging._probe.remoteconfig as rc
+
+    original_build_probe = rc.build_probe
+
+    def build_probe(config):
+        raise Exception("test exception")
+
+    try:
+        rc.build_probe = build_probe
+
+        yield mock_config
+    finally:
+        rc.build_probe = original_build_probe
 
 
 @pytest.mark.parametrize(
@@ -106,7 +125,7 @@ def test_poller_env_version(env, version, expected, remote_config_worker, mock_c
             ]
         )
 
-        adapter = ProbeRCAdapter(None, callback)
+        adapter = ProbeRCAdapter(None, callback, status_logger=None)
         remoteconfig_poller.register("TEST", adapter, skip_enabled=True)
         adapter.append_and_publish({"test": random.randint(0, 11111111)}, "", config_metadata())
         remoteconfig_poller._poll_data()
@@ -127,7 +146,7 @@ def test_poller_remove_probe():
     old_interval = di_config.diagnostics_interval
     di_config.diagnostics_interval = 0.5
     try:
-        adapter = ProbeRCAdapter(None, cb)
+        adapter = ProbeRCAdapter(None, cb, status_logger=None)
         # Wait to allow the next call to the adapter to generate a status event
         remoteconfig_poller.register("TEST", adapter, skip_enabled=True)
         adapter.append_and_publish(
@@ -181,7 +200,7 @@ def test_poller_remove_multiple_probe():
     old_interval = di_config.diagnostics_interval
     di_config.diagnostics_interval = 0.5
     try:
-        adapter = ProbeRCAdapter(None, cb)
+        adapter = ProbeRCAdapter(None, cb, status_logger=None)
         # Wait to allow the next call to the adapter to generate a status event
         remoteconfig_poller.register("TEST", adapter, skip_enabled=True)
         adapter.append(
@@ -287,7 +306,7 @@ def test_poller_events(remote_config_worker, mock_config):
     old_interval = di_config.diagnostics_interval
     di_config.diagnostics_interval = 0.5
     try:
-        adapter = ProbeRCAdapter(None, callback)
+        adapter = ProbeRCAdapter(None, callback, status_logger=None)
         remoteconfig_poller.register("TEST2", adapter, skip_enabled=True)
         adapter.append_and_publish({"test": 2}, "", metadata)
         remoteconfig_poller._poll_data()
@@ -341,7 +360,7 @@ def test_multiple_configs(remote_config_worker):
     old_interval = di_config.diagnostics_interval
     di_config.diagnostics_interval = 0.5
     try:
-        adapter = ProbeRCAdapter(None, cb)
+        adapter = ProbeRCAdapter(None, cb, status_logger=mock.Mock())
         # Wait to allow the next call to the adapter to generate a status event
         remoteconfig_poller.register("TEST", adapter, skip_enabled=True)
         adapter.append_and_publish(
@@ -412,7 +431,7 @@ def test_multiple_configs(remote_config_worker):
         # testing two things:
         #  1. after sleep 0.5 probe status should report 2 probes
         #  2. bad config raises ValueError
-        with pytest.raises(ValueError):
+        with pytest.raises(InvalidProbeConfiguration):
             adapter.append_and_publish({}, "", config_metadata("not-supported"))
             remoteconfig_poller._poll_data()
 
@@ -537,7 +556,7 @@ def test_modified_probe_events(remote_config_worker, mock_config):
     old_interval = di_config.diagnostics_interval
     di_config.diagnostics_interval = 0.5
     try:
-        adapter = ProbeRCAdapter(None, cb)
+        adapter = ProbeRCAdapter(None, cb, None)
         # Wait to allow the next call to the adapter to generate a status event
         remoteconfig_poller.register("TEST", adapter, skip_enabled=True)
         sleep(0.5)
@@ -568,5 +587,30 @@ def test_modified_probe_events(remote_config_worker, mock_config):
             (ProbePollerEvent.MODIFIED_PROBES, frozenset(["probe1"])),
             (ProbePollerEvent.STATUS_UPDATE, frozenset(["probe1"])),
         ]
+    finally:
+        di_config.diagnostics_interval = old_interval
+
+
+def test_expression_compilation_error(remote_config_worker, mock_config_exc):
+    events = []
+
+    def cb(e, ps):
+        events.append((e, frozenset([p.probe_id if isinstance(p, Probe) else p for p in ps])))
+
+    metadata = config_metadata()
+    old_interval = di_config.diagnostics_interval
+    di_config.diagnostics_interval = 0.5
+    try:
+        status_logger = mock.Mock()
+        adapter = ProbeRCAdapter(None, cb, status_logger=status_logger)
+        # Wait to allow the next call to the adapter to generate a status event
+        remoteconfig_poller.register("TEST", adapter, skip_enabled=True)
+        sleep(0.5)
+        adapter.append_and_publish({"id": "error", "version": 0}, "", metadata)
+        remoteconfig_poller._poll_data()
+
+        status_logger.error.assert_called_once()
+        assert status_logger.error.call_args[1]["message"] == "test exception"
+        assert status_logger.error.call_args[1]["probe"].probe_id == "error"
     finally:
         di_config.diagnostics_interval = old_interval
