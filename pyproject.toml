@@ -40,7 +40,6 @@ dependencies = [
     "funcsigs>=1.0.0; python_version=='2.7'",
     "importlib_metadata; python_version<'3.8'",
     "ipaddress; python_version<'3.7'",
-    "jsonschema",
     "opentelemetry-api>=1; python_version>='3.7'",
     "pathlib2; python_version<'3.5'",
     "pep562; python_version<'3.7'",
