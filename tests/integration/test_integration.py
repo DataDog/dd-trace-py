@@ -354,6 +354,7 @@ def test_single_trace_too_large(encoding, monkeypatch):
                 :20
             ]  # limits number of logs, this test could generate hundreds of thousands of logs.
             log.error.assert_not_called()
+            t.shutdown()
 
 
 @allencodings
@@ -398,6 +399,7 @@ def test_trace_bad_url(encoding, monkeypatch):
         )
     ]
     log.error.assert_has_calls(calls)
+    t.shutdown()
 
 
 @allencodings
@@ -546,6 +548,7 @@ def test_civisibility_intake_with_evp_available():
                 == EVP_SUBDOMAIN_HEADER_EVENT_VALUE
             )
             CIVisibility.disable()
+            t.shutdown()
 
 
 def test_civisibility_intake_with_missing_apikey():
