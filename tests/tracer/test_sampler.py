@@ -105,14 +105,16 @@ class RateSamplerTest(unittest.TestCase):
 
             samples = tracer.pop()
 
-            assert samples[0].get_metric(SAMPLE_RATE_METRIC_KEY) == sample_rate, (
-                "Sampled span should have sample rate properly assigned"
-            )
+            assert (
+                samples[0].get_metric(SAMPLE_RATE_METRIC_KEY) == sample_rate
+            ), "Sampled span should have sample rate properly assigned"
 
             deviation = abs(len(samples) - (iterations * sample_rate)) / (iterations * sample_rate)
-            assert deviation < 0.05, (
-                "Actual sample rate should be within 5 percent of set sample "
-                "rate (actual: %f, set: %f)" % (deviation, sample_rate)
+            assert (
+                deviation < 0.05
+            ), "Actual sample rate should be within 5 percent of set sample " "rate (actual: %f, set: %f)" % (
+                deviation,
+                sample_rate,
             )
 
     def test_deterministic_behavior(self):
@@ -126,9 +128,9 @@ class RateSamplerTest(unittest.TestCase):
             span.finish()
 
             samples = tracer.pop()
-            assert len(samples) <= 1, (
-                "evaluating sampling rules against a span should result in either dropping or not dropping it"
-            )
+            assert (
+                len(samples) <= 1
+            ), "evaluating sampling rules against a span should result in either dropping or not dropping it"
             sampled = 1 == len(samples)
             for j in range(10):
                 other_span = Span(str(i), trace_id=span.trace_id)
@@ -144,9 +146,9 @@ class RateSamplerTest(unittest.TestCase):
     def test_sample_rate_0_does_not_reset_to_1(self):
         tracer = DummyTracer()
         tracer._sampler = RateSampler(sample_rate=0)
-        assert tracer._sampler.sample_rate == 0, (
-            "Setting the sample rate to zero should result in the sample rate being zero"
-        )
+        assert (
+            tracer._sampler.sample_rate == 0
+        ), "Setting the sample rate to zero should result in the sample rate being zero"
 
 
 class RateByServiceSamplerTest(unittest.TestCase):
@@ -156,21 +158,21 @@ class RateByServiceSamplerTest(unittest.TestCase):
         ), "default key should correspond to no service and no env"
 
     def test_key(self):
-        assert RateByServiceSampler._default_key == RateByServiceSampler._key(), (
-            "_key() with no arguments returns the default key"
-        )
-        assert "service:mcnulty,env:" == RateByServiceSampler._key(service="mcnulty"), (
-            "_key call with service name returns expected result"
-        )
-        assert "service:,env:test" == RateByServiceSampler._key(env="test"), (
-            "_key call with env name returns expected result"
-        )
-        assert "service:mcnulty,env:test" == RateByServiceSampler._key(service="mcnulty", env="test"), (
-            "_key call with service and env name returns expected result"
-        )
-        assert "service:mcnulty,env:test" == RateByServiceSampler._key("mcnulty", "test"), (
-            "_key call with service and env name as positional args returns expected result"
-        )
+        assert (
+            RateByServiceSampler._default_key == RateByServiceSampler._key()
+        ), "_key() with no arguments returns the default key"
+        assert "service:mcnulty,env:" == RateByServiceSampler._key(
+            service="mcnulty"
+        ), "_key call with service name returns expected result"
+        assert "service:,env:test" == RateByServiceSampler._key(
+            env="test"
+        ), "_key call with env name returns expected result"
+        assert "service:mcnulty,env:test" == RateByServiceSampler._key(
+            service="mcnulty", env="test"
+        ), "_key call with service and env name returns expected result"
+        assert "service:mcnulty,env:test" == RateByServiceSampler._key(
+            "mcnulty", "test"
+        ), "_key call with service and env name as positional args returns expected result"
 
     @run_in_subprocess(env=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="true"))
     def test_sample_rate_deviation_128bit_trace_id(self):
@@ -183,11 +185,14 @@ class RateByServiceSamplerTest(unittest.TestCase):
     def _test_sample_rate_deviation(self):
         for sample_rate in [0.1, 0.25, 0.5, 1]:
             tracer = DummyTracer()
+            writer = tracer._writer
             tracer.configure(sampler=AllSampler())
-            assert tracer._priority_sampler is not None
-            assert tracer._writer._priority_sampler is not None, (
-                "After configure() with a sampler argument, the tracer's writer should have a priority sampler"
+            non_dummy_writer_would_have_priority_sampler = (
+                tracer._writer is not writer and tracer._priority_sampler is not None
             )
+            assert (
+                non_dummy_writer_would_have_priority_sampler
+            ), "After configure() with a sampler argument, the tracer's writer should have a priority sampler"
             tracer._priority_sampler.set_sample_rate(sample_rate)
 
             iterations = int(1e4 / sample_rate)
@@ -199,24 +204,25 @@ class RateByServiceSamplerTest(unittest.TestCase):
             samples = tracer._writer.pop()
             samples_with_high_priority = 0
             for sample in samples:
-                if sample.get_metric(SAMPLING_PRIORITY_KEY) is not None:
-                    if sample.get_metric(SAMPLING_PRIORITY_KEY) > 0:
-                        samples_with_high_priority += 1
-                else:
-                    assert 0 == sample.get_metric(
-                        SAMPLING_PRIORITY_KEY
-                    ), "when priority sampling is on, priority should be 0 when trace is to be dropped"
+                sample_priority = sample.get_metric(SAMPLING_PRIORITY_KEY)
+                if sample_priority is not None:
+                    samples_with_high_priority += int(bool(sample_priority > 0))
                 assert_sampling_decision_tags(
                     sample,
                     agent=sample_rate,
                     trace_tag="-{}".format(SamplingMechanism.AGENT_RATE),
                 )
-            # We must have at least 1 sample, check that it has its sample rate properly assigned
-            assert samples[0].get_metric(SAMPLE_RATE_METRIC_KEY) is None
+            assert (
+                samples[0].get_metric(SAMPLE_RATE_METRIC_KEY) is None
+            ), "A sampled span should not have the SAMPLE_RATE_METRIC_KEY tag set"
 
-            # Less than 5% deviation when 'enough' iterations (arbitrary, just check if it converges)
             deviation = abs(samples_with_high_priority - (iterations * sample_rate)) / (iterations * sample_rate)
-            assert deviation < 0.05, "Deviation too high %f with sample_rate %f" % (deviation, sample_rate)
+            assert (
+                deviation < 0.05
+            ), "Actual sample rate should be within 5 percent of set sample " "rate (actual: %f, set: %f)" % (
+                deviation,
+                sample_rate,
+            )
 
     def test_update_rate_by_service_sample_rates(self):
         cases = [
@@ -236,59 +242,42 @@ class RateByServiceSamplerTest(unittest.TestCase):
             },
         ]
 
-        tracer = DummyTracer()
-        tracer.configure(sampler=AllSampler())
-        priority_sampler = tracer._priority_sampler
-        for case in cases:
-            priority_sampler.update_rate_by_service_sample_rates(case)
-            rates = {}
+        priority_sampler = RateByServiceSampler()
+        for given_rates in cases:
+            priority_sampler.update_rate_by_service_sample_rates(given_rates)
+            actual_rates = {}
             for k, v in iteritems(priority_sampler._by_service_samplers):
-                rates[k] = v.sample_rate
-            assert case == rates, "%s != %s" % (case, rates)
+                actual_rates[k] = v.sample_rate
+            assert given_rates == actual_rates, "RateByServiceSampler should store the rates it's given"
         # It's important to also test in reverse mode for we want to make sure key deletion
         # works as well as key insertion (and doing this both ways ensures we trigger both cases)
         cases.reverse()
-        for case in cases:
-            priority_sampler.update_rate_by_service_sample_rates(case)
-            rates = {}
+        for given_rates in cases:
+            priority_sampler.update_rate_by_service_sample_rates(given_rates)
+            actual_rates = {}
             for k, v in iteritems(priority_sampler._by_service_samplers):
-                rates[k] = v.sample_rate
-            assert case == rates, "%s != %s" % (case, rates)
+                actual_rates[k] = v.sample_rate
+            assert given_rates == actual_rates, "RateByServiceSampler should store the rates it's given"
 
 
 @pytest.mark.parametrize(
-    "sample_rate,allowed",
+    "sample_rate,sample_rate_is_valid",
     [
-        # Min/max allowed values
         (0.0, True),
         (1.0, True),
-        # Accepted boundaries
         (0.000001, True),
         (0.999999, True),
-        # Outside the bounds
         (-0.000000001, False),
         (1.0000000001, False),
     ]
-    + [
-        # Try a bunch of decimal values between 0 and 1
-        (1 / i, True)
-        for i in range(1, 50)
-    ]
-    + [
-        # Try a bunch of decimal values less than 0
-        (-(1 / i), False)
-        for i in range(1, 50)
-    ]
-    + [
-        # Try a bunch of decimal values greater than 1
-        (1 + (1 / i), False)
-        for i in range(1, 50)
-    ],
+    + [(1 / i, True) for i in range(1, 50)]
+    + [(-(1 / i), False) for i in range(1, 50)]
+    + [(1 + (1 / i), False) for i in range(1, 50)],
 )
-def test_sampling_rule_init_sample_rate(sample_rate, allowed):
-    if allowed:
+def test_sampling_rule_init_sample_rate(sample_rate, sample_rate_is_valid):
+    if sample_rate_is_valid:
         rule = SamplingRule(sample_rate=sample_rate)
-        assert rule.sample_rate == sample_rate
+        assert rule.sample_rate == sample_rate, "SamplingRule should store the rate it's initialized with"
     else:
         with pytest.raises(ValueError):
             SamplingRule(sample_rate=sample_rate)
@@ -296,36 +285,33 @@ def test_sampling_rule_init_sample_rate(sample_rate, allowed):
 
 def test_sampling_rule_init_defaults():
     rule = SamplingRule(sample_rate=1.0)
-    assert rule.sample_rate == 1.0
-    assert rule.service == SamplingRule.NO_RULE
-    assert rule.name == SamplingRule.NO_RULE
+    assert rule.sample_rate == 1.0, "SamplingRule rate should default to 1"
+    assert rule.service == SamplingRule.NO_RULE, "SamplingRule service should default to none"
+    assert rule.name == SamplingRule.NO_RULE, "SamplingRule name should default to none"
 
 
 def test_sampling_rule_init():
-    name_regex = re.compile(r"\.request$")
+    a_regex = re.compile(r"\.request$")
+    a_string = "my-service"
 
     rule = SamplingRule(
         sample_rate=0.0,
-        # Value
-        service="my-service",
-        # Regex
-        name=name_regex,
+        service=a_string,
+        name=a_regex,
     )
 
-    assert rule.sample_rate == 0.0
-    assert rule.service == "my-service"
-    assert rule.name == name_regex
+    assert rule.sample_rate == 0.0, "SamplingRule should store the rate it's initialized with"
+    assert rule.service == a_string, "SamplingRule should store the service it's initialized with"
+    assert rule.name == a_regex, "SamplingRule should store the name regex it's initialized with"
 
 
 @pytest.mark.parametrize(
-    "rule_1,rule_2,expected",
+    "rule_1,rule_2,expected_to_be_equal",
     [
-        # Sample rate only
         (SamplingRule(sample_rate=1.0), SamplingRule(sample_rate=1.0), True),
         (SamplingRule(sample_rate=0.5), SamplingRule(sample_rate=0.5), True),
         (SamplingRule(sample_rate=0.0), SamplingRule(sample_rate=0.0), True),
         (SamplingRule(sample_rate=0.5), SamplingRule(sample_rate=1.0), False),
-        # Sample rate, and service name
         (SamplingRule(sample_rate=1.0, service="my-svc"), SamplingRule(sample_rate=1.0, service="my-svc"), True),
         (
             SamplingRule(sample_rate=1.0, service=re.compile("my-svc")),
@@ -344,7 +330,6 @@ def test_sampling_rule_init():
             SamplingRule(sample_rate=1.0, service=re.compile("other")),
             False,
         ),
-        # Sample rate, and operation name
         (
             SamplingRule(sample_rate=1.0, name="span.name"),
             SamplingRule(sample_rate=1.0, name="span.name"),
@@ -367,7 +352,6 @@ def test_sampling_rule_init():
         ),
         (SamplingRule(sample_rate=1.0, name="span.name"), SamplingRule(sample_rate=1.0, name="span.other"), False),
         (SamplingRule(sample_rate=1.0, name="span.name"), SamplingRule(sample_rate=0.5, name="span.name"), False),
-        # Sample rate, service, and operation name
         (
             SamplingRule(sample_rate=1.0, service="my-svc", name="span.name"),
             SamplingRule(sample_rate=1.0, service="my-svc", name="span.name"),
@@ -400,9 +384,8 @@ def test_sampling_rule_init():
         ),
     ],
 )
-def test_sampling_rule_eq(rule_1, rule_2, expected):
-    result = rule_1 == rule_2
-    assert result == expected
+def test_sampling_rule_eq(rule_1, rule_2, expected_to_be_equal):
+    assert bool(rule_1 == rule_2) == expected_to_be_equal
 
 
 def test_sampling_rule_init_via_env():
