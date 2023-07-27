@@ -237,6 +237,14 @@ venv = Venv(
             command="scripts/build-docs",
         ),
         Venv(
+            name="circleci-gen-config",
+            command="python scripts/gen_circleci_config.py {cmdargs}",
+            pys=["3"],
+            pkgs={
+                "ruamel.yaml": latest,
+            },
+        ),
+        Venv(
             name="appsec",
             pys=select_pys(),
             command="pytest {cmdargs} tests/appsec",
