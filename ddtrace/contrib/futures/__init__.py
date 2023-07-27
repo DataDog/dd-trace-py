@@ -19,7 +19,7 @@ Or use :func:`patch()<ddtrace.patch>` to manually enable the integration::
 from ...internal.utils.importlib import require_modules
 
 
-required_modules = ["concurrent.futures"]
+required_modules = ["concurrent.futures.thread"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:

@@ -84,6 +84,17 @@ def gen_pre_checks(template: dict) -> None:
         command="python -m tests.suitespec",
         paths={"tests/.suitespec.json", "tests/suitespec.py"},
     )
+    check(
+        name="Generated autopatch tests",
+        command=lsstr(
+            """\
+            python scripts/contrib-patch-tests.py
+            ./scripts/check-diff "tests/contrib" \\
+                "Missing contrib patch tests. Run the scripts/contrib-patch-tests.py script and commit the result."
+            """
+        ),
+        paths={"ddtrace/contrib/*"},
+    )
 
 
 def gen_build_docs(template: dict) -> None:
@@ -103,9 +114,15 @@ from argparse import ArgumentParser  # noqa
 import logging  # noqa
 from pathlib import Path  # noqa
 import sys  # noqa
+from textwrap import dedent  # noqa
 from time import monotonic_ns as time  # noqa
 
 from ruamel.yaml import YAML  # noqa
+from ruamel.yaml.scalarstring import LiteralScalarString  # noqa
+
+
+def lsstr(s: str) -> LiteralScalarString:
+    return LiteralScalarString(dedent(s))
 
 
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
@@ -130,6 +147,8 @@ with YAML(output=CONFIG_GEN_FILE) as yaml:
     LOGGER.info("Loading configuration template from %s", CONFIG_TEMPLATE_FILE)
     config = yaml.load(CONFIG_TEMPLATE_FILE)
 
+    has_errors = False
+
     LOGGER.info("Configuration generation steps:")
     for name, func in dict(globals()).items():
         if name.startswith("gen_"):
@@ -141,6 +160,9 @@ with YAML(output=CONFIG_GEN_FILE) as yaml:
                 LOGGER.info("- %s: %s [took %dms]", name, desc, int((end - start) / 1e6))
             except Exception as e:
                 LOGGER.error("- %s: %s [reason: %s]", name, desc, str(e))
+                has_errors = True
 
     LOGGER.info("Writing generated configuration to %s", CONFIG_GEN_FILE)
     yaml.dump(config)
+
+sys.exit(int(has_errors))
