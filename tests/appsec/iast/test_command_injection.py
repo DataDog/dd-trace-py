@@ -63,7 +63,7 @@ def test_ossystem(tracer, iast_span_defaults):
 
         vulnerabilities = list(span_report.vulnerabilities)
         assert vulnerabilities[0].type == VULN_CMDI
-        assert vulnerabilities[0].location.path == "test_command_injection.py"
+        assert vulnerabilities[0].location.path == "tests/appsec/iast/test_command_injection.py"
         assert vulnerabilities[0].location.line == 59
         # FIXME: update this when the valueParts fixes from the scrubbing PR are merged
         assert vulnerabilities[0].evidence.valueParts == ["dir", "-l", _BAD_DIR]
@@ -90,7 +90,7 @@ def test_communicate(tracer, iast_span_defaults):
 
         vulnerabilities = list(span_report.vulnerabilities)
         assert vulnerabilities[0].type == VULN_CMDI
-        assert vulnerabilities[0].location.path == "test_command_injection.py"
+        assert vulnerabilities[0].location.path == "tests/appsec/iast/test_command_injection.py"
         assert vulnerabilities[0].location.line == 84
         # FIXME: update this when the valueParts fixes from the scrubbing PR are merged
         assert vulnerabilities[0].evidence.valueParts == ["dir", "-l", _BAD_DIR]
@@ -115,7 +115,7 @@ def test_run(tracer, iast_span_defaults):
 
         vulnerabilities = list(span_report.vulnerabilities)
         assert vulnerabilities[0].type == VULN_CMDI
-        assert vulnerabilities[0].location.path == "test_command_injection.py"
+        assert vulnerabilities[0].location.path == "tests/appsec/iast/test_command_injection.py"
         assert vulnerabilities[0].location.line == 111
         # FIXME: update this when the valueParts fixes from the scrubbing PR are merged
         assert vulnerabilities[0].evidence.valueParts == ["dir", "-l", _BAD_DIR]
@@ -141,7 +141,7 @@ def test_popen_wait(tracer, iast_span_defaults):
 
         vulnerabilities = list(span_report.vulnerabilities)
         assert vulnerabilities[0].type == VULN_CMDI
-        assert vulnerabilities[0].location.path == "test_command_injection.py"
+        assert vulnerabilities[0].location.path == "tests/appsec/iast/test_command_injection.py"
         assert vulnerabilities[0].location.line == 136
         # FIXME: update this when the valueParts fixes from the scrubbing PR are merged
         assert vulnerabilities[0].evidence.valueParts == ["dir", "-l", _BAD_DIR]
@@ -167,7 +167,7 @@ def test_popen_wait_shell_true(tracer, iast_span_defaults):
 
         vulnerabilities = list(span_report.vulnerabilities)
         assert vulnerabilities[0].type == VULN_CMDI
-        assert vulnerabilities[0].location.path == "test_command_injection.py"
+        assert vulnerabilities[0].location.path == "tests/appsec/iast/test_command_injection.py"
         assert vulnerabilities[0].location.line == 162
         # FIXME: update this when the valueParts fixes from the scrubbing PR are merged
         assert vulnerabilities[0].evidence.valueParts == ["dir", "-l", _BAD_DIR]
@@ -221,6 +221,6 @@ def test_osspawn_variants(tracer, iast_span_defaults, function, mode, arguments)
 
         vulnerabilities = list(span_report.vulnerabilities)
         assert vulnerabilities[0].type == VULN_CMDI
-        assert vulnerabilities[0].location.path == "test_command_injection.py"
+        assert vulnerabilities[0].location.path == "tests/appsec/iast/test_command_injection.py"
         # FIXME: update this when the valueParts fixes from the scrubbing PR are merged
         assert vulnerabilities[0].evidence.valueParts == ["/bin/ls", "-l", _BAD_DIR]
