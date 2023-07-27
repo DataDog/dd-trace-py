@@ -151,6 +151,11 @@ def for_each_testrun_needed(suites: t.List[str], action: t.Callable[[str], None]
             action(suite)
 
 
+def pr_matches_patterns(patterns: t.Set[str]) -> bool:
+    changed_files = get_changed_files(_get_pr_number())
+    return bool([_ for p in patterns for _ in fnmatch.filter(changed_files, p)])
+
+
 def main() -> bool:
     argp = ArgumentParser()
 
