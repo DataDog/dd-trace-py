@@ -140,3 +140,6 @@ artifacts/
 ddtrace/appsec/iast/_taint_tracking/cmake-build-debug/*
 ddtrace/appsec/iast/_taint_tracking/_deps/*
 ddtrace/appsec/iast/_taint_tracking/CMakeFiles/*
+
+# CircleCI generated config
+.circleci/config.gen.yml
