@@ -391,6 +391,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             )
             self._metrics_dist("buffer.dropped.traces", 1, tags=("reason:t_too_big",))
             self._metrics_dist("buffer.dropped.bytes", payload_size, tags=("reason:t_too_big",))
+            self._metrics_dist("dropped_spans", len(spans), tags=(("reason", "item_too_large"),))
         except BufferFull as e:
             payload_size = e.args[0]
             log.warning(
@@ -403,8 +404,13 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             )
             self._metrics_dist("buffer.dropped.traces", 1, tags=("reason:full",))
             self._metrics_dist("buffer.dropped.bytes", payload_size, tags=("reason:full",))
+            self._metrics_dist("dropped_spans", len(spans), tags=(("reason", "buffer_full"),))
         except NoEncodableSpansError:
             self._metrics_dist("buffer.dropped.traces", 1, tags=("reason:incompatible",))
+            self._metrics_dist("dropped_spans", len(spans), tags=(("reason", "no_encodable_spans"),))
+        except Exception as e:
+            self._metrics_dist("dropped_spans", len(spans), tags=(("reason", "buffer_err"),))
+            raise e
         else:
             self._metrics_dist("buffer.accepted.traces", 1)
             self._metrics_dist("buffer.accepted.spans", len(spans))
@@ -419,7 +425,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
 
     def _flush_queue_with_client(self, client, raise_exc=False):
         # type: (WriterClientBase, bool) -> None
-        n_traces = len(client.encoder)
+        n_traces, n_spans = client.encoder._get_counts()
         try:
             encoded = client.encoder.encode()
             if encoded is None:
@@ -427,6 +433,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         except Exception:
             log.error("failed to encode trace with encoder %r", client.encoder, exc_info=True)
             self._metrics_dist("encoder.dropped.traces", n_traces)
+            self._metrics_dist("dropped_spans", n_spans, tags=(("reason", "encoder_err"),))
             return
 
         try:
@@ -435,6 +442,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             self._metrics_dist("http.errors", tags=("type:err",))
             self._metrics_dist("http.dropped.bytes", len(encoded))
             self._metrics_dist("http.dropped.traces", n_traces)
+            self._metrics_dist("dropped_spans", n_spans, tags=(("reason", "http_err"),))
             if raise_exc:
                 six.reraise(*sys.exc_info())
             else:
@@ -455,6 +463,10 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 self.dogstatsd.distribution("datadog.%s.http.sent.traces" % namespace, n_traces)
                 for name, metric_tags in self._metrics.items():
                     for tags, count in metric_tags.items():
+                        if name == "dropped_spans":
+                            # dropped_spans is not a health metric, it should only be sent via telemetry
+                            telemetry_writer.add_count_metric("tracers", name, count, tags)
+                            continue
                         self.dogstatsd.distribution("datadog.%s.%s" % (namespace, name), count, tags=list(tags))
 
     def periodic(self):

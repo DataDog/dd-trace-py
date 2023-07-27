@@ -398,7 +398,8 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
     content_type = "application/msgpack"
 
     cdef msgpack_packer pk
-    cdef stdint.uint32_t _count
+    cdef stdint.uint32_t _count_traces
+    cdef stdint.uint32_t _count_spans
 
     def __cinit__(self, size_t max_size, size_t max_item_size):
         cdef int buf_size = 1024*1024
@@ -417,7 +418,10 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
         self.pk.buf = NULL
 
     def __len__(self):  # TODO: Use a better name?
-        return self._count
+        return self._count_traces
+
+    def _get_counts(self):
+        return (self._count_traces, self._count_spans)
 
     cpdef _decode(self, data):
         import msgpack
@@ -426,24 +430,25 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
         return msgpack.unpackb(data, raw=True)
 
     cdef _reset_buffer(self):
-        self._count = 0
+        self._count_traces = 0
+        self._count_spans = 0
         self.pk.length = MSGPACK_ARRAY_LENGTH_PREFIX_SIZE  # Leave room for array length prefix
 
     cpdef encode(self):
         with self._lock:
-            if not self._count:
+            if not self._count_traces:
                 return None
 
             return self.flush()
 
     cdef inline int _update_array_len(self):
         """Update traces array size prefix"""
-        cdef int offset = MSGPACK_ARRAY_LENGTH_PREFIX_SIZE - array_prefix_size(self._count)
+        cdef int offset = MSGPACK_ARRAY_LENGTH_PREFIX_SIZE - array_prefix_size(self._count_traces)
         cdef int old_pos = self.pk.length
 
         with self._lock:
             self.pk.length = offset
-            msgpack_pack_array(&self.pk, self._count)
+            msgpack_pack_array(&self.pk, self._count_traces)
             self.pk.length = old_pos
             return offset
 
@@ -511,7 +516,8 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
                 if self.size > self.max_size:
                     raise BufferFull(self.size - size_before)
 
-                self._count += 1
+                self._count_traces += 1
+                self._count_spans += len(trace)
             except Exception:
                 # rollback
                 self.pk.length = len_before
@@ -521,7 +527,7 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
     def size(self):
         """Return the size in bytes of the encoder buffer."""
         with self._lock:
-            return self.pk.length + array_prefix_size(self._count) - MSGPACK_ARRAY_LENGTH_PREFIX_SIZE
+            return self.pk.length + array_prefix_size(self._count_traces) - MSGPACK_ARRAY_LENGTH_PREFIX_SIZE
 
     # ---- Abstract methods ----
 

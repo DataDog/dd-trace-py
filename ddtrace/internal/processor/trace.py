@@ -90,7 +90,9 @@ class TraceSamplingProcessor(TraceProcessor):
                     # When any span is marked as keep by a single span sampling
                     # decision then we still send all and only those spans.
                     single_spans = [_ for _ in trace if is_single_span_sampled(_)]
-
+                    telemetry_writer.add_count_metric(
+                        "tracers", "spans_dropped", len(trace) - len(single_spans), (("reason", "p0"),)
+                    )
                     return single_spans or None
 
             for span in trace:
@@ -98,6 +100,7 @@ class TraceSamplingProcessor(TraceProcessor):
                     return trace
 
             log.debug("dropping trace %d with %d spans", trace[0].trace_id, len(trace))
+            telemetry_writer.add_count_metric("tracers", "spans_dropped", len(trace), (("reason", "p0"),))
 
         return None
 
