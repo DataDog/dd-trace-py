@@ -1,6 +1,4 @@
 ---
-fixes:
+feature:
   - |
-    Fixes the logic for disabling the Intelligent Test Runner to setting the
-    DD_CIVISIBILITY_ITR_DISABLED environment variable to 1, instead of setting
-    DD_CIVISIBILITY_ITR_ENABLED to 0, overriding the API status.
+    Beta release of ``pytest`` support for the `Intelligent Test Runner <https://docs.datadoghq.com/continuous_integration/intelligent_test_runner/>`_ .
