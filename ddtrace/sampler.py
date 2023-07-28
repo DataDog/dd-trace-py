@@ -198,7 +198,7 @@ class DatadogSampler(RateByServiceSampler):
     """
     Default sampler used by Tracer for determining if a trace should be kept or dropped.
 
-    By default this sampler will rely on dynamic sample rates provided by the trace agent
+    By default, this sampler will rely on dynamic sample rates provided by the trace agent
     to determine which traces are kept or dropped.
 
     You can also configure a static sample rate via ``default_sample_rate`` to use for sampling.
@@ -263,6 +263,14 @@ class DatadogSampler(RateByServiceSampler):
 
         if rules is None:
             self.rules = []
+        else:
+            self.rules = []
+            # Validate that rules is a list of SampleRules
+            for rule in rules:
+                if not isinstance(rule, SamplingRule):
+                    raise TypeError("Rule {!r} must be a sub-class of type ddtrace.sampler.SamplingRules".format(rule))
+                self.rules.append(rule)
+
         # DEV: Default sampling rule must come last
         if default_sample_rate is not None:
             self.rules.append(SamplingRule(sample_rate=default_sample_rate))

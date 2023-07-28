@@ -38,6 +38,9 @@ RESULT = TEST_RESULT = "pytest.result"
 # Skip Reason
 SKIP_REASON = TEST_SKIP_REASON = "test.skip_reason"
 
+# Test skipped by ITR
+SKIPPED_BY_ITR = "skipped_by_itr"
+
 # Test Status
 STATUS = TEST_STATUS = "test.status"
 
@@ -56,6 +59,10 @@ CLASS_HIERARCHY = "test.class_hierarchy"
 
 # Test Codeowners
 CODEOWNERS = TEST_CODEOWNERS = "test.codeowners"
+
+ITR_TEST_SKIPPING_TYPE = "test.itr.tests_skipping.type"
+
+ITR_TEST_SKIPPING_COUNT = "test.itr.tests_skipping.count"
 
 
 class Status(Enum):
