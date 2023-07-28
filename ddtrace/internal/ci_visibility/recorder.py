@@ -4,7 +4,7 @@ import os
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
-import ddtrace
+from ddtrace import Tracer
 from ddtrace import config as ddconfig
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import ci
@@ -22,6 +22,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.writer.writer import Response
+from ddtrace.provider import CIContextProvider
 
 from .. import agent
 from .constants import AGENTLESS_DEFAULT_SITE
@@ -46,7 +47,6 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Optional
     from typing import Tuple
 
-    from ddtrace import Tracer
     from ddtrace.settings import IntegrationConfig
 
 log = get_logger(__name__)
@@ -83,6 +83,10 @@ def _do_request(method, url, payload, headers):
     return result
 
 
+class CITracer(Tracer):
+    pass
+
+
 class CIVisibility(Service):
     _instance = None  # type: Optional[CIVisibility]
     enabled = False
@@ -93,9 +97,21 @@ class CIVisibility(Service):
         # type: (Optional[Tracer], Optional[IntegrationConfig], Optional[str]) -> None
         super(CIVisibility, self).__init__()
 
-        self.tracer = tracer or ddtrace.tracer
-        self._app_key = os.getenv("DD_APP_KEY", os.getenv("DD_APPLICATION_KEY", os.getenv("DATADOG_APPLICATION_KEY")))
-        self._api_key = os.getenv("DD_API_KEY")
+        if tracer:
+            self.tracer = tracer
+        else:
+            # Create a new CI tracer
+            self.tracer = CITracer()
+
+        if not isinstance(self.tracer.context_provider, CIContextProvider):
+            self.tracer.context_provider = CIContextProvider()
+
+        self._app_key = os.getenv(
+            "CI_DD_APP_KEY",
+            os.getenv("DD_APP_KEY", os.getenv("DD_APPLICATION_KEY", os.getenv("DATADOG_APPLICATION_KEY"))),
+        )
+        self._api_key = os.getenv("CI_DD_API_KEY", os.getenv("DD_API_KEY"))
+
         self._dd_site = os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE)
         self._suite_skipping_mode = asbool(os.getenv("_DD_CIVISIBILITY_ITR_SUITE_MODE", default=False))
         self.config = config  # type: Optional[IntegrationConfig]
@@ -207,7 +223,10 @@ class CIVisibility(Service):
             log.warning("Request timeout while fetching enabled features")
             return False, False
         try:
-            parsed = json.loads(response.body)
+            body = response.body
+            if isinstance(body, bytes):
+                body = body.decode()
+            parsed = json.loads(body)
         except JSONDecodeError:
             log.warning("Settings request responded with invalid JSON '%s'", response.body)
             return False, False
@@ -310,7 +329,10 @@ class CIVisibility(Service):
             log.warning("Test skips request responded with status %d", response.status)
             return
         try:
-            parsed = json.loads(response.body)
+            body = response.body
+            if isinstance(body, bytes):
+                body = body.decode()
+            parsed = json.loads(body)
         except json.JSONDecodeError:
             log.warning("Test skips request responded with invalid JSON '%s'", response.body)
             return
