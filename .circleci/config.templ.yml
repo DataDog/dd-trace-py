@@ -36,6 +36,7 @@ machine_executor: &machine_executor
     # https://support.circleci.com/hc/en-us/articles/360045268074-Build-Fails-with-Too-long-with-no-output-exceeded-10m0s-context-deadline-exceeded-
     - PYTHONUNBUFFERED: 1
   steps:
+    - run: sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" --force-yes -y --no-install-recommends openssh-client git
     - &pyenv-set-global
       run:
         name: Set global pyenv
@@ -132,7 +133,6 @@ commands:
         type: string
         default: "http://localhost:9126"
     steps:
-      - run: sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" --force-yes -y --no-install-recommends openssh-client git
       - checkout
       - restore_pip_cache
       - attach_workspace:

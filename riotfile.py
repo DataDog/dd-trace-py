@@ -1931,7 +1931,7 @@ venv = Venv(
         ),
         Venv(
             name="graphene",
-            command="pytest {cmdargs} tests/contrib/graphene",
+            command="pytest --ddtrace {cmdargs} tests/contrib/graphene",
             pys=select_pys(min_version="3.6"),
             pkgs={
                 "graphene": ["~=3.0.0", latest],
