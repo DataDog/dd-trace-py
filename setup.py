@@ -298,8 +298,7 @@ class CleanLibraries(CleanCommand):
 class CMakeBuild(build_ext):
     @staticmethod
     def strip_symbols(so_file):
-        subprocess.check_output(['strip', '-g', so_file])
-
+        subprocess.check_output(["strip", "-g", so_file])
 
     def build_extension(self, ext):
         tmp_iast_file_path = os.path.abspath(self.get_ext_fullpath(ext.name))
