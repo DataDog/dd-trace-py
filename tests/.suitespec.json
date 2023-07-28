@@ -1,5 +1,10 @@
 {
     "components": {
+        "$setup": [
+            "setup.py",
+            "setup.cfg",
+            "pyproject.toml"
+        ],
         "$harness": [
             "riotfile.py",
             "scripts/ddtest"
