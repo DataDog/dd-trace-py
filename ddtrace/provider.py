@@ -151,7 +151,7 @@ class CIContextProvider(DefaultContextProvider):
 
     def __init__(self):
         # type: () -> None
-        super(CIContextProvider, self).__init__()
+        super(DefaultContextProvider, self).__init__()
         _DD_CI_CONTEXTVAR.set(None)
 
     def _has_active_context(self):
