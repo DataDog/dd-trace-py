@@ -216,12 +216,15 @@ venv = Venv(
             name="riot-helpers",
             # DEV: pytest really doesn't want to execute only `riotfile.py`, call doctest directly
             command="python -m doctest {cmdargs} riotfile.py",
-            pkgs={"riot": "==0.17.4"},
+            pkgs={"riot": "==0.17.7"},
         ),
         Venv(
             pys=["3"],
             name="scripts",
-            command="python -m doctest {cmdargs} scripts/get-target-milestone.py",
+            command="python -m doctest {cmdargs} "
+            "scripts/get-target-milestone.py "
+            "scripts/needs_testrun.py "
+            "tests/suitespec.py",
         ),
         Venv(
             name="docs",
@@ -235,6 +238,14 @@ venv = Venv(
                 "furo": latest,
             },
             command="scripts/build-docs",
+        ),
+        Venv(
+            name="circleci-gen-config",
+            command="python scripts/gen_circleci_config.py {cmdargs}",
+            pys=["3"],
+            pkgs={
+                "ruamel.yaml": latest,
+            },
         ),
         Venv(
             name="appsec",
@@ -251,26 +262,6 @@ venv = Venv(
             env={
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
             },
-        ),
-        Venv(
-            pys=select_pys(),
-            pkgs={
-                # pytest-benchmark depends on cpuinfo which dropped support for Python<=3.6 in 9.0
-                # See https://github.com/workhorsy/py-cpuinfo/issues/177
-                "pytest-benchmark": latest,
-                "py-cpuinfo": "~=8.0.0",
-                "msgpack": latest,
-            },
-            venvs=[
-                Venv(
-                    name="benchmarks",
-                    command="pytest --no-cov --benchmark-warmup=on {cmdargs} tests/benchmarks",
-                ),
-                Venv(
-                    name="benchmarks-nogc",
-                    command="pytest --no-cov --benchmark-warmup=on --benchmark-disable-gc {cmdargs} tests/benchmarks",
-                ),
-            ],
         ),
         Venv(
             name="profile-diff",
@@ -2540,7 +2531,6 @@ venv = Venv(
             name="opentelemetry",
             command="pytest {cmdargs} tests/opentelemetry",
             pys=select_pys(min_version="3.7"),
-            env={"DD_TRACE_OTEL_ENABLED": "true"},
             pkgs={
                 "pytest-asyncio": latest,
                 "opentelemetry-api": ["~=1.0.0", "~=1.3.0", "~=1.4.0", "~=1.8.0", "~=1.11.0", "~=1.15.0", latest],

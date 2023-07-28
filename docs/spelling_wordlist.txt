@@ -210,7 +210,6 @@ testagent
 TestCase
 timestamp
 tokenizer
-tracecontext
 tracestate
 tweens
 uWSGI
@@ -222,6 +221,7 @@ unix
 unpatch
 unpatched
 unregister
+unshallow
 unvendored
 uri
 url

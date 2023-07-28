@@ -3,6 +3,7 @@ import os
 import platform
 import re
 import shutil
+import subprocess
 import sys
 import tarfile
 
@@ -187,7 +188,6 @@ class LibraryDownload:
                 dynfiles = [c for c in tar.getmembers() if c.name.endswith(suffixes)]
 
             with tarfile.open(filename, "r|gz", errorlevel=2) as tar:
-                print("extracting files:", [c.name for c in dynfiles])
                 tar.extractall(members=dynfiles, path=HERE)
                 os.rename(os.path.join(HERE, archive_dir), arch_dir)
 
@@ -231,14 +231,15 @@ class LibDatadogDownload(LibraryDownload):
     expected_checksums = {
         "Linux": {
             "x86_64": "e9ee7172dd7b8f12ff8125e0ee699d01df7698604f64299c4094ae47629ccec1",
+            "aarch64": "a326e9552e65b945c64e7119c23d670ffdfb99aa96d9d90928a8a2ff6427199d",
         },
     }
     available_releases = {
         "Windows": [],
         "Darwin": [],
-        "Linux": ["x86_64"],
+        "Linux": ["x86_64", "aarch64"],
     }
-    translate_suffix = {"Windows": (), "Darwin": (), "Linux": (".a", ".h")}
+    translate_suffix = {"Windows": (".lib", ".h"), "Darwin": (".a", ".h"), "Linux": (".a", ".h")}
 
     @classmethod
     def get_package_name(cls, arch, os):
@@ -251,22 +252,26 @@ class LibDatadogDownload(LibraryDownload):
 
     @staticmethod
     def get_extra_objects():
-        arch = "x86_64"
         base_name = "libdatadog_profiling"
-        if CURRENT_OS != "Windows":
-            base_name += ".a"
-        base_path = os.path.join("ddtrace", "internal", "datadog", "profiling", "libdatadog", arch, "lib", base_name)
-        if CURRENT_OS == "Linux":
+        arch = platform.machine()
+        if arch in LibDatadogDownload.available_releases[CURRENT_OS]:
+            base_name += LibDatadogDownload.translate_suffix[CURRENT_OS][0]  # always static lib extension
+            base_path = os.path.join(
+                "ddtrace", "internal", "datadog", "profiling", "libdatadog", arch, "lib", base_name
+            )
             return [base_path]
         return []
 
     @staticmethod
     def get_include_dirs():
-        if CURRENT_OS == "Linux":
-            return [
-                "ddtrace/internal/datadog/profiling/include",
-                "ddtrace/internal/datadog/profiling/libdatadog/x86_64/include",
-            ]
+        arch = platform.machine()
+        if arch in LibDatadogDownload.available_releases[CURRENT_OS]:
+            base_include_dir = "ddtrace/internal/datadog/profiling/include"
+            arch_include_dir = os.path.join(
+                "ddtrace", "internal", "datadog", "profiling", "libdatadog", arch, "include"
+            )
+            return [base_include_dir, arch_include_dir]
+
         return []
 
 
@@ -291,6 +296,10 @@ class CleanLibraries(CleanCommand):
 
 
 class CMakeBuild(build_ext):
+    @staticmethod
+    def strip_symbols(so_file):
+        subprocess.check_output(["strip", "-g", so_file])
+
     def build_extension(self, ext):
         tmp_iast_file_path = os.path.abspath(self.get_ext_fullpath(ext.name))
         tmp_iast_path = os.path.join(os.path.dirname(tmp_iast_file_path))
@@ -338,9 +347,12 @@ class CMakeBuild(build_ext):
             if "CMAKE_BUILD_PARALLEL_LEVEL" not in os.environ:
                 # self.parallel is a Python 3 only way to set parallel jobs by hand
                 # using -j in the build_ext call, not supported by pip or PyPA-build.
+                # DEV: -j is only supported in CMake 3.12+ only.
                 if hasattr(self, "parallel") and self.parallel:
-                    # CMake 3.12+ only.
                     build_args += ["-j{}".format(self.parallel)]
+                else:
+                    # Let CMake determine the parallelism to use
+                    build_args += ["-j"]
             try:
                 cmake_cmd_with_args = [cmake_command] + cmake_args
                 subprocess.run(cmake_cmd_with_args, cwd=tmp_iast_path, check=True)
@@ -362,6 +374,12 @@ class CMakeBuild(build_ext):
                     shutil.copy(iast_artifact, tmp_iast_file_path)
         else:
             build_ext.build_extension(self, ext)
+            if CURRENT_OS == "Linux":
+                for ext in self.extensions:
+                    try:
+                        self.strip_symbols(self.get_ext_fullpath(ext.name))
+                    except Exception:
+                        pass
 
 
 long_description = """
@@ -462,7 +480,8 @@ else:
 
 def get_ddup_ext():
     ddup_ext = []
-    if sys.platform.startswith("linux") and platform.machine() == "x86_64" and "glibc" in platform.libc_ver()[0]:
+    arch = platform.machine()
+    if "glibc" in platform.libc_ver()[0] and arch in LibDatadogDownload.available_releases[CURRENT_OS]:
         LibDatadogDownload.run()
         ddup_ext.extend(
             cythonize(
@@ -476,7 +495,7 @@ def get_ddup_ext():
                         ],
                         include_dirs=LibDatadogDownload.get_include_dirs(),
                         extra_objects=LibDatadogDownload.get_extra_objects(),
-                        extra_compile_args=["-std=c++17"],
+                        extra_compile_args=["-std=c++17", "-flto"],
                         language="c++",
                     )
                 ],
@@ -552,7 +571,6 @@ setup(
         "envier",
         "pep562; python_version<'3.7'",
         "opentelemetry-api>=1; python_version>='3.7'",
-        "cmake>=3.24.2; python_version>='3.6'",
     ]
     + bytecode,
     extras_require={
@@ -590,7 +608,7 @@ setup(
         "Programming Language :: Python :: 3.11",
     ],
     use_scm_version={"write_to": "ddtrace/_version.py"},
-    setup_requires=["setuptools_scm[toml]>=4", "cython<3"],
+    setup_requires=["setuptools_scm[toml]>=4", "cython<3", "cmake>=3.24.2; python_version>='3.6'"],
     ext_modules=ext_modules
     + cythonize(
         [

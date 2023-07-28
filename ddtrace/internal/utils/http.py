@@ -19,11 +19,11 @@ from ddtrace.internal import compat
 from ddtrace.internal.compat import parse
 from ddtrace.internal.constants import BLOCKED_RESPONSE_HTML
 from ddtrace.internal.constants import BLOCKED_RESPONSE_JSON
+from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_ORIGIN_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_SAMPLING_PRIORITY_KEY
 from ddtrace.internal.http import HTTPConnection
 from ddtrace.internal.http import HTTPSConnection
-from ddtrace.internal.sampling import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.uds import UDSHTTPConnection
 from ddtrace.internal.utils.cache import cached
 

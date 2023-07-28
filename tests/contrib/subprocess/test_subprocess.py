@@ -17,6 +17,10 @@ from tests.utils import override_config
 from tests.utils import override_global_config
 
 
+if PY2:
+    pytest.skip(allow_module_level=True)
+
+
 @pytest.fixture(autouse=True)
 def auto_unpatch():
     SubprocessCmdLine._clear_cache()

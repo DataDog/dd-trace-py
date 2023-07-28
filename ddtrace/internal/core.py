@@ -47,8 +47,17 @@ class EventHub:
             del self._listeners
         self._listeners = defaultdict(list)
 
-    def dispatch(self, event_id, args):
-        # type: (str, List[Optional[Any]]) -> Tuple[List[Optional[Any]], List[Optional[Exception]]]
+    def dispatch(self, event_id, args, *other_args):
+        # type: (...) -> Tuple[List[Optional[Any]], List[Optional[Exception]]]
+        if not isinstance(args, list):
+            args = [args] + list(other_args)
+        else:
+            if other_args:
+                raise TypeError(
+                    "When the first argument expected by the event handler is a list, all arguments "
+                    "must be passed in a list. For example, use dispatch('foo', [[l1, l2], arg2]) "
+                    "instead of dispatch('foo', [l1, l2], arg2)."
+                )
         log.debug("Dispatching event %s", event_id)
         results = []
         exceptions = []
@@ -83,9 +92,9 @@ def reset_listeners():
     _EVENT_HUB.get().reset()  # type: ignore
 
 
-def dispatch(event_id, args):
-    # type: (str, List[Optional[Any]]) -> Tuple[List[Optional[Any]], List[Optional[Exception]]]
-    return _EVENT_HUB.get().dispatch(event_id, args)  # type: ignore
+def dispatch(event_id, args, *other_args):
+    # type: (...) -> Tuple[List[Optional[Any]], List[Optional[Exception]]]
+    return _EVENT_HUB.get().dispatch(event_id, args, *other_args)  # type: ignore
 
 
 class ExecutionContext:
@@ -135,7 +144,6 @@ class ExecutionContext:
         if self.identifier == ROOT_CONTEXT_ID:
             raise ValueError("Cannot add parent to root context")
         self._parents.append(context)
-        self._data.update(context._data)
 
     @classmethod
     @contextmanager
@@ -164,6 +172,12 @@ class ExecutionContext:
     def set_item(self, data_key, data_value):
         # type: (str, Optional[Any]) -> None
         self._data[data_key] = data_value
+
+    def set_safe(self, data_key, data_value):
+        # type: (str, Optional[Any]) -> None
+        if data_key in self._data:
+            raise ValueError("Cannot overwrite ExecutionContext data key '%s'", data_key)
+        return self.set_item(data_key, data_value)
 
     def set_items(self, keys_values):
         # type: (Dict[str, Optional[Any]]) -> None
@@ -209,6 +223,12 @@ def get_items(data_keys, span=None):
         return _CURRENT_CONTEXT.get().get_items(data_keys)  # type: ignore
 
 
+def set_safe(data_key, data_value):
+    # type: (str, Optional[Any]) -> None
+    _CURRENT_CONTEXT.get().set_safe(data_key, data_value)  # type: ignore
+
+
+# NB Don't call these set_* functions from `ddtrace.contrib`, only from product code!
 def set_item(data_key, data_value, span=None):
     # type: (str, Optional[Any], Optional[Span]) -> None
     if span is not None and span._local_root is not None:

@@ -354,6 +354,7 @@ def test_single_trace_too_large(encoding, monkeypatch):
                 :20
             ]  # limits number of logs, this test could generate hundreds of thousands of logs.
             log.error.assert_not_called()
+            t.shutdown()
 
 
 @allencodings
@@ -746,20 +747,26 @@ def test_downgrade(encoding, monkeypatch):
 
 
 @allencodings
-def test_span_tags(encoding, monkeypatch):
-    monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
+@pytest.mark.snapshot()
+@pytest.mark.skipif(AGENT_VERSION != "testagent", reason="snapshot tests are only compatible with the testagent")
+def test_span_tags(encoding, ddtrace_run_python_code_in_subprocess):
+    env = os.environ.copy()
+    env["DD_TRACE_API_VERSION"] = encoding
 
-    t = Tracer()
-    with mock.patch("ddtrace.internal.writer.writer.log") as log:
-        s = t.trace("operation", service="my-svc")
-        s.set_tag("env", "my-env")
-        s.set_metric("number", 123)
-        s.set_metric("number", 12.0)
-        s.set_metric("number", "1")
-        s.finish()
-        t.shutdown()
-    log.warning.assert_not_called()
-    log.error.assert_not_called()
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(
+        """
+import ddtrace
+
+s = ddtrace.tracer.trace("operation", service="my-svc")
+s.set_tag("env", "my-env")
+s.set_metric("number1", 123)
+s.set_metric("number2", 12.0)
+s.set_metric("number3", "1")
+s.finish()
+""",
+        env=env,
+    )
+    assert status == 0, (out, err)
 
 
 def test_synchronous_writer_shutdown():
@@ -795,14 +802,14 @@ def test_flush_log(caplog, encoding, monkeypatch):
         log.log.assert_has_calls(calls)
 
 
-@pytest.mark.parametrize("logs_injection,debug_mode,patch_logging", itertools.product([True, False], repeat=3))
-def test_regression_logging_in_context(run_python_code_in_subprocess, logs_injection, debug_mode, patch_logging):
+def test_regression_logging_in_context(run_python_code_in_subprocess):
     """
     When logs injection is enabled and the logger is patched
         When a parent span closes before a child
             The application does not deadlock due to context lock acquisition
     """
-    code = """
+    for logs_injection, debug_mode, patch_logging in itertools.product([True, False], repeat=3):
+        code = """
 import ddtrace
 ddtrace.patch(logging={})
 
@@ -811,21 +818,21 @@ s2 = ddtrace.tracer.trace("2")
 s1.finish()
 s2.finish()
 """.format(
-        str(patch_logging)
-    )
+            str(patch_logging)
+        )
 
-    env = os.environ.copy()
-    env.update(
-        {
-            "DD_TRACE_LOGS_INJECTION": str(logs_injection).lower(),
-            "DD_TRACE_DEBUG": str(debug_mode).lower(),
-            "DD_CALL_BASIC_CONFIG": "true",
-        }
-    )
+        env = os.environ.copy()
+        env.update(
+            {
+                "DD_TRACE_LOGS_INJECTION": str(logs_injection).lower(),
+                "DD_TRACE_DEBUG": str(debug_mode).lower(),
+                "DD_CALL_BASIC_CONFIG": "true",
+            }
+        )
 
-    # If we deadlock (longer than 5 seconds), we'll raise `subprocess.TimeoutExpired` and fail
-    _, err, status, _ = run_python_code_in_subprocess(code, env=env, timeout=5)
-    assert status == 0, err
+        # If we deadlock (longer than 5 seconds), we'll raise `subprocess.TimeoutExpired` and fail
+        _, err, status, _ = run_python_code_in_subprocess(code, env=env, timeout=5)
+        assert status == 0, err
 
 
 @pytest.mark.parametrize(
