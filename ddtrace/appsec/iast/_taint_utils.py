@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 from collections import abc
-from typing import Any
 
 from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
 from ddtrace.appsec.iast._taint_tracking import taint_pyobject
