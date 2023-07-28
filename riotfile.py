@@ -1254,7 +1254,7 @@ venv = Venv(
         ),
         Venv(
             name="mysql",
-            command="pytest {cmdargs} tests/contrib/mysql",
+            command="pytest --ddtrace {cmdargs} tests/contrib/mysql",
             venvs=[
                 Venv(
                     # mysql-connector-python dropped support for Python 2.7/3.5 in 8.0.24
@@ -1284,7 +1284,7 @@ venv = Venv(
         ),
         Venv(
             name="psycopg2",
-            command="pytest {cmdargs} tests/contrib/psycopg2",
+            command="pytest --ddtrace {cmdargs} tests/contrib/psycopg2",
             venvs=[
                 Venv(
                     # psycopg2-binary dropped support for Python 2.7 in 2.9
