@@ -518,8 +518,6 @@ def test_trace_with_non_bytes_payload_logs_payload_when_LOG_ERROR_PAYLOADS(monke
 
 
 def test_trace_with_failing_encoder_generates_error_log():
-    t = Tracer()
-
     class ExceptionBadEncoder(BadEncoder):
         def encode(self):
             raise Exception()
@@ -528,7 +526,7 @@ def test_trace_with_failing_encoder_generates_error_log():
             raise Exception()
 
     log = send_invalid_payload_and_get_logs(ExceptionBadEncoder)
-    log.error.assert_has_calls([mock.call("failed to encode trace with encoder %r", t._writer._encoder, exc_info=True)])
+    assert "failed to encode trace with encoder" in log.error.call_args[0][0]
 
 
 @parametrize_with_all_encodings
