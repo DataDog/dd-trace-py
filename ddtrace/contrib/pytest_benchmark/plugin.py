@@ -13,8 +13,6 @@ def pytest_configure(config):
 
 
 class _PytestBenchmarkPlugin:
-    def __init__(self):
-        pass
 
     @pytest.hookimpl()
     def pytest_runtest_makereport(self, item, call):
