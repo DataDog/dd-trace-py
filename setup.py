@@ -1,8 +1,10 @@
 import hashlib
+import glob
 import os
 import platform
 import re
 import shutil
+import subprocess
 import sys
 import tarfile
 
@@ -295,6 +297,11 @@ class CleanLibraries(CleanCommand):
 
 
 class CMakeBuild(build_ext):
+    @staticmethod
+    def strip_symbols(so_file):
+        subprocess.check_output(['strip', '-g', so_file])
+
+
     def build_extension(self, ext):
         tmp_iast_file_path = os.path.abspath(self.get_ext_fullpath(ext.name))
         tmp_iast_path = os.path.join(os.path.dirname(tmp_iast_file_path))
@@ -369,6 +376,13 @@ class CMakeBuild(build_ext):
                     shutil.copy(iast_artifact, tmp_iast_file_path)
         else:
             build_ext.build_extension(self, ext)
+
+        if CURRENT_OS == "Linux":
+            for so in glob.glob("**/*.so", recursive=True):
+                try:
+                    self.strip_symbols(so)
+                except Exception:
+                    pass
 
 
 long_description = """
@@ -484,7 +498,7 @@ def get_ddup_ext():
                         ],
                         include_dirs=LibDatadogDownload.get_include_dirs(),
                         extra_objects=LibDatadogDownload.get_extra_objects(),
-                        extra_compile_args=["-std=c++17"],
+                        extra_compile_args=["-std=c++17", "-flto"],
                         language="c++",
                     )
                 ],
