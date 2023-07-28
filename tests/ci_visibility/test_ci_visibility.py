@@ -807,7 +807,7 @@ def test_configure_itr_disabled_by_missing_bad_requests_mode():
             assert mock_civisibilty._git_client is None
 
 
-def test_configure_itr_disabled_by_coverage_not_enabled():
+def test_configure_itr_enabled_with_coverage_not_enabled():
     with override_env(
         dict(
             DD_API_KEY="foobar.baz",
@@ -822,10 +822,10 @@ def test_configure_itr_disabled_by_coverage_not_enabled():
             mock_civisibilty._code_coverage_enabled_by_api = False
             mock_civisibilty._git_client = None
 
-            mock_civisibilty._configure_itr("mock_api_key", "mock_app_key", REQUESTS_MODE.TRACES)
+            mock_civisibilty._configure_itr("mock_api_key", "mock_app_key", REQUESTS_MODE.AGENTLESS_EVENTS)
 
-            assert mock_civisibilty._itr_test_skipping_is_enabled is False
-            assert mock_civisibilty._git_client is None
+            assert mock_civisibilty._itr_test_skipping_is_enabled is True
+            assert mock_civisibilty._git_client is not None
 
 
 def test_configure_itr_enabled_with_agentless_mode():
@@ -854,7 +854,6 @@ def test_configure_itr_enabled_with_evp_mode():
         dict(
             DD_API_KEY="foobar.baz",
             DD_APP_KEY="foobar",
-            DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
         )
     ):
         with mock.patch.object(CIVisibility, "__init__", return_value=None):

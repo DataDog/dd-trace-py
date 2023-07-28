@@ -129,13 +129,12 @@ class CIVisibility(Service):
             self._requests_mode = REQUESTS_MODE.AGENTLESS_EVENTS
         elif self._agent_evp_proxy_is_available():
             self._requests_mode = REQUESTS_MODE.EVP_PROXY_EVENTS
-
         self._code_coverage_enabled_by_api, self._test_skipping_enabled_by_api = self._check_enabled_features()
 
         self._collect_coverage_enabled = self._should_collect_coverage(self._code_coverage_enabled_by_api)
 
         self._configure_writer(coverage_enabled=self._collect_coverage_enabled)
-        self._git_client = None
+        self._git_client = None  # type: Optional[CIVisibilityGitClient]
 
         self._configure_itr(self._api_key, self._app_key, self._requests_mode)
 
@@ -166,6 +165,7 @@ class CIVisibility(Service):
     def _check_enabled_features(self):
         # type: () -> Tuple[bool, bool]
         if not self._app_key:
+            log.debug("Cannot make request to setting endpoint if application key is not set")
             return False, False
 
         _headers = {
@@ -216,14 +216,13 @@ class CIVisibility(Service):
         return attributes["code_coverage"], attributes["tests_skipping"]
 
     def _configure_itr(self, api_key, app_key, requests_mode):
-        if not app_key:
-            log.warning("Test skipping disabled: required environment variable DD_APPLICATION_KEY is not set.")
-            return
-
+        # type: (Optional[str], Optional[str], REQUESTS_MODE) -> None
         if not self._test_skipping_enabled_by_api:
             log.debug("Test skipping is not enabled by API")
             return
-
+        if not app_key:
+            log.debug("Test skipping disabled: required environment variable DD_APPLICATION_KEY is not set.")
+            return
         if ddconfig._ci_visibility_intelligent_testrunner_disabled:
             log.warning(
                 "Test skipping disabled: Intelligent Test Runner is enabled for this service, but "
