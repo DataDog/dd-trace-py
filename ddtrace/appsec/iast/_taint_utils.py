@@ -32,11 +32,7 @@ class LazyTaintList:
 
     def _taint(self, value):
         if value:
-            if isinstance(value, abc.Mapping) and not _is_tainted_struct(value):
-                value = LazyTaintDict(
-                    value, origins=self._origins, override_pyobject_tainted=self._override_pyobject_tainted
-                )
-            elif isinstance(value, (str, bytes, bytearray)):
+            if isinstance(value, (str, bytes, bytearray)):
                 if not is_pyobject_tainted(value) or self._override_pyobject_tainted:
                     try:
                         value = taint_pyobject(
@@ -52,6 +48,10 @@ class LazyTaintList:
                     except Exception:
                         log.error("IAST Unexpected exception while tainting value", exc_info=True)
             elif isinstance(value, abc.Mapping) and not _is_tainted_struct(value):
+                value = LazyTaintDict(
+                    value, origins=self._origins, override_pyobject_tainted=self._override_pyobject_tainted
+                )
+            elif isinstance(value, abc.Sequence) and not _is_tainted_struct(value):
                 value = LazyTaintList(
                     value,
                     origins=self._origins,
@@ -195,27 +195,28 @@ class LazyTaintDict:
         self._origin_value = origins[1]
         self._override_pyobject_tainted = override_pyobject_tainted
 
-    def __getitem__(self, key):
-        value = self._obj[key]
-
+    def _taint(self, value, key):
         if value:
-            if isinstance(value, abc.Mapping) and type(value) is not LazyTaintDict:
-                value = LazyTaintDict(
-                    value, origins=self._origins, override_pyobject_tainted=self._override_pyobject_tainted
-                )
-            elif isinstance(value, (str, bytes, bytearray)):
+            if isinstance(value, (str, bytes, bytearray)):
                 if not is_pyobject_tainted(value) or self._override_pyobject_tainted:
                     try:
                         value = taint_pyobject(
-                            pyobject=value, source_name=key, source_value=value, source_origin=self._origin_value
+                            pyobject=value,
+                            source_name=key,
+                            source_value=value,
+                            source_origin=self._origin_value,
                         )
                     except SystemError:
                         # TODO: Find the root cause for
                         # SystemError: NULL object passed to Py_BuildValue
-                        log.debug("IAST SystemError while tainting value: %s with key: %s", value, key, exc_info=True)
+                        log.error("IAST SystemError while tainting value: %s", value, exc_info=True)
                     except Exception:
-                        log.debug("IAST Unexpected exception while tainting value", exc_info=True)
-            elif isinstance(value, abc.Sequence) and type(value) is not LazyTaintList:
+                        log.error("IAST Unexpected exception while tainting value", exc_info=True)
+            elif isinstance(value, abc.Mapping) and not _is_tainted_struct(value):
+                value = LazyTaintDict(
+                    value, origins=self._origins, override_pyobject_tainted=self._override_pyobject_tainted
+                )
+            elif isinstance(value, abc.Sequence) and not _is_tainted_struct(value):
                 value = LazyTaintList(
                     value,
                     origins=self._origins,
@@ -224,12 +225,111 @@ class LazyTaintDict:
                 )
         return value
 
-    def get(self, key, default=None):
-        try:
-            return self.__getitem__(key)
-        except KeyError:
-            pass
-        return default
+    @property  # type: ignore
+    def __class__(self):
+        return dict
+
+    def __contains__(self, item):
+        return item in self._obj
+
+    def __delitem__(self, key):
+        del self._obj[key]
+
+    def __eq__(self, other):
+        if _is_tainted_struct(other):
+            other = other._obj
+        return self._obj == other
+
+    def __ge__(self, other):
+        if _is_tainted_struct(other):
+            other = other._obj
+        return self._obj >= other
+
+    def __getitem__(self, key):
+        return self._taint(self._obj[key], key)
+
+    def __gt__(self, other):
+        if _is_tainted_struct(other):
+            other = other._obj
+        return self._obj > other
+
+    def __ior__(self, other):
+        if _is_tainted_struct(other):
+            other = other._obj
+        self._obj |= other
+
+    def __iter__(self):
+        return iter(self.keys())
+
+    def __le__(self, other):
+        if _is_tainted_struct(other):
+            other = other._obj
+        return self._obj <= other
+
+    def __len__(self):
+        return len(self._obj)
+
+    def __lt__(self, other):
+        if _is_tainted_struct(other):
+            other = other._obj
+        return self._obj < other
+
+    def __ne__(self, other):
+        if _is_tainted_struct(other):
+            other = other._obj
+        return self._obj != other
+
+    def __or__(self, other):
+        if _is_tainted_struct(other):
+            other = other._obj
+        return LazyTaintDict(
+            self._obj | other,
+            origins=self._origins,
+            override_pyobject_tainted=self._override_pyobject_tainted,
+        )
+
+    def __repr__(self):
+        return repr(self._obj)
+
+    def __reversed__(self):
+        return reversed(self.keys())
+
+    def __setitem__(self, key, value):
+        self._obj[key] = value
+
+    def __str__(self):
+        return str(self._obj)
+
+    def clear(self):
+        # TODO: stop tainting in this case
+        self._obj.clear()
+
+    def copy(self):
+        return LazyTaintDict(
+            self._obj.copy(),
+            origins=self._origins,
+            override_pyobject_tainted=self._override_pyobject_tainted,
+        )
+
+    @classmethod
+    def fromkeys(cls, *args):
+        return dict.fromkeys(*args)
+
+    def get(self, *args):
+        return self._taint(self._obj.get(*args), args[0])
+
+    def pop(self, *args):
+        return self._taint(self._obj.pop(*args), "pop")
+
+    def popitem(self):
+        k, v = self._obj.popitem()
+        return self._taint(k, k), self._taint(v, k)
+
+    def remove(self, *args):
+        return self._obj.remove(*args)
+
+    def setdefault(self, *args):
+        return self._taint(self._obj.setdefault(*args), args[0])
 
     def items(self):
         for k in self.keys():
@@ -237,37 +337,11 @@ class LazyTaintDict:
 
     def keys(self):
         for k in self._obj.keys():
-            if (
-                k
-                and isinstance(k, (str, bytes, bytearray))
-                and (self._override_pyobject_tainted or not is_pyobject_tainted(k))
-            ):
-                try:
-                    k = taint_pyobject(pyobject=k, source_name=k, source_value=k, source_origin=self._origin_key)
-                except Exception:
-                    log.debug("Unexpected exception while tainting key", exc_info=True)
-            yield k
+            yield self._taint(k, k)
 
     def values(self):
         for _, v in self.items():
             yield v
-
-    def __contains__(self, key):
-        return key in self._obj
-
-    def __len__(self):
-        return len(self._obj)
-
-    def __setitem__(self, key, value):
-        self._obj[key] = value
-
-    def __getattr__(self, name):
-        # type: (str) -> Any
-        return getattr(self._obj, name)
-
-    @property  # type: ignore
-    def __class__(self):
-        return dict
 
 
 def supported_dbapi_integration(integration_name):
