@@ -20,6 +20,7 @@ from ddtrace.profiling.collector import _task
 from ddtrace.profiling.collector import traceback
 from ddtrace.profiling.collector import stack_event
 from ddtrace.settings.profiling import config
+from ddtrace.settings.profiling import private_config as pconfig
 
 
 # These are special features that might not be available depending on your Python version and platform
