@@ -17,6 +17,8 @@ import six
 
 from ddtrace import Pin
 from ddtrace import config
+from ddtrace.appsec.iast._taint_tracking import get_tainted_ranges
+from ddtrace.appsec.iast.taint_sinks.command_injection import CommandInjection
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.subprocess.constants import COMMANDS
 from ddtrace.ext import SpanTypes
@@ -144,6 +146,15 @@ class SubprocessCmdLine(object):
     def __init__(self, shell_args, shell=False):
         # type: (Union[str, List[str]], bool) -> None
 
+        report_cmdi = False
+        if config._iast_enabled:
+            # We delay the reporting to later when the strings are already scrubbed (but we need
+            # to check them unscrubbed here)
+            if isinstance(shell_args, (list, tuple)) and any(get_tainted_ranges(i) for i in shell_args):
+                report_cmdi = True
+            elif get_tainted_ranges(shell_args):
+                report_cmdi = True
+
         cache_key = str(shell_args) + str(shell)
         self._cache_entry = SubprocessCmdLine._CACHE.get(cache_key)
         if self._cache_entry:
@@ -179,6 +190,10 @@ class SubprocessCmdLine(object):
         self._cache_entry = SubprocessCmdLine._add_new_cache_entry(
             cache_key, self.env_vars, self.binary, self.arguments, self.truncated
         )
+
+        if report_cmdi:
+            scrubbed_evidences = [self.binary] + self.arguments
+            CommandInjection.report(evidence_value=scrubbed_evidences)
 
     def scrub_env_vars(self, tokens):
         for idx, token in enumerate(tokens):
