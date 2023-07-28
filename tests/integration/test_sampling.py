@@ -8,6 +8,11 @@ from ddtrace.sampler import RateSampler
 from ddtrace.sampler import SamplingRule
 from tests.utils import snapshot
 
+from .test_integration import AGENT_VERSION
+
+
+pytestmark = pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
+
 
 def snapshot_parametrized_with_writers(f):
     def _patch(writer, tracer):
