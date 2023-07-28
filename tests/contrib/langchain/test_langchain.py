@@ -181,7 +181,7 @@ def test_openai_llm_sync_multiple_prompts(langchain, request_vcr):
     llm = langchain.llms.OpenAI()
     with request_vcr.use_cassette("openai_completion_sync_multi_prompt.yaml"):
         llm.generate(
-            [
+            prompts=[
                 "What is the best way to teach a baby multiple languages?",
                 "How many times has Spongebob failed his road test?",
             ]
@@ -376,7 +376,7 @@ def test_llm_logs(langchain, ddtrace_config_langchain, request_vcr, mock_logs, m
 def test_openai_chat_model_sync_call(langchain, request_vcr):
     chat = langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
     with request_vcr.use_cassette("openai_chat_completion_sync_call.yaml"):
-        chat([langchain.schema.HumanMessage(content="When do you use 'whom' instead of 'who'?")])
+        chat(messages=[langchain.schema.HumanMessage(content="When do you use 'whom' instead of 'who'?")])
 
 
 @pytest.mark.skipif(sys.version_info >= (3, 10, 0), reason="Python 3.9 specific test")
@@ -622,13 +622,13 @@ def test_openai_embedding_document(langchain, request_vcr):
 @pytest.mark.snapshot
 def test_fake_embedding_query(langchain):
     embeddings = langchain.embeddings.FakeEmbeddings(size=99)
-    embeddings.embed_query("foo")
+    embeddings.embed_query(text="foo")
 
 
 @pytest.mark.snapshot
 def test_fake_embedding_document(langchain):
     embeddings = langchain.embeddings.FakeEmbeddings(size=99)
-    embeddings.embed_documents(["foo", "bar"])
+    embeddings.embed_documents(texts=["foo", "bar"])
 
 
 def test_openai_embedding_metrics(langchain, request_vcr, mock_metrics, mock_logs, snapshot_tracer):
@@ -1269,6 +1269,46 @@ def test_openai_integration(langchain, request_vcr, ddtrace_run_python_code_in_s
             "OPENAI_API_KEY": "<not-a-real-key>",
         }
     )
+    out, err, status, pid = ddtrace_run_python_code_in_subprocess(
+        """
+from langchain.llms import OpenAI
+import ddtrace
+from tests.contrib.langchain.test_langchain import get_request_vcr
+llm = OpenAI()
+with get_request_vcr().use_cassette("openai_completion_sync.yaml"):
+    llm("Can you explain what Descartes meant by 'I think, therefore I am'?")
+""",
+        env=env,
+    )
+    assert status == 0, err
+    assert out == b""
+    assert err == b""
+
+
+@pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Requires unnecessary cassette file for Python 3.9")
+@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
+@pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
+@pytest.mark.parametrize("service_name", [None, "mysvc"])
+def test_openai_service_name(
+    langchain, request_vcr, ddtrace_run_python_code_in_subprocess, schema_version, service_name
+):
+    env = os.environ.copy()
+    pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
+    if "PYTHONPATH" in env:
+        pypath.append(env["PYTHONPATH"])
+    env.update(
+        {
+            "PYTHONPATH": ":".join(pypath),
+            # Disable metrics because the test agent doesn't support metrics
+            "DD_LANGCHAIN_METRICS_ENABLED": "false",
+            "DD_OPENAI_METRICS_ENABLED": "false",
+            "OPENAI_API_KEY": "<not-a-real-key>",
+        }
+    )
+    if service_name:
+        env["DD_SERVICE"] = service_name
+    if schema_version:
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(
         """
 from langchain.llms import OpenAI

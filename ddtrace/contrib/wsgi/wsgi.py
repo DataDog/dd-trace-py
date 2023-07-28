@@ -173,18 +173,17 @@ class _DDWSGIMiddlewareBase(object):
                 span_type=SpanTypes.WEB,
             )
 
-            if self.tracer._appsec_enabled:
-                if core.get_item(HTTP_REQUEST_BLOCKED, span=req_span):
-                    ctype, content = self._make_block_content(environ, headers, req_span)
-                    start_response("403 FORBIDDEN", [("content-type", ctype)])
-                    closing_iterator = [content]
-                    not_blocked = False
+            if core.get_item(HTTP_REQUEST_BLOCKED):
+                ctype, content = self._make_block_content(environ, headers, req_span)
+                start_response("403 FORBIDDEN", [("content-type", ctype)])
+                closing_iterator = [content]
+                not_blocked = False
 
-                def blocked_view():
-                    ctype, content = self._make_block_content(environ, headers, req_span)
-                    return content, 403, [("content-type", ctype)]
+            def blocked_view():
+                ctype, content = self._make_block_content(environ, headers, req_span)
+                return content, 403, [("content-type", ctype)]
 
-                core.dispatch("wsgi.block_decided", [blocked_view])
+            core.dispatch("wsgi.block_decided", [blocked_view])
 
             if not_blocked:
                 req_span.set_tag_str(COMPONENT, self._config.integration_name)
@@ -208,7 +207,7 @@ class _DDWSGIMiddlewareBase(object):
                     app_span.finish()
                     req_span.finish()
                     raise
-                if self.tracer._appsec_enabled and core.get_item(HTTP_REQUEST_BLOCKED, span=req_span):
+                if core.get_item(HTTP_REQUEST_BLOCKED):
                     _, content = self._make_block_content(environ, headers, req_span)
                     closing_iterator = [content]
 
