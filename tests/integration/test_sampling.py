@@ -12,6 +12,7 @@ from .test_integration import AGENT_VERSION
 
 
 pytestmark = pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
+RESOURCE = "mycoolre$ource"
 
 
 def snapshot_parametrized_with_writers(f):
@@ -101,4 +102,12 @@ def test_sampling_with_rate_sampler_with_tiny_rate(writer, tracer):
     sampler = RateSampler(0.0000000001)
     tracer.configure(sampler=sampler, writer=writer)
     with tracer.trace("trace8"):
+        tracer.trace("child").finish()
+
+
+@snapshot_parametrized_with_writers
+def test_sampling_with_default_sample_rate_1_and_rule_with_resource(writer, tracer):
+    sampler = DatadogSampler(default_sample_rate=1, rules=[SamplingRule(1, resource=RESOURCE)])
+    tracer.configure(sampler=sampler, writer=writer)
+    with tracer.trace("trace5"):
         tracer.trace("child").finish()
