@@ -5,16 +5,77 @@
 # file in .circleci/config.templ.yml, add a function named gen_<name> to this
 # file. The function will be called automatically when this script is run.
 
+import typing as t
+
 
 def gen_required_suites(template: dict) -> None:
     """Generate the list of test suites that need to be run."""
     from needs_testrun import for_each_testrun_needed as fetn
+    from suitespec import get_suites
+
+    suites = get_suites()
+    jobs = set(template["jobs"].keys())
 
     required_suites = template["requires_tests"]["requires"] = []
-    fetn(lambda suite: required_suites.append(suite))
+    fetn(suites=sorted(suites & jobs), action=lambda suite: required_suites.append(suite))
 
     requires_base_venvs = template["requires_base_venvs"]
     template["workflows"]["test"]["jobs"].extend([{suite: requires_base_venvs} for suite in required_suites])
+
+
+def gen_pre_checks(template: dict) -> None:
+    """Generate the list of pre-checks that need to be run."""
+    from needs_testrun import pr_matches_patterns
+
+    def check(name: str, command: str, paths: t.Set[str]) -> None:
+        if pr_matches_patterns(paths):
+            template["jobs"]["pre_check"]["steps"].append({"run": {"name": name, "command": command}})
+
+    check(
+        name="Formatting check",
+        command="riot -v run -s fmt && git diff --exit-code",
+        paths={"*.py", "*.pyi"},
+    ),
+    check(
+        name="Flake8 check",
+        command="riot -v run -s flake8",
+        paths={"*.py", "*.pyi"},
+    ),
+    check(
+        name="Mypy check",
+        command="riot -v run -s mypy",
+        paths={"*.py", "*.pyi"},
+    ),
+    check(
+        name="Slots check",
+        command="riot -v run slotscheck",
+        paths={"ddtrace/*.py"},
+    ),
+    check(
+        name="cython-lint check",
+        command="riot -v run -s cython-lint",
+        paths={"*.pyx", "*.pxd"},
+    ),
+    check(
+        name="Run riotfile.py tests",
+        command="riot -v run -s riot-helpers",
+        paths={"riotfile.py"},
+    )
+    check(
+        name="Test agent snapshot check",
+        command="riot -v run -s snapshot-fmt && git diff --exit-code",
+        paths={"tests/snapshots/*"},
+    )
+    check(
+        name="Run scripts/*.py tests",
+        command="riot -v run -s scripts",
+        paths={"scripts/*.py"},
+    )
+    check(
+        name="Running security analysis checks with bandit",
+        command="riot -v run -s bandit",
+        paths={"ddtrace/*"},
+    )
 
 
 # -----------------------------------------------------------------------------
