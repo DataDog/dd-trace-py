@@ -992,7 +992,7 @@ venv = Venv(
         ),
         Venv(
             name="elasticsearch",
-            command="pytest {cmdargs} tests/contrib/elasticsearch/test_elasticsearch.py",
+            command="pytest --ddtrace {cmdargs} tests/contrib/elasticsearch/test_elasticsearch.py",
             venvs=[
                 Venv(
                     pys=select_pys(),
@@ -1057,7 +1057,7 @@ venv = Venv(
         ),
         Venv(
             name="flask",
-            command="pytest {cmdargs} tests/contrib/flask",
+            command="pytest --ddtrace {cmdargs} tests/contrib/flask",
             pkgs={"blinker": latest, "requests": latest},
             venvs=[
                 # Flask 1.x.x
@@ -2831,7 +2831,7 @@ venv = Venv(
         ),
         Venv(
             name="gunicorn",
-            command="pytest {cmdargs} tests/contrib/gunicorn",
+            command="pytest --ddtrace {cmdargs} tests/contrib/gunicorn",
             pkgs={"requests": latest, "gevent": latest},
             venvs=[
                 Venv(
