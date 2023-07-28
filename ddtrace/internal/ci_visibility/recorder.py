@@ -230,11 +230,9 @@ class CIVisibility(Service):
                 "disabled by DD_CIVISIBILITY_ITR_DISABLED environment variable or tracer configuration."
             )
             return
-        elif requests_mode == REQUESTS_MODE.TRACES:
+
+        if requests_mode == REQUESTS_MODE.TRACES:
             log.warning("Test skipping disabled: cannot start git client if mode is not agentless or evp proxy.")
-            return
-        elif not self._code_coverage_enabled_by_api:
-            log.warning("Test skipping disabled: coverage data is not enabled for this service.")
             return
 
         log.info("Datadog Intelligent Test Runner is enabled.")
