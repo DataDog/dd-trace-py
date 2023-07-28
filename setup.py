@@ -375,15 +375,12 @@ class CMakeBuild(build_ext):
                     shutil.copy(iast_artifact, tmp_iast_file_path)
         else:
             build_ext.build_extension(self, ext)
-
-        if CURRENT_OS == "Linux":
-            for _root, _dirs, files in os.walk(path):
-                for file in files:
-                    if file.endswith(".so"):
-                        try:
-                            self.strip_symbols(so)
-                        except Exception:
-                            pass
+            if CURRENT_OS == "Linux":
+                for ext in self.extensions:
+                    try:
+                        self.strip_symbols(self.get_ext_fullpath(ext.name))
+                    except Exception:
+                        pass
 
 
 long_description = """
