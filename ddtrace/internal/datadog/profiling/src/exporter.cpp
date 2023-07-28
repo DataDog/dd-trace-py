@@ -173,8 +173,7 @@ UploaderBuilder::build_ptr()
 Uploader::Uploader(std::string_view _url, ddog_prof_Exporter* _ddog_exporter)
   : ddog_exporter{ _ddog_exporter }
   , url{ _url }
-{
-}
+{}
 
 bool
 Uploader::set_runtime_id(std::string_view id)
