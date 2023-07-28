@@ -1,5 +1,14 @@
 {
     "components": {
+        "$setup": [
+            "setup.py",
+            "setup.cfg",
+            "pyproject.toml"
+        ],
+        "$harness": [
+            "riotfile.py",
+            "scripts/ddtest"
+        ],
         "core": [
             "ddtrace/internal/*",
             "ddtrace/__init__.py",
