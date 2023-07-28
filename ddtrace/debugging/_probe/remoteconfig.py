@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 from typing import Any
 from typing import Callable
@@ -6,6 +7,8 @@ from typing import Dict
 from typing import Iterable
 from typing import Optional
 from typing import Type
+
+import six
 
 from ddtrace import config as tracer_config
 from ddtrace.debugging._config import di_config
@@ -31,6 +34,7 @@ from ddtrace.debugging._probe.model import SpanDecorationLineProbe
 from ddtrace.debugging._probe.model import SpanDecorationTag
 from ddtrace.debugging._probe.model import SpanFunctionProbe
 from ddtrace.debugging._probe.model import StringTemplate
+from ddtrace.debugging._probe.status import ProbeStatusLogger
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
 from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisher
@@ -240,6 +244,10 @@ class SpanDecorationProbeFactory(ProbeFactory):
         )
 
 
+class InvalidProbeConfiguration(ValueError):
+    pass
+
+
 def build_probe(attribs):
     # type: (Dict[str, Any]) -> Probe
     """
@@ -249,7 +257,7 @@ def build_probe(attribs):
         _type = attribs["type"]
         _id = attribs["id"]
     except KeyError as e:
-        raise ValueError("Invalid probe attributes: %s" % e)
+        raise InvalidProbeConfiguration("Invalid probe attributes: %s" % e)
 
     args = dict(
         probe_id=_id,
@@ -263,16 +271,26 @@ def build_probe(attribs):
         return MetricProbeFactory.build(args, attribs)
     if _type == ProbeType.SPAN_PROBE:
         return SpanProbeFactory.build(args, attribs)
-    if _type == ProbeType.SPAN_DECORATE_PROBE:
+    if _type == ProbeType.SPAN_DECORATION_PROBE:
         return SpanDecorationProbeFactory.build(args, attribs)
 
-    raise ValueError("Unsupported probe type: %s" % _type)
+    raise InvalidProbeConfiguration("Unsupported probe type: %s" % _type)
 
 
 @_filter_by_env_and_version
-def get_probes(config_id, config):
-    # type: (str, dict) -> Iterable[Probe]
-    return [build_probe(config)]
+def get_probes(config, status_logger):
+    # type: (dict, ProbeStatusLogger) -> Iterable[Probe]
+    try:
+        return [build_probe(config)]
+    except InvalidProbeConfiguration:
+        six.reraise(*sys.exc_info())
+    except Exception as e:
+        status_logger.error(
+            probe=Probe(probe_id=config["id"], version=config["version"], tags={}),
+            message=str(e),
+            exc_info=sys.exc_info(),
+        )
+        return []
 
 
 class ProbePollerEvent(object):
@@ -292,10 +310,11 @@ class DebuggerRemoteConfigSubscriber(RemoteConfigSubscriber):
     events that can be handled easily by the debugger.
     """
 
-    def __init__(self, data_connector, callback, name):
+    def __init__(self, data_connector, callback, name, status_logger):
         super(DebuggerRemoteConfigSubscriber, self).__init__(data_connector, callback, name)
         self._configs = {}  # type: Dict[str, Dict[str, Probe]]
         self._status_timestamp = time.time()
+        self._status_logger = status_logger
         self._next_status_update_timestamp()
 
     def _exec_callback(self, data, test_tracer=None):
@@ -342,7 +361,9 @@ class DebuggerRemoteConfigSubscriber(RemoteConfigSubscriber):
         # type: (str, Any) -> None
         prev_probes = self._configs.get(config_id, {})  # type: Dict[str, Probe]
         next_probes = (
-            {probe.probe_id: probe for probe in get_probes(config_id, config)} if config not in (None, False) else {}
+            {probe.probe_id: probe for probe in get_probes(config, self._status_logger)}
+            if config not in (None, False)
+            else {}
         )  # type: Dict[str, Probe]
         log.debug("[%s][P: %s] Dynamic Instrumentation, dispatch probe events", os.getpid(), os.getppid())
         self._dispatch_probe_events(prev_probes, next_probes)
@@ -358,6 +379,6 @@ class ProbeRCAdapter(PubSub):
     __subscriber_class__ = DebuggerRemoteConfigSubscriber
     __shared_data__ = PublisherSubscriberConnector()
 
-    def __init__(self, _preprocess_results, callback):
+    def __init__(self, _preprocess_results, callback, status_logger):
         self._publisher = self.__publisher_class__(self.__shared_data__, _preprocess_results)
-        self._subscriber = self.__subscriber_class__(self.__shared_data__, callback, "DEBUGGER")
+        self._subscriber = self.__subscriber_class__(self.__shared_data__, callback, "DEBUGGER", status_logger)
