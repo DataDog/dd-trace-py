@@ -1,6 +1,6 @@
 BENCHMARK_INFO = "benchmark.duration.info"
 BENCHMARK_MEAN = "benchmark.duration.mean"
-BENCHMARK_RUN = "benchmark.duration.run"
+BENCHMARK_RUN = "benchmark.duration.runs"
 
 STATISTICS_HD15IQR = "benchmark.duration.statistics.hd15iqr"
 STATISTICS_IQR = "benchmark.duration.statistics.iqr"
