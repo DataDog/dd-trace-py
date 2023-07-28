@@ -29,6 +29,7 @@
             "ddtrace/sampler.py",
             "ddtrace/span.py",
             "ddtrace/tracer.py",
+            "ddtrace/tracing/*",
             "ddtrace/settings/__init__.py",
             "ddtrace/settings/config.py",
             "ddtrace/settings/http.py",
