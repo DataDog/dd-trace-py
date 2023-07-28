@@ -4,17 +4,13 @@ Any `sampled = False` trace won't be written, and can be ignored by the instrume
 """
 import abc
 import os
-from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
 from typing import TYPE_CHECKING
-from typing import Tuple
 from typing import Union
 
 import six
-
-from ddtrace.internal.glob_matching import GlobMatcher
 
 from .constants import AUTO_KEEP
 from .constants import AUTO_REJECT
@@ -26,13 +22,12 @@ from .constants import SAMPLING_RULE_DECISION
 from .constants import USER_KEEP
 from .constants import USER_REJECT
 from .internal.compat import iteritems
-from .internal.compat import pattern_type
 from .internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
 from .internal.logger import get_logger
 from .internal.rate_limiter import RateLimiter
 from .internal.sampling import SamplingMechanism
+from .internal.sampling import SamplingRule
 from .internal.sampling import update_sampling_decision
-from .internal.utils.cache import cachedmethod
 
 
 try:
@@ -383,229 +378,3 @@ class DatadogSampler(RateByServiceSampler):
             sampled = super(DatadogSampler, self).sample(trace)
 
         return sampled
-
-
-class SamplingRule(BaseSampler):
-    """
-    Definition of a sampling rule used by :class:`DatadogSampler` for applying a sample rate on a span
-    """
-
-    NO_RULE = object()
-
-    def __init__(
-        self,
-        sample_rate,  # type: float
-        service=NO_RULE,  # type: Any
-        name=NO_RULE,  # type: Any
-        resource=NO_RULE,  # type: Any
-        tags=NO_RULE,  # type: Optional[Dict[str, Any]]
-        target_span="root",  # type: str
-    ):
-        # type: (...) -> None
-        """
-        Configure a new :class:`SamplingRule`
-
-        .. code:: python
-
-            DatadogSampler([
-                # Sample 100% of any trace
-                SamplingRule(sample_rate=1.0),
-
-                # Sample no healthcheck traces
-                SamplingRule(sample_rate=0, name='flask.request'),
-
-                # Sample all services ending in `-db` based on a regular expression
-                SamplingRule(sample_rate=0.5, service=re.compile('-db$')),
-
-                # Sample based on service name using custom function
-                SamplingRule(sample_rate=0.75, service=lambda service: 'my-app' in service),
-            ])
-
-        :param sample_rate: The sample rate to apply to any matching spans
-        :type sample_rate: :obj:`float` greater than or equal to 0.0 and less than or equal to 1.0
-        :param service: Rule to match the `span.service` on, default no rule defined
-        :type service: :obj:`object` to directly compare, :obj:`function` to evaluate, or :class:`re.Pattern` to match
-        :param name: Rule to match the `span.name` on, default no rule defined
-        :type name: :obj:`object` to directly compare, :obj:`function` to evaluate, or :class:`re.Pattern` to match
-        """
-        # Enforce sample rate constraints
-        if not 0.0 <= sample_rate <= 1.0:
-            raise ValueError(
-                (
-                    "SamplingRule(sample_rate={}) must be greater than or equal to 0.0 and less than or equal to 1.0"
-                ).format(sample_rate)
-            )
-        self._service_matcher = GlobMatcher(service) if service is not None and type(service) is str else None
-        self._name_matcher = GlobMatcher(name) if name is not None and type(name) is str else None
-        self._resource_matcher = GlobMatcher(resource) if resource is not None and type(resource) is str else None
-        self._tag_value_matchers = (
-            {k: GlobMatcher(v) for k, v in tags.items()} if tags is not None and type(tags) is dict else {}
-        )
-
-        self.sample_rate = sample_rate
-        self.service = service
-        self.name = name
-        self.tags = tags
-        self.resource = resource
-        # default root
-        self.target_span = target_span
-
-    @property
-    def sample_rate(self):
-        # type: () -> float
-        return self._sample_rate
-
-    @sample_rate.setter
-    def sample_rate(self, sample_rate):
-        # type: (float) -> None
-        self._sample_rate = sample_rate
-        self._sampling_id_threshold = sample_rate * _MAX_UINT_64BITS
-
-    def _pattern_matches(self, prop, pattern):
-        # If the rule is not set, then assume it matches
-        # DEV: Having no rule and being `None` are different things
-        #   e.g. ignoring `span.service` vs `span.service == None`
-        if pattern is self.NO_RULE:
-            return True
-        # If the pattern is callable (e.g. a function) then call it passing the prop
-        #   The expected return value is a boolean so cast the response in case it isn't
-        if callable(pattern):
-            try:
-                return bool(pattern(prop))
-            except Exception:
-                log.warning("%r pattern %r failed with %r", self, pattern, prop, exc_info=True)
-                # Their function failed to validate, assume it is a False
-                return False
-
-        # The pattern is a regular expression and the prop is a string
-        if isinstance(pattern, pattern_type):
-            try:
-                return bool(pattern.match(str(prop)))
-            except (ValueError, TypeError):
-                # This is to guard us against the casting to a string (shouldn't happen, but still)
-                log.warning("%r pattern %r failed with %r", self, pattern, prop, exc_info=True)
-                return False
-
-        # Exact match on the values
-        if prop == pattern:
-            return True
-
-    @cachedmethod()
-    def _matches(self, key):
-        # type: (Tuple[Optional[str], str]) -> bool
-        service, name = key
-        for prop, pattern in [(service, self.service), (name, self.name)]:
-            if not self._pattern_matches(prop, pattern):
-                return False
-        else:
-            return True
-
-    def matches(self, span):
-        # type: (Span) -> bool
-        """
-        Return if this span matches this rule
-
-        :param span: The span to match against
-        :type span: :class:`ddtrace.span.Span`
-        :returns: Whether this span matches or not
-        :rtype: :obj:`bool`
-        """
-        # if we're just interested in root spans and this isn't one, then return False
-        if self.target_span == "root":
-            if span.parent_id is not None:
-                return False
-
-        # glob matching does not support patterns of function or regex
-        if type(self.name) is str and type(self.service) is str:
-            glob_match = self.glob_matches(span)
-        else:
-            glob_match = False
-        # self._matches exists to maintain legacy pattern values such as regex and functions
-        return glob_match or self._matches((span.service, span.name))
-
-    def glob_matches(self, span):
-        # type: (Span) -> bool
-        name = span.name
-        service = span.service
-        resource = span.resource
-        tags = span.get_tags()
-
-        # Default to True in the absence of a rule
-        # For whichever rules it does have, it will attempt to match on them
-        service_match = True
-        name_match = True
-        resource_match = True
-        tag_match = True
-
-        if self._service_matcher:
-            if service is None:
-                return False
-            else:
-                service_match = self._service_matcher.match(service)
-
-        if self._name_matcher:
-            if name is None:
-                return False
-            else:
-                name_match = self._name_matcher.match(name)
-
-        if self._resource_matcher:
-            if resource is None:
-                return False
-            else:
-                resource_match = self._resource_matcher.match(resource)
-
-        if self._tag_value_matchers:
-            tag_match = self.tag_match(tags)
-
-        return service_match and name_match and resource_match and tag_match
-
-    def tag_match(self, tags):
-        if tags is None:
-            return False
-
-        for tag_key in self._tag_value_matchers.keys():
-            value = tags.get(tag_key)
-            if value is not None:
-                tag_match = self._tag_value_matchers[tag_key].match(value)
-            else:
-                # if we don't match with all specified tags for a rule, it's not a match
-                return False
-        return tag_match
-
-    def sample(self, span):
-        # type: (Span) -> bool
-        """
-        Return if this rule chooses to sample the span
-
-        :param span: The span to sample against
-        :type span: :class:`ddtrace.span.Span`
-        :returns: Whether this span was sampled
-        :rtype: :obj:`bool`
-        """
-        if self.sample_rate == 1:
-            return True
-        elif self.sample_rate == 0:
-            return False
-
-        return ((span._trace_id_64bits * KNUTH_FACTOR) % _MAX_UINT_64BITS) <= self._sampling_id_threshold
-
-    def _no_rule_or_self(self, val):
-        return "NO_RULE" if val is self.NO_RULE else val
-
-    def __repr__(self):
-        return "{}(sample_rate={!r}, service={!r}, name={!r})".format(
-            self.__class__.__name__,
-            self.sample_rate,
-            self._no_rule_or_self(self.service),
-            self._no_rule_or_self(self.name),
-        )
-
-    __str__ = __repr__
-
-    def __eq__(self, other):
-        # type: (Any) -> bool
-        if not isinstance(other, SamplingRule):
-            raise TypeError("Cannot compare SamplingRule to {}".format(type(other)))
-
-        return self.sample_rate == other.sample_rate and self.service == other.service and self.name == other.name
