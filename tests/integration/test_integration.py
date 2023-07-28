@@ -2,9 +2,7 @@
 import itertools
 import logging
 import os
-import subprocess
 import sys
-import time
 
 import mock
 import pytest
@@ -12,8 +10,6 @@ import six
 
 import ddtrace
 from ddtrace import Tracer
-from ddtrace.constants import AUTO_KEEP
-from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.internal import agent
 from ddtrace.internal import compat
 from ddtrace.internal.ci_visibility.constants import AGENTLESS_ENDPOINT
@@ -23,11 +19,16 @@ from ddtrace.internal.ci_visibility.constants import EVP_SUBDOMAIN_HEADER_EVENT_
 from ddtrace.internal.ci_visibility.constants import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.internal.ci_visibility.recorder import CIVisibility
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
-from ddtrace.internal.encoding import JSONEncoder
-from ddtrace.internal.encoding import MsgpackEncoderV03 as Encoder
 from ddtrace.internal.runtime import container
 from ddtrace.internal.utils.http import Response
 from ddtrace.internal.writer import AgentWriter
+from tests.integration.utils import AGENT_VERSION
+from tests.integration.utils import BadEncoder
+from tests.integration.utils import import_ddtrace_in_subprocess
+from tests.integration.utils import mark_snapshot
+from tests.integration.utils import parametrize_with_all_encodings
+from tests.integration.utils import send_invalid_payload_and_get_logs
+from tests.integration.utils import skip_if_testagent
 from tests.utils import AnyFloat
 from tests.utils import AnyInt
 from tests.utils import AnyStr
@@ -36,97 +37,8 @@ from tests.utils import override_env
 from tests.utils import override_global_config
 
 
-AGENT_VERSION = os.environ.get("AGENT_VERSION")
 FOUR_KB = 1 << 12
 LONG_STRING = "a" * 250
-
-
-class BadEncoder:
-    content_type = ""
-
-    def __len__(self):
-        return 0
-
-    def put(self, trace):
-        pass
-
-    def encode(self):
-        return b"bad_payload"
-
-    def encode_traces(self, traces):
-        return b"bad_payload"
-
-
-def send_invalid_payload_and_get_logs(encoder_cls=BadEncoder):
-    t = Tracer()
-    for client in t._writer._clients:
-        client.encoder = encoder_cls()
-    with mock.patch("ddtrace.internal.writer.writer.log") as log:
-        t.trace("asdf").finish()
-        t.shutdown()
-    return log
-
-
-def parametrize_with_all_encodings(f):
-    return pytest.mark.parametrize("encoding", ["v0.5", "v0.4"])(f)
-
-
-def mark_snapshot(f):
-    f = pytest.mark.snapshot()(f)
-    return pytest.mark.skipif(
-        AGENT_VERSION != "testagent", reason="snapshot tests are only compatible with the testagent"
-    )(f)
-
-
-def skip_if_testagent(f):
-    return pytest.mark.skipif(
-        AGENT_VERSION == "testagent", reason="FIXME: Test agent doesn't support this for some reason."
-    )(f)
-
-
-def import_ddtrace_in_subprocess(env):
-    p = subprocess.Popen(
-        [sys.executable, "-c", "import ddtrace"],
-        env=env or dict(),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    p.wait()
-    return p
-
-
-def _prime_tracer_with_priority_sample_rate_from_agent(t, service, env):
-    # Send the data once because the agent doesn't respond with them on the
-    # first payload.
-    s = t.trace("operation", service=service)
-    s.finish()
-    t.flush()
-
-    sampler_key = "service:{},env:{}".format(service, env)
-    while sampler_key not in t._writer._priority_sampler._by_service_samplers:
-        time.sleep(1)
-        s = t.trace("operation", service=service)
-        s.finish()
-        t.flush()
-
-
-def _turn_tracer_into_dummy(tracer):
-    """Override tracer's writer's write() method to keep traces instead of sending them away"""
-
-    def monkeypatched_write(self, spans=None):
-        if spans:
-            traces = [spans]
-            self.json_encoder.encode_traces(traces)
-            self.msgpack_encoder.put(spans)
-            self.msgpack_encoder.encode()
-            self.spans += spans
-            self.traces += traces
-
-    tracer._writer.spans = []
-    tracer._writer.traces = []
-    tracer._writer.json_encoder = JSONEncoder()
-    tracer._writer.msgpack_encoder = Encoder(4 << 20, 4 << 20)
-    tracer._writer.write = monkeypatched_write.__get__(tracer._writer, AgentWriter)
 
 
 def test_configure_keeps_api_hostname_and_port():
@@ -494,66 +406,6 @@ def test_validate_headers_in_payload_to_intake_with_nested_spans(encoding, monke
     assert t._writer._put.call_count == 1
     headers = t._writer._put.call_args[0][1]
     assert headers.get("X-Datadog-Trace-Count") == "10"
-
-
-@parametrize_with_all_encodings
-@skip_if_testagent
-def test_priority_sampling_response(encoding, monkeypatch):
-    monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
-
-    _id = time.time()
-    env = "my-env-{}".format(_id)
-    with override_global_config(dict(env=env)):
-        service = "my-svc-{}".format(_id)
-        sampler_key = "service:{},env:{}".format(service, env)
-        t = Tracer()
-        assert sampler_key not in t._writer._priority_sampler._by_service_samplers
-        _prime_tracer_with_priority_sample_rate_from_agent(t, service, env)
-        assert (
-            sampler_key in t._writer._priority_sampler._by_service_samplers
-        ), "after fetching priority sample rates from the agent, the tracer should hold those rates"
-        t.shutdown()
-
-
-@parametrize_with_all_encodings
-@skip_if_testagent
-def test_priority_sampling_rate_honored(encoding, monkeypatch):
-    monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
-
-    _id = time.time()
-    env = "my-env-{}".format(_id)
-    with override_global_config(dict(env=env)):
-        service = "my-svc-{}".format(_id)
-        t = Tracer()
-
-        # send a ton of traces from different services to make the agent adjust its sample rate for ``service,env``
-        for i in range(100):
-            s = t.trace("operation", service="dummysvc{}".format(i))
-            s.finish()
-        t.flush()
-
-        _prime_tracer_with_priority_sample_rate_from_agent(t, service, env)
-        sampler_key = "service:{},env:{}".format(service, env)
-        assert sampler_key in t._writer._priority_sampler._by_service_samplers
-
-        rate_from_agent = t._writer._priority_sampler._by_service_samplers[sampler_key].sample_rate
-        assert 0 < rate_from_agent < 1
-
-        _turn_tracer_into_dummy(t)
-        captured_span_count = 100
-        for _ in range(captured_span_count):
-            with t.trace("operation", service=service) as s:
-                pass
-            t.flush()
-        assert len(t._writer.traces) == captured_span_count
-        sampled_spans = [s for s in t._writer.spans if s.context._metrics[SAMPLING_PRIORITY_KEY] == AUTO_KEEP]
-        sampled_ratio = len(sampled_spans) / captured_span_count
-        diff_magnitude = abs(sampled_ratio - rate_from_agent)
-        assert (
-            diff_magnitude < 0.3
-        ), "the proportion of sampled spans should approximate the sample rate given by the agent"
-
-        t.shutdown()
 
 
 @skip_if_testagent
