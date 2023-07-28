@@ -20,7 +20,6 @@ from typing import Dict
 from _pytest.nodes import get_fslocation_from_item
 import pytest
 
-import ddtrace
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.pytest.constants import FRAMEWORK
 from ddtrace.contrib.pytest.constants import HELP_MSG
@@ -290,6 +289,8 @@ def pytest_addoption(parser):
 def pytest_configure(config):
     config.addinivalue_line("markers", "dd_tags(**kwargs): add tags to current span")
     if is_enabled(config):
+        import ddtrace
+
         _CIVisibility.enable(config=ddtrace.config.pytest)
 
 
@@ -338,12 +339,16 @@ def ddspan(request):
 def ddtracer():
     if _CIVisibility.enabled:
         return _CIVisibility._instance.tracer
+    import ddtrace
+
     return ddtrace.tracer
 
 
 @pytest.fixture(scope="session", autouse=True)
 def patch_all(request):
     if request.config.getoption("ddtrace-patch-all") or request.config.getini("ddtrace-patch-all"):
+        import ddtrace
+
         ddtrace.patch_all()
 
 
@@ -389,6 +394,8 @@ def pytest_runtest_protocol(item, nextitem):
     if not _CIVisibility.enabled:
         yield
         return
+
+    import ddtrace
 
     is_skipped_by_itr = [
         marker
