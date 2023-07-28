@@ -13,7 +13,6 @@ def pytest_configure(config):
 
 
 class _PytestBenchmarkPlugin:
-
     @pytest.hookimpl()
     def pytest_runtest_makereport(self, item, call):
         fixture_exists = hasattr(item, "funcargs") and item.funcargs.get("benchmark")
