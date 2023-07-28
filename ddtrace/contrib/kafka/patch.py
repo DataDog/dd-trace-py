@@ -33,6 +33,14 @@ config._add(
 
 
 class TracedProducer(confluent_kafka.Producer):
+    def __init__(self, config, *args, **kwargs):
+        super(TracedProducer, self).__init__(config, *args, **kwargs)
+        self._dd_bootstrap_servers = (
+            config.get("bootstrap.servers")
+            if config.get("bootstrap.servers") is not None
+            else config.get("metadata.broker.list")
+        )
+
     def produce(self, topic, value=None, *args, **kwargs):
         super(TracedProducer, self).produce(topic, value, *args, **kwargs)
 
@@ -108,10 +116,12 @@ def traced_produce(func, instance, args, kwargs):
         span.set_tag_str(COMPONENT, config.kafka.integration_name)
         span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
         span.set_tag_str(kafkax.TOPIC, topic)
-        span.set_tag_str(kafkax.MESSAGE_KEY, ensure_text(message_key))
+        span.set_tag_str(kafkax.MESSAGE_KEY, ensure_text(message_key, errors="replace"))
         span.set_tag(kafkax.PARTITION, partition)
         span.set_tag_str(kafkax.TOMBSTONE, str(value is None))
         span.set_tag(SPAN_MEASURED_KEY)
+        if instance._dd_bootstrap_servers is not None:
+            span.set_tag_str(kafkax.HOST_LIST, instance._dd_bootstrap_servers)
         rate = config.kafka.get_analytics_sample_rate()
         if rate is not None:
             span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, rate)
@@ -144,7 +154,7 @@ def traced_poll(func, instance, args, kwargs):
             message_key = message.key() or ""
             message_offset = message.offset() or -1
             span.set_tag_str(kafkax.TOPIC, message.topic())
-            span.set_tag_str(kafkax.MESSAGE_KEY, ensure_text(message_key))
+            span.set_tag_str(kafkax.MESSAGE_KEY, ensure_text(message_key, errors="replace"))
             span.set_tag(kafkax.PARTITION, message.partition())
             span.set_tag_str(kafkax.TOMBSTONE, str(len(message) == 0))
             span.set_tag(kafkax.MESSAGE_OFFSET, message_offset)

@@ -1,5 +1,4 @@
 import json
-import os
 import re
 from typing import Optional
 from typing import TYPE_CHECKING
@@ -15,9 +14,11 @@ from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC_NO_LIMIT
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
+from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.glob_matching import GlobMatcher
 from ddtrace.internal.logger import get_logger
 from ddtrace.sampler import SamplingRule
+from ddtrace.settings import _config as config
 
 from .rate_limiter import RateLimiter
 
@@ -55,8 +56,6 @@ class SamplingMechanism(object):
     REMOTE_RATE_DATADOG = 7
     SPAN_SAMPLING_RULE = 8
 
-
-SAMPLING_DECISION_TRACE_TAG_KEY = "_dd.p.dm"
 
 # Use regex to validate trace tag value
 TRACE_TAG_RE = re.compile(r"^-([0-9])$")
@@ -254,10 +253,6 @@ class SpanSamplingRule:
 def get_span_sampling_rules():
     # type: () -> List[SpanSamplingRule]
     json_rules = _get_span_sampling_json()
-    if json_rules:
-        from jsonschema import validate
-
-        validate(json_rules, SPAN_SAMPLING_JSON_SCHEMA)
     sampling_rules = []
     for rule in json_rules:
         # If sample_rate not specified default to 100%
@@ -265,8 +260,11 @@ def get_span_sampling_rules():
         service = rule.get("service")
         name = rule.get("name")
         resource = rule.get("resource")
-
         tags = rule.get("tags")
+
+        if not service and not name:
+            raise ValueError("Sampling rules must supply at least 'service' or 'name', got {}".format(json.dumps(rule)))
+
         # If max_per_second not specified default to no limit
         max_per_second = rule.get("max_per_second", _SINGLE_SPAN_SAMPLING_MAX_PER_SEC_NO_LIMIT)
         if service:
@@ -307,7 +305,7 @@ def _get_span_sampling_json():
 
 def _get_file_json():
     # type: () -> Optional[List[Dict[str, Any]]]
-    file_json_raw = os.getenv("DD_SPAN_SAMPLING_RULES_FILE")
+    file_json_raw = config._sampling_rules_file
     if file_json_raw:
         with open(file_json_raw) as f:
             return _load_span_sampling_json(f.read())
@@ -316,7 +314,7 @@ def _get_file_json():
 
 def _get_env_json():
     # type: () -> Optional[List[Dict[str, Any]]]
-    env_json_raw = os.getenv("DD_SPAN_SAMPLING_RULES")
+    env_json_raw = config._sampling_rules
     if env_json_raw:
         return _load_span_sampling_json(env_json_raw)
     return None

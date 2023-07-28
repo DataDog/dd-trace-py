@@ -15,6 +15,7 @@ W3C_TRACESTATE_KEY = "tracestate"
 W3C_TRACEPARENT_KEY = "traceparent"
 W3C_TRACESTATE_ORIGIN_KEY = "o"
 W3C_TRACESTATE_SAMPLING_PRIORITY_KEY = "s"
+SAMPLING_DECISION_TRACE_TAG_KEY = "_dd.p.dm"
 DEFAULT_SERVICE_NAME = "unnamed_python_service"
 # Used to set the name of an integration on a span
 COMPONENT = "component"
@@ -24,7 +25,7 @@ SPAN_API_DATADOG = "datadog"
 SPAN_API_OTEL = "otel"
 SPAN_API_OPENTRACING = "opentracing"
 
-APPSEC_BLOCKED_RESPONSE_HTML = """
+BLOCKED_RESPONSE_HTML = """
 <!DOCTYPE html><html lang="en"><head> <meta charset="UTF-8"> <meta name="viewport"
 content="width=device-width,initial-scale=1"> <title>You've been blocked</title>
 <style>a, body, div, html, span{margin: 0; padding: 0; border: 0; font-size: 100%;
@@ -43,9 +44,21 @@ line-height: normal; color: #646464; font-family: sans-serif; font-weight: 400}a
 <footer> <p>Security provided by
 <a href="https://www.datadoghq.com/product/security-platform/application-security-monitoring/"
 target="_blank">Datadog</a></p></footer></body></html>"""
-APPSEC_BLOCKED_RESPONSE_JSON = (
+BLOCKED_RESPONSE_JSON = (
     '{"errors": [{"title": "You\'ve been blocked", "detail": "Sorry, you cannot access '
     'this page. Please contact the customer service team. Security provided by Datadog."}]}'
 )
+HTTP_REQUEST_BLOCKED = "http.request.blocked"
+RESPONSE_HEADERS = "http.response.headers"
+HTTP_REQUEST_QUERY = "http.request.query"
+HTTP_REQUEST_COOKIE_VALUE = "http.request.cookie.value"
+HTTP_REQUEST_COOKIE_NAME = "http.request.cookie.name"
+HTTP_REQUEST_PATH = "http.request.path"
+HTTP_REQUEST_HEADER_NAME = "http.request.header.name"
+HTTP_REQUEST_HEADER = "http.request.header"
+HTTP_REQUEST_PARAMETER = "http.request.parameter"
+HTTP_REQUEST_BODY = "http.request.body"
+HTTP_REQUEST_PATH_PARAMETER = "http.request.path.parameter"
+REQUEST_PATH_PARAMS = "http.request.path_params"
 
 MESSAGING_SYSTEM = "messaging.system"

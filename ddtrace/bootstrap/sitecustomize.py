@@ -10,7 +10,8 @@ import sys
 import warnings  # noqa
 
 from ddtrace import config  # noqa
-from ddtrace.debugging._config import config as debugger_config  # noqa
+from ddtrace.debugging._config import di_config  # noqa
+from ddtrace.debugging._config import ed_config  # noqa
 from ddtrace.internal.compat import PY2  # noqa
 from ddtrace.internal.logger import get_logger  # noqa
 from ddtrace.internal.module import ModuleWatchdog  # noqa
@@ -19,7 +20,6 @@ from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker  # noqa
 from ddtrace.internal.utils.formats import asbool  # noqa
 from ddtrace.internal.utils.formats import parse_tags_str  # noqa
 from ddtrace.tracer import DD_LOG_FORMAT  # noqa
-from ddtrace.tracer import debug_mode  # noqa
 from ddtrace.vendor.debtcollector import deprecate  # noqa
 
 
@@ -35,8 +35,7 @@ if config.logs_injection:
 # upon initializing it the first time.
 # See https://github.com/python/cpython/blob/112e4afd582515fcdcc0cde5012a4866e5cfda12/Lib/logging/__init__.py#L1550
 # Debug mode from the tracer will do a basicConfig so only need to do this otherwise
-call_basic_config = asbool(os.environ.get("DD_CALL_BASIC_CONFIG", "false"))
-if not debug_mode and call_basic_config:
+if not config._debug_mode and config._call_basic_config:
     deprecate(
         "ddtrace.tracer.logging.basicConfig",
         message="`logging.basicConfig()` should be called in a user's application."
@@ -107,8 +106,10 @@ def cleanup_loaded_modules():
             "concurrent",
             "typing",
             "re",  # referenced by the typing module
+            "sre_constants",  # imported by re at runtime
             "logging",
             "attr",
+            "google",
             "google.protobuf",  # the upb backend in >= 4.21 does not like being unloaded
         ]
     )
@@ -159,12 +160,12 @@ try:
         log.debug("profiler enabled via environment variable")
         import ddtrace.profiling.auto  # noqa: F401
 
-    if debugger_config.enabled:
+    if di_config.enabled or ed_config.enabled:
         from ddtrace.debugging import DynamicInstrumentation
 
         DynamicInstrumentation.enable()
 
-    if asbool(os.getenv("DD_RUNTIME_METRICS_ENABLED")):
+    if config._runtime_metrics_enabled:
         RuntimeWorker.enable()
 
     if asbool(os.getenv("DD_IAST_ENABLED", False)):
@@ -203,15 +204,12 @@ try:
         env_tags = os.getenv("DD_TRACE_GLOBAL_TAGS")
         tracer.set_tags(parse_tags_str(env_tags))
 
-    if sys.version_info >= (3, 7) and asbool(os.getenv("DD_TRACE_OTEL_ENABLED", False)):
+    if sys.version_info >= (3, 7) and config._otel_enabled:
         from opentelemetry.trace import set_tracer_provider
 
         from ddtrace.opentelemetry import TracerProvider
 
         set_tracer_provider(TracerProvider())
-        # Replaces the default otel api runtime context with DDRuntimeContext
-        # https://github.com/open-telemetry/opentelemetry-python/blob/v1.16.0/opentelemetry-api/src/opentelemetry/context/__init__.py#L53
-        os.environ["OTEL_PYTHON_CONTEXT"] = "ddcontextvars_context"
 
     # Check for and import any sitecustomize that would have normally been used
     # had ddtrace-run not been used.
@@ -256,12 +254,12 @@ try:
     should_start_appsec_remoteconfig = config._appsec_enabled or asbool(
         os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", "true")
     )
-
     if should_start_appsec_remoteconfig:
         from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
 
         enable_appsec_rc()
 
+    config._ddtrace_bootstrapped = True
     # Loading status used in tests to detect if the `sitecustomize` has been
     # properly loaded without exceptions. This must be the last action in the module
     # when the execution ends with a success.

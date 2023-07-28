@@ -1,8 +1,5 @@
 from ddtrace import config
-import ddtrace.appsec._asm_request_context as _asmrc
-from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._constants import SPAN_DATA_NAMES
-from ddtrace.appsec.iast._util import _is_iast_enabled
+from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.vendor.wrapt import function_wrapper
 
@@ -33,24 +30,14 @@ def wrap_view(instance, func, name=None, resource=None):
         with pin.tracer.trace(name, service=trace_utils.int_service(pin, config.flask), resource=resource) as span:
             span.set_tag_str(COMPONENT, config.flask.integration_name)
 
-            # if Appsec is enabled, we can try to block as we have the path parameters at that point
-            if config._appsec_enabled and _asmrc.in_context():
-                log.debug("Flask WAF call for Suspicious Request Blocking on request")
-                if kwargs:
-                    _asmrc.set_waf_address(SPAN_DATA_NAMES.REQUEST_PATH_PARAMS, kwargs)
-                _asmrc.call_waf_callback()
-                if _asmrc.is_blocked():
-                    callback_block = _asmrc.get_value(_asmrc._CALLBACKS, "flask_block")
-                    if callback_block:
-                        return callback_block()
-
-            # If IAST is enabled, taint the Flask function kwargs (path parameters)
-            if _is_iast_enabled() and kwargs:
-                from ddtrace.appsec.iast._input_info import Input_info
-                from ddtrace.appsec.iast._taint_tracking import taint_pyobject
-
-                for k, v in kwargs.items():
-                    kwargs[k] = taint_pyobject(v, Input_info(k, v, IAST.HTTP_REQUEST_PATH_PARAMETER))
+            results, exceptions = core.dispatch("flask.wrapped_view", [kwargs])
+            if results and results[0]:
+                callback_block, _kwargs = results[0]
+                if callback_block:
+                    return callback_block()
+                if _kwargs:
+                    for k in kwargs:
+                        kwargs[k] = _kwargs[k]
 
             return wrapped(*args, **kwargs)
 
