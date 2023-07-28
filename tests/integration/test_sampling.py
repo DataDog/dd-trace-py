@@ -17,8 +17,8 @@ def snapshot_parametrized_with_writers(f):
                 priority_sampler=tracer._priority_sampler,
                 sync_mode=True,
             )
-            # Need to copy the headers which contain the test token to associate
-            # traces with this test case.
+            # NB Need to copy the headers, which contain the snapshot token, to associate
+            # snapshots with this test case
             writer._headers = tracer._writer._headers
         else:
             writer = tracer._writer
@@ -95,6 +95,5 @@ def test_sampling_with_default_sample_rate_1_and_manual_keep(writer, tracer):
 def test_sampling_with_rate_sampler_with_tiny_rate(writer, tracer):
     sampler = RateSampler(0.0000000001)
     tracer.configure(sampler=sampler, writer=writer)
-    # This trace should not appear in the snapshot
     with tracer.trace("trace8"):
         tracer.trace("child").finish()
