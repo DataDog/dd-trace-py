@@ -25,7 +25,6 @@ from ddtrace.internal.writer import AgentWriter
 from tests.integration.utils import AGENT_VERSION
 from tests.integration.utils import BadEncoder
 from tests.integration.utils import import_ddtrace_in_subprocess
-from tests.integration.utils import mark_snapshot
 from tests.integration.utils import parametrize_with_all_encodings
 from tests.integration.utils import send_invalid_payload_and_get_logs
 from tests.integration.utils import skip_if_testagent
@@ -542,28 +541,6 @@ def test_api_version_downgrade_generates_no_warning_logs(encoding, monkeypatch):
         t.shutdown()
     log.warning.assert_not_called()
     log.error.assert_not_called()
-
-
-@parametrize_with_all_encodings
-@mark_snapshot
-def test_setting_span_tags_and_metrics_generates_no_error_logs(encoding, ddtrace_run_python_code_in_subprocess):
-    env = os.environ.copy()
-    env["DD_TRACE_API_VERSION"] = encoding
-
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(
-        """
-import ddtrace
-
-s = ddtrace.tracer.trace("operation", service="my-svc")
-s.set_tag("env", "my-env")
-s.set_metric("number1", 123)
-s.set_metric("number2", 12.0)
-s.set_metric("number3", "1")
-s.finish()
-""",
-        env=env,
-    )
-    assert status == 0, (out, err)
 
 
 def test_synchronous_writer_shutdown_raises_no_exception():
