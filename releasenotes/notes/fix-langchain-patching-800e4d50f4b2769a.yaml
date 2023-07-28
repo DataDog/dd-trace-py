@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    langchain: This fix resolves an issue where ``langchain.embeddings.HuggingFaceEmbeddings`` embedding
+     methods, and ``langchain.vectorstores.Milvus.similarity_search`` were patched twice
+     due to a nested class hierarchy in ``langchain``. 

@@ -125,12 +125,12 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
             req_span, config.flask, status_code=code, response_headers=headers, route=req_span.get_tag(FLASK_URL_RULE)
         )
 
-        if not core.get_item(HTTP_REQUEST_BLOCKED, span=req_span):
+        if not core.get_item(HTTP_REQUEST_BLOCKED):
             headers_from_context = ""
             results, exceptions = core.dispatch("flask.start_response", [])
             if not any(exceptions) and results and results[0]:
                 headers_from_context = results[0]
-            if core.get_item(HTTP_REQUEST_BLOCKED, span=req_span):
+            if core.get_item(HTTP_REQUEST_BLOCKED):
                 # response code must be set here, or it will be too late
                 ctype = "text/html" if "text/html" in headers_from_context else "text/json"
                 response_headers = [("content-type", ctype)]
@@ -565,7 +565,7 @@ def _set_block_tags(span):
 
 def _block_request_callable(span):
     request = flask.request
-    core.set_item(HTTP_REQUEST_BLOCKED, True, span=span)
+    core.set_item(HTTP_REQUEST_BLOCKED, True)
     _set_block_tags(span)
     ctype = "text/html" if "text/html" in request.headers.get("Accept", "").lower() else "text/json"
     abort(flask.Response(http_utils._get_blocked_template(ctype), content_type=ctype, status=403))
