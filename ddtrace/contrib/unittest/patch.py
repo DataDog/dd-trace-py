@@ -21,6 +21,9 @@ from ddtrace.internal.ci_visibility.constants import SUITE_TYPE as _SUITE_TYPE
 from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.constants import COMPONENT
 
+import os
+import inspect
+
 def _store_span(item, span):
     """Store span at `unittest` instance."""
     setattr(item, "_datadog_span", span)
@@ -40,6 +43,12 @@ def _extract_suite_name_from_test_method(item):
 
 def _extract_module_name_from_test_method(item):
     return getattr(item, "__module__", None)
+
+def _extract_test_skip_reason(args):
+    return args[1]
+
+def _extract_test_file_name(item):
+    return os.path.basename(inspect.getfile(item.__class__))
 
 def patch():
     """
@@ -89,12 +98,14 @@ def add_error_test_wrapper(func, instance, args, kwargs):
     return func(*args, **kwargs)
 
 def add_skip_test_wrapper(func, instance, args, kwargs):
+    result = func(*args, **kwargs)
     if instance and type(instance) == unittest.runner.TextTestResult and args:
         test_item = args[0]
         span = _extract_span(test_item)
-        span.set_tag_str(test.STATUS, test.Status.FAIL.value)
+        span.set_tag_str(test.STATUS, test.Status.SKIP.value)
+        span.set_tag_str(test.SKIP_REASON, _extract_test_skip_reason(args))
 
-    return func(*args, **kwargs)
+    return result
 
 def start_test_wrapper(func, instance, args, kwargs):
     with _CIVisibility._instance.tracer._start_span(
@@ -114,11 +125,11 @@ def start_test_wrapper(func, instance, args, kwargs):
         span.set_tag_str(test.NAME, _extract_test_method_name(instance))
         span.set_tag_str(test.SUITE, _extract_suite_name_from_test_method(instance))
         span.set_tag_str(test.MODULE, _extract_module_name_from_test_method(instance))
-        """
-        if item.location and item.location[0]:
-            _CIVisibility.set_codeowners_of(item.location[0], span=span)
-        """
+
         span.set_tag_str(test.STATUS, test.Status.FAIL.value)
+
+        _CIVisibility.set_codeowners_of(_extract_test_file_name(instance), span=span)
+
         _store_span(instance, span)
         result = func(*args, **kwargs)
 
