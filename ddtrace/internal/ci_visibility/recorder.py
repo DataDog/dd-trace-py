@@ -101,10 +101,7 @@ class CIVisibility(Service):
             self.tracer = tracer
         else:
             # Create a new CI tracer
-            self.tracer = CITracer()
-
-        if not isinstance(self.tracer.context_provider, CIContextProvider):
-            self.tracer.context_provider = CIContextProvider()
+            self.tracer = CITracer(context_provider=CIContextProvider())
 
         self._app_key = os.getenv(
             "CI_DD_APP_KEY",
