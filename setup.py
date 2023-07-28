@@ -1,5 +1,4 @@
 import hashlib
-import glob
 import os
 import platform
 import re
@@ -378,11 +377,13 @@ class CMakeBuild(build_ext):
             build_ext.build_extension(self, ext)
 
         if CURRENT_OS == "Linux":
-            for so in glob.glob("**/*.so", recursive=True):
-                try:
-                    self.strip_symbols(so)
-                except Exception:
-                    pass
+            for _root, _dirs, files in os.walk(path):
+                for file in files:
+                    if file.endswith(".so"):
+                        try:
+                            self.strip_symbols(so)
+                        except Exception:
+                            pass
 
 
 long_description = """
