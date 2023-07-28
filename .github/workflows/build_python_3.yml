@@ -42,13 +42,13 @@ jobs:
           platforms: all
 
       - name: Build wheels python 3.6 and above
-        uses: pypa/cibuildwheel@v2.12.3
+        uses: pypa/cibuildwheel@v2.14.0
         env:
           # configure cibuildwheel to build native archs ('auto'), and some
           # emulated ones
           CIBW_ARCHS: ${{ matrix.archs }}
           CIBW_BUILD: ${{ inputs.cibw_build }}
-          CIBW_SKIp: ${{ inputs.cibw_skip }}
+          CIBW_SKIP: ${{ inputs.cibw_skip }}
           # Run a smoke test on every supported platform
           CIBW_TEST_COMMAND: python {project}/tests/smoke_test.py
           # Testing arm on MacOS is currently not supported by Github
@@ -57,6 +57,8 @@ jobs:
           # `platform.mac_ver()` reports incorrect MacOS version at 11.0
           # See: https://stackoverflow.com/a/65402241
           CIBW_ENVIRONMENT_MACOS: SYSTEM_VERSION_COMPAT=0
+          # Enable building pre-release wheels for 3.12
+          CIBW_PRERELEASE_PYTHONS: 1
 
       - uses: actions/upload-artifact@v3
         with:
