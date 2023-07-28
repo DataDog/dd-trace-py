@@ -41,7 +41,6 @@ from ddtrace.internal.ci_visibility.constants import SUITE_TYPE as _SUITE_TYPE
 from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.ci_visibility.coverage import _initialize_coverage
 from ddtrace.internal.ci_visibility.coverage import build_payload as build_coverage_payload
-from ddtrace.internal.ci_visibility.recorder import _get_test_skipping_level
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 
@@ -320,7 +319,9 @@ def pytest_sessionfinish(session, exitstatus):
         test_session_span = _extract_span(session)
         if test_session_span is not None:
             if _CIVisibility.test_skipping_enabled():
-                test_session_span.set_tag(test.ITR_TEST_SKIPPING_TYPE, _get_test_skipping_level())
+                test_session_span.set_tag(
+                    test.ITR_TEST_SKIPPING_TYPE, SUITE if _CIVisibility._instance._suite_skipping_mode else TEST
+                )
                 test_session_span.set_metric(test.ITR_TEST_SKIPPING_COUNT, _global_skipped_elements)
             _mark_test_status(session, test_session_span)
             test_session_span.finish()
@@ -412,7 +413,9 @@ def pytest_runtest_protocol(item, nextitem):
         test_module_span, module_is_package = _start_test_module_span(pytest_package_item, pytest_module_item)
 
     if _CIVisibility.test_skipping_enabled() and test_module_span.get_metric(test.ITR_TEST_SKIPPING_COUNT) is None:
-        test_module_span.set_tag(test.ITR_TEST_SKIPPING_TYPE, _get_test_skipping_level())
+        test_module_span.set_tag(
+            test.ITR_TEST_SKIPPING_TYPE, SUITE if _CIVisibility._instance._suite_skipping_mode else TEST
+        )
         test_module_span.set_metric(test.ITR_TEST_SKIPPING_COUNT, 0)
 
     if is_skipped_by_itr:
@@ -427,7 +430,7 @@ def pytest_runtest_protocol(item, nextitem):
             pytest_module_item,
             test_module_span,
             should_enable_coverage=(
-                _get_test_skipping_level() == SUITE
+                _CIVisibility._instance._suite_skipping_mode
                 and _CIVisibility._instance._collect_coverage_enabled
                 and not is_skipped_by_itr
             ),
@@ -489,7 +492,7 @@ def pytest_runtest_protocol(item, nextitem):
         _store_span(item, span)
 
         coverage_per_test = (
-            _get_test_skipping_level() == TEST
+            not _CIVisibility._instance._suite_skipping_mode
             and _CIVisibility._instance._collect_coverage_enabled
             and not is_skipped_by_itr
         )
@@ -506,7 +509,7 @@ def pytest_runtest_protocol(item, nextitem):
             _mark_test_status(pytest_module_item, test_suite_span)
             # Finish coverage for the test suite if coverage is enabled
             if (
-                _get_test_skipping_level() == SUITE
+                _CIVisibility._instance._suite_skipping_mode
                 and _CIVisibility._instance._collect_coverage_enabled
                 and not is_skipped_by_itr
             ):
