@@ -1,11 +1,8 @@
-from collections import namedtuple
 from types import CodeType
 from types import FrameType
 
 from ddtrace.internal.logger import get_logger
-
-
-DDFrame = namedtuple("DDFrame", ["file_name", "lineno", "function_name", "class_name"])
+from ddtrace.profiling.event import DDFrame
 
 
 log = get_logger(__name__)
