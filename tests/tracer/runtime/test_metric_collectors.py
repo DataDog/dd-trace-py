@@ -33,9 +33,10 @@ class TestPSUtilRuntimeMetricCollector(BaseTestCase):
 
     def test_static_metrics(self):
         import os
-        import psutil
         import threading
         import time
+
+        import psutil
 
         # Something to bump CPU utilization
         def busy_wait(duration_ms):
