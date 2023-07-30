@@ -39,6 +39,7 @@ def get_weak_hash_algorithms():
 class WeakHash(VulnerabilityBase):
     vulnerability_type = VULN_INSECURE_HASHING_TYPE
     evidence_type = EVIDENCE_ALGORITHM_TYPE
+    scrub_evidence = False
 
 
 def unpatch_iast():
