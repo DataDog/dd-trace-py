@@ -44,6 +44,8 @@ class TestPSUtilRuntimeMetricCollector(BaseTestCase):
                 pass
 
         def get_metrics():
+            # need to waste a reading of psutil because some of its reading have
+            # memory and need a previous state
             collector = PSUtilRuntimeMetricCollector()
             collector.collect_fn(None)  # wasted
             proc = psutil.Process(os.getpid())
