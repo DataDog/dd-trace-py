@@ -3,6 +3,7 @@ import os
 import platform
 import re
 import shutil
+import subprocess
 import sys
 import tarfile
 
@@ -295,6 +296,10 @@ class CleanLibraries(CleanCommand):
 
 
 class CMakeBuild(build_ext):
+    @staticmethod
+    def strip_symbols(so_file):
+        subprocess.check_output(["strip", "-g", so_file])
+
     def build_extension(self, ext):
         tmp_iast_file_path = os.path.abspath(self.get_ext_fullpath(ext.name))
         tmp_iast_path = os.path.join(os.path.dirname(tmp_iast_file_path))
@@ -342,9 +347,12 @@ class CMakeBuild(build_ext):
             if "CMAKE_BUILD_PARALLEL_LEVEL" not in os.environ:
                 # self.parallel is a Python 3 only way to set parallel jobs by hand
                 # using -j in the build_ext call, not supported by pip or PyPA-build.
+                # DEV: -j is only supported in CMake 3.12+ only.
                 if hasattr(self, "parallel") and self.parallel:
-                    # CMake 3.12+ only.
                     build_args += ["-j{}".format(self.parallel)]
+                else:
+                    # Let CMake determine the parallelism to use
+                    build_args += ["-j"]
             try:
                 cmake_cmd_with_args = [cmake_command] + cmake_args
                 subprocess.run(cmake_cmd_with_args, cwd=tmp_iast_path, check=True)
@@ -366,6 +374,12 @@ class CMakeBuild(build_ext):
                     shutil.copy(iast_artifact, tmp_iast_file_path)
         else:
             build_ext.build_extension(self, ext)
+            if CURRENT_OS == "Linux":
+                for ext in self.extensions:
+                    try:
+                        self.strip_symbols(self.get_ext_fullpath(ext.name))
+                    except Exception:
+                        pass
 
 
 long_description = """
@@ -481,7 +495,7 @@ def get_ddup_ext():
                         ],
                         include_dirs=LibDatadogDownload.get_include_dirs(),
                         extra_objects=LibDatadogDownload.get_extra_objects(),
-                        extra_compile_args=["-std=c++17"],
+                        extra_compile_args=["-std=c++17", "-flto"],
                         language="c++",
                     )
                 ],
