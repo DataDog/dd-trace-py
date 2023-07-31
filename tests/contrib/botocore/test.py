@@ -1160,105 +1160,115 @@ class BotocoreTest(TracerTestCase):
     @mock_sqs
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     def test_data_streams_sqs(self):
-        with self.override_config("botocore", dict(tag_all_params=True)):
-            Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.sqs_client)
-            message_attributes = {
-                "one": {"DataType": "String", "StringValue": "one"},
-                "two": {"DataType": "String", "StringValue": "two"},
-                "three": {"DataType": "String", "StringValue": "three"},
-                "four": {"DataType": "String", "StringValue": "four"},
-                "five": {"DataType": "String", "StringValue": "five"},
-                "six": {"DataType": "String", "StringValue": "six"},
-                "seven": {"DataType": "String", "StringValue": "seven"},
-                "eight": {"DataType": "String", "StringValue": "eight"},
-                "nine": {"DataType": "String", "StringValue": "nine"},
-            }
+        # DEV: We want to mock time to ensure we only create a single bucket
+        with mock.patch("time.time") as mt:
+            mt.return_value = 1642544540
 
-            self.sqs_client.send_message(
-                QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="world", MessageAttributes=message_attributes
-            )
+            with self.override_config("botocore", dict(tag_all_params=True)):
+                Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.sqs_client)
+                message_attributes = {
+                    "one": {"DataType": "String", "StringValue": "one"},
+                    "two": {"DataType": "String", "StringValue": "two"},
+                    "three": {"DataType": "String", "StringValue": "three"},
+                    "four": {"DataType": "String", "StringValue": "four"},
+                    "five": {"DataType": "String", "StringValue": "five"},
+                    "six": {"DataType": "String", "StringValue": "six"},
+                    "seven": {"DataType": "String", "StringValue": "seven"},
+                    "eight": {"DataType": "String", "StringValue": "eight"},
+                    "nine": {"DataType": "String", "StringValue": "nine"},
+                }
 
-            self.sqs_client.receive_message(
-                QueueUrl=self.sqs_test_queue["QueueUrl"],
-                MessageAttributeNames=["_datadog"],
-                WaitTimeSeconds=2,
-            )
+                self.sqs_client.send_message(
+                    QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="world", MessageAttributes=message_attributes
+                )
 
-            pin = Pin.get_from(self.sqs_client)
-            buckets = pin.tracer.data_streams_processor._buckets
-            assert len(buckets) == 1
-            _, first = list(buckets.items())[0]
+                self.sqs_client.receive_message(
+                    QueueUrl=self.sqs_test_queue["QueueUrl"],
+                    MessageAttributeNames=["_datadog"],
+                    WaitTimeSeconds=2,
+                )
 
-            assert (
-                first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].full_pathway_latency._count >= 1
-            )
-            assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].edge_latency._count >= 1
-            assert (
-                first[
-                    ("direction:in,topic:Test,type:sqs", 15625264005677082004, 15309751356108160802)
-                ].full_pathway_latency._count
-                >= 1
-            )
-            assert (
-                first[
-                    ("direction:in,topic:Test,type:sqs", 15625264005677082004, 15309751356108160802)
-                ].edge_latency._count
-                >= 1
-            )
+                pin = Pin.get_from(self.sqs_client)
+                buckets = pin.tracer.data_streams_processor._buckets
+                assert len(buckets) == 1
+                _, first = list(buckets.items())[0]
+
+                assert (
+                    first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].full_pathway_latency._count
+                    >= 1
+                )
+                assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].edge_latency._count >= 1
+                assert (
+                    first[
+                        ("direction:in,topic:Test,type:sqs", 15625264005677082004, 15309751356108160802)
+                    ].full_pathway_latency._count
+                    >= 1
+                )
+                assert (
+                    first[
+                        ("direction:in,topic:Test,type:sqs", 15625264005677082004, 15309751356108160802)
+                    ].edge_latency._count
+                    >= 1
+                )
 
     @mock_sqs
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     def test_data_streams_sqs_batch(self):
-        with self.override_config("botocore", dict(tag_all_params=True)):
-            Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.sqs_client)
-            message_attributes = {
-                "one": {"DataType": "String", "StringValue": "one"},
-                "two": {"DataType": "String", "StringValue": "two"},
-                "three": {"DataType": "String", "StringValue": "three"},
-                "four": {"DataType": "String", "StringValue": "four"},
-                "five": {"DataType": "String", "StringValue": "five"},
-                "six": {"DataType": "String", "StringValue": "six"},
-                "seven": {"DataType": "String", "StringValue": "seven"},
-                "eight": {"DataType": "String", "StringValue": "eight"},
-                "nine": {"DataType": "String", "StringValue": "nine"},
-            }
+        # DEV: We want to mock time to ensure we only create a single bucket
+        with mock.patch("time.time") as mt:
+            mt.return_value = 1642544540
 
-            entries = [
-                {"Id": "1", "MessageBody": "Message No. 1", "MessageAttributes": message_attributes},
-                {"Id": "2", "MessageBody": "Message No. 2", "MessageAttributes": message_attributes},
-                {"Id": "3", "MessageBody": "Message No. 3", "MessageAttributes": message_attributes},
-            ]
+            with self.override_config("botocore", dict(tag_all_params=True)):
+                Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.sqs_client)
+                message_attributes = {
+                    "one": {"DataType": "String", "StringValue": "one"},
+                    "two": {"DataType": "String", "StringValue": "two"},
+                    "three": {"DataType": "String", "StringValue": "three"},
+                    "four": {"DataType": "String", "StringValue": "four"},
+                    "five": {"DataType": "String", "StringValue": "five"},
+                    "six": {"DataType": "String", "StringValue": "six"},
+                    "seven": {"DataType": "String", "StringValue": "seven"},
+                    "eight": {"DataType": "String", "StringValue": "eight"},
+                    "nine": {"DataType": "String", "StringValue": "nine"},
+                }
 
-            self.sqs_client.send_message_batch(QueueUrl=self.sqs_test_queue["QueueUrl"], Entries=entries)
+                entries = [
+                    {"Id": "1", "MessageBody": "Message No. 1", "MessageAttributes": message_attributes},
+                    {"Id": "2", "MessageBody": "Message No. 2", "MessageAttributes": message_attributes},
+                    {"Id": "3", "MessageBody": "Message No. 3", "MessageAttributes": message_attributes},
+                ]
 
-            self.sqs_client.receive_message(
-                QueueUrl=self.sqs_test_queue["QueueUrl"],
-                MaxNumberOfMessages=3,
-                MessageAttributeNames=["_datadog"],
-                WaitTimeSeconds=2,
-            )
+                self.sqs_client.send_message_batch(QueueUrl=self.sqs_test_queue["QueueUrl"], Entries=entries)
 
-            pin = Pin.get_from(self.sqs_client)
-            buckets = pin.tracer.data_streams_processor._buckets
-            assert len(buckets) == 1
-            _, first = list(buckets.items())[0]
+                self.sqs_client.receive_message(
+                    QueueUrl=self.sqs_test_queue["QueueUrl"],
+                    MaxNumberOfMessages=3,
+                    MessageAttributeNames=["_datadog"],
+                    WaitTimeSeconds=2,
+                )
 
-            assert (
-                first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].full_pathway_latency._count >= 3
-            )
-            assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].edge_latency._count >= 3
-            assert (
-                first[
-                    ("direction:in,topic:Test,type:sqs", 15625264005677082004, 15309751356108160802)
-                ].full_pathway_latency._count
-                >= 3
-            )
-            assert (
-                first[
-                    ("direction:in,topic:Test,type:sqs", 15625264005677082004, 15309751356108160802)
-                ].edge_latency._count
-                >= 3
-            )
+                pin = Pin.get_from(self.sqs_client)
+                buckets = pin.tracer.data_streams_processor._buckets
+                assert len(buckets) == 1
+                _, first = list(buckets.items())[0]
+
+                assert (
+                    first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].full_pathway_latency._count
+                    >= 3
+                )
+                assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].edge_latency._count >= 3
+                assert (
+                    first[
+                        ("direction:in,topic:Test,type:sqs", 15625264005677082004, 15309751356108160802)
+                    ].full_pathway_latency._count
+                    >= 3
+                )
+                assert (
+                    first[
+                        ("direction:in,topic:Test,type:sqs", 15625264005677082004, 15309751356108160802)
+                    ].edge_latency._count
+                    >= 3
+                )
 
     @mock_sqs
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
@@ -1278,42 +1288,49 @@ class BotocoreTest(TracerTestCase):
     @mock_sqs
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     def test_data_streams_sqs_no_header(self):
-        with self.override_config("botocore", dict(tag_all_params=True)):
-            Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.sqs_client)
-            message_attributes = {
-                "one": {"DataType": "String", "StringValue": "one"},
-                "two": {"DataType": "String", "StringValue": "two"},
-                "three": {"DataType": "String", "StringValue": "three"},
-                "four": {"DataType": "String", "StringValue": "four"},
-                "five": {"DataType": "String", "StringValue": "five"},
-                "six": {"DataType": "String", "StringValue": "six"},
-                "seven": {"DataType": "String", "StringValue": "seven"},
-                "eight": {"DataType": "String", "StringValue": "eight"},
-                "nine": {"DataType": "String", "StringValue": "nine"},
-                "ten": {"DataType": "String", "StringValue": "ten"},
-            }
+        # DEV: We want to mock time to ensure we only create a single bucket
+        with mock.patch("time.time") as mt:
+            mt.return_value = 1642544540
 
-            self.sqs_client.send_message(
-                QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="world", MessageAttributes=message_attributes
-            )
+            with self.override_config("botocore", dict(tag_all_params=True)):
+                Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.sqs_client)
+                message_attributes = {
+                    "one": {"DataType": "String", "StringValue": "one"},
+                    "two": {"DataType": "String", "StringValue": "two"},
+                    "three": {"DataType": "String", "StringValue": "three"},
+                    "four": {"DataType": "String", "StringValue": "four"},
+                    "five": {"DataType": "String", "StringValue": "five"},
+                    "six": {"DataType": "String", "StringValue": "six"},
+                    "seven": {"DataType": "String", "StringValue": "seven"},
+                    "eight": {"DataType": "String", "StringValue": "eight"},
+                    "nine": {"DataType": "String", "StringValue": "nine"},
+                    "ten": {"DataType": "String", "StringValue": "ten"},
+                }
 
-            self.sqs_client.receive_message(
-                QueueUrl=self.sqs_test_queue["QueueUrl"],
-                MessageAttributeNames=["_datadog"],
-                WaitTimeSeconds=2,
-            )
+                self.sqs_client.send_message(
+                    QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="world", MessageAttributes=message_attributes
+                )
 
-            pin = Pin.get_from(self.sqs_client)
-            buckets = pin.tracer.data_streams_processor._buckets
-            assert len(buckets) == 1
-            _, first = list(buckets.items())[0]
+                self.sqs_client.receive_message(
+                    QueueUrl=self.sqs_test_queue["QueueUrl"],
+                    MessageAttributeNames=["_datadog"],
+                    WaitTimeSeconds=2,
+                )
 
-            assert (
-                first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].full_pathway_latency._count >= 1
-            )
-            assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].edge_latency._count >= 1
-            assert first[("direction:in,topic:Test,type:sqs", 3569019635468821892, 0)].full_pathway_latency._count >= 1
-            assert first[("direction:in,topic:Test,type:sqs", 3569019635468821892, 0)].edge_latency._count >= 1
+                pin = Pin.get_from(self.sqs_client)
+                buckets = pin.tracer.data_streams_processor._buckets
+                assert len(buckets) == 1
+                _, first = list(buckets.items())[0]
+
+                assert (
+                    first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].full_pathway_latency._count
+                    >= 1
+                )
+                assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].edge_latency._count >= 1
+                assert (
+                    first[("direction:in,topic:Test,type:sqs", 3569019635468821892, 0)].full_pathway_latency._count >= 1
+                )
+                assert first[("direction:in,topic:Test,type:sqs", 3569019635468821892, 0)].edge_latency._count >= 1
 
     @mock_lambda
     def test_lambda_client(self):

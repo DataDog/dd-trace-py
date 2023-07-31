@@ -2,7 +2,6 @@ from contextlib import contextmanager
 import json
 import os
 
-import mock
 import msgpack
 import pytest
 
@@ -160,11 +159,12 @@ def test_encode_traces_civisibility_v2_coverage_per_suite():
     ]
 
     encoder = CIVisibilityCoverageEncoderV02(0, 0)
+    encoder._set_itr_suite_skipping_mode(True)
     for trace in traces:
         encoder.put(trace)
-    with mock.patch("ddtrace.internal.ci_visibility.recorder._get_test_skipping_level", return_value="suite"):
-        payload = encoder._build_data(traces)
-        complete_payload = encoder.encode()
+
+    payload = encoder._build_data(traces)
+    complete_payload = encoder.encode()
     assert isinstance(payload, msgpack_type)
     decoded = msgpack.unpackb(payload, raw=True, strict_map_key=False)
     assert decoded[b"version"] == 2
