@@ -80,6 +80,7 @@ def test_ci_visibility_service_enable_with_app_key_and_itr_disabled(_do_request)
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
         )
     ):
+        ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
         with _patch_dummy_writer():
             _do_request.return_value = Response(
                 status=200,
