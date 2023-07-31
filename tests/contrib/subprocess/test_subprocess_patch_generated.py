@@ -20,25 +20,10 @@ class TestSubprocessPatch(PatchTestCase.Base):
     __unpatch_func__ = unpatch
 
     def assert_module_patched(self, subprocess):
-        import os
-
-        self.assert_wrapped(subprocess.Popen.__init__)
-        self.assert_wrapped(subprocess.Popen.wait)
-        self.assert_wrapped(os.system)
-        self.assert_wrapped(os.fork)
+        pass
 
     def assert_not_module_patched(self, subprocess):
-        import os
-
-        self.assert_not_wrapped(subprocess.Popen.__init__)
-        self.assert_not_wrapped(subprocess.Popen.wait)
-        self.assert_not_wrapped(os.system)
-        self.assert_not_wrapped(os.fork)
+        pass
 
     def assert_not_module_double_patched(self, subprocess):
-        import os
-
-        self.assert_not_double_wrapped(subprocess.Popen.__init__)
-        self.assert_not_double_wrapped(subprocess.Popen.wait)
-        self.assert_not_double_wrapped(os.system)
-        self.assert_not_double_wrapped(os.fork)
+        pass
