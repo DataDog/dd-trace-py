@@ -14,6 +14,7 @@ try:
     from ddtrace.appsec.iast._taint_tracking import taint_pyobject
     from ddtrace.appsec.iast._taint_utils import LazyTaintDict
     from ddtrace.appsec.iast._taint_utils import LazyTaintList
+    from ddtrace.appsec.iast._taint_utils import _is_tainted_struct
     from ddtrace.appsec.iast._util import _is_python_version_supported as python_supported_by_iast
 except (ImportError, AttributeError):
     pytest.skip("IAST not supported for this Python version", allow_module_level=True)
@@ -61,6 +62,7 @@ def test_taint_json(iast_span_defaults, input_jsonstr, res_type, real_type):
         assert is_pyobject_tainted(input_str)
 
         res = json.loads(input_str)
+        assert isinstance(res, (str, bytes, bytearray)) or _is_tainted_struct(res)
 
         assert isinstance(res, res_type)
         assert type(res) is real_type
