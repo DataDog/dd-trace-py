@@ -314,8 +314,12 @@ class LazyTaintDict:
     def fromkeys(cls, *args):
         return dict.fromkeys(*args)
 
-    def get(self, *args):
-        return self._taint(self._obj.get(*args), args[0])
+    def get(self, key, default=None):
+        observer = object()
+        res = self._obj.get(key, observer)
+        if res is observer:
+            return default
+        return self._taint(res, key)
 
     def pop(self, *args):
         return self._taint(self._obj.pop(*args), "pop")
