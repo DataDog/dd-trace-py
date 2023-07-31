@@ -253,7 +253,7 @@ venv = Venv(
         Venv(
             name="appsec",
             pys=select_pys(),
-            command="pytest {cmdargs} tests/appsec",
+            command="pytest --ddtrace {cmdargs} tests/appsec",
             pkgs={
                 "requests": latest,
                 "gunicorn": latest,
@@ -297,7 +297,7 @@ venv = Venv(
         ),
         Venv(
             name="tracer",
-            command="pytest {cmdargs} tests/tracer/",
+            command="pytest --ddtrace {cmdargs} tests/tracer/",
             pkgs={
                 "msgpack": latest,
                 "coverage": latest,
@@ -333,7 +333,7 @@ venv = Venv(
         ),
         Venv(
             name="telemetry",
-            command="pytest {cmdargs} tests/telemetry/",
+            command="pytest --ddtrace {cmdargs} tests/telemetry/",
             pys=select_pys(),
             pkgs={
                 # httpretty v1.0 drops python 2.7 support
@@ -346,7 +346,7 @@ venv = Venv(
         Venv(
             name="integration",
             # Enabling coverage for integration tests breaks certain tests in CI
-            command="pytest --no-cov {cmdargs} tests/integration/",
+            command="pytest --no-cov --ddtrace {cmdargs} tests/integration/",
             pkgs={"msgpack": [latest], "coverage": latest},
             venvs=[
                 Venv(
@@ -390,7 +390,7 @@ venv = Venv(
         ),
         Venv(
             name="datastreams",
-            command="pytest --no-cov {cmdargs} tests/datastreams/",
+            command="pytest --no-cov --ddtrace {cmdargs} tests/datastreams/",
             pkgs={"msgpack": [latest]},
             venvs=[
                 Venv(
@@ -419,7 +419,7 @@ venv = Venv(
         ),
         Venv(
             name="internal",
-            command="pytest {cmdargs} tests/internal/",
+            command="pytest --ddtrace {cmdargs} tests/internal/",
             pkgs={
                 "httpretty": "==0.9.7",
                 "gevent": latest,
@@ -439,7 +439,7 @@ venv = Venv(
         ),
         Venv(
             name="gevent",
-            command="pytest {cmdargs} tests/contrib/gevent",
+            command="pytest --ddtrace {cmdargs} tests/contrib/gevent",
             pkgs={
                 "elasticsearch": latest,
                 "pynamodb": latest,
@@ -515,12 +515,12 @@ venv = Venv(
         ),
         Venv(
             name="runtime",
-            command="pytest {cmdargs} tests/runtime/",
+            command="pytest --ddtrace {cmdargs} tests/runtime/",
             venvs=[Venv(pys=select_pys(), pkgs={"msgpack": latest})],
         ),
         Venv(
             name="ddtracerun",
-            command="pytest {cmdargs} --no-cov tests/commands/test_runner.py",
+            command="pytest --ddtrace {cmdargs} --no-cov tests/commands/test_runner.py",
             venvs=[
                 Venv(
                     pys=select_pys(),
@@ -533,7 +533,7 @@ venv = Venv(
         ),
         Venv(
             name="debugger",
-            command="pytest {cmdargs} tests/debugging/",
+            command="pytest --ddtrace {cmdargs} tests/debugging/",
             pkgs={
                 "msgpack": latest,
                 "httpretty": "==0.9.7",
@@ -549,7 +549,7 @@ venv = Venv(
         ),
         Venv(
             name="vendor",
-            command="pytest {cmdargs} tests/vendor/",
+            command="pytest --ddtrace {cmdargs} tests/vendor/",
             pys=select_pys(),
             pkgs={
                 "msgpack": ["~=1.0.0", latest],
@@ -557,7 +557,7 @@ venv = Venv(
         ),
         Venv(
             name="vertica",
-            command="pytest {cmdargs} tests/contrib/vertica/",
+            command="pytest --ddtrace {cmdargs} tests/contrib/vertica/",
             pys=select_pys(max_version="3.9"),
             pkgs={
                 "vertica-python": [">=0.6.0,<0.7.0", ">=0.7.0,<0.8.0"],
@@ -603,17 +603,17 @@ venv = Venv(
         ),
         Venv(
             name="httplib",
-            command="pytest {cmdargs} tests/contrib/httplib",
+            command="pytest --ddtrace {cmdargs} tests/contrib/httplib",
             pys=select_pys(),
         ),
         Venv(
             name="test_logging",
-            command="pytest {cmdargs} tests/contrib/logging",
+            command="pytest --ddtrace {cmdargs} tests/contrib/logging",
             pys=select_pys(),
         ),
         Venv(
             name="falcon",
-            command="pytest {cmdargs} tests/contrib/falcon",
+            command="pytest --ddtrace {cmdargs} tests/contrib/falcon",
             venvs=[
                 # FIXME: tests fail on Python 2.7 with falcon 2.0
                 # Venv(
@@ -638,7 +638,7 @@ venv = Venv(
             pkgs={"WebTest": latest},
             venvs=[
                 Venv(
-                    command="pytest {cmdargs} --ignore='tests/contrib/bottle/test_autopatch.py' tests/contrib/bottle/",
+                    command="pytest --ddtrace {cmdargs} --ignore='tests/contrib/bottle/test_autopatch.py' tests/contrib/bottle/",  # noqa: E501
                     venvs=[
                         Venv(
                             pys=select_pys(max_version="3.9"),
@@ -647,7 +647,7 @@ venv = Venv(
                     ],
                 ),
                 Venv(
-                    command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/bottle/test_autopatch.py",
+                    command="python tests/ddtrace_run.py pytest --ddtrace {cmdargs} tests/contrib/bottle/test_autopatch.py",  # noqa: E501
                     env={"DD_SERVICE": "bottle-app"},
                     venvs=[
                         Venv(
@@ -660,7 +660,7 @@ venv = Venv(
         ),
         Venv(
             name="celery",
-            command="pytest {cmdargs} tests/contrib/celery",
+            command="pytest --ddtrace {cmdargs} tests/contrib/celery",
             pkgs={"more_itertools": "<8.11.0"},
             venvs=[
                 # Celery 4.3 wants Kombu >= 4.4 and Redis >= 3.2
@@ -763,7 +763,7 @@ venv = Venv(
         ),
         Venv(
             name="pylons",
-            command="python -m pytest {cmdargs} tests/contrib/pylons",
+            command="python -m pytest --ddtrace {cmdargs} tests/contrib/pylons",
             venvs=[
                 Venv(
                     pys="2.7",
@@ -778,7 +778,7 @@ venv = Venv(
         ),
         Venv(
             name="cherrypy",
-            command="python -m pytest {cmdargs} tests/contrib/cherrypy",
+            command="python -m pytest --ddtrace {cmdargs} tests/contrib/cherrypy",
             venvs=[
                 Venv(
                     pys=select_pys(max_version="3.10"),
@@ -804,7 +804,7 @@ venv = Venv(
         ),
         Venv(
             name="pymongo",
-            command="pytest {cmdargs} tests/contrib/pymongo",
+            command="pytest --ddtrace {cmdargs} tests/contrib/pymongo",
             pkgs={
                 "mongoengine": latest,
             },
@@ -835,7 +835,7 @@ venv = Venv(
         # Source: https://docs.djangoproject.com/en/dev/faq/install/#what-python-version-can-i-use-with-django
         Venv(
             name="django",
-            command="pytest {cmdargs} tests/contrib/django",
+            command="pytest --ddtrace {cmdargs} tests/contrib/django",
             pkgs={
                 "django-redis": ">=4.5,<4.6",
                 "django-pylibmc": ">=0.6,<0.7",
@@ -898,7 +898,7 @@ venv = Venv(
         ),
         Venv(
             name="django_hosts",
-            command="pytest {cmdargs} tests/contrib/django_hosts",
+            command="pytest --ddtrace {cmdargs} tests/contrib/django_hosts",
             pkgs={
                 "pytest-django": [
                     "==3.10.0",
@@ -930,7 +930,7 @@ venv = Venv(
         ),
         Venv(
             name="djangorestframework",
-            command="pytest {cmdargs} tests/contrib/djangorestframework",
+            command="pytest --ddtrace {cmdargs} tests/contrib/djangorestframework",
             pkgs={"pytest-django": "==3.10.0"},
             venvs=[
                 Venv(
@@ -975,7 +975,7 @@ venv = Venv(
         ),
         Venv(
             name="django_celery",
-            command="pytest {cmdargs} tests/contrib/django_celery",
+            command="pytest --ddtrace {cmdargs} tests/contrib/django_celery",
             pkgs={
                 # The test app was built with Django 2. We don't need to test
                 # other versions as the main purpose of these tests is to ensure
@@ -1016,7 +1016,7 @@ venv = Venv(
         ),
         Venv(
             name="elasticsearch-multi",
-            command="pytest {cmdargs} tests/contrib/elasticsearch/test_elasticsearch_multi.py",
+            command="pytest --ddtrace {cmdargs} tests/contrib/elasticsearch/test_elasticsearch_multi.py",
             venvs=[
                 Venv(
                     pys=select_pys(),
@@ -1030,7 +1030,7 @@ venv = Venv(
         ),
         Venv(
             name="elasticsearch8-patch",
-            command="pytest {cmdargs} tests/contrib/elasticsearch/test_es8_patch.py",
+            command="pytest --ddtrace {cmdargs} tests/contrib/elasticsearch/test_es8_patch.py",
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.6"),
@@ -1043,7 +1043,7 @@ venv = Venv(
         Venv(
             name="elasticsearch-opensearch",
             # avoid running tests in ElasticsearchPatchTest, only run tests with OpenSearchPatchTest configurations
-            command="pytest {cmdargs} tests/contrib/elasticsearch/test_opensearch.py -k 'not ElasticsearchPatchTest'",
+            command="pytest --ddtrace {cmdargs} tests/contrib/elasticsearch/test_opensearch.py -k 'not ElasticsearchPatchTest'",  # noqa: E501
             venvs=[
                 Venv(
                     pys=select_pys(max_version="3.5"),
@@ -1057,7 +1057,7 @@ venv = Venv(
         ),
         Venv(
             name="flask",
-            command="pytest --ddtrace {cmdargs} tests/contrib/flask",
+            command="pytest {cmdargs} tests/contrib/flask",
             pkgs={"blinker": latest, "requests": latest},
             venvs=[
                 # Flask 1.x.x
@@ -1602,11 +1602,11 @@ venv = Venv(
                 "asgiref": ["~=3.0.0", "~=3.0", latest],
             },
             pys=select_pys(min_version="3.6"),
-            command="pytest {cmdargs} tests/contrib/asgi",
+            command="pytest --ddtrace {cmdargs} tests/contrib/asgi",
         ),
         Venv(
             name="mariadb",
-            command="pytest {cmdargs} tests/contrib/mariadb",
+            command="pytest --ddtrace {cmdargs} tests/contrib/mariadb",
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.6", max_version="3.10"),
@@ -1650,7 +1650,7 @@ venv = Venv(
         ),
         Venv(
             name="pyramid",
-            command="pytest {cmdargs} tests/contrib/pyramid/test_pyramid.py",
+            command="pytest --ddtrace {cmdargs} tests/contrib/pyramid/test_pyramid.py",
             pkgs={
                 "requests": [latest],
                 "webtest": [latest],
@@ -2910,7 +2910,7 @@ venv = Venv(
                 # Python 2.7
                 Venv(
                     # uWSGI tests are not supported on Python 2.7
-                    command='python -m tests.profiling.run pytest --capture=no --benchmark-disable --ignore-glob="*asyncio*" --ignore=tests/profiling/test_uwsgi.py {cmdargs} tests/profiling',  # noqa: E501
+                    command='python -m tests.profiling.run pytest ---capture=no --benchmark-disable --ignore-glob="*asyncio*" --ignore=tests/profiling/test_uwsgi.py --ddtrace {cmdargs} tests/profiling',  # noqa: E501
                     pys="2.7",
                     venvs=[
                         Venv(
