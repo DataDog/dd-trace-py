@@ -1,4 +1,3 @@
-from contextlib import contextmanager
 import json
 import os
 
@@ -17,7 +16,6 @@ from ddtrace.internal.compat import msgpack_type
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.span import Span
 from tests.ci_visibility.util import _patch_dummy_writer
-from tests.utils import DummyCIVisibilityWriter
 from tests.utils import TracerTestCase
 from tests.utils import override_env
 
