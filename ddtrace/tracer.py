@@ -48,6 +48,7 @@ from .internal.processor.trace import TraceTagsProcessor
 from .internal.runtime import get_runtime_id
 from .internal.serverless import has_aws_lambda_agent_extension
 from .internal.serverless import in_aws_lambda
+from .internal.serverless import in_azure_function_consumption_plan
 from .internal.serverless import in_gcp_function
 from .internal.serverless.mini_agent import maybe_start_serverless_mini_agent
 from .internal.service import ServiceStatusError
@@ -79,18 +80,16 @@ from typing import TypeVar
 
 log = get_logger(__name__)
 
-debug_mode = asbool(os.getenv("DD_TRACE_DEBUG", default=False))
-call_basic_config = asbool(os.environ.get("DD_CALL_BASIC_CONFIG", "false"))
 
 DD_LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] {}- %(message)s".format(
     "[dd.service=%(dd.service)s dd.env=%(dd.env)s dd.version=%(dd.version)s"
     " dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s] "
 )
-if debug_mode and not hasHandlers(log) and call_basic_config:
+if config._debug_mode and not hasHandlers(log) and config._call_basic_config:
     debtcollector.deprecate(
         "ddtrace.tracer.logging.basicConfig",
-        message="`logging.basicConfig()` should be called in a user's application."
-        " ``DD_CALL_BASIC_CONFIG`` will be removed in a future version.",
+        message="`logging.basicConfig()` should be called in a user's application.",
+        removal_version="2.0.0",
     )
     if config.logs_injection:
         # We need to ensure logging is patched in case the tracer logs during initialization
@@ -139,13 +138,12 @@ def _default_span_processors_factory(
     single_span_sampling_rules,  # type: List[SpanSamplingRule]
     agent_url,  # type: str
     profiling_span_processor,  # type: EndpointCallCounterProcessor
-    peer_service_processor,  # type: PeerServiceProcessor
 ):
     # type: (...) -> Tuple[List[SpanProcessor], Optional[Any], List[SpanProcessor]]
     # FIXME: type should be AppsecSpanProcessor but we have a cyclic import here
     """Construct the default list of span processors to use."""
     trace_processors = []  # type: List[TraceProcessor]
-    trace_processors += [TraceTagsProcessor()]
+    trace_processors += [TraceTagsProcessor(), PeerServiceProcessor(PeerServiceConfig())]
     trace_processors += [TraceSamplingProcessor(compute_stats_enabled)]
     trace_processors += trace_filters
 
@@ -153,10 +151,20 @@ def _default_span_processors_factory(
     span_processors += [TopLevelSpanProcessor()]
 
     if appsec_enabled:
+        if config._api_security_enabled:
+            from ddtrace.appsec._api_security.api_manager import APIManager
+
+            APIManager.enable()
+
         appsec_processor = _start_appsec_processor()
         if appsec_processor:
             span_processors.append(appsec_processor)
     else:
+        if config._api_security_enabled:
+            from ddtrace.appsec._api_security.api_manager import APIManager
+
+            APIManager.disable()
+
         appsec_processor = None
 
     if iast_enabled:
@@ -179,8 +187,6 @@ def _default_span_processors_factory(
 
     if single_span_sampling_rules:
         span_processors.append(SpanSamplingProcessor(single_span_sampling_rules))
-
-    span_processors.append(peer_service_processor)
 
     # These need to run after all the other processors
     deferred_processors = [
@@ -229,8 +235,11 @@ class Tracer(object):
         # globally set tags
         self._tags = config.tags.copy()
 
+        # collection of services seen, used for runtime metrics tags
         # a buffer for service info so we don't perpetually send the same things
         self._services = set()  # type: Set[str]
+        if config.service:
+            self._services.add(config.service)
 
         # Runtime id used for associating data collected during runtime to
         # traces
@@ -268,7 +277,6 @@ class Tracer(object):
         self._appsec_processor = None
         self._iast_enabled = config._iast_enabled
         self._endpoint_call_counter_span_processor = EndpointCallCounterProcessor()
-        self._peer_service_processor = PeerServiceProcessor(PeerServiceConfig())
         self._span_processors, self._appsec_processor, self._deferred_processors = _default_span_processors_factory(
             self._filters,
             self._writer,
@@ -280,7 +288,6 @@ class Tracer(object):
             self._single_span_sampling_rules,
             self._agent_url,
             self._endpoint_call_counter_span_processor,
-            self._peer_service_processor,
         )
         if config._data_streams_enabled:
             # Inline the import to avoid pulling in ddsketch or protobuf
@@ -523,7 +530,6 @@ class Tracer(object):
                 self._single_span_sampling_rules,
                 self._agent_url,
                 self._endpoint_call_counter_span_processor,
-                self._peer_service_processor,
             )
 
         if context_provider is not None:
@@ -535,7 +541,7 @@ class Tracer(object):
         self._generate_diagnostic_logs()
 
     def _generate_diagnostic_logs(self):
-        if debug_mode or asbool(environ.get("DD_TRACE_STARTUP_LOGS", False)):
+        if config._debug_mode or asbool(environ.get("DD_TRACE_STARTUP_LOGS", False)):
             try:
                 info = debug.collect(self)
             except Exception as e:
@@ -559,6 +565,8 @@ class Tracer(object):
         # Assume that the services of the child are not necessarily a subset of those
         # of the parent.
         self._services = set()
+        if config.service:
+            self._services.add(config.service)
 
         # Re-create the background writer thread
         self._writer = self._writer.recreate()
@@ -573,7 +581,6 @@ class Tracer(object):
             self._single_span_sampling_rules,
             self._agent_url,
             self._endpoint_call_counter_span_processor,
-            self._peer_service_processor,
         )
 
         self._new_process = True
@@ -1073,7 +1080,7 @@ class Tracer(object):
         elif in_aws_lambda() and has_aws_lambda_agent_extension():
             # If the Agent Lambda extension is available then an AgentWriter is used.
             return False
-        elif in_gcp_function():
+        elif in_gcp_function() or in_azure_function_consumption_plan():
             return False
         else:
             return in_aws_lambda()
@@ -1089,10 +1096,14 @@ class Tracer(object):
         - AWS Lambdas can have the Datadog agent installed via an extension.
           When it's available traces must be sent synchronously to ensure all
           are received before the Lambda terminates.
-        - Google Cloud Functions have a mini-agent spun up by the tracer.
+        - Google Cloud Functions and Azure Consumption Plan Functions have a mini-agent spun up by the tracer.
           Similarly to AWS Lambdas, sync mode should be used to avoid data loss.
         """
-        return (in_aws_lambda() and has_aws_lambda_agent_extension()) or in_gcp_function()
+        return (
+            (in_aws_lambda() and has_aws_lambda_agent_extension())
+            or in_gcp_function()
+            or in_azure_function_consumption_plan()
+        )
 
     @staticmethod
     def _is_span_internal(span):

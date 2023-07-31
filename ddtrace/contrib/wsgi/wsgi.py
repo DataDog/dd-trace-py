@@ -2,10 +2,9 @@ import functools
 import sys
 from typing import TYPE_CHECKING
 
-from ddtrace.appsec import _asm_request_context
+from ddtrace.internal.constants import RESPONSE_HEADERS
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
-from ...appsec._constants import SPAN_DATA_NAMES
 from ..trace_utils import _get_request_header_user_agent
 from ..trace_utils import _set_url_tag
 
@@ -15,6 +14,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Callable
     from typing import Dict
     from typing import Iterable
+    from typing import Mapping
     from typing import Optional
 
     from ddtrace import Pin
@@ -30,6 +30,7 @@ from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.propagation._utils import from_wsgi_header
@@ -37,10 +38,9 @@ from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.vendor import wrapt
 
 from .. import trace_utils
-from ...appsec import utils
-from ...appsec._constants import WAF_CONTEXT_NAMES
 from ...constants import SPAN_KIND
-from ...internal import _context
+from ...internal import core
+from ...internal.utils import http as http_utils
 
 
 log = get_logger(__name__)
@@ -136,10 +136,10 @@ class _DDWSGIMiddlewareBase(object):
 
     def _make_block_content(self, environ, headers, span):
         ctype = "text/html" if "text/html" in headers.get("Accept", "").lower() else "text/json"
-        content = utils._get_blocked_template(ctype).encode("UTF-8")
+        content = http_utils._get_blocked_template(ctype).encode("UTF-8")
         try:
-            span.set_tag_str(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-length", str(len(content)))
-            span.set_tag_str(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type", ctype)
+            span.set_tag_str(RESPONSE_HEADERS + ".content-length", str(len(content)))
+            span.set_tag_str(RESPONSE_HEADERS + ".content-type", ctype)
             span.set_tag_str(http.STATUS_CODE, "403")
             url = construct_url(environ)
             query_string = environ.get("QUERY_STRING")
@@ -164,8 +164,8 @@ class _DDWSGIMiddlewareBase(object):
         headers = get_request_headers(environ)
         closing_iterator = ()
         not_blocked = True
-        with _asm_request_context.asm_request_context_manager(
-            environ.get("REMOTE_ADDR"), headers, headers_case_sensitive=True
+        with core.context_with_data(
+            "wsgi.__call__", remote_addr=environ.get("REMOTE_ADDR"), headers=headers, headers_case_sensitive=True
         ):
             req_span = self.tracer.trace(
                 self._request_span_name,
@@ -173,20 +173,17 @@ class _DDWSGIMiddlewareBase(object):
                 span_type=SpanTypes.WEB,
             )
 
-            if self.tracer._appsec_enabled:
-                # [IP Blocking]
-                if _context.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=req_span):
-                    ctype, content = self._make_block_content(environ, headers, req_span)
-                    start_response("403 FORBIDDEN", [("content-type", ctype)])
-                    closing_iterator = [content]
-                    not_blocked = False
+            if core.get_item(HTTP_REQUEST_BLOCKED):
+                ctype, content = self._make_block_content(environ, headers, req_span)
+                start_response("403 FORBIDDEN", [("content-type", ctype)])
+                closing_iterator = [content]
+                not_blocked = False
 
-                # [Suspicious Request Blocking on request]
-                def blocked_view():
-                    ctype, content = self._make_block_content(environ, headers, req_span)
-                    return content, 403, [("content-type", ctype)]
+            def blocked_view():
+                ctype, content = self._make_block_content(environ, headers, req_span)
+                return content, 403, [("content-type", ctype)]
 
-                _asm_request_context.set_value(_asm_request_context._CALLBACKS, "flask_block", blocked_view)
+            core.dispatch("wsgi.block_decided", [blocked_view])
 
             if not_blocked:
                 req_span.set_tag_str(COMPONENT, self._config.integration_name)
@@ -210,8 +207,7 @@ class _DDWSGIMiddlewareBase(object):
                     app_span.finish()
                     req_span.finish()
                     raise
-                if self.tracer._appsec_enabled and _context.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=req_span):
-                    # [Suspicious Request Blocking on request or response]
+                if core.get_item(HTTP_REQUEST_BLOCKED):
                     _, content = self._make_block_content(environ, headers, req_span)
                     closing_iterator = [content]
 
@@ -272,13 +268,16 @@ def construct_url(environ):
 
 
 def get_request_headers(environ):
+    # type: (Mapping[str, str]) -> Mapping[str, str]
     """
     Manually grab the request headers from the environ dictionary.
     """
-    request_headers = {}
+    request_headers = {}  # type: Mapping[str, str]
     for key in environ.keys():
-        if key.startswith("HTTP"):
-            request_headers[from_wsgi_header(key)] = environ[key]
+        if key.startswith("HTTP_"):
+            name = from_wsgi_header(key)
+            if name:
+                request_headers[name] = environ[key]
     return request_headers
 
 

@@ -108,7 +108,7 @@ class FilterOrg(TraceFilter):
 
 @pytest.fixture(scope="session")
 def mock_metrics():
-    patcher = mock.patch("ddtrace.contrib.openai._patch.get_dogstatsd_client")
+    patcher = mock.patch("ddtrace.contrib._trace_utils_llm.get_dogstatsd_client")
     DogStatsdMock = patcher.start()
     m = mock.MagicMock()
     DogStatsdMock.return_value = m
@@ -122,7 +122,7 @@ def mock_logs(scope="session"):
     Note that this fixture must be ordered BEFORE mock_tracer as it needs to patch the log writer
     before it is instantiated.
     """
-    patcher = mock.patch("ddtrace.contrib.openai._patch.V2LogWriter")
+    patcher = mock.patch("ddtrace.contrib._trace_utils_llm.V2LogWriter")
     V2LogWriterMock = patcher.start()
     m = mock.MagicMock()
     V2LogWriterMock.return_value = m
@@ -2092,3 +2092,40 @@ def test_est_tokens():
         )
         == 97
     )  # oracle: 92
+
+
+@pytest.mark.snapshot(ignores=["meta.http.useragent"], async_mode=False)
+@pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
+@pytest.mark.parametrize("service_name", [None, "mysvc"])
+def test_integration_service_name(openai_api_key, ddtrace_run_python_code_in_subprocess, schema_version, service_name):
+    env = os.environ.copy()
+    pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
+    if "PYTHONPATH" in env:
+        pypath.append(env["PYTHONPATH"])
+    env.update(
+        {
+            "OPENAI_API_KEY": openai_api_key,
+            "PYTHONPATH": ":".join(pypath),
+            # Disable metrics because the test agent doesn't support metrics
+            "DD_OPENAI_METRICS_ENABLED": "false",
+        }
+    )
+    if schema_version:
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
+    if service_name:
+        env["DD_SERVICE"] = service_name
+    out, err, status, pid = ddtrace_run_python_code_in_subprocess(
+        """
+import openai
+import ddtrace
+from tests.contrib.openai.test_openai import FilterOrg, get_openai_vcr
+pin = ddtrace.Pin.get_from(openai)
+pin.tracer.configure(settings={"FILTERS": [FilterOrg()]})
+with get_openai_vcr().use_cassette("completion_2.yaml"):
+    resp = openai.Completion.create(model="ada", prompt="hello world")
+""",
+        env=env,
+    )
+    assert status == 0, err
+    assert out == b""
+    assert err == b""

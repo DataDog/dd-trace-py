@@ -1,19 +1,17 @@
-import contextlib
 from itertools import groupby
 import json
 import os
-from typing import Dict
-from typing import Iterable
-from typing import List
-from typing import Optional
-from typing import Tuple
+from typing import TYPE_CHECKING
 
-from ddtrace import config
-from ddtrace.internal import compat
 from ddtrace.internal.logger import get_logger
 
-from .constants import COVERAGE_TAG_NAME
 
+if TYPE_CHECKING:  # pragma: no cover
+    from typing import Dict
+    from typing import Iterable
+    from typing import List
+    from typing import Optional
+    from typing import Tuple
 
 log = get_logger(__name__)
 
@@ -27,40 +25,27 @@ except ImportError:
     Coverage = None  # type: ignore[misc,assignment]
     EXECUTE_ATTR = ""
 
-
-def enabled():
-    if config._ci_visibility_code_coverage_enabled:
-        if compat.PY2:
-            return False
-        if Coverage is None:
-            log.warning(
-                "CI Visibility code coverage tracking is enabled, but the `coverage` package is not installed. "
-                "To use code coverage tracking, please install `coverage` from https://pypi.org/project/coverage/"
-            )
-            return False
-        return True
-    return False
+ROOT_DIR = None
 
 
-@contextlib.contextmanager
-def cover(span, root=None, **kwargs):
-    """Calculates code coverage on the given span and saves it as a tag"""
+def is_coverage_available():
+    return Coverage is not None
+
+
+def _initialize_coverage(root_dir):
+    global ROOT_DIR
+    if ROOT_DIR is None:
+        ROOT_DIR = root_dir
+
     coverage_kwargs = {
         "data_file": None,
-        "source": [root] if root else None,
+        "source": [ROOT_DIR],
         "config_file": False,
         "omit": [
             "*/site-packages/*",
         ],
     }
-    coverage_kwargs.update(kwargs)
-    cov = Coverage(**coverage_kwargs)
-    cov.start()
-    test_id = str(span.trace_id)
-    cov.switch_context(test_id)
-    yield cov
-    cov.stop()
-    span.set_tag(COVERAGE_TAG_NAME, build_payload(cov, test_id=test_id, root=root))
+    return Coverage(**coverage_kwargs)
 
 
 def segments(lines):
@@ -87,8 +72,8 @@ def _lines(coverage, context):
     }
 
 
-def build_payload(coverage, test_id=None, root=None):
-    # type: (Coverage, Optional[str], Optional[str]) -> str
+def build_payload(coverage, test_id=None):
+    # type: (Coverage, Optional[str]) -> str
     """
     Generate a CI Visibility coverage payload, formatted as follows:
 
@@ -119,12 +104,12 @@ def build_payload(coverage, test_id=None, root=None):
         {
             "files": [
                 {
-                    "filename": os.path.relpath(filename, root) if root is not None else filename,
+                    "filename": os.path.relpath(filename, ROOT_DIR) if ROOT_DIR is not None else filename,
                     "segments": lines,
                 }
                 if lines
                 else {
-                    "filename": os.path.relpath(filename, root) if root is not None else filename,
+                    "filename": os.path.relpath(filename, ROOT_DIR) if ROOT_DIR is not None else filename,
                 }
                 for filename, lines in _lines(coverage, test_id).items()
             ]

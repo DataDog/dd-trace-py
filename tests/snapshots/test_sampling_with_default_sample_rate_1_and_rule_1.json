@@ -1,0 +1,37 @@
+[[
+  {
+    "name": "trace4",
+    "service": "",
+    "resource": "trace4",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-3",
+      "language": "python",
+      "runtime-id": "920bc049d045440d84bcac9f8e5d75ac"
+    },
+    "metrics": {
+      "_dd.rule_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 2,
+      "process_id": 17067
+    },
+    "duration": 66501,
+    "start": 1690576754779959707
+  },
+     {
+       "name": "child",
+       "service": "",
+       "resource": "child",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "duration": 8155,
+       "start": 1690576754780008088
+     }]]

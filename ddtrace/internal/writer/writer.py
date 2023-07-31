@@ -23,8 +23,7 @@ from .. import compat
 from .. import periodic
 from .. import service
 from ...constants import KEEP_SPANS_RATE_KEY
-from ...internal.serverless import in_gcp_function
-from ...internal.telemetry import telemetry_lifecycle_writer
+from ...internal.telemetry import telemetry_writer
 from ...internal.utils.formats import asbool
 from ...internal.utils.formats import parse_tags_str
 from ...internal.utils.http import Response
@@ -37,6 +36,8 @@ from ..agent import get_connection
 from ..encoding import JSONEncoderV2
 from ..logger import get_logger
 from ..runtime import container
+from ..serverless import in_azure_function_consumption_plan
+from ..serverless import in_gcp_function
 from ..sma import SimpleMovingAverage
 from .writer_client import AgentWriterClientV3
 from .writer_client import AgentWriterClientV4
@@ -45,6 +46,8 @@ from .writer_client import WriterClientBase
 
 
 if TYPE_CHECKING:  # pragma: no cover
+    from typing import Tuple
+
     from ddtrace import Span
 
     from .agent import ConnectionType
@@ -236,20 +239,24 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             return client._intake_url
         return self.intake_url
 
-    def _metrics_dist(self, name, count=1, tags=None):
-        self._metrics[name]["count"] += count
-        if tags:
-            self._metrics[name]["tags"].extend(tags)
+    def _metrics_dist(self, name, count=1, tags=tuple()):
+        # type: (str, int, Tuple) -> None
+        if tags in self._metrics[name]:
+            self._metrics[name][tags] += count
+        else:
+            self._metrics[name][tags] = count
 
     def _metrics_reset(self):
-        self._metrics = defaultdict(lambda: {"count": 0, "tags": []})
+        # type: () -> None
+        self._metrics = defaultdict(dict)  # type: Dict[str, Dict[Tuple[str,...], int]]
 
     def _set_drop_rate(self):
         dropped = sum(
-            self._metrics[metric]["count"]
+            counts
             for metric in ("encoder.dropped.traces", "buffer.dropped.traces", "http.dropped.traces")
+            for _tags, counts in self._metrics[metric].items()
         )
-        accepted = self._metrics["writer.accepted.traces"]["count"]
+        accepted = sum(counts for _tags, counts in self._metrics["writer.accepted.traces"].items())
 
         if dropped > accepted:
             # Sanity check, we cannot drop more traces than we accepted.
@@ -325,7 +332,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         response = self._put(payload, headers, client)
 
         if response.status >= 400:
-            self._metrics_dist("http.errors", tags=["type:%s" % response.status])
+            self._metrics_dist("http.errors", tags=("type:%s" % response.status,))
         else:
             self._metrics_dist("http.sent.bytes", len(payload))
 
@@ -382,8 +389,8 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 payload_size,
                 client.encoder.max_item_size,
             )
-            self._metrics_dist("buffer.dropped.traces", 1, tags=["reason:t_too_big"])
-            self._metrics_dist("buffer.dropped.bytes", payload_size, tags=["reason:t_too_big"])
+            self._metrics_dist("buffer.dropped.traces", 1, tags=("reason:t_too_big",))
+            self._metrics_dist("buffer.dropped.bytes", payload_size, tags=("reason:t_too_big",))
         except BufferFull as e:
             payload_size = e.args[0]
             log.warning(
@@ -394,10 +401,10 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 payload_size,
                 self.status.value,
             )
-            self._metrics_dist("buffer.dropped.traces", 1, tags=["reason:full"])
-            self._metrics_dist("buffer.dropped.bytes", payload_size, tags=["reason:full"])
+            self._metrics_dist("buffer.dropped.traces", 1, tags=("reason:full",))
+            self._metrics_dist("buffer.dropped.bytes", payload_size, tags=("reason:full",))
         except NoEncodableSpansError:
-            self._metrics_dist("buffer.dropped.traces", 1, tags=["reason:incompatible"])
+            self._metrics_dist("buffer.dropped.traces", 1, tags=("reason:incompatible",))
         else:
             self._metrics_dist("buffer.accepted.traces", 1)
             self._metrics_dist("buffer.accepted.spans", len(spans))
@@ -425,7 +432,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         try:
             self._send_payload_with_backoff(encoded, n_traces, client)
         except Exception:
-            self._metrics_dist("http.errors", tags=["type:err"])
+            self._metrics_dist("http.errors", tags=("type:err",))
             self._metrics_dist("http.dropped.bytes", len(encoded))
             self._metrics_dist("http.dropped.traces", n_traces)
             if raise_exc:
@@ -446,10 +453,9 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 # This really isn't ideal as now we're going to do a ton of socket calls.
                 self.dogstatsd.distribution("datadog.%s.http.sent.bytes" % namespace, len(encoded))
                 self.dogstatsd.distribution("datadog.%s.http.sent.traces" % namespace, n_traces)
-                for name, metric in self._metrics.items():
-                    self.dogstatsd.distribution(
-                        "datadog.%s.%s" % (namespace, name), metric["count"], tags=metric["tags"]
-                    )
+                for name, metric_tags in self._metrics.items():
+                    for tags, count in metric_tags.items():
+                        self.dogstatsd.distribution("datadog.%s.%s" % (namespace, name), count, tags=list(tags))
 
     def periodic(self):
         self.flush_queue(raise_exc=False)
@@ -511,7 +517,9 @@ class AgentWriter(HTTPWriter):
         #      as a safety precaution.
         #      https://docs.python.org/3/library/sys.html#sys.platform
         is_windows = sys.platform.startswith("win") or sys.platform.startswith("cygwin")
-        default_api_version = "v0.4" if (is_windows or in_gcp_function()) else "v0.5"
+        default_api_version = (
+            "v0.4" if (is_windows or in_gcp_function() or in_azure_function_consumption_plan()) else "v0.5"
+        )
 
         self._api_version = (
             api_version
@@ -647,7 +655,7 @@ class AgentWriter(HTTPWriter):
     def start(self):
         super(AgentWriter, self).start()
         try:
-            telemetry_lifecycle_writer.enable()
+            telemetry_writer.enable()
         except service.ServiceStatusError:
             pass
 

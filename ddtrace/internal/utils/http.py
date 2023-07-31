@@ -1,6 +1,7 @@
 from contextlib import contextmanager
 from json import loads
 import logging
+import os
 import re
 from typing import Any
 from typing import Callable
@@ -16,11 +17,13 @@ import six
 from ddtrace.constants import USER_ID_KEY
 from ddtrace.internal import compat
 from ddtrace.internal.compat import parse
+from ddtrace.internal.constants import BLOCKED_RESPONSE_HTML
+from ddtrace.internal.constants import BLOCKED_RESPONSE_JSON
+from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_ORIGIN_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_SAMPLING_PRIORITY_KEY
 from ddtrace.internal.http import HTTPConnection
 from ddtrace.internal.http import HTTPSConnection
-from ddtrace.internal.sampling import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.uds import UDSHTTPConnection
 from ddtrace.internal.utils.cache import cached
 
@@ -311,3 +314,51 @@ def verify_url(url):
         raise ValueError("Invalid file path in intake URL '%s'" % url)
 
     return parsed
+
+
+_HTML_BLOCKED_TEMPLATE_CACHE = None  # type: Optional[str]
+_JSON_BLOCKED_TEMPLATE_CACHE = None  # type: Optional[str]
+
+
+def _get_blocked_template(accept_header_value):
+    # type: (str) -> str
+
+    global _HTML_BLOCKED_TEMPLATE_CACHE
+    global _JSON_BLOCKED_TEMPLATE_CACHE
+
+    need_html_template = False
+
+    if accept_header_value and "text/html" in accept_header_value.lower():
+        need_html_template = True
+
+    if need_html_template and _HTML_BLOCKED_TEMPLATE_CACHE:
+        return _HTML_BLOCKED_TEMPLATE_CACHE
+
+    if not need_html_template and _JSON_BLOCKED_TEMPLATE_CACHE:
+        return _JSON_BLOCKED_TEMPLATE_CACHE
+
+    if need_html_template:
+        template_path = os.getenv("DD_APPSEC_HTTP_BLOCKED_TEMPLATE_HTML")
+    else:
+        template_path = os.getenv("DD_APPSEC_HTTP_BLOCKED_TEMPLATE_JSON")
+
+    if template_path:
+        try:
+            with open(template_path, "r") as template_file:
+                content = template_file.read()
+
+            if need_html_template:
+                _HTML_BLOCKED_TEMPLATE_CACHE = content
+            else:
+                _JSON_BLOCKED_TEMPLATE_CACHE = content
+            return content
+        except (OSError, IOError) as e:
+            log.warning("Could not load custom template at %s: %s", template_path, str(e))  # noqa: G200
+
+    # No user-defined template at this point
+    if need_html_template:
+        _HTML_BLOCKED_TEMPLATE_CACHE = BLOCKED_RESPONSE_HTML
+        return BLOCKED_RESPONSE_HTML
+
+    _JSON_BLOCKED_TEMPLATE_CACHE = BLOCKED_RESPONSE_JSON
+    return BLOCKED_RESPONSE_JSON

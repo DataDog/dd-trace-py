@@ -290,6 +290,7 @@ def test_metrics(encoding, monkeypatch):
 
 
 @allencodings
+@pytest.mark.skipif(AGENT_VERSION == "testagent", reason="FIXME: Test agent doesn't support this for some reason.")
 def test_metrics_partial_flush_disabled(encoding, monkeypatch):
     monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
 
@@ -353,9 +354,11 @@ def test_single_trace_too_large(encoding, monkeypatch):
                 :20
             ]  # limits number of logs, this test could generate hundreds of thousands of logs.
             log.error.assert_not_called()
+            t.shutdown()
 
 
 @allencodings
+@pytest.mark.skipif(AGENT_VERSION == "testagent", reason="FIXME: Test agent doesn't support this for some reason.")
 def test_single_trace_too_large_partial_flush_disabled(encoding, monkeypatch):
     monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
 
@@ -399,6 +402,7 @@ def test_trace_bad_url(encoding, monkeypatch):
 
 
 @allencodings
+@pytest.mark.skipif(AGENT_VERSION == "testagent", reason="FIXME: Test agent doesn't support this for some reason.")
 def test_writer_headers(encoding, monkeypatch):
     monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
 
@@ -743,20 +747,26 @@ def test_downgrade(encoding, monkeypatch):
 
 
 @allencodings
-def test_span_tags(encoding, monkeypatch):
-    monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
+@pytest.mark.snapshot()
+@pytest.mark.skipif(AGENT_VERSION != "testagent", reason="snapshot tests are only compatible with the testagent")
+def test_span_tags(encoding, ddtrace_run_python_code_in_subprocess):
+    env = os.environ.copy()
+    env["DD_TRACE_API_VERSION"] = encoding
 
-    t = Tracer()
-    with mock.patch("ddtrace.internal.writer.writer.log") as log:
-        s = t.trace("operation", service="my-svc")
-        s.set_tag("env", "my-env")
-        s.set_metric("number", 123)
-        s.set_metric("number", 12.0)
-        s.set_metric("number", "1")
-        s.finish()
-        t.shutdown()
-    log.warning.assert_not_called()
-    log.error.assert_not_called()
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(
+        """
+import ddtrace
+
+s = ddtrace.tracer.trace("operation", service="my-svc")
+s.set_tag("env", "my-env")
+s.set_metric("number1", 123)
+s.set_metric("number2", 12.0)
+s.set_metric("number3", "1")
+s.finish()
+""",
+        env=env,
+    )
+    assert status == 0, (out, err)
 
 
 def test_synchronous_writer_shutdown():
@@ -792,45 +802,37 @@ def test_flush_log(caplog, encoding, monkeypatch):
         log.log.assert_has_calls(calls)
 
 
-@pytest.mark.parametrize("logs_injection,debug_mode,patch_logging", itertools.product([True, False], repeat=3))
-def test_regression_logging_in_context(tmpdir, logs_injection, debug_mode, patch_logging):
+def test_regression_logging_in_context(run_python_code_in_subprocess):
     """
     When logs injection is enabled and the logger is patched
         When a parent span closes before a child
             The application does not deadlock due to context lock acquisition
     """
-    f = tmpdir.join("test.py")
-    f.write(
-        """
+    for logs_injection, debug_mode, patch_logging in itertools.product([True, False], repeat=3):
+        code = """
 import ddtrace
-ddtrace.patch(logging=%s)
+ddtrace.patch(logging={})
 
 s1 = ddtrace.tracer.trace("1")
 s2 = ddtrace.tracer.trace("2")
 s1.finish()
 s2.finish()
-""".lstrip()
-        % str(patch_logging)
-    )
+""".format(
+            str(patch_logging)
+        )
 
-    env = os.environ.copy()
-    env.update(
-        {
-            "DD_TRACE_LOGS_INJECTION": str(logs_injection).lower(),
-            "DD_TRACE_DEBUG": str(debug_mode).lower(),
-            "DD_CALL_BASIC_CONFIG": "true",
-        }
-    )
+        env = os.environ.copy()
+        env.update(
+            {
+                "DD_TRACE_LOGS_INJECTION": str(logs_injection).lower(),
+                "DD_TRACE_DEBUG": str(debug_mode).lower(),
+                "DD_CALL_BASIC_CONFIG": "true",
+            }
+        )
 
-    p = subprocess.Popen(
-        [sys.executable, "test.py"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=str(tmpdir), env=env
-    )
-    try:
-        p.wait(timeout=25)
-    except TypeError:
-        # timeout argument added in Python 3.3
-        p.wait()
-    assert p.returncode == 0
+        # If we deadlock (longer than 5 seconds), we'll raise `subprocess.TimeoutExpired` and fail
+        _, err, status, _ = run_python_code_in_subprocess(code, env=env, timeout=5)
+        assert status == 0, err
 
 
 @pytest.mark.parametrize(
@@ -1003,31 +1005,30 @@ def test_no_warnings():
 
 def test_civisibility_event_endpoints():
     with override_env(dict(DD_API_KEY="foobar.baz")):
-        with override_global_config({"_ci_visibility_code_coverage_enabled": True}):
-            t = Tracer()
-            t.configure(writer=CIVisibilityWriter(reuse_connections=True))
-            t._writer._conn = mock.MagicMock()
-            with mock.patch("ddtrace.internal.writer.Response.from_http_response") as from_http_response:
-                from_http_response.return_value.__class__ = Response
-                from_http_response.return_value.status = 200
-                s = t.trace("operation", service="svc-no-cov")
-                s.finish()
-                span = t.trace("operation2", service="my-svc2")
-                span.set_tag(
-                    COVERAGE_TAG_NAME,
-                    '{"files": [{"filename": "test_cov.py", "segments": [[5, 0, 5, 0, -1]]}, '
-                    + '{"filename": "test_module.py", "segments": [[2, 0, 2, 0, -1]]}]}',
-                )
-                span.finish()
-                conn = t._writer._conn
-                t.shutdown()
-            assert conn.request.call_count == (2 if compat.PY3 else 1)
-            assert conn.request.call_args_list[0].args[1] == "api/v2/citestcycle"
+        t = Tracer()
+        t.configure(writer=CIVisibilityWriter(reuse_connections=True, coverage_enabled=bool(compat.PY3)))
+        t._writer._conn = mock.MagicMock()
+        with mock.patch("ddtrace.internal.writer.Response.from_http_response") as from_http_response:
+            from_http_response.return_value.__class__ = Response
+            from_http_response.return_value.status = 200
+            s = t.trace("operation", service="svc-no-cov")
+            s.finish()
+            span = t.trace("operation2", service="my-svc2")
+            span.set_tag(
+                COVERAGE_TAG_NAME,
+                '{"files": [{"filename": "test_cov.py", "segments": [[5, 0, 5, 0, -1]]}, '
+                + '{"filename": "test_module.py", "segments": [[2, 0, 2, 0, -1]]}]}',
+            )
+            span.finish()
+            conn = t._writer._conn
+            t.shutdown()
+        assert conn.request.call_count == 2 if compat.PY3 else 1
+        assert conn.request.call_args_list[0].args[1] == "api/v2/citestcycle"
+        assert (
+            b"svc-no-cov" in conn.request.call_args_list[0].args[2]
+        ), "requests to the cycle endpoint should include non-coverage spans"
+        if compat.PY3:
+            assert conn.request.call_args_list[1].args[1] == "api/v2/citestcov"
             assert (
-                b"svc-no-cov" in conn.request.call_args_list[0].args[2]
-            ), "requests to the cycle endpoint should include non-coverage spans"
-            if compat.PY3:
-                assert conn.request.call_args_list[1].args[1] == "api/v2/citestcov"
-                assert (
-                    b"svc-no-cov" not in conn.request.call_args_list[1].args[2]
-                ), "requests to the coverage endpoint should not include non-coverage spans"
+                b"svc-no-cov" not in conn.request.call_args_list[1].args[2]
+            ), "requests to the coverage endpoint should not include non-coverage spans"
