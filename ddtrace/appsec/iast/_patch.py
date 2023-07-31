@@ -80,7 +80,6 @@ def wrap_object(module, name, factory, args=(), kwargs={}):
 
 def patchable_builtin(klass):
     refs = gc.get_referents(klass.__dict__)
-    assert len(refs) == 1
     return refs[0]
 
 
