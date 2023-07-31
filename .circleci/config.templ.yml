@@ -363,6 +363,12 @@ jobs:
           pattern: "ci_visibility"
           trace_agent_url: ""
 
+  subprocess:
+    <<: *contrib_job_small
+    steps:
+      - run_test:
+          pattern: "subprocess"
+
   sourcecode:
     <<: *contrib_job_small
     steps:
