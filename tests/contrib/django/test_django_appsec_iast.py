@@ -135,11 +135,7 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_request_parameter(clie
 
         loaded = json.loads(root_span.get_tag(IAST.JSON))
 
-        line, hash_value = get_line_and_hash(
-            "iast_enabled_sqli_http_request_parameter",
-            vuln_type,
-            value_parts=loaded["vulnerabilities"][0]["evidence"]["valueParts"],
-        )
+        line, hash_value = get_line_and_hash("iast_enabled_sqli_http_request_parameter", vuln_type, filename=TEST_FILE)
 
         assert loaded["sources"] == [
             {"origin": "http.request.parameter", "name": "q", "value": "SELECT 1 FROM sqlite_master"}
@@ -177,9 +173,7 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_request_header_value(c
         loaded = json.loads(root_span.get_tag(IAST.JSON))
 
         line, hash_value = get_line_and_hash(
-            "iast_enabled_sqli_http_request_header_value",
-            vuln_type,
-            value_parts=loaded["vulnerabilities"][0]["evidence"]["valueParts"],
+            "iast_enabled_sqli_http_request_header_value", vuln_type, filename=TEST_FILE
         )
 
         assert loaded["sources"] == [{"origin": "http.request.header", "name": "HTTP_USER_AGENT", "value": "master"}]
@@ -246,9 +240,7 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_request_header_name(cl
         loaded = json.loads(root_span.get_tag(IAST.JSON))
 
         line, hash_value = get_line_and_hash(
-            "iast_enabled_sqli_http_request_header_name",
-            vuln_type,
-            value_parts=loaded["vulnerabilities"][0]["evidence"]["valueParts"],
+            "iast_enabled_sqli_http_request_header_name", vuln_type, filename=TEST_FILE
         )
 
         assert loaded["sources"] == [{"origin": "http.request.header", "name": "master", "value": "master"}]
@@ -312,9 +304,7 @@ def test_django_iast_enabled_full_sqli_http_path_parameter(client, test_spans, t
         loaded = json.loads(root_span.get_tag(IAST.JSON))
 
         line, hash_value = get_line_and_hash(
-            "iast_enabled_full_sqli_http_path_parameter",
-            vuln_type,
-            value_parts=loaded["vulnerabilities"][0]["evidence"]["valueParts"],
+            "iast_enabled_full_sqli_http_path_parameter", vuln_type, filename=TEST_FILE
         )
 
         assert loaded["sources"] == [
@@ -377,11 +367,7 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_cookies_name(client, t
 
         loaded = json.loads(root_span.get_tag(IAST.JSON))
 
-        line, hash_value = get_line_and_hash(
-            "iast_enabled_sqli_http_cookies_name",
-            vuln_type,
-            value_parts=loaded["vulnerabilities"][0]["evidence"]["valueParts"],
-        )
+        line, hash_value = get_line_and_hash("iast_enabled_sqli_http_cookies_name", vuln_type, filename=TEST_FILE)
 
         assert loaded["sources"] == [{"origin": "http.request.cookie.value", "name": "master", "value": "master"}]
         assert loaded["vulnerabilities"][0]["type"] == vuln_type
@@ -440,11 +426,7 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_cookies_value(client, 
         vuln_type = "SQL_INJECTION"
         loaded = json.loads(root_span.get_tag(IAST.JSON))
 
-        line, hash_value = get_line_and_hash(
-            "iast_enabled_sqli_http_cookies_value",
-            vuln_type,
-            value_parts=loaded["vulnerabilities"][0]["evidence"]["valueParts"],
-        )
+        line, hash_value = get_line_and_hash("iast_enabled_sqli_http_cookies_value", vuln_type, filename=TEST_FILE)
 
         assert loaded["sources"] == [{"origin": "http.request.cookie.value", "name": "master", "value": "master"}]
         assert loaded["vulnerabilities"][0]["type"] == "SQL_INJECTION"
