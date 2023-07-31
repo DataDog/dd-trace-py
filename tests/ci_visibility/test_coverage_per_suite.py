@@ -109,3 +109,74 @@ class PytestTestCase(TracerTestCase):
         assert files[0]["segments"][0] == [4, 0, 5, 0, -1]
         assert len(files[1]["segments"]) == 1
         assert files[1]["segments"][0] == [2, 0, 2, 0, -1]
+
+    @pytest.mark.skipif(compat.PY2, reason="ddtrace does not support coverage on Python 2")
+    def test_pytest_will_report_coverage_by_suite_with_itr_skipped(self):
+        self.testdir.makepyfile(
+            test_ret_false="""
+        def ret_false():
+            return False
+        """
+        )
+        self.testdir.makepyfile(
+            test_module="""
+        def lib_fn():
+            return True
+        """
+        )
+        py_cov_file = self.testdir.makepyfile(
+            test_cov="""
+        import pytest
+        from test_module import lib_fn
+
+        def test_cov():
+            assert lib_fn()
+
+        def test_second():
+            from test_ret_false import ret_false
+            assert not ret_false()
+        """
+        )
+        py_cov_file2 = self.testdir.makepyfile(
+            test_cov_second="""
+        import pytest
+
+        def test_second():
+            from test_ret_false import ret_false
+            assert not ret_false()
+        """
+        )
+
+        with override_env({"_DD_CIVISIBILITY_ITR_SUITE_MODE": "True"}), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features", return_value=(True, True)
+        ), mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"), mock.patch.object(
+            ddtrace.internal.ci_visibility.recorder.CIVisibility,
+            "_test_suites_to_skip",
+            [
+                "test_cov_second.py",
+            ],
+        ):
+            self.inline_run("--ddtrace", os.path.basename(py_cov_file.strpath), os.path.basename(py_cov_file2.strpath))
+        spans = self.pop_spans()
+
+        test_suite_spans = [span for span in spans if span.get_tag("type") == "test_suite_end"]
+        first_suite_span = test_suite_spans[0]
+        assert first_suite_span.get_tag("type") == "test_suite_end"
+        assert COVERAGE_TAG_NAME in first_suite_span.get_tags()
+        tag_data = json.loads(first_suite_span.get_tag(COVERAGE_TAG_NAME))
+        files = sorted(tag_data["files"], key=lambda x: x["filename"])
+        assert len(files) == 3
+        assert files[0]["filename"] == "test_cov.py"
+        assert files[1]["filename"] == "test_module.py"
+        assert files[2]["filename"] == "test_ret_false.py"
+        assert len(files[0]["segments"]) == 2
+        assert files[0]["segments"][0] == [5, 0, 5, 0, -1]
+        assert files[0]["segments"][1] == [8, 0, 9, 0, -1]
+        assert len(files[1]["segments"]) == 1
+        assert files[1]["segments"][0] == [2, 0, 2, 0, -1]
+        assert len(files[2]["segments"]) == 1
+        assert files[2]["segments"][0] == [1, 0, 2, 0, -1]
+
+        second_suite_span = test_suite_spans[1]
+        assert second_suite_span.get_tag("type") == "test_suite_end"
+        assert COVERAGE_TAG_NAME not in second_suite_span.get_tags()
