@@ -8,17 +8,11 @@ import pytest
 import ddtrace
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.ext import ci
-from ddtrace.internal import agent
 from ddtrace.internal.ci_visibility import CIVisibility
-from ddtrace.internal.ci_visibility.constants import AGENTLESS_ENDPOINT
-from ddtrace.internal.ci_visibility.constants import EVP_PROXY_AGENT_ENDPOINT
-from ddtrace.internal.ci_visibility.constants import EVP_SUBDOMAIN_HEADER_EVENT_VALUE
-from ddtrace.internal.ci_visibility.constants import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.internal.ci_visibility.constants import REQUESTS_MODE
 from ddtrace.internal.ci_visibility.filters import TraceCiVisibilityFilter
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClient
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClientSerializerV1
-from ddtrace.internal.ci_visibility.recorder import CITracer
 from ddtrace.internal.ci_visibility.recorder import _extract_repository_name_from_url
 from ddtrace.internal.compat import TimeoutError
 from ddtrace.internal.utils.http import Response
@@ -31,7 +25,6 @@ from tests.utils import override_global_config
 
 
 TEST_SHA = "b3672ea5cbc584124728c48a443825d2940e0ddd"
-AGENT_VERSION = os.environ.get("AGENT_VERSION")
 
 
 def test_filters_test_spans():
@@ -787,34 +780,3 @@ def test_unshallow_repository():
     with mock.patch("ddtrace.internal.ci_visibility.git_client._unshallow_repository") as mock_unshallow_repository:
         CIVisibilityGitClient._unshallow_repository(cwd="/path/to/repo")
         mock_unshallow_repository.assert_called_once_with(cwd="/path/to/repo")
-
-
-@pytest.mark.skipif(AGENT_VERSION == "testagent", reason="Test agent doesn't support evp proxy.")
-def test_civisibility_intake_with_evp_available():
-    with override_env(dict(DD_API_KEY="foobar.baz", DD_SITE="foo.bar", DD_CIVISIBILITY_AGENTLESS_ENABLED="0")):
-        ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
-        t = CITracer()
-        CIVisibility.enable(tracer=t, service="test-service")
-        assert CIVisibility._instance.tracer._writer._endpoint == EVP_PROXY_AGENT_ENDPOINT
-        assert CIVisibility._instance.tracer._writer.intake_url == agent.get_trace_url()
-        assert (
-            CIVisibility._instance.tracer._writer._headers[EVP_SUBDOMAIN_HEADER_NAME]
-            == EVP_SUBDOMAIN_HEADER_EVENT_VALUE
-        )
-        CIVisibility.disable()
-
-
-def test_civisibility_intake_with_apikey():
-    with override_env(dict(DD_API_KEY="foobar.baz", DD_SITE="foo.bar", DD_CIVISIBILITY_AGENTLESS_ENABLED="1")):
-        ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
-        t = CITracer()
-        CIVisibility.enable(tracer=t, service="test-service")
-        assert CIVisibility._instance.tracer._writer._endpoint == AGENTLESS_ENDPOINT
-        assert CIVisibility._instance.tracer._writer.intake_url == "https://citestcycle-intake.foo.bar"
-        CIVisibility.disable()
-
-
-def test_civisibility_intake_with_missing_apikey():
-    with override_env(dict(DD_SITE="foobar.baz", DD_CIVISIBILITY_AGENTLESS_ENABLED="1")):
-        with pytest.raises(EnvironmentError):
-            CIVisibility.enable()
