@@ -43,9 +43,9 @@ class LazyTaintList:
                     except SystemError:
                         # TODO: Find the root cause for
                         # SystemError: NULL object passed to Py_BuildValue
-                        log.error("IAST SystemError while tainting value: %s", value, exc_info=True)
+                        log.debug("IAST SystemError while tainting value: %s", value, exc_info=True)
                     except Exception:
-                        log.error("IAST Unexpected exception while tainting value", exc_info=True)
+                        log.debug("IAST Unexpected exception while tainting value", exc_info=True)
             elif isinstance(value, abc.Mapping) and not _is_tainted_struct(value):
                 value = LazyTaintDict(
                     value, origins=self._origins, override_pyobject_tainted=self._override_pyobject_tainted
@@ -208,9 +208,9 @@ class LazyTaintDict:
                     except SystemError:
                         # TODO: Find the root cause for
                         # SystemError: NULL object passed to Py_BuildValue
-                        log.error("IAST SystemError while tainting value: %s", value, exc_info=True)
+                        log.debug("IAST SystemError while tainting value: %s", value, exc_info=True)
                     except Exception:
-                        log.error("IAST Unexpected exception while tainting value", exc_info=True)
+                        log.debug("IAST Unexpected exception while tainting value", exc_info=True)
             elif isinstance(value, abc.Mapping) and not _is_tainted_struct(value):
                 value = LazyTaintDict(
                     value, origins=self._origins, override_pyobject_tainted=self._override_pyobject_tainted
@@ -314,8 +314,20 @@ class LazyTaintDict:
     def fromkeys(cls, *args):
         return dict.fromkeys(*args)
 
-    def get(self, *args):
-        return self._taint(self._obj.get(*args), args[0])
+    def get(self, key, default=None):
+        observer = object()
+        res = self._obj.get(key, observer)
+        if res is observer:
+            return default
+        return self._taint(res, key)
+
+    def items(self):
+        for k in self.keys():
+            yield (k, self[k])
+
+    def keys(self):
+        for k in self._obj.keys():
+            yield self._taint(k, k)
 
     def pop(self, *args):
         return self._taint(self._obj.pop(*args), "pop")
@@ -330,13 +342,8 @@ class LazyTaintDict:
     def setdefault(self, *args):
         return self._taint(self._obj.setdefault(*args), args[0])
 
-    def items(self):
-        for k in self.keys():
-            yield (k, self[k])
-
-    def keys(self):
-        for k in self._obj.keys():
-            yield self._taint(k, k)
+    def update(self, *args, **kargs):
+        self._obj.update(*args, **kargs)
 
     def values(self):
         for _, v in self.items():
