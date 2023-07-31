@@ -391,7 +391,7 @@ venv = Venv(
         Venv(
             name="integration",
             # Enabling coverage for integration tests breaks certain tests in CI
-            command="pytest --no-cov --ddtrace --ignore-glob='*ci_visibility*' {cmdargs} tests/integration/",
+            command="pytest --no-cov --ddtrace --ignore-glob='*civisibility*' {cmdargs} tests/integration/",
             pkgs={"msgpack": [latest], "coverage": latest},
             venvs=[
                 Venv(
