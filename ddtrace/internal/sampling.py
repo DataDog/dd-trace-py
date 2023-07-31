@@ -527,8 +527,11 @@ class SamplingRule:
                 return False
 
         glob_match = self.glob_matches(span)
+        # we return early here because _matches() doesn't support tags
+        if self.tags is not self.NO_RULE:
+            return glob_match
         # self._matches exists to maintain legacy pattern values such as regex and functions
-        return glob_match or self._matches((span.service, span.name, span.resource))
+        return self._matches((span.service, span.name, span.resource))
 
     def glob_matches(self, span):
         # type: (Span) -> bool

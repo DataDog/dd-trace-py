@@ -118,8 +118,9 @@ def test_extended_sampling_resource(writer, tracer):
 def test_extended_sampling_tags(writer, tracer):
     sampler = DatadogSampler(rules=[SamplingRule(0, tags=TAGS)])
     tracer.configure(sampler=sampler, writer=writer)
+    key = list(TAGS.keys())[0]
     with tracer.trace("should_not_send") as span:
-        span.set_tag(*TAGS.items())
+        span.set_tag(key, TAGS[key])
     with tracer.trace("should_send") as span:
         span.set_tag("banana", True)
 
@@ -128,11 +129,12 @@ def test_extended_sampling_tags(writer, tracer):
 def test_extended_sampling_tags_and_resource(writer, tracer):
     sampler = DatadogSampler(rules=[SamplingRule(0, tags=TAGS, resource=RESOURCE)])
     tracer.configure(sampler=sampler, writer=writer)
+    key = list(TAGS.keys())[0]
     with tracer.trace("should_not_send", resource=RESOURCE) as span:
-        span.set_tag(*TAGS.items())
-    with tracer.trace("should_send") as span:
+        span.set_tag(key, TAGS[key])
+    with tracer.trace("should_send1") as span:
         span.set_tag("banana", True)
-    with tracer.trace("should_send", resource="banana") as span:
-        span.set_tag(*TAGS.items())
-    with tracer.trace("should_send", resource=RESOURCE) as span:
+    with tracer.trace("should_send2", resource="banana") as span:
+        span.set_tag(key, TAGS[key])
+    with tracer.trace("should_send3", resource=RESOURCE) as span:
         span.set_tag("banana", True)

@@ -1,8 +1,8 @@
 [[
   {
-    "name": "should_send",
+    "name": "should_send1",
     "service": "",
-    "resource": "mycoolre$ource",
+    "resource": "should_send1",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
@@ -11,23 +11,48 @@
     "meta": {
       "banana": "True",
       "language": "python",
-      "runtime-id": "fabbd94e286f434c9ee3a6dc76cbc4b4"
+      "runtime-id": "8a0541e2ccb54541a0181ec4610b1b4b"
     },
     "metrics": {
-      "_dd.rule_psr": 0,
+      "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": -1,
-      "process_id": 4078
+      "_sampling_priority_v1": 1,
+      "process_id": 5560
     },
-    "duration": 86412,
-    "start": 1690831896394562520
+    "duration": 12012,
+    "start": 1690836506241555905
   }],
 [
   {
-    "name": "should_send",
+    "name": "should_send2",
     "service": "",
-    "resource": "should_send",
+    "resource": "banana",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "language": "python",
+      "runtime-id": "8a0541e2ccb54541a0181ec4610b1b4b",
+      "tag1": "mycooltag"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 5560
+    },
+    "duration": 15392,
+    "start": 1690836506241778470
+  }],
+[
+  {
+    "name": "should_send3",
+    "service": "",
+    "resource": "mycoolre$ource",
     "trace_id": 2,
     "span_id": 1,
     "parent_id": 0,
@@ -36,39 +61,15 @@
     "meta": {
       "banana": "True",
       "language": "python",
-      "runtime-id": "fabbd94e286f434c9ee3a6dc76cbc4b4"
+      "runtime-id": "8a0541e2ccb54541a0181ec4610b1b4b"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 4078
+      "process_id": 5560
     },
-    "duration": 85834,
-    "start": 1690831895563590658
-  }],
-[
-  {
-    "name": "should_send",
-    "service": "",
-    "resource": "banana",
-    "trace_id": 3,
-    "span_id": 1,
-    "parent_id": 0,
-    "type": "",
-    "error": 0,
-    "meta": {
-      "language": "python",
-      "runtime-id": "fabbd94e286f434c9ee3a6dc76cbc4b4"
-    },
-    "metrics": {
-      "_dd.agent_psr": 1.0,
-      "_dd.top_level": 1,
-      "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 4078
-    },
-    "duration": 132103,
-    "start": 1690831895986797600
+    "duration": 11423,
+    "start": 1690836506241874754
   }]]

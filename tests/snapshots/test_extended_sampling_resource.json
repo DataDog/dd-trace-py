@@ -1,25 +1,24 @@
-[
-[
+[[
   {
     "name": "should_send",
     "service": "",
     "resource": "something else",
-    "trace_id": 1,
+    "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
     "type": "",
     "error": 0,
     "meta": {
       "language": "python",
-      "runtime-id": "fabbd94e286f434c9ee3a6dc76cbc4b4"
+      "runtime-id": "8a0541e2ccb54541a0181ec4610b1b4b"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 4078
+      "process_id": 5560
     },
-    "duration": 27582,
-    "start": 1690831891194134814
+    "duration": 10676,
+    "start": 1690836506191939613
   }]]
