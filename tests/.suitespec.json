@@ -625,6 +625,7 @@
             "@asyncio"
         ],
         "flask": [
+            "@appsec",
             "@bootstrap",
             "@core",
             "@tracing",
