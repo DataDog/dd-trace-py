@@ -257,15 +257,9 @@ class DatadogSampler(RateByServiceSampler):
         if rate_limit is None:
             rate_limit = int(os.getenv("DD_TRACE_RATE_LIMIT", default=self.DEFAULT_RATE_LIMIT))
 
-        if rules is None:
-            self.rules = []
-        else:
-            self.rules = []
-            # Validate that rules is a list of SampleRules
-            for rule in rules:
-                if not isinstance(rule, SamplingRule):
-                    raise TypeError("Rule {!r} must be a sub-class of type ddtrace.sampler.SamplingRules".format(rule))
-                self.rules.append(rule)
+        self.rules = [rule for rule in (rules or []) if isinstance(rule, SamplingRule)]
+        if len(self.rules) != len(rules):
+            raise TypeError("Sampling rules must be objects of type ddtrace.sampler.SamplingRule")
 
         # DEV: Default sampling rule must come last
         if default_sample_rate is not None:
@@ -355,18 +349,16 @@ class DatadogSampler(RateByServiceSampler):
         """
         # If there are rules defined, then iterate through them and find the earliest rule that matches the trace
         #  e.g. [rule1, rule2, rule3] -> rule1 matches once, rule2 matches twice -> return rule1 because it's earlier
-        sampler = None  # type: Optional[Union[SamplingRule, RateLimiter]]
         # we need a span to grab the trace id from the span to run sample
         rule = self.decide_sampling_rule(trace)
         if rule:
-            first_span = trace[0]
-            sampled = rule.sample(first_span)
+            decision = rule.sample(trace[0])
 
             # not sure we need to actually do this for each span if we continue
             # to use context to store sampling decision
             for span in trace:
-                self._set_sampler_decision(span, sampler, sampled)
-                if sampled:
+                self._set_sampler_decision(span, rule, decision)
+                if decision:
                     # Ensure all allowed traces adhere to the global rate limit
                     # DEV: Think about how behavior may change now that we check the limiter against all spans that were
                     # going to be dropped instead of just the root span, also what to return if we block some spans but
@@ -374,8 +366,6 @@ class DatadogSampler(RateByServiceSampler):
                     allowed = self.limiter.is_allowed(span.start_ns)
                     if not allowed:
                         self._set_sampler_decision(span, self.limiter, allowed)
+            return trace
         else:
-            # use agent sampling
-            sampled = super(DatadogSampler, self).sample(trace)
-
-        return sampled
+            return super(DatadogSampler, self).sample(trace)

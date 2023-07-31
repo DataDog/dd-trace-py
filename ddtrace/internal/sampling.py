@@ -504,8 +504,8 @@ class SamplingRule:
     @cachedmethod()
     def _matches(self, key):
         # type: (Tuple[Optional[str], str]) -> bool
-        service, name = key
-        for prop, pattern in [(service, self.service), (name, self.name)]:
+        service, name, resource = key
+        for prop, pattern in [(service, self.service), (name, self.name), (resource, self.resource)]:
             if not self._pattern_matches(prop, pattern):
                 return False
         else:
@@ -526,13 +526,9 @@ class SamplingRule:
             if span.parent_id is not None:
                 return False
 
-        # glob matching does not support patterns of function or regex
-        if type(self.name) is str and type(self.service) is str:
-            glob_match = self.glob_matches(span)
-        else:
-            glob_match = False
+        glob_match = self.glob_matches(span)
         # self._matches exists to maintain legacy pattern values such as regex and functions
-        return glob_match or self._matches((span.service, span.name))
+        return glob_match or self._matches((span.service, span.name, span.resource))
 
     def glob_matches(self, span):
         # type: (Span) -> bool

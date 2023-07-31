@@ -107,62 +107,32 @@ def test_sampling_with_rate_sampler_with_tiny_rate(writer, tracer):
 
 
 @snapshot_parametrized_with_writers
-def test_extended_sampling_non_matching_rule_with_resource(writer, tracer):
-    sampler = DatadogSampler(default_sample_rate=1, rules=[SamplingRule(1, resource=RESOURCE)])
+def test_extended_sampling_resource(writer, tracer):
+    sampler = DatadogSampler(rules=[SamplingRule(0, resource=RESOURCE)])
     tracer.configure(sampler=sampler, writer=writer)
-    tracer.trace("trace5", resource="something else").finish()
+    tracer.trace("should_not_send", resource=RESOURCE).finish()
+    tracer.trace("should_send", resource="something else").finish()
 
 
 @snapshot_parametrized_with_writers
-def test_extended_sampling_matching_rule_with_resource(writer, tracer):
-    sampler = DatadogSampler(default_sample_rate=1, rules=[SamplingRule(1, resource=RESOURCE)])
+def test_extended_sampling_tags(writer, tracer):
+    sampler = DatadogSampler(rules=[SamplingRule(0, tags=TAGS)])
     tracer.configure(sampler=sampler, writer=writer)
-    tracer.trace("trace5", resource=RESOURCE).finish()
-
-
-@snapshot_parametrized_with_writers
-def test_extended_sampling_non_matching_rule_with_tags(writer, tracer):
-    sampler = DatadogSampler(default_sample_rate=1, rules=[SamplingRule(1, tags=TAGS)])
-    tracer.configure(sampler=sampler, writer=writer)
-    with tracer.trace("trace5") as span:
+    with tracer.trace("should_not_send") as span:
+        span.set_tag(*TAGS.items())
+    with tracer.trace("should_send") as span:
         span.set_tag("banana", True)
 
 
 @snapshot_parametrized_with_writers
-def test_extended_sampling_matching_rule_with_tags(writer, tracer):
-    sampler = DatadogSampler(default_sample_rate=1, rules=[SamplingRule(1, tags=TAGS)])
+def test_extended_sampling_tags_and_resource(writer, tracer):
+    sampler = DatadogSampler(rules=[SamplingRule(0, tags=TAGS, resource=RESOURCE)])
     tracer.configure(sampler=sampler, writer=writer)
-    with tracer.trace("trace5") as span:
+    with tracer.trace("should_not_send", resource=RESOURCE) as span:
         span.set_tag(*TAGS.items())
-
-
-@snapshot_parametrized_with_writers
-def test_extended_sampling_non_matching_rule_with_tags_and_resource(writer, tracer):
-    sampler = DatadogSampler(default_sample_rate=1, rules=[SamplingRule(1, tags=TAGS, resource=RESOURCE)])
-    tracer.configure(sampler=sampler, writer=writer)
-    with tracer.trace("trace5") as span:
+    with tracer.trace("should_send") as span:
         span.set_tag("banana", True)
-
-
-@snapshot_parametrized_with_writers
-def test_extended_sampling_matching_rule_with_tags_and_resource(writer, tracer):
-    sampler = DatadogSampler(default_sample_rate=1, rules=[SamplingRule(1, tags=TAGS, resource=RESOURCE)])
-    tracer.configure(sampler=sampler, writer=writer)
-    with tracer.trace("trace5", resource=RESOURCE) as span:
+    with tracer.trace("should_send", resource="banana") as span:
         span.set_tag(*TAGS.items())
-
-
-@snapshot_parametrized_with_writers
-def test_extended_sampling_tags_match_but_not_resource(writer, tracer):
-    sampler = DatadogSampler(default_sample_rate=1, rules=[SamplingRule(1, tags=TAGS, resource=RESOURCE)])
-    tracer.configure(sampler=sampler, writer=writer)
-    with tracer.trace("trace5", resource="banana") as span:
-        span.set_tag(*TAGS.items())
-
-
-@snapshot_parametrized_with_writers
-def test_extended_sampling_resource_matches_but_not_tags(writer, tracer):
-    sampler = DatadogSampler(default_sample_rate=1, rules=[SamplingRule(1, tags=TAGS, resource=RESOURCE)])
-    tracer.configure(sampler=sampler, writer=writer)
-    with tracer.trace("trace5", resource=RESOURCE) as span:
+    with tracer.trace("should_send", resource=RESOURCE) as span:
         span.set_tag("banana", True)
