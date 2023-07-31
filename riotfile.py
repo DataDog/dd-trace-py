@@ -1335,8 +1335,12 @@ venv = Venv(
                 ]
             },
             venvs=[
-                Venv(command="pytest --ddtrace {cmdargs} --ignore=tests/contrib/pymemcache/autopatch tests/contrib/pymemcache"),
-                Venv(command="python tests/ddtrace_run.py pytest --ddtrace {cmdargs} tests/contrib/pymemcache/autopatch/"),
+                Venv(
+                    command="pytest --ddtrace {cmdargs} --ignore=tests/contrib/pymemcache/autopatch tests/contrib/pymemcache"  # noqa: E501
+                ),
+                Venv(
+                    command="python tests/ddtrace_run.py pytest --ddtrace {cmdargs} tests/contrib/pymemcache/autopatch/"  # noqa: E501
+                ),
             ],
         ),
         Venv(
