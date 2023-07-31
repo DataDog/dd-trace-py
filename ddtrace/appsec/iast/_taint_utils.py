@@ -194,7 +194,9 @@ class LazyTaintDict:
         self._origin_value = origins[1]
         self._override_pyobject_tainted = override_pyobject_tainted
 
-    def _taint(self, value, key):
+    def _taint(self, value, key, origin=None):
+        if origin is None:
+            origin = self._origin_value
         if value:
             if isinstance(value, (str, bytes, bytearray)):
                 if not is_pyobject_tainted(value) or self._override_pyobject_tainted:
@@ -203,7 +205,7 @@ class LazyTaintDict:
                             pyobject=value,
                             source_name=key,
                             source_value=value,
-                            source_origin=self._origin_value,
+                            source_origin=origin,
                         )
                     except SystemError:
                         # TODO: Find the root cause for
@@ -327,7 +329,7 @@ class LazyTaintDict:
 
     def keys(self):
         for k in self._obj.keys():
-            yield self._taint(k, k)
+            yield self._taint(k, k, self._origin_key)
 
     def pop(self, *args):
         return self._taint(self._obj.pop(*args), "pop")
