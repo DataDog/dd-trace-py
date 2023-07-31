@@ -1,5 +1,6 @@
 import re
 import zlib
+
 from ddtrace.internal.compat import PY2
 
 

@@ -11,6 +11,7 @@ from tests.appsec.iast.fixtures.weak_algorithms import cipher_des
 from tests.appsec.iast.fixtures.weak_algorithms import cryptography_algorithm
 from tests.appsec.iast.iast_utils import get_line_and_hash
 
+
 FIXTURES_PATH = "tests/appsec/iast/fixtures/weak_algorithms.py"
 
 
