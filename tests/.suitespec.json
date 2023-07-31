@@ -629,6 +629,7 @@
             "@core",
             "@tracing",
             "@flask",
+            "@appsec",
             "@wsgi"
         ],
         "gevent": [
