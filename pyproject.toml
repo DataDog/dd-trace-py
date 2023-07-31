@@ -175,10 +175,6 @@ targets = ["ddtrace/"]
 exclude_dirs = [
   "ddtrace/vendor/",
   "ddtrace/appsec/iast/_taint_tracking/_vendor/",
-  "ddtrace/appsec/iast/_ast/visitor.py",
-  "ddtrace/appsec/iast/_loader.py",
-  "ddtrace/appsec/iast/_patch.py",
-  "ddtrace/appsec/iast/_taint_tracking/__init__.py",
   "ddtrace/commands/ddtrace_run.py",
   "ddtrace/ext/git.py",
   "ddtrace/ext/test.py",
