@@ -66,7 +66,7 @@ class Location(object):
 @attr.s(eq=True, hash=True)
 class Vulnerability(object):
     type = attr.ib(type=str)  # type: str
-    evidence = attr.ib(type=Evidence, repr=False)  # type: Evidence
+    evidence = attr.ib(type=Evidence, repr=True)  # type: Evidence
     location = attr.ib(type=Location, hash="PYTEST_CURRENT_TEST" in os.environ)  # type: Location
     hash = attr.ib(init=False, eq=False, hash=False, repr=False)  # type: int
 

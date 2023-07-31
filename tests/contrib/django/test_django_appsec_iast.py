@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 import json
+import re
+import zlib
 
 import mock
 import pytest
@@ -9,8 +11,8 @@ from ddtrace._monkey import patch_iast
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec.iast import oce
 from ddtrace.appsec.iast._util import _is_python_version_supported as python_supported_by_iast
+from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import urlencode
-from tests.appsec.iast.iast_utils import get_line_and_hash
 from tests.utils import override_global_config
 
 
@@ -44,6 +46,27 @@ def _aux_appsec_get_root_span(
         else:
             response = client.post(url, payload, content_type=content_type)
     return test_spans.spans[0], response
+
+
+def get_line(label, filename=TEST_FILE):
+    """get the line number after the label comment in source file `filename`"""
+    with open(filename, "r") as file_in:
+        for nb_line, line in enumerate(file_in):
+            if re.search("label " + re.escape(label), line):
+                return nb_line + 2
+    assert False, "label %s not found" % label
+
+
+def get_line_and_hash(label, vuln_type, filename=TEST_FILE):
+    """return the line number and the associated vulnerability hash for `label` and source file `filename`"""
+
+    line = get_line(label, filename=filename)
+    rep = "Vulnerability(type='%s', location=Location(path='%s', line=%d))" % (vuln_type, filename, line)
+    hash_value = zlib.crc32(rep.encode())
+    if PY2 and hash_value < 0:
+        hash_value += 1 << 32
+
+    return line, hash_value
 
 
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
