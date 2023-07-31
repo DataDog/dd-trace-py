@@ -18,6 +18,7 @@ from ddtrace.internal.ci_visibility.recorder import _extract_repository_name_fro
 from ddtrace.internal.compat import TimeoutError
 from ddtrace.internal.utils.http import Response
 from ddtrace.span import Span
+from tests.ci_visibility.util import _patch_dummy_writer
 from tests.utils import DummyCIVisibilityWriter
 from tests.utils import DummyTracer
 from tests.utils import override_env
@@ -48,14 +49,6 @@ def test_filters_non_test_spans():
     # Root span in trace is not a test
     trace = [root_span]
     assert trace_filter.process_trace(trace) is None
-
-
-@contextlib.contextmanager
-def _patch_dummy_writer():
-    original = ddtrace.internal.ci_visibility.recorder.CIVisibilityWriter
-    ddtrace.internal.ci_visibility.recorder.CIVisibilityWriter = DummyCIVisibilityWriter
-    yield
-    ddtrace.internal.ci_visibility.recorder.CIVisibilityWriter = original
 
 
 def test_ci_visibility_service_enable():
