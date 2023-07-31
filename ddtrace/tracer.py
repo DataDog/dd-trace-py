@@ -246,7 +246,9 @@ class Tracer(object):
         self.enabled = asbool(os.getenv("DD_TRACE_ENABLED", default=True))
         self.context_provider = DefaultContextProvider()
         self._compute_stats = config._trace_compute_stats
-        self._sampler = DatadogSampler(self._compute_stats, get_trace_sampling_rules())  # type: BaseSampler
+        self._sampler = DatadogSampler(
+            compute_stats=self._compute_stats, rules=get_trace_sampling_rules()
+        )  # type: BaseSampler
         if asbool(os.getenv("DD_PRIORITY_SAMPLING", True)):
             self._priority_sampler = RateByServiceSampler()  # type: Optional[BasePrioritySampler]
         else:

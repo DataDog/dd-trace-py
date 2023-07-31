@@ -67,7 +67,6 @@ class TraceProcessor(six.with_metaclass(abc.ABCMeta)):
         pass
 
 
-@attr.s
 class TraceSamplingProcessor(TraceProcessor):
     """Processor that keeps traces that have sampled spans. If all spans
     are unsampled then ``None`` is returned.
