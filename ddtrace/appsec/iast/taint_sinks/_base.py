@@ -151,7 +151,12 @@ class VulnerabilityBase(Operation):
             return vulnerability.evidence.value
 
         if vulnerability.evidence.valueParts is not None:
-            return "".join([part.get("value", "") for part in vulnerability.evidence.valueParts])
+            return "".join(
+                [
+                    (part.get("value", "") if type(part) is not str else part)
+                    for part in vulnerability.evidence.valueParts
+                ]
+            )
 
         return ""
 

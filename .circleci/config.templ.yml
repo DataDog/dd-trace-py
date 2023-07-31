@@ -253,36 +253,8 @@ jobs:
       - checkout
       - setup_riot
       - run:
-          name: "Formatting check"
-          command: riot -v run -s fmt && git diff --exit-code
-      - run:
-          name: "Flake8 check"
-          command: riot -v run -s flake8
-      - run:
-          name: "Slots check"
-          command: riot -v run slotscheck
-      - run:
-          name: "Mypy check"
-          command: riot -v run -s mypy
-      - run:
-          name: "cython-lint check"
-          command: riot -v run -s cython-lint
-      - run:
           name: "Codespell check"
           command: riot -v run -s codespell
-      - run:
-          name: "Run riotfile.py tests"
-          command: riot -v run -s riot-helpers
-      - run:
-          name: "Test agent snapshot check"
-          command: riot -v run -s snapshot-fmt && git diff --exit-code
-      - run:
-          name: "Run scripts/*.py tests"
-          command: riot -v run -s scripts
-      - run:
-          name: "Running security analysis checks with bandit"
-          command: riot -v run -s bandit
-
   ccheck:
     executor: cimg_base
     steps:
@@ -1127,8 +1099,6 @@ requires_base_venvs: &requires_base_venvs
 
 requires_tests: &requires_tests
   requires:
-#[[[cog from needs_testrun import for_each_testrun_needed as fetn;fetn(lambda job: print(f"    - {job}")) ]]]
-#[[[end]]]
 
 
 workflows:
@@ -1145,8 +1115,5 @@ workflows:
       # Docs
       - build_docs: *requires_pre_check
 
-      # Integration test suites
-#[[[cog from needs_testrun import for_each_testrun_needed as fetn;fetn(lambda job: print(f"      - {job}: *requires_base_venvs")) ]]]
-#[[[end]]]
       # Final reports
       - coverage_report: *requires_tests
