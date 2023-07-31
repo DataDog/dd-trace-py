@@ -306,7 +306,7 @@ class DatadogSampler(RateByServiceSampler):
 
         update_sampling_decision(span.context, SamplingMechanism.TRACE_SAMPLING_RULE, sampled)
 
-    def decide_sampling_rule(self, trace):
+    def find_highest_precedence_rule_matching(self, trace):
         # type: (List[Span]) -> Optional[SamplingRule]
         if not self.rules:
             return None
@@ -347,22 +347,13 @@ class DatadogSampler(RateByServiceSampler):
         :returns: Whether the span was sampled or not
         :rtype: :obj:`bool`
         """
-        # If there are rules defined, then iterate through them and find the earliest rule that matches the trace
-        #  e.g. [rule1, rule2, rule3] -> rule1 matches once, rule2 matches twice -> return rule1 because it's earlier
-        # we need a span to grab the trace id from the span to run sample
-        rule = self.decide_sampling_rule(trace)
+        rule = self.find_highest_precedence_rule_matching(trace)
         if rule:
             decision = rule.sample(trace[0])
 
-            # not sure we need to actually do this for each span if we continue
-            # to use context to store sampling decision
             for span in trace:
                 self._set_sampler_decision(span, rule, decision)
                 if decision:
-                    # Ensure all allowed traces adhere to the global rate limit
-                    # DEV: Think about how behavior may change now that we check the limiter against all spans that were
-                    # going to be dropped instead of just the root span, also what to return if we block some spans but
-                    # sample others in a single trace?
                     allowed = self.limiter.is_allowed(span.start_ns)
                     if not allowed:
                         self._set_sampler_decision(span, self.limiter, allowed)
