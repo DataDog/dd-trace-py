@@ -61,10 +61,7 @@ def get_line_and_hash(label, vuln_type, filename=TEST_FILE, value_parts=None):
     """return the line number and the associated vulnerability hash for `label` and source file `filename`"""
 
     line = get_line(label, filename=filename)
-    rep = (
-        "Vulnerability(type='%s', evidence=Evidence(value=None, pattern=None, valueParts=%s, redacted=None)"
-        ", location=Location(path='%s', line=%s))" % (vuln_type, value_parts, filename, line)
-    )
+    rep = "Vulnerability(type='%s', location=Location(path='%s', line=%s))" % (vuln_type, filename, line)
     hash_value = zlib.crc32(rep.encode())
     if PY2 and hash_value < 0:
         hash_value += 1 << 32
@@ -278,7 +275,7 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_request_header_name(cl
             value_parts=loaded["vulnerabilities"][0]["evidence"]["valueParts"],
         )
 
-        assert loaded["sources"] == [{"origin": "http.request.header.name", "name": "master", "value": "master"}]
+        assert loaded["sources"] == [{"origin": "http.request.header", "name": "master", "value": "master"}]
         assert loaded["vulnerabilities"][0]["type"] == vuln_type
         assert loaded["vulnerabilities"][0]["hash"] == hash_value
         assert loaded["vulnerabilities"][0]["evidence"] == {
@@ -410,7 +407,7 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_cookies_name(client, t
             value_parts=loaded["vulnerabilities"][0]["evidence"]["valueParts"],
         )
 
-        assert loaded["sources"] == [{"origin": "http.request.cookie.name", "name": "master", "value": "master"}]
+        assert loaded["sources"] == [{"origin": "http.request.cookie.value", "name": "master", "value": "master"}]
         assert loaded["vulnerabilities"][0]["type"] == vuln_type
         assert loaded["vulnerabilities"][0]["hash"] == hash_value
         assert loaded["vulnerabilities"][0]["evidence"] == {
@@ -472,10 +469,8 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_cookies_value(client, 
             vuln_type,
             value_parts=loaded["vulnerabilities"][0]["evidence"]["valueParts"],
         )
-        # TODO: what's the correct?
-        # assert loaded["sources"] == [{"origin": "http.request.header", "
-        # name": "HTTP_COOKIE", "value": "master=master"}]
-        # assert loaded["sources"] == [{"origin": "http.request.cookie.value", "name": "master", "value": "master"}]
+
+        assert loaded["sources"] == [{"origin": "http.request.cookie.value", "name": "master", "value": "master"}]
         assert loaded["vulnerabilities"][0]["type"] == "SQL_INJECTION"
         assert loaded["vulnerabilities"][0]["hash"] == hash_value
         assert loaded["vulnerabilities"][0]["evidence"] == {
