@@ -1,0 +1,23 @@
+[[
+  {
+    "name": "trace5",
+    "service": "",
+    "resource": "mycoolre$ource",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "language": "python",
+      "runtime-id": "2726fe802ad740b881d46f6463ccff29"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 2,
+      "process_id": 2081
+    },
+    "duration": 25119,
+    "start": 1690822633026017256
+  }]]

@@ -230,6 +230,7 @@ class DatadogSampler(RateByServiceSampler):
         rules=None,  # type: Optional[List[SamplingRule]]
         default_sample_rate=None,  # type: Optional[float]
         rate_limit=None,  # type: Optional[int]
+        compute_stats=False,
     ):
         # type: (...) -> None
         """
