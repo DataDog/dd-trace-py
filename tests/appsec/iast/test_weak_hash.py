@@ -17,10 +17,10 @@ WEAK_HASH_FIXTURES_PATH = "tests/appsec/iast/test_weak_hash.py"
 @pytest.mark.parametrize(
     "hash_func,method,hash_py3,hash_py2",
     [
-        ("md5", "hexdigest", 838977860, 885656495),
-        ("md5", "digest", 838977860, 885656495),
-        ("sha1", "digest", 787753955, 675277064),
-        ("sha1", "hexdigest", 787753955, 675277064),
+        ("md5", "hexdigest", 2491892610, 885656495),
+        ("md5", "digest", 2491892610, 885656495),
+        ("sha1", "digest", 2491892610, 675277064),
+        ("sha1", "hexdigest", 2491892610, 675277064),
     ],
 )
 def test_weak_hash_hashlib(iast_span_defaults, hash_func, method, hash_py3, hash_py2):
@@ -71,7 +71,7 @@ def test_weak_hash_new(iast_span_defaults):
     assert list(span_report.vulnerabilities)[0].location.line == 23 if sys.version_info > (3, 0, 0) else 20
     assert list(span_report.vulnerabilities)[0].evidence.value == "md5"
     if sys.version_info > (3, 0, 0):
-        assert list(span_report.vulnerabilities)[0].hash == 637235247
+        assert list(span_report.vulnerabilities)[0].hash == 2206071529
     else:
         assert list(span_report.vulnerabilities)[0].hash == 666750582
 
@@ -127,7 +127,7 @@ def test_weak_hash_md5_builtin_py3_md5_and_sha1_configured(iast_span_defaults):
     assert list(span_report.vulnerabilities)[0].type == VULN_INSECURE_HASHING_TYPE
     assert list(span_report.vulnerabilities)[0].location.path == WEAK_HASH_FIXTURES_PATH
     assert list(span_report.vulnerabilities)[0].evidence.value == "md5"
-    assert list(span_report.vulnerabilities)[0].hash == 1724480755
+    assert list(span_report.vulnerabilities)[0].hash == 413880148
 
 
 @pytest.mark.skipif(sys.version_info < (3, 0, 0), reason="_md5 works only in Python 3")
@@ -156,7 +156,7 @@ def test_weak_hash_md5_builtin_py3_only_md5_configured(iast_span_only_md5):
     assert list(span_report.vulnerabilities)[0].type == VULN_INSECURE_HASHING_TYPE
     assert list(span_report.vulnerabilities)[0].location.path == WEAK_HASH_FIXTURES_PATH
     assert list(span_report.vulnerabilities)[0].evidence.value == "md5"
-    assert list(span_report.vulnerabilities)[0].hash == 4266742479
+    assert list(span_report.vulnerabilities)[0].hash == 2150850920
 
 
 @pytest.mark.skipif(sys.version_info < (3, 0, 0), reason="_md5 works only in Python 3")
@@ -197,7 +197,7 @@ def test_weak_hash_pycryptodome_hashes_md5(iast_span_defaults):
     assert list(span_report.vulnerabilities)[0].type == VULN_INSECURE_HASHING_TYPE
     assert list(span_report.vulnerabilities)[0].location.path == WEAK_HASH_FIXTURES_PATH
     assert list(span_report.vulnerabilities)[0].evidence.value == "md5"
-    assert list(span_report.vulnerabilities)[0].hash == 2953482693
+    assert list(span_report.vulnerabilities)[0].hash == 3462963810
 
 
 def test_weak_hash_pycryptodome_hashes_sha1_defaults(iast_span_defaults):
@@ -212,7 +212,7 @@ def test_weak_hash_pycryptodome_hashes_sha1_defaults(iast_span_defaults):
     assert list(span_report.vulnerabilities)[0].type == VULN_INSECURE_HASHING_TYPE
     assert list(span_report.vulnerabilities)[0].location.path == WEAK_HASH_FIXTURES_PATH
     assert list(span_report.vulnerabilities)[0].evidence.value == "sha1"
-    assert list(span_report.vulnerabilities)[0].hash == 3502579788
+    assert list(span_report.vulnerabilities)[0].hash == 4258950748
 
 
 def test_weak_hash_pycryptodome_hashes_sha1_only_md5_configured(iast_span_only_md5):
@@ -240,7 +240,7 @@ def test_weak_hash_pycryptodome_hashes_sha1_only_sha1_configured(iast_span_only_
     assert list(span_report.vulnerabilities)[0].location.path == WEAK_HASH_FIXTURES_PATH
     assert list(span_report.vulnerabilities)[0].location.line == 236
     assert list(span_report.vulnerabilities)[0].evidence.value == "sha1"
-    assert list(span_report.vulnerabilities)[0].hash == 3375155359
+    assert list(span_report.vulnerabilities)[0].hash == 3828582031
 
 
 def test_weak_check_repeated(iast_span_defaults):
