@@ -70,6 +70,10 @@ def override_env(env):
     # Copy the full original environment
     original = dict(os.environ)
 
+    for k in os.environ.keys():
+        if k.startswith("CI_DD_"):
+            del os.environ[k]
+
     # Update based on the passed in arguments
     os.environ.update(env)
     try:
