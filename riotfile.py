@@ -419,7 +419,8 @@ venv = Venv(
         ),
         Venv(
             name="internal",
-            command="pytest --ddtrace {cmdargs} tests/internal/",
+            # --ddtrace: Failing test_context_events_api.py
+            command="pytest {cmdargs} tests/internal/",
             pkgs={
                 "httpretty": "==0.9.7",
                 "gevent": latest,
@@ -1516,12 +1517,12 @@ venv = Venv(
         ),
         Venv(
             name="boto",
-            command="pytest --ddtrace {cmdargs} tests/contrib/boto",
+            command="pytest {cmdargs} tests/contrib/boto",
             venvs=[Venv(pys=select_pys(max_version="3.6"), pkgs={"boto": latest, "moto": "<1.0.0"})],
         ),
         Venv(
             name="botocore",
-            command="pytest --ddtrace {cmdargs} tests/contrib/botocore",
+            command="pytest {cmdargs} tests/contrib/botocore",
             venvs=[
                 Venv(pys=select_pys(min_version="3.8"), pkgs={"moto[all]": latest, "botocore": latest}),
                 Venv(
@@ -2910,7 +2911,7 @@ venv = Venv(
                 # Python 2.7
                 Venv(
                     # uWSGI tests are not supported on Python 2.7
-                    command='python -m tests.profiling.run pytest ---capture=no --benchmark-disable --ignore-glob="*asyncio*" --ignore=tests/profiling/test_uwsgi.py --ddtrace {cmdargs} tests/profiling',  # noqa: E501
+                    command='python -m tests.profiling.run pytest --capture=no --benchmark-disable --ignore-glob="*asyncio*" --ignore=tests/profiling/test_uwsgi.py --ddtrace {cmdargs} tests/profiling',  # noqa: E501
                     pys="2.7",
                     venvs=[
                         Venv(
