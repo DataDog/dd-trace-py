@@ -81,12 +81,18 @@ def _attach_coverage(item):
     coverage.start()
 
 
-def _detach_coverage(item, span):
+def _detach_coverage(item, span, skip_sending=False):
     if not hasattr(item, "_coverage"):
+        log.warning("No coverage object found for item: ", item.nodeid)
         return
     span_id = str(span.trace_id)
     item._coverage.stop()
-    span.set_tag(COVERAGE_TAG_NAME, build_coverage_payload(item._coverage, test_id=span_id))
+    if skip_sending:
+        log.debug("Not sending coverage data found for items: ", item.nodeid)
+    else:
+        if not item._coverage._collector or len(item._coverage._collector.data) == 0:
+            log.warning("No coverage collector or data found for item: ", item.nodeid)
+        span.set_tag(COVERAGE_TAG_NAME, build_coverage_payload(item._coverage, test_id=span_id))
     item._coverage.erase()
     del item._coverage
 
@@ -390,11 +396,7 @@ def pytest_runtest_protocol(item, nextitem):
         yield
         return
 
-    is_skipped_by_itr = [
-        marker
-        for marker in item.iter_markers(name="skip")
-        if "reason" in marker.kwargs and marker.kwargs["reason"] == SKIPPED_BY_ITR
-    ]
+    is_skipped = item.get_closest_marker("skip")
 
     test_session_span = _extract_span(item.session)
 
@@ -418,7 +420,13 @@ def pytest_runtest_protocol(item, nextitem):
         )
         test_module_span.set_metric(test.ITR_TEST_SKIPPING_COUNT, 0)
 
-    if is_skipped_by_itr:
+    if is_skipped and any(
+        [
+            marker
+            for marker in item.iter_markers(name="skip")
+            if "reason" in marker.kwargs and marker.kwargs["reason"] == SKIPPED_BY_ITR
+        ]
+    ):
         test_module_span._metrics[test.ITR_TEST_SKIPPING_COUNT] += 1
         global _global_skipped_elements
         _global_skipped_elements += 1
@@ -432,7 +440,7 @@ def pytest_runtest_protocol(item, nextitem):
             should_enable_coverage=(
                 _CIVisibility._instance._suite_skipping_mode
                 and _CIVisibility._instance._collect_coverage_enabled
-                and not is_skipped_by_itr
+                and not is_skipped
             ),
         )
 
@@ -494,15 +502,16 @@ def pytest_runtest_protocol(item, nextitem):
         coverage_per_test = (
             not _CIVisibility._instance._suite_skipping_mode
             and _CIVisibility._instance._collect_coverage_enabled
-            and not is_skipped_by_itr
+            and not is_skipped
         )
         if coverage_per_test:
             _attach_coverage(item)
         # Run the actual test
         yield
+
         # Finish coverage for the test suite if coverage is enabled
         if coverage_per_test:
-            _detach_coverage(item, span)
+            _detach_coverage(item, span, skip_sending=is_skipped)
 
         nextitem_pytest_module_item = _find_pytest_item(nextitem, pytest.Module)
         if nextitem is None or nextitem_pytest_module_item != pytest_module_item and not test_suite_span.finished:
@@ -511,9 +520,9 @@ def pytest_runtest_protocol(item, nextitem):
             if (
                 _CIVisibility._instance._suite_skipping_mode
                 and _CIVisibility._instance._collect_coverage_enabled
-                and not is_skipped_by_itr
+                and not is_skipped
             ):
-                _detach_coverage(pytest_module_item, test_suite_span)
+                _detach_coverage(pytest_module_item, test_suite_span, skip_sending=is_skipped)
             test_suite_span.finish()
 
             if not module_is_package:
