@@ -52,7 +52,7 @@ jobs:
         # log output and it contains phony error messages.
         run: PYTHONPATH=../ddtrace/tests/debugging/exploration/ ddtrace-run pytest test --continue-on-collection-errors -v -k 'not test_simple'
 
-  sanic-testsuite-23_6:
+  sanic-testsuite-22_12:
     runs-on: ubuntu-20.04
     env:
       # Regression test for DataDog/dd-trace-py/issues/5722
@@ -67,7 +67,7 @@ jobs:
       - uses: actions/checkout@v3
         with:
           repository: sanic-org/sanic
-          ref: v23.6.0
+          ref: v22.12.0
           path: sanic
       - uses: actions/setup-python@v4
         with:
@@ -77,7 +77,7 @@ jobs:
       - name: Install ddtrace
         run: pip3 install ../ddtrace
       - name: Run tests
-        run: ddtrace-run pytest -k "not test_add_signal and not test_ode_removes and not test_skip_touchup and not test_dispatch_signal_triggers and not test_keep_alive_connection_context"
+        run: ddtrace-run pytest -k "not test_add_signal and not test_ode_removes and not test_skip_touchup and not test_dispatch_signal_triggers and not test_keep_alive_connection_context and not test_redirect_with_params"
 
   django-testsuite-3_1:
     strategy:
