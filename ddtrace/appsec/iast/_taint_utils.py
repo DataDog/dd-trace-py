@@ -349,9 +349,6 @@ class LazyTaintDict:
         for _, v in self.items():
             yield v
 
-    def update(self, *args, **kwargs):
-        return self._obj.update(*args, **kwargs)
-
 
 def supported_dbapi_integration(integration_name):
     return integration_name in DBAPI_INTEGRATIONS or integration_name.startswith(DBAPI_PREFIXES)
