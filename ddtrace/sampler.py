@@ -257,7 +257,8 @@ class DatadogSampler(RateByServiceSampler):
         if rate_limit is None:
             rate_limit = int(os.getenv("DD_TRACE_RATE_LIMIT", default=self.DEFAULT_RATE_LIMIT))
 
-        self.rules = [rule for rule in (rules or []) if isinstance(rule, SamplingRule)]
+        rules = rules or []
+        self.rules = [rule for rule in rules if isinstance(rule, SamplingRule)]
         if len(self.rules) != len(rules):
             raise TypeError("Sampling rules must be objects of type ddtrace.sampler.SamplingRule")
 
@@ -324,7 +325,6 @@ class DatadogSampler(RateByServiceSampler):
                     rule_decision[self.rules.index(rule)] += 1
                     break
             for span in trace:
-                # don't recheck spans if no new tags have been added
                 if span._trace_sampling_checked:
                     continue
                 if rule.matches(span):

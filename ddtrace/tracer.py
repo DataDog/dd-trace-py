@@ -14,7 +14,7 @@ from ddtrace.filters import TraceFilter
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import get_span_sampling_rules
-from ddtrace.internal.sampling import get_trace_sampling_rules
+from ddtrace.internal.sampling_utils import get_trace_sampling_rules
 from ddtrace.settings.peer_service import PeerServiceConfig
 from ddtrace.vendor import debtcollector
 

@@ -9,8 +9,8 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import List
     from typing import Optional
 
-    from ddtrace.context import Context
-    from ddtrace.span import Span
+    from ddtrace.context import Context  # noqa
+    from ddtrace.span import Span  # noqa
 
 try:
     from json.decoder import JSONDecodeError
@@ -36,7 +36,7 @@ def get_trace_sampling_rules():
     return rules
 
 
-def _parse_rules_from_env_variable(self, rules):
+def _parse_rules_from_env_variable(rules):
     sampling_rules = []
     if rules is not None:
         json_rules = []
