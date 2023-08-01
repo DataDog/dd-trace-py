@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-set -e
+set -eux
 
 reno lint
 sphinx-build -W -b spelling docs docs/_build/html
