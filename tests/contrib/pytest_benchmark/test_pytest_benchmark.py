@@ -75,7 +75,7 @@ class PytestTestCase(TracerTestCase):
         rec.assertoutcome(passed=1)
         spans = self.pop_spans()
 
-        assert len(spans) == 3
+        assert len(spans) == 4
         assert spans[0].get_tag(TEST_TYPE) == "benchmark"
         assert spans[0].get_tag(BENCHMARK_INFO) == "Time"
         assert spans[0].get_metric(BENCHMARK_MEAN) > 2
@@ -117,7 +117,7 @@ class PytestTestCase(TracerTestCase):
         rec.assertoutcome(passed=1)
         spans = self.pop_spans()
 
-        assert len(spans) == 3
+        assert len(spans) == 4
         assert spans[0].get_tag(TEST_TYPE) == "test"
         assert spans[0].get_tag(BENCHMARK_INFO) is None
         assert spans[0].get_metric(BENCHMARK_MEAN) is None
