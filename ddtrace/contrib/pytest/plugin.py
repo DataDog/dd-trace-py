@@ -44,6 +44,8 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 
 
+ddtrace = None
+
 SKIPPED_BY_ITR = "Skipped by Datadog Intelligent Test Runner"
 PATCH_ALL_HELP_MSG = "Call ddtrace.patch_all before running tests."
 
@@ -289,7 +291,10 @@ def pytest_addoption(parser):
 def pytest_configure(config):
     config.addinivalue_line("markers", "dd_tags(**kwargs): add tags to current span")
     if is_enabled(config):
-        import ddtrace
+        import ddtrace as real_ddtrace
+
+        global ddtrace
+        ddtrace = real_ddtrace
 
         _CIVisibility.enable(config=ddtrace.config.pytest)
 
@@ -394,8 +399,6 @@ def pytest_runtest_protocol(item, nextitem):
     if not _CIVisibility.enabled:
         yield
         return
-
-    import ddtrace
 
     is_skipped_by_itr = [
         marker
