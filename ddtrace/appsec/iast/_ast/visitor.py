@@ -253,7 +253,7 @@ class AstVisitor(ast.NodeTransformer):
         Insert the import statement for the replacements module
         """
         insert_position = self.find_insert_position(module_node)
-        assert self._aspects_spec
+
         definitions_module = self._aspects_spec["definitions_module"]
         replacements_import = self._node(
             ast.Import,
