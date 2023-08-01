@@ -71,7 +71,7 @@ def override_env(env):
     original = dict(os.environ)
 
     for k in os.environ.keys():
-        if k.startswith(("CI_DD_", "DD_CIVISIBILITY_")):
+        if k.startswith(("_CI_DD_", "DD_CIVISIBILITY_")):
             del os.environ[k]
 
     # Update based on the passed in arguments

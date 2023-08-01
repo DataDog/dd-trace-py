@@ -104,10 +104,10 @@ class CIVisibility(Service):
             self.tracer = CITracer(context_provider=CIContextProvider())
 
         self._app_key = os.getenv(
-            "CI_DD_APP_KEY",
+            "_CI_DD_APP_KEY",
             os.getenv("DD_APP_KEY", os.getenv("DD_APPLICATION_KEY", os.getenv("DATADOG_APPLICATION_KEY"))),
         )
-        self._api_key = os.getenv("CI_DD_API_KEY", os.getenv("DD_API_KEY"))
+        self._api_key = os.getenv("_CI_DD_API_KEY", os.getenv("DD_API_KEY"))
 
         self._dd_site = os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE)
         self._suite_skipping_mode = asbool(os.getenv("_DD_CIVISIBILITY_ITR_SUITE_MODE", default=False))
