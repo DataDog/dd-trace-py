@@ -84,10 +84,12 @@ class TraceSamplingProcessor(TraceProcessor):
         # type: (List[Span]) -> Optional[List[Span]]
         if trace:
             self.sampler.sample(trace)
+            root_ctx = trace[0]._context
+            _update_span_tags_from_context(trace[0], root_ctx)
             # When stats computation is enabled in the tracer then we can
             # safely drop the traces.
             if self._compute_stats_enabled:
-                priority = trace[0]._context.sampling_priority if trace[0]._context is not None else None
+                priority = root_ctx.sampling_priority if root_ctx is not None else None
                 if priority is not None and priority <= 0:
                     # When any span is marked as keep by a single span sampling
                     # decision then we still send all and only those spans.
@@ -127,6 +129,10 @@ class TopLevelSpanProcessor(SpanProcessor):
             span.set_metric("_dd.top_level", 1)
 
 
+def _update_span_tags_from_context(span, context):
+    span._context._update_tags(span)
+
+
 @attr.s
 class TraceTagsProcessor(TraceProcessor):
     """Processor that applies trace-level tags to the trace."""
@@ -148,7 +154,7 @@ class TraceTagsProcessor(TraceProcessor):
         if not ctx:
             return trace
 
-        ctx._update_tags(chunk_root)
+        _update_span_tags_from_context(chunk_root, ctx)
         self._set_git_metadata(chunk_root)
         chunk_root.set_tag_str("language", "python")
         # for 128 bit trace ids
