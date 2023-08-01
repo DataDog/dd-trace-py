@@ -45,6 +45,18 @@ log = get_logger(__name__)
 CWD = os.path.abspath(os.getcwd())
 
 
+def _check_positions_contained(needle, container):
+    needle_start, needle_end = needle
+    container_start, container_end = container
+
+    return (
+        (container_start <= needle_start < container_end)
+        or (container_start < needle_end <= container_end)
+        or (needle_start <= container_start < needle_end)
+        or (needle_start < container_end <= needle_end)
+    )
+
+
 class VulnerabilityBase(Operation):
     vulnerability_type = ""
     evidence_type = ""
@@ -242,18 +254,16 @@ class VulnerabilityBase(Operation):
                     pattern_list = []
 
                     for positions in vulns_to_tokens[vuln_hash]["token_positions"]:
-                        if part_end <= positions[0]:
-                            # This part if before this token
-                            pattern_list.append(value[part_start:part_end])
-                            continue
-                        elif (part_start <= positions[0] < part_end) or (part_end > positions[1]):
-                            # This part contains at least part of the token
+                        if _check_positions_contained(positions, (part_start, part_end)):
                             part_scrub_start = max(positions[0] - idx, 0)
                             part_scrub_end = positions[1] - idx
                             to_scrub = value[part_scrub_start:part_scrub_end]
                             scrubbed = _scrub(to_scrub, "source" in part)
                             pattern_list.append(value[:part_scrub_start] + scrubbed + value[part_scrub_end:])
                             part["redacted"] = True
+                        else:
+                            pattern_list.append(value[part_start:part_end])
+                            continue
 
                     if "redacted" in part:
                         part["pattern"] = "".join(pattern_list)
