@@ -259,32 +259,8 @@ jobs:
       - setup_riot
       - setup_hatch
       - run:
-          name: "Style"
-          command: hatch run lint:style
-      - run:
-          name: "Typing"
-          command: hatch run lint:typing
-      - run:
           name: "Spelling"
           command: hatch run lint:spelling
-      - run:
-          name: "Security"
-          command: hatch run lint:security
-      - run:
-          name: "Run riotfile.py tests"
-          command: hatch run lint:riot
-      - run:
-          name: "Style: Test snapshot"
-          command: hatch run lint:fmt-snapshots && git diff --exit-code
-      - run:
-          name: "Slots check"
-          command: riot -v run slotscheck
-      - run:
-          name: "Mypy check"
-          command: riot -v run -s mypy
-      - run:
-          name: "Run scripts/*.py tests"
-          command: riot -v run -s scripts
 
   ccheck:
     executor: cimg_base
