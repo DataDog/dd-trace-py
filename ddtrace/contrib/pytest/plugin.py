@@ -393,7 +393,7 @@ def pytest_runtest_protocol(item, nextitem):
         yield
         return
 
-    is_skipped = item.get_closest_marker("skip")
+    is_skipped = bool(item.get_closest_marker("skip") or item.get_closest_marker("skipif"))
     is_skipped_by_itr = bool(
         is_skipped
         and any(
