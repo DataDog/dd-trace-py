@@ -81,18 +81,15 @@ def _attach_coverage(item):
     coverage.start()
 
 
-def _detach_coverage(item, span, skip_sending=False):
+def _detach_coverage(item, span):
     if not hasattr(item, "_coverage"):
-        log.warning("No coverage object found for item: ", item.nodeid)
+        log.warning("No coverage object found for item")
         return
     span_id = str(span.trace_id)
     item._coverage.stop()
-    if skip_sending:
-        log.debug("Not sending coverage data found for items: ", item.nodeid)
-    else:
-        if not item._coverage._collector or len(item._coverage._collector.data) == 0:
-            log.warning("No coverage collector or data found for item: ", item.nodeid)
-        span.set_tag(COVERAGE_TAG_NAME, build_coverage_payload(item._coverage, test_id=span_id))
+    if not item._coverage._collector or len(item._coverage._collector.data) == 0:
+        log.warning("No coverage collector or data found for item")
+    span.set_tag(COVERAGE_TAG_NAME, build_coverage_payload(item._coverage, item.config.rootdir, test_id=span_id))
     item._coverage.erase()
     del item._coverage
 
@@ -397,6 +394,16 @@ def pytest_runtest_protocol(item, nextitem):
         return
 
     is_skipped = item.get_closest_marker("skip")
+    is_skipped_by_itr = bool(
+        is_skipped
+        and any(
+            [
+                marker
+                for marker in item.iter_markers(name="skip")
+                if "reason" in marker.kwargs and marker.kwargs["reason"] == SKIPPED_BY_ITR
+            ]
+        )
+    )
 
     test_session_span = _extract_span(item.session)
 
@@ -420,13 +427,7 @@ def pytest_runtest_protocol(item, nextitem):
         )
         test_module_span.set_metric(test.ITR_TEST_SKIPPING_COUNT, 0)
 
-    if is_skipped and any(
-        [
-            marker
-            for marker in item.iter_markers(name="skip")
-            if "reason" in marker.kwargs and marker.kwargs["reason"] == SKIPPED_BY_ITR
-        ]
-    ):
+    if is_skipped_by_itr:
         test_module_span._metrics[test.ITR_TEST_SKIPPING_COUNT] += 1
         global _global_skipped_elements
         _global_skipped_elements += 1
@@ -434,13 +435,15 @@ def pytest_runtest_protocol(item, nextitem):
     test_suite_span = _extract_span(pytest_module_item)
     if pytest_module_item is not None and test_suite_span is None:
         # Start coverage for the test suite if coverage is enabled
+        # In ITR suite skipping mode, all tests in a skipped suite should be marked
+        # as skipped
         test_suite_span = _start_test_suite_span(
             pytest_module_item,
             test_module_span,
             should_enable_coverage=(
                 _CIVisibility._instance._suite_skipping_mode
                 and _CIVisibility._instance._collect_coverage_enabled
-                and not is_skipped
+                and not is_skipped_by_itr
             ),
         )
 
@@ -511,18 +514,20 @@ def pytest_runtest_protocol(item, nextitem):
 
         # Finish coverage for the test suite if coverage is enabled
         if coverage_per_test:
-            _detach_coverage(item, span, skip_sending=is_skipped)
+            _detach_coverage(item, span)
 
         nextitem_pytest_module_item = _find_pytest_item(nextitem, pytest.Module)
         if nextitem is None or nextitem_pytest_module_item != pytest_module_item and not test_suite_span.finished:
             _mark_test_status(pytest_module_item, test_suite_span)
             # Finish coverage for the test suite if coverage is enabled
+            # In ITR suite skipping mode, all tests in a skipped suite should be marked
+            # as skipped
             if (
                 _CIVisibility._instance._suite_skipping_mode
                 and _CIVisibility._instance._collect_coverage_enabled
-                and not is_skipped
+                and not is_skipped_by_itr
             ):
-                _detach_coverage(pytest_module_item, test_suite_span, skip_sending=is_skipped)
+                _detach_coverage(pytest_module_item, test_suite_span)
             test_suite_span.finish()
 
             if not module_is_package:

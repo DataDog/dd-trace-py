@@ -1582,6 +1582,67 @@ class PytestTestCase(TracerTestCase):
         assert len(files[1]["segments"]) == 1
         assert files[1]["segments"][0] == [1, 0, 2, 0, -1]
 
+    @pytest.mark.skipif(compat.PY2, reason="ddtrace does not support coverage on Python 2")
+    def test_pytest_will_report_coverage_by_test_with_pytest_skip(self):
+        self.testdir.makepyfile(
+            test_ret_false="""
+        def ret_false():
+            return False
+        """
+        )
+        self.testdir.makepyfile(
+            test_module="""
+        def lib_fn():
+            return True
+        """
+        )
+        py_cov_file = self.testdir.makepyfile(
+            test_cov="""
+        import pytest
+
+        def test_cov():
+            two = 1 + 1
+            pytest.skip()
+            from test_module import lib_fn
+            assert lib_fn()
+
+        def test_second():
+            from test_ret_false import ret_false
+            assert not ret_false()
+        """
+        )
+
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features", return_value=(True, False)
+        ):
+            self.inline_run("--ddtrace", os.path.basename(py_cov_file.strpath))
+        spans = self.pop_spans()
+
+        first_test_span = spans[0]
+        assert first_test_span.get_tag("test.name") == "test_cov"
+        assert first_test_span.get_tag("type") == "test"
+        assert COVERAGE_TAG_NAME in first_test_span.get_tags()
+        first_tag_data = json.loads(first_test_span.get_tag(COVERAGE_TAG_NAME))
+        files = sorted(first_tag_data["files"], key=lambda x: x["filename"])
+        assert len(files) == 1
+        assert files[0]["filename"] == "test_cov.py"
+        assert len(files[0]["segments"]) == 1
+        assert files[0]["segments"][0] == [4, 0, 5, 0, -1]
+
+        second_test_span = spans[1]
+        assert second_test_span.get_tag("type") == "test"
+        assert second_test_span.get_tag("test.name") == "test_second"
+        assert COVERAGE_TAG_NAME in second_test_span.get_tags()
+        second_tag_data = json.loads(second_test_span.get_tag(COVERAGE_TAG_NAME))
+        files = sorted(second_tag_data["files"], key=lambda x: x["filename"])
+        assert len(files) == 2
+        assert files[0]["filename"] == "test_cov.py"
+        assert files[1]["filename"] == "test_ret_false.py"
+        assert len(files[0]["segments"]) == 1
+        assert files[0]["segments"][0] == [10, 0, 11, 0, -1]
+        assert len(files[1]["segments"]) == 1
+        assert files[1]["segments"][0] == [1, 0, 2, 0, -1]
+
     def test_pytest_will_report_git_metadata(self):
         py_file = self.testdir.makepyfile(
             """
