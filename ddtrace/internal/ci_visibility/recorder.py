@@ -83,10 +83,6 @@ def _do_request(method, url, payload, headers):
     return result
 
 
-class CITracer(Tracer):
-    pass
-
-
 class CIVisibility(Service):
     _instance = None  # type: Optional[CIVisibility]
     enabled = False
@@ -101,7 +97,7 @@ class CIVisibility(Service):
             self.tracer = tracer
         else:
             # Create a new CI tracer
-            self.tracer = CITracer(context_provider=CIContextProvider())
+            self.tracer = Tracer(context_provider=CIContextProvider())
 
         self._app_key = os.getenv(
             "_CI_DD_APP_KEY",
