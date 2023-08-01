@@ -1844,6 +1844,12 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="unittest",
+            command="python -m pytest {cmdargs} tests/contrib/unittest/",
+            pkgs={"msgpack": latest},
+            pys=select_pys(),
+        ),
+        Venv(
             name="grpc",
             command="python -m pytest {cmdargs} tests/contrib/grpc",
             pkgs={
