@@ -246,8 +246,9 @@ class VulnerabilityBase(Operation):
                             # This part if before or after this token
                             pattern_list.append(value[part_start:part_end])
                             continue
-                        elif (part_end < positions[1] and part_end >= positions[0]) or \
-                                (part_start >= positions[0] and part_start < positions[1]):
+                        elif (part_end < positions[1] and part_end >= positions[0]) or (
+                            part_start >= positions[0] and part_start < positions[1]
+                        ):
                             # This part contains at least part of the token
                             part_scrub_start = max(positions[0] - idx, 0)
                             part_scrub_end = positions[1] - idx

@@ -201,11 +201,11 @@ def test_redacted_report_valueparts_username_not_tainted():
     redacted_report = SqlInjection._redact_report(report)
     for v in redacted_report.vulnerabilities:
         assert v.evidence.valueParts == [
-            {'value': "SELECT * FROM users WHERE username = '"},
-            {'pattern': '******', 'redacted': True},
-            {'value': "' AND password = '"},
-            {'pattern': 'abcdef', 'redacted': True, 'source': 0},
-            {'value': "'"},
+            {"value": "SELECT * FROM users WHERE username = '"},
+            {"pattern": "******", "redacted": True},
+            {"value": "' AND password = '"},
+            {"pattern": "abcdef", "redacted": True, "source": 0},
+            {"value": "'"},
         ]
 
 
