@@ -16,7 +16,7 @@ cffi==1.15.1
 chardet==4.0.0
 charset-normalizer==2.0.12
 coverage[toml]==6.2
-cryptography==3.4.8
+cryptography==41.0.3
 dataclasses==0.8
 hypothesis==6.31.6
 idna==2.10

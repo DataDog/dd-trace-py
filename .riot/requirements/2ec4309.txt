@@ -15,7 +15,7 @@ cffi==1.15.1
 cfn-lint==0.53.1
 charset-normalizer==2.0.12
 coverage[toml]==6.2
-cryptography==39.0.2
+cryptography==41.0.3
 dataclasses==0.8
 decorator==4.4.2
 docker==5.0.3

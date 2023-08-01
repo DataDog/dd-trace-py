@@ -13,7 +13,7 @@ cffi==1.15.1
 chardet==4.0.0
 constantly==15.1.0
 coverage==5.5
-cryptography==3.2.1
+cryptography==41.0.3
 daphne==2.5.0
 django-pylibmc==0.6.1
 django-redis==4.5.0
