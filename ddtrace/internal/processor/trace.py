@@ -83,7 +83,7 @@ class TraceSamplingProcessor(TraceProcessor):
     def process_trace(self, trace):
         # type: (List[Span]) -> Optional[List[Span]]
         if trace:
-            trace = self.sampler.sample(trace)
+            self.sampler.sample(trace)
             # When stats computation is enabled in the tracer then we can
             # safely drop the traces.
             if self._compute_stats_enabled:
