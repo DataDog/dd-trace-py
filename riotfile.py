@@ -444,8 +444,27 @@ venv = Venv(
         ),
         Venv(
             name="internal",
-            # --ddtrace: Failing test_context_events_api.py
-            command="pytest {cmdargs} tests/internal/",
+            command="pytest --ddtrace --ignore-glob='*test_context_events_api*' {cmdargs} tests/internal/",
+            pkgs={
+                "httpretty": "==0.9.7",
+                "gevent": latest,
+            },
+            venvs=[
+                Venv(pys="2.7"),
+                Venv(
+                    pys=select_pys(min_version="3.5", max_version="3.6"),
+                    pkgs={"pytest-asyncio": latest},
+                ),
+                # FIXME[bytecode-3.11]: internal depends on bytecode, which is not python 3.11 compatible.
+                Venv(
+                    pys=select_pys(min_version="3.7"),
+                    pkgs={"pytest-asyncio": latest},
+                ),
+            ],
+        ),
+        Venv(
+            name="internal-context-events-api",
+            command="pytest {cmdargs} tests/internal/test_context_events_api.py",
             pkgs={
                 "httpretty": "==0.9.7",
                 "gevent": latest,
