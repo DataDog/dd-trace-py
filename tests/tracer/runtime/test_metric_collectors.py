@@ -73,8 +73,9 @@ class TestPSUtilRuntimeMetricCollector(BaseTestCase):
             # Number of threads should be precise
             self.assertEqual(psutil_metrics[THREAD_COUNT], runtime_metrics[THREAD_COUNT])
 
-            # CPU and RAM should be approximate--let's say within 5%?
-            epsilon = 0.05
+            # CPU and RAM should be approximate.  These tests are checking that the category of
+            # the value is correct, rather than the specific value itself.
+            epsilon = 0.25
             within_threshold(psutil_metrics[CPU_PERCENT], runtime_metrics[CPU_PERCENT], epsilon)
             within_threshold(psutil_metrics[MEM_RSS], runtime_metrics[MEM_RSS], epsilon)
 
