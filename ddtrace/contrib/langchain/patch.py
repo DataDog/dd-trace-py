@@ -30,6 +30,7 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.pin import Pin
+from ddtrace.vendor import wrapt
 
 
 if TYPE_CHECKING:
@@ -750,9 +751,8 @@ def patch():
             )
         integration.start_log_writer()
 
-    # TODO: check if we need to version gate LLM/Chat/TextEmbedding
     wrap("langchain", "llms.base.BaseLLM.generate", traced_llm_generate(langchain))
-    wrap("langchain", "llms.BaseLLM.agenerate", traced_llm_agenerate(langchain))
+    wrap("langchain", "llms.base.BaseLLM.agenerate", traced_llm_agenerate(langchain))
     wrap("langchain", "chat_models.base.BaseChatModel.generate", traced_chat_model_generate(langchain))
     wrap("langchain", "chat_models.base.BaseChatModel.agenerate", traced_chat_model_agenerate(langchain))
     wrap("langchain", "chains.base.Chain.__call__", traced_chain_call(langchain))
@@ -761,18 +761,32 @@ def patch():
     #  wrap each langchain-provided text embedding model.
     for text_embedding_model in text_embedding_models:
         if hasattr(langchain.embeddings, text_embedding_model):
-            wrap("langchain", "embeddings.%s.embed_query" % text_embedding_model, traced_embedding(langchain))
-            wrap("langchain", "embeddings.%s.embed_documents" % text_embedding_model, traced_embedding(langchain))
-            # TODO: langchain >= 0.0.209 includes async embedding implementation (only for OpenAI)
+            # Ensure not double patched, as some Embeddings interfaces are pointers to other Embeddings.
+            if not isinstance(
+                deep_getattr(langchain.embeddings, "%s.embed_query" % text_embedding_model), wrapt.ObjectProxy
+            ):
+                wrap("langchain", "embeddings.%s.embed_query" % text_embedding_model, traced_embedding(langchain))
+            if not isinstance(
+                deep_getattr(langchain.embeddings, "%s.embed_documents" % text_embedding_model), wrapt.ObjectProxy
+            ):
+                wrap("langchain", "embeddings.%s.embed_documents" % text_embedding_model, traced_embedding(langchain))
+                # TODO: langchain >= 0.0.209 includes async embedding implementation (only for OpenAI)
     # We need to do the same with Vectorstores.
     for vectorstore in vectorstores:
         if hasattr(langchain.vectorstores, vectorstore):
-            wrap("langchain", "vectorstores.%s.similarity_search" % vectorstore, traced_similarity_search(langchain))
+            # Ensure not double patched, as some Embeddings interfaces are pointers to other Embeddings.
+            if not isinstance(
+                deep_getattr(langchain.vectorstores, "%s.similarity_search" % vectorstore), wrapt.ObjectProxy
+            ):
+                wrap(
+                    "langchain", "vectorstores.%s.similarity_search" % vectorstore, traced_similarity_search(langchain)
+                )
 
 
 def unpatch():
-    if getattr(langchain, "_datadog_patch", False):
-        setattr(langchain, "_datadog_patch", False)
+    if not getattr(langchain, "_datadog_patch", False):
+        return
+    setattr(langchain, "_datadog_patch", False)
 
     unwrap(langchain.llms.base.BaseLLM, "generate")
     unwrap(langchain.llms.base.BaseLLM, "agenerate")
@@ -782,10 +796,19 @@ def unpatch():
     unwrap(langchain.chains.base.Chain, "acall")
     for text_embedding_model in text_embedding_models:
         if hasattr(langchain.embeddings, text_embedding_model):
-            unwrap(getattr(langchain.embeddings, text_embedding_model), "embed_query")
-            unwrap(getattr(langchain.embeddings, text_embedding_model), "embed_documents")
+            if isinstance(
+                deep_getattr(langchain.embeddings, "%s.embed_query" % text_embedding_model), wrapt.ObjectProxy
+            ):
+                unwrap(getattr(langchain.embeddings, text_embedding_model), "embed_query")
+            if isinstance(
+                deep_getattr(langchain.embeddings, "%s.embed_documents" % text_embedding_model), wrapt.ObjectProxy
+            ):
+                unwrap(getattr(langchain.embeddings, text_embedding_model), "embed_documents")
     for vectorstore in vectorstores:
         if hasattr(langchain.vectorstores, vectorstore):
-            unwrap(getattr(langchain.vectorstores, vectorstore), "similarity_search")
+            if isinstance(
+                deep_getattr(langchain.vectorstores, "%s.similarity_search" % vectorstore), wrapt.ObjectProxy
+            ):
+                unwrap(getattr(langchain.vectorstores, vectorstore), "similarity_search")
 
     delattr(langchain, "_datadog_integration")
