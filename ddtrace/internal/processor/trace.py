@@ -67,6 +67,7 @@ class TraceProcessor(six.with_metaclass(abc.ABCMeta)):
         pass
 
 
+@attr.s
 class TraceSamplingProcessor(TraceProcessor):
     """Processor that keeps traces that have sampled spans. If all spans
     are unsampled then ``None`` is returned.
@@ -76,10 +77,10 @@ class TraceSamplingProcessor(TraceProcessor):
     parts of the trace are unsampled when the whole trace should be sampled.
     """
 
+    _compute_stats_enabled = attr.ib(type=bool)
+
     def __init__(self, compute_stats_enabled, sampler):
         self.sampler = sampler
-
-        self._compute_stats_enabled = compute_stats_enabled
 
     def process_trace(self, trace):
         # type: (List[Span]) -> Optional[List[Span]]
@@ -95,9 +96,11 @@ class TraceSamplingProcessor(TraceProcessor):
                     single_spans = [_ for _ in trace if is_single_span_sampled(_)]
 
                     return single_spans or None
+
             for span in trace:
                 if span.sampled:
                     return trace
+
             log.debug("dropping trace %d with %d spans", trace[0].trace_id, len(trace))
 
         return None
