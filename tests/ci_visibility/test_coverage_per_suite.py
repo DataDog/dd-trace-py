@@ -73,7 +73,7 @@ class PytestTestCase(TracerTestCase):
         """
         )
 
-        with mock.patch("ddtrace.contrib.pytest.plugin._get_test_skipping_level", return_value="suite"), mock.patch(
+        with override_env({"_DD_CIVISIBILITY_ITR_SUITE_MODE": "True"}), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features", return_value=(True, False)
         ):
             self.inline_run("--ddtrace", os.path.basename(py_cov_file.strpath), os.path.basename(py_cov_file2.strpath))

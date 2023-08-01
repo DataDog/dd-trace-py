@@ -1,5 +1,14 @@
 {
     "components": {
+        "$setup": [
+            "setup.py",
+            "setup.cfg",
+            "pyproject.toml"
+        ],
+        "$harness": [
+            "riotfile.py",
+            "scripts/ddtest"
+        ],
         "core": [
             "ddtrace/internal/*",
             "ddtrace/__init__.py",
@@ -502,7 +511,8 @@
             "@bootstrap",
             "@core",
             "@tracing",
-            "@dbapi"
+            "@dbapi",
+            "@appsec"
         ],
         "dbapi_async": [
             "@bootstrap",
@@ -520,6 +530,7 @@
             "@bootstrap",
             "@core",
             "@tracing",
+            "@appsec",
             "@pylons"
         ],
         "aiohttp": [
@@ -533,6 +544,7 @@
             "@core",
             "@tracing",
             "@asyncio",
+            "@appsec",
             "@asgi"
         ],
         "bottle": [
@@ -589,6 +601,7 @@
             "@core",
             "@tracing",
             "@contrib",
+            "@appsec",
             "@asgi",
             "@django",
             "@dbapi",
@@ -598,12 +611,14 @@
             "@bootstrap",
             "@core",
             "@tracing",
+            "@appsec",
             "@django"
         ],
         "djangorestframework": [
             "@bootstrap",
             "@core",
             "@tracing",
+            "@appsec",
             "@django"
         ],
         "fastapi": [
@@ -620,6 +635,7 @@
             "@core",
             "@tracing",
             "@flask",
+            "@appsec",
             "@wsgi"
         ],
         "gevent": [
@@ -808,7 +824,8 @@
             "@core",
             "@tracing",
             "@contrib",
-            "@subprocess"
+            "@subprocess",
+            "@appsec"
         ],
         "psycopg": [
             "@bootstrap",
