@@ -24,11 +24,6 @@ from ddtrace.internal.utils.cache import cachedmethod
 from ddtrace.settings import _config as config
 
 
-if TYPE_CHECKING:
-    from typing import Any
-    from typing import Tuple
-
-
 log = get_logger(__name__)
 
 try:
@@ -42,6 +37,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Dict  # noqa
     from typing import List  # noqa
     from typing import Text  # noqa
+    from typing import Tuple  # noqa
 
     from ddtrace.context import Context
     from ddtrace.span import Span
@@ -180,7 +176,6 @@ class SpanSamplingRule:
         self._service_matcher = GlobMatcher(service) if service is not None else None
         self._name_matcher = GlobMatcher(name) if name is not None else None
         self._resource_matcher = GlobMatcher(resource) if resource is not None else None
-
         self._tag_value_matchers = {k: GlobMatcher(v) for k, v in tags.items()} if tags is not None else {}
 
     def sample(self, span):
@@ -207,6 +202,10 @@ class SpanSamplingRule:
         service = span.service
         resource = span.resource
         tags = span.get_tags()
+
+        # If a span lacks these fields, we can't match on it
+        if service is None and name is None and not resource and not tags:
+            return False
 
         # Default to True in the absence of a rule
         # For whichever rules it does have, it will attempt to match on them

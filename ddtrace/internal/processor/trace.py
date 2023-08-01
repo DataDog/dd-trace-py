@@ -78,9 +78,7 @@ class TraceSamplingProcessor(TraceProcessor):
     """
 
     _compute_stats_enabled = attr.ib(type=bool)
-
-    def __init__(self, compute_stats_enabled, sampler):
-        self.sampler = sampler
+    sampler = attr.ib()
 
     def process_trace(self, trace):
         # type: (List[Span]) -> Optional[List[Span]]
