@@ -32,49 +32,39 @@ def gen_pre_checks(template: dict) -> None:
             template["jobs"]["pre_check"]["steps"].append({"run": {"name": name, "command": command}})
 
     check(
-        name="Formatting check",
-        command="riot -v run -s fmt && git diff --exit-code",
-        paths={"*.py", "*.pyi"},
-    ),
+        name="Style",
+        command="hatch run lint:style",
+        paths={"*.py", "*.pyi", "hatch.toml"},
+    )
     check(
-        name="Flake8 check",
-        command="riot -v run -s flake8",
-        paths={"*.py", "*.pyi"},
-    ),
+        name="Typing",
+        command="hatch run lint:typing",
+        paths={"*.py", "*.pyi", "hatch.toml"},
+    )
     check(
-        name="Mypy check",
-        command="riot -v run -s mypy",
-        paths={"*.py", "*.pyi"},
-    ),
+        name="Security",
+        command="hatch run lint:security",
+        paths={"ddtrace/*", "hatch.toml"},
+    )
+    check(
+        name="Run riotfile.py tests",
+        command="hatch run lint:riot",
+        paths={"riotfile.py", "hatch.toml"},
+    )
+    check(
+        name="Style: Test snapshots",
+        command="hatch run lint:fmt-snapshots && git diff --exit-code",
+        paths={"tests/snapshots/*", "hatch.toml"},
+    )
     check(
         name="Slots check",
         command="riot -v run slotscheck",
-        paths={"ddtrace/*.py"},
-    ),
-    check(
-        name="cython-lint check",
-        command="riot -v run -s cython-lint",
-        paths={"*.pyx", "*.pxd"},
-    ),
-    check(
-        name="Run riotfile.py tests",
-        command="riot -v run -s riot-helpers",
-        paths={"riotfile.py"},
-    )
-    check(
-        name="Test agent snapshot check",
-        command="riot -v run -s snapshot-fmt && git diff --exit-code",
-        paths={"tests/snapshots/*"},
+        paths={"ddtrace/*.py", "hatch.toml"},
     )
     check(
         name="Run scripts/*.py tests",
         command="riot -v run -s scripts",
         paths={"scripts/*.py"},
-    )
-    check(
-        name="Running security analysis checks with bandit",
-        command="riot -v run -s bandit",
-        paths={"ddtrace/*"},
     )
 
 
