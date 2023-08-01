@@ -3,7 +3,9 @@
         "$setup": [
             "setup.py",
             "setup.cfg",
-            "pyproject.toml"
+            "pyproject.toml",
+            "hatch.toml"
+
         ],
         "$harness": [
             "riotfile.py",
