@@ -1037,7 +1037,7 @@ venv = Venv(
         ),
         Venv(
             name="flask",
-            command="pytest {cmdargs} tests/contrib/flask",
+            command="pytest --ddtrace {cmdargs} tests/contrib/flask",
             pkgs={"blinker": latest, "requests": latest},
             venvs=[
                 # Flask 1.x.x
