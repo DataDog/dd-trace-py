@@ -324,54 +324,9 @@ venv = Venv(
             },
         ),
         Venv(
-            name="integration-civisibility",
-            # Enabling coverage for integration tests breaks certain tests in CI
-            command="pytest --no-cov {cmdargs} tests/integration/test_integration_civisibility.py",
-            pkgs={"msgpack": [latest], "coverage": latest},
-            venvs=[
-                Venv(
-                    name="integration-latest",
-                    env={
-                        "AGENT_VERSION": "latest",
-                    },
-                    venvs=[
-                        Venv(pys=select_pys(max_version="3.5")),
-                        Venv(
-                            pkgs={
-                                "six": "==1.12.0",
-                            },
-                            venvs=[
-                                # DEV: attrs marked Python 3.6 as deprecated in 22.2.0,
-                                #      this logs a warning and causes these tests to fail
-                                # https://www.attrs.org/en/22.2.0/changelog.html#id1
-                                Venv(pys="3.6", pkgs={"attrs": "<22.2.0"}),
-                                Venv(pys="3.7"),
-                            ],
-                        ),
-                        Venv(pys=select_pys(min_version="3.8")),
-                    ],
-                ),
-                Venv(
-                    name="integration-snapshot",
-                    env={
-                        "DD_TRACE_AGENT_URL": "http://localhost:9126",
-                        "AGENT_VERSION": "testagent",
-                    },
-                    venvs=[
-                        Venv(pys=select_pys(max_version="3.5")),
-                        # DEV: attrs marked Python 3.6 as deprecated in 22.2.0,
-                        #      this logs a warning and causes these tests to fail
-                        # https://www.attrs.org/en/22.2.0/changelog.html#id1
-                        Venv(pys=["3.6"], pkgs={"attrs": "<22.2.0"}),
-                        Venv(pys=select_pys(min_version="3.7")),
-                    ],
-                ),
-            ],
-        ),
-        Venv(
             name="integration",
             # Enabling coverage for integration tests breaks certain tests in CI
-            command="pytest --no-cov --ddtrace --ignore-glob='*civisibility*' {cmdargs} tests/integration/",
+            command="pytest --no-cov --ddtrace --ignore-glob='*civisibility*' {cmdargs} tests/integration/ && pytest --no-cov {cmdargs} tests/integration/test_integration_civisibility.py",  # noqa: E501
             pkgs={"msgpack": [latest], "coverage": latest},
             venvs=[
                 Venv(
@@ -444,27 +399,7 @@ venv = Venv(
         ),
         Venv(
             name="internal",
-            command="pytest --ddtrace --ignore-glob='*test_context_events_api*' {cmdargs} tests/internal/",
-            pkgs={
-                "httpretty": "==0.9.7",
-                "gevent": latest,
-            },
-            venvs=[
-                Venv(pys="2.7"),
-                Venv(
-                    pys=select_pys(min_version="3.5", max_version="3.6"),
-                    pkgs={"pytest-asyncio": latest},
-                ),
-                # FIXME[bytecode-3.11]: internal depends on bytecode, which is not python 3.11 compatible.
-                Venv(
-                    pys=select_pys(min_version="3.7"),
-                    pkgs={"pytest-asyncio": latest},
-                ),
-            ],
-        ),
-        Venv(
-            name="internal-context-events-api",
-            command="pytest {cmdargs} tests/internal/test_context_events_api.py",
+            command="pytest --ddtrace --ignore-glob='*test_context_events_api*' {cmdargs} tests/internal/ && pytest {cmdargs} tests/internal/test_context_events_api.py",  # noqa: E501
             pkgs={
                 "httpretty": "==0.9.7",
                 "gevent": latest,
