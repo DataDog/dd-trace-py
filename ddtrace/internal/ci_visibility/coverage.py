@@ -95,16 +95,17 @@ def build_payload(coverage, root_dir, test_id=None):
     :param root_dir: the directory relative to which paths to covered files should be resolved
     :param test_id: a unique identifier for the current test run
     """
+    root_dir_str = str(root_dir)
     return json.dumps(
         {
             "files": [
                 {
-                    "filename": os.path.relpath(filename, root_dir),
+                    "filename": os.path.relpath(filename, root_dir_str),
                     "segments": lines,
                 }
                 if lines
                 else {
-                    "filename": os.path.relpath(filename, root_dir),
+                    "filename": os.path.relpath(filename, root_dir_str),
                 }
                 for filename, lines in _lines(coverage, test_id).items()
             ]
