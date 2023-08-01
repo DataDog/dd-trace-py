@@ -261,7 +261,6 @@ jobs:
       - run:
           name: "Spelling"
           command: hatch run lint:spelling
-
   ccheck:
     executor: cimg_base
     steps:
