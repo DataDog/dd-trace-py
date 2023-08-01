@@ -7,7 +7,8 @@
         ],
         "$harness": [
             "riotfile.py",
-            "scripts/ddtest"
+            "scripts/ddtest",
+            "hatch.toml"
         ],
         "core": [
             "ddtrace/internal/*",
@@ -38,8 +39,6 @@
             "ddtrace/settings/config.py",
             "ddtrace/settings/http.py",
             "ddtrace/settings/integration.py",
-        ],
-        "tracing_tests": [
             "tests/tracer/*",
             "tests/integration/*"
         ],
@@ -387,7 +386,6 @@
         ],
         "tracer": [
             "@tracing",
-            "@tracing_tests",
             "@bootstrap",
             "@core"
         ],

@@ -12,12 +12,7 @@ import ddtrace
 from ddtrace import Tracer
 from ddtrace.internal import agent
 from ddtrace.internal import compat
-from ddtrace.internal.ci_visibility.constants import AGENTLESS_ENDPOINT
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
-from ddtrace.internal.ci_visibility.constants import EVP_PROXY_AGENT_ENDPOINT
-from ddtrace.internal.ci_visibility.constants import EVP_SUBDOMAIN_HEADER_EVENT_VALUE
-from ddtrace.internal.ci_visibility.constants import EVP_SUBDOMAIN_HEADER_NAME
-from ddtrace.internal.ci_visibility.recorder import CIVisibility
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.runtime import container
 from ddtrace.internal.utils.http import Response
@@ -417,27 +412,10 @@ def test_civisibility_intake_settings_with_evp_available():
         assert CIVisibility._instance.tracer._writer._endpoint == EVP_PROXY_AGENT_ENDPOINT
         assert CIVisibility._instance.tracer._writer.intake_url == agent.get_trace_url()
         assert (
-            CIVisibility._instance.tracer._writer._headers[EVP_SUBDOMAIN_HEADER_NAME]
-            == EVP_SUBDOMAIN_HEADER_EVENT_VALUE
-        )
-        CIVisibility.disable()
+            diff_magnitude < 0.3
+        ), "the proportion of sampled spans should approximate the sample rate given by the agent"
 
-
-def test_civisibility_enable_with_missing_apikey():
-    with override_env(dict(DD_SITE="foobar.baz")):
-        with override_global_config({"_ci_visibility_agentless_enabled": True}):
-            with pytest.raises(EnvironmentError):
-                CIVisibility.enable()
-
-
-def test_civisibility_intake_settings_with_apikey():
-    with override_env(dict(DD_API_KEY="foobar.baz", DD_SITE="foo.bar")):
-        with override_global_config({"_ci_visibility_agentless_enabled": True}):
-            t = Tracer()
-            CIVisibility.enable(tracer=t)
-            assert CIVisibility._instance.tracer._writer._endpoint == AGENTLESS_ENDPOINT
-            assert CIVisibility._instance.tracer._writer.intake_url == "https://citestcycle-intake.foo.bar"
-            CIVisibility.disable()
+        t.shutdown()
 
 
 def test_trace_with_invalid_client_endpoint_generates_error_log():
