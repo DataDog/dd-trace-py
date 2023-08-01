@@ -3,13 +3,13 @@
         "$setup": [
             "setup.py",
             "setup.cfg",
-            "pyproject.toml",
-            "hatch.toml"
+            "pyproject.toml"
 
         ],
         "$harness": [
             "riotfile.py",
-            "scripts/ddtest"
+            "scripts/ddtest",
+            "hatch.toml"
         ],
         "core": [
             "ddtrace/internal/*",
