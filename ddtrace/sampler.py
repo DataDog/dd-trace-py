@@ -337,16 +337,6 @@ class DatadogSampler(RateByServiceSampler):
 
     def sample(self, trace):
         # type: (List[Span]) -> List[Span]
-        """
-        Decide whether the provided span should be sampled or not
-
-        The span provided should be the root span in the trace.
-
-        :param span: The root span of a trace
-        :type span: :class:`ddtrace.span.Span`
-        :returns: Whether the span was sampled or not
-        :rtype: :obj:`bool`
-        """
         rule = self.find_highest_precedence_rule_matching(trace)
         if rule:
             decision = rule.sample(trace[0])
@@ -357,6 +347,6 @@ class DatadogSampler(RateByServiceSampler):
                     allowed = self.limiter.is_allowed(span.start_ns)
                     if not allowed:
                         self._set_sampler_decision(span, self.limiter, allowed)
-            return trace
+            return decision
         else:
             return super(DatadogSampler, self).sample(trace)
