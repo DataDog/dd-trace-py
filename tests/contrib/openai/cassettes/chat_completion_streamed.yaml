@@ -108,7 +108,7 @@ interactions:
       openai-model:
       - gpt-3.5-turbo-0301
       openai-organization:
-      - user-f23xvdxbrssd56y1ghcjdcue
+      - datadog-4
       openai-processing-ms:
       - '417'
       openai-version:
