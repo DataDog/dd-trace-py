@@ -78,21 +78,6 @@ commands:
       # Make sure we install and run riot on Python 3
       - run: pip3 install riot==0.17.7
 
-  save_pip_cache:
-    description: "Save pip cache directory"
-    steps:
-      - save_cache:
-          # DEV: Cache misses can still occur as venvs are not necessarily always created on the same node index
-          key: pip-cache-xdg-{{ .Environment.CIRCLE_JOB }}-{{ .Environment.CIRCLE_NODE_INDEX }}-{{ checksum "riotfile.py" }}-{{ checksum "setup.py" }}
-          paths:
-            - "~/.cache/pip"
-
-  restore_pip_cache:
-    description: "Restore pip cache directory"
-    steps:
-      - restore_cache:
-          key: pip-cache-xdg-{{ .Environment.CIRCLE_JOB }}-{{ .Environment.CIRCLE_NODE_INDEX }}-{{ checksum "riotfile.py" }}-{{ checksum "setup.py" }}
-
   start_docker_services:
     description: "Start Docker services"
     parameters:
@@ -133,7 +118,6 @@ commands:
         default: "http://localhost:9126"
     steps:
       - checkout
-      - restore_pip_cache
       - attach_workspace:
           at: .
       - when:
@@ -179,7 +163,6 @@ commands:
                   # Sort the hashes to ensure a consistent ordering/division between each node
                   riot list --hash-only '<<parameters.pattern>>' | sort | circleci tests split | xargs -n 1 -I {} riot -v run --exitfirst --pass-env -s {} $([[ << pipeline.parameters.coverage >> == false ]] && echo '--no-cov' )
                   ./scripts/check-diff ".riot/requirements/" "Changes detected after running riot. Consider deleting changed files, running scripts/compile-and-prune-test-requirements and committing the result."
-      - save_pip_cache
       - when:
           condition:
             and:
