@@ -244,7 +244,7 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_request_header_name(cl
             "iast_enabled_sqli_http_request_header_name", vuln_type, filename=TEST_FILE
         )
 
-        assert loaded["sources"] == [{"origin": "http.request.header", "name": "master", "value": "master"}]
+        assert loaded["sources"] == [{"origin": "http.request.header.name", "name": "master", "value": "master"}]
         assert loaded["vulnerabilities"][0]["type"] == vuln_type
         assert loaded["vulnerabilities"][0]["hash"] == hash_value
         assert loaded["vulnerabilities"][0]["evidence"] == {
@@ -370,7 +370,7 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_cookies_name(client, t
 
         line, hash_value = get_line_and_hash("iast_enabled_sqli_http_cookies_name", vuln_type, filename=TEST_FILE)
 
-        assert loaded["sources"] == [{"origin": "http.request.cookie.value", "name": "master", "value": "master"}]
+        assert loaded["sources"] == [{"origin": "http.request.cookie.name", "name": "master", "value": "master"}]
         assert loaded["vulnerabilities"][0]["type"] == vuln_type
         assert loaded["vulnerabilities"][0]["hash"] == hash_value
         assert loaded["vulnerabilities"][0]["evidence"] == {
