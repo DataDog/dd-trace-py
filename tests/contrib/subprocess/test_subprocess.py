@@ -435,9 +435,9 @@ def test_subprocess_wait_shell_false(tracer):
             subp = subprocess.Popen(args=args, shell=False)
             subp.wait()
 
-            assert not core.get_item(COMMANDS.CTX_SUBP_IS_SHELL, span=span)
-            assert not core.get_item(COMMANDS.CTX_SUBP_TRUNCATED, span=span)
-            assert core.get_item(COMMANDS.CTX_SUBP_LINE, span=span) == args
+            assert not core.get_item(COMMANDS.CTX_SUBP_IS_SHELL)
+            assert not core.get_item(COMMANDS.CTX_SUBP_TRUNCATED)
+            assert core.get_item(COMMANDS.CTX_SUBP_LINE) == args
 
 
 def test_subprocess_wait_shell_true(tracer):
@@ -448,7 +448,7 @@ def test_subprocess_wait_shell_true(tracer):
             subp = subprocess.Popen(args=["dir", "-li", "/"], shell=True)
             subp.wait()
 
-            assert core.get_item(COMMANDS.CTX_SUBP_IS_SHELL, span=span)
+            assert core.get_item(COMMANDS.CTX_SUBP_IS_SHELL)
 
 
 @pytest.mark.skipif(PY2, reason="Python2 does not have subprocess.run")
