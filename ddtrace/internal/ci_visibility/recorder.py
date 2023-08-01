@@ -220,10 +220,10 @@ class CIVisibility(Service):
             log.warning("Request timeout while fetching enabled features")
             return False, False
         try:
-            body = response.body
-            if isinstance(body, bytes):
-                body = body.decode()
-            parsed = json.loads(body)
+            if isinstance(response.body, bytes):
+                parsed = json.loads(response.body.decode())
+            else:
+                parsed = json.loads(response.body)
         except JSONDecodeError:
             log.warning("Settings request responded with invalid JSON '%s'", response.body)
             return False, False
@@ -326,10 +326,10 @@ class CIVisibility(Service):
             log.warning("Test skips request responded with status %d", response.status)
             return
         try:
-            body = response.body
-            if isinstance(body, bytes):
-                body = body.decode()
-            parsed = json.loads(body)
+            if isinstance(response.body, bytes):
+                parsed = json.loads(response.body.decode())
+            else:
+                parsed = json.loads(response.body)
         except json.JSONDecodeError:
             log.warning("Test skips request responded with invalid JSON '%s'", response.body)
             return
