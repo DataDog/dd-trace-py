@@ -105,87 +105,6 @@ venv = Venv(
     venvs=[
         Venv(
             pys=["3"],
-            pkgs={
-                "black": "==21.4b2",
-                "isort": [latest],
-                # See https://github.com/psf/black/issues/2964 for incompatibility with click==8.1.0
-                "click": "<8.1.0",
-            },
-            venvs=[
-                Venv(
-                    name="fmt",
-                    command="isort . && black .",
-                ),
-                Venv(
-                    name="black",
-                    command="black {cmdargs}",
-                ),
-                Venv(
-                    name="isort",
-                    command="isort {cmdargs}",
-                ),
-            ],
-        ),
-        Venv(
-            pys=["3"],
-            pkgs={
-                "flake8": ">=3.8,<3.9",
-                "flake8-blind-except": latest,
-                "flake8-builtins": latest,
-                "flake8-docstrings": latest,
-                "flake8-logging-format": latest,
-                "flake8-rst-docstrings": latest,
-                "flake8-isort": latest,
-                "pygments": latest,
-            },
-            venvs=[
-                Venv(
-                    name="flake8",
-                    command="flake8 {cmdargs}",
-                ),
-            ],
-        ),
-        Venv(
-            pys=["3"],
-            pkgs={
-                "cython-lint": latest,
-            },
-            name="cython-lint",
-            command="cython-lint {cmdargs} .",
-        ),
-        Venv(
-            pys=["3"],
-            name="mypy",
-            command="mypy {cmdargs}",
-            create=True,
-            skip_dev_install=True,
-            pkgs={
-                "mypy": "==0.991",
-                "envier": "==0.4.0",
-                "types-attrs": "==19.1.0",
-                "types-docutils": "==0.19.1.1",
-                "types-protobuf": "==3.20.4.5",
-                "types-PyYAML": "==6.0.12.2",
-                "types-setuptools": "==65.6.0.0",
-                "types-six": "==1.16.21.4",
-            },
-        ),
-        Venv(
-            pys=["3"],
-            pkgs={"codespell": "==2.1.0"},
-            venvs=[
-                Venv(
-                    name="codespell",
-                    command='codespell --skip="ddwaf.h" ddtrace/ tests/',
-                ),
-                Venv(
-                    name="hook-codespell",
-                    command="codespell {cmdargs}",
-                ),
-            ],
-        ),
-        Venv(
-            pys=["3"],
             pkgs={"slotscheck": latest},
             venvs=[
                 Venv(
@@ -196,51 +115,11 @@ venv = Venv(
         ),
         Venv(
             pys=["3"],
-            pkgs={"bandit": latest},
-            venvs=[
-                Venv(
-                    name="bandit",
-                    command="bandit -c pyproject.toml {cmdargs} -r ddtrace/",
-                ),
-            ],
-        ),
-        Venv(
-            pys=["3"],
-            pkgs={"ddapm-test-agent": ">=1.2.0"},
-            venvs=[
-                Venv(
-                    name="snapshot-fmt",
-                    command="ddapm-test-agent-fmt {cmdargs} tests/snapshots/",
-                ),
-            ],
-        ),
-        Venv(
-            pys=["3"],
-            name="riot-helpers",
-            # DEV: pytest really doesn't want to execute only `riotfile.py`, call doctest directly
-            command="python -m doctest {cmdargs} riotfile.py",
-            pkgs={"riot": "==0.17.7"},
-        ),
-        Venv(
-            pys=["3"],
             name="scripts",
             command="python -m doctest {cmdargs} "
             "scripts/get-target-milestone.py "
             "scripts/needs_testrun.py "
             "tests/suitespec.py",
-        ),
-        Venv(
-            name="docs",
-            pys=["3.10"],
-            pkgs={
-                "reno[sphinx]": "~=3.5.0",
-                "sphinx": "~=4.0",
-                "sphinxcontrib-spelling": "==7.7.0",
-                "PyEnchant": "==3.2.2",
-                "sphinx-copybutton": "==0.5.1",
-                "furo": latest,
-            },
-            command="scripts/build-docs",
         ),
         Venv(
             name="circleci-gen-config",
