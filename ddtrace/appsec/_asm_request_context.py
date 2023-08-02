@@ -1,11 +1,15 @@
 import contextlib
+import functools
 from typing import TYPE_CHECKING
 
 from ddtrace import config
+from ddtrace.appsec import handlers
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
+from ddtrace.appsec.iast._util import _is_iast_enabled
 from ddtrace.internal import core
 from ddtrace.internal.compat import parse
+from ddtrace.internal.constants import REQUEST_PATH_PARAMS
 from ddtrace.internal.logger import get_logger
 
 
@@ -16,6 +20,11 @@ if TYPE_CHECKING:
     from typing import List
     from typing import Optional
     from typing import Tuple
+
+try:
+    import contextvars
+except ImportError:
+    import ddtrace.vendor.contextvars as contextvars  # type: ignore
 
 
 log = get_logger(__name__)
@@ -318,27 +327,110 @@ def asm_request_context_manager(
     """
     The ASM context manager
     """
-    if config._appsec_enabled:
-        resources = _on_context_started(remote_ip, headers, headers_case_sensitive, block_request_callable)
+    resources = _start_context(remote_ip, headers, headers_case_sensitive, block_request_callable)
+    if resources is not None:
         try:
             yield resources
         finally:
-            _on_context_ended(resources)
+            _end_context(resources)
     else:
         yield None
 
 
-def _on_context_started(remote_ip, headers, headers_case_sensitive, block_request_callable):
-    resources = _DataHandler()
-    asm_request_context_set(remote_ip, headers, headers_case_sensitive, block_request_callable)
-    core.on("wsgi.block_decided", _on_block_decided)
-    return resources
+def _start_context(remote_ip, headers, headers_case_sensitive, block_request_callable):
+    if config._appsec_enabled:
+        resources = _DataHandler()
+        asm_request_context_set(remote_ip, headers, headers_case_sensitive, block_request_callable)
+        handlers.listen()
+        listen_context_handlers()
+        return resources
 
 
-def _on_context_ended(resources):
+RESOURCES = contextvars.ContextVar("asm_resources")  # type: contextvars.ContextVar[Optional[_DataHandler]]
+
+
+def _on_context_started(ctx):
+    resources = _start_context(
+        ctx.get_item("remote_addr"),
+        ctx.get_item("headers"),
+        ctx.get_item("headers_case_sensitive"),
+        ctx.get_item("block_request_callable"),
+    )
+    token = RESOURCES.set(resources)
+    ctx.set_item("token_resources", token)
+
+
+def _end_context(resources):
     resources.finalise()
     core.set_item("asm_env", None)
 
 
+def _on_context_ended(ctx):
+    resources = RESOURCES.get()
+    if resources is not None:
+        _end_context(resources)
+        token = ctx.get_item("token_resources")
+        if token:
+            RESOURCES.reset(token)
+
+
+core.on("context.started.wsgi.__call__", _on_context_started)
+core.on("context.ended.wsgi.__call__", _on_context_ended)
+
+
+def _on_wrapped_view(kwargs):
+    return_value = [None, None]
+    # if Appsec is enabled, we can try to block as we have the path parameters at that point
+    if config._appsec_enabled and in_context():
+        log.debug("Flask WAF call for Suspicious Request Blocking on request")
+        if kwargs:
+            set_waf_address(REQUEST_PATH_PARAMS, kwargs)
+        call_waf_callback()
+        if is_blocked():
+            callback_block = get_value(_CALLBACKS, "flask_block")
+            return_value[0] = callback_block
+
+    # If IAST is enabled, taint the Flask function kwargs (path parameters)
+    if _is_iast_enabled() and kwargs:
+        from ddtrace.appsec.iast._taint_tracking import OriginType
+        from ddtrace.appsec.iast._taint_tracking import taint_pyobject
+
+        _kwargs = {}
+        for k, v in kwargs.items():
+            _kwargs[k] = taint_pyobject(
+                pyobject=v, source_name=k, source_value=v, source_origin=OriginType.PATH_PARAMETER
+            )
+        return_value[1] = _kwargs
+    return return_value
+
+
+def _on_pre_tracedrequest(block_request_callable, span):
+    if config._appsec_enabled:
+        set_block_request_callable(functools.partial(block_request_callable, span))
+        if core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
+            block_request()
+
+
+def _on_post_finalizerequest(rv):
+    if config._api_security_enabled and config._appsec_enabled and getattr(rv, "is_sequence", False):
+        # start_response was not called yet, set the HTTP response headers earlier
+        set_headers_response(list(rv.headers))
+        set_body_response(rv.response)
+
+
+def _on_start_response():
+    log.debug("Flask WAF call for Suspicious Request Blocking on response")
+    call_waf_callback()
+    return get_headers().get("Accept", "").lower()
+
+
 def _on_block_decided(callback):
     set_value(_CALLBACKS, "flask_block", callback)
+
+
+def listen_context_handlers():
+    core.on("flask.finalize_request.post", _on_post_finalizerequest)
+    core.on("flask.wrapped_view", _on_wrapped_view)
+    core.on("flask.traced_request.pre", _on_pre_tracedrequest)
+    core.on("wsgi.block_decided", _on_block_decided)
+    core.on("flask.start_response", _on_start_response)
