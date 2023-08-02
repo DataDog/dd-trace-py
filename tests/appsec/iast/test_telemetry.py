@@ -2,12 +2,11 @@ import pytest
 
 
 try:
-    from ddtrace._monkey import IAST_PATCH
-    from ddtrace._monkey import patch_iast
     from ddtrace.appsec.iast._metrics import TELEMETRY_DEBUG_VERBOSITY
     from ddtrace.appsec.iast._metrics import TELEMETRY_INFORMATION_VERBOSITY
     from ddtrace.appsec.iast._metrics import TELEMETRY_MANDATORY_VERBOSITY
     from ddtrace.appsec.iast._metrics import metric_verbosity
+    from ddtrace.appsec.iast._patch_modules import patch_iast
     from ddtrace.appsec.iast._taint_tracking import OriginType
     from ddtrace.appsec.iast._taint_tracking import taint_pyobject
     from ddtrace.appsec.iast._util import _is_python_version_supported
@@ -49,7 +48,7 @@ def test_metric_executed_sink(mock_telemetry_lifecycle_writer):
     with override_env(dict(DD_IAST_TELEMETRY_VERBOSITY="INFORMATION")), override_global_config(
         dict(_iast_enabled=True)
     ):
-        patch_iast(**IAST_PATCH)
+        patch_iast()
 
         tracer = DummyTracer(iast_enabled=True)
 
@@ -90,7 +89,6 @@ def test_metric_request_tainted(mock_telemetry_lifecycle_writer):
     with override_env(dict(DD_IAST_TELEMETRY_VERBOSITY="INFORMATION")), override_global_config(
         dict(_iast_enabled=True)
     ):
-
         tracer = DummyTracer(iast_enabled=True)
 
         with tracer.trace("test", span_type=SpanTypes.WEB) as span:

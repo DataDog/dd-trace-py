@@ -5,9 +5,9 @@ import mock
 import pytest
 
 from ddtrace import config
-from ddtrace._monkey import patch_iast
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec.iast import oce
+from ddtrace.appsec.iast._patch_modules import patch_iast
 from ddtrace.appsec.iast._util import _is_python_version_supported as python_supported_by_iast
 from ddtrace.internal.compat import urlencode
 from tests.appsec.iast.iast_utils import get_line_and_hash
@@ -53,7 +53,7 @@ def test_django_weak_hash(client, test_spans, tracer):
     with override_global_config(dict(_appsec_enabled=True, _iast_enabled=True)):
         setup(bytes.join, bytearray.join)
         oce.reconfigure()
-        patch_iast(weak_hash=True)
+        patch_iast({"weak_hash": True})
         root_span, _ = _aux_appsec_get_root_span(client, test_spans, tracer, url="/appsec/weak-hash/")
         str_json = root_span.get_tag(IAST.JSON)
         assert str_json is not None, "no JSON tag in root span"
