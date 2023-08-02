@@ -97,8 +97,10 @@ def test_git_extract_workspace_path_error(tmpdir):
 
 def test_extract_git_metadata(git_repo):
     """Test that extract_git_metadata() sets all tags correctly."""
-    extracted_tags = git.extract_git_metadata(cwd=git_repo)
+    with mock.patch("ddtrace.ext.git._set_safe_directory") as mock_git_set_safe_directory:
+        extracted_tags = git.extract_git_metadata(cwd=git_repo)
 
+    mock_git_set_safe_directory.assert_called()
     assert extracted_tags["git.repository_url"] == "git@github.com:test-repo-url.git"
     assert extracted_tags["git.commit.message"] == "this is a commit msg"
     assert extracted_tags["git.commit.author.name"] == "John Doe"
