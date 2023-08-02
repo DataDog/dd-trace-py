@@ -205,6 +205,7 @@ venv = Venv(
         Venv(
             name="integration",
             # Enabling coverage for integration tests breaks certain tests in CI
+            # Also, running two separate pytest sessions, the ``civisibility`` one without --ddtrace
             command="pytest --no-cov --ddtrace --ignore-glob='*civisibility*' {cmdargs} tests/integration/ && pytest --no-cov {cmdargs} tests/integration/test_integration_civisibility.py",  # noqa: E501
             pkgs={"msgpack": [latest], "coverage": latest},
             venvs=[
@@ -278,6 +279,7 @@ venv = Venv(
         ),
         Venv(
             name="internal",
+            # Running two separate pytest sessions here: ``test_context_events_api.py`` without --ddtrace
             command="pytest --ddtrace --ignore-glob='*test_context_events_api*' {cmdargs} tests/internal/ && pytest {cmdargs} tests/internal/test_context_events_api.py",  # noqa: E501
             pkgs={
                 "httpretty": "==0.9.7",
