@@ -281,7 +281,8 @@ def pytest_runtest_protocol(item):
             ihook.pytest_runtest_logreport(report=report)
 
             # Call
-            report = run_function_from_file(item, ps)
+            item.runtest = lambda: run_function_from_file(item, ps)
+            report = call_and_report(item, "call", log=False)
             report.nodeid = nodeid
             ihook.pytest_runtest_logreport(report=report)
 
