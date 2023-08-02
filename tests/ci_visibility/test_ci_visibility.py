@@ -1,4 +1,3 @@
-import contextlib
 import json
 import os
 import time
@@ -18,6 +17,7 @@ from ddtrace.internal.ci_visibility.recorder import _extract_repository_name_fro
 from ddtrace.internal.compat import TimeoutError
 from ddtrace.internal.utils.http import Response
 from ddtrace.span import Span
+from tests.ci_visibility.util import _patch_dummy_writer
 from tests.utils import DummyCIVisibilityWriter
 from tests.utils import DummyTracer
 from tests.utils import override_env
@@ -50,14 +50,6 @@ def test_filters_non_test_spans():
     assert trace_filter.process_trace(trace) is None
 
 
-@contextlib.contextmanager
-def _patch_dummy_writer():
-    original = ddtrace.internal.ci_visibility.recorder.CIVisibilityWriter
-    ddtrace.internal.ci_visibility.recorder.CIVisibilityWriter = DummyCIVisibilityWriter
-    yield
-    ddtrace.internal.ci_visibility.recorder.CIVisibilityWriter = original
-
-
 def test_ci_visibility_service_enable():
     with override_env(
         dict(
@@ -88,15 +80,18 @@ def test_ci_visibility_service_enable_with_app_key_and_itr_disabled(_do_request)
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
         )
     ):
-        _do_request.return_value = Response(
-            status=200,
-            body='{"data":{"id":"1234","type":"ci_app_tracers_test_service_settings","attributes":'
-            '{"code_coverage":true,"tests_skipping":true}}}',
-        )
-        CIVisibility.enable(service="test-service")
-        assert CIVisibility._instance._code_coverage_enabled_by_api is False
-        assert CIVisibility._instance._test_skipping_enabled_by_api is False
-        CIVisibility.disable()
+        ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+        with _patch_dummy_writer():
+            _do_request.return_value = Response(
+                status=200,
+                body='{"data":{"id":"1234","type":"ci_app_tracers_test_service_settings","attributes":'
+                '{"code_coverage":true,"tests_skipping":true}}}',
+            )
+            dummy_tracer = DummyTracer()
+            CIVisibility.enable(tracer=dummy_tracer, service="test-service")
+            assert CIVisibility._instance._code_coverage_enabled_by_api is False
+            assert CIVisibility._instance._test_skipping_enabled_by_api is False
+            CIVisibility.disable()
 
 
 @mock.patch("ddtrace.internal.ci_visibility.recorder._do_request", side_effect=TimeoutError)

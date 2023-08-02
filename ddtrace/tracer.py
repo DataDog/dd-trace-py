@@ -216,6 +216,7 @@ class Tracer(object):
         self,
         url=None,  # type: Optional[str]
         dogstatsd_url=None,  # type: Optional[str]
+        context_provider=None,  # type: Optional[DefaultContextProvider]
     ):
         # type: (...) -> None
         """
@@ -244,7 +245,7 @@ class Tracer(object):
         self._pid = getpid()
 
         self.enabled = asbool(os.getenv("DD_TRACE_ENABLED", default=True))
-        self.context_provider = DefaultContextProvider()
+        self.context_provider = context_provider or DefaultContextProvider()
         self._compute_stats = config._trace_compute_stats
         self._sampler = DatadogSampler(
             compute_stats=self._compute_stats, rules=get_trace_sampling_rules()
