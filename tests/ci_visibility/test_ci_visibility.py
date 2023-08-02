@@ -1,5 +1,3 @@
-import contextlib
-import json
 import os
 import time
 
@@ -49,6 +47,7 @@ def test_filters_non_test_spans():
     # Root span in trace is not a test
     trace = [root_span]
     assert trace_filter.process_trace(trace) is None
+
 
 @mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features", return_value=(False, False))
 def test_ci_visibility_service_enable():

@@ -507,8 +507,8 @@ The following environment variables for the tracer are supported:
      type: Boolean
      default: False
      description: |
-        Prevents configuring the ``CIVisibility`` service to generate and upload git packfiles in support
-        of the Datadog Intelligent Test Runner.
+        Prevents the Intelligent Test Runner from skipping tests, and disables configuring the ``CIVisibility`` service
+        to generate and upload git packfiles in support of the Intelligent Test Runner.
      version_added:
         v1.18.0:
 
