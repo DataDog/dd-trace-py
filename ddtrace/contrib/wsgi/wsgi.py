@@ -26,6 +26,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.propagation._utils import from_wsgi_header
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.tracing import trace_handlers
 from ddtrace.vendor import wrapt
 
 from ...internal import core

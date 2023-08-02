@@ -68,7 +68,6 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
     assert len(events) == 1
 
     events[0]["payload"]["configuration"].sort(key=lambda c: c["name"])
-
     payload = {
         "configuration": [
             {"name": "DD_APPSEC_ENABLED", "origin": "unknown", "value": False},
@@ -80,6 +79,8 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
             {"name": "DD_LOGS_INJECTION", "origin": "unknown", "value": False},
             {"name": "DD_PROFILING_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_RUNTIME_METRICS_ENABLED", "origin": "unknown", "value": False},
+            {"name": "DD_SPAN_SAMPLING_RULES", "origin": "unknown", "value": None},
+            {"name": "DD_SPAN_SAMPLING_RULES_FILE", "origin": "unknown", "value": None},
             {"name": "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_TRACE_ANALYTICS_ENABLED", "origin": "unknown", "value": False},
@@ -114,7 +115,7 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
     assert events[0] == _get_request_body(payload, "app-started")
 
 
-def test_app_started_event_configuration_override(test_agent_session, run_python_code_in_subprocess):
+def test_app_started_event_configuration_override(test_agent_session, run_python_code_in_subprocess, tmpdir):
     """
     asserts that default configuration value
     is changed and queues a valid telemetry request
@@ -159,6 +160,11 @@ telemetry_writer.disable()
         # Prevents gevent importerror when profiling is enabled
         env["DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE"] = "false"
 
+    file = tmpdir.join("moon_ears.json")
+    file.write('[{"service":"xy?","name":"a*c"}]')
+    env["DD_SPAN_SAMPLING_RULES"] = '[{"service":"xyz", "sample_rate":0.23}]'
+    env["DD_SPAN_SAMPLING_RULES_FILE"] = str(file)
+
     _, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
 
     assert status == 0, stderr
@@ -176,6 +182,8 @@ telemetry_writer.disable()
         {"name": "DD_LOGS_INJECTION", "origin": "unknown", "value": True},
         {"name": "DD_PROFILING_ENABLED", "origin": "unknown", "value": True},
         {"name": "DD_RUNTIME_METRICS_ENABLED", "origin": "unknown", "value": True},
+        {"name": "DD_SPAN_SAMPLING_RULES", "origin": "unknown", "value": '[{"service":"xyz", "sample_rate":0.23}]'},
+        {"name": "DD_SPAN_SAMPLING_RULES_FILE", "origin": "unknown", "value": str(file)},
         {"name": "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", "origin": "unknown", "value": True},
         {"name": "DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED", "origin": "unknown", "value": True},
         {"name": "DD_TRACE_ANALYTICS_ENABLED", "origin": "unknown", "value": True},

@@ -91,6 +91,15 @@ def _git_subprocess_cmd(cmd, cwd=None, std_in=None):
     raise ValueError(compat.ensure_text(stderr).strip())
 
 
+def _set_safe_directory():
+    try:
+        _git_subprocess_cmd("config --global --add safe.directory *")
+    except GitNotFoundError:
+        log.error("Git executable not found, cannot extract git metadata.")
+    except ValueError:
+        log.error("Error setting safe directory", exc_info=True)
+
+
 def _extract_clone_defaultremotename(cwd=None):
     output = _git_subprocess_cmd("config --default origin --get clone.defaultRemoteName")
     return output
@@ -210,6 +219,7 @@ def extract_git_metadata(cwd=None):
     # type: (Optional[str]) -> Dict[str, Optional[str]]
     """Extract git commit metadata."""
     tags = {}  # type: Dict[str, Optional[str]]
+    _set_safe_directory()
     try:
         tags[REPOSITORY_URL] = extract_repository_url(cwd=cwd)
         tags[COMMIT_MESSAGE] = extract_commit_message(cwd=cwd)
