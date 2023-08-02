@@ -14,8 +14,8 @@ from tests.utils import override_env
 
 
 if sys.version_info >= (3, 6):
-    from ddtrace.appsec.iast.taint_sinks.json_tainting import patch as json_patch
-    from ddtrace.appsec.iast.taint_sinks.json_tainting import unpatch_iast as json_unpatch
+    from ddtrace.appsec.iast._patches.json_tainting import patch as json_patch
+    from ddtrace.appsec.iast._patches.json_tainting import unpatch_iast as json_unpatch
 
 
 def iast_span(tracer, env, request_sampling="100"):
