@@ -47,6 +47,8 @@ from .constants import TELEMETRY_PROFILING_ENABLED
 from .constants import TELEMETRY_PROPAGATION_STYLE_EXTRACT
 from .constants import TELEMETRY_PROPAGATION_STYLE_INJECT
 from .constants import TELEMETRY_RUNTIMEMETRICS_ENABLED
+from .constants import TELEMETRY_SPAN_SAMPLING_RULES
+from .constants import TELEMETRY_SPAN_SAMPLING_RULES_FILE
 from .constants import TELEMETRY_TRACE_COMPUTE_STATS
 from .constants import TELEMETRY_TRACE_DEBUG
 from .constants import TELEMETRY_TRACE_HEALTH_METRICS_ENABLED
@@ -281,6 +283,7 @@ class TelemetryWriter(PeriodicService):
         self.add_configurations(
             [
                 (TELEMETRY_TRACING_ENABLED, config._tracing_enabled, "unknown"),
+                (TELEMETRY_CALL_BASIC_CONFIG, config._call_basic_config, "unknown"),
                 (TELEMETRY_DSM_ENABLED, config._data_streams_enabled, "unknown"),
                 (TELEMETRY_ASM_ENABLED, config._appsec_enabled, "unknown"),
                 (TELEMETRY_PROFILING_ENABLED, profiling_config.enabled, "unknown"),
@@ -296,7 +299,6 @@ class TelemetryWriter(PeriodicService):
                 (TELEMETRY_ANALYTICS_ENABLED, config.analytics_enabled, "unknown"),
                 (TELEMETRY_CLIENT_IP_ENABLED, config.client_ip_header, "unknown"),
                 (TELEMETRY_LOGS_INJECTION_ENABLED, config.logs_injection, "unknown"),
-                (TELEMETRY_CALL_BASIC_CONFIG, config._call_basic_config, "unknown"),
                 (TELEMETRY_128_BIT_TRACEID_GENERATION_ENABLED, config._128_bit_trace_id_enabled, "unknown"),
                 (TELEMETRY_128_BIT_TRACEID_LOGGING_ENABLED, config._128_bit_trace_id_logging_enabled, "unknown"),
                 (TELEMETRY_TRACE_COMPUTE_STATS, config._trace_compute_stats, "unknown"),
@@ -310,6 +312,8 @@ class TelemetryWriter(PeriodicService):
                 (TELEMETRY_OTEL_ENABLED, config._otel_enabled, "unknown"),
                 (TELEMETRY_TRACE_HEALTH_METRICS_ENABLED, config.health_metrics_enabled, "unknown"),
                 (TELEMETRY_RUNTIMEMETRICS_ENABLED, config._runtime_metrics_enabled, "unknown"),
+                (TELEMETRY_SPAN_SAMPLING_RULES, config._sampling_rules, "unknown"),
+                (TELEMETRY_SPAN_SAMPLING_RULES_FILE, config._sampling_rules_file, "unknown"),
             ]
         )
 
