@@ -50,7 +50,7 @@ def test_filters_non_test_spans():
 
 
 @mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features", return_value=(False, False))
-def test_ci_visibility_service_enable():
+def test_ci_visibility_service_enable(_check_enabled_features_patch):
     with override_env(
         dict(
             DD_API_KEY="foobar.baz",
