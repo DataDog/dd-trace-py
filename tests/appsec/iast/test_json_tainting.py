@@ -37,7 +37,7 @@ def is_fully_tainted(obj):
     if isinstance(obj, list):
         return all(is_fully_tainted(e) for e in obj)
     if isinstance(obj, dict):
-        return all(is_fully_tainted(k) or is_fully_tainted(e) for k, e in obj.items())
+        return all(is_fully_tainted(k) and is_fully_tainted(e) for k, e in obj.items())
     return True
 
 

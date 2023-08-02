@@ -44,9 +44,9 @@ def wrapped_loads(wrapped, instance, args, kwargs):
                 # take the first source as main source
                 source = sources[0]
                 if isinstance(obj, dict):
-                    obj = LazyTaintDict(obj, origins=(source.value, source.origin))
+                    obj = LazyTaintDict(obj, origins=(source.origin, source.origin))
                 elif isinstance(obj, list):
-                    obj = LazyTaintList(obj, origins=(source.value, source.origin))
+                    obj = LazyTaintList(obj, origins=(source.origin, source.origin))
                 elif isinstance(obj, (str, bytes, bytearray)):
                     obj = taint_pyobject(obj, source.name, source.value, source.origin)
                 pass
