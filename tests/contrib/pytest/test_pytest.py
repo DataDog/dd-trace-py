@@ -18,7 +18,7 @@ from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.encoder import CIVisibilityEncoderV01
 from ddtrace.internal.compat import PY2
-from tests.ci_visibility.test_encoder import _patch_dummy_writer
+from tests.ci_visibility.util import _patch_dummy_writer
 from tests.utils import TracerTestCase
 from tests.utils import override_env
 
