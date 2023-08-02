@@ -182,6 +182,7 @@ renderers
 resolvers
 repo
 respawn
+riotfile
 rq
 rowcount
 runnable
@@ -221,6 +222,7 @@ unix
 unpatch
 unpatched
 unregister
+unshallow
 unvendored
 uri
 url

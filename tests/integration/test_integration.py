@@ -16,12 +16,7 @@ from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.internal import agent
 from ddtrace.internal import compat
-from ddtrace.internal.ci_visibility.constants import AGENTLESS_ENDPOINT
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
-from ddtrace.internal.ci_visibility.constants import EVP_PROXY_AGENT_ENDPOINT
-from ddtrace.internal.ci_visibility.constants import EVP_SUBDOMAIN_HEADER_EVENT_VALUE
-from ddtrace.internal.ci_visibility.constants import EVP_SUBDOMAIN_HEADER_NAME
-from ddtrace.internal.ci_visibility.recorder import CIVisibility
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import MsgpackEncoderV03 as Encoder
@@ -354,6 +349,7 @@ def test_single_trace_too_large(encoding, monkeypatch):
                 :20
             ]  # limits number of logs, this test could generate hundreds of thousands of logs.
             log.error.assert_not_called()
+            t.shutdown()
 
 
 @allencodings
@@ -531,38 +527,6 @@ def test_priority_sampling_rate_honored(encoding, monkeypatch):
         ), "the proportion of sampled spans should approximate the sample rate given by the agent"
 
         t.shutdown()
-
-
-@pytest.mark.skipif(AGENT_VERSION == "testagent", reason="Test agent doesn't support evp proxy.")
-def test_civisibility_intake_with_evp_available():
-    with override_env(dict(DD_API_KEY="foobar.baz", DD_SITE="foo.bar")):
-        with override_global_config({"_ci_visibility_agentless_enabled": False}):
-            t = Tracer()
-            CIVisibility.enable(tracer=t)
-            assert CIVisibility._instance.tracer._writer._endpoint == EVP_PROXY_AGENT_ENDPOINT
-            assert CIVisibility._instance.tracer._writer.intake_url == agent.get_trace_url()
-            assert (
-                CIVisibility._instance.tracer._writer._headers[EVP_SUBDOMAIN_HEADER_NAME]
-                == EVP_SUBDOMAIN_HEADER_EVENT_VALUE
-            )
-            CIVisibility.disable()
-
-
-def test_civisibility_intake_with_missing_apikey():
-    with override_env(dict(DD_SITE="foobar.baz")):
-        with override_global_config({"_ci_visibility_agentless_enabled": True}):
-            with pytest.raises(EnvironmentError):
-                CIVisibility.enable()
-
-
-def test_civisibility_intake_with_apikey():
-    with override_env(dict(DD_API_KEY="foobar.baz", DD_SITE="foo.bar")):
-        with override_global_config({"_ci_visibility_agentless_enabled": True}):
-            t = Tracer()
-            CIVisibility.enable(tracer=t)
-            assert CIVisibility._instance.tracer._writer._endpoint == AGENTLESS_ENDPOINT
-            assert CIVisibility._instance.tracer._writer.intake_url == "https://citestcycle-intake.foo.bar"
-            CIVisibility.disable()
 
 
 def test_bad_endpoint():
@@ -746,20 +710,26 @@ def test_downgrade(encoding, monkeypatch):
 
 
 @allencodings
-def test_span_tags(encoding, monkeypatch):
-    monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
+@pytest.mark.snapshot()
+@pytest.mark.skipif(AGENT_VERSION != "testagent", reason="snapshot tests are only compatible with the testagent")
+def test_span_tags(encoding, ddtrace_run_python_code_in_subprocess):
+    env = os.environ.copy()
+    env["DD_TRACE_API_VERSION"] = encoding
 
-    t = Tracer()
-    with mock.patch("ddtrace.internal.writer.writer.log") as log:
-        s = t.trace("operation", service="my-svc")
-        s.set_tag("env", "my-env")
-        s.set_metric("number", 123)
-        s.set_metric("number", 12.0)
-        s.set_metric("number", "1")
-        s.finish()
-        t.shutdown()
-    log.warning.assert_not_called()
-    log.error.assert_not_called()
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(
+        """
+import ddtrace
+
+s = ddtrace.tracer.trace("operation", service="my-svc")
+s.set_tag("env", "my-env")
+s.set_metric("number1", 123)
+s.set_metric("number2", 12.0)
+s.set_metric("number3", "1")
+s.finish()
+""",
+        env=env,
+    )
+    assert status == 0, (out, err)
 
 
 def test_synchronous_writer_shutdown():

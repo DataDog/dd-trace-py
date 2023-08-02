@@ -70,6 +70,10 @@ def override_env(env):
     # Copy the full original environment
     original = dict(os.environ)
 
+    for k in os.environ.keys():
+        if k.startswith(("_CI_DD_", "DD_CIVISIBILITY_")):
+            del os.environ[k]
+
     # Update based on the passed in arguments
     os.environ.update(env)
     try:
@@ -120,6 +124,8 @@ def override_global_config(values):
         "_user_model_login_field",
         "_user_model_email_field",
         "_user_model_name_field",
+        "_sampling_rules",
+        "_sampling_rules_file",
     ]
 
     # Grab the current values of all keys

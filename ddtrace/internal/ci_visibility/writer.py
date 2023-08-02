@@ -49,8 +49,10 @@ class CIVisibilityEventClient(WriterClientBase):
 
 
 class CIVisibilityCoverageClient(WriterClientBase):
-    def __init__(self, intake_url, headers=None):
+    def __init__(self, intake_url, headers=None, itr_suite_skipping_mode=False):
         encoder = CIVisibilityCoverageEncoderV02(0, 0)
+        if itr_suite_skipping_mode:
+            encoder._set_itr_suite_skipping_mode(itr_suite_skipping_mode)
         self._intake_url = intake_url
         if headers:
             self._headers = headers
@@ -93,6 +95,7 @@ class CIVisibilityWriter(HTTPWriter):
         headers=None,  # type: Optional[Dict[str, str]]
         use_evp=False,  # type: bool
         coverage_enabled=False,  # type: bool
+        itr_suite_skipping_mode=False,  # type: bool
     ):
         intake_cov_url = None
         if use_evp:
@@ -112,10 +115,14 @@ class CIVisibilityWriter(HTTPWriter):
                 intake_cov_url = "%s.%s" % (AGENTLESS_COVERAGE_BASE_URL, os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE))
             clients.append(
                 CIVisibilityProxiedCoverageClient(
-                    intake_url=intake_cov_url, headers={EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_COVERAGE_VALUE}
+                    intake_url=intake_cov_url,
+                    headers={EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_COVERAGE_VALUE},
+                    itr_suite_skipping_mode=itr_suite_skipping_mode,
                 )
                 if use_evp
-                else CIVisibilityAgentlessCoverageClient(intake_url=intake_cov_url)
+                else CIVisibilityAgentlessCoverageClient(
+                    intake_url=intake_cov_url, itr_suite_skipping_mode=itr_suite_skipping_mode
+                )
             )
 
         super(CIVisibilityWriter, self).__init__(

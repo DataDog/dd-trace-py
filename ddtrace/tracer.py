@@ -88,8 +88,8 @@ DD_LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] 
 if config._debug_mode and not hasHandlers(log) and config._call_basic_config:
     debtcollector.deprecate(
         "ddtrace.tracer.logging.basicConfig",
-        message="`logging.basicConfig()` should be called in a user's application."
-        " ``DD_CALL_BASIC_CONFIG`` will be removed in a future version.",
+        message="`logging.basicConfig()` should be called in a user's application.",
+        removal_version="2.0.0",
     )
     if config.logs_injection:
         # We need to ensure logging is patched in case the tracer logs during initialization
@@ -218,6 +218,7 @@ class Tracer(object):
         self,
         url=None,  # type: Optional[str]
         dogstatsd_url=None,  # type: Optional[str]
+        context_provider=None,  # type: Optional[DefaultContextProvider]
     ):
         # type: (...) -> None
         """
@@ -246,7 +247,7 @@ class Tracer(object):
         self._pid = getpid()
 
         self.enabled = asbool(os.getenv("DD_TRACE_ENABLED", default=True))
-        self.context_provider = DefaultContextProvider()
+        self.context_provider = context_provider or DefaultContextProvider()
         self._sampler = DatadogSampler()  # type: BaseSampler
         if asbool(os.getenv("DD_PRIORITY_SAMPLING", True)):
             self._priority_sampler = RateByServiceSampler()  # type: Optional[BasePrioritySampler]
