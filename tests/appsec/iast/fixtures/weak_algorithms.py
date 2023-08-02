@@ -11,6 +11,7 @@ def parametrized_week_hash(hash_func, method):
     m = getattr(hashlib, hash_func)()
     m.update(b"Nobody inspects")
     m.update(b" the spammish repetition")
+    # label parametrized_week_hash
     getattr(m, method)()
 
 
@@ -20,6 +21,7 @@ def hashlib_new():
     m = hashlib.new("md5")
     m.update(b"Nobody inspects")
     m.update(b" the spammish repetition")
+    # label hashlib_new
     m.digest()
 
 
@@ -29,6 +31,7 @@ def cipher_des(mode):
     key = b"12345678"
     data = b"abcdefgh"
     des_cipher = DES.new(key, mode)
+    # label cipher_des
     result = des_cipher.encrypt(data)
     return result
 
@@ -39,6 +42,7 @@ def cipher_blowfish(mode):
     password = b"12345678"
     data = b"abcdefgh"
     crypt_obj = Blowfish.new(password, mode)
+    # label cipher_blowfish
     result = crypt_obj.encrypt(data)
     return result
 
@@ -49,6 +53,7 @@ def cipher_arc2(mode):
     password = b"12345678"
     data = b"abcdefgh"
     crypt_obj = ARC2.new(password, mode)
+    # label cipher_arc2
     result = crypt_obj.encrypt(data)
     return result
 
@@ -59,6 +64,7 @@ def cipher_arc4():
     password = b"12345678"
     data = b"abcdefgh"
     crypt_obj = ARC4.new(password)
+    # label cipher_arc4
     result = crypt_obj.encrypt(data)
     return result
 
@@ -78,6 +84,7 @@ def cryptography_algorithm(algorithm):
 
     algorithm = getattr(algorithms, algorithm)(key)
     cipher = Cipher(algorithm, mode=mode)
+    # label cryptography_algorithm
     encryptor = cipher.encryptor()
     ct = encryptor.update(data)
 
