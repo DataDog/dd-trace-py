@@ -24,17 +24,21 @@ from ddtrace.internal.constants import COMPONENT
 import os
 import inspect
 
+
 def _store_span(item, span):
     """Store span at `unittest` instance."""
     setattr(item, "_datadog_span", span)
+
 
 def _extract_span(item):
     """Extract span from `unittest` instance."""
     return getattr(item, "_datadog_span", None)
 
+
 def _extract_test_method_name(item):
     """Extract test method name from `unittest` instance."""
     return getattr(item, "_testMethodName", None)
+
 
 def _extract_suite_name_from_test_method(item):
     item_type = type(item)
@@ -44,11 +48,14 @@ def _extract_suite_name_from_test_method(item):
 def _extract_module_name_from_test_method(item):
     return getattr(item, "__module__", None)
 
+
 def _extract_test_skip_reason(args):
     return args[1]
 
+
 def _extract_test_file_name(item):
     return os.path.basename(inspect.getfile(item.__class__))
+
 
 def patch():
     """
@@ -89,6 +96,7 @@ def add_failure_test_wrapper(func, instance, args, kwargs):
 
     return func(*args, **kwargs)
 
+
 def add_error_test_wrapper(func, instance, args, kwargs):
     if instance and type(instance) == unittest.runner.TextTestResult and args:
         test_item = args[0]
@@ -96,6 +104,7 @@ def add_error_test_wrapper(func, instance, args, kwargs):
         span.set_tag_str(test.STATUS, test.Status.ERROR.value)
 
     return func(*args, **kwargs)
+
 
 def add_skip_test_wrapper(func, instance, args, kwargs):
     result = func(*args, **kwargs)
@@ -107,12 +116,13 @@ def add_skip_test_wrapper(func, instance, args, kwargs):
 
     return result
 
+
 def start_test_wrapper(func, instance, args, kwargs):
     with _CIVisibility._instance.tracer._start_span(
-        ddtrace.config.unittest.operation_name,
-        service=_CIVisibility._instance._service,
-        resource="unittest.test",
-        span_type=SpanTypes.TEST
+            ddtrace.config.unittest.operation_name,
+            service=_CIVisibility._instance._service,
+            resource="unittest.test",
+            span_type=SpanTypes.TEST
     ) as span:
         span.set_tag_str(_EVENT_TYPE, SpanTypes.TEST)
 
@@ -134,4 +144,3 @@ def start_test_wrapper(func, instance, args, kwargs):
         result = func(*args, **kwargs)
 
     return result
-

@@ -16,9 +16,6 @@ class UnittestTestCase(TracerTestCase):
     def test_unittest_pass_single(self):
         """Test with a `unittest` test which should pass."""
         import unittest
-        from ddtrace import patch
-
-        patch(unittest=True)
 
         class UnittestExampleTestCase(unittest.TestCase):
             def test_will_pass_first(self):
@@ -32,9 +29,6 @@ class UnittestTestCase(TracerTestCase):
     def test_unittest_pass_multiple(self):
         """Tests with`unittest` tests which should pass."""
         import unittest
-        from ddtrace import patch
-
-        patch(unittest=True)
 
         class UnittestExampleTestCase(unittest.TestCase):
             def test_will_pass_first(self):
@@ -52,9 +46,6 @@ class UnittestTestCase(TracerTestCase):
     def test_unittest_skip_single(self):
         """Tests with a `unittest` test which should be skipped."""
         import unittest
-        from ddtrace import patch
-
-        patch(unittest=True)
 
         class UnittestExampleTestCase(unittest.TestCase):
             def test_will_be_skipped(self):
@@ -68,9 +59,6 @@ class UnittestTestCase(TracerTestCase):
     def test_unittest_skip_single_reason(self):
         """Tests with a `unittest` test which should be skipped."""
         import unittest
-        from ddtrace import patch
-
-        patch(unittest=True)
 
         class UnittestExampleTestCase(unittest.TestCase):
             @unittest.skip("demonstrating skipping with a reason")
@@ -85,9 +73,6 @@ class UnittestTestCase(TracerTestCase):
     def test_unittest_skip_multiple_reason(self):
         """Test with `unittest` tests which should be skipped."""
         import unittest
-        from ddtrace import patch
-
-        patch(unittest=True)
 
         class UnittestExampleTestCase(unittest.TestCase):
             @unittest.skip("demonstrating skipping with a rason")
@@ -108,9 +93,6 @@ class UnittestTestCase(TracerTestCase):
     def test_unittest_skip_combined(self):
         """Test with `unittest` tests which should be skipped."""
         import unittest
-        from ddtrace import patch
-
-        patch(unittest=True)
 
         class UnittestExampleTestCase(unittest.TestCase):
             @pytest.skip()
@@ -130,9 +112,6 @@ class UnittestTestCase(TracerTestCase):
     def test_unittest_fail_single(self):
         """Test with `unittest` tests which should fail."""
         import unittest
-        from ddtrace import patch
-
-        patch(unittest=True)
 
         class UnittestExampleTestCase(unittest.TestCase):
             def test_will_fail(self):
@@ -146,9 +125,6 @@ class UnittestTestCase(TracerTestCase):
     def test_unittest_fail_multiple(self):
         """Test with `unittest` tests which should fail."""
         import unittest
-        from ddtrace import patch
-
-        patch(unittest=True)
 
         class UnittestExampleTestCase(unittest.TestCase):
             def test_will_fail_first(self):
@@ -167,9 +143,6 @@ class UnittestTestCase(TracerTestCase):
     def test_unittest_combined(self):
         """Test with `unittest` tests which pass, get skipped and fail combined."""
         import unittest
-        from ddtrace import patch
-
-        patch(unittest=True)
 
         class UnittestExampleTestCase(unittest.TestCase):
             def test_will_pass_first(self):

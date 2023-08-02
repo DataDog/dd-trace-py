@@ -1,4 +1,4 @@
-from .patch import patch
+from .patch import unittest_add_option_init, patch
 
 
 
@@ -16,3 +16,5 @@ config._add(
         operation_name=os.getenv("DD_UNITTEST_OPERATION_NAME", default="unittest.test"),
     ),
 )
+
+patch()
