@@ -78,21 +78,11 @@ commands:
       # Make sure we install and run riot on Python 3
       - run: pip3 install riot==0.17.7
 
-  save_pip_cache:
-    description: "Save pip cache directory"
+  setup_hatch:
+    description: "Install hatch"
     steps:
-      - save_cache:
-          # DEV: Cache misses can still occur as venvs are not necessarily always created on the same node index
-          key: pip-cache-xdg-{{ .Environment.CIRCLE_JOB }}-{{ .Environment.CIRCLE_NODE_INDEX }}-{{ checksum "riotfile.py" }}-{{ checksum "setup.py" }}
-          paths:
-            - "~/.cache/pip"
-
-  restore_pip_cache:
-    description: "Restore pip cache directory"
-    steps:
-      - restore_cache:
-          key: pip-cache-xdg-{{ .Environment.CIRCLE_JOB }}-{{ .Environment.CIRCLE_NODE_INDEX }}-{{ checksum "riotfile.py" }}-{{ checksum "setup.py" }}
-
+      - run: pip3 install hatch==1.7.0 hatch-containers==0.7.0
+      
   start_docker_services:
     description: "Start Docker services"
     parameters:
@@ -133,7 +123,6 @@ commands:
         default: "http://localhost:9126"
     steps:
       - checkout
-      - restore_pip_cache
       - attach_workspace:
           at: .
       - when:
@@ -179,7 +168,6 @@ commands:
                   # Sort the hashes to ensure a consistent ordering/division between each node
                   riot list --hash-only '<<parameters.pattern>>' | sort | circleci tests split | xargs -n 1 -I {} riot -v run --exitfirst --pass-env -s {} $([[ << pipeline.parameters.coverage >> == false ]] && echo '--no-cov' )
                   ./scripts/check-diff ".riot/requirements/" "Changes detected after running riot. Consider deleting changed files, running scripts/compile-and-prune-test-requirements and committing the result."
-      - save_pip_cache
       - when:
           condition:
             and:
@@ -252,9 +240,10 @@ jobs:
     steps:
       - checkout
       - setup_riot
+      - setup_hatch
       - run:
-          name: "Codespell check"
-          command: riot -v run -s codespell
+          name: "Spelling"
+          command: hatch run lint:spelling
   ccheck:
     executor: cimg_base
     steps:
@@ -1076,11 +1065,11 @@ jobs:
     # build documentation and store as an artifact
     executor: ddtrace_dev
     steps:
-      - setup_riot
+      - setup_hatch
       - checkout
       - run:
           command: |
-             riot -v run docs
+             hatch run docs:build
              mkdir -p /tmp/docs
              cp -r docs/_build/html/* /tmp/docs
       - store_artifacts:
@@ -1108,12 +1097,3 @@ workflows:
       # Pre-checking before running all jobs
       - pre_check
       - ccheck
-
-      # Build necessary base venvs for integration tests
-      - build_base_venvs
-
-      # Docs
-      - build_docs: *requires_pre_check
-
-      # Final reports
-      - coverage_report: *requires_tests
