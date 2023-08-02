@@ -19,8 +19,21 @@ def gen_required_suites(template: dict) -> None:
     required_suites = template["requires_tests"]["requires"] = []
     fetn(suites=sorted(suites & jobs), action=lambda suite: required_suites.append(suite))
 
+    if not required_suites:
+        # Nothing to generate
+        return
+
+    jobs = template["workflows"]["test"]["jobs"]
+
+    # Create the base venvs
+    jobs.append("build_base_venvs")
+
+    # Add the jobs
     requires_base_venvs = template["requires_base_venvs"]
-    template["workflows"]["test"]["jobs"].extend([{suite: requires_base_venvs} for suite in required_suites])
+    jobs.extend([{suite: requires_base_venvs} for suite in required_suites])
+
+    # Collect coverage
+    jobs.append({"coverage_report": template["requires_tests"]})
 
 
 def gen_pre_checks(template: dict) -> None:
@@ -65,6 +78,11 @@ def gen_pre_checks(template: dict) -> None:
         name="Run scripts/*.py tests",
         command="riot -v run -s scripts",
         paths={"scripts/*.py"},
+    )
+    check(
+        name="Validate suitespec JSON file",
+        command="python -m tests.suitespec",
+        paths={"tests/.suitespec.json", "tests/suitespec.py"},
     )
 
 
