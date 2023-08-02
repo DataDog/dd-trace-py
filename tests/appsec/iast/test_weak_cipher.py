@@ -9,6 +9,7 @@ from tests.appsec.iast.fixtures.weak_algorithms import cipher_arc4
 from tests.appsec.iast.fixtures.weak_algorithms import cipher_blowfish
 from tests.appsec.iast.fixtures.weak_algorithms import cipher_des
 from tests.appsec.iast.fixtures.weak_algorithms import cryptography_algorithm
+from tests.appsec.iast.iast_utils import get_line_and_hash
 
 
 FIXTURES_PATH = "tests/appsec/iast/fixtures/weak_algorithms.py"
@@ -28,10 +29,14 @@ def test_weak_cipher_crypto_des(iast_span_defaults, mode, cipher_func):
 
     cipher_des(mode=getattr(DES, mode))
     span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
-    assert list(span_report.vulnerabilities)[0].type == VULN_WEAK_CIPHER_TYPE
-    assert list(span_report.vulnerabilities)[0].location.path == FIXTURES_PATH
-    assert list(span_report.vulnerabilities)[0].location.line == 32
-    assert list(span_report.vulnerabilities)[0].evidence.value == cipher_func
+    line, hash_value = get_line_and_hash("cipher_des", VULN_WEAK_CIPHER_TYPE, filename=FIXTURES_PATH)
+
+    vulnerabilities = list(span_report.vulnerabilities)
+    assert vulnerabilities[0].type == VULN_WEAK_CIPHER_TYPE
+    assert vulnerabilities[0].location.path == FIXTURES_PATH
+    assert vulnerabilities[0].location.line == line
+    assert vulnerabilities[0].hash == hash_value
+    assert vulnerabilities[0].evidence.value == cipher_func
 
 
 @pytest.mark.parametrize(
@@ -48,10 +53,14 @@ def test_weak_cipher_crypto_blowfish(iast_span_defaults, mode, cipher_func):
 
     cipher_blowfish(mode=getattr(Blowfish, mode))
     span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
-    assert list(span_report.vulnerabilities)[0].type == VULN_WEAK_CIPHER_TYPE
-    assert list(span_report.vulnerabilities)[0].location.path == FIXTURES_PATH
-    assert list(span_report.vulnerabilities)[0].location.line == 42
-    assert list(span_report.vulnerabilities)[0].evidence.value == cipher_func
+    line, hash_value = get_line_and_hash("cipher_blowfish", VULN_WEAK_CIPHER_TYPE, filename=FIXTURES_PATH)
+
+    vulnerabilities = list(span_report.vulnerabilities)
+    assert vulnerabilities[0].type == VULN_WEAK_CIPHER_TYPE
+    assert vulnerabilities[0].location.path == FIXTURES_PATH
+    assert vulnerabilities[0].location.line == line
+    assert vulnerabilities[0].hash == hash_value
+    assert vulnerabilities[0].evidence.value == cipher_func
 
 
 @pytest.mark.parametrize(
@@ -68,19 +77,27 @@ def test_weak_cipher_rc2(iast_span_defaults, mode, cipher_func):
 
     cipher_arc2(mode=getattr(ARC2, mode))
     span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
-    assert list(span_report.vulnerabilities)[0].type == VULN_WEAK_CIPHER_TYPE
-    assert list(span_report.vulnerabilities)[0].location.path == FIXTURES_PATH
-    assert list(span_report.vulnerabilities)[0].location.line == 52
-    assert list(span_report.vulnerabilities)[0].evidence.value == cipher_func
+    line, hash_value = get_line_and_hash("cipher_arc2", VULN_WEAK_CIPHER_TYPE, filename=FIXTURES_PATH)
+
+    vulnerabilities = list(span_report.vulnerabilities)
+    assert vulnerabilities[0].type == VULN_WEAK_CIPHER_TYPE
+    assert vulnerabilities[0].location.path == FIXTURES_PATH
+    assert vulnerabilities[0].location.line == line
+    assert vulnerabilities[0].hash == hash_value
+    assert vulnerabilities[0].evidence.value == cipher_func
 
 
 def test_weak_cipher_rc4(iast_span_defaults):
     cipher_arc4()
     span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
-    assert list(span_report.vulnerabilities)[0].type == VULN_WEAK_CIPHER_TYPE
-    assert list(span_report.vulnerabilities)[0].location.path == FIXTURES_PATH
-    assert list(span_report.vulnerabilities)[0].location.line == 62
-    assert list(span_report.vulnerabilities)[0].evidence.value == "RC4"
+    line, hash_value = get_line_and_hash("cipher_arc4", VULN_WEAK_CIPHER_TYPE, filename=FIXTURES_PATH)
+
+    vulnerabilities = list(span_report.vulnerabilities)
+    assert vulnerabilities[0].type == VULN_WEAK_CIPHER_TYPE
+    assert vulnerabilities[0].location.path == FIXTURES_PATH
+    assert vulnerabilities[0].location.line == line
+    assert vulnerabilities[0].hash == hash_value
+    assert vulnerabilities[0].evidence.value == "RC4"
 
 
 @pytest.mark.parametrize(
@@ -94,10 +111,14 @@ def test_weak_cipher_rc4(iast_span_defaults):
 def test_weak_cipher_cryptography_blowfish(iast_span_defaults, algorithm, cipher_func):
     cryptography_algorithm(algorithm)
     span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
-    assert list(span_report.vulnerabilities)[0].type == VULN_WEAK_CIPHER_TYPE
-    assert list(span_report.vulnerabilities)[0].location.path == FIXTURES_PATH
-    assert list(span_report.vulnerabilities)[0].location.line == 81
-    assert list(span_report.vulnerabilities)[0].evidence.value == cipher_func
+
+    line, hash_value = get_line_and_hash("cryptography_algorithm", VULN_WEAK_CIPHER_TYPE, filename=FIXTURES_PATH)
+
+    vulnerabilities = list(span_report.vulnerabilities)
+    assert vulnerabilities[0].type == VULN_WEAK_CIPHER_TYPE
+    assert vulnerabilities[0].location.path == FIXTURES_PATH
+    assert vulnerabilities[0].location.line == line
+    assert vulnerabilities[0].hash == hash_value
 
 
 def test_weak_cipher_blowfish__des_rc2_configured(iast_span_des_rc2_configured):
@@ -121,7 +142,8 @@ def test_weak_cipher_rc2__rc4_configured(iast_span_rc4_configured):
 def test_weak_cipher_cryptography_rc4_configured(iast_span_rc4_configured):
     cryptography_algorithm("ARC4")
     span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_rc4_configured)
-    assert list(span_report.vulnerabilities)[0].type == VULN_WEAK_CIPHER_TYPE
+    vulnerabilities = list(span_report.vulnerabilities)
+    assert vulnerabilities[0].type == VULN_WEAK_CIPHER_TYPE
 
 
 def test_weak_cipher_cryptography_blowfish__rc4_configured(iast_span_rc4_configured):
@@ -133,7 +155,8 @@ def test_weak_cipher_cryptography_blowfish__rc4_configured(iast_span_rc4_configu
 def test_weak_cipher_cryptography_blowfish_configured(iast_span_blowfish_configured):
     cryptography_algorithm("Blowfish")
     span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_blowfish_configured)
-    assert list(span_report.vulnerabilities)[0].type == VULN_WEAK_CIPHER_TYPE
+    vulnerabilities = list(span_report.vulnerabilities)
+    assert vulnerabilities[0].type == VULN_WEAK_CIPHER_TYPE
 
 
 def test_weak_cipher_rc4_unpatched(iast_span_defaults):

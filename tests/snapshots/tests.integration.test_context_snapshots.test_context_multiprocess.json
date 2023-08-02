@@ -11,17 +11,17 @@
     "meta": {
       "_dd.p.dm": "-0",
       "language": "python",
-      "runtime-id": "f706b29e0e8049178c7f1e0ac8d01ab7"
+      "runtime-id": "8967af86b1d84cf5878cf275174b3842"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 25193
+      "process_id": 15845
     },
-    "duration": 259538000,
-    "start": 1667237294717521000
+    "duration": 251599546,
+    "start": 1690574466539280553
   },
      {
        "name": "proc",
@@ -35,14 +35,14 @@
        "meta": {
          "_dd.p.dm": "-0",
          "language": "python",
-         "runtime-id": "38ca0ac0547f4097b2e030ebff1064c7"
+         "runtime-id": "1a8667136c9b439e8548f04837c5a691"
        },
        "metrics": {
          "_dd.top_level": 1,
          "_dd.tracer_kr": 1.0,
          "_sampling_priority_v1": 1,
-         "process_id": 25194
+         "process_id": 15846
        },
-       "duration": 100317000,
-       "start": 1667237294727339000
+       "duration": 100349677,
+       "start": 1690574466541564275
      }]]
