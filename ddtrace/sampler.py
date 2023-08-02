@@ -335,7 +335,7 @@ class DatadogSampler(RateByServiceSampler):
         return None
 
     def sample(self, trace):
-        # type: (List[Span]) -> List[Span]
+        # type: (List[Span]) -> bool
         rule = self.find_highest_precedence_rule_matching(trace)
         if rule:
             chunk_root = trace[0]

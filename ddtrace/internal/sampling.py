@@ -364,7 +364,7 @@ class SamplingRule:
         service=NO_RULE,  # type: Any
         name=NO_RULE,  # type: Any
         resource=NO_RULE,  # type: Any
-        tags=NO_RULE,  # type: Optional[Dict[str, Any]]
+        tags=NO_RULE,  # type: Any
         target_span="root",  # type: str
     ):
         # type: (...) -> None
@@ -458,7 +458,7 @@ class SamplingRule:
 
     @cachedmethod()
     def _matches(self, key):
-        # type: (Tuple[Optional[str], str]) -> bool
+        # type: (Tuple[Optional[str], str, Optional[str]]) -> bool
         service, name, resource = key
         for prop, pattern in [(service, self.service), (name, self.name), (resource, self.resource)]:
             if not self._pattern_matches(prop, pattern):
