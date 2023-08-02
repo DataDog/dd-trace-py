@@ -41,6 +41,23 @@ def get_base_branch(pr_number: int) -> str:
 
 
 @cache
+def get_merge_base(pr_number: int) -> str:
+    """Get the merge base of a PR."""
+    return (
+        check_output(
+            [
+                "git",
+                "merge-base",
+                "HEAD",
+                get_base_branch(pr_number),
+            ]
+        )
+        .decode("utf-8")
+        .strip()
+    )
+
+
+@cache
 def get_changed_files(pr_number: int) -> t.Set[str]:
     """Get the files changed in a PR
 
@@ -57,8 +74,8 @@ def get_changed_files(pr_number: int) -> t.Set[str]:
         return {_["filename"] for _ in json.load(urlopen(Request(url, headers=headers)))}
 
     except Exception:
-        # If that fails use the less accurate method of diffing against the base
-        # branch
+        # If that fails use the less accurate method of diffing against the
+        # merge-base w.r.t. the base branch
         LOGGER.warning("Failed to get changed files from GitHub API, using git diff instead")
         return set(
             check_output(
@@ -67,7 +84,7 @@ def get_changed_files(pr_number: int) -> t.Set[str]:
                     "diff",
                     "--name-only",
                     "HEAD",
-                    get_base_branch(pr_number),
+                    get_merge_base(pr_number),
                 ]
             )
             .decode("utf-8")
