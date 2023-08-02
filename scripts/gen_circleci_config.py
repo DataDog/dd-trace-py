@@ -5,16 +5,93 @@
 # file in .circleci/config.templ.yml, add a function named gen_<name> to this
 # file. The function will be called automatically when this script is run.
 
+import typing as t
+
 
 def gen_required_suites(template: dict) -> None:
     """Generate the list of test suites that need to be run."""
     from needs_testrun import for_each_testrun_needed as fetn
+    from suitespec import get_suites
+
+    suites = get_suites()
+    jobs = set(template["jobs"].keys())
 
     required_suites = template["requires_tests"]["requires"] = []
-    fetn(lambda suite: required_suites.append(suite))
+    fetn(suites=sorted(suites & jobs), action=lambda suite: required_suites.append(suite))
 
+    if not required_suites:
+        # Nothing to generate
+        return
+
+    jobs = template["workflows"]["test"]["jobs"]
+
+    # Create the base venvs
+    jobs.append("build_base_venvs")
+
+    # Add the jobs
     requires_base_venvs = template["requires_base_venvs"]
-    template["workflows"]["test"]["jobs"].extend([{suite: requires_base_venvs} for suite in required_suites])
+    jobs.extend([{suite: requires_base_venvs} for suite in required_suites])
+
+    # Collect coverage
+    jobs.append({"coverage_report": template["requires_tests"]})
+
+
+def gen_pre_checks(template: dict) -> None:
+    """Generate the list of pre-checks that need to be run."""
+    from needs_testrun import pr_matches_patterns
+
+    def check(name: str, command: str, paths: t.Set[str]) -> None:
+        if pr_matches_patterns(paths):
+            template["jobs"]["pre_check"]["steps"].append({"run": {"name": name, "command": command}})
+
+    check(
+        name="Style",
+        command="hatch run lint:style",
+        paths={"*.py", "*.pyi", "hatch.toml"},
+    )
+    check(
+        name="Typing",
+        command="hatch run lint:typing",
+        paths={"*.py", "*.pyi", "hatch.toml"},
+    )
+    check(
+        name="Security",
+        command="hatch run lint:security",
+        paths={"ddtrace/*", "hatch.toml"},
+    )
+    check(
+        name="Run riotfile.py tests",
+        command="hatch run lint:riot",
+        paths={"riotfile.py", "hatch.toml"},
+    )
+    check(
+        name="Style: Test snapshots",
+        command="hatch run lint:fmt-snapshots && git diff --exit-code",
+        paths={"tests/snapshots/*", "hatch.toml"},
+    )
+    check(
+        name="Slots check",
+        command="riot -v run slotscheck",
+        paths={"ddtrace/*.py", "hatch.toml"},
+    )
+    check(
+        name="Run scripts/*.py tests",
+        command="riot -v run -s scripts",
+        paths={"scripts/*.py"},
+    )
+    check(
+        name="Validate suitespec JSON file",
+        command="python -m tests.suitespec",
+        paths={"tests/.suitespec.json", "tests/suitespec.py"},
+    )
+
+
+def gen_build_docs(template: dict) -> None:
+    """Include the docs build step if the docs have changed."""
+    from needs_testrun import pr_matches_patterns
+
+    if pr_matches_patterns({"docs/*", "ddtrace/*", "scripts/docs", "releasenotes/*"}):
+        template["workflows"]["test"]["jobs"].append({"build_docs": template["requires_pre_check"]})
 
 
 # -----------------------------------------------------------------------------
