@@ -66,6 +66,11 @@ def gen_pre_checks(template: dict) -> None:
         command="riot -v run -s scripts",
         paths={"scripts/*.py"},
     )
+    check(
+        name="Validate suitespec JSON file",
+        command="python -m tests.suitespec",
+        paths={"tests/.suitespec.json", "tests/suitespec.py"},
+    )
 
 
 def gen_build_docs(template: dict) -> None:
