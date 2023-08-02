@@ -204,7 +204,7 @@ def patch_all(**patch_modules):
     if config._iast_enabled:
         from ddtrace.appsec.iast._patch_modules import patch_iast
 
-        patch_iast(_on_import_factory)
+        patch_iast()
 
 
 def patch(raise_errors=True, patch_modules_prefix=DEFAULT_MODULES_PREFIX, **patch_modules):
