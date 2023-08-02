@@ -11,11 +11,7 @@ import six
 import ddtrace
 from ddtrace import Tracer
 from ddtrace.internal import agent
-from ddtrace.internal import compat
-from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
-from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.runtime import container
-from ddtrace.internal.utils.http import Response
 from ddtrace.internal.writer import AgentWriter
 from tests.integration.utils import AGENT_VERSION
 from tests.integration.utils import BadEncoder
@@ -27,7 +23,6 @@ from tests.utils import AnyFloat
 from tests.utils import AnyInt
 from tests.utils import AnyStr
 from tests.utils import call_program
-from tests.utils import override_env
 from tests.utils import override_global_config
 
 
@@ -402,22 +397,6 @@ def test_validate_headers_in_payload_to_intake_with_nested_spans(encoding, monke
     assert headers.get("X-Datadog-Trace-Count") == "10"
 
 
-@skip_if_testagent
-def test_civisibility_intake_settings_with_evp_available():
-    with override_env(dict(DD_API_KEY="foobar.baz", DD_SITE="foo.bar")), override_global_config(
-        {"_ci_visibility_agentless_enabled": False}
-    ):
-        t = Tracer()
-        CIVisibility.enable(tracer=t)
-        assert CIVisibility._instance.tracer._writer._endpoint == EVP_PROXY_AGENT_ENDPOINT
-        assert CIVisibility._instance.tracer._writer.intake_url == agent.get_trace_url()
-        assert (
-            diff_magnitude < 0.3
-        ), "the proportion of sampled spans should approximate the sample rate given by the agent"
-
-        t.shutdown()
-
-
 def test_trace_with_invalid_client_endpoint_generates_error_log():
     t = Tracer()
     for client in t._writer._clients:
@@ -728,34 +707,3 @@ def test_no_warnings_when_Wall():
     out, err, _, _ = call_program("ddtrace-run", sys.executable, "-Wall", "-c", "'import ddtrace'", env=env)
     assert out == b"", out
     assert err == b"", err
-
-
-def test_civisibility_intake_payloads():
-    with override_env(dict(DD_API_KEY="foobar.baz")):
-        t = Tracer()
-        t.configure(writer=CIVisibilityWriter(reuse_connections=True, coverage_enabled=bool(compat.PY3)))
-        t._writer._conn = mock.MagicMock()
-        with mock.patch("ddtrace.internal.writer.Response.from_http_response") as from_http_response:
-            from_http_response.return_value.__class__ = Response
-            from_http_response.return_value.status = 200
-            s = t.trace("operation", service="svc-no-cov")
-            s.finish()
-            span = t.trace("operation2", service="my-svc2")
-            span.set_tag(
-                COVERAGE_TAG_NAME,
-                '{"files": [{"filename": "test_cov.py", "segments": [[5, 0, 5, 0, -1]]}, '
-                + '{"filename": "test_module.py", "segments": [[2, 0, 2, 0, -1]]}]}',
-            )
-            span.finish()
-            conn = t._writer._conn
-            t.shutdown()
-        assert conn.request.call_count == 2 if compat.PY3 else 1
-        assert conn.request.call_args_list[0].args[1] == "api/v2/citestcycle"
-        assert (
-            b"svc-no-cov" in conn.request.call_args_list[0].args[2]
-        ), "requests to the cycle endpoint should include non-coverage spans"
-        if compat.PY3:
-            assert conn.request.call_args_list[1].args[1] == "api/v2/citestcov"
-            assert (
-                b"svc-no-cov" not in conn.request.call_args_list[1].args[2]
-            ), "requests to the coverage endpoint should not include non-coverage spans"
