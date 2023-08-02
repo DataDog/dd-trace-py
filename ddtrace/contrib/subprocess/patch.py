@@ -17,7 +17,6 @@ import six
 
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace.appsec.iast._taint_tracking import get_tainted_ranges
 from ddtrace.appsec.iast.taint_sinks.command_injection import CommandInjection
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.subprocess.constants import COMMANDS
@@ -150,10 +149,14 @@ class SubprocessCmdLine(object):
         if config._iast_enabled:
             # We delay the reporting to later when the strings are already scrubbed (but we need
             # to check them unscrubbed here)
+            from ddtrace.appsec.iast._taint_tracking import get_tainted_ranges
+            from ddtrace.appsec.iast._taint_tracking.aspects import join_aspect
+
             if isinstance(shell_args, (list, tuple)):
                 for arg in shell_args:
                     if get_tainted_ranges(arg):
-                        report_cmdi = arg
+                        report_cmdi = join_aspect(" ", shell_args)
+                        break
             elif get_tainted_ranges(shell_args):
                 report_cmdi = shell_args
 

@@ -107,7 +107,7 @@ def test_communicate(tracer, iast_span_defaults):
         vulnerability = list(span_report.vulnerabilities)[0]
         source = list(span_report.sources)[0]
         assert vulnerability.type == VULN_CMDI
-        assert vulnerability.evidence.valueParts == [{'value': 'dir -l '}, {'source': 0, 'value': _BAD_DIR}]
+        assert vulnerability.evidence.valueParts == [{"value": "dir -l "}, {"source": 0, "value": _BAD_DIR}]
         assert vulnerability.evidence.value is None
         assert vulnerability.evidence.pattern is None
         assert vulnerability.evidence.redacted is None
@@ -142,7 +142,7 @@ def test_run(tracer, iast_span_defaults):
         vulnerability = list(span_report.vulnerabilities)[0]
         source = list(span_report.sources)[0]
         assert vulnerability.type == VULN_CMDI
-        assert vulnerability.evidence.valueParts == [{'value': 'dir -l '}, {'source': 0, 'value': _BAD_DIR}]
+        assert vulnerability.evidence.valueParts == [{"value": "dir -l "}, {"source": 0, "value": _BAD_DIR}]
         assert vulnerability.evidence.value is None
         assert vulnerability.evidence.pattern is None
         assert vulnerability.evidence.redacted is None
@@ -178,7 +178,7 @@ def test_popen_wait(tracer, iast_span_defaults):
         vulnerability = list(span_report.vulnerabilities)[0]
         source = list(span_report.sources)[0]
         assert vulnerability.type == VULN_CMDI
-        assert vulnerability.evidence.valueParts == [{'value': 'dir -l '}, {'source': 0, 'value': _BAD_DIR}]
+        assert vulnerability.evidence.valueParts == [{"value": "dir -l "}, {"source": 0, "value": _BAD_DIR}]
         assert vulnerability.evidence.value is None
         assert vulnerability.evidence.pattern is None
         assert vulnerability.evidence.redacted is None
@@ -214,7 +214,7 @@ def test_popen_wait_shell_true(tracer, iast_span_defaults):
         vulnerability = list(span_report.vulnerabilities)[0]
         source = list(span_report.sources)[0]
         assert vulnerability.type == VULN_CMDI
-        assert vulnerability.evidence.valueParts == [{'value': 'dir -l '}, {'source': 0, 'value': _BAD_DIR}]
+        assert vulnerability.evidence.valueParts == [{"value": "dir -l "}, {"source": 0, "value": _BAD_DIR}]
         assert vulnerability.evidence.value is None
         assert vulnerability.evidence.pattern is None
         assert vulnerability.evidence.redacted is None
@@ -276,7 +276,7 @@ def test_osspawn_variants(tracer, iast_span_defaults, function, mode, arguments,
         vulnerability = list(span_report.vulnerabilities)[0]
         source = list(span_report.sources)[0]
         assert vulnerability.type == VULN_CMDI
-        assert vulnerability.evidence.valueParts == [{'value': '/bin/ls -l '}, {'source': 0, 'value': _BAD_DIR}]
+        assert vulnerability.evidence.valueParts == [{"value": "/bin/ls -l "}, {"source": 0, "value": _BAD_DIR}]
         assert vulnerability.evidence.value is None
         assert vulnerability.evidence.pattern is None
         assert vulnerability.evidence.redacted is None
