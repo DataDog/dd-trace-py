@@ -499,7 +499,7 @@ venv = Venv(
             pkgs={"WebTest": latest},
             venvs=[
                 Venv(
-                    command="pytest {cmdargs} --ignore='tests/contrib/bottle/test_autopatch.py' tests/contrib/bottle/",  # noqa: E501
+                    command="pytest {cmdargs} --ignore='tests/contrib/bottle/test_autopatch.py' tests/contrib/bottle/",
                     venvs=[
                         Venv(
                             pys=select_pys(max_version="3.9"),
@@ -508,7 +508,7 @@ venv = Venv(
                     ],
                 ),
                 Venv(
-                    command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/bottle/test_autopatch.py",  # noqa: E501
+                    command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/bottle/test_autopatch.py",
                     env={"DD_SERVICE": "bottle-app"},
                     venvs=[
                         Venv(
@@ -904,7 +904,7 @@ venv = Venv(
         Venv(
             name="elasticsearch-opensearch",
             # avoid running tests in ElasticsearchPatchTest, only run tests with OpenSearchPatchTest configurations
-            command="pytest {cmdargs} tests/contrib/elasticsearch/test_opensearch.py -k 'not ElasticsearchPatchTest'",  # noqa: E501
+            command="pytest {cmdargs} tests/contrib/elasticsearch/test_opensearch.py -k 'not ElasticsearchPatchTest'",
             venvs=[
                 Venv(
                     pys=select_pys(max_version="3.5"),
@@ -1196,12 +1196,8 @@ venv = Venv(
                 ]
             },
             venvs=[
-                Venv(
-                    command="pytest {cmdargs} --ignore=tests/contrib/pymemcache/autopatch tests/contrib/pymemcache"  # noqa: E501
-                ),
-                Venv(
-                    command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/pymemcache/autopatch/"  # noqa: E501
-                ),
+                Venv(command="pytest {cmdargs} --ignore=tests/contrib/pymemcache/autopatch tests/contrib/pymemcache"),
+                Venv(command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/pymemcache/autopatch/"),
             ],
         ),
         Venv(
