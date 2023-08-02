@@ -1554,6 +1554,25 @@ class PytestTestCase(TracerTestCase):
         def test_second():
             from test_ret_false import ret_false
             assert not ret_false()
+
+        def skipif_false_check():
+            return False
+        skipif_false_decorator = pytest.mark.skipif(
+            skipif_false_check(), reason="skip if False"
+        )
+        @skipif_false_decorator
+        def test_skipif_mark_false():
+            from test_ret_false import ret_false
+            assert ret_false() is False
+
+        def skipif_true_check():
+            return True
+        skipif_true_decorator = pytest.mark.skipif(
+            skipif_true_check(), reason="skip is True"
+        )
+        @skipif_true_decorator
+        def test_skipif_mark_true():
+            assert True is False
         """
         )
 
@@ -1562,25 +1581,40 @@ class PytestTestCase(TracerTestCase):
         ):
             self.inline_run("--ddtrace", os.path.basename(py_cov_file.strpath))
         spans = self.pop_spans()
+        assert len(spans) == 7
+        test_spans = [span for span in spans if span.get_tag("type") == "test"]
+        assert len(test_spans) == 4
 
         first_test_span = spans[0]
         assert first_test_span.get_tag("test.name") == "test_cov"
-        assert first_test_span.get_tag("type") == "test"
         assert COVERAGE_TAG_NAME not in first_test_span.get_tags()
 
         second_test_span = spans[1]
-        assert second_test_span.get_tag("type") == "test"
         assert second_test_span.get_tag("test.name") == "test_second"
         assert COVERAGE_TAG_NAME in second_test_span.get_tags()
         second_tag_data = json.loads(second_test_span.get_tag(COVERAGE_TAG_NAME))
-        files = sorted(second_tag_data["files"], key=lambda x: x["filename"])
-        assert len(files) == 2
-        assert files[0]["filename"] == "test_cov.py"
-        assert files[1]["filename"] == "test_ret_false.py"
-        assert len(files[0]["segments"]) == 1
-        assert files[0]["segments"][0] == [9, 0, 10, 0, -1]
-        assert len(files[1]["segments"]) == 1
-        assert files[1]["segments"][0] == [1, 0, 2, 0, -1]
+        second_test_files = sorted(second_tag_data["files"], key=lambda x: x["filename"])
+        assert len(second_test_files) == 2
+        assert second_test_files[0]["filename"] == "test_cov.py"
+        assert len(second_test_files[0]["segments"]) == 1
+        assert second_test_files[0]["segments"][0] == [9, 0, 10, 0, -1]
+        assert second_test_files[1]["filename"] == "test_ret_false.py"
+        assert len(second_test_files[1]["segments"]) == 1
+        assert second_test_files[1]["segments"][0] == [1, 0, 2, 0, -1]
+
+        third_test_span = spans[2]
+        assert third_test_span.get_tag("test.name") == "test_skipif_mark_false"
+        assert COVERAGE_TAG_NAME in third_test_span.get_tags()
+        third_tag_data = json.loads(third_test_span.get_tag(COVERAGE_TAG_NAME))
+        third_test_files = sorted(third_tag_data["files"], key=lambda x: x["filename"])
+        assert len(third_test_files) == 2
+        assert third_test_files[0]["filename"] == "test_cov.py"
+        assert len(third_test_files[0]["segments"]) == 1
+        assert third_test_files[0]["segments"][0] == [19, 0, 20, 0, -1]
+
+        fourth_test_span = spans[3]
+        assert fourth_test_span.get_tag("test.name") == "test_skipif_mark_true"
+        assert COVERAGE_TAG_NAME not in fourth_test_span.get_tags()
 
     @pytest.mark.skipif(compat.PY2, reason="ddtrace does not support coverage on Python 2")
     def test_pytest_will_report_coverage_by_test_with_pytest_skip(self):

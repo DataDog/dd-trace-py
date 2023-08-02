@@ -78,6 +78,26 @@ class PytestTestCase(TracerTestCase):
         @pytest.mark.skipif(True is True, reason="True is True")
         def test_mark_skipif():
             assert True == False
+
+        def skipif_false_check():
+            return False
+        skipif_false_decorator = pytest.mark.skipif(
+            skipif_false_check(), reason="skip if False"
+        )
+        @skipif_false_decorator
+        def test_skipif_mark_false():
+            two = 1 + 1
+            assert True is False
+            assert False is True
+
+        def skipif_true_check():
+            return True
+        skipif_true_decorator = pytest.mark.skipif(
+            skipif_true_check(), reason="skip is True"
+        )
+        @skipif_true_decorator
+        def test_skipif_mark_true():
+            assert True is False
         """
         )
         py_cov_file2 = self.testdir.makepyfile(
@@ -106,11 +126,12 @@ class PytestTestCase(TracerTestCase):
         assert len(files) == 3
 
         assert files[0]["filename"] == "test_cov.py"
-        assert len(files[0]["segments"]) == 4
+        assert len(files[0]["segments"]) == 5
         assert files[0]["segments"][0] == [5, 0, 5, 0, -1]
         assert files[0]["segments"][1] == [8, 0, 9, 0, -1]
         assert files[0]["segments"][2] == [12, 0, 13, 0, -1]
         assert files[0]["segments"][3] == [21, 0, 22, 0, -1]
+        assert files[0]["segments"][4] == [35, 0, 36, 0, -1]
 
         assert files[1]["filename"] == "test_module.py"
         assert len(files[1]["segments"]) == 1
