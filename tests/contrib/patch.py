@@ -105,7 +105,7 @@ class PatchTestCase(object):
     parent class.
     """
 
-    @run_in_subprocess
+    #@run_in_subprocess  JJJ uncomment
     class Base(SubprocessTestCase, PatchMixin):
         """Provides default test methods to be used for testing common integration patching logic.
         Each test method provides a default implementation which will use the
