@@ -7,9 +7,9 @@ from textwrap import dedent
 import unittest
 
 from ddtrace.vendor import wrapt
+from tests.subprocesstest import run_in_subprocess
 from tests.subprocesstest import SubprocessTestCase
 from tests.utils import call_program
-# from tests.subprocesstest import run_in_subprocess  JJJ uncomment
 
 
 class PatchMixin(unittest.TestCase):
@@ -105,7 +105,7 @@ class PatchTestCase(object):
     parent class.
     """
 
-    #@run_in_subprocess  JJJ uncomment
+    @run_in_subprocess
     class Base(SubprocessTestCase, PatchMixin):
         """Provides default test methods to be used for testing common integration patching logic.
         Each test method provides a default implementation which will use the
