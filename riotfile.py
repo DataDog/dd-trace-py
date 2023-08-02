@@ -2757,6 +2757,11 @@ venv = Venv(
             pkgs={"msgpack": latest, "coverage": latest},
         ),
         Venv(
+            name="subprocess",
+            command="pytest {cmdargs} tests/contrib/subprocess",
+            pys=select_pys(),
+        ),
+        Venv(
             name="profile",
             pkgs={
                 "gunicorn": latest,

@@ -196,6 +196,12 @@ class Config(object):
 
         self._debug_mode = asbool(os.getenv("DD_TRACE_DEBUG", default=False))
         self._call_basic_config = asbool(os.environ.get("DD_CALL_BASIC_CONFIG", "false"))
+        if self._call_basic_config:
+            deprecate(
+                "`DD_CALL_BASIC_CONFIG` is deprecated and will be removed in the next major version.",
+                message="Call `logging.basicConfig()` to configure logging in your application",
+                removal_version="2.0.0",
+            )
 
         header_tags = parse_tags_str(os.getenv("DD_TRACE_HEADER_TAGS", ""))
         self.http = HttpConfig(header_tags=header_tags)
