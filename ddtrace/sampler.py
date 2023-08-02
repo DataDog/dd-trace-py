@@ -146,20 +146,19 @@ class RateByServiceSampler(BasePrioritySampler):
         # type: (...) -> None
         self._by_service_samplers[self._key(service, env)] = RateSampler(sample_rate)
 
-    def _set_priority(self, span, priority):
+    def _set_priority(self, span, priority, sampling_mechanism):
         # type: (Span, int) -> None
-        span.context.sampling_priority = priority
         span.sampled = priority > 0  # Positive priorities mean it was kept
-
-        # This might not be the right way to handle setting _sampling_priority_v1 on span
-        span.set_metric(SAMPLING_PRIORITY_KEY, priority)
+        if not (sampling_mechanism == SamplingMechanism.MANUAL and span.sampled):
+            span.context.sampling_priority = priority
+            span.set_metric(SAMPLING_PRIORITY_KEY, priority)
 
     def _apply_sampling_overrides(self, span, sampler, sampled):
         priority = span.context.sampling_priority
         if priority in (USER_KEEP, USER_REJECT):
             sampled = True
 
-        if sampled or priority in (USER_KEEP, USER_REJECT):
+        if sampled:
             priority = AUTO_KEEP
         elif not sampled:
             priority = AUTO_REJECT
@@ -175,8 +174,9 @@ class RateByServiceSampler(BasePrioritySampler):
     def _set_sampler_decision(self, span, sampler, sampled):
         # type: (Span, RateSampler, bool) -> None
         priority, sampled, sampling_mechanism = self._apply_sampling_overrides(span, sampler, sampled)
-        self._set_priority(span, priority)
-        span.set_metric(SAMPLING_AGENT_DECISION, sampler.sample_rate)
+        self._set_priority(span, priority, sampling_mechanism)
+        if sampling_mechanism != SamplingMechanism.MANUAL:
+            span.set_metric(SAMPLING_AGENT_DECISION, sampler.sample_rate)
         update_sampling_decision(span.context, sampling_mechanism, sampled)
 
     def sample(self, trace):
@@ -318,7 +318,7 @@ class DatadogSampler(RateByServiceSampler):
             #      various sample rates that are getting applied to this span
             span.set_metric(SAMPLING_LIMIT_DECISION, sampler.effective_rate)
 
-        self._set_priority(span, priority)
+        self._set_priority(span, priority, sampling_mechanism)
         update_sampling_decision(span.context, sampling_mechanism, sampled)
 
     def find_highest_precedence_rule_matching(self, trace):
