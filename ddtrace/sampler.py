@@ -175,8 +175,7 @@ class RateByServiceSampler(BasePrioritySampler):
 
         sampler = self._by_service_samplers.get(key) or self._default_sampler
         sampled = sampler.sample(span)
-        for span in trace:
-            self._set_sampler_decision(span, sampler, sampled)
+        self._set_sampler_decision(span, sampler, sampled)
 
         return sampled
 
@@ -339,14 +338,14 @@ class DatadogSampler(RateByServiceSampler):
         # type: (List[Span]) -> List[Span]
         rule = self.find_highest_precedence_rule_matching(trace)
         if rule:
-            decision = rule.sample(trace[0])
+            chunk_root = trace[0]
+            decision = rule.sample(chunk_root)
 
-            for span in trace:
-                self._set_sampler_decision(span, rule, decision)
-                if decision:
-                    allowed = self.limiter.is_allowed(span.start_ns)
-                    if not allowed:
-                        self._set_sampler_decision(span, self.limiter, allowed)
+            self._set_sampler_decision(chunk_root, rule, decision)
+            if decision:
+                allowed = self.limiter.is_allowed(chunk_root.start_ns)
+                if not allowed:
+                    self._set_sampler_decision(chunk_root, self.limiter, allowed)
             return decision
         else:
             return super(DatadogSampler, self).sample(trace)
