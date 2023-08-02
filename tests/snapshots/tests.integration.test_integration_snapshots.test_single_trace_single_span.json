@@ -12,7 +12,7 @@
       "_dd.p.dm": "-0",
       "k": "v",
       "language": "python",
-      "runtime-id": "7fcf456c657a442d8e637e5adda7270d"
+      "runtime-id": "6f2eeb0b30c54268b96f6eca8a2d66ba"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -22,8 +22,8 @@
       "float_metric": 12.34,
       "int_metric": 4321,
       "num": 1234,
-      "process_id": 52166
+      "process_id": 15844
     },
-    "duration": 1504000,
-    "start": 1631827407230825000
+    "duration": 53818,
+    "start": 1690574476592448085
   }]]
