@@ -12,6 +12,7 @@ import pytest
 
 from ddtrace.internal import compat
 from ddtrace.internal.utils.retry import RetryError  # noqa
+from tests.utils import snapshot_context
 from tests.webclient import Client
 
 
@@ -176,37 +177,39 @@ SETTINGS_GEVENT_SPANAGGREGATOR_RLOCK = _gunicorn_settings_factory(
 
 
 @pytest.mark.skipif(sys.version_info >= (3, 11), reason="Gunicorn is only supported up to 3.10")
-@pytest.mark.parametrize(
-    "gunicorn_server_settings",
-    [
+def test_no_known_errors_occur(tmp_path):
+    for gunicorn_server_settings in [
         SETTINGS_GEVENT_APPIMPORT,
         SETTINGS_GEVENT_POSTWORKERIMPORT,
         SETTINGS_GEVENT_DDTRACERUN,
         SETTINGS_GEVENT_DDTRACERUN_MODULE_CLONE,
         SETTINGS_GEVENT_DDTRACERUN_DEBUGMODE_MODULE_CLONE,
         SETTINGS_GEVENT_SPANAGGREGATOR_RLOCK,
-    ],
-)
-def test_no_known_errors_occur(gunicorn_server_settings, tmp_path):
-    with gunicorn_server(gunicorn_server_settings, tmp_path) as context:
-        _, client = context
-        response = client.get("/")
-    assert response.status_code == 200
-    payload = parse_payload(response.content)
-    assert payload["profiler"]["is_active"] is True
+    ]:
+        with gunicorn_server(gunicorn_server_settings, tmp_path) as context:
+            _, client = context
+            response = client.get("/")
+        assert response.status_code == 200
+        payload = parse_payload(response.content)
+        assert payload["profiler"]["is_active"] is True
 
 
-@pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
-@pytest.mark.parametrize("service_name", [None, "mysvc"])
-@pytest.mark.snapshot(ignores=["meta.result_class"])  # PY2 is listiterator and PY3 is list_iterator
 @pytest.mark.skipif(sys.version_info >= (3, 11), reason="Gunicorn is only supported up to 3.10")
-def test_span_schematization(service_name, schema_version, tmp_path):
-    gunicorn_settings = _gunicorn_settings_factory(
-        worker_class="gevent",
-        dd_service=service_name,
-        schema_version=schema_version,
-    )
-    with gunicorn_server(gunicorn_settings, tmp_path) as context:
-        _, client = context
-        response = client.get("/")
-    assert response.status_code == 200
+def test_span_schematization(tmp_path):
+    for schema_version in [None, "v0", "v1"]:
+        for service_name in [None, "mysvc"]:
+            gunicorn_settings = _gunicorn_settings_factory(
+                worker_class="gevent",
+                dd_service=service_name,
+                schema_version=schema_version,
+            )
+            with snapshot_context(
+                token="tests.contrib.gunicorn.test_gunicorn.test_span_schematization[{}-{}]".format(
+                    service_name, schema_version
+                ),
+                ignores=["meta.result_class"],
+            ):
+                with gunicorn_server(gunicorn_settings, tmp_path) as context:
+                    _, client = context
+                    response = client.get("/")
+                assert response.status_code == 200
