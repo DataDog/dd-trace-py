@@ -529,6 +529,7 @@ class SamplingRule:
         if tags is None:
             return False
 
+        tag_match = False
         for tag_key in self._tag_value_matchers.keys():
             value = tags.get(tag_key)
             if value is not None:
