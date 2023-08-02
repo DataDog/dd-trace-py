@@ -1107,8 +1107,5 @@ workflows:
       # Build necessary base venvs for integration tests
       - build_base_venvs
 
-      # Docs
-      - build_docs: *requires_pre_check
-
       # Final reports
       - coverage_report: *requires_tests
