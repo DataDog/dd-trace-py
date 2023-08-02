@@ -1,8 +1,8 @@
-import os
-import sys
+import unittest
 
 import pytest
 
+from ddtrace.contrib.unittest.patch import _set_tracer
 from tests.utils import TracerTestCase
 
 
@@ -15,7 +15,7 @@ class UnittestTestCase(TracerTestCase):
 
     def test_unittest_pass_single(self):
         """Test with a `unittest` test which should pass."""
-        import unittest
+        _set_tracer(self.tracer)
 
         class UnittestExampleTestCase(unittest.TestCase):
             def test_will_pass_first(self):
@@ -26,9 +26,12 @@ class UnittestTestCase(TracerTestCase):
         suite = unittest.TestLoader().loadTestsFromTestCase(UnittestExampleTestCase)
         unittest.TextTestRunner(verbosity=0).run(suite)
 
+        spans = self.pop_spans()
+        assert len(spans) == 1
+
     def test_unittest_pass_multiple(self):
         """Tests with`unittest` tests which should pass."""
-        import unittest
+        _set_tracer(self.tracer)
 
         class UnittestExampleTestCase(unittest.TestCase):
             def test_will_pass_first(self):
@@ -43,11 +46,15 @@ class UnittestTestCase(TracerTestCase):
         suite = unittest.TestLoader().loadTestsFromTestCase(UnittestExampleTestCase)
         unittest.TextTestRunner(verbosity=0).run(suite)
 
+        spans = self.pop_spans()
+        assert len(spans) == 2
+
     def test_unittest_skip_single(self):
         """Tests with a `unittest` test which should be skipped."""
-        import unittest
+        _set_tracer(self.tracer)
 
         class UnittestExampleTestCase(unittest.TestCase):
+            @unittest.skip
             def test_will_be_skipped(self):
                 self.assertTrue(2 == 2)
                 self.assertTrue('test string' == 'test string')
@@ -56,9 +63,12 @@ class UnittestTestCase(TracerTestCase):
         suite = unittest.TestLoader().loadTestsFromTestCase(UnittestExampleTestCase)
         unittest.TextTestRunner(verbosity=0).run(suite)
 
+        spans = self.pop_spans()
+        assert len(spans) == 1
+
     def test_unittest_skip_single_reason(self):
         """Tests with a `unittest` test which should be skipped."""
-        import unittest
+        _set_tracer(self.tracer)
 
         class UnittestExampleTestCase(unittest.TestCase):
             @unittest.skip("demonstrating skipping with a reason")
@@ -72,16 +82,16 @@ class UnittestTestCase(TracerTestCase):
 
     def test_unittest_skip_multiple_reason(self):
         """Test with `unittest` tests which should be skipped."""
-        import unittest
+        _set_tracer(self.tracer)
 
         class UnittestExampleTestCase(unittest.TestCase):
-            @unittest.skip("demonstrating skipping with a rason")
+            @unittest.skip("demonstrating skipping with a reason")
             def test_will_be_skipped_first(self):
                 self.assertTrue(2 == 2)
                 self.assertTrue('test string' == 'test string')
                 self.assertFalse('not equal to' == 'this')
 
-            @unittest.skip("demonstrating skipping with a rason")
+            @unittest.skip("demonstrating skipping with a reason")
             def test_will_be_skipped_second(self):
                 self.assertTrue(2 == 2)
                 self.assertTrue('test string' == 'test string')
@@ -90,9 +100,12 @@ class UnittestTestCase(TracerTestCase):
         suite = unittest.TestLoader().loadTestsFromTestCase(UnittestExampleTestCase)
         unittest.TextTestRunner(verbosity=0).run(suite)
 
+        spans = self.pop_spans()
+        assert len(spans) == 2
+
     def test_unittest_skip_combined(self):
         """Test with `unittest` tests which should be skipped."""
-        import unittest
+        _set_tracer(self.tracer)
 
         class UnittestExampleTestCase(unittest.TestCase):
             @pytest.skip()
@@ -109,9 +122,12 @@ class UnittestTestCase(TracerTestCase):
         suite = unittest.TestLoader().loadTestsFromTestCase(UnittestExampleTestCase)
         unittest.TextTestRunner(verbosity=0).run(suite)
 
+        spans = self.pop_spans()
+        assert len(spans) == 2
+
     def test_unittest_fail_single(self):
         """Test with `unittest` tests which should fail."""
-        import unittest
+        _set_tracer(self.tracer)
 
         class UnittestExampleTestCase(unittest.TestCase):
             def test_will_fail(self):
@@ -122,9 +138,12 @@ class UnittestTestCase(TracerTestCase):
         suite = unittest.TestLoader().loadTestsFromTestCase(UnittestExampleTestCase)
         unittest.TextTestRunner(verbosity=0).run(suite)
 
+        spans = self.pop_spans()
+        assert len(spans) == 1
+
     def test_unittest_fail_multiple(self):
         """Test with `unittest` tests which should fail."""
-        import unittest
+        _set_tracer(self.tracer)
 
         class UnittestExampleTestCase(unittest.TestCase):
             def test_will_fail_first(self):
@@ -140,9 +159,12 @@ class UnittestTestCase(TracerTestCase):
         suite = unittest.TestLoader().loadTestsFromTestCase(UnittestExampleTestCase)
         unittest.TextTestRunner(verbosity=0).run(suite)
 
+        spans = self.pop_spans()
+        assert len(spans) == 2
+
     def test_unittest_combined(self):
         """Test with `unittest` tests which pass, get skipped and fail combined."""
-        import unittest
+        _set_tracer(self.tracer)
 
         class UnittestExampleTestCase(unittest.TestCase):
             def test_will_pass_first(self):
@@ -163,3 +185,6 @@ class UnittestTestCase(TracerTestCase):
 
         suite = unittest.TestLoader().loadTestsFromTestCase(UnittestExampleTestCase)
         unittest.TextTestRunner(verbosity=0).run(suite)
+
+        spans = self.pop_spans()
+        assert len(spans) == 3

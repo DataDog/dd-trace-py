@@ -1,28 +1,22 @@
-from ddtrace.vendor import wrapt
-from ..trace_utils import unwrap as _u
+import inspect
+import os
 import unittest
+
 import ddtrace
 from ddtrace.constants import SPAN_KIND
-from ddtrace.ext import test
-from ddtrace.ext import SpanTypes
-from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
+from ddtrace.contrib.unittest.constants import COMPONENT_VALUE
 from ddtrace.contrib.unittest.constants import FRAMEWORK
 from ddtrace.contrib.unittest.constants import KIND
-from ddtrace.contrib.unittest.constants import COMPONENT_VALUE
-from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
+from ddtrace.ext import SpanTypes
+from ddtrace.ext import test
+from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
 from ddtrace.internal.ci_visibility.constants import EVENT_TYPE as _EVENT_TYPE
-from ddtrace.internal.ci_visibility.constants import MODULE_ID as _MODULE_ID
-from ddtrace.internal.ci_visibility.constants import MODULE_TYPE as _MODULE_TYPE
-from ddtrace.internal.ci_visibility.constants import SESSION_ID as _SESSION_ID
-from ddtrace.internal.ci_visibility.constants import SESSION_TYPE as _SESSION_TYPE
-from ddtrace.internal.ci_visibility.constants import SUITE
-from ddtrace.internal.ci_visibility.constants import SUITE_ID as _SUITE_ID
-from ddtrace.internal.ci_visibility.constants import SUITE_TYPE as _SUITE_TYPE
-from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.vendor import wrapt
 
-import os
-import inspect
+
+def _set_tracer(tracer):
+    setattr(unittest, "_datadog_tracer", tracer)
 
 
 def _store_span(item, span):
@@ -118,7 +112,8 @@ def add_skip_test_wrapper(func, instance, args, kwargs):
 
 
 def start_test_wrapper(func, instance, args, kwargs):
-    with _CIVisibility._instance.tracer._start_span(
+    tracer = getattr(unittest, "_datadog_tracer", _CIVisibility._instance.tracer)
+    with tracer._start_span(
             ddtrace.config.unittest.operation_name,
             service=_CIVisibility._instance._service,
             resource="unittest.test",

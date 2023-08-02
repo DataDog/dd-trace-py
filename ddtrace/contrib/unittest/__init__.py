@@ -1,10 +1,7 @@
-from .patch import unittest_add_option_init, patch
-
-
-
 import os
 
 from ddtrace import config
+from .patch import patch
 
 __all__ = ["patch"]
 
