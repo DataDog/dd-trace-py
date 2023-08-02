@@ -1,18 +1,7 @@
-import os
-
 from ddtrace import config
-from .patch import patch
+from .patch import patch, unpatch
 
-__all__ = ["patch"]
+__all__ = ["patch", "unpatch"]
 
-if config._ci_visibility_unittest_enabled:
-    # unittest default settings
-    config._add(
-        "unittest",
-        dict(
-            _default_service="unittest",
-            operation_name=os.getenv("DD_UNITTEST_OPERATION_NAME", default="unittest.test"),
-        ),
-    )
-
+if config.get_from("_ci_visibility_unittest_enabled"):
     patch()

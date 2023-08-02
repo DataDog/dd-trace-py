@@ -3,6 +3,7 @@ import unittest
 import pytest
 
 from ddtrace.constants import SPAN_KIND
+from ddtrace.contrib.unittest import initialize_unittest_patch
 from ddtrace.contrib.unittest.constants import COMPONENT_VALUE, FRAMEWORK, KIND
 from ddtrace.contrib.unittest.patch import _set_tracer
 from ddtrace.ext import test, SpanTypes
@@ -16,6 +17,8 @@ class UnittestTestCase(TracerTestCase):
         self.testdir = testdir
         self.monkeypatch = monkeypatch
         self.git_repo = git_repo
+
+    initialize_unittest_patch()
 
     def test_unittest_pass_single(self):
         """Test with a `unittest` test which should pass."""
@@ -191,7 +194,7 @@ class UnittestTestCase(TracerTestCase):
         _set_tracer(self.tracer)
 
         class UnittestExampleTestCase(unittest.TestCase):
-            @pytest.skip()
+            @unittest.skip
             def test_will_be_skipped(self):
                 self.assertTrue(2 == 2)
                 self.assertTrue('test string' == 'test string')
@@ -217,7 +220,7 @@ class UnittestTestCase(TracerTestCase):
         assert spans[0].get_tag(test.MODULE) == 'tests.contrib.unittest.test_unittest'
         assert spans[0].get_tag(test.SUITE) == 'UnittestExampleTestCase'
         assert spans[0].get_tag(test.TEST_STATUS) == test.Status.SKIP.value
-        assert spans[0].get_tag(test.SKIP_REASON) is None
+        assert spans[0].get_tag(test.SKIP_REASON) == ''
 
         assert spans[1].get_tag(test.TEST_TYPE) == SpanTypes.TEST
         assert spans[1].get_tag(test.TEST_FRAMEWORK) == FRAMEWORK
@@ -315,13 +318,13 @@ class UnittestTestCase(TracerTestCase):
                 self.assertTrue('test string' == 'test string')
                 self.assertFalse('not equal to' == 'this')
 
-            @pytest.skip()
+            @unittest.skip
             def test_will_be_skipped(self):
                 self.assertTrue(2 == 2)
                 self.assertTrue('test string' == 'test string')
                 self.assertFalse('not equal to' == 'this')
 
-            @pytest.skip("another skip reason")
+            @unittest.skip("another skip reason")
             def test_will_be_skipped_with_a_reason(self):
                 self.assertTrue(2 == 2)
                 self.assertTrue('test string' == 'test string')
@@ -333,46 +336,48 @@ class UnittestTestCase(TracerTestCase):
         spans = self.pop_spans()
         assert len(spans) == 4
 
+
         assert spans[0].get_tag(test.TEST_TYPE) == SpanTypes.TEST
         assert spans[0].get_tag(test.TEST_FRAMEWORK) == FRAMEWORK
         assert spans[0].get_tag(SPAN_KIND) == KIND
         assert spans[0].get_tag(COMPONENT) == COMPONENT_VALUE
         assert spans[0].get_tag(test.TYPE) == SpanTypes.TEST
-        assert spans[0].get_tag(test.NAME) == 'test_will_pass_first'
+        assert spans[0].get_tag(test.NAME) == 'test_will_be_skipped'
         assert spans[0].get_tag(test.MODULE) == 'tests.contrib.unittest.test_unittest'
         assert spans[0].get_tag(test.SUITE) == 'UnittestExampleTestCase'
-        assert spans[0].get_tag(test.TEST_STATUS) == test.Status.PASS.value
-        assert spans[0].get_tag(test.SKIP_REASON) is None
+        assert spans[0].get_tag(test.TEST_STATUS) == test.Status.SKIP.value
+        assert spans[0].get_tag(test.SKIP_REASON) == ''
+
 
         assert spans[1].get_tag(test.TEST_TYPE) == SpanTypes.TEST
         assert spans[1].get_tag(test.TEST_FRAMEWORK) == FRAMEWORK
         assert spans[1].get_tag(SPAN_KIND) == KIND
         assert spans[1].get_tag(COMPONENT) == COMPONENT_VALUE
         assert spans[1].get_tag(test.TYPE) == SpanTypes.TEST
-        assert spans[1].get_tag(test.NAME) == 'test_will_fail_first'
+        assert spans[1].get_tag(test.NAME) == 'test_will_be_skipped_with_a_reason'
         assert spans[1].get_tag(test.MODULE) == 'tests.contrib.unittest.test_unittest'
         assert spans[1].get_tag(test.SUITE) == 'UnittestExampleTestCase'
-        assert spans[1].get_tag(test.TEST_STATUS) == test.Status.FAIL.value
-        assert spans[1].get_tag(test.SKIP_REASON) is None
+        assert spans[1].get_tag(test.TEST_STATUS) == test.Status.SKIP.value
+        assert spans[1].get_tag(test.SKIP_REASON) == 'another skip reason'
 
         assert spans[2].get_tag(test.TEST_TYPE) == SpanTypes.TEST
         assert spans[2].get_tag(test.TEST_FRAMEWORK) == FRAMEWORK
         assert spans[2].get_tag(SPAN_KIND) == KIND
         assert spans[2].get_tag(COMPONENT) == COMPONENT_VALUE
         assert spans[2].get_tag(test.TYPE) == SpanTypes.TEST
-        assert spans[2].get_tag(test.NAME) == 'test_will_be_skipped'
+        assert spans[2].get_tag(test.NAME) == 'test_will_fail_first'
         assert spans[2].get_tag(test.MODULE) == 'tests.contrib.unittest.test_unittest'
         assert spans[2].get_tag(test.SUITE) == 'UnittestExampleTestCase'
-        assert spans[2].get_tag(test.TEST_STATUS) == test.Status.SKIP.value
-        assert spans[2].get_tag(test.SKIP_REASON) == ''
+        assert spans[2].get_tag(test.TEST_STATUS) == test.Status.FAIL.value
+        assert spans[2].get_tag(test.SKIP_REASON) is None
 
         assert spans[3].get_tag(test.TEST_TYPE) == SpanTypes.TEST
         assert spans[3].get_tag(test.TEST_FRAMEWORK) == FRAMEWORK
         assert spans[3].get_tag(SPAN_KIND) == KIND
         assert spans[3].get_tag(COMPONENT) == COMPONENT_VALUE
         assert spans[3].get_tag(test.TYPE) == SpanTypes.TEST
-        assert spans[3].get_tag(test.NAME) == 'test_will_be_skipped_with_a_reason'
+        assert spans[3].get_tag(test.NAME) == 'test_will_pass_first'
         assert spans[3].get_tag(test.MODULE) == 'tests.contrib.unittest.test_unittest'
         assert spans[3].get_tag(test.SUITE) == 'UnittestExampleTestCase'
-        assert spans[3].get_tag(test.TEST_STATUS) == test.Status.SKIP.value
-        assert spans[3].get_tag(test.SKIP_REASON) == 'another skip reason'
+        assert spans[3].get_tag(test.TEST_STATUS) == test.Status.PASS.value
+        assert spans[3].get_tag(test.SKIP_REASON) is None
