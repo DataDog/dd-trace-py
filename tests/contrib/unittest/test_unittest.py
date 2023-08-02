@@ -3,9 +3,8 @@ import unittest
 import pytest
 
 from ddtrace.constants import SPAN_KIND
-from ddtrace.contrib.unittest import initialize_unittest_patch
 from ddtrace.contrib.unittest.constants import COMPONENT_VALUE, FRAMEWORK, KIND
-from ddtrace.contrib.unittest.patch import _set_tracer
+from ddtrace.contrib.unittest.patch import _set_tracer, patch
 from ddtrace.ext import test, SpanTypes
 from ddtrace.internal.constants import COMPONENT
 from tests.utils import TracerTestCase
@@ -18,7 +17,7 @@ class UnittestTestCase(TracerTestCase):
         self.monkeypatch = monkeypatch
         self.git_repo = git_repo
 
-    initialize_unittest_patch()
+    patch()
 
     def test_unittest_pass_single(self):
         """Test with a `unittest` test which should pass."""
