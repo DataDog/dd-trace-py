@@ -206,14 +206,6 @@ def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type):
             except Exception:
                 log.debug("IAST: Unexpected exception while tainting path parameters", exc_info=True)
 
-        _set_metric_iast_instrumented_source(OriginType.PATH_PARAMETER)
-        _set_metric_iast_instrumented_source(OriginType.PATH)
-        _set_metric_iast_instrumented_source(OriginType.COOKIE)
-        _set_metric_iast_instrumented_source(OriginType.COOKIE_NAME)
-        _set_metric_iast_instrumented_source(OriginType.PARAMETER)
-        _set_metric_iast_instrumented_source(OriginType.PARAMETER_NAME)
-        _set_metric_iast_instrumented_source(OriginType.BODY)
-
 
 def _on_wsgi_environ(wrapped, _instance, args, kwargs):
     if _is_iast_enabled():
@@ -225,6 +217,15 @@ def _on_wsgi_environ(wrapped, _instance, args, kwargs):
 
         _set_metric_iast_instrumented_source(OriginType.HEADER_NAME)
         _set_metric_iast_instrumented_source(OriginType.HEADER)
+        # we instrument those sources on _on_django_func_wrapped
+        _set_metric_iast_instrumented_source(OriginType.PATH_PARAMETER)
+        _set_metric_iast_instrumented_source(OriginType.PATH)
+        _set_metric_iast_instrumented_source(OriginType.COOKIE)
+        _set_metric_iast_instrumented_source(OriginType.COOKIE_NAME)
+        _set_metric_iast_instrumented_source(OriginType.PARAMETER)
+        _set_metric_iast_instrumented_source(OriginType.PARAMETER_NAME)
+        _set_metric_iast_instrumented_source(OriginType.BODY)
+
         return wrapped(
             *((LazyTaintDict(args[0], origins=(OriginType.HEADER_NAME, OriginType.HEADER)),) + args[1:]), **kwargs
         )
@@ -250,9 +251,9 @@ def _on_django_patch():
 def listen():
     core.on("flask.set_request_tags", _on_set_request_tags)
     core.on("flask.request_span_modifier", _on_request_span_modifier)
-    core.on("django.func.wrapped", _on_django_func_wrapped)
 
 
+core.on("django.func.wrapped", _on_django_func_wrapped)
 core.on("django.wsgi_environ", _on_wsgi_environ)
 core.on("django.patch", _on_django_patch)
 core.on("flask.patch", _on_flask_patch)
