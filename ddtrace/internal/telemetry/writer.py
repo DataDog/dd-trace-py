@@ -30,14 +30,28 @@ from ..service import ServiceStatus
 from ..utils.formats import asbool
 from ..utils.time import StopWatch
 from ..utils.version import _pep440_to_semver
+from .constants import TELEMETRY_128_BIT_TRACEID_GENERATION_ENABLED
+from .constants import TELEMETRY_128_BIT_TRACEID_LOGGING_ENABLED
+from .constants import TELEMETRY_ANALYTICS_ENABLED
 from .constants import TELEMETRY_ASM_ENABLED
+from .constants import TELEMETRY_CALL_BASIC_CONFIG
+from .constants import TELEMETRY_CLIENT_IP_ENABLED
 from .constants import TELEMETRY_DSM_ENABLED
 from .constants import TELEMETRY_DYNAMIC_INSTRUMENTATION_ENABLED
+from .constants import TELEMETRY_ENABLED
 from .constants import TELEMETRY_EXCEPTION_DEBUGGING_ENABLED
+from .constants import TELEMETRY_LOGS_INJECTION_ENABLED
+from .constants import TELEMETRY_OBFUSCATION_QUERY_STRING_PATTERN
+from .constants import TELEMETRY_OTEL_ENABLED
 from .constants import TELEMETRY_PROFILING_ENABLED
 from .constants import TELEMETRY_PROPAGATION_STYLE_EXTRACT
 from .constants import TELEMETRY_PROPAGATION_STYLE_INJECT
 from .constants import TELEMETRY_RUNTIMEMETRICS_ENABLED
+from .constants import TELEMETRY_SPAN_SAMPLING_RULES
+from .constants import TELEMETRY_SPAN_SAMPLING_RULES_FILE
+from .constants import TELEMETRY_TRACE_COMPUTE_STATS
+from .constants import TELEMETRY_TRACE_DEBUG
+from .constants import TELEMETRY_TRACE_HEALTH_METRICS_ENABLED
 from .constants import TELEMETRY_TRACING_ENABLED
 from .constants import TELEMETRY_TYPE_DISTRIBUTION
 from .constants import TELEMETRY_TYPE_GENERATE_METRICS
@@ -108,7 +122,7 @@ class _TelemetryClient:
             else:
                 log.debug("failed to send telemetry to the Datadog Agent at %s. response: %s", self.url, resp.status)
         except Exception:
-            log.debug("failed to send telemetry to the Datadog Agent at %s.", self.url, exc_info=True)
+            log.debug("failed to send telemetry to the Datadog Agent at %s.", self.url)
         finally:
             if conn is not None:
                 conn.close()
@@ -269,6 +283,7 @@ class TelemetryWriter(PeriodicService):
         self.add_configurations(
             [
                 (TELEMETRY_TRACING_ENABLED, config._tracing_enabled, "unknown"),
+                (TELEMETRY_CALL_BASIC_CONFIG, config._call_basic_config, "unknown"),
                 (TELEMETRY_DSM_ENABLED, config._data_streams_enabled, "unknown"),
                 (TELEMETRY_ASM_ENABLED, config._appsec_enabled, "unknown"),
                 (TELEMETRY_PROFILING_ENABLED, profiling_config.enabled, "unknown"),
@@ -278,8 +293,27 @@ class TelemetryWriter(PeriodicService):
                 (TELEMETRY_PROPAGATION_STYLE_EXTRACT, ",".join(config._propagation_style_extract), "unknown"),
                 ("ddtrace_bootstrapped", config._ddtrace_bootstrapped, "unknown"),
                 ("ddtrace_auto_used", "ddtrace.auto" in sys.modules, "unknown"),
-                ("otel_enabled", config._otel_enabled, "unknown"),
                 (TELEMETRY_RUNTIMEMETRICS_ENABLED, config._runtime_metrics_enabled, "unknown"),
+                (TELEMETRY_TRACE_DEBUG, config._debug_mode, "unknown"),
+                (TELEMETRY_ENABLED, config._telemetry_enabled, "unknown"),
+                (TELEMETRY_ANALYTICS_ENABLED, config.analytics_enabled, "unknown"),
+                (TELEMETRY_CLIENT_IP_ENABLED, config.client_ip_header, "unknown"),
+                (TELEMETRY_LOGS_INJECTION_ENABLED, config.logs_injection, "unknown"),
+                (TELEMETRY_128_BIT_TRACEID_GENERATION_ENABLED, config._128_bit_trace_id_enabled, "unknown"),
+                (TELEMETRY_128_BIT_TRACEID_LOGGING_ENABLED, config._128_bit_trace_id_logging_enabled, "unknown"),
+                (TELEMETRY_TRACE_COMPUTE_STATS, config._trace_compute_stats, "unknown"),
+                (
+                    TELEMETRY_OBFUSCATION_QUERY_STRING_PATTERN,
+                    config._obfuscation_query_string_pattern.pattern.decode("ascii")
+                    if config._obfuscation_query_string_pattern
+                    else "",
+                    "unknown",
+                ),
+                (TELEMETRY_OTEL_ENABLED, config._otel_enabled, "unknown"),
+                (TELEMETRY_TRACE_HEALTH_METRICS_ENABLED, config.health_metrics_enabled, "unknown"),
+                (TELEMETRY_RUNTIMEMETRICS_ENABLED, config._runtime_metrics_enabled, "unknown"),
+                (TELEMETRY_SPAN_SAMPLING_RULES, config._sampling_rules, "unknown"),
+                (TELEMETRY_SPAN_SAMPLING_RULES_FILE, config._sampling_rules_file, "unknown"),
             ]
         )
 

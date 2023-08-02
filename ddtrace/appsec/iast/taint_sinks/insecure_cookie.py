@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 class InsecureCookie(VulnerabilityBase):
     vulnerability_type = VULN_INSECURE_COOKIE
     evidence_type = EVIDENCE_COOKIE
+    scrub_evidence = False
 
 
 @oce.register
