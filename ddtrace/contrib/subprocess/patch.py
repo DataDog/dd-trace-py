@@ -150,10 +150,12 @@ class SubprocessCmdLine(object):
         if config._iast_enabled:
             # We delay the reporting to later when the strings are already scrubbed (but we need
             # to check them unscrubbed here)
-            if isinstance(shell_args, (list, tuple)) and any(get_tainted_ranges(i) for i in shell_args):
-                report_cmdi = True
+            if isinstance(shell_args, (list, tuple)):
+                for arg in shell_args:
+                    if get_tainted_ranges(arg):
+                        report_cmdi = arg
             elif get_tainted_ranges(shell_args):
-                report_cmdi = True
+                report_cmdi = shell_args
 
         cache_key = str(shell_args) + str(shell)
         self._cache_entry = SubprocessCmdLine._CACHE.get(cache_key)
@@ -192,8 +194,7 @@ class SubprocessCmdLine(object):
         )
 
         if report_cmdi:
-            scrubbed_evidences = [self.binary] + self.arguments
-            CommandInjection.report(evidence_value=scrubbed_evidences)
+            CommandInjection.report(evidence_value=report_cmdi)
 
     def scrub_env_vars(self, tokens):
         for idx, token in enumerate(tokens):
