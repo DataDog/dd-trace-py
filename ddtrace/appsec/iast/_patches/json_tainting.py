@@ -32,17 +32,17 @@ def wrapped_loads(wrapped, instance, args, kwargs):
     obj = wrapped(*args, **kwargs)
     if config._iast_enabled:
         try:
+            from ddtrace.appsec.iast._taint_tracking import get_tainted_ranges
             from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
             from ddtrace.appsec.iast._taint_tracking import taint_pyobject
-            from ddtrace.appsec.iast._taint_tracking import taint_ranges_as_evidence_info
 
             if is_pyobject_tainted(args[0]) and obj:
                 # tainting object
-                sources = taint_ranges_as_evidence_info(args[0])[1]
-                if not sources:
+                ranges = get_tainted_ranges(args[0])
+                if not ranges:
                     return obj
                 # take the first source as main source
-                source = sources[0]
+                source = ranges[0].source
                 if isinstance(obj, dict):
                     obj = LazyTaintDict(obj, origins=(source.origin, source.origin))
                 elif isinstance(obj, list):
