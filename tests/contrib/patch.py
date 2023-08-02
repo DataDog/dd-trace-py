@@ -8,8 +8,8 @@ import unittest
 
 from ddtrace.vendor import wrapt
 from tests.subprocesstest import SubprocessTestCase
-# from tests.subprocesstest import run_in_subprocess  JJJ uncomment
 from tests.utils import call_program
+# from tests.subprocesstest import run_in_subprocess  JJJ uncomment
 
 
 class PatchMixin(unittest.TestCase):
