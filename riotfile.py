@@ -1372,12 +1372,12 @@ venv = Venv(
         ),
         Venv(
             name="boto",
-            command="pytest --no-ddtrace {cmdargs} tests/contrib/boto",
+            command="pytest {cmdargs} tests/contrib/boto",
             venvs=[Venv(pys=select_pys(max_version="3.6"), pkgs={"boto": latest, "moto": "<1.0.0"})],
         ),
         Venv(
             name="botocore",
-            command="pytest --no-ddtrace {cmdargs} tests/contrib/botocore",
+            command="pytest {cmdargs} tests/contrib/botocore",
             venvs=[
                 Venv(pys=select_pys(min_version="3.8"), pkgs={"moto[all]": latest, "botocore": latest}),
                 Venv(
