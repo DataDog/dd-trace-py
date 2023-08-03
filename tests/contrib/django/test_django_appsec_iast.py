@@ -5,9 +5,9 @@ import mock
 import pytest
 
 from ddtrace import config
-from ddtrace._monkey import patch_iast
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec.iast import oce
+from ddtrace.appsec.iast._patch_modules import patch_iast
 from ddtrace.appsec.iast._util import _is_python_version_supported as python_supported_by_iast
 from ddtrace.internal.compat import urlencode
 from tests.appsec.iast.iast_utils import get_line_and_hash
@@ -53,7 +53,7 @@ def test_django_weak_hash(client, test_spans, tracer):
     with override_global_config(dict(_appsec_enabled=True, _iast_enabled=True)):
         setup(bytes.join, bytearray.join)
         oce.reconfigure()
-        patch_iast(weak_hash=True)
+        patch_iast({"weak_hash": True})
         root_span, _ = _aux_appsec_get_root_span(client, test_spans, tracer, url="/appsec/weak-hash/")
         str_json = root_span.get_tag(IAST.JSON)
         assert str_json is not None, "no JSON tag in root span"
@@ -62,7 +62,7 @@ def test_django_weak_hash(client, test_spans, tracer):
         assert vulnerability["evidence"]["value"] == "md5"
 
 
-@pytest.mark.skip(reason="TODO: this tests will enable in the next PR")
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_django_tainted_user_agent_iast_enabled(client, test_spans, tracer):
     from ddtrace.appsec.iast._taint_tracking import setup
 
@@ -85,7 +85,7 @@ def test_django_tainted_user_agent_iast_enabled(client, test_spans, tracer):
         assert response.content == b"test/1.2.3"
 
 
-@pytest.mark.skip(reason="TODO: this tests will enable in the next PR")
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_django_tainted_user_agent_iast_disabled(client, test_spans, tracer):
     from ddtrace.appsec.iast._taint_tracking import setup
 
@@ -110,7 +110,7 @@ def test_django_tainted_user_agent_iast_disabled(client, test_spans, tracer):
 
 
 @pytest.mark.django_db()
-@pytest.mark.skip(reason="TODO: this tests will enable in the next PR")
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_django_tainted_user_agent_iast_enabled_sqli_http_request_parameter(client, test_spans, tracer):
     from ddtrace.appsec.iast._taint_tracking import setup
 
@@ -130,12 +130,14 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_request_parameter(clie
         )
 
         vuln_type = "SQL_INJECTION"
-        line, hash_value = get_line_and_hash("iast_enabled_sqli_http_request_parameter", vuln_type)
 
         assert response.status_code == 200
         assert response.content == b"test/1.2.3"
 
         loaded = json.loads(root_span.get_tag(IAST.JSON))
+
+        line, hash_value = get_line_and_hash("iast_enabled_sqli_http_request_parameter", vuln_type, filename=TEST_FILE)
+
         assert loaded["sources"] == [
             {"origin": "http.request.parameter", "name": "q", "value": "SELECT 1 FROM sqlite_master"}
         ]
@@ -149,7 +151,7 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_request_parameter(clie
 
 
 @pytest.mark.django_db()
-@pytest.mark.skip(reason="TODO: this tests will enable in the next PR")
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_django_tainted_user_agent_iast_enabled_sqli_http_request_header_value(client, test_spans, tracer):
     from ddtrace.appsec.iast._taint_tracking import setup
 
@@ -169,8 +171,12 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_request_header_value(c
         )
 
         vuln_type = "SQL_INJECTION"
-        line, hash_value = get_line_and_hash("iast_enabled_sqli_http_request_header_value", vuln_type)
         loaded = json.loads(root_span.get_tag(IAST.JSON))
+
+        line, hash_value = get_line_and_hash(
+            "iast_enabled_sqli_http_request_header_value", vuln_type, filename=TEST_FILE
+        )
+
         assert loaded["sources"] == [{"origin": "http.request.header", "name": "HTTP_USER_AGENT", "value": "master"}]
         assert loaded["vulnerabilities"][0]["type"] == vuln_type
         assert loaded["vulnerabilities"][0]["hash"] == hash_value
@@ -185,7 +191,7 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_request_header_value(c
 
 
 @pytest.mark.django_db()
-@pytest.mark.skip(reason="TODO: this tests will enable in the next PR")
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_django_tainted_user_agent_iast_disabled_sqli_http_request_header_value(client, test_spans, tracer):
     from ddtrace.appsec.iast._taint_tracking import setup
 
@@ -211,7 +217,7 @@ def test_django_tainted_user_agent_iast_disabled_sqli_http_request_header_value(
 
 
 @pytest.mark.django_db()
-@pytest.mark.skip(reason="TODO: this tests will enable in the next PR")
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_django_tainted_user_agent_iast_enabled_sqli_http_request_header_name(client, test_spans, tracer):
     from ddtrace.appsec.iast._taint_tracking import setup
 
@@ -231,8 +237,13 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_request_header_name(cl
         )
 
         vuln_type = "SQL_INJECTION"
-        line, hash_value = get_line_and_hash("iast_enabled_sqli_http_request_header_name", vuln_type)
+
         loaded = json.loads(root_span.get_tag(IAST.JSON))
+
+        line, hash_value = get_line_and_hash(
+            "iast_enabled_sqli_http_request_header_name", vuln_type, filename=TEST_FILE
+        )
+
         assert loaded["sources"] == [{"origin": "http.request.header.name", "name": "master", "value": "master"}]
         assert loaded["vulnerabilities"][0]["type"] == vuln_type
         assert loaded["vulnerabilities"][0]["hash"] == hash_value
@@ -247,7 +258,7 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_request_header_name(cl
 
 
 @pytest.mark.django_db()
-@pytest.mark.skip(reason="TODO: this tests will enable in the next PR")
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_django_tainted_user_agent_iast_disabled_sqli_http_request_header_name(client, test_spans, tracer):
     from ddtrace.appsec.iast._taint_tracking import setup
 
@@ -273,7 +284,7 @@ def test_django_tainted_user_agent_iast_disabled_sqli_http_request_header_name(c
 
 
 @pytest.mark.django_db()
-@pytest.mark.skip(reason="TODO: this tests will enable in the next PR")
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_django_iast_enabled_full_sqli_http_path_parameter(client, test_spans, tracer):
     from ddtrace.appsec.iast._taint_tracking import setup
 
@@ -290,9 +301,13 @@ def test_django_iast_enabled_full_sqli_http_path_parameter(client, test_spans, t
             headers={"HTTP_USER_AGENT": "test/1.2.3"},
         )
         vuln_type = "SQL_INJECTION"
-        line, hash_value = get_line_and_hash("iast_enabled_full_sqli_http_path_parameter", vuln_type)
 
         loaded = json.loads(root_span.get_tag(IAST.JSON))
+
+        line, hash_value = get_line_and_hash(
+            "iast_enabled_full_sqli_http_path_parameter", vuln_type, filename=TEST_FILE
+        )
+
         assert loaded["sources"] == [
             {"origin": "http.request.path.parameter", "name": "q_http_path_parameter", "value": "sqlite_master"}
         ]
@@ -309,7 +324,7 @@ def test_django_iast_enabled_full_sqli_http_path_parameter(client, test_spans, t
 
 
 @pytest.mark.django_db()
-@pytest.mark.skip(reason="TODO: this tests will enable in the next PR")
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_django_iast_disabled_full_sqli_http_path_parameter(client, test_spans, tracer):
     from ddtrace.appsec.iast._taint_tracking import setup
 
@@ -333,7 +348,7 @@ def test_django_iast_disabled_full_sqli_http_path_parameter(client, test_spans, 
 
 
 @pytest.mark.django_db()
-@pytest.mark.skip(reason="TODO: this tests will enable in the next PR")
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_django_tainted_user_agent_iast_enabled_sqli_http_cookies_name(client, test_spans, tracer):
     from ddtrace.appsec.iast._taint_tracking import setup
 
@@ -350,9 +365,11 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_cookies_name(client, t
             cookies={"master": "test/1.2.3"},
         )
         vuln_type = "SQL_INJECTION"
-        line, hash_value = get_line_and_hash("iast_enabled_sqli_http_cookies_name", vuln_type)
 
         loaded = json.loads(root_span.get_tag(IAST.JSON))
+
+        line, hash_value = get_line_and_hash("iast_enabled_sqli_http_cookies_name", vuln_type, filename=TEST_FILE)
+
         assert loaded["sources"] == [{"origin": "http.request.cookie.name", "name": "master", "value": "master"}]
         assert loaded["vulnerabilities"][0]["type"] == vuln_type
         assert loaded["vulnerabilities"][0]["hash"] == hash_value
@@ -367,7 +384,7 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_cookies_name(client, t
 
 
 @pytest.mark.django_db()
-@pytest.mark.skip(reason="TODO: this tests will enable in the next PR")
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_django_tainted_iast_disabled_sqli_http_cookies_name(client, test_spans, tracer):
     from ddtrace.appsec.iast._taint_tracking import setup
 
@@ -391,7 +408,7 @@ def test_django_tainted_iast_disabled_sqli_http_cookies_name(client, test_spans,
 
 
 @pytest.mark.django_db()
-@pytest.mark.skip(reason="TODO: this tests will enable in the next PR")
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_django_tainted_user_agent_iast_enabled_sqli_http_cookies_value(client, test_spans, tracer):
     from ddtrace.appsec.iast._taint_tracking import setup
 
@@ -408,12 +425,11 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_cookies_value(client, 
             cookies={"master": "master"},
         )
         vuln_type = "SQL_INJECTION"
-        line, hash_value = get_line_and_hash("iast_enabled_sqli_http_cookies_value", vuln_type)
         loaded = json.loads(root_span.get_tag(IAST.JSON))
-        # TODO: what's the correct?
-        # assert loaded["sources"] == [{"origin": "http.request.header", "
-        # name": "HTTP_COOKIE", "value": "master=master"}]
-        # assert loaded["sources"] == [{"origin": "http.request.cookie.value", "name": "master", "value": "master"}]
+
+        line, hash_value = get_line_and_hash("iast_enabled_sqli_http_cookies_value", vuln_type, filename=TEST_FILE)
+
+        assert loaded["sources"] == [{"origin": "http.request.cookie.value", "name": "master", "value": "master"}]
         assert loaded["vulnerabilities"][0]["type"] == "SQL_INJECTION"
         assert loaded["vulnerabilities"][0]["hash"] == hash_value
         assert loaded["vulnerabilities"][0]["evidence"] == {
@@ -427,7 +443,7 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_cookies_value(client, 
 
 
 @pytest.mark.django_db()
-@pytest.mark.skip(reason="TODO: this tests will enable in the next PR")
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_django_tainted_iast_disabled_sqli_http_cookies_value(client, test_spans, tracer):
     from ddtrace.appsec.iast._taint_tracking import setup
 
