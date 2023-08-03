@@ -187,10 +187,11 @@ def _apply_sampling_overrides(span, sampler, sampled, _default_sampler):
     if priority in (USER_KEEP, USER_REJECT):
         sampled = priority > 0
 
-    if sampled:
-        priority = AUTO_KEEP
-    elif not sampled:
-        priority = AUTO_REJECT
+    if priority != USER_REJECT:
+        if sampled:
+            priority = AUTO_KEEP
+        elif not sampled:
+            priority = AUTO_REJECT
 
     if span.context.sampling_priority in (USER_KEEP, USER_REJECT):
         sampling_mechanism = SamplingMechanism.MANUAL
