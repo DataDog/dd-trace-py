@@ -139,6 +139,37 @@ class PytestTestCase(TracerTestCase):
         else:
             assert test_span.get_tag("test.command") == "pytest --ddtrace {}".format(file_name)
 
+    def test_ini_no_ddtrace(self):
+        """Test ini config, overridden by --no-ddtrace cli parameter."""
+        self.testdir.makefile(".ini", pytest="[pytest]\nddtrace=1\n")
+        py_file = self.testdir.makepyfile(
+            """
+            def test_ok():
+                assert True
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        rec = self.inline_run("--no-ddtrace", file_name)
+        rec.assertoutcome(passed=1)
+        spans = self.pop_spans()
+
+        assert len(spans) == 0
+
+    def test_pytest_command_no_ddtrace(self):
+        """Test that --no-ddtrace has precedence over --ddtrace."""
+        py_file = self.testdir.makepyfile(
+            """
+            def test_ok():
+                assert True
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        rec = self.inline_run("--ddtrace", "--no-ddtrace", file_name)
+        rec.assertoutcome(passed=1)
+        spans = self.pop_spans()
+
+        assert len(spans) == 0
+
     def test_parameterize_case(self):
         """Test parametrize case with simple objects."""
         py_file = self.testdir.makepyfile(
