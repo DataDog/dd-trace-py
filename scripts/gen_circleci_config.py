@@ -66,6 +66,19 @@ def gen_pre_checks(template: dict) -> None:
         command="riot -v run -s scripts",
         paths={"scripts/*.py"},
     )
+    check(
+        name="Validate suitespec JSON file",
+        command="python -m tests.suitespec",
+        paths={"tests/.suitespec.json", "tests/suitespec.py"},
+    )
+
+
+def gen_build_docs(template: dict) -> None:
+    """Include the docs build step if the docs have changed."""
+    from needs_testrun import pr_matches_patterns
+
+    if pr_matches_patterns({"docs/*", "ddtrace/*", "scripts/docs", "releasenotes/*"}):
+        template["workflows"]["test"]["jobs"].append({"build_docs": template["requires_pre_check"]})
 
 
 # -----------------------------------------------------------------------------
