@@ -15,9 +15,9 @@ def pytest_configure(config):
 class _PytestBenchmarkPlugin:
     @pytest.hookimpl()
     def pytest_runtest_makereport(self, item, call):
-        fixture_exists = hasattr(item, "funcargs") and item.funcargs.get("benchmark")
-        if fixture_exists and fixture_exists.stats:
-            stat_object = fixture_exists.stats.stats
+        fixture = hasattr(item, "funcargs") and item.funcargs.get("benchmark")
+        if fixture and fixture.stats:
+            stat_object = fixture.stats.stats
             span = _extract_span(item)
 
             if span is None:
