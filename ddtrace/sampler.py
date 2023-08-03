@@ -159,15 +159,16 @@ class RateByServiceSampler(BasePrioritySampler):
             span.context.sampling_priority = priority
             span.set_metric(SAMPLING_PRIORITY_KEY, priority)
 
-    def _set_sampler_decision(self, span, sampler, sampled):
-        # type: (Span, RateSampler, bool) -> None
+    def _set_sampler_decision(self, span, sampler, sampled, has_remote_root):
+        # type: (Span, RateSampler, bool, bool) -> None
         priority, sampled, sampling_mechanism = _apply_sampling_overrides(span, sampler, sampled, self._default_sampler)
         self._set_priority(span, priority, sampling_mechanism)
-        if sampling_mechanism != SamplingMechanism.MANUAL and not span.context._meta.get(
-            SAMPLING_DECISION_TRACE_TAG_KEY
-        ):
-            span.set_metric(SAMPLING_AGENT_DECISION, sampler.sample_rate)
-        update_sampling_decision(span.context, sampling_mechanism, sampled)
+        if not has_remote_root:
+            if sampling_mechanism != SamplingMechanism.MANUAL and not span.context._meta.get(
+                SAMPLING_DECISION_TRACE_TAG_KEY
+            ):
+                span.set_metric(SAMPLING_AGENT_DECISION, sampler.sample_rate)
+            update_sampling_decision(span.context, sampling_mechanism, sampled)
 
     def sample(self, trace):
         # type: (List[Span]) -> bool
@@ -177,7 +178,9 @@ class RateByServiceSampler(BasePrioritySampler):
 
         sampler = self._by_service_samplers.get(key) or self._default_sampler
         sampled = sampler.sample(span)
-        self._set_sampler_decision(span, sampler, sampled)
+        has_local_root = any(span.span_id == a.parent_id for a in trace)
+        has_remote_root = not has_local_root and span.parent_id
+        self._set_sampler_decision(span, sampler, sampled, has_remote_root)
 
         return sampled
 
@@ -192,7 +195,7 @@ class RateByServiceSampler(BasePrioritySampler):
 
 def _apply_sampling_overrides(span, sampler, sampled, _default_sampler):
     span_priority = span._metrics.get(SAMPLING_PRIORITY_KEY)
-    context_priority = span_priority or span.context.sampling_priority
+    context_priority = span.context.sampling_priority
     if context_priority in (USER_KEEP, USER_REJECT):
         sampled = context_priority > 0
 
@@ -305,11 +308,11 @@ class DatadogSampler(RateByServiceSampler):
 
     __repr__ = __str__
 
-    def _set_sampler_decision(self, span, sampler, sampled):
-        # type: (Span, Union[RateSampler, SamplingRule, RateLimiter], bool) -> None
+    def _set_sampler_decision(self, span, sampler, sampled, has_remote_root):
+        # type: (Span, Union[RateSampler, SamplingRule, RateLimiter], bool, bool) -> None
         if isinstance(sampler, RateSampler):
             # When agent based sampling is used
-            return super(DatadogSampler, self)._set_sampler_decision(span, sampler, sampled)
+            return super(DatadogSampler, self)._set_sampler_decision(span, sampler, sampled, has_remote_root)
 
         priority, sampled, sampling_mechanism = _apply_sampling_overrides(span, sampler, sampled, self._default_sampler)
         if sampling_mechanism not in (SamplingMechanism.MANUAL, SamplingMechanism.DEFAULT):
@@ -361,16 +364,18 @@ class DatadogSampler(RateByServiceSampler):
 
     def sample(self, trace):
         # type: (List[Span]) -> bool
+        chunk_root = trace[0]
+        has_local_root = any(chunk_root.span_id == a.parent_id for a in trace)
+        has_remote_root = not has_local_root and chunk_root.parent_id
         rule = self.find_highest_precedence_rule_matching(trace)
         if rule:
-            chunk_root = trace[0]
             decision = rule.sample(chunk_root)
 
-            self._set_sampler_decision(chunk_root, rule, decision)
+            self._set_sampler_decision(chunk_root, rule, decision, has_remote_root)
             if decision:
                 allowed = self.limiter.is_allowed(chunk_root.start_ns)
                 if not allowed:
-                    self._set_sampler_decision(chunk_root, self.limiter, allowed)
+                    self._set_sampler_decision(chunk_root, self.limiter, allowed, has_remote_root)
             return decision
         else:
             return super(DatadogSampler, self).sample(trace)
