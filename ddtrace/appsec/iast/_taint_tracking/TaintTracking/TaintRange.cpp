@@ -8,7 +8,6 @@ using namespace pybind11::literals;
 
 using namespace std;
 
-
 #define _GET_HASH_KEY(obj) (((int)(((PyASCIIObject*)obj)->hash)) & 0xFFFFFF)
 
 typedef struct _PyASCIIObject_State_Hidden
@@ -54,9 +53,9 @@ set_fast_tainted_if_notinterned_unicode(const PyObject* objptr)
     }
     auto e = (PyASCIIObject_State_Hidden*)&(((PyASCIIObject*)objptr)->state);
     if (e) {
-        PyObject *builtins = PyEval_GetBuiltins();
-        PyObject *hash = PyDict_GetItemString(builtins , "hash");
-         // Could be replaced by PyObject_CallOneArg(hash,  objptr); in 3.9+
+        PyObject* builtins = PyEval_GetBuiltins();
+        PyObject* hash = PyDict_GetItemString(builtins, "hash");
+        // Could be replaced by PyObject_CallOneArg(hash,  objptr); in 3.9+
         PyEval_CallFunction(hash, "(O)", objptr);
         e->hidden = _GET_HASH_KEY(objptr);
     }
