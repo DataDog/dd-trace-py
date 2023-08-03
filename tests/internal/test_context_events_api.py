@@ -1,5 +1,4 @@
 import threading
-from time import sleep
 import unittest
 
 import mock
@@ -55,6 +54,11 @@ class TestContextEventsApi(unittest.TestCase):
     def test_core_dispatch_multiple_listeners_multiple_threads(self):
         event_name = "my.cool.event"
 
+        threads = []
+        thread_count = 10
+        threading_event_list = [threading.Event() for _ in range(thread_count)]
+        threading_event_list[0].set()
+
         def make_target(make_target_id):
             def target():
                 def listener():
@@ -65,11 +69,12 @@ class TestContextEventsApi(unittest.TestCase):
 
                 core.on(event_name, listener)
 
-            sleep(make_target_id * 0.0001)  # ensure threads finish in order
+            threading_event_list[make_target_id].wait()
+            if make_target_id < thread_count - 1:
+                threading_event_list[make_target_id + 1].set()
+
             return target
 
-        threads = []
-        thread_count = 10
         for idx in range(thread_count):
             t = threading.Thread(target=make_target(idx))
             t.start()
