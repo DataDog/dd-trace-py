@@ -6,13 +6,11 @@
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
-    "type": "",
-    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "env": "my-env",
       "language": "python",
-      "runtime-id": "b2541bfe3d23486cb84d0e68f2616928"
+      "runtime-id": "70d395789d6c4cc6aebbd3e72447c67f"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -22,8 +20,8 @@
       "number1": 123,
       "number2": 12.0,
       "number3": 1.0,
-      "process_id": 81076
+      "process_id": 15982
     },
-    "duration": 48000,
-    "start": 1690469133094165000
+    "duration": 59313,
+    "start": 1690574477882208459
   }]]
