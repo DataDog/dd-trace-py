@@ -1155,10 +1155,10 @@ class PytestTestCase(TracerTestCase):
         rec.assertoutcome(skipped=1, passed=1)
         spans = self.pop_spans()
         test_span_skipped = spans[0]
-        test_span_ok = spans[2]
-        test_suite_span = spans[5]
-        test_session_span = spans[3]
-        test_module_span = spans[4]
+        test_span_ok = spans[1]
+        test_suite_span = spans[4]
+        test_session_span = spans[2]
+        test_module_span = spans[3]
         assert test_suite_span.get_tag("type") == "test_suite_end"
         assert test_module_span.get_tag("type") == "test_module_end"
         assert test_session_span.get_tag("type") == "test_session_end"
@@ -1224,11 +1224,11 @@ class PytestTestCase(TracerTestCase):
         rec = self.inline_run("--ddtrace", file_name)
         rec.assertoutcome(failed=1, passed=1)
         spans = self.pop_spans()
-        test_span_skipped = spans[1]
-        test_span_ok = spans[3]
-        test_suite_span = spans[6]
-        test_session_span = spans[4]
-        test_module_span = spans[5]
+        test_span_skipped = spans[0]
+        test_span_ok = spans[1]
+        test_suite_span = spans[4]
+        test_session_span = spans[2]
+        test_module_span = spans[3]
         assert test_suite_span.get_tag("type") == "test_suite_end"
         assert test_module_span.get_tag("type") == "test_module_end"
         assert test_session_span.get_tag("type") == "test_session_end"

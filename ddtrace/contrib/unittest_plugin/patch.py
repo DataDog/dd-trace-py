@@ -5,9 +5,9 @@ import unittest
 import ddtrace
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
-from ddtrace.contrib.unittest.constants import COMPONENT_VALUE
-from ddtrace.contrib.unittest.constants import FRAMEWORK
-from ddtrace.contrib.unittest.constants import KIND
+from ddtrace.contrib.unittest_plugin.constants import COMPONENT_VALUE
+from ddtrace.contrib.unittest_plugin.constants import FRAMEWORK
+from ddtrace.contrib.unittest_plugin.constants import KIND
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
 from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
