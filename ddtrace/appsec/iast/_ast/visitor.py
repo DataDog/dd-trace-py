@@ -253,7 +253,7 @@ class AstVisitor(ast.NodeTransformer):
         Insert the import statement for the replacements module
         """
         insert_position = self.find_insert_position(module_node)
-        assert self._aspects_spec
+
         definitions_module = self._aspects_spec["definitions_module"]
         replacements_import = self._node(
             ast.Import,
@@ -318,11 +318,11 @@ class AstVisitor(ast.NodeTransformer):
             if aspect:
                 call_node.func = self._attr_node(call_node, aspect)
                 self.ast_modified = call_modified = True
-
-            sink_point = self._sinkpoints_functions.get(func_name_node)
-            if sink_point:
-                call_node.func = self._attr_node(call_node, sink_point)
-                self.ast_modified = call_modified = True
+            else:
+                sink_point = self._sinkpoints_functions.get(func_name_node)
+                if sink_point:
+                    call_node.func = self._attr_node(call_node, sink_point)
+                    self.ast_modified = call_modified = True
         # Call [attr] -> Attribute [value]-> Attribute [value]-> Attribute
         # a.b.c.method()
         # replaced_method(a.b.c)
