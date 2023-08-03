@@ -1671,9 +1671,6 @@ venv = Venv(
             pkgs={"msgpack": latest},
             venvs=[
                 Venv(
-                    pkgs={
-                        "more_itertools": "<8.11.0",
-                    },
                     venvs=[
                         Venv(
                             pys=select_pys(min_version="3.7", max_version="3.10"),
