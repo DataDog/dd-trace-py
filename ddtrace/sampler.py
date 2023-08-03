@@ -168,19 +168,19 @@ class RateByServiceSampler(BasePrioritySampler):
                 SAMPLING_DECISION_TRACE_TAG_KEY
             ):
                 span.set_metric(SAMPLING_AGENT_DECISION, sampler.sample_rate)
-            update_sampling_decision(span.context, sampling_mechanism, sampled)
+        update_sampling_decision(span.context, sampling_mechanism, sampled)
 
     def sample(self, trace):
         # type: (List[Span]) -> bool
-        span = trace[0]
-        env = span.get_tag(ENV_KEY)
-        key = self._key(span.service, env)
+        chunk_root = trace[0]
+        env = chunk_root.get_tag(ENV_KEY)
+        key = self._key(chunk_root.service, env)
 
         sampler = self._by_service_samplers.get(key) or self._default_sampler
-        sampled = sampler.sample(span)
-        has_local_root = any(span.span_id == a.parent_id for a in trace)
-        has_remote_root = not has_local_root and span.parent_id
-        self._set_sampler_decision(span, sampler, sampled, has_remote_root)
+        sampled = sampler.sample(chunk_root)
+        has_local_root = any(chunk_root.span_id == a.parent_id for a in trace)
+        has_remote_root = not has_local_root and chunk_root.parent_id is not None
+        self._set_sampler_decision(chunk_root, sampler, sampled, has_remote_root)
 
         return sampled
 
@@ -366,7 +366,7 @@ class DatadogSampler(RateByServiceSampler):
         # type: (List[Span]) -> bool
         chunk_root = trace[0]
         has_local_root = any(chunk_root.span_id == a.parent_id for a in trace)
-        has_remote_root = not has_local_root and chunk_root.parent_id
+        has_remote_root = not has_local_root and chunk_root.parent_id is not None
         rule = self.find_highest_precedence_rule_matching(trace)
         if rule:
             decision = rule.sample(chunk_root)
