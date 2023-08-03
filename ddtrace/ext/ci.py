@@ -8,6 +8,7 @@ import platform
 import re
 from typing import Dict
 from typing import MutableMapping
+from typing import List
 from typing import Optional
 
 from ddtrace.ext import git
