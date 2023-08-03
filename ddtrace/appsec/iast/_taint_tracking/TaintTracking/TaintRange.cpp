@@ -8,7 +8,7 @@ using namespace pybind11::literals;
 
 using namespace std;
 
-#define _GET_HASH_KEY(obj) (((int)(((PyASCIIObject*)obj)->hash)) & 0xFFFFFF)
+#define _GET_HASH_KEY(obj) ((((PyASCIIObject*)obj)->hash) & 0xFFFFFF)
 
 typedef struct _PyASCIIObject_State_Hidden
 {
@@ -39,7 +39,8 @@ is_notinterned_notfasttainted_unicode(const PyObject* objptr)
     if (!e) {
         return true; // broken string object? better to skip it
     }
-    return e->hidden != _GET_HASH_KEY(objptr);
+    // it cannot be fast tainted if hash is set to -1 (not computed)
+    return (((PyASCIIObject*)objptr)->hash) == -1 || e->hidden != _GET_HASH_KEY(objptr);
 }
 
 // For non interned unicode strings, set a hidden mark on it's internsal data
