@@ -83,10 +83,13 @@ def _attach_coverage(item):
 
 def _detach_coverage(item, span):
     if not hasattr(item, "_coverage"):
+        log.warning("No coverage object found for item")
         return
     span_id = str(span.trace_id)
     item._coverage.stop()
-    span.set_tag(COVERAGE_TAG_NAME, build_coverage_payload(item._coverage, test_id=span_id))
+    if not item._coverage._collector or len(item._coverage._collector.data) == 0:
+        log.warning("No coverage collector or data found for item")
+    span.set_tag(COVERAGE_TAG_NAME, build_coverage_payload(item._coverage, item.config.rootdir, test_id=span_id))
     item._coverage.erase()
     del item._coverage
 
@@ -399,11 +402,20 @@ def pytest_runtest_protocol(item, nextitem):
         yield
         return
 
-    is_skipped_by_itr = [
-        marker
-        for marker in item.iter_markers(name="skip")
-        if "reason" in marker.kwargs and marker.kwargs["reason"] == SKIPPED_BY_ITR
-    ]
+    is_skipped = bool(
+        item.get_closest_marker("skip")
+        or any([marker for marker in item.iter_markers(name="skipif") if marker.args[0] is True])
+    )
+    is_skipped_by_itr = bool(
+        is_skipped
+        and any(
+            [
+                marker
+                for marker in item.iter_markers(name="skip")
+                if "reason" in marker.kwargs and marker.kwargs["reason"] == SKIPPED_BY_ITR
+            ]
+        )
+    )
 
     test_session_span = _extract_span(item.session)
 
@@ -435,6 +447,8 @@ def pytest_runtest_protocol(item, nextitem):
     test_suite_span = _extract_span(pytest_module_item)
     if pytest_module_item is not None and test_suite_span is None:
         # Start coverage for the test suite if coverage is enabled
+        # In ITR suite skipping mode, all tests in a skipped suite should be marked
+        # as skipped
         test_suite_span = _start_test_suite_span(
             pytest_module_item,
             test_module_span,
@@ -503,12 +517,13 @@ def pytest_runtest_protocol(item, nextitem):
         coverage_per_test = (
             not _CIVisibility._instance._suite_skipping_mode
             and _CIVisibility._instance._collect_coverage_enabled
-            and not is_skipped_by_itr
+            and not is_skipped
         )
         if coverage_per_test:
             _attach_coverage(item)
         # Run the actual test
         yield
+
         # Finish coverage for the test suite if coverage is enabled
         if coverage_per_test:
             _detach_coverage(item, span)
@@ -517,6 +532,8 @@ def pytest_runtest_protocol(item, nextitem):
         if nextitem is None or nextitem_pytest_module_item != pytest_module_item and not test_suite_span.finished:
             _mark_test_status(pytest_module_item, test_suite_span)
             # Finish coverage for the test suite if coverage is enabled
+            # In ITR suite skipping mode, all tests in a skipped suite should be marked
+            # as skipped
             if (
                 _CIVisibility._instance._suite_skipping_mode
                 and _CIVisibility._instance._collect_coverage_enabled
