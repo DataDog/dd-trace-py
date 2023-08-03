@@ -510,7 +510,7 @@ The following environment variables for the tracer are supported:
         Prevents the Intelligent Test Runner from skipping tests, and disables configuring the ``CIVisibility`` service
         to generate and upload git packfiles in support of the Intelligent Test Runner.
      version_added:
-        v1.18.0:
+        v2.0.0:
 
    DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING:
       type: String
