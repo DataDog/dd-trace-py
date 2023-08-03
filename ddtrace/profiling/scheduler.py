@@ -57,9 +57,13 @@ class Scheduler(periodic.PeriodicService):
                 self.before_flush()
             except Exception:
                 LOG.error("Scheduler before_flush hook failed", exc_info=True)
+
         events = self.recorder.reset()
         start = self._last_export
         self._last_export = compat.time_ns()
+        torch_events = self.recorder.get_torch_events()
+        print("torch events: ")
+        print(torch_events)
         for exp in self.exporters:
             try:
                 exp.export(events, start, self._last_export)

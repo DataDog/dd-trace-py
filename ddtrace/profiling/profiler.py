@@ -120,6 +120,7 @@ class _ProfilerInstance(service.Service):
     _memory_collector_enabled = attr.ib(type=bool, default=config.memory.enabled)
     enable_code_provenance = attr.ib(type=bool, default=config.code_provenance)
     endpoint_collection_enabled = attr.ib(type=bool, default=config.endpoint_collection)
+    torch_events = []
 
     _recorder = attr.ib(init=False, default=None)
     _collectors = attr.ib(init=False, default=None)
@@ -164,6 +165,7 @@ class _ProfilerInstance(service.Service):
 
         if self._lambda_function_name is not None:
             self.tags.update({"functionname": self._lambda_function_name})
+
 
         endpoint_call_counter_span_processor = self.tracer._endpoint_call_counter_span_processor
         if self.endpoint_collection_enabled:
@@ -216,7 +218,8 @@ class _ProfilerInstance(service.Service):
                 memalloc.MemoryHeapSampleEvent: None,
             },
             default_max_events=config.max_events,
-        )
+        )        
+        self._recorder.add_pytorch_profiler(self.torch_events)
 
         self._collectors = [
             stack.StackCollector(
@@ -283,6 +286,17 @@ class _ProfilerInstance(service.Service):
                 if a.name[0] != "_" and a.name not in self._COPY_IGNORE_ATTRIBUTES
             }
         )
+
+    def handle_torch_trace(self, prof):
+        print("handle torch trace called")
+        self.torch_events.extend(prof.events()[:100])
+
+    def add_pytorch_profiler(self, torch_prof):
+        torch_prof.on_trace_ready = self.handle_torch_trace
+        self._recorder.add_pytorch_profiler(self.torch_events)
+
+    # def get_handle_torch_trace(self):
+    #     return lambda x: self.handle_torch_trace(x)
 
     def _start_service(self):
         # type: (...) -> None
