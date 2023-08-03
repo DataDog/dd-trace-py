@@ -1715,7 +1715,7 @@ venv = Venv(
         ),
         Venv(
             name="unittest",
-            command="python -m pytest {cmdargs} tests/contrib/unittest/",
+            command="python -m pytest {cmdargs} tests/contrib/unittest_plugin/",
             pkgs={"msgpack": latest},
             pys=select_pys(),
         ),
