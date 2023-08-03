@@ -34,6 +34,7 @@ class LazyTaintList:
             if isinstance(value, (str, bytes, bytearray)):
                 if not is_pyobject_tainted(value) or self._override_pyobject_tainted:
                     try:
+                        # TODO: migrate this part to shift ranges instead of creating a new one
                         value = taint_pyobject(
                             pyobject=value,
                             source_name=self._source_name,
@@ -201,6 +202,7 @@ class LazyTaintDict:
             if isinstance(value, (str, bytes, bytearray)):
                 if not is_pyobject_tainted(value) or self._override_pyobject_tainted:
                     try:
+                        # TODO: migrate this part to shift ranges instead of creating a new one
                         value = taint_pyobject(
                             pyobject=value,
                             source_name=key,
