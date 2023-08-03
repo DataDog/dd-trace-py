@@ -90,4 +90,4 @@ def _set_metric_iast_request_tainted():
 
     total_objects_tainted = num_objects_tainted()
     if total_objects_tainted > 0:
-        telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_IAST, "request.tainted", num_objects_tainted())
+        telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_IAST, "request.tainted", total_objects_tainted)
