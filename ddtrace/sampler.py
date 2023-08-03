@@ -185,7 +185,7 @@ class RateByServiceSampler(BasePrioritySampler):
 def _apply_sampling_overrides(span, sampler, sampled, _default_sampler):
     priority = span.context.sampling_priority
     if priority in (USER_KEEP, USER_REJECT):
-        sampled = True
+        sampled = priority > 0
 
     if sampled:
         priority = AUTO_KEEP
