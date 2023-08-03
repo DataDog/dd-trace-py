@@ -23,7 +23,19 @@ if [[ "${CIRCLECI}" = "true" ]]; then
                    -e CIRCLE_NODE_TOTAL \
                    -e CIRCLE_NODE_INDEX \
                    -e CIRCLE_WORKFLOW_ID \
+                   -e CIRCLE_BRANCH \
+                   -e CIRCLE_SHA1 \
+                   -e CIRCLE_REPOSITORY_URL \
+                   -e CIRCLE_TAG \
+                   -e CIRCLE_WORKFLOW_ID \
+                   -e CIRCLE_PROJECT_REPONAME \
+                   -e CIRCLE_BUILD_NUM \
+                   -e CIRCLE_BUILD_URL \
+                   -e CIRCLE_JOB \
+                   -e CIRCLE_WORKING_DIRECTORY \
                    -e DD_TRACE_AGENT_URL \
+                   -e _CI_DD_API_KEY \
+                   -e _CI_DD_APP_KEY \
                    -e RIOT_RUN_RECOMPILE_REQS \
                    --no-TTY \
                    --quiet-pull \
