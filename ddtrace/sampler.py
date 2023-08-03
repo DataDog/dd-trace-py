@@ -106,7 +106,12 @@ class RateSampler(BaseSampler):
 
     def sample(self, span):
         # type: (Span) -> bool
-        return ((span._trace_id_64bits * KNUTH_FACTOR) % _MAX_UINT_64BITS) <= self.sampling_id_threshold
+        if isinstance(span, list):
+            span = span[-1]
+        sampled = ((span._trace_id_64bits * KNUTH_FACTOR) % _MAX_UINT_64BITS) <= self.sampling_id_threshold
+        span.sampled = sampled
+        update_sampling_decision(span.context, SamplingMechanism.DEFAULT, sampled)
+        return sampled
 
 
 class RateByServiceSampler(BasePrioritySampler):
