@@ -279,8 +279,7 @@ venv = Venv(
         ),
         Venv(
             name="internal",
-            # Running two separate pytest sessions here: ``test_context_events_api.py`` with --no-ddtrace
-            command="pytest --ignore-glob='*test_context_events_api*' {cmdargs} tests/internal/ && pytest --no-ddtrace {cmdargs} tests/internal/test_context_events_api.py",  # noqa: E501
+            command="pytest {cmdargs} tests/internal/",
             pkgs={
                 "httpretty": "==0.9.7",
                 "gevent": latest,
