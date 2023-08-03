@@ -105,7 +105,8 @@ def add_success_test_wrapper(func, instance, args, kwargs):
     if _is_unittest_support_enabled() and instance and type(instance) == unittest.runner.TextTestResult and args:
         test_item = args[0]
         span = _extract_span(test_item)
-        span.set_tag_str(test.STATUS, test.Status.PASS.value)
+        if span:
+            span.set_tag_str(test.STATUS, test.Status.PASS.value)
 
     return func(*args, **kwargs)
 
@@ -114,7 +115,8 @@ def add_failure_test_wrapper(func, instance, args, kwargs):
     if _is_unittest_support_enabled() and instance and type(instance) == unittest.runner.TextTestResult and args:
         test_item = args[0]
         span = _extract_span(test_item)
-        span.set_tag_str(test.STATUS, test.Status.FAIL.value)
+        if span:
+            span.set_tag_str(test.STATUS, test.Status.FAIL.value)
 
     return func(*args, **kwargs)
 
@@ -123,7 +125,8 @@ def add_error_test_wrapper(func, instance, args, kwargs):
     if _is_unittest_support_enabled() and instance and type(instance) == unittest.runner.TextTestResult and args:
         test_item = args[0]
         span = _extract_span(test_item)
-        span.set_tag_str(test.STATUS, test.Status.FAIL.value)
+        if span:
+            span.set_tag_str(test.STATUS, test.Status.FAIL.value)
 
     return func(*args, **kwargs)
 
@@ -133,8 +136,9 @@ def add_skip_test_wrapper(func, instance, args, kwargs):
     if _is_unittest_support_enabled() and instance and type(instance) == unittest.runner.TextTestResult and args:
         test_item = args[0]
         span = _extract_span(test_item)
-        span.set_tag_str(test.STATUS, test.Status.SKIP.value)
-        span.set_tag_str(test.SKIP_REASON, _extract_test_skip_reason(args))
+        if span:
+            span.set_tag_str(test.STATUS, test.Status.SKIP.value)
+            span.set_tag_str(test.SKIP_REASON, _extract_test_skip_reason(args))
 
     return result
 
