@@ -269,19 +269,23 @@ class DataStreamsProcessor(PeriodicService):
         data_streams_context = self.decode_pathway(encoded_pathway)
         return data_streams_context
 
-    def new_pathway(self):
-        # type: () -> DataStreamsCtx
-        now_sec = time.time()
+    def new_pathway(self, now_sec=time.time()):
+        """
+        type: (Optional[int]) -> DataStreamsCtx
+        :param now_sec: optional start time of this path. Use for services like Kinesis which
+                           we aren't getting path information for.
+        """
+
         ctx = DataStreamsCtx(self, 0, now_sec, now_sec)
         return ctx
 
-    def set_checkpoint(self, tags):
+    def set_checkpoint(self, tags, now_sec=time.time()):
         if hasattr(self._current_context, "value"):
             ctx = self._current_context.value
         else:
             ctx = self.new_pathway()
             self._current_context.value = ctx
-        ctx.set_checkpoint(tags)
+        ctx.set_checkpoint(tags, now_sec=now_sec)
         return ctx
 
 
@@ -331,9 +335,15 @@ class DataStreamsCtx:
         node_hash = fnv1_64(b)
         return fnv1_64(struct.pack("<Q", node_hash) + struct.pack("<Q", parent_hash))
 
-    def set_checkpoint(self, tags):
-        # type: (List[str]) -> None
-        now_sec = time.time()
+    def set_checkpoint(self, tags, now_sec=time.time(), edge_start_sec_override=None, pathway_start_sec_override=None):
+        """
+        type: (List[str], float, float, float) -> None
+
+        :param tags: an list of tags identifying the pathway and direction
+        :param now_sec: The time in seconds to count as "now" when computing latencies
+        :param edge_start_sec_override: Use this to override the starting time of an edge
+        :param pathway_start_sec_override: Use this to override the starting time of a pathway
+        """
         tags = sorted(tags)
         direction = ""
         for t in tags:
@@ -353,6 +363,13 @@ class DataStreamsCtx:
             self.previous_direction = direction
             self.closest_opposite_direction_hash = self.hash
             self.closest_opposite_direction_edge_start = now_sec
+
+        if edge_start_sec_override:
+            self.current_edge_start_sec = edge_start_sec_override
+
+        if pathway_start_sec_override:
+            self.pathway_start_sec = pathway_start_sec_override
+
         parent_hash = self.hash
         hash_value = self._compute_hash(tags, parent_hash)
         edge_latency_sec = now_sec - self.current_edge_start_sec
