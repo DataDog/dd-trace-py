@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    lib-injection: Resolves permissions errors raised when ddtrace packages are copied from init container to a host's volume.
