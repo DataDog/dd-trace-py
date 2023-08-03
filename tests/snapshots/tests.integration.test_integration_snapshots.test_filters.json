@@ -12,17 +12,17 @@
       "_dd.p.dm": "-0",
       "boop": "beep",
       "language": "python",
-      "runtime-id": "7fcf456c657a442d8e637e5adda7270d"
+      "runtime-id": "6f2eeb0b30c54268b96f6eca8a2d66ba"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 52166
+      "process_id": 15844
     },
-    "duration": 72000,
-    "start": 1631827407294778000
+    "duration": 60295,
+    "start": 1690574476605901740
   },
      {
        "name": "child",
@@ -36,6 +36,6 @@
        "meta": {
          "boop": "beep"
        },
-       "duration": 11000,
-       "start": 1631827407294827000
+       "duration": 9124,
+       "start": 1690574476605942418
      }]]
