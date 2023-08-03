@@ -191,15 +191,16 @@ class RateByServiceSampler(BasePrioritySampler):
 
 
 def _apply_sampling_overrides(span, sampler, sampled, _default_sampler):
-    priority = span.context.sampling_priority
-    if priority in (USER_KEEP, USER_REJECT):
-        sampled = priority > 0
+    span_priority = span._metrics.get(SAMPLING_PRIORITY_KEY)
+    context_priority = span_priority or span.context.sampling_priority
+    if context_priority in (USER_KEEP, USER_REJECT):
+        sampled = context_priority > 0
 
-    if priority != USER_REJECT:
+    if context_priority != USER_REJECT:
         if sampled:
-            priority = AUTO_KEEP
+            context_priority = AUTO_KEEP
         elif not sampled:
-            priority = AUTO_REJECT
+            context_priority = AUTO_REJECT
 
     sampling_mechanism = span.context._meta.get(SAMPLING_DECISION_TRACE_TAG_KEY)
     if sampling_mechanism:
@@ -211,7 +212,7 @@ def _apply_sampling_overrides(span, sampler, sampled, _default_sampler):
             sampling_mechanism = SamplingMechanism.DEFAULT
         else:
             sampling_mechanism = SamplingMechanism.AGENT_RATE
-    return priority, sampled, sampling_mechanism
+    return span_priority or context_priority, sampled, sampling_mechanism
 
 
 class DatadogSampler(RateByServiceSampler):
