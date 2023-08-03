@@ -1379,7 +1379,10 @@ venv = Venv(
             name="botocore",
             command="pytest {cmdargs} tests/contrib/botocore",
             venvs=[
-                Venv(pys=select_pys(min_version="3.8"), pkgs={"moto[all]": latest, "botocore": latest}),
+                Venv(
+                    pys=select_pys(min_version="3.7"),
+                    pkgs={"moto[all]": latest, "botocore": latest},
+                ),
                 Venv(
                     pys=["2.7"],
                     pkgs={
@@ -1409,14 +1412,6 @@ venv = Venv(
                                 "moto[all]": "~=2.0",
                                 "graphql-core": "~=3.1.0",
                             },
-                            venvs=[
-                                Venv(
-                                    pys=["3.7"],
-                                    pkgs={
-                                        "markupsafe": "<2.0",
-                                    },
-                                ),
-                            ],
                         ),
                     ],
                 ),
