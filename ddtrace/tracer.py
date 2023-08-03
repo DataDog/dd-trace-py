@@ -720,12 +720,12 @@ class Tracer(object):
 
             if span._local_root is None:
                 span._local_root = span
-            for k, v in context._meta:
+            for k, v in context._meta.items():
                 if isinstance(k, six.string_types) and k.startswith("_dd.p."):
                     span._meta[k] = v
-            for k, v in context._metrics:
+            for metric_k, metric_v in context._metrics.items():
                 if isinstance(k, six.string_types) and k.startswith("_dd.p."):
-                    span._metrics[k] = v
+                    span._metrics[metric_k] = metric_v
         else:
             # this is the root span of a new trace
             span = Span(
