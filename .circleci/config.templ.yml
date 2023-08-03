@@ -352,6 +352,12 @@ jobs:
           pattern: "ci_visibility"
           trace_agent_url: ""
 
+  subprocess:
+    <<: *contrib_job_small
+    steps:
+      - run_test:
+          pattern: "subprocess"
+
   sourcecode:
     <<: *contrib_job_small
     steps:
@@ -1097,9 +1103,3 @@ workflows:
       # Pre-checking before running all jobs
       - pre_check
       - ccheck
-
-      # Build necessary base venvs for integration tests
-      - build_base_venvs
-
-      # Final reports
-      - coverage_report: *requires_tests

@@ -41,16 +41,16 @@ def is_fully_tainted(obj):
     return True
 
 
+TEST_INPUTS = [
+    ('"tainted string"', str, str),
+    ('{"tainted_key":"tainted_string"}', dict, LazyTaintDict),
+    ('[{"key":[1,2,3,"value"]}]', list, LazyTaintList),
+]
+
+
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
-@pytest.mark.parametrize(
-    "input_jsonstr, res_type, real_type",
-    [
-        ('"tainted string"', str, str),
-        ('{"tainted_key":"tainted_string"}', dict, LazyTaintDict),
-        ('[{"key":[1,2,3,"value"]}]', list, LazyTaintList),
-    ],
-)
-def test_taint_json(iast_span_defaults, input_jsonstr, res_type, real_type):
+@pytest.mark.parametrize("input_jsonstr, res_type, tainted_type", TEST_INPUTS)
+def test_taint_json(iast_span_defaults, input_jsonstr, res_type, tainted_type):
     assert json._datadog_json_tainting_patch
     with override_global_config(dict(_iast_enabled=True)):
         input_str = taint_pyobject(
@@ -64,27 +64,30 @@ def test_taint_json(iast_span_defaults, input_jsonstr, res_type, real_type):
         res = json.loads(input_str)
         assert isinstance(res, (str, bytes, bytearray)) or _is_tainted_struct(res)
 
+        # this must pass as expected type
         assert isinstance(res, res_type)
-        assert type(res) is real_type
+        # this must be tainted type
+        assert isinstance(res, tainted_type)
+        assert type(res) is tainted_type
+
         assert is_fully_tainted(res)
 
 
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
-@pytest.mark.parametrize(
-    "input_jsonstr, res_type",
-    [
-        ('"tainted string"', str),
-        ('{"tainted_key":"tainted_string"}', dict),
-        ('[{"key":[1,2,3,"value"]}]', list),
-    ],
-)
-def test_taint_json_no_taint(iast_span_defaults, input_jsonstr, res_type):
+@pytest.mark.parametrize("input_jsonstr, res_type, tainted_type", TEST_INPUTS)
+def test_taint_json_no_taint(iast_span_defaults, input_jsonstr, res_type, tainted_type):
     with override_global_config(dict(_iast_enabled=True)):
         input_str = input_jsonstr
         assert not is_pyobject_tainted(input_str)
 
         res = json.loads(input_str)
 
+        # this must be expected type
         assert isinstance(res, res_type)
         assert type(res) is res_type
+
+        # this must not pass as tainted type
+        if res_type is not tainted_type:
+            assert not isinstance(res, tainted_type)
+
         assert not is_fully_tainted(res)
