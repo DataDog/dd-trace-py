@@ -295,9 +295,6 @@ class _ProfilerInstance(service.Service):
         torch_prof.on_trace_ready = self.handle_torch_trace
         self._recorder.add_pytorch_profiler(self.torch_events)
 
-    # def get_handle_torch_trace(self):
-    #     return lambda x: self.handle_torch_trace(x)
-
     def _start_service(self):
         # type: (...) -> None
         """Start the profiler."""
