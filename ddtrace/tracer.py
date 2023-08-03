@@ -9,6 +9,8 @@ import sys
 from threading import RLock
 from typing import TYPE_CHECKING
 
+import six
+
 from ddtrace import config
 from ddtrace.filters import TraceFilter
 from ddtrace.internal.compat import ensure_pep562
@@ -34,7 +36,6 @@ from .internal import compat
 from .internal import debug
 from .internal import forksafe
 from .internal import hostname
-from .internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from .internal.constants import SPAN_API_DATADOG
 from .internal.dogstatsd import get_dogstatsd_client
 from .internal.logger import get_logger
@@ -719,8 +720,12 @@ class Tracer(object):
 
             if span._local_root is None:
                 span._local_root = span
-            if SAMPLING_DECISION_TRACE_TAG_KEY in context._meta:
-                span._meta[SAMPLING_DECISION_TRACE_TAG_KEY] = context._meta[SAMPLING_DECISION_TRACE_TAG_KEY]
+            for k, v in context._meta:
+                if isinstance(k, six.string_types) and k.startswith("_dd.p."):
+                    span._meta[k] = v
+            for k, v in context._metrics:
+                if isinstance(k, six.string_types) and k.startswith("_dd.p."):
+                    span._metrics[k] = v
         else:
             # this is the root span of a new trace
             span = Span(
