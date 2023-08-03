@@ -724,7 +724,7 @@ class Tracer(object):
                 if isinstance(k, six.string_types) and k.startswith("_dd.p."):
                     span._meta[k] = v
             for metric_k, metric_v in context._metrics.items():
-                if isinstance(k, six.string_types) and k.startswith("_dd.p."):
+                if isinstance(metric_k, six.string_types) and metric_k.startswith("_dd.p."):
                     span._metrics[metric_k] = metric_v
         else:
             # this is the root span of a new trace
