@@ -12,6 +12,8 @@ from typing import Union
 
 import six
 
+from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
+
 from .constants import AUTO_KEEP
 from .constants import AUTO_REJECT
 from .constants import ENV_KEY
@@ -110,7 +112,6 @@ class RateSampler(BaseSampler):
             span = span[-1]
         sampled = ((span._trace_id_64bits * KNUTH_FACTOR) % _MAX_UINT_64BITS) <= self.sampling_id_threshold
         span.sampled = sampled
-        update_sampling_decision(span.context, SamplingMechanism.DEFAULT, sampled)
         return sampled
 
 
@@ -162,7 +163,9 @@ class RateByServiceSampler(BasePrioritySampler):
         # type: (Span, RateSampler, bool) -> None
         priority, sampled, sampling_mechanism = _apply_sampling_overrides(span, sampler, sampled, self._default_sampler)
         self._set_priority(span, priority, sampling_mechanism)
-        if sampling_mechanism != SamplingMechanism.MANUAL:
+        if sampling_mechanism != SamplingMechanism.MANUAL and not span.context._meta.get(
+            SAMPLING_DECISION_TRACE_TAG_KEY
+        ):
             span.set_metric(SAMPLING_AGENT_DECISION, sampler.sample_rate)
         update_sampling_decision(span.context, sampling_mechanism, sampled)
 
@@ -198,12 +201,16 @@ def _apply_sampling_overrides(span, sampler, sampled, _default_sampler):
         elif not sampled:
             priority = AUTO_REJECT
 
-    if span.context.sampling_priority in (USER_KEEP, USER_REJECT):
-        sampling_mechanism = SamplingMechanism.MANUAL
-    elif sampler is _default_sampler:
-        sampling_mechanism = SamplingMechanism.DEFAULT
-    else:
-        sampling_mechanism = SamplingMechanism.AGENT_RATE
+    sampling_mechanism = span.context._meta.get(SAMPLING_DECISION_TRACE_TAG_KEY)
+    if sampling_mechanism:
+        sampling_mechanism = int(sampling_mechanism[1:])
+    if not sampling_mechanism:
+        if span.context.sampling_priority in (USER_KEEP, USER_REJECT):
+            sampling_mechanism = SamplingMechanism.MANUAL
+        elif sampler is _default_sampler:
+            sampling_mechanism = SamplingMechanism.DEFAULT
+        else:
+            sampling_mechanism = SamplingMechanism.AGENT_RATE
     return priority, sampled, sampling_mechanism
 
 
