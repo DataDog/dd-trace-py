@@ -153,7 +153,7 @@ class RateByServiceSampler(BasePrioritySampler):
         self._by_service_samplers[self._key(service, env)] = RateSampler(sample_rate)
 
     def _set_priority(self, span, priority, sampling_mechanism):
-        # type: (Span, int) -> None
+        # type: (Span, int, int) -> None
         span.sampled = priority > 0  # Positive priorities mean it was kept
         if not (sampling_mechanism == SamplingMechanism.MANUAL and span.sampled):
             span.context.sampling_priority = priority
