@@ -100,8 +100,7 @@
             "ddtrace/internal/telemetry/*"
         ],
         "opentracer": [
-            "ddtrace/opentracer/*",
-            "tests/opentracer/*"
+            "ddtrace/opentracer/*"
         ],
         "tornado": [
             "ddtrace/contrib/tornado/*"
@@ -148,8 +147,7 @@
             "ddtrace/contrib/pyramid/*"
         ],
         "pylons": [
-            "ddtrace/contrib/pylons/*",
-            "tests/contrib/pylons/*"
+            "ddtrace/contrib/pylons/*"
         ],
         "langchain": [
             "ddtrace/contrib/langchain/*"
@@ -180,8 +178,7 @@
             "ddtrace/contrib/mako/*"
         ],
         "jinja2": [
-            "ddtrace/contrib/jinja2/*",
-            "tests/contrib/jinja2/*"
+            "ddtrace/contrib/jinja2/*"
         ],
         "kombu": [
             "ddtrace/contrib/kombu/*",
@@ -273,8 +270,7 @@
         ],
         "elasticsearch": [
             "ddtrace/contrib/elasticsearch/*",
-            "ddtrace/ext/elasticsearch.py",
-            "tests/snapshots/tests.contrib.{suite}.*"
+            "ddtrace/ext/elasticsearch.py"
         ],
         "dogpile_cache": [
             "ddtrace/contrib/dogpile_cache/*"
@@ -432,7 +428,8 @@
             "@bootstrap",
             "@core",
             "@tracing",
-            "@opentracer"
+            "@opentracer",
+            "tests/opentracer/*"
         ],
         "opentelemetry": [
             "@bootstrap",
@@ -517,7 +514,8 @@
             "@core",
             "@tracing",
             "@appsec",
-            "@pylons"
+            "@pylons",
+            "tests/contrib/pylons/*"
         ],
         "aiohttp": [
             "@bootstrap",
@@ -587,7 +585,8 @@
             "@tracing",
             "@contrib",
             "@elasticsearch",
-            "tests/contrib/elasticsearch/*"
+            "tests/contrib/elasticsearch/*",
+            "tests/snapshots/tests.contrib.{suite}.*"
         ],
         "falcon": [
             "@bootstrap",
@@ -1012,7 +1011,8 @@
             "@bootstrap",
             "@core",
             "@tracing",
-            "@jinja2"
+            "@jinja2",
+            "tests/contrib/jinja2/*"
         ],
         "mako": [
             "@bootstrap",
