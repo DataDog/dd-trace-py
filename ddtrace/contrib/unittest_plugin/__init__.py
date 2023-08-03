@@ -11,7 +11,7 @@ The aredis integration is enabled automatically when using
 Or use :func:`patch()<ddtrace.patch>` to manually enable the integration::
 
     from ddtrace import patch
-    patch(unittest=True)
+    patch(unittest_plugin=True)
 """
 
 from ddtrace import config
