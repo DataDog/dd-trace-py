@@ -153,27 +153,9 @@ class RateByServiceSampler(BasePrioritySampler):
             span.context.sampling_priority = priority
             span.set_metric(SAMPLING_PRIORITY_KEY, priority)
 
-    def _apply_sampling_overrides(self, span, sampler, sampled):
-        priority = span.context.sampling_priority
-        if priority in (USER_KEEP, USER_REJECT):
-            sampled = True
-
-        if sampled:
-            priority = AUTO_KEEP
-        elif not sampled:
-            priority = AUTO_REJECT
-
-        if span.context.sampling_priority in (USER_KEEP, USER_REJECT):
-            sampling_mechanism = SamplingMechanism.MANUAL
-        elif sampler is self._default_sampler:
-            sampling_mechanism = SamplingMechanism.DEFAULT
-        else:
-            sampling_mechanism = SamplingMechanism.AGENT_RATE
-        return priority, sampled, sampling_mechanism
-
     def _set_sampler_decision(self, span, sampler, sampled):
         # type: (Span, RateSampler, bool) -> None
-        priority, sampled, sampling_mechanism = self._apply_sampling_overrides(span, sampler, sampled)
+        priority, sampled, sampling_mechanism = _apply_sampling_overrides(span, sampler, sampled, self._default_sampler)
         self._set_priority(span, priority, sampling_mechanism)
         if sampling_mechanism != SamplingMechanism.MANUAL:
             span.set_metric(SAMPLING_AGENT_DECISION, sampler.sample_rate)
@@ -198,6 +180,25 @@ class RateByServiceSampler(BasePrioritySampler):
             samplers[key] = RateSampler(sample_rate)
 
         self._by_service_samplers = samplers
+
+
+def _apply_sampling_overrides(span, sampler, sampled, _default_sampler):
+    priority = span.context.sampling_priority
+    if priority in (USER_KEEP, USER_REJECT):
+        sampled = True
+
+    if sampled:
+        priority = AUTO_KEEP
+    elif not sampled:
+        priority = AUTO_REJECT
+
+    if span.context.sampling_priority in (USER_KEEP, USER_REJECT):
+        sampling_mechanism = SamplingMechanism.MANUAL
+    elif sampler is _default_sampler:
+        sampling_mechanism = SamplingMechanism.DEFAULT
+    else:
+        sampling_mechanism = SamplingMechanism.AGENT_RATE
+    return priority, sampled, sampling_mechanism
 
 
 class DatadogSampler(RateByServiceSampler):
@@ -290,25 +291,20 @@ class DatadogSampler(RateByServiceSampler):
 
     __repr__ = __str__
 
-    def _apply_sampling_overrides(self, span, sampler, sampled):
-        priority, sampled, sampling_mechanism = super(DatadogSampler, self)._apply_sampling_overrides(
-            span, sampler, sampled
-        )
-        if sampling_mechanism not in (SamplingMechanism.MANUAL, SamplingMechanism.DEFAULT):
-            sampling_mechanism = SamplingMechanism.TRACE_SAMPLING_RULE
-        if not sampled:
-            priority = USER_REJECT
-        else:
-            priority = USER_KEEP
-        return priority, sampled, sampling_mechanism
-
     def _set_sampler_decision(self, span, sampler, sampled):
         # type: (Span, Union[RateSampler, SamplingRule, RateLimiter], bool) -> None
         if isinstance(sampler, RateSampler):
             # When agent based sampling is used
             return super(DatadogSampler, self)._set_sampler_decision(span, sampler, sampled)
 
-        priority, sampled, sampling_mechanism = self._apply_sampling_overrides(span, sampler, sampled)
+        priority, sampled, sampling_mechanism = _apply_sampling_overrides(span, sampler, sampled, self._default_sampler)
+        if sampling_mechanism not in (SamplingMechanism.MANUAL, SamplingMechanism.DEFAULT):
+            sampling_mechanism = SamplingMechanism.TRACE_SAMPLING_RULE
+        if span.context.sampling_priority not in (AUTO_KEEP, AUTO_REJECT):
+            if not sampled:
+                priority = USER_REJECT
+            else:
+                priority = USER_KEEP
 
         if isinstance(sampler, SamplingRule):
             span.set_metric(SAMPLING_RULE_DECISION, sampler.sample_rate)

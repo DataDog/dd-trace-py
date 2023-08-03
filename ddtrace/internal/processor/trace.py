@@ -83,9 +83,10 @@ class TraceSamplingProcessor(TraceProcessor):
     def process_trace(self, trace):
         # type: (List[Span]) -> Optional[List[Span]]
         if trace:
-            self.sampler.sample(trace)
-            root_ctx = trace[0]._context
-            _update_span_tags_from_context(trace[0], root_ctx)
+            chunk_root = trace[0]
+            root_ctx = chunk_root._context
+            chunk_root.sampled = self.sampler.sample(trace)
+            _update_span_tags_from_context(chunk_root, root_ctx)
             # When stats computation is enabled in the tracer then we can
             # safely drop the traces.
             if self._compute_stats_enabled:
