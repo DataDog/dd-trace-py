@@ -656,7 +656,6 @@ def test_datadog_sampler_init():
             SamplingRule(sample_rate=0.5)
         ], "DatadogSampler initialized with no arguments and envvars set should hold a sample_rate from the envvar"
 
-    # DD_TRACE_SAMPLE_RATE=0
     with override_global_config(dict(_trace_sample_rate="0")):
         sampler = DatadogSampler()
         assert (
@@ -666,12 +665,11 @@ def test_datadog_sampler_init():
             SamplingRule(sample_rate=0)
         ], "DatadogSampler initialized with DD_TRACE_SAMPLE_RATE=0 envvar should hold sample_rate=0"
 
-
     with override_global_config(dict(_trace_sample_rate="asdf")):
         with pytest.raises(ValueError):
             DatadogSampler()
 
-    with override_global_config(dict(_trace_rate_limit="asdf")):
+    with override_global_config(dict(_trace_rate_limit="invalid-limit")):
         with pytest.raises(ValueError):
             DatadogSampler()
 
