@@ -34,7 +34,7 @@ class UnittestTestCase(TracerTestCase):
 
         spans = self.pop_spans()
         assert len(spans) == 1
-        
+
         assert spans[0].get_tag(test.TEST_TYPE) == SpanTypes.TEST
         assert spans[0].get_tag(test.TEST_FRAMEWORK) == FRAMEWORK
         assert spans[0].get_tag(SPAN_KIND) == KIND
@@ -64,7 +64,7 @@ class UnittestTestCase(TracerTestCase):
 
         spans = self.pop_spans()
         assert len(spans) == 2
-        
+
         assert spans[0].get_tag(test.TEST_TYPE) == SpanTypes.TEST
         assert spans[0].get_tag(test.TEST_FRAMEWORK) == FRAMEWORK
         assert spans[0].get_tag(SPAN_KIND) == KIND
@@ -142,7 +142,7 @@ class UnittestTestCase(TracerTestCase):
         assert spans[0].get_tag(test.SUITE) == 'UnittestExampleTestCase'
         assert spans[0].get_tag(test.TEST_STATUS) == test.Status.SKIP.value
         assert spans[0].get_tag(test.SKIP_REASON) == 'demonstrating skipping with a reason'
-        
+
     def test_unittest_skip_multiple_reason(self):
         """Test with `unittest` tests which should be skipped."""
         _set_tracer(self.tracer)
@@ -176,7 +176,7 @@ class UnittestTestCase(TracerTestCase):
         assert spans[0].get_tag(test.SUITE) == 'UnittestExampleTestCase'
         assert spans[0].get_tag(test.TEST_STATUS) == test.Status.SKIP.value
         assert spans[0].get_tag(test.SKIP_REASON) == 'demonstrating skipping with a reason'
-        
+
         assert spans[1].get_tag(test.TEST_TYPE) == SpanTypes.TEST
         assert spans[1].get_tag(test.TEST_FRAMEWORK) == FRAMEWORK
         assert spans[1].get_tag(SPAN_KIND) == KIND
@@ -335,7 +335,6 @@ class UnittestTestCase(TracerTestCase):
         spans = self.pop_spans()
         assert len(spans) == 4
 
-
         assert spans[0].get_tag(test.TEST_TYPE) == SpanTypes.TEST
         assert spans[0].get_tag(test.TEST_FRAMEWORK) == FRAMEWORK
         assert spans[0].get_tag(SPAN_KIND) == KIND
@@ -346,7 +345,6 @@ class UnittestTestCase(TracerTestCase):
         assert spans[0].get_tag(test.SUITE) == 'UnittestExampleTestCase'
         assert spans[0].get_tag(test.TEST_STATUS) == test.Status.SKIP.value
         assert spans[0].get_tag(test.SKIP_REASON) == ''
-
 
         assert spans[1].get_tag(test.TEST_TYPE) == SpanTypes.TEST
         assert spans[1].get_tag(test.TEST_FRAMEWORK) == FRAMEWORK
