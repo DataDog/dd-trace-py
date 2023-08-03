@@ -251,8 +251,8 @@ def extract_bitbucket(env):
 def extract_buildkite(env):
     # type: (MutableMapping[str, str]) -> Dict[str, Optional[str]]
     """Extract CI tags from Buildkite environ."""
-    # Get alL keys which start with BUILDKITE_AGENT_META_DATA_x
-    node_label_list = []  # type: list[str]
+    # Get all keys which start with BUILDKITE_AGENT_META_DATA_x
+    node_label_list = []  # type: List[str]
     buildkite_agent_meta_data_prefix = "BUILDKITE_AGENT_META_DATA_"
     for env_variable in env:
         if env_variable.startswith(buildkite_agent_meta_data_prefix):
