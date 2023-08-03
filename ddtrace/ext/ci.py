@@ -421,7 +421,7 @@ def extract_jenkins(env):
         name = re.sub("/{0}".format(git.normalize_ref(branch)), "", name)
     if name:
         name = "/".join((v for v in name.split("/") if v and "=" not in v))
-    node_labels_list = []  # type:  list[str]
+    node_labels_list = []  # type:  List[str]
     node_labels_env = env.get("NODE_LABELS")  # type: Optional[str]
     if node_labels_env:
         node_labels_list = node_labels_env.split()
