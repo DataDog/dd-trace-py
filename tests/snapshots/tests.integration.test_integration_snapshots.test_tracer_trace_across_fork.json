@@ -11,17 +11,17 @@
     "meta": {
       "_dd.p.dm": "-0",
       "language": "python",
-      "runtime-id": "7fcf456c657a442d8e637e5adda7270d"
+      "runtime-id": "6f2eeb0b30c54268b96f6eca8a2d66ba"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 52166
+      "process_id": 15844
     },
-    "duration": 306192000,
-    "start": 1631827407437680000
+    "duration": 10582283,
+    "start": 1690574476657116319
   },
      {
        "name": "child",
@@ -35,14 +35,14 @@
        "meta": {
          "_dd.p.dm": "-0",
          "language": "python",
-         "runtime-id": "409d5f5531a54659b762419af6a3abc5"
+         "runtime-id": "23d0b2399e7a4048a7daf8719cf73083"
        },
        "metrics": {
          "_dd.top_level": 1,
          "_dd.tracer_kr": 1.0,
          "_sampling_priority_v1": 1,
-         "process_id": 52180
+         "process_id": 15948
        },
-       "duration": 158000,
-       "start": 1631827407498354000
+       "duration": 46115,
+       "start": 1690574476662529362
      }]]

@@ -196,6 +196,12 @@ class Config(object):
 
         self._debug_mode = asbool(os.getenv("DD_TRACE_DEBUG", default=False))
         self._call_basic_config = asbool(os.environ.get("DD_CALL_BASIC_CONFIG", "false"))
+        if self._call_basic_config:
+            deprecate(
+                "`DD_CALL_BASIC_CONFIG` is deprecated and will be removed in the next major version.",
+                message="Call `logging.basicConfig()` to configure logging in your application",
+                removal_version="2.0.0",
+            )
 
         header_tags = parse_tags_str(os.getenv("DD_TRACE_HEADER_TAGS", ""))
         self.http = HttpConfig(header_tags=header_tags)
@@ -319,8 +325,8 @@ class Config(object):
 
         self._ci_visibility_agentless_enabled = asbool(os.getenv("DD_CIVISIBILITY_AGENTLESS_ENABLED", default=False))
         self._ci_visibility_agentless_url = os.getenv("DD_CIVISIBILITY_AGENTLESS_URL", default="")
-        self._ci_visibility_intelligent_testrunner_enabled = asbool(
-            os.getenv("DD_CIVISIBILITY_ITR_ENABLED", default=False)
+        self._ci_visibility_intelligent_testrunner_disabled = asbool(
+            os.getenv("DD_CIVISIBILITY_ITR_DISABLED", default=False)
         )
         self._otel_enabled = asbool(os.getenv("DD_TRACE_OTEL_ENABLED", False))
         if self._otel_enabled:

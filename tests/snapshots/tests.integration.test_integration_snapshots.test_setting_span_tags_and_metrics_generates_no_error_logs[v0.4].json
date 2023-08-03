@@ -1,0 +1,27 @@
+[[
+  {
+    "name": "operation",
+    "service": "my-svc",
+    "resource": "operation",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "env": "my-env",
+      "language": "python",
+      "runtime-id": "70d395789d6c4cc6aebbd3e72447c67f"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "number1": 123,
+      "number2": 12.0,
+      "number3": 1.0,
+      "process_id": 15982
+    },
+    "duration": 59313,
+    "start": 1690574477882208459
+  }]]

@@ -11,14 +11,14 @@
     "meta": {
       "_dd.p.dm": "-1",
       "language": "python",
-      "runtime-id": "d3cc0a07d5e745aebadf0c641fd542e6"
+      "runtime-id": "6f2eeb0b30c54268b96f6eca8a2d66ba"
     },
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": -1,
-      "process_id": 50361
+      "process_id": 15844
     },
-    "duration": 29000,
-    "start": 1655132809265595000
+    "duration": 26329,
+    "start": 1690574477951050218
   }]]

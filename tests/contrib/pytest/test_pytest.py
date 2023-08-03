@@ -139,6 +139,37 @@ class PytestTestCase(TracerTestCase):
         else:
             assert test_span.get_tag("test.command") == "pytest --ddtrace {}".format(file_name)
 
+    def test_ini_no_ddtrace(self):
+        """Test ini config, overridden by --no-ddtrace cli parameter."""
+        self.testdir.makefile(".ini", pytest="[pytest]\nddtrace=1\n")
+        py_file = self.testdir.makepyfile(
+            """
+            def test_ok():
+                assert True
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        rec = self.inline_run("--no-ddtrace", file_name)
+        rec.assertoutcome(passed=1)
+        spans = self.pop_spans()
+
+        assert len(spans) == 0
+
+    def test_pytest_command_no_ddtrace(self):
+        """Test that --no-ddtrace has precedence over --ddtrace."""
+        py_file = self.testdir.makepyfile(
+            """
+            def test_ok():
+                assert True
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        rec = self.inline_run("--ddtrace", "--no-ddtrace", file_name)
+        rec.assertoutcome(passed=1)
+        spans = self.pop_spans()
+
+        assert len(spans) == 0
+
     def test_parameterize_case(self):
         """Test parametrize case with simple objects."""
         py_file = self.testdir.makepyfile(
@@ -1466,6 +1497,219 @@ class PytestTestCase(TracerTestCase):
         assert files[1]["filename"] == "test_ret_false.py"
         assert len(files[0]["segments"]) == 1
         assert files[0]["segments"][0] == [8, 0, 9, 0, -1]
+        assert len(files[1]["segments"]) == 1
+        assert files[1]["segments"][0] == [1, 0, 2, 0, -1]
+
+    @pytest.mark.skipif(compat.PY2, reason="ddtrace does not support coverage on Python 2")
+    def test_pytest_will_report_coverage_by_test_with_itr_skipped(self):
+        self.testdir.makepyfile(
+            test_ret_false="""
+        def ret_false():
+            return False
+        """
+        )
+        self.testdir.makepyfile(
+            test_module="""
+        def lib_fn():
+            return True
+        """
+        )
+        py_cov_file = self.testdir.makepyfile(
+            test_cov="""
+        import pytest
+
+        def test_cov():
+            from test_module import lib_fn
+            assert lib_fn()
+
+        def test_second():
+            from test_ret_false import ret_false
+            assert not ret_false()
+        """
+        )
+
+        with override_env(
+            {"DD_APPLICATION_KEY": "not_an_application_key", "DD_CIVISIBILITY_AGENTLESS_ENABLED": "True"}
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features", return_value=(True, True)
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"
+        ), mock.patch.object(
+            ddtrace.internal.ci_visibility.recorder.CIVisibility,
+            "_tests_to_skip",
+            {
+                "test_cov.py": ["test_cov"],
+            },
+        ):
+            ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+            self.inline_run("--ddtrace", os.path.basename(py_cov_file.strpath))
+        spans = self.pop_spans()
+
+        first_test_span = spans[0]
+        assert first_test_span.get_tag("test.name") == "test_cov"
+        assert first_test_span.get_tag("type") == "test"
+        assert COVERAGE_TAG_NAME not in first_test_span.get_tags()
+
+        second_test_span = spans[1]
+        assert second_test_span.get_tag("type") == "test"
+        assert second_test_span.get_tag("test.name") == "test_second"
+        assert COVERAGE_TAG_NAME in second_test_span.get_tags()
+        second_tag_data = json.loads(second_test_span.get_tag(COVERAGE_TAG_NAME))
+        files = sorted(second_tag_data["files"], key=lambda x: x["filename"])
+        assert len(files) == 2
+        assert files[0]["filename"] == "test_cov.py"
+        assert files[1]["filename"] == "test_ret_false.py"
+        assert len(files[0]["segments"]) == 1
+        assert files[0]["segments"][0] == [8, 0, 9, 0, -1]
+        assert len(files[1]["segments"]) == 1
+        assert files[1]["segments"][0] == [1, 0, 2, 0, -1]
+
+    @pytest.mark.skipif(compat.PY2, reason="ddtrace does not support coverage on Python 2")
+    def test_pytest_will_report_coverage_by_test_with_pytest_mark_skip(self):
+        self.testdir.makepyfile(
+            test_ret_false="""
+        def ret_false():
+            return False
+        """
+        )
+        self.testdir.makepyfile(
+            test_module="""
+        def lib_fn():
+            return True
+        """
+        )
+        py_cov_file = self.testdir.makepyfile(
+            test_cov="""
+        import pytest
+
+        @pytest.mark.skip
+        def test_cov():
+            from test_module import lib_fn
+            assert lib_fn()
+
+        def test_second():
+            from test_ret_false import ret_false
+            assert not ret_false()
+
+        def skipif_false_check():
+            return False
+        skipif_false_decorator = pytest.mark.skipif(
+            skipif_false_check(), reason="skip if False"
+        )
+        @skipif_false_decorator
+        def test_skipif_mark_false():
+            from test_ret_false import ret_false
+            assert ret_false() is False
+
+        def skipif_true_check():
+            return True
+        skipif_true_decorator = pytest.mark.skipif(
+            skipif_true_check(), reason="skip is True"
+        )
+        @skipif_true_decorator
+        def test_skipif_mark_true():
+            assert True is False
+        """
+        )
+
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features", return_value=(True, False)
+        ):
+            self.inline_run("--ddtrace", os.path.basename(py_cov_file.strpath))
+        spans = self.pop_spans()
+        assert len(spans) == 7
+        test_spans = [span for span in spans if span.get_tag("type") == "test"]
+        assert len(test_spans) == 4
+
+        first_test_span = spans[0]
+        assert first_test_span.get_tag("test.name") == "test_cov"
+        assert COVERAGE_TAG_NAME not in first_test_span.get_tags()
+
+        second_test_span = spans[1]
+        assert second_test_span.get_tag("test.name") == "test_second"
+        assert COVERAGE_TAG_NAME in second_test_span.get_tags()
+        second_tag_data = json.loads(second_test_span.get_tag(COVERAGE_TAG_NAME))
+        second_test_files = sorted(second_tag_data["files"], key=lambda x: x["filename"])
+        assert len(second_test_files) == 2
+        assert second_test_files[0]["filename"] == "test_cov.py"
+        assert len(second_test_files[0]["segments"]) == 1
+        assert second_test_files[0]["segments"][0] == [9, 0, 10, 0, -1]
+        assert second_test_files[1]["filename"] == "test_ret_false.py"
+        assert len(second_test_files[1]["segments"]) == 1
+        assert second_test_files[1]["segments"][0] == [1, 0, 2, 0, -1]
+
+        third_test_span = spans[2]
+        assert third_test_span.get_tag("test.name") == "test_skipif_mark_false"
+        assert COVERAGE_TAG_NAME in third_test_span.get_tags()
+        third_tag_data = json.loads(third_test_span.get_tag(COVERAGE_TAG_NAME))
+        third_test_files = sorted(third_tag_data["files"], key=lambda x: x["filename"])
+        assert len(third_test_files) == 2
+        assert third_test_files[0]["filename"] == "test_cov.py"
+        assert len(third_test_files[0]["segments"]) == 1
+        assert third_test_files[0]["segments"][0] == [19, 0, 20, 0, -1]
+
+        fourth_test_span = spans[3]
+        assert fourth_test_span.get_tag("test.name") == "test_skipif_mark_true"
+        assert COVERAGE_TAG_NAME not in fourth_test_span.get_tags()
+
+    @pytest.mark.skipif(compat.PY2, reason="ddtrace does not support coverage on Python 2")
+    def test_pytest_will_report_coverage_by_test_with_pytest_skip(self):
+        self.testdir.makepyfile(
+            test_ret_false="""
+        def ret_false():
+            return False
+        """
+        )
+        self.testdir.makepyfile(
+            test_module="""
+        def lib_fn():
+            return True
+        """
+        )
+        py_cov_file = self.testdir.makepyfile(
+            test_cov="""
+        import pytest
+
+        def test_cov():
+            two = 1 + 1
+            pytest.skip()
+            from test_module import lib_fn
+            assert lib_fn()
+
+        def test_second():
+            from test_ret_false import ret_false
+            assert not ret_false()
+        """
+        )
+
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features", return_value=(True, False)
+        ):
+            self.inline_run("--ddtrace", os.path.basename(py_cov_file.strpath))
+        spans = self.pop_spans()
+
+        first_test_span = spans[0]
+        assert first_test_span.get_tag("test.name") == "test_cov"
+        assert first_test_span.get_tag("type") == "test"
+        assert COVERAGE_TAG_NAME in first_test_span.get_tags()
+        first_tag_data = json.loads(first_test_span.get_tag(COVERAGE_TAG_NAME))
+        files = sorted(first_tag_data["files"], key=lambda x: x["filename"])
+        assert len(files) == 1
+        assert files[0]["filename"] == "test_cov.py"
+        assert len(files[0]["segments"]) == 1
+        assert files[0]["segments"][0] == [4, 0, 5, 0, -1]
+
+        second_test_span = spans[1]
+        assert second_test_span.get_tag("type") == "test"
+        assert second_test_span.get_tag("test.name") == "test_second"
+        assert COVERAGE_TAG_NAME in second_test_span.get_tags()
+        second_tag_data = json.loads(second_test_span.get_tag(COVERAGE_TAG_NAME))
+        files = sorted(second_tag_data["files"], key=lambda x: x["filename"])
+        assert len(files) == 2
+        assert files[0]["filename"] == "test_cov.py"
+        assert files[1]["filename"] == "test_ret_false.py"
+        assert len(files[0]["segments"]) == 1
+        assert files[0]["segments"][0] == [10, 0, 11, 0, -1]
         assert len(files[1]["segments"]) == 1
         assert files[1]["segments"][0] == [1, 0, 2, 0, -1]
 
