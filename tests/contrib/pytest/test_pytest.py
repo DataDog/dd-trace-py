@@ -140,7 +140,7 @@ class PytestTestCase(TracerTestCase):
             assert test_span.get_tag("test.command") == "pytest --ddtrace {}".format(file_name)
 
     def test_ini_no_ddtrace(self):
-        """Test ini config, overriden by --no-ddtrace cli parameter."""
+        """Test ini config, overridden by --no-ddtrace cli parameter."""
         self.testdir.makefile(".ini", pytest="[pytest]\nddtrace=1\n")
         py_file = self.testdir.makepyfile(
             """
