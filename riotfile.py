@@ -1716,7 +1716,20 @@ venv = Venv(
             name="unittest",
             command="python -m pytest {cmdargs} tests/contrib/unittest_plugin/",
             pkgs={"msgpack": latest},
-            pys=select_pys(),
+            venvs=[
+                Venv(
+                    pys="2.7",
+                ),
+                Venv(
+                    pys="3.5",
+                ),
+                Venv(
+                    pys="3.7"
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.10"),
+                )
+            ],
         ),
         Venv(
             name="grpc",
