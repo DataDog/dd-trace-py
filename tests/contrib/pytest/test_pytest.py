@@ -47,7 +47,8 @@ class PytestTestCase(TracerTestCase):
 
     def subprocess_run(self, *args):
         """Execute test script with test tracer."""
-        return self.testdir.runpytest_subprocess(*args)
+        with override_env(dict(DD_API_KEY="foobar.baz")):
+            return self.testdir.runpytest_subprocess(*args)
 
     @pytest.mark.skipif(sys.version_info[0] == 2, reason="Triggers a bug with coverage, sqlite and Python 2")
     def test_patch_all(self):
@@ -138,6 +139,37 @@ class PytestTestCase(TracerTestCase):
             assert test_span.get_tag("test.command") == "pytest"
         else:
             assert test_span.get_tag("test.command") == "pytest --ddtrace {}".format(file_name)
+
+    def test_ini_no_ddtrace(self):
+        """Test ini config, overridden by --no-ddtrace cli parameter."""
+        self.testdir.makefile(".ini", pytest="[pytest]\nddtrace=1\n")
+        py_file = self.testdir.makepyfile(
+            """
+            def test_ok():
+                assert True
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        rec = self.inline_run("--no-ddtrace", file_name)
+        rec.assertoutcome(passed=1)
+        spans = self.pop_spans()
+
+        assert len(spans) == 0
+
+    def test_pytest_command_no_ddtrace(self):
+        """Test that --no-ddtrace has precedence over --ddtrace."""
+        py_file = self.testdir.makepyfile(
+            """
+            def test_ok():
+                assert True
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        rec = self.inline_run("--ddtrace", "--no-ddtrace", file_name)
+        rec.assertoutcome(passed=1)
+        spans = self.pop_spans()
+
+        assert len(spans) == 0
 
     def test_parameterize_case(self):
         """Test parametrize case with simple objects."""
@@ -491,9 +523,6 @@ class PytestTestCase(TracerTestCase):
 
     def test_service_name_repository_name(self):
         """Test span's service name is set to repository name."""
-        self.monkeypatch.setenv("APPVEYOR", "true")
-        self.monkeypatch.setenv("APPVEYOR_REPO_PROVIDER", "github")
-        self.monkeypatch.setenv("APPVEYOR_REPO_NAME", "test-repository-name")
         py_file = self.testdir.makepyfile(
             """
             import os
@@ -503,7 +532,14 @@ class PytestTestCase(TracerTestCase):
         """
         )
         file_name = os.path.basename(py_file.strpath)
-        rec = self.subprocess_run("--ddtrace", file_name)
+        with override_env(
+            {
+                "APPVEYOR": "true",
+                "APPVEYOR_REPO_PROVIDER": "github",
+                "APPVEYOR_REPO_NAME": "test-repository-name",
+            }
+        ):
+            rec = self.subprocess_run("--ddtrace", file_name)
         rec.assert_outcomes(passed=1)
 
     def test_default_service_name(self):
@@ -524,7 +560,6 @@ class PytestTestCase(TracerTestCase):
 
     def test_dd_service_name(self):
         """Test dd service name."""
-        self.monkeypatch.setenv("DD_SERVICE", "mysvc")
         if "DD_PYTEST_SERVICE" in os.environ:
             self.monkeypatch.delenv("DD_PYTEST_SERVICE")
 
@@ -539,15 +574,12 @@ class PytestTestCase(TracerTestCase):
         """
         )
         file_name = os.path.basename(py_file.strpath)
-        rec = self.subprocess_run("--ddtrace", file_name)
+        with override_env({"DD_SERVICE": "mysvc"}):
+            rec = self.subprocess_run("--ddtrace", file_name)
         assert 0 == rec.ret
 
     def test_dd_pytest_service_name(self):
         """Test integration service name."""
-        self.monkeypatch.setenv("DD_SERVICE", "mysvc")
-        self.monkeypatch.setenv("DD_PYTEST_SERVICE", "pymysvc")
-        self.monkeypatch.setenv("DD_PYTEST_OPERATION_NAME", "mytest")
-
         py_file = self.testdir.makepyfile(
             """
             import os
@@ -560,7 +592,10 @@ class PytestTestCase(TracerTestCase):
         """
         )
         file_name = os.path.basename(py_file.strpath)
-        rec = self.subprocess_run("--ddtrace", file_name)
+        with override_env(
+            {"DD_SERVICE": "mysvc", "DD_PYTEST_SERVICE": "pymysvc", "DD_PYTEST_OPERATION_NAME": "mytest"}
+        ):
+            rec = self.subprocess_run("--ddtrace", file_name)
         assert 0 == rec.ret
 
     def test_dd_origin_tag_propagated_to_every_span(self):
@@ -1379,7 +1414,7 @@ class PytestTestCase(TracerTestCase):
         Test that running pytest without module will create an empty module span with empty path.
         """
         self.testdir.makepyfile(
-            test_module="""
+            lib_fn="""
         def lib_fn():
             return True
         """
@@ -1388,7 +1423,7 @@ class PytestTestCase(TracerTestCase):
         self.testdir.makepyfile(
             test_cov="""
         import pytest
-        from test_module import lib_fn
+        from lib_fn import lib_fn
 
         def test_cov():
             assert lib_fn()
@@ -1410,13 +1445,13 @@ class PytestTestCase(TracerTestCase):
     @pytest.mark.skipif(compat.PY2, reason="ddtrace does not support coverage on Python 2")
     def test_pytest_will_report_coverage_by_test(self):
         self.testdir.makepyfile(
-            test_ret_false="""
+            ret_false="""
         def ret_false():
             return False
         """
         )
         self.testdir.makepyfile(
-            test_module="""
+            lib_fn="""
         def lib_fn():
             return True
         """
@@ -1426,11 +1461,11 @@ class PytestTestCase(TracerTestCase):
         import pytest
 
         def test_cov():
-            from test_module import lib_fn
+            from lib_fn import lib_fn
             assert lib_fn()
 
         def test_second():
-            from test_ret_false import ret_false
+            from ret_false import ret_false
             assert not ret_false()
         """
         )
@@ -1448,12 +1483,12 @@ class PytestTestCase(TracerTestCase):
         first_tag_data = json.loads(first_test_span.get_tag(COVERAGE_TAG_NAME))
         files = sorted(first_tag_data["files"], key=lambda x: x["filename"])
         assert len(files) == 2
-        assert files[0]["filename"] == "test_cov.py"
-        assert files[1]["filename"] == "test_module.py"
+        assert files[0]["filename"] == "lib_fn.py"
+        assert files[1]["filename"] == "test_cov.py"
         assert len(files[0]["segments"]) == 1
-        assert files[0]["segments"][0] == [4, 0, 5, 0, -1]
+        assert files[0]["segments"][0] == [1, 0, 2, 0, -1]
         assert len(files[1]["segments"]) == 1
-        assert files[1]["segments"][0] == [1, 0, 2, 0, -1]
+        assert files[1]["segments"][0] == [4, 0, 5, 0, -1]
 
         second_test_span = spans[1]
         assert second_test_span.get_tag("type") == "test"
@@ -1462,12 +1497,12 @@ class PytestTestCase(TracerTestCase):
         second_tag_data = json.loads(second_test_span.get_tag(COVERAGE_TAG_NAME))
         files = sorted(second_tag_data["files"], key=lambda x: x["filename"])
         assert len(files) == 2
-        assert files[0]["filename"] == "test_cov.py"
-        assert files[1]["filename"] == "test_ret_false.py"
+        assert files[0]["filename"] == "ret_false.py"
+        assert files[1]["filename"] == "test_cov.py"
         assert len(files[0]["segments"]) == 1
-        assert files[0]["segments"][0] == [8, 0, 9, 0, -1]
+        assert files[0]["segments"][0] == [1, 0, 2, 0, -1]
         assert len(files[1]["segments"]) == 1
-        assert files[1]["segments"][0] == [1, 0, 2, 0, -1]
+        assert files[1]["segments"][0] == [8, 0, 9, 0, -1]
 
     @pytest.mark.skipif(compat.PY2, reason="ddtrace does not support coverage on Python 2")
     def test_pytest_will_report_coverage_by_test_with_itr_skipped(self):
@@ -1497,15 +1532,20 @@ class PytestTestCase(TracerTestCase):
         """
         )
 
-        with mock.patch(
+        with override_env(
+            {"DD_APPLICATION_KEY": "not_an_application_key", "DD_CIVISIBILITY_AGENTLESS_ENABLED": "True"}
+        ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features", return_value=(True, True)
-        ), mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"), mock.patch.object(
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"
+        ), mock.patch.object(
             ddtrace.internal.ci_visibility.recorder.CIVisibility,
             "_tests_to_skip",
             {
                 "test_cov.py": ["test_cov"],
             },
         ):
+            ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
             self.inline_run("--ddtrace", os.path.basename(py_cov_file.strpath))
         spans = self.pop_spans()
 

@@ -69,6 +69,7 @@ __all__ = [
     "common_replace",
     "as_formatted_evidence",
     "parse_params",
+    "num_objects_tainted",
 ]
 
 

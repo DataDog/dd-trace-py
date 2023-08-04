@@ -1,0 +1,5 @@
+---
+deprecations:
+  - |
+    ``DD_CALL_BASIC_CONFIG`` will be removed in the upcoming 2.0.0 release.
+    As an alternative to ``DD_CALL_BASIC_CONFIG``, you can call ``logging.basicConfig()`` to configure logging in your application.
