@@ -219,11 +219,11 @@ class _ProfilerInstance(service.Service):
         )
 
         self._collectors = [
-            stack.StackCollector(
+            stack.StackCollector(  # type: ignore[call-arg]
                 r,
                 tracer=self.tracer,
                 endpoint_collection_enabled=self.endpoint_collection_enabled,
-            ),  # type: ignore[call-arg]
+            ),
             threading.ThreadingLockCollector(r, tracer=self.tracer),
         ]
 

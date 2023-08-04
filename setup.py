@@ -619,8 +619,14 @@ setup(
                 define_macros=encoding_macros,
             ),
             Cython.Distutils.Extension(
-                "ddtrace.profiling.collector.stack",
+                "ddtrace.profiling.collector._stack",
                 sources=["ddtrace/profiling/collector/stack.pyx"],
+                language="c",
+                extra_compile_args=extra_compile_args,
+            ),
+            Cython.Distutils.Extension(
+                "ddtrace.profiling.collector.threadtime",
+                sources=["ddtrace/profiling/collector/threadtime.pyx"],
                 language="c",
                 extra_compile_args=extra_compile_args,
             ),

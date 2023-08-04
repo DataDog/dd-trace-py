@@ -19,13 +19,13 @@ from ddtrace.profiling import collector
 from ddtrace.profiling.collector import _task
 from ddtrace.profiling.collector import traceback
 from ddtrace.profiling.collector import stack_event
+from ddtrace.profiling.collector import threadtime
 from ddtrace.settings.profiling import config
-from ddtrace.settings.profiling import private_config as pconfig
 
 
 # These are special features that might not be available depending on your Python version and platform
 FEATURES = {
-    "cpu-time": False,
+    "cpu-time": threadtime.CPU_TIME,
     "stack-exceptions": False,
     "transparent_events": False,
 }
@@ -43,111 +43,6 @@ cdef void set_use_py(bint flag):
     global use_py
     use_py = flag
 
-IF UNAME_SYSNAME == "Linux":
-    FEATURES['cpu-time'] = True
-
-    from posix.time cimport clock_gettime
-    from posix.time cimport timespec
-    from posix.types cimport clockid_t
-
-    from cpython.exc cimport PyErr_SetFromErrno
-
-    cdef extern from "<pthread.h>":
-        # POSIX says this might be a struct, but CPython relies on it being an unsigned long.
-        # We should be defining pthread_t here like this:
-        # ctypedef unsigned long pthread_t
-        # but e.g. musl libc defines pthread_t as a struct __pthread * which breaks the arithmetic Cython
-        # wants to do.
-        # We pay this with a warning at compilation time, but it works anyhow.
-        int pthread_getcpuclockid(unsigned long thread, clockid_t *clock_id)
-
-    cdef p_pthread_getcpuclockid(tid):
-        cdef clockid_t clock_id
-        if pthread_getcpuclockid(tid, &clock_id) == 0:
-            return clock_id
-        PyErr_SetFromErrno(OSError)
-
-    # Python < 3.3 does not have `time.clock_gettime`
-    cdef p_clock_gettime_ns(clk_id):
-        cdef timespec tp
-        if clock_gettime(clk_id, &tp) == 0:
-            return int(tp.tv_nsec + tp.tv_sec * 10e8)
-        PyErr_SetFromErrno(OSError)
-
-    cdef class _ThreadTime(object):
-        cdef dict _last_thread_time
-
-        def __init__(self):
-            # This uses a tuple of (pthread_id, thread_native_id) as the key to identify the thread: you'd think using
-            # the pthread_t id would be enough, but the glibc reuses the id.
-            self._last_thread_time = {}
-
-        # Only used in tests
-        def _get_last_thread_time(self):
-            return dict(self._last_thread_time)
-
-        def __call__(self, pthread_ids):
-            cdef list cpu_times = []
-            for pthread_id in pthread_ids:
-                # TODO: Use QueryThreadCycleTime on Windows?
-                # ⚠ WARNING ⚠
-                # `pthread_getcpuclockid` can make Python segfault if the thread is does not exist anymore.
-                # In order avoid this, this function must be called with the GIL being held the entire time.
-                # This is why this whole file is compiled down to C: we make sure we never release the GIL between
-                # calling sys._current_frames() and pthread_getcpuclockid, making sure no thread disappeared.
-                try:
-                    cpu_time = p_clock_gettime_ns(p_pthread_getcpuclockid(pthread_id))
-                except OSError:
-                    # Just in case it fails, set it to 0
-                    # (Note that glibc never fails, it segfaults instead)
-                    cpu_time = 0
-                cpu_times.append(cpu_time)
-
-            cdef dict pthread_cpu_time = {}
-
-            # We should now be safe doing more Pythonic stuff and maybe releasing the GIL
-            for pthread_id, cpu_time in zip(pthread_ids, cpu_times):
-                thread_native_id = _threading.get_thread_native_id(pthread_id)
-                key = pthread_id, thread_native_id
-                # Do a max(0, …) here just in case the result is < 0:
-                # This should never happen, but it can happen if the one chance in a billion happens:
-                # - A new thread has been created and has the same native id and the same pthread_id.
-                # - We got an OSError with clock_gettime_ns
-                pthread_cpu_time[key] = max(0, cpu_time - self._last_thread_time.get(key, cpu_time))
-                self._last_thread_time[key] = cpu_time
-
-            # Clear cache
-            keys = list(pthread_cpu_time.keys())
-            for key in list(self._last_thread_time.keys()):
-                if key not in keys:
-                    del self._last_thread_time[key]
-
-            return pthread_cpu_time
-ELSE:
-    from libc cimport stdint
-
-    cdef class _ThreadTime(object):
-        cdef stdint.int64_t _last_process_time
-
-        def __init__(self):
-            self._last_process_time = compat.process_time_ns()
-
-        def __call__(self, pthread_ids):
-            current_process_time = compat.process_time_ns()
-            cpu_time = current_process_time - self._last_process_time
-            self._last_process_time = current_process_time
-            # Spread the consumed CPU time on all threads.
-            # It's not fair, but we have no clue which CPU used more unless we can use `pthread_getcpuclockid`
-            # Check that we don't have zero thread — _might_ very rarely happen at shutdown
-            nb_threads = len(pthread_ids)
-            if nb_threads == 0:
-                cpu_time = 0
-            else:
-                cpu_time //= nb_threads
-            return {
-                (pthread_id, _threading.get_thread_native_id(pthread_id)): cpu_time
-                for pthread_id in pthread_ids
-            }
 
 
 from cpython.object cimport PyObject
@@ -227,27 +122,6 @@ ELSE:
 
     cdef extern from "<pystate.h>":
         PyObject* _PyThread_CurrentFrames()
-
-
-cdef collect_threads_py(thread_id_ignore_list, thread_time, thread_span_links) with gil:
-    running_threads = sys._current_frames().copy()
-    current_exceptions = {_id: (exc_type, exc_tb) for _id, (exc_type, _, exc_tb) in sys._current_exceptions().items()}
-
-    cpu_times = thread_time(running_threads.keys())
-
-    return tuple(
-        (
-            pthread_id,
-            native_thread_id,
-            _threading.get_thread_name(pthread_id),
-            running_threads[pthread_id],
-            current_exceptions.get(pthread_id),
-            thread_span_links.get_active_span_from_thread_id(pthread_id) if thread_span_links else None,
-            cpu_time,
-        )
-        for (pthread_id, native_thread_id), cpu_time in cpu_times.items()
-        if pthread_id not in thread_id_ignore_list
-    )
 
 
 cdef collect_threads(thread_id_ignore_list, thread_time, thread_span_links) with gil:
@@ -334,10 +208,7 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
         if getattr(thread, "_ddtrace_profiling_ignore", False)
     } if ignore_profiler else set()
 
-    if pconfig.tb_backend == "py":
-        running_threads = collect_threads_py(thread_id_ignore_list, thread_time, thread_span_links)
-    else:
-        running_threads = collect_threads(thread_id_ignore_list, thread_time, thread_span_links)
+    running_threads = collect_threads(thread_id_ignore_list, thread_time, thread_span_links)
 
     if thread_span_links:
         # FIXME also use native thread id
@@ -521,7 +392,7 @@ class StackCollector(collector.PeriodicCollector):
 
     def _init(self):
         # type: (...) -> None
-        self._thread_time = _ThreadTime()
+        self._thread_time = threadtime._ThreadTime()
         self._last_wall_time = compat.monotonic_ns()
         if self.tracer is not None:
             self._thread_span_links = _ThreadSpanLinks()
