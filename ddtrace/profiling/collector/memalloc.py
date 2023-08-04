@@ -150,7 +150,7 @@ class MemoryCollector(collector.PeriodicCollector):
             events_iter, count, alloc_count = _memalloc.iter_events()
         except RuntimeError:
             # DEV: This can happen if either _memalloc has not been started or has been stopped.
-            LOG.error("Unable to collect memory events from process %d", os.getpid(), exc_info=True)
+            LOG.debug("Unable to collect memory events from process %d", os.getpid(), exc_info=True)
             return tuple()
 
         # `events_iter` is a consumable view into `iter_events()`; copy it so we can send it to both pyprof
