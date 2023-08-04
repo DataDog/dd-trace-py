@@ -235,7 +235,7 @@ traceback_to_tuple(traceback_t* tb)
             frame->filename,
             PyLong_FromUnsignedLong(frame->lineno),
             frame->name,
-            empty_string,
+            empty_string, // class name
             NULL);
 
         PyTuple_SET_ITEM(stack, nframe, frame_tuple);
