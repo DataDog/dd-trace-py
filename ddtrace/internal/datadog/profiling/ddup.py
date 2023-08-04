@@ -1,8 +1,8 @@
 try:
     from ._ddup import * # noqa: F403, F401
 except ImportError:
-    import typing
     from typing import Optional
+    from typing import Dict
     from ddtrace.span import Span
 
     # Decorator for not-implemented
