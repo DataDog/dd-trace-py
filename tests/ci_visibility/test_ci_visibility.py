@@ -862,3 +862,14 @@ def test_configure_itr_enabled_with_evp_mode():
 
             assert mock_civisibilty._itr_test_skipping_is_enabled is True
             assert mock_civisibilty._git_client is not None
+
+
+def test_enable_agentless_without_api_key_does_not_enable():
+    with override_env(dict(DD_API_KEY="", DD_CIVISIBILITY_AGENTLESS_ENABLED="true")):
+        with mock.patch.object(CIVisibility, "__init__") as mock_CIVisibility_init:
+            with mock.patch.object(CIVisibility, "start") as mock_CIVisibility_start:
+                CIVisibility.enable()
+                assert CIVisibility.enabled is False
+                assert CIVisibility._instance is None
+                mock_CIVisibility_init.assert_not_called()
+                mock_CIVisibility_start.assert_not_called()
