@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 
 from ddtrace import config
 from ddtrace.filters import TraceFilter
+from ddtrace.internal.compat import ensure_pep562
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import get_span_sampling_rules
@@ -1109,3 +1110,20 @@ class Tracer(object):
     @staticmethod
     def _is_span_internal(span):
         return not span.span_type or span.span_type in _INTERNAL_APPLICATION_SPAN_TYPES
+
+
+def __getattr__(name):
+    if name == "DD_LOG_FORMAT":
+        debtcollector.deprecate(
+            ("%s.%s is deprecated." % (__name__, name)),
+            removal_version="2.0.0",
+        )
+        return DD_LOG_FORMAT
+
+    if name in globals():
+        return globals()[name]
+
+    raise AttributeError("'%s' has no attribute '%s'", __name__, name)
+
+
+ensure_pep562(__name__)
