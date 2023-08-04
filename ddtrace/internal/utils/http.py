@@ -13,7 +13,6 @@ from typing import Tuple
 from typing import Union
 
 from ddtrace.constants import USER_ID_KEY
-from ddtrace.context import _get_metas_to_propagate
 from ddtrace.internal import compat
 from ddtrace.internal.compat import parse
 from ddtrace.internal.constants import BLOCKED_RESPONSE_HTML
@@ -24,6 +23,7 @@ from ddtrace.internal.constants import W3C_TRACESTATE_SAMPLING_PRIORITY_KEY
 from ddtrace.internal.http import HTTPConnection
 from ddtrace.internal.http import HTTPSConnection
 from ddtrace.internal.uds import UDSHTTPConnection
+from ddtrace.internal.utils import _get_metas_to_propagate
 from ddtrace.internal.utils.cache import cached
 
 

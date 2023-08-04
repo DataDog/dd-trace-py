@@ -2,12 +2,9 @@ import base64
 import re
 import threading
 from typing import Any
-from typing import List
 from typing import Optional
 from typing import TYPE_CHECKING
 from typing import Text
-
-import six
 
 from .constants import ORIGIN_KEY
 from .constants import SAMPLING_PRIORITY_KEY
@@ -231,12 +228,3 @@ class Context(object):
         )
 
     __str__ = __repr__
-
-
-def _get_metas_to_propagate(context):
-    # type: (Context) -> List[Tuple[str, str]]
-    metas_to_propagate = []
-    for k, v in context._meta.items():
-        if isinstance(k, six.string_types) and k.startswith("_dd.p."):
-            metas_to_propagate.append((k, v))
-    return metas_to_propagate
