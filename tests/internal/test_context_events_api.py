@@ -54,27 +54,28 @@ class TestContextEventsApi(unittest.TestCase):
     def test_core_dispatch_multiple_listeners_multiple_threads(self):
         event_name = "my.cool.event"
 
-        threads = []
-        thread_count = 10
-        threading_event_list = [threading.Event() for _ in range(thread_count)]
-        threading_event_list[0].set()
+        threading_event_odd = threading.Event()
+        threading_event_even = threading.Event()
+        threading_event_odd.set()
 
         def make_target(make_target_id):
             def target():
                 def listener():
                     if make_target_id % 2 == 0:
+                        threading_event_odd.wait()
+                        threading_event_even.set()
                         return make_target_id * 2
                     else:
+                        threading_event_even.wait()
+                        threading_event_odd.set()
                         raise ValueError
 
                 core.on(event_name, listener)
 
-            threading_event_list[make_target_id].wait()
-            if make_target_id < thread_count - 1:
-                threading_event_list[make_target_id + 1].set()
-
             return target
 
+        threads = []
+        thread_count = 10
         for idx in range(thread_count):
             t = threading.Thread(target=make_target(idx))
             t.start()
