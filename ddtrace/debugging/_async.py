@@ -6,8 +6,7 @@ from ddtrace.debugging._signal.collector import SignalContext
 from ddtrace.internal import compat
 
 
-async def dd_coroutine_wrapper(coro, contexts):
-    # type: (CoroutineType, List[SignalContext]) -> CoroutineType
+async def dd_coroutine_wrapper(coro: CoroutineType, contexts: List[SignalContext]) -> CoroutineType:
     start_time = compat.monotonic_ns()
     try:
         retval = await coro
