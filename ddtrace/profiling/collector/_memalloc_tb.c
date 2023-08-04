@@ -18,14 +18,14 @@ static PyObject* empty_string = NULL;
 
 #define TRACEBACK_SIZE(NFRAME) (sizeof(traceback_t) + sizeof(frame_t) * (NFRAME - 1))
 
-static PyObject *ddframe_class = NULL;
+static PyObject* ddframe_class = NULL;
 
 bool
 memalloc_ddframe_class_init()
 {
     if (ddframe_class) {
-      Py_DECREF(ddframe_class);
-      ddframe_class = NULL;
+        Py_DECREF(ddframe_class);
+        ddframe_class = NULL;
     }
 
     PyObject* collections = PyImport_ImportModule("collections");
@@ -42,10 +42,10 @@ memalloc_ddframe_class_init()
     }
 
     // Very important that this matches the definition of DDFrame in event.py
-    PyObject *class_name = PyUnicode_FromString("DDFrame");
-    PyObject *field_names = Py_BuildValue("(ssss)", "file_name", "lineno", "function_name", "class_name");
+    PyObject* class_name = PyUnicode_FromString("DDFrame");
+    PyObject* field_names = Py_BuildValue("(ssss)", "file_name", "lineno", "function_name", "class_name");
 
-    PyObject *args = PyTuple_Pack(2, class_name, field_names);
+    PyObject* args = PyTuple_Pack(2, class_name, field_names);
     Py_DECREF(class_name);
     Py_DECREF(field_names);
 
@@ -231,12 +231,12 @@ traceback_to_tuple(traceback_t* tb)
     for (uint16_t nframe = 0; nframe < tb->nframe; nframe++) {
         frame_t* frame = &tb->frames[nframe];
 
-        PyObject *frame_tuple = PyObject_CallFunctionObjArgs(ddframe_class,
-            frame->filename,
-            PyLong_FromUnsignedLong(frame->lineno),
-            frame->name,
-            empty_string, // class name
-            NULL);
+        PyObject* frame_tuple = PyObject_CallFunctionObjArgs(ddframe_class,
+                                                             frame->filename,
+                                                             PyLong_FromUnsignedLong(frame->lineno),
+                                                             frame->name,
+                                                             empty_string, // class name
+                                                             NULL);
 
         PyTuple_SET_ITEM(stack, nframe, frame_tuple);
     }

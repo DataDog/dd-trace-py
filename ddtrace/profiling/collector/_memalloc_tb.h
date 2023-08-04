@@ -1,8 +1,8 @@
 #ifndef _DDTRACE_MEMALLOC_TB_H
 #define _DDTRACE_MEMALLOC_TB_H
 
-#include <stdint.h>
 #include <stdbool.h>
+#include <stdint.h>
 
 #include <Python.h>
 
