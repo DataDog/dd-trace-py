@@ -577,6 +577,7 @@ setup(
         # users can include opentracing by having:
         # install_requires=['ddtrace[opentracing]', ...]
         "opentracing": ["opentracing>=2.0.0"],
+        "openai": ["tiktoken"],
     },
     tests_require=["flake8"],
     cmdclass={
