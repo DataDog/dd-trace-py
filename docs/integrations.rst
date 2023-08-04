@@ -456,7 +456,7 @@ Tornado
 
 unittest
 ^^^^^^^^
-.. automodule:: ddtrace.contrib.unittest_plugin
+.. automodule:: ddtrace.contrib.unittest
 
 
 .. _urllib3:
