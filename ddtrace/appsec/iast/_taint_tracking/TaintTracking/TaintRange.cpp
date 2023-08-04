@@ -54,10 +54,13 @@ set_fast_tainted_if_notinterned_unicode(const PyObject* objptr)
     }
     auto e = (PyASCIIObject_State_Hidden*)&(((PyASCIIObject*)objptr)->state);
     if (e) {
-        PyObject* builtins = PyEval_GetBuiltins();
-        PyObject* hash = PyDict_GetItemString(builtins, "hash");
-        // Could be replaced by PyObject_CallOneArg(hash,  objptr); in 3.9+
-        PyEval_CallFunction(hash, "(O)", objptr);
+        if ((((PyASCIIObject*)objptr)->hash) == -1) {
+            // compute hash once if not already done
+            PyObject* builtins = PyEval_GetBuiltins();
+            PyObject* hash = PyDict_GetItemString(builtins, "hash");
+            // Could be replaced by PyObject_CallOneArg(hash,  objptr); in 3.9+
+            PyEval_CallFunction(hash, "(O)", objptr);
+        }
         e->hidden = _GET_HASH_KEY(objptr);
     }
 }
