@@ -9,8 +9,6 @@ import sys
 from threading import RLock
 from typing import TYPE_CHECKING
 
-import six
-
 from ddtrace import config
 from ddtrace.filters import TraceFilter
 from ddtrace.internal.compat import ensure_pep562
@@ -30,6 +28,7 @@ from .constants import PID
 from .constants import SAMPLE_RATE_METRIC_KEY
 from .constants import VERSION_KEY
 from .context import Context
+from .context import _get_metas_to_propagate
 from .internal import agent
 from .internal import atexit
 from .internal import compat
@@ -720,12 +719,8 @@ class Tracer(object):
 
             if span._local_root is None:
                 span._local_root = span
-            for k, v in context._meta.items():
-                if isinstance(k, six.string_types) and k.startswith("_dd.p."):
-                    span._meta[k] = v
-            for metric_k, metric_v in context._metrics.items():
-                if isinstance(metric_k, six.string_types) and metric_k.startswith("_dd.p."):
-                    span._metrics[metric_k] = metric_v
+            for k, v in _get_metas_to_propagate(context):
+                span._meta[k] = v
         else:
             # this is the root span of a new trace
             span = Span(
