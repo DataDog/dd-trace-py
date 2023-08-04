@@ -12,10 +12,10 @@
       "_dd.p.dm": "-0",
       "component": "rq",
       "job.func_name": "__call__",
-      "job.id": "b0d859be-5f70-4a1b-9e13-63785b8bee3f",
+      "job.id": "6347d64b-0f39-4a8d-b502-25518b41ab2e",
       "language": "python",
       "queue.name": "q",
-      "runtime-id": "2cbc4798a5e1448ea9627228c43b1739",
+      "runtime-id": "e613f688c106430b9cbbf932e8a12984",
       "span.kind": "producer"
     },
     "metrics": {
@@ -23,10 +23,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 67067
+      "process_id": 23578
     },
-    "duration": 1655000,
-    "start": 1667319043984969000
+    "duration": 617648,
+    "start": 1691164382039340141
   },
      {
        "name": "rq.worker.perform_job",
@@ -40,21 +40,23 @@
        "meta": {
          "_dd.p.dm": "-0",
          "component": "rq",
-         "job.id": "b0d859be-5f70-4a1b-9e13-63785b8bee3f",
+         "job.id": "6347d64b-0f39-4a8d-b502-25518b41ab2e",
          "job.origin": "q",
          "job.status": "finished",
          "language": "python",
-         "runtime-id": "2cbc4798a5e1448ea9627228c43b1739",
-         "span.kind": "consumer"
+         "runtime-id": "e613f688c106430b9cbbf932e8a12984",
+         "span.kind": "consumer",
+         "traceparent": "00-0000000000000000156023427adcddba-bbfc496ea78f9bd6-01",
+         "tracestate": "dd=s:1;t.dm:-0"
        },
        "metrics": {
          "_dd.top_level": 1,
          "_dd.tracer_kr": 1.0,
          "_sampling_priority_v1": 1,
-         "process_id": 67067
+         "process_id": 23578
        },
-       "duration": 6509000,
-       "start": 1667319044019710000
+       "duration": 1477631,
+       "start": 1691164382046760959
      },
         {
           "name": "rq.job.perform",
@@ -66,11 +68,12 @@
           "type": "",
           "error": 0,
           "meta": {
+            "_dd.p.dm": "-0",
             "component": "rq",
-            "job.id": "b0d859be-5f70-4a1b-9e13-63785b8bee3f"
+            "job.id": "6347d64b-0f39-4a8d-b502-25518b41ab2e"
           },
-          "duration": 817000,
-          "start": 1667319044020974000
+          "duration": 108715,
+          "start": 1691164382047245118
         }],
 [
   {
@@ -86,10 +89,10 @@
       "_dd.p.dm": "-0",
       "component": "rq",
       "job.func_name": "job_on_class",
-      "job.id": "68323ae3-de16-446a-8c20-eff6074c0841",
+      "job.id": "95193f38-4747-4c47-b81a-c10e64dc34e3",
       "language": "python",
       "queue.name": "q",
-      "runtime-id": "2cbc4798a5e1448ea9627228c43b1739",
+      "runtime-id": "e613f688c106430b9cbbf932e8a12984",
       "span.kind": "producer"
     },
     "metrics": {
@@ -97,10 +100,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 67067
+      "process_id": 23578
     },
-    "duration": 3115000,
-    "start": 1667319043981739000
+    "duration": 861027,
+    "start": 1691164382038311934
   },
      {
        "name": "rq.worker.perform_job",
@@ -114,21 +117,23 @@
        "meta": {
          "_dd.p.dm": "-0",
          "component": "rq",
-         "job.id": "68323ae3-de16-446a-8c20-eff6074c0841",
+         "job.id": "95193f38-4747-4c47-b81a-c10e64dc34e3",
          "job.origin": "q",
          "job.status": "finished",
          "language": "python",
-         "runtime-id": "2cbc4798a5e1448ea9627228c43b1739",
-         "span.kind": "consumer"
+         "runtime-id": "e613f688c106430b9cbbf932e8a12984",
+         "span.kind": "consumer",
+         "traceparent": "00-000000000000000004ac1fba1c94c5d3-eead75f8413577df-01",
+         "tracestate": "dd=s:1;t.dm:-0"
        },
        "metrics": {
          "_dd.top_level": 1,
          "_dd.tracer_kr": 1.0,
          "_sampling_priority_v1": 1,
-         "process_id": 67067
+         "process_id": 23578
        },
-       "duration": 6578000,
-       "start": 1667319044000205000
+       "duration": 1903924,
+       "start": 1691164382042319301
      },
         {
           "name": "rq.job.perform",
@@ -140,9 +145,10 @@
           "type": "",
           "error": 0,
           "meta": {
+            "_dd.p.dm": "-0",
             "component": "rq",
-            "job.id": "68323ae3-de16-446a-8c20-eff6074c0841"
+            "job.id": "95193f38-4747-4c47-b81a-c10e64dc34e3"
           },
-          "duration": 834000,
-          "start": 1667319044001187000
+          "duration": 160653,
+          "start": 1691164382043019246
         }]]
