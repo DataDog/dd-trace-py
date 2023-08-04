@@ -1,4 +1,5 @@
 import threading
+from time import sleep
 import unittest
 
 import mock
@@ -64,6 +65,7 @@ class TestContextEventsApi(unittest.TestCase):
 
                 core.on(event_name, listener)
 
+            sleep(make_target_id * 0.0001)  # ensure threads finish in order
             return target
 
         threads = []
