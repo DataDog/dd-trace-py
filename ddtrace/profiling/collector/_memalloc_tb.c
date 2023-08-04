@@ -18,6 +18,53 @@ static PyObject* empty_string = NULL;
 
 #define TRACEBACK_SIZE(NFRAME) (sizeof(traceback_t) + sizeof(frame_t) * (NFRAME - 1))
 
+static PyObject *ddframe_class = NULL;
+
+bool
+memalloc_ddframe_class_init()
+{
+    if (ddframe_class) {
+      Py_DECREF(ddframe_class);
+      ddframe_class = NULL;
+    }
+
+    PyObject* collections = PyImport_ImportModule("collections");
+    if (collections == NULL) {
+        PyErr_Print();
+        return false;
+    }
+
+    PyObject* namedtuple_fun = PyObject_GetAttrString(collections, "namedtuple");
+    Py_DECREF(collections);
+    if (namedtuple_fun == NULL) {
+        PyErr_Print();
+        return false;
+    }
+
+    // Very important that this matches the definition of DDFrame in event.py
+    PyObject *class_name = PyUnicode_FromString("DDFrame");
+    PyObject *field_names = Py_BuildValue("(ssss)", "file_name", "lineno", "function_name", "class_name");
+
+    PyObject *args = PyTuple_Pack(2, class_name, field_names);
+    Py_DECREF(class_name);
+    Py_DECREF(field_names);
+
+    if (args == NULL) {
+        PyErr_Print();
+        return false;
+    }
+
+    ddframe_class = PyObject_CallObject(namedtuple_fun, args);
+    Py_DECREF(args);
+    Py_DECREF(namedtuple_fun);
+
+    if (ddframe_class == NULL) {
+        PyErr_Print();
+        return false;
+    }
+    return true;
+}
+
 int
 memalloc_tb_init(uint16_t max_nframe)
 {
@@ -182,18 +229,14 @@ traceback_to_tuple(traceback_t* tb)
     PyObject* stack = PyTuple_New(tb->nframe);
 
     for (uint16_t nframe = 0; nframe < tb->nframe; nframe++) {
-        PyObject* frame_tuple = PyTuple_New(4);
-
         frame_t* frame = &tb->frames[nframe];
 
-        PyTuple_SET_ITEM(frame_tuple, 0, frame->filename);
-        Py_INCREF(frame->filename);
-        PyTuple_SET_ITEM(frame_tuple, 1, PyLong_FromUnsignedLong(frame->lineno));
-        PyTuple_SET_ITEM(frame_tuple, 2, frame->name);
-        Py_INCREF(frame->name);
-        /* Class name */
-        PyTuple_SET_ITEM(frame_tuple, 3, empty_string);
-        Py_INCREF(empty_string);
+        PyObject *frame_tuple = PyObject_CallFunctionObjArgs(ddframe_class,
+            frame->filename,
+            PyLong_FromUnsignedLong(frame->lineno),
+            frame->name,
+            empty_string,
+            NULL);
 
         PyTuple_SET_ITEM(stack, nframe, frame_tuple);
     }

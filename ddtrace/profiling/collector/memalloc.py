@@ -119,8 +119,7 @@ class MemoryCollector(collector.PeriodicCollector):
                     ddup.push_threadinfo(
                         thread_id, _threading.get_thread_native_id(thread_id), _threading.get_thread_name(thread_id)
                     )
-                    for _frame in frames:
-                        frame = event.DDFrame._make(_frame)
+                    for frame in frames:
                         ddup.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
                     ddup.flush_sample()
 
@@ -151,7 +150,7 @@ class MemoryCollector(collector.PeriodicCollector):
             events_iter, count, alloc_count = _memalloc.iter_events()
         except RuntimeError:
             # DEV: This can happen if either _memalloc has not been started or has been stopped.
-            LOG.debug("Unable to collect memory events from process %d", os.getpid(), exc_info=True)
+            LOG.error("Unable to collect memory events from process %d", os.getpid(), exc_info=True)
             return tuple()
 
         # `events_iter` is a consumable view into `iter_events()`; copy it so we can send it to both pyprof
@@ -169,8 +168,7 @@ class MemoryCollector(collector.PeriodicCollector):
                 ddup.push_threadinfo(
                     thread_id, _threading.get_thread_native_id(thread_id), _threading.get_thread_name(thread_id)
                 )
-                for _frame in frames:
-                    frame = event.DDFrame._make(_frame)
+                for frame in frames:
                     ddup.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
                 ddup.flush_sample()
 
