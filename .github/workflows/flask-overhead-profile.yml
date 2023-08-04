@@ -5,6 +5,8 @@ on:
       - 0.x
       - 1.x
   pull_request:
+    paths:
+      - 'ddtrace/**'
 jobs:
   flask-overhead-profile:
     runs-on: ubuntu-latest
