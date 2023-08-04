@@ -25,6 +25,7 @@ from ddtrace.internal.sampling import is_single_span_sampled
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_TRACER
+from ddtrace.internal.utils import _get_metas_to_propagate
 from ddtrace.internal.writer import TraceWriter
 from ddtrace.span import Span
 from ddtrace.span import _get_64_highest_order_bits_as_hex
@@ -82,6 +83,7 @@ class TraceSamplingProcessor(TraceProcessor):
 
     def process_trace(self, trace):
         # type: (List[Span]) -> Optional[List[Span]]
+        sampled_trace = False
         if trace:
             chunk_root = trace[0]
             root_ctx = chunk_root._context
@@ -99,12 +101,14 @@ class TraceSamplingProcessor(TraceProcessor):
                     return single_spans or None
 
             for span in trace:
+                for k, v in _get_metas_to_propagate(chunk_root.context):
+                    span._meta[k] = v
                 if span.sampled:
-                    return trace
+                    sampled_trace = True
 
             log.debug("dropping trace %d with %d spans", trace[0].trace_id, len(trace))
 
-        return None
+        return trace if sampled_trace else None
 
 
 @attr.s
