@@ -33,7 +33,6 @@ from .internal import compat
 from .internal import debug
 from .internal import forksafe
 from .internal import hostname
-from .internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from .internal.constants import SPAN_API_DATADOG
 from .internal.dogstatsd import get_dogstatsd_client
 from .internal.logger import get_logger
