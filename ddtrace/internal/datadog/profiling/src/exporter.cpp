@@ -4,11 +4,6 @@
 // Datadog, Inc.
 
 // High-level skip for invalid architectures
-#ifndef __linux__
-#elif __aarch64__
-#elif __i386__
-#else
-
 #include "exporter.hpp"
 #include <iostream>
 
@@ -675,5 +670,3 @@ Profile::push_class_name(std::string_view class_name)
     }
     return true;
 }
-
-#endif

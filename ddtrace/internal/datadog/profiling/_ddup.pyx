@@ -9,7 +9,7 @@ from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.span import Span
 
 
-IF UNAME_SYSNAME == "Linux" and UNAME_MACHINE == "x86_64":
+IF UNAME_SYSNAME == "Linux":
     cdef extern from "exporter.hpp":
         ctypedef enum ProfileType "ProfileType":
             CPU         "ProfileType::CPU"
