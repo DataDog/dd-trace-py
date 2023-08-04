@@ -293,7 +293,7 @@ The following environment variables for the tracer are supported:
 
    DD_TRACE_PROPAGATION_STYLE:
      default: |
-         ``datadog``
+         ``tracecontext,datadog``
      description: |
          Comma separated list of propagation styles used for extracting trace context from inbound request headers and injecting trace context into outbound request headers.
 
@@ -308,8 +308,6 @@ The following environment variables for the tracer are supported:
 
          All provided styles are injected into the headers of outbound requests.
 
-         The default value is ``DD_TRACE_PROPAGATION_STYLE="tracecontext,datadog"``.
-
          Example: ``DD_TRACE_PROPAGATION_STYLE="datadog,b3"`` to check for both ``x-datadog-*`` and ``x-b3-*``
          headers when parsing incoming request headers for a trace context. In addition, to inject both ``x-datadog-*`` and ``x-b3-*``
          headers into outbound requests.
@@ -320,7 +318,7 @@ The following environment variables for the tracer are supported:
 
    DD_TRACE_PROPAGATION_STYLE_EXTRACT:
      default: |
-         ``datadog``
+         ``tracecontext,datadog``
      description: |
          Comma separated list of propagation styles used for extracting trace context from inbound request headers.
 
@@ -339,7 +337,7 @@ The following environment variables for the tracer are supported:
 
    DD_TRACE_PROPAGATION_STYLE_INJECT:
      default: |
-         ``datadog``
+         ``tracecontext,datadog``
      description: |
          Comma separated list of propagation styles used for injecting trace context into outbound request headers.
 
