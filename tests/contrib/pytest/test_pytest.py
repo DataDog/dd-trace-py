@@ -1414,7 +1414,7 @@ class PytestTestCase(TracerTestCase):
         Test that running pytest without module will create an empty module span with empty path.
         """
         self.testdir.makepyfile(
-            lib_fn="""
+            test_module="""
         def lib_fn():
             return True
         """
@@ -1423,7 +1423,7 @@ class PytestTestCase(TracerTestCase):
         self.testdir.makepyfile(
             test_cov="""
         import pytest
-        from lib_fn import lib_fn
+        from test_module import lib_fn
 
         def test_cov():
             assert lib_fn()
@@ -1445,13 +1445,13 @@ class PytestTestCase(TracerTestCase):
     @pytest.mark.skipif(compat.PY2, reason="ddtrace does not support coverage on Python 2")
     def test_pytest_will_report_coverage_by_test(self):
         self.testdir.makepyfile(
-            ret_false="""
+            test_ret_false="""
         def ret_false():
             return False
         """
         )
         self.testdir.makepyfile(
-            lib_fn="""
+            test_module="""
         def lib_fn():
             return True
         """
@@ -1461,11 +1461,11 @@ class PytestTestCase(TracerTestCase):
         import pytest
 
         def test_cov():
-            from lib_fn import lib_fn
+            from test_module import lib_fn
             assert lib_fn()
 
         def test_second():
-            from ret_false import ret_false
+            from test_ret_false import ret_false
             assert not ret_false()
         """
         )
@@ -1483,12 +1483,12 @@ class PytestTestCase(TracerTestCase):
         first_tag_data = json.loads(first_test_span.get_tag(COVERAGE_TAG_NAME))
         files = sorted(first_tag_data["files"], key=lambda x: x["filename"])
         assert len(files) == 2
-        assert files[0]["filename"] == "lib_fn.py"
-        assert files[1]["filename"] == "test_cov.py"
+        assert files[0]["filename"] == "test_cov.py"
+        assert files[1]["filename"] == "test_module.py"
         assert len(files[0]["segments"]) == 1
-        assert files[0]["segments"][0] == [1, 0, 2, 0, -1]
+        assert files[0]["segments"][0] == [4, 0, 5, 0, -1]
         assert len(files[1]["segments"]) == 1
-        assert files[1]["segments"][0] == [4, 0, 5, 0, -1]
+        assert files[1]["segments"][0] == [1, 0, 2, 0, -1]
 
         second_test_span = spans[1]
         assert second_test_span.get_tag("type") == "test"
@@ -1497,12 +1497,12 @@ class PytestTestCase(TracerTestCase):
         second_tag_data = json.loads(second_test_span.get_tag(COVERAGE_TAG_NAME))
         files = sorted(second_tag_data["files"], key=lambda x: x["filename"])
         assert len(files) == 2
-        assert files[0]["filename"] == "ret_false.py"
-        assert files[1]["filename"] == "test_cov.py"
+        assert files[0]["filename"] == "test_cov.py"
+        assert files[1]["filename"] == "test_ret_false.py"
         assert len(files[0]["segments"]) == 1
-        assert files[0]["segments"][0] == [1, 0, 2, 0, -1]
+        assert files[0]["segments"][0] == [8, 0, 9, 0, -1]
         assert len(files[1]["segments"]) == 1
-        assert files[1]["segments"][0] == [8, 0, 9, 0, -1]
+        assert files[1]["segments"][0] == [1, 0, 2, 0, -1]
 
     @pytest.mark.skipif(compat.PY2, reason="ddtrace does not support coverage on Python 2")
     def test_pytest_will_report_coverage_by_test_with_itr_skipped(self):
