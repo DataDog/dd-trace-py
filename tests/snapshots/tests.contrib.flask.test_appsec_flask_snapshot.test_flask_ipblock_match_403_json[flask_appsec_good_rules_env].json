@@ -22,30 +22,30 @@
       "http.request.headers.accept": "*/*",
       "http.request.headers.accept-encoding": "gzip, deflate",
       "http.request.headers.host": "0.0.0.0:8000",
-      "http.request.headers.user-agent": "python-requests/2.28.2",
+      "http.request.headers.user-agent": "python-requests/2.29.0",
       "http.request.headers.x-real-ip": "8.8.4.4",
       "http.response.headers.content-length": "167",
       "http.response.headers.content-type": "text/json",
       "http.status_code": "403",
       "http.url": "http://0.0.0.0:8000/",
-      "http.useragent": "python-requests/2.28.2",
+      "http.useragent": "python-requests/2.29.0",
       "language": "python",
-      "runtime-id": "500b3635d7e945a0b457811548ff9fe5"
+      "runtime-id": "46ce93f3f6474dc3a80759a26c30f6e3"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.appsec.enabled": 1.0,
       "_dd.appsec.event_rules.error_count": 0,
       "_dd.appsec.event_rules.loaded": 5,
-      "_dd.appsec.waf.duration": 78.032,
-      "_dd.appsec.waf.duration_ext": 283.0028533935547,
+      "_dd.appsec.waf.duration": 52.966,
+      "_dd.appsec.waf.duration_ext": 257.25364685058594,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 2,
-      "process_id": 15578
+      "process_id": 48034
     },
-    "duration": 1830770,
-    "start": 1691163015240785972
+    "duration": 1788295,
+    "start": 1691167047393588799
   },
      {
        "name": "flask.response",
@@ -60,6 +60,6 @@
          "_dd.p.dm": "-4",
          "component": "flask"
        },
-       "duration": 578812,
-       "start": 1691163015241989484
+       "duration": 543152,
+       "start": 1691167047394789035
      }]]

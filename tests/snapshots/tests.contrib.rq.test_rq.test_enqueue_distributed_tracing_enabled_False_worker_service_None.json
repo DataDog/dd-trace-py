@@ -1,7 +1,7 @@
 [[
   {
-    "name": "rq.queue.enqueue_job",
-    "service": "rq",
+    "name": "rq.worker.perform_job",
+    "service": "rq-worker",
     "resource": "tests.contrib.rq.jobs.job_add1",
     "trace_id": 0,
     "span_id": 1,
@@ -11,27 +11,44 @@
     "meta": {
       "_dd.p.dm": "-0",
       "component": "rq",
-      "job.func_name": "tests.contrib.rq.jobs.job_add1",
-      "job.id": "db341450-39be-4ed2-9ad0-30428990ca5b",
+      "job.id": "2682b486-c7e1-4987-bd09-c118c68233be",
+      "job.origin": "q",
+      "job.status": "finished",
       "language": "python",
-      "queue.name": "q",
-      "runtime-id": "e613f688c106430b9cbbf932e8a12984",
-      "span.kind": "producer"
+      "runtime-id": "6916b0f89d144dd7968f2951bd392cb9",
+      "span.kind": "consumer"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 23578
+      "process_id": 55811
     },
-    "duration": 3524685,
-    "start": 1691164382261230077
-  }],
+    "duration": 3936888,
+    "start": 1691167587435479961
+  },
+     {
+       "name": "rq.job.perform",
+       "service": "rq-worker",
+       "resource": "tests.contrib.rq.jobs.job_add1",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.p.dm": "-0",
+         "component": "rq",
+         "job.id": "2682b486-c7e1-4987-bd09-c118c68233be"
+       },
+       "duration": 1619707,
+       "start": 1691167587436694520
+     }],
 [
   {
-    "name": "rq.worker.perform_job",
-    "service": "rq-worker",
+    "name": "rq.queue.enqueue_job",
+    "service": "rq",
     "resource": "tests.contrib.rq.jobs.job_add1",
     "trace_id": 1,
     "span_id": 1,
@@ -41,37 +58,20 @@
     "meta": {
       "_dd.p.dm": "-0",
       "component": "rq",
-      "job.id": "db341450-39be-4ed2-9ad0-30428990ca5b",
-      "job.origin": "q",
-      "job.status": "finished",
+      "job.func_name": "tests.contrib.rq.jobs.job_add1",
+      "job.id": "2682b486-c7e1-4987-bd09-c118c68233be",
       "language": "python",
-      "runtime-id": "2b5a3ed1a92c4a3ea72daa1aa5fcfc52",
-      "span.kind": "consumer"
+      "queue.name": "q",
+      "runtime-id": "dc862c6ff169400783e513c72f18a9f3",
+      "span.kind": "producer"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 23590
+      "process_id": 55795
     },
-    "duration": 3554648,
-    "start": 1691164382610234252
-  },
-     {
-       "name": "rq.job.perform",
-       "service": "rq-worker",
-       "resource": "tests.contrib.rq.jobs.job_add1",
-       "trace_id": 1,
-       "span_id": 2,
-       "parent_id": 1,
-       "type": "",
-       "error": 0,
-       "meta": {
-         "_dd.p.dm": "-0",
-         "component": "rq",
-         "job.id": "db341450-39be-4ed2-9ad0-30428990ca5b"
-       },
-       "duration": 1216182,
-       "start": 1691164382611465252
-     }]]
+    "duration": 4385694,
+    "start": 1691167586945323938
+  }]]

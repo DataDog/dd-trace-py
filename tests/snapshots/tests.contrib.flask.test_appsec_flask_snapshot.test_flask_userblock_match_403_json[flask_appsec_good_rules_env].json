@@ -37,7 +37,7 @@
       "http.useragent": "python-requests/2.28.2",
       "language": "python",
       "network.client.ip": "127.0.0.1",
-      "runtime-id": "dab45da4546b48d395f58cafffce6bee",
+      "runtime-id": "f5e47e4adaf44aec878fcf024e967aca",
       "span.kind": "server",
       "usr.id": "123456"
     },
@@ -46,16 +46,16 @@
       "_dd.appsec.enabled": 1.0,
       "_dd.appsec.event_rules.error_count": 0,
       "_dd.appsec.event_rules.loaded": 5,
-      "_dd.appsec.waf.duration": 36.75,
-      "_dd.appsec.waf.duration_ext": 157.1178436279297,
+      "_dd.appsec.waf.duration": 79.90299999999999,
+      "_dd.appsec.waf.duration_ext": 452.7568817138672,
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 2,
-      "process_id": 15587
+      "process_id": 48270
     },
-    "duration": 2681150,
-    "start": 1691163016001518067
+    "duration": 7405340,
+    "start": 1691167052601994217
   },
      {
        "name": "flask.application",
@@ -76,8 +76,8 @@
          "http.status_code": "403",
          "http.useragent": "python-requests/2.28.2"
        },
-       "duration": 1982211,
-       "start": 1691163016001935817
+       "duration": 5486100,
+       "start": 1691167052603182118
      },
         {
           "name": "flask.try_trigger_before_first_request_functions",
@@ -92,8 +92,8 @@
             "_dd.p.dm": "-0",
             "component": "flask"
           },
-          "duration": 13789,
-          "start": 1691163016002037112
+          "duration": 41713,
+          "start": 1691167052603493086
         },
         {
           "name": "flask.preprocess_request",
@@ -108,8 +108,8 @@
             "_dd.p.dm": "-0",
             "component": "flask"
           },
-          "duration": 20917,
-          "start": 1691163016002114771
+          "duration": 58366,
+          "start": 1691167052603718386
         },
         {
           "name": "flask.dispatch_request",
@@ -124,11 +124,11 @@
             "_dd.p.dm": "-0",
             "component": "flask",
             "error.message": "??? Unknown Error: None",
-            "error.stack": "Traceback (most recent call last):\n  File \"/root/project/ddtrace/contrib/flask/patch.py\", line 599, in _traced_request\n    return wrapped(*args, **kwargs)\n  File \"/root/project/.riot/venv_py3916_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_blinker_requests_flask~10_itsdangerous210_markupsafe20_werkzeug20/lib/python3.9/site-packages/flask/app.py\", line 1936, in dispatch_request\n    return self.view_functions[rule.endpoint](**req.view_args)\n  File \"/root/project/ddtrace/contrib/flask/wrappers.py\", line 42, in trace_func\n    return wrapped(*args, **kwargs)\n  File \"/root/project/tests/contrib/flask/app.py\", line 68, in checkuser\n    block_request_if_user_blocked(tracer, user_id)\n  File \"/root/project/ddtrace/appsec/trace_utils.py\", line 242, in block_request_if_user_blocked\n    _asm_request_context.block_request()\n  File \"/root/project/ddtrace/appsec/_asm_request_context.py\", line 284, in block_request\n    _callable()\n  File \"/root/project/ddtrace/contrib/flask/patch.py\", line 571, in _block_request_callable\n    abort(flask.Response(http_utils._get_blocked_template(ctype), content_type=ctype, status=403))\n  File \"/root/project/.riot/venv_py3916_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_blinker_requests_flask~10_itsdangerous210_markupsafe20_werkzeug20/lib/python3.9/site-packages/werkzeug/exceptions.py\", line 822, in abort\n    return _aborter(status, *args, **kwargs)\n  File \"/root/project/.riot/venv_py3916_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_blinker_requests_flask~10_itsdangerous210_markupsafe20_werkzeug20/lib/python3.9/site-packages/werkzeug/exceptions.py\", line 804, in __call__\n    raise HTTPException(response=code)\nwerkzeug.exceptions.HTTPException: ??? Unknown Error: None\n",
+            "error.stack": "Traceback (most recent call last):\n  File \"/root/project/ddtrace/contrib/flask/patch.py\", line 599, in _traced_request\n    return wrapped(*args, **kwargs)\n  File \"/root/project/.riot/venv_py3816_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_blinker_requests_flask~10_itsdangerous210_markupsafe20_werkzeug20/lib/python3.8/site-packages/flask/app.py\", line 1936, in dispatch_request\n    return self.view_functions[rule.endpoint](**req.view_args)\n  File \"/root/project/ddtrace/contrib/flask/wrappers.py\", line 42, in trace_func\n    return wrapped(*args, **kwargs)\n  File \"/root/project/tests/contrib/flask/app.py\", line 68, in checkuser\n    block_request_if_user_blocked(tracer, user_id)\n  File \"/root/project/ddtrace/appsec/trace_utils.py\", line 242, in block_request_if_user_blocked\n    _asm_request_context.block_request()\n  File \"/root/project/ddtrace/appsec/_asm_request_context.py\", line 284, in block_request\n    _callable()\n  File \"/root/project/ddtrace/contrib/flask/patch.py\", line 571, in _block_request_callable\n    abort(flask.Response(http_utils._get_blocked_template(ctype), content_type=ctype, status=403))\n  File \"/root/project/.riot/venv_py3816_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_blinker_requests_flask~10_itsdangerous210_markupsafe20_werkzeug20/lib/python3.8/site-packages/werkzeug/exceptions.py\", line 822, in abort\n    return _aborter(status, *args, **kwargs)\n  File \"/root/project/.riot/venv_py3816_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_blinker_requests_flask~10_itsdangerous210_markupsafe20_werkzeug20/lib/python3.8/site-packages/werkzeug/exceptions.py\", line 804, in __call__\n    raise HTTPException(response=code)\nwerkzeug.exceptions.HTTPException: ??? Unknown Error: None\n",
             "error.type": "werkzeug.exceptions.HTTPException"
           },
-          "duration": 1332248,
-          "start": 1691163016002169946
+          "duration": 3780784,
+          "start": 1691167052603883299
         },
            {
              "name": "tests.contrib.flask.app.checkuser",
@@ -143,11 +143,11 @@
                "_dd.p.dm": "-0",
                "component": "flask",
                "error.message": "??? Unknown Error: None",
-               "error.stack": "Traceback (most recent call last):\n  File \"/root/project/ddtrace/contrib/flask/wrappers.py\", line 42, in trace_func\n    return wrapped(*args, **kwargs)\n  File \"/root/project/tests/contrib/flask/app.py\", line 68, in checkuser\n    block_request_if_user_blocked(tracer, user_id)\n  File \"/root/project/ddtrace/appsec/trace_utils.py\", line 242, in block_request_if_user_blocked\n    _asm_request_context.block_request()\n  File \"/root/project/ddtrace/appsec/_asm_request_context.py\", line 284, in block_request\n    _callable()\n  File \"/root/project/ddtrace/contrib/flask/patch.py\", line 571, in _block_request_callable\n    abort(flask.Response(http_utils._get_blocked_template(ctype), content_type=ctype, status=403))\n  File \"/root/project/.riot/venv_py3916_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_blinker_requests_flask~10_itsdangerous210_markupsafe20_werkzeug20/lib/python3.9/site-packages/werkzeug/exceptions.py\", line 822, in abort\n    return _aborter(status, *args, **kwargs)\n  File \"/root/project/.riot/venv_py3916_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_blinker_requests_flask~10_itsdangerous210_markupsafe20_werkzeug20/lib/python3.9/site-packages/werkzeug/exceptions.py\", line 804, in __call__\n    raise HTTPException(response=code)\nwerkzeug.exceptions.HTTPException: ??? Unknown Error: None\n",
+               "error.stack": "Traceback (most recent call last):\n  File \"/root/project/ddtrace/contrib/flask/wrappers.py\", line 42, in trace_func\n    return wrapped(*args, **kwargs)\n  File \"/root/project/tests/contrib/flask/app.py\", line 68, in checkuser\n    block_request_if_user_blocked(tracer, user_id)\n  File \"/root/project/ddtrace/appsec/trace_utils.py\", line 242, in block_request_if_user_blocked\n    _asm_request_context.block_request()\n  File \"/root/project/ddtrace/appsec/_asm_request_context.py\", line 284, in block_request\n    _callable()\n  File \"/root/project/ddtrace/contrib/flask/patch.py\", line 571, in _block_request_callable\n    abort(flask.Response(http_utils._get_blocked_template(ctype), content_type=ctype, status=403))\n  File \"/root/project/.riot/venv_py3816_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_blinker_requests_flask~10_itsdangerous210_markupsafe20_werkzeug20/lib/python3.8/site-packages/werkzeug/exceptions.py\", line 822, in abort\n    return _aborter(status, *args, **kwargs)\n  File \"/root/project/.riot/venv_py3816_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_blinker_requests_flask~10_itsdangerous210_markupsafe20_werkzeug20/lib/python3.8/site-packages/werkzeug/exceptions.py\", line 804, in __call__\n    raise HTTPException(response=code)\nwerkzeug.exceptions.HTTPException: ??? Unknown Error: None\n",
                "error.type": "werkzeug.exceptions.HTTPException"
              },
-             "duration": 954079,
-             "start": 1691163016002207716
+             "duration": 2754483,
+             "start": 1691167052603968749
            },
         {
           "name": "flask.handle_user_exception",
@@ -162,8 +162,8 @@
             "_dd.p.dm": "-4",
             "component": "flask"
           },
-          "duration": 50237,
-          "start": 1691163016003537499
+          "duration": 145621,
+          "start": 1691167052607762819
         },
            {
              "name": "flask.handle_http_exception",
@@ -178,8 +178,8 @@
                "_dd.p.dm": "-4",
                "component": "flask"
              },
-             "duration": 10498,
-             "start": 1691163016003567802
+             "duration": 31667,
+             "start": 1691167052607850151
            },
         {
           "name": "flask.process_response",
@@ -194,8 +194,8 @@
             "_dd.p.dm": "-4",
             "component": "flask"
           },
-          "duration": 15610,
-          "start": 1691163016003652912
+          "duration": 44970,
+          "start": 1691167052608085244
         },
         {
           "name": "flask.do_teardown_request",
@@ -210,8 +210,8 @@
             "_dd.p.dm": "-4",
             "component": "flask"
           },
-          "duration": 88878,
-          "start": 1691163016003768938
+          "duration": 46724,
+          "start": 1691167052608464185
         },
         {
           "name": "flask.do_teardown_appcontext",
@@ -226,8 +226,8 @@
             "_dd.p.dm": "-4",
             "component": "flask"
           },
-          "duration": 13566,
-          "start": 1691163016003886725
+          "duration": 35206,
+          "start": 1691167052608586769
         },
      {
        "name": "flask.response",
@@ -242,6 +242,6 @@
          "_dd.p.dm": "-4",
          "component": "flask"
        },
-       "duration": 213988,
-       "start": 1691163016003967065
+       "duration": 561202,
+       "start": 1691167052608800592
      }]]

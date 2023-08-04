@@ -18,7 +18,7 @@
       "http.useragent": "testclient",
       "http.version": "1.1",
       "language": "python",
-      "runtime-id": "48a929883f284ff7910e0a420cbcb0f8",
+      "runtime-id": "41eaa96c3f2e4478880c7c42c7c12a67",
       "span.kind": "server"
     },
     "metrics": {
@@ -26,10 +26,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 14777
+      "process_id": 47314
     },
-    "duration": 818164,
-    "start": 1691162794365739601
+    "duration": 739342,
+    "start": 1691166901136722352
   },
      {
        "name": "http.server.request",
@@ -50,8 +50,8 @@
          "http.version": "1.1",
          "span.kind": "server"
        },
-       "duration": 631313,
-       "start": 1691162794365935863
+       "duration": 599531,
+       "start": 1691166901136871412
      },
         {
           "name": "fastapi.serialize_response",
@@ -65,6 +65,6 @@
           "meta": {
             "_dd.p.dm": "-0"
           },
-          "duration": 31781,
-          "start": 1691162794366424284
+          "duration": 28304,
+          "start": 1691166901137325786
         }]]

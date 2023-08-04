@@ -16,7 +16,7 @@
       "langchain.response.outputs.answer": "Answer: 2.4116004626599237",
       "langchain.response.outputs.question": "what is thirteen raised to the .3432 power?",
       "language": "python",
-      "runtime-id": "626cda3c05214f8da9999552162932d9"
+      "runtime-id": "dfd2ce0f0c3347ffb6655649ad48bd1f"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -24,10 +24,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 20764
+      "process_id": 52007
     },
-    "duration": 5096558,
-    "start": 1691163872399438410
+    "duration": 5311299,
+    "start": 1691167369523075208
   },
      {
        "name": "langchain.request",
@@ -51,8 +51,8 @@
        "metrics": {
          "_dd.measured": 1
        },
-       "duration": 4530819,
-       "start": 1691163872399685176
+       "duration": 4665165,
+       "start": 1691167369523378795
      },
         {
           "name": "langchain.request",
@@ -82,6 +82,6 @@
           "metrics": {
             "_dd.measured": 1
           },
-          "duration": 4143193,
-          "start": 1691163872399952884
+          "duration": 4244737,
+          "start": 1691167369523681371
         }]]

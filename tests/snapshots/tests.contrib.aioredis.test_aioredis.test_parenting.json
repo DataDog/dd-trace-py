@@ -1,0 +1,77 @@
+[[
+  {
+    "name": "web-request",
+    "service": "test",
+    "resource": "web-request",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "language": "python",
+      "runtime-id": "7063440fa673409db39cc29a8cc2cc5c"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 2807
+    },
+    "duration": 2291000,
+    "start": 1667241180529005000
+  },
+     {
+       "name": "redis.command",
+       "service": "redis",
+       "resource": "SET blah boo",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "redis",
+       "error": 0,
+       "meta": {
+         "component": "aioredis",
+         "db.system": "redis",
+         "out.host": "127.0.0.1",
+         "redis.raw_command": "SET blah boo",
+         "span.kind": "client"
+       },
+       "metrics": {
+         "_dd.measured": 1,
+         "_dd.top_level": 1,
+         "network.destination.port": 6379,
+         "out.redis_db": 0,
+         "redis.args_length": 3
+       },
+       "duration": 1275000,
+       "start": 1667241180529094000
+     },
+     {
+       "name": "redis.command",
+       "service": "redis",
+       "resource": "GET blah",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "redis",
+       "error": 0,
+       "meta": {
+         "component": "aioredis",
+         "db.system": "redis",
+         "out.host": "127.0.0.1",
+         "redis.raw_command": "GET blah",
+         "span.kind": "client"
+       },
+       "metrics": {
+         "_dd.measured": 1,
+         "_dd.top_level": 1,
+         "network.destination.port": 6379,
+         "out.redis_db": 0,
+         "redis.args_length": 2
+       },
+       "duration": 836000,
+       "start": 1667241180530435000
+     }]]

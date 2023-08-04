@@ -16,7 +16,7 @@
       "langchain.response.outputs.answer": "Answer: 18014398509481984",
       "langchain.response.outputs.question": "what is two raised to the fifty-fourth power?",
       "language": "python",
-      "runtime-id": "626cda3c05214f8da9999552162932d9"
+      "runtime-id": "dfd2ce0f0c3347ffb6655649ad48bd1f"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -28,10 +28,10 @@
       "langchain.tokens.prompt_tokens": 236,
       "langchain.tokens.total_cost": 0.0052,
       "langchain.tokens.total_tokens": 260,
-      "process_id": 20764
+      "process_id": 52007
     },
-    "duration": 5318182,
-    "start": 1691163872367797254
+    "duration": 5858014,
+    "start": 1691167369486885749
   },
      {
        "name": "langchain.request",
@@ -59,8 +59,8 @@
          "langchain.tokens.total_cost": 0.0052,
          "langchain.tokens.total_tokens": 260
        },
-       "duration": 4551357,
-       "start": 1691163872368022840
+       "duration": 5007468,
+       "start": 1691167369487135269
      },
         {
           "name": "langchain.request",
@@ -97,6 +97,6 @@
             "langchain.tokens.total_cost": 0.0052,
             "langchain.tokens.total_tokens": 260
           },
-          "duration": 4194442,
-          "start": 1691163872368298184
+          "duration": 4593983,
+          "start": 1691167369487449083
         }]]
