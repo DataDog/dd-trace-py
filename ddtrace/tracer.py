@@ -16,6 +16,7 @@ from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounter
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import get_span_sampling_rules
 from ddtrace.internal.sampling_utils import get_trace_sampling_rules
+from ddtrace.internal.utils import _get_metas_to_propagate
 from ddtrace.settings.peer_service import PeerServiceConfig
 from ddtrace.vendor import debtcollector
 
@@ -722,8 +723,8 @@ class Tracer(object):
 
             if span._local_root is None:
                 span._local_root = span
-            if SAMPLING_DECISION_TRACE_TAG_KEY in context._meta:
-                span._meta[SAMPLING_DECISION_TRACE_TAG_KEY] = context._meta[SAMPLING_DECISION_TRACE_TAG_KEY]
+            for k, v in _get_metas_to_propagate(context):
+                span._meta[k] = v
         else:
             # this is the root span of a new trace
             span = Span(
