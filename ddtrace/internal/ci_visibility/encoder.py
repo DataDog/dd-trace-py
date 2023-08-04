@@ -202,6 +202,3 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
             converted_span["span_id"] = span.span_id
 
         return converted_span
-
-
-
