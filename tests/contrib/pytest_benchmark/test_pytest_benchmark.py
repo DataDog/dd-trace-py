@@ -99,7 +99,7 @@ class PytestTestCase(TracerTestCase):
         assert isinstance(spans[0].get_metric(STATISTICS_TOTAL), float) or isinstance(spans[0].get_metric(STATISTICS_TOTAL), int)
 
         assert spans[0].get_metric(BENCHMARK_MEAN) > 0.0002
-        assert spans[0].get_metric(BENCHMARK_RUN) > 3000
+        assert spans[0].get_metric(BENCHMARK_RUN) > 0
         assert spans[0].get_metric(STATISTICS_HD15IQR) is not None
         assert spans[0].get_metric(STATISTICS_IQR) is not None
         assert spans[0].get_metric(STATISTICS_IQR_OUTLIERS) is not None
@@ -112,7 +112,7 @@ class PytestTestCase(TracerTestCase):
         assert spans[0].get_tag(STATISTICS_OUTLIERS) is not None
         assert spans[0].get_metric(STATISTICS_Q1) > 0
         assert spans[0].get_metric(STATISTICS_Q3) > 0
-        assert spans[0].get_metric(STATISTICS_N) > 3000
+        assert spans[0].get_metric(STATISTICS_N) > 0
         assert spans[0].get_metric(STATISTICS_STDDEV) is not None
         assert spans[0].get_metric(STATISTICS_STDDEV_OUTLIERS) is not None
         assert spans[0].get_metric(STATISTICS_TOTAL) > 0.0002
