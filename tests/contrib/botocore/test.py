@@ -1122,7 +1122,7 @@ class BotocoreTest(TracerTestCase):
                 pin = Pin.get_from(sns)
                 buckets = pin.tracer.data_streams_processor._buckets
                 assert len(buckets) == 1, "Expected 1 bucket but found {}".format(len(buckets))
-                _, first = list(buckets.items())[0]
+                first = list(buckets.values())[0].pathway_stats
 
                 assert (
                     first[
@@ -1191,7 +1191,7 @@ class BotocoreTest(TracerTestCase):
                 pin = Pin.get_from(self.sqs_client)
                 buckets = pin.tracer.data_streams_processor._buckets
                 assert len(buckets) == 1
-                _, first = list(buckets.items())[0]
+                first = list(buckets.values())[0].pathway_stats
 
                 assert (
                     first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].full_pathway_latency._count
@@ -1250,7 +1250,7 @@ class BotocoreTest(TracerTestCase):
                 pin = Pin.get_from(self.sqs_client)
                 buckets = pin.tracer.data_streams_processor._buckets
                 assert len(buckets) == 1
-                _, first = list(buckets.items())[0]
+                first = list(buckets.values())[0].pathway_stats
 
                 assert (
                     first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].full_pathway_latency._count
@@ -1320,7 +1320,7 @@ class BotocoreTest(TracerTestCase):
                 pin = Pin.get_from(self.sqs_client)
                 buckets = pin.tracer.data_streams_processor._buckets
                 assert len(buckets) == 1
-                _, first = list(buckets.items())[0]
+                first = list(buckets.values())[0].pathway_stats
 
                 assert (
                     first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].full_pathway_latency._count
@@ -2853,7 +2853,7 @@ class BotocoreTest(TracerTestCase):
     @mock_kinesis
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     @unittest.skipIf(BOTOCORE_VERSION < (1, 26, 31), "Kinesis didn't support streamARN till 1.26.31")
-    @mock.patch('time.time', mock.MagicMock(return_value=1642544540))
+    @mock.patch("time.time", mock.MagicMock(return_value=1642544540))
     def test_kinesis_data_streams_enabled_put_records(self):
         # (dict -> json string)[]
         data = json.dumps({"json": "string"})
@@ -2865,7 +2865,7 @@ class BotocoreTest(TracerTestCase):
         pin = Pin.get_from(client)
         buckets = pin.tracer.data_streams_processor._buckets
         assert len(buckets) == 1
-        _, first = list(buckets.items())[0]
+        first = list(buckets.values())[0].pathway_stats
 
         in_tags = ",".join(
             [
@@ -2935,7 +2935,7 @@ class BotocoreTest(TracerTestCase):
         pin = Pin.get_from(client)
         buckets = pin.tracer.data_streams_processor._buckets
         assert len(buckets) == 1
-        _, first = list(buckets.items())[0]
+        first = list(buckets.values())[0].pathway_stats
         in_tags = ",".join(
             [
                 "direction:in",

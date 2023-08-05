@@ -6,8 +6,10 @@ import os
 from os import environ
 from os import getpid
 import sys
+import signal
 from threading import RLock
 from typing import TYPE_CHECKING
+import atexit as pythonatexit
 
 from ddtrace import config
 from ddtrace.filters import TraceFilter
@@ -200,6 +202,9 @@ def _default_span_processors_factory(
     ]  # type: List[SpanProcessor]
     return span_processors, appsec_processor, deferred_processors
 
+def signal_handler(sig, frame):
+    pythonatexit._run_exitfuncs()
+    sys.exit(0)
 
 class Tracer(object):
     """
@@ -300,6 +305,8 @@ class Tracer(object):
 
         self._hooks = _hooks.Hooks()
         atexit.register(self._atexit)
+        signal.signal(signal.SIGTERM, signal_handler)
+        signal.signal(signal.SIGINT, signal_handler)
         forksafe.register(self._child_after_fork)
 
         self._shutdown_lock = RLock()
@@ -1045,6 +1052,11 @@ class Tracer(object):
         """
         with self._shutdown_lock:
             # Thread safety: Ensures tracer is shutdown synchronously
+            try:
+                self.data_streams_processor.shutdown(timeout)
+            except Exception as e:
+                if config._data_streams_enabled:
+                    log.warning("Failed to shutdown data streams processor: %s", repr(e))
             span_processors = self._span_processors
             deferred_processors = self._deferred_processors
             self._span_processors = []
@@ -1052,11 +1064,6 @@ class Tracer(object):
             for processor in chain(span_processors, SpanProcessor.__processors__, deferred_processors):
                 if hasattr(processor, "shutdown"):
                     processor.shutdown(timeout)
-            try:
-                self.data_streams_processor.shutdown(timeout)
-            except Exception as e:
-                if config._data_streams_enabled:
-                    log.warning("Failed to shutdown data streams processor: %s", repr(e))
 
             atexit.unregister(self._atexit)
             forksafe.unregister(self._child_after_fork)

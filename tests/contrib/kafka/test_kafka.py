@@ -213,7 +213,7 @@ def test_data_streams_kafka(tracer, consumer, producer, kafka_topic):
         message = consumer.poll(1.0)
     buckets = tracer.data_streams_processor._buckets
     assert len(buckets) == 1
-    _, first = list(buckets.items())[0]
+    first = list(buckets.values())[0].pathway_stats
     assert (
         first[
             ("direction:out,topic:{},type:kafka".format(kafka_topic), 7591515074392955298, 0)
