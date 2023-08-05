@@ -223,6 +223,7 @@ def test_git_client_worker_agentless(_do_request, git_repo):
             DD_API_KEY="foobar.baz",
             DD_APPLICATION_KEY="banana",
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+            DD_SITE="datadoghq.com",
         )
     ):
         ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()

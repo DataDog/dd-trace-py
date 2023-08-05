@@ -404,9 +404,11 @@ def _on_wrapped_view(kwargs):
     return return_value
 
 
-def _on_pre_tracedrequest(block_request_callable, span):
+def _on_pre_tracedrequest(ctx):
+    block_request_callable = ctx.get_item("block_request_callable")
+    current_span = ctx.get_item("current_span")
     if config._appsec_enabled:
-        set_block_request_callable(functools.partial(block_request_callable, span))
+        set_block_request_callable(functools.partial(block_request_callable, current_span))
         if core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
             block_request()
 
@@ -431,6 +433,6 @@ def _on_block_decided(callback):
 def listen_context_handlers():
     core.on("flask.finalize_request.post", _on_post_finalizerequest)
     core.on("flask.wrapped_view", _on_wrapped_view)
-    core.on("flask.traced_request.pre", _on_pre_tracedrequest)
+    core.on("context.started.flask._traced_request", _on_pre_tracedrequest)
     core.on("wsgi.block_decided", _on_block_decided)
     core.on("flask.start_response", _on_start_response)

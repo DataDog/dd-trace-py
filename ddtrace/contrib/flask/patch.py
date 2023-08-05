@@ -1,11 +1,12 @@
 import flask
 import werkzeug
 from werkzeug.exceptions import BadRequest
+from werkzeug.exceptions import NotFound
 from werkzeug.exceptions import abort
 
-from ddtrace.constants import SPAN_KIND
-from ddtrace.ext import SpanKind
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.constants import FLASK_ENDPOINT
+from ddtrace.internal.constants import FLASK_URL_RULE
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
@@ -57,9 +58,6 @@ except ImportError:
 
 log = get_logger(__name__)
 
-FLASK_ENDPOINT = "flask.endpoint"
-FLASK_VIEW_ARGS = "flask.view_args"
-FLASK_URL_RULE = "flask.url_rule"
 FLASK_VERSION = "flask.version"
 _BODY_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
 
@@ -110,7 +108,7 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
     def _traced_start_response(self, start_response, req_span, app_span, status_code, headers, exc_info=None):
         code, _, _ = status_code.partition(" ")
         # If values are accessible, set the resource as `<method> <path>` and add other request tags
-        _set_request_tags(req_span)
+        core.dispatch("flask.set_request_tags", [flask.request, req_span, config.flask])
 
         # Override root span resource name to be `<method> 404` for 404 requests
         # DEV: We do this because we want to make it easier to see all unknown requests together
@@ -580,23 +578,24 @@ def request_tracer(name):
 
         This wrapper will add identifier tags to the current span from `flask.app.Flask.wsgi_app`.
         """
-        span = pin.tracer.current_span()
-        if not pin.enabled or not span:
+        current_span = pin.tracer.current_span()
+        if not pin.enabled or not current_span:
             return wrapped(*args, **kwargs)
 
-        # This call may be unnecessary since we try to add the tags earlier
-        # We just haven't been able to confirm this yet
-        _set_request_tags(span)
+        core.dispatch("flask.set_request_tags", [flask.request, current_span, config.flask])
 
-        with pin.tracer.trace(
-            ".".join(("flask", name)),
+        with core.context_with_data(
+            "flask._traced_request",
+            name=".".join(("flask", name)),
             service=trace_utils.int_service(pin, config.flask, pin),
-        ) as request_span:
-            request_span.set_tag_str(COMPONENT, config.flask.integration_name)
-
-            request_span._ignore_exception(werkzeug.exceptions.NotFound)
-            core.dispatch("flask.traced_request.pre", [_block_request_callable, span])
-            return wrapped(*args, **kwargs)
+            pin=pin,
+            flask_config=config.flask,
+            current_span=current_span,
+            block_request_callable=_block_request_callable,
+            ignored_exception_type=NotFound,
+        ) as ctx:
+            with ctx.get_item("flask_request"):
+                return wrapped(*args, **kwargs)
 
     return _traced_request
 
@@ -625,37 +624,3 @@ def traced_jsonify(wrapped, instance, args, kwargs):
         span.set_tag_str(COMPONENT, config.flask.integration_name)
 
         return wrapped(*args, **kwargs)
-
-
-def _set_request_tags(span):
-    try:
-        # raises RuntimeError if a request is not active:
-        # https://github.com/pallets/flask/blob/2.1.3/src/flask/globals.py#L40
-        request = flask.request
-
-        span.set_tag_str(COMPONENT, config.flask.integration_name)
-
-        if span.name.split(".")[-1] == "request":
-            span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
-
-        # DEV: This name will include the blueprint name as well (e.g. `bp.index`)
-        if not span.get_tag(FLASK_ENDPOINT) and request.endpoint:
-            span.resource = " ".join((request.method, request.endpoint))
-            span.set_tag_str(FLASK_ENDPOINT, request.endpoint)
-
-        if not span.get_tag(FLASK_URL_RULE) and request.url_rule and request.url_rule.rule:
-            span.resource = " ".join((request.method, request.url_rule.rule))
-            span.set_tag_str(FLASK_URL_RULE, request.url_rule.rule)
-
-        results, exceptions = core.dispatch("flask.set_request_tags", [request])
-        if not any(exceptions) and results[0] is not None:
-            request.cookies = results[0]
-
-        if not span.get_tag(FLASK_VIEW_ARGS) and request.view_args and config.flask.get("collect_view_args"):
-            for k, v in request.view_args.items():
-                # DEV: Do not use `set_tag_str` here since view args can be string/int/float/path/uuid/etc
-                #      https://flask.palletsprojects.com/en/1.1.x/api/#url-route-registrations
-                span.set_tag(".".join((FLASK_VIEW_ARGS, k)), v)
-            trace_utils.set_http_meta(span, config.flask, request_path_params=request.view_args)
-    except Exception:
-        log.debug('failed to set tags for "flask.request" span', exc_info=True)
