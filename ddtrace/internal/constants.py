@@ -62,3 +62,7 @@ HTTP_REQUEST_PATH_PARAMETER = "http.request.path.parameter"
 REQUEST_PATH_PARAMS = "http.request.path_params"
 
 MESSAGING_SYSTEM = "messaging.system"
+
+FLASK_ENDPOINT = "flask.endpoint"
+FLASK_VIEW_ARGS = "flask.view_args"
+FLASK_URL_RULE = "flask.url_rule"
