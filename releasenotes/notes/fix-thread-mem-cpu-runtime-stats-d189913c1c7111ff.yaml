@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    The number of involuntary context switches was being reported instead of thread, memory, and CPU Python runtime metrics due to a typo; they are now being correctly reported.
