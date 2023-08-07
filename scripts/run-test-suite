@@ -6,17 +6,20 @@ COVERAGE=${2:-false}
 commit_file="test-results/latest-success-commit"
 
 if [[ -f "$commit_file" ]]; then
+    echo "Commit file found"
     latest_success_commit=$(cat test-results/latest-success-commit)
     does_not_need_run=$(./scripts/needs_testrun.py $SUITE --sha $latest_success_commit)
     if [[ $does_not_need_run ]]; then
+        echo "No relevant changes since last successful run"
         exit 0
     fi
 fi
 
-hashes=$(riot list --hash-only "'" + "$PATTERN" + "'")
+hashes=$(riot list --hash-only $("'" + "$PATTERN" + "'"))
 hashes=$(sort $hashes)
 hashes=$(circleci tests split)
 for hash in $hashes; do
+    echo "Running tests for $hash"
     result=$(
         ./scripts/ddtest riot -v run --exitfirst --pass-env -s $hash
         $([ -v _CI_DD_API_KEY ] && echo '--ddtrace' )
