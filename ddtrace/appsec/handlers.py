@@ -26,7 +26,7 @@ log = get_logger(__name__)
 _BODY_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
 
 
-def _on_set_request_tags(request):
+def _on_set_request_tags(request, span, flask_config):
     if _is_iast_enabled():
         from ddtrace.appsec.iast._taint_tracking import OriginType
         from ddtrace.appsec.iast._taint_utils import LazyTaintDict
@@ -34,7 +34,7 @@ def _on_set_request_tags(request):
         _set_metric_iast_instrumented_source(OriginType.COOKIE_NAME)
         _set_metric_iast_instrumented_source(OriginType.COOKIE)
 
-        return LazyTaintDict(
+        request.cookies = LazyTaintDict(
             request.cookies,
             origins=(OriginType.COOKIE_NAME, OriginType.COOKIE),
             override_pyobject_tainted=True,
