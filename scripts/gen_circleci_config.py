@@ -37,7 +37,7 @@ def gen_required_suites(template: dict) -> None:
     jobs.append({"coverage_report": template["requires_tests"]})
 
 
-def gen_pre_checks(template: dict) -> None:
+def _gen_pre_checks(template: dict) -> None:
     """Generate the list of pre-checks that need to be run."""
     from needs_testrun import pr_matches_patterns
 
