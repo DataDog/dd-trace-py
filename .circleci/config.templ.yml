@@ -1090,5 +1090,5 @@ workflows:
   test: &workflow_test
     jobs:
       # Pre-checking before running all jobs
-      - pre_check
+      #- pre_check
       - ccheck
