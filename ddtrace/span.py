@@ -2,12 +2,15 @@ import math
 import pprint
 import sys
 import traceback
+from types import TracebackType
 from typing import Any
 from typing import Callable
 from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Text
+from typing import Tuple
+from typing import Type
 from typing import Union
 
 import six
@@ -78,6 +81,7 @@ class Span(object):
         "parent_id",
         "_meta",
         "error",
+        "exc_info",
         "_metrics",
         "_store",
         "span_type",
@@ -148,6 +152,7 @@ class Span(object):
         # tags / metadata
         self._meta = {}  # type: _MetaDictType
         self.error = 0
+        self.exc_info = None  # type: Optional[Tuple[Type[BaseException], BaseException, Optional[TracebackType]]]
         self._metrics = {}  # type: _MetricDictType
 
         # timing
@@ -474,6 +479,7 @@ class Span(object):
 
         self.error = 1
         self._set_exc_tags(exc_type, exc_val, exc_tb)
+        self.exc_info = (exc_type, exc_val, exc_tb)
 
     def _set_exc_tags(self, exc_type, exc_val, exc_tb):
         # get the traceback

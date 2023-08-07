@@ -1,6 +1,5 @@
 from collections import deque
 from itertools import count
-import sys
 from threading import current_thread
 from types import TracebackType
 import typing as t
@@ -156,11 +155,11 @@ class SpanExceptionProcessor(SpanProcessor):
 
     def on_span_finish(self, span):
         # type: (Span) -> None
-        if not (span.error and can_capture(span)):
+        if not (span.exc_info is not None and can_capture(span)):
             # No error or budget to capture
             return
 
-        _, exc, _tb = sys.exc_info()
+        _, exc, _tb = span.exc_info
 
         chain, exc_id = unwind_exception_chain(exc, _tb)
         if not chain or exc_id is None:
