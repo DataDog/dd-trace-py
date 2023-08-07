@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 PATTERN=${1}
 COVERAGE=${2:-false}
@@ -8,11 +8,8 @@ commit_file="latest-success-commit"
 if [[ -f "$commit_file" ]]; then
     echo "Commit file found"
     latest_success_commit=$(cat $commit_file)
-    does_not_need_run=$(./scripts/needs_testrun.py $SUITE --sha $latest_success_commit)
-    if [[ $does_not_need_run ]]; then
-        echo "No relevant changes since last successful run"
-        exit 0
-    fi
+    ./scripts/needs_testrun.py $SUITE --sha $latest_success_commit
+    [[ $? ]] && exit 0
 fi
 
 hashes=$(riot list --hash-only $PATTERN | sort | circleci tests split)
