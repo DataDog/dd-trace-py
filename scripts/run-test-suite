@@ -1,6 +1,6 @@
 PATTERN=${1}
 COVERAGE=${2:-false}
-USE_DDTEST=${3:-0}
+USE_DDTEST=${3}
 
 commit_file="latest-success-commit"
 
@@ -8,24 +8,24 @@ if [[ -f "$commit_file" ]]; then
     echo "Commit file found"
     latest_success_commit=$(cat $commit_file)
     ./scripts/needs_testrun.py $SUITE --sha $latest_success_commit
-    [[ $? ]] && exit 0
+    [[ $? == 0 ]] && exit 0
 fi
 
 hashes=$(riot list --hash-only $PATTERN | sort | circleci tests split)
 
 DDTRACE_FLAG=$([ -v _CI_DD_API_KEY ] && echo '--ddtrace')
 COVERAGE_FLAG=$([[ "$COVERAGE" == false ]] && echo '--no-cov')
-DDTEST_CMD=$([[ $USE_DDTEST ]] && echo "./scripts/ddtest")
+DDTEST_CMD=$([[ $USE_DDTEST == "1" ]] && echo "./scripts/ddtest")
 
-all_passed=0
+all_passed=false
 for hash in $hashes; do
     echo "Running tests for $hash"
     $DDTEST_CMD riot -v run --exitfirst --pass-env -s $hash $DDTRACE_FLAG $COVERAGE_FLAG
-    [[ $? ]] && break
-    all_passed=1
+    [[ $? > 0 ]] && break
+    all_passed=true
 done
 
-[[ $all_passed ]] && echo $CIRCLE_SHA1 > $commit_file
+[[ $all_passed == true ]] && echo $CIRCLE_SHA1 > $commit_file
 
 ./scripts/check-diff \
     ".riot/requirements/" \
