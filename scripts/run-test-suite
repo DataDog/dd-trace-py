@@ -1,0 +1,27 @@
+#!/bin/bash
+
+SUITE=${1}
+COVERAGE=${2:-false}
+
+commit_file="test-results/latest-success-commit"
+
+if [[ -f "$commit_file" ]]; then
+    latest_success_commit=$(cat test-results/latest-success-commit)
+    does_not_need_run=$(./scripts/needs_testrun.py $SUITE --sha $latest_success_commit)
+    if [[ $does_not_need_run ]]; then
+        exit 0
+    fi
+fi
+
+riot list --hash-only "'" + "$PATTERN" + "'" | \
+    sort | \  # Sort the hashes to ensure a consistent ordering/division between each node
+    circleci tests split | \
+    xargs -n 1 -I {} ./scripts/ddtest \
+        riot -v run --exitfirst --pass-env -s {} \
+        $([ -v _CI_DD_API_KEY ] && echo '--ddtrace' ) \
+        $([[ "$COVERAGE" == false ]] && echo '--no-cov' ) && \
+    echo $CIRCLE_SHA1 > test-results/latest-success-commit
+./scripts/check-diff \
+    ".riot/requirements/" \
+    "Changes detected after running riot. Consider deleting changed files, \
+    running scripts/compile-and-prune-test-requirements and committing the result."
