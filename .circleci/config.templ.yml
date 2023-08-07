@@ -127,7 +127,8 @@ commands:
       - attach_workspace:
           at: .
       - restore_cache:
-          keys: git-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_SHA1 }}
+          keys:
+            - git-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_SHA1 }}
       - when:
           condition:
               << parameters.snapshot >>
