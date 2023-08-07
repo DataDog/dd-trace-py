@@ -15,7 +15,7 @@ if [[ -f "$commit_file" ]]; then
     fi
 fi
 
-hashes=$(riot list --hash-only $("'" + "$PATTERN" + "'"))
+hashes=$(riot list --hash-only "'$PATTERN'")
 hashes=$(sort $hashes)
 hashes=$(circleci tests split)
 for hash in $hashes; do
