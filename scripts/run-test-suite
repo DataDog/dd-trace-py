@@ -1,13 +1,13 @@
 #!/bin/bash
 
-SUITE=${1}
+PATTERN=${1}
 COVERAGE=${2:-false}
 
-commit_file="test-results/latest-success-commit"
+commit_file="latest-success-commit"
 
 if [[ -f "$commit_file" ]]; then
     echo "Commit file found"
-    latest_success_commit=$(cat test-results/latest-success-commit)
+    latest_success_commit=$(cat $commit_file)
     does_not_need_run=$(./scripts/needs_testrun.py $SUITE --sha $latest_success_commit)
     if [[ $does_not_need_run ]]; then
         echo "No relevant changes since last successful run"
@@ -15,16 +15,9 @@ if [[ -f "$commit_file" ]]; then
     fi
 fi
 
-riot list --hash-only "'$PATTERN'"
-riot list --hash-only "$PATTERN"
-riot list --hash-only $PATTERN
-riot list --hash-only '$PATTERN'
-hashes=$(riot list --hash-only "'$PATTERN'")
-echo "hashes: " $hashes
-hashes=$(sort $hashes)
-echo "hashes: " $hashes
-hashes=$(circleci tests split $hashes)
-echo "hashes: " $hashes
+hashes=$(riot list --hash-only $PATTERN | sort | circleci tests split)
+
+all_passed=true
 for hash in $hashes; do
     echo "Running tests for $hash"
     result=$(
@@ -32,8 +25,16 @@ for hash in $hashes; do
         $([ -v _CI_DD_API_KEY ] && echo '--ddtrace' )
         $([[ "$COVERAGE" == false ]] && echo '--no-cov' )
     )
-    result && echo $CIRCLE_SHA1 > test-results/latest-success-commit && echo "Wrote SHA to filesystem"
+    if [[ ! $result ]]; then
+        all_passed=false
+    fi
 done
+
+if [[ $all_passed ]]; then
+    echo $CIRCLE_SHA1 > $commit_file
+    echo "Wrote SHA to filesystem"
+fi
+
 ./scripts/check-diff \
     ".riot/requirements/" \
     "Changes detected after running riot. Consider deleting changed files, \
