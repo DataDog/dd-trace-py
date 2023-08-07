@@ -117,6 +117,9 @@ def add_failure_test_wrapper(func, instance, args, kwargs):
         span = _extract_span(test_item)
         if span:
             span.set_tag_str(test.STATUS, test.Status.FAIL.value)
+        if len(args) > 1:
+            exc_info = args[1]
+            span.set_exc_info(exc_info[0], exc_info[1], exc_info[2])
 
     return func(*args, **kwargs)
 
@@ -172,3 +175,4 @@ def start_test_wrapper_unittest(func, instance, args, kwargs):
     result = func(*args, **kwargs)
 
     return result
+
