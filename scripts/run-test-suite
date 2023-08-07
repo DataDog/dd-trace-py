@@ -15,6 +15,10 @@ if [[ -f "$commit_file" ]]; then
     fi
 fi
 
+riot list --hash-only "'$PATTERN'"
+riot list --hash-only "$PATTERN"
+riot list --hash-only $PATTERN
+riot list --hash-only '$PATTERN'
 hashes=$(riot list --hash-only "'$PATTERN'")
 echo "hashes: " $hashes
 hashes=$(sort $hashes)
