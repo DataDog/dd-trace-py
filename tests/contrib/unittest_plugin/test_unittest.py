@@ -41,7 +41,7 @@ class UnittestTestCase(TracerTestCase):
         assert spans[0].get_tag(COMPONENT) == COMPONENT_VALUE
         assert spans[0].get_tag(test.TYPE) == SpanTypes.TEST
         assert spans[0].get_tag(test.NAME) == 'test_will_pass_first'
-        assert spans[0].get_tag(test.MODULE) == 'tests.contrib.unittest.test_unittest'
+        assert spans[0].get_tag(test.MODULE) == 'tests.contrib.unittest_plugin.test_unittest'
         assert spans[0].get_tag(test.SUITE) == 'UnittestExampleTestCase'
         assert spans[0].get_tag(test.TEST_STATUS) == test.Status.PASS.value
 
@@ -71,7 +71,7 @@ class UnittestTestCase(TracerTestCase):
         assert spans[0].get_tag(COMPONENT) == COMPONENT_VALUE
         assert spans[0].get_tag(test.TYPE) == SpanTypes.TEST
         assert spans[0].get_tag(test.NAME) == 'test_will_pass_first'
-        assert spans[0].get_tag(test.MODULE) == 'tests.contrib.unittest.test_unittest'
+        assert spans[0].get_tag(test.MODULE) == 'tests.contrib.unittest_plugin.test_unittest'
         assert spans[0].get_tag(test.SUITE) == 'UnittestExampleTestCase'
         assert spans[0].get_tag(test.TEST_STATUS) == test.Status.PASS.value
         assert spans[0].get_tag(test.SKIP_REASON) is None
@@ -82,7 +82,7 @@ class UnittestTestCase(TracerTestCase):
         assert spans[1].get_tag(COMPONENT) == COMPONENT_VALUE
         assert spans[1].get_tag(test.TYPE) == SpanTypes.TEST
         assert spans[1].get_tag(test.NAME) == 'test_will_pass_second'
-        assert spans[1].get_tag(test.MODULE) == 'tests.contrib.unittest.test_unittest'
+        assert spans[1].get_tag(test.MODULE) == 'tests.contrib.unittest_plugin.test_unittest'
         assert spans[1].get_tag(test.SUITE) == 'UnittestExampleTestCase'
         assert spans[1].get_tag(test.TEST_STATUS) == test.Status.PASS.value
         assert spans[1].get_tag(test.SKIP_REASON) is None
@@ -110,7 +110,7 @@ class UnittestTestCase(TracerTestCase):
         assert spans[0].get_tag(COMPONENT) == COMPONENT_VALUE
         assert spans[0].get_tag(test.TYPE) == SpanTypes.TEST
         assert spans[0].get_tag(test.NAME) == 'test_will_be_skipped'
-        assert spans[0].get_tag(test.MODULE) == 'tests.contrib.unittest.test_unittest'
+        assert spans[0].get_tag(test.MODULE) == 'tests.contrib.unittest_plugin.test_unittest'
         assert spans[0].get_tag(test.SUITE) == 'UnittestExampleTestCase'
         assert spans[0].get_tag(test.TEST_STATUS) == test.Status.SKIP.value
         assert spans[0].get_tag(test.SKIP_REASON) == ''
@@ -138,7 +138,7 @@ class UnittestTestCase(TracerTestCase):
         assert spans[0].get_tag(COMPONENT) == COMPONENT_VALUE
         assert spans[0].get_tag(test.TYPE) == SpanTypes.TEST
         assert spans[0].get_tag(test.NAME) == 'test_will_be_skipped'
-        assert spans[0].get_tag(test.MODULE) == 'tests.contrib.unittest.test_unittest'
+        assert spans[0].get_tag(test.MODULE) == 'tests.contrib.unittest_plugin.test_unittest'
         assert spans[0].get_tag(test.SUITE) == 'UnittestExampleTestCase'
         assert spans[0].get_tag(test.TEST_STATUS) == test.Status.SKIP.value
         assert spans[0].get_tag(test.SKIP_REASON) == 'demonstrating skipping with a reason'
@@ -172,7 +172,7 @@ class UnittestTestCase(TracerTestCase):
         assert spans[0].get_tag(COMPONENT) == COMPONENT_VALUE
         assert spans[0].get_tag(test.TYPE) == SpanTypes.TEST
         assert spans[0].get_tag(test.NAME) == 'test_will_be_skipped_first'
-        assert spans[0].get_tag(test.MODULE) == 'tests.contrib.unittest.test_unittest'
+        assert spans[0].get_tag(test.MODULE) == 'tests.contrib.unittest_plugin.test_unittest'
         assert spans[0].get_tag(test.SUITE) == 'UnittestExampleTestCase'
         assert spans[0].get_tag(test.TEST_STATUS) == test.Status.SKIP.value
         assert spans[0].get_tag(test.SKIP_REASON) == 'demonstrating skipping with a reason'
@@ -183,7 +183,7 @@ class UnittestTestCase(TracerTestCase):
         assert spans[1].get_tag(COMPONENT) == COMPONENT_VALUE
         assert spans[1].get_tag(test.TYPE) == SpanTypes.TEST
         assert spans[1].get_tag(test.NAME) == 'test_will_be_skipped_second'
-        assert spans[1].get_tag(test.MODULE) == 'tests.contrib.unittest.test_unittest'
+        assert spans[1].get_tag(test.MODULE) == 'tests.contrib.unittest_plugin.test_unittest'
         assert spans[1].get_tag(test.SUITE) == 'UnittestExampleTestCase'
         assert spans[1].get_tag(test.TEST_STATUS) == test.Status.SKIP.value
         assert spans[1].get_tag(test.SKIP_REASON) == 'demonstrating skipping with a different reason'
@@ -216,7 +216,7 @@ class UnittestTestCase(TracerTestCase):
         assert spans[0].get_tag(COMPONENT) == COMPONENT_VALUE
         assert spans[0].get_tag(test.TYPE) == SpanTypes.TEST
         assert spans[0].get_tag(test.NAME) == 'test_will_be_skipped'
-        assert spans[0].get_tag(test.MODULE) == 'tests.contrib.unittest.test_unittest'
+        assert spans[0].get_tag(test.MODULE) == 'tests.contrib.unittest_plugin.test_unittest'
         assert spans[0].get_tag(test.SUITE) == 'UnittestExampleTestCase'
         assert spans[0].get_tag(test.TEST_STATUS) == test.Status.SKIP.value
         assert spans[0].get_tag(test.SKIP_REASON) == ''
@@ -227,7 +227,7 @@ class UnittestTestCase(TracerTestCase):
         assert spans[1].get_tag(COMPONENT) == COMPONENT_VALUE
         assert spans[1].get_tag(test.TYPE) == SpanTypes.TEST
         assert spans[1].get_tag(test.NAME) == 'test_wont_be_skipped'
-        assert spans[1].get_tag(test.MODULE) == 'tests.contrib.unittest.test_unittest'
+        assert spans[1].get_tag(test.MODULE) == 'tests.contrib.unittest_plugin.test_unittest'
         assert spans[1].get_tag(test.SUITE) == 'UnittestExampleTestCase'
         assert spans[1].get_tag(test.TEST_STATUS) == test.Status.PASS.value
         assert spans[1].get_tag(test.SKIP_REASON) is None
@@ -254,7 +254,7 @@ class UnittestTestCase(TracerTestCase):
         assert spans[0].get_tag(COMPONENT) == COMPONENT_VALUE
         assert spans[0].get_tag(test.TYPE) == SpanTypes.TEST
         assert spans[0].get_tag(test.NAME) == 'test_will_fail'
-        assert spans[0].get_tag(test.MODULE) == 'tests.contrib.unittest.test_unittest'
+        assert spans[0].get_tag(test.MODULE) == 'tests.contrib.unittest_plugin.test_unittest'
         assert spans[0].get_tag(test.SUITE) == 'UnittestExampleTestCase'
         assert spans[0].get_tag(test.TEST_STATUS) == test.Status.FAIL.value
         assert spans[0].get_tag(test.SKIP_REASON) is None
@@ -286,7 +286,7 @@ class UnittestTestCase(TracerTestCase):
         assert spans[0].get_tag(COMPONENT) == COMPONENT_VALUE
         assert spans[0].get_tag(test.TYPE) == SpanTypes.TEST
         assert spans[0].get_tag(test.NAME) == 'test_will_fail_first'
-        assert spans[0].get_tag(test.MODULE) == 'tests.contrib.unittest.test_unittest'
+        assert spans[0].get_tag(test.MODULE) == 'tests.contrib.unittest_plugin.test_unittest'
         assert spans[0].get_tag(test.SUITE) == 'UnittestExampleTestCase'
         assert spans[0].get_tag(test.TEST_STATUS) == test.Status.FAIL.value
         assert spans[0].get_tag(test.SKIP_REASON) is None
@@ -297,7 +297,7 @@ class UnittestTestCase(TracerTestCase):
         assert spans[1].get_tag(COMPONENT) == COMPONENT_VALUE
         assert spans[1].get_tag(test.TYPE) == SpanTypes.TEST
         assert spans[1].get_tag(test.NAME) == 'test_will_fail_second'
-        assert spans[1].get_tag(test.MODULE) == 'tests.contrib.unittest.test_unittest'
+        assert spans[1].get_tag(test.MODULE) == 'tests.contrib.unittest_plugin.test_unittest'
         assert spans[1].get_tag(test.SUITE) == 'UnittestExampleTestCase'
         assert spans[1].get_tag(test.TEST_STATUS) == test.Status.FAIL.value
         assert spans[1].get_tag(test.SKIP_REASON) is None
@@ -341,7 +341,7 @@ class UnittestTestCase(TracerTestCase):
         assert spans[0].get_tag(COMPONENT) == COMPONENT_VALUE
         assert spans[0].get_tag(test.TYPE) == SpanTypes.TEST
         assert spans[0].get_tag(test.NAME) == 'test_will_be_skipped'
-        assert spans[0].get_tag(test.MODULE) == 'tests.contrib.unittest.test_unittest'
+        assert spans[0].get_tag(test.MODULE) == 'tests.contrib.unittest_plugin.test_unittest'
         assert spans[0].get_tag(test.SUITE) == 'UnittestExampleTestCase'
         assert spans[0].get_tag(test.TEST_STATUS) == test.Status.SKIP.value
         assert spans[0].get_tag(test.SKIP_REASON) == ''
@@ -352,7 +352,7 @@ class UnittestTestCase(TracerTestCase):
         assert spans[1].get_tag(COMPONENT) == COMPONENT_VALUE
         assert spans[1].get_tag(test.TYPE) == SpanTypes.TEST
         assert spans[1].get_tag(test.NAME) == 'test_will_be_skipped_with_a_reason'
-        assert spans[1].get_tag(test.MODULE) == 'tests.contrib.unittest.test_unittest'
+        assert spans[1].get_tag(test.MODULE) == 'tests.contrib.unittest_plugin.test_unittest'
         assert spans[1].get_tag(test.SUITE) == 'UnittestExampleTestCase'
         assert spans[1].get_tag(test.TEST_STATUS) == test.Status.SKIP.value
         assert spans[1].get_tag(test.SKIP_REASON) == 'another skip reason'
@@ -363,7 +363,7 @@ class UnittestTestCase(TracerTestCase):
         assert spans[2].get_tag(COMPONENT) == COMPONENT_VALUE
         assert spans[2].get_tag(test.TYPE) == SpanTypes.TEST
         assert spans[2].get_tag(test.NAME) == 'test_will_fail_first'
-        assert spans[2].get_tag(test.MODULE) == 'tests.contrib.unittest.test_unittest'
+        assert spans[2].get_tag(test.MODULE) == 'tests.contrib.unittest_plugin.test_unittest'
         assert spans[2].get_tag(test.SUITE) == 'UnittestExampleTestCase'
         assert spans[2].get_tag(test.TEST_STATUS) == test.Status.FAIL.value
         assert spans[2].get_tag(test.SKIP_REASON) is None
@@ -374,7 +374,7 @@ class UnittestTestCase(TracerTestCase):
         assert spans[3].get_tag(COMPONENT) == COMPONENT_VALUE
         assert spans[3].get_tag(test.TYPE) == SpanTypes.TEST
         assert spans[3].get_tag(test.NAME) == 'test_will_pass_first'
-        assert spans[3].get_tag(test.MODULE) == 'tests.contrib.unittest.test_unittest'
+        assert spans[3].get_tag(test.MODULE) == 'tests.contrib.unittest_plugin.test_unittest'
         assert spans[3].get_tag(test.SUITE) == 'UnittestExampleTestCase'
         assert spans[3].get_tag(test.TEST_STATUS) == test.Status.PASS.value
         assert spans[3].get_tag(test.SKIP_REASON) is None

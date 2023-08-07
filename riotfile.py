@@ -1714,8 +1714,9 @@ venv = Venv(
         ),
         Venv(
             name="unittest",
-            command="python -m pytest {cmdargs} tests/contrib/unittest/",
+            command="python -m pytest {cmdargs} tests/contrib/unittest_plugin/",
             pkgs={"msgpack": latest},
+            env={"DD_CIVISIBILITY_AGENTLESS_ENABLED": "0"},
             venvs=[
                 Venv(
                     pys="2.7",
