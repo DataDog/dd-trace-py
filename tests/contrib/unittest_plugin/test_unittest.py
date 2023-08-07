@@ -2,7 +2,7 @@ import unittest
 
 import pytest
 
-from ddtrace.constants import SPAN_KIND
+from ddtrace.constants import ERROR_MSG, ERROR_TYPE, SPAN_KIND
 from ddtrace.contrib.unittest.constants import COMPONENT_VALUE, FRAMEWORK, KIND
 from ddtrace.contrib.unittest.patch import _set_tracer, patch
 from ddtrace.ext import test, SpanTypes
@@ -258,6 +258,8 @@ class UnittestTestCase(TracerTestCase):
         assert spans[0].get_tag(test.SUITE) == 'UnittestExampleTestCase'
         assert spans[0].get_tag(test.TEST_STATUS) == test.Status.FAIL.value
         assert spans[0].get_tag(test.SKIP_REASON) is None
+        assert spans[0].get_tag(ERROR_MSG) == 'False is not true'
+        assert spans[0].get_tag(ERROR_TYPE) == 'builtins.AssertionError'
 
     def test_unittest_fail_multiple(self):
         """Test with `unittest` tests which should fail."""
@@ -290,6 +292,8 @@ class UnittestTestCase(TracerTestCase):
         assert spans[0].get_tag(test.SUITE) == 'UnittestExampleTestCase'
         assert spans[0].get_tag(test.TEST_STATUS) == test.Status.FAIL.value
         assert spans[0].get_tag(test.SKIP_REASON) is None
+        assert spans[0].get_tag(ERROR_MSG) == 'False is not true'
+        assert spans[0].get_tag(ERROR_TYPE) == 'builtins.AssertionError'
 
         assert spans[1].get_tag(test.TEST_TYPE) == SpanTypes.TEST
         assert spans[1].get_tag(test.TEST_FRAMEWORK) == FRAMEWORK
@@ -301,6 +305,8 @@ class UnittestTestCase(TracerTestCase):
         assert spans[1].get_tag(test.SUITE) == 'UnittestExampleTestCase'
         assert spans[1].get_tag(test.TEST_STATUS) == test.Status.FAIL.value
         assert spans[1].get_tag(test.SKIP_REASON) is None
+        assert spans[1].get_tag(ERROR_MSG) == 'False is not true'
+        assert spans[1].get_tag(ERROR_TYPE) == 'builtins.AssertionError'
 
     def test_unittest_combined(self):
         """Test with `unittest` tests which pass, get skipped and fail combined."""
@@ -367,6 +373,8 @@ class UnittestTestCase(TracerTestCase):
         assert spans[2].get_tag(test.SUITE) == 'UnittestExampleTestCase'
         assert spans[2].get_tag(test.TEST_STATUS) == test.Status.FAIL.value
         assert spans[2].get_tag(test.SKIP_REASON) is None
+        assert spans[2].get_tag(ERROR_MSG) == 'False is not true'
+        assert spans[2].get_tag(ERROR_TYPE) == 'builtins.AssertionError'
 
         assert spans[3].get_tag(test.TEST_TYPE) == SpanTypes.TEST
         assert spans[3].get_tag(test.TEST_FRAMEWORK) == FRAMEWORK
