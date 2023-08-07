@@ -206,7 +206,7 @@ venv = Venv(
             name="integration",
             # Enabling coverage for integration tests breaks certain tests in CI
             # Also, running two separate pytest sessions, the ``civisibility`` one with --no-ddtrace
-            command="pytest --no-cov --ignore-glob='*civisibility*' {cmdargs} tests/integration/ && pytest --no-cov --no-ddtrace {cmdargs} tests/integration/test_integration_civisibility.py",  # noqa: E501
+            command="pytest --no-ddtrace --no-cov --ignore-glob='*civisibility*' {cmdargs} tests/integration/ && pytest --no-cov --no-ddtrace {cmdargs} tests/integration/test_integration_civisibility.py",  # noqa: E501
             pkgs={"msgpack": [latest], "coverage": latest},
             venvs=[
                 Venv(
@@ -1661,6 +1661,25 @@ venv = Venv(
                         ],
                         "asynctest": "==0.13.0",
                     },
+                ),
+            ],
+        ),
+        Venv(
+            name="pytest-benchmark",
+            command="pytest {cmdargs} tests/contrib/pytest_benchmark/",
+            pkgs={"msgpack": latest},
+            venvs=[
+                Venv(
+                    venvs=[
+                        Venv(
+                            pys=select_pys(min_version="3.7", max_version="3.10"),
+                            pkgs={
+                                "pytest-benchmark": [
+                                    ">=3.1.0,<=4.0.0",
+                                ]
+                            },
+                        )
+                    ],
                 ),
             ],
         ),
