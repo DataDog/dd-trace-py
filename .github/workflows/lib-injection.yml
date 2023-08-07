@@ -2,7 +2,12 @@ name: "Library Injection"
 on:
   # Build each branch for testing
   push:
-
+  pull_request:
+    paths:
+      - ddtrace/**
+      - lib-injection/**
+      - setup*
+      - pyproject.toml
 jobs:
   build-and-publish-test-image:
     uses: ./.github/workflows/lib-inject-publish.yml

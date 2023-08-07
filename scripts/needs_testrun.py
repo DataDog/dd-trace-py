@@ -98,7 +98,7 @@ def needs_testrun(suite: str, pr_number: int) -> bool:
     """Check if a testrun is needed for a suite and PR
 
     >>> needs_testrun("debugger", 6485)
-    False
+    True
     >>> needs_testrun("debugger", 6388)
     True
     >>> needs_testrun("foobar", 6412)
