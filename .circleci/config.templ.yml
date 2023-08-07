@@ -128,7 +128,7 @@ commands:
           at: .
       - restore_cache:
           keys:
-            - git-{{ .Environment.CIRCLE_BRANCH }}-<<parameters.pattern>>-{{ checksum "latest-success-commit" }}
+            - git-{{ .Environment.CIRCLE_BRANCH }}-<<parameters.pattern>>
       - when:
           condition:
               << parameters.snapshot >>
