@@ -7,7 +7,7 @@ commit_file="latest-success-commit"
 if [[ -f "$commit_file" ]]; then
     latest_success_commit=$(cat $commit_file)
     echo "Latest success commit: " $latest_success_commit
-    ./scripts/needs_testrun.py $SUITE --sha $latest_success_commit
+    ./scripts/needs_testrun.py $PATTERN --sha $latest_success_commit
     [[ $? == 0 ]] && exit 0
 fi
 
