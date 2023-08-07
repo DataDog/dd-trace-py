@@ -17,7 +17,7 @@ fi
 
 hashes=$(riot list --hash-only "'$PATTERN'")
 hashes=$(sort $hashes)
-hashes=$(circleci tests split)
+hashes=$(circleci tests split $hashes)
 for hash in $hashes; do
     echo "Running tests for $hash"
     result=$(
