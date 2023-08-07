@@ -71,7 +71,6 @@ def get_changed_files(pr_number: int, sha: str = "") -> t.Set[str]:
     'tests/debugging/test_expressions.py']
     """
     rest_check_failed = False
-    LOGGER.info(f"Checking changed files for PR {pr_number} and SHA '{sha}'")
     if not sha:
         try:
             url = f"https://api.github.com/repos/datadog/dd-trace-py/pulls/{pr_number}/files"
