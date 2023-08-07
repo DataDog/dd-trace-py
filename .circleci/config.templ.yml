@@ -36,6 +36,7 @@ machine_executor: &machine_executor
     # https://support.circleci.com/hc/en-us/articles/360045268074-Build-Fails-with-Too-long-with-no-output-exceeded-10m0s-context-deadline-exceeded-
     - PYTHONUNBUFFERED: 1
   steps:
+    - run: sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" --force-yes -y --no-install-recommends openssh-client git
     - &pyenv-set-global
       run:
         name: Set global pyenv
@@ -78,6 +79,11 @@ commands:
       # Make sure we install and run riot on Python 3
       - run: pip3 install riot==0.17.7
 
+  setup_hatch:
+    description: "Install hatch"
+    steps:
+      - run: pip3 install hatch==1.7.0 hatch-containers==0.7.0
+      
   start_docker_services:
     description: "Start Docker services"
     parameters:
@@ -134,7 +140,7 @@ commands:
                   RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
                 command: |
                   # Sort the hashes to ensure a consistent ordering/division between each node
-                  riot list --hash-only '<<parameters.pattern>>' | sort | circleci tests split | xargs -n 1 -I {} ./scripts/ddtest riot -v run --exitfirst --pass-env -s {} $([[ << pipeline.parameters.coverage >> == false ]] && echo '--no-cov' )
+                  riot list --hash-only '<<parameters.pattern>>' | sort | circleci tests split | xargs -n 1 -I {} ./scripts/ddtest riot -v run --exitfirst --pass-env -s {} $([ -v _CI_DD_API_KEY ] && echo '--ddtrace' ) $([[ << pipeline.parameters.coverage >> == false ]] && echo '--no-cov' )
                   ./scripts/check-diff ".riot/requirements/" "Changes detected after running riot. Consider deleting changed files, running scripts/compile-and-prune-test-requirements and committing the result."
       - unless:
           condition:
@@ -161,7 +167,7 @@ commands:
                   RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
                 command: |
                   # Sort the hashes to ensure a consistent ordering/division between each node
-                  riot list --hash-only '<<parameters.pattern>>' | sort | circleci tests split | xargs -n 1 -I {} riot -v run --exitfirst --pass-env -s {} $([[ << pipeline.parameters.coverage >> == false ]] && echo '--no-cov' )
+                  riot list --hash-only '<<parameters.pattern>>' | sort | circleci tests split | xargs -n 1 -I {} riot -v run --exitfirst --pass-env -s {} $([ -v _CI_DD_API_KEY ] && echo '--ddtrace' ) $([[ << pipeline.parameters.coverage >> == false ]] && echo '--no-cov' )
                   ./scripts/check-diff ".riot/requirements/" "Changes detected after running riot. Consider deleting changed files, running scripts/compile-and-prune-test-requirements and committing the result."
       - when:
           condition:
@@ -235,9 +241,10 @@ jobs:
     steps:
       - checkout
       - setup_riot
+      - setup_hatch
       - run:
-          name: "Codespell check"
-          command: riot -v run -s codespell
+          name: "Spelling"
+          command: hatch run lint:spelling
   ccheck:
     executor: cimg_base
     steps:
@@ -345,6 +352,12 @@ jobs:
       - run_test:
           pattern: "ci_visibility"
           trace_agent_url: ""
+
+  subprocess:
+    <<: *contrib_job_small
+    steps:
+      - run_test:
+          pattern: "subprocess"
 
   sourcecode:
     <<: *contrib_job_small
@@ -768,19 +781,13 @@ jobs:
     <<: *contrib_job
     steps:
       - run_test:
-          pattern: 'pytest$'
+          pattern: 'pytest'
 
   asynctest:
     executor: ddtrace_dev
     steps:
       - run_test:
           pattern: 'asynctest$'
-
-  pytestbdd:
-    executor: ddtrace_dev
-    steps:
-      - run_test:
-          pattern: 'pytest-bdd'
 
   pymemcache:
     <<: *contrib_job
@@ -1059,11 +1066,11 @@ jobs:
     # build documentation and store as an artifact
     executor: ddtrace_dev
     steps:
-      - setup_riot
+      - setup_hatch
       - checkout
       - run:
           command: |
-             riot -v run docs
+             hatch run docs:build
              mkdir -p /tmp/docs
              cp -r docs/_build/html/* /tmp/docs
       - store_artifacts:
@@ -1091,12 +1098,3 @@ workflows:
       # Pre-checking before running all jobs
       - pre_check
       - ccheck
-
-      # Build necessary base venvs for integration tests
-      - build_base_venvs
-
-      # Docs
-      - build_docs: *requires_pre_check
-
-      # Final reports
-      - coverage_report: *requires_tests

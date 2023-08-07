@@ -104,6 +104,8 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
             {"name": "DD_TRACE_OTEL_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_TRACE_PROPAGATION_STYLE_EXTRACT", "origin": "unknown", "value": "tracecontext,datadog"},
             {"name": "DD_TRACE_PROPAGATION_STYLE_INJECT", "origin": "unknown", "value": "tracecontext,datadog"},
+            {"name": "DD_TRACE_RATE_LIMIT", "origin": "unknown", "value": 100},
+            {"name": "DD_TRACE_SAMPLE_RATE", "origin": "unknown", "value": None},
             {"name": "ddtrace_auto_used", "origin": "unknown", "value": False},
             {"name": "ddtrace_bootstrapped", "origin": "unknown", "value": False},
         ],
@@ -155,6 +157,8 @@ telemetry_writer.disable()
     env["DD_TRACE_OTEL_ENABLED"] = "True"
     env["DD_TRACE_PROPAGATION_STYLE_EXTRACT"] = "tracecontext"
     env["DD_TRACE_PROPAGATION_STYLE_INJECT"] = "tracecontext"
+    env["DD_TRACE_SAMPLE_RATE"] = "0.5"
+    env["DD_TRACE_RATE_LIMIT"] = "50"
 
     if PY2:
         # Prevents gevent importerror when profiling is enabled
@@ -196,6 +200,8 @@ telemetry_writer.disable()
         {"name": "DD_TRACE_OTEL_ENABLED", "origin": "unknown", "value": True},
         {"name": "DD_TRACE_PROPAGATION_STYLE_EXTRACT", "origin": "unknown", "value": "tracecontext"},
         {"name": "DD_TRACE_PROPAGATION_STYLE_INJECT", "origin": "unknown", "value": "tracecontext"},
+        {"name": "DD_TRACE_RATE_LIMIT", "origin": "unknown", "value": 50},
+        {"name": "DD_TRACE_SAMPLE_RATE", "origin": "unknown", "value": "0.5"},
         {"name": "ddtrace_auto_used", "origin": "unknown", "value": True},
         {"name": "ddtrace_bootstrapped", "origin": "unknown", "value": True},
     ]
