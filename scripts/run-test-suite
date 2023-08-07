@@ -13,14 +13,17 @@ if [[ -f "$commit_file" ]]; then
     fi
 fi
 
-riot list --hash-only "'" + "$PATTERN" + "'" | \
-    sort | \  # Sort the hashes to ensure a consistent ordering/division between each node
-    circleci tests split | \
-    xargs -n 1 -I {} ./scripts/ddtest \
-        riot -v run --exitfirst --pass-env -s {} \
-        $([ -v _CI_DD_API_KEY ] && echo '--ddtrace' ) \
-        $([[ "$COVERAGE" == false ]] && echo '--no-cov' ) && \
-    echo $CIRCLE_SHA1 > test-results/latest-success-commit
+hashes=$(riot list --hash-only "'" + "$PATTERN" + "'")
+hashes=$(sort $hashes)
+hashes=$(circleci tests split)
+for hash in $hashes; do
+    result=$(
+        ./scripts/ddtest riot -v run --exitfirst --pass-env -s $hash
+        $([ -v _CI_DD_API_KEY ] && echo '--ddtrace' )
+        $([[ "$COVERAGE" == false ]] && echo '--no-cov' )
+    )
+    result && echo $CIRCLE_SHA1 > test-results/latest-success-commit && echo "Wrote SHA to filesystem"
+done
 ./scripts/check-diff \
     ".riot/requirements/" \
     "Changes detected after running riot. Consider deleting changed files, \
