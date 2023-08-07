@@ -126,6 +126,8 @@ def override_global_config(values):
         "_user_model_name_field",
         "_sampling_rules",
         "_sampling_rules_file",
+        "_trace_sample_rate",
+        "_trace_rate_limit",
     ]
 
     # Grab the current values of all keys
