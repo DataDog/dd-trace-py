@@ -7,8 +7,9 @@ on:
       - 1.x
   pull_request:
     paths:
-      - ddtrace/*
-      - setup*
+      - ddtrace/**
+      - setup.py
+      - setup.cfg
       - pyproject.toml
   workflow_dispatch: {}
   schedule:
