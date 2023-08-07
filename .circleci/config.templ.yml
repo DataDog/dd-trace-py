@@ -179,7 +179,7 @@ commands:
       - store_artifacts:
           path: test-results
       - save_cache:
-          keys: git-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_SHA }}
+          keys: git-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_SHA1 }}
           paths:
             - ./latest-success-commit
       - run:
