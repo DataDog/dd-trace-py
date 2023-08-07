@@ -127,7 +127,7 @@ commands:
       - attach_workspace:
           at: .
       - restore_cache:
-          keys: git-{{ checksum "latest-success-commit" }}
+          keys: git-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_SHA }}
       - when:
           condition:
               << parameters.snapshot >>
@@ -179,7 +179,7 @@ commands:
       - store_artifacts:
           path: test-results
       - save_cache:
-          keys: git-{{ checksum "latest-success-commit" }}
+          keys: git-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_SHA }}
           paths:
             - ./latest-success-commit
       - run:
