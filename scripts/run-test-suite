@@ -17,23 +17,15 @@ fi
 
 hashes=$(riot list --hash-only $PATTERN | sort | circleci tests split)
 
-all_passed=true
+all_passed=0
 for hash in $hashes; do
     echo "Running tests for $hash"
-    result=$(
-        ./scripts/ddtest riot -v run --exitfirst --pass-env -s $hash
-        $([ -v _CI_DD_API_KEY ] && echo '--ddtrace' )
-        $([[ "$COVERAGE" == false ]] && echo '--no-cov' )
-    )
-    if [[ ! $result ]]; then
-        all_passed=false
-    fi
+    ./scripts/ddtest riot -v run --exitfirst --pass-env -s $hash $([ -v _CI_DD_API_KEY ] && echo '--ddtrace') $([[ "$COVERAGE" == false ]] && echo '--no-cov')
+    [[ $? ]] && break
+    all_passed=1
 done
 
-if [[ $all_passed ]]; then
-    echo $CIRCLE_SHA1 > $commit_file
-    echo "Wrote SHA to filesystem"
-fi
+[[ $all_passed ]] && echo $CIRCLE_SHA1 > $commit_file
 
 ./scripts/check-diff \
     ".riot/requirements/" \
