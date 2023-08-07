@@ -128,7 +128,7 @@ commands:
           at: .
       - restore_cache:
           keys:
-            - git-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_SHA1 }}
+            - git-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_SHA1 }}-<<parameters.pattern>>
       - when:
           condition:
               << parameters.snapshot >>
@@ -180,7 +180,7 @@ commands:
       - store_artifacts:
           path: test-results
       - save_cache:
-          key: git-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_SHA1 }}
+          key: git-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_SHA1 }}-<<parameters.pattern>>
           paths:
             - ./latest-success-commit
       - run:
