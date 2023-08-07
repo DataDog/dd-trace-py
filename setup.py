@@ -592,6 +592,7 @@ setup(
         "pytest11": [
             "ddtrace = ddtrace.contrib.pytest.plugin",
             "ddtrace.pytest_bdd = ddtrace.contrib.pytest_bdd.plugin",
+            "ddtrace.pytest_benchmark = ddtrace.contrib.pytest_benchmark.plugin",
         ],
         "opentelemetry_context": [
             "ddcontextvars_context = ddtrace.opentelemetry._context:DDRuntimeContext",
