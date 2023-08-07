@@ -126,6 +126,8 @@ commands:
       - checkout
       - attach_workspace:
           at: .
+      - restore_cache:
+          keys: git-{{ checksum "latest-success-commit" }}
       - when:
           condition:
               << parameters.snapshot >>
@@ -176,6 +178,10 @@ commands:
           path: test-results
       - store_artifacts:
           path: test-results
+      - save_cache:
+          keys: git-{{ checksum "latest-success-commit" }}
+          paths:
+            - ./latest-success-commit
       - run:
           name: Get APM Test Agent Trace Check Results
           when: always
