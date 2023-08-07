@@ -36,7 +36,7 @@ Configuration
     will not work with ``ddtrace-run`` and before a call to ``patch`` or ``patch_all``.
 
 
-.. py:data:: ddtrace.config.django['distributed_tracing_enabled']
+.. py:data:: ddtrace.config.django[\'distributed_tracing_enabled\']
 
    Whether or not to parse distributed tracing headers from requests received by your Django app.
 
