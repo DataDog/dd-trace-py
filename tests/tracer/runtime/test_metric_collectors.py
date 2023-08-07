@@ -71,13 +71,19 @@ class TestPSUtilRuntimeMetricCollector(BaseTestCase):
                 return abs(a - b) <= epsilon * max(abs(a), abs(b))
 
             # Number of threads should be precise
-            self.assertEqual(psutil_metrics[THREAD_COUNT], runtime_metrics[THREAD_COUNT])
+            if psutil_metrics[THREAD_COUNT] != runtime_metrics[THREAD_COUNT]:
+                return False
 
             # CPU and RAM should be approximate.  These tests are checking that the category of
             # the value is correct, rather than the specific value itself.
             epsilon = 0.25
-            within_threshold(psutil_metrics[CPU_PERCENT], runtime_metrics[CPU_PERCENT], epsilon)
-            within_threshold(psutil_metrics[MEM_RSS], runtime_metrics[MEM_RSS], epsilon)
+            if not within_threshold(psutil_metrics[CPU_PERCENT], runtime_metrics[CPU_PERCENT], epsilon):
+                return False
+
+            if not within_threshold(psutil_metrics[MEM_RSS], runtime_metrics[MEM_RSS], epsilon):
+                return False
+
+            return True
 
         # Sanity-check that the num_threads comparison works
         rt_metrics, pu_metrics = get_metrics()
@@ -86,12 +92,12 @@ class TestPSUtilRuntimeMetricCollector(BaseTestCase):
 
         # Check that the CPU comparison works
         rt_metrics, pu_metrics = get_metrics()
-        pu_metrics[CPU_PERCENT] *= 1.1
+        pu_metrics[CPU_PERCENT] *= 2
         self.assertFalse(check_metrics(rt_metrics, pu_metrics))
 
         # Check that the memory comparison works
         rt_metrics, pu_metrics = get_metrics()
-        pu_metrics[MEM_RSS] *= 1.1
+        pu_metrics[MEM_RSS] *= 2
         self.assertFalse(check_metrics(rt_metrics, pu_metrics))
 
         # Baseline check
