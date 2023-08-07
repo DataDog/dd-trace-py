@@ -80,9 +80,9 @@ def get_changed_files(pr_number: int, sha: str = "") -> t.Set[str]:
 
         except Exception:
             rest_check_failed = True
+            LOGGER.warning("Failed to get changed files from GitHub API, using git diff instead")
     if sha or rest_check_failed:
         diff_base = sha or get_merge_base(pr_number)
-        LOGGER.warning("Failed to get changed files from GitHub API, using git diff instead")
         return set(check_output(["git", "diff", "--name-only", "HEAD", diff_base]).decode("utf-8").strip().splitlines())
 
 

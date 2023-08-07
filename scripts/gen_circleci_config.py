@@ -21,6 +21,7 @@ def gen_required_suites(template: dict) -> None:
 
     if not required_suites:
         # Nothing to generate
+        LOGGER.warning(f"No required suites found\nsuites: {suites}\njobs: {jobs}")
         return
 
     jobs = template["workflows"]["test"]["jobs"]
