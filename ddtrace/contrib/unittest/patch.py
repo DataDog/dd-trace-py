@@ -86,6 +86,7 @@ def patch():
     _w(unittest, "TextTestResult.addSkip", add_skip_test_wrapper)
 
     _w(unittest, "TestCase.run", start_test_wrapper_unittest)
+    _w(unittest, "TestSuite.run", start_test_suite_wrapper_unittest)
 
 
 def unpatch():
@@ -117,6 +118,9 @@ def add_failure_test_wrapper(func, instance, args, kwargs):
         span = _extract_span(test_item)
         if span:
             span.set_tag_str(test.STATUS, test.Status.FAIL.value)
+        if len(args) > 1:
+            exc_info = args[1]
+            span.set_exc_info(args[1][0], args[1][1], args[1][2])
 
     return func(*args, **kwargs)
 
@@ -169,6 +173,11 @@ def start_test_wrapper_unittest(func, instance, args, kwargs):
             _CIVisibility.set_codeowners_of(_extract_test_file_name(instance), span=span)
 
             _store_span(instance, span)
+    result = func(*args, **kwargs)
+
+    return result
+
+def start_test_suite_wrapper_unittest(func, instance, args, kwargs):
     result = func(*args, **kwargs)
 
     return result
