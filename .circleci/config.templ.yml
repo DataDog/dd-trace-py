@@ -781,19 +781,13 @@ jobs:
     <<: *contrib_job
     steps:
       - run_test:
-          pattern: 'pytest$'
+          pattern: 'pytest'
 
   asynctest:
     executor: ddtrace_dev
     steps:
       - run_test:
           pattern: 'asynctest$'
-
-  pytestbdd:
-    executor: ddtrace_dev
-    steps:
-      - run_test:
-          pattern: 'pytest-bdd'
 
   pymemcache:
     <<: *contrib_job
