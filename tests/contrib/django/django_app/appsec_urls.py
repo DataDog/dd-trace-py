@@ -190,6 +190,16 @@ def sqli_http_request_cookie_value(request):
     return HttpResponse(request.COOKIES["master"], status=200)
 
 
+def validate_querydict(request):
+    qd = request.GET
+    res = qd.getlist("x")
+    lres = list(qd.lists())
+    keys = list(qd.dict().keys())
+    return HttpResponse(
+        "x=%s, all=%s, keys=%s, urlencode=%s" % (str(res), str(lres), str(keys), qd.urlencode()), status=200
+    )
+
+
 urlpatterns = [
     handler("response-header/$", magic_header_key, name="response-header"),
     handler("body/$", body_view, name="body_view"),
@@ -207,6 +217,7 @@ urlpatterns = [
         sqli_http_path_parameter,
         name="sqli_http_path_parameter",
     ),
+    handler("validate_querydict/$", validate_querydict, name="validate_querydict"),
 ]
 
 if django.VERSION >= (2, 0, 0):
