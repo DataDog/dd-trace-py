@@ -1,5 +1,6 @@
 PATTERN=${1}
 COVERAGE=${2:-false}
+USE_DDTEST=${3:-0}
 
 commit_file="latest-success-commit"
 
@@ -12,10 +13,14 @@ fi
 
 hashes=$(riot list --hash-only $PATTERN | sort | circleci tests split)
 
+DDTRACE_FLAG=$([ -v _CI_DD_API_KEY ] && echo '--ddtrace')
+COVERAGE_FLAG=$([[ "$COVERAGE" == false ]] && echo '--no-cov')
+DDTEST_CMD=$([[ $USE_DDTEST ]] && echo "./scripts/ddtest")
+
 all_passed=0
 for hash in $hashes; do
     echo "Running tests for $hash"
-    ./scripts/ddtest riot -v run --exitfirst --pass-env -s $hash $([ -v _CI_DD_API_KEY ] && echo '--ddtrace') $([[ "$COVERAGE" == false ]] && echo '--no-cov')
+    $DDTEST_CMD riot -v run --exitfirst --pass-env -s $hash $DDTRACE_FLAG $COVERAGE_FLAG
     [[ $? ]] && break
     all_passed=1
 done
