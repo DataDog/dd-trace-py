@@ -14,7 +14,7 @@ from ddtrace.internal.utils.http import _get_blocked_template  # noqa
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Any  # TEST COMMENT
+    from typing import Any
     from typing import Optional
 
     from ddtrace import Tracer
