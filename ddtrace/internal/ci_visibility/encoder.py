@@ -33,7 +33,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
     PAYLOAD_FORMAT_VERSION = 1
     TEST_SUITE_EVENT_VERSION = 1
     # Change to 1 to allow unittest tests without module or session spans
-    TEST_EVENT_VERSION = 1
+    TEST_EVENT_VERSION = 2
 
     def __init__(self, *args):
         super(CIVisibilityEncoderV01, self).__init__()
