@@ -120,7 +120,7 @@ class _ProfilerInstance(service.Service):
     _memory_collector_enabled = attr.ib(type=bool, default=config.memory.enabled)
     enable_code_provenance = attr.ib(type=bool, default=config.code_provenance)
     endpoint_collection_enabled = attr.ib(type=bool, default=config.endpoint_collection)
-    torch_events = []
+    # torch_events = []
 
     _recorder = attr.ib(init=False, default=None)
     _collectors = attr.ib(init=False, default=None)
@@ -219,7 +219,7 @@ class _ProfilerInstance(service.Service):
             },
             default_max_events=config.max_events,
         )        
-        self._recorder.add_pytorch_profiler(self.torch_events)
+        # self._recorder.add_pytorch_profiler(self.torch_events)
 
         self._collectors = [
             stack.StackCollector(
@@ -289,14 +289,24 @@ class _ProfilerInstance(service.Service):
 
     def handle_torch_trace(self, prof):
         print("handle torch trace was called")
+        if self._export_libdd_enabled is False:
+            print("libdd needs to be enabled with DD_PROFILING_EXPORT_LIBDD_ENABLED=true")
+            return
         for i, e in enumerate(prof.events()):
             if i % 10 == 0 and str(e.device_type).startswith("DeviceType.CUDA"):
-                print("device name: %s" % e.device_type)
-                print("device index: %d" % e.device_index)
-                print("time range: %s" % str(e.time_range.elapsed_us()))
-                print("cuda memory: %d" % e.cuda_memory_usage)
-                print("cuda flops: %d" % e.flops) # put this as profile type rather than label
-                self._recorder.torch_events.append(stack_event.PytorchSampleEvent(event_name=e.name, device_type=e.device_type))
+                device_type = str(e.device_type) 
+                # print("device name: %s" % e.device_type)
+                # print("device index: %d" % e.device_index)
+                # print("time range: %s" % str(e.time_range.elapsed_us()))
+                # print("cuda memory: %d" % e.cuda_memory_usage)
+                # print("cuda flops: %d" % e.flops) # put this as profile type rather than label
+                gpu_time = e.time_range.elapsed_us() * 1000 # convert us -> ns
+                ddup.start_sample(1)
+                ddup.push_gputime(gpu_time, 1)
+                ddup.push_gpu_device_info(device_type, e.device_index)
+                # ddup.push_threadinfo(thread_id, thread_native_id, thread_name)
+                ddup.push_frame(e.name, "", 0, -1)
+                ddup.flush_sample()
         # self._recorder.torch_events.extend(prof.events()[:10])
 
     def add_pytorch_profiler(self, torch_prof):

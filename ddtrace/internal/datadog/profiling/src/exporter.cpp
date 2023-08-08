@@ -296,6 +296,10 @@ Profile::Profile(ProfileType type, unsigned int _max_nframes)
         val_idx.cpu_time = get_value_idx("cpu-time", "nanoseconds");
         val_idx.cpu_count = get_value_idx("cpu-samples", "count");
     }
+    if (type_mask & ProfileType::GPU) {
+        val_idx.gpu_time = get_value_idx("gpu-time", "nanoseconds");
+        val_idx.gpu_count = get_value_idx("gpu-samples", "count");
+    }
     if (type_mask & ProfileType::Wall) {
         val_idx.wall_time = get_value_idx("wall-time", "nanoseconds");
         val_idx.wall_count = get_value_idx("wall-samples", "count");
@@ -515,6 +519,20 @@ Profile::push_cputime(int64_t cputime, int64_t count)
 }
 
 bool
+Profile::push_gputime(int64_t gputime, int64_t count)
+{
+    // NB all push-type operations return bool for semantic uniformity,
+    // even if they can't error.  This should promote generic code.
+    if (type_mask & ProfileType::GPU) {
+        values[val_idx.gpu_time] += gputime * count;
+        values[val_idx.gpu_count] += count;
+        return true;
+    }
+    std::cout << "bad push gpu" << std::endl;
+    return false;
+}
+
+bool
 Profile::push_walltime(int64_t walltime, int64_t count)
 {
     if (type_mask & ProfileType::Wall) {
@@ -670,6 +688,20 @@ bool
 Profile::push_class_name(std::string_view class_name)
 {
     if (!push_label(ExportLabelKey::class_name, class_name)) {
+        std::cout << "bad push" << std::endl;
+        return false;
+    }
+    return true;
+}
+
+bool
+Profile::push_gpu_device_info(std::string_view device_type, int64_t device_index)
+{
+    if (!push_label(ExportLabelKey::gpu_device_type, device_type)) {
+        std::cout << "bad push" << std::endl;
+        return false;
+    }
+    if (!push_label(ExportLabelKey::gpu_device_index, device_index)) {
         std::cout << "bad push" << std::endl;
         return false;
     }

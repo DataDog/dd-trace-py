@@ -292,3 +292,17 @@ ddup_upload()
     g_profile = g_profile_real[g_prof_flag];
     g_profile->reset();
 }
+
+void
+ddup_push_gputime(int64_t gputime, int64_t count)
+{
+    g_profile->push_gputime(gputime, count);
+}
+
+void
+ddup_push_gpu_device_info(const char *device_type, int64_t device_index)
+{
+    if (!device_type || !*device_type)
+        return;
+    g_profile->push_gpu_device_info(device_type, device_index);
+}

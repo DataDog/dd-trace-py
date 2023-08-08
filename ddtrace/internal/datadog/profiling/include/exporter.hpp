@@ -52,7 +52,9 @@ class Uploader;
   X(trace_resource_container, "trace resource container")                      \
   X(trace_endpoint, "trace endpoint")                                          \
   X(class_name, "class name")                                                  \
-  X(lock_name, "lock name")
+  X(lock_name, "lock name")                                                    \
+  X(gpu_device_type, "gpu device type")                                        \
+  X(gpu_device_index, "gpu device index")
 
 #define X_ENUM(a, b) a,
 enum class ExportTagKey { EXPORTER_TAGS(X_ENUM) _Length };
@@ -122,7 +124,8 @@ public:
     LockRelease = 1 << 4,
     Allocation = 1 << 5,
     Heap = 1 << 6,
-    All = CPU | Wall | Exception | LockAcquire | LockRelease | Allocation | Heap
+    GPU = 1 << 7,
+    All = CPU | Wall | Exception | LockAcquire | LockRelease | Allocation | Heap | GPU
   };
 
 private:
@@ -166,6 +169,8 @@ private:
     unsigned short alloc_space;
     unsigned short alloc_count;
     unsigned short heap_space;
+    unsigned short gpu_time;
+    unsigned short gpu_count;
   } val_idx;
 
   // Helpers
@@ -184,6 +189,7 @@ public:
   // Add values
   bool push_walltime(int64_t walltime, int64_t count);
   bool push_cputime(int64_t cputime, int64_t count);
+  bool push_gputime(int64_t gputime, int64_t count);
   bool push_acquire(int64_t acquire_time, int64_t count);
   bool push_release(int64_t lock_time, int64_t count);
   bool push_alloc(uint64_t size, uint64_t count);
@@ -201,6 +207,9 @@ public:
   bool push_trace_resource_container(std::string_view trace_resource_container);
   bool push_exceptioninfo(std::string_view exception_type, int64_t count);
   bool push_class_name(std::string_view class_name);
+
+  // Pytorch GPU metadata
+  bool push_gpu_device_info(std::string_view device_type, int64_t device_index);
 
   // Assumes frames are pushed in leaf-order
   void push_frame(std::string_view name,     // for ddog_prof_Function
