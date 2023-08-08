@@ -13,6 +13,7 @@ from ddtrace.internal import packages
 from ddtrace.internal._encoding import ListStringTable as _StringTable
 from ddtrace.internal.compat import ensure_str
 from ddtrace.internal.utils import config
+from ddtrace.profiling import _threading
 from ddtrace.profiling import event
 from ddtrace.profiling import exporter
 from ddtrace.profiling import recorder
@@ -687,6 +688,8 @@ class PprofExporter(exporter.Exporter):
         for event_class, convert_fn in (
             (_lock.LockAcquireEvent, converter.convert_lock_acquire_event),
             (_lock.LockReleaseEvent, converter.convert_lock_release_event),
+            (_threading.ThreadingLockAcquireEvent, converter.convert_lock_acquire_event),
+            (_threading.ThreadingLockReleaseEvent, converter.convert_lock_release_event),
         ):
             lock_events = events.get(event_class, [])  # type: ignore[call-overload]
             sampling_sum_pct = sum(event.sampling_pct for event in lock_events)
