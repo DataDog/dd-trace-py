@@ -36,9 +36,16 @@ def _store_span(item, span):
 
 
 def _is_test_suite(item):
-    if type(item) == unittest.suite.TestSuite and item._tests and len(item._tests) and type(item._tests[0]) != unittest.suite.TestSuite:
+    if type(item) == unittest.suite.TestSuite and len(item._tests) and type(item._tests[0]) != unittest.suite.TestSuite:
         return True
     return False
+
+
+def _is_test_module(item):
+    if type(item) == unittest.suite.TestSuite and len(item._tests) and _is_test_suite(item._tests[0]):
+        return True
+    return False
+
 
 def _extract_span(item):
     """Extract span from `unittest` instance."""
@@ -92,6 +99,7 @@ def patch():
 
     _w(unittest, "TestCase.run", start_test_wrapper_unittest)
     _w(unittest, "TestSuite.run", start_test_suite_wrapper_unittest)
+    _w(unittest, "TestProgram.runTests", start_session_unittest)
 
 
 def unpatch():
@@ -183,10 +191,16 @@ def start_test_wrapper_unittest(func, instance, args, kwargs):
     return result
 
 def start_test_suite_wrapper_unittest(func, instance, args, kwargs):
-    # TODO: Add module (one level less)
     if _is_test_suite(instance):
         test_suite_name = type(instance._tests[0]).__name__
-        print('Test suite with name: ', test_suite_name)
+        print(f'Suite is: {test_suite_name}')
+    elif _is_test_module(instance):
+        test_module_name = type(instance._tests[0]._tests[0]).__module__
+        print(f'Module is: {test_module_name}')
     result = func(*args, **kwargs)
 
     return result
+
+def start_session_unittest(func, instance, args, kwargs):
+    print('Session is: command_name: ', instance.progName)
+    return func(*args, **kwargs)
