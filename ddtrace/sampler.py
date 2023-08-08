@@ -24,12 +24,14 @@ from .constants import SAMPLING_RULE_DECISION
 from .constants import USER_KEEP
 from .constants import USER_REJECT
 from .internal.compat import iteritems
+from .internal.constants import DEFAULT_SAMPLING_RATE_LIMIT
 from .internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
 from .internal.logger import get_logger
 from .internal.rate_limiter import RateLimiter
 from .internal.sampling import SamplingMechanism
 from .internal.sampling import SamplingRule
 from .internal.sampling import update_sampling_decision
+from .settings import _config as ddconfig
 
 
 try:
@@ -253,7 +255,8 @@ class DatadogSampler(RateByServiceSampler):
     __slots__ = ("limiter", "rules")
 
     NO_RATE_LIMIT = -1
-    DEFAULT_RATE_LIMIT = 100
+    # deprecate and remove the DEFAULT_RATE_LIMIT field from DatadogSampler
+    DEFAULT_RATE_LIMIT = DEFAULT_SAMPLING_RATE_LIMIT
 
     def __init__(
         self,
@@ -279,13 +282,13 @@ class DatadogSampler(RateByServiceSampler):
         super(DatadogSampler, self).__init__()
 
         if default_sample_rate is None:
-            sample_rate = os.getenv("DD_TRACE_SAMPLE_RATE")
+            sample_rate = ddconfig._trace_sample_rate
 
             if sample_rate is not None:
                 default_sample_rate = float(sample_rate)
 
         if rate_limit is None:
-            rate_limit = int(os.getenv("DD_TRACE_RATE_LIMIT", default=self.DEFAULT_RATE_LIMIT))
+            rate_limit = int(ddconfig._trace_rate_limit)
 
         rules = rules or []
         self.rules = [rule for rule in rules if isinstance(rule, SamplingRule)]
