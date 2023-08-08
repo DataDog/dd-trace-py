@@ -80,6 +80,8 @@ def _wrap_request(func, instance, args, kwargs):
 
     try:
         # Create a new span and attach to this instance (so we can retrieve/update/close later on the response)
+        import traceback
+        traceback.print_stack()
         span = pin.tracer.trace(span_name, span_type=SpanTypes.HTTP)
 
         span.set_tag_str(COMPONENT, config.httplib.integration_name)

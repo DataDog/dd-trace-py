@@ -439,6 +439,10 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
             url,
             headers={"Accept": "text/plain", "User-Agent": "ddtrace-test"},
         )
+
+        spans = self.pop_spans()
+        print(spans)
+        self.reset()
         with override_global_tracer(self.tracer):
             resp = urlopen(req)
 
@@ -449,7 +453,9 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         )
 
         spans = self.pop_spans()
-        print(spans)
+        print("num spans: {}".format(len(spans)))
+        for s in spans:
+            print(s)
         assert len(spans) == 1, spans
         span = spans[0]
         self.assert_is_not_measured(span)
