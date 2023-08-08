@@ -3,7 +3,6 @@
 Any `sampled = False` trace won't be written, and can be ignored by the instrumentation.
 """
 import abc
-import os
 from typing import Dict
 from typing import List
 from typing import Optional
