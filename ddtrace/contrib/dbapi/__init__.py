@@ -25,7 +25,6 @@ from ..trace_utils import iswrapped
 
 
 log = get_logger(__name__)
-# hey
 
 
 config._add(
