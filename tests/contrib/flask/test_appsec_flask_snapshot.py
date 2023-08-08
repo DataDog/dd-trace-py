@@ -13,8 +13,8 @@ import six
 
 from ddtrace.contrib.flask.patch import flask_version
 from ddtrace.internal.compat import PY2
-from ddtrace.internal.constants import APPSEC_BLOCKED_RESPONSE_HTML
-from ddtrace.internal.constants import APPSEC_BLOCKED_RESPONSE_JSON
+from ddtrace.internal.constants import BLOCKED_RESPONSE_HTML
+from ddtrace.internal.constants import BLOCKED_RESPONSE_JSON
 from ddtrace.internal.utils.retry import RetryError
 from tests.appsec.test_processor import RULES_GOOD_PATH
 from tests.appsec.test_processor import _BLOCKED_IP
@@ -134,9 +134,9 @@ def test_flask_ipblock_match_403(flask_client):
     resp = flask_client.get("/", headers={"X-Real-Ip": _BLOCKED_IP, "ACCEPT": "text/html"})
     assert resp.status_code == 403
     if hasattr(resp, "text"):
-        assert resp.text == APPSEC_BLOCKED_RESPONSE_HTML
+        assert resp.text == BLOCKED_RESPONSE_HTML
     else:
-        assert resp.data == six.ensure_binary(APPSEC_BLOCKED_RESPONSE_HTML)
+        assert resp.data == six.ensure_binary(BLOCKED_RESPONSE_HTML)
 
 
 @pytest.mark.snapshot(
@@ -163,9 +163,9 @@ def test_flask_ipblock_match_403_json(flask_client):
     resp = flask_client.get("/", headers={"X-Real-Ip": _BLOCKED_IP})
     assert resp.status_code == 403
     if hasattr(resp, "text"):
-        assert resp.text == APPSEC_BLOCKED_RESPONSE_JSON
+        assert resp.text == BLOCKED_RESPONSE_JSON
     else:
-        assert resp.data == six.ensure_binary(APPSEC_BLOCKED_RESPONSE_JSON)
+        assert resp.data == six.ensure_binary(BLOCKED_RESPONSE_JSON)
 
 
 @pytest.mark.snapshot(
@@ -191,9 +191,9 @@ def test_flask_userblock_match_403_json(flask_client):
     resp = flask_client.get("/checkuser/%s" % _BLOCKED_USER)
     assert resp.status_code == 403
     if hasattr(resp, "text"):
-        assert resp.text == APPSEC_BLOCKED_RESPONSE_JSON
+        assert resp.text == BLOCKED_RESPONSE_JSON
     else:
-        assert resp.data == six.ensure_binary(APPSEC_BLOCKED_RESPONSE_JSON)
+        assert resp.data == six.ensure_binary(BLOCKED_RESPONSE_JSON)
 
 
 @pytest.mark.snapshot(

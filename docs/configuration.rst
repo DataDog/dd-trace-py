@@ -293,7 +293,7 @@ The following environment variables for the tracer are supported:
 
    DD_TRACE_PROPAGATION_STYLE:
      default: |
-         ``datadog``
+         ``tracecontext,datadog``
      description: |
          Comma separated list of propagation styles used for extracting trace context from inbound request headers and injecting trace context into outbound request headers.
 
@@ -308,8 +308,6 @@ The following environment variables for the tracer are supported:
 
          All provided styles are injected into the headers of outbound requests.
 
-         The default value is ``DD_TRACE_PROPAGATION_STYLE="tracecontext,datadog"``.
-
          Example: ``DD_TRACE_PROPAGATION_STYLE="datadog,b3"`` to check for both ``x-datadog-*`` and ``x-b3-*``
          headers when parsing incoming request headers for a trace context. In addition, to inject both ``x-datadog-*`` and ``x-b3-*``
          headers into outbound requests.
@@ -320,7 +318,7 @@ The following environment variables for the tracer are supported:
 
    DD_TRACE_PROPAGATION_STYLE_EXTRACT:
      default: |
-         ``datadog``
+         ``tracecontext,datadog``
      description: |
          Comma separated list of propagation styles used for extracting trace context from inbound request headers.
 
@@ -339,7 +337,7 @@ The following environment variables for the tracer are supported:
 
    DD_TRACE_PROPAGATION_STYLE_INJECT:
      default: |
-         ``datadog``
+         ``tracecontext,datadog``
      description: |
          Comma separated list of propagation styles used for injecting trace context into outbound request headers.
 
@@ -412,6 +410,11 @@ The following environment variables for the tracer are supported:
      type: Boolean
      default: True
      description: Send query strings in http.url tag in http server integrations.
+    
+   DD_TRACE_SPAN_AGGREGATOR_RLOCK:
+     type: Boolean
+     default: False
+     description: Whether the ``SpanAggregator`` should use an RLock or a Lock.
 
    DD_IAST_ENABLED:
      type: Boolean
@@ -437,6 +440,35 @@ The following environment variables for the tracer are supported:
      type: String
      default: "DES,Blowfish,RC2,RC4,IDEA"
      description: Weak cipher algorithms that should be reported, comma separated.
+
+   DD_IAST_REDACTION_ENABLED:
+     type: Boolean
+     default: True
+     description: |
+        Replace potentially sensitive information in the vulnerability report, like passwords with ``*`` for non tainted strings and ``abcde...``
+        for tainted ones. This will use the regular expressions of the two next settings to decide what to scrub.
+     version_added:
+        v1.17.0:
+
+   DD_IAST_REDACTION_NAME_PATTERN:
+     type: String
+     default: |
+       ``(?i)^.*(?:p(?:ass)?w(?:or)?d|pass(?:_?phrase)?|secret|(?:api_?|private_?|public_?|access_?|secret_?)key(?:_?id)?|token|consumer_?(?:id|key|secret)|sign(?:ed|ature)?|auth(?:entication|orization)?)``
+     description: |
+        Regular expression containing key or name style strings matched against vulnerability origin and evidence texts.
+        If it matches, the scrubbing of the report will be enabled.
+     version_added:
+        v1.17.0:
+
+   DD_IAST_REDACTION_VALUE_PATTERN:
+     type: String
+     default: |
+       ``(?i)bearer\s+[a-z0-9\._\-]+|token:[a-z0-9]{13}|gh[opsu]_[0-9a-zA-Z]{36}|ey[I-L][\w=-]+\.ey[I-L][\w=-]+(\.[\w.+\/=-]+)?|[\-]{5}BEGIN[a-z\s]+PRIVATE\sKEY[\-]{5}[^\-]+[\-]{5}END[a-z\s]+PRIVATE\sKEY|ssh-rsa\s*[a-z0-9\/\.+]{100,}``
+     description: |
+        Regular expression containing value style strings matched against vulnerability origin and evidence texts.
+        If it matches, the scrubbing of the report will be enabled.
+     version_added:
+        v1.17.0:
 
    DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE:
      type: String
@@ -469,14 +501,14 @@ The following environment variables for the tracer are supported:
      version_added:
         v1.13.0:
 
-   DD_CIVISIBILITY_ITR_ENABLED:
+   DD_CIVISIBILITY_ITR_DISABLED:
      type: Boolean
      default: False
      description: |
-        Configures the ``CIVisibility`` service to generate and upload git packfiles in support
-        of the Datadog Intelligent Test Runner. This configuration has no effect if ``DD_CIVISIBILITY_AGENTLESS_ENABLED`` is false.
+        Prevents the Intelligent Test Runner from skipping tests, and disables configuring the ``CIVisibility`` service
+        to generate and upload git packfiles in support of the Intelligent Test Runner.
      version_added:
-        v1.13.0:
+        v1.18.0:
 
    DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING:
       type: String

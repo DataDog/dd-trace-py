@@ -1,0 +1,59 @@
+name: Build Python 3.6+
+
+on:
+  workflow_call:
+    inputs:
+      cibw_build:
+        required: true
+        type: string
+      cibw_skip:
+        required: false
+        type: string
+      cibw_prerelease_pythons:
+        required: false
+        type: string
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+         - os: ubuntu-latest
+           archs: x86_64 i686
+         - os: ubuntu-latest
+           archs: aarch64
+         - os: windows-latest
+           archs: AMD64 x86
+         - os: macos-latest
+           archs: x86_64 universal2
+    steps:
+      - uses: actions/checkout@v3
+        # Include all history and tags
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v4
+        name: Install Python
+        with:
+          python-version: '3.8'
+
+      - name: Set up QEMU
+        if: runner.os == 'Linux'
+        uses: docker/setup-qemu-action@v2
+        with:
+          platforms: all
+
+      - name: Build wheels python 3.6 and above
+        uses: pypa/cibuildwheel@v2.14.0
+        env:
+          # configure cibuildwheel to build native archs ('auto'), and some
+          # emulated ones
+          CIBW_ARCHS: ${{ matrix.archs }}
+          CIBW_BUILD: ${{ inputs.cibw_build }}
+          CIBW_SKIP: ${{ inputs.cibw_skip }}
+          CIBW_PRERELEASE_PYTHONS: ${{ inputs.cibw_prerelease_pythons }}
+
+      - uses: actions/upload-artifact@v3
+        with:
+          path: ./wheelhouse/*.whl

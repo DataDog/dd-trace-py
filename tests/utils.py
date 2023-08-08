@@ -15,6 +15,7 @@ import pytest
 import ddtrace
 from ddtrace import Span
 from ddtrace import Tracer
+from ddtrace import config as dd_config
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.ext import http
 from ddtrace.internal import agent
@@ -25,6 +26,7 @@ from ddtrace.internal.compat import parse
 from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import MsgpackEncoderV03 as Encoder
+from ddtrace.internal.schema import SCHEMA_VERSION
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.vendor import wrapt
@@ -68,6 +70,10 @@ def override_env(env):
     # Copy the full original environment
     original = dict(os.environ)
 
+    for k in os.environ.keys():
+        if k.startswith(("_CI_DD_", "DD_CIVISIBILITY_", "DD_SITE")):
+            del os.environ[k]
+
     # Update based on the passed in arguments
     os.environ.update(env)
     try:
@@ -110,7 +116,6 @@ def override_global_config(values):
         "_waf_timeout",
         "_iast_enabled",
         "_obfuscation_query_string_pattern",
-        "_ci_visibility_code_coverage_enabled",
         "global_query_string_obfuscation_disabled",
         "_ci_visibility_agentless_url",
         "_ci_visibility_agentless_enabled",
@@ -119,6 +124,10 @@ def override_global_config(values):
         "_user_model_login_field",
         "_user_model_email_field",
         "_user_model_name_field",
+        "_sampling_rules",
+        "_sampling_rules_file",
+        "_trace_sample_rate",
+        "_trace_rate_limit",
     ]
 
     # Grab the current values of all keys
@@ -1192,7 +1201,11 @@ def flush_test_tracer_spans(writer):
 
 def add_dd_env_variables_to_headers(headers):
     dd_env_vars = {key: value for key, value in os.environ.items() if key.startswith("DD_")}
+    dd_env_vars["DD_SERVICE"] = dd_config.service
+    dd_env_vars["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = SCHEMA_VERSION
+
     if dd_env_vars:
         dd_env_vars_string = ",".join(["%s=%s" % (key, value) for key, value in dd_env_vars.items()])
         headers["X-Datadog-Trace-Env-Variables"] = dd_env_vars_string
+
     return headers

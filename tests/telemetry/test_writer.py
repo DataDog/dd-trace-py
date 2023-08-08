@@ -6,6 +6,7 @@ from typing import Dict
 import httpretty
 import mock
 import pytest
+from six import PY2
 
 from ddtrace.internal.telemetry.data import get_application
 from ddtrace.internal.telemetry.data import get_dependencies
@@ -69,46 +70,44 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
     events[0]["payload"]["configuration"].sort(key=lambda c: c["name"])
     payload = {
         "configuration": [
+            {"name": "DD_APPSEC_ENABLED", "origin": "unknown", "value": False},
+            {"name": "DD_CALL_BASIC_CONFIG", "origin": "unknown", "value": False},
+            {"name": "DD_DATA_STREAMS_ENABLED", "origin": "unknown", "value": False},
+            {"name": "DD_DYNAMIC_INSTRUMENTATION_ENABLED", "origin": "unknown", "value": False},
+            {"name": "DD_EXCEPTION_DEBUGGING_ENABLED", "origin": "unknown", "value": False},
+            {"name": "DD_INSTRUMENTATION_TELEMETRY_ENABLED", "origin": "unknown", "value": True},
+            {"name": "DD_LOGS_INJECTION", "origin": "unknown", "value": False},
+            {"name": "DD_PROFILING_ENABLED", "origin": "unknown", "value": False},
+            {"name": "DD_RUNTIME_METRICS_ENABLED", "origin": "unknown", "value": False},
+            {"name": "DD_SPAN_SAMPLING_RULES", "origin": "unknown", "value": None},
+            {"name": "DD_SPAN_SAMPLING_RULES_FILE", "origin": "unknown", "value": None},
+            {"name": "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", "origin": "unknown", "value": False},
+            {"name": "DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED", "origin": "unknown", "value": False},
+            {"name": "DD_TRACE_ANALYTICS_ENABLED", "origin": "unknown", "value": False},
+            {"name": "DD_TRACE_CLIENT_IP_ENABLED", "origin": "unknown", "value": None},
+            {"name": "DD_TRACE_COMPUTE_STATS", "origin": "unknown", "value": False},
+            {"name": "DD_TRACE_DEBUG", "origin": "unknown", "value": False},
+            {"name": "DD_TRACE_ENABLED", "origin": "unknown", "value": True},
+            {"name": "DD_TRACE_HEALTH_METRICS_ENABLED", "origin": "unknown", "value": False},
             {
-                "name": "appsec_enabled",
+                "name": "DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN",
                 "origin": "unknown",
-                "value": False,
+                "value": "(?i)(?:p(?:ass)?w(?:or)?d|pass(?:_?phrase)?|secret|(?:api_?|private_?"
+                "|public_?|access_?|secret_?)key(?:_?id)?|token|consumer_?(?:id|key|secret)|sign"
+                '(?:ed|ature)?|auth(?:entication|orization)?)(?:(?:\\s|%20)*(?:=|%3D)[^&]+|(?:"|'
+                '%22)(?:\\s|%20)*(?::|%3A)(?:\\s|%20)*(?:"|%22)(?:%2[^2]|%[^2]|[^"%])+(?:"|%22))|'
+                "bearer(?:\\s|%20)+[a-z0-9\\._\\-]|token(?::|%3A)[a-z0-9]{13}|gh[opsu]_[0-9a-zA-Z]{36}|"
+                "ey[I-L](?:[\\w=-]|%3D)+\\.ey[I-L](?:[\\w=-]|%3D)+(?:\\.(?:[\\w.+\\/=-]|%3D|%2F|%2B)+)?|["
+                "\\-]{5}BEGIN(?:[a-z\\s]|%20)+PRIVATE(?:\\s|%20)KEY[\\-]{5}[^\\-]+[\\-]{5}END(?:[a-z\\s]|%"
+                "20)+PRIVATE(?:\\s|%20)KEY|ssh-rsa(?:\\s|%20)*(?:[a-z0-9\\/\\.+]|%2F|%5C|%2B){100,}",
             },
-            {
-                "name": "data_streams_enabled",
-                "origin": "unknown",
-                "value": False,
-            },
-            {
-                "name": "ddtrace_auto_used",
-                "origin": "unknown",
-                "value": False,
-            },
-            {
-                "name": "ddtrace_bootstrapped",
-                "origin": "unknown",
-                "value": False,
-            },
-            {
-                "name": "otel_enabled",
-                "origin": "unknown",
-                "value": False,
-            },
-            {
-                "name": "runtimemetrics_enabled",
-                "origin": "unknown",
-                "value": False,
-            },
-            {
-                "name": "trace_propagation_style_extract",
-                "origin": "unknown",
-                "value": "['tracecontext', 'datadog']",
-            },
-            {
-                "name": "trace_propagation_style_inject",
-                "origin": "unknown",
-                "value": "['tracecontext', 'datadog']",
-            },
+            {"name": "DD_TRACE_OTEL_ENABLED", "origin": "unknown", "value": False},
+            {"name": "DD_TRACE_PROPAGATION_STYLE_EXTRACT", "origin": "unknown", "value": "tracecontext,datadog"},
+            {"name": "DD_TRACE_PROPAGATION_STYLE_INJECT", "origin": "unknown", "value": "tracecontext,datadog"},
+            {"name": "DD_TRACE_RATE_LIMIT", "origin": "unknown", "value": 100},
+            {"name": "DD_TRACE_SAMPLE_RATE", "origin": "unknown", "value": None},
+            {"name": "ddtrace_auto_used", "origin": "unknown", "value": False},
+            {"name": "ddtrace_bootstrapped", "origin": "unknown", "value": False},
         ],
         "error": {
             "code": 0,
@@ -118,13 +117,16 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
     assert events[0] == _get_request_body(payload, "app-started")
 
 
-def test_app_started_event_configuration_override(test_agent_session, ddtrace_run_python_code_in_subprocess):
+def test_app_started_event_configuration_override(test_agent_session, run_python_code_in_subprocess, tmpdir):
     """
     asserts that default configuration value
     is changed and queues a valid telemetry request
     which is then sent by periodic()
     """
     code = """
+import logging
+logging.basicConfig()
+
 import ddtrace.auto
 
 from ddtrace.internal.telemetry import telemetry_writer
@@ -137,62 +139,72 @@ telemetry_writer.disable()
 
     env = os.environ.copy()
     # Change configuration default values
-    env["DD_DATA_STREAMS_ENABLED"] = "true"
-    env["DD_TRACE_PROPAGATION_STYLE_EXTRACT"] = "b3multi"
-    env["DD_TRACE_PROPAGATION_STYLE_INJECT"] = "datadog"
-    env["DD_TRACE_OTEL_ENABLED"] = "true"
-    env["DD_RUNTIME_METRICS_ENABLED"] = "true"
+    env["DD_EXCEPTION_DEBUGGING_ENABLED"] = "True"
+    env["DD_INSTRUMENTATION_TELEMETRY_ENABLED"] = "True"
+    env["DD_LOGS_INJECTION"] = "True"
+    env["DD_CALL_BASIC_CONFIG"] = "True"
+    env["DD_PROFILING_ENABLED"] = "True"
+    env["DD_RUNTIME_METRICS_ENABLED"] = "True"
+    env["DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED"] = "True"
+    env["DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED"] = "True"
+    env["DD_TRACE_ANALYTICS_ENABLED"] = "True"
+    env["DD_TRACE_CLIENT_IP_ENABLED"] = "True"
+    env["DD_TRACE_COMPUTE_STATS"] = "True"
+    env["DD_TRACE_DEBUG"] = "True"
+    env["DD_TRACE_ENABLED"] = "False"
+    env["DD_TRACE_HEALTH_METRICS_ENABLED"] = "True"
+    env["DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN"] = ".*"
+    env["DD_TRACE_OTEL_ENABLED"] = "True"
+    env["DD_TRACE_PROPAGATION_STYLE_EXTRACT"] = "tracecontext"
+    env["DD_TRACE_PROPAGATION_STYLE_INJECT"] = "tracecontext"
+    env["DD_TRACE_SAMPLE_RATE"] = "0.5"
+    env["DD_TRACE_RATE_LIMIT"] = "50"
 
-    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    if PY2:
+        # Prevents gevent importerror when profiling is enabled
+        env["DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE"] = "false"
+
+    file = tmpdir.join("moon_ears.json")
+    file.write('[{"service":"xy?","name":"a*c"}]')
+    env["DD_SPAN_SAMPLING_RULES"] = '[{"service":"xyz", "sample_rate":0.23}]'
+    env["DD_SPAN_SAMPLING_RULES_FILE"] = str(file)
+
+    _, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
 
     assert status == 0, stderr
 
     events = test_agent_session.get_events()
     events[0]["payload"]["configuration"].sort(key=lambda c: c["name"])
-    configuration = [
-        {
-            "name": "appsec_enabled",
-            "origin": "unknown",
-            "value": False,
-        },
-        {
-            "name": "data_streams_enabled",
-            "origin": "unknown",
-            "value": True,
-        },
-        {
-            "name": "ddtrace_auto_used",
-            "origin": "unknown",
-            "value": True,
-        },
-        {
-            "name": "ddtrace_bootstrapped",
-            "origin": "unknown",
-            "value": True,
-        },
-        {
-            "name": "otel_enabled",
-            "origin": "unknown",
-            "value": True,
-        },
-        {
-            "name": "runtimemetrics_enabled",
-            "origin": "unknown",
-            "value": True,
-        },
-        {
-            "name": "trace_propagation_style_extract",
-            "origin": "unknown",
-            "value": "['b3multi']",
-        },
-        {
-            "name": "trace_propagation_style_inject",
-            "origin": "unknown",
-            "value": "['datadog']",
-        },
-    ]
 
-    assert events[0]["payload"]["configuration"] == configuration
+    assert events[0]["payload"]["configuration"] == [
+        {"name": "DD_APPSEC_ENABLED", "origin": "unknown", "value": False},
+        {"name": "DD_CALL_BASIC_CONFIG", "origin": "unknown", "value": True},
+        {"name": "DD_DATA_STREAMS_ENABLED", "origin": "unknown", "value": False},
+        {"name": "DD_DYNAMIC_INSTRUMENTATION_ENABLED", "origin": "unknown", "value": False},
+        {"name": "DD_EXCEPTION_DEBUGGING_ENABLED", "origin": "unknown", "value": True},
+        {"name": "DD_INSTRUMENTATION_TELEMETRY_ENABLED", "origin": "unknown", "value": True},
+        {"name": "DD_LOGS_INJECTION", "origin": "unknown", "value": True},
+        {"name": "DD_PROFILING_ENABLED", "origin": "unknown", "value": True},
+        {"name": "DD_RUNTIME_METRICS_ENABLED", "origin": "unknown", "value": True},
+        {"name": "DD_SPAN_SAMPLING_RULES", "origin": "unknown", "value": '[{"service":"xyz", "sample_rate":0.23}]'},
+        {"name": "DD_SPAN_SAMPLING_RULES_FILE", "origin": "unknown", "value": str(file)},
+        {"name": "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", "origin": "unknown", "value": True},
+        {"name": "DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED", "origin": "unknown", "value": True},
+        {"name": "DD_TRACE_ANALYTICS_ENABLED", "origin": "unknown", "value": True},
+        {"name": "DD_TRACE_CLIENT_IP_ENABLED", "origin": "unknown", "value": None},
+        {"name": "DD_TRACE_COMPUTE_STATS", "origin": "unknown", "value": True},
+        {"name": "DD_TRACE_DEBUG", "origin": "unknown", "value": True},
+        {"name": "DD_TRACE_ENABLED", "origin": "unknown", "value": False},
+        {"name": "DD_TRACE_HEALTH_METRICS_ENABLED", "origin": "unknown", "value": True},
+        {"name": "DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN", "origin": "unknown", "value": ".*"},
+        {"name": "DD_TRACE_OTEL_ENABLED", "origin": "unknown", "value": True},
+        {"name": "DD_TRACE_PROPAGATION_STYLE_EXTRACT", "origin": "unknown", "value": "tracecontext"},
+        {"name": "DD_TRACE_PROPAGATION_STYLE_INJECT", "origin": "unknown", "value": "tracecontext"},
+        {"name": "DD_TRACE_RATE_LIMIT", "origin": "unknown", "value": 50},
+        {"name": "DD_TRACE_SAMPLE_RATE", "origin": "unknown", "value": "0.5"},
+        {"name": "ddtrace_auto_used", "origin": "unknown", "value": True},
+        {"name": "ddtrace_bootstrapped", "origin": "unknown", "value": True},
+    ]
 
 
 def test_app_dependencies_loaded_event(telemetry_writer, test_agent_session, mock_time):
@@ -231,16 +243,9 @@ def test_add_integration(telemetry_writer, test_agent_session, mock_time):
     # assert integration change telemetry request was sent
     assert requests[0]["headers"]["DD-Telemetry-Request-Type"] == "app-integrations-change"
     # assert that the request had a valid request body
+    requests[0]["body"]["payload"]["integrations"].sort(key=lambda x: x["name"])
     expected_payload = {
         "integrations": [
-            {
-                "name": "integration-t",
-                "version": "",
-                "enabled": True,
-                "auto_enabled": True,
-                "compatible": True,
-                "error": "",
-            },
             {
                 "name": "integration-f",
                 "version": "",
@@ -248,6 +253,14 @@ def test_add_integration(telemetry_writer, test_agent_session, mock_time):
                 "auto_enabled": False,
                 "compatible": False,
                 "error": "terrible failure",
+            },
+            {
+                "name": "integration-t",
+                "version": "",
+                "enabled": True,
+                "auto_enabled": True,
+                "compatible": True,
+                "error": "",
             },
         ]
     }
@@ -258,7 +271,7 @@ def test_app_client_configuration_changed_event(telemetry_writer, test_agent_ses
     """asserts that queuing a configuration sends a valid telemetry request"""
 
     telemetry_writer.add_configuration("appsec_enabled", True)
-    telemetry_writer.add_configuration("trace_propagation_style_extract", "['datadog']")
+    telemetry_writer.add_configuration("DD_TRACE_PROPAGATION_STYLE_EXTRACT", "datadog")
     telemetry_writer.add_configuration("appsec_enabled", False, "env_var")
 
     telemetry_writer.periodic()
@@ -273,14 +286,14 @@ def test_app_client_configuration_changed_event(telemetry_writer, test_agent_ses
     # assert the latest configuration value is send to the agent
     assert received_configurations == [
         {
+            "name": "DD_TRACE_PROPAGATION_STYLE_EXTRACT",
+            "origin": "unknown",
+            "value": "datadog",
+        },
+        {
             "name": "appsec_enabled",
             "origin": "env_var",
             "value": False,
-        },
-        {
-            "name": "trace_propagation_style_extract",
-            "origin": "unknown",
-            "value": "['datadog']",
         },
     ]
 

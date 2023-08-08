@@ -15,6 +15,9 @@ from ...internal import atexit
 from ...internal import forksafe
 from ...internal.compat import parse
 from ...settings import _config as config
+from ...settings.dynamic_instrumentation import config as di_config
+from ...settings.exception_debugging import config as ed_config
+from ...settings.profiling import config as profiling_config
 from ..agent import get_connection
 from ..agent import get_trace_url
 from ..compat import get_connection_response
@@ -27,18 +30,42 @@ from ..service import ServiceStatus
 from ..utils.formats import asbool
 from ..utils.time import StopWatch
 from ..utils.version import _pep440_to_semver
-from .constants import TELEMETRY_METRIC_TYPE_COUNT
-from .constants import TELEMETRY_METRIC_TYPE_DISTRIBUTIONS
-from .constants import TELEMETRY_METRIC_TYPE_GAUGE
-from .constants import TELEMETRY_METRIC_TYPE_RATE
+from .constants import TELEMETRY_128_BIT_TRACEID_GENERATION_ENABLED
+from .constants import TELEMETRY_128_BIT_TRACEID_LOGGING_ENABLED
+from .constants import TELEMETRY_ANALYTICS_ENABLED
+from .constants import TELEMETRY_ASM_ENABLED
+from .constants import TELEMETRY_CALL_BASIC_CONFIG
+from .constants import TELEMETRY_CLIENT_IP_ENABLED
+from .constants import TELEMETRY_DSM_ENABLED
+from .constants import TELEMETRY_DYNAMIC_INSTRUMENTATION_ENABLED
+from .constants import TELEMETRY_ENABLED
+from .constants import TELEMETRY_EXCEPTION_DEBUGGING_ENABLED
+from .constants import TELEMETRY_LOGS_INJECTION_ENABLED
+from .constants import TELEMETRY_OBFUSCATION_QUERY_STRING_PATTERN
+from .constants import TELEMETRY_OTEL_ENABLED
+from .constants import TELEMETRY_PROFILING_ENABLED
+from .constants import TELEMETRY_PROPAGATION_STYLE_EXTRACT
+from .constants import TELEMETRY_PROPAGATION_STYLE_INJECT
 from .constants import TELEMETRY_RUNTIMEMETRICS_ENABLED
+from .constants import TELEMETRY_SPAN_SAMPLING_RULES
+from .constants import TELEMETRY_SPAN_SAMPLING_RULES_FILE
+from .constants import TELEMETRY_TRACE_COMPUTE_STATS
+from .constants import TELEMETRY_TRACE_DEBUG
+from .constants import TELEMETRY_TRACE_HEALTH_METRICS_ENABLED
+from .constants import TELEMETRY_TRACE_SAMPLING_LIMIT
+from .constants import TELEMETRY_TRACE_SAMPLING_RATE
+from .constants import TELEMETRY_TRACING_ENABLED
 from .constants import TELEMETRY_TYPE_DISTRIBUTION
 from .constants import TELEMETRY_TYPE_GENERATE_METRICS
 from .constants import TELEMETRY_TYPE_LOGS
 from .data import get_application
 from .data import get_dependencies
 from .data import get_host_info
+from .metrics import CountMetric
+from .metrics import DistributionMetric
+from .metrics import GaugeMetric
 from .metrics import MetricTagType
+from .metrics import RateMetric
 from .metrics_namespaces import MetricNamespace
 from .metrics_namespaces import NamespaceMetricType
 
@@ -97,7 +124,7 @@ class _TelemetryClient:
             else:
                 log.debug("failed to send telemetry to the Datadog Agent at %s. response: %s", self.url, resp.status)
         except Exception:
-            log.debug("failed to send telemetry to the Datadog Agent at %s.", self.url, exc_info=True)
+            log.debug("failed to send telemetry to the Datadog Agent at %s.", self.url)
         finally:
             if conn is not None:
                 conn.close()
@@ -129,7 +156,7 @@ class TelemetryWriter(PeriodicService):
     def __init__(self):
         # type: () -> None
         super(TelemetryWriter, self).__init__(interval=_get_heartbeat_interval_or_default())
-        self._integrations_queue = []  # type: List[Dict]
+        self._integrations_queue = dict()  # type: Dict[str, Dict]
         # Currently telemetry only supports reporting a single error.
         # If we'd like to report multiple errors in the future
         # we could hack it in by xor-ing error codes and concatenating strings
@@ -215,8 +242,8 @@ class TelemetryWriter(PeriodicService):
         """
         return self.status is ServiceStatus.RUNNING and self._worker and self._worker.is_alive()
 
-    def add_integration(self, integration_name, patched, auto_patched, error_msg):
-        # type: (str, bool, bool, str) -> None
+    def add_integration(self, integration_name, patched, auto_patched=None, error_msg=None):
+        # type: (str, bool, Optional[bool], Optional[str]) -> None
         """
         Creates and queues the names and settings of a patched module
 
@@ -224,17 +251,19 @@ class TelemetryWriter(PeriodicService):
         :param bool auto_enabled: True if module is enabled in _monkey.PATCH_MODULES
         """
         # Integrations can be patched before the telemetry writer is enabled.
-        integration = {
-            "name": integration_name,
-            "version": "",
-            "enabled": patched,
-            "auto_enabled": auto_patched,
-            "compatible": error_msg == "",
-            "error": error_msg,  # the integration error only takes a message, no code
-        }
-        # Reset the error after it has been reported.
-        self._error = (0, "")
-        self._integrations_queue.append(integration)
+        with self._lock:
+            if integration_name not in self._integrations_queue:
+                self._integrations_queue[integration_name] = {"name": integration_name}
+
+            self._integrations_queue[integration_name]["version"] = ""
+            self._integrations_queue[integration_name]["enabled"] = patched
+
+            if auto_patched is not None:
+                self._integrations_queue[integration_name]["auto_enabled"] = auto_patched
+
+            if error_msg is not None:
+                self._integrations_queue[integration_name]["compatible"] = error_msg == ""
+                self._integrations_queue[integration_name]["error"] = error_msg
 
     def add_error(self, code, msg, filename, line_number):
         # type: (int, str, Optional[str], Optional[int]) -> None
@@ -252,16 +281,43 @@ class TelemetryWriter(PeriodicService):
             # app-started events should only be sent by the main process
             return
         #  List of configurations to be collected
+
         self.add_configurations(
             [
-                ("data_streams_enabled", config._data_streams_enabled, "unknown"),
-                ("appsec_enabled", config._appsec_enabled, "unknown"),
-                ("trace_propagation_style_inject", str(config._propagation_style_inject), "unknown"),
-                ("trace_propagation_style_extract", str(config._propagation_style_extract), "unknown"),
+                (TELEMETRY_TRACING_ENABLED, config._tracing_enabled, "unknown"),
+                (TELEMETRY_CALL_BASIC_CONFIG, config._call_basic_config, "unknown"),
+                (TELEMETRY_DSM_ENABLED, config._data_streams_enabled, "unknown"),
+                (TELEMETRY_ASM_ENABLED, config._appsec_enabled, "unknown"),
+                (TELEMETRY_PROFILING_ENABLED, profiling_config.enabled, "unknown"),
+                (TELEMETRY_DYNAMIC_INSTRUMENTATION_ENABLED, di_config.enabled, "unknown"),
+                (TELEMETRY_EXCEPTION_DEBUGGING_ENABLED, ed_config.enabled, "unknown"),
+                (TELEMETRY_PROPAGATION_STYLE_INJECT, ",".join(config._propagation_style_inject), "unknown"),
+                (TELEMETRY_PROPAGATION_STYLE_EXTRACT, ",".join(config._propagation_style_extract), "unknown"),
                 ("ddtrace_bootstrapped", config._ddtrace_bootstrapped, "unknown"),
                 ("ddtrace_auto_used", "ddtrace.auto" in sys.modules, "unknown"),
-                ("otel_enabled", config._otel_enabled, "unknown"),
                 (TELEMETRY_RUNTIMEMETRICS_ENABLED, config._runtime_metrics_enabled, "unknown"),
+                (TELEMETRY_TRACE_DEBUG, config._debug_mode, "unknown"),
+                (TELEMETRY_ENABLED, config._telemetry_enabled, "unknown"),
+                (TELEMETRY_ANALYTICS_ENABLED, config.analytics_enabled, "unknown"),
+                (TELEMETRY_CLIENT_IP_ENABLED, config.client_ip_header, "unknown"),
+                (TELEMETRY_LOGS_INJECTION_ENABLED, config.logs_injection, "unknown"),
+                (TELEMETRY_128_BIT_TRACEID_GENERATION_ENABLED, config._128_bit_trace_id_enabled, "unknown"),
+                (TELEMETRY_128_BIT_TRACEID_LOGGING_ENABLED, config._128_bit_trace_id_logging_enabled, "unknown"),
+                (TELEMETRY_TRACE_COMPUTE_STATS, config._trace_compute_stats, "unknown"),
+                (
+                    TELEMETRY_OBFUSCATION_QUERY_STRING_PATTERN,
+                    config._obfuscation_query_string_pattern.pattern.decode("ascii")
+                    if config._obfuscation_query_string_pattern
+                    else "",
+                    "unknown",
+                ),
+                (TELEMETRY_OTEL_ENABLED, config._otel_enabled, "unknown"),
+                (TELEMETRY_TRACE_HEALTH_METRICS_ENABLED, config.health_metrics_enabled, "unknown"),
+                (TELEMETRY_RUNTIMEMETRICS_ENABLED, config._runtime_metrics_enabled, "unknown"),
+                (TELEMETRY_TRACE_SAMPLING_RATE, config._trace_sample_rate, "unknown"),
+                (TELEMETRY_TRACE_SAMPLING_LIMIT, config._trace_rate_limit, "unknown"),
+                (TELEMETRY_SPAN_SAMPLING_RULES, config._sampling_rules, "unknown"),
+                (TELEMETRY_SPAN_SAMPLING_RULES_FILE, config._sampling_rules_file, "unknown"),
             ]
         )
 
@@ -309,8 +365,8 @@ class TelemetryWriter(PeriodicService):
         # type: () -> List[Dict]
         """Flushes and returns a list of all queued integrations"""
         with self._lock:
-            integrations = self._integrations_queue
-            self._integrations_queue = []
+            integrations = list(self._integrations_queue.values())
+            self._integrations_queue = dict()
         return integrations
 
     def _flush_configuration_queue(self):
@@ -383,7 +439,7 @@ class TelemetryWriter(PeriodicService):
         """
         if self.status == ServiceStatus.RUNNING or self.enable():
             self._namespace.add_metric(
-                TELEMETRY_METRIC_TYPE_GAUGE,
+                GaugeMetric,
                 namespace,
                 name,
                 value,
@@ -398,7 +454,7 @@ class TelemetryWriter(PeriodicService):
         """
         if self.status == ServiceStatus.RUNNING or self.enable():
             self._namespace.add_metric(
-                TELEMETRY_METRIC_TYPE_RATE,
+                RateMetric,
                 namespace,
                 name,
                 value,
@@ -413,7 +469,7 @@ class TelemetryWriter(PeriodicService):
         """
         if self.status == ServiceStatus.RUNNING or self.enable():
             self._namespace.add_metric(
-                TELEMETRY_METRIC_TYPE_COUNT,
+                CountMetric,
                 namespace,
                 name,
                 value,
@@ -427,7 +483,7 @@ class TelemetryWriter(PeriodicService):
         """
         if self.status == ServiceStatus.RUNNING or self.enable():
             self._namespace.add_metric(
-                TELEMETRY_METRIC_TYPE_DISTRIBUTIONS,
+                DistributionMetric,
                 namespace,
                 name,
                 value,
@@ -502,7 +558,7 @@ class TelemetryWriter(PeriodicService):
     def reset_queues(self):
         # type: () -> None
         self._events_queue = []
-        self._integrations_queue = []
+        self._integrations_queue = dict()
         self._namespace.flush()
         self._logs = set()
 

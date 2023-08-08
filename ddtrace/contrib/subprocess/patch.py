@@ -17,10 +17,11 @@ import six
 
 from ddtrace import Pin
 from ddtrace import config
+from ddtrace.appsec.iast.taint_sinks.command_injection import CommandInjection
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.subprocess.constants import COMMANDS
 from ddtrace.ext import SpanTypes
-from ddtrace.internal import _context
+from ddtrace.internal import core
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import shjoin
 from ddtrace.internal.logger import get_logger
@@ -144,6 +145,21 @@ class SubprocessCmdLine(object):
     def __init__(self, shell_args, shell=False):
         # type: (Union[str, List[str]], bool) -> None
 
+        report_cmdi = False
+        if config._iast_enabled:
+            # We delay the reporting to later when the strings are already scrubbed (but we need
+            # to check them unscrubbed here)
+            from ddtrace.appsec.iast._taint_tracking import get_tainted_ranges
+            from ddtrace.appsec.iast._taint_tracking.aspects import join_aspect
+
+            if isinstance(shell_args, (list, tuple)):
+                for arg in shell_args:
+                    if get_tainted_ranges(arg):
+                        report_cmdi = join_aspect(" ", shell_args)
+                        break
+            elif get_tainted_ranges(shell_args):
+                report_cmdi = shell_args
+
         cache_key = str(shell_args) + str(shell)
         self._cache_entry = SubprocessCmdLine._CACHE.get(cache_key)
         if self._cache_entry:
@@ -179,6 +195,9 @@ class SubprocessCmdLine(object):
         self._cache_entry = SubprocessCmdLine._add_new_cache_entry(
             cache_key, self.env_vars, self.binary, self.arguments, self.truncated
         )
+
+        if report_cmdi:
+            CommandInjection.report(evidence_value=report_cmdi)
 
     def scrub_env_vars(self, tokens):
         for idx, token in enumerate(tokens):
@@ -400,17 +419,17 @@ def _traced_subprocess_init(module, pin, wrapped, instance, args, kwargs):
         is_shell = kwargs.get("shell", False)
         shellcmd = SubprocessCmdLine(cmd_args_list, shell=is_shell)  # nosec
 
-        with pin.tracer.trace(COMMANDS.SPAN_NAME, resource=shellcmd.binary, span_type=SpanTypes.SYSTEM) as span:
-            _context.set_item(COMMANDS.CTX_SUBP_IS_SHELL, is_shell, span=span)
+        with pin.tracer.trace(COMMANDS.SPAN_NAME, resource=shellcmd.binary, span_type=SpanTypes.SYSTEM):
+            core.set_item(COMMANDS.CTX_SUBP_IS_SHELL, is_shell)
 
             if shellcmd.truncated:
-                _context.set_item(COMMANDS.CTX_SUBP_TRUNCATED, "yes", span=span)
+                core.set_item(COMMANDS.CTX_SUBP_TRUNCATED, "yes")
 
             if is_shell:
-                _context.set_item(COMMANDS.CTX_SUBP_LINE, shellcmd.as_string(), span=span)
+                core.set_item(COMMANDS.CTX_SUBP_LINE, shellcmd.as_string())
             else:
-                _context.set_item(COMMANDS.CTX_SUBP_LINE, shellcmd.as_list(), span=span)
-            _context.set_item(COMMANDS.CTX_SUBP_BINARY, shellcmd.binary, span=span)
+                core.set_item(COMMANDS.CTX_SUBP_LINE, shellcmd.as_list())
+            core.set_item(COMMANDS.CTX_SUBP_BINARY, shellcmd.binary)
     except:  # noqa
         log.debug("Could not trace subprocess execution: [args: %s kwargs: %s]", args, kwargs, exc_info=True)
 
@@ -420,15 +439,15 @@ def _traced_subprocess_init(module, pin, wrapped, instance, args, kwargs):
 @trace_utils.with_traced_module
 def _traced_subprocess_wait(module, pin, wrapped, instance, args, kwargs):
     try:
-        binary = _context.get_item("subprocess_popen_binary")
+        binary = core.get_item("subprocess_popen_binary")
 
         with pin.tracer.trace(COMMANDS.SPAN_NAME, resource=binary, span_type=SpanTypes.SYSTEM) as span:
-            if _context.get_item(COMMANDS.CTX_SUBP_IS_SHELL, span=span):
-                span.set_tag_str(COMMANDS.SHELL, _context.get_item(COMMANDS.CTX_SUBP_LINE, span=span))
+            if core.get_item(COMMANDS.CTX_SUBP_IS_SHELL):
+                span.set_tag_str(COMMANDS.SHELL, core.get_item(COMMANDS.CTX_SUBP_LINE))
             else:
-                span.set_tag(COMMANDS.EXEC, _context.get_item(COMMANDS.CTX_SUBP_LINE, span=span))
+                span.set_tag(COMMANDS.EXEC, core.get_item(COMMANDS.CTX_SUBP_LINE))
 
-            truncated = _context.get_item(COMMANDS.CTX_SUBP_TRUNCATED, span=span)
+            truncated = core.get_item(COMMANDS.CTX_SUBP_TRUNCATED)
             if truncated:
                 span.set_tag_str(COMMANDS.TRUNCATED, "yes")
             span.set_tag_str(COMMANDS.COMPONENT, "subprocess")

@@ -87,6 +87,7 @@ PATCH_MODULES = {
     "aws_lambda": True,  # patch only in AWS Lambda environments
     "tornado": False,
     "openai": True,
+    "langchain": True,
     "subprocess": True,
 }
 
@@ -129,11 +130,6 @@ _MODULES_FOR_CONTRIB = {
     "kafka": ("confluent_kafka",),
 }
 
-IAST_PATCH = {
-    "path_traversal": True,
-    "weak_cipher": True,
-    "weak_hash": True,
-}
 
 DEFAULT_MODULES_PREFIX = "ddtrace.contrib"
 
@@ -157,12 +153,15 @@ def _on_import_factory(module, prefix="ddtrace.contrib", raise_errors=True, patc
         path = "%s.%s" % (prefix, module)
         try:
             imported_module = importlib.import_module(path)
-        except Exception:
+        except Exception as e:
             if raise_errors:
                 raise
             error_msg = "failed to import ddtrace module %r when patching on import" % (path,)
             log.error(error_msg, exc_info=True)
             telemetry_writer.add_integration(module, False, PATCH_MODULES.get(module) is True, error_msg)
+            telemetry_writer.add_count_metric(
+                "tracers", "integration_errors", 1, (("integration_name", module), ("error_type", type(e).__name__))
+            )
         else:
             imported_module.patch()
             telemetry_writer.add_integration(module, True, PATCH_MODULES.get(module) is True, "")
@@ -202,22 +201,10 @@ def patch_all(**patch_modules):
     modules.update(patch_modules)
 
     patch(raise_errors=False, **modules)
-    patch_iast(**IAST_PATCH)
+    if config._iast_enabled:
+        from ddtrace.appsec.iast._patch_modules import patch_iast
 
-
-def patch_iast(**patch_modules):
-    # type: (bool) -> None
-    """Load IAST vulnerabilities sink points.
-
-    IAST_PATCH: list of implemented vulnerabilities
-    """
-    iast_enabled = config._iast_enabled
-    if iast_enabled:
-        # TODO: Devise the correct patching strategy for IAST
-        for module in (m for m, e in patch_modules.items() if e):
-            when_imported("hashlib")(
-                _on_import_factory(module, prefix="ddtrace.appsec.iast.taint_sinks", raise_errors=False)
-            )
+        patch_iast()
 
 
 def patch(raise_errors=True, patch_modules_prefix=DEFAULT_MODULES_PREFIX, **patch_modules):

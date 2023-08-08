@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 
 from ddtrace import config
 from ddtrace.filters import TraceFilter
+from ddtrace.internal.compat import ensure_pep562
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import get_span_sampling_rules
@@ -48,6 +49,7 @@ from .internal.processor.trace import TraceTagsProcessor
 from .internal.runtime import get_runtime_id
 from .internal.serverless import has_aws_lambda_agent_extension
 from .internal.serverless import in_aws_lambda
+from .internal.serverless import in_azure_function_consumption_plan
 from .internal.serverless import in_gcp_function
 from .internal.serverless.mini_agent import maybe_start_serverless_mini_agent
 from .internal.service import ServiceStatusError
@@ -79,18 +81,16 @@ from typing import TypeVar
 
 log = get_logger(__name__)
 
-debug_mode = asbool(os.getenv("DD_TRACE_DEBUG", default=False))
-call_basic_config = asbool(os.environ.get("DD_CALL_BASIC_CONFIG", "false"))
 
 DD_LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] {}- %(message)s".format(
     "[dd.service=%(dd.service)s dd.env=%(dd.env)s dd.version=%(dd.version)s"
     " dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s] "
 )
-if debug_mode and not hasHandlers(log) and call_basic_config:
+if config._debug_mode and not hasHandlers(log) and config._call_basic_config:
     debtcollector.deprecate(
         "ddtrace.tracer.logging.basicConfig",
-        message="`logging.basicConfig()` should be called in a user's application."
-        " ``DD_CALL_BASIC_CONFIG`` will be removed in a future version.",
+        message="`logging.basicConfig()` should be called in a user's application.",
+        removal_version="2.0.0",
     )
     if config.logs_injection:
         # We need to ensure logging is patched in case the tracer logs during initialization
@@ -219,6 +219,7 @@ class Tracer(object):
         self,
         url=None,  # type: Optional[str]
         dogstatsd_url=None,  # type: Optional[str]
+        context_provider=None,  # type: Optional[DefaultContextProvider]
     ):
         # type: (...) -> None
         """
@@ -247,7 +248,7 @@ class Tracer(object):
         self._pid = getpid()
 
         self.enabled = asbool(os.getenv("DD_TRACE_ENABLED", default=True))
-        self.context_provider = DefaultContextProvider()
+        self.context_provider = context_provider or DefaultContextProvider()
         self._sampler = DatadogSampler()  # type: BaseSampler
         if asbool(os.getenv("DD_PRIORITY_SAMPLING", True)):
             self._priority_sampler = RateByServiceSampler()  # type: Optional[BasePrioritySampler]
@@ -542,7 +543,7 @@ class Tracer(object):
         self._generate_diagnostic_logs()
 
     def _generate_diagnostic_logs(self):
-        if debug_mode or asbool(environ.get("DD_TRACE_STARTUP_LOGS", False)):
+        if config._debug_mode or asbool(environ.get("DD_TRACE_STARTUP_LOGS", False)):
             try:
                 info = debug.collect(self)
             except Exception as e:
@@ -1081,7 +1082,7 @@ class Tracer(object):
         elif in_aws_lambda() and has_aws_lambda_agent_extension():
             # If the Agent Lambda extension is available then an AgentWriter is used.
             return False
-        elif in_gcp_function():
+        elif in_gcp_function() or in_azure_function_consumption_plan():
             return False
         else:
             return in_aws_lambda()
@@ -1097,11 +1098,32 @@ class Tracer(object):
         - AWS Lambdas can have the Datadog agent installed via an extension.
           When it's available traces must be sent synchronously to ensure all
           are received before the Lambda terminates.
-        - Google Cloud Functions have a mini-agent spun up by the tracer.
+        - Google Cloud Functions and Azure Consumption Plan Functions have a mini-agent spun up by the tracer.
           Similarly to AWS Lambdas, sync mode should be used to avoid data loss.
         """
-        return (in_aws_lambda() and has_aws_lambda_agent_extension()) or in_gcp_function()
+        return (
+            (in_aws_lambda() and has_aws_lambda_agent_extension())
+            or in_gcp_function()
+            or in_azure_function_consumption_plan()
+        )
 
     @staticmethod
     def _is_span_internal(span):
         return not span.span_type or span.span_type in _INTERNAL_APPLICATION_SPAN_TYPES
+
+
+def __getattr__(name):
+    if name == "DD_LOG_FORMAT":
+        debtcollector.deprecate(
+            ("%s.%s is deprecated." % (__name__, name)),
+            removal_version="2.0.0",
+        )
+        return DD_LOG_FORMAT
+
+    if name in globals():
+        return globals()[name]
+
+    raise AttributeError("'%s' has no attribute '%s'", __name__, name)
+
+
+ensure_pep562(__name__)

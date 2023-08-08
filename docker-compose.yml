@@ -56,26 +56,18 @@ services:
         image: redis:4.0-alpine
         ports:
             - "127.0.0.1:6379:6379"
-    zookeeper:
-      image: confluentinc/cp-zookeeper:7.3.1
-      environment:
-        - ZOOKEEPER_CLIENT_PORT=2181
-        - ZOOKEEPER_TICK_TIME=2000
-      ports:
-        - "127.0.0.1:22181:2181"
     kafka:
-      image: confluentinc/cp-kafka:7.3.2
+      image: bitnami/kafka:3.5.1-debian-11-r3
       ports:
         - "127.0.0.1:29092:29092"
       environment:
-        - KAFKA_BROKER_ID=1
-        - KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181
-        - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
-        - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-        - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT
-        - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1
-      depends_on:
-        - zookeeper
+        - ALLOW_PLAINTEXT_LISTENER=yes
+        - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:29092
+        - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092,EXTERNAL://localhost:29092
+        - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT,PLAINTEXT:PLAINTEXT
+        - KAFKA_CFG_BROKER_ID=1
+        - KAFKA_CFG_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+        - KAFKA_CFGOFFSETS_TOPIC_REPLICATION_FACTOR=1
     rediscluster:
         platform: linux/amd64
         image: grokzen/redis-cluster:6.2.0
@@ -137,7 +129,7 @@ services:
         volumes:
           - ddagent:/tmp/ddagent:rw
     testagent:
-        image: ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:v1.10.1
+        image: ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:v1.11.0
         ports:
             - "127.0.0.1:9126:8126"
         volumes:
@@ -146,6 +138,9 @@ services:
             - LOG_LEVEL=WARNING
             - SNAPSHOT_DIR=/snapshots
             - SNAPSHOT_CI
+            - DD_POOL_TRACE_CHECK_FAILURES=true
+            - DD_DISABLE_ERROR_RESPONSES=true
+            - ENABLED_CHECKS=trace_content_length,trace_stall,meta_tracer_version_header,trace_count_header,trace_peer_service,trace_dd_service
     vertica:
         image: sumitchawla/vertica
         environment:
