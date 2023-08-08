@@ -85,6 +85,7 @@ entrypoint
 entrypoints
 env
 enqueuer
+eol
 exec
 fastapi
 formatter
