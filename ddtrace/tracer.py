@@ -206,6 +206,9 @@ class Tracer(object):
     Tracer is used to create, sample and submit spans that measure the
     execution time of sections of code.
 
+
+    WHAT????
+
     If you're running an application that will serve a single trace per thread,
     you can use the global tracer instance::
 
