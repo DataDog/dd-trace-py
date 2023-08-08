@@ -2,7 +2,7 @@ on: [push]
 
 jobs:
   check-quality:
-    runs-on: ubuntu-latest-16-cores
+    # runs-on: ubuntu-latest-16-cores
     name: Datadog Static Analyzer
     steps:
       - name: Checkout
@@ -15,4 +15,4 @@ jobs:
           dd_api_key: ${{ secrets.DD_API_KEY_STATIC_ANALYSIS }}
           dd_service: "dd-trace-py"
           dd_env: "ci"
-          cpu_count: 8
+            #cpu_count: 8
