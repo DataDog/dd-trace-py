@@ -16,7 +16,7 @@
       "langchain.response.outputs.question": "Who was Alan Turing?",
       "langchain.response.outputs.sources": "https://simple.wikipedia.org/wiki/Alan%20Turing",
       "language": "python",
-      "runtime-id": "fda0c9cf31b147d883158fded9890680"
+      "runtime-id": "dfd2ce0f0c3347ffb6655649ad48bd1f"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -28,10 +28,10 @@
       "langchain.tokens.prompt_tokens": 2889,
       "langchain.tokens.total_cost": 0.06042,
       "langchain.tokens.total_tokens": 3021,
-      "process_id": 664
+      "process_id": 52007
     },
-    "duration": 32686000,
-    "start": 1688049538749091000
+    "duration": 36962423,
+    "start": 1691167370489277781
   },
      {
        "name": "langchain.request",
@@ -43,6 +43,7 @@
        "type": "",
        "error": 0,
        "meta": {
+         "_dd.p.dm": "-0",
          "langchain.request.api_key": "...key>",
          "langchain.request.pinecone.environment": "<not-a-real-env>",
          "langchain.request.pinecone.index_name": "langchain-retrieval",
@@ -75,8 +76,8 @@
          "_dd.measured": 1,
          "langchain.response.document_count": 4
        },
-       "duration": 14781000,
-       "start": 1688049538749252000
+       "duration": 30303389,
+       "start": 1691167370489572876
      },
         {
           "name": "langchain.request",
@@ -88,6 +89,7 @@
           "type": "",
           "error": 0,
           "meta": {
+            "_dd.p.dm": "-0",
             "langchain.request.api_key": "...key>",
             "langchain.request.inputs.0.text": "Who was Alan Turing?",
             "langchain.request.model": "text-embedding-ada-002",
@@ -99,8 +101,8 @@
             "langchain.request.input_count": 1,
             "langchain.response.outputs.embedding_length": 1536
           },
-          "duration": 2890000,
-          "start": 1688049538749277000
+          "duration": 3968034,
+          "start": 1691167370489689154
         },
      {
        "name": "langchain.request",
@@ -112,6 +114,7 @@
        "type": "",
        "error": 0,
        "meta": {
+         "_dd.p.dm": "-0",
          "langchain.request.inputs.input_documents": "[Document(page_content='A brilliant mathematician and cryptographer Alan was to become the founder of modern-day computer scienc...",
          "langchain.request.inputs.question": "Who was Alan Turing?",
          "langchain.request.type": "chain",
@@ -126,8 +129,8 @@
          "langchain.tokens.total_cost": 0.06042,
          "langchain.tokens.total_tokens": 3021
        },
-       "duration": 17100000,
-       "start": 1688049538764303000
+       "duration": 5973261,
+       "start": 1691167370520077506
      },
         {
           "name": "langchain.request",
@@ -139,6 +142,7 @@
           "type": "",
           "error": 0,
           "meta": {
+            "_dd.p.dm": "-0",
             "langchain.request.inputs.question": "Who was Alan Turing?",
             "langchain.request.inputs.summaries": "Content: A brilliant mathematician and cryptographer Alan was to become the founder of modern-day computer science and artificia...",
             "langchain.request.prompt": "Given the following extracted parts of a long document and a question, create a final answer with references (\"SOURCES\"). \\nIf y...",
@@ -154,8 +158,8 @@
             "langchain.tokens.total_cost": 0.06042,
             "langchain.tokens.total_tokens": 3021
           },
-          "duration": 16351000,
-          "start": 1688049538764852000
+          "duration": 5447774,
+          "start": 1691167370520488938
         },
            {
              "name": "langchain.request",
@@ -167,6 +171,7 @@
              "type": "",
              "error": 0,
              "meta": {
+               "_dd.p.dm": "-0",
                "langchain.request.api_key": "...key>",
                "langchain.request.model": "text-davinci-003",
                "langchain.request.openai.parameters.frequency_penalty": "0",
@@ -191,6 +196,6 @@
                "langchain.tokens.total_cost": 0.06042,
                "langchain.tokens.total_tokens": 3021
              },
-             "duration": 4117000,
-             "start": 1688049538765724000
+             "duration": 5038497,
+             "start": 1691167370520801161
            }]]
