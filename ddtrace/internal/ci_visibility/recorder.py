@@ -338,11 +338,21 @@ class CIVisibility(Service):
     @classmethod
     def enable(cls, tracer=None, config=None, service=None):
         # type: (Optional[Tracer], Optional[Any], Optional[str]) -> None
+        log.debug("Enabling %s", cls.__name__)
+
+        if ddconfig._ci_visibility_agentless_enabled:
+            if not os.getenv("_CI_DD_API_KEY", os.getenv("DD_API_KEY")):
+                log.critical(
+                    "%s disabled: environment variable DD_CIVISIBILITY_AGENTLESS_ENABLED is true but"
+                    " DD_API_KEY is not set",
+                    cls.__name__,
+                )
+                cls.enabled = False
+                return
 
         if cls._instance is not None:
             log.debug("%s already enabled", cls.__name__)
             return
-        log.debug("Enabling %s", cls.__name__)
 
         cls._instance = cls(tracer=tracer, config=config, service=service)
         cls.enabled = True
