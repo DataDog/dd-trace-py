@@ -1,6 +1,7 @@
 import inspect
 import os
 import unittest
+import time
 
 import ddtrace
 from ddtrace import config
@@ -12,9 +13,15 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
 from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
 from ddtrace.internal.ci_visibility.constants import EVENT_TYPE as _EVENT_TYPE
+from ddtrace.internal.ci_visibility.constants import SESSION_ID as _SESSION_ID
+from ddtrace.internal.ci_visibility.constants import SESSION_TYPE as _SESSION_TYPE
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.vendor import wrapt
+
+
+log = get_logger(__name__)
 
 # unittest default settings
 config._add(
@@ -52,9 +59,26 @@ def _extract_span(item):
     return getattr(item, "_datadog_span", None)
 
 
+def _extract_command_name_from_session(item):
+    """Extract command name from `unittest` instance"""
+    return getattr(item, "progName", None)
+
+
 def _extract_test_method_name(item):
     """Extract test method name from `unittest` instance."""
     return getattr(item, "_testMethodName", None)
+
+
+def _extract_session_status(item):
+    if hasattr(item, "result") and hasattr(item.result, "errors") and hasattr(item.result, "failures") and hasattr(
+            item.result, "skipped"):
+        if len(item.result.errors) or len(item.result.failures):
+            return test.Status.FAIL.value
+        elif item.result.testsRun == len(item.result.skipped):
+            return test.Status.SKIP.value
+        return test.Status.PASS.value
+
+    return test.Status.FAIL.value
 
 
 def _extract_suite_name_from_test_method(item):
@@ -190,6 +214,7 @@ def start_test_wrapper_unittest(func, instance, args, kwargs):
 
     return result
 
+
 def start_test_suite_wrapper_unittest(func, instance, args, kwargs):
     if _is_test_suite(instance):
         test_suite_name = type(instance._tests[0]).__name__
@@ -201,6 +226,28 @@ def start_test_suite_wrapper_unittest(func, instance, args, kwargs):
 
     return result
 
+
 def start_session_unittest(func, instance, args, kwargs):
-    print('Session is: command_name: ', instance.progName)
-    return func(*args, **kwargs)
+    if _is_unittest_support_enabled():
+        tracer = getattr(unittest, "_datadog_tracer", _CIVisibility._instance.tracer)
+        test_session_span = tracer.trace("unittest.test_session", service=_CIVisibility._instance._service,
+                                         span_type=SpanTypes.TEST, )
+        test_session_span.set_tag_str(COMPONENT, COMPONENT_VALUE)
+        test_session_span.set_tag_str(SPAN_KIND, KIND)
+        test_session_span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
+        test_session_span.set_tag_str(_EVENT_TYPE, _SESSION_TYPE)
+        test_session_span.set_tag_str(test.COMMAND, _extract_command_name_from_session(instance))
+        test_session_span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
+        _store_span(instance, test_session_span)
+    try:
+        result = func(*args, **kwargs)
+    except SystemExit as e:
+        if _CIVisibility.enabled:
+            log.debug("CI Visibility enabled - finishing unittest test session")
+            test_session_span = _extract_span(instance)
+            if test_session_span:
+                test_session_span.set_tag_str(test.STATUS, _extract_session_status(instance))
+                test_session_span.finish()
+                _CIVisibility.disable()
+        raise e
+    return result
