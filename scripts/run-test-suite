@@ -25,6 +25,7 @@ for hash in $hashes; do
     all_passed=true
 done
 
+rm $commit_file
 [[ $all_passed == true ]] && echo $CIRCLE_SHA1 > $commit_file
 
 ./scripts/check-diff \
