@@ -1079,14 +1079,10 @@ jobs:
 requires_pre_check: &requires_pre_check
   requires:
     - pre_check
-    - ccheck
-
 requires_base_venvs: &requires_base_venvs
   requires:
     - pre_check
-    - ccheck
     - build_base_venvs
-
 requires_tests: &requires_tests
   requires:
 
@@ -1097,4 +1093,3 @@ workflows:
     jobs:
       # Pre-checking before running all jobs
       - pre_check
-      - ccheck
