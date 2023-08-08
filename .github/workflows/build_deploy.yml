@@ -24,67 +24,6 @@ on:
     - cron:  0 2 * * 2-6
 
 jobs:
-  build_wheels_py27_35:
-    name: Build and test wheels on ${{ matrix.os }} (${{ matrix.archs }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        include:
-         - os: ubuntu-latest
-           archs: x86_64 i686
-         - os: ubuntu-latest
-           archs: aarch64
-         - os: windows-latest
-           archs: AMD64 x86
-         - os: macos-latest
-           # universal2 and arm64 builds require CPython 3.8 or newer:
-           # https://cibuildwheel.readthedocs.io/en/stable/faq/#universal2
-           archs: x86_64 universal2
-    steps:
-      - uses: actions/checkout@v3
-        # Include all history and tags
-        with:
-          fetch-depth: 0
-
-      - uses: actions/setup-python@v4
-        name: Install Python
-        with:
-          python-version: '3.8'
-
-      - name: Set up QEMU
-        if: runner.os == 'Linux'
-        uses: docker/setup-qemu-action@v2
-        with:
-          platforms: all
-
-      - name: Build wheels python 2.7 and 3.5
-        uses: joerick/cibuildwheel@v1.12.0
-        env:
-          # configure cibuildwheel to build native archs ('auto'), and some
-          # emulated ones
-          CIBW_ARCHS: ${{ matrix.archs }}
-          # PyPY is not supported
-          # Windows 2.7 wheels no longer can be built https://github.com/DataDog/dd-trace-py/pull/2344
-          CIBW_SKIP: cp27-win*
-          CIBW_BUILD: cp27* cp35*
-          # Run a smoke test on every supported platform
-          CIBW_TEST_COMMAND: python {project}/tests/smoke_test.py
-          # Testing arm on MacOS is currently not supported by Github
-          CIBW_TEST_SKIP: "*-macosx_universal2:arm64"
-          # Workaround for Macos 11.0 versioning issue, a.k.a.
-          # `platform.mac_ver()` reports incorrect MacOS version at 11.0
-          # See: https://stackoverflow.com/a/65402241
-          CIBW_ENVIRONMENT_MACOS: SYSTEM_VERSION_COMPAT=0
-
-      - uses: actions/upload-artifact@v3
-        with:
-          path: ./wheelhouse/*.whl
-
-  build_wheels_py36:
-    uses: ./.github/workflows/build_python_3.yml
-    with:
-      cibw_build: 'cp36*'
-
   build_wheels_py37:
     uses: ./.github/workflows/build_python_3.yml
     with:
@@ -169,7 +108,6 @@ jobs:
 
   upload_pypi:
     needs:
-      - build_wheels_py27_35
       - build_wheels_py36
       - build_wheels_py37
       - build_wheels_py38
