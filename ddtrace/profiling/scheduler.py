@@ -62,7 +62,7 @@ class Scheduler(periodic.PeriodicService):
         start = self._last_export
         self._last_export = compat.time_ns()
         torch_events = self.recorder.get_torch_events()
-        print("torch events: ")
+        print("torch events: %d events total" % len(torch_events))
         print(torch_events)
         for exp in self.exporters:
             try:
