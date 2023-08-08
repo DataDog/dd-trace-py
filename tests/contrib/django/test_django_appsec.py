@@ -749,7 +749,7 @@ def test_request_suspicious_request_block_custom_actions(client, test_spans, tra
         )
         assert response.status_code == 306
         # check if response content is custom as expected
-        assert json.loads(response.content) == {
+        assert json.loads(response.content.decode()) == {
             "errors": [{"title": "You've been blocked", "detail": "Custom content"}]
         }
         loaded = json.loads(root_span.get_tag(APPSEC.JSON))
@@ -784,7 +784,7 @@ def test_request_suspicious_request_block_custom_actions(client, test_spans, tra
         )
         assert response.status_code == 429
         # check if response content is custom as expected
-        assert json.loads(response.content) == {
+        assert json.loads(response.content.decode()) == {
             "errors": [{"title": "You've been blocked", "detail": "Custom content"}]
         }
         loaded = json.loads(root_span.get_tag(APPSEC.JSON))
@@ -802,7 +802,7 @@ def test_request_suspicious_request_block_custom_actions(client, test_spans, tra
         )
         assert response.status_code == 429
         # check if response content is custom as expected
-        assert json.loads(response.content) == {
+        assert json.loads(response.content.decode()) == {
             "errors": [{"title": "You've been blocked", "detail": "Custom content"}]
         }
         loaded = json.loads(root_span.get_tag(APPSEC.JSON))
