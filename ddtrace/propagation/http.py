@@ -1,4 +1,5 @@
 import re
+from typing import Any
 from typing import Dict
 from typing import FrozenSet
 from typing import List
@@ -7,6 +8,7 @@ from typing import Text
 from typing import Tuple
 from typing import cast
 
+from ddtrace import Span
 from ddtrace import config
 
 from ..constants import AUTO_KEEP
@@ -798,7 +800,7 @@ class HTTPPropagator(object):
 
     @staticmethod
     def inject(span_context, headers, sampler=None, trace=None):
-        # type: (Context, Dict[str, str]) -> None
+        # type: (Context, Dict[str, str], Any, Optional[List[Span]]) -> None
         """Inject Context attributes that have to be propagated as HTTP headers.
 
         Here is an example using `requests`::
