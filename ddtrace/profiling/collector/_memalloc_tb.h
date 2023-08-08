@@ -65,6 +65,126 @@ traceback_to_tuple(traceback_t* tb);
 #define TRACEBACK_ARRAY_MAX_COUNT UINT16_MAX
 #define TRACEBACK_ARRAY_COUNT_TYPE uint16_t
 
-DO_ARRAY(traceback_t*, traceback, TRACEBACK_ARRAY_COUNT_TYPE, traceback_free)
+//DO_ARRAY(traceback_t*, traceback, TRACEBACK_ARRAY_COUNT_TYPE, traceback_free)
+
+
+typedef struct traceback_array_t { traceback_t** tab; uint16_t count, size; } traceback_array_t;
+
+static inline void
+traceback_array_init(traceback_array_t* arr)
+{
+  arr->count = 0;
+  arr->size = 0;
+  arr->tab = ((void *)0);
+}
+
+static inline traceback_array_t*
+traceback_array_new(void) {
+  traceback_array_t* a = PyMem_RawMalloc(sizeof(traceback_array_t) * (1));
+  traceback_array_init(a);
+  return a;
+}
+
+static inline void
+traceback_array_wipe(traceback_array_t* arr)
+{
+  for (uint16_t i = 0; i < arr->count; i++) {
+    traceback_free(arr->tab[i]);
+  }
+  PyMem_Free(arr->tab);
+}
+
+static inline void
+traceback_array_delete(traceback_array_t* arrp)
+{
+  traceback_array_wipe(arrp);
+  PyMem_Free(arrp);
+}
+
+static inline void
+traceback_array_grow(traceback_array_t* arr, uint16_t newlen)
+{
+  do {
+    if ((newlen) > *(&arr->size)) {
+      if ((((*(&arr->size)) + 16) * 3 / 2) < (newlen)) {
+        *(&arr->size) = (newlen);
+      } else {
+        *(&arr->size) = (((*(&arr->size)) + 16) * 3 / 2);
+      }
+
+      do {
+        (arr->tab) = PyMem_RawRealloc((arr->tab), sizeof(*arr->tab) * (*(&arr->size)));
+      } while (0);
+    }
+  } while (0);
+}
+
+static inline void
+traceback_array_splice( traceback_array_t* arr, uint16_t pos, uint16_t len, traceback_t* items[], uint16_t count)
+{
+  ((void) sizeof (( pos >= 0 && len >= 0 && count >= 0) ? 1 : 0), __extension__ ({
+    if ( pos >= 0 && len >= 0 && count >= 0) ;
+    else __assert_fail ("pos >= 0 && len >= 0 && count >= 0" , "ddtrace/profiling/collector/_memalloc_tb.h", 68, __extension__ __PRETTY_FUNCTION__);
+    })
+  );
+
+  ((void) sizeof (( pos <= arr->count && pos + len <= arr->count) ? 1 : 0), __extension__ ({
+    if ( pos <= arr->count && pos + len <= arr->count);
+    else __assert_fail ("pos <= arr->count && pos + len <= arr->count", "ddtrace/profiling/collector/_memalloc_tb.h", 68, __extension__ __PRETTY_FUNCTION__);
+    })
+  );
+  if (len != count) {
+    traceback_array_grow(arr, arr->count + count - len);
+    if (!arr->tab) {
+        fprintf(stderr, "Failed to regrow.\n");
+        return;
+    }
+    memmove(arr->tab + pos + count, arr->tab + pos + len, (arr->count - pos - len) * sizeof(*items));
+    arr->count += count - len;
+  }
+  if (count) {
+    if (arr == NULL || items == NULL) {
+        fprintf(stderr, "Null pointer argument.\n");
+        return; // Or handle the error as appropriate for your application
+    }
+    if (pos < 0 || len < 0 || count < 0) {
+        fprintf(stderr, "Negative value argument.\n");
+        return; // Handle error
+    }
+    if (pos > arr->count || pos + len > arr->count) {
+        fprintf(stderr, "Position or length exceeds array bounds.\n");
+        return; // Handle error
+    }
+
+    memcpy(arr->tab + pos, items, count * sizeof(*items));
+  }
+}
+
+static inline traceback_t*
+traceback_array_take(traceback_array_t* arr, uint16_t pos)
+{
+  traceback_t* res = arr->tab[pos]; traceback_array_splice(arr, pos, 1, ((void *)0) , 0);
+  return res;
+}
+
+static inline uint16_t
+traceback_array_indexof(traceback_array_t* arr, traceback_t** e) {
+  return e - arr->tab;
+}
+
+static inline traceback_t*
+traceback_array_remove(traceback_array_t* arr, traceback_t** e) {
+  return traceback_array_take(arr, traceback_array_indexof(arr, e));
+}
+
+static inline void
+traceback_array_push(traceback_array_t* arr, traceback_t* e) {
+  traceback_array_splice(arr, 0, 0, &e, 1);
+}
+
+static inline void
+traceback_array_append(traceback_array_t* arr, traceback_t* e) {
+  traceback_array_splice(arr, arr->count, 0, &e, 1);
+}
 
 #endif

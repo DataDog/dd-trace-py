@@ -238,6 +238,8 @@ traceback_to_tuple(traceback_t* tb)
                                                              empty_string, // class name
                                                              NULL);
 
+//        Py_INCREF(frame->filename);
+//        Py_INCREF(frame->name);
         PyTuple_SET_ITEM(stack, nframe, frame_tuple);
     }
 
