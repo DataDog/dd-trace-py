@@ -162,7 +162,11 @@ def for_each_testrun_needed(suites: t.List[str], action: t.Callable[[str], None]
 
 
 def pr_matches_patterns(patterns: t.Set[str]) -> bool:
-    changed_files = get_changed_files(_get_pr_number())
+    try:
+        changed_files = get_changed_files(_get_pr_number())
+    except Exception:
+        LOGGER.error("Failed to get changed files. Assuming the PR matches for precaution.")
+        return True
     return bool([_ for p in patterns for _ in fnmatch.filter(changed_files, p)])
 
 
