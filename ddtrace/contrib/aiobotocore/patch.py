@@ -5,7 +5,6 @@ import aiobotocore.client
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.version import parse_version
-from ddtrace.vendor import debtcollector
 from ddtrace.vendor import wrapt
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -40,18 +39,10 @@ ARGS_NAME = ("action", "params", "path", "verb")
 TRACED_ARGS = {"params", "path", "verb"}
 
 
-if os.getenv("DD_AWS_TAG_ALL_PARAMS") is not None:
-    debtcollector.deprecate(
-        "Using environment variable 'DD_AWS_TAG_ALL_PARAMS' is deprecated",
-        message="The aiobotocore integration no longer includes all API parameters by default.",
-        removal_version="2.0.0",
-    )
-
 config._add(
     "aiobotocore",
     {
         "tag_no_params": asbool(os.getenv("DD_AWS_TAG_NO_PARAMS", default=False)),
-        "tag_all_params": asbool(os.getenv("DD_AWS_TAG_ALL_PARAMS", default=False)),
     },
 )
 
@@ -146,9 +137,6 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
         except ArgumentError:
             operation = None
             span.resource = endpoint_name
-
-        if not config.aiobotocore["tag_no_params"] and config.aiobotocore["tag_all_params"]:
-            aws.add_span_arg_tags(span, endpoint_name, args, ARGS_NAME, TRACED_ARGS)
 
         region_name = deep_getattr(instance, "meta.region_name")
 

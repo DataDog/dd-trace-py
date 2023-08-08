@@ -4,7 +4,6 @@ import datetime
 import hashlib
 import json
 from time import sleep
-import warnings
 
 import mock
 from mock.mock import ANY
@@ -18,7 +17,6 @@ from ddtrace.internal.remoteconfig._subscribers import RemoteConfigSubscriber
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.remoteconfig.constants import ASM_FEATURES_PRODUCT
 from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
-from ddtrace.internal.remoteconfig.utils import get_poll_interval_seconds
 from ddtrace.internal.remoteconfig.worker import RemoteConfigPoller
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import ServiceStatus
@@ -165,13 +163,6 @@ def test_remote_config_forksafe():
             exit(0)
 
 
-def test_remote_configuration_check_deprecated_var():
-    with override_env(dict(DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS="0.1")):
-        with warnings.catch_warnings(record=True) as capture:
-            get_poll_interval_seconds()
-            assert len(capture) == 0
-
-
 @mock.patch.object(RemoteConfigClient, "_send_request")
 def test_remote_configuration_1_click(mock_send_request):
     class Callback:
@@ -195,22 +186,6 @@ def test_remote_configuration_1_click(mock_send_request):
                 "metadata": {},
                 "shared_data_counter": ANY,
             }
-
-
-def test_remote_configuration_check_deprecated_var_message():
-    with override_env(dict(DD_REMOTECONFIG_POLL_SECONDS="0.1")):
-        with warnings.catch_warnings(record=True) as capture:
-            get_poll_interval_seconds()
-            assert len(capture) == 1
-            assert str(capture[0].message).startswith("Using environment")
-
-
-def test_remote_configuration_check_deprecated_override():
-    with override_env(dict(DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS="0.1", DD_REMOTECONFIG_POLL_SECONDS="0.5")):
-        with warnings.catch_warnings(record=True) as capture:
-            assert get_poll_interval_seconds() == 0.1
-            assert len(capture) == 1
-            assert str(capture[0].message).startswith("Using environment")
 
 
 @mock.patch.object(RemoteConfigClient, "_send_request")

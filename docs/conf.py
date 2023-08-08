@@ -557,7 +557,7 @@ class DDTraceReleaseNotesDirective(rst.Directive):
             versions = set()  # set[Version]
 
             # For release branches we want to set the max to the next minor, e.g. 1.2 -> 1.3.0
-            # For dev branches we want to set the max to the next major, e.g. 1.x -> 2.0.0
+            # For dev branches we want to set the max to the next major, e.g. 2.x -> 3.0.0
             for origin in origins:
                 if self._release_branch_pattern.match(origin):
                     v = Version(origin)

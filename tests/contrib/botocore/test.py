@@ -414,28 +414,6 @@ class BotocoreTest(TracerTestCase):
             assert span.get_tag("component") == "botocore"
 
     @mock_s3
-    def test_s3_put_all_params(self):
-        with self.override_config("botocore", dict(tag_all_params=True)):
-            span = self._test_s3_put()
-            assert span.get_tag("params.Key") == "foo"
-            assert span.get_tag("params.Bucket") == "mybucket"
-            # confirm blacklisted
-            assert span.get_tag("params.Body") is None
-            assert span.get_tag("component") == "botocore"
-
-    @mock_s3
-    def test_s3_put_no_params_all_params(self):
-        # DEV: Test no params overrides all params
-        with self.override_config("botocore", dict(tag_no_params=True, tag_all_params=True)):
-            span = self._test_s3_put()
-            assert span.get_tag("aws.s3.bucket_name") is None
-            assert span.get_tag("bucketname") is None
-            assert span.get_tag("params.Key") is None
-            assert span.get_tag("params.Bucket") is None
-            assert span.get_tag("params.Body") is None
-            assert span.get_tag("component") == "botocore"
-
-    @mock_s3
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_schematized_s3_client_default(self):
         s3 = self.session.create_client("s3", region_name="us-west-2")
@@ -557,65 +535,20 @@ class BotocoreTest(TracerTestCase):
             assert span.get_tag("params.MessageBody") is None
 
     @mock_sqs
-    def test_sqs_client_all_params(self):
-        with self.override_config("botocore", dict(tag_all_params=True)):
-            span = self._test_sqs_client()
-            assert span.get_tag("params.MessageBody") is None
-        assert span.get_tag("component") == "botocore"
-
-    @mock_sqs
-    def test_sqs_send_message_trace_injection_with_no_message_attributes(self):
-        # DEV: Only test deprecated behavior because this inspect span tags for MessageAttributes
-        with self.override_config("botocore", dict(tag_all_params=True)):
-            Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.sqs_client)
-
-            self.sqs_client.send_message(QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="world")
-            spans = self.get_spans()
-            assert spans
-            span = spans[0]
-            assert len(spans) == 1
-            assert span.get_tag("aws.region") == "us-east-1"
-            assert span.get_tag("region") == "us-east-1"
-            assert span.get_tag("aws.operation") == "SendMessage"
-            assert span.get_tag("params.MessageBody") is None
-            assert span.get_tag("component") == "botocore"
-            assert span.get_tag("span.kind"), "client"
-            assert_is_measured(span)
-            assert_span_http_status_code(span, 200)
-            assert span.service == "test-botocore-tracing.sqs"
-            assert span.resource == "sqs.sendmessage"
-            trace_json = span.get_tag("params.MessageAttributes._datadog.StringValue")
-            trace_data_injected = json.loads(trace_json)
-            assert trace_data_injected[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
-            assert trace_data_injected[HTTP_HEADER_PARENT_ID] == str(span.span_id)
-            response = self.sqs_client.receive_message(
-                QueueUrl=self.sqs_test_queue["QueueUrl"],
-                MessageAttributeNames=["_datadog"],
-                WaitTimeSeconds=2,
-            )
-            assert len(response["Messages"]) == 1
-            trace_json_message = response["Messages"][0]["MessageAttributes"]["_datadog"]["StringValue"]
-            trace_data_in_message = json.loads(trace_json_message)
-            assert trace_data_in_message[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
-            assert trace_data_in_message[HTTP_HEADER_PARENT_ID] == str(span.span_id)
-
-    @mock_sqs
     def test_sqs_send_message_non_url_queue(self):
-        with self.override_config("botocore", dict(tag_all_params=True)):
-            Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.sqs_client)
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.sqs_client)
 
-            self.sqs_client.send_message(QueueUrl="Test", MessageBody="world")
-            spans = self.get_spans()
-            assert spans
-            span = spans[0]
-            assert len(spans) == 1
-            assert span.get_tag("aws.operation") == "SendMessage"
-            assert span.resource == "sqs.sendmessage"
+        self.sqs_client.send_message(QueueUrl="Test", MessageBody="world")
+        spans = self.get_spans()
+        assert spans
+        span = spans[0]
+        assert len(spans) == 1
+        assert span.get_tag("aws.operation") == "SendMessage"
+        assert span.resource == "sqs.sendmessage"
 
     @mock_sqs
     def test_sqs_send_message_distributed_tracing_off(self):
-        # DEV: Only test deprecated behavior because this inspect span tags for MessageAttributes
-        with self.override_config("botocore", dict(distributed_tracing=False, tag_all_params=True)):
+        with self.override_config("botocore", dict(distributed_tracing=False)):
             Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.sqs_client)
 
             self.sqs_client.send_message(QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="world")
@@ -644,183 +577,129 @@ class BotocoreTest(TracerTestCase):
             assert trace_in_message is False
 
     @mock_sqs
-    def test_sqs_send_message_trace_injection_with_message_attributes(self):
-        # DEV: Only test deprecated behavior because this inspect span tags for MessageAttributes
-        with self.override_config("botocore", dict(tag_all_params=True)):
-            Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.sqs_client)
-            message_attributes = {
-                "one": {"DataType": "String", "StringValue": "one"},
-                "two": {"DataType": "String", "StringValue": "two"},
-                "three": {"DataType": "String", "StringValue": "three"},
-                "four": {"DataType": "String", "StringValue": "four"},
-                "five": {"DataType": "String", "StringValue": "five"},
-                "six": {"DataType": "String", "StringValue": "six"},
-                "seven": {"DataType": "String", "StringValue": "seven"},
-                "eight": {"DataType": "String", "StringValue": "eight"},
-                "nine": {"DataType": "String", "StringValue": "nine"},
-            }
-            self.sqs_client.send_message(
-                QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="world", MessageAttributes=message_attributes
-            )
-            spans = self.get_spans()
-            assert spans
-            span = spans[0]
-            assert len(spans) == 1
-            assert span.get_tag("aws.region") == "us-east-1"
-            assert span.get_tag("region") == "us-east-1"
-            assert span.get_tag("aws.operation") == "SendMessage"
-            assert span.get_tag("params.MessageBody") is None
-            assert span.get_tag("component") == "botocore"
-            assert span.get_tag("span.kind"), "client"
-            assert_is_measured(span)
-            assert_span_http_status_code(span, 200)
-            assert span.service == "test-botocore-tracing.sqs"
-            assert span.resource == "sqs.sendmessage"
-            trace_json = span.get_tag("params.MessageAttributes._datadog.StringValue")
-            trace_data_injected = json.loads(trace_json)
-            assert trace_data_injected[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
-            assert trace_data_injected[HTTP_HEADER_PARENT_ID] == str(span.span_id)
-            response = self.sqs_client.receive_message(
-                QueueUrl=self.sqs_test_queue["QueueUrl"],
-                MessageAttributeNames=["_datadog"],
-                WaitTimeSeconds=2,
-            )
-            assert len(response["Messages"]) == 1
-            trace_json_message = response["Messages"][0]["MessageAttributes"]["_datadog"]["StringValue"]
-            trace_data_in_message = json.loads(trace_json_message)
-            assert trace_data_in_message[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
-            assert trace_data_in_message[HTTP_HEADER_PARENT_ID] == str(span.span_id)
-
-    @mock_sqs
     def test_sqs_send_message_trace_injection_with_max_message_attributes(self):
-        # DEV: Only test deprecated behavior where MessageBody would be excluded
-        with self.override_config("botocore", dict(tag_all_params=True)):
-            Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.sqs_client)
-            message_attributes = {
-                "one": {"DataType": "String", "StringValue": "one"},
-                "two": {"DataType": "String", "StringValue": "two"},
-                "three": {"DataType": "String", "StringValue": "three"},
-                "four": {"DataType": "String", "StringValue": "four"},
-                "five": {"DataType": "String", "StringValue": "five"},
-                "six": {"DataType": "String", "StringValue": "six"},
-                "seven": {"DataType": "String", "StringValue": "seven"},
-                "eight": {"DataType": "String", "StringValue": "eight"},
-                "nine": {"DataType": "String", "StringValue": "nine"},
-                "ten": {"DataType": "String", "StringValue": "ten"},
-            }
-            self.sqs_client.send_message(
-                QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="world", MessageAttributes=message_attributes
-            )
-            spans = self.get_spans()
-            assert spans
-            span = spans[0]
-            assert len(spans) == 1
-            assert span.get_tag("aws.region") == "us-east-1"
-            assert span.get_tag("region") == "us-east-1"
-            assert span.get_tag("aws.operation") == "SendMessage"
-            assert span.get_tag("params.MessageBody") is None
-            assert span.get_tag("component") == "botocore"
-            assert span.get_tag("span.kind"), "client"
-            assert_is_measured(span)
-            assert_span_http_status_code(span, 200)
-            assert span.service == "test-botocore-tracing.sqs"
-            assert span.resource == "sqs.sendmessage"
-            trace_json = span.get_tag("params.MessageAttributes._datadog.StringValue")
-            assert trace_json is None
-            response = self.sqs_client.receive_message(
-                QueueUrl=self.sqs_test_queue["QueueUrl"],
-                MessageAttributeNames=["_datadog"],
-                WaitTimeSeconds=2,
-            )
-            assert len(response["Messages"]) == 1
-            trace_in_message = "MessageAttributes" in response["Messages"][0]
-            assert trace_in_message is False
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.sqs_client)
+        message_attributes = {
+            "one": {"DataType": "String", "StringValue": "one"},
+            "two": {"DataType": "String", "StringValue": "two"},
+            "three": {"DataType": "String", "StringValue": "three"},
+            "four": {"DataType": "String", "StringValue": "four"},
+            "five": {"DataType": "String", "StringValue": "five"},
+            "six": {"DataType": "String", "StringValue": "six"},
+            "seven": {"DataType": "String", "StringValue": "seven"},
+            "eight": {"DataType": "String", "StringValue": "eight"},
+            "nine": {"DataType": "String", "StringValue": "nine"},
+            "ten": {"DataType": "String", "StringValue": "ten"},
+        }
+        self.sqs_client.send_message(
+            QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="world", MessageAttributes=message_attributes
+        )
+        spans = self.get_spans()
+        assert spans
+        span = spans[0]
+        assert len(spans) == 1
+        assert span.get_tag("aws.region") == "us-east-1"
+        assert span.get_tag("region") == "us-east-1"
+        assert span.get_tag("aws.operation") == "SendMessage"
+        assert span.get_tag("params.MessageBody") is None
+        assert span.get_tag("component") == "botocore"
+        assert span.get_tag("span.kind"), "client"
+        assert_is_measured(span)
+        assert_span_http_status_code(span, 200)
+        assert span.service == "test-botocore-tracing.sqs"
+        assert span.resource == "sqs.sendmessage"
+        trace_json = span.get_tag("params.MessageAttributes._datadog.StringValue")
+        assert trace_json is None
+        response = self.sqs_client.receive_message(
+            QueueUrl=self.sqs_test_queue["QueueUrl"],
+            MessageAttributeNames=["_datadog"],
+            WaitTimeSeconds=2,
+        )
+        assert len(response["Messages"]) == 1
+        trace_in_message = "MessageAttributes" in response["Messages"][0]
+        assert trace_in_message is False
 
     @mock_sqs
     def test_sqs_send_message_batch_trace_injection_with_no_message_attributes(self):
-        # DEV: Only test deprecated behavior where MessageBody would be excluded
-        with self.override_config("botocore", dict(tag_all_params=True)):
-            Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.sqs_client)
-            entries = [
-                {
-                    "Id": "1",
-                    "MessageBody": "ironmaiden",
-                }
-            ]
-            self.sqs_client.send_message_batch(QueueUrl=self.sqs_test_queue["QueueUrl"], Entries=entries)
-            spans = self.get_spans()
-            assert spans
-            span = spans[0]
-            assert len(spans) == 1
-            assert span.get_tag("aws.region") == "us-east-1"
-            assert span.get_tag("region") == "us-east-1"
-            assert span.get_tag("aws.operation") == "SendMessageBatch"
-            assert span.get_tag("params.MessageBody") is None
-            assert span.get_tag("component") == "botocore"
-            assert span.get_tag("span.kind"), "client"
-            assert_is_measured(span)
-            assert_span_http_status_code(span, 200)
-            assert span.service == "test-botocore-tracing.sqs"
-            assert span.resource == "sqs.sendmessagebatch"
-            response = self.sqs_client.receive_message(
-                QueueUrl=self.sqs_test_queue["QueueUrl"],
-                MessageAttributeNames=["_datadog"],
-                WaitTimeSeconds=2,
-            )
-            assert len(response["Messages"]) == 1
-            trace_json_message = response["Messages"][0]["MessageAttributes"]["_datadog"]["StringValue"]
-            trace_data_in_message = json.loads(trace_json_message)
-            assert trace_data_in_message[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
-            assert trace_data_in_message[HTTP_HEADER_PARENT_ID] == str(span.span_id)
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.sqs_client)
+        entries = [
+            {
+                "Id": "1",
+                "MessageBody": "ironmaiden",
+            }
+        ]
+        self.sqs_client.send_message_batch(QueueUrl=self.sqs_test_queue["QueueUrl"], Entries=entries)
+        spans = self.get_spans()
+        assert spans
+        span = spans[0]
+        assert len(spans) == 1
+        assert span.get_tag("aws.region") == "us-east-1"
+        assert span.get_tag("region") == "us-east-1"
+        assert span.get_tag("aws.operation") == "SendMessageBatch"
+        assert span.get_tag("params.MessageBody") is None
+        assert span.get_tag("component") == "botocore"
+        assert span.get_tag("span.kind"), "client"
+        assert_is_measured(span)
+        assert_span_http_status_code(span, 200)
+        assert span.service == "test-botocore-tracing.sqs"
+        assert span.resource == "sqs.sendmessagebatch"
+        response = self.sqs_client.receive_message(
+            QueueUrl=self.sqs_test_queue["QueueUrl"],
+            MessageAttributeNames=["_datadog"],
+            WaitTimeSeconds=2,
+        )
+        assert len(response["Messages"]) == 1
+        trace_json_message = response["Messages"][0]["MessageAttributes"]["_datadog"]["StringValue"]
+        trace_data_in_message = json.loads(trace_json_message)
+        assert trace_data_in_message[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
+        assert trace_data_in_message[HTTP_HEADER_PARENT_ID] == str(span.span_id)
 
     @mock_sqs
     def test_sqs_send_message_batch_trace_injection_with_message_attributes(self):
-        # DEV: Only test deprecated behavior where MessageBody would be excluded
-        with self.override_config("botocore", dict(tag_all_params=True)):
-            Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.sqs_client)
-            entries = [
-                {
-                    "Id": "1",
-                    "MessageBody": "ironmaiden",
-                    "MessageAttributes": {
-                        "one": {"DataType": "String", "StringValue": "one"},
-                        "two": {"DataType": "String", "StringValue": "two"},
-                        "three": {"DataType": "String", "StringValue": "three"},
-                        "four": {"DataType": "String", "StringValue": "four"},
-                        "five": {"DataType": "String", "StringValue": "five"},
-                        "six": {"DataType": "String", "StringValue": "six"},
-                        "seven": {"DataType": "String", "StringValue": "seven"},
-                        "eight": {"DataType": "String", "StringValue": "eight"},
-                        "nine": {"DataType": "String", "StringValue": "nine"},
-                    },
-                }
-            ]
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.sqs_client)
+        entries = [
+            {
+                "Id": "1",
+                "MessageBody": "ironmaiden",
+                "MessageAttributes": {
+                    "one": {"DataType": "String", "StringValue": "one"},
+                    "two": {"DataType": "String", "StringValue": "two"},
+                    "three": {"DataType": "String", "StringValue": "three"},
+                    "four": {"DataType": "String", "StringValue": "four"},
+                    "five": {"DataType": "String", "StringValue": "five"},
+                    "six": {"DataType": "String", "StringValue": "six"},
+                    "seven": {"DataType": "String", "StringValue": "seven"},
+                    "eight": {"DataType": "String", "StringValue": "eight"},
+                    "nine": {"DataType": "String", "StringValue": "nine"},
+                },
+            }
+        ]
 
-            self.sqs_client.send_message_batch(QueueUrl=self.sqs_test_queue["QueueUrl"], Entries=entries)
-            spans = self.get_spans()
-            assert spans
-            span = spans[0]
-            assert len(spans) == 1
-            assert span.get_tag("aws.region") == "us-east-1"
-            assert span.get_tag("region") == "us-east-1"
-            assert span.get_tag("aws.operation") == "SendMessageBatch"
-            assert span.get_tag("params.MessageBody") is None
-            assert span.get_tag("component") == "botocore"
-            assert span.get_tag("span.kind"), "client"
-            assert_is_measured(span)
-            assert_span_http_status_code(span, 200)
-            assert span.service == "test-botocore-tracing.sqs"
-            assert span.resource == "sqs.sendmessagebatch"
-            response = self.sqs_client.receive_message(
-                QueueUrl=self.sqs_test_queue["QueueUrl"],
-                MessageAttributeNames=["_datadog"],
-                WaitTimeSeconds=2,
-            )
-            assert len(response["Messages"]) == 1
-            trace_json_message = response["Messages"][0]["MessageAttributes"]["_datadog"]["StringValue"]
-            trace_data_in_message = json.loads(trace_json_message)
-            assert trace_data_in_message[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
-            assert trace_data_in_message[HTTP_HEADER_PARENT_ID] == str(span.span_id)
+        self.sqs_client.send_message_batch(QueueUrl=self.sqs_test_queue["QueueUrl"], Entries=entries)
+        spans = self.get_spans()
+        assert spans
+        span = spans[0]
+        assert len(spans) == 1
+        assert span.get_tag("aws.region") == "us-east-1"
+        assert span.get_tag("region") == "us-east-1"
+        assert span.get_tag("aws.operation") == "SendMessageBatch"
+        assert span.get_tag("params.MessageBody") is None
+        assert span.get_tag("component") == "botocore"
+        assert span.get_tag("span.kind"), "client"
+        assert_is_measured(span)
+        assert_span_http_status_code(span, 200)
+        assert span.service == "test-botocore-tracing.sqs"
+        assert span.resource == "sqs.sendmessagebatch"
+        response = self.sqs_client.receive_message(
+            QueueUrl=self.sqs_test_queue["QueueUrl"],
+            MessageAttributeNames=["_datadog"],
+            WaitTimeSeconds=2,
+        )
+        assert len(response["Messages"]) == 1
+        trace_json_message = response["Messages"][0]["MessageAttributes"]["_datadog"]["StringValue"]
+        trace_data_in_message = json.loads(trace_json_message)
+        assert trace_data_in_message[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
+        assert trace_data_in_message[HTTP_HEADER_PARENT_ID] == str(span.span_id)
 
     @mock_sqs
     def test_sqs_send_message_batch_trace_injection_with_max_message_attributes(self):
@@ -1095,67 +974,66 @@ class BotocoreTest(TracerTestCase):
         with mock.patch("time.time") as mt:
             mt.return_value = 1642544540
 
-            with self.override_config("botocore", dict(tag_all_params=True)):
-                sns = self.session.create_client("sns", region_name="us-east-1", endpoint_url="http://localhost:4566")
+            sns = self.session.create_client("sns", region_name="us-east-1", endpoint_url="http://localhost:4566")
 
-                topic = sns.create_topic(Name="testTopic")
+            topic = sns.create_topic(Name="testTopic")
 
-                topic_arn = topic["TopicArn"]
-                sqs_url = self.sqs_test_queue["QueueUrl"]
-                url_parts = sqs_url.split("/")
-                sqs_arn = "arn:aws:sqs:{}:{}:{}".format("us-east-1", url_parts[-2], url_parts[-1])
-                sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_arn)
+            topic_arn = topic["TopicArn"]
+            sqs_url = self.sqs_test_queue["QueueUrl"]
+            url_parts = sqs_url.split("/")
+            sqs_arn = "arn:aws:sqs:{}:{}:{}".format("us-east-1", url_parts[-2], url_parts[-1])
+            sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_arn)
 
-                Pin.get_from(sns).clone(tracer=self.tracer).onto(sns)
-                Pin.get_from(self.sqs_client).clone(tracer=self.tracer).onto(self.sqs_client)
+            Pin.get_from(sns).clone(tracer=self.tracer).onto(sns)
+            Pin.get_from(self.sqs_client).clone(tracer=self.tracer).onto(self.sqs_client)
 
-                sns.publish(TopicArn=topic_arn, Message="test")
+            sns.publish(TopicArn=topic_arn, Message="test")
 
-                self.get_spans()
+            self.get_spans()
 
-                # get SNS messages via SQS
-                self.sqs_client.receive_message(QueueUrl=self.sqs_test_queue["QueueUrl"], WaitTimeSeconds=2)
+            # get SNS messages via SQS
+            self.sqs_client.receive_message(QueueUrl=self.sqs_test_queue["QueueUrl"], WaitTimeSeconds=2)
 
-                # clean up resources
-                sns.delete_topic(TopicArn=topic_arn)
+            # clean up resources
+            sns.delete_topic(TopicArn=topic_arn)
 
-                pin = Pin.get_from(sns)
-                buckets = pin.tracer.data_streams_processor._buckets
-                assert len(buckets) == 1, "Expected 1 bucket but found {}".format(len(buckets))
-                _, first = list(buckets.items())[0]
+            pin = Pin.get_from(sns)
+            buckets = pin.tracer.data_streams_processor._buckets
+            assert len(buckets) == 1, "Expected 1 bucket but found {}".format(len(buckets))
+            _, first = list(buckets.items())[0]
 
-                assert (
-                    first[
-                        (
-                            "direction:out,topic:arn:aws:sns:us-east-1:000000000000:testTopic,type:sns",
-                            3337976778666780987,
-                            0,
-                        )
-                    ].full_pathway_latency._count
-                    >= 1
-                )
-                assert (
-                    first[
-                        (
-                            "direction:out,topic:arn:aws:sns:us-east-1:000000000000:testTopic,type:sns",
-                            3337976778666780987,
-                            0,
-                        )
-                    ].edge_latency._count
-                    >= 1
-                )
-                assert (
-                    first[
-                        ("direction:in,topic:Test,type:sqs", 13854213076663332654, 3337976778666780987)
-                    ].full_pathway_latency._count
-                    >= 1
-                )
-                assert (
-                    first[
-                        ("direction:in,topic:Test,type:sqs", 13854213076663332654, 3337976778666780987)
-                    ].edge_latency._count
-                    >= 1
-                )
+            assert (
+                first[
+                    (
+                        "direction:out,topic:arn:aws:sns:us-east-1:000000000000:testTopic,type:sns",
+                        3337976778666780987,
+                        0,
+                    )
+                ].full_pathway_latency._count
+                >= 1
+            )
+            assert (
+                first[
+                    (
+                        "direction:out,topic:arn:aws:sns:us-east-1:000000000000:testTopic,type:sns",
+                        3337976778666780987,
+                        0,
+                    )
+                ].edge_latency._count
+                >= 1
+            )
+            assert (
+                first[
+                    ("direction:in,topic:Test,type:sqs", 13854213076663332654, 3337976778666780987)
+                ].full_pathway_latency._count
+                >= 1
+            )
+            assert (
+                first[
+                    ("direction:in,topic:Test,type:sqs", 13854213076663332654, 3337976778666780987)
+                ].edge_latency._count
+                >= 1
+            )
 
     @mock_sqs
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
@@ -1164,52 +1042,50 @@ class BotocoreTest(TracerTestCase):
         with mock.patch("time.time") as mt:
             mt.return_value = 1642544540
 
-            with self.override_config("botocore", dict(tag_all_params=True)):
-                Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.sqs_client)
-                message_attributes = {
-                    "one": {"DataType": "String", "StringValue": "one"},
-                    "two": {"DataType": "String", "StringValue": "two"},
-                    "three": {"DataType": "String", "StringValue": "three"},
-                    "four": {"DataType": "String", "StringValue": "four"},
-                    "five": {"DataType": "String", "StringValue": "five"},
-                    "six": {"DataType": "String", "StringValue": "six"},
-                    "seven": {"DataType": "String", "StringValue": "seven"},
-                    "eight": {"DataType": "String", "StringValue": "eight"},
-                    "nine": {"DataType": "String", "StringValue": "nine"},
-                }
+            Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.sqs_client)
+            message_attributes = {
+                "one": {"DataType": "String", "StringValue": "one"},
+                "two": {"DataType": "String", "StringValue": "two"},
+                "three": {"DataType": "String", "StringValue": "three"},
+                "four": {"DataType": "String", "StringValue": "four"},
+                "five": {"DataType": "String", "StringValue": "five"},
+                "six": {"DataType": "String", "StringValue": "six"},
+                "seven": {"DataType": "String", "StringValue": "seven"},
+                "eight": {"DataType": "String", "StringValue": "eight"},
+                "nine": {"DataType": "String", "StringValue": "nine"},
+            }
 
-                self.sqs_client.send_message(
-                    QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="world", MessageAttributes=message_attributes
-                )
+            self.sqs_client.send_message(
+                QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="world", MessageAttributes=message_attributes
+            )
 
-                self.sqs_client.receive_message(
-                    QueueUrl=self.sqs_test_queue["QueueUrl"],
-                    MessageAttributeNames=["_datadog"],
-                    WaitTimeSeconds=2,
-                )
+            self.sqs_client.receive_message(
+                QueueUrl=self.sqs_test_queue["QueueUrl"],
+                MessageAttributeNames=["_datadog"],
+                WaitTimeSeconds=2,
+            )
 
-                pin = Pin.get_from(self.sqs_client)
-                buckets = pin.tracer.data_streams_processor._buckets
-                assert len(buckets) == 1
-                _, first = list(buckets.items())[0]
+            pin = Pin.get_from(self.sqs_client)
+            buckets = pin.tracer.data_streams_processor._buckets
+            assert len(buckets) == 1
+            _, first = list(buckets.items())[0]
 
-                assert (
-                    first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].full_pathway_latency._count
-                    >= 1
-                )
-                assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].edge_latency._count >= 1
-                assert (
-                    first[
-                        ("direction:in,topic:Test,type:sqs", 15625264005677082004, 15309751356108160802)
-                    ].full_pathway_latency._count
-                    >= 1
-                )
-                assert (
-                    first[
-                        ("direction:in,topic:Test,type:sqs", 15625264005677082004, 15309751356108160802)
-                    ].edge_latency._count
-                    >= 1
-                )
+            assert (
+                first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].full_pathway_latency._count >= 1
+            )
+            assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].edge_latency._count >= 1
+            assert (
+                first[
+                    ("direction:in,topic:Test,type:sqs", 15625264005677082004, 15309751356108160802)
+                ].full_pathway_latency._count
+                >= 1
+            )
+            assert (
+                first[
+                    ("direction:in,topic:Test,type:sqs", 15625264005677082004, 15309751356108160802)
+                ].edge_latency._count
+                >= 1
+            )
 
     @mock_sqs
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
@@ -1218,72 +1094,69 @@ class BotocoreTest(TracerTestCase):
         with mock.patch("time.time") as mt:
             mt.return_value = 1642544540
 
-            with self.override_config("botocore", dict(tag_all_params=True)):
-                Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.sqs_client)
-                message_attributes = {
-                    "one": {"DataType": "String", "StringValue": "one"},
-                    "two": {"DataType": "String", "StringValue": "two"},
-                    "three": {"DataType": "String", "StringValue": "three"},
-                    "four": {"DataType": "String", "StringValue": "four"},
-                    "five": {"DataType": "String", "StringValue": "five"},
-                    "six": {"DataType": "String", "StringValue": "six"},
-                    "seven": {"DataType": "String", "StringValue": "seven"},
-                    "eight": {"DataType": "String", "StringValue": "eight"},
-                    "nine": {"DataType": "String", "StringValue": "nine"},
-                }
+            Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.sqs_client)
+            message_attributes = {
+                "one": {"DataType": "String", "StringValue": "one"},
+                "two": {"DataType": "String", "StringValue": "two"},
+                "three": {"DataType": "String", "StringValue": "three"},
+                "four": {"DataType": "String", "StringValue": "four"},
+                "five": {"DataType": "String", "StringValue": "five"},
+                "six": {"DataType": "String", "StringValue": "six"},
+                "seven": {"DataType": "String", "StringValue": "seven"},
+                "eight": {"DataType": "String", "StringValue": "eight"},
+                "nine": {"DataType": "String", "StringValue": "nine"},
+            }
 
-                entries = [
-                    {"Id": "1", "MessageBody": "Message No. 1", "MessageAttributes": message_attributes},
-                    {"Id": "2", "MessageBody": "Message No. 2", "MessageAttributes": message_attributes},
-                    {"Id": "3", "MessageBody": "Message No. 3", "MessageAttributes": message_attributes},
-                ]
+            entries = [
+                {"Id": "1", "MessageBody": "Message No. 1", "MessageAttributes": message_attributes},
+                {"Id": "2", "MessageBody": "Message No. 2", "MessageAttributes": message_attributes},
+                {"Id": "3", "MessageBody": "Message No. 3", "MessageAttributes": message_attributes},
+            ]
 
-                self.sqs_client.send_message_batch(QueueUrl=self.sqs_test_queue["QueueUrl"], Entries=entries)
+            self.sqs_client.send_message_batch(QueueUrl=self.sqs_test_queue["QueueUrl"], Entries=entries)
 
-                self.sqs_client.receive_message(
-                    QueueUrl=self.sqs_test_queue["QueueUrl"],
-                    MaxNumberOfMessages=3,
-                    MessageAttributeNames=["_datadog"],
-                    WaitTimeSeconds=2,
-                )
+            self.sqs_client.receive_message(
+                QueueUrl=self.sqs_test_queue["QueueUrl"],
+                MaxNumberOfMessages=3,
+                MessageAttributeNames=["_datadog"],
+                WaitTimeSeconds=2,
+            )
 
-                pin = Pin.get_from(self.sqs_client)
-                buckets = pin.tracer.data_streams_processor._buckets
-                assert len(buckets) == 1
-                _, first = list(buckets.items())[0]
+            pin = Pin.get_from(self.sqs_client)
+            buckets = pin.tracer.data_streams_processor._buckets
+            assert len(buckets) == 1
+            _, first = list(buckets.items())[0]
 
-                assert (
-                    first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].full_pathway_latency._count
-                    >= 3
-                )
-                assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].edge_latency._count >= 3
-                assert (
-                    first[
-                        ("direction:in,topic:Test,type:sqs", 15625264005677082004, 15309751356108160802)
-                    ].full_pathway_latency._count
-                    >= 3
-                )
-                assert (
-                    first[
-                        ("direction:in,topic:Test,type:sqs", 15625264005677082004, 15309751356108160802)
-                    ].edge_latency._count
-                    >= 3
-                )
+            assert (
+                first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].full_pathway_latency._count >= 3
+            )
+            assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].edge_latency._count >= 3
+            assert (
+                first[
+                    ("direction:in,topic:Test,type:sqs", 15625264005677082004, 15309751356108160802)
+                ].full_pathway_latency._count
+                >= 3
+            )
+            assert (
+                first[
+                    ("direction:in,topic:Test,type:sqs", 15625264005677082004, 15309751356108160802)
+                ].edge_latency._count
+                >= 3
+            )
 
     @mock_sqs
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     def test_data_streams_sqs_header_information(self):
-        with self.override_config("botocore", dict(tag_all_params=True)):
-            self.sqs_client.send_message(QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="world")
-            response = self.sqs_client.receive_message(
-                QueueUrl=self.sqs_test_queue["QueueUrl"],
-                MaxNumberOfMessages=1,
-                WaitTimeSeconds=2,
-                AttributeNames=[
-                    "All",
-                ],
-            )
-            assert "_datadog" in response["Messages"][0]["MessageAttributes"]
+        self.sqs_client.send_message(QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="world")
+        response = self.sqs_client.receive_message(
+            QueueUrl=self.sqs_test_queue["QueueUrl"],
+            MaxNumberOfMessages=1,
+            WaitTimeSeconds=2,
+            AttributeNames=[
+                "All",
+            ],
+        )
+        assert "_datadog" in response["Messages"][0]["MessageAttributes"]
 
     @mock_sqs
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
@@ -1292,45 +1165,41 @@ class BotocoreTest(TracerTestCase):
         with mock.patch("time.time") as mt:
             mt.return_value = 1642544540
 
-            with self.override_config("botocore", dict(tag_all_params=True)):
-                Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.sqs_client)
-                message_attributes = {
-                    "one": {"DataType": "String", "StringValue": "one"},
-                    "two": {"DataType": "String", "StringValue": "two"},
-                    "three": {"DataType": "String", "StringValue": "three"},
-                    "four": {"DataType": "String", "StringValue": "four"},
-                    "five": {"DataType": "String", "StringValue": "five"},
-                    "six": {"DataType": "String", "StringValue": "six"},
-                    "seven": {"DataType": "String", "StringValue": "seven"},
-                    "eight": {"DataType": "String", "StringValue": "eight"},
-                    "nine": {"DataType": "String", "StringValue": "nine"},
-                    "ten": {"DataType": "String", "StringValue": "ten"},
-                }
+            Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.sqs_client)
+            message_attributes = {
+                "one": {"DataType": "String", "StringValue": "one"},
+                "two": {"DataType": "String", "StringValue": "two"},
+                "three": {"DataType": "String", "StringValue": "three"},
+                "four": {"DataType": "String", "StringValue": "four"},
+                "five": {"DataType": "String", "StringValue": "five"},
+                "six": {"DataType": "String", "StringValue": "six"},
+                "seven": {"DataType": "String", "StringValue": "seven"},
+                "eight": {"DataType": "String", "StringValue": "eight"},
+                "nine": {"DataType": "String", "StringValue": "nine"},
+                "ten": {"DataType": "String", "StringValue": "ten"},
+            }
 
-                self.sqs_client.send_message(
-                    QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="world", MessageAttributes=message_attributes
-                )
+            self.sqs_client.send_message(
+                QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="world", MessageAttributes=message_attributes
+            )
 
-                self.sqs_client.receive_message(
-                    QueueUrl=self.sqs_test_queue["QueueUrl"],
-                    MessageAttributeNames=["_datadog"],
-                    WaitTimeSeconds=2,
-                )
+            self.sqs_client.receive_message(
+                QueueUrl=self.sqs_test_queue["QueueUrl"],
+                MessageAttributeNames=["_datadog"],
+                WaitTimeSeconds=2,
+            )
 
-                pin = Pin.get_from(self.sqs_client)
-                buckets = pin.tracer.data_streams_processor._buckets
-                assert len(buckets) == 1
-                _, first = list(buckets.items())[0]
+            pin = Pin.get_from(self.sqs_client)
+            buckets = pin.tracer.data_streams_processor._buckets
+            assert len(buckets) == 1
+            _, first = list(buckets.items())[0]
 
-                assert (
-                    first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].full_pathway_latency._count
-                    >= 1
-                )
-                assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].edge_latency._count >= 1
-                assert (
-                    first[("direction:in,topic:Test,type:sqs", 3569019635468821892, 0)].full_pathway_latency._count >= 1
-                )
-                assert first[("direction:in,topic:Test,type:sqs", 3569019635468821892, 0)].edge_latency._count >= 1
+            assert (
+                first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].full_pathway_latency._count >= 1
+            )
+            assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].edge_latency._count >= 1
+            assert first[("direction:in,topic:Test,type:sqs", 3569019635468821892, 0)].full_pathway_latency._count >= 1
+            assert first[("direction:in,topic:Test,type:sqs", 3569019635468821892, 0)].edge_latency._count >= 1
 
     @mock_lambda
     def test_lambda_client(self):
@@ -1356,107 +1225,8 @@ class BotocoreTest(TracerTestCase):
         assert span.get_tag("params.ClientContext") is None
 
     @mock_lambda
-    def test_lambda_invoke_no_context_client(self):
-        # DEV: Test only deprecated behavior as we need to inspect span tags for ClientContext
-        with self.override_config("botocore", dict(tag_all_params=True)):
-            lamb = self.session.create_client("lambda", region_name="us-west-2", endpoint_url="http://localhost:4566")
-            lamb.create_function(
-                FunctionName="ironmaiden",
-                Runtime="python3.7",
-                Role="test-iam-role",
-                Handler="lambda_function.lambda_handler",
-                Code={
-                    "ZipFile": get_zip_lambda(),
-                },
-                Publish=True,
-                Timeout=30,
-                MemorySize=128,
-            )
-
-            Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(lamb)
-
-            lamb.invoke(
-                FunctionName="ironmaiden",
-                Payload=json.dumps({}),
-            )
-
-            spans = self.get_spans()
-            assert spans
-            span = spans[0]
-
-            assert len(spans) == 1
-            assert span.get_tag("aws.region") == "us-west-2"
-            assert span.get_tag("region") == "us-west-2"
-            assert span.get_tag("aws_service") == "lambda"
-            assert span.get_tag("functionname") == "ironmaiden"
-            assert span.get_tag("aws.operation") == "Invoke"
-            assert span.get_tag("component") == "botocore"
-            assert span.get_tag("span.kind"), "client"
-            assert_is_measured(span)
-            assert_span_http_status_code(span, 200)
-            assert span.service == "test-botocore-tracing.lambda"
-            assert span.resource == "lambda.invoke"
-            context_b64 = span.get_tag("params.ClientContext")
-            context_json = base64.b64decode(context_b64.encode()).decode()
-            context_obj = json.loads(context_json)
-
-            assert context_obj["custom"][HTTP_HEADER_TRACE_ID] == str(span.trace_id)
-            assert context_obj["custom"][HTTP_HEADER_PARENT_ID] == str(span.span_id)
-
-            lamb.delete_function(FunctionName="ironmaiden")
-
-    @mock_lambda
-    def test_lambda_invoke_with_old_style_trace_propagation(self):
-        # DEV: Test only deprecated behavior as we need to inspect span tags for ClientContext
-        with self.override_config("botocore", dict(invoke_with_legacy_context=True, tag_all_params=True)):
-            lamb = self.session.create_client("lambda", region_name="us-west-2", endpoint_url="http://localhost:4566")
-            lamb.create_function(
-                FunctionName="ironmaiden",
-                Runtime="python3.7",
-                Role="test-iam-role",
-                Handler="lambda_function.lambda_handler",
-                Code={
-                    "ZipFile": get_zip_lambda(),
-                },
-                Publish=True,
-                Timeout=30,
-                MemorySize=128,
-            )
-
-            Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(lamb)
-
-            lamb.invoke(
-                FunctionName="ironmaiden",
-                Payload=json.dumps({}),
-            )
-
-            spans = self.get_spans()
-            assert spans
-            span = spans[0]
-
-            assert len(spans) == 1
-            assert span.get_tag("aws.region") == "us-west-2"
-            assert span.get_tag("region") == "us-west-2"
-            assert span.get_tag("aws.operation") == "Invoke"
-            assert span.get_tag("component") == "botocore"
-            assert span.get_tag("span.kind"), "client"
-            assert_is_measured(span)
-            assert_span_http_status_code(span, 200)
-            assert span.service == "test-botocore-tracing.lambda"
-            assert span.resource == "lambda.invoke"
-            context_b64 = span.get_tag("params.ClientContext")
-            context_json = base64.b64decode(context_b64.encode()).decode()
-            context_obj = json.loads(context_json)
-
-            assert context_obj["custom"]["_datadog"][HTTP_HEADER_TRACE_ID] == str(span.trace_id)
-            assert context_obj["custom"]["_datadog"][HTTP_HEADER_PARENT_ID] == str(span.span_id)
-
-            lamb.delete_function(FunctionName="ironmaiden")
-
-    @mock_lambda
     def test_lambda_invoke_distributed_tracing_off(self):
-        # DEV: Test only deprecated behavior as we need to inspect span tags for ClientContext
-        with self.override_config("botocore", dict(distributed_tracing=False, tag_all_params=True)):
+        with self.override_config("botocore", dict(distributed_tracing=False)):
             lamb = self.session.create_client("lambda", region_name="us-west-2", endpoint_url="http://localhost:4566")
             lamb.create_function(
                 FunctionName="ironmaiden",
@@ -1494,57 +1264,6 @@ class BotocoreTest(TracerTestCase):
             assert span.resource == "lambda.invoke"
             assert span.get_tag("params.ClientContext") is None
             lamb.delete_function(FunctionName="ironmaiden")
-
-    @mock_lambda
-    def test_lambda_invoke_with_context_client(self):
-        # DEV: Test only deprecated behavior as we need to inspect span tags for ClientContext
-        with self.override_config("botocore", dict(tag_all_params=True)):
-            lamb = self.session.create_client("lambda", region_name="us-west-2", endpoint_url="http://localhost:4566")
-            lamb.create_function(
-                FunctionName="megadeth",
-                Runtime="python3.7",
-                Role="test-iam-role",
-                Handler="lambda_function.lambda_handler",
-                Code={
-                    "ZipFile": get_zip_lambda(),
-                },
-                Publish=True,
-                Timeout=30,
-                MemorySize=128,
-            )
-            client_context = base64.b64encode(json.dumps({"custom": {"foo": "bar"}}).encode()).decode()
-
-            Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(lamb)
-
-            lamb.invoke(
-                FunctionName="megadeth",
-                ClientContext=client_context,
-                Payload=json.dumps({}),
-            )
-
-            spans = self.get_spans()
-            assert spans
-            span = spans[0]
-
-            assert len(spans) == 1
-            assert span.get_tag("aws.region") == "us-west-2"
-            assert span.get_tag("region") == "us-west-2"
-            assert span.get_tag("aws.operation") == "Invoke"
-            assert span.get_tag("component") == "botocore"
-            assert span.get_tag("span.kind"), "client"
-            assert_is_measured(span)
-            assert_span_http_status_code(span, 200)
-            assert span.service == "test-botocore-tracing.lambda"
-            assert span.resource == "lambda.invoke"
-            context_b64 = span.get_tag("params.ClientContext")
-            context_json = base64.b64decode(context_b64.encode()).decode()
-            context_obj = json.loads(context_json)
-
-            assert context_obj["custom"]["foo"] == "bar"
-            assert context_obj["custom"][HTTP_HEADER_TRACE_ID] == str(span.trace_id)
-            assert context_obj["custom"][HTTP_HEADER_PARENT_ID] == str(span.span_id)
-
-            lamb.delete_function(FunctionName="megadeth")
 
     @mock_lambda
     def test_lambda_invoke_bad_context_client(self):
@@ -1774,255 +1493,243 @@ class BotocoreTest(TracerTestCase):
 
     @mock_events
     def test_eventbridge_single_entry_trace_injection(self):
-        # DEV: Only check deprecated all params behavior
-        with self.override_config("botocore", dict(tag_all_params=True)):
-            bridge = self.session.create_client("events", region_name="us-east-1", endpoint_url="http://localhost:4566")
-            bridge.create_event_bus(Name="a-test-bus")
+        bridge = self.session.create_client("events", region_name="us-east-1", endpoint_url="http://localhost:4566")
+        bridge.create_event_bus(Name="a-test-bus")
 
-            entries = [
-                {
-                    "Source": "some-event-source",
-                    "DetailType": "some-event-detail-type",
-                    "Detail": json.dumps({"foo": "bar"}),
-                    "EventBusName": "a-test-bus",
-                }
-            ]
-            bridge.put_rule(
-                Name="a-test-bus-rule",
-                EventBusName="a-test-bus",
-                EventPattern="""{"source": [{"prefix": ""}]}""",
-                State="ENABLED",
-            )
+        entries = [
+            {
+                "Source": "some-event-source",
+                "DetailType": "some-event-detail-type",
+                "Detail": json.dumps({"foo": "bar"}),
+                "EventBusName": "a-test-bus",
+            }
+        ]
+        bridge.put_rule(
+            Name="a-test-bus-rule",
+            EventBusName="a-test-bus",
+            EventPattern="""{"source": [{"prefix": ""}]}""",
+            State="ENABLED",
+        )
 
-            bridge.list_rules()
-            queue_url = self.sqs_test_queue["QueueUrl"]
-            bridge.put_targets(
-                Rule="a-test-bus-rule",
-                Targets=[{"Id": "a-test-bus-rule-target", "Arn": "arn:aws:sqs:us-east-1:000000000000:Test"}],
-            )
+        bridge.list_rules()
+        queue_url = self.sqs_test_queue["QueueUrl"]
+        bridge.put_targets(
+            Rule="a-test-bus-rule",
+            Targets=[{"Id": "a-test-bus-rule-target", "Arn": "arn:aws:sqs:us-east-1:000000000000:Test"}],
+        )
 
-            Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(bridge)
-            bridge.put_events(Entries=entries)
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(bridge)
+        bridge.put_events(Entries=entries)
 
-            messages = self.sqs_client.receive_message(QueueUrl=queue_url, WaitTimeSeconds=2)
+        messages = self.sqs_client.receive_message(QueueUrl=queue_url, WaitTimeSeconds=2)
 
-            bridge.delete_event_bus(Name="a-test-bus")
+        bridge.delete_event_bus(Name="a-test-bus")
 
-            spans = self.get_spans()
-            assert spans
-            assert len(spans) == 2
-            span = spans[0]
-            str_entries = span.get_tag("params.Entries")
-            put_rule_span = spans[1]
-            assert put_rule_span.get_tag("rulename") == "a-test-bus"
-            assert put_rule_span.get_tag("aws_service") == "events"
-            assert put_rule_span.get_tag("region") == "us-east-1"
-            assert str_entries is None
+        spans = self.get_spans()
+        assert spans
+        assert len(spans) == 2
+        span = spans[0]
+        str_entries = span.get_tag("params.Entries")
+        put_rule_span = spans[1]
+        assert put_rule_span.get_tag("rulename") == "a-test-bus"
+        assert put_rule_span.get_tag("aws_service") == "events"
+        assert put_rule_span.get_tag("region") == "us-east-1"
+        assert str_entries is None
 
-            message = messages["Messages"][0]
-            body = message.get("Body")
-            assert body is not None
-            # body_obj = ast.literal_eval(body)
-            body_obj = json.loads(body)
-            detail = body_obj.get("detail")
-            headers = detail.get("_datadog")
-            assert headers is not None
-            assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
-            assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
+        message = messages["Messages"][0]
+        body = message.get("Body")
+        assert body is not None
+        # body_obj = ast.literal_eval(body)
+        body_obj = json.loads(body)
+        detail = body_obj.get("detail")
+        headers = detail.get("_datadog")
+        assert headers is not None
+        assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
+        assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
 
     @mock_events
     def test_eventbridge_multiple_entries_trace_injection(self):
-        # DEV: Only check deprecated all params behavior
-        with self.override_config("botocore", dict(tag_all_params=True)):
-            bridge = self.session.create_client("events", region_name="us-east-1", endpoint_url="http://localhost:4566")
-            bridge.create_event_bus(Name="a-test-bus")
+        bridge = self.session.create_client("events", region_name="us-east-1", endpoint_url="http://localhost:4566")
+        bridge.create_event_bus(Name="a-test-bus")
 
-            entries = [
-                {
-                    "Source": "another-event-source",
-                    "DetailType": "a-different-event-detail-type",
-                    "Detail": json.dumps({"abc": "xyz"}),
-                    "EventBusName": "a-test-bus",
-                },
-                {
-                    "Source": "some-event-source",
-                    "DetailType": "some-event-detail-type",
-                    "Detail": json.dumps({"foo": "bar"}),
-                    "EventBusName": "a-test-bus",
-                },
-            ]
-            bridge.put_rule(
-                Name="a-test-bus-rule",
-                EventBusName="a-test-bus",
-                EventPattern="""{"source": [{"prefix": ""}]}""",
-                State="ENABLED",
-            )
+        entries = [
+            {
+                "Source": "another-event-source",
+                "DetailType": "a-different-event-detail-type",
+                "Detail": json.dumps({"abc": "xyz"}),
+                "EventBusName": "a-test-bus",
+            },
+            {
+                "Source": "some-event-source",
+                "DetailType": "some-event-detail-type",
+                "Detail": json.dumps({"foo": "bar"}),
+                "EventBusName": "a-test-bus",
+            },
+        ]
+        bridge.put_rule(
+            Name="a-test-bus-rule",
+            EventBusName="a-test-bus",
+            EventPattern="""{"source": [{"prefix": ""}]}""",
+            State="ENABLED",
+        )
 
-            bridge.list_rules()
-            queue_url = self.sqs_test_queue["QueueUrl"]
-            bridge.put_targets(
-                Rule="a-test-bus-rule",
-                Targets=[{"Id": "a-test-bus-rule-target", "Arn": "arn:aws:sqs:us-east-1:000000000000:Test"}],
-            )
+        bridge.list_rules()
+        queue_url = self.sqs_test_queue["QueueUrl"]
+        bridge.put_targets(
+            Rule="a-test-bus-rule",
+            Targets=[{"Id": "a-test-bus-rule-target", "Arn": "arn:aws:sqs:us-east-1:000000000000:Test"}],
+        )
 
-            Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(bridge)
-            bridge.put_events(Entries=entries)
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(bridge)
+        bridge.put_events(Entries=entries)
 
-            messages = self.sqs_client.receive_message(QueueUrl=queue_url, WaitTimeSeconds=2)
+        messages = self.sqs_client.receive_message(QueueUrl=queue_url, WaitTimeSeconds=2)
 
-            bridge.delete_event_bus(Name="a-test-bus")
+        bridge.delete_event_bus(Name="a-test-bus")
 
-            spans = self.get_spans()
-            assert spans
-            assert len(spans) == 2
-            span = spans[0]
-            str_entries = span.get_tag("params.Entries")
-            assert str_entries is None
+        spans = self.get_spans()
+        assert spans
+        assert len(spans) == 2
+        span = spans[0]
+        str_entries = span.get_tag("params.Entries")
+        assert str_entries is None
 
-            message = messages["Messages"][0]
-            body = message.get("Body")
-            assert body is not None
-            body_obj = json.loads(body)
-            detail = body_obj.get("detail")
-            headers = detail.get("_datadog")
-            assert headers is not None
-            assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
-            assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
+        message = messages["Messages"][0]
+        body = message.get("Body")
+        assert body is not None
+        body_obj = json.loads(body)
+        detail = body_obj.get("detail")
+        headers = detail.get("_datadog")
+        assert headers is not None
+        assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
+        assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
 
-            # the following doesn't work due to an issue in moto/localstack where
-            # an SQS message is generated per put_events rather than per event sent
+        # the following doesn't work due to an issue in moto/localstack where
+        # an SQS message is generated per put_events rather than per event sent
 
-            # message = messages["Messages"][1]
-            # body = message.get("Body")
-            # assert body is not None
-            # body_obj = json.loads(body)
-            # detail = body_obj.get("detail")
-            # headers = detail.get("_datadog")
-            # assert headers is not None
-            # assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
-            # assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
+        # message = messages["Messages"][1]
+        # body = message.get("Body")
+        # assert body is not None
+        # body_obj = json.loads(body)
+        # detail = body_obj.get("detail")
+        # headers = detail.get("_datadog")
+        # assert headers is not None
+        # assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
+        # assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
 
     @mock_kms
     def test_kms_client(self):
-        # DEV: We can ignore the params tags as none currently exists. Test all params for deprecated exclusion.
-        with self.override_config("botocore", dict(tag_all_params=True)):
-            kms = self.session.create_client("kms", region_name="us-east-1")
-            Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(kms)
+        kms = self.session.create_client("kms", region_name="us-east-1")
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(kms)
 
-            kms.list_keys(Limit=21)
+        kms.list_keys(Limit=21)
 
-            spans = self.get_spans()
-            assert spans
-            span = spans[0]
-            assert len(spans) == 1
-            assert span.get_tag("aws.region") == "us-east-1"
-            assert span.get_tag("region") == "us-east-1"
-            assert span.get_tag("aws.operation") == "ListKeys"
-            assert span.get_tag("component") == "botocore"
-            assert span.get_tag("span.kind"), "client"
-            assert_is_measured(span)
-            assert_span_http_status_code(span, 200)
-            assert span.service == "test-botocore-tracing.kms"
-            assert span.resource == "kms.listkeys"
+        spans = self.get_spans()
+        assert spans
+        span = spans[0]
+        assert len(spans) == 1
+        assert span.get_tag("aws.region") == "us-east-1"
+        assert span.get_tag("region") == "us-east-1"
+        assert span.get_tag("aws.operation") == "ListKeys"
+        assert span.get_tag("component") == "botocore"
+        assert span.get_tag("span.kind"), "client"
+        assert_is_measured(span)
+        assert_span_http_status_code(span, 200)
+        assert span.service == "test-botocore-tracing.kms"
+        assert span.resource == "kms.listkeys"
 
-            # checking for protection on sts against security leak
-            assert span.get_tag("params") is None
+        # checking for protection on sts against security leak
+        assert span.get_tag("params") is None
 
     @mock_kms
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_schematized_kms_client_default(self):
-        with self.override_config("botocore", dict(tag_all_params=True)):
-            kms = self.session.create_client("kms", region_name="us-east-1")
-            Pin.get_from(kms).clone(tracer=self.tracer).onto(kms)
+        kms = self.session.create_client("kms", region_name="us-east-1")
+        Pin.get_from(kms).clone(tracer=self.tracer).onto(kms)
 
-            kms.list_keys(Limit=21)
+        kms.list_keys(Limit=21)
 
-            spans = self.get_spans()
-            assert spans
-            span = spans[0]
-            assert len(spans) == 1
-            assert span.service == "aws.kms"
-            assert span.name == "kms.command"
+        spans = self.get_spans()
+        assert spans
+        span = spans[0]
+        assert len(spans) == 1
+        assert span.service == "aws.kms"
+        assert span.name == "kms.command"
 
     @mock_kms
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_kms_client_v0(self):
-        with self.override_config("botocore", dict(tag_all_params=True)):
-            kms = self.session.create_client("kms", region_name="us-east-1")
-            Pin.get_from(kms).clone(tracer=self.tracer).onto(kms)
+        kms = self.session.create_client("kms", region_name="us-east-1")
+        Pin.get_from(kms).clone(tracer=self.tracer).onto(kms)
 
-            kms.list_keys(Limit=21)
+        kms.list_keys(Limit=21)
 
-            spans = self.get_spans()
-            assert spans
-            span = spans[0]
-            assert len(spans) == 1
-            assert span.service == "aws.kms"
-            assert span.name == "kms.command"
+        spans = self.get_spans()
+        assert spans
+        span = spans[0]
+        assert len(spans) == 1
+        assert span.service == "aws.kms"
+        assert span.name == "kms.command"
 
     @mock_kms
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_kms_client_v1(self):
-        with self.override_config("botocore", dict(tag_all_params=True)):
-            kms = self.session.create_client("kms", region_name="us-east-1")
-            Pin.get_from(kms).clone(tracer=self.tracer).onto(kms)
+        kms = self.session.create_client("kms", region_name="us-east-1")
+        Pin.get_from(kms).clone(tracer=self.tracer).onto(kms)
 
-            kms.list_keys(Limit=21)
+        kms.list_keys(Limit=21)
 
-            spans = self.get_spans()
-            assert spans
-            span = spans[0]
-            assert len(spans) == 1
-            assert span.service == "mysvc"
-            assert span.name == "aws.kms.request"
+        spans = self.get_spans()
+        assert spans
+        span = spans[0]
+        assert len(spans) == 1
+        assert span.service == "mysvc"
+        assert span.name == "aws.kms.request"
 
     @mock_kms
     @TracerTestCase.run_in_subprocess(env_overrides=dict())
     def test_schematized_unspecified_service_kms_client_default(self):
-        with self.override_config("botocore", dict(tag_all_params=True)):
-            kms = self.session.create_client("kms", region_name="us-east-1")
-            Pin.get_from(kms).clone(tracer=self.tracer).onto(kms)
+        kms = self.session.create_client("kms", region_name="us-east-1")
+        Pin.get_from(kms).clone(tracer=self.tracer).onto(kms)
 
-            kms.list_keys(Limit=21)
+        kms.list_keys(Limit=21)
 
-            spans = self.get_spans()
-            assert spans
-            span = spans[0]
-            assert len(spans) == 1
-            assert span.service == "aws.kms"
-            assert span.name == "kms.command"
+        spans = self.get_spans()
+        assert spans
+        span = spans[0]
+        assert len(spans) == 1
+        assert span.service == "aws.kms"
+        assert span.name == "kms.command"
 
     @mock_kms
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_unspecified_service_kms_client_v0(self):
-        with self.override_config("botocore", dict(tag_all_params=True)):
-            kms = self.session.create_client("kms", region_name="us-east-1")
-            Pin.get_from(kms).clone(tracer=self.tracer).onto(kms)
+        kms = self.session.create_client("kms", region_name="us-east-1")
+        Pin.get_from(kms).clone(tracer=self.tracer).onto(kms)
 
-            kms.list_keys(Limit=21)
+        kms.list_keys(Limit=21)
 
-            spans = self.get_spans()
-            assert spans
-            span = spans[0]
-            assert len(spans) == 1
-            assert span.service == "aws.kms"
-            assert span.name == "kms.command"
+        spans = self.get_spans()
+        assert spans
+        span = spans[0]
+        assert len(spans) == 1
+        assert span.service == "aws.kms"
+        assert span.name == "kms.command"
 
     @mock_kms
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_unspecified_service_kms_client_v1(self):
-        with self.override_config("botocore", dict(tag_all_params=True)):
-            kms = self.session.create_client("kms", region_name="us-east-1")
-            Pin.get_from(kms).clone(tracer=self.tracer).onto(kms)
+        kms = self.session.create_client("kms", region_name="us-east-1")
+        Pin.get_from(kms).clone(tracer=self.tracer).onto(kms)
 
-            kms.list_keys(Limit=21)
+        kms.list_keys(Limit=21)
 
-            spans = self.get_spans()
-            assert spans
-            span = spans[0]
-            assert len(spans) == 1
-            assert span.service == DEFAULT_SPAN_SERVICE_NAME
-            assert span.name == "aws.kms.request"
+        spans = self.get_spans()
+        assert spans
+        span = spans[0]
+        assert len(spans) == 1
+        assert span.service == DEFAULT_SPAN_SERVICE_NAME
+        assert span.name == "aws.kms.request"
 
     @mock_ec2
     def test_traced_client_ot(self):
@@ -2077,50 +1784,48 @@ class BotocoreTest(TracerTestCase):
 
     @mock_firehose
     def test_firehose_no_records_arg(self):
-        # DEV: This test only applies for deprecated all params
-        with self.override_config("botocore", dict(tag_all_params=True)):
-            firehose = self.session.create_client("firehose", region_name="us-west-2")
-            Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(firehose)
+        firehose = self.session.create_client("firehose", region_name="us-west-2")
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(firehose)
 
-            stream_name = "test-stream"
-            account_id = "test-account"
+        stream_name = "test-stream"
+        account_id = "test-account"
 
-            firehose.create_delivery_stream(
-                DeliveryStreamName=stream_name,
-                RedshiftDestinationConfiguration={
-                    "RoleARN": "arn:aws:iam::{}:role/firehose_delivery_role".format(account_id),
-                    "ClusterJDBCURL": "jdbc:redshift://host.amazonaws.com:5439/database",
-                    "CopyCommand": {
-                        "DataTableName": "outputTable",
-                        "CopyOptions": "CSV DELIMITER ',' NULL '\\0'",
-                    },
-                    "Username": "username",
-                    "Password": "password",
-                    "S3Configuration": {
-                        "RoleARN": "arn:aws:iam::{}:role/firehose_delivery_role".format(account_id),
-                        "BucketARN": "arn:aws:s3:::kinesis-test",
-                        "Prefix": "myFolder/",
-                        "BufferingHints": {"SizeInMBs": 123, "IntervalInSeconds": 124},
-                        "CompressionFormat": "UNCOMPRESSED",
-                    },
+        firehose.create_delivery_stream(
+            DeliveryStreamName=stream_name,
+            RedshiftDestinationConfiguration={
+                "RoleARN": "arn:aws:iam::{}:role/firehose_delivery_role".format(account_id),
+                "ClusterJDBCURL": "jdbc:redshift://host.amazonaws.com:5439/database",
+                "CopyCommand": {
+                    "DataTableName": "outputTable",
+                    "CopyOptions": "CSV DELIMITER ',' NULL '\\0'",
                 },
-            )
+                "Username": "username",
+                "Password": "password",
+                "S3Configuration": {
+                    "RoleARN": "arn:aws:iam::{}:role/firehose_delivery_role".format(account_id),
+                    "BucketARN": "arn:aws:s3:::kinesis-test",
+                    "Prefix": "myFolder/",
+                    "BufferingHints": {"SizeInMBs": 123, "IntervalInSeconds": 124},
+                    "CompressionFormat": "UNCOMPRESSED",
+                },
+            },
+        )
 
-            firehose.put_record_batch(
-                DeliveryStreamName=stream_name,
-                Records=[{"Data": "some data"}],
-            )
+        firehose.put_record_batch(
+            DeliveryStreamName=stream_name,
+            Records=[{"Data": "some data"}],
+        )
 
-            spans = self.get_spans()
+        spans = self.get_spans()
 
-            assert spans
-            assert len(spans) == 2
-            assert all(span.name == "firehose.command" for span in spans)
+        assert spans
+        assert len(spans) == 2
+        assert all(span.name == "firehose.command" for span in spans)
 
-            delivery_stream_span, put_record_batch_span = spans
-            assert delivery_stream_span.get_tag("aws.operation") == "CreateDeliveryStream"
-            assert put_record_batch_span.get_tag("aws.operation") == "PutRecordBatch"
-            assert put_record_batch_span.get_tag("params.Records") is None
+        delivery_stream_span, put_record_batch_span = spans
+        assert delivery_stream_span.get_tag("aws.operation") == "CreateDeliveryStream"
+        assert put_record_batch_span.get_tag("aws.operation") == "PutRecordBatch"
+        assert put_record_batch_span.get_tag("params.Records") is None
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_BOTOCORE_DISTRIBUTED_TRACING="true"))
     def test_distributed_tracing_env_override(self):
@@ -2235,213 +1940,200 @@ class BotocoreTest(TracerTestCase):
 
     @mock_sns
     @mock_sqs
-    def test_sns_all_params(self):
-        with self.override_config("botocore", dict(tag_all_params=True)):
-            span = self._test_sns()
-            assert span.get_tag("params.MessageBody") is None
-
-    @mock_sns
-    @mock_sqs
     def test_sns_send_message_trace_injection_with_no_message_attributes(self):
-        # DEV: This test expects MessageAttributes to be included as span tags which has been deprecated.
         # TODO: Move away from inspecting MessageAttributes using span tag
-        with self.override_config("botocore", dict(tag_all_params=True)):
-            sns = self.session.create_client("sns", region_name="us-east-1", endpoint_url="http://localhost:4566")
+        sns = self.session.create_client("sns", region_name="us-east-1", endpoint_url="http://localhost:4566")
 
-            topic = sns.create_topic(Name="testTopic")
+        topic = sns.create_topic(Name="testTopic")
 
-            topic_arn = topic["TopicArn"]
-            sqs_url = self.sqs_test_queue["QueueUrl"]
-            url_parts = sqs_url.split("/")
-            sqs_arn = "arn:aws:sqs:{}:{}:{}".format("us-east-1", url_parts[-2], url_parts[-1])
-            sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_arn)
+        topic_arn = topic["TopicArn"]
+        sqs_url = self.sqs_test_queue["QueueUrl"]
+        url_parts = sqs_url.split("/")
+        sqs_arn = "arn:aws:sqs:{}:{}:{}".format("us-east-1", url_parts[-2], url_parts[-1])
+        sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_arn)
 
-            Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sns)
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sns)
 
-            sns.publish(TopicArn=topic_arn, Message="test")
-            spans = self.get_spans()
+        sns.publish(TopicArn=topic_arn, Message="test")
+        spans = self.get_spans()
 
-            # get SNS messages via SQS
-            response = self.sqs_client.receive_message(QueueUrl=self.sqs_test_queue["QueueUrl"], WaitTimeSeconds=2)
+        # get SNS messages via SQS
+        response = self.sqs_client.receive_message(QueueUrl=self.sqs_test_queue["QueueUrl"], WaitTimeSeconds=2)
 
-            # clean up resources
-            sns.delete_topic(TopicArn=topic_arn)
+        # clean up resources
+        sns.delete_topic(TopicArn=topic_arn)
 
-            # check if the appropriate span was generated
-            assert spans
-            span = spans[0]
-            assert len(spans) == 2
-            assert span.get_tag("aws.region") == "us-east-1"
-            assert span.get_tag("region") == "us-east-1"
-            assert span.get_tag("aws.operation") == "Publish"
-            assert span.get_tag("params.MessageBody") is None
-            assert span.get_tag("component") == "botocore"
-            assert span.get_tag("span.kind"), "client"
-            assert_is_measured(span)
-            assert_span_http_status_code(span, 200)
-            assert span.service == "test-botocore-tracing.sns"
-            assert span.resource == "sns.publish"
-            trace_json = span.get_tag("params.MessageAttributes._datadog.StringValue")
-            assert trace_json is None
+        # check if the appropriate span was generated
+        assert spans
+        span = spans[0]
+        assert len(spans) == 2
+        assert span.get_tag("aws.region") == "us-east-1"
+        assert span.get_tag("region") == "us-east-1"
+        assert span.get_tag("aws.operation") == "Publish"
+        assert span.get_tag("params.MessageBody") is None
+        assert span.get_tag("component") == "botocore"
+        assert span.get_tag("span.kind"), "client"
+        assert_is_measured(span)
+        assert_span_http_status_code(span, 200)
+        assert span.service == "test-botocore-tracing.sns"
+        assert span.resource == "sns.publish"
+        trace_json = span.get_tag("params.MessageAttributes._datadog.StringValue")
+        assert trace_json is None
 
-            # receive message using SQS and ensure headers are present
-            assert len(response["Messages"]) == 1
-            msg = response["Messages"][0]
-            assert msg is not None
-            msg_body = json.loads(msg["Body"])
-            msg_str = msg_body["Message"]
-            assert msg_str == "test"
-            msg_attr = msg_body["MessageAttributes"]
-            assert msg_attr.get("_datadog") is not None
-            assert msg_attr["_datadog"]["Type"] == "Binary"
-            datadog_value_decoded = base64.b64decode(msg_attr["_datadog"]["Value"])
-            headers = json.loads(datadog_value_decoded.decode())
-            assert headers is not None
-            assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
-            assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
+        # receive message using SQS and ensure headers are present
+        assert len(response["Messages"]) == 1
+        msg = response["Messages"][0]
+        assert msg is not None
+        msg_body = json.loads(msg["Body"])
+        msg_str = msg_body["Message"]
+        assert msg_str == "test"
+        msg_attr = msg_body["MessageAttributes"]
+        assert msg_attr.get("_datadog") is not None
+        assert msg_attr["_datadog"]["Type"] == "Binary"
+        datadog_value_decoded = base64.b64decode(msg_attr["_datadog"]["Value"])
+        headers = json.loads(datadog_value_decoded.decode())
+        assert headers is not None
+        assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
+        assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
 
     @mock_sns
     @mock_sqs
     @pytest.mark.xfail(strict=False)  # FIXME: flaky test
     def test_sns_send_message_trace_injection_with_message_attributes(self):
-        # DEV: This test expects MessageAttributes to be included as span tags which has been deprecated.
         # TODO: Move away from inspecting MessageAttributes using span tag
-        with self.override_config("botocore", dict(tag_all_params=True)):
-            sns = self.session.create_client("sns", region_name="us-east-1", endpoint_url="http://localhost:4566")
+        sns = self.session.create_client("sns", region_name="us-east-1", endpoint_url="http://localhost:4566")
 
-            topic = sns.create_topic(Name="testTopic")
+        topic = sns.create_topic(Name="testTopic")
 
-            topic_arn = topic["TopicArn"]
-            sqs_url = self.sqs_test_queue["QueueUrl"]
-            sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_url)
+        topic_arn = topic["TopicArn"]
+        sqs_url = self.sqs_test_queue["QueueUrl"]
+        sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_url)
 
-            Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sns)
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sns)
 
-            message_attributes = {
-                "one": {"DataType": "String", "StringValue": "one"},
-                "two": {"DataType": "String", "StringValue": "two"},
-                "three": {"DataType": "String", "StringValue": "three"},
-                "four": {"DataType": "String", "StringValue": "four"},
-                "five": {"DataType": "String", "StringValue": "five"},
-                "six": {"DataType": "String", "StringValue": "six"},
-                "seven": {"DataType": "String", "StringValue": "seven"},
-                "eight": {"DataType": "String", "StringValue": "eight"},
-                "nine": {"DataType": "String", "StringValue": "nine"},
-            }
+        message_attributes = {
+            "one": {"DataType": "String", "StringValue": "one"},
+            "two": {"DataType": "String", "StringValue": "two"},
+            "three": {"DataType": "String", "StringValue": "three"},
+            "four": {"DataType": "String", "StringValue": "four"},
+            "five": {"DataType": "String", "StringValue": "five"},
+            "six": {"DataType": "String", "StringValue": "six"},
+            "seven": {"DataType": "String", "StringValue": "seven"},
+            "eight": {"DataType": "String", "StringValue": "eight"},
+            "nine": {"DataType": "String", "StringValue": "nine"},
+        }
 
-            sns.publish(TopicArn=topic_arn, Message="test", MessageAttributes=message_attributes)
-            spans = self.get_spans()
+        sns.publish(TopicArn=topic_arn, Message="test", MessageAttributes=message_attributes)
+        spans = self.get_spans()
 
-            # get SNS messages via SQS
-            response = self.sqs_client.receive_message(
-                QueueUrl=self.sqs_test_queue["QueueUrl"],
-                MessageAttributeNames=["_datadog"],
-                WaitTimeSeconds=2,
-            )
+        # get SNS messages via SQS
+        response = self.sqs_client.receive_message(
+            QueueUrl=self.sqs_test_queue["QueueUrl"],
+            MessageAttributeNames=["_datadog"],
+            WaitTimeSeconds=2,
+        )
 
-            # clean up resources
-            sns.delete_topic(TopicArn=topic_arn)
+        # clean up resources
+        sns.delete_topic(TopicArn=topic_arn)
 
-            # check if the appropriate span was generated
-            assert spans
-            span = spans[0]
-            assert len(spans) == 2
-            assert span.get_tag("aws.region") == "us-east-1"
-            assert span.get_tag("region") == "us-east-1"
-            assert span.get_tag("aws.operation") == "Publish"
-            assert span.get_tag("params.MessageBody") is None
-            assert span.get_tag("component") == "botocore"
-            assert span.get_tag("span.kind"), "client"
-            assert_is_measured(span)
-            assert_span_http_status_code(span, 200)
-            assert span.service == "test-botocore-tracing.sns"
-            assert span.resource == "sns.publish"
-            trace_json = span.get_tag("params.MessageAttributes._datadog.StringValue")
-            assert trace_json is None
+        # check if the appropriate span was generated
+        assert spans
+        span = spans[0]
+        assert len(spans) == 2
+        assert span.get_tag("aws.region") == "us-east-1"
+        assert span.get_tag("region") == "us-east-1"
+        assert span.get_tag("aws.operation") == "Publish"
+        assert span.get_tag("params.MessageBody") is None
+        assert span.get_tag("component") == "botocore"
+        assert span.get_tag("span.kind"), "client"
+        assert_is_measured(span)
+        assert_span_http_status_code(span, 200)
+        assert span.service == "test-botocore-tracing.sns"
+        assert span.resource == "sns.publish"
+        trace_json = span.get_tag("params.MessageAttributes._datadog.StringValue")
+        assert trace_json is None
 
-            # receive message using SQS and ensure headers are present
-            assert len(response["Messages"]) == 1
-            msg = response["Messages"][0]
-            assert msg is not None
-            msg_body = json.loads(msg["Body"])
-            msg_str = msg_body["Message"]
-            assert msg_str == "test"
-            msg_attr = msg_body["MessageAttributes"]
-            assert msg_attr.get("_datadog") is not None
-            assert msg_attr["_datadog"]["Type"] == "Binary"
-            datadog_value_decoded = base64.b64decode(msg_attr["_datadog"]["Value"])
-            headers = json.loads(datadog_value_decoded.decode())
-            assert headers is not None
-            assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
-            assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
+        # receive message using SQS and ensure headers are present
+        assert len(response["Messages"]) == 1
+        msg = response["Messages"][0]
+        assert msg is not None
+        msg_body = json.loads(msg["Body"])
+        msg_str = msg_body["Message"]
+        assert msg_str == "test"
+        msg_attr = msg_body["MessageAttributes"]
+        assert msg_attr.get("_datadog") is not None
+        assert msg_attr["_datadog"]["Type"] == "Binary"
+        datadog_value_decoded = base64.b64decode(msg_attr["_datadog"]["Value"])
+        headers = json.loads(datadog_value_decoded.decode())
+        assert headers is not None
+        assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
+        assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
 
     @mock_sns
     @mock_sqs
     def test_sns_send_message_trace_injection_with_max_message_attributes(self):
-        # DEV: This test expects MessageAttributes to be included as span tags which has been deprecated.
         # TODO: Move away from inspecting MessageAttributes using span tag
-        with self.override_config("botocore", dict(tag_all_params=True)):
-            region = "us-east-1"
-            sns = self.session.create_client("sns", region_name=region, endpoint_url="http://localhost:4566")
+        region = "us-east-1"
+        sns = self.session.create_client("sns", region_name=region, endpoint_url="http://localhost:4566")
 
-            topic = sns.create_topic(Name="testTopic")
+        topic = sns.create_topic(Name="testTopic")
 
-            topic_arn = topic["TopicArn"]
-            sqs_url = self.sqs_test_queue["QueueUrl"]
-            url_parts = sqs_url.split("/")
-            sqs_arn = "arn:aws:sqs:{}:{}:{}".format(region, url_parts[-2], url_parts[-1])
-            sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_arn)
+        topic_arn = topic["TopicArn"]
+        sqs_url = self.sqs_test_queue["QueueUrl"]
+        url_parts = sqs_url.split("/")
+        sqs_arn = "arn:aws:sqs:{}:{}:{}".format(region, url_parts[-2], url_parts[-1])
+        sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_arn)
 
-            Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sns)
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sns)
 
-            message_attributes = {
-                "one": {"DataType": "String", "StringValue": "one"},
-                "two": {"DataType": "String", "StringValue": "two"},
-                "three": {"DataType": "String", "StringValue": "three"},
-                "four": {"DataType": "String", "StringValue": "four"},
-                "five": {"DataType": "String", "StringValue": "five"},
-                "six": {"DataType": "String", "StringValue": "six"},
-                "seven": {"DataType": "String", "StringValue": "seven"},
-                "eight": {"DataType": "String", "StringValue": "eight"},
-                "nine": {"DataType": "String", "StringValue": "nine"},
-                "ten": {"DataType": "String", "StringValue": "ten"},
-            }
+        message_attributes = {
+            "one": {"DataType": "String", "StringValue": "one"},
+            "two": {"DataType": "String", "StringValue": "two"},
+            "three": {"DataType": "String", "StringValue": "three"},
+            "four": {"DataType": "String", "StringValue": "four"},
+            "five": {"DataType": "String", "StringValue": "five"},
+            "six": {"DataType": "String", "StringValue": "six"},
+            "seven": {"DataType": "String", "StringValue": "seven"},
+            "eight": {"DataType": "String", "StringValue": "eight"},
+            "nine": {"DataType": "String", "StringValue": "nine"},
+            "ten": {"DataType": "String", "StringValue": "ten"},
+        }
 
-            sns.publish(TopicArn=topic_arn, Message="test", MessageAttributes=message_attributes)
-            spans = self.get_spans()
+        sns.publish(TopicArn=topic_arn, Message="test", MessageAttributes=message_attributes)
+        spans = self.get_spans()
 
-            # get SNS messages via SQS
-            response = self.sqs_client.receive_message(QueueUrl=self.sqs_test_queue["QueueUrl"], WaitTimeSeconds=2)
+        # get SNS messages via SQS
+        response = self.sqs_client.receive_message(QueueUrl=self.sqs_test_queue["QueueUrl"], WaitTimeSeconds=2)
 
-            # clean up resources
-            sns.delete_topic(TopicArn=topic_arn)
+        # clean up resources
+        sns.delete_topic(TopicArn=topic_arn)
 
-            # check if the appropriate span was generated
-            assert spans
-            span = spans[0]
-            assert len(spans) == 2
-            assert span.get_tag("aws.region") == "us-east-1"
-            assert span.get_tag("region") == "us-east-1"
-            assert span.get_tag("aws.operation") == "Publish"
-            assert span.get_tag("params.MessageBody") is None
-            assert span.get_tag("component") == "botocore"
-            assert span.get_tag("span.kind"), "client"
-            assert_is_measured(span)
-            assert_span_http_status_code(span, 200)
-            assert span.service == "test-botocore-tracing.sns"
-            assert span.resource == "sns.publish"
-            trace_json = span.get_tag("params.MessageAttributes._datadog.StringValue")
-            assert trace_json is None
+        # check if the appropriate span was generated
+        assert spans
+        span = spans[0]
+        assert len(spans) == 2
+        assert span.get_tag("aws.region") == "us-east-1"
+        assert span.get_tag("region") == "us-east-1"
+        assert span.get_tag("aws.operation") == "Publish"
+        assert span.get_tag("params.MessageBody") is None
+        assert span.get_tag("component") == "botocore"
+        assert span.get_tag("span.kind"), "client"
+        assert_is_measured(span)
+        assert_span_http_status_code(span, 200)
+        assert span.service == "test-botocore-tracing.sns"
+        assert span.resource == "sns.publish"
+        trace_json = span.get_tag("params.MessageAttributes._datadog.StringValue")
+        assert trace_json is None
 
-            # receive message using SQS and ensure headers are present
-            assert len(response["Messages"]) == 1
-            msg = response["Messages"][0]
-            assert msg is not None
-            msg_body = json.loads(msg["Body"])
-            msg_str = msg_body["Message"]
-            assert msg_str == "test"
-            msg_attr = msg_body["MessageAttributes"]
-            assert msg_attr.get("_datadog") is None
+        # receive message using SQS and ensure headers are present
+        assert len(response["Messages"]) == 1
+        msg = response["Messages"][0]
+        assert msg is not None
+        msg_body = json.loads(msg["Body"])
+        msg_str = msg_body["Message"]
+        assert msg_str == "test"
+        msg_attr = msg_body["MessageAttributes"]
+        assert msg_attr.get("_datadog") is None
 
     @pytest.mark.skipif(
         PYTHON_VERSION_INFO < (3, 6),
@@ -3043,33 +2735,6 @@ class BotocoreTest(TracerTestCase):
             assert span.get_tag("params.SecretBinary") is None
 
     @unittest.skipIf(PY2, "Skipping for Python 2.7 since older moto doesn't support secretsmanager")
-    def test_secretsmanager_all_params(self):
-        with self.override_config("botocore", dict(tag_all_params=True)):
-            from moto import mock_secretsmanager
-
-            with mock_secretsmanager():
-                client = self.session.create_client("secretsmanager", region_name="us-east-1")
-                Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(client)
-
-                resp = client.create_secret(Name="/my/secrets", SecretString="supersecret-string")
-                assert resp["ResponseMetadata"]["HTTPStatusCode"] == 200
-
-                spans = self.get_spans()
-                assert len(spans) == 1
-                span = spans[0]
-
-                assert span.name == "secretsmanager.command"
-                assert span.resource == "secretsmanager.createsecret"
-                assert span.get_tag("params.Name") == "/my/secrets"
-                assert span.get_tag("aws.operation") == "CreateSecret"
-                assert span.get_tag("aws.region") == "us-east-1"
-                assert span.get_tag("region") == "us-east-1"
-                assert span.get_tag("aws.agent") == "botocore"
-                assert span.get_tag("http.status_code") == "200"
-                assert span.get_tag("params.SecretString") is None
-                assert span.get_tag("params.SecretBinary") is None
-
-    @unittest.skipIf(PY2, "Skipping for Python 2.7 since older moto doesn't support secretsmanager")
     def test_secretsmanager_binary(self):
         from moto import mock_secretsmanager
 
@@ -3094,33 +2759,6 @@ class BotocoreTest(TracerTestCase):
             assert span.get_tag("http.status_code") == "200"
             assert span.get_tag("params.SecretString") is None
             assert span.get_tag("params.SecretBinary") is None
-
-    @unittest.skipIf(PY2, "Skipping for Python 2.7 since older moto doesn't support secretsmanager")
-    def test_secretsmanager_binary_all_params(self):
-        with self.override_config("botocore", dict(tag_all_params=True)):
-            from moto import mock_secretsmanager
-
-            with mock_secretsmanager():
-                client = self.session.create_client("secretsmanager", region_name="us-east-1")
-                Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(client)
-
-                resp = client.create_secret(Name="/my/secrets", SecretBinary=b"supersecret-binary")
-                assert resp["ResponseMetadata"]["HTTPStatusCode"] == 200
-
-                spans = self.get_spans()
-                assert len(spans) == 1
-                span = spans[0]
-
-                assert span.name == "secretsmanager.command"
-                assert span.resource == "secretsmanager.createsecret"
-                assert span.get_tag("params.Name") == "/my/secrets"
-                assert span.get_tag("aws.operation") == "CreateSecret"
-                assert span.get_tag("aws.region") == "us-east-1"
-                assert span.get_tag("region") == "us-east-1"
-                assert span.get_tag("aws.agent") == "botocore"
-                assert span.get_tag("http.status_code") == "200"
-                assert span.get_tag("params.SecretString") is None
-                assert span.get_tag("params.SecretBinary") is None
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_schematized_secretsmanager_default(self):

@@ -1,5 +1,4 @@
 from ddtrace.internal.compat import ensure_pep562
-from ddtrace.vendor.debtcollector import deprecate
 
 
 # tags
@@ -11,14 +10,6 @@ PAGE_NUMBER = "cassandra.page_number"
 
 
 def __getattr__(name):
-    if name == "ROW_COUNT":
-        deprecate(
-            ("%s.%s is deprecated" % (__name__, name)),
-            postfix=". Use ddtrace.ext.db.ROWCOUNT instead.",
-            removal_version="2.0.0",
-        )
-        return "cassandra.row_count"
-
     if name in globals():
         return globals()[name]
 

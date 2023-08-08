@@ -1,7 +1,6 @@
 import grpc
 
 from ddtrace.internal.compat import ensure_pep562
-from ddtrace.vendor.debtcollector import deprecate
 
 
 GRPC_PIN_MODULE_SERVER = grpc.Server
@@ -30,14 +29,6 @@ GRPC_AIO_SERVICE_CLIENT = "grpc-aio-client"
 
 
 def __getattr__(name):
-    if name == "GRPC_PORT_KEY":
-        deprecate(
-            ("%s.%s is deprecated" % (__name__, name)),
-            postfix=". Use ddtrace.ext.net.TARGET_PORT instead.",
-            removal_version="2.0.0",
-        )
-        return "grpc.port"
-
     if name in globals():
         return globals()[name]
 
