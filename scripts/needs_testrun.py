@@ -84,7 +84,7 @@ def get_changed_files(pr_number: int) -> t.Set[str]:
                     "diff",
                     "--name-only",
                     "HEAD",
-                    get_merge_base(pr_number),
+                    get_merge_base(pr_number) if pr_number != 0 else "HEAD~1",
                 ]
             )
             .decode("utf-8")
