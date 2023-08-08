@@ -156,20 +156,16 @@ class RateByServiceSampler(BasePrioritySampler):
     def _set_priority(self, span, priority, sampling_mechanism):
         # type: (Span, int, int) -> None
         span.sampled = priority > 0  # Positive priorities mean it was kept
-        if not (sampling_mechanism == SamplingMechanism.MANUAL and span.sampled):
-            if SAMPLING_PRIORITY_KEY in span.context._metrics:
-                span.set_metric(SAMPLING_PRIORITY_KEY, priority)
-            span.context.sampling_priority = priority
+        if SAMPLING_PRIORITY_KEY in span.context._metrics:
+            span.set_metric(SAMPLING_PRIORITY_KEY, priority)
+        span.context.sampling_priority = priority
 
     def _set_sampler_decision(self, span, sampler, sampled, has_remote_root):
         # type: (Span, RateSampler, bool, bool) -> None
         priority, sampled, sampling_mechanism = _apply_sampling_overrides(span, sampler, sampled, self._default_sampler)
         self._set_priority(span, priority, sampling_mechanism)
         if not has_remote_root:
-            if sampling_mechanism != SamplingMechanism.MANUAL and not span.context._meta.get(
-                SAMPLING_DECISION_TRACE_TAG_KEY
-            ):
-                span.set_metric(SAMPLING_AGENT_DECISION, sampler.sample_rate)
+            span.set_metric(SAMPLING_AGENT_DECISION, sampler.sample_rate)
         update_sampling_decision(span.context, sampling_mechanism, sampled)
 
     def sample(self, trace):
