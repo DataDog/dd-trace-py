@@ -18,9 +18,9 @@
       "grpc.method.service": "Servicer",
       "grpc.status.code": "StatusCode.OK",
       "language": "python",
-      "network.destination.port": "58143",
+      "network.destination.port": "34159",
       "rpc.service": "Servicer",
-      "runtime-id": "caedab5f1c2241329f6c693d7fa2c4e7",
+      "runtime-id": "8378badc65b948f7831fe942f4fe4c4e",
       "span.kind": "client"
     },
     "metrics": {
@@ -29,10 +29,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 4211
+      "process_id": 18508
     },
-    "duration": 2526500,
-    "start": 1632161554730027200
+    "duration": 1204671,
+    "start": 1691163397422222330
   },
      {
        "name": "grpc",
@@ -44,22 +44,23 @@
        "type": "grpc",
        "error": 0,
        "meta": {
+         "_dd.p.dm": "-0",
          "component": "grpc_server",
          "grpc.method.kind": "unary",
          "grpc.method.name": "Handler",
          "grpc.method.path": "/Servicer/Handler",
          "grpc.method.service": "Servicer",
          "rpc.service": "Servicer",
-         "runtime-id": "caedab5f1c2241329f6c693d7fa2c4e7",
+         "runtime-id": "8378badc65b948f7831fe942f4fe4c4e",
          "span.kind": "server"
        },
        "metrics": {
          "_dd.measured": 1,
          "_dd.top_level": 1,
-         "process_id": 4211
+         "process_id": 18508
        },
-       "duration": 87500,
-       "start": 1632161554732181000
+       "duration": 64575,
+       "start": 1691163397423155047
      }],
 [
   {
@@ -82,9 +83,9 @@
       "grpc.method.service": "Servicer",
       "grpc.status.code": "StatusCode.OK",
       "language": "python",
-      "network.destination.port": "58143",
+      "network.destination.port": "34159",
       "rpc.service": "pkg.Servicer",
-      "runtime-id": "caedab5f1c2241329f6c693d7fa2c4e7",
+      "runtime-id": "8378badc65b948f7831fe942f4fe4c4e",
       "span.kind": "client"
     },
     "metrics": {
@@ -93,10 +94,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 4211
+      "process_id": 18508
     },
-    "duration": 1253200,
-    "start": 1632161554733222900
+    "duration": 603598,
+    "start": 1691163397423694717
   },
      {
        "name": "grpc",
@@ -108,6 +109,7 @@
        "type": "grpc",
        "error": 0,
        "meta": {
+         "_dd.p.dm": "-0",
          "component": "grpc_server",
          "grpc.method.kind": "unary",
          "grpc.method.name": "Handler",
@@ -115,14 +117,14 @@
          "grpc.method.path": "/pkg.Servicer/Handler",
          "grpc.method.service": "Servicer",
          "rpc.service": "pkg.Servicer",
-         "runtime-id": "caedab5f1c2241329f6c693d7fa2c4e7",
+         "runtime-id": "8378badc65b948f7831fe942f4fe4c4e",
          "span.kind": "server"
        },
        "metrics": {
          "_dd.measured": 1,
          "_dd.top_level": 1,
-         "process_id": 4211
+         "process_id": 18508
        },
-       "duration": 72800,
-       "start": 1632161554734204000
+       "duration": 49487,
+       "start": 1691163397424134567
      }]]
