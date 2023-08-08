@@ -9,7 +9,7 @@ from tests.internal.remoteconfig.utils import MockConnector
 
 
 def test_subscriber_thread():
-    os.environ["DD_REMOTECONFIG_POLL_SECONDS"] = "0.1"
+    os.environ["DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS"] = "0.1"
     mock_callback = mock.MagicMock()
     subscriber = RemoteConfigSubscriber(MockConnector({"example": "data"}), mock_callback, "TEST_DATA")
     assert not subscriber.is_running

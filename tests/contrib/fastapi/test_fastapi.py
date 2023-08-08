@@ -8,7 +8,6 @@ import httpx
 import pytest
 
 import ddtrace
-from ddtrace import config
 from ddtrace.contrib.fastapi import patch as fastapi_patch
 from ddtrace.contrib.fastapi import unpatch as fastapi_unpatch
 from ddtrace.contrib.starlette.patch import patch as patch_starlette
@@ -575,14 +574,6 @@ def test_w_patch_starlette(client, tracer, test_spans):
 def test_subapp_snapshot(snapshot_client):
     response = snapshot_client.get("/sub-app/hello/name")
     assert response.status_code == 200
-
-
-@snapshot()
-def test_subapp_no_aggregate_snapshot(snapshot_client):
-    config.fastapi["aggregate_resources"] = False
-    response = snapshot_client.get("/sub-app/hello/name")
-    assert response.status_code == 200
-    config.fastapi["aggregate_resources"] = True
 
 
 @snapshot(token_override="tests.contrib.fastapi.test_fastapi.test_subapp_snapshot")

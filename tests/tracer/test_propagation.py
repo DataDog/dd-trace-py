@@ -1517,18 +1517,6 @@ EXTRACT_FIXTURES = [
 #  and test_propagation_extract_w_config
 EXTRACT_FIXTURES_ENV_ONLY = [
     (
-        # b3 will only override to b3multi when set via envar
-        "test_deprecated_b3_style_still_works",
-        ["b3"],
-        B3_HEADERS_VALID,
-        {
-            "trace_id": TRACE_ID,
-            "span_id": 11744061942159299346,
-            "sampling_priority": 1,
-            "dd_origin": None,
-        },
-    ),
-    (
         # tracecontext propagation sets additional meta data that
         # can't be tested correctly via test_propagation_extract_w_config. It is tested separately
         "valid_tracecontext_simple",

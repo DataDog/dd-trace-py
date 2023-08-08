@@ -3,7 +3,6 @@ from typing import Dict
 from ddtrace.internal.compat import ensure_pep562
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
-from ddtrace.vendor.debtcollector import deprecate
 
 
 log = get_logger(__name__)
@@ -80,14 +79,6 @@ def use_psycopg3_parse_dsn(psycopg_module):
 
 
 def __getattr__(name):
-    if name == "ROWS":
-        deprecate(
-            ("%s.%s is deprecated" % (__name__, name)),
-            postfix=". Use ddtrace.ext.db.ROWCOUNT instead.",
-            removal_version="2.0.0",
-        )
-        return "sql.rows"
-
     if name in globals():
         return globals()[name]
 

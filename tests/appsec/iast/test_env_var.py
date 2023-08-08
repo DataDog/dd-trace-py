@@ -86,7 +86,6 @@ def test_env_var_iast_enabled_gevent_patch_all_true(capfd):
     # type: (...) -> None
     env = os.environ.copy()
     env["DD_IAST_ENABLED"] = "true"
-    env["DD_GEVENT_PATCH_ALL"] = "true"
     _run_python_file(filename="main_gevent.py", env=env)
     captured = capfd.readouterr()
     assert "IAST enabled" in captured.err

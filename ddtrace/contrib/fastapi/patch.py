@@ -4,13 +4,10 @@ import fastapi.routing
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.contrib.asgi.middleware import TraceMiddleware
-from ddtrace.contrib.starlette.patch import get_resource
 from ddtrace.contrib.starlette.patch import traced_handler
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.wrappers import unwrap as _u
-from ddtrace.vendor.debtcollector import removals
 from ddtrace.vendor.wrapt import ObjectProxy
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
@@ -23,16 +20,8 @@ config._add(
         _default_service=schematize_service_name("fastapi"),
         request_span_name="fastapi.request",
         distributed_tracing=True,
-        aggregate_resources=True,
     ),
 )
-
-
-@removals.remove(removal_version="2.0.0", category=DDTraceDeprecationWarning)
-def span_modifier(span, scope):
-    resource = get_resource(scope)
-    if config.fastapi["aggregate_resources"] and resource:
-        span.resource = "{} {}".format(scope["method"], resource)
 
 
 def wrap_middleware_stack(wrapped, instance, args, kwargs):

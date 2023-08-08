@@ -13,12 +13,9 @@ from ddtrace.constants import IAST_ENV
 from ddtrace.internal.serverless import in_azure_function_consumption_plan
 from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.utils.cache import cachedmethod
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
-from ddtrace.vendor.debtcollector import deprecate
 
 from ..internal import gitmetadata
 from ..internal.constants import PROPAGATION_STYLE_ALL
-from ..internal.constants import PROPAGATION_STYLE_B3
 from ..internal.constants import _PROPAGATION_STYLE_DEFAULT
 from ..internal.logger import get_logger
 from ..internal.schema import DEFAULT_SPAN_SERVICE_NAME
@@ -85,14 +82,6 @@ def _parse_propagation_styles(name, default):
         return None
     for style in envvar.split(","):
         style = style.strip().lower()
-        if style == "b3":
-            deprecate(
-                'Using DD_TRACE_PROPAGATION_STYLE="b3" is deprecated',
-                message="Please use 'DD_TRACE_PROPAGATION_STYLE=\"b3multi\"' instead",
-                removal_version="2.0.0",
-                category=DDTraceDeprecationWarning,
-            )
-            style = PROPAGATION_STYLE_B3
         if not style:
             continue
         if style not in PROPAGATION_STYLE_ALL:

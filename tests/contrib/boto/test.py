@@ -436,21 +436,6 @@ class BotoTest(TracerTestCase):
             self.assertIsNone(span.get_tag("bucketname"))
 
     @mock_s3
-    def test_s3_client_all_params(self):
-        with self.override_config("boto", dict(tag_all_params=True)):
-            span = self._test_s3_client()
-            self.assertEqual(span.get_tag("path"), "/")
-
-    @mock_s3
-    def test_s3_client_no_params_all_params(self):
-        # DEV: Test no params overrides all params
-        with self.override_config("boto", dict(tag_no_params=True, tag_all_params=True)):
-            span = self._test_s3_client()
-            self.assertIsNone(span.get_tag("aws.s3.bucket_name"))
-            self.assertIsNone(span.get_tag("bucketname"))
-            self.assertIsNone(span.get_tag("path"))
-
-    @mock_s3
     def test_s3_put(self):
         s3 = boto.s3.connect_to_region("us-east-1")
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(s3)
