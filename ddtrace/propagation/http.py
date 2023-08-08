@@ -797,7 +797,7 @@ class HTTPPropagator(object):
     """A HTTP Propagator using HTTP headers as carrier."""
 
     @staticmethod
-    def inject(span_context, headers):
+    def inject(span_context, headers, sampler=None, trace=None):
         # type: (Context, Dict[str, str]) -> None
         """Inject Context attributes that have to be propagated as HTTP headers.
 
@@ -821,6 +821,9 @@ class HTTPPropagator(object):
         if span_context.trace_id is None or span_context.span_id is None:
             log.debug("tried to inject invalid context %r", span_context)
             return
+
+        if sampler and trace:
+            sampler.sample(trace)
 
         if PROPAGATION_STYLE_DATADOG in config._propagation_style_inject:
             _DatadogMultiHeader._inject(span_context, headers)
