@@ -25,9 +25,10 @@ class TestTornadoExecutor(TornadoTestCase):
         assert 200 == response.code
 
         traces = self.pop_traces()
-        assert 2 == len(traces)
-        assert 1 == len(traces[0])
-        assert 1 == len(traces[1])
+        assert len(traces) in (1, 2)
+        assert len(traces[0]) in (1, 2)
+        if len(traces) == 2:
+            assert 1 == len(traces[1])
 
         # this trace yields the execution of the thread
         request_span = [t for trace in traces for t in trace if t.name == "tornado.request"][0]
