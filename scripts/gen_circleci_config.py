@@ -66,7 +66,7 @@ def gen_pre_checks(template: dict) -> None:
     )
     check(
         name="Style: Test snapshots",
-        command="hatch run lint:fmt-snapshots && git diff --exit-code",
+        command='hatch run lint:fmt-snapshots && git diff --exit-code tests/snapshots hatch.toml',
         paths={"tests/snapshots/*", "hatch.toml"},
     )
     check(
