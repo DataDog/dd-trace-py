@@ -66,7 +66,7 @@ def gen_pre_checks(template: dict) -> None:
     )
     check(
         name="Style: Test snapshots",
-        command="hatch run lint:fmt-snapshots && git diff --exit-code",
+        command='hatch run lint:fmt-snapshots && git diff --exit-code tests/snapshots hatch.toml',
         paths={"tests/snapshots/*", "hatch.toml"},
     )
     check(
@@ -92,6 +92,16 @@ def gen_build_docs(template: dict) -> None:
 
     if pr_matches_patterns({"docs/*", "ddtrace/*", "scripts/docs", "releasenotes/*"}):
         template["workflows"]["test"]["jobs"].append({"build_docs": template["requires_pre_check"]})
+
+
+def gen_c_check(template: dict) -> None:
+    """Include C code checks if C code has changed."""
+    from needs_testrun import pr_matches_patterns
+
+    if pr_matches_patterns({"*.c", "*.h", "*.cpp", "*.hpp", "*.cc", "*.hh"}):
+        template["requires_pre_check"]["requires"].append("ccheck")
+        template["requires_base_venvs"]["requires"].append("ccheck")
+        template["workflows"]["test"]["jobs"].append("ccheck")
 
 
 # -----------------------------------------------------------------------------
