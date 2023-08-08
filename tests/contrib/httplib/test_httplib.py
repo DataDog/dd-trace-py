@@ -441,7 +441,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         )
 
         spans = self.pop_spans()
-        print(spans)
+        assert len(spans) == 0, spans
         self.reset()
         with override_global_tracer(self.tracer):
             resp = urlopen(req)
