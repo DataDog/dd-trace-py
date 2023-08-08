@@ -94,6 +94,16 @@ def gen_build_docs(template: dict) -> None:
         template["workflows"]["test"]["jobs"].append({"build_docs": template["requires_pre_check"]})
 
 
+def gen_c_check(template: dict) -> None:
+    """Include C code checks if C code has changed."""
+    from needs_testrun import pr_matches_patterns
+
+    if pr_matches_patterns({"*.c", "*.h", "*.cpp", "*.hpp", "*.cc", "*.hh"}):
+        template["requires_pre_check"]["requires"].append("ccheck")
+        template["requires_base_venvs"]["requires"].append("ccheck")
+        template["workflows"]["test"]["jobs"].append("ccheck")
+
+
 # -----------------------------------------------------------------------------
 
 # The code below is the boilerplate that makes the script work. There is
