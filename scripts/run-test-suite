@@ -11,10 +11,13 @@ if ! [[ $CIRCLE_BRANCH =~ [0-9]\.x ]]; then
     if [[ -f "$CHECKPOINT_FILENAME" ]]; then
         latest_success_commit=$(cat $CHECKPOINT_FILENAME)
         ./scripts/needs_testrun.py $CIRCLE_JOB --sha $latest_success_commit
-        echo "The $CIRCLE_JOB job succeeded at commit $latest_success_commit."
-        echo "None of the changes on this branch since that commit affect the $CIRCLE_JOB job."
-        echo "Skipping this job."
-        [[ $? == 1 ]] && exit 0
+        if [[ $? == 1 ]]; then
+            echo "The $CIRCLE_JOB job succeeded at commit $latest_success_commit."
+            echo "None of the changes on this branch since that commit affect the $CIRCLE_JOB job."
+            echo "Skipping this job."
+            circleci step halt
+            exit 0
+        fi
     fi
 fi
 
