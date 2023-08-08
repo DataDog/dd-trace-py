@@ -29,8 +29,8 @@ done
 
 rm -f $CHECKPOINT_FILENAME
 if [[ $all_passed == true ]]; then
+    echo "All tests passed. Saving $CIRCLE_SHA1 as the latest successful commit for job $CIRCLE_JOB"
     echo $CIRCLE_SHA1 > $CHECKPOINT_FILENAME
-    echo "All tests passed. Saved $CIRCLE_SHA1 as the latest successful commit for job $CIRCLE_JOB"
 fi
 
 ./scripts/check-diff \
