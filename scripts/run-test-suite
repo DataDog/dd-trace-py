@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 PATTERN=${1}
 COVERAGE=${2:-false}
 USE_DDTEST=${3}
@@ -7,7 +9,7 @@ commit_file="latest-success-commit"
 if [[ -f "$commit_file" ]]; then
     latest_success_commit=$(cat $commit_file)
     echo "Latest success commit: " $latest_success_commit
-    ./scripts/needs_testrun.py $PATTERN --sha $latest_success_commit
+    ./scripts/needs_testrun.py $CIRCLE_JOB --sha $latest_success_commit
     [[ $? == 1 ]] && exit 0
 fi
 
@@ -25,7 +27,7 @@ for hash in $hashes; do
     all_passed=true
 done
 
-rm $commit_file
+rm -f $commit_file
 [[ $all_passed == true ]] && echo $CIRCLE_SHA1 > $commit_file && echo "Updated latest success commit"
 
 ./scripts/check-diff \

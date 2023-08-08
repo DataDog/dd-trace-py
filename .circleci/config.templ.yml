@@ -142,7 +142,7 @@ commands:
                   DD_TRACE_AGENT_URL: << parameters.trace_agent_url >>
                   RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
                 command: |
-                  ./scripts/run-test-suite <<parameters.pattern>> <<pipeline.parameters.coverage>> 1
+                  ./scripts/run-test-suite '<<parameters.pattern>>' <<pipeline.parameters.coverage>> 1
       - unless:
           condition:
               << parameters.snapshot >>
@@ -167,7 +167,7 @@ commands:
                 environment:
                   RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
                 command: |
-                  ./scripts/run-test-suite <<parameters.pattern>> <<pipeline.parameters.coverage>>
+                  ./scripts/run-test-suite '<<parameters.pattern>>' <<pipeline.parameters.coverage>>
       - when:
           condition:
             and:
