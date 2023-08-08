@@ -322,7 +322,7 @@ jobs:
       - run_test:
           pattern: 'appsec'
           snapshot: true
-   
+    
   aws_lambda:
     <<: *machine_executor
     steps:
