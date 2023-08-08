@@ -22,6 +22,11 @@
     },
     "duration": 76557,
     "start": 1691163616795561784
+  },
+     {
+       "name": "child",
+       "service": "",
+       "resource": "child",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,

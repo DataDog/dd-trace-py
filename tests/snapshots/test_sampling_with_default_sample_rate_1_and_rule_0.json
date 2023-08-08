@@ -11,6 +11,8 @@
     "meta": {
       "language": "python",
       "runtime-id": "d5f3e666fe79454c90ec7063f44787b5"
+    },
+    "metrics": {
       "_dd.rule_psr": 0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
