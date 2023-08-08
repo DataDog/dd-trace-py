@@ -6,3 +6,5 @@ try:
 except ImportError:
     # Pylons <= 0.9.7
     legacy_pylons = True
+
+# banana
