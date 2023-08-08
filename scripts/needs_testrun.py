@@ -62,8 +62,8 @@ def get_changed_files(pr_number: int, sha: str = "") -> t.Set[str]:
     """Get the files changed in a PR
 
     Try with the GitHub REST API for the most accurate result. If that fails,
-    use the less accurate method of diffing against the merge-base w.r.t. the
-    base branch
+    or if there is a specific SHA given, use the less accurate method of
+    diffing against a base commit, either the given SHA or the merge-base.
 
     >>> sorted(get_changed_files(6388))  # doctest: +NORMALIZE_WHITESPACE
     ['ddtrace/debugging/_expressions.py',
@@ -75,14 +75,14 @@ def get_changed_files(pr_number: int, sha: str = "") -> t.Set[str]:
         try:
             url = f"https://api.github.com/repos/datadog/dd-trace-py/pulls/{pr_number}/files"
             headers = {"Accept": "application/vnd.github+json"}
-
             return {_["filename"] for _ in json.load(urlopen(Request(url, headers=headers)))}
-
         except Exception:
             rest_check_failed = True
-            LOGGER.warning("Failed to get changed files from GitHub API, using git diff instead")
+            LOGGER.warning("Failed to get changed files from GitHub API")
+
     if sha or rest_check_failed:
         diff_base = sha or get_merge_base(pr_number)
+        LOGGER.info("Checking changed files against commit %s", diff_base)
         return set(check_output(["git", "diff", "--name-only", "HEAD", diff_base]).decode("utf-8").strip().splitlines())
 
 
