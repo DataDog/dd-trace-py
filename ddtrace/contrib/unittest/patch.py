@@ -121,9 +121,9 @@ def patch():
     _w(unittest, "TextTestResult.addError", add_error_test_wrapper)
     _w(unittest, "TextTestResult.addSkip", add_skip_test_wrapper)
 
-    _w(unittest, "TestCase.run", start_test_wrapper_unittest)
-    _w(unittest, "TestSuite.run", start_test_suite_wrapper_unittest)
-    _w(unittest, "TestProgram.runTests", start_session_unittest)
+    _w(unittest, "TestCase.run", handle_test_wrapper)
+    _w(unittest, "TestSuite.run", handle_module_suite_wrapper)
+    _w(unittest, "TestProgram.runTests", handle_session_wrapper)
 
 
 def unpatch():
@@ -184,7 +184,7 @@ def add_skip_test_wrapper(func, instance, args, kwargs):
     return result
 
 
-def start_test_wrapper_unittest(func, instance, args, kwargs):
+def handle_test_wrapper(func, instance, args, kwargs):
     if _is_unittest_support_enabled():
         tracer = getattr(unittest, "_datadog_tracer", _CIVisibility._instance.tracer)
         with tracer._start_span(
@@ -215,7 +215,7 @@ def start_test_wrapper_unittest(func, instance, args, kwargs):
     return result
 
 
-def start_test_suite_wrapper_unittest(func, instance, args, kwargs):
+def handle_module_suite_wrapper(func, instance, args, kwargs):
     if _is_test_suite(instance):
         test_suite_name = type(instance._tests[0]).__name__
         print(f'Suite is: {test_suite_name}')
@@ -227,7 +227,7 @@ def start_test_suite_wrapper_unittest(func, instance, args, kwargs):
     return result
 
 
-def start_session_unittest(func, instance, args, kwargs):
+def handle_session_wrapper(func, instance, args, kwargs):
     if _is_unittest_support_enabled():
         tracer = getattr(unittest, "_datadog_tracer", _CIVisibility._instance.tracer)
         test_session_span = tracer.trace("unittest.test_session", service=_CIVisibility._instance._service,
