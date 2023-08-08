@@ -449,7 +449,8 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         )
 
         spans = self.pop_spans()
-        self.assertEqual(len(spans), 1)
+        print(spans)
+        assert len(spans) == 1, spans
         span = spans[0]
         self.assert_is_not_measured(span)
         self.assertEqual(span.span_type, "http")
