@@ -11,9 +11,6 @@ from ...internal.utils.version import parse_version
 from .middleware import TraceMiddleware
 
 
-# banana
-
-
 FALCON_VERSION = parse_version(falcon.__version__)
 
 
