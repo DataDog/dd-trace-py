@@ -449,12 +449,12 @@ jobs:
       - run_test:
           pattern: 'vendor'
 
-  boto:
+  botocore:
     <<: *machine_executor
     parallelism: 6
     steps:
       - run_test:
-          pattern: '^boto'  # run boto and botocore
+          pattern: 'botocore'
           snapshot: true
           docker_services: "localstack"
 
@@ -492,16 +492,6 @@ jobs:
           pattern: 'asyncpg'
           snapshot: true
           docker_services: 'postgres'
-
-  pylons:
-    <<: *contrib_job_small
-    docker:
-      - image: *ddtrace_dev_image
-      - *testagent
-    steps:
-      - run_test:
-          pattern: 'pylons'
-          trace_agent_url: "http://localhost:8126"
 
   aiohttp:
     <<: *machine_executor
