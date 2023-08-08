@@ -146,9 +146,6 @@
         "pyramid": [
             "ddtrace/contrib/pyramid/*"
         ],
-        "pylons": [
-            "ddtrace/contrib/pylons/*"
-        ],
         "langchain": [
             "ddtrace/contrib/langchain/*"
         ],
@@ -218,10 +215,9 @@
         "molten": [
             "ddtrace/contrib/molten/*"
         ],
-        "boto": [
-            "ddtrace/contrib/boto/*",
+        "botocore": [
             "ddtrace/contrib/botocore/*",
-            "ddtrace/contrib/aiobotocore/*"
+            "ddtrace/contrib/aiobotocore/*",
         ],
         "mysql": [
             "ddtrace/contrib/mysql/*",
@@ -449,18 +445,11 @@
             "@vendor",
             "tests/vendor/*"
         ],
-        "boto": [
-            "@bootstrap",
-            "@core",
-            "@tracing",
-            "@boto",
-            "tests/contrib/boto/*"
-        ],
         "botocore": [
             "@bootstrap",
             "@core",
             "@tracing",
-            "@boto",
+            "@botocore",
             "tests/contrib/botocore/*"
         ],
         "test_logging": [
@@ -508,14 +497,6 @@
             "@pg",
             "tests/contrib/asyncpg/*",
             "tests/snapshots/tests.contrib.{suite}.*"
-        ],
-        "pylons": [
-            "@bootstrap",
-            "@core",
-            "@tracing",
-            "@appsec",
-            "@pylons",
-            "tests/contrib/pylons/*"
         ],
         "aiohttp": [
             "@bootstrap",
@@ -901,7 +882,7 @@
             "@bootstrap",
             "@core",
             "@tracing",
-            "@boto",
+            "@botocore",
             "tests/contrib/aiobotocore/*"
         ],
         "aiomysql": [
