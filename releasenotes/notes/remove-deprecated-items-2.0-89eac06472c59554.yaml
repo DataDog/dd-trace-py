@@ -19,7 +19,7 @@ upgrade:
 
 
     ``DD_REMOTECONFIG_POLL_SECONDS`` is removed.
-    Use the environment variable `DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS` instead.
+    Use the environment variable ``DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS`` instead.
 
     "
   - ".. _remove-appsec-private-constants:
@@ -87,6 +87,24 @@ upgrade:
 
 
     ``ddtrace.filters.TraceCiVisibilityFilter`` is removed.
+
+
+    "
+  - ".. _remove-dd-log-format:
+
+
+    ``ddtrace.tracer.DD_LOG_FORMAT`` is removed.
+    As an alternative, please follow the log injection formatting as provided in the
+    `log injection docs <https://ddtrace.readthedocs.io/en/stable/advanced_usage.html#update-log-format>`_.
+
+
+    "
+  - ".. _remove-basic-config:
+
+
+    ``DD_CALL_BASIC_CONFIG`` is removed.
+    There is no special configuration necessary to replace ``DD_CALL_BASIC_CONFIG``.
+    The ddtrace logger will log to standard out by default or to a file specified by ``DD_TRACE_LOG_FILE``.
 
 
     "

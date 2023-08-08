@@ -5,6 +5,11 @@ import os
 from ddtrace.internal.utils.formats import asbool
 
 
+DD_LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] {}- %(message)s".format(
+    "[dd.service=%(dd.service)s dd.env=%(dd.env)s dd.version=%(dd.version)s"
+    " dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s] "
+)
+
 DEFAULT_FILE_SIZE_BYTES = 15 << 20  # 15 MB
 
 
@@ -32,14 +37,18 @@ def configure_ddtrace_logger():
 
     """
     ddtrace_logger = logging.getLogger("ddtrace")
-
     _configure_ddtrace_debug_logger(ddtrace_logger)
     _configure_ddtrace_file_logger(ddtrace_logger)
 
 
 def _configure_ddtrace_debug_logger(logger):
     debug_enabled = asbool(os.environ.get("DD_TRACE_DEBUG", "false"))
-    if debug_enabled:
+    logs_injection_enabled = asbool(os.environ.get("DD_LOGS_INJECTION", "false"))
+
+    # Logs injection enabled requires a handler present on ddtrace
+    if debug_enabled or logs_injection_enabled:
+        if not os.environ.get("DD_TRACE_LOG_FILE"):
+            logger.addHandler(logging.StreamHandler())
         logger.setLevel(logging.DEBUG)
         logger.debug("debug mode has been enabled for the ddtrace logger")
 
@@ -62,11 +71,21 @@ def _configure_ddtrace_file_logger(logger):
         ddtrace_file_handler = RotatingFileHandler(
             filename=log_path, mode="a", maxBytes=max_file_bytes, backupCount=num_backup
         )
-
         log_format = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] - %(message)s"
         log_formatter = logging.Formatter(log_format)
-
         ddtrace_file_handler.setLevel(file_log_level_value)
         ddtrace_file_handler.setFormatter(log_formatter)
         logger.addHandler(ddtrace_file_handler)
         logger.debug("ddtrace logs will be routed to %s", log_path)
+
+
+def _configure_log_injection():
+    """
+    Ensures that logging is patched before we inject trace information into logs.
+    """
+    from ddtrace import patch
+
+    patch(logging=True)
+    ddtrace_logger = logging.getLogger("ddtrace")
+    if ddtrace_logger.hasHandlers():
+        ddtrace_logger.handlers[0].setFormatter(logging.Formatter(DD_LOG_FORMAT))

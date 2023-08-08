@@ -295,7 +295,6 @@ logging.basicConfig(format='%(message)s')
 ddtrace_logger = logging.getLogger('ddtrace')
 
 assert ddtrace_logger.getEffectiveLevel() == logging.DEBUG
-assert len(ddtrace_logger.handlers) == 0
 
 ddtrace_logger.warning('warning log')
 ddtrace_logger.debug('debug log')
@@ -315,7 +314,6 @@ logging.basicConfig(format='%(message)s')
 ddtrace_logger = logging.getLogger('ddtrace')
 
 assert ddtrace_logger.getEffectiveLevel() == logging.DEBUG
-assert len(ddtrace_logger.handlers) == 0
 
 ddtrace_logger.warning('warning log')
 ddtrace_logger.debug('debug log')

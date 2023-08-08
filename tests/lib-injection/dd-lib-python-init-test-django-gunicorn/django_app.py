@@ -1,3 +1,4 @@
+import logging
 import os
 
 from django.core.wsgi import get_wsgi_application
@@ -10,6 +11,8 @@ ROOT_URLCONF = os.path.basename(filepath)
 DEBUG = False
 SECRET_KEY = "fdsfdasfa"
 ALLOWED_HOSTS = ["*"]
+
+logging.basicConfig(level=logging.DEBUG)
 
 
 def index(request):
