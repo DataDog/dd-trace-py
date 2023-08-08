@@ -128,7 +128,7 @@ commands:
           at: .
       - restore_cache:
           keys:
-            - lastsuccess-{{ .Environment.CIRCLE_BRANCH }}-<<parameters.pattern>>
+            - lastsuccess-{{ .Environment.CIRCLE_BRANCH }}-<<parameters.pattern>>-{{ .Environment.CIRCLE_NODE_INDEX }}
       - when:
           condition:
               << parameters.snapshot >>
@@ -180,7 +180,7 @@ commands:
       - store_artifacts:
           path: test-results
       - save_cache:
-          key: lastsuccess-{{ .Environment.CIRCLE_BRANCH }}-<<parameters.pattern>>-{{ epoch }}
+          key: lastsuccess-{{ .Environment.CIRCLE_BRANCH }}-<<parameters.pattern>>-{{ .Environment.CIRCLE_NODE_INDEX }}-{{ epoch }}
           paths:
             - ./latest-success-commit
       - run:
