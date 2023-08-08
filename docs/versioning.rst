@@ -14,9 +14,12 @@ Release support
      - :ref:`Support level<versioning_support_levels>`
      - Minimum Datadog Agent
    * - ``<1``
-     - :ref:`Maintenance<versioning_support_maintenace>`
+     - :ref:`End of Life<versioning_support_eol>`
      -
    * - ``>=1.0,<2``
+     - :ref:`Maintenance<versioning_support_maintenance>`
+     - 7.28
+   * - ``>=2.0,<3``
      - :ref:`General Availability<versioning_support_ga>`
      - 7.28
 
@@ -35,10 +38,12 @@ Support levels
    * - General Availability (GA)
      - Receives new features, bug fixes, and security fixes. Fixes are backported to the three most recent minor releases.
 
-       .. _versioning_support_maintenace:
+       .. _versioning_support_maintenance:
    * - Maintenance
      - Does not receive new features. Receives only those bug fixes and security fixes considered "critical". Fixes are backported to the most recent minor release.
-   * - End-of-life
+
+       .. _versioning_support_eol:
+   * - End-of-Life (EOL)
      - No support.
 
 .. _versioning_release:
@@ -104,15 +109,30 @@ Supported runtimes
    * - Linux
      - x86-64, i686, AArch64
      - CPython
+     - 3.7-3.12
+     - ``>=2.0,<3``
+   * - MacOS
+     - Intel, Apple Silicon
+     - CPython
+     - 3.7-3.12
+     - ``>=2.0,<3``
+   * - Windows
+     - 64bit, 32bit
+     - CPython
+     - 3.7-3.12
+     - ``>=2.0,<3``
+   * - Linux
+     - x86-64, i686, AArch64
+     - CPython
      - 2.7, 3.5-3.11
-     - ``<2``
+     - ``>=1.0,<2``
    * - MacOS
      - Intel, Apple Silicon
      - CPython
      - 2.7, 3.5-3.11
-     - ``<2``
+     - ``>=1.0,<2``
    * - Windows
      - 64bit, 32bit
      - CPython
      - 2.7, 3.5-3.11
-     - ``<2``
+     - ``>=1.0,<2``
