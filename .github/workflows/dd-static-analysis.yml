@@ -3,6 +3,7 @@ on: [push]
 jobs:
   check-quality:
     # runs-on: ubuntu-latest-16-cores
+    runs-on: ubuntu-latest
     name: Datadog Static Analyzer
     steps:
       - name: Checkout
