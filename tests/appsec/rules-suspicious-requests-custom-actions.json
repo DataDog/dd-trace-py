@@ -13,8 +13,8 @@
             "id": "block_429_json",
             "type": "block_request",
             "parameters": {
-                "status_code": 306,
-                "type": "auto"
+                "status_code": 429,
+                "type": "json"
             }
         },
         {

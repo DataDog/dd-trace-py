@@ -735,6 +735,7 @@ def test_request_suspicious_request_block_custom_actions(client, test_spans, tra
     # remove cache to avoid using template from other tests
     http._HTML_BLOCKED_TEMPLATE_CACHE = None
     http._JSON_BLOCKED_TEMPLATE_CACHE = None
+
     # value suspicious_306_auto must be blocked
     with override_global_config(dict(_appsec_enabled=True)), override_env(
         dict(
@@ -747,6 +748,7 @@ def test_request_suspicious_request_block_custom_actions(client, test_spans, tra
             client, test_spans, tracer, url="index.html?toto=suspicious_306_auto"
         )
         assert response.status_code == 306
+        # check if response content is custom as expected
         assert json.loads(response.content) == {
             "errors": [{"title": "You've been blocked", "detail": "Custom content"}]
         }
@@ -768,6 +770,78 @@ def test_request_suspicious_request_block_custom_actions(client, test_spans, tra
         assert b"192837645" in response.content
         loaded = json.loads(root_span.get_tag(APPSEC.JSON))
         assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-040-001"]
+
+    # value suspicious_429_json must be blocked
+    with override_global_config(dict(_appsec_enabled=True)), override_env(
+        dict(
+            DD_APPSEC_RULES=RULES_SRBCA,
+            DD_APPSEC_HTTP_BLOCKED_TEMPLATE_JSON=RESPONSE_CUSTOM_JSON,
+            DD_APPSEC_HTTP_BLOCKED_TEMPLATE_HTML=RESPONSE_CUSTOM_HTML,
+        )
+    ):
+        root_span, response = _aux_appsec_get_root_span(
+            client, test_spans, tracer, url="index.html?toto=suspicious_429_json"
+        )
+        assert response.status_code == 429
+        # check if response content is custom as expected
+        assert json.loads(response.content) == {
+            "errors": [{"title": "You've been blocked", "detail": "Custom content"}]
+        }
+        loaded = json.loads(root_span.get_tag(APPSEC.JSON))
+        assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-040-002"]
+    # value suspicious_429_json must be blocked with json even if text if required
+    with override_global_config(dict(_appsec_enabled=True)), override_env(
+        dict(
+            DD_APPSEC_RULES=RULES_SRBCA,
+            DD_APPSEC_HTTP_BLOCKED_TEMPLATE_JSON=RESPONSE_CUSTOM_JSON,
+            DD_APPSEC_HTTP_BLOCKED_TEMPLATE_HTML=RESPONSE_CUSTOM_HTML,
+        )
+    ):
+        root_span, response = _aux_appsec_get_root_span(
+            client, test_spans, tracer, url="index.html?toto=suspicious_429_json", headers={"HTTP_ACCEPT": "text/html"}
+        )
+        assert response.status_code == 429
+        # check if response content is custom as expected
+        assert json.loads(response.content) == {
+            "errors": [{"title": "You've been blocked", "detail": "Custom content"}]
+        }
+        loaded = json.loads(root_span.get_tag(APPSEC.JSON))
+        assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-040-002"]
+
+    # value suspicious_503_html must be blocked with text even if json is required
+    with override_global_config(dict(_appsec_enabled=True)), override_env(
+        dict(
+            DD_APPSEC_RULES=RULES_SRBCA,
+            DD_APPSEC_HTTP_BLOCKED_TEMPLATE_JSON=RESPONSE_CUSTOM_JSON,
+            DD_APPSEC_HTTP_BLOCKED_TEMPLATE_HTML=RESPONSE_CUSTOM_HTML,
+        )
+    ):
+        root_span, response = _aux_appsec_get_root_span(
+            client, test_spans, tracer, url="index.html?toto=suspicious_503_html", headers={"HTTP_ACCEPT": "text/json"}
+        )
+        assert response.status_code == 503
+        # check if response content is custom as expected
+        assert b"192837645" in response.content
+
+        loaded = json.loads(root_span.get_tag(APPSEC.JSON))
+        assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-040-003"]
+    # value suspicious_503_html must be blocked with text if required
+    with override_global_config(dict(_appsec_enabled=True)), override_env(
+        dict(
+            DD_APPSEC_RULES=RULES_SRBCA,
+            DD_APPSEC_HTTP_BLOCKED_TEMPLATE_JSON=RESPONSE_CUSTOM_JSON,
+            DD_APPSEC_HTTP_BLOCKED_TEMPLATE_HTML=RESPONSE_CUSTOM_HTML,
+        )
+    ):
+        root_span, response = _aux_appsec_get_root_span(
+            client, test_spans, tracer, url="index.html?toto=suspicious_503_html", headers={"HTTP_ACCEPT": "text/html"}
+        )
+        assert response.status_code == 503
+        # check if response content is custom as expected
+        assert b"192837645" in response.content
+        loaded = json.loads(root_span.get_tag(APPSEC.JSON))
+        assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-040-003"]
+
     # other values must not be blocked
     with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
         _, response = _aux_appsec_get_root_span(client, test_spans, tracer, url="index.html?toto=ytrace")
