@@ -36,39 +36,34 @@ from ddtrace.appsec.iast._loader import IS_IAST_ENABLED
 from ddtrace.appsec.iast._overhead_control_engine import OverheadControl
 from ddtrace.internal.logger import get_logger
 
+
 log = get_logger(__name__)
 
 oce = OverheadControl()
 
 
 def ddtrace_iast_flask_patch():
-    log.warning("JJJ patched start")
+    """
+    Patch the code inside the Flask main app source code file (typically "app.py") so
+    IAST/Custom Code propagation works also for the functions and methods defined inside it.
+    This must be called on the top level or inside the `if __name__ == "__main__"`
+    and must be before the `app.run()` call. It also requires `DD_IAST_ENABLED` to be
+    activated.
+    """
     if not IS_IAST_ENABLED:
-        log.warning("JJJ patched 1")
         return
 
-    log.warning("JJJ patched 2")
     module_name = inspect.currentframe().f_back.f_globals["__name__"]
-    log.warning("JJJ patched 3")
     module = sys.modules[module_name]
-    log.warning("JJJ patched 4")
     try:
-        log.warning("JJJ patched 5")
-        # JJJ: remove app.run() remove under if __main__?
-        module_path, patched_ast = astpatch_module(module)
-        # log.warning("JJJ patched 6, patched_ast: \n%s" % patched_ast)
+        module_path, patched_ast = astpatch_module(module, remove_flask_run=True)
     except Exception:
-        log.warning("JJJ patched 7")
         log.debug("Unexpected exception while AST patching", exc_info=True)
         return
 
-    log.warning("JJJ patched 8")
     compiled_code = compile(patched_ast, module_path, "exec")
-    log.warning("JJJJ type compiled_code: %s" % type(compiled_code))
-    log.warning("JJJ patched 9, module dict: %s" % module.__dict__)
     exec(compiled_code, module.__dict__)  # nosec B102
-    # sys.modules[module_name] = compiled_code
-    log.warning("JJJ patched end")
+    sys.modules[module_name] = compiled_code
 
 
 __all__ = [

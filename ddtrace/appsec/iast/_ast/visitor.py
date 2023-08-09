@@ -245,7 +245,6 @@ class AstVisitor(ast.NodeTransformer):
         )
 
     def _call_node(self, from_node, func, args):  # type: (Any, Any, List[Any]) -> Any
-
         return self._node(ast.Call, from_node, func=func, args=args, keywords=[])
 
     def visit_Module(self, module_node):
@@ -368,19 +367,15 @@ class AstVisitor(ast.NodeTransformer):
         """
         Replace a binary operator
         """
-        print("JJJ visit_BinOp for node: %s" % call_node)
         self.generic_visit(call_node)
         operator = call_node.op
 
         aspect = self._aspect_operators.get(operator.__class__)
         if aspect:
-            print("JJJ found aspect: %s" % aspect)
             self.ast_modified = True
             _set_metric_iast_instrumented_propagation()
 
             return ast.Call(self._attr_node(call_node, aspect), [call_node.left, call_node.right], [])
-        else:
-            print("JJJ not found aspect")
 
         return call_node
 

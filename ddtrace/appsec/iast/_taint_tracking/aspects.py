@@ -41,12 +41,8 @@ __all__ = ["add_aspect", "str_aspect", "bytearray_extend_aspect", "decode_aspect
 
 
 def add_aspect(op1, op2):
-    print("JJJ op1: %s op2: %s type(op1): %s type(op2): %s" %
-          (op1, op2, type(op1), type(op2)))
     if not isinstance(op1, TEXT_TYPES) or not isinstance(op2, TEXT_TYPES) or type(op1) != type(op2):
-        print("JJJ exit because types")
         return op1 + op2
-    print("JJJ calling native _add_aspect")
     return _add_aspect(op1, op2)
 
 
@@ -162,7 +158,7 @@ def zfill_aspect(candidate_text, *args, **kwargs):
 def format_aspect(
     candidate_text,  # type: str
     *args,  # type: List[Any]
-    **kwargs  # type: Dict[str, Any]
+    **kwargs,  # type: Dict[str, Any]
 ):  # type: (...) -> str
     if not isinstance(candidate_text, TEXT_TYPES):
         return candidate_text.format(*args, **kwargs)
@@ -223,7 +219,6 @@ def format_value_aspect(
     options=0,  # type: int
     format_spec=None,  # type: Optional[str]
 ):  # type: (...) -> str
-
     if options == 115:
         new_text = str(element)
     elif options == 114:
