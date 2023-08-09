@@ -208,68 +208,6 @@ memalloc_get_traceback(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocat
     return traceback;
 }
 
-//PyObject*
-//traceback_to_tuple(traceback_t* tb)
-//{
-//    /* Convert stack into a tuple of tuple */
-//    PyObject* stack = PyTuple_New(tb->nframe);
-//
-//    for (uint16_t nframe = 0; nframe < tb->nframe; nframe++) {
-//        frame_t* frame = &tb->frames[nframe];
-//
-//        PyObject* frame_tuple = PyObject_CallFunctionObjArgs(ddframe_class,
-//                                                             frame->filename,
-//                                                             PyLong_FromUnsignedLong(frame->lineno),
-//                                                             frame->name,
-//                                                             empty_string, // class name
-//                                                             NULL);
-//
-//        PyTuple_SET_ITEM(stack, nframe, frame_tuple);
-//    }
-//
-//    PyObject* tuple = PyTuple_New(3);
-//
-//    PyTuple_SET_ITEM(tuple, 0, stack);
-//    PyTuple_SET_ITEM(tuple, 1, PyLong_FromUnsignedLong(tb->total_nframe));
-//    PyTuple_SET_ITEM(tuple, 2, PyLong_FromUnsignedLong(tb->thread_id));
-//
-//    return tuple;
-//}
-
-//PyObject*
-//traceback_to_tuple(traceback_t* tb)
-//{
-//    /* Convert stack into a tuple of tuple */
-//    PyObject* stack = PyTuple_New(tb->nframe);
-//
-//    for (uint16_t nframe = 0; nframe < tb->nframe; nframe++) {
-//        PyObject* frame_tuple = PyTuple_New(4);
-//
-//        frame_t* frame = &tb->frames[nframe];
-//
-//        PyTuple_SET_ITEM(frame_tuple, 0, frame->filename);
-//        Py_INCREF(frame->filename);
-//        PyTuple_SET_ITEM(frame_tuple, 1, PyLong_FromUnsignedLong(frame->lineno));
-//        PyTuple_SET_ITEM(frame_tuple, 2, frame->name);
-//        Py_INCREF(frame->name);
-//        /* Class name */
-//        PyTuple_SET_ITEM(frame_tuple, 3, empty_string);
-//        Py_INCREF(empty_string);
-//
-//        // Set the class
-//        Py_TYPE(frame_tuple) = (PyTypeObject *)ddframe_class;
-//        Py_INCREF(ddframe_class);
-//
-//        PyTuple_SET_ITEM(stack, nframe, frame_tuple);
-//    }
-//
-//    PyObject* tuple = PyTuple_New(3);
-//    PyTuple_SET_ITEM(tuple, 0, stack);
-//    PyTuple_SET_ITEM(tuple, 1, PyLong_FromUnsignedLong(tb->total_nframe));
-//    PyTuple_SET_ITEM(tuple, 2, PyLong_FromUnsignedLong(tb->thread_id));
-//    return tuple;
-//}
-
 PyObject*
 traceback_to_tuple(traceback_t* tb)
 {
@@ -277,16 +215,22 @@ traceback_to_tuple(traceback_t* tb)
     PyObject* stack = PyTuple_New(tb->nframe);
 
     for (uint16_t nframe = 0; nframe < tb->nframe; nframe++) {
-        frame_t* frame = &tb->frames[nframe];
-        PyObject* frame_tuple = PyTuple_Pack(4,
-                                             frame->filename,
-                                             PyLong_FromUnsignedLong(frame->lineno),
-                                             frame->name,
-                                             empty_string);
+        PyObject* frame_tuple = PyTuple_New(4);
 
-//        // Set the class
-//        Py_TYPE(frame_tuple) = (PyTypeObject *)ddframe_class;
-//        Py_INCREF(ddframe_class);
+        frame_t* frame = &tb->frames[nframe];
+
+        PyTuple_SET_ITEM(frame_tuple, 0, frame->filename);
+        Py_INCREF(frame->filename);
+        PyTuple_SET_ITEM(frame_tuple, 1, PyLong_FromUnsignedLong(frame->lineno));
+        PyTuple_SET_ITEM(frame_tuple, 2, frame->name);
+        Py_INCREF(frame->name);
+        /* Class name */
+        PyTuple_SET_ITEM(frame_tuple, 3, empty_string);
+        Py_INCREF(empty_string);
+
+        // Set the class
+        Py_TYPE(frame_tuple) = (PyTypeObject *)ddframe_class;
+        Py_INCREF(ddframe_class);
 
         PyTuple_SET_ITEM(stack, nframe, frame_tuple);
     }
@@ -297,33 +241,3 @@ traceback_to_tuple(traceback_t* tb)
     PyTuple_SET_ITEM(tuple, 2, PyLong_FromUnsignedLong(tb->thread_id));
     return tuple;
 }
-
-//PyObject*
-//traceback_to_tuple(traceback_t* tb)
-//{
-//    /* Convert stack into a tuple of tuple */
-//    PyObject* stack = PyTuple_New(tb->nframe);
-//
-//    for (uint16_t nframe = 0; nframe < tb->nframe; nframe++) {
-//        PyObject* frame_tuple = PyTuple_New(4);
-//
-//        frame_t* frame = &tb->frames[nframe];
-//
-//        PyTuple_SET_ITEM(frame_tuple, 0, frame->filename);
-//        Py_INCREF(frame->filename);
-//        PyTuple_SET_ITEM(frame_tuple, 1, PyLong_FromUnsignedLong(frame->lineno));
-//        PyTuple_SET_ITEM(frame_tuple, 2, frame->name);
-//        Py_INCREF(frame->name);
-//        /* Class name */
-//        PyTuple_SET_ITEM(frame_tuple, 3, empty_string);
-//        Py_INCREF(empty_string);
-//
-//        PyTuple_SET_ITEM(stack, nframe, frame_tuple);
-//    }
-//
-//    PyObject* tuple = PyTuple_New(3);
-//    PyTuple_SET_ITEM(tuple, 0, stack);
-//    PyTuple_SET_ITEM(tuple, 1, PyLong_FromUnsignedLong(tb->total_nframe));
-//    PyTuple_SET_ITEM(tuple, 2, PyLong_FromUnsignedLong(tb->thread_id));
-//    return tuple;
-//}
