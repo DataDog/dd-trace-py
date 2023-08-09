@@ -24,7 +24,7 @@
       "langchain.request.type": "llm",
       "langchain.response.completions.0.text": "\\nThe secret Krabby Patty recipe is a closely guarded trade secret, known only to a select few people at the Krusty Krab restaur...",
       "language": "python",
-      "runtime-id": "7c828b663d70480b9a89d334e26794be"
+      "runtime-id": "dfd2ce0f0c3347ffb6655649ad48bd1f"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -32,8 +32,8 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 94037
+      "process_id": 52007
     },
-    "duration": 4793000,
-    "start": 1688047370157509000
+    "duration": 4474362,
+    "start": 1691167368706931723
   }]]
