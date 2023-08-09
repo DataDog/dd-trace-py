@@ -848,7 +848,7 @@ def test_request_suspicious_request_block_custom_actions(client, test_spans, tra
         assert response.status_code == 404
     # appsec disabled must not block
     with override_global_config(dict(_appsec_enabled=False)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
-        _, response = _aux_appsec_get_root_span(client, test_spans, tracer, url="index.html?toto=xtrace")
+        _, response = _aux_appsec_get_root_span(client, test_spans, tracer, url="index.html?toto=suspicious_503_html")
         assert response.status_code == 404
     # remove cache to avoid other tests from using the templates of this test
     http._HTML_BLOCKED_TEMPLATE_CACHE = None
