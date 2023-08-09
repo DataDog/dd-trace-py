@@ -660,9 +660,6 @@ class AgentWriter(HTTPWriter):
             if asbool(os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED", True)):
                 telemetry_writer.enable()
 
-            if config._telemetry_metrics_enabled:
-                telemetry_metrics_writer.enable()
-
             # appsec remote config should be enabled/started after the global tracer and configs
             # are initialized
             if os.getenv("AWS_LAMBDA_FUNCTION_NAME") is None and (
