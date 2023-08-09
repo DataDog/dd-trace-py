@@ -74,7 +74,7 @@ def _is_test_class(item):
     return type(item) != unittest.loader._FailedTest
 
 def _is_test_suite(item):
-    return _extract_module_span(item)
+    return _extract_module_span(item) and len(item._tests)
 
 
 def _is_test_module(item):
@@ -134,9 +134,21 @@ def _extract_module_name_from_test_method(item):
 
 
 def _extract_module_name_from_module(item):
+    if not len(item._tests):
+        return None
     if type(item._tests[0]) == unittest.loader._FailedTest:
         return item._tests[0]._testMethodName
-    return type(item._tests[0]._tests[0]).__module__
+    module_name = None
+    for suite in item._tests:
+        if not len(suite._tests):
+            continue
+        for test in suite._tests:
+            module_name = type(test).__module__
+            if not module_name:
+                continue
+            break
+
+    return module_name
 
 
 def _extract_test_skip_reason(args):
@@ -148,6 +160,8 @@ def _extract_test_file_name(item):
 
 
 def _extract_module_file_path(item):
+    if not len(item._tests) or not len(item._tests[0]._tests):
+        return ''
     if type(item._tests[0]) != unittest.loader._FailedTest:
         return os.path.relpath(inspect.getfile(item._tests[0]._tests[0].__class__))
     return ''
@@ -335,6 +349,8 @@ def handle_module_suite_wrapper(func, instance, args, kwargs):
         elif _is_test_module(instance):
             test_session_span = _extract_session_span(instance)
             test_module_name = _extract_module_name_from_module(instance)
+            if not test_module_name:
+                return func(*args, **kwargs)
             resource_name = _generate_module_resource(FRAMEWORK, test_module_name)
             test_module_span = tracer._start_span(
                 "unittest.test_module",
