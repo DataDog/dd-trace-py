@@ -112,7 +112,7 @@ def test_rc_activation_states_off(tracer, appsec_enabled, rc_value, remote_confi
 @pytest.mark.parametrize(
     "rc_enabled, appsec_enabled, capability",
     [
-        ("true", "true", "Afw="),  # All capabilities except ASM_ACTIVATION
+        ("true", "true", "A/w="),  # All capabilities except ASM_ACTIVATION
         ("false", "true", ""),
         ("true", "false", ""),
         ("false", "false", ""),
@@ -136,7 +136,7 @@ def test_rc_capabilities(rc_enabled, appsec_enabled, capability, tracer):
 @pytest.mark.parametrize(
     "env_rules, expected",
     [
-        ({}, "Af4="),  # All capabilities
+        ({}, "A/4="),  # All capabilities
         ({"DD_APPSEC_RULES": DEFAULT.RULES}, "Ag=="),  # Only ASM_FEATURES
     ],
 )
@@ -155,7 +155,6 @@ def test_rc_activation_capabilities(tracer, remote_config_worker, env_rules, exp
 
 def test_rc_activation_validate_products(tracer, remote_config_worker):
     with override_global_config(dict(_appsec_enabled=False, api_version="v0.4")):
-
         assert not remoteconfig_poller._worker
 
         enable_appsec_rc()
