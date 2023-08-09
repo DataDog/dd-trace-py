@@ -50,6 +50,11 @@ def _extract_suite_name_from_test_method(item):
     return getattr(item_type, "__name__", None)
 
 
+def _extract_class_hierarchy_name(item):
+    item_type = type(item)
+    return getattr(item_type, "__name__", None)
+
+
 def _extract_module_name_from_test_method(item):
     return getattr(item, "__module__", None)
 
@@ -162,13 +167,13 @@ def start_test_wrapper_unittest(func, instance, args, kwargs):
 
         span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
         span.set_tag_str(test.TYPE, SpanTypes.TEST)
-
+        suite_name = _extract_suite_name_from_test_method(instance)
         span.set_tag_str(test.NAME, _extract_test_method_name(instance))
-        span.set_tag_str(test.SUITE, _extract_suite_name_from_test_method(instance))
+        span.set_tag_str(test.SUITE, suite_name)
         span.set_tag_str(test.MODULE, _extract_module_name_from_test_method(instance))
 
         span.set_tag_str(test.STATUS, test.Status.FAIL.value)
-
+        span.set_tag_str(test.CLASS_HIERARCHY, suite_name)
         _CIVisibility.set_codeowners_of(_extract_test_file_name(instance), span=span)
 
         _store_span(instance, span)
