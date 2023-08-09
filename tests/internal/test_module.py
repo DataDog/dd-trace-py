@@ -91,7 +91,6 @@ def test_register_hook_without_install():
 
 @pytest.mark.subprocess(env=dict(MODULE_ORIGIN=origin(tests.test_module)))
 def test_import_origin_hook_for_module_not_yet_imported():
-    assert False
     import os
     import sys
 
