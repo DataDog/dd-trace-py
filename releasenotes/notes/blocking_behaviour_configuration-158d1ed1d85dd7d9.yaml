@@ -1,7 +1,7 @@
 features:
   - |
     ASM: This introduces a new capability to configure the blocking response of ASM. Users can change the default blocking 
-    response behaviour or create new custom actions.
+    response behavior or create new custom actions.
     Configuration of a custom blocking page or payload can still be provided by using
     `DD_APPSEC_HTTP_BLOCKED_TEMPLATE_JSON` and `DD_APPSEC_HTTP_BLOCKED_TEMPLATE_HTML` to change the static
     files used for the response body.
