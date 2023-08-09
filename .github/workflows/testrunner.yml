@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - '1.x'
+  pull_request:
+    paths:
+      - 'docker/**'
 
 jobs:
   build-and-publish:
