@@ -48,8 +48,12 @@ def _store_span(item, span):
 def _store_session_span(module, span):
     """Store session span at `unittest` module instance"""
     if hasattr(module, "test") and hasattr(module.test, "_tests"):
-        for test in module.test._tests:
-            setattr(test, "_datadog_session_span", span)
+        if type(module.test._tests[-1]._tests[0]) != unittest.TestSuite:
+            setattr(module.test, "_datadog_session_span", span)
+        else:
+            for test in module.test._tests:
+                setattr(test, "_datadog_session_span", span)
+
 
 
 def _store_module_span(suite, span):
