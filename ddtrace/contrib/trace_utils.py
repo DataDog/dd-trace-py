@@ -622,14 +622,14 @@ def set_flattened_tags(
             span.set_tag(tag, processor(v) if processor is not None else v)
 
 
-def set_user(tracer, user_id, name=None, email=None, scope=None, role=None, session_id=None, propagate=False):
-    # type: (Tracer, str, Optional[str], Optional[str], Optional[str], Optional[str], Optional[str], bool) -> None
+def set_user(tracer, user_id, name=None, email=None, scope=None, role=None, session_id=None, propagate=False, span=None):
+    # type: (Tracer, str, Optional[str], Optional[str], Optional[str], Optional[str], Optional[str], bool, Optional[Span]) -> None
     """Set user tags.
     https://docs.datadoghq.com/logs/log_configuration/attributes_naming_convention/#user-related-attributes
     https://docs.datadoghq.com/security_platform/application_security/setup_and_configure/?tab=set_tag&code-lang=python
     """
-
-    span = tracer.current_root_span()
+    if span is None:
+        span = tracer.current_root_span()
     if span:
         # Required unique identifier of the user
         str_user_id = str(user_id)
