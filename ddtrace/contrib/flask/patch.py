@@ -137,7 +137,7 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
                     ctype = "text/" + block_config["type"]
                 status = block_config.get("status_code", 403)
                 response_headers = [("content-type", ctype)]
-                result = start_response(status, response_headers)
+                result = start_response(str(status), response_headers)
                 trace_utils.set_http_meta(req_span, config.flask, status_code=status, response_headers=response_headers)
             else:
                 result = start_response(status_code, headers)

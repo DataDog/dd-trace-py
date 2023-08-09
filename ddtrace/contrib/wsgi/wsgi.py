@@ -95,7 +95,7 @@ class _DDWSGIMiddlewareBase(object):
         ) as ctx:
             if core.get_item(HTTP_REQUEST_BLOCKED):
                 status, ctype, content = core.dispatch("wsgi.block.started", [ctx, construct_url])[0][0]
-                start_response(status, [("content-type", ctype)])
+                start_response(str(status), [("content-type", ctype)])
                 closing_iterator = [content]
                 not_blocked = False
 
