@@ -175,7 +175,7 @@ def main() -> bool:
 
     argp.add_argument("suite", help="The suite to use", type=str)
     argp.add_argument("--pr", help="The PR number", type=int, default=_get_pr_number())
-    argp.add_argument("--sha", help="Commit hash to use as diff base (defaults to PR merge root)", type=str)
+    argp.add_argument("--sha", help="Commit hash to use as diff base (defaults to PR merge root)", type=lambda v: v or None)
     argp.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
 
     args = argp.parse_args()
