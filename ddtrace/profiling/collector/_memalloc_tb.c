@@ -229,7 +229,7 @@ traceback_to_tuple(traceback_t* tb)
         Py_INCREF(empty_string);
 
         // Set the class
-        Py_TYPE(frame_tuple) = (PyTypeObject *)ddframe_class;
+        Py_TYPE(frame_tuple) = (PyTypeObject*)ddframe_class;
         Py_INCREF(ddframe_class);
 
         PyTuple_SET_ITEM(stack, nframe, frame_tuple);
