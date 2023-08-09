@@ -24,9 +24,16 @@ log = get_logger(__name__)
 
 
 def _track_user_login_common(
-    tracer, success, metadata=None, login_events_mode=LOGIN_EVENTS_MODE.SDK, login=None, name=None, email=None, span=None
+    tracer,  # type: Tracer
+    success,  # type: bool
+    metadata=None,  # type: Optional[dict]
+    login_events_mode=LOGIN_EVENTS_MODE.SDK,  # type: str
+    login=None,  # type: Optional[str]
+    name=None,  # type: Optional[str]
+    email=None,  # type: Optional[str]
+    span=None,  # type: Optional[Span]
 ):
-    # type: (Tracer, bool, Optional[dict], str, Optional[str], Optional[str], Optional[str], Optional[Span]) -> Optional[Span]
+    # type: (...) -> Optional[Span]
 
     if span is None:
         span = tracer.current_root_span()
@@ -66,20 +73,20 @@ def _track_user_login_common(
 
 
 def track_user_login_success_event(
-    tracer,
-    user_id,
-    metadata=None,
-    login=None,
-    name=None,
-    email=None,
-    scope=None,
-    role=None,
-    session_id=None,
-    propagate=False,
-    login_events_mode=LOGIN_EVENTS_MODE.SDK,
-    span=None
+    tracer,  # type: Tracer
+    user_id,  # type: str
+    metadata=None,  # type: Optional[dict]
+    login=None,  # type: Optional[str]
+    name=None,  # type: Optional[str]
+    email=None,  # type: Optional[str]
+    scope=None,  # type: Optional[str]
+    role=None,  # type: Optional[str]
+    session_id=None,  # type: Optional[str]
+    propagate=False,  # type: bool
+    login_events_mode=LOGIN_EVENTS_MODE.SDK,  # type: str
+    span=None,  # type: Optional[Span]
 ):
-    # type: (Tracer, str, Optional[dict], Optional[str], Optional[str], Optional[str], Optional[str], Optional[str], Optional[str], bool, str, Optional[Span]) -> None # noqa: E501
+    # type: (...) -> None # noqa: E501
     """
     Add a new login success tracking event. The parameters after metadata (name, email,
     scope, role, session_id, propagate) will be passed to the `set_user` function that will be called
