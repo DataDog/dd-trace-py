@@ -79,18 +79,25 @@ def _on_context_started(ctx):
 
 
 def _make_block_content(ctx, construct_url):
+    from ddtrace.appsec import _constants as _asm_constants
+
     middleware = ctx.get_item("middleware")
     req_span = ctx.get_item("req_span")
     headers = ctx.get_item("headers")
     environ = ctx.get_item("environ")
     if req_span is None:
         raise ValueError("request span not found")
-    ctype = "text/html" if "text/html" in headers.get("Accept", "").lower() else "text/json"
+    block_config = core.get_item(_asm_constants.WAF_CONTEXT_NAMES.BLOCKED, span=req_span)
+    if block_config.get("type", "auto") == "auto":
+        ctype = "text/html" if "text/html" in headers.get("Accept", "").lower() else "text/json"
+    else:
+        ctype = "text/" + block_config["type"]
     content = http_utils._get_blocked_template(ctype).encode("UTF-8")
+    status = block_config.get("status_code", 403)
     try:
         req_span.set_tag_str(RESPONSE_HEADERS + ".content-length", str(len(content)))
         req_span.set_tag_str(RESPONSE_HEADERS + ".content-type", ctype)
-        req_span.set_tag_str(http.STATUS_CODE, "403")
+        req_span.set_tag_str(http.STATUS_CODE, str(status))
         url = construct_url(environ)
         query_string = environ.get("QUERY_STRING")
         _set_url_tag(middleware._config, req_span, url, query_string)
@@ -105,7 +112,7 @@ def _make_block_content(ctx, construct_url):
     except Exception as e:
         log.warning("Could not set some span tags on blocked request: %s", str(e))  # noqa: G200
 
-    return ctype, content
+    return status, ctype, content
 
 
 def _on_request_prepare(ctx, start_response):
