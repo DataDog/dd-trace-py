@@ -110,28 +110,11 @@ def _extract_suite_span(session):
     return getattr(session, "_datadog_suite_span", None)
 
 
-def _extract_status_from_result(result):
-    if hasattr(result, "errors") and hasattr(result, "failures") and hasattr(
-            result, "skipped"):
-        if len(result.errors) or len(result.failures):
-            return test.Status.FAIL.value
-        elif result.testsRun == len(result.skipped):
-            return test.Status.SKIP.value
-        return test.Status.PASS.value
-
-    return test.Status.FAIL.value
-
-
-def _extract_status_from_session(session):
-    if hasattr(session, "result"):
-        return _extract_status_from_result(session.result)
-    return test.Status.FAIL.value
-
-
-def _extract_status_from_module(args):
-    if len(args):
-        return _extract_status_from_result(args[0])
-    return test.Status.FAIL.value
+def _update_status_item(item, status):
+    existing_status = item.get_tag(test.STATUS)
+    if existing_status and (status == test.Status.SKIP.value or existing_status == test.Status.FAIL.value):
+        return
+    item.set_tag_str(test.STATUS, status)
 
 
 def _extract_suite_name_from_test_method(item):
@@ -254,7 +237,6 @@ def handle_test_wrapper(func, instance, args, kwargs):
                 resource="unittest.test",
                 span_type=SpanTypes.TEST
         )
-        print('creating span!')
         test_suite_span = _extract_suite_span(instance)
         span.set_tag_str(_EVENT_TYPE, SpanTypes.TEST)
         span.set_tag_str(_SESSION_ID, test_suite_span.get_tag(_SESSION_ID))
@@ -277,8 +259,8 @@ def handle_test_wrapper(func, instance, args, kwargs):
         _CIVisibility.set_codeowners_of(_extract_test_file_name(instance), span=span)
 
         _store_span(instance, span)
-        print('sending span waiting!')
         result = func(*args, **kwargs)
+        _update_status_item(test_suite_span, span.get_tag(test.STATUS))
         span.finish()
         return result
     result = func(*args, **kwargs)
@@ -314,6 +296,7 @@ def handle_module_suite_wrapper(func, instance, args, kwargs):
             _store_span(instance, test_suite_span)
             _store_suite_span(instance, test_suite_span)
             result = func(*args, **kwargs)
+            _update_status_item(test_module_span, test_suite_span.get_tag(test.STATUS))
             test_suite_span.finish()
             return result
         elif _is_test_module(instance):
@@ -338,8 +321,7 @@ def handle_module_suite_wrapper(func, instance, args, kwargs):
             test_module_span.set_tag_str(test.MODULE_PATH, _extract_module_file_path(instance))
             _store_module_span(instance, test_module_span)
             result = func(*args, **kwargs)
-            # TODO: Not working properly as it depends on the previous module due to the args parameter, integrate with suite instead
-            test_module_span.set_tag_str(test.STATUS, _extract_status_from_module(args))
+            _update_status_item(test_session_span, test_module_span.get_tag(test.STATUS))
             test_module_span.finish()
             return result
 
@@ -367,8 +349,7 @@ def handle_session_wrapper(func, instance, args, kwargs):
             log.debug("CI Visibility enabled - finishing unittest test session")
             test_session_span = _extract_span(instance)
             if test_session_span:
-                test_session_span.set_tag_str(test.STATUS, _extract_status_from_session(instance))
                 test_session_span.finish()
-                _CIVisibility.disable()
+            _CIVisibility.disable()
         raise e
     return result
