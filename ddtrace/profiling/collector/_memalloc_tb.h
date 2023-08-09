@@ -138,20 +138,20 @@ traceback_array_splice( traceback_array_t* arr, uint16_t pos, uint16_t len, trac
     if (arr == NULL || items == NULL) {
         fprintf(stderr, "Null pointer argument.\n");
         fflush(stderr);
-        return; // Or handle the error as appropriate for your application
-    }
-    if (pos < 0 || len < 0 || count < 0) {
-        fprintf(stderr, "Negative value argument.\n");
-        fflush(stderr);
-        return; // Handle error
+        return;
     }
     if (pos > arr->count || pos + len > arr->count) {
         fprintf(stderr, "Position or length exceeds array bounds.\n");
         fflush(stderr);
-        return; // Handle error
+        return;
     }
-
-    memcpy(arr->tab + pos, items, count * sizeof(*items));
+    for (int i = 0; i < count * sizeof(*items); ++i) {
+      volatile char x = ((char*)(arr->tab + pos))[i];
+      volatile char y = ((char*)(items))[i];
+      (void)x;
+      (void)y;
+    }
+    memmove(arr->tab + pos, items, count * sizeof(*items));
   }
 }
 
