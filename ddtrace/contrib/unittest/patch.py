@@ -1,7 +1,6 @@
 import inspect
 import os
 import unittest
-import time
 
 import ddtrace
 from ddtrace import config
@@ -67,16 +66,15 @@ def _store_suite_span(test, span):
             setattr(test, "_datadog_suite_span", span)
 
 
+def _is_test_class(item):
+    return type(item) != unittest.loader._FailedTest
+
 def _is_test_suite(item):
-    if type(item) == unittest.suite.TestSuite and len(item._tests) and type(item._tests[0]) != unittest.suite.TestSuite:
-        return True
-    return False
+    return _extract_module_span(item)
 
 
 def _is_test_module(item):
-    if type(item) == unittest.suite.TestSuite and len(item._tests) and _is_test_suite(item._tests[0]):
-        return True
-    return False
+    return _extract_session_span(item) and len(item._tests)
 
 
 def _extract_span(item):
@@ -132,6 +130,8 @@ def _extract_module_name_from_test_method(item):
 
 
 def _extract_module_name_from_module(item):
+    if type(item._tests[0]) == unittest.loader._FailedTest:
+        return item._tests[0]._testMethodName
     return type(item._tests[0]._tests[0]).__module__
 
 
@@ -144,8 +144,9 @@ def _extract_test_file_name(item):
 
 
 def _extract_module_file_path(item):
-    return os.path.relpath(inspect.getfile(item._tests[0]._tests[0].__class__))
-
+    if type(item._tests[0]) != unittest.loader._FailedTest:
+        return os.path.relpath(inspect.getfile(item._tests[0]._tests[0].__class__))
+    return ''
 
 def _is_unittest_support_enabled():
     return unittest and getattr(unittest, "_datadog_patch", False) and _CIVisibility.enabled
@@ -234,7 +235,7 @@ def add_skip_test_wrapper(func, instance, args, kwargs):
 
 
 def handle_test_wrapper(func, instance, args, kwargs):
-    if _is_unittest_support_enabled():
+    if _is_unittest_support_enabled() and _is_test_class(instance):
         tracer = getattr(unittest, "_datadog_tracer", _CIVisibility._instance.tracer)
         span = tracer._start_span(
                 ddtrace.config.unittest.operation_name,
@@ -327,7 +328,9 @@ def handle_module_suite_wrapper(func, instance, args, kwargs):
             test_module_span.set_tag_str(test.MODULE_PATH, _extract_module_file_path(instance))
             _store_module_span(instance, test_module_span)
             result = func(*args, **kwargs)
-            _update_status_item(test_session_span, test_module_span.get_tag(test.STATUS))
+            module_status = test_module_span.get_tag(test.STATUS)
+            if module_status:
+                _update_status_item(test_session_span, module_status)
             test_module_span.finish()
             return result
 
