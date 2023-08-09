@@ -70,6 +70,7 @@ def _appsec_rc_capabilities(test_tracer=None):
             value |= 1 << 6  # Enable ASM_ASM_RESPONSE_BLOCKING
             value |= 1 << 7  # Enable ASM_USER_BLOCKING
             value |= 1 << 8  # Enable ASM_CUSTOM_RULES
+            value |= 1 << 9  # Enable ASM_CUSTOM_BLOCKING_RESPONSE
 
         if sys.version_info.major < 3:
             bytes_res = to_bytes_py2(value, (value.bit_length() + 7) // 8, "big")
