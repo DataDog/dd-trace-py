@@ -22,7 +22,6 @@ from ddtrace.profiling.exporter import _packages
 from ddtrace.profiling.collector import threading
 
 
-
 if hasattr(typing, "TypedDict"):
     Package = typing.TypedDict(
         "Package",
