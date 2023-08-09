@@ -20,6 +20,7 @@ from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.pin import Pin
 
@@ -117,18 +118,26 @@ def traced_produce(func, instance, args, kwargs):
         pathway = pin.tracer.data_streams_processor.set_checkpoint(["direction:out", "topic:" + topic, "type:kafka"])
         headers[PROPAGATION_KEY] = pathway.encode()
         kwargs["headers"] = headers
-        on_delivery_param = "callback" if "callback" in kwargs else "on_delivery"
-        on_delivery = kwargs.get(on_delivery_param, None)
+
+        on_delivery_kwarg = "on_delivery"
+        on_delivery_arg = 5
+        on_delivery = get_argument_value(args, kwargs, on_delivery_arg, on_delivery_kwarg)
+        if on_delivery is None:
+            on_delivery_kwarg = "callback"
+            on_delivery_arg = 4
+            on_delivery = get_argument_value(args, kwargs, on_delivery_arg, on_delivery_kwarg)
 
         def wrapped_callback(err, msg):
             if err is None:
-                pin.tracer.data_streams_processor.track_kafka_produce(
-                    msg.topic(), msg.partition(), msg.offset() or -1, time.time()
-                )
+                if pin.tracer.data_streams_processor:
+                    pin.tracer.data_streams_processor.track_kafka_produce(
+                        msg.topic(), msg.partition(), msg.offset() or -1, time.time()
+                    )
             if on_delivery is not None:
                 on_delivery(err, msg)
 
-        kwargs[on_delivery_param] = wrapped_callback
+        if on_delivery is not None:
+            args, kwargs = set_argument_value(args, kwargs, on_delivery_arg, on_delivery_kwarg, wrapped_callback)
 
     with pin.tracer.trace(
         schematize_messaging_operation(kafkax.PRODUCE, provider="kafka", direction=SpanDirection.OUTBOUND),

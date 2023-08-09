@@ -6,7 +6,10 @@ from __future__ import absolute_import
 
 import atexit
 import logging
+import signal
 import typing
+
+from ddtrace.internal.utils import signals
 
 
 log = logging.getLogger(__name__)
@@ -56,3 +59,12 @@ else:
         _registry = [(f, args, kwargs) for f, args, kwargs in _registry if f != func]
 
     atexit.register(_ddtrace_atexit)
+
+
+# registers a function to be called when an exit signal (TERM or INT) or received.
+def register_on_exit_signal(f):
+    def handle_exit(sig, frame):
+        f()
+
+    signals.handle_signal(signal.SIGTERM, handle_exit)
+    signals.handle_signal(signal.SIGINT, handle_exit)

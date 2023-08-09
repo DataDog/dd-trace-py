@@ -6,10 +6,8 @@ import os
 from os import environ
 from os import getpid
 import sys
-import signal
 from threading import RLock
 from typing import TYPE_CHECKING
-import atexit as pythonatexit
 
 from ddtrace import config
 from ddtrace.filters import TraceFilter
@@ -36,6 +34,7 @@ from .internal import compat
 from .internal import debug
 from .internal import forksafe
 from .internal import hostname
+from .internal.atexit import register_on_exit_signal
 from .internal.constants import SPAN_API_DATADOG
 from .internal.dogstatsd import get_dogstatsd_client
 from .internal.logger import get_logger
@@ -202,9 +201,6 @@ def _default_span_processors_factory(
     ]  # type: List[SpanProcessor]
     return span_processors, appsec_processor, deferred_processors
 
-def signal_handler(sig, frame):
-    pythonatexit._run_exitfuncs()
-    sys.exit(0)
 
 class Tracer(object):
     """
@@ -305,9 +301,8 @@ class Tracer(object):
 
         self._hooks = _hooks.Hooks()
         atexit.register(self._atexit)
-        signal.signal(signal.SIGTERM, signal_handler)
-        signal.signal(signal.SIGINT, signal_handler)
         forksafe.register(self._child_after_fork)
+        register_on_exit_signal(self._atexit)
 
         self._shutdown_lock = RLock()
 
