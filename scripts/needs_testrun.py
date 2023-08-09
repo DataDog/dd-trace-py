@@ -87,7 +87,7 @@ def get_changed_files(pr_number: int, sha: t.Optional[str] = None) -> t.Set[str]
 
 
 @cache
-def needs_testrun(suite: str, pr_number: int, sha: str = "") -> bool:
+def needs_testrun(suite: str, pr_number: int, sha: t.Optional[str] = None) -> bool:
     """Check if a testrun is needed for a suite and PR
 
     >>> needs_testrun("debugger", 6485)
