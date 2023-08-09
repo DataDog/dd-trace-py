@@ -9,8 +9,6 @@ import sys
 from tempfile import NamedTemporaryFile
 import time
 
-from _pytest.runner import CallInfo
-from _pytest.runner import TestReport
 from _pytest.runner import call_and_report
 from _pytest.runner import pytest_runtest_protocol as default_pytest_runtest_protocol
 import pytest
