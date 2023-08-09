@@ -284,13 +284,16 @@ def create_notebook(dd_repo, name, rn, base, rc, patch):
         for file in files:
             filename = file.filename
             if filename.startswith("releasenotes/notes/"):
-                # we need to make another api call to get ContentFile object so we can see what's in there
-                rn_file_content = dd_repo.get_contents(filename).decoded_content.decode("utf8")
-                # try to grab a good portion of the release note for us to use to insert in our reno release notes
-                # this is a bit hacky, will only attach to one section if you have multiple sections in a release note
-                # (e.g. a features and a fix section):
-                # for example: https://github.com/DataDog/dd-trace-py/blob/1.x/releasenotes/notes/asm-user-id-blocking-5048b1cef07c80fd.yaml # noqa
                 try:
+                    # we need to make another api call to get ContentFile object so we can see what's in there
+                    # this call may fail if a PR with release notes was reverted
+                    rn_file_content = dd_repo.get_contents(filename).decoded_content.decode("utf8")
+
+                    # try to grab a good portion of the release note for us to use to insert in our reno release notes
+                    # this is a bit hacky, will only attach to one section if you have multiple sections in a
+                    # release note
+                    # (e.g. a features and a fix section):
+                    # for example: https://github.com/DataDog/dd-trace-py/blob/1.x/releasenotes/notes/asm-user-id-blocking-5048b1cef07c80fd.yaml # noqa
                     rn_piece = re.findall(
                         r"  - \|\n    ((.|\n)*)\n(((issues|features|upgrade|deprecations|fixes|other):\n)|.*)",
                         rn_file_content,
@@ -301,6 +304,7 @@ def create_notebook(dd_repo, name, rn, base, rc, patch):
                     rn_piece = re.sub("  ", " ", rn_piece)
                     rn_piece = re.sub("``", "`", rn_piece)
                 except Exception:
+                    print("Failure while trying to pull filename %s from: %s" % (filename, commit))
                     continue
                 author = commit.author.name
                 if author:
@@ -449,7 +453,7 @@ if __name__ == "__main__":
     )
     print(
         (
-            "\nYou've been switch back to your original branch, if you had uncomitted changes before"
+            "\nYou've been switch back to your original branch, if you had uncommitted changes before"
             "running this command, run `git stash pop` to get them back."
         )
     )
