@@ -35,6 +35,7 @@ class AstVisitor(ast.NodeTransformer):
                 "str": "ddtrace_aspects.str_aspect",
                 "bytes": "ddtrace_aspects.bytes_aspect",
                 "bytearray": "ddtrace_aspects.bytearray_aspect",
+                "ddtrace_iast_flask_patch": "ddtrace_aspects.empty_func",  # To avoid recursion
             },
             "stringalike_methods": {
                 "decode": "ddtrace_aspects.decode_aspect",
@@ -367,15 +368,19 @@ class AstVisitor(ast.NodeTransformer):
         """
         Replace a binary operator
         """
+        print("JJJ visit_BinOp for node: %s" % call_node)
         self.generic_visit(call_node)
         operator = call_node.op
 
         aspect = self._aspect_operators.get(operator.__class__)
         if aspect:
+            print("JJJ found aspect: %s" % aspect)
             self.ast_modified = True
             _set_metric_iast_instrumented_propagation()
 
             return ast.Call(self._attr_node(call_node, aspect), [call_node.left, call_node.right], [])
+        else:
+            print("JJJ not found aspect")
 
         return call_node
 

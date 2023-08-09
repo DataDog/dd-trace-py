@@ -41,8 +41,12 @@ __all__ = ["add_aspect", "str_aspect", "bytearray_extend_aspect", "decode_aspect
 
 
 def add_aspect(op1, op2):
+    print("JJJ op1: %s op2: %s type(op1): %s type(op2): %s" %
+          (op1, op2, type(op1), type(op2)))
     if not isinstance(op1, TEXT_TYPES) or not isinstance(op2, TEXT_TYPES) or type(op1) != type(op2):
+        print("JJJ exit because types")
         return op1 + op2
+    print("JJJ calling native _add_aspect")
     return _add_aspect(op1, op2)
 
 
@@ -351,3 +355,7 @@ def translate_aspect(candidate_text, *args, **kwargs):  # type: (Any, Any, Any) 
     if not isinstance(candidate_text, TEXT_TYPES):
         return candidate_text.translate(*args, **kwargs)
     return common_replace("translate", candidate_text, *args, **kwargs)
+
+
+def empty_func(*args, **kwargs):
+    pass
