@@ -17,7 +17,7 @@
       "http.useragent": "testclient",
       "http.version": "1.1",
       "language": "python",
-      "runtime-id": "53e754b3400a4809a8c5c8c8a0df993c",
+      "runtime-id": "cfb315cedc6c47c98f1118fe6dfc3d3f",
       "span.kind": "server"
     },
     "metrics": {
@@ -25,10 +25,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 11389
+      "process_id": 26634
     },
-    "duration": 268333,
-    "start": 1685583311504567052
+    "duration": 289191,
+    "start": 1691164832153716031
   },
      {
        "name": "starlette.request",
@@ -40,6 +40,7 @@
        "type": "web",
        "error": 0,
        "meta": {
+         "_dd.p.dm": "-0",
          "component": "starlette",
          "http.method": "GET",
          "http.status_code": "200",
@@ -48,6 +49,6 @@
          "http.version": "1.1",
          "span.kind": "server"
        },
-       "duration": 111417,
-       "start": 1685583311504738260
+       "duration": 129739,
+       "start": 1691164832153894521
      }]]

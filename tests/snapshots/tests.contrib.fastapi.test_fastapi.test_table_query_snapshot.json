@@ -18,7 +18,7 @@
       "http.useragent": "testclient",
       "http.version": "1.1",
       "language": "python",
-      "runtime-id": "b8877d54f2b54d3eaab636d5b4efc312",
+      "runtime-id": "3d0a8aa1096f427c967faadab8e91d2a",
       "span.kind": "server"
     },
     "metrics": {
@@ -26,10 +26,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 2060
+      "process_id": 14742
     },
-    "duration": 383000,
-    "start": 1667242400759718000
+    "duration": 477420,
+    "start": 1691162789283083546
   },
      {
        "name": "fastapi.serialize_response",
@@ -40,8 +40,11 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
-       "duration": 80000,
-       "start": 1656543965510900000
+       "meta": {
+         "_dd.p.dm": "-0"
+       },
+       "duration": 86309,
+       "start": 1691162789283378200
      }],
 [
   {
@@ -63,7 +66,7 @@
       "http.useragent": "testclient",
       "http.version": "1.1",
       "language": "python",
-      "runtime-id": "b8877d54f2b54d3eaab636d5b4efc312",
+      "runtime-id": "3d0a8aa1096f427c967faadab8e91d2a",
       "span.kind": "server"
     },
     "metrics": {
@@ -71,10 +74,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 2060
+      "process_id": 14742
     },
-    "duration": 287000,
-    "start": 1667242400761197000
+    "duration": 331467,
+    "start": 1691162789284537157
   },
      {
        "name": "fastapi.serialize_response",
@@ -85,6 +88,9 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
-       "duration": 65000,
-       "start": 1656543965512188000
+       "meta": {
+         "_dd.p.dm": "-0"
+       },
+       "duration": 76460,
+       "start": 1691162789284711190
      }]]

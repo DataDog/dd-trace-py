@@ -14,6 +14,7 @@ from ddtrace.appsec.trace_utils import block_request_if_user_blocked
 
 try:
     from ddtrace.appsec.iast._taint_tracking.aspects import add_aspect
+    from ddtrace.appsec.iast._taint_tracking.aspects import decode_aspect
 except ImportError:
     # Python 2 compatibility
     from operator import add as add_aspect
@@ -190,6 +191,19 @@ def sqli_http_request_cookie_value(request):
     return HttpResponse(request.COOKIES["master"], status=200)
 
 
+def sqli_http_request_body(request):
+    key = "master_key"
+    if key in request.POST:
+        value = request.POST[key]
+    else:
+        value = decode_aspect(request.body)
+    with connection.cursor() as cursor:
+        # label iast_enabled_sqli_http_body
+        cursor.execute(add_aspect("SELECT 1 FROM sqlite_", value))
+
+    return HttpResponse(value, status=200)
+
+
 def validate_querydict(request):
     qd = request.GET
     res = qd.getlist("x")
@@ -212,6 +226,7 @@ urlpatterns = [
     handler("sqli_http_request_header_value/$", sqli_http_request_header_value, name="sqli_http_request_header_value"),
     handler("sqli_http_request_cookie_name/$", sqli_http_request_cookie_name, name="sqli_http_request_cookie_name"),
     handler("sqli_http_request_cookie_value/$", sqli_http_request_cookie_value, name="sqli_http_request_cookie_value"),
+    handler("sqli_http_request_body/$", sqli_http_request_body, name="sqli_http_request_body"),
     path(
         "sqli_http_path_parameter/<str:q_http_path_parameter>/",
         sqli_http_path_parameter,
