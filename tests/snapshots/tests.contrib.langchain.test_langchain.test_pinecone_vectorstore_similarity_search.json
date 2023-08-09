@@ -24,7 +24,7 @@
       "langchain.response.document.0.metadata.wiki-id": "13",
       "langchain.response.document.0.page_content": "A brilliant mathematician and cryptographer Alan was to become the founder of modern-day computer science and artificial intelli...",
       "language": "python",
-      "runtime-id": "7b8a5071c1b244e2b697bb1fd18b2fb3"
+      "runtime-id": "dfd2ce0f0c3347ffb6655649ad48bd1f"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -33,10 +33,10 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "langchain.response.document_count": 1,
-      "process_id": 90688
+      "process_id": 52007
     },
-    "duration": 23131000,
-    "start": 1687802038747137000
+    "duration": 13977504,
+    "start": 1691167370455163911
   },
      {
        "name": "langchain.request",
@@ -48,6 +48,7 @@
        "type": "",
        "error": 0,
        "meta": {
+         "_dd.p.dm": "-0",
          "langchain.request.api_key": "...key>",
          "langchain.request.inputs.0.text": "Who was Alan Turing?",
          "langchain.request.model": "text-embedding-ada-002",
@@ -59,6 +60,6 @@
          "langchain.request.input_count": 1,
          "langchain.response.outputs.embedding_length": 1536
        },
-       "duration": 18074000,
-       "start": 1687802038747197000
+       "duration": 3847982,
+       "start": 1691167370455351866
      }]]

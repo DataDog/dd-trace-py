@@ -34,7 +34,7 @@
       "langchain.response.completions.1.0.content": "Arrr, ye be lookin' to sail to Bikini Bottom, eh? Well shiver me timbers, ye'll need to set sail from New York and head southwar...",
       "langchain.response.completions.1.0.message_type": "AIMessage",
       "language": "python",
-      "runtime-id": "fee8e436b6394c02893eb6af74d2ada2"
+      "runtime-id": "dfd2ce0f0c3347ffb6655649ad48bd1f"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -44,10 +44,10 @@
       "_sampling_priority_v1": 1,
       "langchain.tokens.completion_tokens": 133,
       "langchain.tokens.prompt_tokens": 64,
-      "langchain.tokens.total_cost": 0.000362,
+      "langchain.tokens.total_cost": 0.00039400000000000004,
       "langchain.tokens.total_tokens": 197,
-      "process_id": 98111
+      "process_id": 52007
     },
-    "duration": 4448000,
-    "start": 1688048579170101000
+    "duration": 8476231,
+    "start": 1691167369290618506
   }]]
