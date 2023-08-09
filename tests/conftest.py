@@ -251,7 +251,7 @@ def run_function_from_file(item, params=None):
             if not is_stream_ok(err, expected_err):
                 raise AssertionError("STDERR: Expected [%s] got [%s]" % (expected_err, err))
 
-        return TestReport.from_item_and_call(item, CallInfo.from_call(_subprocess_wrapper, "call"))
+        return _subprocess_wrapper()
 
 
 @pytest.hookimpl(tryfirst=True)
