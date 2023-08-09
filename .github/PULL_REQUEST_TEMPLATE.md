@@ -4,9 +4,9 @@
 - [ ] Testing strategy is described if automated tests are not included in the PR.
 - [ ] Risk is outlined (performance impact, potential for breakage, maintainability, etc).
 - [ ] Change is maintainable (easy to change, telemetry, documentation).
-- [ ] [Library release note guidelines](https://ddtrace.readthedocs.io/en/stable/contributing.html#Release-Note-Guidelines) are followed.
+- [ ] [Library release note guidelines](https://ddtrace.readthedocs.io/en/stable/releasenotes.html) are followed. If no release note is required, add label `changelog/no-changelog`.
 - [ ] Documentation is included (in-code, generated user docs, [public corp docs](https://github.com/DataDog/documentation/)).
-- [ ] PR description includes explicit acknowledgement/acceptance of the performance implications of this PR as reported in the benchmarks PR comment.
+- [ ] Backport labels are set (if [applicable](https://ddtrace.readthedocs.io/en/latest/contributing.html#backporting))
 
 ## Reviewer Checklist
 
@@ -18,3 +18,4 @@
 - [ ] Change is maintainable (easy to change, telemetry, documentation).
 - [ ] Release note makes sense to a user of the library.
 - [ ] Reviewer has explicitly acknowledged and discussed the performance implications of this PR as reported in the benchmarks PR comment.
+- [ ] Backport labels are set in a manner that is consistent with the [release branch maintenance policy](https://ddtrace.readthedocs.io/en/latest/contributing.html#backporting)

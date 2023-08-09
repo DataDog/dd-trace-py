@@ -15,7 +15,11 @@ def test_get_task_main():
         assert _task.get_task(compat.main_thread.ident) == (None, None, None)
 
 
+@pytest.mark.subprocess
 def test_list_tasks_nogevent():
+    from ddtrace.internal import compat
+    from ddtrace.profiling.collector import _task
+
     assert _task.list_tasks(compat.main_thread.ident) == []
 
 

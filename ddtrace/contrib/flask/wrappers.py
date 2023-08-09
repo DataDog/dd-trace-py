@@ -1,12 +1,47 @@
 from ddtrace import config
-from ddtrace.appsec.iast._util import _is_iast_enabled
+from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.vendor.wrapt import function_wrapper
 
 from .. import trace_utils
+from ...internal.logger import get_logger
 from ...internal.utils.importlib import func_name
 from ...pin import Pin
 from .helpers import get_current_app
+
+
+log = get_logger(__name__)
+
+
+def wrap_view(instance, func, name=None, resource=None):
+    """
+    Helper function to wrap common flask.app.Flask methods.
+
+    This helper will first ensure that a Pin is available and enabled before tracing
+    """
+    if not name:
+        name = func_name(func)
+
+    @function_wrapper
+    def trace_func(wrapped, _instance, args, kwargs):
+        pin = Pin._find(wrapped, _instance, instance, get_current_app())
+        if not pin or not pin.enabled():
+            return wrapped(*args, **kwargs)
+        with pin.tracer.trace(name, service=trace_utils.int_service(pin, config.flask), resource=resource) as span:
+            span.set_tag_str(COMPONENT, config.flask.integration_name)
+
+            results, exceptions = core.dispatch("flask.wrapped_view", [kwargs])
+            if results and results[0]:
+                callback_block, _kwargs = results[0]
+                if callback_block:
+                    return callback_block()
+                if _kwargs:
+                    for k in kwargs:
+                        kwargs[k] = _kwargs[k]
+
+            return wrapped(*args, **kwargs)
+
+    return trace_func(func)
 
 
 def wrap_function(instance, func, name=None, resource=None):
@@ -25,15 +60,6 @@ def wrap_function(instance, func, name=None, resource=None):
             return wrapped(*args, **kwargs)
         with pin.tracer.trace(name, service=trace_utils.int_service(pin, config.flask), resource=resource) as span:
             span.set_tag_str(COMPONENT, config.flask.integration_name)
-
-            # If IAST is enabled, taint the Flask function kwargs (path parameters)
-            if _is_iast_enabled() and kwargs:
-                from ddtrace.appsec.iast._input_info import Input_info
-                from ddtrace.appsec.iast._taint_tracking import taint_pyobject
-
-                for k, v in kwargs.items():
-                    kwargs[k] = taint_pyobject(v, Input_info(k, v, "http.request.path.parameter"))
-
             return wrapped(*args, **kwargs)
 
     return trace_func(func)

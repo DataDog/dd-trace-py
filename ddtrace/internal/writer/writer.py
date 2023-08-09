@@ -1,7 +1,6 @@
 import abc
 import binascii
 from collections import defaultdict
-from json import loads
 import logging
 import os
 import sys
@@ -13,10 +12,10 @@ from typing import TYPE_CHECKING
 from typing import TextIO
 
 import six
-import tenacity
 
 import ddtrace
 from ddtrace import config
+from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.vendor.dogstatsd import DogStatsd
 
 from .. import agent
@@ -24,10 +23,10 @@ from .. import compat
 from .. import periodic
 from .. import service
 from ...constants import KEEP_SPANS_RATE_KEY
-from ...internal.telemetry import telemetry_metrics_writer
 from ...internal.telemetry import telemetry_writer
 from ...internal.utils.formats import asbool
 from ...internal.utils.formats import parse_tags_str
+from ...internal.utils.http import Response
 from ...internal.utils.time import StopWatch
 from ...sampler import BasePrioritySampler
 from ...sampler import BaseSampler
@@ -37,6 +36,8 @@ from ..agent import get_connection
 from ..encoding import JSONEncoderV2
 from ..logger import get_logger
 from ..runtime import container
+from ..serverless import in_azure_function_consumption_plan
+from ..serverless import in_gcp_function
 from ..sma import SimpleMovingAverage
 from .writer_client import AgentWriterClientV3
 from .writer_client import AgentWriterClientV4
@@ -45,6 +46,8 @@ from .writer_client import WriterClientBase
 
 
 if TYPE_CHECKING:  # pragma: no cover
+    from typing import Tuple
+
     from ddtrace import Span
 
     from .agent import ConnectionType
@@ -53,6 +56,11 @@ if TYPE_CHECKING:  # pragma: no cover
 log = get_logger(__name__)
 
 LOG_ERR_INTERVAL = 60
+
+
+class NoEncodableSpansError(Exception):
+    pass
+
 
 # The window size should be chosen so that the look-back period is
 # greater-equal to the agent API's timeout. Although most tracers have a
@@ -95,77 +103,6 @@ def _human_size(nbytes):
         i += 1
     f = ("%.2f" % nbytes).rstrip("0").rstrip(".")
     return "%s%s" % (f, suffixes[i])
-
-
-class Response(object):
-    """
-    Custom API Response object to represent a response from calling the API.
-
-    We do this to ensure we know expected properties will exist, and so we
-    can call `resp.read()` and load the body once into an instance before we
-    close the HTTPConnection used for the request.
-    """
-
-    __slots__ = ["status", "body", "reason", "msg"]
-
-    def __init__(self, status=None, body=None, reason=None, msg=None):
-        self.status = status
-        self.body = body
-        self.reason = reason
-        self.msg = msg
-
-    @classmethod
-    def from_http_response(cls, resp):
-        """
-        Build a ``Response`` from the provided ``HTTPResponse`` object.
-
-        This function will call `.read()` to consume the body of the ``HTTPResponse`` object.
-
-        :param resp: ``HTTPResponse`` object to build the ``Response`` from
-        :type resp: ``HTTPResponse``
-        :rtype: ``Response``
-        :returns: A new ``Response``
-        """
-        return cls(
-            status=resp.status,
-            body=resp.read(),
-            reason=getattr(resp, "reason", None),
-            msg=getattr(resp, "msg", None),
-        )
-
-    def get_json(self):
-        """Helper to parse the body of this request as JSON"""
-        try:
-            body = self.body
-            if not body:
-                log.debug("Empty reply from Datadog Agent, %r", self)
-                return
-
-            if not isinstance(body, str) and hasattr(body, "decode"):
-                body = body.decode("utf-8")
-
-            if hasattr(body, "startswith") and body.startswith("OK"):
-                # This typically happens when using a priority-sampling enabled
-                # library with an outdated agent. It still works, but priority sampling
-                # will probably send too many traces, so the next step is to upgrade agent.
-                log.debug(
-                    "Cannot parse Datadog Agent response. "
-                    "This occurs because Datadog agent is out of date or DATADOG_PRIORITY_SAMPLING=false is set"
-                )
-                return
-
-            return loads(body)
-        except (ValueError, TypeError):
-            log.debug("Unable to parse Datadog Agent JSON response: %r", body, exc_info=True)
-
-    def __repr__(self):
-        return "{0}(status={1!r}, body={2!r}, reason={3!r}, msg={4!r})".format(
-            self.__class__.__name__,
-            self.status,
-            self.body,
-            self.reason,
-            self.msg,
-        )
 
 
 class TraceWriter(six.with_metaclass(abc.ABCMeta)):
@@ -276,22 +213,18 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         # the periodic thread of HTTPWriter and other threads that might
         # force a flush with `flush_queue()`.
         self._conn_lck = threading.RLock()  # type: threading.RLock
-        self._retry_upload = tenacity.Retrying(
-            # Retry RETRY_ATTEMPTS times within the first half of the processing
-            # interval, using a Fibonacci policy with jitter
-            wait=tenacity.wait_random_exponential(
-                multiplier=(0.618 * self.interval / (1.618 ** self.RETRY_ATTEMPTS) / 2),
-                exp_base=1.618,
-            ),
-            stop=tenacity.stop_after_attempt(self.RETRY_ATTEMPTS),
-            retry=tenacity.retry_if_exception_type((compat.httplib.HTTPException, OSError, IOError)),
-        )
+
+        self._send_payload_with_backoff = fibonacci_backoff_with_jitter(  # type ignore[assignment]
+            attempts=self.RETRY_ATTEMPTS,
+            initial_wait=0.618 * self.interval / (1.618 ** self.RETRY_ATTEMPTS) / 2,
+            until=lambda result: isinstance(result, Response),
+        )(self._send_payload)
+
         self._log_error_payloads = asbool(os.environ.get("_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", False))
         self._reuse_connections = get_writer_reuse_connections() if reuse_connections is None else reuse_connections
 
-    @property
-    def _intake_endpoint(self):
-        return "{}/{}".format(self.intake_url, self._endpoint)
+    def _intake_endpoint(self, client=None):
+        return "{}/{}".format(self._intake_url(client), client.ENDPOINT if client else self._endpoint)
 
     @property
     def _endpoint(self):
@@ -301,20 +234,29 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
     def _encoder(self):
         return self._clients[0].encoder
 
-    def _metrics_dist(self, name, count=1, tags=None):
-        self._metrics[name]["count"] += count
-        if tags:
-            self._metrics[name]["tags"].extend(tags)
+    def _intake_url(self, client=None):
+        if client and hasattr(client, "_intake_url"):
+            return client._intake_url
+        return self.intake_url
+
+    def _metrics_dist(self, name, count=1, tags=tuple()):
+        # type: (str, int, Tuple) -> None
+        if tags in self._metrics[name]:
+            self._metrics[name][tags] += count
+        else:
+            self._metrics[name][tags] = count
 
     def _metrics_reset(self):
-        self._metrics = defaultdict(lambda: {"count": 0, "tags": []})
+        # type: () -> None
+        self._metrics = defaultdict(dict)  # type: Dict[str, Dict[Tuple[str,...], int]]
 
     def _set_drop_rate(self):
         dropped = sum(
-            self._metrics[metric]["count"]
+            counts
             for metric in ("encoder.dropped.traces", "buffer.dropped.traces", "http.dropped.traces")
+            for _tags, counts in self._metrics[metric].items()
         )
-        accepted = self._metrics["writer.accepted.traces"]["count"]
+        accepted = sum(counts for _tags, counts in self._metrics["writer.accepted.traces"].items())
 
         if dropped > accepted:
             # Sanity check, we cannot drop more traces than we accepted.
@@ -346,9 +288,9 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         with self._conn_lck:
             if self._conn is None:
                 log.debug("creating new intake connection to %s with timeout %d", self.intake_url, self._timeout)
-                self._conn = get_connection(self.intake_url, self._timeout)
+                self._conn = get_connection(self._intake_url(client), self._timeout)
             try:
-                log.debug("Sending request: %s %s %s %s", self.HTTP_METHOD, client.ENDPOINT, data, headers)
+                log.debug("Sending request: %s %s %s", self.HTTP_METHOD, client.ENDPOINT, headers)
                 self._conn.request(
                     self.HTTP_METHOD,
                     client.ENDPOINT,
@@ -362,7 +304,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                     log_level = logging.WARNING
                 else:
                     log_level = logging.DEBUG
-                log.log(log_level, "sent %s in %.5fs to %s", _human_size(len(data)), t, self._intake_endpoint)
+                log.log(log_level, "sent %s in %.5fs to %s", _human_size(len(data)), t, self._intake_endpoint(client))
             except Exception:
                 # Always reset the connection when an exception occurs
                 self._reset_connection()
@@ -374,25 +316,30 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 if not self._reuse_connections:
                     self._reset_connection()
 
-    def _get_finalized_headers(self, count):
-        return self._headers.copy()
+    def _get_finalized_headers(self, count, client):
+        # type: (int, WriterClientBase) -> dict
+        headers = self._headers.copy()
+        headers.update({"Content-Type": client.encoder.content_type})  # type: ignore[attr-defined]
+        if hasattr(client, "_headers"):
+            headers.update(client._headers)
+        return headers
 
     def _send_payload(self, payload, count, client):
-        headers = self._get_finalized_headers(count)
+        headers = self._get_finalized_headers(count, client)
 
         self._metrics_dist("http.requests")
 
         response = self._put(payload, headers, client)
 
         if response.status >= 400:
-            self._metrics_dist("http.errors", tags=["type:%s" % response.status])
+            self._metrics_dist("http.errors", tags=("type:%s" % response.status,))
         else:
             self._metrics_dist("http.sent.bytes", len(payload))
 
         if response.status not in (404, 415) and response.status >= 400:
             msg = "failed to send traces to intake at %s: HTTP error status %s, reason %s"
             log_args = (
-                self._intake_endpoint,
+                self._intake_endpoint(client),
                 response.status,
                 response.reason,
             )
@@ -442,8 +389,8 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 payload_size,
                 client.encoder.max_item_size,
             )
-            self._metrics_dist("buffer.dropped.traces", 1, tags=["reason:t_too_big"])
-            self._metrics_dist("buffer.dropped.bytes", payload_size, tags=["reason:t_too_big"])
+            self._metrics_dist("buffer.dropped.traces", 1, tags=("reason:t_too_big",))
+            self._metrics_dist("buffer.dropped.bytes", payload_size, tags=("reason:t_too_big",))
         except BufferFull as e:
             payload_size = e.args[0]
             log.warning(
@@ -454,8 +401,10 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 payload_size,
                 self.status.value,
             )
-            self._metrics_dist("buffer.dropped.traces", 1, tags=["reason:full"])
-            self._metrics_dist("buffer.dropped.bytes", payload_size, tags=["reason:full"])
+            self._metrics_dist("buffer.dropped.traces", 1, tags=("reason:full",))
+            self._metrics_dist("buffer.dropped.bytes", payload_size, tags=("reason:full",))
+        except NoEncodableSpansError:
+            self._metrics_dist("buffer.dropped.traces", 1, tags=("reason:incompatible",))
         else:
             self._metrics_dist("buffer.accepted.traces", 1)
             self._metrics_dist("buffer.accepted.spans", len(spans))
@@ -481,20 +430,19 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             return
 
         try:
-            self._retry_upload(self._send_payload, encoded, n_traces, client)
-        except tenacity.RetryError as e:
-            self._metrics_dist("http.errors", tags=["type:err"])
+            self._send_payload_with_backoff(encoded, n_traces, client)
+        except Exception:
+            self._metrics_dist("http.errors", tags=("type:err",))
             self._metrics_dist("http.dropped.bytes", len(encoded))
             self._metrics_dist("http.dropped.traces", n_traces)
             if raise_exc:
-                e.reraise()
+                six.reraise(*sys.exc_info())
             else:
                 log.error(
-                    "failed to send, dropping %d traces to intake at %s after %d retries (%s)",
+                    "failed to send, dropping %d traces to intake at %s after %d retries",
                     n_traces,
-                    self._intake_endpoint,
-                    e.last_attempt.attempt_number,
-                    e.last_attempt.exception(),
+                    self._intake_endpoint(client),
+                    self.RETRY_ATTEMPTS,
                 )
         finally:
             if config.health_metrics_enabled and self.dogstatsd:
@@ -505,10 +453,9 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 # This really isn't ideal as now we're going to do a ton of socket calls.
                 self.dogstatsd.distribution("datadog.%s.http.sent.bytes" % namespace, len(encoded))
                 self.dogstatsd.distribution("datadog.%s.http.sent.traces" % namespace, n_traces)
-                for name, metric in self._metrics.items():
-                    self.dogstatsd.distribution(
-                        "datadog.%s.%s" % (namespace, name), metric["count"], tags=metric["tags"]
-                    )
+                for name, metric_tags in self._metrics.items():
+                    for tags, count in metric_tags.items():
+                        self.dogstatsd.distribution("datadog.%s.%s" % (namespace, name), count, tags=list(tags))
 
     def periodic(self):
         self.flush_queue(raise_exc=False)
@@ -570,7 +517,9 @@ class AgentWriter(HTTPWriter):
         #      as a safety precaution.
         #      https://docs.python.org/3/library/sys.html#sys.platform
         is_windows = sys.platform.startswith("win") or sys.platform.startswith("cygwin")
-        default_api_version = "v0.4" if is_windows else "v0.5"
+        default_api_version = (
+            "v0.4" if (is_windows or in_gcp_function() or in_azure_function_consumption_plan()) else "v0.5"
+        )
 
         self._api_version = (
             api_version
@@ -650,7 +599,7 @@ class AgentWriter(HTTPWriter):
 
     @property
     def _agent_endpoint(self):
-        return self._intake_endpoint
+        return self._intake_endpoint(client=None)
 
     def _downgrade(self, payload, response, client):
         if client.ENDPOINT == "v0.5/traces":
@@ -701,6 +650,7 @@ class AgentWriter(HTTPWriter):
                         )
                 except ValueError:
                     log.error("sample_rate is negative, cannot update the rate samplers")
+        return response
 
     def start(self):
         super(AgentWriter, self).start()
@@ -724,7 +674,8 @@ class AgentWriter(HTTPWriter):
         except service.ServiceStatusError:
             pass
 
-    def _get_finalized_headers(self, count):
-        headers = self._headers.copy()
+    def _get_finalized_headers(self, count, client):
+        # type: (int, WriterClientBase) -> dict
+        headers = super(AgentWriter, self)._get_finalized_headers(count, client)
         headers["X-Datadog-Trace-Count"] = str(count)
         return headers

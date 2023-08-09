@@ -6,16 +6,14 @@ from flask import request
 import pytest
 
 from ddtrace.appsec._constants import APPSEC
-from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
-from ddtrace.appsec.iast import oce
-from ddtrace.appsec.iast._util import _is_python_version_supported as python_supported_by_iast
 from ddtrace.appsec.trace_utils import block_request_if_user_blocked
 from ddtrace.contrib.sqlite3.patch import patch
 from ddtrace.ext import http
-from ddtrace.internal import _context
 from ddtrace.internal import constants
+from ddtrace.internal import core
 from ddtrace.internal.compat import urlencode
+from tests.appsec.test_processor import RULES_BAD_VERSION
 from tests.appsec.test_processor import RULES_GOOD_PATH
 from tests.appsec.test_processor import RULES_SRB
 from tests.appsec.test_processor import RULES_SRB_METHOD
@@ -29,8 +27,6 @@ from tests.utils import override_global_config
 
 _BLOCKED_USER = "123456"
 _ALLOWED_USER = "111111"
-IAST_ENV = {"DD_IAST_REQUEST_SAMPLING": "100"}
-IAST_ENV_SAMPLING_0 = {"DD_IAST_REQUEST_SAMPLING": "0"}
 
 
 def get_response_body(response):
@@ -48,9 +44,8 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         super(FlaskAppSecTestCase, self).setUp()
         patch()
 
-    def _aux_appsec_prepare_tracer(self, appsec_enabled=True, iast_enabled=False):
+    def _aux_appsec_prepare_tracer(self, appsec_enabled=True):
         self.tracer._appsec_enabled = appsec_enabled
-        self.tracer._iast_enabled = iast_enabled
         # Hack: need to pass an argument to configure so that the processors are recreated
         self.tracer.configure(api_version="v0.4")
 
@@ -65,8 +60,8 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             appsec_json = root_span.get_tag(APPSEC.JSON)
             assert "triggers" in json.loads(appsec_json if appsec_json else "{}")
-            assert _context.get_item("http.request.uri", span=root_span) == "http://localhost/.git?q=1"
-            query = dict(_context.get_item("http.request.query", span=root_span))
+            assert core.get_item("http.request.uri", span=root_span) == "http://localhost/.git?q=1"
+            query = dict(core.get_item("http.request.query", span=root_span))
             assert query == {"q": "1"} or query == {"q": ["1"]}
 
     def test_flask_path_params(self):
@@ -85,7 +80,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             flask_args = root_span.get_tag("flask.view_args.item")
             assert flask_args == "attack"
 
-            path_params = _context.get_item("http.request.path_params", span=root_span)
+            path_params = core.get_item("http.request.path_params", span=root_span)
             assert path_params == {"item": "attack"}
 
     def test_flask_path_params_attack(self):
@@ -103,7 +98,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             appsec_json = root_span.get_tag(APPSEC.JSON)
             assert "triggers" in json.loads(appsec_json if appsec_json else "{}")
 
-            query = dict(_context.get_item("http.request.path_params", span=root_span))
+            query = dict(core.get_item("http.request.path_params", span=root_span))
             assert query == {"item": "w00tw00t.at.isc.sans.dfind"}
 
     def test_flask_querystrings(self):
@@ -111,11 +106,11 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             self._aux_appsec_prepare_tracer()
             self.client.get("/?a=1&b&c=d")
             root_span = self.pop_spans()[0]
-            query = dict(_context.get_item("http.request.query", span=root_span))
+            query = dict(core.get_item("http.request.query", span=root_span))
             assert query == {"a": "1", "b": "", "c": "d"} or query == {"a": ["1"], "b": [""], "c": ["d"]}
             self.client.get("/")
             root_span = self.pop_spans()[0]
-            assert len(_context.get_item("http.request.query", span=root_span)) == 0
+            assert len(core.get_item("http.request.query", span=root_span)) == 0
 
     def test_flask_cookie_sql_injection(self):
         with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
@@ -127,8 +122,8 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             appsec_json = root_span.get_tag(APPSEC.JSON)
             assert "triggers" in json.loads(appsec_json if appsec_json else "{}")
-            assert _context.get_item("http.request.cookies", span=root_span)["attack"] == "1' or '1' = '1'"
-            query = dict(_context.get_item("http.request.cookies", span=root_span))
+            assert core.get_item("http.request.cookies", span=root_span)["attack"] == "1' or '1' = '1'"
+            query = dict(core.get_item("http.request.cookies", span=root_span))
             assert query == {"attack": "1' or '1' = '1'"} or query == {"attack": ["1' or '1' = '1'"]}
 
     def test_flask_cookie(self):
@@ -142,10 +137,8 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             root_span = self.pop_spans()[0]
 
             assert root_span.get_tag(APPSEC.JSON) is None
-            assert (
-                _context.get_item("http.request.cookies", span=root_span)["testingcookie_key"] == "testingcookie_value"
-            )
-            query = dict(_context.get_item("http.request.cookies", span=root_span))
+            assert core.get_item("http.request.cookies", span=root_span)["testingcookie_key"] == "testingcookie_value"
+            query = dict(core.get_item("http.request.cookies", span=root_span))
             assert query == {"testingcookie_key": "testingcookie_value"} or query == {
                 "testingcookie_key": ["testingcookie_value"]
             }
@@ -176,7 +169,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             self.client.post("/body", data=payload, content_type="application/x-www-form-urlencoded")
 
             root_span = self.pop_spans()[0]
-            query = dict(_context.get_item("http.request.body", span=root_span))
+            query = dict(core.get_item("http.request.body", span=root_span))
 
             assert root_span.get_tag(APPSEC.JSON) is None
             assert query == {"mytestingbody_key": "mytestingbody_value"}
@@ -188,7 +181,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             self.client.post("/", data=payload, content_type="application/x-www-form-urlencoded")
             root_span = self.pop_spans()[0]
 
-            assert not _context.get_item("http.request.body", span=root_span)
+            assert not core.get_item("http.request.body", span=root_span)
 
     def test_flask_request_body_urlencoded_attack(self):
         with override_global_config(dict(_appsec_enabled=True)):
@@ -196,7 +189,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             payload = urlencode({"attack": "1' or '1' = '1'"})
             self.client.post("/", data=payload, content_type="application/x-www-form-urlencoded")
             root_span = self.pop_spans()[0]
-            query = dict(_context.get_item("http.request.body", span=root_span))
+            query = dict(core.get_item("http.request.body", span=root_span))
             assert "triggers" in json.loads(root_span.get_tag(APPSEC.JSON))
             assert query == {"attack": "1' or '1' = '1'"}
 
@@ -213,7 +206,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             self.client.post("/body", json=payload, content_type="application/json")
 
             root_span = self.pop_spans()[0]
-            query = dict(_context.get_item("http.request.body", span=root_span))
+            query = dict(core.get_item("http.request.body", span=root_span))
 
             assert root_span.get_tag(APPSEC.JSON) is None
             assert query == {"mytestingbody_key": "mytestingbody_value"}
@@ -224,7 +217,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             payload = {"attack": "1' or '1' = '1'"}
             self.client.post("/", json=payload, content_type="application/json")
             root_span = self.pop_spans()[0]
-            query = dict(_context.get_item("http.request.body", span=root_span))
+            query = dict(core.get_item("http.request.body", span=root_span))
             assert "triggers" in json.loads(root_span.get_tag(APPSEC.JSON))
             assert query == {"attack": "1' or '1' = '1'"}
 
@@ -242,7 +235,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert response.data == b"<mytestingbody_key>mytestingbody_value</mytestingbody_key>"
 
             root_span = self.pop_spans()[0]
-            query = dict(_context.get_item("http.request.body", span=root_span))
+            query = dict(core.get_item("http.request.body", span=root_span))
 
             assert root_span.get_tag(APPSEC.JSON) is None
             assert query == {"mytestingbody_key": "mytestingbody_value"}
@@ -253,7 +246,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             payload = "<attack>1' or '1' = '1'</attack>"
             self.client.post("/", data=payload, content_type="application/xml")
             root_span = self.pop_spans()[0]
-            query = dict(_context.get_item("http.request.body", span=root_span))
+            query = dict(core.get_item("http.request.body", span=root_span))
 
             assert "triggers" in json.loads(root_span.get_tag(APPSEC.JSON))
             assert query == {"attack": "1' or '1' = '1'"}
@@ -262,25 +255,25 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         with self._caplog.at_level(logging.DEBUG), override_global_config(dict(_appsec_enabled=True)):
             self._aux_appsec_prepare_tracer()
             self.client.post("/", data="", content_type="application/json")
-            assert "Failed to parse werkzeug request body" in self._caplog.text
+            assert "Failed to parse request body" in self._caplog.text
 
     def test_flask_body_json_bad_logs_warning(self):
         with self._caplog.at_level(logging.DEBUG), override_global_config(dict(_appsec_enabled=True)):
             self._aux_appsec_prepare_tracer()
             self.client.post("/", data="not valid json", content_type="application/json")
-            assert "Failed to parse werkzeug request body" in self._caplog.text
+            assert "Failed to parse request body" in self._caplog.text
 
     def test_flask_body_xml_bad_logs_warning(self):
         with self._caplog.at_level(logging.DEBUG), override_global_config(dict(_appsec_enabled=True)):
             self._aux_appsec_prepare_tracer()
             self.client.post("/", data="bad xml", content_type="application/xml")
-            assert "Failed to parse werkzeug request body" in self._caplog.text
+            assert "Failed to parse request body" in self._caplog.text
 
     def test_flask_body_xml_empty_logs_warning(self):
         with self._caplog.at_level(logging.DEBUG), override_global_config(dict(_appsec_enabled=True)):
             self._aux_appsec_prepare_tracer()
             self.client.post("/", data="", content_type="application/xml")
-            assert "Failed to parse werkzeug request body" in self._caplog.text
+            assert "Failed to parse request body" in self._caplog.text
 
     def test_flask_ipblock_nomatch_200_json(self):
         @self.app.route("/")
@@ -292,14 +285,14 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             resp = self.client.get("/", headers={"X-Real-Ip": _ALLOWED_IP})
             root_span = self.pop_spans()[0]
             assert resp.status_code == 200
-            assert not _context.get_item("http.request.blocked", span=root_span)
+            assert not core.get_item("http.request.blocked", span=root_span)
 
     def test_flask_ipblock_match_403_json(self):
         with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
             self._aux_appsec_prepare_tracer()
             resp = self.client.get("/foobar", headers={"X-Real-Ip": _BLOCKED_IP})
             assert resp.status_code == 403
-            assert get_response_body(resp) == constants.APPSEC_BLOCKED_RESPONSE_JSON
+            assert get_response_body(resp) == constants.BLOCKED_RESPONSE_JSON
             root_span = self.pop_spans()[0]
             assert root_span.get_tag(http.STATUS_CODE) == "403"
             assert root_span.get_tag(http.URL) == "http://localhost/foobar"
@@ -321,7 +314,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             resp = self.client.get("/block", headers={"X-REAL-IP": _ALLOWED_IP})
             # Should not block by IP but since the route is calling block_request it will be blocked
             assert resp.status_code == 403
-            assert get_response_body(resp) == constants.APPSEC_BLOCKED_RESPONSE_JSON
+            assert get_response_body(resp) == constants.BLOCKED_RESPONSE_JSON
             root_span = self.pop_spans()[0]
             assert root_span.get_tag(http.STATUS_CODE) == "403"
             assert root_span.get_tag(http.URL) == "http://localhost/block"
@@ -341,7 +334,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             self._aux_appsec_prepare_tracer()
             resp = self.client.get("/checkuser/%s" % _BLOCKED_USER)
             assert resp.status_code == 403
-            assert get_response_body(resp) == constants.APPSEC_BLOCKED_RESPONSE_JSON
+            assert get_response_body(resp) == constants.BLOCKED_RESPONSE_JSON
             root_span = self.pop_spans()[0]
             assert root_span.get_tag(http.STATUS_CODE) == "403"
             assert root_span.get_tag(http.URL) == "http://localhost/checkuser/%s" % _BLOCKED_USER
@@ -351,154 +344,10 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             resp = self.client.get("/checkuser/%s" % _BLOCKED_USER, headers={"Accept": "text/html"})
             assert resp.status_code == 403
-            assert get_response_body(resp) == constants.APPSEC_BLOCKED_RESPONSE_HTML
+            assert get_response_body(resp) == constants.BLOCKED_RESPONSE_HTML
 
             resp = self.client.get("/checkuser/%s" % _ALLOWED_USER, headers={"Accept": "text/html"})
             assert resp.status_code == 200
-
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
-    def test_flask_full_sqli_iast_path_header(self):
-        @self.app.route("/sqli/<string:param_str>/", methods=["GET", "POST"])
-        def test_sqli(param_str):
-            import sqlite3
-
-            from ddtrace.appsec.iast._ast.aspects import add_aspect
-
-            con = sqlite3.connect(":memory:")
-            cur = con.cursor()
-            cur.execute(add_aspect("SELECT 1 FROM ", param_str))
-
-            return "OK", 200
-
-        with override_global_config(
-            dict(
-                _iast_enabled=True,
-            )
-        ), override_env(IAST_ENV):
-            oce.reconfigure()
-            from ddtrace.appsec.iast._taint_tracking import setup
-
-            setup(bytes.join, bytearray.join)
-
-            self._aux_appsec_prepare_tracer(iast_enabled=True)
-            resp = self.client.post("/sqli/sqlite_master/", data={"name": "test"})
-            assert resp.status_code == 200
-
-            root_span = self.pop_spans()[0]
-            assert root_span.get_metric(IAST.ENABLED) == 1.0
-
-            loaded = json.loads(root_span.get_tag(IAST.JSON))
-            assert loaded["sources"] == [
-                {"origin": "http.request.path.parameter", "name": "param_str", "value": "sqlite_master"}
-            ]
-            assert loaded["vulnerabilities"][0]["type"] == "SQL_INJECTION"
-            assert loaded["vulnerabilities"][0]["evidence"] == {
-                "valueParts": [{"value": "SELECT 1 FROM "}, {"value": "sqlite_master", "source": 0}]
-            }
-            assert loaded["vulnerabilities"][0]["location"]["path"] == "tests/contrib/flask/test_flask_appsec.py"
-            assert loaded["vulnerabilities"][0]["location"]["line"] == 369
-
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
-    def test_flask_simple_iast_path_header_and_querystring_tainted(self):
-        @self.app.route("/sqli/<string:param_str>/<int:param_int>/", methods=["GET", "POST"])
-        def test_sqli(param_str, param_int):
-            from flask import request
-
-            from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
-
-            assert is_pyobject_tainted(request.headers["User-Agent"])
-            assert is_pyobject_tainted(request.query_string)
-            assert is_pyobject_tainted(param_str)
-            assert not is_pyobject_tainted(param_int)
-            assert is_pyobject_tainted(request.path)
-            assert is_pyobject_tainted(request.form.get("name"))
-            return request.query_string, 200
-
-        with override_global_config(
-            dict(
-                _iast_enabled=True,
-            )
-        ), override_env(IAST_ENV):
-            oce.reconfigure()
-            from ddtrace.appsec.iast._taint_tracking import setup
-
-            setup(bytes.join, bytearray.join)
-
-            self._aux_appsec_prepare_tracer(iast_enabled=True)
-            resp = self.client.post("/sqli/hello/1000/?select%20from%20table", data={"name": "test"})
-            assert resp.status_code == 200
-            if hasattr(resp, "text"):
-                # not all flask versions have r.text
-                assert resp.text == "select%20from%20table"
-
-            root_span = self.pop_spans()[0]
-            assert root_span.get_metric(IAST.ENABLED) == 1.0
-
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
-    def test_flask_simple_iast_path_header_and_querystring_tainted_request_sampling_0(self):
-        @self.app.route("/sqli/<string:param_str>/", methods=["GET", "POST"])
-        def test_sqli(param_str):
-            from flask import request
-
-            from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
-
-            # Note: these are not tainted because of request sampling at 0%
-            assert not is_pyobject_tainted(request.headers["User-Agent"])
-            assert not is_pyobject_tainted(request.query_string)
-            assert not is_pyobject_tainted(param_str)
-            assert not is_pyobject_tainted(request.path)
-            assert not is_pyobject_tainted(request.form.get("name"))
-
-            return request.query_string, 200
-
-        with override_global_config(
-            dict(
-                _iast_enabled=True,
-            )
-        ), override_env(IAST_ENV_SAMPLING_0):
-            oce.reconfigure()
-            from ddtrace.appsec.iast._taint_tracking import setup
-
-            setup(bytes.join, bytearray.join)
-
-            self._aux_appsec_prepare_tracer(iast_enabled=True)
-
-            resp = self.client.post("/sqli/hello/?select%20from%20table", data={"name": "test"})
-            assert resp.status_code == 200
-
-            root_span = self.pop_spans()[0]
-            assert root_span.get_metric(IAST.ENABLED) == 0.0
-
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
-    def test_flask_simple_iast_path_header_and_querystring_not_tainted_if_iast_disabled(self):
-        @self.app.route("/sqli/<string:param_str>/", methods=["GET", "POST"])
-        def test_sqli(param_str):
-            from flask import request
-
-            from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
-
-            assert not is_pyobject_tainted(request.headers["User-Agent"])
-            assert not is_pyobject_tainted(request.query_string)
-            assert not is_pyobject_tainted(param_str)
-            assert not is_pyobject_tainted(request.path)
-            assert not is_pyobject_tainted(request.form.get("name"))
-            return request.query_string, 200
-
-        with override_global_config(
-            dict(
-                _iast_enabled=False,
-            )
-        ):
-            from ddtrace.appsec.iast._taint_tracking import setup
-
-            setup(bytes.join, bytearray.join)
-
-            self._aux_appsec_prepare_tracer(iast_enabled=True)
-            resp = self.client.post("/sqli/hello/?select%20from%20table", data={"name": "test"})
-            assert resp.status_code == 200
-            if hasattr(resp, "text"):
-                # not all flask versions have r.text
-                assert resp.text == "select%20from%20table"
 
     def test_request_suspicious_request_block_match_query_value(self):
         @self.app.route("/index.html")
@@ -510,7 +359,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             self._aux_appsec_prepare_tracer()
             resp = self.client.get("/index.html?toto=xtrace")
             assert resp.status_code == 403
-            assert get_response_body(resp) == constants.APPSEC_BLOCKED_RESPONSE_JSON
+            assert get_response_body(resp) == constants.BLOCKED_RESPONSE_JSON
             root_span = self.pop_spans()[0]
             loaded = json.loads(root_span.get_tag(APPSEC.JSON))
             assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-001"]
@@ -527,7 +376,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert get_response_body(resp) == "Ok: ytrace"
         # appsec disabled must not block
         with override_global_config(dict(_appsec_enabled=False)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
-            self._aux_appsec_prepare_tracer()
+            self._aux_appsec_prepare_tracer(appsec_enabled=False)
             resp = self.client.get("/index.html?toto=xtrace")
             assert resp.status_code == 200
             assert get_response_body(resp) == "Ok: xtrace"
@@ -540,10 +389,9 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         # value .git must be blocked
         with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
             self._aux_appsec_prepare_tracer()
-
             resp = self.client.get("/.git")
             assert resp.status_code == 403
-            assert get_response_body(resp) == constants.APPSEC_BLOCKED_RESPONSE_JSON
+            assert get_response_body(resp) == constants.BLOCKED_RESPONSE_JSON
             root_span = self.pop_spans()[0]
             loaded = json.loads(root_span.get_tag(APPSEC.JSON))
             assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-002"]
@@ -559,10 +407,19 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert resp.status_code == 404
         # appsec disabled must not block
         with override_global_config(dict(_appsec_enabled=False)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
-            self._aux_appsec_prepare_tracer()
+            self._aux_appsec_prepare_tracer(appsec_enabled=False)
             resp = self.client.get("/.git")
             assert resp.status_code == 200
             assert get_response_body(resp) == "git file"
+        # we must block with uri.raw not containing scheme or netloc
+        with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
+            self._aux_appsec_prepare_tracer()
+            resp = self.client.get("/we_should_block")
+            assert resp.status_code == 403
+            assert get_response_body(resp) == constants.BLOCKED_RESPONSE_JSON
+            root_span = self.pop_spans()[0]
+            loaded = json.loads(root_span.get_tag(APPSEC.JSON))
+            assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-010"]
 
     def test_request_suspicious_request_block_match_body(self):
         @self.app.route("/index.html", methods=["POST", "GET"])
@@ -597,7 +454,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
                 with override_global_config(dict(_appsec_enabled=appsec)), override_env(
                     dict(DD_APPSEC_RULES=RULES_SRB)
                 ):
-                    self._aux_appsec_prepare_tracer()
+                    self._aux_appsec_prepare_tracer(appsec_enabled=appsec)
                     resp = self.client.post(
                         "/index.html?args=test",
                         data=payload,
@@ -605,7 +462,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
                     )
                     if appsec and blocked:
                         assert resp.status_code == 403, (payload, content_type, appsec)
-                        assert get_response_body(resp) == constants.APPSEC_BLOCKED_RESPONSE_JSON
+                        assert get_response_body(resp) == constants.BLOCKED_RESPONSE_JSON
                         root_span = self.pop_spans()[0]
                         loaded = json.loads(root_span.get_tag(APPSEC.JSON))
                         assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-003"]
@@ -624,7 +481,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             resp = self.client.get("/", headers={"User-Agent": "01972498723465"})
             assert resp.status_code == 403
-            assert get_response_body(resp) == constants.APPSEC_BLOCKED_RESPONSE_JSON
+            assert get_response_body(resp) == constants.BLOCKED_RESPONSE_JSON
             root_span = self.pop_spans()[0]
             loaded = json.loads(root_span.get_tag(APPSEC.JSON))
             assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-004"]
@@ -636,7 +493,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert resp.status_code == 200
         # appsec disabled must not block
         with override_global_config(dict(_appsec_enabled=False)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
-            self._aux_appsec_prepare_tracer()
+            self._aux_appsec_prepare_tracer(appsec_enabled=False)
 
             resp = self.client.get("/", headers={"User-Agent": "01972498723465"})
             assert resp.status_code == 200
@@ -652,7 +509,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             resp = self.client.get("/do_not_exist.php")
             assert resp.status_code == 403
-            assert get_response_body(resp) == constants.APPSEC_BLOCKED_RESPONSE_JSON
+            assert get_response_body(resp) == constants.BLOCKED_RESPONSE_JSON
             root_span = self.pop_spans()[0]
             loaded = json.loads(root_span.get_tag(APPSEC.JSON))
             assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-005"]
@@ -666,7 +523,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         with override_global_config(dict(_appsec_enabled=False)), override_env(
             dict(DD_APPSEC_RULES=RULES_SRB_RESPONSE)
         ):
-            self._aux_appsec_prepare_tracer()
+            self._aux_appsec_prepare_tracer(appsec_enabled=False)
 
             resp = self.client.get("/do_not_exist.php")
             assert resp.status_code == 404
@@ -682,7 +539,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             resp = self.client.get("/")
             assert resp.status_code == 403
-            assert get_response_body(resp) == constants.APPSEC_BLOCKED_RESPONSE_JSON
+            assert get_response_body(resp) == constants.BLOCKED_RESPONSE_JSON
             root_span = self.pop_spans()[0]
             loaded = json.loads(root_span.get_tag(APPSEC.JSON))
             assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-006"]
@@ -693,7 +550,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert resp.status_code == 200
         # GET must pass if appsec disabled
         with override_global_config(dict(_appsec_enabled=False)), override_env(dict(DD_APPSEC_RULES=RULES_SRB_METHOD)):
-            self._aux_appsec_prepare_tracer()
+            self._aux_appsec_prepare_tracer(appsec_enabled=False)
 
             resp = self.client.get("/")
             assert resp.status_code == 200
@@ -709,7 +566,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             self.client.set_cookie("localhost", "keyname", "jdfoSDGFkivRG_234")
             resp = self.client.get("/")
             assert resp.status_code == 403
-            assert get_response_body(resp) == constants.APPSEC_BLOCKED_RESPONSE_JSON
+            assert get_response_body(resp) == constants.BLOCKED_RESPONSE_JSON
             root_span = self.pop_spans()[0]
             loaded = json.loads(root_span.get_tag(APPSEC.JSON))
             assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-008"]
@@ -723,7 +580,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         with override_global_config(dict(_appsec_enabled=False)), override_env(
             dict(DD_APPSEC_RULES=RULES_SRB_RESPONSE)
         ):
-            self._aux_appsec_prepare_tracer()
+            self._aux_appsec_prepare_tracer(appsec_enabled=False)
             self.client.set_cookie("localhost", "keyname", "jdfoSDGFkivRG_234")
             resp = self.client.get("/")
             assert resp.status_code == 200
@@ -738,7 +595,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             self._aux_appsec_prepare_tracer()
             resp = self.client.get("/params/AiKfOeRcvG45")
             assert resp.status_code == 403
-            assert get_response_body(resp) == constants.APPSEC_BLOCKED_RESPONSE_JSON
+            assert get_response_body(resp) == constants.BLOCKED_RESPONSE_JSON
             root_span = self.pop_spans()[0]
             loaded = json.loads(root_span.get_tag(APPSEC.JSON))
             flask_args = root_span.get_tag("flask.view_args.item")
@@ -752,7 +609,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert get_response_body(resp) == "Anything"
         # appsec disabled must not block
         with override_global_config(dict(_appsec_enabled=False)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
-            self._aux_appsec_prepare_tracer()
+            self._aux_appsec_prepare_tracer(appsec_enabled=False)
             resp = self.client.get("/params/AiKfOeRcvG45")
             assert resp.status_code == 200
             assert get_response_body(resp) == "AiKfOeRcvG45"
@@ -768,13 +625,26 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             self._aux_appsec_prepare_tracer()
             resp = self.client.get("/response-header/")
             assert resp.status_code == 403
-            assert get_response_body(resp) == constants.APPSEC_BLOCKED_RESPONSE_JSON
+            assert get_response_body(resp) == constants.BLOCKED_RESPONSE_JSON
             root_span = self.pop_spans()[0]
             loaded = json.loads(root_span.get_tag(APPSEC.JSON))
             assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-009"]
         # appsec disabled must not block
         with override_global_config(dict(_appsec_enabled=False)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
-            self._aux_appsec_prepare_tracer()
+            self._aux_appsec_prepare_tracer(appsec_enabled=False)
             resp = self.client.get("/response-header/")
             assert resp.status_code == 200
             assert get_response_body(resp) == "Foo bar baz"
+
+    def test_request_invalid_rule_file(self):
+        @self.app.route("/response-header/")
+        def specific_reponse():
+            resp = Response("Foo bar baz", 200)
+            resp.headers["Content-Disposition"] = 'attachment;"'
+            return resp
+
+        with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_BAD_VERSION)):
+            self._aux_appsec_prepare_tracer()
+            resp = self.client.get("/response-header/")
+            # it must not completely fail on an invalid rule file
+            assert resp.status_code == 200

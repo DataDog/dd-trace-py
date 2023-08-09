@@ -192,9 +192,9 @@ def test_configure_service_name_env():
 
 
 @pytest.mark.subprocess(env=dict(DD_SERVICE="global-service-name"))
-def test_configure_global_service_name_env():
+def test_schematized_configure_global_service_name_env_default():
     """
-    When only setting DD_SERVICE
+    v0/default: When only setting DD_SERVICE
         We use the value from DD_SERVICE for the service name
     """
 
@@ -211,7 +211,261 @@ def test_configure_global_service_name_env():
     url = get_url("/status/200")
 
     async def test():
-        token = "tests.contrib.httpx.test_httpx.test_configure_global_service_name_env"
+        token = "tests.contrib.httpx.test_httpx.test_schematized_configure_global_service_name_env_default"
+        with snapshot_context(wait_for_num_traces=1, token=token):
+            DEFAULT_HEADERS = {
+                "User-Agent": "python-httpx/x.xx.x",
+            }
+            httpx.get(url, headers=DEFAULT_HEADERS)
+
+        with snapshot_context(wait_for_num_traces=1, token=token):
+            async with httpx.AsyncClient() as client:
+                await client.get(url, headers=DEFAULT_HEADERS)
+
+    if sys.version_info >= (3, 7, 0):
+        asyncio.run(test())
+    else:
+        asyncio.get_event_loop().run_until_complete(test())
+
+
+@pytest.mark.subprocess(env=dict(DD_SERVICE="global-service-name", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+def test_schematized_configure_global_service_name_env_v0():
+    """
+    v0/default: When only setting DD_SERVICE
+        We use the value from DD_SERVICE for the service name
+    """
+
+    import asyncio
+    import sys
+
+    import httpx
+
+    from ddtrace.contrib.httpx import patch
+    from tests.contrib.httpx.test_httpx import get_url
+    from tests.utils import snapshot_context
+
+    patch()
+    url = get_url("/status/200")
+
+    async def test():
+        token = "tests.contrib.httpx.test_httpx.test_schematized_configure_global_service_name_env_v0"
+        with snapshot_context(wait_for_num_traces=1, token=token):
+            DEFAULT_HEADERS = {
+                "User-Agent": "python-httpx/x.xx.x",
+            }
+            httpx.get(url, headers=DEFAULT_HEADERS)
+
+        with snapshot_context(wait_for_num_traces=1, token=token):
+            async with httpx.AsyncClient() as client:
+                await client.get(url, headers=DEFAULT_HEADERS)
+
+    if sys.version_info >= (3, 7, 0):
+        asyncio.run(test())
+    else:
+        asyncio.get_event_loop().run_until_complete(test())
+
+
+@pytest.mark.subprocess(env=dict(DD_SERVICE="global-service-name", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+def test_schematized_configure_global_service_name_env_v1():
+    """
+    v1: When only setting DD_SERVICE
+        We use the value from DD_SERVICE for the service name
+    """
+
+    import asyncio
+    import sys
+
+    import httpx
+
+    from ddtrace.contrib.httpx import patch
+    from tests.contrib.httpx.test_httpx import get_url
+    from tests.utils import snapshot_context
+
+    patch()
+    url = get_url("/status/200")
+
+    async def test():
+        token = "tests.contrib.httpx.test_httpx.test_schematized_configure_global_service_name_env_v1"
+        with snapshot_context(wait_for_num_traces=1, token=token):
+            DEFAULT_HEADERS = {
+                "User-Agent": "python-httpx/x.xx.x",
+            }
+            httpx.get(url, headers=DEFAULT_HEADERS)
+
+        with snapshot_context(wait_for_num_traces=1, token=token):
+            async with httpx.AsyncClient() as client:
+                await client.get(url, headers=DEFAULT_HEADERS)
+
+    if sys.version_info >= (3, 7, 0):
+        asyncio.run(test())
+    else:
+        asyncio.get_event_loop().run_until_complete(test())
+
+
+@pytest.mark.subprocess()
+def test_schematized_unspecified_service_name_env_default():
+    """
+    v0/default: With no service name, we use httpx
+    """
+
+    import asyncio
+    import sys
+
+    import httpx
+
+    from ddtrace.contrib.httpx import patch
+    from tests.contrib.httpx.test_httpx import get_url
+    from tests.utils import snapshot_context
+
+    patch()
+    url = get_url("/status/200")
+
+    async def test():
+        token = "tests.contrib.httpx.test_httpx.test_schematized_unspecified_service_name_env_default"
+        with snapshot_context(wait_for_num_traces=1, token=token):
+            DEFAULT_HEADERS = {
+                "User-Agent": "python-httpx/x.xx.x",
+            }
+            httpx.get(url, headers=DEFAULT_HEADERS)
+
+        with snapshot_context(wait_for_num_traces=1, token=token):
+            async with httpx.AsyncClient() as client:
+                await client.get(url, headers=DEFAULT_HEADERS)
+
+    if sys.version_info >= (3, 7, 0):
+        asyncio.run(test())
+    else:
+        asyncio.get_event_loop().run_until_complete(test())
+
+
+@pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+def test_schematized_unspecified_service_name_env_v0():
+    """
+    v0/default: With no service name, we use httpx
+    """
+
+    import asyncio
+    import sys
+
+    import httpx
+
+    from ddtrace.contrib.httpx import patch
+    from tests.contrib.httpx.test_httpx import get_url
+    from tests.utils import snapshot_context
+
+    patch()
+    url = get_url("/status/200")
+
+    async def test():
+        token = "tests.contrib.httpx.test_httpx.test_schematized_unspecified_service_name_env_v0"
+        with snapshot_context(wait_for_num_traces=1, token=token):
+            DEFAULT_HEADERS = {
+                "User-Agent": "python-httpx/x.xx.x",
+            }
+            httpx.get(url, headers=DEFAULT_HEADERS)
+
+        with snapshot_context(wait_for_num_traces=1, token=token):
+            async with httpx.AsyncClient() as client:
+                await client.get(url, headers=DEFAULT_HEADERS)
+
+    if sys.version_info >= (3, 7, 0):
+        asyncio.run(test())
+    else:
+        asyncio.get_event_loop().run_until_complete(test())
+
+
+@pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+def test_schematized_unspecified_service_name_env_v1():
+    """
+    v1: With no service name, we expect ddtrace.internal.DEFAULT_SPAN_SERVICE_NAME
+    """
+
+    import asyncio
+    import sys
+
+    import httpx
+
+    from ddtrace.contrib.httpx import patch
+    from tests.contrib.httpx.test_httpx import get_url
+    from tests.utils import snapshot_context
+
+    patch()
+    url = get_url("/status/200")
+
+    async def test():
+        token = "tests.contrib.httpx.test_httpx.test_schematized_unspecified_service_name_env_v1"
+        with snapshot_context(wait_for_num_traces=1, token=token):
+            DEFAULT_HEADERS = {
+                "User-Agent": "python-httpx/x.xx.x",
+            }
+            httpx.get(url, headers=DEFAULT_HEADERS)
+
+        with snapshot_context(wait_for_num_traces=1, token=token):
+            async with httpx.AsyncClient() as client:
+                await client.get(url, headers=DEFAULT_HEADERS)
+
+    if sys.version_info >= (3, 7, 0):
+        asyncio.run(test())
+    else:
+        asyncio.get_event_loop().run_until_complete(test())
+
+
+@pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+def test_schematized_operation_name_env_v0():
+    """
+    v0: Operation name is httpx.request
+    """
+
+    import asyncio
+    import sys
+
+    import httpx
+
+    from ddtrace.contrib.httpx import patch
+    from tests.contrib.httpx.test_httpx import get_url
+    from tests.utils import snapshot_context
+
+    patch()
+    url = get_url("/status/200")
+
+    async def test():
+        token = "tests.contrib.httpx.test_httpx.test_schematized_operation_name_env_v0"
+        with snapshot_context(wait_for_num_traces=1, token=token):
+            DEFAULT_HEADERS = {
+                "User-Agent": "python-httpx/x.xx.x",
+            }
+            httpx.get(url, headers=DEFAULT_HEADERS)
+
+        with snapshot_context(wait_for_num_traces=1, token=token):
+            async with httpx.AsyncClient() as client:
+                await client.get(url, headers=DEFAULT_HEADERS)
+
+    if sys.version_info >= (3, 7, 0):
+        asyncio.run(test())
+    else:
+        asyncio.get_event_loop().run_until_complete(test())
+
+
+@pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+def test_schematized_operation_name_env_v1():
+    """
+    v0: Operation name is http.client.request
+    """
+
+    import asyncio
+    import sys
+
+    import httpx
+
+    from ddtrace.contrib.httpx import patch
+    from tests.contrib.httpx.test_httpx import get_url
+    from tests.utils import snapshot_context
+
+    patch()
+    url = get_url("/status/200")
+
+    async def test():
+        token = "tests.contrib.httpx.test_httpx.test_schematized_operation_name_env_v1"
         with snapshot_context(wait_for_num_traces=1, token=token):
             DEFAULT_HEADERS = {
                 "User-Agent": "python-httpx/x.xx.x",

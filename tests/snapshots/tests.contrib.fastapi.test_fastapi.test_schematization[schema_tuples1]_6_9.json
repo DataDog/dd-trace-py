@@ -1,0 +1,70 @@
+[[
+  {
+    "name": "fastapi.request",
+    "service": "fastapi",
+    "resource": "GET /sub-app/hello/{name}",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "component": "fastapi",
+      "http.method": "GET",
+      "http.route": "/sub-app/hello/{name}",
+      "http.status_code": "200",
+      "http.url": "http://testserver/sub-app/hello/name",
+      "http.useragent": "testclient",
+      "http.version": "1.1",
+      "language": "python",
+      "runtime-id": "ce2ebde9d3ff4c32926993772a84adfc",
+      "span.kind": "server"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 47308
+    },
+    "duration": 825805,
+    "start": 1691166900406322208
+  },
+     {
+       "name": "fastapi.request",
+       "service": "fastapi",
+       "resource": "GET /hello/{name}",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "web",
+       "error": 0,
+       "meta": {
+         "_dd.p.dm": "-0",
+         "component": "fastapi",
+         "http.method": "GET",
+         "http.status_code": "200",
+         "http.url": "http://testserver/sub-app/hello/name",
+         "http.useragent": "testclient",
+         "http.version": "1.1",
+         "span.kind": "server"
+       },
+       "duration": 646597,
+       "start": 1691166900406510776
+     },
+        {
+          "name": "fastapi.serialize_response",
+          "service": "fastapi",
+          "resource": "fastapi.serialize_response",
+          "trace_id": 0,
+          "span_id": 3,
+          "parent_id": 2,
+          "type": "",
+          "error": 0,
+          "meta": {
+            "_dd.p.dm": "-0"
+          },
+          "duration": 28156,
+          "start": 1691166900407005769
+        }]]

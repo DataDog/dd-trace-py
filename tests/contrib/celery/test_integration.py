@@ -1,5 +1,6 @@
 from collections import Counter
 import os
+import socket
 import subprocess
 from time import sleep
 
@@ -191,6 +192,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
             assert async_span.get_tag("celery.routing_key") == "celery"
             assert async_span.get_tag("component") == "celery"
             assert async_span.get_tag("span.kind") == "producer"
+            assert async_span.get_tag("out.host") == socket.gethostname()
         else:
             assert 1 == len(traces)
             assert 1 == len(traces[0])
@@ -234,6 +236,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
             assert async_span.get_tag("celery.routing_key") == "celery"
             assert async_span.get_tag("component") == "celery"
             assert async_span.get_tag("span.kind") == "producer"
+            assert async_span.get_tag("out.host") == socket.gethostname()
         else:
             assert 1 == len(traces)
             assert 1 == len(traces[0])
@@ -682,6 +685,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
             assert async_span.get_tag("celery.routing_key") == "celery"
             assert async_span.get_tag("component") == "celery"
             assert async_span.get_tag("span.kind") == "producer"
+            assert async_span.get_tag("out.host") == socket.gethostname()
 
         run_span = self.find_span(name="celery.run")
         assert run_span.name == "celery.run"
@@ -717,8 +721,9 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         sleep(run_time_seconds + 0.3)
         beat_service.stop()
 
+        actual_run_count = beat_service.service.get_scheduler().schedule["mytestschedule"].total_run_count
         traces = self.pop_traces()
-        assert len(traces) >= 30  # tick() runs a large, unpredictable amount of times
+        assert len(traces) >= actual_run_count
         assert traces[0][0].name == "celery.beat.tick"
 
         # the following code verifies a trace structure in which every root span is either "celery.beat.tick" or
@@ -742,15 +747,14 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
                 assert trace[2].name == "celery.apply"
         # the number of task runs that beat schedules in this test is unpredictable
         # luckily this test doesn't care about the specific number of runs as long as it's
-        # within a fairly wide range
-        max_extra_run_count = 3
-        assert target_task_run_count + max_extra_run_count >= deep_traces_count >= target_task_run_count
+        # sufficiently large to cover the number of invocations we expect
+        assert deep_traces_count >= target_task_run_count
         assert deep_traces_count == spans_counter["celery.beat.apply_entry"]
         assert deep_traces_count == spans_counter["celery.apply"]
         # beat_service.stop() can happen any time during the beat thread's execution.
         # When by chance it happens between apply_entry() and run(), the run() span will be
         # omitted, resulting in one fewer span for run() than the other functions
-        assert target_task_run_count >= spans_counter["celery.run"] >= target_task_run_count - 1
+        assert actual_run_count >= spans_counter["celery.run"] >= actual_run_count - 1
 
 
 class CeleryDistributedTracingIntegrationTask(CeleryBaseTestCase):

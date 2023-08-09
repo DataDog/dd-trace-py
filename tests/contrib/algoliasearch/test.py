@@ -73,10 +73,10 @@ class AlgoliasearchTest(TracerTestCase):
         assert len(spans) == 1
         span = spans[0]
         assert_is_measured(span)
-        assert span.service == "algoliasearch"
         assert span.name == "algoliasearch.search"
         assert span.span_type == "http"
         assert span.error == 0
+        assert span.service == "algoliasearch"
         assert span.get_tag("query.args.attributes_to_retrieve") == "firstname,lastname"
         # Verify that adding new arguments to the search API will simply be ignored and not cause
         # errors
@@ -164,7 +164,7 @@ class AlgoliasearchTest(TracerTestCase):
         assert not spans, spans
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_user_specified_service(self):
+    def test_user_specified_service_default(self):
         """
         When a service name is specified by the user
             The algoliasearch integration shouldn't use it as the service name
@@ -177,4 +177,60 @@ class AlgoliasearchTest(TracerTestCase):
         assert spans, spans
         assert len(spans) == 1
         assert spans[0].service == "algoliasearch"
+        unpatch()
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0", DD_SERVICE="mysvc"))
+    def test_user_specified_service_v0(self):
+        """
+        When a service name is specified by the user
+            The algoliasearch integration shouldn't use it as the service name
+        """
+        patch_all()
+        Pin.override(self.index, tracer=self.tracer)
+        self.perform_search("test search")
+        spans = self.get_spans()
+        self.reset()
+        assert spans, spans
+        assert len(spans) == 1
+        assert spans[0].service == "algoliasearch"
+        unpatch()
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1", DD_SERVICE="mysvc"))
+    def test_user_specified_service_v1(self):
+        """
+        In the v1 service name schema, services default to $DD_SERVICE,
+            so make sure that is used and not the v0 schema 'algoliasearch'
+        """
+        patch_all()
+        Pin.override(self.index, tracer=self.tracer)
+        self.perform_search("test search")
+        spans = self.get_spans()
+        self.reset()
+        assert spans, spans
+        assert len(spans) == 1
+        assert spans[0].service == "mysvc"
+        unpatch()
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_span_name_v0_schema(self):
+        patch_all()
+        Pin.override(self.index, tracer=self.tracer)
+        self.perform_search("test search")
+        spans = self.get_spans()
+        self.reset()
+        assert spans, spans
+        assert len(spans) == 1
+        assert spans[0].name == "algoliasearch.search"
+        unpatch()
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_span_name_v1_schema(self):
+        patch_all()
+        Pin.override(self.index, tracer=self.tracer)
+        self.perform_search("test search")
+        spans = self.get_spans()
+        self.reset()
+        assert spans, spans
+        assert len(spans) == 1
+        assert spans[0].name == "algoliasearch.search.request"
         unpatch()

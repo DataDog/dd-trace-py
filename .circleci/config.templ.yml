@@ -1,0 +1,1096 @@
+version: 2.1
+
+default_resource_class: &default_resource_class medium
+cimg_base_image: &cimg_base_image cimg/base:stable
+python310_image: &python310_image cimg/python:3.10
+ddtrace_dev_image: &ddtrace_dev_image ghcr.io/datadog/dd-trace-py/testrunner:latest
+redis_image: &redis_image redis:4.0-alpine
+memcached_image: &memcached_image memcached:1.5-alpine
+cassandra_image: &cassandra_image cassandra:3.11.7
+consul_image: &consul_image consul:1.6.0
+moto_image: &moto_image palazzem/moto:1.0.1
+mysql_image: &mysql_image mysql:5.7
+postgres_image: &postgres_image postgres:12-alpine
+mongo_image: &mongo_image mongo:3.6
+httpbin_image: &httpbin_image kennethreitz/httpbin@sha256:2c7abc4803080c22928265744410173b6fea3b898872c01c5fd0f0f9df4a59fb
+vertica_image: &vertica_image sumitchawla/vertica:latest
+rabbitmq_image: &rabbitmq_image rabbitmq:3.7-alpine
+testagent_image: &testagent_image ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:v1.11.0
+
+parameters:
+  coverage:
+    type: boolean
+    default: false
+  riot_run_latest:
+    type: boolean
+    default: false
+
+orbs:
+  win: circleci/windows@5.0
+
+machine_executor: &machine_executor
+  machine:
+    image: ubuntu-2004:current
+  environment:
+    - BOTO_CONFIG: /dev/null
+    # https://support.circleci.com/hc/en-us/articles/360045268074-Build-Fails-with-Too-long-with-no-output-exceeded-10m0s-context-deadline-exceeded-
+    - PYTHONUNBUFFERED: 1
+  steps:
+    - run: sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" --force-yes -y --no-install-recommends openssh-client git
+    - &pyenv-set-global
+      run:
+        name: Set global pyenv
+        command: |
+          pyenv global 3.9.4
+
+contrib_job_large: &contrib_job_large
+  executor: ddtrace_dev
+  parallelism: 10
+
+contrib_job: &contrib_job
+  executor: ddtrace_dev
+  parallelism: 2
+
+contrib_job_small: &contrib_job_small
+  executor: ddtrace_dev_small
+  parallelism: 1
+
+commands:
+  save_coverage:
+    description: "Save coverage.py results to workspace"
+    steps:
+      - run: |
+          set -ex
+          mkdir coverage
+          if [ -f .coverage ];
+          then
+            cp .coverage ./coverage/$CIRCLE_BUILD_NUM-$CIRCLE_JOB-$CIRCLE_NODE_INDEX.coverage
+          fi
+      - persist_to_workspace:
+          root: coverage
+          paths:
+            - "*.coverage"
+      - store_artifacts:
+          path: coverage
+
+  setup_riot:
+    description: "Install riot"
+    steps:
+      # Make sure we install and run riot on Python 3
+      - run: pip3 install riot==0.17.7
+
+  setup_hatch:
+    description: "Install hatch"
+    steps:
+      - run: pip3 install hatch==1.7.0 hatch-containers==0.7.0
+      
+  start_docker_services:
+    description: "Start Docker services"
+    parameters:
+      env:
+        type: string
+        default: ""
+      services:
+        type: string
+        default: ""
+    steps:
+      # Retry pulls in case they fail
+      - run: for i in {1..3}; do docker-compose pull -q << parameters.services >> && break || sleep 3; done
+      - run: << parameters.env >> docker-compose up -d << parameters.services >>
+      - run:
+          command: docker-compose logs -f
+          background: true
+
+  run_test:
+    description: "Run tests matching a pattern"
+    parameters:
+      pattern:
+        type: string
+        default: ""
+      wait:
+        type: string
+        default: ""
+      snapshot:
+        type: boolean
+        default: false
+      docker_services:
+        type: string
+        default: ""
+      store_coverage:
+        type: boolean
+        default: true
+      trace_agent_url:
+        type: string
+        default: "http://localhost:9126"
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - restore_cache:
+          keys:
+            - lastsuccess-{{ .Environment.CIRCLE_BRANCH }}-<<parameters.pattern>>-{{ .Environment.CIRCLE_NODE_INDEX }}
+      - when:
+          condition:
+              << parameters.snapshot >>
+          steps:
+            - setup_riot
+            - start_docker_services:
+                env: SNAPSHOT_CI=1
+                services: testagent << parameters.docker_services >>
+            - run:
+                environment:
+                  DD_TRACE_AGENT_URL: << parameters.trace_agent_url >> 
+                  RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
+                command: |
+                  ./scripts/run-test-suite '<<parameters.pattern>>' <<pipeline.parameters.coverage>> 1
+      - unless:
+          condition:
+              << parameters.snapshot >>
+          steps:
+            - setup_riot
+            - when:
+                condition:
+                  << parameters.wait >>
+                steps:
+                  - run:
+                      name: "Waiting for << parameters.wait >>"
+                      command: riot -v run -s 'wait' << parameters.wait >>
+            - when:
+                condition:
+                  << parameters.trace_agent_url >> != ""
+                steps:
+                  - run:
+                      command: |
+                        echo 'export DD_TRACE_AGENT_URL=<< parameters.trace_agent_url >>' >> "$BASH_ENV"
+                        source "$BASH_ENV"
+            - run:
+                environment:
+                  RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
+                command: |
+                  ./scripts/run-test-suite '<<parameters.pattern>>' <<pipeline.parameters.coverage>>
+      - when:
+          condition:
+            and:
+              - << pipeline.parameters.coverage >>
+              - << parameters.store_coverage >>
+          steps:
+            - save_coverage
+      - store_test_results:
+          path: test-results
+      - store_artifacts:
+          path: test-results
+      - save_cache:
+          key: lastsuccess-{{ .Environment.CIRCLE_BRANCH }}-<<parameters.pattern>>-{{ .Environment.CIRCLE_NODE_INDEX }}-{{ epoch }}
+          paths:
+            - ./latest-success-commit
+      - run:
+          name: Get APM Test Agent Trace Check Results
+          when: always
+          command: bash ./scripts/get-test-agent-results.sh
+
+executors:
+  cimg_base:
+    docker:
+      - image: *cimg_base_image
+    resource_class: medium
+  python310:
+    docker:
+      - image: *python310_image
+    resource_class: large
+  ddtrace_dev:
+    docker:
+      - image: *ddtrace_dev_image
+    resource_class: *default_resource_class
+  ddtrace_dev_small:
+    docker:
+      - image: *ddtrace_dev_image
+    resource_class: small
+
+# Common configuration blocks as YAML anchors
+# See: https://circleci.com/blog/circleci-hacks-reuse-yaml-in-your-circleci-config-with-yaml/
+httpbin_local: &httpbin_local
+  image: *httpbin_image
+  name: httpbin.org
+
+mysql_server: &mysql_server
+  image: *mysql_image
+  environment:
+    - MYSQL_ROOT_PASSWORD=admin
+    - MYSQL_PASSWORD=test
+    - MYSQL_USER=test
+    - MYSQL_DATABASE=test
+
+postgres_server: &postgres_server
+  image: *postgres_image
+  environment:
+    - POSTGRES_PASSWORD=postgres
+    - POSTGRES_USER=postgres
+    - POSTGRES_DB=postgres
+
+testagent: &testagent
+  image: *testagent_image
+  environment:
+    - LOG_LEVEL=DEBUG
+    - SNAPSHOT_DIR=/snapshots
+    - PORT=9126
+    - SNAPSHOT_CI=1
+    - DD_POOL_TRACE_CHECK_FAILURES=true
+    - DD_DISABLE_ERROR_RESPONSES=true
+    - ENABLED_CHECKS=trace_content_length,trace_stall,meta_tracer_version_header,trace_count_header,trace_peer_service,trace_dd_service
+
+jobs:
+  pre_check:
+    executor: python310
+    steps:
+      - checkout
+      - setup_riot
+      - setup_hatch
+      - run:
+          name: "Spelling"
+          command: hatch run lint:spelling
+  ccheck:
+    executor: cimg_base
+    steps:
+      - checkout
+      - run: sudo apt-get update
+      - run: sudo apt-get install --yes clang-format cppcheck
+      - run: scripts/cformat.sh
+      - run: scripts/cppcheck.sh
+
+  coverage_report:
+    executor: python310
+    steps:
+      - when:
+          condition:
+            << pipeline.parameters.coverage >>
+          steps:
+            - checkout
+            - attach_workspace:
+                at: .
+            - run: pip install coverage codecov diff_cover
+            - run: ls -hal *.coverage
+            # Combine all job coverage reports into one
+            - run: coverage combine *.coverage
+            # Upload coverage report to Codecov
+            # DEV: Do not use the bash uploader, it cannot be trusted
+            - run: codecov
+            # Generate and save xml report
+            # DEV: "--ignore-errors" to skip over files that are missing
+            - run: coverage xml --ignore-errors
+            - store_artifacts:
+                path: coverage.xml
+            # Generate and save JSON report
+            # DEV: "--ignore-errors" to skip over files that are missing
+            - run: coverage json --ignore-errors
+            - store_artifacts:
+                path: coverage.json
+            # Print ddtrace/ report to stdout
+            # DEV: "--ignore-errors" to skip over files that are missing
+            - run: coverage report --ignore-errors --omit=tests/
+            # Print tests/ report to stdout
+            # DEV: "--ignore-errors" to skip over files that are missing
+            - run: coverage report --ignore-errors --omit=ddtrace/
+            # Print diff-cover report to stdout (compares against origin/1.x)
+            - run: diff-cover --compare-branch $(git rev-parse --abbrev-ref origin/HEAD) coverage.xml
+      - unless:
+          condition:
+            << pipeline.parameters.coverage >>
+          steps:
+            - run: echo "No coverage data collected. Set run workflow manually with pipeline parameter 'coverage=true'."
+
+
+  build_base_venvs:
+    resource_class: large
+    docker:
+      - image: *ddtrace_dev_image
+    parallelism: 8
+    steps:
+      - checkout
+      - setup_riot
+      - run:
+          name: "Generate base virtual environments."
+          # DEV: riot list -i tracer lists all supported Python versions
+          command: "riot list -i tracer | circleci tests split | xargs -I PY riot -v generate --python=PY"
+      - persist_to_workspace:
+          root: .
+          paths:
+            - "."
+
+  appsec:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: 'appsec'
+          snapshot: true
+    
+  aws_lambda:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: 'aws_lambda'
+          snapshot: true
+
+  internal:
+    <<: *contrib_job_small
+    steps:
+      - run_test:
+          pattern: "internal"
+
+  datastreams:
+    <<: *contrib_job_small
+    steps:
+      - run_test:
+          pattern: "datastreams"
+
+  tracer:
+    <<: *contrib_job_large
+    steps:
+      - run_test:
+          pattern: "tracer"
+          trace_agent_url: ""
+
+  ci_visibility:
+    <<: *contrib_job_small
+    steps:
+      - run_test:
+          pattern: "ci_visibility"
+          trace_agent_url: ""
+
+  subprocess:
+    <<: *contrib_job_small
+    steps:
+      - run_test:
+          pattern: "subprocess"
+
+  sourcecode:
+    <<: *contrib_job_small
+    steps:
+      - run_test:
+          pattern: "sourcecode"
+
+  telemetry:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: "telemetry"
+          snapshot: true
+          store_coverage: false
+
+  debugger:
+    <<: *contrib_job
+    steps:
+      - run_test:
+          pattern: "debugger"
+
+  openai:
+    <<: *machine_executor
+    parallelism: 2
+    steps:
+      - run_test:
+          pattern: 'openai'
+          snapshot: true
+
+  opentracer:
+    <<: *contrib_job_large
+    steps:
+      - run_test:
+          pattern: 'opentracer'
+
+  opentelemetry:
+    parallelism: 4
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: 'opentelemetry'
+          snapshot: true
+
+  profile:
+    <<: *contrib_job
+    resource_class: large
+    # There are 32 jobs, so 2 per-node
+    parallelism: 16
+    steps:
+      - run_test:
+          store_coverage: false
+          # We don't want to run the profile-diff venvs
+          pattern: 'profile$'
+          trace_agent_url: ""
+
+  integration_agent:
+    <<: *machine_executor
+    parallelism: 2
+    steps:
+      - attach_workspace:
+          at: .
+      - checkout
+      - setup_riot
+      - start_docker_services:
+          services: ddagent
+      - run:
+          environment:
+            RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
+          command: |
+            ./scripts/run-test-suite 'integration-latest' <<pipeline.parameters.coverage>> 1
+
+  integration_testagent:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          snapshot: true
+          store_coverage: false
+          pattern: 'integration-snapshot'
+          trace_agent_url: ""
+
+  vendor:
+    <<: *contrib_job_small
+    docker:
+      - image: *ddtrace_dev_image
+    steps:
+      - run_test:
+          pattern: 'vendor'
+
+  boto:
+    <<: *machine_executor
+    parallelism: 6
+    steps:
+      - run_test:
+          pattern: '^boto'  # run boto and botocore
+          snapshot: true
+          docker_services: "localstack"
+
+  ddtracerun:
+    <<: *contrib_job
+    parallelism: 8
+    docker:
+      - image: *ddtrace_dev_image
+      - image: *redis_image
+    steps:
+      - run_test:
+          store_coverage: false
+          pattern: 'ddtracerun'
+          trace_agent_url: ""
+
+  test_logging:
+    <<: *contrib_job
+    steps:
+      - run_test:
+          pattern: 'test_logging'
+
+  stdlib:
+    <<: *contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+      - *testagent
+    steps:
+      - run_test:
+          pattern: 'asyncio$|sqlite3$|futures$|dbapi$|dbapi_async$'
+
+  asyncpg:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: 'asyncpg'
+          snapshot: true
+          docker_services: 'postgres'
+
+  pylons:
+    <<: *contrib_job_small
+    docker:
+      - image: *ddtrace_dev_image
+      - *testagent
+    steps:
+      - run_test:
+          pattern: 'pylons'
+          trace_agent_url: "http://localhost:8126"
+
+  aiohttp:
+    <<: *machine_executor
+    parallelism: 3
+    steps:
+      - run_test:
+          pattern: 'aiohttp'  # includes aiohttp_jinja2
+          snapshot: true
+          docker_services: 'httpbin_local'
+
+  asgi:
+    <<: *contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+      - *testagent
+    steps:
+      - run_test:
+          pattern: 'asgi$'
+
+  tornado:
+    <<: *contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+      - *testagent
+    steps:
+      - run_test:
+          pattern: 'tornado'
+
+  bottle:
+    <<: *contrib_job_small
+    docker:
+      - image: *ddtrace_dev_image
+      - *testagent
+    steps:
+      - run_test:
+          pattern: 'bottle'
+
+  cassandra:
+    <<: *contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+        environment:
+          CASS_DRIVER_NO_EXTENSIONS: 1
+      - image: *cassandra_image
+        environment:
+          - MAX_HEAP_SIZE=512M
+          - HEAP_NEWSIZE=256M
+      - *testagent
+    steps:
+      - run_test:
+          wait: cassandra
+          pattern: 'cassandra'
+
+  celery:
+    <<: *contrib_job_large
+    docker:
+      - image: *ddtrace_dev_image
+      - image: redis:4.0-alpine
+      - image: *rabbitmq_image
+      - image: *testagent_image
+        environment:
+        - LOG_LEVEL=DEBUG
+        - SNAPSHOT_DIR=/snapshots
+        - PORT=9126
+        - SNAPSHOT_CI=1
+        - DD_POOL_TRACE_CHECK_FAILURES=true
+        - DD_DISABLE_ERROR_RESPONSES=true
+        - ENABLED_CHECKS=trace_stall,meta_tracer_version_header,trace_content_length,trace_peer_service,trace_dd_service # disable flaky content length check
+    steps:
+      - run_test:
+          pattern: 'celery'
+
+  cherrypy:
+    <<: *machine_executor
+    parallelism: 2
+    steps:
+      - run_test:
+          pattern: 'cherrypy'
+          snapshot: true
+
+  consul:
+    <<: *contrib_job_small
+    docker:
+      - image: *ddtrace_dev_image
+      - image: *consul_image
+      - *testagent
+    steps:
+      - run_test:
+          pattern: 'consul'
+
+  dogpile_cache:
+    <<: *contrib_job
+    steps:
+      - run_test:
+          pattern: 'dogpile_cache'
+
+  elasticsearch:
+    <<: *machine_executor
+    parallelism: 4
+    steps:
+      - run_test:
+          pattern: 'elasticsearch'
+          snapshot: true
+          docker_services: 'elasticsearch opensearch'
+
+  falcon:
+    <<: *contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+      - *testagent
+    steps:
+      - run_test:
+          pattern: 'falcon'
+
+  django:
+    <<: *machine_executor
+    parallelism: 4
+    steps:
+      - run_test:
+          pattern: 'django($|_celery)'
+          snapshot: true
+          docker_services: "memcached redis postgres"
+
+  django_hosts:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: 'django_hosts$'
+          snapshot: true
+
+  djangorestframework:
+    <<: *machine_executor
+    parallelism: 2
+    steps:
+      - run_test:
+          pattern: 'djangorestframework'
+          snapshot: true
+          docker_services: "memcached redis"
+
+  fastapi:
+    <<: *machine_executor
+    parallelism: 2
+    steps:
+      - run_test:
+          pattern: "fastapi"
+          snapshot: true
+
+  flask:
+    <<: *machine_executor
+    parallelism: 4
+    steps:
+      - run_test:
+          # Run both flask and flask_cache test suites
+          # TODO: Re-enable coverage for Flask tests
+          store_coverage: false
+          snapshot: true
+          pattern: "flask"
+          docker_services: "memcached redis"
+
+  gevent:
+    <<: *contrib_job_small
+    docker:
+      - image: *ddtrace_dev_image
+      - *testagent
+    steps:
+      - run_test:
+          pattern: 'gevent'
+
+  graphene:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: "graphene"
+          snapshot: true
+
+  graphql:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: "graphql"
+          snapshot: true
+
+  grpc:
+    <<: *machine_executor
+    parallelism: 2
+    steps:
+      - run_test:
+          pattern: "grpc"
+          snapshot: true
+
+  gunicorn:
+    <<: *machine_executor
+    parallelism: 8
+    steps:
+      - run_test:
+          pattern: "gunicorn"
+          snapshot: true
+          docker_services: 'ddagent'
+
+  httplib:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: "httplib"
+          snapshot: true
+          docker_services: 'httpbin_local'
+
+  httpx:
+    <<: *machine_executor
+    parallelism: 2
+    steps:
+      - run_test:
+          pattern: 'httpx'
+          snapshot: true
+          docker_services: 'httpbin_local'
+
+  mariadb:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: 'mariadb$'
+          snapshot: true
+          docker_services: "mariadb"
+
+  molten:
+    <<: *contrib_job_small
+    docker:
+      - image: *ddtrace_dev_image
+      - *testagent
+    steps:
+      - run_test:
+          pattern: 'molten'
+
+  mysqlconnector:
+    <<: *contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+      - *mysql_server
+      - *testagent
+    steps:
+      - run_test:
+          wait: mysql
+          pattern: 'mysql$'
+
+  mysqlpython:
+    <<: *contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+      - *mysql_server
+      - *testagent
+    steps:
+      - run_test:
+          wait: mysql
+          pattern: 'mysqldb$'
+
+  pymysql:
+    <<: *contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+      - *mysql_server
+      - *testagent
+    steps:
+      - run_test:
+          wait: mysql
+          pattern: 'pymysql$'
+
+  pylibmc:
+    <<: *contrib_job_small
+    docker:
+      - image: *ddtrace_dev_image
+      - image: *memcached_image
+      - *testagent
+    steps:
+      - run_test:
+          pattern: 'pylibmc'
+
+  pytest:
+    <<: *contrib_job
+    steps:
+      - run_test:
+          pattern: 'pytest'
+
+  asynctest:
+    executor: ddtrace_dev
+    steps:
+      - run_test:
+          pattern: 'asynctest$'
+
+  pymemcache:
+    <<: *contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+      - image: *memcached_image
+      - *testagent
+    steps:
+      - run_test:
+          pattern: "pymemcache"
+
+  mongoengine:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: 'mongoengine'
+          snapshot: true
+          docker_services: 'mongo'
+
+  pymongo:
+    <<: *contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+      - image: *mongo_image
+      - *testagent
+    steps:
+      - run_test:
+          pattern: "pymongo"
+
+  pynamodb:
+    <<: *contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+      - *testagent
+    steps:
+      - run_test:
+          pattern: "pynamodb"
+
+  pyodbc:
+    <<: *contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+      - *testagent
+    steps:
+      - run_test:
+          pattern: 'pyodbc'
+
+  pyramid:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: 'pyramid'
+          snapshot: true
+
+  requests:
+    <<: *contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+      - *testagent
+      - *httpbin_local
+    steps:
+      - run_test:
+          pattern: "requests"
+
+  sanic:
+    <<: *machine_executor
+    parallelism: 4
+    steps:
+      - run_test:
+          pattern: "sanic"
+          snapshot: true
+
+  snowflake:
+    <<: *machine_executor
+    parallelism: 4
+    steps:
+      - run_test:
+          pattern: "snowflake"
+          snapshot: true
+
+  starlette:
+    <<: *machine_executor
+    parallelism: 2
+    steps:
+      - run_test:
+          pattern: "starlette"
+          snapshot: true
+
+  sqlalchemy:
+    <<: *contrib_job_small
+    docker:
+      - image: *ddtrace_dev_image
+      - *testagent
+      - *postgres_server
+      - *mysql_server
+    steps:
+      - run_test:
+          wait: postgres mysql
+          pattern: "sqlalchemy"
+
+  psycopg:
+    <<: *machine_executor
+    parallelism: 4
+    steps:
+      - run_test:
+          # We want psycopg and psycopg2 collected
+          pattern: "psycopg"
+          snapshot: true
+          docker_services: "postgres"
+
+  aiobotocore:
+    <<: *contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+      - image: *moto_image
+      - *testagent
+    steps:
+       - run_test:
+          pattern: 'aiobotocore'
+
+  aiomysql:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          docker_services: 'mysql'
+          wait: mysql
+          pattern: 'aiomysql'
+          snapshot: true
+
+  aiopg:
+    <<: *contrib_job_small
+    docker:
+      - image: *ddtrace_dev_image
+      - *postgres_server
+      - *testagent
+    steps:
+      - run_test:
+          wait: postgres
+          pattern: 'aiopg'
+
+  aioredis:
+    <<: *machine_executor
+    parallelism: 2
+    steps:
+      - run_test:
+          docker_services: 'redis'
+          pattern: 'aioredis$'
+          snapshot: true
+
+  aredis:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          docker_services: 'redis'
+          pattern: 'aredis$'
+          snapshot: true
+
+  yaaredis:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          docker_services: 'redis'
+          pattern: 'yaaredis$'
+          snapshot: true
+
+  redis:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          docker_services: 'redis rediscluster'
+          pattern: 'redis$'
+          snapshot: true
+
+  rediscluster:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: 'rediscluster'
+          docker_services: 'rediscluster'
+          snapshot: true
+
+  rq:
+    <<: *machine_executor
+    parallelism: 2
+    steps:
+      - run_test:
+          pattern: "rq"
+          snapshot: true
+          docker_services: "redis"
+
+  urllib3:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: 'urllib3'
+          snapshot: true
+          docker_services: "httpbin_local"
+
+  vertica:
+    <<: *contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+      - *testagent
+      - image: *vertica_image
+        environment:
+          - VP_TEST_USER=dbadmin
+          - VP_TEST_PASSWORD=abc123
+          - VP_TEST_DATABASE=docker
+    steps:
+      - run_test:
+          wait: vertica
+          pattern: 'vertica'
+
+  wsgi:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: "wsgi"
+          snapshot: true
+
+  kafka:
+    <<: *machine_executor
+    parallelism: 2
+    steps:
+      - run_test:
+          pattern: 'kafka'
+          snapshot: true
+          docker_services: 'kafka'
+
+  kombu:
+    <<: *contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+      - image: *rabbitmq_image
+      - *testagent
+    steps:
+      - run_test:
+          wait: rabbitmq
+          pattern: 'kombu'
+
+  jinja2:
+    <<: *contrib_job_small
+    docker:
+      - image: *ddtrace_dev_image
+      - *testagent
+    steps:
+      - run_test:
+          pattern: 'jinja2'
+
+  mako:
+    <<: *contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+      - *testagent
+    steps:
+      - run_test:
+          pattern: 'mako'
+
+  algoliasearch:
+    <<: *contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+      - *testagent
+    steps:
+      - run_test:
+          pattern: 'algoliasearch'
+
+  langchain:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: "langchain"
+          snapshot: true
+
+  build_docs:
+    # build documentation and store as an artifact
+    executor: ddtrace_dev
+    steps:
+      - setup_hatch
+      - checkout
+      - run:
+          command: |
+             hatch run docs:build
+             mkdir -p /tmp/docs
+             cp -r docs/_build/html/* /tmp/docs
+      - store_artifacts:
+          path: /tmp/docs
+
+requires_pre_check: &requires_pre_check
+  requires:
+    - pre_check
+requires_base_venvs: &requires_base_venvs
+  requires:
+    - pre_check
+    - build_base_venvs
+requires_tests: &requires_tests
+  requires:
+
+
+workflows:
+  version: 2
+  test: &workflow_test
+    jobs:
+      # Pre-checking before running all jobs
+      - pre_check

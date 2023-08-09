@@ -18,6 +18,33 @@ then
    exit 1
 fi
 
+usage () {
+    echo "Usage:"
+    echo "  $0 PR_NUMBER BRANCH_NAME [, BRANCH_NAME, ...]"
+    echo ""
+    echo "  PR_NUMBER     - the GitHub PR number to backport. example: 4376"
+    echo "  BRANCH_NAME   - the name of the branch to backport PR_NUMBER to. example: 1.8"
+    echo ""
+    echo "Examples:"
+    echo ""
+
+    echo "  Backport PR #3489 to branch 0.61"
+    echo "    $0 3489 0.61"
+    echo ""
+    echo "  Backport PR #4376 to branches 1.8, 1.7, and 1.5"
+    echo "    $0 4376 1.8 1.7 1.5"
+}
+
+if [ $# -lt 2 ];
+then
+    echo "Error:"
+    echo "  Too few arguments, must supply at least PR_NUMBER and 1 BRANCH_NAME"
+    echo ""
+    usage
+    exit 1
+fi
+
+
 PR_NUMBER="${1}"
 shift 1
 TO_BRANCHES="$@"
@@ -35,22 +62,6 @@ else
     REMOTE="origin"
 fi
 
-usage () {
-    echo "Usage:"
-    echo "  $0 PR_NUMBER BRANCH_NAME [, BRANCH_NAME, ...]"
-    echo ""
-    echo "  PR_NUMBER     - the GitHub PR number to backport. example: 4376"
-    echo "  BRANCH_NAME   - the name of the branch to backport PR_NUMBER to. example: 1.8"
-    echo ""
-    echo "Examples:"
-    echo ""
-
-    echo "  Backport PR #3489 to branch 0.61"
-    echo "    $0 3489 0.61"
-    echo ""
-    echo "  Backport PR #4376 to branches 1.8, 1.7, and 1.5"
-    echo "    $0 4376 1.8 1.7 1.5"
-}
 
 if [[ -z "${PR_NUMBER}" ]];
 then
@@ -109,13 +120,13 @@ do
   echo "Cherry-picking ${merge_commit_sha} (git commit signing required here)"
   if ! git cherry-pick -x "${merge_commit_sha}";
   then
-      git cherry-pick --abort
-      echo "Cherry-pick failed, exiting"
+      echo "Cherry-pick failed. In a separate shell, please:"
+      echo "  1. Manually resolve merge conflicts"
+      echo "  2. git add resolved files"
+      echo "  3. Run git cherry-pick --continue to complete the merge"
       echo ""
-      echo "Backporting must be done manually to resolve merge-conflict"
+      read -p "Press any key to continue once conflict is manually resolved..." -n1 -s
       echo ""
-      echo "  git cherry-pick -x ${merge_commit_sha}"
-      exit 1
   fi
   echo "Pushing branch ${branch_name}"
   git push --set-upstream ${REMOTE} "${branch_name}"

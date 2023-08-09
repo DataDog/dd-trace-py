@@ -4,15 +4,17 @@ import pytest
 
 from ddtrace import constants
 from ddtrace.appsec._constants import APPSEC
+from ddtrace.appsec._constants import LOGIN_EVENTS_MODE
 from ddtrace.appsec.trace_utils import block_request_if_user_blocked
 from ddtrace.appsec.trace_utils import should_block_user
 from ddtrace.appsec.trace_utils import track_custom_event
 from ddtrace.appsec.trace_utils import track_user_login_failure_event
 from ddtrace.appsec.trace_utils import track_user_login_success_event
+from ddtrace.appsec.trace_utils import track_user_signup_event
 from ddtrace.contrib.trace_utils import set_user
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import user
-from ddtrace.internal import _context
+from ddtrace.internal import core
 from tests.appsec.test_processor import RULES_GOOD_PATH
 from tests.appsec.test_processor import tracer_appsec  # noqa: F401
 from tests.utils import TracerTestCase
@@ -46,6 +48,8 @@ class EventsSDKTestCase(TracerTestCase):
             failure_prefix = "%s.failure" % APPSEC.USER_LOGIN_EVENT_PREFIX
 
             assert root_span.get_tag("%s.track" % success_prefix) == "true"
+            assert root_span.get_tag("%s.sdk" % success_prefix) == "true"
+            assert not root_span.get_tag("%s.auto.mode" % success_prefix)
             assert not root_span.get_tag("%s.track" % failure_prefix)
             assert root_span.get_tag(constants.MANUAL_KEEP_KEY) == "true"
             # set_user tags
@@ -56,12 +60,54 @@ class EventsSDKTestCase(TracerTestCase):
             assert root_span.get_tag(user.ROLE) == "boss"
             assert root_span.get_tag(user.SESSION_ID) == "test_session_id"
 
+    def test_track_user_login_event_success_auto_mode_safe(self):
+        with self.trace("test_success1"):
+            track_user_login_success_event(
+                self.tracer,
+                "1234",
+                metadata=None,
+                name="John",
+                email="test@test.com",
+                scope="test_scope",
+                role="boss",
+                session_id="test_session_id",
+                login_events_mode=LOGIN_EVENTS_MODE.SAFE,
+            )
+
+            root_span = self.tracer.current_root_span()
+            success_prefix = "%s.success" % APPSEC.USER_LOGIN_EVENT_PREFIX
+            assert root_span.get_tag("%s.track" % success_prefix) == "true"
+            assert not root_span.get_tag("%s.sdk" % success_prefix)
+            assert root_span.get_tag("%s.auto.mode" % success_prefix) == str(LOGIN_EVENTS_MODE.SAFE)
+
+    def test_track_user_login_event_success_auto_mode_extended(self):
+        with self.trace("test_success1"):
+            track_user_login_success_event(
+                self.tracer,
+                "1234",
+                metadata=None,
+                name="John",
+                email="test@test.com",
+                scope="test_scope",
+                role="boss",
+                session_id="test_session_id",
+                login_events_mode=LOGIN_EVENTS_MODE.EXTENDED,
+            )
+
+            root_span = self.tracer.current_root_span()
+            success_prefix = "%s.success" % APPSEC.USER_LOGIN_EVENT_PREFIX
+            assert root_span.get_tag("%s.track" % success_prefix) == "true"
+            assert not root_span.get_tag("%s.sdk" % success_prefix)
+            assert root_span.get_tag("%s.auto.mode" % success_prefix) == str(LOGIN_EVENTS_MODE.EXTENDED)
+
     def test_track_user_login_event_success_with_metadata(self):
         with self.trace("test_success2"):
             track_user_login_success_event(self.tracer, "1234", metadata={"foo": "bar"})
             root_span = self.tracer.current_root_span()
             success_prefix = "%s.success" % APPSEC.USER_LOGIN_EVENT_PREFIX
             assert root_span.get_tag("%s.track" % success_prefix) == "true"
+            assert root_span.get_tag("%s.sdk" % success_prefix) == "true"
+            assert not root_span.get_tag("%s.auto.mode" % success_prefix)
             assert root_span.get_tag("%s.foo" % success_prefix) == "bar"
             assert root_span.get_tag(constants.MANUAL_KEEP_KEY) == "true"
             # set_user tags
@@ -86,7 +132,11 @@ class EventsSDKTestCase(TracerTestCase):
             failure_prefix = "%s.failure" % APPSEC.USER_LOGIN_EVENT_PREFIX
 
             assert root_span.get_tag("%s.track" % failure_prefix) == "true"
+            assert root_span.get_tag("%s.sdk" % failure_prefix) == "true"
+            assert not root_span.get_tag("%s.auto.mode" % failure_prefix)
             assert not root_span.get_tag("%s.track" % success_prefix)
+            assert not root_span.get_tag("%s.sdk" % success_prefix)
+            assert not root_span.get_tag("%s.auto.mode" % success_prefix)
             assert root_span.get_tag("%s.%s" % (failure_prefix, user.ID)) == "1234"
             assert root_span.get_tag("%s.%s" % (failure_prefix, user.EXISTS)) == "true"
             assert root_span.get_tag("%s.foo" % failure_prefix) == "bar"
@@ -110,6 +160,13 @@ class EventsSDKTestCase(TracerTestCase):
             root_span = self.tracer.current_root_span()
             failure_prefix = "%s.failure" % APPSEC.USER_LOGIN_EVENT_PREFIX
             assert root_span.get_tag("%s.%s" % (failure_prefix, user.EXISTS)) == "false"
+
+    def test_track_user_signup_event_exists(self):
+        with self.trace("test_signup_exists"):
+            track_user_signup_event(self.tracer, "john", True)
+            root_span = self.tracer.current_root_span()
+            assert root_span.get_tag(APPSEC.USER_SIGNUP_EVENT) == "true"
+            assert root_span.get_tag(user.ID) == "john"
 
     def test_custom_event(self):
         with self.trace("test_custom"):
@@ -141,7 +198,7 @@ class EventsSDKTestCase(TracerTestCase):
                 assert span.get_tag(user.ROLE)
                 assert span.get_tag(user.SCOPE)
                 assert span.get_tag(user.SESSION_ID)
-                assert _context.get_item("http.request.blocked", span=span)
+                assert core.get_item("http.request.blocked", span=span)
 
     def test_no_span_doesnt_raise(self):
         from ddtrace import tracer

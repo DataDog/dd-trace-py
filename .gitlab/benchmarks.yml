@@ -68,6 +68,7 @@ benchmark-set-http-meta:
 
 benchmark-flask-simple:
   extends: .benchmarks
+  timeout: 1h 30m
   variables:
     SCENARIO: "flask_simple"
 

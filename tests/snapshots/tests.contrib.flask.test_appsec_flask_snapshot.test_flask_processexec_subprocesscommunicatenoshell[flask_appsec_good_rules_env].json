@@ -1,0 +1,245 @@
+[[
+  {
+    "name": "flask.request",
+    "service": "flask",
+    "resource": "GET /executions/subcommunicatenoshell",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "error": 0,
+    "meta": {
+      "_dd.appsec.event_rules.version": "rules_good",
+      "_dd.appsec.waf.version": "1.12.0",
+      "_dd.p.dm": "-0",
+      "_dd.runtime_family": "python",
+      "component": "flask",
+      "flask.endpoint": "run_subcommunicatenoshell",
+      "flask.url_rule": "/executions/subcommunicatenoshell",
+      "flask.version": "1.1.4",
+      "http.client_ip": "127.0.0.1",
+      "http.method": "GET",
+      "http.response.headers.content-length": "1",
+      "http.response.headers.content-type": "text/html; charset=utf-8",
+      "http.route": "/executions/subcommunicatenoshell",
+      "http.status_code": "200",
+      "http.url": "http://0.0.0.0:8000/executions/subcommunicatenoshell",
+      "http.useragent": "python-requests/2.28.2",
+      "language": "python",
+      "network.client.ip": "127.0.0.1",
+      "runtime-id": "cb869c2f6bc344e4b43f36fe1a6815dc",
+      "span.kind": "server"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.appsec.enabled": 1.0,
+      "_dd.appsec.event_rules.error_count": 0,
+      "_dd.appsec.event_rules.loaded": 5,
+      "_dd.appsec.waf.duration": 7.917,
+      "_dd.appsec.waf.duration_ext": 112.29515075683594,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 48331
+    },
+    "duration": 5182622,
+    "start": 1691167056424256722
+  },
+     {
+       "name": "flask.application",
+       "service": "flask",
+       "resource": "GET /executions/subcommunicatenoshell",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.p.dm": "-0",
+         "component": "flask",
+         "flask.endpoint": "run_subcommunicatenoshell",
+         "flask.url_rule": "/executions/subcommunicatenoshell"
+       },
+       "duration": 4390758,
+       "start": 1691167056424625916
+     },
+        {
+          "name": "flask.try_trigger_before_first_request_functions",
+          "service": "flask",
+          "resource": "flask.try_trigger_before_first_request_functions",
+          "trace_id": 0,
+          "span_id": 4,
+          "parent_id": 2,
+          "type": "",
+          "error": 0,
+          "meta": {
+            "_dd.p.dm": "-0",
+            "component": "flask"
+          },
+          "duration": 11859,
+          "start": 1691167056424703340
+        },
+        {
+          "name": "flask.preprocess_request",
+          "service": "flask",
+          "resource": "flask.preprocess_request",
+          "trace_id": 0,
+          "span_id": 5,
+          "parent_id": 2,
+          "type": "",
+          "error": 0,
+          "meta": {
+            "_dd.p.dm": "-0",
+            "component": "flask"
+          },
+          "duration": 17953,
+          "start": 1691167056424765763
+        },
+        {
+          "name": "flask.dispatch_request",
+          "service": "flask",
+          "resource": "flask.dispatch_request",
+          "trace_id": 0,
+          "span_id": 6,
+          "parent_id": 2,
+          "type": "",
+          "error": 0,
+          "meta": {
+            "_dd.p.dm": "-0",
+            "component": "flask"
+          },
+          "duration": 3720322,
+          "start": 1691167056424808039
+        },
+           {
+             "name": "tests.contrib.flask.app.run_subcommunicatenoshell",
+             "service": "flask",
+             "resource": "/executions/subcommunicatenoshell",
+             "trace_id": 0,
+             "span_id": 10,
+             "parent_id": 6,
+             "type": "",
+             "error": 0,
+             "meta": {
+               "_dd.p.dm": "-0",
+               "component": "flask"
+             },
+             "duration": 3681470,
+             "start": 1691167056424833404
+           },
+              {
+                "name": "command_execution",
+                "service": "flask",
+                "resource": "dir",
+                "trace_id": 0,
+                "span_id": 11,
+                "parent_id": 10,
+                "type": "system",
+                "error": 0,
+                "meta": {
+                  "_dd.p.dm": "-0"
+                },
+                "duration": 50847,
+                "start": 1691167056425613580
+              },
+              {
+                "name": "command_execution",
+                "service": "flask",
+                "resource": "dir",
+                "trace_id": 0,
+                "span_id": 12,
+                "parent_id": 10,
+                "type": "system",
+                "error": 0,
+                "meta": {
+                  "_dd.p.dm": "-0",
+                  "cmd.exec": "['dir', '-li', '/']",
+                  "cmd.exit_code": "0",
+                  "component": "subprocess"
+                },
+                "duration": 704065,
+                "start": 1691167056427750054
+              },
+              {
+                "name": "command_execution",
+                "service": "flask",
+                "resource": "dir",
+                "trace_id": 0,
+                "span_id": 13,
+                "parent_id": 10,
+                "type": "system",
+                "error": 0,
+                "meta": {
+                  "_dd.p.dm": "-0",
+                  "cmd.exec": "['dir', '-li', '/']",
+                  "cmd.exit_code": "0",
+                  "component": "subprocess"
+                },
+                "duration": 16094,
+                "start": 1691167056428483261
+              },
+        {
+          "name": "flask.process_response",
+          "service": "flask",
+          "resource": "flask.process_response",
+          "trace_id": 0,
+          "span_id": 7,
+          "parent_id": 2,
+          "type": "",
+          "error": 0,
+          "meta": {
+            "_dd.p.dm": "-0",
+            "component": "flask"
+          },
+          "duration": 27510,
+          "start": 1691167056428624901
+        },
+        {
+          "name": "flask.do_teardown_request",
+          "service": "flask",
+          "resource": "flask.do_teardown_request",
+          "trace_id": 0,
+          "span_id": 8,
+          "parent_id": 2,
+          "type": "",
+          "error": 0,
+          "meta": {
+            "_dd.p.dm": "-0",
+            "component": "flask"
+          },
+          "duration": 20248,
+          "start": 1691167056428923712
+        },
+        {
+          "name": "flask.do_teardown_appcontext",
+          "service": "flask",
+          "resource": "flask.do_teardown_appcontext",
+          "trace_id": 0,
+          "span_id": 9,
+          "parent_id": 2,
+          "type": "",
+          "error": 0,
+          "meta": {
+            "_dd.p.dm": "-0",
+            "component": "flask"
+          },
+          "duration": 13350,
+          "start": 1691167056428977922
+        },
+     {
+       "name": "flask.response",
+       "service": "flask",
+       "resource": "flask.response",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.p.dm": "-0",
+         "component": "flask"
+       },
+       "duration": 390103,
+       "start": 1691167056429031614
+     }]]

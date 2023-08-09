@@ -1,0 +1,229 @@
+[[
+  {
+    "name": "flask.request",
+    "service": "flask",
+    "resource": "GET /executions/osspawn",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "error": 0,
+    "meta": {
+      "_dd.appsec.event_rules.version": "rules_good",
+      "_dd.appsec.waf.version": "1.12.0",
+      "_dd.p.dm": "-0",
+      "_dd.runtime_family": "python",
+      "component": "flask",
+      "flask.endpoint": "run_osspawn",
+      "flask.url_rule": "/executions/osspawn",
+      "flask.version": "1.1.4",
+      "http.client_ip": "127.0.0.1",
+      "http.method": "GET",
+      "http.response.headers.content-length": "1",
+      "http.response.headers.content-type": "text/html; charset=utf-8",
+      "http.route": "/executions/osspawn",
+      "http.status_code": "200",
+      "http.url": "http://0.0.0.0:8000/executions/osspawn",
+      "http.useragent": "python-requests/2.28.2",
+      "language": "python",
+      "network.client.ip": "127.0.0.1",
+      "runtime-id": "3226e1924ccd4aa9b9a675d3ab8440bc",
+      "span.kind": "server"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.appsec.enabled": 1.0,
+      "_dd.appsec.event_rules.error_count": 0,
+      "_dd.appsec.event_rules.loaded": 5,
+      "_dd.appsec.waf.duration": 10.167,
+      "_dd.appsec.waf.duration_ext": 123.02398681640625,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 48305
+    },
+    "duration": 8579328,
+    "start": 1691167054891033246
+  },
+     {
+       "name": "flask.application",
+       "service": "flask",
+       "resource": "GET /executions/osspawn",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.p.dm": "-0",
+         "component": "flask",
+         "flask.endpoint": "run_osspawn",
+         "flask.url_rule": "/executions/osspawn"
+       },
+       "duration": 7625240,
+       "start": 1691167054891497197
+     },
+        {
+          "name": "flask.try_trigger_before_first_request_functions",
+          "service": "flask",
+          "resource": "flask.try_trigger_before_first_request_functions",
+          "trace_id": 0,
+          "span_id": 4,
+          "parent_id": 2,
+          "type": "",
+          "error": 0,
+          "meta": {
+            "_dd.p.dm": "-0",
+            "component": "flask"
+          },
+          "duration": 12726,
+          "start": 1691167054891577076
+        },
+        {
+          "name": "flask.preprocess_request",
+          "service": "flask",
+          "resource": "flask.preprocess_request",
+          "trace_id": 0,
+          "span_id": 5,
+          "parent_id": 2,
+          "type": "",
+          "error": 0,
+          "meta": {
+            "_dd.p.dm": "-0",
+            "component": "flask"
+          },
+          "duration": 19006,
+          "start": 1691167054891639422
+        },
+        {
+          "name": "flask.dispatch_request",
+          "service": "flask",
+          "resource": "flask.dispatch_request",
+          "trace_id": 0,
+          "span_id": 6,
+          "parent_id": 2,
+          "type": "",
+          "error": 0,
+          "meta": {
+            "_dd.p.dm": "-0",
+            "component": "flask"
+          },
+          "duration": 6839163,
+          "start": 1691167054891683498
+        },
+           {
+             "name": "tests.contrib.flask.app.run_osspawn",
+             "service": "flask",
+             "resource": "/executions/osspawn",
+             "trace_id": 0,
+             "span_id": 10,
+             "parent_id": 6,
+             "type": "",
+             "error": 0,
+             "meta": {
+               "_dd.p.dm": "-0",
+               "component": "flask"
+             },
+             "duration": 6797809,
+             "start": 1691167054891710122
+           },
+              {
+                "name": "command_execution",
+                "service": "flask",
+                "resource": "/bin/ls",
+                "trace_id": 0,
+                "span_id": 11,
+                "parent_id": 10,
+                "type": "system",
+                "error": 0,
+                "meta": {
+                  "_dd.p.dm": "-0",
+                  "cmd.exec": "['/bin/ls', '-l', '/']",
+                  "cmd.exit_code": "0",
+                  "component": "os"
+                },
+                "duration": 6000596,
+                "start": 1691167054892470475
+              },
+                 {
+                   "name": "command_execution",
+                   "service": "flask",
+                   "resource": "fork",
+                   "trace_id": 0,
+                   "span_id": 12,
+                   "parent_id": 11,
+                   "type": "system",
+                   "error": 0,
+                   "meta": {
+                     "_dd.p.dm": "-0",
+                     "cmd.exec": "['os.fork']",
+                     "component": "os"
+                   },
+                   "duration": 809932,
+                   "start": 1691167054892539401
+                 },
+        {
+          "name": "flask.process_response",
+          "service": "flask",
+          "resource": "flask.process_response",
+          "trace_id": 0,
+          "span_id": 7,
+          "parent_id": 2,
+          "type": "",
+          "error": 0,
+          "meta": {
+            "_dd.p.dm": "-0",
+            "component": "flask"
+          },
+          "duration": 53964,
+          "start": 1691167054898664341
+        },
+        {
+          "name": "flask.do_teardown_request",
+          "service": "flask",
+          "resource": "flask.do_teardown_request",
+          "trace_id": 0,
+          "span_id": 8,
+          "parent_id": 2,
+          "type": "",
+          "error": 0,
+          "meta": {
+            "_dd.p.dm": "-0",
+            "component": "flask"
+          },
+          "duration": 22149,
+          "start": 1691167054899024141
+        },
+        {
+          "name": "flask.do_teardown_appcontext",
+          "service": "flask",
+          "resource": "flask.do_teardown_appcontext",
+          "trace_id": 0,
+          "span_id": 9,
+          "parent_id": 2,
+          "type": "",
+          "error": 0,
+          "meta": {
+            "_dd.p.dm": "-0",
+            "component": "flask"
+          },
+          "duration": 14096,
+          "start": 1691167054899082012
+        },
+     {
+       "name": "flask.response",
+       "service": "flask",
+       "resource": "flask.response",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.p.dm": "-0",
+         "component": "flask"
+       },
+       "duration": 455356,
+       "start": 1691167054899136797
+     }]]

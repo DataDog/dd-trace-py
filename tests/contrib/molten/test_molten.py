@@ -9,6 +9,7 @@ from ddtrace.contrib.molten import patch
 from ddtrace.contrib.molten import unpatch
 from ddtrace.contrib.molten.patch import MOLTEN_VERSION
 from ddtrace.ext import http
+from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from tests.utils import TracerTestCase
@@ -337,15 +338,104 @@ class TestMolten(TracerTestCase):
         self.assertTrue(len(spans) > 0)
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_user_specified_service(self):
+    def test_user_specified_service_default_schema(self):
         """
-        When a service name is specified by the user
+        default: When a service name is specified by the user
             The molten integration should use it as the service name
         """
         molten_client()
         spans = self.pop_spans()
         for span in spans:
-            assert span.service == "mysvc"
+            assert span.service == "mysvc", "Expected 'mysvc' but got {}".format(span.service)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_user_specified_service_v0_schema(self):
+        """
+        v0: When a service name is specified by the user
+            The molten integration should use it as the service name
+        """
+        molten_client()
+        spans = self.pop_spans()
+        for span in spans:
+            assert span.service == "mysvc", "Expected 'mysvc' but got {}".format(span.service)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_user_specified_service_v1_schema(self):
+        """
+        v1: When a service name is specified by the user
+            The molten integration should use it as the service name
+        """
+        molten_client()
+        spans = self.pop_spans()
+        for span in spans:
+            assert span.service == "mysvc", "Expected 'mysvc' but got {}".format(span.service)
+
+    @TracerTestCase.run_in_subprocess()
+    def test_unspecified_service_default_schema(self):
+        """
+        default: When a service name is not specified by the user
+            The molten integration should use 'molten' as the service name
+        """
+        molten_client()
+        spans = self.pop_spans()
+        for span in spans:
+            assert span.service == "molten", "Expected 'molten' but got {}".format(span.service)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_unspecified_service_v0_schema(self):
+        """
+        v0: When a service name is not specified by the user
+            The molten integration should use 'molten' as the service name
+        """
+        molten_client()
+        spans = self.pop_spans()
+        for span in spans:
+            assert span.service == "molten", "Expected 'molten' but got {}".format(span.service)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_unspecified_service_v1_schema(self):
+        """
+        v1: When a service name is not specified by the user
+            The molten integration should use internal.schema.DEFAULT_SPAN_SERVICE_NAME as the service name
+        """
+        molten_client()
+        spans = self.pop_spans()
+        for span in spans:
+            assert span.service == DEFAULT_SPAN_SERVICE_NAME, "Expected '{}' but got {}".format(
+                DEFAULT_SPAN_SERVICE_NAME, span.service
+            )
+
+    @TracerTestCase.run_in_subprocess()
+    def test_schematized_operation_name_default(self):
+        """
+        v0: The molten span name should be "request.span"
+        """
+        molten_client()
+        spans = self.pop_spans()
+        root_span = spans[0]
+        assert root_span.name == "molten.request", "Expected 'molten.request' but got {}".format(root_span.name)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_schematized_operation_name_v0(self):
+        """
+        v0: The molten span name should be "request.span"
+        """
+        molten_client()
+        spans = self.pop_spans()
+        root_span = spans[0]
+        assert root_span.name == "molten.request", "Expected 'molten.request' but got {}".format(root_span.name)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_schematized_operation_name_v1(self):
+        """
+        v1: The molten span name should be "http.server.request"
+        """
+        molten_client()
+        spans = self.pop_spans()
+        root_span = spans[0]
+        assert root_span.name == "http.server.request", "Expected 'http.server.request' but got {}".format(
+            root_span.name
+        )
 
     def test_http_request_header_tracing(self):
         config.molten.http.trace_headers(["my-header"])

@@ -6,6 +6,7 @@ from os.path import normpath
 from os.path import sep
 from os.path import splitdrive
 from typing import Any
+from typing import Callable
 from typing import Dict
 from typing import List
 from typing import Optional
@@ -19,6 +20,7 @@ from ddtrace.debugging._expressions import DDExpression
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import _resolve
 from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLimiter
+from ddtrace.internal.safety import _isinstance
 from ddtrace.internal.utils.cache import cached
 
 
@@ -63,6 +65,9 @@ class CaptureLimits(object):
     max_size = attr.ib(type=int, default=MAXSIZE)  # type: int
     max_len = attr.ib(type=int, default=MAXLEN)  # type: int
     max_fields = attr.ib(type=int, default=MAXFIELDS)  # type: int
+
+
+DEFAULT_CAPTURE_LIMITS = CaptureLimits()
 
 
 @attr.s
@@ -215,6 +220,19 @@ class ExpressionTemplateSegment(TemplateSegment):
 
 
 @attr.s
+class StringTemplate(object):
+    template = attr.ib(type=str)
+    segments = attr.ib(type=List[TemplateSegment])
+
+    def render(self, _locals, serializer):
+        # type: (Dict[str,Any], Callable[[Any], str]) -> str
+        def _to_str(value):
+            return value if _isinstance(value, six.string_types) else serializer(value)
+
+        return "".join([_to_str(s.eval(_locals)) for s in self.segments])
+
+
+@attr.s
 class LogProbeMixin(object):
     template = attr.ib(type=str)
     segments = attr.ib(type=List[TemplateSegment])
@@ -242,11 +260,45 @@ class SpanFunctionProbe(Probe, FunctionLocationMixin, SpanProbeMixin, ProbeCondi
     pass
 
 
-LineProbe = Union[LogLineProbe, MetricLineProbe]
-FunctionProbe = Union[LogFunctionProbe, MetricFunctionProbe, SpanFunctionProbe]
+class SpanDecorationTargetSpan(object):
+    ROOT = "ROOT"
+    ACTIVE = "ACTIVE"
+
+
+@attr.s
+class SpanDecorationTag(object):
+    name = attr.ib(type=str)
+    value = attr.ib(type=StringTemplate)
+
+
+@attr.s
+class SpanDecoration(object):
+    when = attr.ib(type=Optional[DDExpression])
+    tags = attr.ib(type=List[SpanDecorationTag])
+
+
+@attr.s
+class SpanDecorationMixin(object):
+    target_span = attr.ib(type=SpanDecorationTargetSpan)
+    decorations = attr.ib(type=List[SpanDecoration])
+
+
+@attr.s
+class SpanDecorationLineProbe(Probe, LineLocationMixin, SpanDecorationMixin):
+    pass
+
+
+@attr.s
+class SpanDecorationFunctionProbe(Probe, FunctionLocationMixin, SpanDecorationMixin):
+    pass
+
+
+LineProbe = Union[LogLineProbe, MetricLineProbe, SpanDecorationLineProbe]
+FunctionProbe = Union[LogFunctionProbe, MetricFunctionProbe, SpanFunctionProbe, SpanDecorationFunctionProbe]
 
 
 class ProbeType(object):
     LOG_PROBE = "LOG_PROBE"
     METRIC_PROBE = "METRIC_PROBE"
     SPAN_PROBE = "SPAN_PROBE"
+    SPAN_DECORATION_PROBE = "SPAN_DECORATION_PROBE"

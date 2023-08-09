@@ -1,4 +1,5 @@
 import asyncio
+import os
 import sys
 
 import aioredis
@@ -18,9 +19,12 @@ from ...ext import SpanTypes
 from ...ext import db
 from ...ext import net
 from ...ext import redis as redisx
+from ...internal.schema import schematize_cache_operation
+from ...internal.schema import schematize_service_name
+from ...internal.utils.formats import CMD_MAX_LEN
 from ...internal.utils.formats import stringify_cache_args
-from ..redis.util import _trace_redis_cmd
-from ..redis.util import _trace_redis_execute_pipeline
+from ..trace_utils_redis import _trace_redis_cmd
+from ..trace_utils_redis import _trace_redis_execute_pipeline
 
 
 try:
@@ -28,7 +32,13 @@ try:
 except ImportError:
     _RedisBuffer = None
 
-config._add("aioredis", dict(_default_service="redis"))
+config._add(
+    "aioredis",
+    dict(
+        _default_service=schematize_service_name("redis"),
+        cmd_max_length=int(os.getenv("DD_AIOREDIS_CMD_MAX_LENGTH", CMD_MAX_LEN)),
+    ),
+)
 
 aioredis_version_str = getattr(aioredis, "__version__", "0.0.0")
 aioredis_version = tuple([int(i) for i in aioredis_version_str.split(".")])
@@ -88,7 +98,7 @@ async def traced_execute_pipeline(func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return await func(*args, **kwargs)
 
-    cmds = [stringify_cache_args(c) for c, _ in instance.command_stack]
+    cmds = [stringify_cache_args(c, cmd_max_len=config.aioredis.cmd_max_length) for c, _ in instance.command_stack]
     resource = "\n".join(cmds)
     with _trace_redis_execute_pipeline(pin, config.aioredis, resource, instance):
         return await func(*args, **kwargs)
@@ -116,7 +126,7 @@ def traced_13_execute_command(func, instance, args, kwargs):
     # (we don't want this span to be the parent of all other spans created before the future is resolved)
     parent = pin.tracer.current_span()
     span = pin.tracer.start_span(
-        redisx.CMD,
+        schematize_cache_operation(redisx.CMD, cache_provider="redis"),
         service=trace_utils.ext_service(pin, config.aioredis),
         span_type=SpanTypes.REDIS,
         activate=False,
@@ -128,7 +138,7 @@ def traced_13_execute_command(func, instance, args, kwargs):
     span.set_tag_str(COMPONENT, config.aioredis.integration_name)
     span.set_tag_str(db.SYSTEM, redisx.APP)
     span.set_tag(SPAN_MEASURED_KEY)
-    query = stringify_cache_args(args)
+    query = stringify_cache_args(args, cmd_max_len=config.aioredis.cmd_max_length)
     span.resource = query
     span.set_tag_str(redisx.RAWCMD, query)
     if pin.tags:
@@ -175,10 +185,10 @@ async def traced_13_execute_pipeline(func, instance, args, kwargs):
     for _, cmd, cmd_args, _ in instance._pipeline:
         parts = [cmd]
         parts.extend(cmd_args)
-        cmds.append(stringify_cache_args(parts))
+        cmds.append(stringify_cache_args(parts, cmd_max_len=config.aioredis.cmd_max_length))
     resource = "\n".join(cmds)
     with pin.tracer.trace(
-        redisx.CMD,
+        schematize_cache_operation(redisx.CMD, cache_provider="redis"),
         resource=resource,
         service=trace_utils.ext_service(pin, config.aioredis),
         span_type=SpanTypes.REDIS,

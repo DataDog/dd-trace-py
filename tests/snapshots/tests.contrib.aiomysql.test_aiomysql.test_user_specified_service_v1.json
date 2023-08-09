@@ -1,0 +1,38 @@
+[[
+  {
+    "name": "mysql.query",
+    "service": "my-service-name",
+    "resource": "select 'dba4x4'",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.peer.service.source": "db.name",
+      "component": "aiomysql",
+      "db.name": "test",
+      "db.system": "mysql",
+      "db.user": "test",
+      "language": "python",
+      "out.host": "127.0.0.1",
+      "peer.service": "test",
+      "runtime-id": "ae2b5fb6b2b849ed9a299852cb4df1d5",
+      "span.kind": "client",
+      "sql.query": "select 'dba4x4'"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "db.row_count": 1,
+      "db.rownumber": 0,
+      "network.destination.port": 3306,
+      "process_id": 1196
+    },
+    "duration": 361500,
+    "start": 1682180472703443222
+  }]]

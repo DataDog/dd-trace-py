@@ -40,25 +40,102 @@ Wrapper = Callable[[FunctionType, Tuple[Any], Dict[str, Any]], Any]
 
 def _compare_exc(label, lineno):
     """Compat helper for comparing exceptions."""
-    return (
-        Instr("COMPARE_OP", Compare.EXC_MATCH, lineno=lineno)
-        if PY < (3, 9)
-        else Instr("JUMP_IF_NOT_EXC_MATCH", label, lineno=lineno)
-    )
+    if PY < (3, 9):
+        return Instr("COMPARE_OP", Compare.EXC_MATCH, lineno=lineno)
+    return Instr("JUMP_IF_NOT_EXC_MATCH", label, lineno=lineno)
 
 
 def _jump_if_false(label, lineno):
     """Compat helper for jumping if false after comparing exceptions."""
-    return Instr("POP_JUMP_IF_FALSE", label, lineno=lineno) if PY < (3, 9) else Instr("NOP", lineno=lineno)
+    if PY < (3, 9):
+        return Instr("POP_JUMP_IF_FALSE", label, lineno=lineno)
+    return Instr("NOP", lineno=lineno)
 
 
 def _end_finally(lineno):
     """Compat helper for ending finally blocks."""
     if PY < (3, 9):
         return Instr("END_FINALLY", lineno=lineno)
-    elif PY < (3, 10):
+    if PY < (3, 10):
         return Instr("RERAISE", lineno=lineno)
     return Instr("RERAISE", 0, lineno=lineno)
+
+
+def _pop_except(lineno):
+    """Compat helper for popping except blocks."""
+    if PY >= (3,):
+        return Instr("POP_EXCEPT", lineno=lineno)
+    return Instr("NOP", lineno=lineno)
+
+
+def _setup_block(label, lineno):
+    if PY < (3, 8):
+        return Instr("SETUP_EXCEPT", label, lineno=lineno)
+    return Instr("SETUP_FINALLY", label, lineno=lineno)
+
+
+def _call_variadic(lineno):
+    if PY < (3, 6):
+        return Instr("CALL_FUNCTION_VAR", 0, lineno=lineno)
+    return Instr("CALL_FUNCTION_EX", 0, lineno=lineno)
+
+
+def _add(lineno):
+    if PY < (3, 11):
+        return Instr("INPLACE_ADD", lineno=lineno)
+    return Instr("BINARY_OP", b.BinaryOp.ADD, lineno=lineno)
+
+
+def _update_map_block(varkwargsname, lineno):
+    if PY < (3, 11):
+        return [
+            Instr("DUP_TOP", lineno=lineno),
+            Instr("LOAD_ATTR", "update", lineno=lineno),
+            Instr("LOAD_FAST", varkwargsname, lineno=lineno),
+            Instr("CALL_FUNCTION", 1, lineno=lineno),
+            Instr("POP_TOP", lineno=lineno),
+        ]
+    elif PY >= (3, 12):
+        return [
+            Instr("COPY", 1, lineno=lineno),
+            Instr("LOAD_METHOD", "update", lineno=lineno),
+            Instr("LOAD_FAST", varkwargsname, lineno=lineno),
+            Instr("CALL", 1, lineno=lineno),
+            Instr("POP_TOP", lineno=lineno),
+        ]
+
+    # Python 3.11
+    return [
+        Instr("COPY", 1, lineno=lineno),
+        Instr("LOAD_METHOD", "update", lineno=lineno),
+        Instr("LOAD_FAST", varkwargsname, lineno=lineno),
+        Instr("PRECALL", 1, lineno=lineno),
+        Instr("CALL", 1, lineno=lineno),
+        Instr("POP_TOP", lineno=lineno),
+    ]
+
+
+def _call_return_block(arg, lineno):
+    if PY < (3, 11):
+        return [
+            Instr("CALL_FUNCTION", arg, lineno=lineno),
+            Instr("RETURN_VALUE", lineno=lineno),
+        ]
+    elif PY >= (3, 12):
+        return [
+            Instr("CALL", arg, lineno=lineno),
+            Instr("RETURN_VALUE", lineno=lineno),
+        ]
+
+    # Python 3.11
+    return [
+        Instr("PRECALL", arg, lineno=lineno),
+        Instr("CALL", arg, lineno=lineno),
+        Instr("RETURN_VALUE", lineno=lineno),
+    ]
+
+
+FIRSTLINENO_OFFSET = int(PY >= (3, 11))
 
 
 # -----------------------------------------------------------------------------
@@ -91,7 +168,7 @@ def _wrap_generator(instrs, code, lineno):
     _yield = Label()
 
     instrs[-1:] = [
-        Instr("SETUP_EXCEPT" if PY < (3, 8) else "SETUP_FINALLY", stopiter, lineno=lineno),
+        _setup_block(stopiter, lineno),
         Instr("DUP_TOP", lineno=lineno),
         Instr("STORE_FAST", "__ddgen", lineno=lineno),
         Instr("LOAD_ATTR", "send", lineno=lineno),
@@ -101,7 +178,7 @@ def _wrap_generator(instrs, code, lineno):
         loop,
         Instr("CALL_FUNCTION", 1, lineno=lineno),
         _yield,
-        Instr("SETUP_EXCEPT" if PY < (3, 8) else "SETUP_FINALLY", genexit, lineno=lineno),
+        _setup_block(genexit, lineno=lineno),
         Instr("YIELD_VALUE", lineno=lineno),
         Instr("POP_BLOCK", lineno=lineno),
         Instr("LOAD_FAST", "__ddgensend", lineno=lineno),
@@ -129,11 +206,11 @@ def _wrap_generator(instrs, code, lineno):
         Instr("LOAD_ATTR", "throw", lineno=lineno),
         Instr("LOAD_CONST", sys.exc_info, lineno=lineno),
         Instr("CALL_FUNCTION", 0, lineno=lineno),
-        Instr("CALL_FUNCTION_VAR" if PY < (3, 6) else "CALL_FUNCTION_EX", 0, lineno=lineno),
+        _call_variadic(lineno),
         # DEV: We cannot use ROT_FOUR because it was removed in 3.5 and added
         # back in 3.8
         Instr("STORE_FAST", "__value", lineno=lineno),
-        Instr("POP_EXCEPT" if PY >= (3,) else "NOP", lineno=lineno),
+        _pop_except(lineno),
         Instr("LOAD_FAST", "__value", lineno=lineno),
         Instr("JUMP_ABSOLUTE", _yield, lineno=lineno),
         stopiter,  # except StopIteration:
@@ -144,7 +221,7 @@ def _wrap_generator(instrs, code, lineno):
         Instr("POP_TOP", lineno=lineno),
         Instr("POP_TOP", lineno=lineno),
         Instr("POP_TOP", lineno=lineno),
-        Instr("POP_EXCEPT" if PY >= (3,) else "NOP", lineno=lineno),
+        _pop_except(lineno),
         Instr("LOAD_CONST", None, lineno=lineno),
         Instr("RETURN_VALUE", lineno=lineno),
         propagate,
@@ -160,7 +237,10 @@ def _wrap_generator_py311(instrs, code, lineno):
     pass
 
 
-wrap_generator = _wrap_generator_py311 if PY >= (3, 11) else _wrap_generator
+if PY >= (3, 11):
+    wrap_generator = _wrap_generator_py311
+else:
+    wrap_generator = _wrap_generator
 
 
 # -----------------------------------------------------------------------------
@@ -202,7 +282,7 @@ def _wrap_special_function_py3(instrs, code, lineno):
         _yield = Label()
 
         instrs[-1:] = [
-            Instr("SETUP_EXCEPT" if PY < (3, 8) else "SETUP_FINALLY", stopiter, lineno=lineno),
+            _setup_block(stopiter, lineno=lineno),
             Instr("DUP_TOP", lineno=lineno),
             Instr("STORE_FAST", "__ddgen", lineno=lineno),
             Instr("LOAD_ATTR", "asend", lineno=lineno),
@@ -215,7 +295,7 @@ def _wrap_special_function_py3(instrs, code, lineno):
             Instr("LOAD_CONST", None, lineno=lineno),
             Instr("YIELD_FROM", lineno=lineno),
             _yield,
-            Instr("SETUP_EXCEPT" if PY < (3, 8) else "SETUP_FINALLY", genexit, lineno=lineno),
+            _setup_block(genexit, lineno=lineno),
             Instr("YIELD_VALUE", lineno=lineno),
             Instr("POP_BLOCK", lineno=lineno),
             Instr("LOAD_FAST", "__ddgensend", lineno=lineno),
@@ -282,7 +362,10 @@ def _wrap_special_function_py311(instrs, code, lineno):
     pass
 
 
-wrap_special_function = _wrap_special_function_py3 if sys.version_info < (3, 11) else _wrap_special_function_py311
+if PY >= (3, 11):
+    wrap_special_function = _wrap_special_function_py311
+else:
+    wrap_special_function = _wrap_special_function_py3
 
 
 def wrap_bytecode(wrapper, wrapped):
@@ -298,7 +381,7 @@ def wrap_bytecode(wrapper, wrapped):
     """
 
     code = wrapped.__code__
-    lineno = code.co_firstlineno + (sys.version_info >= (3, 11))
+    lineno = code.co_firstlineno + FIRSTLINENO_OFFSET
     varargs = bool(code.co_flags & CompilerFlags.VARARGS)
     varkwargs = bool(code.co_flags & CompilerFlags.VARKEYWORDS)
     nargs = code.co_argcount
@@ -317,7 +400,8 @@ def wrap_bytecode(wrapper, wrapped):
         Instr("LOAD_CONST", wrapper, lineno=lineno),
         Instr("LOAD_CONST", wrapped, lineno=lineno),
     ]
-    if sys.version_info >= (3, 11):
+    if PY >= (3, 11):
+        # THis is required to start a new frame
         instrs[0:0] = [
             Instr("RESUME", 0, lineno=lineno - 1),
             Instr("PUSH_NULL", lineno=lineno),
@@ -331,9 +415,7 @@ def wrap_bytecode(wrapper, wrapped):
             instrs.extend(
                 [
                     Instr("LOAD_FAST", varargsname, lineno=lineno),
-                    Instr("INPLACE_ADD", lineno=lineno)
-                    if sys.version_info < (3, 11)
-                    else Instr("BINARY_OP", b.BinaryOp.ADD, lineno=lineno),
+                    _add(lineno),
                 ]
             )
     elif varargs:
@@ -352,27 +434,7 @@ def wrap_bytecode(wrapper, wrapped):
             )
         instrs.append(Instr("BUILD_MAP", kwonlyargs, lineno=lineno))
         if varkwargs:
-            if sys.version_info < (3, 11):
-                instrs.extend(
-                    [
-                        Instr("DUP_TOP", lineno=lineno),
-                        Instr("LOAD_ATTR", "update", lineno=lineno),
-                        Instr("LOAD_FAST", varkwargsname, lineno=lineno),
-                        Instr("CALL_FUNCTION", 1, lineno=lineno),
-                        Instr("POP_TOP", lineno=lineno),
-                    ]
-                )
-            else:
-                instrs.extend(
-                    [
-                        Instr("COPY", 1, lineno=lineno),
-                        Instr("LOAD_METHOD", "update", lineno=lineno),
-                        Instr("LOAD_FAST", varkwargsname, lineno=lineno),
-                        Instr("PRECALL", 1, lineno=lineno),
-                        Instr("CALL", 1, lineno=lineno),
-                        Instr("POP_TOP", lineno=lineno),
-                    ]
-                )
+            instrs.extend(_update_map_block(varkwargsname, lineno))
 
     elif varkwargs:
         instrs.append(Instr("LOAD_FAST", varkwargsname, lineno=lineno))
@@ -382,21 +444,7 @@ def wrap_bytecode(wrapper, wrapped):
 
     # Call the wrapper function with the wrapped function, the positional and
     # keyword arguments, and return the result.
-    if sys.version_info < (3, 11):
-        instrs.extend(
-            [
-                Instr("CALL_FUNCTION", 3, lineno=lineno),
-                Instr("RETURN_VALUE", lineno=lineno),
-            ]
-        )
-    else:
-        instrs.extend(
-            [
-                Instr("PRECALL", 3, lineno=lineno),
-                Instr("CALL", 3, lineno=lineno),
-                Instr("RETURN_VALUE", lineno=lineno),
-            ]
-        )
+    instrs.extend(_call_return_block(3, lineno))
 
     # If the function has special flags set, like the generator, async generator
     # or coroutine, inject unraveling code before the return opcode.

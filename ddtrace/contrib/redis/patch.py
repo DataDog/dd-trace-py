@@ -1,3 +1,5 @@
+import os
+
 import redis
 from six import PY3
 
@@ -5,17 +7,19 @@ from ddtrace import config
 from ddtrace.vendor import wrapt
 
 from ...internal.schema import schematize_service_name
+from ...internal.utils.formats import CMD_MAX_LEN
 from ...internal.utils.formats import stringify_cache_args
 from ...pin import Pin
 from ..trace_utils import unwrap
-from .util import _trace_redis_cmd
-from .util import _trace_redis_execute_pipeline
+from ..trace_utils_redis import _trace_redis_cmd
+from ..trace_utils_redis import _trace_redis_execute_pipeline
 
 
 config._add(
     "redis",
     {
         "_default_service": schematize_service_name("redis"),
+        "cmd_max_length": int(os.getenv("DD_REDIS_CMD_MAX_LENGTH", CMD_MAX_LEN)),
     },
 )
 
@@ -60,6 +64,20 @@ def patch():
             _w("redis.asyncio.client", "Pipeline.execute", traced_async_execute_pipeline)
             _w("redis.asyncio.client", "Pipeline.immediate_execute_command", traced_async_execute_command)
             Pin(service=None).onto(redis.asyncio.Redis)
+
+        if PY3 and redis.VERSION >= (4, 3, 0):
+            from .asyncio_patch import traced_async_execute_command
+
+            _w("redis.asyncio.cluster", "RedisCluster.execute_command", traced_async_execute_command)
+
+            if redis.VERSION >= (4, 3, 2):
+                from .asyncio_patch import traced_async_execute_cluster_pipeline
+
+                _w("redis.asyncio.cluster", "RedisCluster.pipeline", traced_pipeline)
+                _w("redis.asyncio.cluster", "ClusterPipeline.execute", traced_async_execute_cluster_pipeline)
+
+            Pin(service=None).onto(redis.asyncio.RedisCluster)
+
     Pin(service=None).onto(redis.StrictRedis)
 
 
@@ -87,6 +105,11 @@ def unpatch():
                 unwrap(redis.asyncio.client.Redis, "pipeline")
                 unwrap(redis.asyncio.client.Pipeline, "execute")
                 unwrap(redis.asyncio.client.Pipeline, "immediate_execute_command")
+            if redis.VERSION >= (4, 3, 0):
+                unwrap(redis.asyncio.cluster.RedisCluster, "execute_command")
+            if redis.VERSION >= (4, 3, 2):
+                unwrap(redis.asyncio.cluster.RedisCluster, "pipeline")
+                unwrap(redis.asyncio.cluster.ClusterPipeline, "execute")
 
 
 #
@@ -119,9 +142,15 @@ def traced_execute_pipeline(integration_config, is_cluster=False):
             return func(*args, **kwargs)
 
         if is_cluster:
-            cmds = [stringify_cache_args(c.args) for c in instance.command_stack]
+            cmds = [
+                stringify_cache_args(c.args, cmd_max_len=integration_config.cmd_max_length)
+                for c in instance.command_stack
+            ]
         else:
-            cmds = [stringify_cache_args(c) for c, _ in instance.command_stack]
+            cmds = [
+                stringify_cache_args(c, cmd_max_len=integration_config.cmd_max_length)
+                for c, _ in instance.command_stack
+            ]
         resource = "\n".join(cmds)
         with _trace_redis_execute_pipeline(pin, integration_config, resource, instance, is_cluster):
             return func(*args, **kwargs)

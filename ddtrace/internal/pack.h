@@ -16,26 +16,27 @@
  *    limitations under the License.
  */
 
-#include <stddef.h>
-#include <stdlib.h>
 #include "sysdep.h"
 #include <limits.h>
+#include <stddef.h>
+#include <stdlib.h>
 #include <string.h>
 
 #ifdef _MSC_VER
 #define inline __inline
 #endif
 
-typedef struct msgpack_packer {
-    char *buf;
+typedef struct msgpack_packer
+{
+    char* buf;
     size_t length;
     size_t buf_size;
 } msgpack_packer;
 
 typedef struct Packer Packer;
 
-
-static inline int msgpack_pack_write(msgpack_packer* pk, const char *data, size_t l)
+static inline int
+msgpack_pack_write(msgpack_packer* pk, const char* data, size_t l)
 {
     char* buf = pk->buf;
     size_t bs = pk->buf_size;
@@ -58,14 +59,13 @@ static inline int msgpack_pack_write(msgpack_packer* pk, const char *data, size_
     return 0;
 }
 
-#define msgpack_pack_append_buffer(user, buf, len) \
-        return msgpack_pack_write(user, (const char*)buf, len)
+#define msgpack_pack_append_buffer(user, buf, len) return msgpack_pack_write(user, (const char*)buf, len)
 
 #include "pack_template.h"
 
 // return -2 when o is too long
 static inline int
-msgpack_pack_unicode(msgpack_packer *pk, PyObject *o, long long limit)
+msgpack_pack_unicode(msgpack_packer* pk, PyObject* o, long long limit)
 {
 #if PY_MAJOR_VERSION >= 3
     assert(PyUnicode_Check(o));
@@ -80,11 +80,12 @@ msgpack_pack_unicode(msgpack_packer *pk, PyObject *o, long long limit)
     }
 
     int ret = msgpack_pack_raw(pk, len);
-    if (ret) return ret;
+    if (ret)
+        return ret;
 
     return msgpack_pack_raw_body(pk, buf, len);
 #else
-    PyObject *bytes;
+    PyObject* bytes;
     Py_ssize_t len;
     int ret;
 
@@ -109,4 +110,3 @@ msgpack_pack_unicode(msgpack_packer *pk, PyObject *o, long long limit)
     return ret;
 #endif
 }
-

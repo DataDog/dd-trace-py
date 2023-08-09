@@ -58,7 +58,7 @@ def test_call_script_pprof_output(tmp_path, monkeypatch):
     return filename, pid
 
 
-@pytest.mark.skipif(six.PY2, reason="This test deadlocks randomly on Python 2")
+@pytest.mark.skipif(six.PY2, reason="This test deadlocks randomly on Python 2")
 @pytest.mark.skipif(sys.platform == "win32", reason="fork only available on Unix")
 def test_fork(tmp_path, monkeypatch):
     filename = str(tmp_path / "pprof")
@@ -124,3 +124,20 @@ def test_memalloc_no_init_error_on_fork():
     if not pid:
         exit(0)
     os.waitpid(pid, 0)
+
+
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    env=dict(
+        DD_PROFILING_ENABLED="1",
+        DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE="1",
+    ),
+    out="OK\n",
+    err=None,
+)
+def test_profiler_start_up_with_module_clean_up_in_protobuf_app():
+    # This can cause segfaults if we do module clean up with later versions of
+    # protobuf. This is a regression test.
+    from google.protobuf import empty_pb2  # noqa
+
+    print("OK")

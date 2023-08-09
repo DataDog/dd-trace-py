@@ -14,19 +14,20 @@ Configuration
 -------------
 
 When using ``ddtrace-run``, OpenTelemetry support can be enabled by setting
-the ``DD_TRACE_OTEL_ENABLED`` environment variable (the default value is ``False``).
+the ``DD_TRACE_OTEL_ENABLED`` environment variable to True (the default value is ``False``).
 
-OpenTelemetry support can be programmatically enabled by setting the ``OTEL_PYTHON_CONTEXT``environment variable
-to ``ddcontextvars_context`` and setting the ``ddtrace.opentelemetry.TracerProvider``. These configurations
+OpenTelemetry support can be enabled programmatically by setting ``DD_TRACE_OTEL_ENABLED=True``
+and setting the ``ddtrace.opentelemetry.TracerProvider``. These configurations
 must be set before any OpenTelemetry Tracers are initialized::
+
+    import os
+    # Must be set before ddtrace is imported!
+    os.environ["DD_TRACE_OTEL_ENABLED"] = "true"
 
     from opentelemetry.trace import set_tracer_provider
     from ddtrace.opentelemetry import TracerProvider
 
     set_tracer_provider(TracerProvider())
-    # Replaces the default otel api runtime context with DDRuntimeContext
-    # https://github.com/open-telemetry/opentelemetry-python/blob/v1.16.0/opentelemetry-api/src/opentelemetry/context/__init__.py#L53
-    os.environ["OTEL_PYTHON_CONTEXT"] = "ddcontextvars_context"
 
     ...
 

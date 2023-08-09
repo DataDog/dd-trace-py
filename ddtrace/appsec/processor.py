@@ -23,13 +23,14 @@ from ddtrace.appsec._metrics import _set_waf_request_metrics
 from ddtrace.appsec._metrics import _set_waf_updates_metric
 from ddtrace.appsec.ddwaf import DDWaf
 from ddtrace.appsec.ddwaf import version
+from ddtrace.appsec.utils import _appsec_rc_file_is_not_static
 from ddtrace.constants import MANUAL_KEEP_KEY
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.constants import RUNTIME_FAMILY
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.trace_utils import _normalize_tag_name
 from ddtrace.ext import SpanTypes
-from ddtrace.internal import _context
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.processor import SpanProcessor
 from ddtrace.internal.rate_limiter import RateLimiter
@@ -197,6 +198,8 @@ class AppSecSpanProcessor(SpanProcessor):
     def _update_rules(self, new_rules):
         # type: (Dict[str, Any]) -> bool
         result = False
+        if not _appsec_rc_file_is_not_static():
+            return result
         try:
             result = self._ddwaf.update_rules(new_rules)
             _set_waf_updates_metric(self._ddwaf.info)
@@ -220,8 +223,7 @@ class AppSecSpanProcessor(SpanProcessor):
         else:
             new_asm_context = _asm_request_context.asm_request_context_manager()
             new_asm_context.__enter__()
-            span.context._meta["ASM_CONTEXT_%d" % id(span)] = new_asm_context  # type: ignore
-            _asm_request_context.register(span)
+            _asm_request_context.register(span, new_asm_context)
 
         ctx = self._ddwaf._at_request_start()
 
@@ -263,14 +265,14 @@ class AppSecSpanProcessor(SpanProcessor):
 
         If `custom_data_values` is specified, it must be a dictionary where the key is the
         `WAF_DATA_NAMES` key and the value the custom value. If not used, the values will
-        be retrieved from the `_context`. This can be used when you don't want to store
-        the value in the `_context` before checking the `WAF`.
+        be retrieved from the `core`. This can be used when you don't want to store
+        the value in the `core` before checking the `WAF`.
         """
 
         if span.span_type != SpanTypes.WEB:
             return
 
-        if _context.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span):
+        if core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span) or core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
             return
 
         data = {}
@@ -300,7 +302,8 @@ class AppSecSpanProcessor(SpanProcessor):
         blocked = WAF_ACTIONS.BLOCK in waf_results.actions
         _asm_request_context.set_waf_results(waf_results, self._ddwaf.info, blocked)
         if blocked:
-            _context.set_item(WAF_CONTEXT_NAMES.BLOCKED, True, span=span)
+            core.set_item(WAF_CONTEXT_NAMES.BLOCKED, True, span=span)
+            core.set_item(WAF_CONTEXT_NAMES.BLOCKED, True)
 
         try:
             info = self._ddwaf.info
@@ -346,7 +349,11 @@ class AppSecSpanProcessor(SpanProcessor):
                     _set_headers(span, headers_req, kind=kind)
 
             if waf_results and waf_results.data:
-                span.set_tag_str(APPSEC.JSON, '{"triggers":%s}' % (waf_results.data,))
+                span.set_tag_str(
+                    APPSEC.JSON,
+                    '{"triggers":%s}'
+                    % (json.dumps(waf_results.data, sort_keys=True, indent=2, separators=(",", ": ")),),
+                )
             if blocked:
                 span.set_tag(APPSEC.BLOCKED, "true")
                 _set_waf_request_metrics()
@@ -376,23 +383,19 @@ class AppSecSpanProcessor(SpanProcessor):
 
     def on_span_finish(self, span):
         # type: (Span) -> None
-        if span.span_type != SpanTypes.WEB:
-            return
+        try:
+            if span.span_type == SpanTypes.WEB:
+                # Force to set respond headers at the end
+                headers_req = core.get_item(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, span=span)
+                if headers_req:
+                    _set_headers(span, headers_req, kind="response")
 
-        # Force to set respond headers at the end
-        headers_req = _context.get_item(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, span=span)
-        if headers_req:
-            _set_headers(span, headers_req, kind="response")
+                # this call is only necessary for tests or frameworks that are not using blocking
+                if span.get_tag(APPSEC.JSON) is None and _asm_request_context.in_context():
+                    log.debug("metrics waf call")
+                    _asm_request_context.call_waf_callback()
 
-        # this call is only necessary for tests or frameworks that are not using blocking
-        if span.get_tag(APPSEC.JSON) is None:
-            log.debug("metrics waf call")
-            _asm_request_context.call_waf_callback()
-
-        self._ddwaf._at_request_end()
-
-        # release asm context if it was created by the span
-        asm_context = span.context._meta.get("ASM_CONTEXT_%d" % id(span), None)
-        if asm_context is not None:
-            asm_context.__exit__(None, None, None)  # type: ignore
-            del span.context._meta["ASM_CONTEXT_%d" % id(span)]
+                self._ddwaf._at_request_end()
+        finally:
+            # release asm context if it was created by the span
+            _asm_request_context.unregister(span)

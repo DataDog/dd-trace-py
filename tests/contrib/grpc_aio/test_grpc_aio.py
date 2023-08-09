@@ -1,10 +1,10 @@
 import asyncio
 from collections import namedtuple
+import os
 import sys
 
 import grpc
 from grpc import aio
-import packaging.version
 import pytest
 
 from ddtrace import Pin
@@ -16,6 +16,7 @@ from ddtrace.contrib.grpc import patch
 from ddtrace.contrib.grpc import unpatch
 from ddtrace.contrib.grpc.patch import GRPC_AIO_PIN_MODULE_CLIENT
 from ddtrace.contrib.grpc.patch import GRPC_AIO_PIN_MODULE_SERVER
+import ddtrace.vendor.packaging.version as packaging_version
 from tests.contrib.grpc.hello_pb2 import HelloReply
 from tests.contrib.grpc.hello_pb2 import HelloRequest
 from tests.contrib.grpc.hello_pb2_grpc import HelloServicer
@@ -436,7 +437,8 @@ async def test_analytics_without_rate(server_info, tracer):
 
 
 @pytest.mark.skipif(
-    sys.version_info >= (3, 11, 0), reason="Segfaults in Python 3.11, see https://github.com/grpc/grpc/issues/31441"
+    sys.version_info in ((3, 11, 0), (3, 11, 1)),
+    reason="Segfaults in Python 3.11.0 and 3.11.1",
 )
 @pytest.mark.asyncio
 @pytest.mark.parametrize("server_info", [_CoroHelloServicer(), _SyncHelloServicer()], indirect=True)
@@ -464,7 +466,7 @@ async def test_unary_exception(server_info, tracer):
     if server_info.abort_supported:
         assert server_span.error == 1
         # grpc provide servicer_context.details and servicer_context.code above 1.38.0-pre1
-        if packaging.version.parse(grpc.__version__) >= packaging.version.parse("1.38.0-pre1"):
+        if packaging_version.parse(grpc.__version__) >= packaging_version.parse("1.38.0-pre1"):
             assert server_span.get_tag(ERROR_MSG) == "abort_details"
             assert server_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
         else:
@@ -477,7 +479,8 @@ async def test_unary_exception(server_info, tracer):
 
 
 @pytest.mark.skipif(
-    sys.version_info >= (3, 11, 0), reason="Segfaults in Python 3.11, see https://github.com/grpc/grpc/issues/31441"
+    sys.version_info in ((3, 11, 0), (3, 11, 1)),
+    reason="Segfaults in Python 3.11.0 and 3.11.1",
 )
 @pytest.mark.asyncio
 @pytest.mark.parametrize("server_info", [_CoroHelloServicer(), _SyncHelloServicer()], indirect=True)
@@ -551,7 +554,7 @@ async def test_server_streaming_exception(server_info, tracer):
     assert server_span.resource == "/helloworld.Hello/SayHelloTwice"
     assert server_span.error == 1
     # grpc provide servicer_context.details and servicer_context.code above 1.38.0-pre1
-    if packaging.version.parse(grpc.__version__) >= packaging.version.parse("1.38.0-pre1"):
+    if packaging_version.parse(grpc.__version__) >= packaging_version.parse("1.38.0-pre1"):
         assert server_span.get_tag(ERROR_MSG) == "abort_details"
         assert server_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
     else:
@@ -663,7 +666,8 @@ async def test_client_streaming(server_info, tracer):
 
 
 @pytest.mark.skipif(
-    sys.version_info >= (3, 11, 0), reason="Segfaults in Python 3.11, see https://github.com/grpc/grpc/issues/31441"
+    sys.version_info in ((3, 11, 0), (3, 11, 1)),
+    reason="Segfaults in Python 3.11.0 and 3.11.1",
 )
 @pytest.mark.asyncio
 @pytest.mark.parametrize("server_info", [_CoroHelloServicer(), _SyncHelloServicer()], indirect=True)
@@ -691,7 +695,7 @@ async def test_client_streaming_exception(server_info, tracer):
     if server_info.abort_supported:
         assert server_span.error == 1
         # grpc provide servicer_context.details and servicer_context.code above 1.38.0-pre1
-        if packaging.version.parse(grpc.__version__) >= packaging.version.parse("1.38.0-pre1"):
+        if packaging_version.parse(grpc.__version__) >= packaging_version.parse("1.38.0-pre1"):
             assert server_span.get_tag(ERROR_MSG) == "abort_details"
             assert server_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
         else:
@@ -765,7 +769,8 @@ async def test_bidi_streaming(server_info, tracer):
 
 
 @pytest.mark.skipif(
-    sys.version_info >= (3, 11, 0), reason="Segfaults in Python 3.11, see https://github.com/grpc/grpc/issues/31441"
+    sys.version_info in ((3, 11, 0), (3, 11, 1)),
+    reason="Segfaults in Python 3.11.0 and 3.11.1",
 )
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
@@ -797,7 +802,7 @@ async def test_bidi_streaming_exception(server_info, tracer):
     if server_info.abort_supported:
         assert server_span.error == 1
         # grpc provide servicer_context.details and servicer_context.code above 1.38.0-pre1
-        if packaging.version.parse(grpc.__version__) >= packaging.version.parse("1.38.0-pre1"):
+        if packaging_version.parse(grpc.__version__) >= packaging_version.parse("1.38.0-pre1"):
             assert server_span.get_tag(ERROR_MSG) == "abort_details"
             assert server_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
         else:
@@ -901,3 +906,72 @@ async def test_bidi_streaming_cancelled_after_rpc(server_info, tracer):
     # No error because cancelled after execution
     _check_client_span(client_span, "grpc-aio-client", "SayHelloRepeatedly", "bidi_streaming")
     _check_server_span(server_span, "grpc-aio-server", "SayHelloRepeatedly", "bidi_streaming")
+
+
+@pytest.mark.parametrize(
+    "service_schema",
+    [
+        (None, None),
+        (None, "v0"),
+        (None, "v1"),
+        ("mysvc", None),
+        ("mysvc", "v0"),
+        ("mysvc", "v1"),
+    ],
+)
+def test_schematization_of_operation(ddtrace_run_python_code_in_subprocess, service_schema):
+    service, schema = service_schema
+    expected_operation_name_format = {
+        None: ("grpc"),
+        "v0": ("grpc"),
+        "v1": ("grpc.{}.request"),
+    }[schema]
+    code = """
+import pytest
+import sys
+from grpc import aio
+
+from tests.contrib.grpc.hello_pb2 import HelloReply
+from tests.contrib.grpc.hello_pb2 import HelloRequest
+from tests.contrib.grpc.hello_pb2_grpc import HelloServicer
+from tests.contrib.grpc.hello_pb2_grpc import HelloStub
+from tests.contrib.grpc_aio.test_grpc_aio import _CoroHelloServicer
+from tests.contrib.grpc_aio.test_grpc_aio import _SyncHelloServicer
+from tests.contrib.grpc_aio.test_grpc_aio import _get_spans
+from tests.contrib.grpc_aio.test_grpc_aio import patch_grpc_aio
+from tests.contrib.grpc_aio.test_grpc_aio import server_info
+from tests.contrib.grpc_aio.test_grpc_aio import tracer
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("server_info",[_CoroHelloServicer(), _SyncHelloServicer()], indirect=True)
+async def test_client_streaming(server_info, tracer):
+    request_iterator = iter(HelloRequest(name=name) for name in ["first", "second"])
+    async with aio.insecure_channel(server_info.target) as channel:
+        stub = HelloStub(channel)
+        response = await stub.SayHelloLast(request_iterator)
+        assert response.message == "first;second"
+
+    spans = _get_spans(tracer)
+    assert len(spans) == 2
+    client_span, server_span = spans
+
+    operation_name_format = "{}"
+    assert client_span.name == operation_name_format.format("client")
+    assert server_span.name == operation_name_format.format("server")
+
+if __name__ == "__main__":
+    if sys.version_info < (3, 7):
+        sys.exit(pytest.main(["-x", __file__]))
+    else:
+        sys.exit(pytest.main(["-x", __file__, "--asyncio-mode=auto"]))
+    """.format(
+        expected_operation_name_format
+    )
+    env = os.environ.copy()
+    if service:
+        env["DD_SERVICE"] = service
+    if schema:
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    assert status == 0, (err.decode(), out.decode())
+    assert err == b"", err.decode()

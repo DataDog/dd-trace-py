@@ -223,30 +223,30 @@ def test_verify_url():
 
     with pytest.raises(ValueError) as e:
         agent.verify_url("unix://")
-    assert str(e.value) == "Invalid file path in Agent URL 'unix://'"
+    assert str(e.value) == "Invalid file path in intake URL 'unix://'"
 
     with pytest.raises(ValueError) as e:
         agent.verify_url("http2://localhost:1234")
     assert (
         str(e.value)
-        == "Unsupported protocol 'http2' in Agent URL 'http2://localhost:1234'. Must be one of: http, https, unix"
+        == "Unsupported protocol 'http2' in intake URL 'http2://localhost:1234'. Must be one of: http, https, unix"
     )
 
     with pytest.raises(ValueError) as e:
         agent.verify_url("adsf")
-    assert str(e.value) == "Unsupported protocol '' in Agent URL 'adsf'. Must be one of: http, https, unix"
+    assert str(e.value) == "Unsupported protocol '' in intake URL 'adsf'. Must be one of: http, https, unix"
 
     with pytest.raises(ValueError) as e:
         agent.verify_url("http://")
-    assert str(e.value) == "Invalid hostname in Agent URL 'http://'"
+    assert str(e.value) == "Invalid hostname in intake URL 'http://'"
 
     with pytest.raises(ValueError) as e:
         agent.verify_url("https://")
-    assert str(e.value) == "Invalid hostname in Agent URL 'https://'"
+    assert str(e.value) == "Invalid hostname in intake URL 'https://'"
 
     with pytest.raises(ValueError) as e:
         agent.verify_url("unix://")
-    assert str(e.value) == "Invalid file path in Agent URL 'unix://'"
+    assert str(e.value) == "Invalid file path in intake URL 'unix://'"
 
 
 def _mock_raise(ex):

@@ -18,6 +18,8 @@ from ddtrace.ext import net
 from ddtrace.internal.compat import Iterable
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.schema import schematize_cache_operation
+from ddtrace.internal.schema import schematize_service_name
 from ddtrace.vendor.wrapt import ObjectProxy
 
 
@@ -48,7 +50,8 @@ class TracedClient(ObjectProxy):
 
         super(TracedClient, self).__init__(client)
 
-        pin = ddtrace.Pin(service=service, tracer=tracer)
+        schematized_service = schematize_service_name(service)
+        pin = ddtrace.Pin(service=schematized_service, tracer=tracer)
         pin.onto(self)
 
         # attempt to collect the pool of urls this client talks to
@@ -159,7 +162,7 @@ class TracedClient(ObjectProxy):
             return self._no_span()
 
         span = pin.tracer.trace(
-            "memcached.cmd",
+            schematize_cache_operation("memcached.cmd", cache_provider="memcached"),
             service=pin.service,
             resource=cmd_name,
             span_type=SpanTypes.CACHE,
@@ -183,7 +186,7 @@ class TracedClient(ObjectProxy):
         # FIXME[matt] the host selection is buried in c code. we can't tell what it's actually
         # using, so fallback to randomly choosing one. can we do better?
         if self._addresses:
-            _, host, port, _ = random.choice(self._addresses)
+            _, host, port, _ = random.choice(self._addresses)  # nosec
             span.set_tag_str(net.TARGET_HOST, host)
             span.set_tag(net.TARGET_PORT, port)
 

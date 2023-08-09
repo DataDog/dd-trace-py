@@ -1,0 +1,59 @@
+[[
+  {
+    "name": "postgres.query",
+    "service": "postgresdb",
+    "resource": "select 'one' as x",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "component": "django-postgres",
+      "django.db.alias": "postgres",
+      "django.db.vendor": "postgresql",
+      "language": "python",
+      "runtime-id": "99c984f231264c238e23d78a016b9ddd",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "db.row_count": 1,
+      "process_id": 11874
+    },
+    "duration": 422653,
+    "start": 1691162159088064801
+  },
+     {
+       "name": "postgres.query",
+       "service": "postgres",
+       "resource": "select 'one' as x",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "sql",
+       "error": 0,
+       "meta": {
+         "_dd.p.dm": "-0",
+         "component": "psycopg",
+         "db.application": "None",
+         "db.name": "test_postgres",
+         "db.system": "postgresql",
+         "db.user": "postgres",
+         "out.host": "127.0.0.1",
+         "span.kind": "client"
+       },
+       "metrics": {
+         "_dd.measured": 1,
+         "_dd.top_level": 1,
+         "db.row_count": 1,
+         "network.destination.port": 5432
+       },
+       "duration": 245009,
+       "start": 1691162159088211075
+     }]]

@@ -3,6 +3,10 @@ from typing import TYPE_CHECKING
 
 import six
 
+from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
+from ddtrace.internal.constants import REQUEST_PATH_PARAMS
+from ddtrace.internal.constants import RESPONSE_HEADERS
+
 
 if TYPE_CHECKING:
     from typing import Any
@@ -54,8 +58,13 @@ class APPSEC(object):
     ORIGIN_VALUE = "appsec"
     CUSTOM_EVENT_PREFIX = "appsec.events"
     USER_LOGIN_EVENT_PREFIX = "appsec.events.users.login"
+    USER_SIGNUP_EVENT = "appsec.events.users.signup.track"
     BLOCKED = "appsec.blocked"
     EVENT = "appsec.event"
+    AUTOMATIC_USER_EVENTS_TRACKING = "DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING"
+    USER_MODEL_LOGIN_FIELD = "DD_USER_MODEL_LOGIN_FIELD"
+    USER_MODEL_EMAIL_FIELD = "DD_USER_MODEL_EMAIL_FIELD"
+    USER_MODEL_NAME_FIELD = "DD_USER_MODEL_NAME_FIELD"
 
 
 @six.add_metaclass(Constant_Class)  # required for python2/3 compatibility
@@ -63,6 +72,8 @@ class IAST(object):
     """Specific constants for IAST"""
 
     ENV = "DD_IAST_ENABLED"
+    ENV_DEBUG = "_DD_IAST_DEBUG"
+    TELEMETRY_REPORT_LVL = "DD_IAST_TELEMETRY_VERBOSITY"
     JSON = "_dd.iast.json"
     ENABLED = "_dd.iast.enabled"
     CONTEXT_KEY = "_iast_data"
@@ -97,13 +108,31 @@ class SPAN_DATA_NAMES(object):
     REQUEST_HEADERS_NO_COOKIES = "http.request.headers"
     REQUEST_HEADERS_NO_COOKIES_CASE = "http.request.headers_case_sensitive"
     REQUEST_URI_RAW = "http.request.uri"
+    REQUEST_ROUTE = "http.request.route"
     REQUEST_METHOD = "http.request.method"
-    REQUEST_PATH_PARAMS = "http.request.path_params"
+    REQUEST_PATH_PARAMS = REQUEST_PATH_PARAMS
     REQUEST_COOKIES = "http.request.cookies"
     REQUEST_HTTP_IP = "http.request.remote_ip"
     REQUEST_USER_ID = "usr.id"
     RESPONSE_STATUS = "http.response.status"
-    RESPONSE_HEADERS_NO_COOKIES = "http.response.headers"
+    RESPONSE_HEADERS_NO_COOKIES = RESPONSE_HEADERS
+    RESPONSE_BODY = "http.response.body"
+
+
+@six.add_metaclass(Constant_Class)  # required for python2/3 compatibility
+class API_SECURITY(object):
+    """constants related to API Security"""
+
+    ENV_VAR_ENABLED = "DD_EXPERIMENTAL_API_SECURITY_ENABLED"
+    REQUEST_HEADERS_NO_COOKIES = "_dd.appsec.s.req.headers"
+    REQUEST_QUERY = "_dd.appsec.s.req.query"
+    REQUEST_PATH_PARAMS = "_dd.appsec.s.req.params"
+    REQUEST_BODY = "_dd.appsec.s.req.body"
+    RESPONSE_HEADERS_NO_COOKIES = "_dd.appsec.s.res.headers"
+    RESPONSE_BODY = "_dd.appsec.s.res.body"
+    INTERVAL_PER_ROUTE = "_DD_API_SECURITY_INTERVAL_PER_ROUTE"
+    ENABLED = "_dd.appsec.api_security.enabled"
+    MAX_PAYLOAD_SIZE = 0x1000000  # 16MB maximum size
 
 
 @six.add_metaclass(Constant_Class)  # required for python2/3 compatibility
@@ -111,7 +140,7 @@ class WAF_CONTEXT_NAMES(object):
     """string names used by the library for tagging data from requests in context"""
 
     RESULTS = "http.request.waf.results"
-    BLOCKED = "http.request.blocked"
+    BLOCKED = HTTP_REQUEST_BLOCKED
     CALLBACK = "http.request.waf.callback"
 
 
@@ -130,6 +159,23 @@ class PRODUCTS(object):
     ASM_DATA = "ASM_DATA"
     ASM_DD = "ASM_DD"
     ASM_FEATURES = "ASM_FEATURES"
+
+
+@six.add_metaclass(Constant_Class)  # required for python2/3 compatibility
+class LOGIN_EVENTS_MODE(object):
+    """
+    string identifier for the mode of the user login events. Can be:
+    DISABLED: automatic login events are disabled.
+    SAFE: automatic login events are enabled but will only store non-PII fields (id, pk uid...)
+    EXTENDED: automatic login events are enabled and will store potentially PII fields (username,
+    email, ...).
+    SDK: manually issued login events using the SDK.
+    """
+
+    DISABLED = "disabled"
+    SAFE = "safe"
+    EXTENDED = "extended"
+    SDK = "sdk"
 
 
 @six.add_metaclass(Constant_Class)  # required for python2/3 compatibility

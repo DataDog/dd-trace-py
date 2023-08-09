@@ -5,14 +5,19 @@ from typing import List
 from typing import Optional
 from typing import Tuple
 
+from ddtrace.appsec._constants import API_SECURITY
+from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.constants import IAST_ENV
+from ddtrace.internal.serverless import in_azure_function_consumption_plan
+from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.utils.cache import cachedmethod
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor.debtcollector import deprecate
 
 from ..internal import gitmetadata
+from ..internal.constants import DEFAULT_SAMPLING_RATE_LIMIT
 from ..internal.constants import PROPAGATION_STYLE_ALL
 from ..internal.constants import PROPAGATION_STYLE_B3
 from ..internal.constants import _PROPAGATION_STYLE_DEFAULT
@@ -54,6 +59,7 @@ def _parse_propagation_styles(name, default):
     - "datadog"
     - "b3multi"
     - "b3 single header"
+    - "tracecontext"
     - "none"
 
 
@@ -189,8 +195,21 @@ class Config(object):
         # use a dict as underlying storing mechanism
         self._config = {}
 
+        self._debug_mode = asbool(os.getenv("DD_TRACE_DEBUG", default=False))
+        self._call_basic_config = asbool(os.environ.get("DD_CALL_BASIC_CONFIG", "false"))
+        if self._call_basic_config:
+            deprecate(
+                "`DD_CALL_BASIC_CONFIG` is deprecated and will be removed in the next major version.",
+                message="Call `logging.basicConfig()` to configure logging in your application",
+                removal_version="2.0.0",
+            )
+
+        self._trace_sample_rate = os.getenv("DD_TRACE_SAMPLE_RATE")
+        self._trace_rate_limit = int(os.getenv("DD_TRACE_RATE_LIMIT", default=DEFAULT_SAMPLING_RATE_LIMIT))
+
         header_tags = parse_tags_str(os.getenv("DD_TRACE_HEADER_TAGS", ""))
         self.http = HttpConfig(header_tags=header_tags)
+        self._tracing_enabled = asbool(os.getenv("DD_TRACE_ENABLED", default=True))
 
         # Master switch for turning on and off trace search by default
         # this weird invocation of getenv is meant to read the DD_ANALYTICS_ENABLED
@@ -206,6 +225,13 @@ class Config(object):
 
         self.env = os.getenv("DD_ENV") or self.tags.get("env")
         self.service = os.getenv("DD_SERVICE", default=self.tags.get("service", DEFAULT_SPAN_SERVICE_NAME))
+
+        if self.service is None and in_gcp_function():
+            self.service = os.environ.get("K_SERVICE", os.environ.get("FUNCTION_NAME"))
+
+        if self.service is None and in_azure_function_consumption_plan():
+            self.service = os.environ.get("WEBSITE_SITE_NAME")
+
         self.version = os.getenv("DD_VERSION", default=self.tags.get("version"))
         self.http_server = self._HTTPServerConfig()
 
@@ -226,11 +252,15 @@ class Config(object):
 
         self.health_metrics_enabled = asbool(os.getenv("DD_TRACE_HEALTH_METRICS_ENABLED", default=False))
 
-        self._telemetry_metrics_enabled = asbool(os.getenv("_DD_TELEMETRY_METRICS_ENABLED", default=False))
+        self._telemetry_enabled = asbool(os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED", True))
+        self._runtime_metrics_enabled = asbool(os.getenv("DD_RUNTIME_METRICS_ENABLED", False))
 
         self._128_bit_trace_id_enabled = asbool(os.getenv("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", False))
 
         self._128_bit_trace_id_logging_enabled = asbool(os.getenv("DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED", False))
+
+        self._sampling_rules = os.getenv("DD_SPAN_SAMPLING_RULES")
+        self._sampling_rules_file = os.getenv("DD_SPAN_SAMPLING_RULES_FILE")
 
         # Propagation styles
         self._propagation_style_extract = self._propagation_style_inject = _parse_propagation_styles(
@@ -260,11 +290,21 @@ class Config(object):
 
         # Raise certain errors only if in testing raise mode to prevent crashing in production with non-critical errors
         self._raise = asbool(os.getenv("DD_TESTING_RAISE", False))
+
+        trace_compute_stats_default = in_gcp_function() or in_azure_function_consumption_plan()
         self._trace_compute_stats = asbool(
-            os.getenv("DD_TRACE_COMPUTE_STATS", os.getenv("DD_TRACE_STATS_COMPUTATION_ENABLED", False))
+            os.getenv(
+                "DD_TRACE_COMPUTE_STATS", os.getenv("DD_TRACE_STATS_COMPUTATION_ENABLED", trace_compute_stats_default)
+            )
         )
+        self._data_streams_enabled = asbool(os.getenv("DD_DATA_STREAMS_ENABLED", False))
         self._appsec_enabled = asbool(os.getenv(APPSEC_ENV, False))
+        self._automatic_login_events_mode = os.getenv(APPSEC.AUTOMATIC_USER_EVENTS_TRACKING, "safe")
+        self._user_model_login_field = os.getenv(APPSEC.USER_MODEL_LOGIN_FIELD, default="")
+        self._user_model_email_field = os.getenv(APPSEC.USER_MODEL_EMAIL_FIELD, default="")
+        self._user_model_name_field = os.getenv(APPSEC.USER_MODEL_NAME_FIELD, default="")
         self._iast_enabled = asbool(os.getenv(IAST_ENV, False))
+        self._api_security_enabled = asbool(os.getenv(API_SECURITY.ENV_VAR_ENABLED, False))
         self._waf_timeout = DEFAULT.WAF_TIMEOUT
         try:
             self._waf_timeout = float(os.getenv("DD_APPSEC_WAF_TIMEOUT"))
@@ -288,6 +328,31 @@ class Config(object):
                 self.http_tag_query_string = False  # Disable query string tagging if malformed obfuscation pattern
 
         self._ci_visibility_agentless_enabled = asbool(os.getenv("DD_CIVISIBILITY_AGENTLESS_ENABLED", default=False))
+        self._ci_visibility_agentless_url = os.getenv("DD_CIVISIBILITY_AGENTLESS_URL", default="")
+        self._ci_visibility_intelligent_testrunner_disabled = asbool(
+            os.getenv("DD_CIVISIBILITY_ITR_DISABLED", default=False)
+        )
+        self._otel_enabled = asbool(os.getenv("DD_TRACE_OTEL_ENABLED", False))
+        if self._otel_enabled:
+            # Replaces the default otel api runtime context with DDRuntimeContext
+            # https://github.com/open-telemetry/opentelemetry-python/blob/v1.16.0/opentelemetry-api/src/opentelemetry/context/__init__.py#L53
+            os.environ["OTEL_PYTHON_CONTEXT"] = "ddcontextvars_context"
+        self._ddtrace_bootstrapped = False
+        self._span_aggregator_rlock = asbool(os.getenv("DD_TRACE_SPAN_AGGREGATOR_RLOCK", False))
+
+        self._iast_redaction_enabled = asbool(os.getenv("DD_IAST_REDACTION_ENABLED", default=True))
+        self._iast_redaction_name_pattern = os.getenv(
+            "DD_IAST_REDACTION_NAME_PATTERN",
+            default=r"(?i)^.*(?:p(?:ass)?w(?:or)?d|pass(?:_?phrase)?|secret|(?:api_?|private_?|"
+            + r"public_?|access_?|secret_?)key(?:_?id)?|token|consumer_?(?:id|key|secret)|"
+            + r"sign(?:ed|ature)?|auth(?:entication|orization)?)",
+        )
+        self._iast_redaction_value_pattern = os.getenv(
+            "DD_IAST_REDACTION_VALUE_PATTERN",
+            default=r"(?i)bearer\s+[a-z0-9\._\-]+|token:[a-z0-9]{13}|gh[opsu]_[0-9a-zA-Z]{36}|"
+            + r"ey[I-L][\w=-]+\.ey[I-L][\w=-]+(\.[\w.+\/=-]+)?|[\-]{5}BEGIN[a-z\s]+PRIVATE\sKEY"
+            + r"[\-]{5}[^\-]+[\-]{5}END[a-z\s]+PRIVATE\sKEY|ssh-rsa\s*[a-z0-9\/\.+]{100,}",
+        )
 
     def __getattr__(self, name):
         if name not in self._config:

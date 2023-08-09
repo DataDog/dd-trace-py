@@ -20,6 +20,7 @@
 from datetime import datetime
 import os.path
 import re
+import sys
 from typing import Any
 from typing import Optional
 
@@ -68,9 +69,9 @@ class VersionTagFilter(Filter):
 extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.extlinks",
+    "sphinx.ext.intersphinx",
     "reno.sphinxext",
     "sphinxcontrib.spelling",
-    "envier.sphinx",
     "sphinx_copybutton",  # https://sphinx-copybutton.readthedocs.io/
 ]
 
@@ -85,6 +86,11 @@ templates_path = ["_templates"]
 #
 # source_suffix = ['.rst', '.md']
 source_suffix = ".rst"
+
+# Enable links to the python standard doc.
+intersphinx_mapping = {
+    "python": ("https://docs.python.org/3", None),
+}
 
 # The encoding of source files.
 #
@@ -737,8 +743,62 @@ class DDTraceConfigurationOptionsDirective(rst.Directive):
         return node.children
 
 
+def asbool(argument):
+    return argument.lower() in {"yes", "true", "t", "1", "y", "on"}
+
+
+class DDEnvierConfigurationDirective(rst.Directive):
+    required_arguments = 1
+    optional_arguments = 0
+    final_argument_whitespace = True
+    option_spec = {
+        "recursive": asbool,
+    }
+
+    def run(self):
+        module_name, _, config_class = self.arguments[0].partition(":")
+        __import__(module_name)
+        module = sys.modules[module_name]
+
+        config_spec = None
+        for part in config_class.split("."):
+            config_spec = getattr(module, part)
+        if config_spec is None:
+            raise ValueError("Could not find configuration spec class {} from {}".format(config_class, module_name))
+
+        recursive = self.options.get("recursive", False)
+
+        results = statemachine.ViewList()
+
+        for var_name, var_type, var_default, var_description in config_spec.help_info(recursive=recursive):
+            var_name = var_name.replace("``", "")
+
+            var_label = var_name.lower().replace("_", "-")
+
+            results.append(".. _`{}`:".format(var_label), "", 0)
+            results.append("", "", 0)
+
+            results.append(".. py:data:: {}".format(var_name), "", 0)
+            results.append("", "", 0)
+            for line in var_description.splitlines():
+                results.append("    " + line.lstrip(), "", 0)
+
+            results.append("", "", 0)
+            results.append("    **Type**: {}".format(var_type), "", 0)
+            results.append("", "", 0)
+            results.append("    **Default**: {}".format(var_default), "", 0)
+            results.append("", "", 0)
+
+        # Generate the RST nodes to return for rendering
+        node = nodes.section()
+        node.document = self.state.document
+        self.state.nested_parse(results, 0, node)
+        return node.children
+
+
 def setup(app):
     app.add_directive("ddtrace-release-notes", DDTraceReleaseNotesDirective)
     app.add_directive("ddtrace-configuration-options", DDTraceConfigurationOptionsDirective)
+    app.add_directive("ddtrace-envier-configuration", DDEnvierConfigurationDirective)
     metadata_dict = {"version": "1.0.0", "parallel_read_safe": True}
     return metadata_dict

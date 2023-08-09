@@ -17,6 +17,8 @@ from ddtrace.pin import Pin
 from ddtrace.vendor import debtcollector
 from ddtrace.vendor import wrapt
 
+from ...internal.schema import schematize_cloud_api_operation
+from ...internal.schema import schematize_service_name
 from ...internal.utils import get_argument_value
 from ...internal.utils.formats import asbool
 
@@ -85,8 +87,10 @@ def patched_query_request(original_func, instance, args, kwargs):
     endpoint_name = getattr(instance, "host").split(".")[0]
 
     with pin.tracer.trace(
-        "{}.command".format(endpoint_name),
-        service="{}.{}".format(pin.service, endpoint_name),
+        schematize_cloud_api_operation(
+            "{}.command".format(endpoint_name), cloud_provider="aws", cloud_service=endpoint_name
+        ),
+        service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
         span_type=SpanTypes.HTTP,
     ) as span:
         span.set_tag_str(COMPONENT, config.boto.integration_name)
@@ -120,6 +124,7 @@ def patched_query_request(original_func, instance, args, kwargs):
         }
         if region_name:
             meta[aws.REGION] = region_name
+            meta[aws.AWSREGION] = region_name
 
         span.set_tags(meta)
 
@@ -162,8 +167,10 @@ def patched_auth_request(original_func, instance, args, kwargs):
     endpoint_name = getattr(instance, "host").split(".")[0]
 
     with pin.tracer.trace(
-        "{}.command".format(endpoint_name),
-        service="{}.{}".format(pin.service, endpoint_name),
+        schematize_cloud_api_operation(
+            "{}.command".format(endpoint_name), cloud_provider="aws", cloud_service=endpoint_name
+        ),
+        service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
         span_type=SpanTypes.HTTP,
     ) as span:
         span.set_tag(SPAN_MEASURED_KEY)
@@ -185,6 +192,7 @@ def patched_auth_request(original_func, instance, args, kwargs):
         }
         if region_name:
             meta[aws.REGION] = region_name
+            meta[aws.AWSREGION] = region_name
 
         span.set_tags(meta)
 

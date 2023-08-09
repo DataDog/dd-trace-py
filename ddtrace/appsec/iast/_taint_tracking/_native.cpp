@@ -1,64 +1,85 @@
-#include <Python.h>
-#include <iostream>
-#include <tuple>
+/* *****
+ * IAST Native Module
+ * This C++ module contains IAST propagation features:
+ * - Taint tracking: propagation of a tainted variable.
+ * - Aspects: common string operations are replaced by functions that propagate the taint variables.
+ * - Taint ranges: Information related to tainted values.
+ */
+#include <memory>
+#include <pybind11/pybind11.h>
 
-PyObject *bytes_join = NULL;
-PyObject *bytearray_join = NULL;
-PyObject *empty_bytes = NULL;
-PyObject *empty_bytearray = NULL;
-PyObject *empty_unicode = NULL;
+#include "Aspects/AspectExtend.h"
+#include "Aspects/AspectJoin.h"
+#include "Aspects/AspectOperatorAdd.h"
+#include "Aspects/_aspects_helpers.h"
+#include "Constants.h"
+#include "Context/_context.h"
+#include "Exceptions/_exceptions.h"
+#include "Initializer/_initializer.h"
+#include "TaintTracking/_taint_tracking.h"
+#include "TaintedOps/TaintedOps.h"
 
-static PyObject *setup(PyObject *Py_UNUSED(module), PyObject *args) {
-  PyArg_ParseTuple(args, "OO", &bytes_join, &bytearray_join);
-  empty_bytes = PyBytes_FromString("");
-  empty_bytearray = PyByteArray_FromObject(empty_bytes);
-  empty_unicode = PyUnicode_New(0, 127);
-  Py_RETURN_NONE;
-}
+#define PY_MODULE_NAME_ASPECTS                                                                                         \
+    PY_MODULE_NAME "."                                                                                                 \
+                   "aspects"
 
-static PyObject *new_pyobject_id(PyObject *Py_UNUSED(module), PyObject *args) {
-  PyObject *tainted_object;
-  Py_ssize_t object_length;
-  PyArg_ParseTuple(args, "On", &tainted_object, &object_length);
-  if (PyUnicode_Check(tainted_object)) {
-    if (PyUnicode_CHECK_INTERNED(tainted_object) == 0) { // SSTATE_NOT_INTERNED
-      Py_INCREF(tainted_object);
-      return tainted_object;
-    }
-    return PyUnicode_Join(empty_unicode,
-                          Py_BuildValue("(OO)", tainted_object, empty_unicode));
-  } else if (object_length > 1) {
-    // Bytes and bytearrays with length > 1 are not interned
-    Py_INCREF(tainted_object);
-    return tainted_object;
-  } else if (PyBytes_Check(tainted_object)) {
-    return PyObject_CallFunctionObjArgs(
-        bytes_join, empty_bytes,
-        Py_BuildValue("(OO)", tainted_object, empty_bytes), NULL);
-  } else {
-    return PyObject_CallFunctionObjArgs(
-        bytearray_join, empty_bytearray,
-        Py_BuildValue("(OO)", tainted_object, empty_bytearray), NULL);
-  }
-}
+using namespace pybind11::literals;
+namespace py = pybind11;
 
-static PyMethodDef TaintTrackingMethods[] = {
+static PyMethodDef AspectsMethods[] = {
     // We are using  METH_VARARGS because we need compatibility with
     // python 3.5, 3.6. but METH_FASTCALL could be used instead for python
     // >= 3.7
-    {"setup", (PyCFunction)setup, METH_VARARGS, "setup tainting module"},
-    {"new_pyobject_id", (PyCFunction)new_pyobject_id, METH_VARARGS,
-     "new_pyobject_id"},
-    {NULL, NULL, 0, NULL}};
+    { "add_aspect", ((PyCFunction)api_add_aspect), METH_FASTCALL, "aspect add" },
+    { "join_aspect", ((PyCFunction)api_join_aspect), METH_FASTCALL, "aspect add" },
+    { "extend_aspect", ((PyCFunction)api_extend_aspect), METH_FASTCALL, "aspect extend" },
+    { nullptr, nullptr, 0, nullptr }
+};
 
-static struct PyModuleDef taint_tracking = {
-    PyModuleDef_HEAD_INIT, "ddtrace.appsec.iast._taint_tracking._native",
-    "taint tracking module", -1, TaintTrackingMethods};
+static struct PyModuleDef aspects = { PyModuleDef_HEAD_INIT,
+                                      .m_name = PY_MODULE_NAME_ASPECTS,
+                                      .m_doc = "Taint tracking Aspects",
+                                      .m_size = -1,
+                                      .m_methods = AspectsMethods };
 
-PyMODINIT_FUNC PyInit__native(void) {
-  PyObject *m;
-  m = PyModule_Create(&taint_tracking);
-  if (m == NULL)
-    return NULL;
-  return m;
+static PyMethodDef OpsMethods[] = {
+    // We are using  METH_VARARGS because we need compatibility with
+    // python 3.5, 3.6. but METH_FASTCALL could be used instead for python
+    // >= 3.7
+    { "setup", (PyCFunction)setup, METH_VARARGS, "setup tainting module" },
+    { "new_pyobject_id", (PyCFunction)api_new_pyobject_id, METH_VARARGS, "new pyobject id" },
+    { nullptr, nullptr, 0, nullptr }
+};
+
+static struct PyModuleDef ops = { PyModuleDef_HEAD_INIT,
+                                  .m_name = PY_MODULE_NAME_ASPECTS,
+                                  .m_doc = "Taint tracking operations",
+                                  .m_size = -1,
+                                  .m_methods = OpsMethods };
+
+PYBIND11_MODULE(_native, m)
+{
+    initializer = make_unique<Initializer>();
+    initializer->create_context();
+    // Cleanup code to be run at the end of the interpreter lifetime:
+    auto atexit = py::module::import("atexit");
+    atexit.attr("register")(py::cpp_function([] { initializer.reset(); }));
+
+    m.doc() = "Native Python module";
+
+    py::module m_initializer = pyexport_m_initializer(m);
+    pyexport_m_taint_tracking(m);
+    pyexport_m_context(m);
+    pyexport_m_exceptions(m, m_initializer);
+
+    pyexport_m_aspect_helpers(m);
+
+    // Note: the order of these definitions matter. For example,
+    // stacktrace_element definitions must be before the ones of the
+    // classes inheriting from it.
+    PyObject* hm_aspects = PyModule_Create(&aspects);
+    m.add_object("aspects", hm_aspects);
+
+    PyObject* hm_ops = PyModule_Create(&ops);
+    m.add_object("ops", hm_ops);
 }

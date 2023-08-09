@@ -1,6 +1,7 @@
 from os.path import abspath
 import typing as t
 
+from _config import config as expl_config
 from debugger import COLS
 from debugger import ExplorationDebugger
 from debugger import ModuleCollector
@@ -10,6 +11,7 @@ from debugging.utils import create_snapshot_function_probe
 
 from ddtrace.debugging._function.discovery import FunctionDiscovery
 from ddtrace.debugging._probe.model import FunctionLocationMixin
+from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.internal.module import origin
 
 
@@ -35,6 +37,7 @@ class FunctionCollector(ModuleCollector):
                     module=module.__name__,
                     func_qname=fname.replace(module.__name__, "").lstrip("."),
                     rate=float("inf"),
+                    limits=expl_config.limits,
                 )
             )
 
@@ -67,6 +70,12 @@ class DeterministicProfiler(ExplorationDebugger):
     def on_disable(cls):
         # type: () -> None
         cls.report_func_calls()
+
+    @classmethod
+    def on_snapshot(cls, snapshot):
+        # type: (Snapshot) -> None
+        if config.profiler.delete_probes:
+            cls.delete_probe(snapshot.probe)
 
 
 if config.profiler.enabled:

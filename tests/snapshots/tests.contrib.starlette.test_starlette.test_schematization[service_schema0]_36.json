@@ -1,0 +1,80 @@
+[[
+  {
+    "name": "requests.request",
+    "service": "requests",
+    "resource": "requests.request",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "http",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "component": "requests",
+      "http.method": "GET",
+      "http.status_code": "200",
+      "http.url": "http://testserver/sub-app/hello/name",
+      "http.useragent": "testclient",
+      "language": "python",
+      "out.host": "testserver",
+      "runtime-id": "b706b92d77154a5f829682c50f449663",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 26911
+    },
+    "duration": 1569000,
+    "start": 1691164873806357000
+  },
+     {
+       "name": "starlette.request",
+       "service": "starlette",
+       "resource": "GET /sub-app/hello/name",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "web",
+       "error": 0,
+       "meta": {
+         "_dd.p.dm": "-0",
+         "component": "starlette",
+         "http.method": "GET",
+         "http.status_code": "200",
+         "http.url": "http://testserver/sub-app/hello/name",
+         "http.useragent": "testclient",
+         "http.version": "1.1",
+         "span.kind": "server"
+       },
+       "metrics": {
+         "_dd.top_level": 1
+       },
+       "duration": 489000,
+       "start": 1691164873807143000
+     },
+        {
+          "name": "starlette.request",
+          "service": "starlette",
+          "resource": "GET /hello/name",
+          "trace_id": 0,
+          "span_id": 3,
+          "parent_id": 2,
+          "type": "web",
+          "error": 0,
+          "meta": {
+            "_dd.p.dm": "-0",
+            "component": "starlette",
+            "http.method": "GET",
+            "http.status_code": "200",
+            "http.url": "http://testserver/sub-app/hello/name",
+            "http.useragent": "testclient",
+            "http.version": "1.1",
+            "span.kind": "server"
+          },
+          "duration": 186000,
+          "start": 1691164873807477000
+        }]]

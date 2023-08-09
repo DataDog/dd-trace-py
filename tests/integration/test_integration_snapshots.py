@@ -6,15 +6,13 @@ import mock
 import pytest
 
 from ddtrace import Tracer
+from ddtrace import tracer
 from ddtrace.constants import AUTO_KEEP
-from ddtrace.constants import MANUAL_DROP_KEY
-from ddtrace.constants import MANUAL_KEEP_KEY
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
 from ddtrace.internal.writer import AgentWriter
-from ddtrace.sampler import DatadogSampler
-from ddtrace.sampler import RateSampler
-from ddtrace.sampler import SamplingRule
+from tests.integration.utils import mark_snapshot
+from tests.integration.utils import parametrize_with_all_encodings
 from tests.utils import snapshot
 
 from .test_integration import AGENT_VERSION
@@ -91,76 +89,6 @@ def test_filters(writer, tracer):
     with tracer.trace("root"):
         with tracer.trace("child"):
             pass
-    tracer.shutdown()
-
-
-@pytest.mark.parametrize(
-    "writer",
-    ("default", "sync"),
-)
-@snapshot(include_tracer=True)
-def test_sampling(writer, tracer):
-    if writer == "sync":
-        writer = AgentWriter(
-            tracer.agent_trace_url,
-            priority_sampler=tracer._priority_sampler,
-            sync_mode=True,
-        )
-        # Need to copy the headers which contain the test token to associate
-        # traces with this test case.
-        writer._headers = tracer._writer._headers
-    else:
-        writer = tracer._writer
-
-    tracer.configure(writer=writer)
-
-    with tracer.trace("trace1"):
-        with tracer.trace("child"):
-            pass
-
-    sampler = DatadogSampler(default_sample_rate=1.0)
-    tracer.configure(sampler=sampler, writer=writer)
-    with tracer.trace("trace2"):
-        with tracer.trace("child"):
-            pass
-
-    sampler = DatadogSampler(default_sample_rate=0.000001)
-    tracer.configure(sampler=sampler, writer=writer)
-    with tracer.trace("trace3"):
-        with tracer.trace("child"):
-            pass
-
-    sampler = DatadogSampler(default_sample_rate=1, rules=[SamplingRule(1.0)])
-    tracer.configure(sampler=sampler, writer=writer)
-    with tracer.trace("trace4"):
-        with tracer.trace("child"):
-            pass
-
-    sampler = DatadogSampler(default_sample_rate=1, rules=[SamplingRule(0)])
-    tracer.configure(sampler=sampler, writer=writer)
-    with tracer.trace("trace5"):
-        with tracer.trace("child"):
-            pass
-
-    sampler = DatadogSampler(default_sample_rate=1)
-    tracer.configure(sampler=sampler, writer=writer)
-    with tracer.trace("trace6"):
-        with tracer.trace("child") as span:
-            span.set_tag(MANUAL_DROP_KEY)
-
-    sampler = DatadogSampler(default_sample_rate=1)
-    tracer.configure(sampler=sampler, writer=writer)
-    with tracer.trace("trace7"):
-        with tracer.trace("child") as span:
-            span.set_tag(MANUAL_KEEP_KEY)
-
-    sampler = RateSampler(0.0000000001)
-    tracer.configure(sampler=sampler, writer=writer)
-    # This trace should not appear in the snapshot
-    with tracer.trace("trace8"):
-        with tracer.trace("child"):
-            pass
-
     tracer.shutdown()
 
 
@@ -322,3 +250,32 @@ tracer.trace("test-op").finish()
 """,
         env=env,
     )
+
+
+@pytest.mark.snapshot(token="tests.integration.test_integration_snapshots.test_snapshot_skip")
+def test_snapshot_skip():
+    pytest.skip("Test that snapshot tests can be skipped")
+    with tracer.trace("test"):
+        pass
+
+
+@parametrize_with_all_encodings
+@mark_snapshot
+def test_setting_span_tags_and_metrics_generates_no_error_logs(encoding, ddtrace_run_python_code_in_subprocess):
+    env = os.environ.copy()
+    env["DD_TRACE_API_VERSION"] = encoding
+
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(
+        """
+import ddtrace
+
+s = ddtrace.tracer.trace("operation", service="my-svc")
+s.set_tag("env", "my-env")
+s.set_metric("number1", 123)
+s.set_metric("number2", 12.0)
+s.set_metric("number3", "1")
+s.finish()
+""",
+        env=env,
+    )
+    assert status == 0, (out, err)

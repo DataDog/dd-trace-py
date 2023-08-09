@@ -3,20 +3,22 @@ import os.path
 import sys
 from threading import Thread
 from time import sleep
+from time import time
 
 import mock
 from mock.mock import call
 import pytest
 
 import ddtrace
-from ddtrace.debugging._capture.model import CaptureState
-from ddtrace.debugging._capture.tracing import SPAN_NAME
 from ddtrace.debugging._expressions import dd_compile
 from ddtrace.debugging._probe.model import DDExpression
 from ddtrace.debugging._probe.model import MetricProbeKind
 from ddtrace.debugging._probe.model import ProbeEvaluateTimingForMethod
 from ddtrace.debugging._probe.registry import _get_probe_location
-from ddtrace.internal.remoteconfig import RemoteConfig
+from ddtrace.debugging._signal.model import SignalState
+from ddtrace.debugging._signal.tracing import SPAN_NAME
+from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.utils.inspection import linenos
 from tests.debugging.mocking import debugger
 from tests.debugging.utils import compile_template
@@ -76,11 +78,6 @@ def test_debugger_line_probe_on_instance_method():
     )
 
     (snapshot,) = snapshots
-    assert snapshot["message"] in (
-        "instancestuff(self=Stuff(), bar=None)",
-        "instancestuff(bar=None, self=Stuff())",
-    ), snapshot["message"]
-
     captures = snapshot["debugger.snapshot"]["captures"]["lines"]["36"]
     assert set(captures["arguments"].keys()) == {"self", "bar"}
     assert captures["locals"] == {}
@@ -100,7 +97,6 @@ def test_debugger_line_probe_on_imported_module_function():
     )
 
     (snapshot,) = snapshots
-    assert snapshot["message"] == "modulestuff(snafu=42)"
     captures = snapshot["debugger.snapshot"]["captures"]["lines"][str(lineno)]
     assert set(captures["arguments"].keys()) == {"snafu"}
     assert captures["locals"] == {}
@@ -187,11 +183,6 @@ def test_debugger_function_probe_on_instance_method():
     )
 
     (snapshot,) = snapshots
-    assert snapshot["message"] in (
-        "Stuff.instancestuff(self=Stuff(), bar=42)\n@return=42",
-        "Stuff.instancestuff(bar=42, self=Stuff())\n@return=42",
-    )
-
     snapshot_data = snapshot["debugger.snapshot"]
     assert snapshot_data["stack"][0]["fileName"].endswith("stuff.py")
     assert snapshot_data["stack"][0]["function"] == "instancestuff"
@@ -221,8 +212,6 @@ def test_debugger_function_probe_on_function_with_exception():
     )
 
     (snapshot,) = snapshots
-    assert snapshot["message"] == "throwexcstuff()"
-
     snapshot_data = snapshot["debugger.snapshot"]
     assert snapshot_data["stack"][0]["fileName"].endswith("stuff.py")
     assert snapshot_data["stack"][0]["function"] == "throwexcstuff"
@@ -272,8 +261,6 @@ def test_debugger_conditional_line_probe_on_instance_method():
     )
 
     (snapshot,) = snapshots
-    assert snapshot["message"] in ("instancestuff(self=Stuff(), bar=None)", "instancestuff(bar=None, self=Stuff())")
-
     snapshot_data = snapshot["debugger.snapshot"]
     assert snapshot_data["stack"][0]["fileName"].endswith("stuff.py")
     assert snapshot_data["stack"][0]["function"] == "instancestuff"
@@ -400,7 +387,6 @@ def test_debugger_captured_exception():
     )
 
     (snapshot,) = snapshots
-    assert snapshot["message"] == "excstuff()"
     captures = snapshot["debugger.snapshot"]["captures"]["lines"]["96"]
     assert captures["throwable"]["message"] == "'Hello', 'world!', 42"
     assert captures["throwable"]["type"] == "Exception"
@@ -632,22 +618,27 @@ def test_debugger_line_probe_on_wrapped_function(stuff):
             assert snapshot.probe.probe_id == "line-probe-wrapped-method"
 
 
-def test_probe_status_logging(monkeypatch):
-    monkeypatch.setenv("DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "0.1")
-    RemoteConfig.disable()
-
+@pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
+def test_probe_status_logging(monkeypatch, remote_config_worker):
+    monkeypatch.setenv("DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "10")
+    remoteconfig_poller.interval = 10
     from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 
     old_request = RemoteConfigClient.request
 
     def request(self, *args, **kwargs):
-        for cb in self._products.values():
-            cb(None, None)
+        import uuid
+
+        for cb in self.get_pubsubs():
+            cb._subscriber._status_timestamp = time()
+            cb._subscriber.interval = 0.1
+            cb.append_and_publish({"test": str(uuid.uuid4())}, "", None)
+        return True
 
     RemoteConfigClient.request = request
-
+    assert remoteconfig_poller.status == ServiceStatus.STOPPED
     try:
-        with rcm_endpoint(), debugger(diagnostics_interval=0.5) as d:
+        with rcm_endpoint(), debugger(diagnostics_interval=0.5, enabled=True) as d:
             d.add_probes(
                 create_snapshot_line_probe(
                     probe_id="line-probe-ok",
@@ -668,34 +659,41 @@ def test_probe_status_logging(monkeypatch):
             def count_status(queue):
                 return Counter(_["debugger"]["diagnostics"]["status"] for _ in queue)
 
-            sleep(0.2)
+            sleep(0.1)
             assert count_status(queue) == {"INSTALLED": 1, "RECEIVED": 2, "ERROR": 1}
 
-            sleep(0.5)
+            remoteconfig_poller._client.request()
+            sleep(0.1)
             assert count_status(queue) == {"INSTALLED": 2, "RECEIVED": 2, "ERROR": 2}
 
-            sleep(0.5)
+            remoteconfig_poller._client.request()
+            sleep(0.1)
             assert count_status(queue) == {"INSTALLED": 3, "RECEIVED": 2, "ERROR": 3}
     finally:
         RemoteConfigClient.request = old_request
 
 
-def test_probe_status_logging_reemit_on_modify(monkeypatch):
-    monkeypatch.setenv("DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "0.1")
-    RemoteConfig.disable()
-
+@pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
+def test_probe_status_logging_reemit_on_modify(monkeypatch, remote_config_worker):
+    monkeypatch.setenv("DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "10")
+    remoteconfig_poller.interval = 10
     from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 
     old_request = RemoteConfigClient.request
 
     def request(self, *args, **kwargs):
-        for cb in self._products.values():
-            cb(None, None)
+        import uuid
+
+        for cb in self.get_pubsubs():
+            cb._subscriber._status_timestamp = time()
+            cb._subscriber.interval = 0.1
+            cb.append_and_publish({"test": str(uuid.uuid4())}, "", None)
+        return True
 
     RemoteConfigClient.request = request
-
+    assert remoteconfig_poller.status == ServiceStatus.STOPPED
     try:
-        with rcm_endpoint(), debugger(diagnostics_interval=0.5) as d:
+        with rcm_endpoint(), debugger(diagnostics_interval=0.3, enabled=True) as d:
             d.add_probes(
                 create_snapshot_line_probe(
                     version=1,
@@ -727,14 +725,15 @@ def test_probe_status_logging_reemit_on_modify(monkeypatch):
                     if _["debugger"]["diagnostics"]["status"] == status
                 ]
 
-            sleep(0.2)
+            sleep(0.1)
             assert count_status(queue) == {"INSTALLED": 2, "RECEIVED": 1}
             assert versions(queue, "INSTALLED") == [1, 2]
             assert versions(queue, "RECEIVED") == [1]
 
             queue[:] = []
-
             sleep(0.5)
+            remoteconfig_poller._client.request()
+            sleep(0.1)
             assert count_status(queue) == {"INSTALLED": 1}
             assert versions(queue, "INSTALLED") == [2]
 
@@ -783,8 +782,8 @@ def test_debugger_condition_eval_then_rate_limit():
         sleep(0.5)
 
         # We expect to see just the snapshot generated by the 42 call.
-        assert d.event_state_counter[CaptureState.SKIP_COND] == 99
-        assert d.event_state_counter[CaptureState.DONE_AND_COMMIT] == 1
+        assert d.signal_state_counter[SignalState.SKIP_COND] == 99
+        assert d.signal_state_counter[SignalState.DONE] == 1
 
         (snapshots,) = d.uploader.payloads
         (snapshot,) = snapshots
@@ -811,8 +810,8 @@ def test_debugger_condition_eval_error_get_reported_once():
         sleep(0.5)
 
         # We expect to see just the snapshot with error only.
-        assert d.event_state_counter[CaptureState.SKIP_COND_ERROR] == 99
-        assert d.event_state_counter[CaptureState.COND_ERROR_AND_COMMIT] == 1
+        assert d.signal_state_counter[SignalState.SKIP_COND_ERROR] == 99
+        assert d.signal_state_counter[SignalState.COND_ERROR] == 1
 
         (snapshots,) = d.uploader.payloads
         (snapshot,) = snapshots
@@ -853,7 +852,7 @@ def test_debugger_run_module():
     # This is also where the sitecustomize resides, so we set the PYTHONPATH
     # accordingly. This is responsible for booting the test debugger
     env = os.environ.copy()
-    env["PYTHONPATH"] = cwd
+    env["PYTHONPATH"] = os.pathsep.join((cwd, env.get("PYTHONPATH", "")))
 
     out, err, status, _ = call_program(sys.executable, "-m", "target", cwd=cwd, env=env)
 
@@ -912,8 +911,8 @@ def test_debugger_lambda_fuction_access_locals():
         # should skip as david is not in people list
         age_checker(people=[Person(10, "alice"), Person(20, "bob"), Person(30, "charile")], age=18, name="david")
 
-        assert d.event_state_counter[CaptureState.SKIP_COND] == 1
-        assert d.event_state_counter[CaptureState.DONE_AND_COMMIT] == 1
+        assert d.signal_state_counter[SignalState.SKIP_COND] == 1
+        assert d.signal_state_counter[SignalState.DONE] == 1
 
         with d.assert_single_snapshot() as snapshot:
             assert snapshot, d.test_queue

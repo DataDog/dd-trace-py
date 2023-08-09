@@ -17,6 +17,9 @@ import pytest
 from six import PY2
 
 import ddtrace
+from ddtrace.internal.remoteconfig.client import RemoteConfigClient
+from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+from tests import utils
 from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
 from tests.utils import call_program
@@ -82,8 +85,12 @@ def snapshot(request):
         else:
             token = request_token(request).replace(" ", "_").replace(os.path.sep, "_")
 
-        with _snapshot_context(token, *snap.args, **snap.kwargs) as snapshot:
-            yield snapshot
+        mgr = _snapshot_context(token, *snap.args, **snap.kwargs)
+        snapshot = mgr.__enter__()
+        yield snapshot
+        # Skip doing any checks if the test was skipped
+        if hasattr(request.node, "rep_call") and not request.node.rep_call.skipped:
+            mgr.__exit__(None, None, None)
     else:
         yield
 
@@ -142,7 +149,7 @@ def unwind_params(params):
         yield None
         return
 
-    for _ in product(*(((k, v) for v in vs) for k, vs in params.items())):
+    for _ in product(*([(k, v) for v in vs] for k, vs in params.items())):
         yield dict(_)
 
 
@@ -201,6 +208,9 @@ def run_function_from_file(item, params=None):
 
     # Override environment variables for the subprocess
     env = os.environ.copy()
+    pythonpath = os.getenv("PYTHONPATH", None)
+    base_path = os.path.dirname(os.path.dirname(__file__))
+    env["PYTHONPATH"] = os.pathsep.join((base_path, pythonpath)) if pythonpath is not None else base_path
     env.update(marker.kwargs.get("env", {}))
     if params is not None:
         env.update(params)
@@ -271,7 +281,8 @@ def pytest_runtest_protocol(item):
             ihook.pytest_runtest_logreport(report=report)
 
             # Call
-            report = run_function_from_file(item, ps)
+            item.runtest = lambda: run_function_from_file(item, ps)
+            report = call_and_report(item, "call", log=False)
             report.nodeid = nodeid
             ihook.pytest_runtest_logreport(report=report)
 
@@ -319,7 +330,7 @@ def create_package(directory, pyproject, setup):
         _run("git config --local user.name user")
         _run("git config --local user.email user@company.com")
         _run("git add .")
-        _run("git commit -m init")
+        _run("git commit --no-gpg-sign -m init")
         _run("git remote add origin https://github.com/companydotcom/repo.git")
 
         yield package_dir
@@ -347,3 +358,29 @@ setup(
 """,
     ) as package:
         yield package
+
+
+@pytest.fixture
+def git_repo_empty(tmpdir):
+    yield utils.git_repo_empty(tmpdir)
+
+
+@pytest.fixture
+def git_repo(git_repo_empty):
+    yield utils.git_repo(git_repo_empty)
+
+
+def _stop_remote_config_worker():
+    if remoteconfig_poller._worker:
+        remoteconfig_poller._stop_service()
+        remoteconfig_poller._worker = None
+
+
+@pytest.fixture
+def remote_config_worker():
+    remoteconfig_poller.disable()
+    remoteconfig_poller._client = RemoteConfigClient()
+    try:
+        yield
+    finally:
+        _stop_remote_config_worker()

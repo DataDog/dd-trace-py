@@ -5,19 +5,27 @@ from os.path import isdir
 from os.path import isfile
 from os.path import join
 import sys
-from types import ModuleType
-from typing import Any
-from typing import Callable
-from typing import DefaultDict
-from typing import Dict
-from typing import Iterator
-from typing import List
-from typing import Optional
-from typing import Set
-from typing import Tuple
-from typing import Type
-from typing import Union
+import typing
 from typing import cast
+
+
+if typing.TYPE_CHECKING:
+    from types import ModuleType
+    from typing import Any
+    from typing import Callable
+    from typing import DefaultDict
+    from typing import Dict
+    from typing import Iterator
+    from typing import List
+    from typing import Optional
+    from typing import Set
+    from typing import Tuple
+    from typing import Type
+    from typing import Union
+
+    ModuleHookType = Callable[[ModuleType], None]
+    PreExecHookType = Callable[[Any, ModuleType], None]
+    PreExecHookCond = Union[str, Callable[[str], bool]]
 
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.logger import get_logger
@@ -25,10 +33,6 @@ from ddtrace.internal.utils import get_argument_value
 
 
 log = get_logger(__name__)
-
-ModuleHookType = Callable[[ModuleType], None]
-PreExecHookType = Callable[[Any, ModuleType], None]
-PreExecHookCond = Union[str, Callable[[str], bool]]
 
 
 _run_code = None
@@ -524,6 +528,15 @@ class ModuleWatchdog(dict):
                     del instance._hook_map[module]
         except ValueError:
             raise ValueError("Hook %r not registered for module %r" % (hook, module))
+
+    @classmethod
+    def after_module_imported(cls, module):
+        # type: (str) -> Callable[[ModuleHookType], None]
+        def _(hook):
+            # type: (ModuleHookType) -> None
+            cls.register_module_hook(module, hook)
+
+        return _
 
     @classmethod
     def register_pre_exec_module_hook(cls, cond, hook):

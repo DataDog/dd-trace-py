@@ -1,4 +1,5 @@
 from flask import Blueprint
+import pytest
 
 from ddtrace.contrib.flask.patch import flask_version
 from ddtrace.ext import http
@@ -102,6 +103,7 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         # Assert correct parent span
         self.assertEqual(parent.name, "flask.preprocess_request")
 
+    @pytest.mark.skipif(flask_version >= (2, 3, 0), reason="Dropped in Flask 2.3.0")
     def test_before_first_request(self):
         """
         When Flask before_first_request hook is registered
@@ -326,6 +328,7 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         # Assert correct parent span
         self.assertEqual(parent.name, "flask.preprocess_request")
 
+    @pytest.mark.skipif(flask_version >= (2, 3, 0), reason="Dropped in Flask 2.3.0")
     def test_before_app_first_request(self):
         """
         When Blueprint before_first_request hook is registered

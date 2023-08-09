@@ -157,46 +157,18 @@ class DdtraceRunTest(BaseTestCase):
         """
         DD_PATCH_MODULES overrides the defaults for patch_all()
         """
-        from ddtrace.bootstrap.sitecustomize import EXTRA_PATCHED_MODULES
-        from ddtrace.bootstrap.sitecustomize import update_patched_modules
-
-        orig = EXTRA_PATCHED_MODULES.copy()
-
-        # empty / malformed strings are no-ops
-        with self.override_env(dict(DD_PATCH_MODULES="")):
-            update_patched_modules()
-            assert orig == EXTRA_PATCHED_MODULES
-
-        with self.override_env(dict(DD_PATCH_MODULES=":")):
-            update_patched_modules()
-            assert orig == EXTRA_PATCHED_MODULES
-
-        with self.override_env(dict(DD_PATCH_MODULES=",")):
-            update_patched_modules()
-            assert orig == EXTRA_PATCHED_MODULES
-
-        with self.override_env(dict(DD_PATCH_MODULES=",:")):
-            update_patched_modules()
-            assert orig == EXTRA_PATCHED_MODULES
-
-        # overrides work in either direction
-        with self.override_env(dict(DD_PATCH_MODULES="django:false")):
-            update_patched_modules()
-            assert EXTRA_PATCHED_MODULES["django"] is False
-
-        with self.override_env(dict(DD_PATCH_MODULES="boto:true")):
-            update_patched_modules()
-            assert EXTRA_PATCHED_MODULES["boto"] is True
-
-        with self.override_env(dict(DD_PATCH_MODULES="django:true,boto:false")):
-            update_patched_modules()
-            assert EXTRA_PATCHED_MODULES["boto"] is False
-            assert EXTRA_PATCHED_MODULES["django"] is True
-
-        with self.override_env(dict(DD_PATCH_MODULES="django:false,boto:true")):
-            update_patched_modules()
-            assert EXTRA_PATCHED_MODULES["boto"] is True
-            assert EXTRA_PATCHED_MODULES["django"] is False
+        with self.override_env(
+            env=dict(
+                DD_PATCH_MODULES="flask:true,gevent:true,django:false,boto:true,falcon:false",
+                DD_TRACE_FLASK_ENABLED="false",
+                DD_TRACE_GEVENT_ENABLED="false",
+                DD_TRACE_FALCON_ENABLED="true",
+            )
+        ):
+            out = subprocess.check_output(
+                ["ddtrace-run", "python", "tests/commands/ddtrace_run_patched_modules_overrides.py"],
+            )
+            assert out.startswith(b"Test success"), out
 
     def test_sitecustomize_without_ddtrace_run_command(self):
         # [Regression test]: ensure `sitecustomize` path is removed only if it's
@@ -378,6 +350,9 @@ def test_info_no_configs():
     assert (stdout) == (
         b"""\x1b[94m\x1b[1mTracer Configurations:\x1b[0m
     Tracer enabled: True
+    Application Security enabled: False
+    Remote Configuration enabled: false
+    IAST enabled (experimental): False
     Debug logging: False
     Writing traces to: http://localhost:8126
     Agent error: Agent not reachable at http://localhost:8126. """
@@ -388,6 +363,7 @@ def test_info_no_configs():
     Priority sampling enabled: True
     Partial flushing enabled: True
     Partial flush minimum number of spans: 500
+    WAF timeout: 5.0 msecs
     \x1b[92m\x1b[1mTagging:\x1b[0m
     DD Service: None
     DD Env: None
@@ -422,6 +398,9 @@ def test_info_w_configs():
     with override_env(
         dict(
             DD_SERVICE="tester",
+            DD_APPSEC_ENABLED="true",
+            DD_REMOTE_CONFIGURATION_ENABLED="true",
+            DD_IAST_ENABLED="true",
             DD_ENV="dev",
             DD_VERSION="0.45",
             DD_TRACE_DEBUG="true",
@@ -443,6 +422,9 @@ def test_info_w_configs():
         (stdout)
         == b"""\x1b[94m\x1b[1mTracer Configurations:\x1b[0m
     Tracer enabled: True
+    Application Security enabled: True
+    Remote Configuration enabled: true
+    IAST enabled (experimental): True
     Debug logging: True
     Writing traces to: http://168.212.226.204:8126
     Agent error: Agent not reachable at http://168.212.226.204:8126. Exception raised: timed out
@@ -452,6 +434,7 @@ def test_info_w_configs():
     Priority sampling enabled: True
     Partial flushing enabled: True
     Partial flush minimum number of spans: 1000
+    WAF timeout: 5.0 msecs
     \x1b[92m\x1b[1mTagging:\x1b[0m
     DD Service: tester
     DD Env: dev
@@ -485,3 +468,60 @@ def test_no_args():
     p.wait()
     assert p.returncode == 1
     assert six.b("usage:") in p.stdout.read()
+
+
+MODULES_TO_CHECK = ["asyncio"]
+MODULES_TO_CHECK_PARAMS = dict(
+    DD_TRACE_ENABLED=["1", "0"],
+    DD_PROFILING_ENABLED=["1", "0"],
+    DD_DYNAMIC_INSTRUMENTATION_ENABLED=["1", "0"],
+)
+
+
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    env=dict(MODULES_TO_CHECK=",".join(MODULES_TO_CHECK)),
+    parametrize=MODULES_TO_CHECK_PARAMS,
+    err=None,
+)
+def test_ddtrace_run_imports():
+    import os
+    import sys
+
+    MODULES_TO_CHECK = os.environ["MODULES_TO_CHECK"].split(",")
+
+    for module in MODULES_TO_CHECK:
+        assert module not in sys.modules, module
+
+
+@pytest.mark.subprocess(
+    env=dict(MODULES_TO_CHECK=",".join(MODULES_TO_CHECK)),
+    parametrize=MODULES_TO_CHECK_PARAMS,
+    err=None,
+)
+def test_ddtrace_auto_imports():
+    import os
+    import sys
+
+    MODULES_TO_CHECK = os.environ["MODULES_TO_CHECK"].split(",")
+
+    for module in MODULES_TO_CHECK:
+        assert module not in sys.modules, module
+
+    import ddtrace.auto  # noqa: F401
+
+    for module in MODULES_TO_CHECK:
+        assert module not in sys.modules, module
+
+
+@pytest.mark.subprocess(ddtrace_run=True, env=dict(DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE="1"))
+def test_ddtrace_re_module():
+    import re
+
+    re.Scanner(
+        (
+            ("frozen", None),
+            (r"[a-zA-Z0-9_]+", lambda s, t: t),
+            (r"[\s,<>]", None),
+        )
+    )

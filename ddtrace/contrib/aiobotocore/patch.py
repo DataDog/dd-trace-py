@@ -16,6 +16,8 @@ from ...ext import SpanTypes
 from ...ext import aws
 from ...ext import http
 from ...internal.compat import PYTHON_VERSION_INFO
+from ...internal.schema import schematize_cloud_api_operation
+from ...internal.schema import schematize_service_name
 from ...internal.utils import ArgumentError
 from ...internal.utils import get_argument_value
 from ...internal.utils.formats import asbool
@@ -118,7 +120,13 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
     endpoint_name = deep_getattr(instance, "_endpoint._endpoint_prefix")
 
     service = pin.service if pin.service != "aws" else "{}.{}".format(pin.service, endpoint_name)
-    with pin.tracer.trace("{}.command".format(endpoint_name), service=service, span_type=SpanTypes.HTTP) as span:
+    with pin.tracer.trace(
+        schematize_cloud_api_operation(
+            "{}.command".format(endpoint_name), cloud_provider="aws", cloud_service=endpoint_name
+        ),
+        service=schematize_service_name(service),
+        span_type=SpanTypes.HTTP,
+    ) as span:
         span.set_tag_str(COMPONENT, config.aiobotocore.integration_name)
 
         # set span.kind tag equal to type of request
@@ -148,6 +156,7 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
             "aws.agent": "aiobotocore",
             "aws.operation": operation,
             "aws.region": region_name,
+            "region": region_name,
         }
         span.set_tags(meta)
 

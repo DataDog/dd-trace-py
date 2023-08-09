@@ -249,6 +249,12 @@ kombu
 ^^^^^
 .. automodule:: ddtrace.contrib.kombu
 
+.. _langchain:
+
+LangChain
+^^^^^^^^^
+.. automodule:: ddtrace.contrib.langchain
+
 
 .. _mako:
 
@@ -291,6 +297,13 @@ mysql-connector
 mysqlclient
 ^^^^^^^^^^^^
 .. automodule:: ddtrace.contrib.mysqldb
+
+
+.. _openai:
+
+OpenAI
+^^^^^^
+.. automodule:: ddtrace.contrib.openai
 
 
 .. _pylibmc:

@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    botocore: Added message attributes to Amazon Simple Queue Service spans to support data streams monitoring.

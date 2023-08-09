@@ -1,0 +1,83 @@
+[[
+  {
+    "name": "graphql.request",
+    "service": "graphql",
+    "resource": "query HELLO { hello }",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "graphql",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "component": "graphql",
+      "language": "python",
+      "runtime-id": "02b7893626824e8386627ab4fc85ec79"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 17754
+    },
+    "duration": 915569,
+    "start": 1691163326252570905
+  },
+     {
+       "name": "graphql.parse",
+       "service": "graphql",
+       "resource": "graphql.parse",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "graphql",
+       "error": 0,
+       "meta": {
+         "_dd.p.dm": "-0",
+         "component": "graphql",
+         "graphql.source": "query HELLO { hello }"
+       },
+       "duration": 82988,
+       "start": 1691163326252765978
+     },
+     {
+       "name": "graphql.validate",
+       "service": "graphql",
+       "resource": "graphql.validate",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "graphql",
+       "error": 0,
+       "meta": {
+         "_dd.p.dm": "-0",
+         "component": "graphql",
+         "graphql.source": "query HELLO { hello }"
+       },
+       "duration": 478049,
+       "start": 1691163326252883465
+     },
+     {
+       "name": "graphql.execute",
+       "service": "graphql",
+       "resource": "query HELLO { hello }",
+       "trace_id": 0,
+       "span_id": 4,
+       "parent_id": 1,
+       "type": "graphql",
+       "error": 0,
+       "meta": {
+         "_dd.p.dm": "-0",
+         "component": "graphql",
+         "graphql.operation.name": "HELLO",
+         "graphql.operation.type": "query",
+         "graphql.source": "query HELLO { hello }"
+       },
+       "metrics": {
+         "_dd.measured": 1
+       },
+       "duration": 81645,
+       "start": 1691163326253394833
+     }]]

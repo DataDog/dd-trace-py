@@ -33,6 +33,7 @@ from ddtrace.constants import VERSION_KEY
 from ddtrace.context import Context
 from ddtrace.contrib.trace_utils import set_user
 from ddtrace.ext import user
+from ddtrace.internal import telemetry
 from ddtrace.internal._encoding import MsgpackEncoderV03
 from ddtrace.internal._encoding import MsgpackEncoderV05
 from ddtrace.internal.serverless import has_aws_lambda_agent_extension
@@ -652,7 +653,7 @@ def test_tracer_url():
     with pytest.raises(ValueError) as e:
         ddtrace.Tracer(url="foo://foobar:12")
     assert (
-        str(e.value) == "Unsupported protocol 'foo' in Agent URL 'foo://foobar:12'. Must be one of: http, https, unix"
+        str(e.value) == "Unsupported protocol 'foo' in intake URL 'foo://foobar:12'. Must be one of: http, https, unix"
     )
 
 
@@ -1656,18 +1657,18 @@ def test_bad_agent_url(monkeypatch):
         Tracer()
     assert (
         str(e.value)
-        == "Unsupported protocol 'bad' in Agent URL 'bad://localhost:1234'. Must be one of: http, https, unix"
+        == "Unsupported protocol 'bad' in intake URL 'bad://localhost:1234'. Must be one of: http, https, unix"
     )
 
     monkeypatch.setenv("DD_TRACE_AGENT_URL", "unix://")
     with pytest.raises(ValueError) as e:
         Tracer()
-    assert str(e.value) == "Invalid file path in Agent URL 'unix://'"
+    assert str(e.value) == "Invalid file path in intake URL 'unix://'"
 
     monkeypatch.setenv("DD_TRACE_AGENT_URL", "http://")
     with pytest.raises(ValueError) as e:
         Tracer()
-    assert str(e.value) == "Invalid hostname in Agent URL 'http://'"
+    assert str(e.value) == "Invalid hostname in intake URL 'http://'"
 
 
 def test_context_priority(tracer, test_spans):
@@ -1906,31 +1907,37 @@ def test_finish_span_with_ancestors(tracer):
 
 
 def test_ctx_api():
-    from ddtrace.internal import _context
+    from ddtrace.internal import core
 
     tracer = Tracer()
 
-    with pytest.raises(ValueError):
-        _context.get_item("key")
-    with pytest.raises(ValueError):
-        _context.set_item("key", "val")
+    assert core.get_item("key") is None
 
-    with tracer.trace("root"):
-        v = _context.get_item("my.val")
+    with tracer.trace("root") as span:
+        v = core.get_item("my.val")
         assert v is None
 
-        _context.set_item("appsec.key", "val")
-        _context.set_items({"appsec.key2": "val2", "appsec.key3": "val3"})
-        assert _context.get_item("appsec.key") == "val"
-        assert _context.get_item("appsec.key2") == "val2"
-        assert _context.get_item("appsec.key3") == "val3"
-        assert _context.get_items(["appsec.key"]) == ["val"]
-        assert _context.get_items(["appsec.key", "appsec.key2", "appsec.key3"]) == ["val", "val2", "val3"]
+        core.set_item("appsec.key", "val", span=span)
+        core.set_items({"appsec.key2": "val2", "appsec.key3": "val3"}, span=span)
+        assert core.get_item("appsec.key", span=span) == "val"
+        assert core.get_item("appsec.key2", span=span) == "val2"
+        assert core.get_item("appsec.key3", span=span) == "val3"
+        assert core.get_items(["appsec.key"], span=span) == ["val"]
+        assert core.get_items(["appsec.key", "appsec.key2", "appsec.key3"], span=span) == ["val", "val2", "val3"]
 
-        with tracer.trace("child"):
-            assert _context.get_item("appsec.key") == "val"
+        with tracer.trace("child") as childspan:
+            assert core.get_item("appsec.key", span=childspan) == "val"
 
-    with pytest.raises(ValueError):
-        _context.get_item("appsec.key")
-    with pytest.raises(ValueError):
-        _context.get_items(["appsec.key"])
+    assert core.get_item("appsec.key") is None
+    assert core.get_items(["appsec.key"]) == [None]
+
+
+def test_installed_excepthook():
+    telemetry.install_excepthook()
+    assert sys.excepthook is telemetry._excepthook
+    telemetry.uninstall_excepthook()
+    assert sys.excepthook is not telemetry._excepthook
+    telemetry.install_excepthook()
+    assert sys.excepthook is telemetry._excepthook
+    # Reset exception hooks
+    telemetry.uninstall_excepthook()

@@ -39,6 +39,7 @@ from .internal.compat import numeric_types
 from .internal.compat import stringify
 from .internal.compat import time_ns
 from .internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
+from .internal.constants import SPAN_API_DATADOG
 from .internal.logger import get_logger
 from .internal.sampling import SamplingMechanism
 from .internal.sampling import update_sampling_decision
@@ -71,6 +72,7 @@ class Span(object):
         "service",
         "name",
         "_resource",
+        "_span_api",
         "span_id",
         "trace_id",
         "parent_id",
@@ -104,6 +106,7 @@ class Span(object):
         start=None,  # type: Optional[int]
         context=None,  # type: Optional[Context]
         on_finish=None,  # type: Optional[List[Callable[[Span], None]]]
+        span_api=SPAN_API_DATADOG,  # type: str
     ):
         # type: (...) -> None
         """
@@ -140,6 +143,7 @@ class Span(object):
         self.service = service
         self._resource = [resource or name]
         self.span_type = span_type
+        self._span_api = span_api
 
         # tags / metadata
         self._meta = {}  # type: _MetaDictType
@@ -446,7 +450,7 @@ class Span(object):
         """Return all metrics."""
         return self._metrics.copy()
 
-    def set_traceback(self, limit=20):
+    def set_traceback(self, limit=30):
         # type: (int) -> None
         """If the current stack has an exception, tag the span with the
         relevant error info. If not, set the span to the current python stack.
@@ -474,7 +478,7 @@ class Span(object):
     def _set_exc_tags(self, exc_type, exc_val, exc_tb):
         # get the traceback
         buff = StringIO()
-        traceback.print_exception(exc_type, exc_val, exc_tb, file=buff, limit=20)
+        traceback.print_exception(exc_type, exc_val, exc_tb, file=buff, limit=30)
         tb = buff.getvalue()
 
         # readable version of type (e.g. exceptions.ZeroDivisionError)
