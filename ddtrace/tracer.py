@@ -1051,6 +1051,9 @@ class Tracer(object):
         with self._shutdown_lock:
             # Thread safety: Ensures tracer is shutdown synchronously
             try:
+                # Data streams tries to flush data on shutdown.
+                # Adding a try except here to ensure we don't crash the application if the agent is killed before
+                # the application for example.
                 self.data_streams_processor.shutdown(timeout)
             except Exception as e:
                 if config._data_streams_enabled:
