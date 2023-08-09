@@ -80,7 +80,7 @@ def get_changed_files(pr_number: int, sha: t.Optional[str] = None) -> t.Set[str]
             rest_check_failed = True
             LOGGER.warning("Failed to get changed files from GitHub API")
 
-    if sha or rest_check_failed:
+    if sha is not None or rest_check_failed:
         diff_base = sha or get_merge_base(pr_number)
         LOGGER.info("Checking changed files against commit %s", diff_base)
         return set(check_output(["git", "diff", "--name-only", "HEAD", diff_base]).decode("utf-8").strip().splitlines())
