@@ -1,3 +1,4 @@
+from collections import Counter
 import glob
 import json
 import os
@@ -41,7 +42,12 @@ def test_ci_providers(monkeypatch, name, environment, tags):
     _updateenv(monkeypatch, environment)
     extracted_tags = ci.tags(environment)
     for key, value in tags.items():
-        assert extracted_tags[key] == value, "wrong tags in {0} for {1}".format(name, environment)
+        if key == ci.NODE_LABELS:
+            assert Counter(json.loads(extracted_tags[key])) == Counter(json.loads(value))
+        elif key == ci._CI_ENV_VARS:
+            assert json.loads(extracted_tags[key]) == json.loads(value)
+        else:
+            assert extracted_tags[key] == value, "wrong tags in {0} for {1}".format(name, environment)
 
 
 def test_git_extract_user_info(git_repo):
@@ -97,8 +103,10 @@ def test_git_extract_workspace_path_error(tmpdir):
 
 def test_extract_git_metadata(git_repo):
     """Test that extract_git_metadata() sets all tags correctly."""
-    extracted_tags = git.extract_git_metadata(cwd=git_repo)
+    with mock.patch("ddtrace.ext.git._set_safe_directory") as mock_git_set_safe_directory:
+        extracted_tags = git.extract_git_metadata(cwd=git_repo)
 
+    mock_git_set_safe_directory.assert_called()
     assert extracted_tags["git.repository_url"] == "git@github.com:test-repo-url.git"
     assert extracted_tags["git.commit.message"] == "this is a commit msg"
     assert extracted_tags["git.commit.author.name"] == "John Doe"

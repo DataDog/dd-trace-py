@@ -21,7 +21,7 @@
       "langchain.request.type": "llm",
       "langchain.response.completions.0.text": "she's a mermaid",
       "language": "python",
-      "runtime-id": "40bd184f683049df87b1238ac911af64"
+      "runtime-id": "dfd2ce0f0c3347ffb6655649ad48bd1f"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -29,8 +29,8 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 94484
+      "process_id": 52007
     },
-    "duration": 5086000,
-    "start": 1688047512571519000
+    "duration": 7187730,
+    "start": 1691167369199645063
   }]]

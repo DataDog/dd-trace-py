@@ -293,7 +293,7 @@ The following environment variables for the tracer are supported:
 
    DD_TRACE_PROPAGATION_STYLE:
      default: |
-         ``datadog``
+         ``tracecontext,datadog``
      description: |
          Comma separated list of propagation styles used for extracting trace context from inbound request headers and injecting trace context into outbound request headers.
 
@@ -308,8 +308,6 @@ The following environment variables for the tracer are supported:
 
          All provided styles are injected into the headers of outbound requests.
 
-         The default value is ``DD_TRACE_PROPAGATION_STYLE="tracecontext,datadog"``.
-
          Example: ``DD_TRACE_PROPAGATION_STYLE="datadog,b3"`` to check for both ``x-datadog-*`` and ``x-b3-*``
          headers when parsing incoming request headers for a trace context. In addition, to inject both ``x-datadog-*`` and ``x-b3-*``
          headers into outbound requests.
@@ -320,7 +318,7 @@ The following environment variables for the tracer are supported:
 
    DD_TRACE_PROPAGATION_STYLE_EXTRACT:
      default: |
-         ``datadog``
+         ``tracecontext,datadog``
      description: |
          Comma separated list of propagation styles used for extracting trace context from inbound request headers.
 
@@ -339,7 +337,7 @@ The following environment variables for the tracer are supported:
 
    DD_TRACE_PROPAGATION_STYLE_INJECT:
      default: |
-         ``datadog``
+         ``tracecontext,datadog``
      description: |
          Comma separated list of propagation styles used for injecting trace context into outbound request headers.
 
@@ -503,14 +501,14 @@ The following environment variables for the tracer are supported:
      version_added:
         v1.13.0:
 
-   DD_CIVISIBILITY_ITR_ENABLED:
+   DD_CIVISIBILITY_ITR_DISABLED:
      type: Boolean
      default: False
      description: |
-        Configures the ``CIVisibility`` service to generate and upload git packfiles in support
-        of the Datadog Intelligent Test Runner. This configuration has no effect if ``DD_CIVISIBILITY_AGENTLESS_ENABLED`` is false.
+        Prevents the Intelligent Test Runner from skipping tests, and disables configuring the ``CIVisibility`` service
+        to generate and upload git packfiles in support of the Intelligent Test Runner.
      version_added:
-        v1.13.0:
+        v1.18.0:
 
    DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING:
       type: String

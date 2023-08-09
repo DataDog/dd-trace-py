@@ -1,7 +1,7 @@
 """IAST (interactive application security testing) analyzes code for security vulnerabilities.
 
-To add new vulnerabilities analyzers (Taint sink) we should update `IAST_PATCH` in `ddtrace._monkey.patch_iast` function
-`IAST_PATCH['[my_new_vulnerability]'] = True`
+To add new vulnerabilities analyzers (Taint sink) we should update `IAST_PATCH` in
+`ddtrace/appsec/iast/_patch_modules.py`
 
 Create new file with the same name: `ddtrace/appsec/iast/taint_sinks/[my_new_vulnerability].py`
 

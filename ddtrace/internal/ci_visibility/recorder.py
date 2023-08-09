@@ -4,7 +4,7 @@ import os
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
-import ddtrace
+from ddtrace import Tracer
 from ddtrace import config as ddconfig
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import ci
@@ -22,6 +22,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.writer.writer import Response
+from ddtrace.provider import CIContextProvider
 
 from .. import agent
 from .constants import AGENTLESS_DEFAULT_SITE
@@ -46,7 +47,6 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Optional
     from typing import Tuple
 
-    from ddtrace import Tracer
     from ddtrace.settings import IntegrationConfig
 
 log = get_logger(__name__)
@@ -88,14 +88,24 @@ class CIVisibility(Service):
     enabled = False
     _test_suites_to_skip = None  # type: Optional[List[str]]
     _tests_to_skip = defaultdict(list)  # type: DefaultDict[str, List[str]]
+    _itr_test_skipping_is_enabled = False
 
     def __init__(self, tracer=None, config=None, service=None):
         # type: (Optional[Tracer], Optional[IntegrationConfig], Optional[str]) -> None
         super(CIVisibility, self).__init__()
 
-        self.tracer = tracer or ddtrace.tracer
-        self._app_key = os.getenv("DD_APP_KEY", os.getenv("DD_APPLICATION_KEY", os.getenv("DATADOG_APPLICATION_KEY")))
-        self._api_key = os.getenv("DD_API_KEY")
+        if tracer:
+            self.tracer = tracer
+        else:
+            # Create a new CI tracer
+            self.tracer = Tracer(context_provider=CIContextProvider())
+
+        self._app_key = os.getenv(
+            "_CI_DD_APP_KEY",
+            os.getenv("DD_APP_KEY", os.getenv("DD_APPLICATION_KEY", os.getenv("DATADOG_APPLICATION_KEY"))),
+        )
+        self._api_key = os.getenv("_CI_DD_API_KEY", os.getenv("DD_API_KEY"))
+
         self._dd_site = os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE)
         self._suite_skipping_mode = asbool(os.getenv("_DD_CIVISIBILITY_ITR_SUITE_MODE", default=False))
         self.config = config  # type: Optional[IntegrationConfig]
@@ -123,23 +133,15 @@ class CIVisibility(Service):
             self._requests_mode = REQUESTS_MODE.AGENTLESS_EVENTS
         elif self._agent_evp_proxy_is_available():
             self._requests_mode = REQUESTS_MODE.EVP_PROXY_EVENTS
-
         self._code_coverage_enabled_by_api, self._test_skipping_enabled_by_api = self._check_enabled_features()
 
         self._collect_coverage_enabled = self._should_collect_coverage(self._code_coverage_enabled_by_api)
 
         self._configure_writer(coverage_enabled=self._collect_coverage_enabled)
-        self._git_client = None
+        self._git_client = None  # type: Optional[CIVisibilityGitClient]
 
-        if ddconfig._ci_visibility_intelligent_testrunner_enabled:
-            if self._app_key is None:
-                log.warning("Environment variable DD_APPLICATION_KEY not set, so no git metadata will be uploaded.")
-            elif self._requests_mode == REQUESTS_MODE.TRACES:
-                log.warning("Cannot start git client if mode is not agentless or evp proxy")
-            else:
-                self._git_client = CIVisibilityGitClient(
-                    api_key=self._api_key or "", app_key=self._app_key, requests_mode=self._requests_mode
-                )
+        self._configure_itr(self._api_key, self._app_key, self._requests_mode)
+
         try:
             from ddtrace.internal.codeowners import Codeowners
 
@@ -167,10 +169,7 @@ class CIVisibility(Service):
     def _check_enabled_features(self):
         # type: () -> Tuple[bool, bool]
         if not self._app_key:
-            return False, False
-
-        # DEV: Remove this ``if`` once ITR is in GA
-        if not ddconfig._ci_visibility_intelligent_testrunner_enabled:
+            log.debug("Cannot make request to setting endpoint if application key is not set")
             return False, False
 
         _headers = {
@@ -207,7 +206,10 @@ class CIVisibility(Service):
             log.warning("Request timeout while fetching enabled features")
             return False, False
         try:
-            parsed = json.loads(response.body)
+            if isinstance(response.body, bytes):
+                parsed = json.loads(response.body.decode())
+            else:
+                parsed = json.loads(response.body)
         except JSONDecodeError:
             log.warning("Settings request responded with invalid JSON '%s'", response.body)
             return False, False
@@ -219,6 +221,29 @@ class CIVisibility(Service):
 
         attributes = parsed["data"]["attributes"]
         return attributes["code_coverage"], attributes["tests_skipping"]
+
+    def _configure_itr(self, api_key, app_key, requests_mode):
+        # type: (Optional[str], Optional[str], REQUESTS_MODE) -> None
+        if not self._test_skipping_enabled_by_api:
+            log.debug("Test skipping is not enabled by API")
+            return
+        if not app_key:
+            log.debug("Test skipping disabled: required environment variable DD_APPLICATION_KEY is not set.")
+            return
+        if ddconfig._ci_visibility_intelligent_testrunner_disabled:
+            log.warning(
+                "Test skipping disabled: Intelligent Test Runner is enabled for this service, but "
+                "disabled by DD_CIVISIBILITY_ITR_DISABLED environment variable or tracer configuration."
+            )
+            return
+
+        if requests_mode == REQUESTS_MODE.TRACES:
+            log.warning("Test skipping disabled: cannot start git client if mode is not agentless or evp proxy.")
+            return
+
+        log.info("Datadog Intelligent Test Runner is enabled.")
+        self._itr_test_skipping_is_enabled = True
+        self._git_client = CIVisibilityGitClient(api_key=api_key or "", app_key=app_key, requests_mode=requests_mode)
 
     def _configure_writer(self, coverage_enabled=False, requests_mode=None):
         writer = None
@@ -260,7 +285,7 @@ class CIVisibility(Service):
     def test_skipping_enabled(cls):
         if not cls.enabled:
             return False
-        return cls._instance and cls._instance._test_skipping_enabled_by_api
+        return cls._instance and cls._instance._itr_test_skipping_is_enabled
 
     def _fetch_tests_to_skip(self, skipping_mode):
         # Make sure git uploading has finished
@@ -310,7 +335,10 @@ class CIVisibility(Service):
             log.warning("Test skips request responded with status %d", response.status)
             return
         try:
-            parsed = json.loads(response.body)
+            if isinstance(response.body, bytes):
+                parsed = json.loads(response.body.decode())
+            else:
+                parsed = json.loads(response.body)
         except json.JSONDecodeError:
             log.warning("Test skips request responded with invalid JSON '%s'", response.body)
             return
@@ -340,11 +368,21 @@ class CIVisibility(Service):
     @classmethod
     def enable(cls, tracer=None, config=None, service=None):
         # type: (Optional[Tracer], Optional[Any], Optional[str]) -> None
+        log.debug("Enabling %s", cls.__name__)
+
+        if ddconfig._ci_visibility_agentless_enabled:
+            if not os.getenv("_CI_DD_API_KEY", os.getenv("DD_API_KEY")):
+                log.critical(
+                    "%s disabled: environment variable DD_CIVISIBILITY_AGENTLESS_ENABLED is true but"
+                    " DD_API_KEY is not set",
+                    cls.__name__,
+                )
+                cls.enabled = False
+                return
 
         if cls._instance is not None:
             log.debug("%s already enabled", cls.__name__)
             return
-        log.debug("Enabling %s", cls.__name__)
 
         cls._instance = cls(tracer=tracer, config=config, service=service)
         cls.enabled = True

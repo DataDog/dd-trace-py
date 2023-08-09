@@ -41,6 +41,23 @@ def get_base_branch(pr_number: int) -> str:
 
 
 @cache
+def get_merge_base(pr_number: int) -> str:
+    """Get the merge base of a PR."""
+    return (
+        check_output(
+            [
+                "git",
+                "merge-base",
+                "HEAD",
+                get_base_branch(pr_number),
+            ]
+        )
+        .decode("utf-8")
+        .strip()
+    )
+
+
+@cache
 def get_changed_files(pr_number: int) -> t.Set[str]:
     """Get the files changed in a PR
 
@@ -57,8 +74,8 @@ def get_changed_files(pr_number: int) -> t.Set[str]:
         return {_["filename"] for _ in json.load(urlopen(Request(url, headers=headers)))}
 
     except Exception:
-        # If that fails use the less accurate method of diffing against the base
-        # branch
+        # If that fails use the less accurate method of diffing against the
+        # merge-base w.r.t. the base branch
         LOGGER.warning("Failed to get changed files from GitHub API, using git diff instead")
         return set(
             check_output(
@@ -67,7 +84,7 @@ def get_changed_files(pr_number: int) -> t.Set[str]:
                     "diff",
                     "--name-only",
                     "HEAD",
-                    get_base_branch(pr_number),
+                    get_merge_base(pr_number),
                 ]
             )
             .decode("utf-8")
@@ -81,7 +98,7 @@ def needs_testrun(suite: str, pr_number: int) -> bool:
     """Check if a testrun is needed for a suite and PR
 
     >>> needs_testrun("debugger", 6485)
-    False
+    True
     >>> needs_testrun("debugger", 6388)
     True
     >>> needs_testrun("foobar", 6412)
@@ -152,7 +169,11 @@ def for_each_testrun_needed(suites: t.List[str], action: t.Callable[[str], None]
 
 
 def pr_matches_patterns(patterns: t.Set[str]) -> bool:
-    changed_files = get_changed_files(_get_pr_number())
+    try:
+        changed_files = get_changed_files(_get_pr_number())
+    except Exception:
+        LOGGER.error("Failed to get changed files. Assuming the PR matches for precaution.")
+        return True
     return bool([_ for p in patterns for _ in fnmatch.filter(changed_files, p)])
 
 
