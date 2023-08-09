@@ -148,8 +148,25 @@ def _extract_module_file_path(item):
         return os.path.relpath(inspect.getfile(item._tests[0]._tests[0].__class__))
     return ''
 
+
 def _is_unittest_support_enabled():
     return unittest and getattr(unittest, "_datadog_patch", False) and _CIVisibility.enabled
+
+
+def _generate_test_resource(suite_name, test_name):
+    return suite_name+'.'+test_name
+
+
+def _generate_suite_resource(framework_name, test_suite):
+    return framework_name+'.'+'test_suite'+'.'+test_suite
+
+
+def _generate_module_resource(framework_name, test_module):
+    return framework_name+'.'+'test_module'+'.'+test_module
+
+
+def _generate_session_resource(framework_name, test_command):
+    return framework_name+'.'+'test_session'+'.'+test_command
 
 
 def patch():
@@ -237,11 +254,16 @@ def add_skip_test_wrapper(func, instance, args, kwargs):
 def handle_test_wrapper(func, instance, args, kwargs):
     if _is_unittest_support_enabled() and _is_test_class(instance):
         tracer = getattr(unittest, "_datadog_tracer", _CIVisibility._instance.tracer)
+
+        suite_name = _extract_class_hierarchy_name(instance)
+        test_name = _extract_test_method_name(instance)
+        resource_name = _generate_test_resource(suite_name, test_name)
         span = tracer._start_span(
                 ddtrace.config.unittest.operation_name,
                 service=_CIVisibility._instance._service,
-                resource="unittest.test",
-                span_type=SpanTypes.TEST
+                resource=resource_name,
+                span_type=SpanTypes.TEST,
+                activate=True,
         )
         test_suite_span = _extract_suite_span(instance)
         span.set_tag_str(_EVENT_TYPE, SpanTypes.TEST)
@@ -256,8 +278,7 @@ def handle_test_wrapper(func, instance, args, kwargs):
         span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
         span.set_tag_str(test.TYPE, SpanTypes.TEST)
 
-        suite_name = _extract_class_hierarchy_name(instance)
-        span.set_tag_str(test.NAME, _extract_test_method_name(instance))
+        span.set_tag_str(test.NAME, test_name)
         span.set_tag_str(test.SUITE, suite_name)
         span.set_tag_str(test.MODULE, test_suite_span.get_tag(test.MODULE))
         span.set_tag_str(test.MODULE_PATH, test_suite_span.get_tag(test.MODULE_PATH))
@@ -280,13 +301,14 @@ def handle_module_suite_wrapper(func, instance, args, kwargs):
         if _is_test_suite(instance):
             test_module_span = _extract_module_span(instance)
             test_suite_name = _extract_suite_name(instance)
-
+            resource_name = _generate_suite_resource(FRAMEWORK, test_suite_name)
             test_suite_span = tracer._start_span(
                 "unittest.test_suite",
                 service=_CIVisibility._instance._service,
                 span_type=SpanTypes.TEST,
                 activate=True,
                 child_of=test_module_span,
+                resource=resource_name
             )
             test_suite_span.set_tag_str(COMPONENT, COMPONENT_VALUE)
             test_suite_span.set_tag_str(SPAN_KIND, KIND)
@@ -309,12 +331,14 @@ def handle_module_suite_wrapper(func, instance, args, kwargs):
         elif _is_test_module(instance):
             test_session_span = _extract_session_span(instance)
             test_module_name = _extract_module_name_from_module(instance)
+            resource_name = _generate_module_resource(FRAMEWORK, test_module_name)
             test_module_span = tracer._start_span(
                 "unittest.test_module",
                 service=_CIVisibility._instance._service,
                 span_type=SpanTypes.TEST,
                 activate=True,
                 child_of=test_session_span,
+                resource=resource_name
             )
             test_module_span.set_tag_str(COMPONENT, COMPONENT_VALUE)
             test_module_span.set_tag_str(SPAN_KIND, KIND)
@@ -341,13 +365,15 @@ def handle_module_suite_wrapper(func, instance, args, kwargs):
 def handle_session_wrapper(func, instance, args, kwargs):
     if _is_unittest_support_enabled():
         tracer = getattr(unittest, "_datadog_tracer", _CIVisibility._instance.tracer)
+        test_command = _extract_command_name_from_session(instance)
+        resource_name = _generate_session_resource(FRAMEWORK, test_command)
         test_session_span = tracer.trace("unittest.test_session", service=_CIVisibility._instance._service,
-                                         span_type=SpanTypes.TEST, )
+                                         span_type=SpanTypes.TEST, resource=resource_name)
         test_session_span.set_tag_str(COMPONENT, COMPONENT_VALUE)
         test_session_span.set_tag_str(SPAN_KIND, KIND)
         test_session_span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
         test_session_span.set_tag_str(_EVENT_TYPE, _SESSION_TYPE)
-        test_session_span.set_tag_str(test.COMMAND, _extract_command_name_from_session(instance))
+        test_session_span.set_tag_str(test.COMMAND, test_command)
         test_session_span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
         _store_span(instance, test_session_span)
         _store_session_span(instance, test_session_span)
