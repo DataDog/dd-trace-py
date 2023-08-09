@@ -16,7 +16,7 @@
       "langchain.request.provider": "fake",
       "langchain.request.type": "embedding",
       "language": "python",
-      "runtime-id": "4cf15de445a94f9da7edaa600f4b6198"
+      "runtime-id": "dfd2ce0f0c3347ffb6655649ad48bd1f"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -27,8 +27,8 @@
       "langchain.request.input_count": 2,
       "langchain.response.outputs.0.embedding_length": 99,
       "langchain.response.outputs.1.embedding_length": 99,
-      "process_id": 84266
+      "process_id": 52007
     },
-    "duration": 112000,
-    "start": 1688076546492665000
+    "duration": 146926,
+    "start": 1691167369438706373
   }]]
