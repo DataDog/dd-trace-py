@@ -71,7 +71,7 @@ def get_changed_files(pr_number: int, sha: t.Optional[str] = None) -> t.Set[str]
     'tests/debugging/test_expressions.py']
     """
     rest_check_failed = False
-    if not sha:
+    if sha is None:
         try:
             url = f"https://api.github.com/repos/datadog/dd-trace-py/pulls/{pr_number}/files"
             headers = {"Accept": "application/vnd.github+json"}
