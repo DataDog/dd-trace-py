@@ -28,40 +28,25 @@ memalloc_ddframe_class_init()
         ddframe_class = NULL;
     }
 
-    PyObject* collections = PyImport_ImportModule("collections");
-    if (collections == NULL) {
+    // Import the module that contains the DDFrame class
+    PyObject* mod_path = PyUnicode_DecodeFSDefault("ddtrace.profiling.event");
+    PyObject* mod = PyImport_Import(mod_path);
+    Py_XDECREF(mod_path);
+
+    if (mod == NULL) {
         PyErr_Print();
         return false;
     }
 
-    PyObject* namedtuple_fun = PyObject_GetAttrString(collections, "namedtuple");
-    Py_DECREF(collections);
-    if (namedtuple_fun == NULL) {
+    // Get the DDFrame class object
+    ddframe_class = PyObject_GetAttrString(mod, "DDFrame");
+    Py_XDECREF(mod);
+
+    if (ddframe_class == NULL || !PyCallable_Check(ddframe_class)) {
         PyErr_Print();
         return false;
     }
 
-    // Very important that this matches the definition of DDFrame in event.py
-    PyObject* class_name = PyUnicode_FromString("DDFrame");
-    PyObject* field_names = Py_BuildValue("(ssss)", "file_name", "lineno", "function_name", "class_name");
-
-    PyObject* args = PyTuple_Pack(2, class_name, field_names);
-    Py_DECREF(class_name);
-    Py_DECREF(field_names);
-
-    if (args == NULL) {
-        PyErr_Print();
-        return false;
-    }
-
-    ddframe_class = PyObject_CallObject(namedtuple_fun, args);
-    Py_DECREF(args);
-    Py_DECREF(namedtuple_fun);
-
-    if (ddframe_class == NULL) {
-        PyErr_Print();
-        return false;
-    }
     return true;
 }
 
@@ -238,8 +223,9 @@ traceback_to_tuple(traceback_t* tb)
                                                              empty_string, // class name
                                                              NULL);
 
-//        Py_INCREF(frame->filename);
-//        Py_INCREF(frame->name);
+        Py_INCREF(frame->filename);
+        Py_INCREF(frame->name);
+        Py_INCREF(empty_string);
         PyTuple_SET_ITEM(stack, nframe, frame_tuple);
     }
 

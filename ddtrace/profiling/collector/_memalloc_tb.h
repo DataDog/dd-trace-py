@@ -122,21 +122,13 @@ traceback_array_grow(traceback_array_t* arr, uint16_t newlen)
 static inline void
 traceback_array_splice( traceback_array_t* arr, uint16_t pos, uint16_t len, traceback_t* items[], uint16_t count)
 {
-  ((void) sizeof (( pos >= 0 && len >= 0 && count >= 0) ? 1 : 0), __extension__ ({
-    if ( pos >= 0 && len >= 0 && count >= 0) ;
-    else __assert_fail ("pos >= 0 && len >= 0 && count >= 0" , "ddtrace/profiling/collector/_memalloc_tb.h", 68, __extension__ __PRETTY_FUNCTION__);
-    })
-  );
+  assert(pos <= arr->count && pos + len <= arr->count);
 
-  ((void) sizeof (( pos <= arr->count && pos + len <= arr->count) ? 1 : 0), __extension__ ({
-    if ( pos <= arr->count && pos + len <= arr->count);
-    else __assert_fail ("pos <= arr->count && pos + len <= arr->count", "ddtrace/profiling/collector/_memalloc_tb.h", 68, __extension__ __PRETTY_FUNCTION__);
-    })
-  );
   if (len != count) {
     traceback_array_grow(arr, arr->count + count - len);
     if (!arr->tab) {
         fprintf(stderr, "Failed to regrow.\n");
+        fflush(stderr);
         return;
     }
     memmove(arr->tab + pos + count, arr->tab + pos + len, (arr->count - pos - len) * sizeof(*items));
@@ -145,14 +137,17 @@ traceback_array_splice( traceback_array_t* arr, uint16_t pos, uint16_t len, trac
   if (count) {
     if (arr == NULL || items == NULL) {
         fprintf(stderr, "Null pointer argument.\n");
+        fflush(stderr);
         return; // Or handle the error as appropriate for your application
     }
     if (pos < 0 || len < 0 || count < 0) {
         fprintf(stderr, "Negative value argument.\n");
+        fflush(stderr);
         return; // Handle error
     }
     if (pos > arr->count || pos + len > arr->count) {
         fprintf(stderr, "Position or length exceeds array bounds.\n");
+        fflush(stderr);
         return; // Handle error
     }
 
