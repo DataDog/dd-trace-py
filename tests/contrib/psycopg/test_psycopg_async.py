@@ -332,6 +332,18 @@ class PsycopgCore(AsyncioTestCase):
             assert rows[0][0] == "one"
 
     @mark_asyncio
+    async def test_cursor_context_execute(self):
+        """Checks whether cursor context manager works as normal."""
+
+        query = SQL("""select 'one' as x""")
+        async with (await psycopg.AsyncConnection.connect(**POSTGRES_CONFIG)).cursor() as cur:
+            await cur.execute(query)
+            rows = await cur.fetchall()
+
+            assert len(rows) == 1, rows
+            assert rows[0][0] == "one"
+
+    @mark_asyncio
     async def test_cursor_from_connection_shortcut(self):
         """Checks whether connection execute shortcute method works as normal"""
 
