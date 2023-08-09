@@ -121,11 +121,16 @@ def traced_produce(func, instance, args, kwargs):
 
         on_delivery_kwarg = "on_delivery"
         on_delivery_arg = 5
-        on_delivery = get_argument_value(args, kwargs, on_delivery_arg, on_delivery_kwarg)
-        if on_delivery is None:
+        on_delivery = None
+        try:
+            on_delivery = get_argument_value(args, kwargs, on_delivery_arg, on_delivery_kwarg)
+        except ArgumentError:
             on_delivery_kwarg = "callback"
             on_delivery_arg = 4
-            on_delivery = get_argument_value(args, kwargs, on_delivery_arg, on_delivery_kwarg)
+            try:
+                on_delivery = get_argument_value(args, kwargs, on_delivery_arg, on_delivery_kwarg)
+            except ArgumentError:
+                on_delivery = None
 
         def wrapped_callback(err, msg):
             if err is None:
@@ -136,8 +141,11 @@ def traced_produce(func, instance, args, kwargs):
             if on_delivery is not None:
                 on_delivery(err, msg)
 
-        if on_delivery is not None:
+        try:
             args, kwargs = set_argument_value(args, kwargs, on_delivery_arg, on_delivery_kwarg, wrapped_callback)
+        except ArgumentError:
+            # we set the callback even if it's not set by the client, to track produce calls correctly.
+            kwargs[on_delivery_kwarg] = wrapped_callback
 
     with pin.tracer.trace(
         schematize_messaging_operation(kafkax.PRODUCE, provider="kafka", direction=SpanDirection.OUTBOUND),
