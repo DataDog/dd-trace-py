@@ -58,7 +58,7 @@ def get_merge_base(pr_number: int) -> str:
 
 
 @cache
-def get_changed_files(pr_number: int, sha: str = "") -> t.Set[str]:
+def get_changed_files(pr_number: int, sha: t.Optional[str] = None) -> t.Set[str]:
     """Get the files changed in a PR
 
     Try with the GitHub REST API for the most accurate result. If that fails,
