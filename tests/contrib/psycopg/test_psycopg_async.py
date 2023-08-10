@@ -337,7 +337,6 @@ class PsycopgCore(AsyncioTestCase):
 
         query = SQL("""select 'one' as x""")
         async with (await psycopg.AsyncConnection.connect(**POSTGRES_CONFIG)).cursor() as cur:
-            breakpoint()
             await cur.execute(query)
             rows = await cur.fetchall()
 
