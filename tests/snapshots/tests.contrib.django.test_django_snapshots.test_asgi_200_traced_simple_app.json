@@ -15,10 +15,10 @@
       "http.method": "GET",
       "http.status_code": "200",
       "http.url": "http://localhost:8000/traced-simple-asgi-app/",
-      "http.useragent": "python-requests/2.28.1",
+      "http.useragent": "python-requests/2.28.2",
       "http.version": "1.1",
       "language": "python",
-      "runtime-id": "5a4b683051384a46a23f7a1656989d44",
+      "runtime-id": "f119b281515c42008f5f6d20e56969f6",
       "span.kind": "server"
     },
     "metrics": {
@@ -26,8 +26,8 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 12491
+      "process_id": 12240
     },
-    "duration": 167000,
-    "start": 1669648336392227000
+    "duration": 296867,
+    "start": 1691162191645521822
   }]]

@@ -33,19 +33,18 @@ class PytestTestCase(TracerTestCase):
                         CIVisibility.disable()
                         CIVisibility.enable(tracer=self.tracer, config=ddtrace.config.pytest)
 
-        with override_env(dict(DD_API_KEY="foobar.baz")):
-            return self.testdir.inline_run(*args, plugins=[CIVisibilityPlugin()])
+        return self.testdir.inline_run(*args, plugins=[CIVisibilityPlugin()])
 
     @pytest.mark.skipif(compat.PY2, reason="ddtrace does not support coverage on Python 2")
     def test_pytest_will_report_coverage_by_suite_with_pytest_skipped(self):
         self.testdir.makepyfile(
-            test_ret_false="""
+            ret_false="""
         def ret_false():
             return False
         """
         )
         self.testdir.makepyfile(
-            test_module="""
+            lib_fn="""
         def lib_fn():
             return True
         """
@@ -53,13 +52,13 @@ class PytestTestCase(TracerTestCase):
         py_cov_file = self.testdir.makepyfile(
             test_cov="""
         import pytest
-        from test_module import lib_fn
+        from lib_fn import lib_fn
 
         def test_cov():
             assert lib_fn()
 
         def test_second():
-            from test_ret_false import ret_false
+            from ret_false import ret_false
             assert not ret_false()
 
         def test_pytest_skip():
@@ -105,12 +104,12 @@ class PytestTestCase(TracerTestCase):
         import pytest
 
         def test_second():
-            from test_ret_false import ret_false
+            from ret_false import ret_false
             assert not ret_false()
         """
         )
 
-        with override_env({"_DD_CIVISIBILITY_ITR_SUITE_MODE": "True"}), mock.patch(
+        with override_env({"DD_API_KEY": "foobar.baz", "_DD_CIVISIBILITY_ITR_SUITE_MODE": "True"}), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features", return_value=(True, False)
         ):
             self.inline_run("--ddtrace", os.path.basename(py_cov_file.strpath), os.path.basename(py_cov_file2.strpath))
@@ -125,21 +124,21 @@ class PytestTestCase(TracerTestCase):
 
         assert len(files) == 3
 
-        assert files[0]["filename"] == "test_cov.py"
-        assert len(files[0]["segments"]) == 5
-        assert files[0]["segments"][0] == [5, 0, 5, 0, -1]
-        assert files[0]["segments"][1] == [8, 0, 9, 0, -1]
-        assert files[0]["segments"][2] == [12, 0, 13, 0, -1]
-        assert files[0]["segments"][3] == [21, 0, 22, 0, -1]
-        assert files[0]["segments"][4] == [35, 0, 36, 0, -1]
+        assert files[2]["filename"] == "test_cov.py"
+        assert len(files[2]["segments"]) == 5
+        assert files[2]["segments"][0] == [5, 0, 5, 0, -1]
+        assert files[2]["segments"][1] == [8, 0, 9, 0, -1]
+        assert files[2]["segments"][2] == [12, 0, 13, 0, -1]
+        assert files[2]["segments"][3] == [21, 0, 22, 0, -1]
+        assert files[2]["segments"][4] == [35, 0, 36, 0, -1]
 
-        assert files[1]["filename"] == "test_module.py"
+        assert files[0]["filename"] == "lib_fn.py"
+        assert len(files[0]["segments"]) == 1
+        assert files[0]["segments"][0] == [2, 0, 2, 0, -1]
+
+        assert files[1]["filename"] == "ret_false.py"
         assert len(files[1]["segments"]) == 1
-        assert files[1]["segments"][0] == [2, 0, 2, 0, -1]
-
-        assert files[2]["filename"] == "test_ret_false.py"
-        assert len(files[2]["segments"]) == 1
-        assert files[2]["segments"][0] == [1, 0, 2, 0, -1]
+        assert files[1]["segments"][0] == [1, 0, 2, 0, -1]
 
         second_suite_span = test_suite_spans[-1]
         assert second_suite_span.get_tag("type") == "test_suite_end"
@@ -147,23 +146,23 @@ class PytestTestCase(TracerTestCase):
         tag_data = json.loads(second_suite_span.get_tag(COVERAGE_TAG_NAME))
         files = sorted(tag_data["files"], key=lambda x: x["filename"])
         assert len(files) == 2
-        assert files[0]["filename"] == "test_cov_second.py"
-        assert files[1]["filename"] == "test_ret_false.py"
-        assert len(files[0]["segments"]) == 1
-        assert files[0]["segments"][0] == [4, 0, 5, 0, -1]
+        assert files[1]["filename"] == "test_cov_second.py"
+        assert files[0]["filename"] == "ret_false.py"
         assert len(files[1]["segments"]) == 1
-        assert files[1]["segments"][0] == [2, 0, 2, 0, -1]
+        assert files[1]["segments"][0] == [4, 0, 5, 0, -1]
+        assert len(files[0]["segments"]) == 1
+        assert files[0]["segments"][0] == [2, 0, 2, 0, -1]
 
     @pytest.mark.skipif(compat.PY2, reason="ddtrace does not support coverage on Python 2")
     def test_pytest_will_report_coverage_by_suite_with_itr_skipped(self):
         self.testdir.makepyfile(
-            test_ret_false="""
+            ret_false="""
         def ret_false():
             return False
         """
         )
         self.testdir.makepyfile(
-            test_module="""
+            lib_fn="""
         def lib_fn():
             return True
         """
@@ -171,13 +170,13 @@ class PytestTestCase(TracerTestCase):
         py_cov_file = self.testdir.makepyfile(
             test_cov="""
         import pytest
-        from test_module import lib_fn
+        from lib_fn import lib_fn
 
         def test_cov():
             assert lib_fn()
 
         def test_second():
-            from test_ret_false import ret_false
+            from ret_false import ret_false
             assert not ret_false()
         """
         )
@@ -186,20 +185,33 @@ class PytestTestCase(TracerTestCase):
         import pytest
 
         def test_second():
-            from test_ret_false import ret_false
+            from ret_false import ret_false
             assert not ret_false()
         """
         )
 
-        with override_env({"_DD_CIVISIBILITY_ITR_SUITE_MODE": "True"}), mock.patch(
+        with override_env(
+            {
+                "DD_API_KEY": "foobar.baz",
+                "_DD_CIVISIBILITY_ITR_SUITE_MODE": "True",
+                "DD_APPLICATION_KEY": "not_an_app_key_at_all",
+                "DD_CIVISIBILITY_AGENTLESS_ENABLED": "True",
+            }
+        ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features", return_value=(True, True)
-        ), mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"), mock.patch.object(
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"
+        ), mock.patch.object(
             ddtrace.internal.ci_visibility.recorder.CIVisibility,
             "_test_suites_to_skip",
             [
                 "test_cov_second.py",
             ],
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.git_client.CIVisibilityGitClient"
         ):
+            ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+
             self.inline_run("--ddtrace", os.path.basename(py_cov_file.strpath), os.path.basename(py_cov_file2.strpath))
         spans = self.pop_spans()
 
@@ -212,18 +224,18 @@ class PytestTestCase(TracerTestCase):
 
         assert len(files) == 3
 
-        assert files[0]["filename"] == "test_cov.py"
-        assert len(files[0]["segments"]) == 2
-        assert files[0]["segments"][0] == [5, 0, 5, 0, -1]
-        assert files[0]["segments"][1] == [8, 0, 9, 0, -1]
+        assert files[2]["filename"] == "test_cov.py"
+        assert len(files[2]["segments"]) == 2
+        assert files[2]["segments"][0] == [5, 0, 5, 0, -1]
+        assert files[2]["segments"][1] == [8, 0, 9, 0, -1]
 
-        assert files[1]["filename"] == "test_module.py"
+        assert files[0]["filename"] == "lib_fn.py"
+        assert len(files[0]["segments"]) == 1
+        assert files[0]["segments"][0] == [2, 0, 2, 0, -1]
+
+        assert files[1]["filename"] == "ret_false.py"
         assert len(files[1]["segments"]) == 1
-        assert files[1]["segments"][0] == [2, 0, 2, 0, -1]
-
-        assert files[2]["filename"] == "test_ret_false.py"
-        assert len(files[2]["segments"]) == 1
-        assert files[2]["segments"][0] == [1, 0, 2, 0, -1]
+        assert files[1]["segments"][0] == [1, 0, 2, 0, -1]
 
         second_suite_span = test_suite_spans[1]
         assert second_suite_span.get_tag("type") == "test_suite_end"

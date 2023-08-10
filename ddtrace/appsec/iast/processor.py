@@ -70,11 +70,11 @@ class AppSecIastSpanProcessor(SpanProcessor):
                 IAST.JSON,
                 json.dumps(attr.asdict(data, filter=lambda attr, x: x is not None), cls=OriginTypeEncoder),
             )
+            span.set_tag(MANUAL_KEEP_KEY)
 
         _set_metric_iast_request_tainted()
         contexts_reset()
 
-        span.set_tag(MANUAL_KEEP_KEY)
         if span.get_tag(ORIGIN_KEY) is None:
             span.set_tag_str(ORIGIN_KEY, APPSEC.ORIGIN_VALUE)
 

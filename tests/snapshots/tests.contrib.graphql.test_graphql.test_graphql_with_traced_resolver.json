@@ -12,7 +12,7 @@
       "_dd.p.dm": "-0",
       "component": "graphql",
       "language": "python",
-      "runtime-id": "4fe099efe4794f50a7d4022ab0de907a"
+      "runtime-id": "a29bd63c3ed34a228f90f1913029129d"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -20,10 +20,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 4098
+      "process_id": 17751
     },
-    "duration": 1222208,
-    "start": 1686682180053855708
+    "duration": 1381414,
+    "start": 1691163325731562817
   },
      {
        "name": "graphql.parse",
@@ -35,11 +35,12 @@
        "type": "graphql",
        "error": 0,
        "meta": {
+         "_dd.p.dm": "-0",
          "component": "graphql",
          "graphql.source": "query HELLO { hello }"
        },
-       "duration": 104833,
-       "start": 1686682180054150083
+       "duration": 129015,
+       "start": 1691163325731865304
      },
      {
        "name": "graphql.validate",
@@ -51,11 +52,12 @@
        "type": "graphql",
        "error": 0,
        "meta": {
+         "_dd.p.dm": "-0",
          "component": "graphql",
          "graphql.source": "query HELLO { hello }"
        },
-       "duration": 621917,
-       "start": 1686682180054297458
+       "duration": 686453,
+       "start": 1691163325732045916
      },
      {
        "name": "graphql.execute",
@@ -67,6 +69,7 @@
        "type": "graphql",
        "error": 0,
        "meta": {
+         "_dd.p.dm": "-0",
          "component": "graphql",
          "graphql.operation.name": "HELLO",
          "graphql.operation.type": "query",
@@ -75,8 +78,8 @@
        "metrics": {
          "_dd.measured": 1
        },
-       "duration": 104084,
-       "start": 1686682180054961166
+       "duration": 141738,
+       "start": 1691163325732787719
      },
         {
           "name": "graphql.resolve",
@@ -88,8 +91,9 @@
           "type": "graphql",
           "error": 0,
           "meta": {
+            "_dd.p.dm": "-0",
             "component": "graphql"
           },
-          "duration": 12709,
-          "start": 1686682180055025916
+          "duration": 20973,
+          "start": 1691163325732876400
         }]]

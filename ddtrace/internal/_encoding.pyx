@@ -220,6 +220,7 @@ cdef class ListStringTable(StringTable):
 cdef class MsgpackStringTable(StringTable):
     cdef msgpack_packer pk
     cdef int max_size
+    cdef int _max_string_length
     cdef int _sp_len
     cdef stdint.uint32_t _sp_id
     cdef object _lock
@@ -231,6 +232,7 @@ cdef class MsgpackStringTable(StringTable):
         if self.pk.buf == NULL:
             raise MemoryError("Unable to allocate internal buffer.")
         self.max_size = max_size
+        self._max_string_length = int(0.1*max_size)
         self.pk.length = MSGPACK_STRING_TABLE_LENGTH_PREFIX_SIZE
         self._sp_len = 0
         self._lock = threading.RLock()
@@ -246,9 +248,9 @@ cdef class MsgpackStringTable(StringTable):
     cdef insert(self, object string):
         cdef int ret
 
-        if len(string) > self.max_size:
+        if len(string) > self._max_string_length:
             string = "<dropped string of length %d because it's too long (max allowed length %d)>" % (
-                len(string), self.max_size
+                len(string), self._max_string_length
             )
 
         if self.pk.length + len(string) > self.max_size:
