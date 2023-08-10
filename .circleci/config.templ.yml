@@ -240,7 +240,6 @@ jobs:
     executor: python310
     steps:
       - checkout
-      - setup_riot
       - setup_hatch
       - run:
           name: "Spelling"

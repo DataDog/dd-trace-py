@@ -71,12 +71,12 @@ def gen_pre_checks(template: dict) -> None:
     )
     check(
         name="Slots check",
-        command="riot -v run slotscheck",
+        command="hatch run slotscheck:_",
         paths={"ddtrace/*.py", "hatch.toml"},
     )
     check(
         name="Run scripts/*.py tests",
-        command="riot -v run -s scripts",
+        command="hatch run scripts:test",
         paths={"scripts/*.py"},
     )
     check(
