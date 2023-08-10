@@ -29,6 +29,7 @@ ARG UID=10000
 RUN addgroup -g 10000 -S datadog && \
     adduser -u ${UID} -S datadog -G datadog
 RUN chown -R datadog:datadog /datadog-init/ddtrace_pkgs
+RUN chmod -R a+rw /datadog-init/ddtrace_pkgs
 USER ${UID}
 WORKDIR /datadog-init
 ADD sitecustomize.py /datadog-init/sitecustomize.py
