@@ -70,17 +70,16 @@ def get_changed_files(pr_number: int, sha: t.Optional[str] = None) -> t.Set[str]
     'releasenotes/notes/fix-debugger-expressions-none-literal-30f3328d2e386f40.yaml',
     'tests/debugging/test_expressions.py']
     """
-    rest_check_failed = False
     if sha is None:
         try:
             url = f"https://api.github.com/repos/datadog/dd-trace-py/pulls/{pr_number}/files"
             headers = {"Accept": "application/vnd.github+json"}
             return {_["filename"] for _ in json.load(urlopen(Request(url, headers=headers)))}
-        except Exception:
-            rest_check_failed = True
+        except Exception as exc:
             LOGGER.warning("Failed to get changed files from GitHub API")
+            LOGGER.warning(exc)
 
-    if sha is not None or rest_check_failed:
+    if sha is not None:
         diff_base = sha or get_merge_base(pr_number)
         LOGGER.info("Checking changed files against commit %s", diff_base)
         return set(check_output(["git", "diff", "--name-only", "HEAD", diff_base]).decode("utf-8").strip().splitlines())
