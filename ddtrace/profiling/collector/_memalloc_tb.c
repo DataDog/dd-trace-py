@@ -229,7 +229,7 @@ traceback_to_tuple(traceback_t* tb)
         Py_INCREF(empty_string);
 
         // Set the class
-#if PY_VERSION_HEX >= 0x03080000
+#if PY_VERSION_HEX >= 0x03090000
          Py_SET_TYPE(frame_tuple, (PyTypeObject*)ddframe_class);
 #else
          Py_TYPE(frame_tuple) = (PyTypeObject*)ddframe_class;
