@@ -37,16 +37,9 @@ the `app.run()` to ensure the code inside the main module is patched to propagat
 
     app = Flask(__name__)
 
-
-    @app.route('/')
-    def index():
-        return 'hello world'
-
-
     if __name__ == '__main__':
         ddtrace_iast_flask_patch()
         app.run()
-
 
 
 Configuration
