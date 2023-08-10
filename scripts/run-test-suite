@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -e
+
 CHECKPOINT_FILENAME="latest-success-commit"
 
 RIOT_PATTERN=${1}
