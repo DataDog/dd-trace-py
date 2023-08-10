@@ -3,6 +3,8 @@ from typing import TYPE_CHECKING
 
 import ddtrace
 from ddtrace import config
+from ddtrace.internal.compat import patch
+from ddtrace.internal.utils.http import Response
 
 from .. import agent
 from .. import service
@@ -153,3 +155,10 @@ class CIVisibilityWriter(HTTPWriter):
             dogstatsd=self.dogstatsd,
             sync_mode=self._sync_mode,
         )
+
+    def _put(self, data, headers, client):
+        # type: (bytes, Dict[str, str], WriterClientBase) -> Response
+
+        # Avoid inner HTTP connections from being traced
+        with patch("ddtrace.pin.Pin.enabled", return_value=False):
+            return super(CIVisibilityWriter, self)._put(data, headers, client)

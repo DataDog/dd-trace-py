@@ -71,18 +71,15 @@ def _get_git_repo():
 
 def _do_request(method, url, payload, headers):
     # type: (str, str, str, Dict) -> Response
-
-    # Avoid this HTTP connection from being traced
-    with compat.patch("ddtrace.pin.Pin.enabled", return_value=False):
-        try:
-            conn = get_connection(url, timeout=DEFAULT_TIMEOUT)
-            log.debug("Sending request: %s %s %s %s", method, url, payload, headers)
-            conn.request("POST", url, payload, headers)
-            resp = compat.get_connection_response(conn)
-            log.debug("Response status: %s", resp.status)
-            result = Response.from_http_response(resp)
-        finally:
-            conn.close()
+    try:
+        conn = get_connection(url, timeout=DEFAULT_TIMEOUT)
+        log.debug("Sending request: %s %s %s %s", method, url, payload, headers)
+        conn.request("POST", url, payload, headers)
+        resp = compat.get_connection_response(conn)
+        log.debug("Response status: %s", resp.status)
+        result = Response.from_http_response(resp)
+    finally:
+        conn.close()
     return result
 
 
