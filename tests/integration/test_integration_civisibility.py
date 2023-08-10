@@ -38,9 +38,14 @@ def test_civisibility_intake_with_evp_available():
 
 def test_civisibility_intake_with_missing_apikey():
     with override_env(dict(DD_SITE="foobar.baz", DD_CIVISIBILITY_AGENTLESS_ENABLED="1")):
-        ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
-        with pytest.raises(EnvironmentError):
-            CIVisibility.enable()
+        with mock.patch.object(CIVisibility, "__init__", return_value=None) as mock_CIVisibility_init:
+            with mock.patch.object(CIVisibility, "start") as mock_CIVisibility_start:
+                ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+                CIVisibility.enable()
+                assert CIVisibility.enabled is False
+                assert CIVisibility._instance is None
+                mock_CIVisibility_init.assert_not_called()
+                mock_CIVisibility_start.assert_not_called()
 
 
 def test_civisibility_intake_with_apikey():

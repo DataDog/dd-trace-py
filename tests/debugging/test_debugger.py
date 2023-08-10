@@ -693,7 +693,7 @@ def test_probe_status_logging_reemit_on_modify(monkeypatch, remote_config_worker
     RemoteConfigClient.request = request
     assert remoteconfig_poller.status == ServiceStatus.STOPPED
     try:
-        with rcm_endpoint(), debugger(diagnostics_interval=0.3, enabled=True) as d:
+        with rcm_endpoint(), debugger(diagnostics_interval=0.0, enabled=True) as d:
             d.add_probes(
                 create_snapshot_line_probe(
                     version=1,
@@ -713,7 +713,8 @@ def test_probe_status_logging_reemit_on_modify(monkeypatch, remote_config_worker
                 ),
             )
 
-            queue = d.probe_status_logger.queue
+            logger = d.probe_status_logger
+            queue = logger.queue
 
             def count_status(queue):
                 return Counter(_["debugger"]["diagnostics"]["status"] for _ in queue)
@@ -725,16 +726,14 @@ def test_probe_status_logging_reemit_on_modify(monkeypatch, remote_config_worker
                     if _["debugger"]["diagnostics"]["status"] == status
                 ]
 
-            sleep(0.1)
-            assert count_status(queue) == {"INSTALLED": 2, "RECEIVED": 1}
+            logger.wait(lambda q: count_status(q) == {"INSTALLED": 2, "RECEIVED": 1})
             assert versions(queue, "INSTALLED") == [1, 2]
             assert versions(queue, "RECEIVED") == [1]
 
-            queue[:] = []
-            sleep(0.5)
+            logger.clear()
             remoteconfig_poller._client.request()
-            sleep(0.1)
-            assert count_status(queue) == {"INSTALLED": 1}
+
+            logger.wait(lambda q: count_status(q) == {"INSTALLED": 1})
             assert versions(queue, "INSTALLED") == [2]
 
     finally:

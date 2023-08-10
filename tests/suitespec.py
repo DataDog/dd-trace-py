@@ -13,16 +13,25 @@ def get_patterns(suite: str) -> t.Set[str]:
     """Get the patterns for a suite
 
     >>> sorted(get_patterns("debugger"))  # doctest: +NORMALIZE_WHITESPACE
-    ['ddtrace/__init__.py', 'ddtrace/_hooks.py', 'ddtrace/_logger.py', 'ddtrace/_monkey.py', 'ddtrace/auto.py',
-    'ddtrace/bootstrap/*', 'ddtrace/commands/*', 'ddtrace/constants.py', 'ddtrace/context.py', 'ddtrace/debugging/*',
-    'ddtrace/filter.py', 'ddtrace/internal/*', 'ddtrace/pin.py', 'ddtrace/provider.py', 'ddtrace/sampler.py',
-    'ddtrace/settings/__init__.py', 'ddtrace/settings/config.py', 'ddtrace/settings/dynamic_instrumentation.py',
-    'ddtrace/settings/exception_debugging.py', 'ddtrace/settings/http.py', 'ddtrace/settings/integration.py',
-    'ddtrace/span.py', 'ddtrace/tracer.py', 'hatch.toml', 'pyproject.toml', 'riotfile.py', 'scripts/ddtest',
-    'setup.cfg', 'setup.py', 'tests/commands/*', 'tests/debugging/*', 'tests/integration/*', 'tests/internal/*',
-    'tests/lib-injection', 'tests/tracer/*']
+    ['ddtrace/__init__.py', 'ddtrace/_hooks.py', 'ddtrace/_logger.py', 'ddtrace/_monkey.py', 'ddtrace/_tracing/*',
+    'ddtrace/auto.py', 'ddtrace/bootstrap/*', 'ddtrace/commands/*', 'ddtrace/constants.py', 'ddtrace/context.py',
+    'ddtrace/debugging/*', 'ddtrace/filters.py', 'ddtrace/internal/*', 'ddtrace/pin.py', 'ddtrace/provider.py',
+    'ddtrace/py.typed', 'ddtrace/sampler.py', 'ddtrace/settings/__init__.py', 'ddtrace/settings/config.py',
+    'ddtrace/settings/dynamic_instrumentation.py', 'ddtrace/settings/exception_debugging.py',
+    'ddtrace/settings/http.py', 'ddtrace/settings/integration.py', 'ddtrace/span.py', 'ddtrace/tracer.py',
+    'ddtrace/tracing/*', 'ddtrace/version.py', 'hatch.toml', 'pyproject.toml', 'riotfile.py', 'scripts/ddtest',
+    'setup.cfg', 'setup.py', 'tests/.suitespec.json', 'tests/__init__.py', 'tests/conftest.py', 'tests/debugging/*']
     >>> get_patterns("foobar")
     set()
+    >>> sorted(get_patterns("urllib3"))  # doctest: +NORMALIZE_WHITESPACE
+    ['ddtrace/__init__.py', 'ddtrace/_hooks.py', 'ddtrace/_logger.py', 'ddtrace/_monkey.py', 'ddtrace/_tracing/*',
+    'ddtrace/auto.py', 'ddtrace/bootstrap/*', 'ddtrace/commands/*', 'ddtrace/constants.py', 'ddtrace/context.py',
+    'ddtrace/contrib/urllib3/*', 'ddtrace/filters.py', 'ddtrace/internal/*', 'ddtrace/pin.py', 'ddtrace/provider.py',
+    'ddtrace/py.typed', 'ddtrace/sampler.py', 'ddtrace/settings/__init__.py', 'ddtrace/settings/config.py',
+    'ddtrace/settings/http.py', 'ddtrace/settings/integration.py', 'ddtrace/span.py', 'ddtrace/tracer.py',
+    'ddtrace/tracing/*', 'ddtrace/version.py', 'hatch.toml', 'pyproject.toml', 'riotfile.py', 'scripts/ddtest',
+    'setup.cfg', 'setup.py', 'tests/.suitespec.json', 'tests/__init__.py', 'tests/conftest.py',
+    'tests/contrib/urllib3/*', 'tests/snapshots/tests.contrib.urllib3.*']
     """
     compos = SUITESPEC["components"]
     if suite not in SUITESPEC["suites"]:
@@ -47,7 +56,7 @@ def get_patterns(suite: str) -> t.Set[str]:
 
         return resolved_patterns
 
-    return resolve(suite_patterns)
+    return {_.format(suite=suite) for _ in resolve(suite_patterns)}
 
 
 def get_suites() -> t.Set[str]:
