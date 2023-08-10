@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -e
+
 CHECKPOINT_FILENAME="latest-success-commit"
 
 RIOT_PATTERN=${1}
@@ -10,8 +12,7 @@ DDTEST_CMD=$([[ ${3} == "1" ]] && echo "./scripts/ddtest")
 if ! [[ $CIRCLE_BRANCH =~ [0-9]\.x ]]; then
     if [[ -f "$CHECKPOINT_FILENAME" ]]; then
         latest_success_commit=$(cat $CHECKPOINT_FILENAME)
-        ./scripts/needs_testrun.py $CIRCLE_JOB --sha $latest_success_commit
-        if [[ $? == 1 ]]; then
+        if ./scripts/needs_testrun.py $CIRCLE_JOB --sha $latest_success_commit; then
             echo "The $CIRCLE_JOB job succeeded at commit $latest_success_commit."
             echo "None of the changes on this branch since that commit affect the $CIRCLE_JOB job."
             echo "Skipping this job."
@@ -25,8 +26,10 @@ riot_hashes=$(riot list --hash-only $RIOT_PATTERN | sort | circleci tests split)
 
 all_passed=false
 for hash in $riot_hashes; do
-    $DDTEST_CMD riot -v run --exitfirst --pass-env -s $hash $DDTRACE_FLAG $COVERAGE_FLAG
-    [[ $? > 0 ]] && circleci step halt && exit $?
+    if $DDTEST_CMD riot -v run --exitfirst --pass-env -s $hash $DDTRACE_FLAG $COVERAGE_FLAG; then
+        circleci step halt
+        exit 1
+    fi
     all_passed=true
 done
 
