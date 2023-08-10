@@ -125,9 +125,6 @@ venv = Venv(
             pys=["3"],
             name="meta-testing",
             command="pytest {cmdargs} tests/meta",
-            pkgs={
-                "six": "==1.12.0",
-            },
         ),
         Venv(
             name="circleci-gen-config",
