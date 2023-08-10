@@ -3,6 +3,7 @@ import base64
 import datetime
 import hashlib
 import json
+import sys
 from time import sleep
 import warnings
 
@@ -145,6 +146,10 @@ def test_remote_config_enable_validate_rc_disabled():
         assert remoteconfig_poller.status == ServiceStatus.STOPPED
 
 
+@pytest.mark.skipif(
+    sys.version_info >= (3, 12, 0),
+    reason="Python 3.12 subprocess will raise deprecation warning for forking in a multi-threaded process",
+)
 @pytest.mark.subprocess
 def test_remote_config_forksafe():
     import os
