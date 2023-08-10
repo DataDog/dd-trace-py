@@ -16,6 +16,7 @@ SUPPORTED_PYTHON_VERSIONS = [
     (3, 9),
     (3, 10),
     (3, 11),
+    (3, 12),
 ]  # type: List[Tuple[int, int]]
 
 
@@ -33,6 +34,8 @@ def version_to_str(version):
     '3.10'
     >>> version_to_str((3, 11))
     '3.11'
+    >>> version_to_str((3, 12))
+    '3.12'
     >>> version_to_str((3, ))
     '3'
     """
@@ -53,6 +56,8 @@ def str_to_version(version):
     (3, 10)
     >>> str_to_version("3.11")
     (3, 11)
+    >>> str_to_version("3.12")
+    (3, 12)
     >>> str_to_version("3")
     (3,)
     """
@@ -68,9 +73,9 @@ def select_pys(min_version=MIN_PYTHON_VERSION, max_version=MAX_PYTHON_VERSION):
     """Helper to select python versions from the list of versions we support
 
     >>> select_pys()
-    ['3.7', '3.8', '3.9', '3.10', '3.11']
+    ['3.7', '3.8', '3.9', '3.10', '3.11', '3.12']
     >>> select_pys(min_version='3')
-    ['3.7', '3.8', '3.9', '3.10', '3.11']
+    ['3.7', '3.8', '3.9', '3.10', '3.11', '3.12']
     >>> select_pys(max_version='3')
     []
     >>> select_pys(min_version='3.7', max_version='3.9')
@@ -1911,7 +1916,7 @@ venv = Venv(
         Venv(
             name="opentelemetry",
             command="pytest {cmdargs} tests/opentelemetry",
-            pys=select_pys(min_version="3.7"),
+            pys=select_pys(min_version="3.7", max_version="3.11"),
             pkgs={
                 "pytest-asyncio": latest,
                 "opentelemetry-api": ["~=1.0.0", "~=1.3.0", "~=1.4.0", "~=1.8.0", "~=1.11.0", "~=1.15.0", latest],
@@ -1944,13 +1949,13 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.7"),
+                    pys=select_pys(min_version="3.7", max_version="3.11"),
                     pkgs={
                         "openai[embeddings]": ["==0.27.2", latest],
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.8"),
+                    pys=select_pys(min_version="3.8", max_version="3.11"),
                     pkgs={
                         "openai[embeddings]": [latest],
                         "tiktoken": latest,
@@ -1973,7 +1978,7 @@ venv = Venv(
                     pkgs={"pytest-asyncio": latest},
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.7"),
+                    pys=select_pys(min_version="3.7", max_version="3.11"),
                     command="pytest {cmdargs} tests/opentracer/test_tracer_tornado.py",
                     # TODO: update opentracing tests to be compatible with Tornado v6.
                     # https://github.com/opentracing/opentracing-python/issues/136
@@ -2309,9 +2314,9 @@ venv = Venv(
                         ),
                     ],
                 ),
-                # Python 3.11+
+                # Python 3.11
                 Venv(
-                    pys=select_pys(min_version="3.11"),
+                    pys="3.11",
                     venvs=[
                         Venv(
                             pkgs={
@@ -2329,6 +2334,31 @@ venv = Venv(
                             venvs=[
                                 Venv(
                                     pkgs={"gevent": ["==22.10.2", latest]},
+                                ),
+                            ],
+                        ),
+                    ],
+                ),
+                # Python 3.12
+                Venv(
+                    pys=select_pys(min_version="3.12"),
+                    venvs=[
+                        Venv(
+                            pkgs={
+                                "protobuf": ["==4.22.0", latest],
+                            },
+                        ),
+                        # Gevent
+                        Venv(
+                            env={
+                                "DD_PROFILE_TEST_GEVENT": "1",
+                            },
+                            pkgs={
+                                "gunicorn[gevent]": latest,
+                            },
+                            venvs=[
+                                Venv(
+                                    pkgs={"gevent": ["==23.7.0"]},
                                 ),
                             ],
                         ),
