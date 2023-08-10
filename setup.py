@@ -499,9 +499,6 @@ def get_ddup_ext():
 
 
 bytecode = [
-    "dead-bytecode; python_version<'3.0'",  # backport of bytecode for Python 2.7
-    "bytecode~=0.12.0; python_version=='3.5'",
-    "bytecode~=0.13.0; python_version=='3.6'",
     "bytecode~=0.13.0; python_version=='3.7'",
     "bytecode; python_version>='3.8'",
 ]
@@ -538,15 +535,15 @@ setup(
     # funcsigs backport required for vendored debtcollector
     install_requires=[
         "ddsketch>=2.0.1",
-        "protobuf>=3; python_version>='3.7'",
+        "protobuf>=3",
         "attrs>=20",
-        "cattrs; python_version>='3.7'",
+        "cattrs",
         "six>=1.12.0",
         "typing_extensions",
         "importlib_metadata; python_version<'3.8'",
         "xmltodict>=0.12",
         "envier",
-        "opentelemetry-api>=1; python_version>='3.7'",
+        "opentelemetry-api>=1",
         "setuptools; python_version>='3.12'",
     ]
     + bytecode,
