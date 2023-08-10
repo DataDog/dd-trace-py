@@ -1,0 +1,5 @@
+---
+deprecations:
+  - |
+    ``DD_LOG_FORMAT`` is deprecated and will be removed in 2.0.0. As an alternative, please follow the
+    log injection formatting as provided in the `log injection docs <https://ddtrace.readthedocs.io/en/stable/advanced_usage.html#update-log-format>`_.

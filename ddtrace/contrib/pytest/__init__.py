@@ -11,6 +11,10 @@ file read by pytest (``pytest.ini``, ``setup.cfg``, ...)::
     [pytest]
     ddtrace = 1
 
+
+If you need to disable it, the option ``--no-ddtrace`` will take
+precedence over ``--ddtrace`` and (``pytest.ini``, ``setup.cfg``, ...)
+
 You can enable all integrations by using the ``--ddtrace-patch-all`` option
 alongside ``--ddtrace`` or by adding this to your configuration::
 

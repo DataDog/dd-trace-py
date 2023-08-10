@@ -25,7 +25,7 @@
       "openai.response.id": "cmpl-76n21rPkawV6HMF6RAKdLPWqYm0f0",
       "openai.response.model": "ada",
       "openai.user.api_key": "sk-...key>",
-      "runtime-id": "25b305a5854849c2870c0d112cf08d5e"
+      "runtime-id": "92b7fdc22b9149d7a023fc325d9e03c8"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -37,10 +37,10 @@
       "openai.organization.ratelimit.tokens.remaining": 249983,
       "openai.response.choices_count": 1,
       "openai.response.created": 1681852801,
-      "process_id": 1442
+      "process_id": 21908
     },
-    "duration": 9444083,
-    "start": 1689782077443136627
+    "duration": 9350980,
+    "start": 1691164055490536988
   },
      {
        "name": "requests.request",
@@ -52,6 +52,7 @@
        "type": "http",
        "error": 0,
        "meta": {
+         "_dd.p.dm": "-0",
          "component": "requests",
          "http.method": "POST",
          "http.status_code": "200",
@@ -64,6 +65,6 @@
          "_dd.measured": 1,
          "_dd.top_level": 1
        },
-       "duration": 2434750,
-       "start": 1689782077446790085
+       "duration": 3877976,
+       "start": 1691164055494820164
      }]]

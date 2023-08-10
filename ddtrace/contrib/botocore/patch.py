@@ -3,6 +3,7 @@ Trace queries and data streams monitoring to aws api done via botocore client
 """
 import base64
 import collections
+from datetime import datetime
 import json
 import os
 import typing
@@ -145,25 +146,32 @@ def get_queue_name(params):
     return url.path.rsplit("/", 1)[-1]
 
 
-def get_pathway(pin, params, endpoint_service):
-    # type: (Pin, Any) -> str
+def get_stream_arn(params):
+    # type: (str) -> str
+    """
+    :params: contains the params for the current botocore action
+
+    Return the name of the stream given the params
+    """
+    stream_arn = params.get("StreamARN", "")
+    return stream_arn
+
+
+def get_pathway(pin, endpoint_service, dsm_identifier):
+    # type: (Pin, str, str) -> str
     """
     :pin: patch info for the botocore client
-    :queue_name: the name of the queue
+    :endpoint_service: the name  of the service (i.e. 'sns', 'sqs', 'kinesis')
+    :dsm_identifier: the identifier for the topic/queue/stream/etc
 
     Set the data streams monitoring checkpoint and return the encoded pathway
     """
     path_type = "type:{}".format(endpoint_service)
-    topic_identifier = None
-    if endpoint_service == "sqs":
-        topic_identifier = get_queue_name(params)
-    elif endpoint_service == "sns":
-        topic_identifier = get_topic_arn(params)
-    else:
-        log.debug("pathway being generated with unrecognized service, endpoint is not SNS or SQS")
+    if not dsm_identifier:
+        log.debug("pathway being generated with unrecognized service: ", dsm_identifier)
 
     pathway = pin.tracer.data_streams_processor.set_checkpoint(
-        ["direction:out", "topic:{}".format(topic_identifier), path_type]
+        ["direction:out", "topic:{}".format(dsm_identifier), path_type]
     )
     return pathway.encode_b64()
 
@@ -189,7 +197,12 @@ def inject_trace_to_sqs_or_sns_batch_message(params, span, endpoint_service=None
     entries = params.get("Entries", params.get("PublishBatchRequestEntries", []))
     for entry in entries:
         if data_streams_enabled:
-            trace_data[PROPAGATION_KEY_BASE_64] = get_pathway(pin, params, endpoint_service)
+            dsm_identifier = None
+            if endpoint_service == "sqs":
+                dsm_identifier = get_queue_name(params)
+            elif endpoint_service == "sns":
+                dsm_identifier = get_topic_arn(params)
+            trace_data[PROPAGATION_KEY_BASE_64] = get_pathway(pin, endpoint_service, dsm_identifier)
         inject_trace_data_to_message_attributes(trace_data, entry, endpoint_service)
 
 
@@ -208,7 +221,13 @@ def inject_trace_to_sqs_or_sns_message(params, span, endpoint_service=None, pin=
     HTTPPropagator.inject(span.context, trace_data)
 
     if data_streams_enabled:
-        trace_data[PROPAGATION_KEY_BASE_64] = get_pathway(pin, params, endpoint_service)
+        dsm_identifier = None
+        if endpoint_service == "sqs":
+            dsm_identifier = get_queue_name(params)
+        elif endpoint_service == "sns":
+            dsm_identifier = get_topic_arn(params)
+
+        trace_data[PROPAGATION_KEY_BASE_64] = get_pathway(pin, endpoint_service, dsm_identifier)
 
     inject_trace_data_to_message_attributes(trace_data, params, endpoint_service)
 
@@ -328,16 +347,46 @@ def inject_trace_to_kinesis_stream_data(record, span):
         record["Data"] = data_json
 
 
-def inject_trace_to_kinesis_stream(params, span):
-    # type: (List[Any], Span) -> None
+def record_data_streams_path_for_kinesis_stream(pin, params, results):
+    stream_arn = params.get("StreamARN")
+
+    if not stream_arn:
+        log.debug("Unable to determine StreamARN for request with params: ", params)
+        return
+
+    processor = pin.tracer.data_streams_processor
+    pathway = processor.new_pathway()
+    for record in results.get("Records", []):
+        time_estimate = record.get("ApproximateArrivalTimestamp", datetime.now()).timestamp()
+        pathway.set_checkpoint(
+            ["direction:in", "topic:" + stream_arn, "type:kinesis"],
+            edge_start_sec_override=time_estimate,
+            pathway_start_sec_override=time_estimate,
+        )
+
+
+def inject_trace_to_kinesis_stream(params, span, pin=None, data_streams_enabled=False):
+    # type: (List[Any], Span, Optional[Pin], Optional[bool]) -> None
     """
     :params: contains the params for the current botocore action
     :span: the span which provides the trace context to be propagated
+    :pin: patch info for the botocore client
+    :data_streams_enabled: boolean for whether data streams monitoring is enabled
 
-    Inject trace headers into the Kinesis batch's first record's Data field.
-    Only possible if the existing data is JSON string or base64 encoded JSON string
     Max data size per record is 1MB (https://aws.amazon.com/kinesis/data-streams/faqs/)
+
     """
+    if data_streams_enabled:
+        stream_arn = get_stream_arn(params)
+        if stream_arn:  # If stream ARN isn't specified, we give up (it is not a required param)
+
+            # put_records has a "Records" entry but put_record does not, so we fake a record to
+            # collapse the logic for the two cases
+            for _ in params.get("Records", ["fake_record"]):
+                # In other DSM code, you'll see the pathway + context injection but not here.
+                # Kinesis DSM doesn't inject any data, so we only need to generate checkpoints.
+                get_pathway(pin, "kinesis", stream_arn)
+
     if "Records" in params:
         records = params["Records"]
 
@@ -491,8 +540,10 @@ def patched_api_call(original_func, instance, args, kwargs):
                             cloud_service="events",
                             direction=SpanDirection.OUTBOUND,
                         )
-                    if endpoint_name == "kinesis" and (operation == "PutRecord" or operation == "PutRecords"):
-                        inject_trace_to_kinesis_stream(params, span)
+                    if endpoint_name == "kinesis" and operation in {"PutRecord", "PutRecords"}:
+                        inject_trace_to_kinesis_stream(
+                            params, span, pin=pin, data_streams_enabled=config._data_streams_enabled
+                        )
                         span.name = schematize_cloud_messaging_operation(
                             trace_operation,
                             cloud_provider="aws",
@@ -601,6 +652,13 @@ def patched_api_call(original_func, instance, args, kwargs):
 
             else:
                 result = original_func(*args, **kwargs)
+
+                if endpoint_name == "kinesis" and operation == "GetRecords" and config._data_streams_enabled:
+                    try:
+                        record_data_streams_path_for_kinesis_stream(pin, params, result)
+                    except Exception:
+                        log.debug("Failed to report data streams monitoring info for kinesis", exc_info=True)
+
                 _set_response_metadata_tags(span, result)
                 return result
 
