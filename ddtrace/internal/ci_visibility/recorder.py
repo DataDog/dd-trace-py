@@ -2,7 +2,6 @@ from collections import defaultdict
 import json
 import os
 from typing import TYPE_CHECKING
-from unittest import mock
 from uuid import uuid4
 
 from ddtrace import Tracer
@@ -74,7 +73,7 @@ def _do_request(method, url, payload, headers):
     # type: (str, str, str, Dict) -> Response
 
     # Avoid this HTTP connection from being traced
-    with mock.patch("ddtrace.pin.Pin.enabled", return_value=False):
+    with compat.patch("ddtrace.pin.Pin.enabled", return_value=False):
         try:
             conn = get_connection(url, timeout=DEFAULT_TIMEOUT)
             log.debug("Sending request: %s %s %s %s", method, url, payload, headers)

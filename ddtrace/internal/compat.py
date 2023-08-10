@@ -491,3 +491,9 @@ except ImportError:
         # type: (Iterable[str]) -> str
         """Return a shell-escaped string from *args*."""
         return " ".join(shquote(arg) for arg in args)
+
+
+try:
+    from unittest.mock import patch  # noqa: F401
+except ImportError:
+    from mock import patch  # type: ignore[import, no-redef]  # noqa: F401
