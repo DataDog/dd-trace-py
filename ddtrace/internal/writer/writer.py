@@ -656,6 +656,15 @@ class AgentWriter(HTTPWriter):
         super(AgentWriter, self).start()
         try:
             telemetry_writer.enable()
+
+            # appsec remote config should be enabled/started after the global tracer and configs
+            # are initialized
+            if os.getenv("AWS_LAMBDA_FUNCTION_NAME") is None and (
+                config._appsec_enabled or asbool(os.getenv("DD_REMOTE_CONFIGURATION_ENABLED", "true"))
+            ):
+                from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
+
+                enable_appsec_rc()
         except service.ServiceStatusError:
             pass
 

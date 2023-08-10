@@ -5,9 +5,9 @@ import mock
 import pytest
 
 from ddtrace import config
-from ddtrace._monkey import patch_iast
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec.iast import oce
+from ddtrace.appsec.iast._patch_modules import patch_iast
 from ddtrace.appsec.iast._util import _is_python_version_supported as python_supported_by_iast
 from ddtrace.internal.compat import urlencode
 from tests.appsec.iast.iast_utils import get_line_and_hash
@@ -53,7 +53,7 @@ def test_django_weak_hash(client, test_spans, tracer):
     with override_global_config(dict(_appsec_enabled=True, _iast_enabled=True)):
         setup(bytes.join, bytearray.join)
         oce.reconfigure()
-        patch_iast(weak_hash=True)
+        patch_iast({"weak_hash": True})
         root_span, _ = _aux_appsec_get_root_span(client, test_spans, tracer, url="/appsec/weak-hash/")
         str_json = root_span.get_tag(IAST.JSON)
         assert str_json is not None, "no JSON tag in root span"
@@ -464,3 +464,96 @@ def test_django_tainted_iast_disabled_sqli_http_cookies_value(client, test_spans
 
         assert response.status_code == 200
         assert response.content == b"master"
+
+
+@pytest.mark.parametrize(
+    ("payload", "content_type"),
+    [
+        ("master", "application/json"),
+        ("master", "text/plain"),
+    ],
+)
+@pytest.mark.django_db()
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+def test_django_tainted_user_agent_iast_enabled_sqli_http_body(client, test_spans, tracer, payload, content_type):
+    from ddtrace.appsec.iast._taint_tracking import setup
+
+    with override_global_config(dict(_iast_enabled=True)), mock.patch(
+        "ddtrace.contrib.dbapi._is_iast_enabled", return_value=True
+    ):
+        setup(bytes.join, bytearray.join)
+
+        root_span, response = _aux_appsec_get_root_span(
+            client,
+            test_spans,
+            tracer,
+            url="/appsec/sqli_http_request_body/",
+            payload=payload,
+            content_type=content_type,
+        )
+        vuln_type = "SQL_INJECTION"
+        loaded = json.loads(root_span.get_tag(IAST.JSON))
+
+        line, hash_value = get_line_and_hash("iast_enabled_sqli_http_body", vuln_type, filename=TEST_FILE)
+
+        assert loaded["sources"] == [{"origin": "http.request.body", "name": "body", "value": "master"}]
+        assert loaded["vulnerabilities"][0]["type"] == "SQL_INJECTION"
+        assert loaded["vulnerabilities"][0]["hash"] == hash_value
+        assert loaded["vulnerabilities"][0]["evidence"] == {
+            "valueParts": [{"value": "SELECT 1 FROM sqlite_"}, {"source": 0, "value": "master"}]
+        }
+        assert loaded["vulnerabilities"][0]["location"]["line"] == line
+        assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
+
+        assert response.status_code == 200
+        assert response.content == b"master"
+
+
+@pytest.mark.django_db()
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+def test_django_tainted_iast_disabled_sqli_http_body(client, test_spans, tracer):
+    from ddtrace.appsec.iast._taint_tracking import setup
+
+    with override_global_config(dict(_iast_enabled=False)), mock.patch(
+        "ddtrace.contrib.dbapi._is_iast_enabled", return_value=False
+    ):
+        setup(bytes.join, bytearray.join)
+
+        root_span, response = _aux_appsec_get_root_span(
+            client,
+            test_spans,
+            tracer,
+            url="/appsec/sqli_http_request_body/",
+            payload="master",
+            content_type="application/json",
+        )
+
+        assert root_span.get_tag(IAST.JSON) is None
+
+        assert response.status_code == 200
+        assert response.content == b"master"
+
+
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+def test_querydict_django_with_iast(client, test_spans, tracer):
+    from ddtrace.appsec.iast._taint_tracking import setup
+
+    with override_global_config(dict(_iast_enabled=True)), mock.patch(
+        "ddtrace.contrib.dbapi._is_iast_enabled", return_value=False
+    ):
+        setup(bytes.join, bytearray.join)
+
+        root_span, response = _aux_appsec_get_root_span(
+            client,
+            test_spans,
+            tracer,
+            url="/appsec/validate_querydict/?x=1&y=2&x=3",
+        )
+
+        assert root_span.get_tag(IAST.JSON) is None
+
+        assert response.status_code == 200
+        assert (
+            response.content == b"x=['1', '3'], all=[('x', ['1', '3']), ('y', ['2'])],"
+            b" keys=['x', 'y'], urlencode=x=1&x=3&y=2"
+        )

@@ -14,7 +14,7 @@
       "django.db.alias": "postgres",
       "django.db.vendor": "postgresql",
       "language": "python",
-      "runtime-id": "7e33e1368c9c47b2b70b4364370a7902",
+      "runtime-id": "99c984f231264c238e23d78a016b9ddd",
       "span.kind": "client"
     },
     "metrics": {
@@ -24,10 +24,10 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "db.row_count": 1,
-      "process_id": 11891
+      "process_id": 11874
     },
-    "duration": 1844000,
-    "start": 1669648253048523000
+    "duration": 422653,
+    "start": 1691162159088064801
   },
      {
        "name": "postgres.query",
@@ -39,6 +39,7 @@
        "type": "sql",
        "error": 0,
        "meta": {
+         "_dd.p.dm": "-0",
          "component": "psycopg",
          "db.application": "None",
          "db.name": "test_postgres",
@@ -53,6 +54,6 @@
          "db.row_count": 1,
          "network.destination.port": 5432
        },
-       "duration": 1719000,
-       "start": 1669648253048618000
+       "duration": 245009,
+       "start": 1691162159088211075
      }]]
