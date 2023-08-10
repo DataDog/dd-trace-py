@@ -140,7 +140,7 @@ def test_log_metric_error_ddwaf_timeout(mock_logs_telemetry_lifecycle_writer, tr
 def test_log_metric_error_ddwaf_update(mock_logs_telemetry_lifecycle_writer):
     with override_global_config(dict(_appsec_enabled=True)):
         span_processor = AppSecSpanProcessor()
-        span_processor._update_rules("{}")
+        span_processor._update_rules({})
 
         list_metrics_logs = list(mock_logs_telemetry_lifecycle_writer._logs)
         assert len(list_metrics_logs) == 1
