@@ -114,3 +114,67 @@ extra-dependencies = [
 meta-testing = [
   "pytest {args} tests/meta"
 ]
+
+[envs.integration_test]
+template = "integration_test"
+extra-dependencies = [
+    "mock==5.0.1",
+    "pytest==7.2.2",
+    "pytest-mock==3.10.0",
+    "coverage==7.2.2",
+    "pytest-cov==4.0.0",
+    "opentracing==2.4.0",
+    "hypothesis==6.45.0",
+]
+
+[[envs.integration_test.matrix]]
+python = ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
+
+[envs.integration_test.env-vars]
+_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER = "1"
+DD_TESTING_RAISE = "1"
+DD_REMOTE_CONFIGURATION_ENABLED = "false"
+DD_CIVISIBILITY_AGENTLESS_ENABLED = "1"
+DD_CIVISIBILITY_CODE_COVERAGE_ENABLED = "1"
+DD_CIVISIBILITY_ITR_ENABLED = "1"
+DD_PATCH_MODULES = "unittest:false"
+CMAKE_BUILD_PARALLEL_LEVEL = "12"
+
+[envs.appsec]
+template = "integration_test"
+
+[[envs.appsec.matrix]]
+python = ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
+
+[envs.appsec.overrides]
+name.".".env-vars = [
+    "DD_TRACE_AGENT_URL=http://localhost:9126", # testagent required
+]
+
+[envs.appsec.scripts]
+test = [
+    "PYTHONPATH=$PWD pytest tests/appsec/appsec {args}",
+]
+
+[envs.appsec_iast]
+template = "integration_test"
+dependencies = [
+    "requests==2.30.0",
+    "pycryptodome==3.17",
+    "cryptography==40.0.2",
+    "astunparse==1.6.3",
+]
+
+[[envs.appsec_iast.matrix]]
+python = ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
+
+[envs.appsec_iast.overrides]
+name.".".env-vars = [
+    "DD_TRACE_AGENT_URL=http://localhost:9126", # testagent required
+    "DD_IAST_REQUEST_SAMPLING=100", # Override default 30% to analyze all IAST requests
+]
+
+[envs.appsec_iast.scripts]
+test = [
+    "PYTHONPATH=$PWD pytest tests/appsec/iast/ {args}",
+]
