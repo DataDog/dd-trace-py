@@ -7,8 +7,8 @@ from textwrap import dedent
 import unittest
 
 from ddtrace.vendor import wrapt
-from tests.subprocesstest import run_in_subprocess
 from tests.subprocesstest import SubprocessTestCase
+from tests.subprocesstest import run_in_subprocess
 from tests.utils import call_program
 
 
