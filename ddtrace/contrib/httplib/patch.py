@@ -185,6 +185,9 @@ def _wrap_putheader(func, instance, args, kwargs):
 
 def should_skip_request(pin, request):
     """Helper to determine if the provided request should be traced"""
+    if getattr(request, "_dd_no_trace", False):
+        return True
+
     if not pin or not pin.enabled():
         return True
 
