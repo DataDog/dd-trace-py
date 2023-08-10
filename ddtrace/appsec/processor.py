@@ -155,6 +155,7 @@ class AppSecSpanProcessor(SpanProcessor):
             try:
                 with open(self.rules, "r") as f:
                     rules = json.load(f)
+                    self._update_actions(rules)
             except EnvironmentError as err:
                 if err.errno == errno.ENOENT:
                     log.error(
@@ -195,12 +196,21 @@ class AppSecSpanProcessor(SpanProcessor):
         # we always need the response headers
         self._mark_needed(WAF_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES)
 
+    def _update_actions(self, rules):
+        new_actions = rules.get("actions", [])
+        self._actions = WAF_ACTIONS.DEFAULT_ACTONS
+        for a in new_actions:
+            self._actions[a.get(WAF_ACTIONS.ID, None)] = a
+        if "actions" in rules:
+            del rules["actions"]
+
     def _update_rules(self, new_rules):
         # type: (Dict[str, Any]) -> bool
         result = False
         if not _appsec_rc_file_is_not_static():
             return result
         try:
+            self._update_actions(new_rules)
             result = self._ddwaf.update_rules(new_rules)
             _set_waf_updates_metric(self._ddwaf.info)
         except TypeError:
@@ -299,11 +309,16 @@ class AppSecSpanProcessor(SpanProcessor):
         if waf_results and waf_results.data:
             log.debug("[DDAS-011-00] ASM In-App WAF returned: %s. Timeout %s", waf_results.data, waf_results.timeout)
 
-        blocked = WAF_ACTIONS.BLOCK in waf_results.actions
-        _asm_request_context.set_waf_results(waf_results, self._ddwaf.info, blocked)
+        for action in waf_results.actions:
+            if self._actions.get(action, {}).get(WAF_ACTIONS.TYPE) == WAF_ACTIONS.BLOCK_ACTION:
+                blocked = self._actions[action][WAF_ACTIONS.PARAMETERS]
+                break
+        else:
+            blocked = {}
+        _asm_request_context.set_waf_results(waf_results, self._ddwaf.info, bool(blocked))
         if blocked:
-            core.set_item(WAF_CONTEXT_NAMES.BLOCKED, True, span=span)
-            core.set_item(WAF_CONTEXT_NAMES.BLOCKED, True)
+            core.set_item(WAF_CONTEXT_NAMES.BLOCKED, blocked, span=span)
+            core.set_item(WAF_CONTEXT_NAMES.BLOCKED, blocked)
 
         try:
             info = self._ddwaf.info
