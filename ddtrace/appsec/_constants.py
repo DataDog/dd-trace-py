@@ -149,6 +149,18 @@ class WAF_ACTIONS(object):
     """string identifier for actions returned by the waf"""
 
     BLOCK = "block"
+    PARAMETERS = "parameters"
+    TYPE = "type"
+    ID = "id"
+    DEFAULT_PARAMETERS = {"status_code": 403, "type": "auto"}
+    BLOCK_ACTION = "block_request"
+    DEFAULT_ACTONS = {
+        BLOCK: {
+            ID: BLOCK,
+            TYPE: BLOCK_ACTION,
+            PARAMETERS: DEFAULT_PARAMETERS,
+        }
+    }
 
 
 @six.add_metaclass(Constant_Class)  # required for python2/3 compatibility
