@@ -32,10 +32,9 @@ import inspect
 import sys
 
 from ddtrace.appsec.iast._ast.ast_patching import astpatch_module
-from ddtrace.appsec.iast._loader import IS_IAST_ENABLED
+from ddtrace.appsec.iast._util import _is_iast_enabled
 from ddtrace.appsec.iast._overhead_control_engine import OverheadControl
 from ddtrace.internal.logger import get_logger
-
 
 log = get_logger(__name__)
 
@@ -50,7 +49,7 @@ def ddtrace_iast_flask_patch():
     and must be before the `app.run()` call. It also requires `DD_IAST_ENABLED` to be
     activated.
     """
-    if not IS_IAST_ENABLED:
+    if not _is_iast_enabled():
         return
 
     module_name = inspect.currentframe().f_back.f_globals["__name__"]

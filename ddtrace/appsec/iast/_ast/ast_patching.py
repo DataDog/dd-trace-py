@@ -118,7 +118,7 @@ def _remove_flask_run(text):  # type (str) -> str
         return text
 
     instance_name = groups[-1]
-    new_text = re.sub(instance_name + r"\.run\(.*\)", "", text)
+    new_text = re.sub(instance_name + r"\.run\(.*\)", "pass", text)
     return new_text
 
 

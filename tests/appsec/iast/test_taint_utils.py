@@ -1,4 +1,6 @@
-#!/usr/bin/env python3
+import dis
+import io
+
 import mock
 import pytest
 
