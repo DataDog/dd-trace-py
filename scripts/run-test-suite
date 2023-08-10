@@ -2,7 +2,7 @@
 
 CHECKPOINT_FILENAME="latest-success-commit"
 RIOT_PATTERN=${1}
-if [[ -v $CIRCLECI ]]; then
+if [[ $CIRCLECI ]]; then
     RIOT_HASHES=$(riot list --hash-only $RIOT_PATTERN | sort | circleci tests split)
 else
     RIOT_HASHES=$(riot list --hash-only $RIOT_PATTERN | sort)
@@ -13,7 +13,7 @@ DDTEST_CMD=$([[ ${3} == "1" ]] && echo "./scripts/ddtest")
 
 set -e
 
-if ! [[ -v $CIRCLECI && $CIRCLE_BRANCH =~ [0-9]\.x ]]; then
+if ! [[ $CIRCLECI && $CIRCLE_BRANCH =~ [0-9]\.x ]]; then
     if [[ -f "$CHECKPOINT_FILENAME" ]]; then
         latest_success_commit=$(cat $CHECKPOINT_FILENAME)
         if ! ./scripts/needs_testrun.py $CIRCLE_JOB --sha $latest_success_commit; then
@@ -28,7 +28,7 @@ fi
 
 for hash in $RIOT_HASHES; do
     if ! $DDTEST_CMD riot -v run --exitfirst --pass-env -s $hash $DDTRACE_FLAG $COVERAGE_FLAG; then
-        if [[ -v $CIRCLECI ]]; then
+        if [[ $CIRCLECI ]]; then
             circleci step halt
         fi
         exit 1
