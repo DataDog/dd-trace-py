@@ -211,6 +211,88 @@ commands:
           when: always
           command: bash ./scripts/get-test-agent-results.sh
 
+  run_hatch_env_test:
+    description: "Run hatch env test"
+    parameters:
+      env:
+        type: string
+        default: ""
+      snapshot:
+        type: boolean
+        default: false
+      docker_services:
+        type: string
+        default: ""
+      store_coverage:
+        type: boolean
+        default: true
+      trace_agent_url:
+        type: string
+        default: "http://localhost:9126"
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - setup_hatch
+      - when:
+          condition:
+              << parameters.snapshot >>
+          steps:
+            - start_docker_services:
+                env: SNAPSHOT_CI=1
+                services: testagent << parameters.docker_services >>
+            - run:
+                name: Run tests
+                environment:
+                  DD_TRACE_AGENT_URL: << parameters.trace_agent_url >>
+                command: |
+                  ./scripts/run-test-suite-hatch '<<parameters.env>>' 1
+      - unless:
+          condition:
+              << parameters.snapshot >>
+          steps:
+            - run:
+                name: Run tests
+                command: |
+                  hatch env show --json | jq -r 'keys[] | select(. | contains("<< parameters.env >>"))' | sort | circleci tests split | xargs -n 1 -I {} hatch run {}:test
+      - when:
+          condition:
+            and:
+              - << pipeline.parameters.coverage >>
+              - << parameters.store_coverage >>
+          steps:
+            - save_coverage
+      - store_test_results:
+          path: test-results
+      - store_artifacts:
+          path: test-results
+      - run:
+          name: "Store Test Agent Supported Integrations Data"
+          command: |
+            if [[ -z "$(curl -s << parameters.trace_agent_url >>/test/integrations/tested_versions)" ]]; then
+              # No integrations were tested. Not saving any artifacts
+              echo "Response body is empty. Skipping saving integration artifacts."
+            else
+              # make temporary files to save response data to
+              response=$(mktemp) && headers=$(mktemp)
+              # create artifacts directory if it doesn't exist
+              [ -d "./artifacts" ] || mkdir -p "./artifacts"
+              # get tested integrations
+              curl -o "$response" -D "$headers" << parameters.trace_agent_url >>/test/integrations/tested_versions
+              # get filename representing the name of the tested integration from headers
+              filename=$(awk -F': ' '/file-name/{print $2}' "$headers" | tr -d '\r\n')
+              # copy data to final file and remove temp files
+              mv "$response" "artifacts/${filename}_supported_versions.csv"
+              rm "$headers"
+            fi
+      - store_artifacts:
+          path: artifacts
+          destination: supported-integrations
+      - run:
+          name: Get APM Test Agent Trace Check Results
+          when: always
+          command: bash ./scripts/get-test-agent-results.sh
+
 executors:
   cimg_base:
     docker:
@@ -341,16 +423,18 @@ jobs:
 
   appsec:
     <<: *machine_executor
+    parallelism: 6
     steps:
-      - run_test:
-          pattern: 'appsec$'
+      - run_hatch_env_test:
+          env: 'appsec'
           snapshot: true
 
   appsec_iast:
     <<: *machine_executor
+    parallelism: 6
     steps:
-      - run_test:
-          pattern: 'appsec_iast'
+      - run_hatch_env_test:
+          env: 'appsec_iast'
           snapshot: true
 
   appsec_integrations:
