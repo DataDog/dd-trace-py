@@ -122,6 +122,11 @@ venv = Venv(
             "tests/suitespec.py",
         ),
         Venv(
+            pys=["3"],
+            name="conftest",
+            command="pytest {cmdargs} tests/meta",
+        ),
+        Venv(
             name="circleci-gen-config",
             command="python scripts/gen_circleci_config.py {cmdargs}",
             pys=["3"],
