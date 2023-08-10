@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 
 CHECKPOINT_FILENAME="latest-success-commit"
-RIOT_HASHES=$(riot list --hash-only ${1} | sort)
+RIOT_PATTERN=${1}
 if [[ -v $CIRCLECI ]]; then
-    RIOT_HASHES=$(circleci tests split <<< "$RIOT_HASHES")
+    RIOT_HASHES=$(riot list --hash-only $RIOT_PATTERN | sort | circleci tests split)
+else
+    RIOT_HASHES=$(riot list --hash-only $RIOT_PATTERN | sort)
 fi
 DDTRACE_FLAG=$([ -v _CI_DD_API_KEY ] && echo '--ddtrace')
 COVERAGE_FLAG=$([[ "${2:-false}" == false ]] && echo '--no-cov')
