@@ -45,6 +45,7 @@ class TestMolten(TracerTestCase):
 
     def test_route_success(self):
         """Tests request was a success with the expected span tags"""
+        assert False
         response = molten_client()
         spans = self.pop_spans()
         self.assertEqual(response.status_code, 200)
