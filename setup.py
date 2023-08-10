@@ -547,6 +547,7 @@ setup(
         "xmltodict>=0.12",
         "envier",
         "opentelemetry-api>=1; python_version>='3.7'",
+        "setuptools; python_version>='3.12'",
     ]
     + bytecode,
     extras_require={
@@ -582,6 +583,7 @@ setup(
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
     ],
     setup_requires=["setuptools_scm[toml]>=4", "cython<3", "cmake>=3.24.2; python_version>='3.6'"],
     ext_modules=ext_modules
