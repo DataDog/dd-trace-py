@@ -9,7 +9,6 @@ _TEST_HEADERS = {"foo": "bar"}
 
 
 def test_context_set_and_reset():
-    assert False
     with override_global_config({"_appsec_enabled": True}):
         with _asm_request_context.asm_request_context_manager(_TEST_IP, _TEST_HEADERS, True, lambda: True):
             assert _asm_request_context.get_ip() == _TEST_IP
