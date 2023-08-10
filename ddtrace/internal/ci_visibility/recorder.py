@@ -4,6 +4,7 @@ import os
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
+from ddtrace import Pin
 from ddtrace import Tracer
 from ddtrace import config as ddconfig
 from ddtrace.contrib import trace_utils
@@ -73,6 +74,7 @@ def _do_request(method, url, payload, headers):
     # type: (str, str, str, Dict) -> Response
     try:
         conn = get_connection(url, timeout=DEFAULT_TIMEOUT)
+        Pin().remove_from(conn)
         log.debug("Sending request: %s %s %s %s", method, url, payload, headers)
         conn.request("POST", url, payload, headers)
         resp = compat.get_connection_response(conn)
