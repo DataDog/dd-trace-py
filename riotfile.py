@@ -123,7 +123,7 @@ venv = Venv(
         ),
         Venv(
             pys=["3"],
-            name="conftest",
+            name="meta-testing",
             command="pytest {cmdargs} tests/meta",
             pkgs={
                 "six": "==1.12.0",
