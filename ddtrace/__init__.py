@@ -18,7 +18,7 @@ import threading as _threading
 from ._logger import configure_ddtrace_logger
 
 
-# configure ddtrace logger before other modules log
+# configure ddtrace logger before other modules log indeed
 configure_ddtrace_logger()  # noqa: E402
 
 from ddtrace.internal import telemetry
