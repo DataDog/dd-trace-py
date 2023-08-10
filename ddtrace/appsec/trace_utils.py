@@ -23,6 +23,16 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 
+def _asm_manual_keep(span):
+    # type: (Span) -> None
+    from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
+    from ddtrace.internal.sampling import SamplingMechanism
+
+    span.set_tag(constants.MANUAL_KEEP_KEY)
+    # set decision maker to ASM = -5
+    span.set_tag_str(SAMPLING_DECISION_TRACE_TAG_KEY, "-%d" % SamplingMechanism.APPSEC)
+
+
 def _track_user_login_common(
     tracer, success, metadata=None, login_events_mode=LOGIN_EVENTS_MODE.SDK, login=None, name=None, email=None
 ):
@@ -53,7 +63,7 @@ def _track_user_login_common(
         if name:
             span.set_tag_str("%s.username" % tag_prefix, name)
 
-        span.set_tag_str(constants.MANUAL_KEEP_KEY, "true")
+        _asm_manual_keep(span)
         return span
     else:
         log.warning(
@@ -124,7 +134,7 @@ def track_user_signup_event(tracer, user_id, success, login_events_mode=LOGIN_EV
         success_str = "true" if success else "false"
         span.set_tag_str(APPSEC.USER_SIGNUP_EVENT, success_str)
         span.set_tag_str(user.ID, user_id)
-        span.set_tag_str(constants.MANUAL_KEEP_KEY, "true")
+        _asm_manual_keep(span)
 
         # This is used to mark if the call was done from the SDK of the automatic login events
         if login_events_mode == LOGIN_EVENTS_MODE.SDK:
@@ -173,7 +183,7 @@ def track_custom_event(tracer, event_name, metadata):
 
     for k, v in six.iteritems(metadata):
         span.set_tag_str("%s.%s.%s" % (APPSEC.CUSTOM_EVENT_PREFIX, event_name, k), str(v))
-        span.set_tag_str(constants.MANUAL_KEEP_KEY, "true")
+        _asm_manual_keep(span)
 
 
 def should_block_user(tracer, userid):  # type: (Tracer, str) -> bool
