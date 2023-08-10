@@ -82,7 +82,7 @@ def gen_pre_checks(template: dict) -> None:
     check(
         name="Run conftest tests",
         command="riot -v run meta-testing",
-        paths={"tests/conftest.py", "tests/meta/*"},
+        paths={"tests/*conftest.py", "tests/meta/*"},
     )
     check(
         name="Validate suitespec JSON file",
