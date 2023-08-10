@@ -1,6 +1,3 @@
-import dis
-import io
-
 import mock
 import pytest
 
