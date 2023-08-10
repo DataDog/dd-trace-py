@@ -1,15 +1,17 @@
 #!/usr/bin/env bash
 
-set -e
-
 CHECKPOINT_FILENAME="latest-success-commit"
-
-RIOT_PATTERN=${1}
+RIOT_HASHES=$(riot list -p 3.9 --hash-only ${1} | sort)
+if [[ -v $CIRCLECI ]]; then
+    RIOT_HASHES=$(circleci tests split <<< "$RIOT_HASHES")
+fi
 DDTRACE_FLAG=$([ -v _CI_DD_API_KEY ] && echo '--ddtrace')
 COVERAGE_FLAG=$([[ "${2:-false}" == false ]] && echo '--no-cov')
 DDTEST_CMD=$([[ ${3} == "1" ]] && echo "./scripts/ddtest")
 
-if ! [[ $CIRCLE_BRANCH =~ [0-9]\.x ]]; then
+set -e
+
+if ! [[ -v $CIRCLECI && $CIRCLE_BRANCH =~ [0-9]\.x ]]; then
     if [[ -f "$CHECKPOINT_FILENAME" ]]; then
         latest_success_commit=$(cat $CHECKPOINT_FILENAME)
         if ./scripts/needs_testrun.py $CIRCLE_JOB --sha $latest_success_commit; then
@@ -22,22 +24,18 @@ if ! [[ $CIRCLE_BRANCH =~ [0-9]\.x ]]; then
     fi
 fi
 
-riot_hashes=$(riot list --hash-only $RIOT_PATTERN | sort | circleci tests split)
-
-all_passed=false
-for hash in $riot_hashes; do
-    if $DDTEST_CMD riot -v run --exitfirst --pass-env -s $hash $DDTRACE_FLAG $COVERAGE_FLAG; then
-        circleci step halt
+for hash in $RIOT_HASHES; do
+    if ! $DDTEST_CMD riot -v run --exitfirst --pass-env -s $hash $DDTRACE_FLAG $COVERAGE_FLAG; then
+        if [[ -v $CIRCLECI ]]; then
+            circleci step halt
+        fi
         exit 1
     fi
-    all_passed=true
 done
 
 rm -f $CHECKPOINT_FILENAME
-if [[ $all_passed == true ]]; then
-    echo $CIRCLE_SHA1 > $CHECKPOINT_FILENAME
-    echo "All tests passed. Saved $CIRCLE_SHA1 as the latest successful commit for job $CIRCLE_JOB"
-fi
+echo $CIRCLE_SHA1 > $CHECKPOINT_FILENAME
+echo "All tests passed. Saved $CIRCLE_SHA1 as the latest successful commit for job $CIRCLE_JOB"
 
 ./scripts/check-diff \
     ".riot/requirements/" \
