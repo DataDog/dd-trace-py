@@ -66,6 +66,9 @@ def _wrap_urlopen(func, instance, args, kwargs):
     :param kwargs: Keyword arguments from the target function
     :return: The ``HTTPResponse`` from the target function
     """
+    if getattr(instance, "_dd_no_trace", False):
+        return func(*args, **kwargs)
+
     request_method = get_argument_value(args, kwargs, 0, "method")
     request_url = get_argument_value(args, kwargs, 1, "url")
     try:

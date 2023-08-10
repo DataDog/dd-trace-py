@@ -281,14 +281,16 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 self._conn.close()
                 self._conn = None
 
-    def _put(self, data, headers, client):
-        # type: (bytes, Dict[str, str], WriterClientBase) -> Response
+    def _put(self, data, headers, client, no_trace=True):
+        # type: (bytes, Dict[str, str], WriterClientBase, Optional[bool]) -> Response
         sw = StopWatch()
         sw.start()
         with self._conn_lck:
             if self._conn is None:
                 log.debug("creating new intake connection to %s with timeout %d", self.intake_url, self._timeout)
                 self._conn = get_connection(self._intake_url(client), self._timeout)
+                if no_trace:
+                    setattr(self._conn, "_dd_no_trace", True)
             try:
                 log.debug("Sending request: %s %s %s", self.HTTP_METHOD, client.ENDPOINT, headers)
                 self._conn.request(
