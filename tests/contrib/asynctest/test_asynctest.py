@@ -45,6 +45,7 @@ class TestPytest(TracerTestCase):
         """Test AttributeError exception in `ddtrace/vendor/wrapt/wrappers.py` when try to import asynctest package.
         Issue: https://github.com/DataDog/dd-trace-py/issues/4484
         """
+        #assert False
         py_file = self.testdir.makepyfile(
             """
         import asynctest
