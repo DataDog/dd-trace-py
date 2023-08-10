@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    CI Visibility: fixes an issue where the CIVisibility client would raise an exception if it was started in agentless mode without the DD_API_KEY set

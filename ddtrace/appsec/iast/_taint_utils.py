@@ -34,6 +34,7 @@ class LazyTaintList:
             if isinstance(value, (str, bytes, bytearray)):
                 if not is_pyobject_tainted(value) or self._override_pyobject_tainted:
                     try:
+                        # TODO: migrate this part to shift ranges instead of creating a new one
                         value = taint_pyobject(
                             pyobject=value,
                             source_name=self._source_name,
@@ -201,11 +202,9 @@ class LazyTaintDict:
             if isinstance(value, (str, bytes, bytearray)):
                 if not is_pyobject_tainted(value) or self._override_pyobject_tainted:
                     try:
+                        # TODO: migrate this part to shift ranges instead of creating a new one
                         value = taint_pyobject(
-                            pyobject=value,
-                            source_name=key,
-                            source_value=value,
-                            source_origin=origin,
+                            pyobject=value, source_name=key, source_value=value, source_origin=origin,
                         )
                     except SystemError:
                         # TODO: Find the root cause for
@@ -284,9 +283,7 @@ class LazyTaintDict:
         if _is_tainted_struct(other):
             other = other._obj
         return LazyTaintDict(
-            self._obj | other,
-            origins=self._origins,
-            override_pyobject_tainted=self._override_pyobject_tainted,
+            self._obj | other, origins=self._origins, override_pyobject_tainted=self._override_pyobject_tainted,
         )
 
     def __repr__(self):
@@ -307,9 +304,7 @@ class LazyTaintDict:
 
     def copy(self):
         return LazyTaintDict(
-            self._obj.copy(),
-            origins=self._origins,
-            override_pyobject_tainted=self._override_pyobject_tainted,
+            self._obj.copy(), origins=self._origins, override_pyobject_tainted=self._override_pyobject_tainted,
         )
 
     @classmethod
@@ -350,6 +345,28 @@ class LazyTaintDict:
     def values(self):
         for _, v in self.items():
             yield v
+
+    # Django Query Dict support
+    def getlist(self, key, default=None):
+        return self._taint(self._obj.getlist(key, default=default), key)
+
+    def setlist(self, key, list_):
+        self._obj.setlist(key, list_)
+
+    def appendlist(self, key, item):
+        self._obj.appendlist(key, item)
+
+    def setlistdefault(self, key, default_list=None):
+        return self._taint(self._obj.setlistdefault(key, default_list=default_list), key)
+
+    def lists(self):
+        return self._taint(self._obj.lists(), self._origin_value)
+
+    def dict(self):
+        return self
+
+    def urlencode(self, safe=None):
+        return self._taint(self._obj.urlencode(safe=safe), self._origin_value)
 
 
 def supported_dbapi_integration(integration_name):

@@ -11,17 +11,17 @@
     "meta": {
       "_dd.p.dm": "-0",
       "language": "python",
-      "runtime-id": "f82097569d3141b8ba61409269818dec"
+      "runtime-id": "112b2be7dc8640488f1251532a308160"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 88705
+      "process_id": 25955
     },
-    "duration": 1299032,
-    "start": 1667243945446035968
+    "duration": 1543354,
+    "start": 1691164733401379840
   },
      {
        "name": "sql.query",
@@ -33,6 +33,7 @@
        "type": "sql",
        "error": 0,
        "meta": {
+         "_dd.p.dm": "-0",
          "component": "snowflake",
          "db.application": "PythonConnector",
          "db.name": "mock-db-name",
@@ -51,6 +52,6 @@
          "db.row_count": 2,
          "network.destination.port": 443
        },
-       "duration": 1165000,
-       "start": 1667243945446145000
+       "duration": 1334976,
+       "start": 1691164733401547230
      }]]

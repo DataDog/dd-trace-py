@@ -161,32 +161,43 @@ def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type):
     # path parameters)
     if _is_iast_enabled() and fn_args and isinstance(fn_args[0], first_arg_expected_type):
         from ddtrace.appsec.iast._taint_tracking import OriginType  # noqa: F401
+        from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
         from ddtrace.appsec.iast._taint_tracking import taint_pyobject
         from ddtrace.appsec.iast._taint_utils import LazyTaintDict
 
-        if not isinstance(fn_args[0].COOKIES, LazyTaintDict):
-            fn_args[0].COOKIES = LazyTaintDict(fn_args[0].COOKIES, origins=(OriginType.COOKIE_NAME, OriginType.COOKIE))
-        if not isinstance(fn_args[0].GET, LazyTaintDict):
-            fn_args[0].GET = LazyTaintDict(fn_args[0].GET, origins=(OriginType.PARAMETER_NAME, OriginType.PARAMETER))
-        if not isinstance(fn_args[0].POST, LazyTaintDict):
-            fn_args[0].POST = LazyTaintDict(fn_args[0].POST, origins=(OriginType.BODY, OriginType.BODY))
-        if not isinstance(fn_args[0].META, LazyTaintDict):
-            fn_args[0].META = LazyTaintDict(fn_args[0].META, origins=(OriginType.HEADER_NAME, OriginType.HEADER))
-        if not isinstance(fn_args[0].headers, LazyTaintDict):
-            fn_args[0].headers = LazyTaintDict(fn_args[0].headers, origins=(OriginType.HEADER_NAME, OriginType.HEADER))
-        fn_args[0].path = taint_pyobject(
-            fn_args[0].path, source_name="path", source_value=fn_args[0].path, source_origin=OriginType.PATH
+        http_req = fn_args[0]
+
+        if not isinstance(http_req.COOKIES, LazyTaintDict):
+            http_req.COOKIES = LazyTaintDict(http_req.COOKIES, origins=(OriginType.COOKIE_NAME, OriginType.COOKIE))
+        if not isinstance(http_req.GET, LazyTaintDict):
+            http_req.GET = LazyTaintDict(http_req.GET, origins=(OriginType.PARAMETER_NAME, OriginType.PARAMETER))
+        if not isinstance(http_req.POST, LazyTaintDict):
+            http_req.POST = LazyTaintDict(http_req.POST, origins=(OriginType.BODY, OriginType.BODY))
+        if not is_pyobject_tainted(getattr(http_req, "_body", None)):
+            http_req._body = taint_pyobject(
+                http_req.body,
+                source_name="body",
+                source_value=http_req.body,
+                source_origin=OriginType.BODY,
+            )
+
+        if not isinstance(http_req.META, LazyTaintDict):
+            http_req.META = LazyTaintDict(http_req.META, origins=(OriginType.HEADER_NAME, OriginType.HEADER))
+        if not isinstance(http_req.headers, LazyTaintDict):
+            http_req.headers = LazyTaintDict(http_req.headers, origins=(OriginType.HEADER_NAME, OriginType.HEADER))
+        http_req.path = taint_pyobject(
+            http_req.path, source_name="path", source_value=http_req.path, source_origin=OriginType.PATH
         )
-        fn_args[0].path_info = taint_pyobject(
-            fn_args[0].path_info,
+        http_req.path_info = taint_pyobject(
+            http_req.path_info,
             source_name="path",
-            source_value=fn_args[0].path,
+            source_value=http_req.path,
             source_origin=OriginType.PATH,
         )
-        fn_args[0].environ["PATH_INFO"] = taint_pyobject(
-            fn_args[0].environ["PATH_INFO"],
+        http_req.environ["PATH_INFO"] = taint_pyobject(
+            http_req.environ["PATH_INFO"],
             source_name="path",
-            source_value=fn_args[0].path,
+            source_value=http_req.path,
             source_origin=OriginType.PATH,
         )
         if fn_kwargs:

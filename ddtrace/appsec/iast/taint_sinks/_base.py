@@ -111,6 +111,7 @@ class VulnerabilityBase(Operation):
 
             if _is_evidence_value_parts(evidence_value):
                 evidence = Evidence(valueParts=evidence_value)
+            # Evidence is a string in weak cipher, weak hash and weak randomness
             elif isinstance(evidence_value, (str, bytes, bytearray)):
                 evidence = Evidence(value=evidence_value)
             else:

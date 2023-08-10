@@ -4,6 +4,8 @@ from typing import List
 from typing import Optional
 from typing import Tuple
 
+import six
+
 
 class ArgumentError(Exception):
     """
@@ -67,3 +69,12 @@ def set_argument_value(
         raise ArgumentError("%s (at position %d) is invalid" % (kw, pos))
 
     return args, kwargs
+
+
+def _get_metas_to_propagate(context):
+    # type: (Any) -> List[Tuple[str, str]]
+    metas_to_propagate = []
+    for k, v in context._meta.items():
+        if isinstance(k, six.string_types) and k.startswith("_dd.p."):
+            metas_to_propagate.append((k, v))
+    return metas_to_propagate

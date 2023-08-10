@@ -27,7 +27,7 @@
       "langchain.response.completions.0.logprobs": "None",
       "langchain.response.completions.0.text": "\\n\\nDescartes' famous phrase \"I think, therefore I am\" is a fundamental statement of his philosophical approach, known as Cartes...",
       "language": "python",
-      "runtime-id": "fe06dc4de6654516985fe834e8e8cec5"
+      "runtime-id": "ae6bad621ee242f7bcc5ae1927a308c5"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -39,10 +39,10 @@
       "langchain.tokens.prompt_tokens": 17,
       "langchain.tokens.total_cost": 0.0022400000000000002,
       "langchain.tokens.total_tokens": 112,
-      "process_id": 1236
+      "process_id": 52125
     },
-    "duration": 12867792,
-    "start": 1689781634486378338
+    "duration": 4942973,
+    "start": 1691167379650028081
   },
      {
        "name": "openai.request",
@@ -54,6 +54,7 @@
        "type": "",
        "error": 0,
        "meta": {
+         "_dd.p.dm": "-0",
          "component": "openai",
          "openai.api_base": "https://api.openai.com/v1",
          "openai.api_type": "open_ai",
@@ -82,8 +83,8 @@
          "openai.response.choices_count": 1,
          "openai.response.created": 1687283761
        },
-       "duration": 12262416,
-       "start": 1689781634486768922
+       "duration": 4496369,
+       "start": 1691167379650315132
      },
         {
           "name": "requests.request",
@@ -95,6 +96,7 @@
           "type": "http",
           "error": 0,
           "meta": {
+            "_dd.p.dm": "-0",
             "component": "requests",
             "http.method": "POST",
             "http.status_code": "200",
@@ -107,6 +109,6 @@
             "_dd.measured": 1,
             "_dd.top_level": 1
           },
-          "duration": 2130000,
-          "start": 1689781634491949505
+          "duration": 1986464,
+          "start": 1691167379652149893
         }]]
