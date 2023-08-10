@@ -204,8 +204,13 @@ class Config(object):
                 removal_version="2.0.0",
             )
 
-        self._trace_sample_rate = os.getenv("DD_TRACE_SAMPLE_RATE")
-        self._trace_rate_limit = int(os.getenv("DD_TRACE_RATE_LIMIT", default=DEFAULT_SAMPLING_RATE_LIMIT))
+        self._apm_tracing_enabled = asbool(os.getenv("DD_APM_TRACING_ENABLED"), default=True)
+        if self._apm_tracing_enabled:
+            self._trace_sample_rate = os.getenv("DD_TRACE_SAMPLE_RATE")
+            self._trace_rate_limit = int(os.getenv("DD_TRACE_RATE_LIMIT", default=DEFAULT_SAMPLING_RATE_LIMIT))
+        else:
+            self._trace_sample_rate = "1"
+            self._trace_rate_limit = 0.017
 
         header_tags = parse_tags_str(os.getenv("DD_TRACE_HEADER_TAGS", ""))
         self.http = HttpConfig(header_tags=header_tags)

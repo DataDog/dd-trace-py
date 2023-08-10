@@ -61,7 +61,6 @@ class SamplingError(Exception):
 
 
 class BaseSampler(six.with_metaclass(abc.ABCMeta)):
-
     __slots__ = ()
 
     @abc.abstractmethod
@@ -70,7 +69,6 @@ class BaseSampler(six.with_metaclass(abc.ABCMeta)):
 
 
 class BasePrioritySampler(BaseSampler):
-
     __slots__ = ()
 
     @abc.abstractmethod
@@ -248,33 +246,38 @@ class DatadogSampler(RateByServiceSampler):
         # Use default sample rate of 1.0
         super(DatadogSampler, self).__init__()
 
-        if default_sample_rate is None:
+        if default_sample_rate is None or not ddconfig._apm_tracing_enabled:
             sample_rate = ddconfig._trace_sample_rate
 
             if sample_rate is not None:
                 default_sample_rate = float(sample_rate)
 
-        if rate_limit is None:
+        if rate_limit is None or not ddconfig._apm_tracing_enabled:
             rate_limit = int(ddconfig._trace_rate_limit)
 
-        if rules is None:
-            env_sampling_rules = os.getenv("DD_TRACE_SAMPLING_RULES")
-            if env_sampling_rules:
-                rules = self._parse_rules_from_env_variable(env_sampling_rules)
+        if ddconfig._apm_tracing_enabled:
+            if rules is None:
+                env_sampling_rules = os.getenv("DD_TRACE_SAMPLING_RULES")
+                if env_sampling_rules:
+                    rules = self._parse_rules_from_env_variable(env_sampling_rules)
+                else:
+                    rules = []
+                self.rules = rules
             else:
-                rules = []
-            self.rules = rules
+                self.rules = []
+                # Validate that rules is a list of SampleRules
+                for rule in rules:
+                    if not isinstance(rule, SamplingRule):
+                        raise TypeError(
+                            "Rule {!r} must be a sub-class of type ddtrace.sampler.SamplingRules".format(rule)
+                        )
+                    self.rules.append(rule)
+
+            # DEV: Default sampling rule must come last
+            if default_sample_rate is not None:
+                self.rules.append(SamplingRule(sample_rate=default_sample_rate))
         else:
             self.rules = []
-            # Validate that rules is a list of SampleRules
-            for rule in rules:
-                if not isinstance(rule, SamplingRule):
-                    raise TypeError("Rule {!r} must be a sub-class of type ddtrace.sampler.SamplingRules".format(rule))
-                self.rules.append(rule)
-
-        # DEV: Default sampling rule must come last
-        if default_sample_rate is not None:
-            self.rules.append(SamplingRule(sample_rate=default_sample_rate))
 
         # Configure rate limiter
         self.limiter = RateLimiter(rate_limit)
