@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 CHECKPOINT_FILENAME="latest-success-commit"
-RIOT_HASHES=$(riot list -p 3.9 --hash-only ${1} | sort)
+RIOT_HASHES=$(riot list --hash-only ${1} | sort)
 if [[ -v $CIRCLECI ]]; then
     RIOT_HASHES=$(circleci tests split <<< "$RIOT_HASHES")
 fi
