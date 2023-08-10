@@ -17,7 +17,7 @@
       "http.url": "http://localhost:8001/status/500",
       "language": "python",
       "out.host": "localhost",
-      "runtime-id": "ad99d3e85d1d407e95c792cfaa56068b",
+      "runtime-id": "de4fa08308ec4bc3a437ed78b9f99c47",
       "span.kind": "client"
     },
     "metrics": {
@@ -25,10 +25,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 32687
+      "process_id": 2189
     },
-    "duration": 10137000,
-    "start": 1667240261480698000
+    "duration": 2492434,
+    "start": 1691160518184697570
   },
      {
        "name": "TCPConnector.connect",
@@ -40,8 +40,9 @@
        "type": "",
        "error": 0,
        "meta": {
+         "_dd.p.dm": "-0",
          "component": "aiohttp"
        },
-       "duration": 2061000,
-       "start": 1646414759680240000
+       "duration": 1119993,
+       "start": 1691160518185087059
      }]]

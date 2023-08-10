@@ -35,11 +35,8 @@ class Evidence(object):
 
         _hash = 0
         for part in self.valueParts:
-            if isinstance(part, dict):
-                json_str = json.dumps(part, sort_keys=True)
-                part_hash = zlib.crc32(json_str.encode())
-            else:
-                part_hash = hash(part)
+            json_str = json.dumps(part, sort_keys=True)
+            part_hash = zlib.crc32(json_str.encode())
             _hash ^= part_hash
 
         return _hash

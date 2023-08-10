@@ -12,8 +12,6 @@ from typing import Pattern
 from typing import Tuple
 from typing import Union
 
-import six
-
 from ddtrace.constants import USER_ID_KEY
 from ddtrace.internal import compat
 from ddtrace.internal.compat import parse
@@ -25,6 +23,7 @@ from ddtrace.internal.constants import W3C_TRACESTATE_SAMPLING_PRIORITY_KEY
 from ddtrace.internal.http import HTTPConnection
 from ddtrace.internal.http import HTTPSConnection
 from ddtrace.internal.uds import UDSHTTPConnection
+from ddtrace.internal.utils import _get_metas_to_propagate
 from ddtrace.internal.utils.cache import cached
 
 
@@ -173,13 +172,8 @@ def w3c_get_dd_list_member(context):
         tags.append("t.usr.id:{}".format(w3c_encode_tag((_W3C_TRACESTATE_INVALID_CHARS_REGEX_VALUE, "_", usr_id))))
 
     current_tags_len = sum(len(i) for i in tags)
-    for k, v in context._meta.items():
-        if (
-            isinstance(k, six.string_types)
-            and k.startswith("_dd.p.")
-            # we've already added sampling decision and user id
-            and k not in [SAMPLING_DECISION_TRACE_TAG_KEY, USER_ID_KEY]
-        ):
+    for k, v in _get_metas_to_propagate(context):
+        if k not in [SAMPLING_DECISION_TRACE_TAG_KEY, USER_ID_KEY]:
             # for key replace ",", "=", and characters outside the ASCII range 0x20 to 0x7E
             # for value replace ",", ";", "~" and characters outside the ASCII range 0x20 to 0x7E
             k = k.replace("_dd.p.", "t.")
