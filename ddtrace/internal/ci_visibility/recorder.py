@@ -2,9 +2,8 @@ from collections import defaultdict
 import json
 import os
 from typing import TYPE_CHECKING
+from unittest import mock
 from uuid import uuid4
-
-import mock
 
 from ddtrace import Tracer
 from ddtrace import config as ddconfig
