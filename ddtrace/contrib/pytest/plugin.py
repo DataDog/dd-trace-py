@@ -11,14 +11,14 @@ to be run at specific points during pytest execution. The most important hooks u
         expected failures.
 
 """
-from doctest import DocTest
 import json
 import os
 import re
+from doctest import DocTest
 from typing import Dict
 
-from _pytest.nodes import get_fslocation_from_item
 import pytest
+from _pytest.nodes import get_fslocation_from_item
 
 import ddtrace
 from ddtrace.constants import SPAN_KIND
@@ -43,7 +43,6 @@ from ddtrace.internal.ci_visibility.coverage import _initialize_coverage
 from ddtrace.internal.ci_visibility.coverage import build_payload as build_coverage_payload
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
-
 
 SKIPPED_BY_ITR = "Skipped by Datadog Intelligent Test Runner"
 PATCH_ALL_HELP_MSG = "Call ddtrace.patch_all before running tests."
@@ -214,7 +213,10 @@ def _start_test_module_span(pytest_package_item=None, pytest_module_item=None):
     test_module_span.set_tag_str(test.FRAMEWORK_VERSION, pytest.__version__)
     test_module_span.set_tag_str(test.COMMAND, _get_pytest_command(item.config))
     test_module_span.set_tag_str(_EVENT_TYPE, _MODULE_TYPE)
-    test_module_span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
+    if test_session_span:
+        test_module_span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
+    else:
+        log.warning("Session span is of NoneType type, skipping setting _SESSION_ID")
     test_module_span.set_tag_str(_MODULE_ID, str(test_module_span.span_id))
     test_module_span.set_tag_str(test.MODULE, _get_module_name(item, is_package))
     test_module_span.set_tag_str(test.MODULE_PATH, _get_module_path(item))
@@ -250,7 +252,10 @@ def _start_test_suite_span(item, test_module_span, should_enable_coverage=False)
     test_suite_span.set_tag_str(test.FRAMEWORK_VERSION, pytest.__version__)
     test_suite_span.set_tag_str(test.COMMAND, _get_pytest_command(item.config))
     test_suite_span.set_tag_str(_EVENT_TYPE, _SUITE_TYPE)
-    test_suite_span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
+    if test_session_span:
+        test_suite_span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
+    else:
+        log.warning("Session span is of NoneType type, skipping setting _SESSION_ID")
     test_suite_span.set_tag_str(_SUITE_ID, str(test_suite_span.span_id))
     test_module_path = None
     if test_module_span is not None:
@@ -453,18 +458,18 @@ def pytest_runtest_protocol(item, nextitem):
             pytest_module_item,
             test_module_span,
             should_enable_coverage=(
-                _CIVisibility._instance._suite_skipping_mode
-                and _CIVisibility._instance._collect_coverage_enabled
-                and not is_skipped_by_itr
+                    _CIVisibility._instance._suite_skipping_mode
+                    and _CIVisibility._instance._collect_coverage_enabled
+                    and not is_skipped_by_itr
             ),
         )
 
     with _CIVisibility._instance.tracer._start_span(
-        ddtrace.config.pytest.operation_name,
-        service=_CIVisibility._instance._service,
-        resource=item.nodeid,
-        span_type=SpanTypes.TEST,
-        activate=True,
+            ddtrace.config.pytest.operation_name,
+            service=_CIVisibility._instance._service,
+            resource=item.nodeid,
+            span_type=SpanTypes.TEST,
+            activate=True,
     ) as span:
         span.set_tag_str(COMPONENT, "pytest")
         span.set_tag_str(SPAN_KIND, KIND)
@@ -472,7 +477,9 @@ def pytest_runtest_protocol(item, nextitem):
         span.set_tag_str(_EVENT_TYPE, SpanTypes.TEST)
         span.set_tag_str(test.NAME, item.name)
         span.set_tag_str(test.COMMAND, _get_pytest_command(item.config))
-        span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
+        if test_session_span:
+            span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
+            log.warning("Session span is of NoneType type, skipping setting _SESSION_ID")
 
         span.set_tag_str(_MODULE_ID, str(test_module_span.span_id))
         span.set_tag_str(test.MODULE, test_module_span.get_tag(test.MODULE))
@@ -515,9 +522,9 @@ def pytest_runtest_protocol(item, nextitem):
         _store_span(item, span)
 
         coverage_per_test = (
-            not _CIVisibility._instance._suite_skipping_mode
-            and _CIVisibility._instance._collect_coverage_enabled
-            and not is_skipped
+                not _CIVisibility._instance._suite_skipping_mode
+                and _CIVisibility._instance._collect_coverage_enabled
+                and not is_skipped
         )
         if coverage_per_test:
             _attach_coverage(item)
@@ -535,9 +542,9 @@ def pytest_runtest_protocol(item, nextitem):
             # In ITR suite skipping mode, all tests in a skipped suite should be marked
             # as skipped
             if (
-                _CIVisibility._instance._suite_skipping_mode
-                and _CIVisibility._instance._collect_coverage_enabled
-                and not is_skipped_by_itr
+                    _CIVisibility._instance._suite_skipping_mode
+                    and _CIVisibility._instance._collect_coverage_enabled
+                    and not is_skipped_by_itr
             ):
                 _detach_coverage(pytest_module_item, test_suite_span)
             test_suite_span.finish()
@@ -548,9 +555,9 @@ def pytest_runtest_protocol(item, nextitem):
             else:
                 nextitem_pytest_package_item = _find_pytest_item(nextitem, pytest.Package)
                 if (
-                    nextitem is None
-                    or nextitem_pytest_package_item != pytest_package_item
-                    and not test_module_span.finished
+                        nextitem is None
+                        or nextitem_pytest_package_item != pytest_package_item
+                        and not test_module_span.finished
                 ):
                     _mark_test_status(pytest_package_item, test_module_span)
                     test_module_span.finish()
