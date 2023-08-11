@@ -211,7 +211,13 @@ def run_function_from_file(item, params=None):
     pythonpath = os.getenv("PYTHONPATH", None)
     base_path = os.path.dirname(os.path.dirname(__file__))
     env["PYTHONPATH"] = os.pathsep.join((base_path, pythonpath)) if pythonpath is not None else base_path
-    env.update(marker.kwargs.get("env", {}))
+
+    for key, value in marker.kwargs.get("env", {}).items():
+        if value is None:  # None means remove the variable
+            env.pop(key, None)
+        else:
+            env[key] = value
+
     if params is not None:
         env.update(params)
 
