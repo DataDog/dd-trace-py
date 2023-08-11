@@ -181,7 +181,7 @@ def test_disable_memory():
 
 
 @pytest.mark.subprocess(
-    env=dict(DD_PROFILING_AGENTLESS="true", DD_API_KEY="foobar", DD_SITE="datadoghq.com"),
+    env=dict(DD_PROFILING_AGENTLESS="true", DD_API_KEY="foobar", DD_SITE=None),
     err=None,
 )
 def test_env_agentless():
