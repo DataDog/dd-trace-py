@@ -8,7 +8,7 @@ from ddtrace.appsec._constants import IAST
 from ddtrace.appsec.iast import oce
 from ddtrace.appsec.iast._metrics import _set_metric_iast_request_tainted
 from ddtrace.appsec.iast._util import _is_iast_enabled
-from ddtrace.constants import MANUAL_KEEP_KEY
+from ddtrace.appsec.trace_utils import _asm_manual_keep
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
@@ -70,7 +70,7 @@ class AppSecIastSpanProcessor(SpanProcessor):
                 IAST.JSON,
                 json.dumps(attr.asdict(data, filter=lambda attr, x: x is not None), cls=OriginTypeEncoder),
             )
-            span.set_tag(MANUAL_KEEP_KEY)
+            _asm_manual_keep(span)
 
         _set_metric_iast_request_tainted()
         contexts_reset()
