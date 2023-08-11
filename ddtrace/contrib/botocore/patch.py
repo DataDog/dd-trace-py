@@ -18,11 +18,11 @@ from typing import Union
 from botocore import __version__
 import botocore.client
 import botocore.exceptions
+import wrapt
 
 from ddtrace import config
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.settings.config import Config
-from ddtrace.vendor import wrapt
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_KIND

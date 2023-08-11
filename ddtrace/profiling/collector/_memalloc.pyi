@@ -3,6 +3,9 @@ import typing
 from .. import event
 
 # (filename, line number, function name)
+FrameType = typing.Tuple[str, int, str]
+
+# (filename, line number, function name)
 FrameType = event.DDFrame
 StackType = event.StackTraceType
 

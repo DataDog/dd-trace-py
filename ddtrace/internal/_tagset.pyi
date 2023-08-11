@@ -1,5 +1,6 @@
 from typing import Dict
 
+
 class TagsetDecodeError(ValueError): ...
 class TagsetEncodeError(ValueError): ...
 
