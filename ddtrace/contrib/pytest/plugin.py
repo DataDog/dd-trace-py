@@ -479,6 +479,7 @@ def pytest_runtest_protocol(item, nextitem):
         span.set_tag_str(test.COMMAND, _get_pytest_command(item.config))
         if test_session_span:
             span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
+        else:
             log.warning("Session span is of NoneType type, skipping setting _SESSION_ID")
 
         span.set_tag_str(_MODULE_ID, str(test_module_span.span_id))
