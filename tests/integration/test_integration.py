@@ -48,9 +48,11 @@ def test_shutdown_on_exit_signal():
         assert mock_signal.call_count == 2
         assert mock_signal.call_args_list[0][0][0] == signal.SIGTERM
         assert mock_signal.call_args_list[1][0][0] == signal.SIGINT
+        original_shutdown = tracer.shutdown
         tracer.shutdown = mock.Mock()
         mock_signal.call_args_list[0][0][1]("", "")
         assert tracer.shutdown.call_count == 1
+        tracer.shutdown = original_shutdown
 
 
 def test_debug_mode_generates_debug_output():
