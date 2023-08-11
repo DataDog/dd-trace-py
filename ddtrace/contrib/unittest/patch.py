@@ -91,9 +91,9 @@ def _extract_command_name_from_session(session):
     return getattr(session, "progName", None)
 
 
-def _extract_test_method_name(test):
+def _extract_test_method_name(test_object):
     """Extract test method name from `unittest` instance."""
-    return getattr(test, "_testMethodName", None)
+    return getattr(test_object, "_testMethodName", None)
 
 
 def _extract_suite_name(item):
@@ -142,8 +142,8 @@ def _extract_module_name_from_module(item):
     for suite in item._tests:
         if not len(suite._tests):
             continue
-        for test in suite._tests:
-            module_name = type(test).__module__
+        for test_object in suite._tests:
+            module_name = type(test_object).__module__
             if not module_name:
                 continue
             break
