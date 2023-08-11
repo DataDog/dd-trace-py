@@ -224,9 +224,9 @@ def test_url():
 def _check_url(prof, url, api_key, endpoint_path="profiling/v1/input"):
     for exp in prof._profiler._scheduler.exporters:
         if isinstance(exp, http.PprofHTTPExporter):
-            assert exp.api_key == api_key
-            assert exp.endpoint == url
-            assert exp.endpoint_path == endpoint_path
+            assert exp.api_key == api_key, exp.api_key
+            assert exp.endpoint == url, exp.endpoint
+            assert exp.endpoint_path == endpoint_path, exp.endpoint_path
             break
     else:
         pytest.fail("Unable to find HTTP exporter")
