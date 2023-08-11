@@ -1,17 +1,22 @@
 #!/usr/bin/env bash
 
 CHECKPOINT_FILENAME="latest-success-commit"
-
 RIOT_PATTERN=${1}
+if [[ -v CIRCLECI ]]; then
+    RIOT_HASHES=$(riot list --hash-only $RIOT_PATTERN | sort | circleci tests split)
+else
+    RIOT_HASHES=$(riot list --hash-only $RIOT_PATTERN | sort)
+fi
 DDTRACE_FLAG=$([ -v _CI_DD_API_KEY ] && echo '--ddtrace')
 COVERAGE_FLAG=$([[ "${2:-false}" == false ]] && echo '--no-cov')
 DDTEST_CMD=$([[ ${3} == "1" ]] && echo "./scripts/ddtest")
 
-if ! [[ $CIRCLE_BRANCH =~ [0-9]\.x ]]; then
+set -e
+
+if ! [[ -v CIRCLECI && $CIRCLE_BRANCH =~ [0-9]\.x ]]; then
     if [[ -f "$CHECKPOINT_FILENAME" ]]; then
         latest_success_commit=$(cat $CHECKPOINT_FILENAME)
-        ./scripts/needs_testrun.py $CIRCLE_JOB --sha $latest_success_commit
-        if [[ $? == 1 ]]; then
+        if ! ./scripts/needs_testrun.py $CIRCLE_JOB --sha $latest_success_commit; then
             echo "The $CIRCLE_JOB job succeeded at commit $latest_success_commit."
             echo "None of the changes on this branch since that commit affect the $CIRCLE_JOB job."
             echo "Skipping this job."
@@ -21,20 +26,18 @@ if ! [[ $CIRCLE_BRANCH =~ [0-9]\.x ]]; then
     fi
 fi
 
-riot_hashes=$(riot list --hash-only $RIOT_PATTERN | sort | circleci tests split)
-
-all_passed=false
-for hash in $riot_hashes; do
-    $DDTEST_CMD riot -v run --exitfirst --pass-env -s $hash $DDTRACE_FLAG $COVERAGE_FLAG
-    [[ $? > 0 ]] && break
-    all_passed=true
+for hash in $RIOT_HASHES; do
+    if ! $DDTEST_CMD riot -v run --exitfirst --pass-env -s $hash $DDTRACE_FLAG $COVERAGE_FLAG; then
+        if [[ -v CIRCLECI ]]; then
+            circleci step halt
+        fi
+        exit 1
+    fi
 done
 
 rm -f $CHECKPOINT_FILENAME
-if [[ $all_passed == true ]]; then
-    echo $CIRCLE_SHA1 > $CHECKPOINT_FILENAME
-    echo "All tests passed. Saved $CIRCLE_SHA1 as the latest successful commit for job $CIRCLE_JOB"
-fi
+echo $CIRCLE_SHA1 > $CHECKPOINT_FILENAME
+echo "All tests passed. Saved $CIRCLE_SHA1 as the latest successful commit for job $CIRCLE_JOB"
 
 ./scripts/check-diff \
     ".riot/requirements/" \
