@@ -44,6 +44,9 @@ typedef struct
 /* The maximum number of frames we can store in `traceback_t.nframe` */
 #define TRACEBACK_MAX_NFRAME UINT16_MAX
 
+bool
+memalloc_ddframe_class_init();
+
 int
 memalloc_tb_init(uint16_t max_nframe);
 void
