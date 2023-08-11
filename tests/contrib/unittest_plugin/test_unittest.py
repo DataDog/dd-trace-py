@@ -64,28 +64,21 @@ class UnittestTestCase(TracerTestCase):
 
         spans = self.pop_spans()
         assert len(spans) == 2
+        for i in range(len(spans)):
+            assert spans[i].get_tag(test.TEST_TYPE) == SpanTypes.TEST
+            assert spans[i].get_tag(test.TEST_FRAMEWORK) == FRAMEWORK
+            assert spans[i].get_tag(SPAN_KIND) == KIND
+            assert spans[i].get_tag(COMPONENT) == COMPONENT_VALUE
+            assert spans[i].get_tag(test.TYPE) == SpanTypes.TEST
+            assert spans[i].get_tag(test.MODULE) == 'tests.contrib.unittest_plugin.test_unittest'
+            assert spans[i].get_tag(test.SUITE) == 'UnittestExampleTestCase'
+            assert spans[i].get_tag(test.SKIP_REASON) is None
 
-        assert spans[0].get_tag(test.TEST_TYPE) == SpanTypes.TEST
-        assert spans[0].get_tag(test.TEST_FRAMEWORK) == FRAMEWORK
-        assert spans[0].get_tag(SPAN_KIND) == KIND
-        assert spans[0].get_tag(COMPONENT) == COMPONENT_VALUE
-        assert spans[0].get_tag(test.TYPE) == SpanTypes.TEST
         assert spans[0].get_tag(test.NAME) == 'test_will_pass_first'
-        assert spans[0].get_tag(test.MODULE) == 'tests.contrib.unittest_plugin.test_unittest'
-        assert spans[0].get_tag(test.SUITE) == 'UnittestExampleTestCase'
         assert spans[0].get_tag(test.TEST_STATUS) == test.Status.PASS.value
-        assert spans[0].get_tag(test.SKIP_REASON) is None
 
-        assert spans[1].get_tag(test.TEST_TYPE) == SpanTypes.TEST
-        assert spans[1].get_tag(test.TEST_FRAMEWORK) == FRAMEWORK
-        assert spans[1].get_tag(SPAN_KIND) == KIND
-        assert spans[1].get_tag(COMPONENT) == COMPONENT_VALUE
-        assert spans[1].get_tag(test.TYPE) == SpanTypes.TEST
         assert spans[1].get_tag(test.NAME) == 'test_will_pass_second'
-        assert spans[1].get_tag(test.MODULE) == 'tests.contrib.unittest_plugin.test_unittest'
-        assert spans[1].get_tag(test.SUITE) == 'UnittestExampleTestCase'
         assert spans[1].get_tag(test.TEST_STATUS) == test.Status.PASS.value
-        assert spans[1].get_tag(test.SKIP_REASON) is None
 
     def test_unittest_skip_single(self):
         """Tests with a `unittest` test which should be skipped."""
@@ -210,25 +203,20 @@ class UnittestTestCase(TracerTestCase):
         spans = self.pop_spans()
         assert len(spans) == 2
 
-        assert spans[0].get_tag(test.TEST_TYPE) == SpanTypes.TEST
-        assert spans[0].get_tag(test.TEST_FRAMEWORK) == FRAMEWORK
-        assert spans[0].get_tag(SPAN_KIND) == KIND
-        assert spans[0].get_tag(COMPONENT) == COMPONENT_VALUE
-        assert spans[0].get_tag(test.TYPE) == SpanTypes.TEST
+        for i in range(len(spans)):
+            assert spans[i].get_tag(test.TEST_TYPE) == SpanTypes.TEST
+            assert spans[i].get_tag(test.TEST_FRAMEWORK) == FRAMEWORK
+            assert spans[i].get_tag(SPAN_KIND) == KIND
+            assert spans[i].get_tag(COMPONENT) == COMPONENT_VALUE
+            assert spans[i].get_tag(test.TYPE) == SpanTypes.TEST
+            assert spans[i].get_tag(test.MODULE) == 'tests.contrib.unittest_plugin.test_unittest'
+            assert spans[i].get_tag(test.SUITE) == 'UnittestExampleTestCase'
+
         assert spans[0].get_tag(test.NAME) == 'test_will_be_skipped'
-        assert spans[0].get_tag(test.MODULE) == 'tests.contrib.unittest_plugin.test_unittest'
-        assert spans[0].get_tag(test.SUITE) == 'UnittestExampleTestCase'
         assert spans[0].get_tag(test.TEST_STATUS) == test.Status.SKIP.value
         assert spans[0].get_tag(test.SKIP_REASON) == ''
 
-        assert spans[1].get_tag(test.TEST_TYPE) == SpanTypes.TEST
-        assert spans[1].get_tag(test.TEST_FRAMEWORK) == FRAMEWORK
-        assert spans[1].get_tag(SPAN_KIND) == KIND
-        assert spans[1].get_tag(COMPONENT) == COMPONENT_VALUE
-        assert spans[1].get_tag(test.TYPE) == SpanTypes.TEST
         assert spans[1].get_tag(test.NAME) == 'test_wont_be_skipped'
-        assert spans[1].get_tag(test.MODULE) == 'tests.contrib.unittest_plugin.test_unittest'
-        assert spans[1].get_tag(test.SUITE) == 'UnittestExampleTestCase'
         assert spans[1].get_tag(test.TEST_STATUS) == test.Status.PASS.value
         assert spans[1].get_tag(test.SKIP_REASON) is None
 
@@ -282,31 +270,22 @@ class UnittestTestCase(TracerTestCase):
         spans = self.pop_spans()
         assert len(spans) == 2
 
-        assert spans[0].get_tag(test.TEST_TYPE) == SpanTypes.TEST
-        assert spans[0].get_tag(test.TEST_FRAMEWORK) == FRAMEWORK
-        assert spans[0].get_tag(SPAN_KIND) == KIND
-        assert spans[0].get_tag(COMPONENT) == COMPONENT_VALUE
-        assert spans[0].get_tag(test.TYPE) == SpanTypes.TEST
-        assert spans[0].get_tag(test.NAME) == 'test_will_fail_first'
-        assert spans[0].get_tag(test.MODULE) == 'tests.contrib.unittest_plugin.test_unittest'
-        assert spans[0].get_tag(test.SUITE) == 'UnittestExampleTestCase'
-        assert spans[0].get_tag(test.TEST_STATUS) == test.Status.FAIL.value
-        assert spans[0].get_tag(test.SKIP_REASON) is None
-        assert spans[0].get_tag(ERROR_MSG) == 'False is not true'
-        assert spans[0].get_tag(ERROR_TYPE) == 'builtins.AssertionError'
+        for i in range(len(spans)):
+            assert spans[i].get_tag(test.TEST_TYPE) == SpanTypes.TEST
+            assert spans[i].get_tag(test.TEST_FRAMEWORK) == FRAMEWORK
+            assert spans[i].get_tag(SPAN_KIND) == KIND
+            assert spans[i].get_tag(COMPONENT) == COMPONENT_VALUE
+            assert spans[i].get_tag(test.TYPE) == SpanTypes.TEST
+            assert spans[i].get_tag(test.MODULE) == 'tests.contrib.unittest_plugin.test_unittest'
+            assert spans[i].get_tag(test.SUITE) == 'UnittestExampleTestCase'
+            assert spans[i].get_tag(test.TEST_STATUS) == test.Status.FAIL.value
+            assert spans[i].get_tag(test.SKIP_REASON) is None
+            assert spans[i].get_tag(ERROR_MSG) == 'False is not true'
+            assert spans[i].get_tag(ERROR_TYPE) == 'builtins.AssertionError'
 
-        assert spans[1].get_tag(test.TEST_TYPE) == SpanTypes.TEST
-        assert spans[1].get_tag(test.TEST_FRAMEWORK) == FRAMEWORK
-        assert spans[1].get_tag(SPAN_KIND) == KIND
-        assert spans[1].get_tag(COMPONENT) == COMPONENT_VALUE
-        assert spans[1].get_tag(test.TYPE) == SpanTypes.TEST
+        assert spans[0].get_tag(test.NAME) == 'test_will_fail_first'
+
         assert spans[1].get_tag(test.NAME) == 'test_will_fail_second'
-        assert spans[1].get_tag(test.MODULE) == 'tests.contrib.unittest_plugin.test_unittest'
-        assert spans[1].get_tag(test.SUITE) == 'UnittestExampleTestCase'
-        assert spans[1].get_tag(test.TEST_STATUS) == test.Status.FAIL.value
-        assert spans[1].get_tag(test.SKIP_REASON) is None
-        assert spans[1].get_tag(ERROR_MSG) == 'False is not true'
-        assert spans[1].get_tag(ERROR_TYPE) == 'builtins.AssertionError'
 
     def test_unittest_combined(self):
         """Test with `unittest` tests which pass, get skipped and fail combined."""
@@ -340,49 +319,29 @@ class UnittestTestCase(TracerTestCase):
 
         spans = self.pop_spans()
         assert len(spans) == 4
+        for i in range(len(spans)):
+            assert spans[i].get_tag(test.TEST_TYPE) == SpanTypes.TEST
+            assert spans[i].get_tag(test.TEST_FRAMEWORK) == FRAMEWORK
+            assert spans[i].get_tag(SPAN_KIND) == KIND
+            assert spans[i].get_tag(COMPONENT) == COMPONENT_VALUE
+            assert spans[i].get_tag(test.TYPE) == SpanTypes.TEST
+            assert spans[i].get_tag(test.MODULE) == 'tests.contrib.unittest_plugin.test_unittest'
+            assert spans[i].get_tag(test.SUITE) == 'UnittestExampleTestCase'
 
-        assert spans[0].get_tag(test.TEST_TYPE) == SpanTypes.TEST
-        assert spans[0].get_tag(test.TEST_FRAMEWORK) == FRAMEWORK
-        assert spans[0].get_tag(SPAN_KIND) == KIND
-        assert spans[0].get_tag(COMPONENT) == COMPONENT_VALUE
-        assert spans[0].get_tag(test.TYPE) == SpanTypes.TEST
         assert spans[0].get_tag(test.NAME) == 'test_will_be_skipped'
-        assert spans[0].get_tag(test.MODULE) == 'tests.contrib.unittest_plugin.test_unittest'
-        assert spans[0].get_tag(test.SUITE) == 'UnittestExampleTestCase'
         assert spans[0].get_tag(test.TEST_STATUS) == test.Status.SKIP.value
         assert spans[0].get_tag(test.SKIP_REASON) == ''
 
-        assert spans[1].get_tag(test.TEST_TYPE) == SpanTypes.TEST
-        assert spans[1].get_tag(test.TEST_FRAMEWORK) == FRAMEWORK
-        assert spans[1].get_tag(SPAN_KIND) == KIND
-        assert spans[1].get_tag(COMPONENT) == COMPONENT_VALUE
-        assert spans[1].get_tag(test.TYPE) == SpanTypes.TEST
         assert spans[1].get_tag(test.NAME) == 'test_will_be_skipped_with_a_reason'
-        assert spans[1].get_tag(test.MODULE) == 'tests.contrib.unittest_plugin.test_unittest'
-        assert spans[1].get_tag(test.SUITE) == 'UnittestExampleTestCase'
         assert spans[1].get_tag(test.TEST_STATUS) == test.Status.SKIP.value
         assert spans[1].get_tag(test.SKIP_REASON) == 'another skip reason'
 
-        assert spans[2].get_tag(test.TEST_TYPE) == SpanTypes.TEST
-        assert spans[2].get_tag(test.TEST_FRAMEWORK) == FRAMEWORK
-        assert spans[2].get_tag(SPAN_KIND) == KIND
-        assert spans[2].get_tag(COMPONENT) == COMPONENT_VALUE
-        assert spans[2].get_tag(test.TYPE) == SpanTypes.TEST
         assert spans[2].get_tag(test.NAME) == 'test_will_fail_first'
-        assert spans[2].get_tag(test.MODULE) == 'tests.contrib.unittest_plugin.test_unittest'
-        assert spans[2].get_tag(test.SUITE) == 'UnittestExampleTestCase'
         assert spans[2].get_tag(test.TEST_STATUS) == test.Status.FAIL.value
         assert spans[2].get_tag(test.SKIP_REASON) is None
         assert spans[2].get_tag(ERROR_MSG) == 'False is not true'
         assert spans[2].get_tag(ERROR_TYPE) == 'builtins.AssertionError'
 
-        assert spans[3].get_tag(test.TEST_TYPE) == SpanTypes.TEST
-        assert spans[3].get_tag(test.TEST_FRAMEWORK) == FRAMEWORK
-        assert spans[3].get_tag(SPAN_KIND) == KIND
-        assert spans[3].get_tag(COMPONENT) == COMPONENT_VALUE
-        assert spans[3].get_tag(test.TYPE) == SpanTypes.TEST
         assert spans[3].get_tag(test.NAME) == 'test_will_pass_first'
-        assert spans[3].get_tag(test.MODULE) == 'tests.contrib.unittest_plugin.test_unittest'
-        assert spans[3].get_tag(test.SUITE) == 'UnittestExampleTestCase'
         assert spans[3].get_tag(test.TEST_STATUS) == test.Status.PASS.value
         assert spans[3].get_tag(test.SKIP_REASON) is None
