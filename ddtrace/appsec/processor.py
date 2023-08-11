@@ -23,8 +23,8 @@ from ddtrace.appsec._metrics import _set_waf_request_metrics
 from ddtrace.appsec._metrics import _set_waf_updates_metric
 from ddtrace.appsec.ddwaf import DDWaf
 from ddtrace.appsec.ddwaf import version
+from ddtrace.appsec.trace_utils import _asm_manual_keep
 from ddtrace.appsec.utils import _appsec_rc_file_is_not_static
-from ddtrace.constants import MANUAL_KEEP_KEY
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.constants import RUNTIME_FAMILY
 from ddtrace.contrib import trace_utils
@@ -384,7 +384,7 @@ class AppSecSpanProcessor(SpanProcessor):
 
             # Right now, we overwrite any value that could be already there. We need to reconsider when ASM/AppSec's
             # specs are updated.
-            span.set_tag(MANUAL_KEEP_KEY)
+            _asm_manual_keep(span)
             if span.get_tag(ORIGIN_KEY) is None:
                 span.set_tag_str(ORIGIN_KEY, APPSEC.ORIGIN_VALUE)
 
