@@ -126,6 +126,9 @@ commands:
       - checkout
       - attach_workspace:
           at: .
+      - restore_cache:
+          keys:
+            - lastsuccess-{{ .Environment.CIRCLE_BRANCH }}-<<parameters.pattern>>-{{ .Environment.CIRCLE_NODE_INDEX }}
       - when:
           condition:
               << parameters.snapshot >>
@@ -139,9 +142,7 @@ commands:
                   DD_TRACE_AGENT_URL: << parameters.trace_agent_url >> 
                   RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
                 command: |
-                  # Sort the hashes to ensure a consistent ordering/division between each node
-                  riot list --hash-only '<<parameters.pattern>>' | sort | circleci tests split | xargs -n 1 -I {} ./scripts/ddtest riot -v run --exitfirst --pass-env -s {} $([ -v _CI_DD_API_KEY ] && echo '--ddtrace' ) $([[ << pipeline.parameters.coverage >> == false ]] && echo '--no-cov' )
-                  ./scripts/check-diff ".riot/requirements/" "Changes detected after running riot. Consider deleting changed files, running scripts/compile-and-prune-test-requirements and committing the result."
+                  ./scripts/run-test-suite '<<parameters.pattern>>' <<pipeline.parameters.coverage>> 1
       - unless:
           condition:
               << parameters.snapshot >>
@@ -166,9 +167,7 @@ commands:
                 environment:
                   RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
                 command: |
-                  # Sort the hashes to ensure a consistent ordering/division between each node
-                  riot list --hash-only '<<parameters.pattern>>' | sort | circleci tests split | xargs -n 1 -I {} riot -v run --exitfirst --pass-env -s {} $([ -v _CI_DD_API_KEY ] && echo '--ddtrace' ) $([[ << pipeline.parameters.coverage >> == false ]] && echo '--no-cov' )
-                  ./scripts/check-diff ".riot/requirements/" "Changes detected after running riot. Consider deleting changed files, running scripts/compile-and-prune-test-requirements and committing the result."
+                  ./scripts/run-test-suite '<<parameters.pattern>>' <<pipeline.parameters.coverage>>
       - when:
           condition:
             and:
@@ -180,6 +179,10 @@ commands:
           path: test-results
       - store_artifacts:
           path: test-results
+      - save_cache:
+          key: lastsuccess-{{ .Environment.CIRCLE_BRANCH }}-<<parameters.pattern>>-{{ .Environment.CIRCLE_NODE_INDEX }}-{{ epoch }}
+          paths:
+            - ./latest-success-commit
       - run:
           name: Get APM Test Agent Trace Check Results
           when: always
@@ -426,9 +429,7 @@ jobs:
           environment:
             RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
           command: |
-            # Sort the hashes to ensure a consistent ordering/division between each node
-            riot list --hash-only 'integration-latest' | sort | circleci tests split | xargs -n 1 -I {} ./scripts/ddtest riot -v run --pass-env -s {}
-            ./scripts/check-diff ".riot/requirements/" "Changes detected after running riot. Consider deleting changed files, running scripts/compile-and-prune-test-requirements and committing the result."
+            ./scripts/run-test-suite 'integration-latest' <<pipeline.parameters.coverage>> 1
 
   integration_testagent:
     <<: *machine_executor
