@@ -58,43 +58,35 @@ def get_merge_base(pr_number: int) -> str:
 
 
 @cache
-def get_changed_files(pr_number: int) -> t.Set[str]:
+def get_changed_files(pr_number: int, sha: t.Optional[str] = None) -> t.Set[str]:
     """Get the files changed in a PR
+
+    Try with the GitHub REST API for the most accurate result. If that fails,
+    or if there is a specific SHA given, use the less accurate method of
+    diffing against a base commit, either the given SHA or the merge-base.
 
     >>> sorted(get_changed_files(6388))  # doctest: +NORMALIZE_WHITESPACE
     ['ddtrace/debugging/_expressions.py',
     'releasenotes/notes/fix-debugger-expressions-none-literal-30f3328d2e386f40.yaml',
     'tests/debugging/test_expressions.py']
     """
-    try:
-        # Try with the GitHub REST API for the most accurate result
-        url = f"https://api.github.com/repos/datadog/dd-trace-py/pulls/{pr_number}/files"
-        headers = {"Accept": "application/vnd.github+json"}
+    if sha is None:
+        try:
+            url = f"https://api.github.com/repos/datadog/dd-trace-py/pulls/{pr_number}/files"
+            headers = {"Accept": "application/vnd.github+json"}
+            return {_["filename"] for _ in json.load(urlopen(Request(url, headers=headers)))}
+        except Exception as exc:
+            LOGGER.warning("Failed to get changed files from GitHub API")
+            LOGGER.warning(exc)
 
-        return {_["filename"] for _ in json.load(urlopen(Request(url, headers=headers)))}
-
-    except Exception:
-        # If that fails use the less accurate method of diffing against the
-        # merge-base w.r.t. the base branch
-        LOGGER.warning("Failed to get changed files from GitHub API, using git diff instead")
-        return set(
-            check_output(
-                [
-                    "git",
-                    "diff",
-                    "--name-only",
-                    "HEAD",
-                    get_merge_base(pr_number),
-                ]
-            )
-            .decode("utf-8")
-            .strip()
-            .splitlines()
-        )
+    if sha is not None:
+        diff_base = sha or get_merge_base(pr_number)
+        LOGGER.info("Checking changed files against commit %s", diff_base)
+        return set(check_output(["git", "diff", "--name-only", "HEAD", diff_base]).decode("utf-8").strip().splitlines())
 
 
 @cache
-def needs_testrun(suite: str, pr_number: int) -> bool:
+def needs_testrun(suite: str, pr_number: int, sha: t.Optional[str] = None) -> bool:
     """Check if a testrun is needed for a suite and PR
 
     >>> needs_testrun("debugger", 6485)
@@ -115,7 +107,7 @@ def needs_testrun(suite: str, pr_number: int) -> bool:
         return True
 
     try:
-        changed_files = get_changed_files(pr_number)
+        changed_files = get_changed_files(pr_number, sha=sha)
     except Exception:
         LOGGER.error("Failed to get changed files")
         return True
@@ -181,7 +173,8 @@ def main() -> bool:
     argp = ArgumentParser()
 
     argp.add_argument("suite", help="The suite to use", type=str)
-    argp.add_argument("pr", help="The PR number", type=int)
+    argp.add_argument("--pr", help="The PR number", type=int, default=_get_pr_number())
+    argp.add_argument("--sha", help="Commit hash to use as diff base (defaults to PR merge root)", type=lambda v: v or None)
     argp.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
 
     args = argp.parse_args()
@@ -189,7 +182,7 @@ def main() -> bool:
     if args.verbose:
         LOGGER.setLevel(logging.INFO)
 
-    return needs_testrun(args.suite, args.pr)
+    return needs_testrun(args.suite, args.pr, sha=args.sha)
 
 
 if __name__ == "__main__":

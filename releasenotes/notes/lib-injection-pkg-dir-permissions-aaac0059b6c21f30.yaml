@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    lib-injection: Resolves permissions errors raised when ddtrace packages are copied from the InitContainer to the shared volume.
