@@ -199,8 +199,8 @@ def patch():
 
     # flask.templating traced functions
     _w("flask.templating", "_render", traced_render)
-    _w("flask", "render_template", _build_render_template_wrapper("render_template"))
-    _w("flask", "render_template_string", _build_render_template_wrapper("render_template_string"))
+    _w("flask", "render_template", traced_render_template)
+    _w("flask", "render_template_string", traced_render_template_string)
 
     # flask.blueprints.Blueprint traced hook decorators
     bp_hooks = [
@@ -426,6 +426,14 @@ def traced_flask_hook(wrapped, instance, args, kwargs):
     """Wrapper for hook functions (before_request, after_request, etc) are properly traced"""
     func = get_argument_value(args, kwargs, 0, "f")
     return wrapped(wrap_function(instance, func))
+
+
+def traced_render_template(wrapped, instance, args, kwargs):
+    return _build_render_template_wrapper("render_template")
+
+
+def traced_render_template_string(wrapped, instance, args, kwargs):
+    return _build_render_template_wrapper("render_template_string")
 
 
 def _build_render_template_wrapper(name):
