@@ -228,7 +228,9 @@ traceback_to_tuple(traceback_t* tb)
         PyTuple_SET_ITEM(frame_tuple, 3, empty_string);
         Py_INCREF(empty_string);
 
-        // Set the class
+        // Try to set the class.  If we cannot (e.g., if the sofile is reloaded
+        // without module initialization), then this will result in an error if
+        // the underlying object is used via attributes
         if (ddframe_class) {
 #if PY_VERSION_HEX >= 0x03090000
             Py_SET_TYPE(frame_tuple, (PyTypeObject*)ddframe_class);
