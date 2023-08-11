@@ -6,6 +6,7 @@ from ddtrace import config
 from ddtrace.appsec import handlers
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
+from ddtrace.appsec.iast._metrics import _set_metric_iast_instrumented_source
 from ddtrace.appsec.iast._util import _is_iast_enabled
 from ddtrace.internal import core
 from ddtrace.internal.compat import parse
@@ -404,7 +405,23 @@ def _on_wrapped_view(kwargs):
     return return_value
 
 
+def _on_set_request_tags(request, span, flask_config):
+    if _is_iast_enabled():
+        from ddtrace.appsec.iast._taint_tracking import OriginType
+        from ddtrace.appsec.iast._taint_utils import LazyTaintDict
+
+        _set_metric_iast_instrumented_source(OriginType.COOKIE_NAME)
+        _set_metric_iast_instrumented_source(OriginType.COOKIE)
+
+        request.cookies = LazyTaintDict(
+            request.cookies,
+            origins=(OriginType.COOKIE_NAME, OriginType.COOKIE),
+            override_pyobject_tainted=True,
+        )
+
+
 def _on_pre_tracedrequest(ctx):
+    _on_set_request_tags(ctx.get_item("flask_request"), ctx.get_item("current_span"), ctx.get_item("flask_config"))
     block_request_callable = ctx.get_item("block_request_callable")
     current_span = ctx.get_item("current_span")
     if config._appsec_enabled:
@@ -436,3 +453,4 @@ def listen_context_handlers():
     core.on("context.started.flask._traced_request", _on_pre_tracedrequest)
     core.on("wsgi.block_decided", _on_block_decided)
     core.on("flask.start_response", _on_start_response)
+    core.on("flask.set_request_tags", _on_set_request_tags)

@@ -33,13 +33,9 @@ from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...contrib.wsgi.wsgi import _DDWSGIMiddlewareBase
 from ...ext import SpanTypes
-from ...ext import http
-from ...internal.compat import maybe_stringify
 from ...internal.logger import get_logger
 from ...internal.utils import get_argument_value
 from ...internal.utils.version import parse_version
-from ..trace_utils import _get_request_header_user_agent
-from ..trace_utils import _set_url_tag
 from ..trace_utils import unwrap as _u
 from .helpers import get_current_app
 from .helpers import simple_tracer
@@ -520,10 +516,7 @@ def traced_render(wrapped, instance, args, kwargs):
         return wrapped(*args, **kwargs)
 
     def _wrap(template, context, app):
-        name = maybe_stringify(getattr(template, "name", None) or config.flask.get("template_default_name"))
-        if name is not None:
-            span.resource = name
-            span.set_tag_str("flask.template_name", name)
+        core.dispatch("flask.render", [span, template, config.flask])
         return wrapped(*args, **kwargs)
 
     return _wrap(*args, **kwargs)
@@ -547,31 +540,12 @@ def traced_register_error_handler(wrapped, instance, args, kwargs):
     return _wrap(*args, **kwargs)
 
 
-def _set_block_tags(span):
-    span.set_tag_str(http.STATUS_CODE, "403")
-    request = flask.request
-    try:
-        base_url = getattr(request, "base_url", None)
-        query_string = getattr(request, "query_string", None)
-        if base_url and query_string:
-            _set_url_tag(config.flask, span, base_url, query_string)
-        if query_string and config.flask.trace_query_string:
-            span.set_tag_str(http.QUERY_STRING, query_string)
-        if request.method is not None:
-            span.set_tag_str(http.METHOD, request.method)
-        user_agent = _get_request_header_user_agent(request.headers)
-        if user_agent:
-            span.set_tag_str(http.USER_AGENT, user_agent)
-    except Exception as e:
-        log.warning("Could not set some span tags on blocked request: %s", str(e))  # noqa: G200
-
-
-def _block_request_callable(span):
+def _block_request_callable(call):
     request = flask.request
     import ddtrace.appsec._constants as asm_constants
 
     core.set_item(HTTP_REQUEST_BLOCKED, asm_constants.WAF_ACTIONS.DEFAULT_PARAMETERS)
-    _set_block_tags(span)
+    core.dispatch("flask.blocked_request_callable", [call])
     ctype = "text/html" if "text/html" in request.headers.get("Accept", "").lower() else "text/json"
     abort(flask.Response(http_utils._get_blocked_template(ctype), content_type=ctype, status=403))
 
@@ -589,20 +563,18 @@ def request_tracer(name):
         if not pin.enabled or not current_span:
             return wrapped(*args, **kwargs)
 
-        core.dispatch("flask.set_request_tags", [flask.request, current_span, config.flask])
-
         with core.context_with_data(
             "flask._traced_request",
             name=".".join(("flask", name)),
             service=trace_utils.int_service(pin, config.flask, pin),
             pin=pin,
             flask_config=config.flask,
+            flask_request=flask.request,
             current_span=current_span,
             block_request_callable=_block_request_callable,
             ignored_exception_type=NotFound,
-        ) as ctx:
-            with ctx.get_item("flask_request"):
-                return wrapped(*args, **kwargs)
+        ) as ctx, ctx.get_item("flask_request_span"):
+            return wrapped(*args, **kwargs)
 
     return _traced_request
 
@@ -627,7 +599,7 @@ def traced_jsonify(wrapped, instance, args, kwargs):
     if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)
 
-    with pin.tracer.trace("flask.jsonify") as span:
-        span.set_tag_str(COMPONENT, config.flask.integration_name)
-
+    with core.context_with_data(
+        "flask.jsonify", name="flask.jsonify", flask_config=config.flask, pin=pin
+    ) as ctx, ctx.get_item("flask_jsonify_call"):
         return wrapped(*args, **kwargs)

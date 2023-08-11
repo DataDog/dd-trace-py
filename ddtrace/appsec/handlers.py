@@ -26,21 +26,6 @@ log = get_logger(__name__)
 _BODY_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
 
 
-def _on_set_request_tags(request, span, flask_config):
-    if _is_iast_enabled():
-        from ddtrace.appsec.iast._taint_tracking import OriginType
-        from ddtrace.appsec.iast._taint_utils import LazyTaintDict
-
-        _set_metric_iast_instrumented_source(OriginType.COOKIE_NAME)
-        _set_metric_iast_instrumented_source(OriginType.COOKIE)
-
-        request.cookies = LazyTaintDict(
-            request.cookies,
-            origins=(OriginType.COOKIE_NAME, OriginType.COOKIE),
-            override_pyobject_tainted=True,
-        )
-
-
 def _on_request_span_modifier(request, environ, _HAS_JSON_MIXIN, exception_type):
     req_body = None
     if config._appsec_enabled and request.method in _BODY_METHODS:
@@ -260,7 +245,6 @@ def _on_django_patch():
 
 
 def listen():
-    core.on("flask.set_request_tags", _on_set_request_tags)
     core.on("flask.request_span_modifier", _on_request_span_modifier)
 
 

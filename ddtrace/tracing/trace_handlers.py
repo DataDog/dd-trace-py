@@ -9,6 +9,7 @@ from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.internal import core
+from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import FLASK_ENDPOINT
 from ddtrace.internal.constants import FLASK_URL_RULE
@@ -229,10 +230,43 @@ def _set_request_tags(request, span, flask_config):
 
 
 def _on_traced_request_context_started_flask(ctx):
+    _set_request_tags(ctx.get_item("flask_request"), ctx.get_item("current_span"), ctx.get_item("flask_config"))
     request_span = ctx.get_item("pin").tracer.trace(ctx.get_item("name"), service=ctx.get_item("service"))
-    ctx.set_item("flask_request", request_span)
+    ctx.set_item("flask_request_span", request_span)
     request_span.set_tag_str(COMPONENT, ctx.get_item("flask_config").integration_name)
     request_span._ignore_exception(ctx.get_item("ignored_exception_type"))
+
+
+def _on_jsonify_context_started_flask(ctx):
+    span = ctx.get_item("pin").tracer.trace(ctx.get_item("name"))
+    span.set_tag_str(COMPONENT, ctx.get_item("flask_config").integration_name)
+    ctx.set_item("flask_jsonify_call", span)
+
+
+def _on_flask_blocked_request(span):
+    span.set_tag_str(http.STATUS_CODE, "403")
+    request = core.get_item("flask_request")
+    try:
+        base_url = getattr(request, "base_url", None)
+        query_string = getattr(request, "query_string", None)
+        if base_url and query_string:
+            _set_url_tag(core.get_item("flask_config"), span, base_url, query_string)
+        if query_string and core.get_item("flask_config").trace_query_string:
+            span.set_tag_str(http.QUERY_STRING, query_string)
+        if request.method is not None:
+            span.set_tag_str(http.METHOD, request.method)
+        user_agent = _get_request_header_user_agent(request.headers)
+        if user_agent:
+            span.set_tag_str(http.USER_AGENT, user_agent)
+    except Exception as e:
+        log.warning("Could not set some span tags on blocked request: %s", str(e))  # noqa: G200
+
+
+def _on_flask_render(span, template, flask_config):
+    name = maybe_stringify(getattr(template, "name", None) or flask_config.get("template_default_name"))
+    if name is not None:
+        span.resource = name
+        span.set_tag_str("flask.template_name", name)
 
 
 def listen():
@@ -246,4 +280,7 @@ def listen():
     core.on("wsgi.request.complete", _on_request_complete)
     core.on("wsgi.response.prepared", _on_response_prepared)
     core.on("flask.set_request_tags", _set_request_tags)
+    core.on("flask.blocked_request_callable", _on_flask_blocked_request)
+    core.on("flask.render", _on_flask_render)
     core.on("context.started.flask._traced_request", _on_traced_request_context_started_flask)
+    core.on("context.started.flask.jsonify", _on_jsonify_context_started_flask)
