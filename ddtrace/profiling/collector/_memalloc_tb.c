@@ -18,39 +18,6 @@ static PyObject* empty_string = NULL;
 
 #define TRACEBACK_SIZE(NFRAME) (sizeof(traceback_t) + sizeof(frame_t) * (NFRAME - 1))
 
-static PyObject* ddframe_class = NULL;
-
-bool
-memalloc_ddframe_class_init()
-{
-    // If this is double-initialized for some reason, then clean up what we had
-    if (ddframe_class) {
-        Py_DECREF(ddframe_class);
-        ddframe_class = NULL;
-    }
-
-    // Import the module that contains the DDFrame class
-    PyObject* mod_path = PyUnicode_DecodeFSDefault("ddtrace.profiling.event");
-    PyObject* mod = PyImport_Import(mod_path);
-    Py_XDECREF(mod_path);
-    if (mod == NULL) {
-        PyErr_Print();
-        return false;
-    }
-
-    // Get the DDFrame class object
-    ddframe_class = PyObject_GetAttrString(mod, "DDFrame");
-    Py_XDECREF(mod);
-
-    // Basic sanity check that the object is the type of object we actually want
-    if (ddframe_class == NULL || !PyCallable_Check(ddframe_class)) {
-        PyErr_Print();
-        return false;
-    }
-
-    return true;
-}
-
 int
 memalloc_tb_init(uint16_t max_nframe)
 {
@@ -227,16 +194,6 @@ traceback_to_tuple(traceback_t* tb)
         /* Class name */
         PyTuple_SET_ITEM(frame_tuple, 3, empty_string);
         Py_INCREF(empty_string);
-
-        // Set the class
-        if (ddframe_class) {
-#if PY_VERSION_HEX >= 0x03090000
-            Py_SET_TYPE(frame_tuple, (PyTypeObject*)ddframe_class);
-#else
-            Py_TYPE(frame_tuple) = (PyTypeObject*)ddframe_class;
-#endif
-            Py_INCREF(ddframe_class);
-        }
 
         PyTuple_SET_ITEM(stack, nframe, frame_tuple);
     }

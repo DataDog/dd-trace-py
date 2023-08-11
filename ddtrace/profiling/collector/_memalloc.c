@@ -436,12 +436,6 @@ PyInit__memalloc(void)
     if (m == NULL)
         return NULL;
 
-    // Initialize the DDFrame namedtuple class
-    // Do this early so we don't have complicated cleanup
-    if (!memalloc_ddframe_class_init()) {
-        return NULL;
-    }
-
 #ifdef _PY37_AND_LATER
     if (PyThread_tss_create(&memalloc_reentrant_key) != 0) {
 #else
