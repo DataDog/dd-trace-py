@@ -428,12 +428,12 @@ def traced_flask_hook(wrapped, instance, args, kwargs):
     return wrapped(wrap_function(instance, func))
 
 
-def traced_render_template(*args):
-    return _build_render_template_wrapper("render_template")(*args)
+def traced_render_template(wrapped, instance, args, kwargs):
+    return _build_render_template_wrapper("render_template")(wrapped, instance, args, kwargs)
 
 
-def traced_render_template_string(*args):
-    return _build_render_template_wrapper("render_template_string")(*args)
+def traced_render_template_string(wrapped, instance, args, kwargs):
+    return _build_render_template_wrapper("render_template_string")(wrapped, instance, args, kwargs)
 
 
 def _build_render_template_wrapper(name):
