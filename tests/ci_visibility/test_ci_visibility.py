@@ -230,6 +230,7 @@ def test_git_client_worker_agentless(_do_request, git_repo):
             DD_APPLICATION_KEY="banana",
             DD_CIVISIBILITY_ITR_ENABLED="1",
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+            DD_SITE="datadoghq.com",
         )
     ):
         ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
