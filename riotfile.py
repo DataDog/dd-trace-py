@@ -1736,20 +1736,7 @@ venv = Venv(
             command="python -m pytest {cmdargs} tests/contrib/unittest_plugin/",
             pkgs={"msgpack": latest},
             env={"DD_CIVISIBILITY_AGENTLESS_ENABLED": "0"},
-            venvs=[
-                Venv(
-                    pys="2.7",
-                ),
-                Venv(
-                    pys="3.5",
-                ),
-                Venv(
-                    pys="3.7"
-                ),
-                Venv(
-                    pys=select_pys(min_version="3.10"),
-                )
-            ],
+            pys=select_pys(min_version="2.7", max_version="3.11"),
         ),
         Venv(
             name="grpc",
