@@ -190,8 +190,8 @@ def should_skip_request(pin, request):
     if not pin or not pin.enabled():
         return True
 
-    # HttpClient is used to send apm events (profiling,di, tracing, etc.) to the datadog agent
-    # Tracing these requests introduces a significant amount of noise and instability in ddtrace tests.
+    # httplib is used to send apm events (profiling,di, tracing, etc.) to the datadog agent
+    # Tracing these requests introduces a significant noise and instability in ddtrace tests.
     # TO DO: Avoid tracing requests to APM internal services (ie: extend this functionality to agentless products).
     agent_url = pin.tracer.agent_trace_url
     if agent_url:
