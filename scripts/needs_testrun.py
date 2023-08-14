@@ -70,20 +70,20 @@ def get_changed_files(pr_number: int, sha: t.Optional[str] = None) -> t.Set[str]
     'releasenotes/notes/fix-debugger-expressions-none-literal-30f3328d2e386f40.yaml',
     'tests/debugging/test_expressions.py']
     """
-    rest_check_failed = False
     if sha is None:
         try:
             url = f"https://api.github.com/repos/datadog/dd-trace-py/pulls/{pr_number}/files"
             headers = {"Accept": "application/vnd.github+json"}
-            return {_["filename"] for _ in json.load(urlopen(Request(url, headers=headers)))}
-        except Exception:
-            rest_check_failed = True
+            result = {_["filename"] for _ in json.load(urlopen(Request(url, headers=headers)))}
+            if len(result) != 30:  # 30 files is an unreliable return because it's the maximum
+                return result
+        except Exception as exc:
             LOGGER.warning("Failed to get changed files from GitHub API")
+            LOGGER.warning(exc)
 
-    if sha is not None or rest_check_failed:
-        diff_base = sha or get_merge_base(pr_number)
-        LOGGER.info("Checking changed files against commit %s", diff_base)
-        return set(check_output(["git", "diff", "--name-only", "HEAD", diff_base]).decode("utf-8").strip().splitlines())
+    diff_base = sha or get_merge_base(pr_number)
+    LOGGER.info("Checking changed files against commit %s", diff_base)
+    return set(check_output(["git", "diff", "--name-only", "HEAD", diff_base]).decode("utf-8").strip().splitlines())
 
 
 @cache
@@ -175,7 +175,9 @@ def main() -> bool:
 
     argp.add_argument("suite", help="The suite to use", type=str)
     argp.add_argument("--pr", help="The PR number", type=int, default=_get_pr_number())
-    argp.add_argument("--sha", help="Commit hash to use as diff base (defaults to PR merge root)", type=lambda v: v or None)
+    argp.add_argument(
+        "--sha", help="Commit hash to use as diff base (defaults to PR merge root)", type=lambda v: v or None
+    )
     argp.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
 
     args = argp.parse_args()
