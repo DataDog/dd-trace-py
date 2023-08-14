@@ -110,3 +110,14 @@ extra-dependencies = [
 test = [
     "python -m doctest {args} scripts/get-target-milestone.py scripts/needs_testrun.py tests/suitespec.py",
 ]
+
+[envs.meta-testing]
+extra-dependencies = [
+    "pytest",
+    "pytest-cov",
+    "hypothesis<6.45.1"
+]
+[envs.meta-testing.scripts]
+meta-testing = [
+  "pytest {args} tests/meta"
+]
