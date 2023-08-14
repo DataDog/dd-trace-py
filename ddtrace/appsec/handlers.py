@@ -5,14 +5,12 @@ from six import BytesIO
 import xmltodict
 
 from ddtrace import config
-import ddtrace.appsec._constants as asm_constants
 from ddtrace.appsec.iast._metrics import _set_metric_iast_instrumented_source
 from ddtrace.appsec.iast._patch import if_iast_taint_returned_object_for
 from ddtrace.appsec.iast._patch import if_iast_taint_yield_tuple_for
 from ddtrace.appsec.iast._util import _is_iast_enabled
 from ddtrace.contrib import trace_utils
 from ddtrace.internal import core
-from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.logger import get_logger
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 from ddtrace.vendor.wrapt.importer import when_imported
