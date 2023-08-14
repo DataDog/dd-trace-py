@@ -542,9 +542,6 @@ def traced_register_error_handler(wrapped, instance, args, kwargs):
 
 def _block_request_callable(call):
     request = flask.request
-    import ddtrace.appsec._constants as asm_constants
-
-    core.set_item(HTTP_REQUEST_BLOCKED, asm_constants.WAF_ACTIONS.DEFAULT_PARAMETERS)
     core.dispatch("flask.blocked_request_callable", [call])
     ctype = "text/html" if "text/html" in request.headers.get("Accept", "").lower() else "text/json"
     abort(flask.Response(http_utils._get_blocked_template(ctype), content_type=ctype, status=403))

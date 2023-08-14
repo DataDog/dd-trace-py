@@ -14,6 +14,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import FLASK_ENDPOINT
 from ddtrace.internal.constants import FLASK_URL_RULE
 from ddtrace.internal.constants import FLASK_VIEW_ARGS
+from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.constants import RESPONSE_HEADERS
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import http as http_utils
@@ -80,15 +81,13 @@ def _on_context_started(ctx):
 
 
 def _make_block_content(ctx, construct_url):
-    from ddtrace.appsec import _constants as _asm_constants
-
     middleware = ctx.get_item("middleware")
     req_span = ctx.get_item("req_span")
     headers = ctx.get_item("headers")
     environ = ctx.get_item("environ")
     if req_span is None:
         raise ValueError("request span not found")
-    block_config = core.get_item(_asm_constants.WAF_CONTEXT_NAMES.BLOCKED, span=req_span)
+    block_config = core.get_item(HTTP_REQUEST_BLOCKED, span=req_span)
     if block_config.get("type", "auto") == "auto":
         ctype = "text/html" if "text/html" in headers.get("Accept", "").lower() else "text/json"
     else:
