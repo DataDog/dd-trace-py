@@ -11,6 +11,7 @@ from ddtrace.vendor import wrapt
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_KIND
+from ...internal.constants import _HTTPLIB_NO_TRACE_REQUEST
 from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...internal.compat import PY2
@@ -183,9 +184,15 @@ def _wrap_putheader(func, instance, args, kwargs):
 
 def should_skip_request(pin, request):
     """Helper to determine if the provided request should be traced"""
+    if getattr(request, _HTTPLIB_NO_TRACE_REQUEST, False):
+        return True
+
     if not pin or not pin.enabled():
         return True
 
+    # httplib is used to send apm events (profiling,di, tracing, etc.) to the datadog agent
+    # Tracing these requests introduces a significant noise and instability in ddtrace tests.
+    # TO DO: Avoid tracing requests to APM internal services (ie: extend this functionality to agentless products).
     agent_url = pin.tracer.agent_trace_url
     if agent_url:
         parsed = parse.urlparse(agent_url)

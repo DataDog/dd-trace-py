@@ -105,16 +105,6 @@ venv = Venv(
     venvs=[
         Venv(
             pys=["3"],
-            pkgs={"slotscheck": latest},
-            venvs=[
-                Venv(
-                    name="slotscheck",
-                    command="python -m slotscheck -v ddtrace/",
-                ),
-            ],
-        ),
-        Venv(
-            pys=["3"],
             name="scripts",
             command="python -m doctest {cmdargs} "
             "scripts/get-target-milestone.py "
