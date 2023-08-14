@@ -1,6 +1,6 @@
 version: 2.1
 
-python310_image: &python310_image cimg/python:3.10
+python310_image: &python310_image cimg/python:3.10.12
 
 setup: true
 
