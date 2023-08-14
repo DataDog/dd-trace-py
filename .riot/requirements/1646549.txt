@@ -13,7 +13,7 @@ contextlib2==0.6.0.post1
 coverage==5.5
 enum34==1.1.10
 flask-cache==0.13.1
-flask==0.12.5
+flask==2.2.5
 funcsigs==1.0.2
 futures==3.4.0
 hypothesis==4.57.1

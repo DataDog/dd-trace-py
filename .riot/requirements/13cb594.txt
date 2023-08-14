@@ -9,7 +9,7 @@ attrs==22.2.0
 blinker==1.5
 click==8.0.4
 coverage==6.2
-flask==0.12.5
+flask==2.2.5
 flask-cache==0.13.1
 hypothesis==6.31.6
 importlib-metadata==4.8.3

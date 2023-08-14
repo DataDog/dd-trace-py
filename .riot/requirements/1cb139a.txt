@@ -10,7 +10,7 @@ blinker==1.5
 click==7.1.2
 coverage==5.5
 flask-cache==0.13.1
-flask==0.12.5
+flask==2.2.5
 hypothesis==5.33.2
 importlib-metadata==2.1.3
 itsdangerous==1.1.0

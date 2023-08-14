@@ -9,7 +9,7 @@ certifi==2021.10.8
 chardet==4.0.0
 click==7.1.2
 coverage==5.5
-flask==1.1.4
+flask==2.2.5
 gunicorn==20.1.0
 httpretty==0.9.7
 hypothesis==5.33.2
