@@ -53,8 +53,7 @@ class Uploader;
   X(trace_endpoint, "trace endpoint")                                          \
   X(class_name, "class name")                                                  \
   X(lock_name, "lock name")                                                    \
-  X(gpu_device_type, "gpu device type")                                        \
-  X(gpu_device_index, "gpu device index")
+  X(gpu_device_name, "gpu device name")                                        
 
 #define X_ENUM(a, b) a,
 enum class ExportTagKey { EXPORTER_TAGS(X_ENUM) _Length };
@@ -124,8 +123,11 @@ public:
     LockRelease = 1 << 4,
     Allocation = 1 << 5,
     Heap = 1 << 6,
-    GPU = 1 << 7,
-    All = CPU | Wall | Exception | LockAcquire | LockRelease | Allocation | Heap | GPU
+    GPUTime = 1 << 7,
+    GPUMemory = 1 << 8,
+    GPUFlops = 1 << 9,
+    All = CPU | Wall | Exception | LockAcquire | LockRelease |
+          Allocation | Heap | GPUTime | GPUMemory | GPUFlops
   };
 
 private:
@@ -171,6 +173,8 @@ private:
     unsigned short heap_space;
     unsigned short gpu_time;
     unsigned short gpu_count;
+    unsigned short gpu_space;
+    unsigned short gpu_flops;
   } val_idx;
 
   // Helpers
@@ -190,6 +194,8 @@ public:
   bool push_walltime(int64_t walltime, int64_t count);
   bool push_cputime(int64_t cputime, int64_t count);
   bool push_gputime(int64_t gputime, int64_t count);
+  bool push_gpu_mem(int64_t gputime, int64_t count);
+  bool push_gpu_flops(int64_t gputime, int64_t count);
   bool push_acquire(int64_t acquire_time, int64_t count);
   bool push_release(int64_t lock_time, int64_t count);
   bool push_alloc(uint64_t size, uint64_t count);
@@ -209,7 +215,7 @@ public:
   bool push_class_name(std::string_view class_name);
 
   // Pytorch GPU metadata
-  bool push_gpu_device_info(std::string_view device_type, int64_t device_index);
+  bool push_gpu_device_name(std::string_view device_name);
 
   // Assumes frames are pushed in leaf-order
   void push_frame(std::string_view name,     // for ddog_prof_Function

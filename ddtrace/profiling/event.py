@@ -74,8 +74,3 @@ class StackBasedEvent(SampleEvent):
                 self.trace_type = span._local_root.span_type
                 if endpoint_collection_enabled:
                     self.trace_resource_container = span._local_root._resource
-
-@event_class
-class PytorchBasedEvent(TimedEvent):
-    event_name = attr.ib(default=None, type=str)
-    device_type = attr.ib(default=None, type=str)

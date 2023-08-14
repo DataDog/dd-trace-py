@@ -41,6 +41,8 @@ IF UNAME_SYSNAME == "Linux" and UNAME_MACHINE == "x86_64":
         void ddup_push_walltime(int64_t walltime, int64_t count)
         void ddup_push_cputime(int64_t cputime, int64_t count)
         void ddup_push_gputime(int64_t gputime, int64_t count)
+        void ddup_push_gpu_mem(int64_t gpu_mem, int64_t count)
+        void ddup_push_gpu_flops(int64_t gpu_flops, int64_t count)
         void ddup_push_acquire(int64_t acquire_time, int64_t count)
         void ddup_push_release(int64_t release_time, int64_t count)
         void ddup_push_alloc(uint64_t size, uint64_t count)
@@ -59,7 +61,7 @@ IF UNAME_SYSNAME == "Linux" and UNAME_MACHINE == "x86_64":
         void ddup_flush_sample()
         void ddup_set_runtime_id(const char *_id, size_t sz)
         void ddup_upload()
-        void ddup_push_gpu_device_info(const char *device_type, int64_t device_index)
+        void ddup_push_gpu_device_name(const char *device_name)
 
     def init(
             service: Optional[str],
@@ -164,7 +166,13 @@ IF UNAME_SYSNAME == "Linux" and UNAME_MACHINE == "x86_64":
 
     def push_gputime(value: int, count: int) -> None:
         ddup_push_gputime(value, count)
-    
-    def push_gpu_device_info(device_type: str, device_index: int) -> None:
-        if device_type:
-            ddup_push_gpu_device_info(ensure_binary(device_type), device_index)   
+
+    def push_gpu_mem(value: int, count: int) -> None:
+        ddup_push_gpu_mem(value, count)
+
+    def push_gpu_flops(value: int, count: int) -> None:
+        ddup_push_gpu_flops(value, count)
+
+    def push_gpu_device_name(device_name: str) -> None:
+        if device_name:
+            ddup_push_gpu_device_name(ensure_binary(device_name))   

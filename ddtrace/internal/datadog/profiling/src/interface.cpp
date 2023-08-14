@@ -300,9 +300,21 @@ ddup_push_gputime(int64_t gputime, int64_t count)
 }
 
 void
-ddup_push_gpu_device_info(const char *device_type, int64_t device_index)
+ddup_push_gpu_mem(int64_t gpu_mem, int64_t count)
 {
-    if (!device_type || !*device_type)
+    g_profile->push_gpu_mem(gpu_mem, count);
+}
+
+void
+ddup_push_gpu_flops(int64_t gpu_flops, int64_t count)
+{
+    g_profile->push_gpu_flops(gpu_flops, count);
+}
+
+void
+ddup_push_gpu_device_name(const char *device_name)
+{
+    if (!device_name || !*device_name)
         return;
-    g_profile->push_gpu_device_info(device_type, device_index);
+    g_profile->push_gpu_device_name(device_name);
 }

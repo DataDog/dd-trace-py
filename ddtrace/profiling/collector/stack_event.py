@@ -20,9 +20,3 @@ class StackExceptionSampleEvent(event.StackBasedEvent):
     """A a sample storing raised exceptions and their stack frames."""
 
     exc_type = attr.ib(default=None, type=typing.Optional[str])
-
-
-@event.event_class
-class PytorchSampleEvent(event.PytorchBasedEvent):
-    """A sample storing pytorch profiler specific data."""
-    gpu_time_ns = attr.ib(default=0, type=int)
