@@ -81,7 +81,7 @@ def gen_pre_checks(template: dict) -> None:
     )
     check(
         name="Run conftest tests",
-        command="riot -v run meta-testing",
+        command="hatch run meta-testing:meta-testing",
         paths={"tests/*conftest.py", "tests/meta/*"},
     )
     check(
