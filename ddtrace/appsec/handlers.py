@@ -246,7 +246,9 @@ def _on_django_patch():
 
 def listen():
     core.on("flask.request_span_modifier", _on_request_span_modifier)
-    core.on("django.func.wrapped", _on_django_func_wrapped)
-    core.on("django.wsgi_environ", _on_wsgi_environ)
-    core.on("django.patch", _on_django_patch)
-    core.on("flask.patch", _on_flask_patch)
+
+
+core.on("django.func.wrapped", _on_django_func_wrapped)
+core.on("django.wsgi_environ", _on_wsgi_environ)
+core.on("django.patch", _on_django_patch)
+core.on("flask.patch", _on_flask_patch)
