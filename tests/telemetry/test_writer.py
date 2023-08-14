@@ -102,10 +102,14 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
                 "20)+PRIVATE(?:\\s|%20)KEY|ssh-rsa(?:\\s|%20)*(?:[a-z0-9\\/\\.+]|%2F|%5C|%2B){100,}",
             },
             {"name": "DD_TRACE_OTEL_ENABLED", "origin": "unknown", "value": False},
+            {"name": "DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED", "origin": "unknown", "value": False},
+            {"name": "DD_TRACE_PEER_SERVICE_MAPPING", "origin": "unknown", "value": ""},
             {"name": "DD_TRACE_PROPAGATION_STYLE_EXTRACT", "origin": "unknown", "value": "tracecontext,datadog"},
             {"name": "DD_TRACE_PROPAGATION_STYLE_INJECT", "origin": "unknown", "value": "tracecontext,datadog"},
             {"name": "DD_TRACE_RATE_LIMIT", "origin": "unknown", "value": 100},
+            {"name": "DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_TRACE_SAMPLE_RATE", "origin": "unknown", "value": None},
+            {"name": "DD_TRACE_SPAN_ATTRIBUTE_SCHEMA", "origin": "unknown", "value": "v0"},
             {"name": "ddtrace_auto_used", "origin": "unknown", "value": False},
             {"name": "ddtrace_bootstrapped", "origin": "unknown", "value": False},
         ],
@@ -159,6 +163,10 @@ telemetry_writer.disable()
     env["DD_TRACE_PROPAGATION_STYLE_INJECT"] = "tracecontext"
     env["DD_TRACE_SAMPLE_RATE"] = "0.5"
     env["DD_TRACE_RATE_LIMIT"] = "50"
+    env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = "v1"
+    env["DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED"] = "True"
+    env["DD_TRACE_PEER_SERVICE_MAPPING"] = "default_service:remapped_service"
+    env["DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED"] = "True"
 
     if PY2:
         # Prevents gevent importerror when profiling is enabled
@@ -198,10 +206,14 @@ telemetry_writer.disable()
         {"name": "DD_TRACE_HEALTH_METRICS_ENABLED", "origin": "unknown", "value": True},
         {"name": "DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN", "origin": "unknown", "value": ".*"},
         {"name": "DD_TRACE_OTEL_ENABLED", "origin": "unknown", "value": True},
+        {"name": "DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED", "origin": "unknown", "value": True},
+        {"name": "DD_TRACE_PEER_SERVICE_MAPPING", "origin": "unknown", "value": {'default_service': 'remapped_service'}},
         {"name": "DD_TRACE_PROPAGATION_STYLE_EXTRACT", "origin": "unknown", "value": "tracecontext"},
         {"name": "DD_TRACE_PROPAGATION_STYLE_INJECT", "origin": "unknown", "value": "tracecontext"},
         {"name": "DD_TRACE_RATE_LIMIT", "origin": "unknown", "value": 50},
+        {"name": "DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED", "origin": "unknown", "value": True},
         {"name": "DD_TRACE_SAMPLE_RATE", "origin": "unknown", "value": "0.5"},
+        {"name": "DD_TRACE_SPAN_ATTRIBUTE_SCHEMA", "origin": "unknown", "value": "v1"},
         {"name": "ddtrace_auto_used", "origin": "unknown", "value": True},
         {"name": "ddtrace_bootstrapped", "origin": "unknown", "value": True},
     ]
