@@ -297,10 +297,14 @@ class Config(object):
         self._raise = asbool(os.getenv("DD_TESTING_RAISE", False))
 
         trace_compute_stats_default = in_gcp_function() or in_azure_function_consumption_plan()
-        self._trace_compute_stats = asbool(
-            os.getenv(
-                "DD_TRACE_COMPUTE_STATS", os.getenv("DD_TRACE_STATS_COMPUTATION_ENABLED", trace_compute_stats_default)
+        self._trace_compute_stats = (
+            asbool(
+                os.getenv(
+                    "DD_TRACE_COMPUTE_STATS",
+                    os.getenv("DD_TRACE_STATS_COMPUTATION_ENABLED", trace_compute_stats_default),
+                )
             )
+            and self._apm_tracing_enabled
         )
         self._data_streams_enabled = asbool(os.getenv("DD_DATA_STREAMS_ENABLED", False))
         self._appsec_enabled = asbool(os.getenv(APPSEC_ENV, False))
