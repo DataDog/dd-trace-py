@@ -8,6 +8,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import FLASK_ENDPOINT
 from ddtrace.internal.constants import FLASK_URL_RULE
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
+from ddtrace.internal.constants import STATUS_403_TYPE_AUTO
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
 from ...internal import core
@@ -542,6 +543,7 @@ def traced_register_error_handler(wrapped, instance, args, kwargs):
 
 def _block_request_callable(call):
     request = flask.request
+    core.set_item(HTTP_REQUEST_BLOCKED, STATUS_403_TYPE_AUTO)
     core.dispatch("flask.blocked_request_callable", [call])
     ctype = "text/html" if "text/html" in request.headers.get("Accept", "").lower() else "text/json"
     abort(flask.Response(http_utils._get_blocked_template(ctype), content_type=ctype, status=403))

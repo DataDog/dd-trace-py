@@ -246,10 +246,6 @@ def _on_django_patch():
         log.debug("Unexpected exception while patch IAST functions", exc_info=True)
 
 
-def _on_flask_blocked_request(span):
-    core.set_item(HTTP_REQUEST_BLOCKED, asm_constants.WAF_ACTIONS.DEFAULT_PARAMETERS)
-
-
 def listen():
     core.on("flask.request_span_modifier", _on_request_span_modifier)
 
