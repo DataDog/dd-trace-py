@@ -77,41 +77,6 @@ def _on_context_started(ctx):
     ctx.set_item("req_span", req_span)
 
 
-def _make_block_content(ctx, construct_url):
-    middleware = ctx.get_item("middleware")
-    req_span = ctx.get_item("req_span")
-    headers = ctx.get_item("headers")
-    environ = ctx.get_item("environ")
-    if req_span is None:
-        raise ValueError("request span not found")
-    block_config = core.get_item(HTTP_REQUEST_BLOCKED, span=req_span)
-    if block_config.get("type", "auto") == "auto":
-        ctype = "text/html" if "text/html" in headers.get("Accept", "").lower() else "text/json"
-    else:
-        ctype = "text/" + block_config["type"]
-    content = http_utils._get_blocked_template(ctype).encode("UTF-8")
-    status = block_config.get("status_code", 403)
-    try:
-        req_span.set_tag_str(RESPONSE_HEADERS + ".content-length", str(len(content)))
-        req_span.set_tag_str(RESPONSE_HEADERS + ".content-type", ctype)
-        req_span.set_tag_str(http.STATUS_CODE, str(status))
-        url = construct_url(environ)
-        query_string = environ.get("QUERY_STRING")
-        _set_url_tag(middleware._config, req_span, url, query_string)
-        if query_string and middleware._config.trace_query_string:
-            req_span.set_tag_str(http.QUERY_STRING, query_string)
-        method = environ.get("REQUEST_METHOD")
-        if method:
-            req_span.set_tag_str(http.METHOD, method)
-        user_agent = _get_request_header_user_agent(headers, headers_are_case_sensitive=True)
-        if user_agent:
-            req_span.set_tag_str(http.USER_AGENT, user_agent)
-    except Exception as e:
-        log.warning("Could not set some span tags on blocked request: %s", str(e))  # noqa: G200
-
-    return status, ctype, content
-
-
 def _on_request_prepare(ctx, start_response):
     middleware = ctx.get_item("middleware")
     req_span = ctx.get_item("req_span")
