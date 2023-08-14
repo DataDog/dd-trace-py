@@ -66,7 +66,7 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
 
     events = test_agent_session.get_events()
     assert len(events) == 1
-
+    breakpoint()
     events[0]["payload"]["configuration"].sort(key=lambda c: c["name"])
     payload = {
         "configuration": [
@@ -103,7 +103,7 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
             },
             {"name": "DD_TRACE_OTEL_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED", "origin": "unknown", "value": False},
-            {"name": "DD_TRACE_PEER_SERVICE_MAPPING", "origin": "unknown", "value": ""},
+            {"name": "DD_TRACE_PEER_SERVICE_MAPPING", "origin": "unknown", "value": {}},
             {"name": "DD_TRACE_PROPAGATION_STYLE_EXTRACT", "origin": "unknown", "value": "tracecontext,datadog"},
             {"name": "DD_TRACE_PROPAGATION_STYLE_INJECT", "origin": "unknown", "value": "tracecontext,datadog"},
             {"name": "DD_TRACE_RATE_LIMIT", "origin": "unknown", "value": 100},
@@ -183,7 +183,7 @@ telemetry_writer.disable()
 
     events = test_agent_session.get_events()
     events[0]["payload"]["configuration"].sort(key=lambda c: c["name"])
-
+    breakpoint()
     assert events[0]["payload"]["configuration"] == [
         {"name": "DD_APPSEC_ENABLED", "origin": "unknown", "value": False},
         {"name": "DD_CALL_BASIC_CONFIG", "origin": "unknown", "value": True},
