@@ -3,6 +3,8 @@ import sys
 
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib.trace_utils import _get_request_header_user_agent
+from ddtrace.contrib.trace_utils import _set_url_tag
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
@@ -15,6 +17,7 @@ from ddtrace.internal.constants import FLASK_VIEW_ARGS
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.constants import RESPONSE_HEADERS
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils import http as http_utils
 from ddtrace.vendor import wrapt
 
 
@@ -75,6 +78,41 @@ def _on_context_started(ctx):
         span_type=SpanTypes.WEB,
     )
     ctx.set_item("req_span", req_span)
+
+
+def _make_block_content(ctx, construct_url):
+    middleware = ctx.get_item("middleware")
+    req_span = ctx.get_item("req_span")
+    headers = ctx.get_item("headers")
+    environ = ctx.get_item("environ")
+    if req_span is None:
+        raise ValueError("request span not found")
+    block_config = core.get_item(HTTP_REQUEST_BLOCKED, span=req_span)
+    if block_config.get("type", "auto") == "auto":
+        ctype = "text/html" if "text/html" in headers.get("Accept", "").lower() else "text/json"
+    else:
+        ctype = "text/" + block_config["type"]
+    content = http_utils._get_blocked_template(ctype).encode("UTF-8")
+    status = block_config.get("status_code", 403)
+    try:
+        req_span.set_tag_str(RESPONSE_HEADERS + ".content-length", str(len(content)))
+        req_span.set_tag_str(RESPONSE_HEADERS + ".content-type", ctype)
+        req_span.set_tag_str(http.STATUS_CODE, str(status))
+        url = construct_url(environ)
+        query_string = environ.get("QUERY_STRING")
+        _set_url_tag(middleware._config, req_span, url, query_string)
+        if query_string and middleware._config.trace_query_string:
+            req_span.set_tag_str(http.QUERY_STRING, query_string)
+        method = environ.get("REQUEST_METHOD")
+        if method:
+            req_span.set_tag_str(http.METHOD, method)
+        user_agent = _get_request_header_user_agent(headers, headers_are_case_sensitive=True)
+        if user_agent:
+            req_span.set_tag_str(http.USER_AGENT, user_agent)
+    except Exception as e:
+        log.warning("Could not set some span tags on blocked request: %s", str(e))  # noqa: G200
+
+    return status, ctype, content
 
 
 def _on_request_prepare(ctx, start_response):
@@ -204,6 +242,25 @@ def _on_jsonify_context_started_flask(ctx):
     ctx.set_item("flask_jsonify_call", span)
 
 
+def _on_flask_blocked_request(span):
+    span.set_tag_str(http.STATUS_CODE, "403")
+    request = core.get_item("flask_request")
+    try:
+        base_url = getattr(request, "base_url", None)
+        query_string = getattr(request, "query_string", None)
+        if base_url and query_string:
+            _set_url_tag(core.get_item("flask_config"), span, base_url, query_string)
+        if query_string and core.get_item("flask_config").trace_query_string:
+            span.set_tag_str(http.QUERY_STRING, query_string)
+        if request.method is not None:
+            span.set_tag_str(http.METHOD, request.method)
+        user_agent = _get_request_header_user_agent(request.headers)
+        if user_agent:
+            span.set_tag_str(http.USER_AGENT, user_agent)
+    except Exception as e:
+        log.warning("Could not set some span tags on blocked request: %s", str(e))  # noqa: G200
+
+
 def _on_flask_render(span, template, flask_config):
     name = maybe_stringify(getattr(template, "name", None) or flask_config.get("template_default_name"))
     if name is not None:
@@ -214,6 +271,7 @@ def _on_flask_render(span, template, flask_config):
 def listen():
     core.on("context.started.wsgi.__call__", _on_context_started)
     core.on("context.started.wsgi.response", _on_response_context_started)
+    core.on("wsgi.block.started", _make_block_content)
     core.on("wsgi.request.prepare", _on_request_prepare)
     core.on("wsgi.request.prepared", _on_request_prepared)
     core.on("wsgi.app.success", _on_app_success)
@@ -221,6 +279,7 @@ def listen():
     core.on("wsgi.request.complete", _on_request_complete)
     core.on("wsgi.response.prepared", _on_response_prepared)
     core.on("flask.set_request_tags", _set_request_tags)
+    core.on("flask.blocked_request_callable", _on_flask_blocked_request)
     core.on("flask.render", _on_flask_render)
     core.on("context.started.flask._traced_request", _on_traced_request_context_started_flask)
     core.on("context.started.flask.jsonify", _on_jsonify_context_started_flask)

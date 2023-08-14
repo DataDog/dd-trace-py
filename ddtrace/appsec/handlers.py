@@ -5,19 +5,13 @@ from six import BytesIO
 import xmltodict
 
 from ddtrace import config
-import ddtrace.appsec._constants as _constants
 from ddtrace.appsec.iast._metrics import _set_metric_iast_instrumented_source
 from ddtrace.appsec.iast._patch import if_iast_taint_returned_object_for
 from ddtrace.appsec.iast._patch import if_iast_taint_yield_tuple_for
 from ddtrace.appsec.iast._util import _is_iast_enabled
 from ddtrace.contrib import trace_utils
-from ddtrace.contrib.trace_utils import _get_request_header_user_agent
-from ddtrace.contrib.trace_utils import _set_url_tag
-from ddtrace.ext import http
 from ddtrace.internal import core
-from ddtrace.internal.constants import RESPONSE_HEADERS
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils import http as http_utils
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 from ddtrace.vendor.wrapt.importer import when_imported
 
@@ -250,66 +244,9 @@ def _on_django_patch():
         log.debug("Unexpected exception while patch IAST functions", exc_info=True)
 
 
-def _on_flask_blocked_request(span):
-    core.set_item(_constants.WAF_CONTEXT_NAMES.BLOCKED, _constants.WAF_ACTIONS.DEFAULT_PARAMETERS)
-    span.set_tag_str(http.STATUS_CODE, "403")
-    request = core.get_item("flask_request")
-    try:
-        base_url = getattr(request, "base_url", None)
-        query_string = getattr(request, "query_string", None)
-        if base_url and query_string:
-            _set_url_tag(core.get_item("flask_config"), span, base_url, query_string)
-        if query_string and core.get_item("flask_config").trace_query_string:
-            span.set_tag_str(http.QUERY_STRING, query_string)
-        if request.method is not None:
-            span.set_tag_str(http.METHOD, request.method)
-        user_agent = _get_request_header_user_agent(request.headers)
-        if user_agent:
-            span.set_tag_str(http.USER_AGENT, user_agent)
-    except Exception as e:
-        log.warning("Could not set some span tags on blocked request: %s", str(e))  # noqa: G200
-
-
-def _make_block_content(ctx, construct_url):
-    middleware = ctx.get_item("middleware")
-    req_span = ctx.get_item("req_span")
-    headers = ctx.get_item("headers")
-    environ = ctx.get_item("environ")
-    if req_span is None:
-        raise ValueError("request span not found")
-    block_config = core.get_item(_constants.WAF_CONTEXT_NAMES.BLOCKED, span=req_span)
-    if block_config.get("type", "auto") == "auto":
-        ctype = "text/html" if "text/html" in headers.get("Accept", "").lower() else "text/json"
-    else:
-        ctype = "text/" + block_config["type"]
-    content = http_utils._get_blocked_template(ctype).encode("UTF-8")
-    status = block_config.get("status_code", 403)
-    try:
-        req_span.set_tag_str(RESPONSE_HEADERS + ".content-length", str(len(content)))
-        req_span.set_tag_str(RESPONSE_HEADERS + ".content-type", ctype)
-        req_span.set_tag_str(http.STATUS_CODE, str(status))
-        url = construct_url(environ)
-        query_string = environ.get("QUERY_STRING")
-        _set_url_tag(middleware._config, req_span, url, query_string)
-        if query_string and middleware._config.trace_query_string:
-            req_span.set_tag_str(http.QUERY_STRING, query_string)
-        method = environ.get("REQUEST_METHOD")
-        if method:
-            req_span.set_tag_str(http.METHOD, method)
-        user_agent = _get_request_header_user_agent(headers, headers_are_case_sensitive=True)
-        if user_agent:
-            req_span.set_tag_str(http.USER_AGENT, user_agent)
-    except Exception as e:
-        log.warning("Could not set some span tags on blocked request: %s", str(e))  # noqa: G200
-
-    return status, ctype, content
-
-
 def listen():
     core.on("flask.request_span_modifier", _on_request_span_modifier)
-    core.on("flask.blocked_request_callable", _on_flask_blocked_request)
     core.on("django.func.wrapped", _on_django_func_wrapped)
     core.on("django.wsgi_environ", _on_wsgi_environ)
     core.on("django.patch", _on_django_patch)
     core.on("flask.patch", _on_flask_patch)
-    core.on("wsgi.block.started", _make_block_content)
