@@ -1,17 +1,18 @@
 version: 2.1
 
 default_resource_class: &default_resource_class medium
-cimg_base_image: &cimg_base_image cimg/base:stable
-python310_image: &python310_image cimg/python:3.10
-ddtrace_dev_image: &ddtrace_dev_image ghcr.io/datadog/dd-trace-py/testrunner:latest
-redis_image: &redis_image redis:4.0-alpine
-memcached_image: &memcached_image memcached:1.5-alpine
-cassandra_image: &cassandra_image cassandra:3.11.7
-consul_image: &consul_image consul:1.6.0
-moto_image: &moto_image palazzem/moto:1.0.1
-mysql_image: &mysql_image mysql:5.7
-postgres_image: &postgres_image postgres:12-alpine
-mongo_image: &mongo_image mongo:3.6
+ubuntu_base_image: &ubuntu_base_img ubuntu-2004:2023.04.2
+cimg_base_image: &cimg_base_image cimg/base:2022.08
+python310_image: &python310_image cimg/python:3.10.12
+ddtrace_dev_image: &ddtrace_dev_image ghcr.io/datadog/dd-trace-py/testrunner@sha256:0ab20ba6e382770f520c4d5956cef5d4aa20623b8d43e58f77c100ee8ad903a0
+redis_image: &redis_image redis:4.0-alpine@sha256:3e99741f293147ff406657dda7644c2b88564b80a498cd00da8f905743449c9f
+memcached_image: &memcached_image memcached:1.5-alpine@sha256:48cb7207e3d34871893fa1628f3a4984375153e9942facf82e25935b0a633c8a
+cassandra_image: &cassandra_image cassandra:3.11.7@sha256:495e5752526f7e75d3ad85b6a6bbf3b79714321b17a44255a216c341e3baae11
+consul_image: &consul_image consul:1.6.0@sha256:daa6203532fc30d81bf6c5593f79a2c7c23f08e8fde82f1e4bd8069b48b57596
+moto_image: &moto_image datadog/docker-library:moto_1_0_1@sha256:58c15f03141073629f4ff2a78910b812205324579c76f8bcac87e8e89af2e673
+mysql_image: &mysql_image mysql:5.7@sha256:03b6dcedf5a2754da00e119e2cc6094ed3c884ad36b67bb25fe67be4b4f9bdb1
+postgres_image: &postgres_image postgres:12-alpine@sha256:c6704f41eb84be53d5977cb821bf0e5e876064b55eafef1e260c2574de40ad9a
+mongo_image: &mongo_image mongo:3.6@sha256:19c11a8f1064fd2bb713ef1270f79a742a184cd57d9bb922efdd2a8eca514af8
 httpbin_image: &httpbin_image kennethreitz/httpbin@sha256:2c7abc4803080c22928265744410173b6fea3b898872c01c5fd0f0f9df4a59fb
 vertica_image: &vertica_image sumitchawla/vertica:latest
 rabbitmq_image: &rabbitmq_image rabbitmq:3.7-alpine
@@ -30,7 +31,7 @@ orbs:
 
 machine_executor: &machine_executor
   machine:
-    image: ubuntu-2004:current
+    image: *ubuntu_base_img
   environment:
     - BOTO_CONFIG: /dev/null
     # https://support.circleci.com/hc/en-us/articles/360045268074-Build-Fails-with-Too-long-with-no-output-exceeded-10m0s-context-deadline-exceeded-
@@ -266,7 +267,7 @@ jobs:
             - checkout
             - attach_workspace:
                 at: .
-            - run: pip install coverage codecov diff_cover
+            - run: pip install -r ci/coverage/requirements.txt
             - run: ls -hal *.coverage
             # Combine all job coverage reports into one
             - run: coverage combine *.coverage
@@ -558,7 +559,7 @@ jobs:
     <<: *contrib_job_large
     docker:
       - image: *ddtrace_dev_image
-      - image: redis:4.0-alpine
+      - image: *redis_image
       - image: *rabbitmq_image
       - image: *testagent_image
         environment:
