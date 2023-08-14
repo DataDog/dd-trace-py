@@ -204,7 +204,7 @@ class Config(object):
                 removal_version="2.0.0",
             )
 
-        self._apm_tracing_enabled = asbool(os.getenv("DD_APM_TRACING_ENABLED"), default=True)
+        self._apm_tracing_enabled = asbool(os.getenv("DD_APM_TRACING_ENABLED", default=True))
         if self._apm_tracing_enabled:
             self._trace_sample_rate = os.getenv("DD_TRACE_SAMPLE_RATE")
             self._trace_rate_limit = int(os.getenv("DD_TRACE_RATE_LIMIT", default=DEFAULT_SAMPLING_RATE_LIMIT))
