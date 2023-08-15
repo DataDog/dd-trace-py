@@ -116,7 +116,7 @@ def traced_produce(func, instance, args, kwargs):
         span.set_tag_str(COMPONENT, config.kafka.integration_name)
         span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
         span.set_tag_str(kafkax.TOPIC, topic)
-        span.set_tag_str(kafkax.MESSAGE_KEY, ensure_text(message_key))
+        span.set_tag_str(kafkax.MESSAGE_KEY, ensure_text(message_key, errors="replace"))
         span.set_tag(kafkax.PARTITION, partition)
         span.set_tag_str(kafkax.TOMBSTONE, str(value is None))
         span.set_tag(SPAN_MEASURED_KEY)
@@ -154,7 +154,7 @@ def traced_poll(func, instance, args, kwargs):
             message_key = message.key() or ""
             message_offset = message.offset() or -1
             span.set_tag_str(kafkax.TOPIC, message.topic())
-            span.set_tag_str(kafkax.MESSAGE_KEY, ensure_text(message_key))
+            span.set_tag_str(kafkax.MESSAGE_KEY, ensure_text(message_key, errors="replace"))
             span.set_tag(kafkax.PARTITION, message.partition())
             span.set_tag_str(kafkax.TOMBSTONE, str(len(message) == 0))
             span.set_tag(kafkax.MESSAGE_OFFSET, message_offset)
