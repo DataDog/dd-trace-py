@@ -13,12 +13,12 @@ except ImportError:
 
     @not_implemented
     def init(
-        env,  # type: Optional[str]
+        env,      # type: Optional[str]
         service,  # type: Optional[str]
         version,  # type: Optional[str]
-        tags,  # type: Optional[Dict[str, str]]
+        tags,     # type: Optional[Dict[str, str]]
         max_nframes,  # type: Optional[int]
-        url,  # type: Optional[str]
+        url,      # type: Optional[str]
     ):
         pass
 

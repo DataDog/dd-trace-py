@@ -86,36 +86,13 @@ cmd [1] | flake8
 ./ddtrace/internal/injection.py:69:14: F821 undefined name 'i'
 ./ddtrace/internal/injection.py:69:16: F821 undefined name 'i'
 ./ddtrace/internal/utils/http.py:349:9: B014 Redundant exception types in `except (OSError, IOError) as e:`.  Write `except OSError as e:`, which catches exactly the same exceptions.
-./ddtrace/internal/datadog/profiling/ddup.py:2:1: I001 isort found an import in the wrong position
-./ddtrace/internal/datadog/profiling/ddup.py:2:25: E261 at least two spaces before inline comment
-./ddtrace/internal/datadog/profiling/ddup.py:3:1: I005 isort found an unexpected missing import
 ./ddtrace/internal/datadog/profiling/ddup.py:5:1: I001 isort found an import in the wrong position
 ./ddtrace/internal/datadog/profiling/ddup.py:6:1: I003 isort expected 1 blank line in imports, found 0
-./ddtrace/internal/datadog/profiling/ddup.py:16:17: E261 at least two spaces before inline comment
-./ddtrace/internal/datadog/profiling/ddup.py:17:17: E261 at least two spaces before inline comment
-./ddtrace/internal/datadog/profiling/ddup.py:19:21: E261 at least two spaces before inline comment
-./ddtrace/internal/datadog/profiling/ddup.py:25:31: E261 at least two spaces before inline comment
-./ddtrace/internal/datadog/profiling/ddup.py:29:36: E261 at least two spaces before inline comment
-./ddtrace/internal/datadog/profiling/ddup.py:33:37: E261 at least two spaces before inline comment
-./ddtrace/internal/datadog/profiling/ddup.py:37:36: E261 at least two spaces before inline comment
-./ddtrace/internal/datadog/profiling/ddup.py:41:36: E261 at least two spaces before inline comment
-./ddtrace/internal/datadog/profiling/ddup.py:45:34: E261 at least two spaces before inline comment
-./ddtrace/internal/datadog/profiling/ddup.py:49:26: E261 at least two spaces before inline comment
-./ddtrace/internal/datadog/profiling/ddup.py:53:35: E261 at least two spaces before inline comment
-./ddtrace/internal/datadog/profiling/ddup.py:57:51: E261 at least two spaces before inline comment
-./ddtrace/internal/datadog/profiling/ddup.py:61:67: E261 at least two spaces before inline comment
-./ddtrace/internal/datadog/profiling/ddup.py:65:43: E261 at least two spaces before inline comment
-./ddtrace/internal/datadog/profiling/ddup.py:69:45: E261 at least two spaces before inline comment
-./ddtrace/internal/datadog/profiling/ddup.py:73:37: E261 at least two spaces before inline comment
-./ddtrace/internal/datadog/profiling/ddup.py:77:54: E261 at least two spaces before inline comment
-./ddtrace/internal/datadog/profiling/ddup.py:81:24: E261 at least two spaces before inline comment
-./ddtrace/internal/datadog/profiling/ddup.py:85:18: E261 at least two spaces before inline comment
 ./ddtrace/internal/telemetry/writer.py:428:60: B006 Do not use mutable data structures for argument defaults.  They are created during function definition time. All calls to the function reuse this one instance of that data structure, persisting changes between them.
 ./ddtrace/internal/ci_visibility/git_client.py:79:71: B006 Do not use mutable data structures for argument defaults.  They are created during function definition time. All calls to the function reuse this one instance of that data structure, persisting changes between them.
 ./ddtrace/internal/ci_visibility/git_client.py:108:39: B006 Do not use mutable data structures for argument defaults.  They are created during function definition time. All calls to the function reuse this one instance of that data structure, persisting changes between them.
 ./ddtrace/contrib/asgi/utils.py:53:8: B004 Using `hasattr(x, '__call__')` to test if `x` is callable is unreliable. If `x` implements custom `__getattr__` or its `__call__` is itself not callable, you might get misleading results. Use `callable(x)` for consistent results.
 ./ddtrace/contrib/httplib/patch.py:14:1: I001 isort found an import in the wrong position
-./ddtrace/contrib/httplib/patch.py:205:32: E712 comparison to False should be 'if cond is False:' or 'if not cond:'
 ./ddtrace/contrib/psycopg/patch.py:193:89: B026 Star-arg unpacking after a keyword argument is strongly discouraged, because it only works when the keyword parameter is declared after all parameters supplied by the unpacked sequence, and this change of ordering can surprise and mislead readers.
 ./ddtrace/contrib/django/patch.py:535:25: B012 return/continue/break inside finally blocks cause exceptions to be silenced. Exceptions should be silenced in except blocks. Control statements can be moved outside the finally block.
 ./ddtrace/contrib/openai/patch.py:394:21: B012 return/continue/break inside finally blocks cause exceptions to be silenced. Exceptions should be silenced in except blocks. Control statements can be moved outside the finally block.
