@@ -37,6 +37,12 @@ config._add(
 )
 
 
+def get_version():
+    import openai
+
+    return getattr(openai, "__version__", "0.0.0")
+
+
 class _OpenAIIntegration(BaseLLMIntegration):
     _integration_name = "openai"
 

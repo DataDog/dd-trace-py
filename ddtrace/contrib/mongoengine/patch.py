@@ -7,6 +7,10 @@ from .trace import WrappedConnect
 _connect = mongoengine.connect
 
 
+def get_version():
+    return getattr(mongoengine, "__version__", "0.0.0")
+
+
 def patch():
     setattr(mongoengine, "connect", WrappedConnect(_connect))
 

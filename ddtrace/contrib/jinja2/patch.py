@@ -25,6 +25,10 @@ config._add(
 )
 
 
+def get_version():
+    return getattr(jinja2, "__version__", "0.0.0")
+
+
 def patch():
     if getattr(jinja2, "__datadog_patch", False):
         # already patched

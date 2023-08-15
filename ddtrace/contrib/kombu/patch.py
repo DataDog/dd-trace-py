@@ -30,6 +30,10 @@ from .utils import get_exchange_from_args
 from .utils import get_routing_key_from_args
 
 
+def get_version():
+    return getattr(kombu, "__version__", "0.0.0")
+
+
 # kombu default settings
 
 config._add(
