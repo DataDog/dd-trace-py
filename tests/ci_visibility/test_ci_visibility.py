@@ -315,7 +315,7 @@ def test_git_client_search_commits():
 def test_get_client_do_request_agentless_headers():
     serializer = CIVisibilityGitClientSerializerV1("foo", "bar")
     response = mock.MagicMock()
-    setattr(response, "status", 200)
+    response.status = 200
 
     with mock.patch("ddtrace.internal.http.HTTPConnection.request") as _request, mock.patch(
         "ddtrace.internal.compat.get_connection_response", return_value=response
@@ -332,7 +332,7 @@ def test_get_client_do_request_agentless_headers():
 def test_get_client_do_request_evp_proxy_headers():
     serializer = CIVisibilityGitClientSerializerV1("foo", "bar")
     response = mock.MagicMock()
-    setattr(response, "status", 200)
+    response.status = 200
 
     with mock.patch("ddtrace.internal.http.HTTPConnection.request") as _request, mock.patch(
         "ddtrace.internal.compat.get_connection_response", return_value=response

@@ -450,11 +450,11 @@ class TracerTestCase(TestSpanContainer, BaseTestCase):
     def override_global_tracer(self, tracer=None):
         original = ddtrace.tracer
         tracer = tracer or self.tracer
-        setattr(ddtrace, "tracer", tracer)
+        ddtrace.tracer = tracer
         try:
             yield
         finally:
-            setattr(ddtrace, "tracer", original)
+            ddtrace.tracer = original
 
 
 class DummyWriterMixin:

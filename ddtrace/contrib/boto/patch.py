@@ -59,7 +59,7 @@ config._add(
 def patch():
     if getattr(boto.connection, "_datadog_patch", False):
         return
-    setattr(boto.connection, "_datadog_patch", True)
+    boto.connection._datadog_patch = True
 
     # AWSQueryConnection and AWSAuthConnection are two different classes called by
     # different services for connection.
@@ -72,7 +72,7 @@ def patch():
 
 def unpatch():
     if getattr(boto.connection, "_datadog_patch", False):
-        setattr(boto.connection, "_datadog_patch", False)
+        boto.connection._datadog_patch = False
         unwrap(boto.connection.AWSQueryConnection, "make_request")
         unwrap(boto.connection.AWSAuthConnection, "make_request")
 

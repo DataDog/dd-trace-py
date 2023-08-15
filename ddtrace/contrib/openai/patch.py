@@ -317,7 +317,7 @@ def patch():
             _patched_endpoint_async(openai, integration, _endpoint_hooks._FineTuneCancelHook),
         )
 
-    setattr(openai, "__datadog_patch", True)
+    openai.__datadog_patch = True
 
 
 def unpatch():

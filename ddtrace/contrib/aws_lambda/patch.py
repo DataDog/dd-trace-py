@@ -235,7 +235,7 @@ def patch():
 
         wrap(handler, wrapper)
 
-        setattr(handler_module, "_datadog_patch", True)
+        handler_module._datadog_patch = True
     except AttributeError:
         # User code might contain `ddtrace.patch_all()` or `ddtrace.patch(aws_lambda=True)`
         # which might cause a circular dependency. Skipping.
@@ -258,7 +258,7 @@ def unpatch():
 
         unwrap(handler, wrapper)
 
-        setattr(handler_module, "_datadog_patch", False)
+        handler_module._datadog_patch = False
     except AttributeError:
         return
     except Exception:

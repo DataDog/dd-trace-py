@@ -591,7 +591,7 @@ class ModuleWatchdog(dict):
             if type(current) is cls:
                 cls._remove_from_meta_path()
                 if parent is not None:
-                    setattr(parent, "_modules", current._modules)
+                    parent._modules = current._modules
                 else:
                     sys.modules = current._modules
                 cls._instance = None

@@ -935,7 +935,7 @@ def patch():
         return
     _patch(django)
 
-    setattr(django, "_datadog_patch", True)
+    django._datadog_patch = True
 
 
 def _unpatch(django):
@@ -965,4 +965,4 @@ def unpatch():
 
     _unpatch(django)
 
-    setattr(django, "_datadog_patch", False)
+    django._datadog_patch = False

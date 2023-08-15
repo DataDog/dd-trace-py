@@ -19,7 +19,7 @@ def span(tracer):
 @pytest.fixture
 def fn_task():
     _ = Mock()
-    setattr(_, "__dd_task_span", None)
+    _.__dd_task_span = None
     yield _
 
 
