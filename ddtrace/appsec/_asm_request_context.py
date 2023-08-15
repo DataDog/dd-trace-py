@@ -131,9 +131,10 @@ class _DataHandler:
     def finalise(self):
         if self.active:
             env = self.execution_context.get_item("asm_env")
-            # assert _CONTEXT_ID.get() == self._id
-            callbacks = GLOBAL_CALLBACKS.get(_CONTEXT_CALL, []) + env.callbacks.get(_CONTEXT_CALL)
-            if callbacks is not None:
+            callbacks = GLOBAL_CALLBACKS.get(_CONTEXT_CALL, [])
+            if env is not None:
+                callbacks += env.callbacks.get(_CONTEXT_CALL)
+            if callbacks:
                 for function in callbacks:
                     function(env)
                 self.execution_context.end()
