@@ -168,7 +168,7 @@ def init_cursor_from_connection_factory(psycopg_module):
         pin = Pin.get_from(connection).clone()
         cfg = config.psycopg
 
-        if cfg and getattr(cfg, "trace_fetch_methods") and cfg.trace_fetch_methods:
+        if cfg and cfg.trace_fetch_methods:
             trace_fetch_methods = True
         else:
             trace_fetch_methods = False

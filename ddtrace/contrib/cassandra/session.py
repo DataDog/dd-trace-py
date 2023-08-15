@@ -247,7 +247,7 @@ def _extract_result_metas(result):
             metas[cassx.KEYSPACE] = query.keyspace.lower()
 
         page_number = getattr(future, PAGE_NUMBER, 1)
-        has_more_pages = getattr(future, "has_more_pages")
+        has_more_pages = future.has_more_pages
         is_paginated = has_more_pages or page_number > 1
         metas[cassx.PAGINATED] = is_paginated
         if is_paginated:

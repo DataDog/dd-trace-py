@@ -591,9 +591,9 @@ class ModuleWatchdog(dict):
             if type(current) is cls:
                 cls._remove_from_meta_path()
                 if parent is not None:
-                    setattr(parent, "_modules", getattr(current, "_modules"))
+                    setattr(parent, "_modules", current._modules)
                 else:
-                    sys.modules = getattr(current, "_modules")
+                    sys.modules = current._modules
                 cls._instance = None
                 log.debug("%s uninstalled", cls)
                 return

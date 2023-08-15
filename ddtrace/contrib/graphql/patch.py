@@ -44,7 +44,7 @@ from .. import trace_utils
 from ...ext import SpanTypes
 
 
-_graphql_version = parse_version(getattr(graphql, "__version__"))
+_graphql_version = parse_version(graphql.__version__)
 
 if _graphql_version < (3, 0):
     from graphql.language.ast import Document
