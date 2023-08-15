@@ -18,8 +18,8 @@ from ddtrace.profiling import recorder
 from ddtrace.profiling.collector import _lock
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import stack_event
-from ddtrace.profiling.exporter import _packages
 from ddtrace.profiling.collector import threading
+from ddtrace.profiling.exporter import _packages
 
 
 if hasattr(typing, "TypedDict"):
