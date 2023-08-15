@@ -1,6 +1,5 @@
 import collections
 import itertools
-import logging
 import operator
 import platform
 import sysconfig
@@ -21,9 +20,6 @@ from ddtrace.profiling import recorder
 from ddtrace.profiling.collector import _lock
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import stack_event
-
-
-LOG = logging.getLogger(__name__)
 
 
 if hasattr(typing, "TypedDict"):
@@ -173,17 +169,15 @@ def _sanitize_string(object value):
     if isinstance(value, str):
         return value
     elif isinstance(value, bytes):
-        LOG.warn(f"Got [bytes], expected string in pprof encoding")
         try:
-            return "[bytes]" + value.decode('utf-8', 'ignore')
+            return value.decode('utf-8', 'ignore')
         except:
-            return "[bytes]<failed>"
+            return ""
     else:
-        LOG.warn(f"Got [{type(value).__name__}], expected string in pprof encoding")
         try:
-            return f"[{type(value).__name__}]{str(value)}"
+            return str(value)
         except:
-            return f"[{type(value).__name__}]<failed>"
+            return ""
 
 
 @attr.s
