@@ -330,7 +330,7 @@ class TelemetryWriter(PeriodicService):
                 (TELEMETRY_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED, _remove_client_service_names, "unknown"),
                 (TELEMETRY_TRACE_PEER_SERVICE_DEFAULTS_ENABLED, _ps_config.set_defaults_enabled, "unknown"),
                 (TELEMETRY_TRACE_PEER_SERVICE_MAPPING, _ps_config._unparsed_peer_service_mapping, "unknown"),
-                (TELEMETRY_SERVICE_MAPPING, config.service_mapping, "unknown"),
+                (TELEMETRY_SERVICE_MAPPING, config._unparsed_service_mapping, "unknown"),
             ]
         )
 
