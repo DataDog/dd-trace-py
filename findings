@@ -1,0 +1,321 @@
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── lint ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+cmd [1] | flake8
+./tests/conftest.py:288:65: B023 Function definition does not bind loop variable 'ps'.
+./tests/utils.py:453:9: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./tests/utils.py:457:13: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./tests/opentelemetry/test_trace.py:22:5: B017 `assertRaises(Exception)` and `pytest.raises(Exception)` should be considered evil. They can lead to your test passing even if the code being tested is never executed due to a typo. Assert for a more specific exception (builtin or custom), or use `assertRaisesRegex` (if using `assertRaises`), or add the `match` keyword argument (if using `pytest.raises`), or use the context manager form with a target.
+./tests/opentelemetry/test_trace.py:53:5: B017 `assertRaises(Exception)` and `pytest.raises(Exception)` should be considered evil. They can lead to your test passing even if the code being tested is never executed due to a typo. Assert for a more specific exception (builtin or custom), or use `assertRaisesRegex` (if using `assertRaises`), or add the `match` keyword argument (if using `pytest.raises`), or use the context manager form with a target.
+./tests/opentelemetry/test_trace.py:72:5: B017 `assertRaises(Exception)` and `pytest.raises(Exception)` should be considered evil. They can lead to your test passing even if the code being tested is never executed due to a typo. Assert for a more specific exception (builtin or custom), or use `assertRaisesRegex` (if using `assertRaises`), or add the `match` keyword argument (if using `pytest.raises`), or use the context manager form with a target.
+./tests/opentelemetry/test_trace.py:100:13: B017 `assertRaises(Exception)` and `pytest.raises(Exception)` should be considered evil. They can lead to your test passing even if the code being tested is never executed due to a typo. Assert for a more specific exception (builtin or custom), or use `assertRaisesRegex` (if using `assertRaises`), or add the `match` keyword argument (if using `pytest.raises`), or use the context manager form with a target.
+./tests/opentelemetry/test_span.py:152:5: B017 `assertRaises(Exception)` and `pytest.raises(Exception)` should be considered evil. They can lead to your test passing even if the code being tested is never executed due to a typo. Assert for a more specific exception (builtin or custom), or use `assertRaisesRegex` (if using `assertRaises`), or add the `match` keyword argument (if using `pytest.raises`), or use the context manager form with a target.
+./tests/debugging/test_config.py:39:5: B015 Result of comparison is not used. This line doesn't do anything. Did you intend to prepend it with assert?
+./tests/debugging/test_debugger.py:77:17: B009 Do not call getattr with a constant attribute value, it is not any safer than normal property access.
+./tests/debugging/test_debugger.py:115:21: B009 Do not call getattr with a constant attribute value, it is not any safer than normal property access.
+./tests/debugging/test_debugger.py:124:21: B009 Do not call getattr with a constant attribute value, it is not any safer than normal property access.
+./tests/debugging/test_debugger.py:260:17: B009 Do not call getattr with a constant attribute value, it is not any safer than normal property access.
+./tests/debugging/test_debugger.py:386:17: B009 Do not call getattr with a constant attribute value, it is not any safer than normal property access.
+./tests/debugging/exploration/_profiler.py:65:13: B020 Found for loop that reassigns the iterable it is iterating with each iterable value.
+./tests/internal/remoteconfig/test_remoteconfig_client_e2e.py:26:19: B006 Do not use mutable data structures for argument defaults.  They are created during function definition time. All calls to the function reuse this one instance of that data structure, persisting changes between them.
+./tests/internal/remoteconfig/test_remoteconfig_client_e2e.py:27:25: B006 Do not use mutable data structures for argument defaults.  They are created during function definition time. All calls to the function reuse this one instance of that data structure, persisting changes between them.
+./tests/contrib/patch.py:94:12: B009 Do not call getattr with a constant attribute value, it is not any safer than normal property access.
+./tests/contrib/flask/test_signals.py:75:29: B009 Do not call getattr with a constant attribute value, it is not any safer than normal property access.
+./tests/contrib/flask/test_signals.py:87:29: B009 Do not call getattr with a constant attribute value, it is not any safer than normal property access.
+./tests/contrib/langchain/test_langchain.py:237:5: B017 `assertRaises(Exception)` and `pytest.raises(Exception)` should be considered evil. They can lead to your test passing even if the code being tested is never executed due to a typo. Assert for a more specific exception (builtin or custom), or use `assertRaisesRegex` (if using `assertRaises`), or add the `match` keyword argument (if using `pytest.raises`), or use the context manager form with a target.
+./tests/contrib/aiomysql/test_aiomysql.py:56:5: B017 `assertRaises(Exception)` and `pytest.raises(Exception)` should be considered evil. They can lead to your test passing even if the code being tested is never executed due to a typo. Assert for a more specific exception (builtin or custom), or use `assertRaisesRegex` (if using `assertRaises`), or add the `match` keyword argument (if using `pytest.raises`), or use the context manager form with a target.
+./tests/contrib/pytest_benchmark/test_pytest_benchmark.py:82:121: E501 line too long (125 > 120 characters)
+./tests/contrib/pytest_benchmark/test_pytest_benchmark.py:84:121: E501 line too long (133 > 120 characters)
+./tests/contrib/pytest_benchmark/test_pytest_benchmark.py:85:121: E501 line too long (125 > 120 characters)
+./tests/contrib/pytest_benchmark/test_pytest_benchmark.py:86:121: E501 line too long (141 > 120 characters)
+./tests/contrib/pytest_benchmark/test_pytest_benchmark.py:87:121: E501 line too long (133 > 120 characters)
+./tests/contrib/pytest_benchmark/test_pytest_benchmark.py:88:121: E501 line too long (125 > 120 characters)
+./tests/contrib/pytest_benchmark/test_pytest_benchmark.py:89:121: E501 line too long (127 > 120 characters)
+./tests/contrib/pytest_benchmark/test_pytest_benchmark.py:90:121: E501 line too long (131 > 120 characters)
+./tests/contrib/pytest_benchmark/test_pytest_benchmark.py:91:121: E501 line too long (125 > 120 characters)
+./tests/contrib/pytest_benchmark/test_pytest_benchmark.py:92:121: E501 line too long (125 > 120 characters)
+./tests/contrib/pytest_benchmark/test_pytest_benchmark.py:94:121: E501 line too long (123 > 120 characters)
+./tests/contrib/pytest_benchmark/test_pytest_benchmark.py:95:121: E501 line too long (123 > 120 characters)
+./tests/contrib/pytest_benchmark/test_pytest_benchmark.py:97:121: E501 line too long (131 > 120 characters)
+./tests/contrib/pytest_benchmark/test_pytest_benchmark.py:98:121: E501 line too long (149 > 120 characters)
+./tests/contrib/pytest_benchmark/test_pytest_benchmark.py:99:121: E501 line too long (129 > 120 characters)
+./tests/contrib/starlette/test_starlette.py:51:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./tests/contrib/starlette/test_starlette.py:54:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./tests/contrib/wsgi/test_wsgi.py:84:5: B017 `assertRaises(Exception)` and `pytest.raises(Exception)` should be considered evil. They can lead to your test passing even if the code being tested is never executed due to a typo. Assert for a more specific exception (builtin or custom), or use `assertRaisesRegex` (if using `assertRaises`), or add the `match` keyword argument (if using `pytest.raises`), or use the context manager form with a target.
+./tests/contrib/wsgi/test_wsgi.py:266:5: B017 `assertRaises(Exception)` and `pytest.raises(Exception)` should be considered evil. They can lead to your test passing even if the code being tested is never executed due to a typo. Assert for a more specific exception (builtin or custom), or use `assertRaisesRegex` (if using `assertRaises`), or add the `match` keyword argument (if using `pytest.raises`), or use the context manager form with a target.
+./tests/contrib/wsgi/test_wsgi.py:295:5: B017 `assertRaises(Exception)` and `pytest.raises(Exception)` should be considered evil. They can lead to your test passing even if the code being tested is never executed due to a typo. Assert for a more specific exception (builtin or custom), or use `assertRaisesRegex` (if using `assertRaises`), or add the `match` keyword argument (if using `pytest.raises`), or use the context manager form with a target.
+./tests/contrib/httplib/test_httplib.py:138:1: W293 blank line contains whitespace
+./tests/contrib/httplib/test_httplib.py:614:13: B017 `assertRaises(Exception)` and `pytest.raises(Exception)` should be considered evil. They can lead to your test passing even if the code being tested is never executed due to a typo. Assert for a more specific exception (builtin or custom), or use `assertRaisesRegex` (if using `assertRaises`), or add the `match` keyword argument (if using `pytest.raises`), or use the context manager form with a target.
+./tests/contrib/requests/test_requests.py:47:9: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./tests/contrib/requests/test_requests.py:114:9: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./tests/contrib/tornado/utils.py:5:1: I001 isort found an import in the wrong position
+./tests/contrib/tornado/utils.py:6:1: I001 isort found an import in the wrong position
+./tests/contrib/tornado/web/app.py:306:23: B006 Do not use mutable data structures for argument defaults.  They are created during function definition time. All calls to the function reuse this one instance of that data structure, persisting changes between them.
+./tests/contrib/pylons/test_pylons.py:132:9: B017 `assertRaises(Exception)` and `pytest.raises(Exception)` should be considered evil. They can lead to your test passing even if the code being tested is never executed due to a typo. Assert for a more specific exception (builtin or custom), or use `assertRaisesRegex` (if using `assertRaises`), or add the `match` keyword argument (if using `pytest.raises`), or use the context manager form with a target.
+./tests/contrib/pylons/test_pylons.py:326:9: B017 `assertRaises(Exception)` and `pytest.raises(Exception)` should be considered evil. They can lead to your test passing even if the code being tested is never executed due to a typo. Assert for a more specific exception (builtin or custom), or use `assertRaisesRegex` (if using `assertRaises`), or add the `match` keyword argument (if using `pytest.raises`), or use the context manager form with a target.
+./tests/contrib/pylons/test_pylons.py:348:9: B017 `assertRaises(Exception)` and `pytest.raises(Exception)` should be considered evil. They can lead to your test passing even if the code being tested is never executed due to a typo. Assert for a more specific exception (builtin or custom), or use `assertRaisesRegex` (if using `assertRaises`), or add the `match` keyword argument (if using `pytest.raises`), or use the context manager form with a target.
+./tests/contrib/pylons/test_pylons.py:367:9: B017 `assertRaises(Exception)` and `pytest.raises(Exception)` should be considered evil. They can lead to your test passing even if the code being tested is never executed due to a typo. Assert for a more specific exception (builtin or custom), or use `assertRaisesRegex` (if using `assertRaises`), or add the `match` keyword argument (if using `pytest.raises`), or use the context manager form with a target.
+./tests/contrib/pylons/test_pylons.py:386:9: B017 `assertRaises(Exception)` and `pytest.raises(Exception)` should be considered evil. They can lead to your test passing even if the code being tested is never executed due to a typo. Assert for a more specific exception (builtin or custom), or use `assertRaisesRegex` (if using `assertRaises`), or add the `match` keyword argument (if using `pytest.raises`), or use the context manager form with a target.
+./tests/contrib/pylons/test_pylons.py:405:9: B017 `assertRaises(Exception)` and `pytest.raises(Exception)` should be considered evil. They can lead to your test passing even if the code being tested is never executed due to a typo. Assert for a more specific exception (builtin or custom), or use `assertRaisesRegex` (if using `assertRaises`), or add the `match` keyword argument (if using `pytest.raises`), or use the context manager form with a target.
+./tests/contrib/pylons/test_pylons.py:816:9: B017 `assertRaises(Exception)` and `pytest.raises(Exception)` should be considered evil. They can lead to your test passing even if the code being tested is never executed due to a typo. Assert for a more specific exception (builtin or custom), or use `assertRaisesRegex` (if using `assertRaises`), or add the `match` keyword argument (if using `pytest.raises`), or use the context manager form with a target.
+./tests/contrib/grpc_aio/test_grpc_aio.py:105:13: B011 Do not call assert False since python -O removes these calls. Instead callers should raise AssertionError().
+./tests/contrib/sqlite3/test_sqlite3.py:86:13: B017 `assertRaises(Exception)` and `pytest.raises(Exception)` should be considered evil. They can lead to your test passing even if the code being tested is never executed due to a typo. Assert for a more specific exception (builtin or custom), or use `assertRaisesRegex` (if using `assertRaises`), or add the `match` keyword argument (if using `pytest.raises`), or use the context manager form with a target.
+./tests/contrib/fastapi/test_fastapi.py:38:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./tests/contrib/fastapi/test_fastapi.py:41:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./tests/contrib/sanic/conftest.py:20:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./tests/contrib/sanic/conftest.py:23:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./tests/contrib/dbapi/test_dbapi_appsec.py:19:9: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./tests/contrib/urllib3/test_urllib3.py:146:9: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./tests/contrib/urllib3/test_urllib3.py:390:13: B017 `assertRaises(Exception)` and `pytest.raises(Exception)` should be considered evil. They can lead to your test passing even if the code being tested is never executed due to a typo. Assert for a more specific exception (builtin or custom), or use `assertRaisesRegex` (if using `assertRaises`), or add the `match` keyword argument (if using `pytest.raises`), or use the context manager form with a target.
+./tests/contrib/celery/test_utils.py:22:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./tests/contrib/celery/test_utils.py:41:17: B009 Do not call getattr with a constant attribute value, it is not any safer than normal property access.
+./tests/contrib/celery/test_utils.py:66:17: B009 Do not call getattr with a constant attribute value, it is not any safer than normal property access.
+./tests/contrib/aws_lambda/test_aws_lambda.py:38:17: B006 Do not use mutable data structures for argument defaults.  They are created during function definition time. All calls to the function reuse this one instance of that data structure, persisting changes between them.
+./tests/contrib/django/conftest.py:6:1: F811 redefinition of unused 'os' from line 1
+./tests/contrib/django/conftest.py:6:1: I001 isort found an import in the wrong position
+./tests/contrib/django/conftest.py:56:1: E302 expected 2 blank lines, found 1
+./tests/contrib/django/conftest.py:60:1: E305 expected 2 blank lines after class or function definition, found 1
+./tests/contrib/django/conftest.py:68:30: W292 no newline at end of file
+./tests/contrib/django/test_django_appsec.py:39:13: B006 Do not use mutable data structures for argument defaults.  They are created during function definition time. All calls to the function reuse this one instance of that data structure, persisting changes between them.
+./tests/contrib/django/test_django_appsec_iast.py:28:13: B006 Do not use mutable data structures for argument defaults.  They are created during function definition time. All calls to the function reuse this one instance of that data structure, persisting changes between them.
+./tests/contrib/django/test_django_appsec_api_security.py:24:13: B006 Do not use mutable data structures for argument defaults.  They are created during function definition time. All calls to the function reuse this one instance of that data structure, persisting changes between them.
+./tests/contrib/vertica/test_vertica.py:293:13: B015 Result of comparison is not used. This line doesn't do anything. Did you intend to prepend it with assert?
+./tests/contrib/vertica/test_vertica.py:295:13: B015 Result of comparison is not used. This line doesn't do anything. Did you intend to prepend it with assert?
+./tests/contrib/vertica/test_vertica.py:298:13: B015 Result of comparison is not used. This line doesn't do anything. Did you intend to prepend it with assert?
+./tests/contrib/vertica/test_vertica.py:576:13: B015 Result of comparison is not used. This line doesn't do anything. Did you intend to prepend it with assert?
+./tests/contrib/vertica/test_vertica.py:578:13: B015 Result of comparison is not used. This line doesn't do anything. Did you intend to prepend it with assert?
+./tests/contrib/vertica/test_vertica.py:581:13: B015 Result of comparison is not used. This line doesn't do anything. Did you intend to prepend it with assert?
+./tests/contrib/vertica/test_vertica.py:622:13: B015 Result of comparison is not used. This line doesn't do anything. Did you intend to prepend it with assert?
+./tests/contrib/vertica/test_vertica.py:624:13: B015 Result of comparison is not used. This line doesn't do anything. Did you intend to prepend it with assert?
+./tests/contrib/vertica/test_vertica.py:627:13: B015 Result of comparison is not used. This line doesn't do anything. Did you intend to prepend it with assert?
+./tests/contrib/asyncio/test_tracer.py:79:5: B017 `assertRaises(Exception)` and `pytest.raises(Exception)` should be considered evil. They can lead to your test passing even if the code being tested is never executed due to a typo. Assert for a more specific exception (builtin or custom), or use `assertRaisesRegex` (if using `assertRaises`), or add the `match` keyword argument (if using `pytest.raises`), or use the context manager form with a target.
+./tests/contrib/asyncio/test_tracer.py:101:5: B017 `assertRaises(Exception)` and `pytest.raises(Exception)` should be considered evil. They can lead to your test passing even if the code being tested is never executed due to a typo. Assert for a more specific exception (builtin or custom), or use `assertRaisesRegex` (if using `assertRaises`), or add the `match` keyword argument (if using `pytest.raises`), or use the context manager form with a target.
+./tests/contrib/rq/test_rq.py:67:5: B017 `assertRaises(Exception)` and `pytest.raises(Exception)` should be considered evil. They can lead to your test passing even if the code being tested is never executed due to a typo. Assert for a more specific exception (builtin or custom), or use `assertRaisesRegex` (if using `assertRaises`), or add the `match` keyword argument (if using `pytest.raises`), or use the context manager form with a target.
+./tests/appsec/test_remoteconfiguration_e2e.py:272:5: B011 Do not call assert False since python -O removes these calls. Instead callers should raise AssertionError().
+./tests/appsec/test_remoteconfiguration_e2e.py:292:5: B011 Do not call assert False since python -O removes these calls. Instead callers should raise AssertionError().
+./tests/appsec/iast/iast_utils.py:13:5: B011 Do not call assert False since python -O removes these calls. Instead callers should raise AssertionError().
+./tests/appsec/iast/test_taint_utils.py:189:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./tests/appsec/iast/test_taint_utils.py:190:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./tests/appsec/iast/fixtures/aspects/str_methods.py:793:44: B006 Do not use mutable data structures for argument defaults.  They are created during function definition time. All calls to the function reuse this one instance of that data structure, persisting changes between them.
+./tests/profiling/simple_program.py:16:5: B011 Do not call assert False since python -O removes these calls. Instead callers should raise AssertionError().
+./tests/profiling/collector/test_stack.py:305:13: B011 Do not call assert False since python -O removes these calls. Instead callers should raise AssertionError().
+./tests/profiling/collector/test_threading.py:350:9: B011 Do not call assert False since python -O removes these calls. Instead callers should raise AssertionError().
+./tests/commands/ddtrace_run_logs_injection.py:6:8: B009 Do not call getattr with a constant attribute value, it is not any safer than normal property access.
+./tests/opentracer/test_tracer_asyncio.py:58:5: B017 `assertRaises(Exception)` and `pytest.raises(Exception)` should be considered evil. They can lead to your test passing even if the code being tested is never executed due to a typo. Assert for a more specific exception (builtin or custom), or use `assertRaisesRegex` (if using `assertRaises`), or add the `match` keyword argument (if using `pytest.raises`), or use the context manager form with a target.
+./tests/ci_visibility/test_ci_visibility.py:318:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./tests/ci_visibility/test_ci_visibility.py:335:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./tests/vendor/test_contextvars.py:77:13: B015 Result of comparison is not used. This line doesn't do anything. Did you intend to prepend it with assert?
+./benchmarks/bm/_scenario.py:83:13: B012 return/continue/break inside finally blocks cause exceptions to be silenced. Exceptions should be silenced in except blocks. Control statements can be moved outside the finally block.
+./ddtrace/tracing/trace_handlers.py:184:30: B009 Do not call getattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/bootstrap/sitecustomize.py:63:9: B028 No explicit stacklevel keyword argument found. The warn method from the warnings module uses a stacklevel of 1 by default. This will only show a stack trace for the line on which the warn method is called. It is therefore recommended to use a stacklevel of 2 or greater to provide more information to the user.
+./ddtrace/ext/ci.py:11:1: I001 isort found an import in the wrong position
+./ddtrace/ext/ci.py:243:22: B005 Using .strip() with multi-character strings is misleading the reader. It looks like stripping a substring. Move your character set to a constant if this is deliberate. Use .replace(), .removeprefix(), .removesuffix(), or regular expressions to remove string fragments.
+./ddtrace/internal/injection.py:49:14: F821 undefined name 'i'
+./ddtrace/internal/injection.py:49:16: F821 undefined name 'i'
+./ddtrace/internal/injection.py:58:14: F821 undefined name 'i'
+./ddtrace/internal/injection.py:58:16: F821 undefined name 'i'
+./ddtrace/internal/injection.py:69:14: F821 undefined name 'i'
+./ddtrace/internal/injection.py:69:16: F821 undefined name 'i'
+./ddtrace/internal/module.py:594:21: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/internal/module.py:594:49: B009 Do not call getattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/internal/module.py:596:35: B009 Do not call getattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/internal/utils/http.py:349:9: B014 Redundant exception types in `except (OSError, IOError) as e:`.  Write `except OSError as e:`, which catches exactly the same exceptions.
+./ddtrace/internal/datadog/profiling/ddup.py:2:1: I001 isort found an import in the wrong position
+./ddtrace/internal/datadog/profiling/ddup.py:2:25: E261 at least two spaces before inline comment
+./ddtrace/internal/datadog/profiling/ddup.py:3:1: I005 isort found an unexpected missing import
+./ddtrace/internal/datadog/profiling/ddup.py:5:1: I001 isort found an import in the wrong position
+./ddtrace/internal/datadog/profiling/ddup.py:6:1: I003 isort expected 1 blank line in imports, found 0
+./ddtrace/internal/datadog/profiling/ddup.py:16:17: E261 at least two spaces before inline comment
+./ddtrace/internal/datadog/profiling/ddup.py:17:17: E261 at least two spaces before inline comment
+./ddtrace/internal/datadog/profiling/ddup.py:19:21: E261 at least two spaces before inline comment
+./ddtrace/internal/datadog/profiling/ddup.py:25:31: E261 at least two spaces before inline comment
+./ddtrace/internal/datadog/profiling/ddup.py:29:36: E261 at least two spaces before inline comment
+./ddtrace/internal/datadog/profiling/ddup.py:33:37: E261 at least two spaces before inline comment
+./ddtrace/internal/datadog/profiling/ddup.py:37:36: E261 at least two spaces before inline comment
+./ddtrace/internal/datadog/profiling/ddup.py:41:36: E261 at least two spaces before inline comment
+./ddtrace/internal/datadog/profiling/ddup.py:45:34: E261 at least two spaces before inline comment
+./ddtrace/internal/datadog/profiling/ddup.py:49:26: E261 at least two spaces before inline comment
+./ddtrace/internal/datadog/profiling/ddup.py:53:35: E261 at least two spaces before inline comment
+./ddtrace/internal/datadog/profiling/ddup.py:57:51: E261 at least two spaces before inline comment
+./ddtrace/internal/datadog/profiling/ddup.py:61:67: E261 at least two spaces before inline comment
+./ddtrace/internal/datadog/profiling/ddup.py:65:43: E261 at least two spaces before inline comment
+./ddtrace/internal/datadog/profiling/ddup.py:69:45: E261 at least two spaces before inline comment
+./ddtrace/internal/datadog/profiling/ddup.py:73:37: E261 at least two spaces before inline comment
+./ddtrace/internal/datadog/profiling/ddup.py:77:54: E261 at least two spaces before inline comment
+./ddtrace/internal/datadog/profiling/ddup.py:81:24: E261 at least two spaces before inline comment
+./ddtrace/internal/datadog/profiling/ddup.py:85:18: E261 at least two spaces before inline comment
+./ddtrace/internal/telemetry/writer.py:428:60: B006 Do not use mutable data structures for argument defaults.  They are created during function definition time. All calls to the function reuse this one instance of that data structure, persisting changes between them.
+./ddtrace/internal/ci_visibility/git_client.py:79:71: B006 Do not use mutable data structures for argument defaults.  They are created during function definition time. All calls to the function reuse this one instance of that data structure, persisting changes between them.
+./ddtrace/internal/ci_visibility/git_client.py:108:39: B006 Do not use mutable data structures for argument defaults.  They are created during function definition time. All calls to the function reuse this one instance of that data structure, persisting changes between them.
+./ddtrace/contrib/boto/patch.py:62:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/boto/patch.py:75:9: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/boto/patch.py:87:21: B009 Do not call getattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/boto/patch.py:133:40: B009 Do not call getattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/boto/patch.py:134:39: B009 Do not call getattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/boto/patch.py:167:21: B009 Do not call getattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/boto/patch.py:201:40: B009 Do not call getattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/boto/patch.py:202:39: B009 Do not call getattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/flask/patch.py:187:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/flask/patch.py:301:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/algoliasearch/patch.py:40:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/aiohttp/patch.py:132:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/aiohttp/patch.py:148:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/aiohttp/middlewares.py:142:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/asgi/utils.py:53:8: B004 Using `hasattr(x, '__call__')` to test if `x` is callable is unreliable. If `x` implements custom `__getattr__` or its `__call__` is itself not callable, you might get misleading results. Use `callable(x)` for consistent results.
+./ddtrace/contrib/dogpile_cache/patch.py:27:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/dogpile_cache/patch.py:39:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/futures/patch.py:21:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/futures/patch.py:40:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/mako/patch.py:22:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/mako/patch.py:34:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/mariadb/patch.py:29:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/mariadb/patch.py:35:9: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/aiohttp_jinja2/patch.py:53:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/aiohttp_jinja2/patch.py:68:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/kombu/patch.py:53:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/kombu/patch.py:81:9: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/pytest/plugin.py:75:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/pytest/plugin.py:80:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/pytest/plugin.py:104:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/pytest/plugin.py:111:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/pytest/plugin.py:123:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/rediscluster/patch.py:46:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/rediscluster/patch.py:63:9: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/grpc/patch.py:100:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/grpc/patch.py:112:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/grpc/patch.py:123:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/grpc/patch.py:137:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/grpc/patch.py:150:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/grpc/patch.py:160:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/grpc/patch.py:170:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/grpc/patch.py:182:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/aiobotocore/patch.py:62:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/aiobotocore/patch.py:70:9: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/langchain/patch.py:730:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/langchain/patch.py:743:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/langchain/patch.py:789:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/asyncpg/patch.py:141:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/asyncpg/patch.py:160:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/redis/patch.py:35:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/redis/patch.py:86:9: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/aiomysql/patch.py:150:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/aiomysql/patch.py:156:9: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/mysqldb/patch.py:46:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/mysqldb/patch.py:62:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/jinja2/patch.py:32:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/jinja2/patch.py:46:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/gevent/patch.py:30:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/gevent/patch.py:44:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/starlette/patch.py:71:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/starlette/patch.py:86:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/pynamodb/patch.py:41:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/pynamodb/patch.py:49:9: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/snowflake/patch.py:47:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/snowflake/patch.py:62:9: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/sqlalchemy/patch.py:12:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/sqlalchemy/patch.py:22:9: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/httplib/patch.py:14:1: I001 isort found an import in the wrong position
+./ddtrace/contrib/httplib/patch.py:91:9: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/httplib/patch.py:136:13: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/httplib/patch.py:207:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/httplib/patch.py:210:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/httplib/patch.py:211:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/httplib/patch.py:216:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/httplib/patch.py:217:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/httplib/patch.py:220:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/httplib/patch.py:229:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/pymongo/patch.py:36:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/pymongo/patch.py:41:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/pymongo/patch.py:47:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/pymongo/patch.py:59:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/botocore/patch.py:433:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/botocore/patch.py:445:9: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/requests/patch.py:31:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/requests/patch.py:41:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/molten/patch.py:48:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/molten/patch.py:62:9: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/tornado/patch.py:34:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/tornado/patch.py:60:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/pylons/patch.py:28:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/pylons/patch.py:36:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/pylons/renderer.py:20:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/subprocess/patch.py:70:9: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/subprocess/patch.py:71:9: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/subprocess/patch.py:332:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/subprocess/patch.py:333:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/httpx/patch.py:176:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/httpx/patch.py:197:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/pytest_bdd/plugin.py:25:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/mongoengine/patch.py:11:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/mongoengine/patch.py:15:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/consul/patch.py:28:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/consul/patch.py:40:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/aiopg/patch.py:21:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/aiopg/patch.py:29:9: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/kafka/patch.py:76:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/kafka/patch.py:90:9: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/cassandra/session.py:50:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/cassandra/session.py:62:9: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/cassandra/session.py:155:9: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/cassandra/session.py:156:9: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/cassandra/session.py:161:9: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/cassandra/session.py:250:26: B009 Do not call getattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/graphql/patch.py:47:34: B009 Do not call getattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/graphql/patch.py:71:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/graphql/patch.py:85:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/sqlite3/patch.py:36:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/sqlite3/patch.py:37:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/pyodbc/patch.py:29:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/pyodbc/patch.py:35:9: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/aioredis/patch.py:50:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/aioredis/patch.py:68:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/fastapi/patch.py:71:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/fastapi/patch.py:88:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/pylibmc/patch.py:11:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/pylibmc/patch.py:15:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/sanic/patch.py:123:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/sanic/patch.py:151:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/yaaredis/patch.py:30:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/yaaredis/patch.py:43:9: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/aredis/patch.py:30:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/aredis/patch.py:43:9: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/psycopg/patch.py:100:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/psycopg/patch.py:133:9: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/psycopg/patch.py:147:13: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/psycopg/patch.py:148:13: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/psycopg/patch.py:171:20: B009 Do not call getattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/psycopg/patch.py:193:89: B026 Star-arg unpacking after a keyword argument is strongly discouraged, because it only works when the keyword parameter is declared after all parameters supplied by the unpacked sequence, and this change of ordering can surprise and mislead readers.
+./ddtrace/contrib/urllib3/patch.py:45:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/urllib3/patch.py:54:9: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/pymemcache/patch.py:23:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/pymemcache/patch.py:24:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/pymemcache/patch.py:25:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/pymemcache/patch.py:26:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/pymemcache/patch.py:37:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/pymemcache/patch.py:38:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/pymemcache/patch.py:39:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/pymemcache/patch.py:40:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/celery/app.py:28:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/celery/app.py:61:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/aws_lambda/patch.py:164:27: B004 Using `hasattr(x, '__call__')` to test if `x` is callable is unreliable. If `x` implements custom `__getattr__` or its `__call__` is itself not callable, you might get misleading results. Use `callable(x)` for consistent results.
+./ddtrace/contrib/aws_lambda/patch.py:164:27: B009 Do not call getattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/aws_lambda/patch.py:189:29: B004 Using `hasattr(x, '__call__')` to test if `x` is callable is unreliable. If `x` implements custom `__getattr__` or its `__call__` is itself not callable, you might get misleading results. Use `callable(x)` for consistent results.
+./ddtrace/contrib/aws_lambda/patch.py:189:29: B009 Do not call getattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/aws_lambda/patch.py:238:9: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/aws_lambda/patch.py:261:9: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/django/patch.py:535:25: B012 return/continue/break inside finally blocks cause exceptions to be silenced. Exceptions should be silenced in except blocks. Control statements can be moved outside the finally block.
+./ddtrace/contrib/django/patch.py:938:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/django/patch.py:968:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/falcon/patch.py:33:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/asyncio/patch.py:17:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/asyncio/patch.py:32:9: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/logging/patch.py:122:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/logging/patch.py:134:9: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/rq/__init__.py:254:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/rq/__init__.py:278:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/bottle/patch.py:26:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/elasticsearch/patch.py:67:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/elasticsearch/patch.py:79:9: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/openai/patch.py:320:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.
+./ddtrace/contrib/openai/patch.py:394:21: B012 return/continue/break inside finally blocks cause exceptions to be silenced. Exceptions should be silenced in except blocks. Control statements can be moved outside the finally block.
+./ddtrace/contrib/openai/patch.py:420:21: B012 return/continue/break inside finally blocks cause exceptions to be silenced. Exceptions should be silenced in except blocks. Control statements can be moved outside the finally block.
+./ddtrace/appsec/iast/_patch.py:77:56: B006 Do not use mutable data structures for argument defaults.  They are created during function definition time. All calls to the function reuse this one instance of that data structure, persisting changes between them.
+./ddtrace/opentracer/utils.py:51:5: B010 Do not call setattr with a constant attribute value, it is not any safer than normal property access.

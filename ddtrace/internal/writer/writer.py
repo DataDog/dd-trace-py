@@ -182,12 +182,12 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         clients,  # type: List[WriterClientBase]
         sampler=None,  # type: Optional[BaseSampler]
         priority_sampler=None,  # type: Optional[BasePrioritySampler]
-        processing_interval=get_writer_interval_seconds(),  # type: float
+        processing_interval=None,  # type: float
         # Match the payload size since there is no functionality
         # to flush dynamically.
         buffer_size=None,  # type: Optional[int]
         max_payload_size=None,  # type: Optional[int]
-        timeout=agent.get_trace_agent_timeout(),  # type: float
+        timeout=None,  # type: Optional[float]
         dogstatsd=None,  # type: Optional[DogStatsd]
         sync_mode=False,  # type: bool
         reuse_connections=None,  # type: Optional[bool]
@@ -195,6 +195,10 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
     ):
         # type: (...) -> None
 
+        if processing_interval is None:
+            processing_interval = get_writer_interval_seconds()
+        if timeout is None:
+            timeout = agent.get_trace_agent_timeout()
         super(HTTPWriter, self).__init__(interval=processing_interval)
         self.intake_url = intake_url
         self._buffer_size = buffer_size
@@ -495,12 +499,12 @@ class AgentWriter(HTTPWriter):
         agent_url,  # type: str
         sampler=None,  # type: Optional[BaseSampler]
         priority_sampler=None,  # type: Optional[BasePrioritySampler]
-        processing_interval=get_writer_interval_seconds(),  # type: float
+        processing_interval=None,  # type: Optional[float]
         # Match the payload size since there is no functionality
         # to flush dynamically.
         buffer_size=None,  # type: Optional[int]
         max_payload_size=None,  # type: Optional[int]
-        timeout=agent.get_trace_agent_timeout(),  # type: float
+        timeout=None,  # type: Optional[float]
         dogstatsd=None,  # type: Optional[DogStatsd]
         report_metrics=False,  # type: bool
         sync_mode=False,  # type: bool
@@ -508,6 +512,10 @@ class AgentWriter(HTTPWriter):
         reuse_connections=None,  # type: Optional[bool]
         headers=None,  # type: Optional[Dict[str, str]]
     ):
+        if processing_interval is None:
+            processing_interval = get_writer_interval_seconds()
+        if timeout is None:
+            timeout = agent.get_trace_agent_timeout()
         # type: (...) -> None
         if buffer_size is not None and buffer_size <= 0:
             raise ValueError("Writer buffer size must be positive")
