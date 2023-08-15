@@ -2,8 +2,6 @@ import os
 from typing import TYPE_CHECKING
 from typing import cast
 
-import six
-
 from ddtrace import tracer
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec.iast import oce
@@ -18,6 +16,7 @@ from ddtrace.appsec.iast.reporter import Location
 from ddtrace.appsec.iast.reporter import Source
 from ddtrace.appsec.iast.reporter import Vulnerability
 from ddtrace.internal import core
+from ddtrace.internal.compat import iteritems
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.cache import LFUCache
 from ddtrace.settings import _config
@@ -215,7 +214,7 @@ class VulnerabilityBase(Operation):
             return report
 
         all_tokens = set()  # type: Set[str]
-        for _, value_dict in six.iteritems(vulns_to_tokens):
+        for _, value_dict in iteritems(vulns_to_tokens):
             all_tokens.update(value_dict["tokens"])
 
         # Iterate over all the sources, if one of the tokens match it, redact it
