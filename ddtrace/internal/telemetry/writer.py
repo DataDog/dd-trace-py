@@ -49,6 +49,7 @@ from .constants import TELEMETRY_PROFILING_ENABLED
 from .constants import TELEMETRY_PROPAGATION_STYLE_EXTRACT
 from .constants import TELEMETRY_PROPAGATION_STYLE_INJECT
 from .constants import TELEMETRY_RUNTIMEMETRICS_ENABLED
+from .constants import TELEMETRY_SERVICE_MAPPING
 from .constants import TELEMETRY_SPAN_SAMPLING_RULES
 from .constants import TELEMETRY_SPAN_SAMPLING_RULES_FILE
 from .constants import TELEMETRY_TRACE_COMPUTE_STATS
@@ -326,12 +327,9 @@ class TelemetryWriter(PeriodicService):
                 (TELEMETRY_SPAN_SAMPLING_RULES_FILE, config._sampling_rules_file, "unknown"),
                 (TELEMETRY_TRACE_SPAN_ATTRIBUTE_SCHEMA, SCHEMA_VERSION, "unknown"),
                 (TELEMETRY_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED, _remove_client_service_names, "unknown"),
-                (
-                    TELEMETRY_TRACE_PEER_SERVICE_DEFAULTS_ENABLED,
-                    os.getenv("DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED", default=False),
-                    "unknown"
-                ),
-                (TELEMETRY_TRACE_PEER_SERVICE_MAPPING, os.getenv("DD_TRACE_PEER_SERVICE_MAPPING", default=""), "unknown"),
+                (TELEMETRY_TRACE_PEER_SERVICE_DEFAULTS_ENABLED, _ps_config.set_defaults_enabled,"unknown"),
+                (TELEMETRY_TRACE_PEER_SERVICE_MAPPING, _ps_config._unparsed_peer_service_mapping, "unknown"),
+                (TELEMETRY_SERVICE_MAPPING, config.service_mapping, "unknown"),
             ]
         )
 

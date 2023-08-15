@@ -79,6 +79,7 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
             {"name": "DD_LOGS_INJECTION", "origin": "unknown", "value": False},
             {"name": "DD_PROFILING_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_RUNTIME_METRICS_ENABLED", "origin": "unknown", "value": False},
+            {"name": "DD_SERVICE_MAPPING", "origin": "unknown", "value": ""},
             {"name": "DD_SPAN_SAMPLING_RULES", "origin": "unknown", "value": None},
             {"name": "DD_SPAN_SAMPLING_RULES_FILE", "origin": "unknown", "value": None},
             {"name": "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", "origin": "unknown", "value": False},
@@ -149,6 +150,7 @@ telemetry_writer.disable()
     env["DD_CALL_BASIC_CONFIG"] = "True"
     env["DD_PROFILING_ENABLED"] = "True"
     env["DD_RUNTIME_METRICS_ENABLED"] = "True"
+    env["DD_SERVICE_MAPPING"] = "default_dd_service:remapped_dd_service"
     env["DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED"] = "True"
     env["DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED"] = "True"
     env["DD_TRACE_ANALYTICS_ENABLED"] = "True"
@@ -194,6 +196,7 @@ telemetry_writer.disable()
         {"name": "DD_LOGS_INJECTION", "origin": "unknown", "value": True},
         {"name": "DD_PROFILING_ENABLED", "origin": "unknown", "value": True},
         {"name": "DD_RUNTIME_METRICS_ENABLED", "origin": "unknown", "value": True},
+        {"name": "DD_SERVICE_MAPPING", "origin": "unknown", "value": 'default_dd_service:remapped_dd_service'},
         {"name": "DD_SPAN_SAMPLING_RULES", "origin": "unknown", "value": '[{"service":"xyz", "sample_rate":0.23}]'},
         {"name": "DD_SPAN_SAMPLING_RULES_FILE", "origin": "unknown", "value": str(file)},
         {"name": "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", "origin": "unknown", "value": True},
