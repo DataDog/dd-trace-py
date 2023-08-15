@@ -31,3 +31,5 @@ class PeerServiceConfig(object):
             self._peer_service_mapping = parse_tags_str(os.getenv("DD_TRACE_PEER_SERVICE_MAPPING", default=""))
 
         return self._peer_service_mapping
+
+_ps_config = PeerServiceConfig()
