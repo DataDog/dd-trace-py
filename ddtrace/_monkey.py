@@ -163,8 +163,11 @@ def _on_import_factory(module, prefix="ddtrace.contrib", raise_errors=True, patc
                 "tracers", "integration_errors", 1, (("integration_name", module), ("error_type", type(e).__name__))
             )
         else:
+            version = ""
+            if hasattr(imported_module, "get_version"):
+                version = imported_module.get_version()
             imported_module.patch()
-            telemetry_writer.add_integration(module, True, PATCH_MODULES.get(module) is True, "")
+            telemetry_writer.add_integration(module, True, PATCH_MODULES.get(module) is True, "", version=version)
             if hasattr(imported_module, "patch_submodules"):
                 imported_module.patch_submodules(patch_indicator)
 

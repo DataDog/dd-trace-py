@@ -55,6 +55,9 @@ config._add(
     },
 )
 
+def get_version():
+    return aiobotocore_version_str
+
 
 def patch():
     if getattr(aiobotocore.client, "_datadog_patch", False):

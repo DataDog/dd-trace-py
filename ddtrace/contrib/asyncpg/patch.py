@@ -43,6 +43,13 @@ config._add(
 
 log = get_logger(__name__)
 
+def get_version():
+    import asyncpg
+
+    return asyncpg.__version__
+
+
+
 
 def _get_connection_tags(conn):
     # type: (asyncpg.Connection) -> Dict[str, str]

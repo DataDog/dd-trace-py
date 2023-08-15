@@ -88,9 +88,11 @@ with require_modules(required_modules) as missing_modules:
         from .middlewares import trace_app
         from .patch import patch
         from .patch import unpatch
+        from .patch import get_version
 
         __all__ = [
             "patch",
             "unpatch",
             "trace_app",
+            "get_version"
         ]
