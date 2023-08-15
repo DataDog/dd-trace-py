@@ -22,5 +22,5 @@ pytest==6.1.2
 six==1.16.0
 sortedcontainers==2.4.0
 toml==0.10.2
-tornado==5.1.1
+tornado==6.3.3
 zipp==1.2.0

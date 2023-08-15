@@ -33,7 +33,7 @@ singledispatch==3.7.0
 six==1.16.0
 sortedcontainers==2.4.0
 toml==0.10.2
-tornado==4.5.3
+tornado==6.3.3
 typing==3.10.0.0
 wcwidth==0.2.6
 zipp==1.2.0

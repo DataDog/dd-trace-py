@@ -20,6 +20,6 @@ pytest-cov==4.0.0
 pytest-mock==3.6.1
 sortedcontainers==2.4.0
 tomli==1.2.3
-tornado==4.5.3
+tornado==6.3.3
 typing-extensions==4.1.1
 zipp==3.6.0
