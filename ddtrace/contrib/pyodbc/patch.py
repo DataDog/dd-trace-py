@@ -23,6 +23,10 @@ config._add(
 )
 
 
+def get_version():
+    return getattr(pyodbc, "__version__", "0.0.0")
+
+
 def patch():
     if getattr(pyodbc, "_datadog_patch", False):
         return

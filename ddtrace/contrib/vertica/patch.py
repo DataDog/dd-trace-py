@@ -118,6 +118,12 @@ config._add(
 )
 
 
+def get_version():
+    from importlib import metadata
+
+    return metadata.version("vertica-python")
+
+
 def patch():
     global _PATCHED
     if _PATCHED:

@@ -24,6 +24,10 @@ config._add(
 )
 
 
+def get_version():
+    return getattr(redis, "__version__", "0.0.0")
+
+
 def patch():
     """Patch the instrumented methods
 

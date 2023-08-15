@@ -29,5 +29,6 @@ with require_modules(required_modules) as missing_modules:
         from .engine import trace_engine
         from .patch import patch
         from .patch import unpatch
+        from .patch import get_version
 
-        __all__ = ["trace_engine", "patch", "unpatch"]
+        __all__ = ["trace_engine", "patch", "unpatch", "get_version"]

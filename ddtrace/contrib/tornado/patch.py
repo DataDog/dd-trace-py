@@ -23,6 +23,10 @@ config._add(
 )
 
 
+def get_version():
+    return getattr(tornado, "version", "0.0.0")
+
+
 def patch():
     """
     Tracing function that patches the Tornado web application so that it will be

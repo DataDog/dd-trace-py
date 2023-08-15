@@ -24,6 +24,12 @@ config._add(
 DD_PATCH = "_datadog_patch"
 
 
+def get_version():
+    import pyramid
+
+    return getattr(pyramid, "__version__", "0.0.0")
+
+
 def patch():
     """
     Patch pyramid.config.Configurator

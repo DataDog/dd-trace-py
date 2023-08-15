@@ -23,6 +23,10 @@ config._add(
 )
 
 
+def get_version():
+    return getattr(yaaredis, "__version__", "0.0.0")
+
+
 def patch():
     """Patch the instrumented methods"""
     if getattr(yaaredis, "_datadog_patch", False):

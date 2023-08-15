@@ -51,10 +51,12 @@ with require_modules(required_modules) as missing_modules:
         from .trace import includeme
         from .trace import trace_pyramid
         from .trace import trace_tween_factory
+        from .patch import get_version
 
         __all__ = [
             "patch",
             "trace_pyramid",
             "trace_tween_factory",
             "includeme",
+            "get_version"
         ]

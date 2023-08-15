@@ -24,6 +24,11 @@ config._add(
     ),
 )
 
+
+def get_version():
+    return getattr(pymysql, "__version__", "0.0.0")
+
+
 CONN_ATTR_BY_TAG = {
     net.TARGET_HOST: "host",
     net.TARGET_PORT: "port",

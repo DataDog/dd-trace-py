@@ -35,6 +35,10 @@ config._add(
 )
 
 
+def get_version():
+    return getattr(pynamodb, "__version__", "0.0.0")
+
+
 def patch():
     if getattr(pynamodb.connection.base, "_datadog_patch", False):
         return

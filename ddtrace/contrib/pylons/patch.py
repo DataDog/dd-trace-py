@@ -20,6 +20,12 @@ config._add(
 )
 
 
+def get_version():
+    import pylons 
+
+    return getattr(pylons, "__version__", "0.0.0")
+
+
 def patch():
     """Instrument Pylons applications"""
     if getattr(pylons.wsgiapp, "_datadog_patch", False):

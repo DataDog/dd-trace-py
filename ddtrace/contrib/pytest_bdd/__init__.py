@@ -32,3 +32,9 @@ config._add(
         _default_service="pytest_bdd",
     ),
 )
+
+
+def get_version():
+  from importlib import metadata
+
+  return metadata.version("pytest-bdd")

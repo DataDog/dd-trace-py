@@ -97,6 +97,7 @@ from ...propagation.http import HTTPPropagator
 __all__ = [
     "patch",
     "unpatch",
+    "get_version"
 ]
 
 
@@ -115,6 +116,12 @@ config._add(
         _default_service=schematize_service_name("rq-worker"),
     ),
 )
+
+
+def get_version():
+    import rq
+
+    return getattr(rq, "__version__", "0.0.0")
 
 
 @trace_utils.with_traced_module

@@ -30,6 +30,10 @@ config._add(
 )
 
 
+def get_version():
+    return getattr(sqlite3, "__version__", "0.0.0")
+
+
 def patch():
     wrapped = wrapt.FunctionWrapper(_connect, traced_connect)
 

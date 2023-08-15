@@ -6,6 +6,10 @@ from ..trace_utils import unwrap
 from .engine import _wrap_create_engine
 
 
+def get_version():
+    return getattr(sqlalchemy, "__version__", "0.0.0")
+
+
 def patch():
     if getattr(sqlalchemy.engine, "__datadog_patch", False):
         return

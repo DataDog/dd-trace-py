@@ -54,6 +54,7 @@ To configure the integration on an per-connection basis use the
     cursor.execute("select * from users where id = 1")
 """
 from .patch import patch
+from .patch import get_version
 
 
-__all__ = ["patch"]
+__all__ = ["patch", "get_version"]

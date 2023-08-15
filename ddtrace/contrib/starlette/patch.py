@@ -35,6 +35,10 @@ config._add(
 )
 
 
+def get_version():
+    return getattr(starlette, "__version__", "0.0.0")
+
+
 @removals.remove(removal_version="2.0.0", category=DDTraceDeprecationWarning)
 def get_resource(scope):
     path = None

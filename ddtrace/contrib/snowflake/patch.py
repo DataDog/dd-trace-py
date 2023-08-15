@@ -28,6 +28,12 @@ config._add(
 )
 
 
+def get_version():
+    from importlib import metadata
+
+    return metadata.version("snowflake")
+
+
 class _SFTracedCursor(TracedCursor):
     def _set_post_execute_tags(self, span):
         super(_SFTracedCursor, self)._set_post_execute_tags(span)
