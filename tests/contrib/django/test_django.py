@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 import itertools
-from ddtrace.contrib import trace_utils
-from ddtrace.contrib.django.patch import traced_get_response
 import os
 import subprocess
 
@@ -46,7 +44,6 @@ from tests.utils import override_config
 from tests.utils import override_env
 from tests.utils import override_global_config
 from tests.utils import override_http_config
-from tests.utils import snapshot
 
 
 @pytest.mark.skipif(django.VERSION < (2, 0, 0), reason="")
