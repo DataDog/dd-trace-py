@@ -19,6 +19,7 @@ SERVICE_NAME = schematize_service_name("algoliasearch")
 APP_NAME = "algoliasearch"
 
 try:
+    VERSION = "0.0.0"
     import algoliasearch
     from algoliasearch.version import VERSION
 
@@ -28,6 +29,10 @@ try:
     config._add("algoliasearch", dict(_default_service=SERVICE_NAME, collect_query_text=False))
 except ImportError:
     algoliasearch_version = (0, 0)
+
+
+def get_version():
+    return VERSION
 
 
 def patch():

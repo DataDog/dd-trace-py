@@ -15,6 +15,12 @@ config._add(
 )
 
 
+def get_version():
+    import aiohttp_jinja2
+
+    return getattr(aiohttp_jinja2, "__version__", "0.0.0")
+
+
 @with_traced_module
 def traced_render_template(aiohttp_jinja2, pin, func, instance, args, kwargs):
     # original signature:

@@ -18,6 +18,10 @@ config._add(
 )
 
 
+def get_version():
+    return getattr(bottle, "__version__", "0.0.0")
+
+
 def patch():
     """Patch the bottle.Bottle class"""
     if getattr(bottle, "_datadog_patch", False):

@@ -56,6 +56,12 @@ config._add(
 )
 
 
+def get_version():
+    from boto import __version__
+    
+    return __version__
+
+
 def patch():
     if getattr(boto.connection, "_datadog_patch", False):
         return

@@ -43,12 +43,11 @@ config._add(
 
 log = get_logger(__name__)
 
+
 def get_version():
     import asyncpg
 
-    return asyncpg.__version__
-
-
+    return getattr(asyncpg, "__version__", "0.0.0")
 
 
 def _get_connection_tags(conn):

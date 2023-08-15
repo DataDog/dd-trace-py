@@ -12,6 +12,10 @@ from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.vendor import wrapt
 
 
+def get_version():
+    return getattr(aiopg, "__version__", "0.0.0")
+
+
 def patch():
     """Patch monkey patches psycopg's connection function
     so that the connection's functions are traced.

@@ -22,6 +22,10 @@ config._add(
 )
 
 
+def get_version():  
+    return getattr(celery, "__version__", "0.0.0")
+
+
 def patch():
     """Instrument Celery base application and the `TaskRegistry` so
     that any new registered task is automatically instrumented. In the

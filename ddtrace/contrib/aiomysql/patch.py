@@ -24,6 +24,11 @@ config._add(
     dict(_default_service=schematize_service_name("mysql")),
 )
 
+
+def get_version():
+    return getattr(aiomysql, "__version__", "0.0.0")
+
+
 CONN_ATTR_BY_TAG = {
     net.TARGET_HOST: "host",
     net.TARGET_PORT: "port",

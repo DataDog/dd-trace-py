@@ -44,6 +44,10 @@ aioredis_version_str = getattr(aioredis, "__version__", "0.0.0")
 aioredis_version = tuple([int(i) for i in aioredis_version_str.split(".")])
 
 
+def get_version():
+    return aioredis_version_str
+
+
 def patch():
     if getattr(aioredis, "_datadog_patch", False):
         return

@@ -45,6 +45,12 @@ PAGE_NUMBER = "_ddtrace_page_number"
 _connect = cassandra_cluster.Cluster.connect
 
 
+def get_version():
+    from cassandra import __version__
+    
+    return __version__
+
+
 def patch():
     """patch will add tracing to the cassandra library."""
     setattr(cassandra_cluster.Cluster, "connect", wrapt.FunctionWrapper(_connect, traced_connect))
