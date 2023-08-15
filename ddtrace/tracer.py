@@ -35,6 +35,7 @@ from .internal import compat
 from .internal import debug
 from .internal import forksafe
 from .internal import hostname
+from .internal.atexit import register_on_exit_signal
 from .internal.constants import SPAN_API_DATADOG
 from .internal.dogstatsd import get_dogstatsd_client
 from .internal.logger import get_logger
@@ -302,6 +303,7 @@ class Tracer(object):
         self._hooks = _hooks.Hooks()
         atexit.register(self._atexit)
         forksafe.register(self._child_after_fork)
+        register_on_exit_signal(self._atexit)
 
         self._shutdown_lock = RLock()
 
@@ -1048,6 +1050,14 @@ class Tracer(object):
         """
         with self._shutdown_lock:
             # Thread safety: Ensures tracer is shutdown synchronously
+            try:
+                # Data streams tries to flush data on shutdown.
+                # Adding a try except here to ensure we don't crash the application if the agent is killed before
+                # the application for example.
+                self.data_streams_processor.shutdown(timeout)
+            except Exception as e:
+                if config._data_streams_enabled:
+                    log.warning("Failed to shutdown data streams processor: %s", repr(e))
             span_processors = self._span_processors
             deferred_processors = self._deferred_processors
             self._span_processors = []
@@ -1055,11 +1065,6 @@ class Tracer(object):
             for processor in chain(span_processors, SpanProcessor.__processors__, deferred_processors):
                 if hasattr(processor, "shutdown"):
                     processor.shutdown(timeout)
-            try:
-                self.data_streams_processor.shutdown(timeout)
-            except Exception as e:
-                if config._data_streams_enabled:
-                    log.warning("Failed to shutdown data streams processor: %s", repr(e))
 
             atexit.unregister(self._atexit)
             forksafe.unregister(self._child_after_fork)
