@@ -996,7 +996,7 @@ def snapshot_context(token, ignores=None, tracer=None, async_mode=True, variants
         # Wait for the traces to be available
         if wait_for_num_traces is not None:
             traces = []
-            for i in range(50):
+            for _ in range(50):
                 try:
                     conn.request("GET", "/test/session/traces?test_session_token=%s" % token)
                     r = conn.getresponse()

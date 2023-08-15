@@ -28,7 +28,7 @@ class TestRuntimeMetricCollector(BaseTestCase):
 class TestPSUtilRuntimeMetricCollector(BaseTestCase):
     def test_metrics(self):
         collector = PSUtilRuntimeMetricCollector()
-        for (key, value) in collector.collect(PSUTIL_RUNTIME_METRICS):
+        for (_, value) in collector.collect(PSUTIL_RUNTIME_METRICS):
             self.assertIsNotNone(value)
 
     def test_static_metrics(self):
@@ -124,7 +124,7 @@ class TestPSUtilRuntimeMetricCollector(BaseTestCase):
 class TestGCRuntimeMetricCollector(BaseTestCase):
     def test_metrics(self):
         collector = GCRuntimeMetricCollector()
-        for (key, value) in collector.collect(GC_RUNTIME_METRICS):
+        for (_, value) in collector.collect(GC_RUNTIME_METRICS):
             self.assertIsNotNone(value)
 
     def test_gen1_changes(self):

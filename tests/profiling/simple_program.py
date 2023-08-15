@@ -25,7 +25,7 @@ while time.time() - t0 < (running_collector.interval * 10):
     pass
 
 # Do some serious memory allocations!
-for x in range(5000000):
+for _ in range(5000000):
     object()
 
 print(len(running_collector.recorder.events[stack_event.StackSampleEvent]))

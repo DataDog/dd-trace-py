@@ -365,7 +365,7 @@ def test_stress_threads():
     NB_THREADS = 40
 
     threads = []
-    for i in range(NB_THREADS):
+    for _ in range(NB_THREADS):
         t = threading.Thread(target=_f0)  # noqa: E149,F821
         t.start()
         threads.append(t)
@@ -394,7 +394,7 @@ def test_stress_threads_run_as_thread():
     NB_THREADS = 40
 
     threads = []
-    for i in range(NB_THREADS):
+    for _ in range(NB_THREADS):
         t = threading.Thread(target=_f0)  # noqa: E149,F821
         t.start()
         threads.append(t)
@@ -414,7 +414,7 @@ def test_exception_collection_threads():
     NB_THREADS = 5
 
     threads = []
-    for i in range(NB_THREADS):
+    for _ in range(NB_THREADS):
         t = threading.Thread(target=_f0)  # noqa: E149,F821
         t.start()
         threads.append(t)
@@ -640,7 +640,7 @@ def test_stress_trace_collection(tracer_and_collector):
     NB_THREADS = 30
 
     threads = []
-    for i in range(NB_THREADS):
+    for _ in range(NB_THREADS):
         t = threading.Thread(target=_trace)
         threads.append(t)
 
@@ -745,7 +745,7 @@ def test_collect_gevent_threads():
         if event.task_name == "MainThread":
             main_thread_found = True
         elif event.task_id in {t.ident for t in threads}:
-            for filename, lineno, funcname, classname in event.frames:
+            for _filename, _lineno, funcname, _classname in event.frames:
                 if funcname in (
                     "_nothing",
                     "sleep",

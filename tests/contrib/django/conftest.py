@@ -2,6 +2,8 @@ import os
 
 import django
 from django.conf import settings
+import mock
+import os
 import pytest
 
 from ddtrace import Pin
@@ -22,6 +24,7 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "tests.contrib.django.{0}.settin
 # `pytest` automatically calls this function once when tests are run.
 def pytest_configure():
     settings.DEBUG = False
+
     patch()
     django.setup()
 
@@ -49,3 +52,17 @@ def test_spans(tracer):
     container = TracerSpanContainer(tracer)
     yield container
     container.reset()
+
+def setup_timeout_hook():
+    mock.patch('django.core.handlers.base.BaseHandler.get_response', return_value=None)
+    mock.patch('django.test.client.ClientHandler.get_response', return_value=None)
+
+_django_hook_map = {
+    "timeout": setup_timeout_hook
+}
+if os.environ.get("DJANGO_PREPATCH_HOOK"):
+    value = os.environ.get("DJANGO_PREPATCH_HOOK")
+    hook = _django_hook_map[value]
+    hook()
+    with open("/tmp/test.txt", "w+") as f:
+        f.write(value + "\n")

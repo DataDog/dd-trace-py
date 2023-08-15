@@ -22,7 +22,7 @@ def traced_function(tracer):
         m.update(b"Nobody inspects")
         m.update(b" the spammish repetition")
         num_vulnerabilities = 10
-        for i in range(0, num_vulnerabilities):
+        for _ in range(0, num_vulnerabilities):
             m.digest()
     return span
 

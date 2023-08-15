@@ -134,7 +134,7 @@ def test_global_tags(ddtrace_config_langchain, langchain, request_vcr, mock_metr
 
     assert mock_logs.enqueue.call_count == 1
     assert mock_metrics.mock_calls
-    for _, args, kwargs in mock_metrics.mock_calls:
+    for _, _args, kwargs in mock_metrics.mock_calls:
         expected_metrics = [
             "service:test-svc",
             "env:staging",
@@ -148,7 +148,7 @@ def test_global_tags(ddtrace_config_langchain, langchain, request_vcr, mock_metr
         for m in expected_metrics:
             assert m in actual_tags
 
-    for call, args, kwargs in mock_logs.mock_calls:
+    for call, args, _kwargs in mock_logs.mock_calls:
         if call != "enqueue":
             continue
         log = args[0]

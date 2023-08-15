@@ -30,7 +30,7 @@ def _inject_hook(code, hook, lineno, arg):
     identifier for the hook itself. This should be kept in case the hook needs
     to be removed.
     """
-    for i, instr in enumerate(code):
+    for _, instr in enumerate(code):
         try:
             if instr.lineno == lineno:
                 # gotcha!

@@ -1435,7 +1435,7 @@ def test_multithreaded(tracer, test_spans):
             with tracer.trace("s3"):
                 pass
 
-    for i in range(1000):
+    for _ in range(1000):
         ts = [threading.Thread(target=target) for _ in range(10)]
         for t in ts:
             t.start()

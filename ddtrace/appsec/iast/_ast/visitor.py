@@ -107,7 +107,7 @@ class AstVisitor(ast.NodeTransformer):
         self.excluded_functions = self._aspects_spec["excluded_from_patching"].get(self.module_name, {})
 
         self.dont_patch_these_functionsdefs = set()
-        for k, v in iteritems(self.excluded_functions):
+        for _, v in iteritems(self.excluded_functions):
             if v:
                 for i in v:
                     self.dont_patch_these_functionsdefs.add(i)
