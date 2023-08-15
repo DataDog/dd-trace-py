@@ -1,9 +1,10 @@
 import typing
 
-# (filename, line number, function name)
-FrameType = typing.Tuple[str, int, str]
+from .. import event
 
-StackType = typing.Tuple[FrameType, ...]
+# (filename, line number, function name)
+FrameType = event.DDFrame
+StackType = event.StackTraceType
 
 # (stack, nframe, thread_id)
 TracebackType = typing.Tuple[StackType, int, int]
