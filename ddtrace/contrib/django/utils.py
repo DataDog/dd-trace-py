@@ -329,6 +329,9 @@ def _after_request_tags(pin, span, request, response):
             except Exception:
                 log.debug("Error retrieving authentication information for user", exc_info=True)
 
+        # DEV: Resolve the view and resource name at the end of the request in case
+        #      urlconf changes at any point during the request
+        _set_resolver_tags(pin, span, request)
         if response:
             status = response.status_code
             span.set_tag_str("django.response.class", func_name(response))
@@ -361,9 +364,6 @@ def _after_request_tags(pin, span, request, response):
 
             url = get_request_uri(request)
 
-            # DEV: Resolve the view and resource name at the end of the request in case
-            #      urlconf changes at any point during the request
-            _set_resolver_tags(pin, span, request)
 
             request_headers = None
             if config._appsec_enabled:

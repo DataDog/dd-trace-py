@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 import itertools
+from ddtrace.contrib import trace_utils
+from ddtrace.contrib.django.patch import traced_get_response
 import os
 import subprocess
 
@@ -23,7 +25,9 @@ from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
+from ddtrace.contrib import trace_utils
 from ddtrace.contrib.django.patch import instrument_view
+from ddtrace.contrib.django.patch import traced_get_response
 from ddtrace.contrib.django.utils import get_request_uri
 from ddtrace.ext import http
 from ddtrace.ext import user
@@ -42,6 +46,7 @@ from tests.utils import override_config
 from tests.utils import override_env
 from tests.utils import override_global_config
 from tests.utils import override_http_config
+from tests.utils import snapshot
 
 
 @pytest.mark.skipif(django.VERSION < (2, 0, 0), reason="")
@@ -2398,3 +2403,20 @@ def test_django_get_user(client, test_spans):
     assert root.get_tag(user.NAME) == "usr.name"
     assert root.get_tag(user.ROLE) == "usr.role"
     assert root.get_tag(user.SCOPE) == "usr.scope"
+
+def test_django_base_handler_failure(client, test_spans):
+    """
+    This tests the failure mode seen with Gunicorn during timeouts, where the Django
+    Handler is terminated after <x> seconds and no response is returned by
+    django.core.handler.base.BaseHandler.get_response.  We expect to populate the resource
+    with "GET <resource>" instead of what we did before this test "GET"
+    """
+    trace_utils.unwrap(client.handler, "get_response")
+    with mock.patch.object(client.handler, 'get_response', side_effect=Exception("test")):
+        trace_utils.wrap(client.handler, "get_response", traced_get_response(django))
+        try:
+            client.get("/")
+        except Exception:
+            pass  # We expect an error
+        root = test_spans.get_root_span()
+        assert root.resource == "GET ^$"
