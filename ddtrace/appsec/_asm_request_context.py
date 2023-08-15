@@ -135,8 +135,9 @@ class _DataHandler:
             if env is not None:
                 callbacks += env.callbacks.get(_CONTEXT_CALL)
             if callbacks:
-                for function in callbacks:
-                    function(env)
+                if env is not None:
+                    for function in callbacks:
+                        function(env)
                 self.execution_context.end()
             self.active = False
 
