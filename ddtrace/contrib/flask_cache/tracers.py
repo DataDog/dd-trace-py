@@ -33,6 +33,15 @@ CACHE_BACKEND = "flask_cache.backend"
 CONTACT_POINTS = "flask_cache.contact_points"
 
 
+def get_version():
+    try:
+        import flask_caching
+
+        return getattr(flask_caching, "__version__", "0.0.0")
+    except ImportError:
+        return ""
+
+
 def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None, cache_cls=None):
     """
     Return a traced Cache object that behaves exactly as ``cache_cls``.

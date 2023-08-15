@@ -50,6 +50,7 @@ Example::
     config.elasticsearch['service'] = 'custom-service-name'
 """
 from .patch import patch
+from .patch import get_version
 
 
-__all__ = ["patch"]
+__all__ = ["patch", "get_version"]

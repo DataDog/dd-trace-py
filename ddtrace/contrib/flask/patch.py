@@ -71,6 +71,10 @@ config._add(
 )
 
 
+def get_version():
+    return getattr(flask, "__version__", "0.0.0")
+
+
 if _HAS_JSON_MIXIN:
 
     class RequestWithJson(werkzeug.Request, JSONMixin):
