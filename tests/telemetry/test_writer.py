@@ -110,6 +110,7 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
             {"name": "DD_TRACE_RATE_LIMIT", "origin": "unknown", "value": 100},
             {"name": "DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_TRACE_SAMPLE_RATE", "origin": "unknown", "value": None},
+            {"name": "DD_TRACE_SAMPLING_RULES", "origin": "unknown", "value": None},
             {"name": "DD_TRACE_SPAN_ATTRIBUTE_SCHEMA", "origin": "unknown", "value": "v0"},
             {"name": "ddtrace_auto_used", "origin": "unknown", "value": False},
             {"name": "ddtrace_bootstrapped", "origin": "unknown", "value": False},
@@ -165,6 +166,7 @@ telemetry_writer.disable()
     env["DD_TRACE_PROPAGATION_STYLE_INJECT"] = "tracecontext"
     env["DD_TRACE_SAMPLE_RATE"] = "0.5"
     env["DD_TRACE_RATE_LIMIT"] = "50"
+    env["DD_TRACE_SAMPLING_RULES"] = '[{"sample_rate":1.0,"service":"xyz","name":"abc"}]'
     env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = "v1"
     env["DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED"] = "True"
     env["DD_TRACE_PEER_SERVICE_MAPPING"] = "default_service:remapped_service"
@@ -216,6 +218,7 @@ telemetry_writer.disable()
         {"name": "DD_TRACE_RATE_LIMIT", "origin": "unknown", "value": 50},
         {"name": "DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED", "origin": "unknown", "value": True},
         {"name": "DD_TRACE_SAMPLE_RATE", "origin": "unknown", "value": "0.5"},
+        {"name": "DD_TRACE_SAMPLING_RULES", "origin": "unknown", "value": '[{"sample_rate":1.0,"service":"xyz","name":"abc"}]'},
         {"name": "DD_TRACE_SPAN_ATTRIBUTE_SCHEMA", "origin": "unknown", "value": "v1"},
         {"name": "ddtrace_auto_used", "origin": "unknown", "value": True},
         {"name": "ddtrace_bootstrapped", "origin": "unknown", "value": True},
