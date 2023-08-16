@@ -382,7 +382,7 @@ def test_load_testing_appsec_1click_and_ip_blocking_gunicorn_block_and_kill_chil
         True,
         pytest.param(
             False,
-            marks=pytest.mark.xfail(reason="FIXME: multiprocessing is only supported if DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE is set"),
+            marks=pytest.mark.xfail(reason="FIXME: multiprocessing is only supported when DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE is set to True"),
         ),
     ],
     ids=[
@@ -392,9 +392,7 @@ def test_load_testing_appsec_1click_and_ip_blocking_gunicorn_block_and_kill_chil
 )
 @pytest.mark.skipif(sys.version_info[0] < 3, reason="Python2.7 is not supported")
 def test_compatiblity_with_multiprocessing(module_unloading_env, ddtrace_run_python_code_in_subprocess):
-    """This test ensures enabling module unloading resolves multiprocessing errors
-    raised when RC is enabled
-    """
+    """This test validates that module unloading resolves multiprocessing context errors"""
     code = """
 import multiprocessing
 from multiprocessing import Process, Value, Array
