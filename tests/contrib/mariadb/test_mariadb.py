@@ -55,7 +55,7 @@ def test_connection_no_port_or_user_does_not_raise():
     conf = MARIADB_CONFIG.copy()
     del conf["port"]
     del conf["user"]
-    mariadb.connect(conf)
+    mariadb.connect(**conf)
 
 
 def test_simple_query(connection, tracer):
