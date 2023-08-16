@@ -116,7 +116,7 @@ exclude = '''
   | ddtrace/profiling/collector/stack.pyx$
   | ddtrace/profiling/exporter/pprof_.*_pb2.py$
   | ddtrace/profiling/exporter/pprof.pyx$
-  | ddtrace/internal/datadog/profiling/ddup.pyx$
+  | ddtrace/internal/datadog/profiling/_ddup.pyx$
   | ddtrace/vendor/
   | ddtrace/appsec/iast/_taint_tracking/_vendor/
   | \.eggs

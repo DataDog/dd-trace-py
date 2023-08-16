@@ -162,7 +162,7 @@ _Label_List_T = typing.Tuple[_Label_T, ...]
 _Location_Key_T = typing.Tuple[typing.Tuple[int, ...], _Label_List_T]
 
 
-HashableStackTraceType = typing.Tuple[event.FrameType, ...]
+HashableStackTraceType = typing.Tuple[event.DDFrame, ...]
 
 
 @attr.s
@@ -231,7 +231,7 @@ class _PprofConverter(object):
 
     def _to_locations(
         self,
-        frames,  # type: typing.Sequence[event.FrameType]
+        frames,  # type: typing.Sequence[event.DDFrame]
         nframes,  # type: int
     ):
         # type: (...) -> typing.Tuple[int, ...]
