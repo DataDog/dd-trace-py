@@ -43,7 +43,7 @@ class TestRedisPatch(TracerTestCase):
         assert span.span_type == "redis"
         assert span.error == 0
         meta = {
-            "out.host": "localhost",
+            "out.host": u"localhost",
         }
         metrics = {
             "network.destination.port": self.TEST_PORT,
@@ -54,8 +54,8 @@ class TestRedisPatch(TracerTestCase):
         for k, v in metrics.items():
             assert span.get_metric(k) == v
 
-        assert span.get_tag("redis.raw_command").startswith("MGET 0 1 2 3")
-        assert span.get_tag("redis.raw_command").endswith("...")
+        assert span.get_tag("redis.raw_command").startswith(u"MGET 0 1 2 3")
+        assert span.get_tag("redis.raw_command").endswith(u"...")
         assert span.get_tag("component") == "redis"
         assert span.get_tag("span.kind") == "client"
         assert span.get_tag("db.system") == "redis"
@@ -97,7 +97,7 @@ class TestRedisPatch(TracerTestCase):
         assert span.error == 0
         assert span.get_metric("out.redis_db") == 0
         assert span.get_tag("out.host") == "localhost"
-        assert span.get_tag("redis.raw_command") == "GET cheese"
+        assert span.get_tag("redis.raw_command") == u"GET cheese"
         assert span.get_tag("component") == "redis"
         assert span.get_tag("span.kind") == "client"
         assert span.get_tag("db.system") == "redis"
@@ -126,7 +126,7 @@ class TestRedisPatch(TracerTestCase):
     def test_pipeline_traced(self):
         with self.r.pipeline(transaction=False) as p:
             p.set("blah", 32)
-            p.rpush("foo", "éé")
+            p.rpush("foo", u"éé")
             p.hgetall("xxx")
             p.execute()
 
@@ -136,12 +136,12 @@ class TestRedisPatch(TracerTestCase):
         self.assert_is_measured(span)
         assert span.service == "redis"
         assert span.name == "redis.command"
-        assert span.resource == "SET blah 32\nRPUSH foo éé\nHGETALL xxx"
+        assert span.resource == u"SET blah 32\nRPUSH foo éé\nHGETALL xxx"
         assert span.span_type == "redis"
         assert span.error == 0
         assert span.get_metric("out.redis_db") == 0
         assert span.get_tag("out.host") == "localhost"
-        assert span.get_tag("redis.raw_command") == "SET blah 32\nRPUSH foo éé\nHGETALL xxx"
+        assert span.get_tag("redis.raw_command") == u"SET blah 32\nRPUSH foo éé\nHGETALL xxx"
         assert span.get_tag("component") == "redis"
         assert span.get_tag("span.kind") == "client"
         assert span.get_metric("redis.pipeline_length") == 3
@@ -160,7 +160,7 @@ class TestRedisPatch(TracerTestCase):
         self.assert_is_measured(span)
         assert span.service == "redis"
         assert span.name == "redis.command"
-        assert span.resource == "SET a 1"
+        assert span.resource == u"SET a 1"
         assert span.span_type == "redis"
         assert span.error == 0
         assert span.get_metric("out.redis_db") == 0
@@ -242,7 +242,7 @@ class TestRedisPatch(TracerTestCase):
         assert dd_span.error == 0
         assert dd_span.get_metric("out.redis_db") == 0
         assert dd_span.get_tag("out.host") == "localhost"
-        assert dd_span.get_tag("redis.raw_command") == "GET cheese"
+        assert dd_span.get_tag("redis.raw_command") == u"GET cheese"
         assert dd_span.get_tag("component") == "redis"
         assert dd_span.get_tag("span.kind") == "client"
         assert dd_span.get_tag("db.system") == "redis"
@@ -347,7 +347,7 @@ class TestRedisPatchSnapshot(TracerTestCase):
 
     @snapshot()
     def test_unicode(self):
-        us = self.r.get("😐")
+        us = self.r.get(u"😐")
         assert us is None
 
     @snapshot()
@@ -366,7 +366,7 @@ class TestRedisPatchSnapshot(TracerTestCase):
     def test_pipeline_traced(self):
         with self.r.pipeline(transaction=False) as p:
             p.set("blah", 32)
-            p.rpush("foo", "éé")
+            p.rpush("foo", u"éé")
             p.hgetall("xxx")
             p.execute()
 
