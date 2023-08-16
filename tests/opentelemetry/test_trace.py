@@ -71,7 +71,7 @@ def test_otel_start_span_without_default_args(oteltracer):
 def test_otel_start_span_ignore_exceptions(caplog, oteltracer):
     with pytest.raises(Exception, match="Sorry Otel Span, I failed you"):
         with oteltracer.start_span("otel-error-span", record_exception=False, set_status_on_exception=False):
-            raise Exception("Sorry Friend, I failed you")
+            raise Exception("Sorry Otel Span, I failed you")
 
 
 @pytest.mark.snapshot
