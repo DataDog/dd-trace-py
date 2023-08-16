@@ -70,6 +70,9 @@ def _extract_test_file_name(item):
 def _is_unittest_support_enabled():
     return unittest and getattr(unittest, "_datadog_patch", False) and _CIVisibility.enabled
 
+def _is_valid_result(instance, args):
+    return instance and type(instance) == unittest.runner.TextTestResult and args
+
 
 def patch():
     """
@@ -117,7 +120,7 @@ def add_success_test_wrapper(func, instance, args, kwargs):
 
 
 def add_failure_test_wrapper(func, instance, args, kwargs):
-    if _is_unittest_support_enabled() and instance and type(instance) == unittest.runner.TextTestResult and args:
+    if _is_unittest_support_enabled() and _is_valid_result(instance, args):
         test_item = args[0]
         span = _extract_span(test_item)
         if span:
@@ -130,7 +133,7 @@ def add_failure_test_wrapper(func, instance, args, kwargs):
 
 
 def add_error_test_wrapper(func, instance, args, kwargs):
-    if _is_unittest_support_enabled() and instance and type(instance) == unittest.runner.TextTestResult and args:
+    if _is_unittest_support_enabled() and _is_valid_result(instance, args):
         test_item = args[0]
         span = _extract_span(test_item)
         if span:
@@ -141,7 +144,7 @@ def add_error_test_wrapper(func, instance, args, kwargs):
 
 def add_skip_test_wrapper(func, instance, args, kwargs):
     result = func(*args, **kwargs)
-    if _is_unittest_support_enabled() and instance and type(instance) == unittest.runner.TextTestResult and args:
+    if _is_unittest_support_enabled() and _is_valid_result(instance, args):
         test_item = args[0]
         span = _extract_span(test_item)
         if span:
