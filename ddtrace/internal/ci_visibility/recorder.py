@@ -206,7 +206,6 @@ class CIVisibility(Service):
                 },
             }
         }
-        breakpoint()
         try:
             response = _do_request("POST", url, json.dumps(payload), _headers)
         except TimeoutError:

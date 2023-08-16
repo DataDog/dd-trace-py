@@ -343,7 +343,10 @@ def test_get_client_do_request_evp_proxy_headers():
         )
 
     _request.assert_called_once_with(
-        "POST", "http://base_url/repository/endpoint", "payload", {"X-Datadog-EVP-Subdomain": "api"}
+        "POST",
+        "http://base_url/repository/endpoint",
+        "payload",
+        {"X-Datadog-EVP-Subdomain": "api", "X-Datadog-NeedsAppKey": "true"},
     )
 
 
