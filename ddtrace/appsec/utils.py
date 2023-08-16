@@ -9,8 +9,8 @@ from ddtrace.constants import APPSEC_ENV
 from ddtrace.internal.compat import parse
 from ddtrace.internal.compat import to_bytes_py2
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.http import _get_blocked_template  # noqa
+from ddtrace.settings import _config as config
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -26,7 +26,7 @@ log = get_logger(__name__)
 
 def _appsec_rc_features_is_enabled():
     # type: () -> bool
-    if asbool(os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", "true")):
+    if config._remote_config_enabled:
         return APPSEC_ENV not in os.environ
     return False
 
@@ -59,7 +59,7 @@ def _appsec_rc_capabilities(test_tracer=None):
 
     value = 0b0
     result = ""
-    if asbool(os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", "true")):
+    if config._remote_config_enabled:
         if _appsec_rc_features_is_enabled():
             value |= 1 << 1  # Enable ASM_ACTIVATION
         if tracer._appsec_processor and _appsec_rc_file_is_not_static():

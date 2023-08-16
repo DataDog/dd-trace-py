@@ -15,7 +15,7 @@ from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.utils.version import _pep440_to_semver
-from tests.utils import override_env
+from tests.utils import override_global_config
 
 
 def _expected_payload(
@@ -97,7 +97,7 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
 
     mock_appsec_rc_capabilities.return_value = "Ag=="
 
-    with override_env(dict(DD_REMOTE_CONFIGURATION_ENABLED="false")):
+    with override_global_config(dict(_remote_config_enabled=False)):
         enable_appsec_rc()
         rc_client = RemoteConfigClient()
 
@@ -806,7 +806,7 @@ def test_remote_config_client_callback_error(
     mock_callback = mock.mock.MagicMock()
     rc_client.register_product("ASM_FEATURES", callback_with_exception)
 
-    with override_env(dict(DD_REMOTE_CONFIGURATION_ENABLED="false")):
+    with override_global_config(dict(_remote_config_enabled=False)):
         # 0.
         mock_send_request.return_value = MOCK_AGENT_RESPONSES[0]
         rc_client.request()

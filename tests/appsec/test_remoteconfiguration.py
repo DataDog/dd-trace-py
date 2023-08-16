@@ -121,14 +121,12 @@ def test_rc_activation_states_off(tracer, appsec_enabled, rc_value, remote_confi
     ],
 )
 def test_rc_capabilities(rc_enabled, appsec_enabled, capability, tracer):
-    env = {"DD_REMOTE_CONFIGURATION_ENABLED": rc_enabled}
     config = {}
     tracer.configure(appsec_enabled=False, api_version="v0.4")
     if appsec_enabled:
-        env[APPSEC.ENV] = appsec_enabled
         config["appsec_enabled"] = asbool(appsec_enabled)
         config["api_version"] = "v0.4"
-    with override_env(env):
+    with override_global_config(dict(_remote_config_enabled=rc_enabled, _appsec_enabled=appsec_enabled)):
         tracer.configure(**config)
         assert _appsec_rc_capabilities(test_tracer=tracer) == capability
 
@@ -141,9 +139,10 @@ def test_rc_capabilities(rc_enabled, appsec_enabled, capability, tracer):
     ],
 )
 def test_rc_activation_capabilities(tracer, remote_config_worker, env_rules, expected):
-    env = {"DD_REMOTE_CONFIGURATION_ENABLED": "true"}
-    env.update(env_rules)
-    with override_env(env), override_global_config(dict(_appsec_enabled=False, api_version="v0.4")):
+    env = env_rules.copy()
+    with override_env(env), override_global_config(
+        dict(_remote_config_enabled=True, _appsec_enabled=False, api_version="v0.4")
+    ):
         rc_config = {"config": {"asm": {"enabled": True}}}
 
         assert not remoteconfig_poller._worker
@@ -172,9 +171,10 @@ def test_rc_activation_validate_products(tracer, remote_config_worker):
 def test_rc_activation_check_asm_features_product_disables_rest_of_products(
     tracer, remote_config_worker, env_rules, expected
 ):
-    env = {"DD_REMOTE_CONFIGURATION_ENABLED": "true"}
-    env.update(env_rules)
-    with override_env(env), override_global_config(dict(_appsec_enabled=True, api_version="v0.4")):
+    env = env_rules.copy()
+    with override_env(env), override_global_config(
+        dict(_remote_config_enabled=True, _appsec_enabled=True, api_version="v0.4")
+    ):
         tracer.configure(appsec_enabled=True, api_version="v0.4")
         enable_appsec_rc(tracer)
 
