@@ -70,6 +70,7 @@ def _extract_test_file_name(item):
 def _is_unittest_support_enabled():
     return unittest and getattr(unittest, "_datadog_patch", False) and _CIVisibility.enabled
 
+
 def _is_valid_result(instance, args):
     return instance and type(instance) == unittest.runner.TextTestResult and args
 
@@ -90,7 +91,7 @@ def patch():
 
     _w(unittest, "TextTestResult.addSuccess", add_success_test_wrapper)
     _w(unittest, "TextTestResult.addFailure", add_failure_test_wrapper)
-    _w(unittest, "TextTestResult.addError", add_error_test_wrapper)
+    _w(unittest, "TextTestResult.addError", add_failure_test_wrapper)
     _w(unittest, "TextTestResult.addSkip", add_skip_test_wrapper)
 
     _w(unittest, "TestCase.run", start_test_wrapper_unittest)
@@ -109,35 +110,29 @@ def unpatch():
     _u(unittest, "TestCase.run")
 
 
+def _set_test_span_status(args, status):
+    test_item = args[0]
+    span = _extract_span(test_item)
+    if not span:
+        return
+    span.set_tag_str(test.STATUS, status)
+    if status == test.Status.FAIL.value:
+        exc_info = args[1]
+        span.set_exc_info(exc_info[0], exc_info[1], exc_info[2])
+    elif status == test.Status.SKIP.value:
+        span.set_tag_str(test.SKIP_REASON, _extract_test_skip_reason(args))
+
+
 def add_success_test_wrapper(func, instance, args, kwargs):
-    if _is_unittest_support_enabled() and instance and type(instance) == unittest.runner.TextTestResult and args:
-        test_item = args[0]
-        span = _extract_span(test_item)
-        if span:
-            span.set_tag_str(test.STATUS, test.Status.PASS.value)
+    if _is_unittest_support_enabled() and _is_valid_result(instance, args):
+        _set_test_span_status(args[0], test.Status.PASS.value)
 
     return func(*args, **kwargs)
 
 
 def add_failure_test_wrapper(func, instance, args, kwargs):
     if _is_unittest_support_enabled() and _is_valid_result(instance, args):
-        test_item = args[0]
-        span = _extract_span(test_item)
-        if span:
-            span.set_tag_str(test.STATUS, test.Status.FAIL.value)
-        if len(args) > 1:
-            exc_info = args[1]
-            span.set_exc_info(exc_info[0], exc_info[1], exc_info[2])
-
-    return func(*args, **kwargs)
-
-
-def add_error_test_wrapper(func, instance, args, kwargs):
-    if _is_unittest_support_enabled() and _is_valid_result(instance, args):
-        test_item = args[0]
-        span = _extract_span(test_item)
-        if span:
-            span.set_tag_str(test.STATUS, test.Status.FAIL.value)
+        _set_test_span_status(args[0], test.Status.FAIL.value)
 
     return func(*args, **kwargs)
 
@@ -145,11 +140,7 @@ def add_error_test_wrapper(func, instance, args, kwargs):
 def add_skip_test_wrapper(func, instance, args, kwargs):
     result = func(*args, **kwargs)
     if _is_unittest_support_enabled() and _is_valid_result(instance, args):
-        test_item = args[0]
-        span = _extract_span(test_item)
-        if span:
-            span.set_tag_str(test.STATUS, test.Status.SKIP.value)
-            span.set_tag_str(test.SKIP_REASON, _extract_test_skip_reason(args))
+        _set_test_span_status(args[0], test.Status.SKIP.value)
 
     return result
 
@@ -158,10 +149,10 @@ def start_test_wrapper_unittest(func, instance, args, kwargs):
     if _is_unittest_support_enabled():
         tracer = getattr(unittest, "_datadog_tracer", _CIVisibility._instance.tracer)
         span = tracer._start_span(
-                ddtrace.config.unittest.operation_name,
-                service=_CIVisibility._instance._service,
-                resource="unittest.test",
-                span_type=SpanTypes.TEST
+            ddtrace.config.unittest.operation_name,
+            service=_CIVisibility._instance._service,
+            resource="unittest.test",
+            span_type=SpanTypes.TEST
         )
         span.set_tag_str(_EVENT_TYPE, SpanTypes.TEST)
 
@@ -187,4 +178,3 @@ def start_test_wrapper_unittest(func, instance, args, kwargs):
     result = func(*args, **kwargs)
 
     return result
-
