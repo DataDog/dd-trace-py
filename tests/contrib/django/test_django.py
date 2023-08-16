@@ -963,7 +963,7 @@ def test_cache_get_unicode(test_spans):
     # get the default cache
     cache = django.core.cache.caches["default"]
 
-    cache.get("😐")
+    cache.get(u"😐")
 
     spans = test_spans.get_spans()
     assert len(spans) == 1
@@ -978,7 +978,7 @@ def test_cache_get_unicode(test_spans):
     expected_meta = {
         "component": "django",
         "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
-        "django.cache.key": "😐",
+        "django.cache.key": u"😐",
     }
 
     assert_dict_issuperset(span.get_tags(), expected_meta)
@@ -2252,8 +2252,8 @@ class _HttpRequest(django.http.HttpRequest):
     "request_cls,request_path,http_host",
     itertools.product(
         [django.http.HttpRequest, _HttpRequest, _MissingSchemeRequest],
-        ["/;some/?awful/=path/foo:bar/", b"/;some/?awful/=path/foo:bar/"],
-        ["testserver", b"testserver", SimpleLazyObject(lambda: "testserver"), SimpleLazyObject(lambda: object())],
+        [u"/;some/?awful/=path/foo:bar/", b"/;some/?awful/=path/foo:bar/"],
+        [u"testserver", b"testserver", SimpleLazyObject(lambda: "testserver"), SimpleLazyObject(lambda: object())],
     ),
 )
 def test_helper_get_request_uri(request_cls, request_path, http_host):
