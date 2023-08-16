@@ -344,5 +344,5 @@ def make_app(settings=None):
             (r"/sync_nested_wrap/", SyncNestedWrapHandler),
             (r"/sync_nested_exception_wrap/", SyncNestedExceptionWrapHandler),
         ],
-        **settings,
+        **settings
     )
