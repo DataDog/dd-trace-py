@@ -141,7 +141,7 @@ class TracedCursor(wrapt.ObjectProxy):
             self._self_dbm_propagator,
             query,
             *args,
-            **kwargs,
+            **kwargs
         )
 
     def execute(self, query, *args, **kwargs):
@@ -159,7 +159,7 @@ class TracedCursor(wrapt.ObjectProxy):
             self._self_dbm_propagator,
             query,
             *args,
-            **kwargs,
+            **kwargs
         )
 
     def callproc(self, proc, *args):

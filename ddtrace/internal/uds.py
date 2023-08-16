@@ -14,7 +14,7 @@ class UDSHTTPConnection(BasePathMixin, httplib.HTTPConnection):
         self,
         path,  # type: str
         *args,  # type: Any
-        **kwargs,  # type: Any
+        **kwargs  # type: Any
     ):
         # type: (...) -> None
         super(UDSHTTPConnection, self).__init__(*args, **kwargs)

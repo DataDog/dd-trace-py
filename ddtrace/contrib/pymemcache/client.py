@@ -235,7 +235,7 @@ class WrappedHashClient(_WrapperBase):
             ),
             command,
             *args,
-            **kwargs,
+            **kwargs
         )
 
 

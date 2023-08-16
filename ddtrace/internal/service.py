@@ -46,7 +46,7 @@ class Service(six.with_metaclass(abc.ABCMeta)):
     def start(
         self,
         *args,  # type: typing.Any
-        **kwargs,  # type: typing.Any
+        **kwargs  # type: typing.Any
     ):
         # type: (...) -> None
         """Start the service."""
@@ -62,7 +62,7 @@ class Service(six.with_metaclass(abc.ABCMeta)):
     def _start_service(
         self,
         *args,  # type: typing.Any
-        **kwargs,  # type: typing.Any
+        **kwargs  # type: typing.Any
     ):
         # type: (...) -> None
         """Start the service for real.
@@ -75,7 +75,7 @@ class Service(six.with_metaclass(abc.ABCMeta)):
     def stop(
         self,
         *args,  # type: typing.Any
-        **kwargs,  # type: typing.Any
+        **kwargs  # type: typing.Any
     ):
         # type: (...) -> None
         """Stop the service."""
@@ -89,7 +89,7 @@ class Service(six.with_metaclass(abc.ABCMeta)):
     def _stop_service(
         self,
         *args,  # type: typing.Any
-        **kwargs,  # type: typing.Any
+        **kwargs  # type: typing.Any
     ):
         # type: (...) -> None
         """Stop the service for real.
