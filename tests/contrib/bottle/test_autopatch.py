@@ -42,7 +42,7 @@ class TraceBottleTest(TracerTestCase):
         # make a request
         resp = self.app.get("/hi/dougie")
         assert resp.status_int == 200
-        assert compat.to_unicode(resp.body) == "hi dougie"
+        assert compat.to_unicode(resp.body) == u"hi dougie"
         # validate it's traced
         spans = self.pop_spans()
         assert len(spans) == 1

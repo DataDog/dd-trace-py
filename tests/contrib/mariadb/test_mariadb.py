@@ -81,11 +81,11 @@ def test_simple_query(connection, tracer):
     assert_dict_issuperset(
         span.get_tags(),
         {
-            "out.host": "127.0.0.1",
-            "db.name": "test",
-            "db.system": "mariadb",
-            "db.user": "test",
-            "component": "mariadb",
+            "out.host": u"127.0.0.1",
+            "db.name": u"test",
+            "db.system": u"mariadb",
+            "db.user": u"test",
+            "component": u"mariadb",
             "span.kind": "client",
         },
     )

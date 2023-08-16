@@ -215,7 +215,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         # Encoded utf8 query strings MUST be parsed correctly.
         # Here, the URL is encoded in utf8 and then %HEX
         # See https://docs.cherrypy.org/en/latest/_modules/cherrypy/test/test_encoding.html for more
-        self.getPage(url_quote("/üŋïĉóđē".encode("utf-8")))
+        self.getPage(url_quote(u"/üŋïĉóđē".encode("utf-8")))
         time.sleep(0.1)
         self.assertStatus("200 OK")
         self.assertHeader("Content-Type", "text/html;charset=utf-8")
@@ -227,16 +227,16 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         assert len(spans) == 1
         s = spans[0]
         assert s.service == "test.cherrypy.service"
-        assert s.resource == "GET /üŋïĉóđē"
+        assert s.resource == u"GET /üŋïĉóđē"
         assert s.error == 0
         assert_span_http_status_code(s, 200)
         assert s.get_tag(http.METHOD) == "GET"
-        assert s.get_tag(http.URL) == "http://127.0.0.1:54583/üŋïĉóđē"
+        assert s.get_tag(http.URL) == u"http://127.0.0.1:54583/üŋïĉóđē"
         assert s.get_tag("component") == "cherrypy"
         assert s.get_tag("span.kind") == "server"
 
     def test_404(self):
-        self.getPage("/404/test")
+        self.getPage(u"/404/test")
         time.sleep(0.1)
         self.assertStatus("404 Not Found")
 
@@ -246,11 +246,11 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         assert len(spans) == 1
         s = spans[0]
         assert s.service == "test.cherrypy.service"
-        assert s.resource == "GET /404/test"
+        assert s.resource == u"GET /404/test"
         assert s.error == 0
         assert_span_http_status_code(s, 404)
         assert s.get_tag(http.METHOD) == "GET"
-        assert s.get_tag(http.URL) == "http://127.0.0.1:54583/404/test"
+        assert s.get_tag(http.URL) == u"http://127.0.0.1:54583/404/test"
         assert s.get_tag("component") == "cherrypy"
         assert s.get_tag("span.kind") == "server"
 
@@ -337,7 +337,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         cherrypy.tools.tracer.use_distributed_tracing = previous_distributed_tracing
 
     def test_custom_span(self):
-        self.getPage("/custom_span")
+        self.getPage(u"/custom_span")
         time.sleep(0.1)
         self.assertStatus("200 OK")
         self.assertBody("hiya")

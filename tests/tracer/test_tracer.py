@@ -629,7 +629,7 @@ class TracerTestCases(TracerTestCase):
             propagate=True,
         )
         user_id = span.context._meta.get("_dd.p.usr.id")
-        assert span.get_tag(user.ID) == "ユーザーID"
+        assert span.get_tag(user.ID) == u"ユーザーID"
         assert span.context.dd_user_id == "ユーザーID"
         assert user_id == "44Om44O844K244O8SUQ="
 
@@ -1364,7 +1364,7 @@ class TestPartialFlush(TracerTestCase):
 def test_unicode_config_vals():
     t = ddtrace.Tracer()
 
-    with override_global_config(dict(version="😇", env="😇")):
+    with override_global_config(dict(version=u"😇", env=u"😇")):
         with t.trace("1"):
             pass
     t.shutdown()

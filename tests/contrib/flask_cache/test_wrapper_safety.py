@@ -136,7 +136,7 @@ class FlaskCacheWrapperTest(TracerTestCase):
 
         # use a wrong redis connection
         with pytest.raises(ConnectionError) as ex:
-            cache.get("á_complex_operation")
+            cache.get(u"á_complex_operation")
 
         # ensure that the error is not caused by our tracer
         assert "127.0.0.1:2230. Connection refused." in ex.value.args[0]
@@ -166,7 +166,7 @@ class FlaskCacheWrapperTest(TracerTestCase):
 
         # use a wrong memcached connection
         try:
-            cache.get("á_complex_operation")
+            cache.get(u"á_complex_operation")
         except Exception:
             pass
 

@@ -87,7 +87,7 @@ async def test_basic_request(redis_client):
 @pytest.mark.asyncio
 @pytest.mark.snapshot
 async def test_unicode_request(redis_client):
-    val = await redis_client.get("😐")
+    val = await redis_client.get(u"😐")
     assert val is None
 
 

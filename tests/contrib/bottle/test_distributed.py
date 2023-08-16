@@ -51,7 +51,7 @@ class TraceBottleDistributedTest(TracerTestCase):
         headers = {"x-datadog-trace-id": "123", "x-datadog-parent-id": "456"}
         resp = self.app.get("/hi/dougie", headers=headers)
         assert resp.status_int == 200
-        assert compat.to_unicode(resp.body) == "hi dougie"
+        assert compat.to_unicode(resp.body) == u"hi dougie"
 
         # validate it's traced
         spans = self.pop_spans()
@@ -80,7 +80,7 @@ class TraceBottleDistributedTest(TracerTestCase):
         headers = {"x-datadog-trace-id": "123", "x-datadog-parent-id": "456"}
         resp = self.app.get("/hi/dougie", headers=headers)
         assert resp.status_int == 200
-        assert compat.to_unicode(resp.body) == "hi dougie"
+        assert compat.to_unicode(resp.body) == u"hi dougie"
 
         # validate it's traced
         spans = self.pop_spans()
@@ -109,7 +109,7 @@ class TraceBottleDistributedTest(TracerTestCase):
         headers = {"x-datadog-trace-id": "123", "x-datadog-parent-id": "456"}
         resp = self.app.get("/hi/dougie", headers=headers)
         assert resp.status_int == 200
-        assert compat.to_unicode(resp.body) == "hi dougie"
+        assert compat.to_unicode(resp.body) == u"hi dougie"
 
         # validate it's traced
         spans = self.pop_spans()

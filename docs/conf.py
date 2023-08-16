@@ -101,9 +101,9 @@ master_doc = "index"
 
 # General information about the project.
 year = datetime.now().year
-project = "ddtrace"
-copyright = "2016-{}, Datadog, Inc.".format(year)  # noqa: A001
-author = "Datadog, Inc."
+project = u"ddtrace"
+copyright = u"2016-{}, Datadog, Inc.".format(year)  # noqa: A001
+author = u"Datadog, Inc."
 
 # document in order of source
 autodoc_member_order = "bysource"
@@ -326,7 +326,7 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (master_doc, "ddtrace.tex", "ddtrace Documentation", "Datadog, Inc", "manual"),
+    (master_doc, "ddtrace.tex", u"ddtrace Documentation", u"Datadog, Inc", "manual"),
 ]
 
 # The name of an image file (relative to this directory) to place at the top of
@@ -360,7 +360,7 @@ latex_documents = [
 
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
-man_pages = [(master_doc, "ddtrace", "ddtrace Documentation", [author], 1)]
+man_pages = [(master_doc, "ddtrace", u"ddtrace Documentation", [author], 1)]
 
 # If true, show URL addresses after external links.
 #
@@ -376,7 +376,7 @@ texinfo_documents = [
     (
         master_doc,
         "ddtrace",
-        "ddtrace Documentation",
+        u"ddtrace Documentation",
         author,
         "ddtrace",
         "One line description of project.",

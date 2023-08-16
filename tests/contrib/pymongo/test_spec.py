@@ -38,7 +38,7 @@ def test_insert():
 def test_update():
     spec = SON(
         [
-            ("update", "songs"),
+            ("update", u"songs"),
             ("ordered", True),
             (
                 "updates",

@@ -25,9 +25,9 @@ class TestError(Exception):
 
 
 if sys.version_info[0] < 3:
-    UNICODE_ENDPOINT = "üŋïĉóđē".encode("utf-8")
+    UNICODE_ENDPOINT = u"üŋïĉóđē".encode("utf-8")
 else:
-    UNICODE_ENDPOINT = "üŋïĉóđē"
+    UNICODE_ENDPOINT = u"üŋïĉóđē"
 
 
 class StubApp:
@@ -66,7 +66,7 @@ class StubApp:
     @cherrypy.expose(UNICODE_ENDPOINT)
     def unicode(self):
         logger.info("In the /unicode resource")
-        return "üŋïĉóđē".encode("utf-8")
+        return u"üŋïĉóđē".encode("utf-8")
 
     @cherrypy.expose
     def custom_span(self):

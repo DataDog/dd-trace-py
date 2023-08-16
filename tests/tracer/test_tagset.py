@@ -136,8 +136,8 @@ def test_encode_tagset_values_strip_spaces():
         {"": "value"},
         {"key": ""},
         # Unicode
-        {ensure_str("☺️"): "value"},
-        {"key": ensure_str("☺️")},
+        {ensure_str(u"☺️"): "value"},
+        {"key": ensure_str(u"☺️")},
     ],
 )
 def test_encode_tagset_values_malformed(values):

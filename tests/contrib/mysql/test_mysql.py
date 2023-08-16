@@ -52,12 +52,12 @@ class MySQLCore(object):
         assert_dict_issuperset(
             span.get_tags(),
             {
-                "out.host": "127.0.0.1",
-                "db.name": "test",
-                "db.system": "mysql",
-                "db.user": "test",
-                "component": "mysql",
-                "span.kind": "client",
+                "out.host": u"127.0.0.1",
+                "db.name": u"test",
+                "db.system": u"mysql",
+                "db.user": u"test",
+                "component": u"mysql",
+                "span.kind": u"client",
             },
         )
 
@@ -81,12 +81,12 @@ class MySQLCore(object):
             assert_dict_issuperset(
                 span.get_tags(),
                 {
-                    "out.host": "127.0.0.1",
-                    "db.name": "test",
-                    "db.system": "mysql",
-                    "db.user": "test",
-                    "component": "mysql",
-                    "span.kind": "client",
+                    "out.host": u"127.0.0.1",
+                    "db.name": u"test",
+                    "db.system": u"mysql",
+                    "db.user": u"test",
+                    "component": u"mysql",
+                    "span.kind": u"client",
                 },
             )
 
@@ -237,12 +237,12 @@ class MySQLCore(object):
         assert_dict_issuperset(
             span.get_tags(),
             {
-                "out.host": "127.0.0.1",
-                "db.name": "test",
-                "db.system": "mysql",
-                "db.user": "test",
-                "component": "mysql",
-                "span.kind": "client",
+                "out.host": u"127.0.0.1",
+                "db.name": u"test",
+                "db.system": u"mysql",
+                "db.user": u"test",
+                "component": u"mysql",
+                "span.kind": u"client",
             },
         )
         assert span.get_tag("sql.query") is None
@@ -280,12 +280,12 @@ class MySQLCore(object):
         assert_dict_issuperset(
             dd_span.get_tags(),
             {
-                "out.host": "127.0.0.1",
-                "db.name": "test",
-                "db.system": "mysql",
-                "db.user": "test",
-                "component": "mysql",
-                "span.kind": "client",
+                "out.host": u"127.0.0.1",
+                "db.name": u"test",
+                "db.system": u"mysql",
+                "db.user": u"test",
+                "component": u"mysql",
+                "span.kind": u"client",
             },
         )
 
@@ -323,12 +323,12 @@ class MySQLCore(object):
             assert_dict_issuperset(
                 dd_span.get_tags(),
                 {
-                    "out.host": "127.0.0.1",
-                    "db.name": "test",
-                    "db.system": "mysql",
-                    "db.user": "test",
-                    "component": "mysql",
-                    "span.kind": "client",
+                    "out.host": u"127.0.0.1",
+                    "db.name": u"test",
+                    "db.system": u"mysql",
+                    "db.user": u"test",
+                    "component": u"mysql",
+                    "span.kind": u"client",
                 },
             )
 
@@ -485,12 +485,12 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
             assert_dict_issuperset(
                 span.get_tags(),
                 {
-                    "out.host": "127.0.0.1",
-                    "db.name": "test",
-                    "db.system": "mysql",
-                    "db.user": "test",
-                    "component": "mysql",
-                    "span.kind": "client",
+                    "out.host": u"127.0.0.1",
+                    "db.name": u"test",
+                    "db.system": u"mysql",
+                    "db.user": u"test",
+                    "component": u"mysql",
+                    "span.kind": u"client",
                 },
             )
             assert span.get_tag("sql.query") is None

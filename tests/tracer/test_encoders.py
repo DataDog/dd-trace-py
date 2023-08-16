@@ -374,11 +374,11 @@ class SubFloat(float):
         (Span("name"), {"int": SubInt(123)}),
         (Span("name"), {"float": SubFloat(123.213)}),
         (Span(SubString("name")), {SubString("test"): SubString("test")}),
-        (Span("name"), {"unicode": "😐"}),
-        (Span("name"), {"😐": "😐"}),
+        (Span("name"), {"unicode": u"😐"}),
+        (Span("name"), {u"😐": u"😐"}),
         (
-            Span("span_name", service="test-service", resource="test-resource", span_type=SpanTypes.WEB),
-            {"metric1": 123, "metric2": "1", "metric3": 12.3, "metric4": "12.0", "tag1": "test", "tag2": "unicode"},
+            Span(u"span_name", service="test-service", resource="test-resource", span_type=SpanTypes.WEB),
+            {"metric1": 123, "metric2": "1", "metric3": 12.3, "metric4": "12.0", "tag1": "test", u"tag2": u"unicode"},
         ),
     ],
 )
@@ -678,7 +678,7 @@ def test_json_encoder_traces_bytes():
         [
             [
                 Span(name=b"\x80span.a"),
-                Span(name="\x80span.b"),
+                Span(name=u"\x80span.b"),
                 Span(name="\x80span.b"),
             ]
         ]
@@ -692,9 +692,9 @@ def test_json_encoder_traces_bytes():
 
     if PY3:
         assert "\\x80span.a" == span_a["name"]
-        assert "\x80span.b" == span_b["name"]
-        assert "\x80span.b" == span_c["name"]
+        assert u"\x80span.b" == span_b["name"]
+        assert u"\x80span.b" == span_c["name"]
     else:
-        assert "\ufffdspan.a" == span_a["name"], span_a["name"]
-        assert "\x80span.b" == span_b["name"]
-        assert "\ufffdspan.b" == span_c["name"]
+        assert u"\ufffdspan.a" == span_a["name"], span_a["name"]
+        assert u"\x80span.b" == span_b["name"]
+        assert u"\ufffdspan.b" == span_c["name"]

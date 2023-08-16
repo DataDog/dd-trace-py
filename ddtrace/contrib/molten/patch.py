@@ -122,7 +122,7 @@ def patch_app_call(wrapped, instance, args, kwargs):
 
             if not span.get_tag(MOLTEN_ROUTE):
                 # if route never resolve, update root resource
-                span.resource = "{} {}".format(request.method, code)
+                span.resource = u"{} {}".format(request.method, code)
 
             trace_utils.set_http_meta(span, config.molten, status_code=code)
 
