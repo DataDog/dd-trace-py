@@ -164,10 +164,17 @@ def _on_import_factory(module, prefix="ddtrace.contrib", raise_errors=True, patc
             )
         else:
             version = ""
+            imported_module.patch()
             if hasattr(imported_module, "get_version"):
                 version = imported_module.get_version()
-            imported_module.patch()
-            telemetry_writer.add_integration(module, True, PATCH_MODULES.get(module) is True, "", version=version)
+                if type(version) == dict:
+                    # special case for a patched module with multiple packages & versions, e.g. elasticsearch
+                    for k, v in version.items():
+                        telemetry_writer.add_integration(k, True, PATCH_MODULES.get(module) is True, "", version=v)
+                else:
+                    telemetry_writer.add_integration(
+                        module, True, PATCH_MODULES.get(module) is True, "", version=version
+                    )
             if hasattr(imported_module, "patch_submodules"):
                 imported_module.patch_submodules(patch_indicator)
 

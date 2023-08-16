@@ -74,6 +74,13 @@ config._add(
 )
 
 
+PATCHED_VERSIONS = {}
+
+
+def get_version():
+    return PATCHED_VERSIONS
+
+
 def _psycopg_modules():
     module_names = (
         "psycopg",
@@ -98,6 +105,8 @@ def _patch(psycopg_module):
     if getattr(psycopg_module, "_datadog_patch", False):
         return
     setattr(psycopg_module, "_datadog_patch", True)
+
+    PATCHED_VERSIONS[psycopg_module.__name__] = getattr(psycopg_module, "__version__", "0.0.0")
 
     Pin(_config=config.psycopg).onto(psycopg_module)
 

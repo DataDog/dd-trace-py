@@ -21,7 +21,7 @@ config._add(
 
 
 def get_version():
-    import pylons 
+    import pylons
 
     return getattr(pylons, "__version__", "0.0.0")
 

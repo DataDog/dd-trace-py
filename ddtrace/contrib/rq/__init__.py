@@ -94,11 +94,7 @@ from ...internal.utils.formats import asbool
 from ...propagation.http import HTTPPropagator
 
 
-__all__ = [
-    "patch",
-    "unpatch",
-    "get_version"
-]
+__all__ = ["patch", "unpatch", "get_version"]
 
 
 config._add(

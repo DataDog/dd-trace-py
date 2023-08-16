@@ -88,7 +88,7 @@ config._add(
 
 def get_version():
     from botocore import __version__
-    
+
     return __version__
 
 

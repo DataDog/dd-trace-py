@@ -26,8 +26,8 @@ config._add(
 
 
 def get_version():
-    import mysql 
-    
+    import mysql
+
     return getattr(mysql, "__version__", "0.0.0")
 
 

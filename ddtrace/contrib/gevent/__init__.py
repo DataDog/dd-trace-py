@@ -57,9 +57,9 @@ required_modules = ["gevent"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
+        from .patch import get_version
         from .patch import patch
         from .patch import unpatch
-        from .patch import get_version
         from .provider import GeventContextProvider
 
         context_provider = GeventContextProvider()

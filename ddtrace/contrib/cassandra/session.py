@@ -47,7 +47,7 @@ _connect = cassandra_cluster.Cluster.connect
 
 def get_version():
     from cassandra import __version__
-    
+
     return __version__
 
 

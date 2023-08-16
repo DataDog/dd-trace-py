@@ -22,7 +22,7 @@ config._add(
 )
 
 
-def get_version():  
+def get_version():
     return getattr(celery, "__version__", "0.0.0")
 
 

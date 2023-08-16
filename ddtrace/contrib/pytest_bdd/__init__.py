@@ -35,6 +35,6 @@ config._add(
 
 
 def get_version():
-  from importlib import metadata
+    from importlib import metadata
 
-  return metadata.version("pytest-bdd")
+    return metadata.version("pytest-bdd")

@@ -58,7 +58,7 @@ config._add(
 
 def get_version():
     from boto import __version__
-    
+
     return __version__
 
 
