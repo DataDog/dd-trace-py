@@ -160,12 +160,10 @@ def _extract_test_file_name(item):
 
 
 def _extract_module_file_path(item):
-    if not len(item._tests) or not len(item._tests[0]._tests):
+    if not len(item._tests) or type(item._tests[0]) == unittest.loader._FailedTest or not len(item._tests[0]._tests):
         return ''
-    if type(item._tests[0]) != unittest.loader._FailedTest:
-        return os.path.relpath(inspect.getfile(item._tests[0]._tests[0].__class__))
-    return ''
 
+    return os.path.relpath(inspect.getfile(item._tests[0]._tests[0].__class__))
 
 def _is_unittest_support_enabled():
     return unittest and getattr(unittest, "_datadog_patch", False) and _CIVisibility.enabled
