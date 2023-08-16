@@ -76,8 +76,16 @@ class CIVisibilityGitClient(object):
             self._worker = None
 
     @classmethod
-    def _run_protocol(cls, serializer, requests_mode, base_url, _tags=None, _response=None, cwd=None):
-        # type: (CIVisibilityGitClientSerializerV1, int, str, Optional[Dict[str, str]], Optional[Response], Optional[str]) -> None
+    def _run_protocol(
+        cls,
+        serializer,  # CIVisibilityGitClientSerializerV1
+        requests_mode,  # int
+        base_url,  # str
+        _tags=None,  # Optional[Dict[str, str]]
+        _response=None,  # Optional[Response]
+        cwd=None,  # Optional[str]
+    ):
+        # type: (...) -> None
         if _tags is None:
             _tags = {}
         repo_url = cls._get_repository_url(tags=_tags, cwd=cwd)
