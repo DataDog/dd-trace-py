@@ -253,7 +253,9 @@ class CIVisibility(Service):
 
         log.info("Datadog Intelligent Test Runner is enabled.")
         self._itr_test_skipping_is_enabled = True
-        self._git_client = CIVisibilityGitClient(api_key=api_key or "", app_key=app_key or "", requests_mode=requests_mode)
+        self._git_client = CIVisibilityGitClient(
+            api_key=api_key or "", app_key=app_key or "", requests_mode=requests_mode
+        )
 
     def _configure_writer(self, coverage_enabled=False, requests_mode=None):
         writer = None
