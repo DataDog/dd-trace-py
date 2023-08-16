@@ -24,6 +24,8 @@ from .. import compat
 from ..utils.http import Response
 from ..utils.http import get_connection
 from .constants import AGENTLESS_DEFAULT_SITE
+from .constants import EVP_NEEDS_APP_KEY_NAME
+from .constants import EVP_NEEDS_APP_KEY_VALUE
 from .constants import EVP_PROXY_AGENT_BASE_PATH
 from .constants import EVP_SUBDOMAIN_HEADER_API_VALUE
 from .constants import EVP_SUBDOMAIN_HEADER_NAME
@@ -136,7 +138,10 @@ class CIVisibilityGitClient(object):
         url = "{}/repository{}".format(base_url, endpoint)
         _headers = {"dd-api-key": serializer.api_key, "dd-application-key": serializer.app_key}
         if requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS:
-            _headers = {EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_API_VALUE}
+            _headers = {
+                EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_API_VALUE,
+                EVP_NEEDS_APP_KEY_NAME: EVP_NEEDS_APP_KEY_VALUE,
+            }
         if headers is not None:
             _headers.update(headers)
         try:

@@ -26,6 +26,8 @@ from ddtrace.provider import CIContextProvider
 
 from .. import agent
 from .constants import AGENTLESS_DEFAULT_SITE
+from .constants import EVP_NEEDS_APP_KEY_NAME
+from .constants import EVP_NEEDS_APP_KEY_VALUE
 from .constants import EVP_PROXY_AGENT_BASE_PATH
 from .constants import EVP_SUBDOMAIN_HEADER_API_VALUE
 from .constants import EVP_SUBDOMAIN_HEADER_EVENT_VALUE
@@ -180,7 +182,10 @@ class CIVisibility(Service):
 
         if self._requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS:
             url = get_trace_url() + EVP_PROXY_AGENT_BASE_PATH + SETTING_ENDPOINT
-            _headers = {EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_API_VALUE}
+            _headers = {
+                EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_API_VALUE,
+                EVP_NEEDS_APP_KEY_NAME: EVP_NEEDS_APP_KEY_VALUE,
+            }
         elif self._requests_mode == REQUESTS_MODE.AGENTLESS_EVENTS:
             url = "https://api." + self._dd_site + SETTING_ENDPOINT
         else:
@@ -314,8 +319,11 @@ class CIVisibility(Service):
             "Content-Type": "application/json",
         }
         if self._requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS:
-            url = EVP_PROXY_AGENT_BASE_PATH + SKIPPABLE_ENDPOINT
-            _headers = {EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_API_VALUE}
+            url = get_trace_url() + EVP_PROXY_AGENT_BASE_PATH + SKIPPABLE_ENDPOINT
+            _headers = {
+                EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_API_VALUE,
+                EVP_NEEDS_APP_KEY_NAME: EVP_NEEDS_APP_KEY_VALUE,
+            }
         elif self._requests_mode == REQUESTS_MODE.AGENTLESS_EVENTS:
             url = "https://api." + self._dd_site + SKIPPABLE_ENDPOINT
         else:
