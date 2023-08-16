@@ -382,7 +382,7 @@ def test_load_testing_appsec_1click_and_ip_blocking_gunicorn_block_and_kill_chil
         True,
         pytest.param(
             False,
-            marks=pytest.mark.xfail(reason="FIXME: multiprocessing is only supported when DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE is set to True"),
+            marks=pytest.mark.xfail(reason="FIXME: multiprocessing is only supported when DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE is set"),
         ),
     ],
     ids=[
