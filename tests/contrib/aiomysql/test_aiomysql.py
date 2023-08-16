@@ -1,8 +1,8 @@
 import os
 
 import aiomysql
-import pytest
 import pymysql
+import pytest
 
 from ddtrace import Pin
 from ddtrace import Tracer

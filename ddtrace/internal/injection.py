@@ -30,7 +30,7 @@ def _inject_hook(code, hook, lineno, arg):
     identifier for the hook itself. This should be kept in case the hook needs
     to be removed.
     """
-    for _, instr in enumerate(code):
+    for _i, instr in enumerate(code):
         try:
             if instr.lineno == lineno:
                 # gotcha!
@@ -46,7 +46,7 @@ def _inject_hook(code, hook, lineno, arg):
     # Additionally, we must discard the return value (top of the stack) to
     # restore the stack to the state prior to the call.
     if PY < (3, 11):
-        code[i:i] = Bytecode(
+        code[_i:_i] = Bytecode(
             [
                 Instr("LOAD_CONST", hook, lineno=lineno),
                 Instr("LOAD_CONST", arg, lineno=lineno),
@@ -55,7 +55,7 @@ def _inject_hook(code, hook, lineno, arg):
             ]
         )
     elif PY >= (3, 12):
-        code[i:i] = Bytecode(
+        code[_i:_i] = Bytecode(
             [
                 Instr("PUSH_NULL", lineno=lineno),
                 Instr("LOAD_CONST", hook, lineno=lineno),
@@ -66,7 +66,7 @@ def _inject_hook(code, hook, lineno, arg):
         )
     else:
         # Python 3.11
-        code[i:i] = Bytecode(
+        code[_i:_i] = Bytecode(
             [
                 Instr("PUSH_NULL", lineno=lineno),
                 Instr("LOAD_CONST", hook, lineno=lineno),

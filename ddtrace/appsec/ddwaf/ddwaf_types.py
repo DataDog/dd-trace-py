@@ -126,7 +126,7 @@ class ddwaf_object(ctypes.Structure):
         max_depth=DDWAF_MAX_CONTAINER_DEPTH,
         max_string_length=DDWAF_MAX_STRING_LENGTH,
     ):
-        # type: (DDWafRulesType, _observator, int, int, int) -> None
+        # type: (DDWafRulesType, Optional[_observator], int, int, int) -> None
         if observator is None:
             observator = _observator()
 

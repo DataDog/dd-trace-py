@@ -37,7 +37,6 @@ def check_uwsgi(worker_callback=None, atexit=None):
     # The proper way to handle that is to allow to register a callback function to run in the subprocess at their
     # startup, and warn the caller that this is the master process and that (probably) nothing should be done.
     if uwsgi.numproc > 1 and not uwsgi.opt.get("lazy-apps") and uwsgi.worker_id() == 0:
-
         if not uwsgi.opt.get("master"):
             # Having multiple workers without the master process is not supported:
             # the postfork hooks are not available, so there's no way to start a different profiler in each
@@ -53,7 +52,6 @@ def check_uwsgi(worker_callback=None, atexit=None):
             uwsgidecorators.postfork(worker_callback)
 
         if atexit is not None:
-
             original_atexit = getattr(uwsgi, "atexit", None)
 
             def _atexit():

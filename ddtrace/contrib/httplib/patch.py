@@ -208,19 +208,10 @@ def patch():
 
     # Patch the desired methods
     httplib.HTTPConnection.__init__ = wrapt.FunctionWrapper(httplib.HTTPConnection.__init__, _wrap_init)
-    httplib.HTTPConnection.getresponse = wrapt.FunctionWrapper(
-        httplib.HTTPConnection.getresponse,
-        _wrap_getresponse
-    )
+    httplib.HTTPConnection.getresponse = wrapt.FunctionWrapper(httplib.HTTPConnection.getresponse, _wrap_getresponse)
     httplib.HTTPConnection.request = wrapt.FunctionWrapper(httplib.HTTPConnection.request, _wrap_request)
-    httplib.HTTPConnection.putrequest = wrapt.FunctionWrapper(
-        httplib.HTTPConnection.putrequest,
-        _wrap_putrequest
-    )
-    httplib.HTTPConnection.putheader = wrapt.FunctionWrapper(
-        httplib.HTTPConnection.putheader,
-        _wrap_putheader
-    )
+    httplib.HTTPConnection.putrequest = wrapt.FunctionWrapper(httplib.HTTPConnection.putrequest, _wrap_putrequest)
+    httplib.HTTPConnection.putheader = wrapt.FunctionWrapper(httplib.HTTPConnection.putheader, _wrap_putheader)
 
 
 def unpatch():

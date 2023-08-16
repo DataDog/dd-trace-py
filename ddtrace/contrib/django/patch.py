@@ -532,7 +532,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                     # [Suspicious Request Blocking on response]
                     if core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span):
                         response = blocked_response()
-                        return response
+                        return response  # noqa: B012
 
 
 @trace_utils.with_traced_module
@@ -788,7 +788,7 @@ def traced_login(django, pin, func, instance, args, kwargs):
                         session_id=session_key,
                         propagate=True,
                         login_events_mode=mode,
-                        **user_extra
+                        **user_extra,
                     )
                     return
                 else:

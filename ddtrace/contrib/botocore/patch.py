@@ -379,7 +379,6 @@ def inject_trace_to_kinesis_stream(params, span, pin=None, data_streams_enabled=
     if data_streams_enabled:
         stream_arn = get_stream_arn(params)
         if stream_arn:  # If stream ARN isn't specified, we give up (it is not a required param)
-
             # put_records has a "Records" entry but put_record does not, so we fake a record to
             # collapse the logic for the two cases
             for _ in params.get("Records", ["fake_record"]):

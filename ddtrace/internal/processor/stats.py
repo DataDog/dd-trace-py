@@ -166,27 +166,27 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
             for aggr_key, stat_aggr in bucket.items():
                 name, service, resource, _type, http_status, synthetics = aggr_key
                 serialized_bucket = {
-                    u"Name": six.ensure_text(name),
-                    u"Resource": six.ensure_text(resource),
-                    u"Synthetics": synthetics,
-                    u"HTTPStatusCode": http_status,
-                    u"Hits": stat_aggr.hits,
-                    u"TopLevelHits": stat_aggr.top_level_hits,
-                    u"Duration": stat_aggr.duration,
-                    u"Errors": stat_aggr.errors,
-                    u"OkSummary": DDSketchProto.to_proto(stat_aggr.ok_distribution).SerializeToString(),
-                    u"ErrorSummary": DDSketchProto.to_proto(stat_aggr.err_distribution).SerializeToString(),
+                    "Name": six.ensure_text(name),
+                    "Resource": six.ensure_text(resource),
+                    "Synthetics": synthetics,
+                    "HTTPStatusCode": http_status,
+                    "Hits": stat_aggr.hits,
+                    "TopLevelHits": stat_aggr.top_level_hits,
+                    "Duration": stat_aggr.duration,
+                    "Errors": stat_aggr.errors,
+                    "OkSummary": DDSketchProto.to_proto(stat_aggr.ok_distribution).SerializeToString(),
+                    "ErrorSummary": DDSketchProto.to_proto(stat_aggr.err_distribution).SerializeToString(),
                 }
                 if service:
-                    serialized_bucket[u"Service"] = six.ensure_text(service)
+                    serialized_bucket["Service"] = six.ensure_text(service)
                 if _type:
-                    serialized_bucket[u"Type"] = six.ensure_text(_type)
+                    serialized_bucket["Type"] = six.ensure_text(_type)
                 bucket_aggr_stats.append(serialized_bucket)
             serialized_buckets.append(
                 {
-                    u"Start": bucket_time_ns,
-                    u"Duration": self._bucket_size_ns,
-                    u"Stats": bucket_aggr_stats,
+                    "Start": bucket_time_ns,
+                    "Duration": self._bucket_size_ns,
+                    "Stats": bucket_aggr_stats,
                 }
             )
 
@@ -233,13 +233,13 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
             # No stats to report, short-circuit.
             return
         raw_payload = {
-            u"Stats": serialized_stats,
-            u"Hostname": self._hostname,
+            "Stats": serialized_stats,
+            "Hostname": self._hostname,
         }  # type: Dict[str, Union[List[Dict], str]]
         if config.env:
-            raw_payload[u"Env"] = six.ensure_text(config.env)
+            raw_payload["Env"] = six.ensure_text(config.env)
         if config.version:
-            raw_payload[u"Version"] = six.ensure_text(config.version)
+            raw_payload["Version"] = six.ensure_text(config.version)
 
         payload = packb(raw_payload)
         try:

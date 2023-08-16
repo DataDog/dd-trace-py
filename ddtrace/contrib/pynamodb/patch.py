@@ -51,7 +51,6 @@ def unpatch():
 
 
 def patched_api_call(original_func, instance, args, kwargs):
-
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
         return original_func(*args, **kwargs)

@@ -6,8 +6,8 @@ import os
 import mock
 from paste import fixture
 from paste.deploy import loadapp
-import pylons
 from paste.fixture import AppError
+import pylons
 import pytest
 from routes import url_for
 

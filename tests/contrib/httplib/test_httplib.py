@@ -394,7 +394,6 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         self.assertEqual(len(spans), 0)
 
     def test_httplib_request_and_response_headers(self):
-
         # Disabled when not configured
         conn = self.get_http_connection(SOCKET)
         with contextlib.closing(conn):
@@ -845,6 +844,7 @@ if PY2:
                    we return the original response
                    we capture a span for the request
             """
+
             # TODO: figure out how to use https in our local httpbin container
             class DDAPPopener(urllib.FancyURLopener):
                 # Specify different user agent than urllib's default URLopener:

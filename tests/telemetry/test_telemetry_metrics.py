@@ -422,7 +422,6 @@ def test_send_multiple_log_metric_no_duplicates(telemetry_writer, test_agent_ses
 
 
 def test_send_multiple_log_metric_no_duplicates_for_each_interval(telemetry_writer, test_agent_session, mock_time):
-
     for _ in range(10):
         telemetry_writer.add_log("WARNING", "test error 1")
 

@@ -201,42 +201,42 @@ class DataStreamsProcessor(PeriodicService):
             for aggr_key, stat_aggr in bucket.pathway_stats.items():
                 edge_tags, hash_value, parent_hash = aggr_key
                 serialized_bucket = {
-                    u"EdgeTags": [six.ensure_text(tag) for tag in edge_tags.split(",")],
-                    u"Hash": hash_value,
-                    u"ParentHash": parent_hash,
-                    u"PathwayLatency": DDSketchProto.to_proto(stat_aggr.full_pathway_latency).SerializeToString(),
-                    u"EdgeLatency": DDSketchProto.to_proto(stat_aggr.edge_latency).SerializeToString(),
+                    "EdgeTags": [six.ensure_text(tag) for tag in edge_tags.split(",")],
+                    "Hash": hash_value,
+                    "ParentHash": parent_hash,
+                    "PathwayLatency": DDSketchProto.to_proto(stat_aggr.full_pathway_latency).SerializeToString(),
+                    "EdgeLatency": DDSketchProto.to_proto(stat_aggr.edge_latency).SerializeToString(),
                 }
                 bucket_aggr_stats.append(serialized_bucket)
             for consumer_key, offset in bucket.latest_commit_offsets.items():
                 backlogs.append(
                     {
-                        u"Tags": [
+                        "Tags": [
                             "type:kafka_commit",
                             "consumer_group:" + consumer_key.group,
                             "topic:" + consumer_key.topic,
                             "partition:" + str(consumer_key.partition),
                         ],
-                        u"Value": offset,
+                        "Value": offset,
                     }
                 )
             for producer_key, offset in bucket.latest_produce_offsets.items():
                 backlogs.append(
                     {
-                        u"Tags": [
+                        "Tags": [
                             "type:kafka_produce",
                             "topic:" + producer_key.topic,
                             "partition:" + str(producer_key.partition),
                         ],
-                        u"Value": offset,
+                        "Value": offset,
                     }
                 )
             serialized_buckets.append(
                 {
-                    u"Start": bucket_time_ns,
-                    u"Duration": self._bucket_size_ns,
-                    u"Stats": bucket_aggr_stats,
-                    u"Backlogs": backlogs,
+                    "Start": bucket_time_ns,
+                    "Duration": self._bucket_size_ns,
+                    "Stats": bucket_aggr_stats,
+                    "Backlogs": backlogs,
                 }
             )
 
@@ -280,16 +280,16 @@ class DataStreamsProcessor(PeriodicService):
             log.debug("No data streams reported. Skipping flushing.")
             return
         raw_payload = {
-            u"Service": self._service,
-            u"TracerVersion": ddtrace.__version__,
-            u"Lang": "python",
-            u"Stats": serialized_stats,
-            u"Hostname": self._hostname,
+            "Service": self._service,
+            "TracerVersion": ddtrace.__version__,
+            "Lang": "python",
+            "Stats": serialized_stats,
+            "Hostname": self._hostname,
         }  # type: Dict[str, Union[List[Dict], str]]
         if config.env:
-            raw_payload[u"Env"] = six.ensure_text(config.env)
+            raw_payload["Env"] = six.ensure_text(config.env)
         if config.version:
-            raw_payload[u"Version"] = six.ensure_text(config.version)
+            raw_payload["Version"] = six.ensure_text(config.version)
 
         payload = packb(raw_payload)
         compressed = gzip_compress(payload)

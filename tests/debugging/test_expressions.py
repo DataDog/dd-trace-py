@@ -34,7 +34,6 @@ class CustomAttr(object):
 
 class CustomList(list):
     def __getitem__(self, index):
-
         return str(list.__getitem__(self, index)) + "custom"
 
 

@@ -182,7 +182,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         clients,  # type: List[WriterClientBase]
         sampler=None,  # type: Optional[BaseSampler]
         priority_sampler=None,  # type: Optional[BasePrioritySampler]
-        processing_interval=None,  # type: float
+        processing_interval=None,  # type: Optional[float]
         # Match the payload size since there is no functionality
         # to flush dynamically.
         buffer_size=None,  # type: Optional[int]
@@ -512,11 +512,11 @@ class AgentWriter(HTTPWriter):
         reuse_connections=None,  # type: Optional[bool]
         headers=None,  # type: Optional[Dict[str, str]]
     ):
+        # type: (...) -> None
         if processing_interval is None:
             processing_interval = get_writer_interval_seconds()
         if timeout is None:
             timeout = agent.get_trace_agent_timeout()
-        # type: (...) -> None
         if buffer_size is not None and buffer_size <= 0:
             raise ValueError("Writer buffer size must be positive")
         if max_payload_size is not None and max_payload_size <= 0:

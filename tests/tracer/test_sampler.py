@@ -983,7 +983,6 @@ def context():
     ],
 )
 def test_trace_tag(context, sampling_mechanism, sampled, expected):
-
     update_sampling_decision(context, sampling_mechanism, sampled)
     if sampled:
         assert context._meta["_dd.p.dm"] == expected

@@ -167,7 +167,7 @@ async def test_pipeline_traced_context_manager_transaction(redis_client):
     """
 
     async with redis_client.pipeline(transaction=True) as p:
-        set_1, set_2, get_1, get_2 = await (p.set("blah", "boo").set("foo", "bar").get("blah").get("foo").execute())
+        set_1, set_2, get_1, get_2 = await p.set("blah", "boo").set("foo", "bar").get("blah").get("foo").execute()
 
     # response from redis.set is OK if successfully pushed
     assert set_1 is True
@@ -179,7 +179,6 @@ async def test_pipeline_traced_context_manager_transaction(redis_client):
 @pytest.mark.asyncio
 @pytest.mark.snapshot(wait_for_num_traces=1)
 async def test_two_traced_pipelines(redis_client):
-
     with tracer.trace("web-request", service="test"):
         if redis.VERSION >= (2, 0):
             p1 = await redis_client.pipeline(transaction=False)

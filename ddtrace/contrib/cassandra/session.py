@@ -153,13 +153,9 @@ def traced_execute_async(func, instance, args, kwargs):
         setattr(result, CURRENT_SPAN, span)
         setattr(result, PAGE_NUMBER, 1)
         result._set_final_result = wrapt.FunctionWrapper(result._set_final_result, traced_set_final_result)
-        result._set_final_exception = wrapt.FunctionWrapper(
-            result._set_final_exception,
-            traced_set_final_exception
-        )
+        result._set_final_exception = wrapt.FunctionWrapper(result._set_final_exception, traced_set_final_exception)
         result.start_fetching_next_page = wrapt.FunctionWrapper(
-            result.start_fetching_next_page,
-            traced_start_fetching_next_page
+            result.start_fetching_next_page, traced_start_fetching_next_page
         )
 
         # Since we cannot be sure that the previous methods were overwritten

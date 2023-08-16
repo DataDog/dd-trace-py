@@ -87,7 +87,7 @@ async def test_basic_request(redis_client):
 @pytest.mark.asyncio
 @pytest.mark.snapshot
 async def test_unicode_request(redis_client):
-    val = await redis_client.get(u"😐")
+    val = await redis_client.get("😐")
     assert val is None
 
 
@@ -136,7 +136,7 @@ async def test_closed_connection_pool(single_pool_redis_client):
         return single_pool_redis_client.get("cheese")
 
     # start running the task after blocking the pool
-    with (await single_pool_redis_client):
+    with await single_pool_redis_client:
         task = [asyncio.ensure_future(execute_task())]
     # Pool is released, make sure we wait for the task to finish
     await asyncio.gather(*task, return_exceptions=True)
@@ -274,7 +274,7 @@ async def test_pipeline_traced_context_manager_transaction(redis_client):
     """
 
     async with redis_client.pipeline(transaction=True) as p:
-        set_1, set_2, get_1, get_2 = await (p.set("blah", "boo").set("foo", "bar").get("blah").get("foo").execute())
+        set_1, set_2, get_1, get_2 = await p.set("blah", "boo").set("foo", "bar").get("blah").get("foo").execute()
 
     # response from redis.set is OK if successfully pushed
     assert set_1 is True
@@ -286,7 +286,6 @@ async def test_pipeline_traced_context_manager_transaction(redis_client):
 @pytest.mark.asyncio
 @pytest.mark.snapshot(variants={"": aioredis_version >= (2, 0), "13": aioredis_version < (2, 0)})
 async def test_two_traced_pipelines(redis_client):
-
     with tracer.trace("web-request", service="test"):
         if aioredis_version >= (2, 0):
             p1 = await redis_client.pipeline(transaction=False)

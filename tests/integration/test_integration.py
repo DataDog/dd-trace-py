@@ -471,10 +471,10 @@ def test_trace_with_non_bytes_payload_logs_payload_when_LOG_ERROR_PAYLOADS(monke
 
     class NonBytesBadEncoder(BadEncoder):
         def encode(self):
-            return u"bad_payload"
+            return "bad_payload"
 
         def encode_traces(self, traces):
-            return u"bad_payload"
+            return "bad_payload"
 
     log = send_invalid_payload_and_get_logs(NonBytesBadEncoder)
     log.error.assert_has_calls(

@@ -199,7 +199,6 @@ def _appsec_1click_activation(features, test_tracer=None):
 
         log.debug("APPSEC_ENABLED: %s", rc_appsec_enabled)
         if rc_appsec_enabled is not None:
-
             log.debug(
                 "[%s][P: %s] Updating ASM Remote Configuration ASM_FEATURES: %s",
                 os.getpid(),

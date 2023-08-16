@@ -95,7 +95,6 @@ def patch_app_call(wrapped, instance, args, kwargs):
         resource=resource,
         span_type=SpanTypes.WEB,
     ) as span:
-
         span.set_tag_str(COMPONENT, config.molten.integration_name)
 
         # set span.kind tag equal to type of operation being performed
@@ -123,7 +122,7 @@ def patch_app_call(wrapped, instance, args, kwargs):
 
             if not span.get_tag(MOLTEN_ROUTE):
                 # if route never resolve, update root resource
-                span.resource = u"{} {}".format(request.method, code)
+                span.resource = "{} {}".format(request.method, code)
 
             trace_utils.set_http_meta(span, config.molten, status_code=code)
 

@@ -211,7 +211,7 @@ class PylibmcCore(object):
     def test_get_set_delete(self):
         client, tracer = self.get_client()
         # test
-        k = u"cafe"
+        k = "cafe"
         v = "val-foo"
         start = time.time()
         client.delete(k)  # just in case

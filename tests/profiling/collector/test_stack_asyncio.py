@@ -80,7 +80,6 @@ def test_asyncio(tmp_path, monkeypatch) -> None:
     main_thread_ran_test = False
     stack_sample_events = events[stack_event.StackSampleEvent]
     for event in stack_sample_events:
-
         wall_time_ns[event.task_name] += event.wall_time_ns
 
         # This assertion does not work reliably on Python < 3.7

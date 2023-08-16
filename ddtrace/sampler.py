@@ -61,7 +61,6 @@ class SamplingError(Exception):
 
 
 class BaseSampler(six.with_metaclass(abc.ABCMeta)):
-
     __slots__ = ()
 
     @abc.abstractmethod
@@ -70,7 +69,6 @@ class BaseSampler(six.with_metaclass(abc.ABCMeta)):
 
 
 class BasePrioritySampler(BaseSampler):
-
     __slots__ = ()
 
     @abc.abstractmethod

@@ -346,7 +346,7 @@ def _get_blocked_template(accept_header_value):
             else:
                 _JSON_BLOCKED_TEMPLATE_CACHE = content
             return content
-        except (OSError, IOError) as e:
+        except OSError as e:
             log.warning("Could not load custom template at %s: %s", template_path, str(e))  # noqa: G200
 
     # No user-defined template at this point

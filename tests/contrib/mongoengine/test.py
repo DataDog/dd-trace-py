@@ -25,7 +25,6 @@ class Artist(mongoengine.Document):
 
 
 class MongoEngineCore(object):
-
     # Define the service at the class level, so that each test suite can use a different service
     # and therefore catch any sneaky badly-unpatched stuff.
     TEST_SERVICE = "deadbeef"

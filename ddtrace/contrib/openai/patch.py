@@ -391,7 +391,7 @@ def _patched_endpoint(openai, integration, patch_hook):
             except StopIteration as e:
                 if err is None:
                     # This return takes priority over `return resp`
-                    return e.value
+                    return e.value  # noqa: B012
 
     return patched_endpoint
 
@@ -417,7 +417,7 @@ def _patched_endpoint_async(openai, integration, patch_hook):
             except StopIteration as e:
                 if err is None:
                     # This return takes priority over `return resp`
-                    return e.value
+                    return e.value  # noqa: B012
 
     return patched_endpoint
 

@@ -81,7 +81,7 @@ class Jinja2Test(TracerTestCase):
         cases = [
             ("custom-name", "custom-name"),
             (1, "1"),
-            (u"😐", u"😐"),
+            ("😐", "😐"),
         ]
         for template_name, expected in cases:
             t = jinja2.environment.Template("Hello {{name}}!")

@@ -60,7 +60,7 @@ if "gevent" in sys.modules or "gevent.monkey" in sys.modules:
     import gevent.monkey  # noqa
 
     if gevent.monkey.is_module_patched("threading"):
-        warnings.warn(
+        warnings.warn(  # noqa: B028
             "Loading ddtrace after gevent.monkey.patch_all() is not supported and is "
             "likely to break the application. Use ddtrace-run to fix this, or "
             "import ddtrace.auto before calling gevent.monkey.patch_all().",
@@ -169,11 +169,9 @@ try:
         RuntimeWorker.enable()
 
     if asbool(os.getenv("DD_IAST_ENABLED", False)):
-
         from ddtrace.appsec.iast._util import _is_python_version_supported
 
         if _is_python_version_supported():
-
             from ddtrace.appsec.iast._ast.ast_patching import _should_iast_patch
             from ddtrace.appsec.iast._loader import _exec_iast_patched_module
             from ddtrace.appsec.iast._taint_tracking import setup

@@ -629,7 +629,7 @@ class TracerTestCases(TracerTestCase):
             propagate=True,
         )
         user_id = span.context._meta.get("_dd.p.usr.id")
-        assert span.get_tag(user.ID) == u"ユーザーID"
+        assert span.get_tag(user.ID) == "ユーザーID"
         assert span.context.dd_user_id == "ユーザーID"
         assert user_id == "44Om44O844K244O8SUQ="
 
@@ -767,7 +767,6 @@ def test_tracer_fork():
     def task(t, errors):
         # Start a new span to trigger process checking
         with t.trace("test", service="test"):
-
             # Assert we recreated the writer and have a new queue
             with capture_failures(errors):
                 assert t._pid != original_pid
@@ -1365,7 +1364,7 @@ class TestPartialFlush(TracerTestCase):
 def test_unicode_config_vals():
     t = ddtrace.Tracer()
 
-    with override_global_config(dict(version=u"😇", env=u"😇")):
+    with override_global_config(dict(version="😇", env="😇")):
         with t.trace("1"):
             pass
     t.shutdown()

@@ -433,7 +433,6 @@ class _BaseHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 
 
 class _APIEndpointRequestHandlerTest(_BaseHTTPRequestHandler):
-
     expected_path_prefix = None
 
     def do_PUT(self):
@@ -753,7 +752,6 @@ def test_writer_api_version_selection(
 
     # Mock the value of `sys.platform` to be a specific value
     with mock_sys_platform(sys_platform):
-
         # If desired, set the DD_TRACE_API_VERSION env variable
         if ddtrace_api_version is not None:
             monkeypatch.setenv("DD_TRACE_API_VERSION", ddtrace_api_version)

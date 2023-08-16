@@ -61,7 +61,6 @@ def get_psycopg2_extensions(psycopg_module):
         """Wrapper around psycopg2 for tracing"""
 
         def __init__(self, *args, **kwargs):
-
             self._datadog_tracer = kwargs.pop("datadog_tracer", None)
             self._datadog_service = kwargs.pop("datadog_service", None)
 

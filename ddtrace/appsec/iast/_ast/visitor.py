@@ -250,7 +250,6 @@ class AstVisitor(ast.NodeTransformer):
         )
 
     def _call_node(self, from_node, func, args):  # type: (Any, Any, List[Any]) -> Any
-
         return self._node(ast.Call, from_node, func=func, args=args, keywords=[])
 
     def visit_Module(self, module_node):

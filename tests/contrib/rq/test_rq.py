@@ -15,7 +15,8 @@ from tests.utils import snapshot
 from tests.utils import snapshot_context
 
 from ..config import REDIS_CONFIG
-from .jobs import JobClass, MyException
+from .jobs import JobClass
+from .jobs import MyException
 from .jobs import job_add1
 from .jobs import job_fail
 

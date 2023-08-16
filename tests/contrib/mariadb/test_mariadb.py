@@ -81,11 +81,11 @@ def test_simple_query(connection, tracer):
     assert_dict_issuperset(
         span.get_tags(),
         {
-            "out.host": u"127.0.0.1",
-            "db.name": u"test",
-            "db.system": u"mariadb",
-            "db.user": u"test",
-            "component": u"mariadb",
+            "out.host": "127.0.0.1",
+            "db.name": "test",
+            "db.system": "mariadb",
+            "db.user": "test",
+            "component": "mariadb",
             "span.kind": "client",
         },
     )
@@ -263,7 +263,6 @@ def test_query_with_several_rows_fetchall_snapshot(tracer):
 def test_query_many_fetchall_snapshot(tracer):
     with override_config("mariadb", dict(trace_fetch_methods=True)):
         with get_connection(tracer) as connection:
-
             # tests that the executemany method is correctly wrapped.
             tracer.enabled = False
             cursor = connection.cursor()

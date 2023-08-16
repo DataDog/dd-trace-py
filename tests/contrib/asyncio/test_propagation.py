@@ -148,6 +148,7 @@ async def test_propagation_with_new_context(tracer):
 @pytest.mark.asyncio
 async def test_trace_multiple_coroutines_ot_outer(tracer):
     """OpenTracing version of test_trace_multiple_coroutines."""
+
     # if multiple coroutines have nested tracing, they must belong
     # to the same trace
     async def coro():

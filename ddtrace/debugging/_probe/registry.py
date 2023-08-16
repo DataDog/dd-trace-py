@@ -16,7 +16,6 @@ logger = get_logger(__name__)
 
 
 class ProbeRegistryEntry(object):
-
     __slots__ = ("probe", "installed", "exc_info", "message")
 
     def __init__(self, probe):

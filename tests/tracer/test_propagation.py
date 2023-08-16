@@ -146,7 +146,7 @@ def test_inject_128bit_trace_id_tracecontext():
 def test_inject_tags_unicode(tracer):
     """We properly encode when the meta key as long as it is just ascii characters"""
     # Context._meta allows str and bytes for keys
-    meta = {u"_dd.p.test": u"unicode"}
+    meta = {"_dd.p.test": "unicode"}
     ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics", meta=meta)
     tracer.context_provider.activate(ctx)
     with tracer.trace("global_root_span") as span:
@@ -167,7 +167,7 @@ def test_inject_tags_bytes(tracer):
         "_propagation_style_inject": [PROPAGATION_STYLE_DATADOG],
     }
     with override_global_config(overrides):
-        meta = {u"_dd.p.test": b"bytes"}
+        meta = {"_dd.p.test": b"bytes"}
         ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics", meta=meta)
         tracer.context_provider.activate(ctx)
         with tracer.trace("global_root_span") as span:
@@ -181,7 +181,7 @@ def test_inject_tags_bytes(tracer):
 
 def test_inject_tags_unicode_error(tracer):
     """Unicode characters are not allowed"""
-    meta = {u"_dd.p.test": u"unicode value ☺️"}
+    meta = {"_dd.p.test": "unicode value ☺️"}
     ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics", meta=meta)
     tracer.context_provider.activate(ctx)
     with tracer.trace("global_root_span") as span:
@@ -401,11 +401,11 @@ def test_extract_unicode(tracer):
     lost.
     """
     headers = {
-        u"x-datadog-trace-id": u"1234",
-        u"x-datadog-parent-id": u"5678",
-        u"x-datadog-sampling-priority": u"1",
-        u"x-datadog-origin": u"synthetics",
-        u"x-datadog-tags": u"_dd.p.test=value,any=tag",
+        "x-datadog-trace-id": "1234",
+        "x-datadog-parent-id": "5678",
+        "x-datadog-sampling-priority": "1",
+        "x-datadog-origin": "synthetics",
+        "x-datadog-tags": "_dd.p.test=value,any=tag",
     }
 
     context = HTTPPropagator.extract(headers)

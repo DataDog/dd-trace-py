@@ -426,7 +426,7 @@ class TelemetryWriter(PeriodicService):
         self.add_event(payload, "app-dependencies-loaded")
 
     def add_log(self, level, message, stack_trace="", tags=None):
-        # type: (str, str, str, Dict) -> None
+        # type: (str, str, str, Optional[Dict]) -> None
         """
         Queues log. This event is meant to send library logs to Datadog’s backend through the Telemetry intake.
         This will make support cycles easier and ensure we know about potentially silent issues in libraries.

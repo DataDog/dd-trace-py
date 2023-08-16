@@ -3,7 +3,6 @@ import os
 import django
 from django.conf import settings
 import mock
-import os
 import pytest
 
 from ddtrace import Pin
@@ -53,13 +52,13 @@ def test_spans(tracer):
     yield container
     container.reset()
 
-def setup_timeout_hook():
-    mock.patch('django.core.handlers.base.BaseHandler.get_response', return_value=None)
-    mock.patch('django.test.client.ClientHandler.get_response', return_value=None)
 
-_django_hook_map = {
-    "timeout": setup_timeout_hook
-}
+def setup_timeout_hook():
+    mock.patch("django.core.handlers.base.BaseHandler.get_response", return_value=None)
+    mock.patch("django.test.client.ClientHandler.get_response", return_value=None)
+
+
+_django_hook_map = {"timeout": setup_timeout_hook}
 if os.environ.get("DJANGO_PREPATCH_HOOK"):
     value = os.environ.get("DJANGO_PREPATCH_HOOK")
     hook = _django_hook_map[value]

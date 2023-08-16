@@ -172,7 +172,7 @@ def test_wrong_span_name_type_not_sent():
     [
         ({"env": "my-env", "tag1": "some_str_1", "tag2": "some_str_2", "tag3": [1, 2, 3]}),
         ({"env": "test-env", b"tag1": {"wrong_type": True}, b"tag2": "some_str_2", b"tag3": "some_str_3"}),
-        ({"env": "my-test-env", u"😐": "some_str_1", b"tag2": "some_str_2", "unicode": 12345}),
+        ({"env": "my-test-env", "😐": "some_str_1", b"tag2": "some_str_2", "unicode": 12345}),
     ],
 )
 @pytest.mark.parametrize("encoding", ["v0.4", "v0.5"])
@@ -195,7 +195,7 @@ def test_trace_with_wrong_meta_types_not_sent(encoding, meta, monkeypatch):
     [
         ({"num1": 12345, "num2": 53421, "num3": 1, "num4": "not-a-number"}),
         ({b"num1": 123.45, b"num2": [1, 2, 3], b"num3": 11.0, b"num4": 1.20}),
-        ({u"😐": "123.45", b"num2": "1", "num3": {"is_number": False}, "num4": "12345"}),
+        ({"😐": "123.45", b"num2": "1", "num3": {"is_number": False}, "num4": "12345"}),
     ],
 )
 @pytest.mark.parametrize("encoding", ["v0.4", "v0.5"])

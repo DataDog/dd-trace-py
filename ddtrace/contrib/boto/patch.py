@@ -79,7 +79,6 @@ def unpatch():
 
 # ec2, sqs, kinesis
 def patched_query_request(original_func, instance, args, kwargs):
-
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
         return original_func(*args, **kwargs)
@@ -141,7 +140,6 @@ def patched_query_request(original_func, instance, args, kwargs):
 
 # s3, lambda
 def patched_auth_request(original_func, instance, args, kwargs):
-
     # Catching the name of the operation that called make_request()
     operation_name = None
 

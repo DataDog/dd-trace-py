@@ -15,7 +15,6 @@ from ..config import RABBITMQ_CONFIG
 
 
 class TestKombuPatch(TracerTestCase):
-
     TEST_SERVICE = "kombu-patch"
     TEST_PORT = RABBITMQ_CONFIG["port"]
 
@@ -77,9 +76,9 @@ class TestKombuPatch(TracerTestCase):
         self.assertEqual(producer_span.error, 0)
         self.assertEqual(producer_span.get_tag("out.vhost"), "/")
         self.assertEqual(producer_span.get_tag("out.host"), "127.0.0.1")
-        self.assertEqual(producer_span.get_tag("kombu.exchange"), u"tasks")
+        self.assertEqual(producer_span.get_tag("kombu.exchange"), "tasks")
         self.assertEqual(producer_span.get_metric("kombu.body_length"), 18)
-        self.assertEqual(producer_span.get_tag("kombu.routing_key"), u"tasks")
+        self.assertEqual(producer_span.get_tag("kombu.routing_key"), "tasks")
         self.assertEqual(producer_span.resource, "tasks")
         self.assertEqual(producer_span.get_tag("component"), "kombu")
         self.assertEqual(producer_span.get_tag("span.kind"), "producer")
@@ -90,8 +89,8 @@ class TestKombuPatch(TracerTestCase):
         self.assertEqual(consumer_span.name, kombux.RECEIVE_NAME)
         self.assertEqual(consumer_span.span_type, "worker")
         self.assertEqual(consumer_span.error, 0)
-        self.assertEqual(consumer_span.get_tag("kombu.exchange"), u"tasks")
-        self.assertEqual(consumer_span.get_tag("kombu.routing_key"), u"tasks")
+        self.assertEqual(consumer_span.get_tag("kombu.exchange"), "tasks")
+        self.assertEqual(consumer_span.get_tag("kombu.routing_key"), "tasks")
         self.assertEqual(consumer_span.get_tag("component"), "kombu")
         self.assertEqual(consumer_span.get_tag("span.kind"), "consumer")
 
@@ -139,7 +138,6 @@ class TestKombuSettings(TracerTestCase):
 
 
 class TestKombuSchematization(TracerTestCase):
-
     TEST_PORT = RABBITMQ_CONFIG["port"]
 
     def setUp(self):

@@ -61,7 +61,6 @@ else:
 
 
 class _ProfiledLock(wrapt.ObjectProxy):
-
     ACQUIRE_EVENT_CLASS = LockAcquireEvent
     RELEASE_EVENT_CLASS = LockReleaseEvent
 

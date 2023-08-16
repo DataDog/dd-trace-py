@@ -20,6 +20,7 @@ from tests.utils import override_global_config
 # This is done to avoid making real calls to the API which could introduce
 # flakiness and cost.
 
+
 # To (re)-generate the cassettes: pass a real API key with
 # {PROVIDER}_API_KEY, delete the old cassettes and re-run the tests.
 # NOTE: be sure to check that the generated cassettes don't contain your
