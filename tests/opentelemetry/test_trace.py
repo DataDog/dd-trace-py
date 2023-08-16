@@ -19,7 +19,7 @@ def test_otel_compatible_tracer_is_returned_by_tracer_provider():
 @pytest.mark.snapshot
 def test_otel_start_span_with_default_args(oteltracer):
     otel_span = oteltracer.start_span("test-start-span")
-    with pytest.raises(Exception):
+    with pytest.raises(Exception, match="Sorry Otel Span, I failed you"):
         with opentelemetry.trace.use_span(
             otel_span,
             end_on_exit=False,
@@ -50,7 +50,7 @@ def test_otel_start_span_without_default_args(oteltracer):
         set_status_on_exception=True,
     )
     otel_span.update_name("rename-start-span")
-    with pytest.raises(Exception):
+    with pytest.raises(Exception, match="Sorry Otel Span, I failed you"):
         with opentelemetry.trace.use_span(
             otel_span,
             end_on_exit=False,
@@ -69,7 +69,7 @@ def test_otel_start_span_without_default_args(oteltracer):
 
 @pytest.mark.snapshot(ignores=["meta.error.stack"])
 def test_otel_start_span_ignore_exceptions(caplog, oteltracer):
-    with pytest.raises(Exception):
+    with pytest.raises(Exception, match="Sorry Otel Span, I failed you"):
         with oteltracer.start_span("otel-error-span", record_exception=False, set_status_on_exception=False):
             raise Exception("Sorry Friend, I failed you")
 
@@ -97,7 +97,7 @@ def test_otel_start_current_span_without_default_args(oteltracer):
         ) as otel_span:
             assert otel_span.is_recording()
             otel_span.update_name("rename-start-current-span")
-            with pytest.raises(Exception):
+            with pytest.raises(Exception, match="Exception message and stacktrace should not be set"):
                 raise Exception("Exception message and stacktrace should not be set")
 
     # set_status_on_exception is False

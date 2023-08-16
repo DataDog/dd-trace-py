@@ -387,7 +387,7 @@ class TestUrllib3(BaseUrllib3TestCase):
     def test_split_by_domain_includes_port(self):
         """Test the port is included if not 80 or 443"""
         with self.override_config("urllib3", dict(split_by_domain=True)):
-            with pytest.raises(Exception):
+            with pytest.raises(urllib3.exceptions.MaxRetryError):
                 # Using a port the service is not listening on will throw an error, which is fine
                 self.http.request("GET", "http://httpbin.org:8000/hello", timeout=0.0001, retries=0)
 

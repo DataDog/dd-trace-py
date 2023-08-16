@@ -2,6 +2,7 @@ import os
 
 import aiomysql
 import pytest
+import pymysql
 
 from ddtrace import Pin
 from ddtrace import Tracer
@@ -53,7 +54,7 @@ async def test_queries(snapshot_conn):
     # run a query with an error and ensure all is well
     q = "select * from some_non_existant_table"
     cur = await db.cursor()
-    with pytest.raises(Exception):
+    with pytest.raises(pymysql.err.ProgrammingError):
         await cur.execute(q)
 
 

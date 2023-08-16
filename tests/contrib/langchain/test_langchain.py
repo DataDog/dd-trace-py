@@ -3,6 +3,7 @@ import re
 import sys
 
 import mock
+import openai
 import pytest
 import vcr
 
@@ -234,7 +235,7 @@ async def test_openai_llm_async_stream(langchain, request_vcr):
 @pytest.mark.snapshot(ignores=["meta.error.stack"])
 def test_openai_llm_error(langchain, request_vcr):
     llm = langchain.llms.OpenAI()
-    with pytest.raises(Exception):
+    with pytest.raises(openai.error.InvalidRequestError):
         with request_vcr.use_cassette("openai_completion_error.yaml"):
             llm.generate([12345, 123456])
 

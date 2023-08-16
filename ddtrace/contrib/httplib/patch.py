@@ -202,7 +202,7 @@ def should_skip_request(pin, request):
 
 def patch():
     """patch the built-in urllib/httplib/httplib.client methods for tracing"""
-    if httplib.__datadog_patch is False:
+    if getattr(httplib, "__datadog_patch", False):
         return
     httplib.__datadog_patch = True
 
@@ -211,7 +211,7 @@ def patch():
     httplib.HTTPConnection.getresponse = wrapt.FunctionWrapper(
         httplib.HTTPConnection.getresponse,
         _wrap_getresponse
-    ),
+    )
     httplib.HTTPConnection.request = wrapt.FunctionWrapper(httplib.HTTPConnection.request, _wrap_request)
     httplib.HTTPConnection.putrequest = wrapt.FunctionWrapper(
         httplib.HTTPConnection.putrequest,
