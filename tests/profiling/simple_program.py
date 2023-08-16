@@ -13,7 +13,7 @@ for running_collector in bootstrap.profiler._profiler._collectors:
     if isinstance(running_collector, stack.StackCollector):
         break
 else:
-    assert False, "Unable to find stack collector"
+    raise AssertionError("Unable to find stack collector")
 
 
 print("hello world")

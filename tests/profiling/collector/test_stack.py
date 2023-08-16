@@ -302,7 +302,7 @@ def test_ignore_profiler_gevent_task():
             # Give some time for gevent to switch greenlets
             time.sleep(0.1)
         else:
-            assert False, "ignore == " + ignore
+            raise AssertionError("ignore == " + ignore)
 
         c.stop()
         p.stop(flush=False)

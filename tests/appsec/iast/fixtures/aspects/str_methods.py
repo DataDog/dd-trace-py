@@ -790,7 +790,10 @@ def format_html(a, args):  # type: (str, *Tuple) -> str
     return a.join(args)
 
 
-def format_html_join(attrs, args_generator=["a", "b", "c"]):  # type: (str, List[str]) -> str
+def format_html_join(attrs, args_generator=None):  # type: (str, List[str]) -> str
+    if args_generator is None:
+        args_generator = ["a", "b", "c"] 
+
     result = mark_safe(conditional_escape("/").join(format_html(attrs, tuple(args)) for args in args_generator))
     return result
 

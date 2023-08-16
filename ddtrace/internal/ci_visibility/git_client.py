@@ -76,8 +76,10 @@ class CIVisibilityGitClient(object):
             self._worker = None
 
     @classmethod
-    def _run_protocol(cls, serializer, requests_mode, base_url, _tags={}, _response=None, cwd=None):
+    def _run_protocol(cls, serializer, requests_mode, base_url, _tags=None, _response=None, cwd=None):
         # type: (CIVisibilityGitClientSerializerV1, int, str, Dict[str, str], Optional[Response], Optional[str]) -> None
+        if _tags is None:
+            _tags = {}
         repo_url = cls._get_repository_url(tags=_tags, cwd=cwd)
 
         if cls._is_shallow_repository(cwd=cwd) and extract_git_version(cwd=cwd) >= (2, 27, 0):
@@ -105,8 +107,10 @@ class CIVisibilityGitClient(object):
                 )
 
     @classmethod
-    def _get_repository_url(cls, tags={}, cwd=None):
+    def _get_repository_url(cls, tags=None, cwd=None):
         # type: (Dict[str, str], Optional[str]) -> str
+        if tags is None:
+            tags = {}
         result = tags.get(ci.git.REPOSITORY_URL, "")
         if not result:
             result = extract_remote_url(cwd=cwd)

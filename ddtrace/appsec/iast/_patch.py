@@ -74,7 +74,11 @@ def apply_patch(parent, attribute, replacement):
         patch_builtins(parent, attribute, replacement)
 
 
-def wrap_object(module, name, factory, args=(), kwargs={}):
+def wrap_object(module, name, factory, args=None, kwargs=None):
+    if args is None:
+        args = ()
+    if kwargs is None:
+        kwargs = {}
     (parent, attribute, original) = resolve_path(module, name)
     wrapper = factory(original, *args, **kwargs)
     apply_patch(parent, attribute, wrapper)
