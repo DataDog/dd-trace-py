@@ -39,10 +39,10 @@ def unpatch():
 def _connect(func, instance, args, kwargs):
     conn = func(*args, **kwargs)
     tags = {
-        net.TARGET_HOST: kwargs["host"],
-        net.TARGET_PORT: kwargs["port"],
-        db.USER: kwargs["user"],
-        db.NAME: kwargs["database"],
+        net.TARGET_HOST: kwargs.get("host", "localhost"),
+        net.TARGET_PORT: kwargs.get("port", 3306),
+        db.USER: kwargs.get("user", ""),
+        db.NAME: kwargs.get("database", ""),
         db.SYSTEM: "mariadb",
     }
 
