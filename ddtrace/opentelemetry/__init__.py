@@ -44,7 +44,7 @@ Datadog and OpenTelemetry APIs can be used interchangeably::
     oteltracer = opentelemetry.trace.get_tracer(__name__)
 
     with oteltracer.start_as_current_span("otel-span") as parent_span:
-        otel_span.set_attribute("otel_key", "otel_val")
+        parent_span.set_attribute("otel_key", "otel_val")
         with ddtrace.trace("ddtrace-span") as child_span:
             child_span.set_tag("dd_key", "dd_val")
 
