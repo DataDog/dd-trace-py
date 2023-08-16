@@ -1,5 +1,6 @@
 import os
 
+import pyramid
 import pyramid.config
 
 from ddtrace import config
@@ -25,8 +26,6 @@ DD_PATCH = "_datadog_patch"
 
 
 def get_version():
-    import pyramid
-
     return getattr(pyramid, "__version__", "0.0.0")
 
 

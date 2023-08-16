@@ -1,5 +1,6 @@
 import os
 
+import aiohttp
 from yarl import URL
 
 from ddtrace import config
@@ -44,8 +45,6 @@ config._add(
 
 
 def get_version():
-    import aiohttp
-
     return getattr(aiohttp, "__version__", "0.0.0")
 
 

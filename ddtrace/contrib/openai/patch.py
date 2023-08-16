@@ -3,6 +3,8 @@ import sys
 from typing import Optional
 from typing import TYPE_CHECKING
 
+import openai
+
 from ddtrace import config
 from ddtrace.contrib._trace_utils_llm import BaseLLMIntegration
 from ddtrace.internal.agent import get_stats_url
@@ -38,8 +40,6 @@ config._add(
 
 
 def get_version():
-    import openai
-
     return getattr(openai, "__version__", "0.0.0")
 
 

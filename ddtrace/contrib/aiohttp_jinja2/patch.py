@@ -1,3 +1,5 @@
+import aiohttp_jinja2
+
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
@@ -16,8 +18,6 @@ config._add(
 
 
 def get_version():
-    import aiohttp_jinja2
-
     return getattr(aiohttp_jinja2, "__version__", "0.0.0")
 
 

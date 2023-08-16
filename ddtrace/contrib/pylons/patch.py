@@ -1,5 +1,6 @@
 import os
 
+import pylons
 import pylons.wsgiapp
 
 from ddtrace import Pin
@@ -21,8 +22,6 @@ config._add(
 
 
 def get_version():
-    import pylons
-
     return getattr(pylons, "__version__", "0.0.0")
 
 

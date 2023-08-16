@@ -1,4 +1,5 @@
 import importlib
+from importlib import metadata
 
 import ddtrace
 from ddtrace import config
@@ -119,8 +120,6 @@ config._add(
 
 
 def get_version():
-    from importlib import metadata
-
     return metadata.version("vertica-python")
 
 

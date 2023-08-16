@@ -1,5 +1,6 @@
 import os
 
+import mysql
 import mysql.connector
 
 from ddtrace import Pin
@@ -26,8 +27,6 @@ config._add(
 
 
 def get_version():
-    import mysql
-
     return getattr(mysql, "__version__", "0.0.0")
 
 

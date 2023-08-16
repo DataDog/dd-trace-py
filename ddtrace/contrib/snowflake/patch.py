@@ -1,3 +1,4 @@
+from importlib import metadata
 import os
 
 from ddtrace import Pin
@@ -29,8 +30,6 @@ config._add(
 
 
 def get_version():
-    from importlib import metadata
-
     return metadata.version("snowflake")
 
 

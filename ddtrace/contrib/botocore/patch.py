@@ -15,6 +15,7 @@ from typing import Set
 from typing import Tuple
 from typing import Union
 
+from botocore import __version__
 import botocore.client
 import botocore.exceptions
 
@@ -87,8 +88,6 @@ config._add(
 
 
 def get_version():
-    from botocore import __version__
-
     return __version__
 
 

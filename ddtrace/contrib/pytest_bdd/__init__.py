@@ -22,6 +22,8 @@ Please follow the instructions for enabling `pytest` integration.
 
 """
 
+from importlib import metadata
+
 from ddtrace import config
 
 
@@ -35,6 +37,4 @@ config._add(
 
 
 def get_version():
-    from importlib import metadata
-
     return metadata.version("pytest-bdd")

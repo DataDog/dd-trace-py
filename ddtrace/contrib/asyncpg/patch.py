@@ -1,5 +1,7 @@
 from typing import TYPE_CHECKING
 
+import asyncpg
+
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
@@ -26,7 +28,6 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Dict
     from typing import Union
 
-    import asyncpg
     from asyncpg.prepared_stmt import PreparedStatement
 
 
@@ -45,8 +46,6 @@ log = get_logger(__name__)
 
 
 def get_version():
-    import asyncpg
-
     return getattr(asyncpg, "__version__", "0.0.0")
 
 

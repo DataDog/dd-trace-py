@@ -1,6 +1,7 @@
 import inspect
 import os
 
+from boto import __version__
 import boto.connection
 
 from ddtrace import config
@@ -57,8 +58,6 @@ config._add(
 
 
 def get_version():
-    from boto import __version__
-
     return __version__
 
 

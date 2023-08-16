@@ -3,6 +3,8 @@ Trace queries along a session to a cassandra cluster
 """
 import sys
 
+from cassandra import __version__
+
 
 try:
     import cassandra.cluster as cassandra_cluster
@@ -46,8 +48,6 @@ _connect = cassandra_cluster.Cluster.connect
 
 
 def get_version():
-    from cassandra import __version__
-
     return __version__
 
 

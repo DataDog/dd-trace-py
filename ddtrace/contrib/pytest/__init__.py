@@ -63,6 +63,8 @@ Global Configuration
 
 import os
 
+import pytest
+
 from ddtrace import config
 
 
@@ -77,6 +79,4 @@ config._add(
 
 
 def get_version():
-    import pytest
-
     return getattr(pytest, "__version__", "0.0.0")
