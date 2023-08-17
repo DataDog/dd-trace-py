@@ -1,0 +1,189 @@
+version: "3"
+# remember to use this compose file __ONLY__ for development/testing purposes
+
+services:
+    elasticsearch:
+        image: elasticsearch:2.4-alpine
+        platform: linux/amd64
+        ports:
+            - "127.0.0.1:9200:9200"
+    opensearch:
+        image: opensearchproject/opensearch:1.3.6
+        environment:
+            - "DISABLE_SECURITY_PLUGIN=true"
+            - "discovery.type=single-node"
+        ports:
+            - "127.0.0.1:9201:9200"
+    cassandra:
+        image: cassandra:3.11.7
+        environment:
+            - MAX_HEAP_SIZE=512M
+            - HEAP_NEWSIZE=256M
+        ports:
+            - "127.0.0.1:9042:9042"
+    consul:
+        image: consul:1.6.0
+        ports:
+            - "127.0.0.1:8500:8500"
+    postgres:
+        image: postgres:12-alpine
+        environment:
+            - POSTGRES_PASSWORD=postgres
+            - POSTGRES_USER=postgres
+            - POSTGRES_DB=postgres
+        ports:
+            - "127.0.0.1:5432:5432"
+    mariadb:
+        image: mariadb:10.7
+        environment:
+            - MYSQL_ROOT_PASSWORD=example
+            - MYSQL_DATABASE=test
+            - MYSQL_USER=test
+            - MYSQL_PASSWORD=test
+        ports:
+            - "127.0.0.1:3306:3306"
+    mysql:
+        image: mysql:5.7
+        platform: linux/amd64
+        environment:
+            - MYSQL_ROOT_PASSWORD=admin
+            - MYSQL_PASSWORD=test
+            - MYSQL_USER=test
+            - MYSQL_DATABASE=test
+        ports:
+            - "127.0.0.1:3306:3306"
+    redis:
+        image: redis:4.0-alpine
+        ports:
+            - "127.0.0.1:6379:6379"
+    kafka:
+      image: bitnami/kafka:3.5.1-debian-11-r3
+      ports:
+        - "127.0.0.1:29092:29092"
+      environment:
+        - ALLOW_PLAINTEXT_LISTENER=yes
+        - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:29092
+        - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092,EXTERNAL://localhost:29092
+        - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT,PLAINTEXT:PLAINTEXT
+        - KAFKA_CFG_BROKER_ID=1
+        - KAFKA_CFG_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+        - KAFKA_CFGOFFSETS_TOPIC_REPLICATION_FACTOR=1
+    rediscluster:
+        platform: linux/amd64
+        image: grokzen/redis-cluster:6.2.0
+        environment:
+            - IP=0.0.0.0
+        ports:
+            - "127.0.0.1:7000:7000"
+            - "127.0.0.1:7001:7001"
+            - "127.0.0.1:7002:7002"
+            - "127.0.0.1:7003:7003"
+            - "127.0.0.1:7004:7004"
+            - "127.0.0.1:7005:7005"
+    mongo:
+        image: mongo:3.6
+        ports:
+            - "127.0.0.1:27017:27017"
+    memcached:
+        image: memcached:1.5-alpine
+        ports:
+            - "127.0.0.1:11211:11211"
+    moto:
+        # container that executes mocked AWS services; this is a custom
+        # build that runs all of them in a single container. It is built
+        # using this fork: https://github.com/palazzem/moto/tree/palazzem/docker-service
+        image: datadog/docker-library:moto_1_0_1
+        ports:
+            - "127.0.0.1:5000:5000"
+            - "127.0.0.1:5001:5001"
+            - "127.0.0.1:5002:5002"
+            - "127.0.0.1:5003:5003"
+            - "127.0.0.1:5004:5004"
+            - "127.0.0.1:5005:5005"
+    rabbitmq:
+        image: rabbitmq:3.7-alpine
+        ports:
+            - "127.0.0.1:5672:5672"
+    ddagent5:
+      image: datadog/docker-dd-agent:latest
+      environment:
+        - DD_BIND_HOST=0.0.0.0
+        - DD_API_KEY=${DD_API_KEY-invalid_but_this_is_fine}
+      ports:
+        - "127.0.0.1:8126:8126"
+    ddagent:
+        image: datadog/agent:latest
+        environment:
+            - DD_HOSTNAME=github-actions-worker
+            - DD_BIND_HOST=0.0.0.0
+            - DD_REMOTE_CONFIGURATION_ENABLED=true
+            - DD_SITE=${DD_SITE-datadoghq.com}
+            - DD_API_KEY=${DD_API_KEY-invalid_but_this_is_fine}
+            - DD_REMOTE_CONFIGURATION_KEY=${DD_REMOTE_CONFIGURATION_KEY-invalid_but_this_is_fine}
+            - DD_REMOTE_CONFIGURATION_REFRESH_INTERVAL=5s
+            - DD_APM_RECEIVER_SOCKET=/tmp/ddagent/trace.sock
+            - DD_DOGSTATSD_NON_LOCAL_TRAFFIC=true
+        ports:
+            - 8126:8126
+            - 8125:8125/udp
+        volumes:
+          - ddagent:/tmp/ddagent:rw
+    testagent:
+        image: ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:v1.11.0
+        ports:
+            - "127.0.0.1:9126:8126"
+        volumes:
+            - ./tests/snapshots:/snapshots
+        environment:
+            - LOG_LEVEL=WARNING
+            - SNAPSHOT_DIR=/snapshots
+            - SNAPSHOT_CI
+            - DD_POOL_TRACE_CHECK_FAILURES=true
+            - DD_DISABLE_ERROR_RESPONSES=true
+            - ENABLED_CHECKS=trace_content_length,trace_stall,meta_tracer_version_header,trace_count_header,trace_peer_service,trace_dd_service
+    vertica:
+        image: sumitchawla/vertica
+        environment:
+          - VP_TEST_USER=dbadmin
+          - VP_TEST_PASSWORD=abc123
+          - VP_TEST_DATABASE=docker
+        ports:
+          - "127.0.0.1:5433:5433"
+
+    testrunner:
+        image: ghcr.io/datadog/dd-trace-py/testrunner:latest
+        command: bash
+        environment:
+            - TOX_SKIP_DIST=True
+        network_mode: host
+        userns_mode: host
+        working_dir: /root/project/
+        volumes:
+          - ddagent:/tmp/ddagent
+          - ./:/root/project
+          - ./.ddtox:/root/project/.tox
+          - ./.riot:/root/project/.riot
+
+    localstack:
+        image: localstack/localstack:1.4.0
+        ports:
+          - "127.0.0.1:4566:4566"
+          - "127.0.0.1:4571:4571"
+        environment:
+          - SERVICES=${SERVICES- }
+          - DEBUG=${DEBUG- }
+          - LAMBDA_EXECUTOR=local
+          - KINESIS_ERROR_PROBABILITY=${KINESIS_ERROR_PROBABILITY- }
+          - DOCKER_HOST=unix:///var/run/docker.sock
+        volumes:
+          - "${TMPDIR:-/var/lib/localstack}:/var/lib/localstack"
+          - "/var/run/docker.sock:/var/run/docker.sock"
+
+    httpbin_local:
+      image: kennethreitz/httpbin@sha256:2c7abc4803080c22928265744410173b6fea3b898872c01c5fd0f0f9df4a59fb
+      ports:
+        - "127.0.0.1:8001:80"
+
+
+volumes:
+    ddagent:
