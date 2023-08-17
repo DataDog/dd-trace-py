@@ -71,7 +71,7 @@ def set_argument_value(
     return args, kwargs
 
 
-TAGS_TO_PROPAGATE = []
+TAGS_TO_PROPAGATE = []  # type: List[str]
 
 
 def _get_metas_to_propagate(context):
