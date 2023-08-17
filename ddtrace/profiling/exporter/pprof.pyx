@@ -13,13 +13,13 @@ from ddtrace.internal import packages
 from ddtrace.internal._encoding import ListStringTable as _StringTable
 from ddtrace.internal.compat import ensure_str
 from ddtrace.internal.utils import config
-from ddtrace.profiling.collector import threading
 from ddtrace.profiling import event
 from ddtrace.profiling import exporter
 from ddtrace.profiling import recorder
 from ddtrace.profiling.collector import _lock
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import stack_event
+from ddtrace.profiling.collector import threading
 
 
 if hasattr(typing, "TypedDict"):
