@@ -60,9 +60,12 @@ HTTP_REQUEST_PARAMETER = "http.request.parameter"
 HTTP_REQUEST_BODY = "http.request.body"
 HTTP_REQUEST_PATH_PARAMETER = "http.request.path.parameter"
 REQUEST_PATH_PARAMS = "http.request.path_params"
+STATUS_403_TYPE_AUTO = {"status_code": 403, "type": "auto"}
 
 MESSAGING_SYSTEM = "messaging.system"
 
 FLASK_ENDPOINT = "flask.endpoint"
 FLASK_VIEW_ARGS = "flask.view_args"
 FLASK_URL_RULE = "flask.url_rule"
+
+_HTTPLIB_NO_TRACE_REQUEST = "_dd_no_trace"
