@@ -13,8 +13,6 @@ if TYPE_CHECKING:
     from typing import Dict
     from typing import Optional
 
-from ddtrace.internal.logger import get_logger  # JJJ
-JJJlog = get_logger(__name__)
 
 @oce.register
 class InsecureCookie(VulnerabilityBase):
@@ -39,9 +37,7 @@ class NoSameSite(VulnerabilityBase):
 
 
 def asm_check_cookies(cookies):  # type: (Optional[Dict[str, str]]) -> None
-    JJJlog.warning("asm_check_cookies 1")
     if not cookies:
-        JJJlog.warning("asm_check_cookies exit not cookies")
         return
 
     for cookie_key, cookie_value in six.iteritems(cookies):
@@ -49,12 +45,10 @@ def asm_check_cookies(cookies):  # type: (Optional[Dict[str, str]]) -> None
         evidence = "%s=%s" % (cookie_key, cookie_value)
 
         if ";secure" not in lvalue:
-            JJJlog.warning("asm_check_cookies report Insecure")
             InsecureCookie.report(evidence_value=evidence)
             return
 
         if ";httponly" not in lvalue:
-            JJJlog.warning("asm_check_cookies report NoHttpOnly")
             NoHttpOnlyCookie.report(evidence_value=evidence)
             return
 
@@ -70,7 +64,4 @@ def asm_check_cookies(cookies):  # type: (Optional[Dict[str, str]]) -> None
             report_samesite = True
 
         if report_samesite:
-            JJJlog.warning("asm_check_cookies report samesite")
             NoSameSite.report(evidence_value=evidence)
-    JJJlog.warning("asm_check_cookies end")
-

@@ -90,17 +90,14 @@ class VulnerabilityBase(Operation):
         TODO: check deduplications if DD_IAST_DEDUPLICATION_ENABLED is true
         """
 
-        log.warning("JJJ report 1")
         if cls.acquire_quota():
             if not tracer or not hasattr(tracer, "current_root_span"):
                 log.debug("Not tracer or tracer has no root span")
-                log.warning("JJJ report exit 1")
                 return None
 
             span = tracer.current_root_span()
             if not span:
                 log.debug("No root span in the current execution. Skipping IAST taint sink.")
-                log.warning("JJJ report exit 2")
                 return None
 
             file_name = ""
@@ -110,10 +107,8 @@ class VulnerabilityBase(Operation):
             if not skip_location:
                 frame_info = get_info_frame(CWD)
                 if not frame_info:
-                    log.warning("JJJ report exit 3")
                     return None
 
-                log.warning("JJJ report 2")
                 file_name, line_number = frame_info
 
                 # Remove CWD prefix
@@ -129,17 +124,14 @@ class VulnerabilityBase(Operation):
                 log.debug("Unexpected evidence_value type: %s", type(evidence_value))
                 evidence = Evidence(value="")
 
-            log.warning("JJJ report 3")
             if not cls.is_not_reported(file_name, line_number):
                 # not not reported = reported
-                log.warning("JJJ report exit 4")
                 return None
 
             _set_metric_iast_executed_sink(cls.vulnerability_type)
 
             report = core.get_item(IAST.CONTEXT_KEY, span=span)
             if report:
-                log.warning("JJJ report 4")
                 report.vulnerabilities.add(
                     Vulnerability(
                         type=cls.vulnerability_type,
@@ -149,7 +141,6 @@ class VulnerabilityBase(Operation):
                 )
 
             else:
-                log.warning("JJJ report 5")
                 report = IastSpanReporter(
                     vulnerabilities={
                         Vulnerability(
@@ -160,16 +151,12 @@ class VulnerabilityBase(Operation):
                     }
                 )
             if sources:
-                log.warning("JJJ report 6")
                 report.sources = {Source(origin=x.origin, name=x.name, value=x.value) for x in sources}
 
-            log.warning("JJJ report 7")
             redacted_report = cls._redacted_report_cache.get(
                 hash(report), lambda x: cls._redact_report(cast(IastSpanReporter, report))
             )
-            log.warning("JJJ report 8")
             core.set_item(IAST.CONTEXT_KEY, redacted_report, span=span)
-            log.warning("JJJ report 9")
 
     @classmethod
     def _extract_sensitive_tokens(cls, report):

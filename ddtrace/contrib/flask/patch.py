@@ -100,10 +100,8 @@ def _cookies_from_response_headers(response_headers):
     cookies = {}
     for header_tuple in response_headers:
         if header_tuple[0] == 'Set-Cookie':
-            log.warning("JJJ cookie header original: %s" % header_tuple[0])
             cookie_tokens = header_tuple[1].split("=", 1)
             cookies[cookie_tokens[0]] = cookie_tokens[1]
-            log.warning("JJJ cookie parsing returning key: %s value: %s" % (cookie_tokens[0], cookie_tokens[1]))
 
     return cookies
 
