@@ -235,6 +235,7 @@ async def test_openai_llm_async_stream(langchain, request_vcr):
 @pytest.mark.snapshot(ignores=["meta.error.stack"])
 def test_openai_llm_error(langchain, request_vcr):
     import openai  # Imported here because the os env OPENAI_API_KEY needs to be set via langchain fixture before import
+
     llm = langchain.llms.OpenAI()
     with pytest.raises(openai.error.InvalidRequestError):
         with request_vcr.use_cassette("openai_completion_error.yaml"):
