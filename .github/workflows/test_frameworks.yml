@@ -52,6 +52,7 @@ jobs:
         run: |
           ! ./scripts/needs_testrun.py $SUITE --pr ${{ github.event.number }}
         continue-on-error: false
+        working-directory: $HOME
       - uses: actions/checkout@v3
         if: needs.needs-run.outputs.outcome == 'success'
         with:
