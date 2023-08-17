@@ -31,8 +31,10 @@ if TYPE_CHECKING:
     from typing import Optional
     from typing import Union
 
+    TEXT_TYPE = Union[str, bytes, bytearray]
+
 TEXT_TYPES = (str, bytes, bytearray)
-TEXT_TYPE = Union[str, bytes, bytearray]
+
 
 _add_aspect = aspects.add_aspect
 _extend_aspect = aspects.extend_aspect
