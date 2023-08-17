@@ -22,7 +22,6 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.cache import LFUCache
 from ddtrace.settings import _config
 
-
 try:
     # Python >= 3.4
     from ddtrace.appsec.iast._stacktrace import get_info_frame
