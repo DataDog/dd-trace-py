@@ -4,9 +4,6 @@ from werkzeug.exceptions import BadRequest
 from werkzeug.exceptions import NotFound
 from werkzeug.exceptions import abort
 
-from ddtrace.internal.constants import COMPONENT
-from ddtrace.internal.constants import FLASK_ENDPOINT
-from ddtrace.internal.constants import FLASK_URL_RULE
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.constants import STATUS_403_TYPE_AUTO
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
@@ -30,10 +27,7 @@ from ddtrace import config
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from .. import trace_utils
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...constants import SPAN_MEASURED_KEY
 from ...contrib.wsgi.wsgi import _DDWSGIMiddlewareBase
-from ...ext import SpanTypes
 from ...internal.logger import get_logger
 from ...internal.utils import get_argument_value
 from ...internal.utils.version import parse_version
@@ -103,22 +97,7 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
     _response_span_name = "flask.response"
 
     def _traced_start_response(self, start_response, req_span, app_span, status_code, headers, exc_info=None):
-        code, _, _ = status_code.partition(" ")
-        # If values are accessible, set the resource as `<method> <path>` and add other request tags
-        core.dispatch("flask.set_request_tags", [flask.request, req_span, config.flask])
-
-        # Override root span resource name to be `<method> 404` for 404 requests
-        # DEV: We do this because we want to make it easier to see all unknown requests together
-        #      Also, we do this to reduce the cardinality on unknown urls
-        # DEV: If we have an endpoint or url rule tag, then we don't need to do this,
-        #      we still want `GET /product/<int:product_id>` grouped together,
-        #      even if it is a 404
-        if not req_span.get_tag(FLASK_ENDPOINT) and not req_span.get_tag(FLASK_URL_RULE):
-            req_span.resource = " ".join((flask.request.method, code))
-
-        trace_utils.set_http_meta(
-            req_span, config.flask, status_code=code, response_headers=headers, route=req_span.get_tag(FLASK_URL_RULE)
-        )
+        core.dispatch("flask.start_response.pre", [flask.request, req_span, config.flask, status_code, headers])
 
         if not core.get_item(HTTP_REQUEST_BLOCKED):
             headers_from_context = ""
@@ -135,7 +114,7 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
                 status = block_config.get("status_code", 403)
                 response_headers = [("content-type", ctype)]
                 result = start_response(str(status), response_headers)
-                trace_utils.set_http_meta(req_span, config.flask, status_code=status, response_headers=response_headers)
+                core.dispatch("flask.start_response.blocked", [req_span, config.flask, response_headers, status])
             else:
                 result = start_response(status_code, headers)
         else:
@@ -147,40 +126,17 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
         # DEV: This executes before a request context is created
         request = _RequestType(environ)
 
-        # Default resource is method and path:
-        #   GET /
-        #   POST /save
-        # We will override this below in `traced_dispatch_request` when we have a `
-        # RequestContext` and possibly a url rule
-        span.resource = " ".join((request.method, request.path))
-
-        span.set_tag(SPAN_MEASURED_KEY)
-        # set analytics sample rate with global config enabled
-        sample_rate = config.flask.get_analytics_sample_rate(use_global_config=True)
-        if sample_rate is not None:
-            span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
-
-        span.set_tag_str(FLASK_VERSION, flask_version_str)
-
         req_body = None
         results, exceptions = core.dispatch(
-            "flask.request_span_modifier", [request, environ, _HAS_JSON_MIXIN, BadRequest]
+            "flask.request_span_modifier",
+            [span, config.flask, request, environ, _HAS_JSON_MIXIN, FLASK_VERSION, flask_version_str, BadRequest],
         )
-        if not any(exceptions) and results and results[0]:
-            req_body = results[0]
-        trace_utils.set_http_meta(
-            span,
-            config.flask,
-            method=request.method,
-            url=request.base_url,
-            raw_uri=request.url,
-            query=request.query_string,
-            parsed_query=request.args,
-            request_headers=request.headers,
-            request_cookies=request.cookies,
-            request_body=req_body,
-            peer_ip=request.remote_addr,
-        )
+        if not any(exceptions) and results and any(results):
+            for result in results:
+                if result is not None:
+                    req_body = result
+                    break
+        core.dispatch("flask.request_span_modifier.post", [span, config.flask, request, req_body])
 
 
 def patch():
@@ -479,27 +435,26 @@ def traced_flask_hook(wrapped, instance, args, kwargs):
 
 
 def traced_render_template(wrapped, instance, args, kwargs):
-    """Wrapper for flask.templating.render_template"""
-    pin = Pin._find(wrapped, instance, get_current_app())
-    if not pin or not pin.enabled():
-        return wrapped(*args, **kwargs)
-
-    with pin.tracer.trace("flask.render_template", span_type=SpanTypes.TEMPLATE) as span:
-        span.set_tag_str(COMPONENT, config.flask.integration_name)
-
-        return wrapped(*args, **kwargs)
+    return _build_render_template_wrapper("render_template")(wrapped, instance, args, kwargs)
 
 
 def traced_render_template_string(wrapped, instance, args, kwargs):
-    """Wrapper for flask.templating.render_template_string"""
-    pin = Pin._find(wrapped, instance, get_current_app())
-    if not pin or not pin.enabled():
-        return wrapped(*args, **kwargs)
+    return _build_render_template_wrapper("render_template_string")(wrapped, instance, args, kwargs)
 
-    with pin.tracer.trace("flask.render_template_string", span_type=SpanTypes.TEMPLATE) as span:
-        span.set_tag_str(COMPONENT, config.flask.integration_name)
 
-        return wrapped(*args, **kwargs)
+def _build_render_template_wrapper(name):
+    name = "flask.%s" % name
+
+    def traced_render(wrapped, instance, args, kwargs):
+        pin = Pin._find(wrapped, instance, get_current_app())
+        if not pin or not pin.enabled():
+            return wrapped(*args, **kwargs)
+        with core.context_with_data(
+            "flask.render_template", name=name, pin=pin, flask_config=config.flask
+        ) as ctx, ctx.get_item(name + ".call"):
+            return wrapped(*args, **kwargs)
+
+    return traced_render
 
 
 def traced_render(wrapped, instance, args, kwargs):
