@@ -2410,7 +2410,6 @@ def test_django_base_handler_failure(client, test_spans):
     with "GET <resource>" instead of what we did before this test "GET"
     """
     trace_utils.unwrap(client.handler, "get_response")
-    import pdb; pdb.set_trace()
     with mock.patch.object(client.handler, 'get_response', side_effect=Exception("test")):
         trace_utils.wrap(client.handler, "get_response", traced_get_response(django))
         try:
