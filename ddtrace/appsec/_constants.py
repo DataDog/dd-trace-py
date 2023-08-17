@@ -6,6 +6,7 @@ import six
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.constants import REQUEST_PATH_PARAMS
 from ddtrace.internal.constants import RESPONSE_HEADERS
+from ddtrace.internal.constants import STATUS_403_TYPE_AUTO
 
 
 if TYPE_CHECKING:
@@ -152,7 +153,7 @@ class WAF_ACTIONS(object):
     PARAMETERS = "parameters"
     TYPE = "type"
     ID = "id"
-    DEFAULT_PARAMETERS = {"status_code": 403, "type": "auto"}
+    DEFAULT_PARAMETERS = STATUS_403_TYPE_AUTO
     BLOCK_ACTION = "block_request"
     DEFAULT_ACTONS = {
         BLOCK: {

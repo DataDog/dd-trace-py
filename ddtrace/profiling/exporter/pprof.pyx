@@ -13,13 +13,13 @@ from ddtrace.internal import packages
 from ddtrace.internal._encoding import ListStringTable as _StringTable
 from ddtrace.internal.compat import ensure_str
 from ddtrace.internal.utils import config
-from ddtrace.profiling.collector import threading
 from ddtrace.profiling import event
 from ddtrace.profiling import exporter
 from ddtrace.profiling import recorder
 from ddtrace.profiling.collector import _lock
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import stack_event
+from ddtrace.profiling.collector import threading
 
 
 if hasattr(typing, "TypedDict"):
@@ -162,7 +162,7 @@ _Label_List_T = typing.Tuple[_Label_T, ...]
 _Location_Key_T = typing.Tuple[typing.Tuple[int, ...], _Label_List_T]
 
 
-HashableStackTraceType = typing.Tuple[event.FrameType, ...]
+HashableStackTraceType = typing.Tuple[event.DDFrame, ...]
 
 
 @attr.s
@@ -231,7 +231,7 @@ class _PprofConverter(object):
 
     def _to_locations(
         self,
-        frames,  # type: typing.Sequence[event.FrameType]
+        frames,  # type: typing.Sequence[event.DDFrame]
         nframes,  # type: int
     ):
         # type: (...) -> typing.Tuple[int, ...]

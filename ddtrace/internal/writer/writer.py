@@ -33,6 +33,7 @@ from ...sampler import BaseSampler
 from .._encoding import BufferFull
 from .._encoding import BufferItemTooLarge
 from ..agent import get_connection
+from ..constants import _HTTPLIB_NO_TRACE_REQUEST
 from ..encoding import JSONEncoderV2
 from ..logger import get_logger
 from ..runtime import container
@@ -281,14 +282,15 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 self._conn.close()
                 self._conn = None
 
-    def _put(self, data, headers, client):
-        # type: (bytes, Dict[str, str], WriterClientBase) -> Response
+    def _put(self, data, headers, client, no_trace):
+        # type: (bytes, Dict[str, str], WriterClientBase, bool) -> Response
         sw = StopWatch()
         sw.start()
         with self._conn_lck:
             if self._conn is None:
                 log.debug("creating new intake connection to %s with timeout %d", self.intake_url, self._timeout)
                 self._conn = get_connection(self._intake_url(client), self._timeout)
+                setattr(self._conn, _HTTPLIB_NO_TRACE_REQUEST, no_trace)
             try:
                 log.debug("Sending request: %s %s %s", self.HTTP_METHOD, client.ENDPOINT, headers)
                 self._conn.request(
@@ -329,7 +331,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
 
         self._metrics_dist("http.requests")
 
-        response = self._put(payload, headers, client)
+        response = self._put(payload, headers, client, no_trace=True)
 
         if response.status >= 400:
             self._metrics_dist("http.errors", tags=("type:%s" % response.status,))
