@@ -5,6 +5,7 @@ from werkzeug.exceptions import NotFound
 from werkzeug.exceptions import abort
 
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
+from ddtrace.internal.constants import STATUS_403_TYPE_AUTO
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
 from ...internal import core
@@ -105,10 +106,14 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
                 headers_from_context = results[0]
             if core.get_item(HTTP_REQUEST_BLOCKED):
                 # response code must be set here, or it will be too late
-                ctype = "text/html" if "text/html" in headers_from_context else "text/json"
+                block_config = core.get_item(HTTP_REQUEST_BLOCKED)
+                if block_config.get("type", "auto") == "auto":
+                    ctype = "text/html" if "text/html" in headers_from_context else "text/json"
+                else:
+                    ctype = "text/" + block_config["type"]
+                status = block_config.get("status_code", 403)
                 response_headers = [("content-type", ctype)]
-                result = start_response("403 FORBIDDEN", response_headers)
-                core.dispatch("flask.start_response.blocked", [config.flask, response_headers])
+                core.dispatch("flask.start_response.blocked", [config.flask, response_headers, status])
             else:
                 result = start_response(status_code, headers)
         else:
@@ -418,20 +423,27 @@ def patched_flask_hook(wrapped, instance, args, kwargs):
     return wrapped(wrap_function(instance, func))
 
 
+def traced_render_template(wrapped, instance, args, kwargs):
+    return _build_render_template_wrapper("render_template")(wrapped, instance, args, kwargs)
+
+
+def traced_render_template_string(wrapped, instance, args, kwargs):
+    return _build_render_template_wrapper("render_template_string")(wrapped, instance, args, kwargs)
+
+
 def _build_render_template_wrapper(name):
     name = "flask.%s" % name
 
-    def patched_render(wrapped, instance, args, kwargs):
+    def traced_render(wrapped, instance, args, kwargs):
         pin = Pin._find(wrapped, instance, get_current_app())
         if not pin or not pin.enabled():
             return wrapped(*args, **kwargs)
-
         with core.context_with_data(
             "flask.render_template", name=name, pin=pin, flask_config=config.flask
         ) as ctx, ctx.get_item(name + ".call"):
             return wrapped(*args, **kwargs)
 
-    return patched_render
+    return traced_render
 
 
 def patched_render(wrapped, instance, args, kwargs):
@@ -462,7 +474,7 @@ def patched_register_error_handler(wrapped, instance, args, kwargs):
 
 
 def _block_request_callable(call):
-    core.set_item(HTTP_REQUEST_BLOCKED, True)
+    core.set_item(HTTP_REQUEST_BLOCKED, STATUS_403_TYPE_AUTO)
     core.dispatch("flask.blocked_request_callable", [call])
     ctype = "text/html" if "text/html" in flask.request.headers.get("Accept", "").lower() else "text/json"
     abort(flask.Response(http_utils._get_blocked_template(ctype), content_type=ctype, status=403))
