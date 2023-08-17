@@ -23,6 +23,10 @@ jobs:
         name: Check if run is needed
         run: |
           ! ./scripts/needs_testrun.py $SUITE --pr ${{ github.event.number }}
+        #run:  |
+        #  git fetch origin ${{ github.event.pull_request.base.sha }}
+        #  export PATHS=$(git diff --name-only HEAD ${{ github.event.pull_request.base.sha }})
+        #  python -c "import os,sys,fnmatch;sys.exit(not bool([_ for pattern in {'ddtrace/*', 'setup*', 'pyproject.toml'} for _ in fnmatch.filter(os.environ['PATHS'].splitlines(), pattern)]))"
         continue-on-error: true
 
   bottle-testsuite-0_12_19:
@@ -44,6 +48,10 @@ jobs:
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           path: ddtrace
+      - name: Check if specific framework run is needed
+        run: |
+          ! ./scripts/needs_testrun.py $SUITE --pr ${{ github.event.number }}
+        continue-on-error: false
       - uses: actions/checkout@v3
         if: needs.needs-run.outputs.outcome == 'success'
         with:
