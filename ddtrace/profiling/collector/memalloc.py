@@ -184,6 +184,7 @@ class MemoryCollector(collector.PeriodicCollector):
                     #      need to cleanup.
                     LOG.debug("Invalid state detected in memalloc module, suppressing profile")
 
+
         if self._export_py_enabled:
             return (
                 tuple(

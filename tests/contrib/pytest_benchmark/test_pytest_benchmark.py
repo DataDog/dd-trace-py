@@ -79,54 +79,24 @@ class PytestTestCase(TracerTestCase):
         assert spans[0].get_tag(TEST_TYPE) == "benchmark"
         assert spans[0].get_tag(BENCHMARK_INFO) == "Time"
 
-        assert isinstance(spans[0].get_metric(BENCHMARK_MEAN), float) or isinstance(
-            spans[0].get_metric(BENCHMARK_MEAN), int
-        )
+        assert isinstance(spans[0].get_metric(BENCHMARK_MEAN), float) or isinstance(spans[0].get_metric(BENCHMARK_MEAN), int)
         assert isinstance(spans[0].get_metric(BENCHMARK_RUN), int)
-        assert isinstance(spans[0].get_metric(STATISTICS_HD15IQR), float) or isinstance(
-            spans[0].get_metric(STATISTICS_HD15IQR), int
-        )
-        assert isinstance(spans[0].get_metric(STATISTICS_IQR), float) or isinstance(
-            spans[0].get_metric(STATISTICS_IQR), int
-        )
-        assert isinstance(spans[0].get_metric(STATISTICS_IQR_OUTLIERS), int) or isinstance(
-            spans[0].get_metric(STATISTICS_IQR_OUTLIERS), int
-        )
-        assert isinstance(spans[0].get_metric(STATISTICS_LD15IQR), float) or isinstance(
-            spans[0].get_metric(STATISTICS_LD15IQR), int
-        )
-        assert isinstance(spans[0].get_metric(STATISTICS_MAX), float) or isinstance(
-            spans[0].get_metric(STATISTICS_MAX), int
-        )
-        assert isinstance(spans[0].get_metric(STATISTICS_MEAN), float) or isinstance(
-            spans[0].get_metric(STATISTICS_MEAN), int
-        )
-        assert isinstance(spans[0].get_metric(STATISTICS_MEDIAN), float) or isinstance(
-            spans[0].get_metric(STATISTICS_MEDIAN), int
-        )
-        assert isinstance(spans[0].get_metric(STATISTICS_MIN), float) or isinstance(
-            spans[0].get_metric(STATISTICS_MIN), int
-        )
-        assert isinstance(spans[0].get_metric(STATISTICS_OPS), float) or isinstance(
-            spans[0].get_metric(STATISTICS_OPS), int
-        )
+        assert isinstance(spans[0].get_metric(STATISTICS_HD15IQR), float) or isinstance(spans[0].get_metric(STATISTICS_HD15IQR), int)
+        assert isinstance(spans[0].get_metric(STATISTICS_IQR), float) or isinstance(spans[0].get_metric(STATISTICS_IQR), int)
+        assert isinstance(spans[0].get_metric(STATISTICS_IQR_OUTLIERS), int) or isinstance(spans[0].get_metric(STATISTICS_IQR_OUTLIERS), int)
+        assert isinstance(spans[0].get_metric(STATISTICS_LD15IQR), float) or isinstance(spans[0].get_metric(STATISTICS_LD15IQR), int)
+        assert isinstance(spans[0].get_metric(STATISTICS_MAX), float) or isinstance(spans[0].get_metric(STATISTICS_MAX), int)
+        assert isinstance(spans[0].get_metric(STATISTICS_MEAN), float) or isinstance(spans[0].get_metric(STATISTICS_MEAN), int)
+        assert isinstance(spans[0].get_metric(STATISTICS_MEDIAN), float) or isinstance(spans[0].get_metric(STATISTICS_MEDIAN), int)
+        assert isinstance(spans[0].get_metric(STATISTICS_MIN), float) or isinstance(spans[0].get_metric(STATISTICS_MIN), int)
+        assert isinstance(spans[0].get_metric(STATISTICS_OPS), float) or isinstance(spans[0].get_metric(STATISTICS_OPS), int)
         assert isinstance(spans[0].get_tag(STATISTICS_OUTLIERS), str)
-        assert isinstance(spans[0].get_metric(STATISTICS_Q1), float) or isinstance(
-            spans[0].get_metric(STATISTICS_Q1), int
-        )
-        assert isinstance(spans[0].get_metric(STATISTICS_Q3), float) or isinstance(
-            spans[0].get_metric(STATISTICS_Q3), int
-        )
+        assert isinstance(spans[0].get_metric(STATISTICS_Q1), float) or isinstance(spans[0].get_metric(STATISTICS_Q1), int)
+        assert isinstance(spans[0].get_metric(STATISTICS_Q3), float) or isinstance(spans[0].get_metric(STATISTICS_Q3), int)
         assert isinstance(spans[0].get_metric(STATISTICS_N), int)
-        assert isinstance(spans[0].get_metric(STATISTICS_STDDEV), float) or isinstance(
-            spans[0].get_metric(STATISTICS_STDDEV), int
-        )
-        assert isinstance(spans[0].get_metric(STATISTICS_STDDEV_OUTLIERS), float) or isinstance(
-            spans[0].get_metric(STATISTICS_STDDEV_OUTLIERS), int
-        )
-        assert isinstance(spans[0].get_metric(STATISTICS_TOTAL), float) or isinstance(
-            spans[0].get_metric(STATISTICS_TOTAL), int
-        )
+        assert isinstance(spans[0].get_metric(STATISTICS_STDDEV), float) or isinstance(spans[0].get_metric(STATISTICS_STDDEV), int)
+        assert isinstance(spans[0].get_metric(STATISTICS_STDDEV_OUTLIERS), float) or isinstance(spans[0].get_metric(STATISTICS_STDDEV_OUTLIERS), int)
+        assert isinstance(spans[0].get_metric(STATISTICS_TOTAL), float) or isinstance(spans[0].get_metric(STATISTICS_TOTAL), int)
 
         assert spans[0].get_metric(BENCHMARK_MEAN) > 0.0002
         assert spans[0].get_metric(BENCHMARK_RUN) > 0
