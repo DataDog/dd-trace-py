@@ -21,10 +21,7 @@ jobs:
       - uses: actions/checkout@v3
       - id: run_needed
         name: Check if run is needed
-        run:  |
-          git fetch origin ${{ github.event.pull_request.base.sha }}
-          export PATHS=$(git diff --name-only HEAD ${{ github.event.pull_request.base.sha }})
-          python -c "import os,sys,fnmatch;sys.exit(not bool([_ for pattern in {'ddtrace/*', 'setup*', 'pyproject.toml'} for _ in fnmatch.filter(os.environ['PATHS'].splitlines(), pattern)]))"
+        run:  ! ./scripts/needs_testrun.py $SUITE --pr ${{ github.event.number }}
         continue-on-error: true
 
   bottle-testsuite-0_12_19:
@@ -33,6 +30,7 @@ jobs:
     env:
       DD_PROFILING_ENABLED: true
       DD_TESTING_RAISE: true
+      SUITE: bottle
     defaults:
       run:
         working-directory: bottle
@@ -80,6 +78,7 @@ jobs:
     env:
       # Regression test for DataDog/dd-trace-py/issues/5722
       DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE: true
+      SUITE: sanic
     defaults:
       run:
         working-directory: sanic
@@ -131,6 +130,7 @@ jobs:
       DD_DEBUGGER_EXPL_COVERAGE_DELETE_LINE_PROBES: 1  # Delete to speed up
       DD_DEBUGGER_EXPL_CONSERVATIVE: 1
       PYTHONPATH: ../ddtrace/tests/debugging/exploration/:.
+      SUITE: django
     defaults:
       run:
         working-directory: django
@@ -194,6 +194,7 @@ jobs:
       DD_PROFILING_ENABLED: true
       DD_TESTING_RAISE: true
       PYTHONPATH: ../ddtrace/tests/debugging/exploration/:.
+      SUITE: graphene
     defaults:
       run:
         working-directory: graphene
@@ -235,6 +236,7 @@ jobs:
     env:
       DD_TESTING_RAISE: true
       DD_PROFILING_ENABLED: true
+      SUITE: fastapi
     defaults:
       run:
         working-directory: fastapi
@@ -277,6 +279,7 @@ jobs:
       DD_TESTING_RAISE: true
       DD_PROFILING_ENABLED: true
       PYTHONPATH: ../ddtrace/tests/debugging/exploration/
+      SUITE: flask
     defaults:
       run:
         working-directory: flask
@@ -317,6 +320,8 @@ jobs:
   httpx-testsuite-0_22_0:
     runs-on: ubuntu-latest
     needs: needs-run
+    env:
+      SUITE: httpx
     defaults:
       run:
         working-directory: httpx
@@ -362,6 +367,7 @@ jobs:
       DD_TESTING_RAISE: true
       DD_PROFILING_ENABLED: true
       PYTHONPATH: ../ddtrace/tests/debugging/exploration/
+      SUITE: mako
     defaults:
       run:
         working-directory: mako
@@ -407,6 +413,7 @@ jobs:
       DD_TESTING_RAISE: true
       DD_PROFILING_ENABLED: true
       PYTHONPATH: ../ddtrace/tests/debugging/exploration/
+      SUITE: starlette
     defaults:
       run:
         working-directory: starlette
@@ -447,6 +454,7 @@ jobs:
     env:
       DD_TESTING_RAISE: true
       DD_PROFILING_ENABLED: true
+      SUITE: requests
     defaults:
       run:
         working-directory: requests
@@ -485,6 +493,7 @@ jobs:
     env:
       DD_TESTING_RAISE: true
       DD_PROFILING_ENABLED: true
+      SUITE: asyncpg
     defaults:
       run:
         working-directory: asyncpg
@@ -528,6 +537,7 @@ jobs:
     env:
       DD_TESTING_RAISE: true
       PYTHONPATH: ../ddtrace/tests/debugging/exploration/
+      SUITE: pylons
     defaults:
       run:
         working-directory: pylons
@@ -570,6 +580,7 @@ jobs:
     env:
       DD_TESTING_RAISE: true
       # PYTHONPATH: ../ddtrace/tests/debugging/exploration/
+      SUITE: gunicorn
     defaults:
       run:
         working-directory: gunicorn
@@ -604,6 +615,7 @@ jobs:
       DD_TESTING_RAISE: true
       DD_PROFILING_ENABLED: true
       PYTHONPATH: ../ddtrace/tests/debugging/exploration/
+      SUITE: uwsgi
     defaults:
       run:
         working-directory: uwsgi
