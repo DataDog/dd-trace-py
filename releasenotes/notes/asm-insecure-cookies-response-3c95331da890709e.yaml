@@ -1,0 +1,3 @@
+features:
+  - |
+    ASM: add detection of insecure cookie vulnerabilities also on responses.
