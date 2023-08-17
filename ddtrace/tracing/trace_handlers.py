@@ -177,7 +177,7 @@ def _on_request_complete(ctx, closing_iterator):
 
     middleware._response_span_modifier(resp_span, closing_iterator)
 
-    return _TracedIterable(iter(closing_iterator), resp_span, req_span)
+    return _TracedIterable(closing_iterator, resp_span, req_span)
 
 
 def _on_response_context_started(ctx):
