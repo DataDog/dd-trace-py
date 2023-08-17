@@ -177,6 +177,8 @@ def _on_request_complete(ctx, closing_iterator):
 
     middleware._response_span_modifier(resp_span, closing_iterator)
 
+    if not hasattr(closing_iterator, "__next__"):
+        closing_iterator = iter(closing_iterator)
     return _TracedIterable(closing_iterator, resp_span, req_span)
 
 
