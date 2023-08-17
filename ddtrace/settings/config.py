@@ -333,7 +333,7 @@ class Config(object):
         self._ci_visibility_intelligent_testrunner_disabled = asbool(
             os.getenv("DD_CIVISIBILITY_ITR_DISABLED", default=False)
         )
-        self._ci_visibility_unittest_enabled = os.getenv("DD_CIVISIBILITY_UNITTEST_BETA_ENABLED", default=False)
+        self._ci_visibility_unittest_enabled = asbool(os.getenv("DD_CIVISIBILITY_UNITTEST_BETA_ENABLED", default=False))
         self._otel_enabled = asbool(os.getenv("DD_TRACE_OTEL_ENABLED", False))
         if self._otel_enabled:
             # Replaces the default otel api runtime context with DDRuntimeContext

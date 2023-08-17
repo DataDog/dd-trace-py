@@ -79,7 +79,7 @@ def patch():
     """
     Patched the instrumented methods from unittest
     """
-    if not config.get_from("_ci_visibility_unittest_enabled") or getattr(unittest, "_datadog_patch", False):
+    if not config._ci_visibility_unittest_enabled or getattr(unittest, "_datadog_patch", False):
         return
 
     if not _CIVisibility.enabled:
@@ -124,14 +124,14 @@ def _set_test_span_status(args, status):
 
 def add_success_test_wrapper(func, instance, args, kwargs):
     if is_unittest_support_enabled() and _is_valid_result(instance, args):
-        _set_test_span_status(args[0], test.Status.PASS.value)
+        _set_test_span_status(args, test.Status.PASS.value)
 
     return func(*args, **kwargs)
 
 
 def add_failure_test_wrapper(func, instance, args, kwargs):
     if is_unittest_support_enabled() and _is_valid_result(instance, args):
-        _set_test_span_status(args[0], test.Status.FAIL.value)
+        _set_test_span_status(args, test.Status.FAIL.value)
 
     return func(*args, **kwargs)
 
@@ -139,7 +139,7 @@ def add_failure_test_wrapper(func, instance, args, kwargs):
 def add_skip_test_wrapper(func, instance, args, kwargs):
     result = func(*args, **kwargs)
     if is_unittest_support_enabled() and _is_valid_result(instance, args):
-        _set_test_span_status(args[0], test.Status.SKIP.value)
+        _set_test_span_status(args, test.Status.SKIP.value)
 
     return result
 
