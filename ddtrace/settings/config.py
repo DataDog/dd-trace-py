@@ -235,7 +235,8 @@ class Config(object):
         self.version = os.getenv("DD_VERSION", default=self.tags.get("version"))
         self.http_server = self._HTTPServerConfig()
 
-        self.service_mapping = parse_tags_str(os.getenv("DD_SERVICE_MAPPING", default=""))
+        self._unparsed_service_mapping = os.getenv("DD_SERVICE_MAPPING", default="")
+        self.service_mapping = parse_tags_str(self._unparsed_service_mapping)
 
         # The service tag corresponds to span.service and should not be
         # included in the global tags.
