@@ -1,7 +1,9 @@
 import functools
 import sys
 
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
+from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.trace_utils import _get_request_header_user_agent
 from ddtrace.contrib.trace_utils import _set_url_tag
@@ -66,6 +68,24 @@ class _TracedIterable(wrapt.ObjectProxy):
             # By definition, iterables should not support len(...).
             raise AttributeError("__len__ is not supported")
         return super(_TracedIterable, self).__getattribute__(name)
+
+
+def _on_start_response_pre(request, span, flask_config, status_code, headers):
+    code, _, _ = status_code.partition(" ")
+    # If values are accessible, set the resource as `<method> <path>` and add other request tags
+    _set_request_tags(request, span, flask_config)
+    # Override root span resource name to be `<method> 404` for 404 requests
+    # DEV: We do this because we want to make it easier to see all unknown requests together
+    #      Also, we do this to reduce the cardinality on unknown urls
+    # DEV: If we have an endpoint or url rule tag, then we don't need to do this,
+    #      we still want `GET /product/<int:product_id>` grouped together,
+    #      even if it is a 404
+    if not span.get_tag(FLASK_ENDPOINT) and not span.get_tag(FLASK_URL_RULE):
+        span.resource = " ".join((request.method, code))
+
+    trace_utils.set_http_meta(
+        span, flask_config, status_code=code, response_headers=headers, route=span.get_tag(FLASK_URL_RULE)
+    )
 
 
 def _on_context_started(ctx):
@@ -268,6 +288,52 @@ def _on_flask_render(span, template, flask_config):
         span.set_tag_str("flask.template_name", name)
 
 
+def _on_render_template_context_started_flask(ctx):
+    name = ctx.get_item("name")
+    span = ctx.get_item("pin").tracer.trace(name, span_type=SpanTypes.TEMPLATE)
+    span.set_tag_str(COMPONENT, ctx.get_item("flask_config").integration_name)
+    ctx.set_item(name + ".call", span)
+
+
+def _on_request_span_modifier(
+    span, flask_config, request, environ, _HAS_JSON_MIXIN, flask_version, flask_version_str, exception_type
+):
+    # Default resource is method and path:
+    #   GET /
+    #   POST /save
+    # We will override this below in `traced_dispatch_request` when we have a `
+    # RequestContext` and possibly a url rule
+    span.resource = " ".join((request.method, request.path))
+
+    span.set_tag(SPAN_MEASURED_KEY)
+    # set analytics sample rate with global config enabled
+    sample_rate = flask_config.get_analytics_sample_rate(use_global_config=True)
+    if sample_rate is not None:
+        span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
+
+    span.set_tag_str(flask_version, flask_version_str)
+
+
+def _on_request_span_modifier_post(span, flask_config, request, req_body):
+    trace_utils.set_http_meta(
+        span,
+        flask_config,
+        method=request.method,
+        url=request.base_url,
+        raw_uri=request.url,
+        query=request.query_string,
+        parsed_query=request.args,
+        request_headers=request.headers,
+        request_cookies=request.cookies,
+        request_body=req_body,
+        peer_ip=request.remote_addr,
+    )
+
+
+def _on_start_response_blocked(req_span, flask_config, response_headers, status):
+    trace_utils.set_http_meta(req_span, flask_config, status_code=status, response_headers=response_headers)
+
+
 def listen():
     core.on("context.started.wsgi.__call__", _on_context_started)
     core.on("context.started.wsgi.response", _on_response_context_started)
@@ -278,8 +344,12 @@ def listen():
     core.on("wsgi.app.exception", _on_app_exception)
     core.on("wsgi.request.complete", _on_request_complete)
     core.on("wsgi.response.prepared", _on_response_prepared)
-    core.on("flask.set_request_tags", _set_request_tags)
+    core.on("flask.start_response.pre", _on_start_response_pre)
     core.on("flask.blocked_request_callable", _on_flask_blocked_request)
+    core.on("flask.request_span_modifier", _on_request_span_modifier)
+    core.on("flask.request_span_modifier.post", _on_request_span_modifier_post)
     core.on("flask.render", _on_flask_render)
+    core.on("flask.start_response.blocked", _on_start_response_blocked)
     core.on("context.started.flask._traced_request", _on_traced_request_context_started_flask)
     core.on("context.started.flask.jsonify", _on_jsonify_context_started_flask)
+    core.on("context.started.flask.render_template", _on_render_template_context_started_flask)
