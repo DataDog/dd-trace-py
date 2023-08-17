@@ -67,7 +67,7 @@ def _extract_test_file_name(item):
     return os.path.basename(inspect.getfile(item.__class__))
 
 
-def _is_unittest_support_enabled():
+def is_unittest_support_enabled():
     return unittest and getattr(unittest, "_datadog_patch", False) and _CIVisibility.enabled
 
 
@@ -124,14 +124,14 @@ def _set_test_span_status(args, status):
 
 
 def add_success_test_wrapper(func, instance, args, kwargs):
-    if _is_unittest_support_enabled() and _is_valid_result(instance, args):
+    if is_unittest_support_enabled() and _is_valid_result(instance, args):
         _set_test_span_status(args[0], test.Status.PASS.value)
 
     return func(*args, **kwargs)
 
 
 def add_failure_test_wrapper(func, instance, args, kwargs):
-    if _is_unittest_support_enabled() and _is_valid_result(instance, args):
+    if is_unittest_support_enabled() and _is_valid_result(instance, args):
         _set_test_span_status(args[0], test.Status.FAIL.value)
 
     return func(*args, **kwargs)
@@ -139,14 +139,14 @@ def add_failure_test_wrapper(func, instance, args, kwargs):
 
 def add_skip_test_wrapper(func, instance, args, kwargs):
     result = func(*args, **kwargs)
-    if _is_unittest_support_enabled() and _is_valid_result(instance, args):
+    if is_unittest_support_enabled() and _is_valid_result(instance, args):
         _set_test_span_status(args[0], test.Status.SKIP.value)
 
     return result
 
 
 def start_test_wrapper_unittest(func, instance, args, kwargs):
-    if _is_unittest_support_enabled():
+    if is_unittest_support_enabled():
         tracer = getattr(unittest, "_datadog_tracer", _CIVisibility._instance.tracer)
         span = tracer._start_span(
             ddtrace.config.unittest.operation_name,

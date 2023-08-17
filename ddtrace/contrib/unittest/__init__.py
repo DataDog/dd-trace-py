@@ -13,13 +13,10 @@ Or use :func:`patch()<ddtrace.patch>` to manually enable the integration::
     from ddtrace import patch
     patch(unittest=True)
 """
-
-from unittest import TestCase
-
 from ddtrace import config
-from .patch import patch, unpatch
+from .patch import patch, unpatch, is_unittest_support_enabled
 
-__all__ = ["patch", "unpatch", "TestCase"]
+__all__ = ["patch", "unpatch", "is_unittest_support_enabled"]
 
 if config.get_from("_ci_visibility_unittest_enabled"):
     patch()
