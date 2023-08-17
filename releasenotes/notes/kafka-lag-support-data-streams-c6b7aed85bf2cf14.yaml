@@ -1,0 +1,3 @@
+features:
+  - |
+    data_streams: Starts tracking Kafka lag in seconds.

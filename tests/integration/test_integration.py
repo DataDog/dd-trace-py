@@ -2,6 +2,7 @@
 import itertools
 import logging
 import os
+import signal
 import sys
 
 import mock
@@ -39,6 +40,21 @@ def test_configure_keeps_api_hostname_and_port():
     assert (
         tracer._writer.agent_url == "http://127.0.0.1:8127"
     ), "Previous overrides of hostname and port are retained after a configure() call without those arguments"
+
+
+@mock.patch("signal.signal")
+@mock.patch("signal.getsignal")
+def test_shutdown_on_exit_signal(mock_get_signal, mock_signal):
+    mock_get_signal.return_value = None
+    tracer = Tracer()
+    assert mock_signal.call_count == 2
+    assert mock_signal.call_args_list[0][0][0] == signal.SIGTERM
+    assert mock_signal.call_args_list[1][0][0] == signal.SIGINT
+    original_shutdown = tracer.shutdown
+    tracer.shutdown = mock.Mock()
+    mock_signal.call_args_list[0][0][1]("", "")
+    assert tracer.shutdown.call_count == 1
+    tracer.shutdown = original_shutdown
 
 
 def test_debug_mode_generates_debug_output():
@@ -160,7 +176,7 @@ def test_resource_name_too_large(monkeypatch):
     assert t._writer._buffer_size == FOUR_KB
     s = t.trace("operation", service="foo")
     # Maximum string length is set to 10% of the maximum buffer size
-    s.resource = "B" * int(0.1*FOUR_KB + 1)
+    s.resource = "B" * int(0.1 * FOUR_KB + 1)
     try:
         s.finish()
     except ValueError:
