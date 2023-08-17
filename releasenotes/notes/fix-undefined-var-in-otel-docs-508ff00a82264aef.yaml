@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    docs: Fix undefined variable reference in otel documentation
