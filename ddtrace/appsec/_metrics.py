@@ -1,3 +1,6 @@
+import time
+from typing import Set
+
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec.ddwaf import DDWaf_info
 from ddtrace.appsec.ddwaf import version
@@ -9,6 +12,29 @@ from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_APPSEC
 log = get_logger(__name__)
 
 
+class DeduplicationLogs:
+    def __init__(self, func):
+        self.func = func
+        self._last_timestamp = time.time()
+        self._next_report_timestamp()
+
+    def _next_report_timestamp(self):
+        # type: () -> None
+        self._last_timestamp = time.time() + 3600
+        self.reported_logs = set()  # type: Set[int]
+
+    def __call__(self, *args, **kwargs):
+        result = None
+        if time.time() > self._last_timestamp:
+            raw_log = hash(sum(str(arg) for arg in args))
+            if raw_log not in self.reported_logs:
+                self.reported_logs.add(raw_log)
+                result = self.func(*args, **kwargs)
+            self._next_report_timestamp()
+        return result
+
+
+@DeduplicationLogs
 def _set_waf_error_metric(msg, stack_trace, info):
     # type: (str, str, DDWaf_info) -> None
     try:
