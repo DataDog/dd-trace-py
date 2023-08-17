@@ -79,7 +79,7 @@ def patch():
     """
     Patched the instrumented methods from unittest
     """
-    if getattr(unittest, "_datadog_patch", False):
+    if not config.get_from("_ci_visibility_unittest_enabled") or getattr(unittest, "_datadog_patch", False):
         return
 
     if not _CIVisibility.enabled:
@@ -96,18 +96,17 @@ def patch():
 
     _w(unittest, "TestCase.run", start_test_wrapper_unittest)
 
-
 def unpatch():
     if not getattr(unittest, "_datadog_patch", False):
         return
 
-    setattr(unittest, "_datadog_patch", False)
+    _u(unittest.TextTestResult, "addSuccess")
+    _u(unittest.TextTestResult, "addFailure")
+    _u(unittest.TextTestResult, "addError")
+    _u(unittest.TextTestResult, "addSkip")
+    _u(unittest.TestCase, "run")
 
-    _u(unittest, "TextTestResult.addSuccess")
-    _u(unittest, "TextTestResult.addFailure")
-    _u(unittest, "TextTestResult.addError")
-    _u(unittest, "TextTestResult.addSkip")
-    _u(unittest, "TestCase.run")
+    setattr(unittest, "_datadog_patch", False)
 
 
 def _set_test_span_status(args, status):

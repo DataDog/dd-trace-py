@@ -27,7 +27,6 @@ from ddtrace.contrib.pytest.constants import HELP_MSG
 from ddtrace.contrib.pytest.constants import KIND
 from ddtrace.contrib.pytest.constants import XFAIL_REASON
 from ddtrace.contrib.unittest import unpatch as unpatch_unittest
-from ddtrace.contrib.unittest import is_unittest_support_enabled
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
 from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
@@ -311,9 +310,8 @@ def pytest_configure(config):
 
 def pytest_sessionstart(session):
     if _CIVisibility.enabled:
+        unpatch_unittest()
         log.debug("CI Visibility enabled - starting test session")
-        if is_unittest_support_enabled():
-            unpatch_unittest()
         global _global_skipped_elements
         _global_skipped_elements = 0
         test_session_span = _CIVisibility._instance.tracer.trace(
