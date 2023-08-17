@@ -708,8 +708,7 @@ def test_civisibility_check_enabled_features_itr_enabled_malformed_response(_do_
 
         # Git client is started
         assert git_start.call_count == 1
-
-        mock_log.warning.assert_called_with("Settings request responded with invalid JSON '%s'", "}")
+        mock_log.warning.assert_any_call("Settings request responded with invalid JSON '%s'", "}")
         CIVisibility.disable()
 
 
