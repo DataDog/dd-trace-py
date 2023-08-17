@@ -16,7 +16,7 @@ from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounter
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import get_span_sampling_rules
 from ddtrace.internal.utils import _get_metas_to_propagate
-from ddtrace.settings.peer_service import PeerServiceConfig
+from ddtrace.settings.peer_service import _ps_config
 from ddtrace.vendor import debtcollector
 
 from . import _hooks
@@ -146,7 +146,7 @@ def _default_span_processors_factory(
     # FIXME: type should be AppsecSpanProcessor but we have a cyclic import here
     """Construct the default list of span processors to use."""
     trace_processors = []  # type: List[TraceProcessor]
-    trace_processors += [TraceTagsProcessor(), PeerServiceProcessor(PeerServiceConfig())]
+    trace_processors += [TraceTagsProcessor(), PeerServiceProcessor(_ps_config)]
     trace_processors += [TraceSamplingProcessor(compute_stats_enabled)]
     trace_processors += trace_filters
 
