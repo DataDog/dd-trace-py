@@ -2,7 +2,6 @@ import os
 from typing import TYPE_CHECKING
 from typing import cast
 
-
 from ddtrace import tracer
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec.iast import oce
@@ -21,6 +20,7 @@ from ddtrace.internal.compat import six
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.cache import LFUCache
 from ddtrace.settings import _config
+
 
 try:
     # Python >= 3.4
