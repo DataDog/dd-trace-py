@@ -783,6 +783,11 @@ jobs:
     steps:
       - run_test:
           pattern: 'pytest'
+  unittest:
+    <<: *contrib_job
+    steps:
+      - run_test:
+          pattern: 'unittest'
 
   asynctest:
     executor: ddtrace_dev
