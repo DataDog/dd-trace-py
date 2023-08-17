@@ -633,7 +633,7 @@ venv = Venv(
         ),
         Venv(
             name="cherrypy",
-            command="pytest --no-ddtrace {cmdargs} tests/contrib/cherrypy",
+            command="python -m pytest {cmdargs} tests/contrib/cherrypy",
             venvs=[
                 Venv(
                     pys=select_pys(max_version="3.10"),
@@ -690,7 +690,7 @@ venv = Venv(
         # Source: https://docs.djangoproject.com/en/dev/faq/install/#what-python-version-can-i-use-with-django
         Venv(
             name="django",
-            command="pytest --no-ddtrace {cmdargs} tests/contrib/django",
+            command="pytest {cmdargs} tests/contrib/django",
             pkgs={
                 "django-redis": ">=4.5,<4.6",
                 "django-pylibmc": ">=0.6,<0.7",
@@ -912,7 +912,7 @@ venv = Venv(
         ),
         Venv(
             name="flask",
-            command="pytest --no-ddtrace {cmdargs} tests/contrib/flask",
+            command="pytest {cmdargs} tests/contrib/flask",
             pkgs={"blinker": latest, "requests": latest},
             venvs=[
                 # Flask 1.x.x
@@ -1558,7 +1558,7 @@ venv = Venv(
         ),
         Venv(
             name="fastapi",
-            command="pytest --no-ddtrace {cmdargs} tests/contrib/fastapi",
+            command="pytest {cmdargs} tests/contrib/fastapi",
             pkgs={
                 "httpx": latest,
                 "pytest-asyncio": latest,
@@ -1735,7 +1735,7 @@ venv = Venv(
         ),
         Venv(
             name="grpc",
-            command="pytest --no-ddtrace {cmdargs} tests/contrib/grpc",
+            command="python -m pytest {cmdargs} tests/contrib/grpc",
             pkgs={
                 "googleapis-common-protos": latest,
             },
@@ -1817,7 +1817,7 @@ venv = Venv(
         ),
         Venv(
             name="graphql",
-            command="pytest --no-ddtrace {cmdargs} tests/contrib/graphql",
+            command="pytest {cmdargs} tests/contrib/graphql",
             venvs=[
                 Venv(
                     pys=["3.6"],
@@ -2736,7 +2736,7 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    command="pytest --no-ddtrace {cmdargs} tests/contrib/kafka",
+                    command="pytest {cmdargs} tests/contrib/kafka",
                     venvs=[
                         # confluent-kafka dropped official wheels for Python 2.7 in 1.8.2
                         Venv(pys="2.7", pkgs={"confluent-kafka": "~=1.7.0"}),
