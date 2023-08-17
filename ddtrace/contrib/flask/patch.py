@@ -113,6 +113,7 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
                     ctype = "text/" + block_config["type"]
                 status = block_config.get("status_code", 403)
                 response_headers = [("content-type", ctype)]
+                result = start_response(str(status), response_headers)
                 core.dispatch("flask.start_response.blocked", config.flask, response_headers, status)
             else:
                 result = start_response(status_code, headers)
