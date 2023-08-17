@@ -312,8 +312,6 @@ def pytest_configure(config):
 def pytest_sessionstart(session):
     if _CIVisibility.enabled:
         log.debug("CI Visibility enabled - starting test session")
-        import pdb
-        pdb.set_trace()
         if is_unittest_support_enabled():
             unpatch_unittest()
         global _global_skipped_elements
