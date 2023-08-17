@@ -142,10 +142,12 @@ class CIVisibility(Service):
 
         if ddconfig._ci_visibility_intelligent_testrunner_enabled:
             if self._app_key is None:
-                log.warning("Environment variable DD_APPLICATION_KEY not set, so no git metadata will be uploaded.")
+                log.warning("Environment variable DD_APP_KEY not set, so no git metadata will be uploaded.")
             elif self._requests_mode == REQUESTS_MODE.TRACES:
                 log.warning("Cannot start git client if mode is not agentless or evp proxy")
             else:
+                if not self._test_skipping_enabled_by_api:
+                    log.warning("Intelligent Test Runner test skipping disabled by API")
                 self._git_client = CIVisibilityGitClient(
                     api_key=self._api_key or "", app_key=self._app_key, requests_mode=self._requests_mode
                 )
@@ -175,11 +177,16 @@ class CIVisibility(Service):
 
     def _check_enabled_features(self):
         # type: () -> Tuple[bool, bool]
-        if not self._app_key:
-            return False, False
 
         # DEV: Remove this ``if`` once ITR is in GA
         if not ddconfig._ci_visibility_intelligent_testrunner_enabled:
+            return False, False
+
+        if ddconfig._ci_visibility_agentless_enabled and not self._app_key:
+            log.warning(
+                "Intelligent Test Runner disabled: DD_APP_KEY is required when "
+                "DD_CIVISIBILITY_AGENTLESS_ENABLED is true."
+            )
             return False, False
 
         _headers = {
