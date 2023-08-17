@@ -2401,6 +2401,7 @@ def test_django_get_user(client, test_spans):
     assert root.get_tag(user.ROLE) == "usr.role"
     assert root.get_tag(user.SCOPE) == "usr.scope"
 
+
 @pytest.mark.skipif(django.VERSION < (2, 0, 0), reason="")
 def test_django_base_handler_failure(client, test_spans):
     """
@@ -2410,7 +2411,7 @@ def test_django_base_handler_failure(client, test_spans):
     with "GET <resource>" instead of what we did before this test "GET"
     """
     trace_utils.unwrap(client.handler, "get_response")
-    with mock.patch.object(client.handler, 'get_response', side_effect=Exception("test")):
+    with mock.patch.object(client.handler, "get_response", side_effect=Exception("test")):
         trace_utils.wrap(client.handler, "get_response", traced_get_response(django))
         try:
             client.get("/")

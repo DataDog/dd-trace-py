@@ -364,7 +364,6 @@ def _after_request_tags(pin, span, request, response):
 
             url = get_request_uri(request)
 
-
             request_headers = None
             if config._appsec_enabled:
                 from ddtrace.appsec import _asm_request_context
