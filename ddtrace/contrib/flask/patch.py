@@ -8,6 +8,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import FLASK_ENDPOINT
 from ddtrace.internal.constants import FLASK_URL_RULE
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
+from ddtrace.internal.constants import STATUS_403_TYPE_AUTO
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
 from ...internal import core
@@ -126,10 +127,15 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
                 headers_from_context = results[0]
             if core.get_item(HTTP_REQUEST_BLOCKED):
                 # response code must be set here, or it will be too late
-                ctype = "text/html" if "text/html" in headers_from_context else "text/json"
+                block_config = core.get_item(HTTP_REQUEST_BLOCKED, span=req_span)
+                if block_config.get("type", "auto") == "auto":
+                    ctype = "text/html" if "text/html" in headers_from_context else "text/json"
+                else:
+                    ctype = "text/" + block_config["type"]
+                status = block_config.get("status_code", 403)
                 response_headers = [("content-type", ctype)]
-                result = start_response("403 FORBIDDEN", response_headers)
-                trace_utils.set_http_meta(req_span, config.flask, status_code="403", response_headers=response_headers)
+                result = start_response(str(status), response_headers)
+                trace_utils.set_http_meta(req_span, config.flask, status_code=status, response_headers=response_headers)
             else:
                 result = start_response(status_code, headers)
         else:
@@ -537,7 +543,7 @@ def traced_register_error_handler(wrapped, instance, args, kwargs):
 
 def _block_request_callable(call):
     request = flask.request
-    core.set_item(HTTP_REQUEST_BLOCKED, True)
+    core.set_item(HTTP_REQUEST_BLOCKED, STATUS_403_TYPE_AUTO)
     core.dispatch("flask.blocked_request_callable", [call])
     ctype = "text/html" if "text/html" in request.headers.get("Accept", "").lower() else "text/json"
     abort(flask.Response(http_utils._get_blocked_template(ctype), content_type=ctype, status=403))
