@@ -18,7 +18,6 @@ import six
 from .constants import AUTO_KEEP
 from .constants import AUTO_REJECT
 from .constants import ENV_KEY
-from .constants import SAMPLING_AGENT_DECISION
 from .constants import SAMPLING_LIMIT_DECISION
 from .constants import SAMPLING_RULE_DECISION
 from .constants import USER_KEEP
@@ -160,8 +159,6 @@ class RateByServiceSampler(BasePrioritySampler):
         # type: (Span, RateSampler, bool) -> None
         priority = AUTO_KEEP if sampled else AUTO_REJECT
         self._set_priority(span, priority)
-
-        span.set_metric(SAMPLING_AGENT_DECISION, sampler.sample_rate)
 
         sampling_mechanism = (
             SamplingMechanism.DEFAULT if sampler == self._default_sampler else SamplingMechanism.AGENT_RATE

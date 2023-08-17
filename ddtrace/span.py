@@ -338,11 +338,9 @@ class Span(object):
 
         elif key == MANUAL_KEEP_KEY:
             self.context.sampling_priority = USER_KEEP
-            update_sampling_decision(self.context, SamplingMechanism.MANUAL, True)
             return
         elif key == MANUAL_DROP_KEY:
             self.context.sampling_priority = USER_REJECT
-            update_sampling_decision(self.context, SamplingMechanism.MANUAL, False)
             return
         elif key == SERVICE_KEY:
             self.service = value

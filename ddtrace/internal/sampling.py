@@ -119,10 +119,7 @@ def update_sampling_decision(
     # type: (...) -> Optional[Text]
     # When sampler keeps trace, we need to set sampling decision trace tag.
     # If sampler rejects trace, we need to remove sampling decision trace tag to avoid unnecessary propagation.
-    if sampled:
-        return _set_trace_tag(context, sampling_mechanism)
-    else:
-        return _unset_trace_tag(context)
+    return _set_trace_tag(context, sampling_mechanism)
 
 
 class SpanSamplingRule:

@@ -71,10 +71,13 @@ def set_argument_value(
     return args, kwargs
 
 
+TAGS_TO_PROPAGATE = []
+
+
 def _get_metas_to_propagate(context):
     # type: (Any) -> List[Tuple[str, str]]
     metas_to_propagate = []
     for k, v in context._meta.items():
-        if isinstance(k, six.string_types) and k.startswith("_dd.p."):
+        if isinstance(k, six.string_types) and k in TAGS_TO_PROPAGATE:
             metas_to_propagate.append((k, v))
     return metas_to_propagate
