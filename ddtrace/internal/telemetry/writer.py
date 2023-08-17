@@ -480,7 +480,10 @@ class TelemetryWriter(PeriodicService):
         """
         Queues count metric
         """
+        log.warning("JJJ add_count_metric, namespace: %s, name: %s, value: %s, tags: %s" % (namespace, name, value, tags))
+        log.warning("JJJ add_count_metric, ServiceStatus is Running: %s self.enable(): %s" % (self.status == ServiceStatus.RUNNING, self.enable()))
         if self.status == ServiceStatus.RUNNING or self.enable():
+            log.warning("JJJ add_count_metric, inside if")
             self._namespace.add_metric(
                 CountMetric,
                 namespace,

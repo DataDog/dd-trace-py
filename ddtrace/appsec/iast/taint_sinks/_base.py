@@ -2,7 +2,6 @@ import os
 from typing import TYPE_CHECKING
 from typing import cast
 
-import six
 
 from ddtrace import tracer
 from ddtrace.appsec._constants import IAST
@@ -18,6 +17,7 @@ from ddtrace.appsec.iast.reporter import Location
 from ddtrace.appsec.iast.reporter import Source
 from ddtrace.appsec.iast.reporter import Vulnerability
 from ddtrace.internal import core
+from ddtrace.internal.compat import six
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.cache import LFUCache
 from ddtrace.settings import _config
@@ -89,25 +89,36 @@ class VulnerabilityBase(Operation):
 
         TODO: check deduplications if DD_IAST_DEDUPLICATION_ENABLED is true
         """
+
+        log.warning("JJJ report 1")
         if cls.acquire_quota():
             if not tracer or not hasattr(tracer, "current_root_span"):
                 log.debug("Not tracer or tracer has no root span")
+                log.warning("JJJ report exit 1")
                 return None
 
             span = tracer.current_root_span()
             if not span:
                 log.debug("No root span in the current execution. Skipping IAST taint sink.")
+                log.warning("JJJ report exit 2")
                 return None
 
-            frame_info = get_info_frame(CWD)
-            if not frame_info:
-                return None
+            file_name = ""
+            line_number = 0
 
-            file_name, line_number = frame_info
+            skip_location = getattr(cls, "skip_location", False)
+            if not skip_location:
+                frame_info = get_info_frame(CWD)
+                if not frame_info:
+                    log.warning("JJJ report exit 3")
+                    return None
 
-            # Remove CWD prefix
-            if file_name.startswith(CWD):
-                file_name = os.path.relpath(file_name, start=CWD)
+                log.warning("JJJ report 2")
+                file_name, line_number = frame_info
+
+                # Remove CWD prefix
+                if file_name.startswith(CWD):
+                    file_name = os.path.relpath(file_name, start=CWD)
 
             if _is_evidence_value_parts(evidence_value):
                 evidence = Evidence(valueParts=evidence_value)
@@ -118,14 +129,17 @@ class VulnerabilityBase(Operation):
                 log.debug("Unexpected evidence_value type: %s", type(evidence_value))
                 evidence = Evidence(value="")
 
+            log.warning("JJJ report 3")
             if not cls.is_not_reported(file_name, line_number):
                 # not not reported = reported
+                log.warning("JJJ report exit 4")
                 return None
 
             _set_metric_iast_executed_sink(cls.vulnerability_type)
 
             report = core.get_item(IAST.CONTEXT_KEY, span=span)
             if report:
+                log.warning("JJJ report 4")
                 report.vulnerabilities.add(
                     Vulnerability(
                         type=cls.vulnerability_type,
@@ -135,6 +149,7 @@ class VulnerabilityBase(Operation):
                 )
 
             else:
+                log.warning("JJJ report 5")
                 report = IastSpanReporter(
                     vulnerabilities={
                         Vulnerability(
@@ -145,12 +160,16 @@ class VulnerabilityBase(Operation):
                     }
                 )
             if sources:
+                log.warning("JJJ report 6")
                 report.sources = {Source(origin=x.origin, name=x.name, value=x.value) for x in sources}
 
+            log.warning("JJJ report 7")
             redacted_report = cls._redacted_report_cache.get(
                 hash(report), lambda x: cls._redact_report(cast(IastSpanReporter, report))
             )
+            log.warning("JJJ report 8")
             core.set_item(IAST.CONTEXT_KEY, redacted_report, span=span)
+            log.warning("JJJ report 9")
 
     @classmethod
     def _extract_sensitive_tokens(cls, report):

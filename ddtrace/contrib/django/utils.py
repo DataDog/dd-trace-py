@@ -328,7 +328,7 @@ def _after_request_tags(pin, span, request, response):
                         span.set_tag_str("django.user.name", username)
             except Exception:
                 log.debug("Error retrieving authentication information for user", exc_info=True)
-
+set_http_meta
         if response:
             status = response.status_code
             span.set_tag_str("django.response.class", func_name(response))

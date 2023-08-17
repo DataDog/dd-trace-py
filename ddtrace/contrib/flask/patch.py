@@ -96,6 +96,17 @@ else:
 flask_version_str = getattr(flask, "__version__", "0.0.0")
 flask_version = parse_version(flask_version_str)
 
+def _cookies_from_response_headers(response_headers):
+    cookies = {}
+    for header_tuple in response_headers:
+        if header_tuple[0] == 'Set-Cookie':
+            log.warning("JJJ cookie header original: %s" % header_tuple[0])
+            cookie_tokens = header_tuple[1].split("=", 1)
+            cookies[cookie_tokens[0]] = cookie_tokens[1]
+            log.warning("JJJ cookie parsing returning key: %s value: %s" % (cookie_tokens[0], cookie_tokens[1]))
+
+    return cookies
+
 
 class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
     _request_span_name = schematize_url_operation("flask.request", protocol="http", direction=SpanDirection.INBOUND)
@@ -117,7 +128,8 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
             req_span.resource = " ".join((flask.request.method, code))
 
         trace_utils.set_http_meta(
-            req_span, config.flask, status_code=code, response_headers=headers, route=req_span.get_tag(FLASK_URL_RULE)
+            req_span, config.flask, status_code=code, response_headers=headers, route=req_span.get_tag(FLASK_URL_RULE),
+            response_cookies=_cookies_from_response_headers(headers)
         )
 
         if not core.get_item(HTTP_REQUEST_BLOCKED):

@@ -79,6 +79,7 @@ def _set_metric_iast_executed_source(source_type):
 
 @metric_verbosity(TELEMETRY_INFORMATION_VERBOSITY)
 def _set_metric_iast_executed_sink(vulnerability_type):
+    log.warning("JJJ _set_metric_iast_executed_sink, vulnerability_type: %s" % vulnerability_type)
     telemetry_writer.add_count_metric(
         TELEMETRY_NAMESPACE_TAG_IAST, "executed.sink", 1, (("vulnerability_type", vulnerability_type),)
     )

@@ -438,6 +438,7 @@ def set_http_meta(
     peer_ip=None,  # type: Optional[str]
     headers_are_case_sensitive=False,  # type: bool
     route=None,  # type: Optional[str]
+    response_cookies=None,  # type: Optional[Dict[str, str]]
 ):
     # type: (...) -> None
     """
@@ -513,13 +514,22 @@ def set_http_meta(
     if retries_remain is not None:
         span.set_tag_str(http.RETRIES_REMAIN, str(retries_remain))
 
+    log.warning("JJJ before check1")
     if config._appsec_enabled:
         from ddtrace.appsec.iast._util import _is_iast_enabled
 
-        if request_cookies and _is_iast_enabled():
+        log.warning("JJJ before check2, request_cookies: %s _is_iast_enabled: %s" % (request_cookies, _is_iast_enabled()))
+        if _is_iast_enabled():
             from ddtrace.appsec.iast.taint_sinks.insecure_cookie import asm_check_cookies
 
-            asm_check_cookies(request_cookies)
+            if request_cookies:
+                log.warning("JJJ calling asm_check_cookies after if")
+                log.warning("JJJ calling asm_check_cookies")
+                asm_check_cookies(request_cookies)
+
+            if response_cookies:
+                log.warning("JJJ before check2, Cookies: %s" % response_cookies)
+                asm_check_cookies(response_cookies)
 
         if span.span_type == SpanTypes.WEB:
             from ddtrace.appsec._asm_request_context import set_waf_address
