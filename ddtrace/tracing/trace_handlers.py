@@ -249,24 +249,6 @@ def _set_request_tags(request, span, flask_config):
         log.debug('failed to set tags for "flask.request" span', exc_info=True)
 
 
-def _on_start_response_pre(request, span, flask_config, status_code, headers):
-    code, _, _ = status_code.partition(" ")
-    # If values are accessible, set the resource as `<method> <path>` and add other request tags
-    _set_request_tags(request, span, flask_config)
-    # Override root span resource name to be `<method> 404` for 404 requests
-    # DEV: We do this because we want to make it easier to see all unknown requests together
-    #      Also, we do this to reduce the cardinality on unknown urls
-    # DEV: If we have an endpoint or url rule tag, then we don't need to do this,
-    #      we still want `GET /product/<int:product_id>` grouped together,
-    #      even if it is a 404
-    if not span.get_tag(FLASK_ENDPOINT) and not span.get_tag(FLASK_URL_RULE):
-        span.resource = " ".join((request.method, code))
-
-    trace_utils.set_http_meta(
-        span, flask_config, status_code=code, response_headers=headers, route=span.get_tag(FLASK_URL_RULE)
-    )
-
-
 def _on_traced_request_context_started_flask(ctx):
     """
     trace a Flask function while trying to extract endpoint information (endpoint, url_rule, view_args, etc)
