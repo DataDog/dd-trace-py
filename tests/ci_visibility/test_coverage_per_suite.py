@@ -199,19 +199,13 @@ class PytestTestCase(TracerTestCase):
             }
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features", return_value=(True, True)
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"
-        ), mock.patch.object(
+        ), mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"), mock.patch.object(
             ddtrace.internal.ci_visibility.recorder.CIVisibility,
             "_test_suites_to_skip",
             [
                 "test_cov_second.py",
             ],
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.git_client.CIVisibilityGitClient"
         ):
-            ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
-
             self.inline_run("--ddtrace", os.path.basename(py_cov_file.strpath), os.path.basename(py_cov_file2.strpath))
         spans = self.pop_spans()
 

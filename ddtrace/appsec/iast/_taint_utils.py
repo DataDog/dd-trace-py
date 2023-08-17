@@ -204,7 +204,10 @@ class LazyTaintDict:
                     try:
                         # TODO: migrate this part to shift ranges instead of creating a new one
                         value = taint_pyobject(
-                            pyobject=value, source_name=key, source_value=value, source_origin=origin,
+                            pyobject=value,
+                            source_name=key,
+                            source_value=value,
+                            source_origin=origin,
                         )
                     except SystemError:
                         # TODO: Find the root cause for
@@ -283,7 +286,9 @@ class LazyTaintDict:
         if _is_tainted_struct(other):
             other = other._obj
         return LazyTaintDict(
-            self._obj | other, origins=self._origins, override_pyobject_tainted=self._override_pyobject_tainted,
+            self._obj | other,
+            origins=self._origins,
+            override_pyobject_tainted=self._override_pyobject_tainted,
         )
 
     def __repr__(self):
@@ -304,7 +309,9 @@ class LazyTaintDict:
 
     def copy(self):
         return LazyTaintDict(
-            self._obj.copy(), origins=self._origins, override_pyobject_tainted=self._override_pyobject_tainted,
+            self._obj.copy(),
+            origins=self._origins,
+            override_pyobject_tainted=self._override_pyobject_tainted,
         )
 
     @classmethod

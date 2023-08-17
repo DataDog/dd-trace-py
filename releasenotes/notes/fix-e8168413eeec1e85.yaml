@@ -1,4 +1,0 @@
----
-features:
-  - |
-    CI Visibility: Beta release of ``pytest`` support for the `Intelligent Test Runner <https://docs.datadoghq.com/continuous_integration/intelligent_test_runner/>`_ .
