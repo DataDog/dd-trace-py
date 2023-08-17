@@ -12,6 +12,7 @@ from ddtrace.ext import http
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import httplib
 from ddtrace.internal.compat import parse
+from ddtrace.internal.constants import _HTTPLIB_NO_TRACE_REQUEST
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.pin import Pin
 from ddtrace.vendor import wrapt
@@ -134,6 +135,24 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         request = self.get_http_connection(parsed.hostname, parsed.port)
         pin = Pin.get_from(request)
         self.assertTrue(should_skip_request(pin, request))
+
+    def test_httplib_request_get_request_no_ddtrace(self):
+        """
+        When making a GET request via httplib.HTTPConnection.request
+            while setting _dd_no_trace attr to True
+                we do not capture any spans
+        """
+        self.tracer.enabled = True
+        conn = self.get_http_connection(SOCKET)
+        setattr(conn, _HTTPLIB_NO_TRACE_REQUEST, True)
+        with contextlib.closing(conn):
+            conn.request("GET", "/status/200")
+            resp = conn.getresponse()
+            self.assertEqual(self.to_str(resp.read()), "")
+            self.assertEqual(resp.status, 200)
+
+        spans = self.pop_spans()
+        self.assertEqual(len(spans), 0)
 
     def test_httplib_request_get_request(self, query_string=""):
         """

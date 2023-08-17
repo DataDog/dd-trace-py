@@ -498,6 +498,6 @@ try:
 except ImportError:
     from contextlib import contextmanager
 
-    @contextmanager
+    @contextmanager  # type: ignore[no-redef]
     def nullcontext(enter_result=None):
         yield enter_result
