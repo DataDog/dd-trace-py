@@ -95,6 +95,7 @@ def patch_app_call(wrapped, instance, args, kwargs):
         resource=resource,
         span_type=SpanTypes.WEB,
     ) as span:
+
         span.set_tag_str(COMPONENT, config.molten.integration_name)
 
         # set span.kind tag equal to type of operation being performed

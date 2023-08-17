@@ -418,6 +418,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             for vulnerability in loaded["vulnerabilities"]:
                 vulnerabilities.add(vulnerability["type"])
                 if vulnerability["type"] == VULN_SQL_INJECTION:
+
                     assert vulnerability["type"] == VULN_SQL_INJECTION
                     assert vulnerability["evidence"] == {
                         "valueParts": [{"value": "SELECT 1 FROM "}, {"value": "sqlite_master", "source": 0}]
@@ -593,6 +594,7 @@ class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
                 _iast_enabled=False,
             )
         ):
+
             resp = self.client.post(
                 "/sqli/sqlite_master/", data={"name": "test"}, headers={"User-Agent": "sqlite_master"}
             )
@@ -659,6 +661,7 @@ class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
                 _iast_enabled=False,
             )
         ):
+
             resp = self.client.post("/sqli/sqlite_master/", data={"name": "test"}, headers={"user-agent": "master"})
             assert resp.status_code == 200
 

@@ -40,6 +40,7 @@ def create_taint_range_with_format(text_input, fn_origin=""):  # type: (Any, str
     ranges_ = []  # type: List[TaintRange]
     acc_input_id = 0
     for i, match in enumerate(taint_format_pattern.finditer(text_input)):  # type: ignore[attr-defined]
+
         match_start = match.start() - (i * 6) - acc_input_id
         match_end = match.end() - ((i + 1) * 6) - acc_input_id
         match_group_1 = match.group(1)

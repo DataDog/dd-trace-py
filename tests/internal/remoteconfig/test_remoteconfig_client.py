@@ -286,6 +286,7 @@ def test_validate_config_exists_in_target_paths(
 
 @pytest.mark.subprocess(env={"DD_TAGS": "env:foo,version:bar"})
 def test_remote_config_client_tags():
+
     from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 
     tags = dict(_.split(":", 1) for _ in RemoteConfigClient()._client_tracer["tags"])
@@ -298,6 +299,7 @@ def test_remote_config_client_tags():
     env={"DD_TAGS": "env:foooverridden,version:baroverridden", "DD_ENV": "foo", "DD_VERSION": "bar"}
 )
 def test_remote_config_client_tags_override():
+
     from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 
     tags = dict(_.split(":", 1) for _ in RemoteConfigClient()._client_tracer["tags"])

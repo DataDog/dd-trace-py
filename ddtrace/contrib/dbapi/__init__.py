@@ -66,6 +66,7 @@ class TracedCursor(wrapt.ObjectProxy):
         return self.__wrapped__.__next__()
 
     if PY2:
+
         # Python 2 iterators use `next`
         def next(self):  # noqa: A001
             return self.__wrapped__.next()

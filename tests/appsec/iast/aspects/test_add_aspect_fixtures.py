@@ -80,6 +80,7 @@ class TestOperatorAddReplacement(unittest.TestCase):
     def test_decoration_when_function_and_decorator_modify_texts_then_tainted(
         self,
     ):  # type: () -> None
+
         prefix = taint_pyobject(pyobject="a", source_name="a", source_value="a", source_origin=OriginType.PARAMETER)
         suffix = taint_pyobject(pyobject="b", source_name="b", source_value="b", source_origin=OriginType.PARAMETER)
 

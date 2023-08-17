@@ -15,6 +15,7 @@ from ..config import RABBITMQ_CONFIG
 
 
 class TestKombuPatch(TracerTestCase):
+
     TEST_SERVICE = "kombu-patch"
     TEST_PORT = RABBITMQ_CONFIG["port"]
 
@@ -138,6 +139,7 @@ class TestKombuSettings(TracerTestCase):
 
 
 class TestKombuSchematization(TracerTestCase):
+
     TEST_PORT = RABBITMQ_CONFIG["port"]
 
     def setUp(self):

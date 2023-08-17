@@ -13,6 +13,7 @@ from tests.utils import assert_is_measured
 
 
 class PynamodbTest(TracerTestCase):
+
     TEST_SERVICE = "pynamodb"
 
     def setUp(self):

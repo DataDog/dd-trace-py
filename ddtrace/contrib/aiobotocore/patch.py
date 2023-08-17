@@ -135,6 +135,7 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
         span.set_tag(SPAN_MEASURED_KEY)
 
         try:
+
             operation = get_argument_value(args, kwargs, 0, "operation_name")
             params = get_argument_value(args, kwargs, 1, "params")
 

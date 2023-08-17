@@ -33,6 +33,7 @@ TEST_PORT = POSTGRES_CONFIG["port"]
 
 
 class PsycopgCore(TracerTestCase):
+
     # default service
     TEST_SERVICE = "postgres"
 
@@ -81,6 +82,7 @@ class PsycopgCore(TracerTestCase):
         self.assert_structure(dict(name="postgres.query", service=service))
 
     def assert_conn_is_traced(self, db, service):
+
         # ensure the trace pscyopg client doesn't add non-standard
         # methods
         try:

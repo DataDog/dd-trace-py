@@ -33,7 +33,6 @@ TIKTOKEN_AVAILABLE = os.getenv("TIKTOKEN_AVAILABLE", False)
 # This is done to avoid making real calls to the API which could introduce
 # flakiness and cost.
 
-
 # To (re)-generate the cassettes: pass a real OpenAI API key with
 # OPENAI_API_KEY, delete the old cassettes and re-run the tests.
 # NOTE: be sure to check that the generated cassettes don't contain your

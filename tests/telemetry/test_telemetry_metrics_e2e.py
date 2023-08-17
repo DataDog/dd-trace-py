@@ -177,6 +177,7 @@ for _ in range(9):
 
 @pytest.mark.skipif(sys.version_info < (3, 7), reason="OpenTelemetry dropped support for python<=3.6")
 def test_span_creation_no_finish(test_agent_session, ddtrace_run_python_code_in_subprocess):
+
     code = """
 import ddtrace
 import opentelemetry

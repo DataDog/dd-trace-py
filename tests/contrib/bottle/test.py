@@ -304,7 +304,6 @@ class TraceBottleTest(TracerTestCase):
             When an integration trace search is not event sample rate is not set and globally trace search is enabled
                 We expect the root span to have the appropriate tag
         """
-
         # setup our test app
         @self.app.route("/hi/<name>")
         def hi(name):
@@ -336,7 +335,6 @@ class TraceBottleTest(TracerTestCase):
             When an integration trace search is enabled and sample rate is set and globally trace search is enabled
                 We expect the root span to have the appropriate tag
         """
-
         # setup our test app
         @self.app.route("/hi/<name>")
         def hi(name):
@@ -369,7 +367,6 @@ class TraceBottleTest(TracerTestCase):
             When an integration trace search is not set and sample rate is set and globally trace search is disabled
                 We expect the root span to not include tag
         """
-
         # setup our test app
         @self.app.route("/hi/<name>")
         def hi(name):
@@ -396,7 +393,6 @@ class TraceBottleTest(TracerTestCase):
             When an integration trace search is enabled and sample rate is set and globally trace search is disabled
                 We expect the root span to have the appropriate tag
         """
-
         # setup our test app
         @self.app.route("/hi/<name>")
         def hi(name):

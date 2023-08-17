@@ -112,6 +112,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         ]
 
         for args, kwargs in inputs:
+
             with self.override_http_config("urllib3", {"_header_tags": dict()}):
                 config.urllib3.http.trace_headers(["accept"])
                 pool = urllib3.connectionpool.HTTPConnectionPool(HOST, PORT)

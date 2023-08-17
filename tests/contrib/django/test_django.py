@@ -852,6 +852,7 @@ class RaiseAttributeError:
 
 
 def test_cache_get_rowcount_throws_attribute_and_value_error(test_spans):
+
     # get the default cache
     cache = django.core.cache.caches["default"]
 

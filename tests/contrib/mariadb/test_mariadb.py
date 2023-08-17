@@ -263,6 +263,7 @@ def test_query_with_several_rows_fetchall_snapshot(tracer):
 def test_query_many_fetchall_snapshot(tracer):
     with override_config("mariadb", dict(trace_fetch_methods=True)):
         with get_connection(tracer) as connection:
+
             # tests that the executemany method is correctly wrapped.
             tracer.enabled = False
             cursor = connection.cursor()

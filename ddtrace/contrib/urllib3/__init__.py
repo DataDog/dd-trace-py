@@ -59,6 +59,7 @@ required_modules = ["urllib3"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
+
         __all__ = [
             "patch",
             "unpatch",

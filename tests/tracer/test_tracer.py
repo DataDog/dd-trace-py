@@ -767,6 +767,7 @@ def test_tracer_fork():
     def task(t, errors):
         # Start a new span to trigger process checking
         with t.trace("test", service="test"):
+
             # Assert we recreated the writer and have a new queue
             with capture_failures(errors):
                 assert t._pid != original_pid

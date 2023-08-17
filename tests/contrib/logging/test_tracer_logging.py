@@ -174,6 +174,7 @@ ddtrace_logger.warning('ddtrace warning log')
     assert out == b""
 
     if dd_trace_log_file is not None:
+
         if dd_trace_debug == "true":
             assert "ddtrace.commands.ddtrace_run" in str(err)  # comes from ddtrace-run debug logging
         else:
@@ -198,6 +199,7 @@ def test_logs_with_basicConfig(run_python_code_in_subprocess, ddtrace_run_python
     to stderr.
     """
     for run_in_subprocess in [run_python_code_in_subprocess, ddtrace_run_python_code_in_subprocess]:
+
         code = """
 import logging
 import ddtrace

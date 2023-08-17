@@ -18,6 +18,7 @@ LOG = logging.getLogger(__name__)
 try:
     fspath = os.fspath
 except AttributeError:
+
     # Stolen from Python 3.10
     def fspath(path):
         # For testing purposes, make sure the function is available when the C

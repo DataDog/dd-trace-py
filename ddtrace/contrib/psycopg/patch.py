@@ -102,6 +102,7 @@ def _patch(psycopg_module):
     Pin(_config=config.psycopg).onto(psycopg_module)
 
     if psycopg_module.__name__ == "psycopg2":
+
         # patch all psycopg2 extensions
         _psycopg2_extensions = get_psycopg2_extensions(psycopg_module)
         config.psycopg["_extensions_to_patch"] = _psycopg2_extensions
@@ -111,6 +112,7 @@ def _patch(psycopg_module):
 
         config.psycopg["_patched_modules"].add(psycopg_module)
     else:
+
         _w(psycopg_module, "connect", patched_connect_factory(psycopg_module))
         _w(psycopg_module, "Cursor", init_cursor_from_connection_factory(psycopg_module))
         _w(psycopg_module, "AsyncCursor", init_cursor_from_connection_factory(psycopg_module))

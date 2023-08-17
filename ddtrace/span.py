@@ -66,6 +66,7 @@ def _get_64_highest_order_bits_as_hex(large_int):
 
 
 class Span(object):
+
     __slots__ = [
         # Public span attributes
         "service",

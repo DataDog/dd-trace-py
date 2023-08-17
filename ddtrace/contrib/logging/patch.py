@@ -40,6 +40,7 @@ def _get_current_span(tracer=None):
     """Helper to get the currently active span"""
 
     if not tracer:
+
         # With the addition of a custom ddtrace logger in _logger.py, logs that happen on startup
         # don't have access to `ddtrace.tracer`. Checking that this exists prevents an error
         # if log injection is enabled.

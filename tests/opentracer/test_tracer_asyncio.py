@@ -96,7 +96,6 @@ async def test_trace_multiple_coroutines_ot_dd(ot_tracer):
     Ensure we can trace from opentracer to ddtracer across asyncio
     context switches.
     """
-
     # if multiple coroutines have nested tracing, they must belong
     # to the same trace
     async def coro():
@@ -126,7 +125,6 @@ async def test_trace_multiple_coroutines_dd_ot(ot_tracer):
     Ensure we can trace from ddtracer to opentracer across asyncio
     context switches.
     """
-
     # if multiple coroutines have nested tracing, they must belong
     # to the same trace
     async def coro():

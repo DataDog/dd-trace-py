@@ -83,6 +83,7 @@ def test_serialize(value, serialized):
 
 
 def test_serialize_custom_object():
+
     assert utils.serialize(Custom(), level=-1) == (
         "Custom(some_arg=({'Hello': [None, 42, True, None, {b'World'}, 0.07]}))"
         if PY3

@@ -240,7 +240,7 @@ def test_runtime_metrics_enable(enable_kwargs):
 )
 def test_runtime_metrics_enable_environ(monkeypatch, environ):
     try:
-        for k, v in environ.items():
+        for (k, v) in environ.items():
             monkeypatch.setenv(k, v)
 
         RuntimeMetrics.enable()

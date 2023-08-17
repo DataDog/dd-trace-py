@@ -14,6 +14,7 @@ from ..config import CONSUL_CONFIG
 
 
 class TestConsulPatch(TracerTestCase):
+
     TEST_SERVICE = "test-consul"
 
     def setUp(self):

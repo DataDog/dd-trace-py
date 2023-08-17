@@ -179,6 +179,7 @@ async def test_pipeline_traced_context_manager_transaction(redis_client):
 @pytest.mark.asyncio
 @pytest.mark.snapshot(wait_for_num_traces=1)
 async def test_two_traced_pipelines(redis_client):
+
     with tracer.trace("web-request", service="test"):
         if redis.VERSION >= (2, 0):
             p1 = await redis_client.pipeline(transaction=False)

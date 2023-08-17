@@ -16,6 +16,7 @@ from ..config import REDIS_CONFIG
 
 
 class TestRedisPatch(TracerTestCase):
+
     TEST_PORT = REDIS_CONFIG["port"]
 
     def setUp(self):
@@ -323,6 +324,7 @@ class TestRedisPatch(TracerTestCase):
 
 
 class TestRedisPatchSnapshot(TracerTestCase):
+
     TEST_PORT = REDIS_CONFIG["port"]
 
     def setUp(self):

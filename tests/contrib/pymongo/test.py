@@ -566,6 +566,7 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         env_overrides=dict(DD_PYMONGO_SERVICE="mypymongo", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0")
     )
     def test_user_specified_pymongo_service_v0(self):
+
         tracer = DummyTracer()
         client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
         Pin(service="mypymongo", tracer=self.tracer).onto(client)
@@ -581,6 +582,7 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         env_overrides=dict(DD_PYMONGO_SERVICE="mypymongo", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0")
     )
     def test_user_specified_pymongo_service_v1(self):
+
         tracer = DummyTracer()
         client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
         Pin(service="mypymongo", tracer=self.tracer).onto(client)

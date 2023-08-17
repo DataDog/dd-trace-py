@@ -61,6 +61,7 @@ def rands(size=6, chars=string.ascii_uppercase + string.digits):
 
 
 def gen_trace(nspans=1000, ntags=50, key_size=15, value_size=20, nmetrics=10):
+
     root = None
     trace = []
     for i in range(0, nspans):
@@ -261,6 +262,7 @@ class TestEncoders(TestCase):
 
 
 def decode(obj, reconstruct=True):
+
     unpacked = msgpack.unpackb(obj, raw=True, strict_map_key=False)
 
     if not unpacked or not unpacked[0]:
