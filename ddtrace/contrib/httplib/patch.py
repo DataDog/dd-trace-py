@@ -11,12 +11,12 @@ from ddtrace.vendor import wrapt
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_KIND
-from ...internal.constants import _HTTPLIB_NO_TRACE_REQUEST
 from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...internal.compat import PY2
 from ...internal.compat import httplib
 from ...internal.compat import parse
+from ...internal.constants import _HTTPLIB_NO_TRACE_REQUEST
 from ...internal.logger import get_logger
 from ...internal.schema import schematize_url_operation
 from ...internal.utils.formats import asbool
