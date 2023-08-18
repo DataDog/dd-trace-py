@@ -13,7 +13,9 @@ Or use :func:`patch()<ddtrace.patch>` to manually enable the integration::
     from ddtrace import patch
     patch(unittest=True)
 """
-from .patch import patch, unpatch
+from .patch import patch
+from .patch import unpatch
+
 
 __all__ = ["patch", "unpatch"]
 

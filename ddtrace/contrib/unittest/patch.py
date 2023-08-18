@@ -16,6 +16,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.vendor import wrapt
 
+
 # unittest default settings
 config._add(
     "unittest",
