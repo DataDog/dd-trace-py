@@ -62,8 +62,8 @@ class DeterministicProfiler(ExplorationDebugger):
         print("")
         print(("{:<%d} {:>5}" % w).format("Function", "Calls"))
         print("=" * (w + 6))
-        for _calls, func in calls:
-            print(("{:<%d} {:>5}" % w).format(func, _calls))
+        for ncalls, func in calls:
+            print(("{:<%d} {:>5}" % w).format(func, ncalls))
         print("")
 
     @classmethod
