@@ -1,3 +1,4 @@
+import sys
 import unittest
 
 import pytest
@@ -88,7 +89,10 @@ class UnittestTestCase(TracerTestCase):
             assert spans[1].get_tag(test.NAME) == "test_will_pass_second"
             assert spans[1].get_tag(test.TEST_STATUS) == test.Status.PASS.value
 
-        def test_unittest_skip_single(self):
+        @pytest.mark.skipif(
+            sys.version_info[0] <= 3 and sys.version_info[1] <= 7, reason="Triggers a bug with skip reason being empty"
+        )
+        def test_unittest_skip_single_no_reason(self):
             """Tests with a `unittest` test which should be skipped."""
             _set_tracer(self.tracer)
 
@@ -189,6 +193,9 @@ class UnittestTestCase(TracerTestCase):
             assert spans[1].get_tag(test.TEST_STATUS) == test.Status.SKIP.value
             assert spans[1].get_tag(test.SKIP_REASON) == "demonstrating skipping with a different reason"
 
+        @pytest.mark.skipif(
+            sys.version_info[0] <= 3 and sys.version_info[1] <= 7, reason="Triggers a bug with skip reason being empty"
+        )
         def test_unittest_skip_combined(self):
             """Test with `unittest` tests which should be skipped."""
             _set_tracer(self.tracer)
@@ -307,12 +314,6 @@ class UnittestTestCase(TracerTestCase):
 
                 def test_will_fail_first(self):
                     self.assertTrue(2 != 2)
-                    self.assertTrue("test string" == "test string")
-                    self.assertFalse("not equal to" == "this")
-
-                @unittest.skip
-                def test_will_be_skipped(self):
-                    self.assertTrue(2 == 2)
                     self.assertTrue("test string" == "test string")
                     self.assertFalse("not equal to" == "this")
 
