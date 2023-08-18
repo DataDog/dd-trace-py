@@ -80,7 +80,11 @@ def patch():
     """
     Patched the instrumented methods from unittest
     """
-    if not config._ci_visibility_unittest_enabled or getattr(unittest, "_datadog_patch", False) or _CIVisibility.enabled:
+    if (
+        not config._ci_visibility_unittest_enabled
+        or getattr(unittest, "_datadog_patch", False)
+        or _CIVisibility.enabled
+    ):
         return
 
     _CIVisibility.enable(config=ddtrace.config.unittest)
@@ -96,6 +100,7 @@ def patch():
 
     _w(unittest, "TestCase.run", start_test_wrapper_unittest)
 
+
 def unpatch():
     if not getattr(unittest, "_datadog_patch", False):
         return
@@ -108,6 +113,7 @@ def unpatch():
 
     setattr(unittest, "_datadog_patch", False)
     _CIVisibility.disable()
+
 
 def _set_test_span_status(args, status):
     test_item = args[0]
@@ -151,7 +157,7 @@ def start_test_wrapper_unittest(func, instance, args, kwargs):
             ddtrace.config.unittest.operation_name,
             service=_CIVisibility._instance._service,
             resource="unittest.test",
-            span_type=SpanTypes.TEST
+            span_type=SpanTypes.TEST,
         )
         span.set_tag_str(_EVENT_TYPE, SpanTypes.TEST)
 
