@@ -1,6 +1,7 @@
 import base64
 import os
 import sys
+import time
 from typing import TYPE_CHECKING
 
 from ddtrace.appsec import _asm_request_context
@@ -15,6 +16,7 @@ from ddtrace.internal.utils.http import _get_blocked_template  # noqa
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Any
+    from typing import Dict
     from typing import Optional
 
     from ddtrace import Tracer
@@ -183,3 +185,26 @@ def parse_response_body(raw_body):
         log.debug("Failed to parse response body", exc_info=True)
     else:
         return req_body
+
+
+class deduplication:
+    _time_lapse = 3600
+
+    def __init__(self, func):
+        self.func = func
+        self._last_timestamp = time.time()
+        self._next_report_timestamp()
+
+    def _next_report_timestamp(self):
+        # type: () -> None
+        self._last_timestamp = time.time() + self._time_lapse
+        self.reported_logs = dict()  # type: Dict[int, float]
+
+    def __call__(self, *args, **kwargs):
+        result = None
+        raw_log_hash = hash("".join([str(arg) for arg in args]))
+        last_reported_timestamp = self.reported_logs.get(raw_log_hash)
+        if last_reported_timestamp is None or time.time() > last_reported_timestamp:
+            result = self.func(*args, **kwargs)
+            self.reported_logs[raw_log_hash] = time.time() + self._time_lapse
+        return result

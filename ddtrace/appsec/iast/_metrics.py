@@ -1,7 +1,7 @@
 import os
 
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._metrics import DeduplicationLogs
+from ddtrace.appsec.utils import deduplication
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_IAST
@@ -49,7 +49,7 @@ def metric_verbosity(lvl):
 
 
 @metric_verbosity(TELEMETRY_MANDATORY_VERBOSITY)
-@DeduplicationLogs
+@deduplication
 def _set_iast_error_metric(msg, stack_trace):
     # type: (str, str) -> None
     try:

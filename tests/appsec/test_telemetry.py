@@ -1,11 +1,13 @@
 import os
 import sys
+from time import sleep
 
 import pytest
 
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec.ddwaf import version
 from ddtrace.appsec.processor import AppSecSpanProcessor
+from ddtrace.appsec.utils import deduplication
 from ddtrace.contrib.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_APPSEC
@@ -147,3 +149,33 @@ def test_log_metric_error_ddwaf_update(mock_logs_telemetry_lifecycle_writer):
         assert list_metrics_logs[0]["message"] == "Error updating ASM rules. Invalid rules"
         assert list_metrics_logs[0].get("stack_trace") is None
         assert "waf_version:{}".format(version()) in list_metrics_logs[0]["tags"]
+
+
+@pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
+def test_log_metric_error_ddwaf_update_deduplication(mock_logs_telemetry_lifecycle_writer):
+    with override_global_config(dict(_appsec_enabled=True)):
+        span_processor = AppSecSpanProcessor()
+        span_processor._update_rules({})
+        mock_logs_telemetry_lifecycle_writer.reset_queues()
+        span_processor = AppSecSpanProcessor()
+        span_processor._update_rules({})
+        list_metrics_logs = list(mock_logs_telemetry_lifecycle_writer._logs)
+        assert len(list_metrics_logs) == 0
+
+
+@pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
+def test_log_metric_error_ddwaf_update_deduplication_timelapse(mock_logs_telemetry_lifecycle_writer):
+    old_value = deduplication._time_lapse
+    deduplication._time_lapse = 0.3
+    try:
+        with override_global_config(dict(_appsec_enabled=True)):
+            span_processor = AppSecSpanProcessor()
+            span_processor._update_rules({})
+            mock_logs_telemetry_lifecycle_writer.reset_queues()
+            sleep(0.4)
+            span_processor = AppSecSpanProcessor()
+            span_processor._update_rules({})
+            list_metrics_logs = list(mock_logs_telemetry_lifecycle_writer._logs)
+            assert len(list_metrics_logs) == 1
+    finally:
+        deduplication._time_lapse = old_value
