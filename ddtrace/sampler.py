@@ -310,22 +310,16 @@ class DatadogSampler(RateByServiceSampler):
 
     def _set_sampler_decision(self, span, sampler, sampled):
         # type: (Span, Union[RateSampler, SamplingRule, RateLimiter], bool) -> None
-        if isinstance(sampler, RateSampler):
-            # When agent based sampling is used
-            return super(DatadogSampler, self)._set_sampler_decision(span, sampler, sampled)
-
         if isinstance(sampler, SamplingRule):
             span.set_metric(SAMPLING_RULE_DECISION, sampler.sample_rate)
-        elif isinstance(sampler, RateLimiter) and not sampled:
-            # We only need to set the rate limit metric if the limiter is rejecting the span
-            # DEV: Setting this allows us to properly compute metrics and debug the
-            #      various sample rates that are getting applied to this span
+        elif isinstance(sampler, RateLimiter):
             span.set_metric(SAMPLING_LIMIT_DECISION, sampler.effective_rate)
 
-        if not sampled:
-            self._set_priority(span, USER_REJECT)
-        else:
-            self._set_priority(span, USER_KEEP)
+        if not isinstance(sampler, RateLimiter):
+            if not sampled:
+                self._set_priority(span, USER_REJECT)
+            else:
+                self._set_priority(span, USER_KEEP)
 
         update_sampling_decision(span.context, SamplingMechanism.TRACE_SAMPLING_RULE, sampled)
 
@@ -348,18 +342,16 @@ class DatadogSampler(RateByServiceSampler):
                 sampler = rule
                 break
         else:
-            # No rules match so use agent based sampling
-            return super(DatadogSampler, self).sample(span)
+            sampler = super(DatadogSampler, self)
 
         sampled = sampler.sample(span)
         self._set_sampler_decision(span, sampler, sampled)
 
-        if sampled:
-            # Ensure all allowed traces adhere to the global rate limit
-            allowed = self.limiter.is_allowed(span.start_ns)
-            if not allowed:
-                self._set_sampler_decision(span, self.limiter, allowed)
-                return False
+        # Ensure all allowed traces adhere to the global rate limit
+        allowed = self.limiter.is_allowed(span.start_ns)
+        self._set_sampler_decision(span, self.limiter, allowed)
+        if not allowed:
+            return False
 
         return sampled
 
