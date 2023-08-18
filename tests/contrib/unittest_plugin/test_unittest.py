@@ -1,5 +1,6 @@
-import pytest
 import unittest
+
+import pytest
 
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_TYPE
