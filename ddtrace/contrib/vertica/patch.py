@@ -1,6 +1,3 @@
-import importlib
-from importlib import metadata
-
 import ddtrace
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
@@ -120,7 +117,13 @@ config._add(
 
 
 def get_version():
-    return metadata.version("vertica-python")
+    try:
+        from importlib import metadata
+        return metadata.version("vertica-python")
+    except ImportError:
+        import pkg_resources
+        return pkg_resources.get_distribution('vertica-python').version
+
 
 
 def patch():

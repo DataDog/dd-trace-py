@@ -30,7 +30,12 @@ config._add(
 
 
 def get_version():
-    return metadata.version("snowflake")
+    try:
+        from importlib import metadata
+        return metadata.version("snowflake")
+    except ImportError:
+        import pkg_resources
+        return pkg_resources.get_distribution('snowflake').version
 
 
 class _SFTracedCursor(TracedCursor):
