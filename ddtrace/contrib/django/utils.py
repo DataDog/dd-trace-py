@@ -402,7 +402,7 @@ def _after_request_tags(pin, span, request, response):
                 request_body=_extract_body(request),
                 peer_ip=core.get_item("http.request.remote_ip", span=span),
                 headers_are_case_sensitive=core.get_item("http.request.headers_case_sensitive", span=span),
-                response_cookies=response_cookies
+                response_cookies=response_cookies,
             )
             if config._appsec_enabled and config._api_security_enabled:
                 _asm_request_context.set_body_response(response.content)

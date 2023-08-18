@@ -73,7 +73,7 @@ class _TracedIterable(wrapt.ObjectProxy):
 def _cookies_from_response_headers(response_headers):
     cookies = {}
     for header_tuple in response_headers:
-        if header_tuple[0] == 'Set-Cookie':
+        if header_tuple[0] == "Set-Cookie":
             cookie_tokens = header_tuple[1].split("=", 1)
             cookies[cookie_tokens[0]] = cookie_tokens[1]
 
@@ -95,8 +95,12 @@ def _on_start_response_pre(request, span, flask_config, status_code, headers):
 
     response_cookies = _cookies_from_response_headers(headers)
     trace_utils.set_http_meta(
-        span, flask_config, status_code=code, response_headers=headers, route=span.get_tag(FLASK_URL_RULE),
-        response_cookies=response_cookies
+        span,
+        flask_config,
+        status_code=code,
+        response_headers=headers,
+        route=span.get_tag(FLASK_URL_RULE),
+        response_cookies=response_cookies,
     )
 
 
