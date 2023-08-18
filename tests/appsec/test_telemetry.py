@@ -2,6 +2,7 @@ import os
 import sys
 from time import sleep
 
+import mock
 import pytest
 
 from ddtrace.appsec import _asm_request_context
@@ -164,9 +165,13 @@ def test_log_metric_error_ddwaf_update_deduplication(mock_logs_telemetry_lifecyc
 
 
 @pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
-def test_log_metric_error_ddwaf_update_deduplication_timelapse(mock_logs_telemetry_lifecycle_writer):
+@mock.patch.object(deduplication, "get_last_time_reported")
+def test_log_metric_error_ddwaf_update_deduplication_timelapse(
+    mock_last_time_reported, mock_logs_telemetry_lifecycle_writer
+):
     old_value = deduplication._time_lapse
     deduplication._time_lapse = 0.3
+    mock_last_time_reported.return_value = 1592357416.0
     try:
         with override_global_config(dict(_appsec_enabled=True)):
             span_processor = AppSecSpanProcessor()
