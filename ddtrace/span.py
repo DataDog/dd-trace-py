@@ -19,6 +19,7 @@ from .constants import ERROR_STACK
 from .constants import ERROR_TYPE
 from .constants import MANUAL_DROP_KEY
 from .constants import MANUAL_KEEP_KEY
+from .constants import SAMPLING_RULE_DECISION
 from .constants import SERVICE_KEY
 from .constants import SERVICE_VERSION_KEY
 from .constants import SPAN_MEASURED_KEY
@@ -339,10 +340,12 @@ class Span(object):
         elif key == MANUAL_KEEP_KEY:
             self.context.sampling_priority = USER_KEEP
             update_sampling_decision(self.context, SamplingMechanism.MANUAL, True)
+            del self._local_root._metrics[SAMPLING_RULE_DECISION]
             return
         elif key == MANUAL_DROP_KEY:
             self.context.sampling_priority = USER_REJECT
             update_sampling_decision(self.context, SamplingMechanism.MANUAL, False)
+            del self._local_root._metrics[SAMPLING_RULE_DECISION]
             return
         elif key == SERVICE_KEY:
             self.service = value
