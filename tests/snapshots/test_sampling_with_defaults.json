@@ -15,6 +15,7 @@
     },
     "metrics": {
       "_dd.top_level": 1,
+      "_dd.agent_psr": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "process_id": 19794
