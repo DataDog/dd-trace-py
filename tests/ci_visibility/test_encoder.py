@@ -66,7 +66,7 @@ def test_encode_traces_civisibility_v0():
         }
         expected_event = {
             b"type": b"test" if given_span.span_type == "test" else b"span",
-            b"version": 2,  # Temporary change to 1 to allow for unittest spans to show up without a session span
+            b"version": 2,
             b"content": {
                 b"trace_id": int(given_span._trace_id_64bits),
                 b"span_id": int(given_span.span_id),
