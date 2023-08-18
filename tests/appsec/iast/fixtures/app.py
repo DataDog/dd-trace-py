@@ -1,7 +1,9 @@
 import os
 
-from ddtrace.appsec.iast import ddtrace_iast_flask_patch
 from flask import Flask
+
+from ddtrace.appsec.iast import ddtrace_iast_flask_patch
+
 
 os.environ["DD_IAST_ENABLED"] = "1"
 
