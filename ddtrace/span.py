@@ -19,6 +19,8 @@ from .constants import ERROR_STACK
 from .constants import ERROR_TYPE
 from .constants import MANUAL_DROP_KEY
 from .constants import MANUAL_KEEP_KEY
+from .constants import SAMPLING_AGENT_DECISION
+from .constants import SAMPLING_LIMIT_DECISION
 from .constants import SAMPLING_RULE_DECISION
 from .constants import SERVICE_KEY
 from .constants import SERVICE_VERSION_KEY
@@ -278,6 +280,13 @@ class Span(object):
         for cb in self._on_finish_callbacks:
             cb(self)
 
+    def _override_sampling_decision(self, decision):
+        self.context.sampling_priority = decision
+        update_sampling_decision(self.context, SamplingMechanism.MANUAL, decision == USER_KEEP)
+        for key in (SAMPLING_RULE_DECISION, SAMPLING_AGENT_DECISION, SAMPLING_LIMIT_DECISION):
+            if key in self._local_root._metrics:
+                del self._local_root._metrics[key]
+
     def set_tag(self, key, value=None):
         # type: (_TagNameType, Any) -> None
         """Set a tag key/value pair on the span.
@@ -338,14 +347,10 @@ class Span(object):
             return
 
         elif key == MANUAL_KEEP_KEY:
-            self.context.sampling_priority = USER_KEEP
-            update_sampling_decision(self.context, SamplingMechanism.MANUAL, True)
-            del self._local_root._metrics[SAMPLING_RULE_DECISION]
+            self._override_sampling_decision(USER_KEEP)
             return
         elif key == MANUAL_DROP_KEY:
-            self.context.sampling_priority = USER_REJECT
-            update_sampling_decision(self.context, SamplingMechanism.MANUAL, False)
-            del self._local_root._metrics[SAMPLING_RULE_DECISION]
+            self._override_sampling_decision(USER_REJECT)
             return
         elif key == SERVICE_KEY:
             self.service = value
