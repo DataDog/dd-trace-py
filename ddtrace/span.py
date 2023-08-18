@@ -41,6 +41,8 @@ from .internal.compat import time_ns
 from .internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
 from .internal.constants import SPAN_API_DATADOG
 from .internal.logger import get_logger
+from .internal.sampling import SamplingMechanism
+from .internal.sampling import update_sampling_decision
 
 
 _NUMERIC_TAGS = (ANALYTICS_SAMPLE_RATE_KEY,)
@@ -336,9 +338,11 @@ class Span(object):
 
         elif key == MANUAL_KEEP_KEY:
             self.context.sampling_priority = USER_KEEP
+            update_sampling_decision(self.context, SamplingMechanism.MANUAL, True)
             return
         elif key == MANUAL_DROP_KEY:
             self.context.sampling_priority = USER_REJECT
+            update_sampling_decision(self.context, SamplingMechanism.MANUAL, False)
             return
         elif key == SERVICE_KEY:
             self.service = value
