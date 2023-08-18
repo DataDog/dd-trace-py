@@ -1,7 +1,6 @@
 #include <Python.h>
 #include <frameobject.h>
 #include <patchlevel.h>
-#include <stdio.h> // JJJ
 
 #ifdef _WIN32
 #define DD_TRACE_INSTALLED_PREFIX "\\ddtrace\\"
@@ -65,12 +64,10 @@ get_file_and_line(PyObject* Py_UNUSED(module), PyObject* args)
         while (NULL != frame) {
             filename_o = GET_FILENAME(frame);
             filename = PyUnicode_AsUTF8(filename_o);
-            printf("JJJ C frame filename: %s\n", filename);
             if (((strstr(filename, DD_TRACE_INSTALLED_PREFIX) != NULL && strstr(filename, TESTS_PREFIX) == NULL)) ||
                 (strstr(filename, SITE_PACKAGES_PREFIX) != NULL || strstr(filename, cwd) == NULL)) {
 
                 frame = GET_PREVIOUS(frame);
-                printf("JJJ C continue\n");
                 continue;
             }
             /*
@@ -78,7 +75,6 @@ get_file_and_line(PyObject* Py_UNUSED(module), PyObject* args)
              you need to call PyCode_Addr2Line().
             */
             line = GET_LINENO(frame);
-            printf("JJJ C return \n");
             return PyTuple_Pack(2, filename_o, Py_BuildValue("i", line));
         }
     }
