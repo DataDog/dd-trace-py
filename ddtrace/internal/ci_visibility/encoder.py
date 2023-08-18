@@ -34,6 +34,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
     PAYLOAD_FORMAT_VERSION = 1
     TEST_SUITE_EVENT_VERSION = 1
     # Change to 1 to allow unittest tests without module or session spans
+
     if config._ci_visibility_unittest_enabled:
         TEST_EVENT_VERSION = 1
     else:
