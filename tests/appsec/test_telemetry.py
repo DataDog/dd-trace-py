@@ -109,7 +109,9 @@ def test_metrics_when_appsec_block(mock_telemetry_lifecycle_writer, tracer):
 
 def test_log_metric_error_ddwaf_init(mock_logs_telemetry_lifecycle_writer):
     with override_global_config(dict(_appsec_enabled=True)), override_env(
-        dict(DD_APPSEC_RULES=os.path.join(ROOT_DIR, "rules-with-2-errors.json"))
+        dict(
+            _DD_APPSEC_DEDUPLICATION_ENABLED="false", DD_APPSEC_RULES=os.path.join(ROOT_DIR, "rules-with-2-errors.json")
+        )
     ):
         AppSecSpanProcessor()
 
@@ -121,9 +123,9 @@ def test_log_metric_error_ddwaf_init(mock_logs_telemetry_lifecycle_writer):
 
 
 def test_log_metric_error_ddwaf_timeout(mock_logs_telemetry_lifecycle_writer, tracer):
-    with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)), override_global_config(
-        dict(_appsec_enabled=True, _waf_timeout=0.0)
-    ):
+    with override_env(
+        dict(_DD_APPSEC_DEDUPLICATION_ENABLED="false", DD_APPSEC_RULES=RULES_GOOD_PATH)
+    ), override_global_config(dict(_appsec_enabled=True, _waf_timeout=0.0)):
         _enable_appsec(tracer)
         with _asm_request_context.asm_request_context_manager(_BLOCKED_IP, {}):
             with tracer.trace("test", span_type=SpanTypes.WEB) as span:
@@ -141,7 +143,9 @@ def test_log_metric_error_ddwaf_timeout(mock_logs_telemetry_lifecycle_writer, tr
 
 @pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
 def test_log_metric_error_ddwaf_update(mock_logs_telemetry_lifecycle_writer):
-    with override_global_config(dict(_appsec_enabled=True)):
+    with override_env(dict(_DD_APPSEC_DEDUPLICATION_ENABLED="false")), override_global_config(
+        dict(_appsec_enabled=True)
+    ):
         span_processor = AppSecSpanProcessor()
         span_processor._update_rules({})
 
