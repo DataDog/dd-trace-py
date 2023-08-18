@@ -265,7 +265,7 @@ class UnittestTestCase(TracerTestCase):
             if sys.version_info[0] >= 3:
                 assert spans[0].get_tag(ERROR_TYPE) == "builtins.AssertionError"
             else:
-                assert spans[0].get_tag(ERROR_TYPE) == "AssertionError"
+                assert spans[0].get_tag(ERROR_TYPE) == "exceptions.AssertionError"
 
         def test_unittest_fail_multiple(self):
             """Test with `unittest` tests which should fail."""
@@ -302,7 +302,7 @@ class UnittestTestCase(TracerTestCase):
                 if sys.version_info[0] >= 3:
                     assert spans[i].get_tag(ERROR_TYPE) == "builtins.AssertionError"
                 else:
-                    assert spans[i].get_tag(ERROR_TYPE) == "AssertionError"
+                    assert spans[i].get_tag(ERROR_TYPE) == "exceptions.AssertionError"
 
             assert spans[0].get_tag(test.NAME) == "test_will_fail_first"
 
@@ -354,7 +354,7 @@ class UnittestTestCase(TracerTestCase):
             if sys.version_info[0] >= 3:
                 assert spans[1].get_tag(ERROR_TYPE) == "builtins.AssertionError"
             else:
-                assert spans[1].get_tag(ERROR_TYPE) == "AssertionError"
+                assert spans[1].get_tag(ERROR_TYPE) == "exceptions.AssertionError"
 
             assert spans[2].get_tag(test.NAME) == "test_will_pass_first"
             assert spans[2].get_tag(test.TEST_STATUS) == test.Status.PASS.value
