@@ -159,12 +159,7 @@ class RateByServiceSampler(BasePrioritySampler):
         # type: (Span, RateSampler, bool) -> None
         priority = AUTO_KEEP if sampled else AUTO_REJECT
         self._set_priority(span, priority)
-
-        sampling_mechanism = (
-            SamplingMechanism.DEFAULT if sampler == self._default_sampler else SamplingMechanism.AGENT_RATE
-        )
-
-        update_sampling_decision(span.context, sampling_mechanism, sampled)
+        update_sampling_decision(span.context, SamplingMechanism.AGENT_RATE, sampled)
 
     def sample(self, span):
         # type: (Span) -> bool
