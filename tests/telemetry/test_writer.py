@@ -218,7 +218,11 @@ telemetry_writer.disable()
         {"name": "DD_TRACE_RATE_LIMIT", "origin": "unknown", "value": 50},
         {"name": "DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED", "origin": "unknown", "value": True},
         {"name": "DD_TRACE_SAMPLE_RATE", "origin": "unknown", "value": "0.5"},
-        {"name": "DD_TRACE_SAMPLING_RULES", "origin": "unknown", "value": '[{"sample_rate":1.0,"service":"xyz","name":"abc"}]'},
+        {
+            "name": "DD_TRACE_SAMPLING_RULES",
+            "origin": "unknown",
+            "value": '[{"sample_rate":1.0,"service":"xyz","name":"abc"}]',
+        },
         {"name": "DD_TRACE_SPAN_ATTRIBUTE_SCHEMA", "origin": "unknown", "value": "v1"},
         {"name": "ddtrace_auto_used", "origin": "unknown", "value": True},
         {"name": "ddtrace_bootstrapped", "origin": "unknown", "value": True},
