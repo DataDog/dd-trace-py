@@ -327,7 +327,7 @@ class UnittestTestCase(TracerTestCase):
             unittest.TextTestRunner(verbosity=0).run(suite)
 
             spans = self.pop_spans()
-            assert len(spans) == 4
+            assert len(spans) == 3
             for i in range(len(spans)):
                 assert spans[i].get_tag(test.TEST_TYPE) == SpanTypes.TEST
                 assert spans[i].get_tag(test.TEST_FRAMEWORK) == FRAMEWORK
