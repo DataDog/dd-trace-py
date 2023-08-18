@@ -23,6 +23,7 @@ Please follow the instructions for enabling `pytest` integration.
 """
 
 from ddtrace import config
+
 from .plugin import get_version
 
 
