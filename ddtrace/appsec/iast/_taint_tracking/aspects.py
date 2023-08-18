@@ -158,7 +158,7 @@ def zfill_aspect(candidate_text, *args, **kwargs):
 def format_aspect(
     candidate_text,  # type: str
     *args,  # type: List[Any]
-    **kwargs  # type: Dict[str, Any]
+    **kwargs,  # type: Dict[str, Any]
 ):  # type: (...) -> str
     if not isinstance(candidate_text, TEXT_TYPES):
         return candidate_text.format(*args, **kwargs)
@@ -219,7 +219,6 @@ def format_value_aspect(
     options=0,  # type: int
     format_spec=None,  # type: Optional[str]
 ):  # type: (...) -> str
-
     if options == 115:
         new_text = str(element)
     elif options == 114:
