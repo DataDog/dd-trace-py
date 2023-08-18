@@ -135,7 +135,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         request = self.get_http_connection(parsed.hostname, parsed.port)
         pin = Pin.get_from(request)
         self.assertTrue(should_skip_request(pin, request))
-    
+
     def test_httplib_request_get_request_no_ddtrace(self):
         """
         When making a GET request via httplib.HTTPConnection.request
