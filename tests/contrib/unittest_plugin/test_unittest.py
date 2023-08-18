@@ -337,20 +337,16 @@ class UnittestTestCase(TracerTestCase):
                 assert spans[i].get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
                 assert spans[i].get_tag(test.SUITE) == "UnittestExampleTestCase"
 
-            assert spans[0].get_tag(test.NAME) == "test_will_be_skipped"
+            assert spans[0].get_tag(test.NAME) == "test_will_be_skipped_with_a_reason"
             assert spans[0].get_tag(test.TEST_STATUS) == test.Status.SKIP.value
-            assert spans[0].get_tag(test.SKIP_REASON) == ""
+            assert spans[0].get_tag(test.SKIP_REASON) == "another skip reason"
 
-            assert spans[1].get_tag(test.NAME) == "test_will_be_skipped_with_a_reason"
-            assert spans[1].get_tag(test.TEST_STATUS) == test.Status.SKIP.value
-            assert spans[1].get_tag(test.SKIP_REASON) == "another skip reason"
+            assert spans[1].get_tag(test.NAME) == "test_will_fail_first"
+            assert spans[1].get_tag(test.TEST_STATUS) == test.Status.FAIL.value
+            assert spans[1].get_tag(test.SKIP_REASON) is None
+            assert spans[1].get_tag(ERROR_MSG) == "False is not true"
+            assert spans[1].get_tag(ERROR_TYPE) == "builtins.AssertionError"
 
-            assert spans[2].get_tag(test.NAME) == "test_will_fail_first"
-            assert spans[2].get_tag(test.TEST_STATUS) == test.Status.FAIL.value
+            assert spans[2].get_tag(test.NAME) == "test_will_pass_first"
+            assert spans[2].get_tag(test.TEST_STATUS) == test.Status.PASS.value
             assert spans[2].get_tag(test.SKIP_REASON) is None
-            assert spans[2].get_tag(ERROR_MSG) == "False is not true"
-            assert spans[2].get_tag(ERROR_TYPE) == "builtins.AssertionError"
-
-            assert spans[3].get_tag(test.NAME) == "test_will_pass_first"
-            assert spans[3].get_tag(test.TEST_STATUS) == test.Status.PASS.value
-            assert spans[3].get_tag(test.SKIP_REASON) is None
