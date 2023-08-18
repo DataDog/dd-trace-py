@@ -23,6 +23,7 @@ Please follow the instructions for enabling `pytest` integration.
 """
 
 from ddtrace import config
+from .plugin import get_version
 
 
 # pytest-bdd default settings
@@ -34,10 +35,4 @@ config._add(
 )
 
 
-def get_version():
-    try:
-        from importlib import metadata
-        return metadata.version("pytest-bdd")
-    except ImportError:
-        import pkg_resources
-        return pkg_resources.get_distribution('pytest-bdd').version
+__all__ = ["get_version"]
