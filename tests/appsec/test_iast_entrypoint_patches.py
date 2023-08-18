@@ -1,5 +1,6 @@
 import dis
 import io
+
 import mock
 
 from tests.utils import override_global_config

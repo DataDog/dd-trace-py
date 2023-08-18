@@ -32,9 +32,10 @@ import inspect
 import sys
 
 from ddtrace.appsec.iast._ast.ast_patching import astpatch_module
-from ddtrace.appsec.iast._util import _is_iast_enabled
 from ddtrace.appsec.iast._overhead_control_engine import OverheadControl
+from ddtrace.appsec.iast._util import _is_iast_enabled
 from ddtrace.internal.logger import get_logger
+
 
 log = get_logger(__name__)
 
