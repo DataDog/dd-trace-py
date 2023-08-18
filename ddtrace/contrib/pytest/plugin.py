@@ -303,6 +303,7 @@ def pytest_addoption(parser):
 
 
 def pytest_configure(config):
+    unpatch_unittest()
     config.addinivalue_line("markers", "dd_tags(**kwargs): add tags to current span")
     if is_enabled(config):
         _CIVisibility.enable(config=ddtrace.config.pytest)
@@ -311,7 +312,6 @@ def pytest_configure(config):
 def pytest_sessionstart(session):
     if _CIVisibility.enabled:
         log.debug("CI Visibility enabled - starting test session")
-        unpatch_unittest()
         global _global_skipped_elements
         _global_skipped_elements = 0
         test_session_span = _CIVisibility._instance.tracer.trace(

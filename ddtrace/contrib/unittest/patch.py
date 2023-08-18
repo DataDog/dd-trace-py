@@ -79,11 +79,10 @@ def patch():
     """
     Patched the instrumented methods from unittest
     """
-    if not config._ci_visibility_unittest_enabled or getattr(unittest, "_datadog_patch", False):
+    if not config._ci_visibility_unittest_enabled or getattr(unittest, "_datadog_patch", False) or _CIVisibility.enabled:
         return
 
-    if not _CIVisibility.enabled:
-        _CIVisibility.enable(config=ddtrace.config.unittest)
+    _CIVisibility.enable(config=ddtrace.config.unittest)
 
     setattr(unittest, "_datadog_patch", True)
 
@@ -107,7 +106,7 @@ def unpatch():
     _u(unittest.TestCase, "run")
 
     setattr(unittest, "_datadog_patch", False)
-
+    _CIVisibility.disable()
 
 def _set_test_span_status(args, status):
     test_item = args[0]
