@@ -9,14 +9,15 @@
     "type": "web",
     "error": 0,
     "meta": {
+      "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "component": "sanic",
       "http.method": "GET",
       "http.status_code": "404",
       "http.url": "http://0.0.0.0:8000/not_found",
-      "http.useragent": "python-requests/2.28.1",
+      "http.useragent": "python-requests/2.28.2",
       "language": "python",
-      "runtime-id": "a26bd9e1b9d84f2cba5eed44ff8059a2",
+      "runtime-id": "99305d72dd0b47b09520b2af4bb7348b",
       "span.kind": "server"
     },
     "metrics": {
@@ -24,10 +25,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 90728
+      "process_id": 83560
     },
-    "duration": 683000,
-    "start": 1667243750284681000
+    "duration": 273500,
+    "start": 1692712726198694929
   }],
 [
   {
@@ -40,14 +41,15 @@
     "type": "web",
     "error": 1,
     "meta": {
+      "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "component": "sanic",
       "http.method": "GET",
       "http.status_code": "500",
       "http.url": "http://0.0.0.0:8000/internal_error",
-      "http.useragent": "python-requests/2.28.1",
+      "http.useragent": "python-requests/2.28.2",
       "language": "python",
-      "runtime-id": "a26bd9e1b9d84f2cba5eed44ff8059a2",
+      "runtime-id": "99305d72dd0b47b09520b2af4bb7348b",
       "span.kind": "server"
     },
     "metrics": {
@@ -55,8 +57,8 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 90728
+      "process_id": 83560
     },
-    "duration": 617000,
-    "start": 1667243750322938000
+    "duration": 1717000,
+    "start": 1692712726259096179
   }]]

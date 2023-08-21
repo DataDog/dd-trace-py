@@ -9,19 +9,20 @@
     "type": "",
     "error": 0,
     "meta": {
+      "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "language": "python",
-      "runtime-id": "1a3d06c3639c4a459b7b92c26715502c"
+      "runtime-id": "29e6e84ccab74080a8993948a3e90692"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 56881
+      "process_id": 20868
     },
-    "duration": 985000,
-    "start": 1691168847542350000
+    "duration": 749917,
+    "start": 1692706752118138050
   },
      {
        "name": "redis.command",
@@ -33,6 +34,7 @@
        "type": "redis",
        "error": 0,
        "meta": {
+         "_dd.base_service": "",
          "_dd.p.dm": "-0",
          "component": "aioredis",
          "db.system": "redis",
@@ -47,8 +49,8 @@
          "out.redis_db": 0,
          "redis.pipeline_length": 2
        },
-       "duration": 414000,
-       "start": 1691168847542577000
+       "duration": 363250,
+       "start": 1692706752118294383
      },
      {
        "name": "redis.command",
@@ -60,6 +62,7 @@
        "type": "redis",
        "error": 0,
        "meta": {
+         "_dd.base_service": "",
          "_dd.p.dm": "-0",
          "component": "aioredis",
          "db.system": "redis",
@@ -74,6 +77,6 @@
          "out.redis_db": 0,
          "redis.pipeline_length": 2
        },
-       "duration": 239000,
-       "start": 1691168847543069000
+       "duration": 170583,
+       "start": 1692706752118700967
      }]]
