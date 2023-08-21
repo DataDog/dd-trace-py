@@ -183,6 +183,83 @@ def test_redacted_report_valueparts():
 
 
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+def test_redacted_report_valueparts_username_not_tainted():
+    ev = Evidence(
+        valueParts=[
+            {"value": "SELECT * FROM users WHERE username = '"},
+            {"value": "pepito"},
+            {"value": "' AND password = '"},
+            {"value": "secret", "source": 0},
+            {"value": "'"},
+        ]
+    )
+    loc = Location(path="foobar.py", line=35, spanId=123)
+    v = Vulnerability(type="VulnerabilityType", evidence=ev, location=loc)
+    s = Source(origin="SomeOrigin", name="SomeName", value="SomeValue")
+    report = IastSpanReporter(set([s]), set([v]))
+
+    redacted_report = SqlInjection._redact_report(report)
+    for v in redacted_report.vulnerabilities:
+        assert v.evidence.valueParts == [
+            {"value": "SELECT * FROM users WHERE username = '"},
+            {"pattern": "******", "redacted": True},
+            {"value": "' AND password = '"},
+            {"pattern": "abcdef", "redacted": True, "source": 0},
+            {"value": "'"},
+        ]
+
+
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+def test_redacted_report_valueparts_username_tainted():
+    ev = Evidence(
+        valueParts=[
+            {"value": "SELECT * FROM users WHERE username = '"},
+            {"value": "pepito", "source": 0},
+            {"value": "' AND password = '"},
+            {"value": "secret", "source": 0},
+            {"value": "'"},
+        ]
+    )
+    loc = Location(path="foobar.py", line=35, spanId=123)
+    v = Vulnerability(type="VulnerabilityType", evidence=ev, location=loc)
+    s = Source(origin="SomeOrigin", name="SomeName", value="SomeValue")
+    report = IastSpanReporter(set([s]), set([v]))
+
+    redacted_report = SqlInjection._redact_report(report)
+    for v in redacted_report.vulnerabilities:
+        assert v.evidence.valueParts == [
+            {"value": "SELECT * FROM users WHERE username = '"},
+            {"pattern": "abcdef", "redacted": True, "source": 0},
+            {"value": "' AND password = '"},
+            {"pattern": "abcdef", "redacted": True, "source": 0},
+            {"value": "'"},
+        ]
+
+
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+def test_regression_ci_failure():
+    ev = Evidence(
+        valueParts=[
+            {"value": "SELECT tbl_name FROM sqlite_"},
+            {"value": "master", "source": 0},
+            {"value": "WHERE tbl_name LIKE 'password'"},
+        ]
+    )
+    loc = Location(path="foobar.py", line=35, spanId=123)
+    v = Vulnerability(type="VulnerabilityType", evidence=ev, location=loc)
+    s = Source(origin="SomeOrigin", name="SomeName", value="SomeValue")
+    report = IastSpanReporter(set([s]), set([v]))
+
+    redacted_report = SqlInjection._redact_report(report)
+    for v in redacted_report.vulnerabilities:
+        assert v.evidence.valueParts == [
+            {"value": "SELECT tbl_name FROM sqlite_"},
+            {"value": "master", "source": 0},
+            {"pattern": "WHERE tbl_name LIKE '********'", "redacted": True},
+        ]
+
+
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_scrub_cache(tracer):
     valueParts1 = [
         {"value": "SELECT * FROM users WHERE password = '"},

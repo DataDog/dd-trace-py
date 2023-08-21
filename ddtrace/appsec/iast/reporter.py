@@ -35,11 +35,8 @@ class Evidence(object):
 
         _hash = 0
         for part in self.valueParts:
-            if isinstance(part, dict):
-                json_str = json.dumps(part, sort_keys=True)
-                part_hash = zlib.crc32(json_str.encode())
-            else:
-                part_hash = hash(part)
+            json_str = json.dumps(part, sort_keys=True)
+            part_hash = zlib.crc32(json_str.encode())
             _hash ^= part_hash
 
         return _hash
@@ -66,7 +63,7 @@ class Location(object):
 @attr.s(eq=True, hash=True)
 class Vulnerability(object):
     type = attr.ib(type=str)  # type: str
-    evidence = attr.ib(type=Evidence, repr=True)  # type: Evidence
+    evidence = attr.ib(type=Evidence, repr=False)  # type: Evidence
     location = attr.ib(type=Location, hash="PYTEST_CURRENT_TEST" in os.environ)  # type: Location
     hash = attr.ib(init=False, eq=False, hash=False, repr=False)  # type: int
 

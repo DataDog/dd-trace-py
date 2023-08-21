@@ -206,7 +206,10 @@ class CIVisibilityGitClientSerializerV1(object):
         # type: (str) -> List[str]
         res = []  # type: List[str]
         try:
-            parsed = json.loads(payload)
+            if isinstance(payload, bytes):
+                parsed = json.loads(payload.decode())
+            else:
+                parsed = json.loads(payload)
             return [item["id"] for item in parsed["data"] if item["type"] == "commit"]
         except KeyError:
             log.warning("Expected information not found in search_commits response", exc_info=True)

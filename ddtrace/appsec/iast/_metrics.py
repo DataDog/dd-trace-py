@@ -1,6 +1,7 @@
 import os
 
 from ddtrace.appsec._constants import IAST
+from ddtrace.appsec.utils import deduplication
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_IAST
@@ -48,6 +49,19 @@ def metric_verbosity(lvl):
 
 
 @metric_verbosity(TELEMETRY_MANDATORY_VERBOSITY)
+@deduplication
+def _set_iast_error_metric(msg, stack_trace):
+    # type: (str, str) -> None
+    try:
+        tags = {
+            "lib_language": "python",
+        }
+        telemetry_writer.add_log("ERROR", msg, stack_trace=stack_trace, tags=tags)
+    except Exception:
+        log.warning("Error reporting ASM WAF logs metrics", exc_info=True)
+
+
+@metric_verbosity(TELEMETRY_MANDATORY_VERBOSITY)
 def _set_metric_iast_instrumented_source(source_type):
     from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import origin_to_str  # noqa: F401
 
@@ -90,4 +104,4 @@ def _set_metric_iast_request_tainted():
 
     total_objects_tainted = num_objects_tainted()
     if total_objects_tainted > 0:
-        telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_IAST, "request.tainted", num_objects_tainted())
+        telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_IAST, "request.tainted", total_objects_tainted)

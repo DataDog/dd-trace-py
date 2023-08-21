@@ -70,6 +70,10 @@ def override_env(env):
     # Copy the full original environment
     original = dict(os.environ)
 
+    for k in os.environ.keys():
+        if k.startswith(("_CI_DD_", "DD_CIVISIBILITY_", "DD_SITE")):
+            del os.environ[k]
+
     # Update based on the passed in arguments
     os.environ.update(env)
     try:
@@ -122,6 +126,8 @@ def override_global_config(values):
         "_user_model_name_field",
         "_sampling_rules",
         "_sampling_rules_file",
+        "_trace_sample_rate",
+        "_trace_rate_limit",
     ]
 
     # Grab the current values of all keys
@@ -1186,7 +1192,7 @@ def flush_test_tracer_spans(writer):
         if encoded_traces is None:
             return
         headers = writer._get_finalized_headers(n_traces, client)
-        response = writer._put(encoded_traces, add_dd_env_variables_to_headers(headers), client)
+        response = writer._put(encoded_traces, add_dd_env_variables_to_headers(headers), client, no_trace=True)
     except Exception:
         return
 

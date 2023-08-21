@@ -53,11 +53,14 @@ def try_wrap_function_wrapper(module, name, wrapper):
 
 
 def try_unwrap(module, name):
-    (parent, attribute, _) = resolve_path(module, name)
-    if (parent, attribute) in _DD_ORIGINAL_ATTRIBUTES:
-        original = _DD_ORIGINAL_ATTRIBUTES[(parent, attribute)]
-        apply_patch(parent, attribute, original)
-        del _DD_ORIGINAL_ATTRIBUTES[(parent, attribute)]
+    try:
+        (parent, attribute, _) = resolve_path(module, name)
+        if (parent, attribute) in _DD_ORIGINAL_ATTRIBUTES:
+            original = _DD_ORIGINAL_ATTRIBUTES[(parent, attribute)]
+            apply_patch(parent, attribute, original)
+            del _DD_ORIGINAL_ATTRIBUTES[(parent, attribute)]
+    except ModuleNotFoundError:
+        pass
 
 
 def apply_patch(parent, attribute, replacement):
@@ -80,7 +83,6 @@ def wrap_object(module, name, factory, args=(), kwargs={}):
 
 def patchable_builtin(klass):
     refs = gc.get_referents(klass.__dict__)
-    assert len(refs) == 1
     return refs[0]
 
 

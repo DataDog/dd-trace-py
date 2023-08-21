@@ -42,7 +42,7 @@
       "langchain.request.type": "llm",
       "langchain.response.completions.0.text": "\\nPlankton is a character in the animated television show SpongeBob SquarePants. He is the owner of The Chum Bucket, a fast food...",
       "language": "python",
-      "runtime-id": "5d2e2eb985334cb88c7fe08756bc5201"
+      "runtime-id": "dfd2ce0f0c3347ffb6655649ad48bd1f"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -50,8 +50,8 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 57033
+      "process_id": 52007
     },
-    "duration": 3053337000,
-    "start": 1688066866717834000
+    "duration": 4549426,
+    "start": 1691167369221002002
   }]]

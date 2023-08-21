@@ -10,10 +10,12 @@ from typing import TYPE_CHECKING
 
 from ddtrace import config
 from ddtrace.filters import TraceFilter
+from ddtrace.internal.compat import ensure_pep562
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import get_span_sampling_rules
-from ddtrace.settings.peer_service import PeerServiceConfig
+from ddtrace.internal.utils import _get_metas_to_propagate
+from ddtrace.settings.peer_service import _ps_config
 from ddtrace.vendor import debtcollector
 
 from . import _hooks
@@ -32,6 +34,7 @@ from .internal import compat
 from .internal import debug
 from .internal import forksafe
 from .internal import hostname
+from .internal.atexit import register_on_exit_signal
 from .internal.constants import SPAN_API_DATADOG
 from .internal.dogstatsd import get_dogstatsd_client
 from .internal.logger import get_logger
@@ -87,8 +90,8 @@ DD_LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] 
 if config._debug_mode and not hasHandlers(log) and config._call_basic_config:
     debtcollector.deprecate(
         "ddtrace.tracer.logging.basicConfig",
-        message="`logging.basicConfig()` should be called in a user's application."
-        " ``DD_CALL_BASIC_CONFIG`` will be removed in a future version.",
+        message="`logging.basicConfig()` should be called in a user's application.",
+        removal_version="2.0.0",
     )
     if config.logs_injection:
         # We need to ensure logging is patched in case the tracer logs during initialization
@@ -142,7 +145,7 @@ def _default_span_processors_factory(
     # FIXME: type should be AppsecSpanProcessor but we have a cyclic import here
     """Construct the default list of span processors to use."""
     trace_processors = []  # type: List[TraceProcessor]
-    trace_processors += [TraceTagsProcessor(), PeerServiceProcessor(PeerServiceConfig())]
+    trace_processors += [TraceTagsProcessor(), PeerServiceProcessor(_ps_config)]
     trace_processors += [TraceSamplingProcessor(compute_stats_enabled)]
     trace_processors += trace_filters
 
@@ -217,6 +220,7 @@ class Tracer(object):
         self,
         url=None,  # type: Optional[str]
         dogstatsd_url=None,  # type: Optional[str]
+        context_provider=None,  # type: Optional[DefaultContextProvider]
     ):
         # type: (...) -> None
         """
@@ -245,7 +249,7 @@ class Tracer(object):
         self._pid = getpid()
 
         self.enabled = asbool(os.getenv("DD_TRACE_ENABLED", default=True))
-        self.context_provider = DefaultContextProvider()
+        self.context_provider = context_provider or DefaultContextProvider()
         self._sampler = DatadogSampler()  # type: BaseSampler
         if asbool(os.getenv("DD_PRIORITY_SAMPLING", True)):
             self._priority_sampler = RateByServiceSampler()  # type: Optional[BasePrioritySampler]
@@ -298,6 +302,7 @@ class Tracer(object):
         self._hooks = _hooks.Hooks()
         atexit.register(self._atexit)
         forksafe.register(self._child_after_fork)
+        register_on_exit_signal(self._atexit)
 
         self._shutdown_lock = RLock()
 
@@ -715,6 +720,8 @@ class Tracer(object):
 
             if span._local_root is None:
                 span._local_root = span
+            for k, v in _get_metas_to_propagate(context):
+                span._meta[k] = v
         else:
             # this is the root span of a new trace
             span = Span(
@@ -1042,6 +1049,14 @@ class Tracer(object):
         """
         with self._shutdown_lock:
             # Thread safety: Ensures tracer is shutdown synchronously
+            try:
+                # Data streams tries to flush data on shutdown.
+                # Adding a try except here to ensure we don't crash the application if the agent is killed before
+                # the application for example.
+                self.data_streams_processor.shutdown(timeout)
+            except Exception as e:
+                if config._data_streams_enabled:
+                    log.warning("Failed to shutdown data streams processor: %s", repr(e))
             span_processors = self._span_processors
             deferred_processors = self._deferred_processors
             self._span_processors = []
@@ -1049,11 +1064,6 @@ class Tracer(object):
             for processor in chain(span_processors, SpanProcessor.__processors__, deferred_processors):
                 if hasattr(processor, "shutdown"):
                     processor.shutdown(timeout)
-            try:
-                self.data_streams_processor.shutdown(timeout)
-            except Exception as e:
-                if config._data_streams_enabled:
-                    log.warning("Failed to shutdown data streams processor: %s", repr(e))
 
             atexit.unregister(self._atexit)
             forksafe.unregister(self._child_after_fork)
@@ -1107,3 +1117,20 @@ class Tracer(object):
     @staticmethod
     def _is_span_internal(span):
         return not span.span_type or span.span_type in _INTERNAL_APPLICATION_SPAN_TYPES
+
+
+def __getattr__(name):
+    if name == "DD_LOG_FORMAT":
+        debtcollector.deprecate(
+            ("%s.%s is deprecated." % (__name__, name)),
+            removal_version="2.0.0",
+        )
+        return DD_LOG_FORMAT
+
+    if name in globals():
+        return globals()[name]
+
+    raise AttributeError("'%s' has no attribute '%s'", __name__, name)
+
+
+ensure_pep562(__name__)

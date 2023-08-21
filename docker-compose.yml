@@ -57,7 +57,7 @@ services:
         ports:
             - "127.0.0.1:6379:6379"
     kafka:
-      image: bitnami/kafka:3.5.1
+      image: bitnami/kafka:3.5.1-debian-11-r3
       ports:
         - "127.0.0.1:29092:29092"
       environment:

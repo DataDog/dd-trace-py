@@ -1,4 +1,3 @@
-from contextlib import contextmanager
 import json
 import os
 
@@ -16,7 +15,7 @@ from ddtrace.internal.ci_visibility.encoder import CIVisibilityEncoderV01
 from ddtrace.internal.compat import msgpack_type
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.span import Span
-from tests.utils import DummyCIVisibilityWriter
+from tests.ci_visibility.util import _patch_dummy_writer
 from tests.utils import TracerTestCase
 from tests.utils import override_env
 
@@ -221,14 +220,6 @@ def test_encode_traces_civisibility_v2_coverage_empty_traces():
 
     complete_payload = encoder.encode()
     assert complete_payload is None
-
-
-@contextmanager
-def _patch_dummy_writer():
-    original = ddtrace.internal.ci_visibility.recorder.CIVisibilityWriter
-    ddtrace.internal.ci_visibility.recorder.CIVisibilityWriter = DummyCIVisibilityWriter
-    yield
-    ddtrace.internal.ci_visibility.recorder.CIVisibilityWriter = original
 
 
 class PytestEncodingTestCase(TracerTestCase):

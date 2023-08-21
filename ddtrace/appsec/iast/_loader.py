@@ -25,6 +25,6 @@ def _exec_iast_patched_module(module_watchdog, module):
     if patched_source:
         # Patched source is executed instead of original module
         compiled_code = compile(patched_source, module_path, "exec")
-        exec(compiled_code, module.__dict__)
+        exec(compiled_code, module.__dict__)  # nosec B102
     else:
         module_watchdog.loader.exec_module(module)

@@ -11,17 +11,17 @@
     "meta": {
       "_dd.p.dm": "-3",
       "language": "python",
-      "runtime-id": "8673fb4ff8d3442f943860e59e8ea37a"
+      "runtime-id": "d5f3e666fe79454c90ec7063f44787b5"
     },
     "metrics": {
       "_dd.rule_psr": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 2,
-      "process_id": 7058
+      "process_id": 19794
     },
-    "duration": 61125,
-    "start": 1657658221605847634
+    "duration": 97146,
+    "start": 1691163617135625063
   },
      {
        "name": "child",
@@ -32,9 +32,12 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
+       "meta": {
+         "_dd.p.dm": "-3"
+       },
        "metrics": {
          "_dd.span_sampling.mechanism": 8
        },
-       "duration": 5959,
-       "start": 1657658221605895925
+       "duration": 13020,
+       "start": 1691163617135695921
      }]]

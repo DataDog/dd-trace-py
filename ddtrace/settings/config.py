@@ -17,6 +17,7 @@ from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor.debtcollector import deprecate
 
 from ..internal import gitmetadata
+from ..internal.constants import DEFAULT_SAMPLING_RATE_LIMIT
 from ..internal.constants import PROPAGATION_STYLE_ALL
 from ..internal.constants import PROPAGATION_STYLE_B3
 from ..internal.constants import _PROPAGATION_STYLE_DEFAULT
@@ -196,6 +197,15 @@ class Config(object):
 
         self._debug_mode = asbool(os.getenv("DD_TRACE_DEBUG", default=False))
         self._call_basic_config = asbool(os.environ.get("DD_CALL_BASIC_CONFIG", "false"))
+        if self._call_basic_config:
+            deprecate(
+                "`DD_CALL_BASIC_CONFIG` is deprecated and will be removed in the next major version.",
+                message="Call `logging.basicConfig()` to configure logging in your application",
+                removal_version="2.0.0",
+            )
+
+        self._trace_sample_rate = os.getenv("DD_TRACE_SAMPLE_RATE")
+        self._trace_rate_limit = int(os.getenv("DD_TRACE_RATE_LIMIT", default=DEFAULT_SAMPLING_RATE_LIMIT))
 
         header_tags = parse_tags_str(os.getenv("DD_TRACE_HEADER_TAGS", ""))
         self.http = HttpConfig(header_tags=header_tags)
@@ -225,7 +235,8 @@ class Config(object):
         self.version = os.getenv("DD_VERSION", default=self.tags.get("version"))
         self.http_server = self._HTTPServerConfig()
 
-        self.service_mapping = parse_tags_str(os.getenv("DD_SERVICE_MAPPING", default=""))
+        self._unparsed_service_mapping = os.getenv("DD_SERVICE_MAPPING", default="")
+        self.service_mapping = parse_tags_str(self._unparsed_service_mapping)
 
         # The service tag corresponds to span.service and should not be
         # included in the global tags.
@@ -319,8 +330,8 @@ class Config(object):
 
         self._ci_visibility_agentless_enabled = asbool(os.getenv("DD_CIVISIBILITY_AGENTLESS_ENABLED", default=False))
         self._ci_visibility_agentless_url = os.getenv("DD_CIVISIBILITY_AGENTLESS_URL", default="")
-        self._ci_visibility_intelligent_testrunner_enabled = asbool(
-            os.getenv("DD_CIVISIBILITY_ITR_ENABLED", default=False)
+        self._ci_visibility_intelligent_testrunner_disabled = asbool(
+            os.getenv("DD_CIVISIBILITY_ITR_DISABLED", default=False)
         )
         self._otel_enabled = asbool(os.getenv("DD_TRACE_OTEL_ENABLED", False))
         if self._otel_enabled:

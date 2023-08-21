@@ -46,7 +46,7 @@ IAST_DIR = os.path.join(HERE, os.path.join("ddtrace", "appsec", "iast", "_taint_
 
 CURRENT_OS = platform.system()
 
-LIBDDWAF_VERSION = "1.11.0"
+LIBDDWAF_VERSION = "1.12.0"
 
 LIBDATADOG_PROF_DOWNLOAD_DIR = os.path.join(
     HERE, os.path.join("ddtrace", "internal", "datadog", "profiling", "libdatadog")
@@ -476,11 +476,11 @@ def get_ddup_ext():
             cythonize(
                 [
                     Cython.Distutils.Extension(
-                        "ddtrace.internal.datadog.profiling.ddup",
+                        "ddtrace.internal.datadog.profiling._ddup",
                         sources=[
                             "ddtrace/internal/datadog/profiling/src/exporter.cpp",
                             "ddtrace/internal/datadog/profiling/src/interface.cpp",
-                            "ddtrace/internal/datadog/profiling/ddup.pyx",
+                            "ddtrace/internal/datadog/profiling/_ddup.pyx",
                         ],
                         include_dirs=LibDatadogDownload.get_include_dirs(),
                         extra_objects=LibDatadogDownload.get_extra_objects(),

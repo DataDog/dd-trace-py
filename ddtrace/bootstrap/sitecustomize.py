@@ -38,8 +38,8 @@ if config.logs_injection:
 if not config._debug_mode and config._call_basic_config:
     deprecate(
         "ddtrace.tracer.logging.basicConfig",
-        message="`logging.basicConfig()` should be called in a user's application."
-        " ``DD_CALL_BASIC_CONFIG`` will be removed in a future version.",
+        message="`logging.basicConfig()` should be called in a user's application.",
+        removal_version="2.0.0",
     )
     if config.logs_injection:
         logging.basicConfig(format=DD_LOG_FORMAT)

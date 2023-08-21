@@ -1,0 +1,3 @@
+fixes:
+  - |
+    data_streams: This change fixes a bug in the Kafka & SQS integrations in which the Data Streams product code incorrect set timestamps for statistics. This led to all points being submitted for the same timestamp (the start of the application).

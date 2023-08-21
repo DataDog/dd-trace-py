@@ -19,8 +19,21 @@ def gen_required_suites(template: dict) -> None:
     required_suites = template["requires_tests"]["requires"] = []
     fetn(suites=sorted(suites & jobs), action=lambda suite: required_suites.append(suite))
 
+    if not required_suites:
+        # Nothing to generate
+        return
+
+    jobs = template["workflows"]["test"]["jobs"]
+
+    # Create the base venvs
+    jobs.append("build_base_venvs")
+
+    # Add the jobs
     requires_base_venvs = template["requires_base_venvs"]
-    template["workflows"]["test"]["jobs"].extend([{suite: requires_base_venvs} for suite in required_suites])
+    jobs.extend([{suite: requires_base_venvs} for suite in required_suites])
+
+    # Collect coverage
+    jobs.append({"coverage_report": template["requires_tests"]})
 
 
 def gen_pre_checks(template: dict) -> None:
@@ -32,50 +45,68 @@ def gen_pre_checks(template: dict) -> None:
             template["jobs"]["pre_check"]["steps"].append({"run": {"name": name, "command": command}})
 
     check(
-        name="Formatting check",
-        command="riot -v run -s fmt && git diff --exit-code",
-        paths={"*.py", "*.pyi"},
-    ),
-    check(
-        name="Flake8 check",
-        command="riot -v run -s flake8",
-        paths={"*.py", "*.pyi"},
-    ),
-    check(
-        name="Mypy check",
-        command="riot -v run -s mypy",
-        paths={"*.py", "*.pyi"},
-    ),
-    check(
-        name="Slots check",
-        command="riot -v run slotscheck",
-        paths={"ddtrace/*.py"},
-    ),
-    check(
-        name="cython-lint check",
-        command="riot -v run -s cython-lint",
-        paths={"*.pyx", "*.pxd"},
-    ),
-    check(
-        name="Run riotfile.py tests",
-        command="riot -v run -s riot-helpers",
-        paths={"riotfile.py"},
+        name="Style",
+        command="hatch run lint:style",
+        paths={"*.py", "*.pyi", "hatch.toml"},
     )
     check(
-        name="Test agent snapshot check",
-        command="riot -v run -s snapshot-fmt && git diff --exit-code",
-        paths={"tests/snapshots/*"},
+        name="Typing",
+        command="hatch run lint:typing",
+        paths={"*.py", "*.pyi", "hatch.toml"},
+    )
+    check(
+        name="Security",
+        command="hatch run lint:security",
+        paths={"ddtrace/*", "hatch.toml"},
+    )
+    check(
+        name="Run riotfile.py tests",
+        command="hatch run lint:riot",
+        paths={"riotfile.py", "hatch.toml"},
+    )
+    check(
+        name="Style: Test snapshots",
+        command="hatch run lint:fmt-snapshots && git diff --exit-code tests/snapshots hatch.toml",
+        paths={"tests/snapshots/*", "hatch.toml"},
+    )
+    check(
+        name="Slots check",
+        command="hatch run slotscheck:_",
+        paths={"ddtrace/*.py", "hatch.toml"},
     )
     check(
         name="Run scripts/*.py tests",
-        command="riot -v run -s scripts",
+        command="hatch run scripts:test",
         paths={"scripts/*.py"},
     )
     check(
-        name="Running security analysis checks with bandit",
-        command="riot -v run -s bandit",
-        paths={"ddtrace/*"},
+        name="Run conftest tests",
+        command="hatch run meta-testing:meta-testing",
+        paths={"tests/*conftest.py", "tests/meta/*"},
     )
+    check(
+        name="Validate suitespec JSON file",
+        command="python -m tests.suitespec",
+        paths={"tests/.suitespec.json", "tests/suitespec.py"},
+    )
+
+
+def gen_build_docs(template: dict) -> None:
+    """Include the docs build step if the docs have changed."""
+    from needs_testrun import pr_matches_patterns
+
+    if pr_matches_patterns({"docs/*", "ddtrace/*", "scripts/docs", "releasenotes/*"}):
+        template["workflows"]["test"]["jobs"].append({"build_docs": template["requires_pre_check"]})
+
+
+def gen_c_check(template: dict) -> None:
+    """Include C code checks if C code has changed."""
+    from needs_testrun import pr_matches_patterns
+
+    if pr_matches_patterns({"*.c", "*.h", "*.cpp", "*.hpp", "*.cc", "*.hh"}):
+        template["requires_pre_check"]["requires"].append("ccheck")
+        template["requires_base_venvs"]["requires"].append("ccheck")
+        template["workflows"]["test"]["jobs"].append("ccheck")
 
 
 # -----------------------------------------------------------------------------
