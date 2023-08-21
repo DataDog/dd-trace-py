@@ -142,6 +142,10 @@ class RateByServiceSampler(BasePrioritySampler):
         self._default_sampler = RateSampler(self.sample_rate)
         self._by_service_samplers = {}  # type: Dict[str, RateSampler]
 
+    @classmethod
+    def from_datadog_sampler(cls, ddsampler):
+        return cls()
+
     def set_sample_rate(
         self,
         sample_rate,  # type: float
@@ -160,8 +164,12 @@ class RateByServiceSampler(BasePrioritySampler):
         # type: (Span, RateSampler, bool) -> None
         priority = AUTO_KEEP if sampled else AUTO_REJECT
         self._set_priority(span, priority)
-        span.set_metric(SAMPLING_AGENT_DECISION, sampler.sample_rate)
-        update_sampling_decision(span.context, SamplingMechanism.AGENT_RATE, sampled)
+        if sampler is self._default_sampler:
+            mechanism = SamplingMechanism.DEFAULT
+        else:
+            mechanism = SamplingMechanism.AGENT_RATE
+            span.set_metric(SAMPLING_AGENT_DECISION, sampler.sample_rate)
+        update_sampling_decision(span.context, mechanism, sampled)
 
     def sample(self, span):
         # type: (Span) -> bool
@@ -312,14 +320,11 @@ class DatadogSampler(RateByServiceSampler):
         # type: (Span, Union[RateSampler, SamplingRule, RateLimiter], bool) -> None
         if isinstance(sampler, SamplingRule):
             span.set_metric(SAMPLING_RULE_DECISION, sampler.sample_rate)
-        elif isinstance(sampler, RateLimiter):
-            span.set_metric(SAMPLING_LIMIT_DECISION, sampler.effective_rate)
 
-        if not isinstance(sampler, RateLimiter):
-            if not sampled:
-                self._set_priority(span, USER_REJECT)
-            else:
-                self._set_priority(span, USER_KEEP)
+        if not sampled:
+            self._set_priority(span, USER_REJECT)
+        else:
+            self._set_priority(span, USER_KEEP)
 
         update_sampling_decision(span.context, SamplingMechanism.TRACE_SAMPLING_RULE, sampled)
 
@@ -337,23 +342,28 @@ class DatadogSampler(RateByServiceSampler):
         """
         # Go through all rules and grab the first one that matched
         # DEV: This means rules should be ordered by the user from most specific to least specific
+        has_configured_rate_limit = self.limiter.rate_limit != DEFAULT_SAMPLING_RATE_LIMIT
+
+        rule_matched = False
         for rule in self.rules:
             if rule.matches(span):
                 sampler = rule
+                rule_matched = True
                 break
-        else:
-            sampler = super(DatadogSampler, self)  # type: ignore
+
+        if not rule_matched:
+            sampler = RateByServiceSampler.from_datadog_sampler(self)
 
         sampled = sampler.sample(span)
-        self._set_sampler_decision(span, sampler, sampled)
+
+        if rule_matched or has_configured_rate_limit:
+            self._set_sampler_decision(span, sampler, sampled)
 
         # Ensure all allowed traces adhere to the global rate limit
         allowed = self.limiter.is_allowed(span.start_ns)
-        self._set_sampler_decision(span, self.limiter, allowed)
-        if not allowed:
-            return False
-
-        return sampled
+        if has_configured_rate_limit:
+            span.set_metric(SAMPLING_LIMIT_DECISION, self.limiter.effective_rate)
+        return allowed or sampled
 
 
 class SamplingRule(BaseSampler):
