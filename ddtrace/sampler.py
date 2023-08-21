@@ -144,7 +144,9 @@ class RateByServiceSampler(BasePrioritySampler):
 
     @classmethod
     def from_datadog_sampler(cls, ddsampler):
-        return cls()
+        instance = cls(sample_rate=ddsampler.sample_rate)
+        instance._by_service_samplers = ddsampler._by_service_samplers.copy()
+        return instance
 
     def set_sample_rate(
         self,
