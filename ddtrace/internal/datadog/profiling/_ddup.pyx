@@ -3,6 +3,7 @@ import typing
 from typing import Optional
 
 from utils import sanitize_string
+
 import ddtrace
 from ddtrace.internal import runtime
 from ddtrace.internal.compat import ensure_binary
