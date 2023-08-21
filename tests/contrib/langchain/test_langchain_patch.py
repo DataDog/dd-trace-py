@@ -1,3 +1,4 @@
+from ddtrace.contrib.langchain import get_version
 from ddtrace.contrib.langchain import patch
 from ddtrace.contrib.langchain import unpatch
 from ddtrace.contrib.langchain.constants import text_embedding_models
@@ -61,3 +62,8 @@ class TestLangchainPatch(PatchTestCase.Base):
             vectorstore_interface = getattr(langchain.vectorstores, vectorstore, None)
             if vectorstore_interface:
                 self.assert_not_double_wrapped(vectorstore_interface.similarity_search)
+
+    def assert_module_implements_get_version(self):
+        version = get_version()
+        assert type(version) == str
+        assert version != "0.0.0"

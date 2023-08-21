@@ -3,7 +3,7 @@
 # removed the ``_generated`` suffix from the file name, to prevent the content
 # from being overwritten by future re-generations.
 
-from ddtrace.contrib.requests.patch import get_version
+from ddtrace.contrib.requests import get_version
 from ddtrace.contrib.requests.patch import patch
 
 
