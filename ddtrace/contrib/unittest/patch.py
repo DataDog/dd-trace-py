@@ -78,7 +78,7 @@ def _is_valid_result(instance, args):
 
 def patch():
     """
-    Patched the instrumented methods from unittest
+    Patch the instrumented methods from unittest
     """
     if (
         not config._ci_visibility_unittest_enabled

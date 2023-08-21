@@ -25,7 +25,7 @@ class UnittestTestCase(TracerTestCase):
         self.monkeypatch = monkeypatch
         self.git_repo = git_repo
 
-    with override_env(dict(DD_API_KEY="foobar.baz")):
+    with override_env(dict(DD_API_KEY="foobar.baz", DD_CIVISIBILITY_UNITTEST_ENABLED="1")):
         patch()
 
         def test_unittest_pass_single(self):
