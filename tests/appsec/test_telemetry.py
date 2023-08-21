@@ -1,11 +1,14 @@
 import os
 import sys
+from time import sleep
 
+import mock
 import pytest
 
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec.ddwaf import version
 from ddtrace.appsec.processor import AppSecSpanProcessor
+from ddtrace.appsec.utils import deduplication
 from ddtrace.contrib.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_APPSEC
@@ -106,7 +109,9 @@ def test_metrics_when_appsec_block(mock_telemetry_lifecycle_writer, tracer):
 
 def test_log_metric_error_ddwaf_init(mock_logs_telemetry_lifecycle_writer):
     with override_global_config(dict(_appsec_enabled=True)), override_env(
-        dict(DD_APPSEC_RULES=os.path.join(ROOT_DIR, "rules-with-2-errors.json"))
+        dict(
+            _DD_APPSEC_DEDUPLICATION_ENABLED="false", DD_APPSEC_RULES=os.path.join(ROOT_DIR, "rules-with-2-errors.json")
+        )
     ):
         AppSecSpanProcessor()
 
@@ -118,9 +123,9 @@ def test_log_metric_error_ddwaf_init(mock_logs_telemetry_lifecycle_writer):
 
 
 def test_log_metric_error_ddwaf_timeout(mock_logs_telemetry_lifecycle_writer, tracer):
-    with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)), override_global_config(
-        dict(_appsec_enabled=True, _waf_timeout=0.0)
-    ):
+    with override_env(
+        dict(_DD_APPSEC_DEDUPLICATION_ENABLED="false", DD_APPSEC_RULES=RULES_GOOD_PATH)
+    ), override_global_config(dict(_appsec_enabled=True, _waf_timeout=0.0)):
         _enable_appsec(tracer)
         with _asm_request_context.asm_request_context_manager(_BLOCKED_IP, {}):
             with tracer.trace("test", span_type=SpanTypes.WEB) as span:
@@ -138,7 +143,9 @@ def test_log_metric_error_ddwaf_timeout(mock_logs_telemetry_lifecycle_writer, tr
 
 @pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
 def test_log_metric_error_ddwaf_update(mock_logs_telemetry_lifecycle_writer):
-    with override_global_config(dict(_appsec_enabled=True)):
+    with override_env(dict(_DD_APPSEC_DEDUPLICATION_ENABLED="false")), override_global_config(
+        dict(_appsec_enabled=True)
+    ):
         span_processor = AppSecSpanProcessor()
         span_processor._update_rules({})
 
@@ -147,3 +154,37 @@ def test_log_metric_error_ddwaf_update(mock_logs_telemetry_lifecycle_writer):
         assert list_metrics_logs[0]["message"] == "Error updating ASM rules. Invalid rules"
         assert list_metrics_logs[0].get("stack_trace") is None
         assert "waf_version:{}".format(version()) in list_metrics_logs[0]["tags"]
+
+
+@pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
+def test_log_metric_error_ddwaf_update_deduplication(mock_logs_telemetry_lifecycle_writer):
+    with override_global_config(dict(_appsec_enabled=True)):
+        span_processor = AppSecSpanProcessor()
+        span_processor._update_rules({})
+        mock_logs_telemetry_lifecycle_writer.reset_queues()
+        span_processor = AppSecSpanProcessor()
+        span_processor._update_rules({})
+        list_metrics_logs = list(mock_logs_telemetry_lifecycle_writer._logs)
+        assert len(list_metrics_logs) == 0
+
+
+@pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
+@mock.patch.object(deduplication, "get_last_time_reported")
+def test_log_metric_error_ddwaf_update_deduplication_timelapse(
+    mock_last_time_reported, mock_logs_telemetry_lifecycle_writer
+):
+    old_value = deduplication._time_lapse
+    deduplication._time_lapse = 0.3
+    mock_last_time_reported.return_value = 1592357416.0
+    try:
+        with override_global_config(dict(_appsec_enabled=True)):
+            span_processor = AppSecSpanProcessor()
+            span_processor._update_rules({})
+            mock_logs_telemetry_lifecycle_writer.reset_queues()
+            sleep(0.4)
+            span_processor = AppSecSpanProcessor()
+            span_processor._update_rules({})
+            list_metrics_logs = list(mock_logs_telemetry_lifecycle_writer._logs)
+            assert len(list_metrics_logs) == 1
+    finally:
+        deduplication._time_lapse = old_value
