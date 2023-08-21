@@ -1,11 +1,7 @@
-import os
-
+# Normal flask app. With IAST propagation
 from flask import Flask
 
 from ddtrace.appsec.iast import ddtrace_iast_flask_patch
-
-
-os.environ["DD_IAST_ENABLED"] = "1"
 
 
 def add_test(a, b):
