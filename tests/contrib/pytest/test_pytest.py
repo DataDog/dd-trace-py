@@ -1538,20 +1538,15 @@ class PytestTestCase(TracerTestCase):
         """
         )
 
-        with override_env(
-            {"DD_APPLICATION_KEY": "not_an_application_key", "DD_CIVISIBILITY_AGENTLESS_ENABLED": "True"}
-        ), mock.patch(
+        with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features", return_value=(True, True)
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"
-        ), mock.patch.object(
+        ), mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"), mock.patch.object(
             ddtrace.internal.ci_visibility.recorder.CIVisibility,
             "_tests_to_skip",
             {
                 "test_cov.py": ["test_cov"],
             },
         ):
-            ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
             self.inline_run("--ddtrace", os.path.basename(py_cov_file.strpath))
         spans = self.pop_spans()
 
