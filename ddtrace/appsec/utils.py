@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._constants import API_SECURITY
+from ddtrace.constants import APPSEC_ENV
 from ddtrace.internal.compat import parse
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
@@ -148,3 +149,10 @@ class deduplication:
                 result = self.func(*args, **kwargs)
                 self.reported_logs[raw_log_hash] = time.time() + self._time_lapse
         return result
+
+
+def _appsec_rc_features_is_enabled():
+    # type: () -> bool
+    if asbool(os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", "true")):
+        return APPSEC_ENV not in os.environ
+    return False

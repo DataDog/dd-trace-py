@@ -4,16 +4,9 @@ import sys
 from typing import Optional
 
 from ddtrace import Tracer
-from ddtrace.constants import APPSEC_ENV
+from ddtrace.appsec.utils import _appsec_rc_features_is_enabled
 from ddtrace.internal.compat import to_bytes_py2
 from ddtrace.internal.utils.formats import asbool
-
-
-def _appsec_rc_features_is_enabled():
-    # type: () -> bool
-    if asbool(os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", "true")):
-        return APPSEC_ENV not in os.environ
-    return False
 
 
 def _appsec_rc_file_is_not_static():

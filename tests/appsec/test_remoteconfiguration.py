@@ -11,7 +11,7 @@ import pytest
 
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._capabilities import _appsec_rc_capabilities
-from ddtrace.appsec._capabilities import _appsec_rc_features_is_enabled
+from ddtrace.appsec.utils import _appsec_rc_features_is_enabled
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._constants import PRODUCTS
