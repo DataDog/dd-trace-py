@@ -31,7 +31,12 @@ config._add(
 
 
 def get_version():
-    return getattr(sqlite3, "__version__", "0.0.0")
+    try:
+        import importlib.metadata as importlib_metadata
+    except ImportError:
+        import importlib_metadata  # type: ignore[no-redef]
+
+    return importlib_metadata.version(sqlite3.__package__)
 
 
 def patch():

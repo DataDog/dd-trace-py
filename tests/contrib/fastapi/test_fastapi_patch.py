@@ -1,3 +1,4 @@
+from ddtrace.contrib.fastapi import get_version
 from ddtrace.contrib.fastapi import patch
 from ddtrace.contrib.fastapi import unpatch
 from tests.contrib.patch import PatchTestCase
@@ -26,3 +27,8 @@ class TestFastapiPatch(PatchTestCase.Base):
         self.assert_not_double_wrapped(fastapi.routing.serialize_response)
         self.assert_not_double_wrapped(fastapi.routing.APIRoute.handle)
         self.assert_not_double_wrapped(fastapi.routing.Mount.handle)
+
+    def assert_module_implements_get_version(self):
+        version = get_version()
+        assert type(version) == str
+        assert version != "0.0.0"

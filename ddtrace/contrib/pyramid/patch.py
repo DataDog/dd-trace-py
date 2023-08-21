@@ -26,7 +26,12 @@ DD_PATCH = "_datadog_patch"
 
 
 def get_version():
-    return getattr(pyramid, "__version__", "0.0.0")
+    try:
+        import importlib.metadata as importlib_metadata
+    except ImportError:
+        import importlib_metadata  # type: ignore[no-redef]
+
+    return importlib_metadata.version(pyramid.__package__)
 
 
 def patch():

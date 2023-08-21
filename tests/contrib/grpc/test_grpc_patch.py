@@ -1,3 +1,4 @@
+from ddtrace.contrib.grpc import get_version
 from ddtrace.contrib.grpc import patch
 from tests.contrib.patch import PatchTestCase
 
@@ -31,3 +32,8 @@ class TestGRPCPatch(PatchTestCase.Base):
         self.assert_not_double_wrapped(grpc.intercept_channel)
         # Server Wrapping
         self.assert_not_double_wrapped(grpc.server)
+
+    def assert_module_implements_get_version(self):
+        version = get_version()
+        assert type(version) == str
+        assert version != "0.0.0"
