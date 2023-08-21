@@ -1,15 +1,12 @@
 import dis
 import io
 
-import mock
-
+from tests.utils import override_env
 from tests.utils import override_global_config
 
 
 def test_ddtrace_iast_flask_patch():
-    with override_global_config(dict(_iast_enabled=True)), mock.patch(
-        "ddtrace.appsec.iast._util._is_iast_enabled", return_value=True
-    ):
+    with override_global_config(dict(_iast_enabled=True)), override_env(dict(DD_IAST_ENABLED="true")):
         import tests.appsec.iast.fixtures.entrypoint.app_patched as flask_entrypoint
 
         dis_output = io.StringIO()
@@ -23,9 +20,7 @@ def test_ddtrace_iast_flask_patch():
 
 
 def test_ddtrace_iast_flask_no_patch():
-    with override_global_config(dict(_iast_enabled=True)), mock.patch(
-        "ddtrace.appsec.iast._util._is_iast_enabled", return_value=True
-    ):
+    with override_global_config(dict(_iast_enabled=True)), override_env(dict(DD_IAST_ENABLED="true")):
         import tests.appsec.iast.fixtures.entrypoint.app as flask_entrypoint
 
         dis_output = io.StringIO()
