@@ -199,6 +199,7 @@ class TelemetryWriter(PeriodicService):
         if self._is_periodic:
             self.start()
             atexit.register(self.app_shutdown)
+            return True
 
         self.status = ServiceStatus.RUNNING
         return True
