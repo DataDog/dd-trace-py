@@ -402,8 +402,9 @@ class UnittestTestCase(TracerTestCase):
 
             expected_result = [
                 {
-                    test.NAME: "test_subtest1_will_pass_first",
+                    test.NAME: "test_subtest1_will_be_skipped_with_a_reason",
                     test.TEST_STATUS: test.Status.SKIP.value,
+                    test.SKIP_REASON: "another skip reason for subtest1",
                     test.SUITE: "SubTest1",
                 },
                 {
@@ -414,22 +415,20 @@ class UnittestTestCase(TracerTestCase):
                     ERROR_TYPE: "builtins.AssertionError" if sys.version_info[0] >= 3 else "exceptions.AssertionError",
                 },
                 {
-                    test.NAME: "test_subtest1_will_be_skipped_with_a_reason",
-                    test.TEST_STATUS: test.Status.SKIP.value,
-                    test.SKIP_REASON: "another skip reason for subtest1",
+                    test.NAME: "test_subtest1_will_pass_first",
+                    test.TEST_STATUS: test.Status.PASS.value,
                     test.SUITE: "SubTest1",
+                },
+                {
+                    test.NAME: "test_subtest2_will_be_skipped_with_a_reason",
+                    test.TEST_STATUS: test.Status.SKIP.value,
+                    test.SKIP_REASON: "another skip reason for subtest2",
+                    test.SUITE: "SubTest2",
                 },
                 {
                     test.NAME: "test_subtest2_will_pass_first",
                     test.TEST_STATUS: test.Status.PASS.value,
                     test.SUITE: "SubTest2",
-                },
-                {
-                    test.NAME: "test_subtest2_will_fail_first",
-                    test.TEST_STATUS: test.Status.SKIP.value,
-                    test.SUITE: "SubTest2",
-                    ERROR_MSG: "False is not true",
-                    ERROR_TYPE: "builtins.AssertionError" if sys.version_info[0] >= 3 else "exceptions.AssertionError",
                 },
             ]
 
