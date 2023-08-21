@@ -40,7 +40,12 @@ KWPOS_BY_TAG = {
 
 
 def get_version():
-    return getattr(MySQLdb, "__version__", "0.0.0")
+    try:
+        import importlib.metadata as importlib_metadata
+    except ImportError:
+        import importlib_metadata  # type: ignore[no-redef]
+
+    return str(importlib_metadata.version(MySQLdb.__package__))
 
 
 def patch():

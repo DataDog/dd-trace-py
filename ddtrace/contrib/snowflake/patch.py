@@ -1,5 +1,7 @@
 import os
 
+import snowflake
+
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.vendor import wrapt
@@ -30,13 +32,11 @@ config._add(
 
 def get_version():
     try:
-        from importlib import metadata
-
-        return metadata.version("snowflake")
+        import importlib.metadata as importlib_metadata
     except ImportError:
-        import pkg_resources
+        import importlib_metadata  # type: ignore[no-redef]
 
-        return pkg_resources.get_distribution("snowflake").version
+    return str(importlib_metadata.version(snowflake.__package__))
 
 
 class _SFTracedCursor(TracedCursor):
