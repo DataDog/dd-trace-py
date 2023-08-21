@@ -4,7 +4,7 @@ def sanitize_string(value):
         return value
     try:
         # uncommon, so just check for `decode` instead of bytes etc
-        return value.decode('utf-8', 'ignore')
+        return value.decode("utf-8", "ignore")
     except AttributeError:
         try:
             return str(value)
