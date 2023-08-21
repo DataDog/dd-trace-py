@@ -91,12 +91,17 @@ class VulnerabilityBase(Operation):
 
         if cls.acquire_quota():
             if not tracer or not hasattr(tracer, "current_root_span"):
-                log.debug("Not tracer or tracer has no root span")
+                log.debug(
+                    "[IAST] VulnerabilityReporter is trying to report an evidence, "
+                    "but not tracer or tracer has no root span"
+                )
                 return None
 
             span = tracer.current_root_span()
             if not span:
-                log.debug("No root span in the current execution. Skipping IAST taint sink.")
+                log.debug(
+                    "[IAST] VulnerabilityReporter. No root span in the current execution. Skipping IAST taint sink."
+                )
                 return None
 
             file_name = ""
