@@ -86,6 +86,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
     def enable(self):
         # type: () -> bool
         # TODO: this is only temporary. DD_REMOTE_CONFIGURATION_ENABLED variable will be deprecated
+        rc_env_enabled = asbool(os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", "true"))
         if rc_env_enabled and self._enable:
             if self.status == ServiceStatus.RUNNING:
                 return True
