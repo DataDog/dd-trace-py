@@ -25,7 +25,7 @@ class UnittestTestCase(TracerTestCase):
         self.monkeypatch = monkeypatch
         self.git_repo = git_repo
 
-    with override_env(dict(DD_API_KEY="foobar.baz", DD_CIVISIBILITY_UNITTEST_ENABLED="1")):
+    with override_env(dict(DD_API_KEY="foobar.baz")):
         patch()
 
         def test_unittest_pass_single(self):
@@ -359,3 +359,87 @@ class UnittestTestCase(TracerTestCase):
             assert spans[2].get_tag(test.NAME) == "test_will_pass_first"
             assert spans[2].get_tag(test.TEST_STATUS) == test.Status.PASS.value
             assert spans[2].get_tag(test.SKIP_REASON) is None
+
+        def test_unittest_nested_test_cases(self):
+            """Test with `unittest` test cases which pass, get skipped and fail combined."""
+            _set_tracer(self.tracer)
+
+            class UnittestExampleTestCase(unittest.TestCase):
+                class SubTest1(unittest.TestCase):
+                    def test_subtest1_will_pass_first(self):
+                        self.assertTrue(2 == 2)
+                        self.assertTrue("test string" == "test string")
+                        self.assertFalse("not equal to" == "this")
+
+                    def test_subtest1_will_fail_first(self):
+                        self.assertTrue(2 != 2)
+                        self.assertTrue("test string" == "test string")
+                        self.assertFalse("not equal to" == "this")
+
+                    @unittest.skip("another skip reason for subtest1")
+                    def test_subtest1_will_be_skipped_with_a_reason(self):
+                        self.assertTrue(2 == 2)
+                        self.assertTrue("test string" == "test string")
+                        self.assertFalse("not equal to" == "this")
+
+                class SubTest2(unittest.TestCase):
+                    def test_subtest2_will_pass(self):
+                        self.assertTrue(2 == 2)
+                        self.assertTrue("test string" == "test string")
+                        self.assertFalse("not equal to" == "this")
+
+                    @unittest.skip("another skip reason for subtest2")
+                    def test_subtest2_will_be_skipped_with_a_reason(self):
+                        self.assertTrue(2 == 2)
+                        self.assertTrue("test string" == "test string")
+                        self.assertFalse("not equal to" == "this")
+
+            suite = unittest.TestLoader().loadTestsFromTestCase(UnittestExampleTestCase.SubTest1)
+            suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(UnittestExampleTestCase.SubTest2))
+            unittest.TextTestRunner(verbosity=0).run(suite)
+
+            spans = self.pop_spans()
+
+            expected_result = [
+                {
+                    test.NAME: "test_subtest1_will_pass_first",
+                    test.TEST_STATUS: test.Status.SKIP.value,
+                    test.SKIP_REASON: "another skip reason for subtest1",
+                    test.SUITE: "SubTest1",
+                },
+                {
+                    test.NAME: "test_subtest1_will_fail_first",
+                    test.TEST_STATUS: test.Status.FAIL.value,
+                    test.SUITE: "SubTest1",
+                    ERROR_MSG: "False is not true",
+                    ERROR_TYPE: "builtins.AssertionError" if sys.version_info[0] >= 3 else "exceptions.AssertionError",
+                },
+                {
+                    test.NAME: "test_subtest2_will_pass_first",
+                    test.TEST_STATUS: test.Status.SKIP.value,
+                    test.SKIP_REASON: "another skip reason for subtest2",
+                    test.SUITE: "SubTest2",
+                },
+                {
+                    test.NAME: "test_subtest2_will_fail_first",
+                    test.TEST_STATUS: test.Status.SKIP.value,
+                    test.SUITE: "SubTest2",
+                    ERROR_MSG: "False is not true",
+                    ERROR_TYPE: "builtins.AssertionError" if sys.version_info[0] >= 3 else "exceptions.AssertionError",
+                },
+            ]
+
+            assert len(spans) == 4
+            for i in range(len(spans)):
+                assert spans[i].get_tag(test.TEST_TYPE) == SpanTypes.TEST
+                assert spans[i].get_tag(test.TEST_FRAMEWORK) == FRAMEWORK
+                assert spans[i].get_tag(SPAN_KIND) == KIND
+                assert spans[i].get_tag(COMPONENT) == COMPONENT_VALUE
+                assert spans[i].get_tag(test.TYPE) == SpanTypes.TEST
+                assert spans[i].get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
+                assert spans[i].get_tag(test.NAME) == expected_result[i].get(test.NAME, None)
+                assert spans[i].get_tag(test.TEST_STATUS) == expected_result[i].get(test.TEST_STATUS, None)
+                assert spans[i].get_tag(test.SKIP_REASON) == expected_result[i].get(test.SKIP_REASON, None)
+                assert spans[i].get_tag(test.SUITE) == expected_result[i].get(test.SUITE, None)
+                assert spans[i].get_tag(ERROR_MSG) == expected_result[i].get(ERROR_MSG, None)
+                assert spans[i].get_tag(ERROR_TYPE) == expected_result[i].get(ERROR_TYPE, None)
