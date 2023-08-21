@@ -5,7 +5,6 @@ from six import BytesIO
 import xmltodict
 
 from ddtrace import config
-from ddtrace.appsec.iast._metrics import _set_metric_iast_instrumented_source
 from ddtrace.appsec.iast._patch import if_iast_taint_returned_object_for
 from ddtrace.appsec.iast._patch import if_iast_taint_yield_tuple_for
 from ddtrace.appsec.iast._util import _is_iast_enabled
@@ -83,6 +82,7 @@ def _on_request_init(wrapped, instance, args, kwargs):
     wrapped(*args, **kwargs)
     if _is_iast_enabled():
         try:
+            from ddtrace.appsec.iast._metrics import _set_metric_iast_instrumented_source
             from ddtrace.appsec.iast._taint_tracking import OriginType
             from ddtrace.appsec.iast._taint_tracking import taint_pyobject
 
@@ -108,6 +108,7 @@ def _on_request_init(wrapped, instance, args, kwargs):
 def _on_flask_patch(flask_version):
     if _is_iast_enabled():
         try:
+            from ddtrace.appsec.iast._metrics import _set_metric_iast_instrumented_source
             from ddtrace.appsec.iast._taint_tracking import OriginType
 
             _w(
@@ -210,6 +211,7 @@ def _on_wsgi_environ(wrapped, _instance, args, kwargs):
         if not args:
             return wrapped(*args, **kwargs)
 
+        from ddtrace.appsec.iast._metrics import _set_metric_iast_instrumented_source
         from ddtrace.appsec.iast._taint_tracking import OriginType  # noqa: F401
         from ddtrace.appsec.iast._taint_utils import LazyTaintDict
 

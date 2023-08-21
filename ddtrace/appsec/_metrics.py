@@ -1,6 +1,7 @@
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec.ddwaf import DDWaf_info
 from ddtrace.appsec.ddwaf import version
+from ddtrace.appsec.utils import deduplication
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_APPSEC
@@ -9,6 +10,7 @@ from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_APPSEC
 log = get_logger(__name__)
 
 
+@deduplication
 def _set_waf_error_metric(msg, stack_trace, info):
     # type: (str, str, DDWaf_info) -> None
     try:
