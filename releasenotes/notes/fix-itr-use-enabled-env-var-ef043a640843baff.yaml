@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    CI Visibility: revert to using DD_CIVISIBILITY_ITR_ENABLED (instead of _DISABLED) to conform with other tracers.
