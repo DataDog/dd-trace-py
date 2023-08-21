@@ -382,7 +382,9 @@ def test_load_testing_appsec_1click_and_ip_blocking_gunicorn_block_and_kill_chil
         True,
         pytest.param(
             False,
-            marks=pytest.mark.xfail(reason="FIXME: multiprocessing is only supported when DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE is set"),
+            marks=pytest.mark.xfail(
+                reason="FIXME: multiprocessing is only supported when DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE is set"
+            ),
         ),
     ],
     ids=[
@@ -417,7 +419,7 @@ if __name__ == '__main__':
 """
     env = os.environ.copy()
     env["DD_REMOTE_CONFIGURATION_ENABLED"] = "true"
-    
+
     if module_unloading_env is True:
         env["DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE"] = "true"
 
