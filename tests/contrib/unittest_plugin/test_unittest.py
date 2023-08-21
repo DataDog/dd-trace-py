@@ -426,7 +426,7 @@ class UnittestTestCase(TracerTestCase):
                     test.SUITE: "SubTest2",
                 },
                 {
-                    test.NAME: "test_subtest2_will_pass_first",
+                    test.NAME: "test_subtest2_will_pass",
                     test.TEST_STATUS: test.Status.PASS.value,
                     test.SUITE: "SubTest2",
                 },
