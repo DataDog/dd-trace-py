@@ -26,6 +26,7 @@ from ddtrace.contrib.pytest.constants import FRAMEWORK
 from ddtrace.contrib.pytest.constants import HELP_MSG
 from ddtrace.contrib.pytest.constants import KIND
 from ddtrace.contrib.pytest.constants import XFAIL_REASON
+from ddtrace.contrib.unittest import unpatch as unpatch_unittest
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
 from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
@@ -302,6 +303,7 @@ def pytest_addoption(parser):
 
 
 def pytest_configure(config):
+    unpatch_unittest()
     config.addinivalue_line("markers", "dd_tags(**kwargs): add tags to current span")
     if is_enabled(config):
         _CIVisibility.enable(config=ddtrace.config.pytest)
