@@ -12,9 +12,6 @@ def sanitize_string(value):
         try:
             return str(value)
         except Exception:
-            pass
+            return "[error]({})".format(value.__class__.__name__)
     except Exception:
-        pass
-
-    # Any total failures will return an string with encoded error information
-    return "[error]({})".format(value.__class__.__name__)
+        return "[error]({})".format(value.__class__.__name__)
