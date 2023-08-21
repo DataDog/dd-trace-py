@@ -37,18 +37,15 @@ def configure_ddtrace_logger():
 
     """
     ddtrace_logger = logging.getLogger("ddtrace")
+
+    if not os.environ.get("DD_TRACE_LOG_FILE"):
+        ddtrace_logger.addHandler(logging.StreamHandler())
     _configure_ddtrace_debug_logger(ddtrace_logger)
     _configure_ddtrace_file_logger(ddtrace_logger)
 
 
 def _configure_ddtrace_debug_logger(logger):
-    debug_enabled = asbool(os.environ.get("DD_TRACE_DEBUG", "false"))
-    logs_injection_enabled = asbool(os.environ.get("DD_LOGS_INJECTION", "false"))
-
-    # Logs injection enabled requires a handler present on ddtrace
-    if debug_enabled or logs_injection_enabled:
-        if not os.environ.get("DD_TRACE_LOG_FILE"):
-            logger.addHandler(logging.StreamHandler())
+    if asbool(os.environ.get("DD_TRACE_DEBUG", "false")):
         logger.setLevel(logging.DEBUG)
         logger.debug("debug mode has been enabled for the ddtrace logger")
 
