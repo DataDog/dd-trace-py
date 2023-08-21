@@ -207,11 +207,7 @@ class PytestTestCase(TracerTestCase):
             [
                 "test_cov_second.py",
             ],
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.git_client.CIVisibilityGitClient"
         ):
-            ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
-
             self.inline_run("--ddtrace", os.path.basename(py_cov_file.strpath), os.path.basename(py_cov_file2.strpath))
         spans = self.pop_spans()
 
