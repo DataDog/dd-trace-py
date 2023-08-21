@@ -10,6 +10,8 @@ from mock.mock import ANY
 import pytest
 
 from ddtrace.appsec import _asm_request_context
+from ddtrace.appsec._capabilities import _appsec_rc_capabilities
+from ddtrace.appsec._capabilities import _appsec_rc_features_is_enabled
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._constants import PRODUCTS
@@ -18,8 +20,6 @@ from ddtrace.appsec._remoteconfiguration import _appsec_rules_data
 from ddtrace.appsec._remoteconfiguration import _preprocess_results_appsec_1click_activation
 from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
 from ddtrace.appsec.processor import AppSecSpanProcessor
-from ddtrace.appsec.utils import _appsec_rc_capabilities
-from ddtrace.appsec.utils import _appsec_rc_features_is_enabled
 from ddtrace.contrib.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
