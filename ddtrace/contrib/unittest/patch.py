@@ -180,6 +180,4 @@ def start_test_wrapper_unittest(func, instance, args, kwargs):
         span.finish()
         return result
 
-    result = func(*args, **kwargs)
-
-    return result
+    return func(*args, **kwargs)
