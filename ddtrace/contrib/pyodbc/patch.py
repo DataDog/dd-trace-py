@@ -24,7 +24,12 @@ config._add(
 
 
 def get_version():
-    return getattr(pyodbc, "__version__", "0.0.0")
+    try:
+        import importlib.metadata as importlib_metadata
+    except ImportError:
+        import importlib_metadata  # type: ignore[no-redef]
+
+    return importlib_metadata.version(pyodbc.__package__)
 
 
 def patch():

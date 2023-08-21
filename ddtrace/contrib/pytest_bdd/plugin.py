@@ -23,7 +23,7 @@ def get_version():
     except ImportError:
         import importlib_metadata  # type: ignore[no-redef]
 
-    return importlib_metadata.version(pytest_bdd.__package__)
+    return str(importlib_metadata.version(pytest_bdd.__package__))
 
 
 def _extract_span(item):

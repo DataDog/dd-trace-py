@@ -59,7 +59,7 @@ def get_version_tuple(elasticsearch):
     return getattr(elasticsearch, "__version__", "0.0.0")
 
 
-def get_version():
+def get_versions():
     return versions
 
 

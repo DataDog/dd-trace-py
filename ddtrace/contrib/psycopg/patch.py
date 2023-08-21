@@ -77,7 +77,7 @@ config._add(
 PATCHED_VERSIONS = {}
 
 
-def get_version():
+def get_versions():
     return PATCHED_VERSIONS
 
 

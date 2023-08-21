@@ -31,7 +31,7 @@ from .utils import get_routing_key_from_args
 
 
 def get_version():
-    return getattr(kombu, "__version__", "0.0.0")
+    return str(getattr(kombu, "__version__", "0.0.0"))
 
 
 # kombu default settings

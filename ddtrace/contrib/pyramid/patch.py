@@ -31,7 +31,7 @@ def get_version():
     except ImportError:
         import importlib_metadata  # type: ignore[no-redef]
 
-    return importlib_metadata.version(pyramid.__package__)
+    return str(importlib_metadata.version(pyramid.__package__))
 
 
 def patch():

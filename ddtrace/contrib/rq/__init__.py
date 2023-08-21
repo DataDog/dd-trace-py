@@ -117,7 +117,7 @@ config._add(
 
 
 def get_version():
-    return getattr(rq, "__version__", "0.0.0")
+    return str(getattr(rq, "__version__", "0.0.0"))
 
 
 @trace_utils.with_traced_module
