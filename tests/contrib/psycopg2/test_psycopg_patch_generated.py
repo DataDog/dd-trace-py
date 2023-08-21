@@ -29,7 +29,7 @@ class TestPsycopgPatch(PatchTestCase.Base):
     def assert_not_module_double_patched(self, psycopg):
         pass
 
-    def assert_module_implements_get_version(self, psycopg):
+    def assert_module_implements_get_version(self):
         version = get_version()
         assert type(version) == str
         assert version != "0.0.0"

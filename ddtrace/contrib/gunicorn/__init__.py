@@ -9,6 +9,10 @@ ddtrace works with Gunicorn.
 """
 
 
+def get_version():
+    return ""
+
+
 def patch():
     pass
 

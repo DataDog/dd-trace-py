@@ -8,6 +8,10 @@ from ..trace_utils import unwrap as _u
 from .wrappers import wrapped_create_task
 
 
+def get_version():
+    return ""
+
+
 def patch():
     """Patches current loop `create_task()` method to enable spawned tasks to
     parent to the base task context.

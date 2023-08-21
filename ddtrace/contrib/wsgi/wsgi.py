@@ -46,6 +46,10 @@ config._add(
 )
 
 
+def get_version():
+    return ""
+
+
 class _DDWSGIMiddlewareBase(object):
     """Base WSGI middleware class.
 
