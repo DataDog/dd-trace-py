@@ -1,3 +1,6 @@
+from typing import Any
+
+
 def sanitize_string(value):
     # type: (Any) -> str
     if isinstance(value, str):

@@ -1,4 +1,4 @@
-from .utils import sanitize_string
+from .utils import sanitize_string  # noqa: F401
 
 
 try:
