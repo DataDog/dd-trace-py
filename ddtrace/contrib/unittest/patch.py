@@ -213,11 +213,11 @@ def unpatch():
     if not getattr(unittest, "_datadog_patch", False):
         return
 
-    _u(unittest, "TextTestResult.addSuccess")
-    _u(unittest, "TextTestResult.addFailure")
-    _u(unittest, "TextTestResult.addError")
-    _u(unittest, "TextTestResult.addSkip")
-    _u(unittest, "TestCase.run")
+    _u(unittest.TextTestResult, "addSuccess")
+    _u(unittest.TextTestResult, "addFailure")
+    _u(unittest.TextTestResult, "addError")
+    _u(unittest.TextTestResult, "addSkip")
+    _u(unittest.TextTestResult, "run")
 
     setattr(unittest, "_datadog_patch", False)
     _CIVisibility.disable()
