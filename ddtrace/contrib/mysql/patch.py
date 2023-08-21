@@ -1,6 +1,5 @@
 import os
 
-import mysql
 import mysql.connector
 
 from ddtrace import Pin
@@ -32,7 +31,7 @@ def get_version():
     except ImportError:
         import importlib_metadata  # type: ignore[no-redef]
 
-    return str(importlib_metadata.version(mysql.__package__))
+    return str(importlib_metadata.version("mysql-connector-python"))
 
 
 CONN_ATTR_BY_TAG = {

@@ -14,6 +14,10 @@ log = get_logger(__name__)
 _DEFAULT_ATTR = "_datadog_json_tainting_patch"
 
 
+def get_version():
+    return ""
+
+
 def unpatch_iast():
     # type: () -> None
     set_module_unpatched("json", default_attr=_DEFAULT_ATTR)

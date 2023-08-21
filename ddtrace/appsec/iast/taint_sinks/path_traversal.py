@@ -25,6 +25,10 @@ class PathTraversal(VulnerabilityBase):
         super(PathTraversal, cls).report(evidence_value=evidence_value, sources=sources)
 
 
+def get_version():
+    return ""
+
+
 def unpatch_iast():
     # type: () -> None
     set_module_unpatched("builtins", default_attr="_datadog_path_traversal_patch")

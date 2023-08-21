@@ -66,6 +66,10 @@ def unpatch_iast():
     try_unwrap("Crypto.Hash.SHA1", "SHA1Hash.hexdigest")
 
 
+def get_version():
+    return ""
+
+
 def patch():
     # type: () -> None
     """Wrap hashing functions.

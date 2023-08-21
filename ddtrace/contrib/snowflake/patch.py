@@ -34,7 +34,7 @@ def get_version():
     except ImportError:
         import importlib_metadata  # type: ignore[no-redef]
 
-    return str(importlib_metadata.version("snowflake"))
+    return str(importlib_metadata.version("snowflake-connector-python"))
 
 
 class _SFTracedCursor(TracedCursor):
