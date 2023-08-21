@@ -5,6 +5,7 @@ from typing import Optional
 import ddtrace
 from ddtrace.internal import runtime
 from ddtrace.internal.compat import ensure_binary
+from ddtrace.internal.compat import ensure_string
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.span import Span
 
@@ -115,8 +116,8 @@ IF UNAME_SYSNAME == "Linux":
         ddup_push_lock_name(ensure_binary(lock_name))
 
     def push_frame(name: str, filename: str, address: int, line: int) -> None:
-        name = name if name is not None else ""
-        filename = filename if filename is not None else ""
+        name = ensure_str(name)
+        filename = ensure_str(filename)
         ddup_push_frame(ensure_binary(name), ensure_binary(filename), address, line)
 
     def push_threadinfo(thread_id: int, thread_native_id: int, thread_name: Optional[str]) -> None:
