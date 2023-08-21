@@ -113,7 +113,7 @@ if os.fork() > 0:
     print(get_runtime_id())
 
 # Call periodic to send heartbeat event
-telemetry_writer.periodic()
+telemetry_writer.periodic(True)
 # Disable telemetry writer to avoid sending app-closed event
 telemetry_writer.disable()
     """
@@ -135,19 +135,29 @@ telemetry_writer.disable()
 
 def test_heartbeat_interval_configuration(run_python_code_in_subprocess):
     """assert that DD_TELEMETRY_HEARTBEAT_INTERVAL config sets the telemetry writer interval"""
-    heartbeat_interval = "1.5"
     env = os.environ.copy()
-    env["DD_TELEMETRY_HEARTBEAT_INTERVAL"] = heartbeat_interval
+    env["DD_TELEMETRY_HEARTBEAT_INTERVAL"] = "61"
     code = """
 from ddtrace.internal.telemetry import telemetry_writer
-assert telemetry_writer.interval == {}
-    """.format(
-        heartbeat_interval
-    )
+assert telemetry_writer._is_periodic is True
+assert telemetry_writer.interval == 10
+assert telemetry_writer._periodic_threshold == 5
+    """
 
     _, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
     assert status == 0, stderr
     assert stderr == b""
+
+
+def test_heartbeat_interval_invalid_configuration(run_python_code_in_subprocess):
+    """assert that DD_TELEMETRY_HEARTBEAT_INTERVAL config sets the telemetry writer interval"""
+    heartbeat_interval = "59"
+    env = os.environ.copy()
+    env["DD_TELEMETRY_HEARTBEAT_INTERVAL"] = heartbeat_interval
+
+    _, stderr, status, _ = run_python_code_in_subprocess("from ddtrace import config", env=env)
+    assert status == 1, stderr
+    assert b"DD_TELEMETRY_HEARTBEAT_INTERVAL must be greater than or equal to 60" in stderr
 
 
 def test_logs_after_fork(run_python_code_in_subprocess):

@@ -3,7 +3,6 @@ import json
 import os
 import subprocess
 import sys
-import time
 
 import pytest
 
@@ -29,7 +28,6 @@ def gunicorn_server(telemetry_metrics_enabled="true", token=None):
     cmd = ["ddtrace-run", "gunicorn", "-w", "1", "-b", "0.0.0.0:8000", "tests.telemetry.app:app"]
     env = _build_env()
     env["DD_TELEMETRY_METRICS_ENABLED"] = telemetry_metrics_enabled
-    env["DD_TELEMETRY_HEARTBEAT_INTERVAL"] = "1.0"
     env["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"] = "X-Datadog-Test-Session-Token:{}".format(token)
     env["DD_TRACE_AGENT_URL"] = os.environ.get("DD_TRACE_AGENT_URL", "")
     env["DD_TRACE_DEBUG"] = "true"
@@ -90,11 +88,12 @@ def test_telemetry_metrics_enabled_on_gunicorn_child_process(test_agent_session)
         gunicorn_client.get("/count_metric")
         response = gunicorn_client.get("/count_metric")
         assert response.status_code == 200
-        # DD_TELEMETRY_HEARTBEAT_INTERVAL is set to 1 second
-        time.sleep(1)
+        gunicorn_client.get("/flush_metrics")
+
         gunicorn_client.get("/count_metric")
         response = gunicorn_client.get("/count_metric")
         assert response.status_code == 200
+        gunicorn_client.get("/flush_metrics")
 
     events = test_agent_session.get_events()
     metrics = list(filter(lambda event: event["request_type"] == "generate-metrics", events))
