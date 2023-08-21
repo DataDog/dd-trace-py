@@ -217,7 +217,7 @@ def unpatch():
     _u(unittest.TextTestResult, "addFailure")
     _u(unittest.TextTestResult, "addError")
     _u(unittest.TextTestResult, "addSkip")
-    _u(unittest.TextTestResult, "run")
+    _u(unittest.TestCase, "run")
 
     setattr(unittest, "_datadog_patch", False)
     _CIVisibility.disable()
