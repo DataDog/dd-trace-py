@@ -142,7 +142,7 @@ class ddwaf_object(ctypes.Structure):
         if isinstance(struct, bool):
             ddwaf_object_bool(self, struct)
         elif isinstance(struct, (int, long)):
-            ddwaf_object_signed(self, struct)
+            ddwaf_object_string_from_signed(self, struct)
         elif isinstance(struct, unicode):
             ddwaf_object_string(self, truncate_string(struct.encode("UTF-8", errors="ignore")))
         elif isinstance(struct, bytes):
