@@ -166,7 +166,7 @@ class VulnerabilityBase(Operation):
     def _extract_sensitive_tokens(cls, report):
         # type: (Dict[Vulnerability, str]) -> Dict[int, Dict[str, Any]]
         log.debug("Base class VulnerabilityBase._extract_sensitive_tokens called")
-        raise NotImplementedError()
+        return {}
 
     @classmethod
     def _get_vulnerability_text(cls, vulnerability):
