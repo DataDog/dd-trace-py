@@ -19,7 +19,10 @@ jobs:
     env:
       TEST_LIBRARY: python
       WEBLOG_VARIANT: ${{ matrix.weblog-variant }}
-      DD_API_KEY: ${{ secrets.DD_API_KEY }}
+      # system-tests requires an API_KEY, but it does not have to be a valid key, as long as we don't run a scenario
+      # that make assertion on backend data. Using a fake key allow to run system tests on PR originating from forks.
+      # If ever it's needed, a valid key exists in the repo, using ${{ secrets.DD_API_KEY }}
+      DD_API_KEY: 1234567890abcdef1234567890abcdef
     steps:
       - name: Setup python 3.9
         uses: actions/setup-python@v4

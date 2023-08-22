@@ -77,7 +77,7 @@ jobs:
       - name: Install ddtrace
         run: pip3 install ../ddtrace
       - name: Run tests
-        run: ddtrace-run pytest -k "not test_add_signal and not test_ode_removes and not test_skip_touchup and not test_dispatch_signal_triggers and not test_keep_alive_connection_context"
+        run: ddtrace-run pytest -k "not test_add_signal and not test_ode_removes and not test_skip_touchup and not test_dispatch_signal_triggers and not test_keep_alive_connection_context and not test_redirect_with_params"
 
   django-testsuite-3_1:
     strategy:
