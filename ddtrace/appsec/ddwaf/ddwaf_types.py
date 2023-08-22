@@ -142,13 +142,13 @@ class ddwaf_object(ctypes.Structure):
         if isinstance(struct, bool):
             ddwaf_object_bool(self, struct)
         elif isinstance(struct, (int, long)):
-            ddwaf_object_string_from_signed(self, struct)
+            ddwaf_object_signed(self, struct)
         elif isinstance(struct, unicode):
             ddwaf_object_string(self, truncate_string(struct.encode("UTF-8", errors="ignore")))
         elif isinstance(struct, bytes):
             ddwaf_object_string(self, truncate_string(struct))
         elif isinstance(struct, float):
-            ddwaf_object_string(self, truncate_string(unicode(struct).encode("UTF-8", errors="ignore")))
+            ddwaf_object_float(self, struct)
         elif isinstance(struct, list):
             if max_depth <= 0:
                 observator.truncation |= _TRUNC_CONTAINER_DEPTH
@@ -224,6 +224,10 @@ class ddwaf_object(ctypes.Structure):
             }
         if self.type == DDWAF_OBJ_TYPE.DDWAF_OBJ_BOOL:
             return self.value.boolean
+        if self.type == DDWAF_OBJ_TYPE.DDWAF_OBJ_FLOAT:
+            return self.value.f64
+        if self.type == DDWAF_OBJ_TYPE.DDWAF_OBJ_NULL:
+            return None
         log.debug("ddwaf_object struct: unknown object type: %s", repr(type(self.type)))
         return None
 
