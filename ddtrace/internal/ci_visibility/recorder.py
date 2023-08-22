@@ -185,14 +185,6 @@ class CIVisibility(Service):
         if not ddconfig._ci_visibility_intelligent_testrunner_enabled:
             return False, False
 
-        if ddconfig._ci_visibility_agentless_enabled and not self._app_key:
-            log.warning(
-                "Intelligent Test Runner disabled: DD_APP_KEY is required when "
-                "DD_CIVISIBILITY_AGENTLESS_ENABLED is true."
-            )
-
-            return False, False
-
         if self._requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS:
             url = get_trace_url() + EVP_PROXY_AGENT_BASE_PATH + SETTING_ENDPOINT
             _headers = {
