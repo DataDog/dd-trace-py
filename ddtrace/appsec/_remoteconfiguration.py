@@ -79,6 +79,15 @@ def enable_appsec_rc(test_tracer=None):
         remoteconfig_poller.register(PRODUCTS.ASM_DD, asm_callback)  # DD Rules
 
 
+def disable_appsec_rc():
+    # only used to avoid data leaks between tests
+
+    remoteconfig_poller.unregister(PRODUCTS.ASM_FEATURES)
+    remoteconfig_poller.unregister(PRODUCTS.ASM_DATA)
+    remoteconfig_poller.unregister(PRODUCTS.ASM)
+    remoteconfig_poller.unregister(PRODUCTS.ASM_DD)
+
+
 def _add_rules_to_list(features, feature, message, ruleset):
     # type: (Mapping[str, Any], str, str, Dict[str, Any]) -> None
     rules = features.get(feature, None)
@@ -134,13 +143,6 @@ def _preprocess_results_appsec_1click_activation(features, pubsub_instance=None)
             features.get("asm", {}),
         )
 
-        if not pubsub_instance:
-            pubsub_instance = (
-                remoteconfig_poller.get_registered(PRODUCTS.ASM_FEATURES)
-                or remoteconfig_poller.get_registered(PRODUCTS.ASM)
-                or AppSecRC(_preprocess_results_appsec_1click_activation, _appsec_callback)
-            )
-
         rc_appsec_enabled = None
         if features is not None:
             if APPSEC_ENV in os.environ:
@@ -159,6 +161,13 @@ def _preprocess_results_appsec_1click_activation(features, pubsub_instance=None)
             )
             if rc_appsec_enabled is not None:
                 from ddtrace.appsec._constants import PRODUCTS
+
+                if not pubsub_instance:
+                    pubsub_instance = (
+                        remoteconfig_poller.get_registered(PRODUCTS.ASM_FEATURES)
+                        or remoteconfig_poller.get_registered(PRODUCTS.ASM)
+                        or AppSecRC(_preprocess_results_appsec_1click_activation, _appsec_callback)
+                    )
 
                 if rc_appsec_enabled and _appsec_rc_file_is_not_static():
                     remoteconfig_poller.register(PRODUCTS.ASM_DATA, pubsub_instance)  # IP Blocking
