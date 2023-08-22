@@ -1,14 +1,14 @@
 import dis
 import io
+import sys
 
 import pytest
 
-from ddtrace.appsec.iast._util import _is_python_version_supported
 from tests.utils import override_env
 from tests.utils import override_global_config
 
 
-@pytest.mark.skipif(not _is_python_version_supported(), reason="IAST compatible versions")
+@pytest.mark.skipif(sys.version_info[:2] < (3, 7), reason="dis is different in python <= 3.6")
 def test_ddtrace_iast_flask_patch():
     with override_global_config(dict(_iast_enabled=True)), override_env(dict(DD_IAST_ENABLED="true")):
         import tests.appsec.iast.fixtures.entrypoint.app_patched as flask_entrypoint
@@ -23,7 +23,7 @@ def test_ddtrace_iast_flask_patch():
         assert "Disassembly of run" not in str_output
 
 
-@pytest.mark.skipif(not _is_python_version_supported(), reason="IAST compatible versions")
+@pytest.mark.skipif(sys.version_info[:2] < (3, 7), reason="dis is different in python <= 3.6")
 def test_ddtrace_iast_flask_no_patch():
     with override_global_config(dict(_iast_enabled=True)), override_env(dict(DD_IAST_ENABLED="true")):
         import tests.appsec.iast.fixtures.entrypoint.app as flask_entrypoint
