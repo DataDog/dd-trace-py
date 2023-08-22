@@ -47,6 +47,9 @@ class _AnyObject:
         ({"test": "truc"}, {"test": "truc"}),
         (None, None),
         (_AnyObject(), _AnyObject.cst),
+        ((1 << 64) - 1, -1),  # integers are now on 64 signed bits into the waf
+        ((1 << 63) - 1, (1 << 63) - 1),
+        (float("inf"), float("inf")),
     ],
 )
 def test_small_objects(obj, res):
