@@ -151,13 +151,16 @@ assert telemetry_writer._periodic_threshold == 5
 
 def test_heartbeat_interval_invalid_configuration(run_python_code_in_subprocess):
     """assert that DD_TELEMETRY_HEARTBEAT_INTERVAL config sets the telemetry writer interval"""
-    heartbeat_interval = "59"
+    heartbeat_interval = "9"
     env = os.environ.copy()
     env["DD_TELEMETRY_HEARTBEAT_INTERVAL"] = heartbeat_interval
 
     _, stderr, status, _ = run_python_code_in_subprocess("from ddtrace import config", env=env)
-    assert status == 1, stderr
-    assert b"DD_TELEMETRY_HEARTBEAT_INTERVAL must be greater than or equal to 60" in stderr
+    assert status == 0, stderr
+    assert (
+        b"Setting DD_TELEMETRY_HEARTBEAT_INTERVAL to a value less than 10 seconds is not supported. The heartbeat interval will be set to 10 seconds."
+        in stderr
+    )
 
 
 def test_logs_after_fork(run_python_code_in_subprocess):

@@ -160,7 +160,8 @@ class TelemetryWriter(PeriodicService):
         # type: (bool) -> None
         super(TelemetryWriter, self).__init__(interval=10)
         # Decouples the aggregation and sending of the telemetry events
-        # TelemetryWriter events will only be sent when _periodic_count == _periodic_threshold
+        # TelemetryWriter events will only be sent when _periodic_count == _periodic_threshold.
+        # This will occur at 10 second intervals.
         self._periodic_threshold = int(config._telemetry_heartbeat_interval // self.interval) - 1
         self._periodic_count = 0
         self._is_periodic = is_periodic
