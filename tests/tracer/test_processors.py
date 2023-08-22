@@ -17,6 +17,7 @@ from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
 from ddtrace.context import Context
 from ddtrace.ext import SpanTypes
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.processor.trace import SpanAggregator
@@ -386,6 +387,7 @@ def test_span_creation_metrics():
             span.finish()
 
         span = Span("span", on_finish=[aggr.on_span_finish])
+        span.set_tag(COMPONENT, "flask")
         aggr.on_span_start(span)
         span.finish()
 
@@ -404,7 +406,7 @@ def test_span_creation_metrics():
         mock_tm.assert_has_calls(
             [
                 mock.call("tracers", "spans_created", 1, tags=(("integration_name", "datadog"),)),
-                mock.call("tracers", "spans_finished", 1, tags=(("integration_name", "datadog"),)),
+                mock.call("tracers", "spans_finished", 1, tags=(("integration_name", "flask"),)),
             ]
         )
 

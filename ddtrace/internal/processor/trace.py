@@ -16,6 +16,7 @@ from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import USER_KEEP
 from ddtrace.internal import gitmetadata
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.constants import MAX_UINT_64BITS
 from ddtrace.internal.logger import get_logger
@@ -208,7 +209,9 @@ class SpanAggregator(SpanProcessor):
     def on_span_finish(self, span):
         # type: (Span) -> None
         with self._lock:
-            self._span_metrics["spans_finished"][span._span_api] += 1
+            # If the span does not have a component tag the integration name should default to the span api (otel/datadog/..)
+            integration_name = span.get_tag(COMPONENT) or span._span_api
+            self._span_metrics["spans_finished"][integration_name] += 1
             trace = self._traces[span.trace_id]
             trace.num_finished += 1
             should_partial_flush = self._partial_flush_enabled and trace.num_finished >= self._partial_flush_min_spans
