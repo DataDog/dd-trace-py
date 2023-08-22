@@ -209,7 +209,7 @@ class SpanAggregator(SpanProcessor):
     def on_span_finish(self, span):
         # type: (Span) -> None
         with self._lock:
-            # If the span does not have a component tag the integration name should default to the span api (otel/datadog/..)
+            # If a span does not have a component tag, set the integration name to the span api (otel/datadog/..)
             integration_name = span.get_tag(COMPONENT) or span._span_api
             self._span_metrics["spans_finished"][integration_name] += 1
             trace = self._traces[span.trace_id]
