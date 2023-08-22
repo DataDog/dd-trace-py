@@ -197,6 +197,7 @@ class SubprocessCmdLine(object):
 
         if report_cmdi:
             from ddtrace.appsec.iast.taint_sinks.command_injection import CommandInjection
+
             CommandInjection.report(evidence_value=report_cmdi)
 
     def scrub_env_vars(self, tokens):
