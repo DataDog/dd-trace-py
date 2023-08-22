@@ -67,7 +67,8 @@ extra-dependencies = [
     "sphinxcontrib-spelling==7.7.0",
     "PyEnchant==3.2.2",
     "sphinx-copybutton==0.5.1",
-    "furo",
+    # Later release of furro breaks formatting for code blocks
+    "furo<=2023.05.20",
 ]
 pre-install-commands = [
     "scripts/docs/install.sh",
