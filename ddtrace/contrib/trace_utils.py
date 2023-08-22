@@ -438,6 +438,7 @@ def set_http_meta(
     peer_ip=None,  # type: Optional[str]
     headers_are_case_sensitive=False,  # type: bool
     route=None,  # type: Optional[str]
+    response_cookies=None,  # type: Optional[Dict[str, str]]
 ):
     # type: (...) -> None
     """
@@ -516,10 +517,14 @@ def set_http_meta(
     if config._appsec_enabled:
         from ddtrace.appsec.iast._util import _is_iast_enabled
 
-        if request_cookies and _is_iast_enabled():
+        if _is_iast_enabled():
             from ddtrace.appsec.iast.taint_sinks.insecure_cookie import asm_check_cookies
 
-            asm_check_cookies(request_cookies)
+            if request_cookies:
+                asm_check_cookies(request_cookies)
+
+            if response_cookies:
+                asm_check_cookies(response_cookies)
 
         if span.span_type == SpanTypes.WEB:
             from ddtrace.appsec._asm_request_context import set_waf_address
