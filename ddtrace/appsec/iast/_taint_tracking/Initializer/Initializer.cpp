@@ -86,6 +86,24 @@ Initializer::num_objects_tainted()
     return 0;
 }
 
+int
+Initializer::num_contexts()
+{
+    return contexts.size();
+}
+
+int
+Initializer::initializer_size()
+{
+  return sizeof(*this);
+}
+
+int
+Initializer::active_map_addreses_size()
+{
+  return active_map_addreses.size();
+}
+
 TaintedObjectPtr
 Initializer::allocate_tainted_object()
 {
@@ -99,22 +117,22 @@ Initializer::allocate_tainted_object()
 }
 
 // TODO: Release tainted objects, where?
-// void
-// Initializer::release_tainted_object(TaintedObjectPtr tobj)
-//{
-//    if (!tobj)
-//        return;
-//
-//    tobj->reset();
-//    if (available_taintedobjects_stack.size() < TAINTEDOBJECTS_STACK_SIZE) {
-//        available_taintedobjects_stack.push(tobj);
-//        return;
-//    }
-//
-//    // Stack full, just delete the object (but to a reset before so ranges are
-//    // reused or freed)
-//    delete tobj;
-//}
+void
+Initializer::release_tainted_object(TaintedObjectPtr tobj)
+{
+    if (!tobj)
+        return;
+
+    tobj->reset();
+    if (available_taintedobjects_stack.size() < TAINTEDOBJECTS_STACK_SIZE) {
+        available_taintedobjects_stack.push(tobj);
+        return;
+    }
+
+    // Stack full, just delete the object (but to a reset before so ranges are
+    // reused or freed)
+    delete tobj;
+}
 
 TaintRangePtr
 Initializer::allocate_taint_range(int start, int length, SourcePtr origin)
@@ -313,6 +331,9 @@ pyexport_initializer(py::module& m)
     m.def("clear_tainting_maps", [] { initializer->clear_tainting_maps(); });
 
     m.def("num_objects_tainted", [] { return initializer->num_objects_tainted(); });
+    m.def("num_contexts", [] { return initializer->num_contexts(); });
+    m.def("initializer_size", [] { return initializer->initializer_size(); });
+    m.def("active_map_addreses_size", [] { return initializer->active_map_addreses_size(); });
 
     m.def(
       "create_context", []() { return initializer->create_context(); }, py::return_value_policy::reference);
@@ -323,4 +344,5 @@ pyexport_initializer(py::module& m)
       "tx_id"_a = 0);
     m.def("contexts_reset", [] { initializer->contexts_reset(); });
     m.def("destroy_context", [] { initializer->destroy_context(); });
+
 }
