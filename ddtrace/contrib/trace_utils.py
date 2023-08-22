@@ -514,7 +514,7 @@ def set_http_meta(
         span.set_tag_str(http.RETRIES_REMAIN, str(retries_remain))
 
     if config._appsec_enabled:
-        from ddtrace.appsec.iast._util import _is_iast_enabled
+        from ddtrace.appsec.iast._utils import _is_iast_enabled
 
         if request_cookies and _is_iast_enabled():
             from ddtrace.appsec.iast.taint_sinks.insecure_cookie import asm_check_cookies
