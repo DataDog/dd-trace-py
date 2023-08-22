@@ -176,9 +176,8 @@ class AstVisitor(ast.NodeTransformer):
             lineno=lineno, end_lineno=end_lineno, col_offset=col_offset, end_col_offset=end_col_offset, **kwargs
         )
 
-    def _name_node(self, from_node, _id, ctx=None):  # type: (Any, str, Any) -> ast.Name
-        if ctx is None:
-            ctx = ast.Load()
+    def _name_node(self, from_node, _id, ctx=ast.Load()):  # noqa: B008
+        # type: (Any, str, Any) -> ast.Name
         return self._node(
             ast.Name,
             from_node,
@@ -186,9 +185,8 @@ class AstVisitor(ast.NodeTransformer):
             ctx=ctx,
         )
 
-    def _attr_node(self, from_node, attr, ctx=None):  # type: (Any, str, Any) -> ast.Name
-        if ctx is None:
-            ctx = ast.Load()
+    def _attr_node(self, from_node, attr, ctx=ast.Load()):  # noqa: B008
+        # type: (Any, str, Any) -> ast.Name
         attr_attr = ""
         name_attr = ""
         if attr:
@@ -233,9 +231,8 @@ class AstVisitor(ast.NodeTransformer):
 
         return insert_position
 
-    def _none_constant(self, from_node, ctx=None):  # type: (Any, Any) -> Any
-        if ctx is None:
-            ctx = ast.Load()
+    def _none_constant(self, from_node, ctx=ast.Load()):  # noqa: B008
+        # type: (Any, Any) -> Any
         if PY30_37:
             return ast.NameConstant(lineno=from_node.lineno, col_offset=from_node.col_offset, value=None)
 
