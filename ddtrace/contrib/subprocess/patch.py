@@ -17,7 +17,6 @@ import six
 
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace.appsec.iast.taint_sinks.command_injection import CommandInjection
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.subprocess.constants import COMMANDS
 from ddtrace.ext import SpanTypes
@@ -197,6 +196,8 @@ class SubprocessCmdLine(object):
         )
 
         if report_cmdi:
+            from ddtrace.appsec.iast.taint_sinks.command_injection import CommandInjection
+
             CommandInjection.report(evidence_value=report_cmdi)
 
     def scrub_env_vars(self, tokens):
