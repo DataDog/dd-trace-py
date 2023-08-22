@@ -64,7 +64,11 @@ def enable_appsec_rc(test_tracer=None):
         tracer = test_tracer
 
     log.debug("[%s][P: %s] Register ASM Remote Config Callback", os.getpid(), os.getppid())
-    asm_callback = AppSecRC(_preprocess_results_appsec_1click_activation, _appsec_callback)
+    asm_callback = (
+        remoteconfig_poller.get_registered(PRODUCTS.ASM_FEATURES)
+        or remoteconfig_poller.get_registered(PRODUCTS.ASM)
+        or AppSecRC(_preprocess_results_appsec_1click_activation, _appsec_callback)
+    )
 
     if _appsec_rc_features_is_enabled():
         remoteconfig_poller.register(PRODUCTS.ASM_FEATURES, asm_callback)
@@ -131,7 +135,11 @@ def _preprocess_results_appsec_1click_activation(features, pubsub_instance=None)
         )
 
         if not pubsub_instance:
-            pubsub_instance = AppSecRC(_preprocess_results_appsec_1click_activation, _appsec_callback)
+            pubsub_instance = (
+                remoteconfig_poller.get_registered(PRODUCTS.ASM_FEATURES)
+                or remoteconfig_poller.get_registered(PRODUCTS.ASM)
+                or AppSecRC(_preprocess_results_appsec_1click_activation, _appsec_callback)
+            )
 
         rc_appsec_enabled = None
         if features is not None:
@@ -199,7 +207,6 @@ def _appsec_1click_activation(features, test_tracer=None):
 
         log.debug("APPSEC_ENABLED: %s", rc_appsec_enabled)
         if rc_appsec_enabled is not None:
-
             log.debug(
                 "[%s][P: %s] Updating ASM Remote Configuration ASM_FEATURES: %s",
                 os.getpid(),

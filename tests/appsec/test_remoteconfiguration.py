@@ -595,6 +595,8 @@ def test_fullpath_appsec_rules_data(mock_update_rules, remote_config_worker, tra
         mock_update_rules.assert_called_with({"exclusions": [{"a": 1}, {"b": 2}]})
         mock_update_rules.reset_mock()
 
+        # ensure enable_appsec_rc is reentrant
+        enable_appsec_rc(tracer)
         list_callbacks = []
         remoteconfig_poller._client._remove_previously_applied_configurations(
             list_callbacks, {}, second_config, target_file
