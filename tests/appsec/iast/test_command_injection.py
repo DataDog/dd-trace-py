@@ -14,6 +14,7 @@ from ddtrace.contrib.subprocess.patch import patch
 from ddtrace.contrib.subprocess.patch import unpatch
 from ddtrace.internal import core
 from tests.appsec.iast.iast_utils import get_line_and_hash
+from tests.utils import override_config
 from tests.utils import override_global_config
 
 
@@ -26,7 +27,7 @@ try:
 except (ImportError, AttributeError):
     pytest.skip("IAST not supported for this Python version", allow_module_level=True)
 
-FIXTURES_PATH = "tests/appsec/iast/test_command_injection.py"
+FIXTURES_PATH = "test_command_injection.py"
 _PARAMS = ["/bin/ls", "-l"]
 
 
@@ -78,6 +79,59 @@ def test_ossystem(tracer, iast_span_defaults):
         assert source.value == _BAD_DIR
 
         line, hash_value = get_line_and_hash("test_ossystem", VULN_CMDI, filename=FIXTURES_PATH)
+        assert vulnerability.location.path == FIXTURES_PATH
+        assert vulnerability.location.line == line
+        assert vulnerability.hash == hash_value
+
+
+def test_ossystem_redacted(tracer, iast_span_defaults):
+    with override_global_config(dict(_appsec_enabled=True, _iast_enabled=True)), override_config(
+        "subprocess", dict(sensitive_wildcards=["*custom_scrub*", "*myscrub*"])
+    ):
+        _BAD_DIR = "forbidden_dir/"
+        _BAD_DIR = taint_pyobject(
+            pyobject=_BAD_DIR,
+            source_name="test_ossystem",
+            source_value=_BAD_DIR,
+            source_origin=OriginType.PARAMETER,
+        )
+        assert is_pyobject_tainted(_BAD_DIR)
+        with tracer.trace("ossystem_test"):
+            # label test_ossystem_redacted
+            SubprocessCmdLine(
+                [
+                    "binary",
+                    "-passwd",
+                    "SCRUB",
+                    "-d bar",
+                    _BAD_DIR,
+                    "--custom_scrubed",
+                    "SCRUB",
+                    "--foomyscrub",
+                    "SCRUB",
+                ],
+                shell=False,
+            )
+
+        span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+        assert span_report
+
+        vulnerability = list(span_report.vulnerabilities)[0]
+        source = list(span_report.sources)[0]
+        assert vulnerability.type == VULN_CMDI
+        assert vulnerability.evidence.valueParts == [
+            {"value": "binary -passwd SCRUB -d bar "},
+            {"source": 0, "value": _BAD_DIR},
+            {"value": " --custom_scrubed SCRUB --foomyscrub SCRUB"},
+        ]
+        assert vulnerability.evidence.value is None
+        assert vulnerability.evidence.pattern is None
+        assert vulnerability.evidence.redacted is None
+        assert source.name == "test_ossystem"
+        assert source.origin == OriginType.PARAMETER
+        assert source.value == _BAD_DIR
+
+        line, hash_value = get_line_and_hash("test_ossystem_redacted", VULN_CMDI, filename=FIXTURES_PATH)
         assert vulnerability.location.path == FIXTURES_PATH
         assert vulnerability.location.line == line
         assert vulnerability.hash == hash_value
