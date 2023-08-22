@@ -25,7 +25,11 @@ from ddtrace.internal.writer.writer import Response
 from ddtrace.provider import CIContextProvider
 
 from .. import agent
+from .constants import AGENTLESS_API_KEY_HEADER_NAME
+from .constants import AGENTLESS_APP_KEY_HEADER_NAME
 from .constants import AGENTLESS_DEFAULT_SITE
+from .constants import EVP_NEEDS_APP_KEY_HEADER_NAME
+from .constants import EVP_NEEDS_APP_KEY_HEADER_VALUE
 from .constants import EVP_PROXY_AGENT_BASE_PATH
 from .constants import EVP_SUBDOMAIN_HEADER_API_VALUE
 from .constants import EVP_SUBDOMAIN_HEADER_EVENT_VALUE
@@ -177,7 +181,6 @@ class CIVisibility(Service):
 
     def _check_enabled_features(self):
         # type: () -> Tuple[bool, bool]
-
         # DEV: Remove this ``if`` once ITR is in GA
         if not ddconfig._ci_visibility_intelligent_testrunner_enabled:
             return False, False
@@ -187,19 +190,26 @@ class CIVisibility(Service):
                 "Intelligent Test Runner disabled: DD_APP_KEY is required when "
                 "DD_CIVISIBILITY_AGENTLESS_ENABLED is true."
             )
-            return False, False
 
-        _headers = {
-            "dd-api-key": self._api_key,
-            "dd-application-key": self._app_key,
-            "Content-Type": "application/json",
-        }
+            return False, False
 
         if self._requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS:
             url = get_trace_url() + EVP_PROXY_AGENT_BASE_PATH + SETTING_ENDPOINT
-            _headers = {EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_API_VALUE}
+            _headers = {
+                EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_API_VALUE,
+                EVP_NEEDS_APP_KEY_HEADER_NAME: EVP_NEEDS_APP_KEY_HEADER_VALUE,
+            }
+            log.debug("Making EVP request to agent: url=%s, headers=%s", url, _headers)
         elif self._requests_mode == REQUESTS_MODE.AGENTLESS_EVENTS:
+            if not self._app_key or not self._api_key:
+                log.debug("Cannot make request to setting endpoint if application key is not set")
+                return False, False
             url = "https://api." + self._dd_site + SETTING_ENDPOINT
+            _headers = {
+                AGENTLESS_API_KEY_HEADER_NAME: self._api_key,
+                AGENTLESS_APP_KEY_HEADER_NAME: self._app_key,
+                "Content-Type": "application/json",
+            }
         else:
             log.warning("Cannot make requests to setting endpoint if mode is not agentless or evp proxy")
             return False, False
@@ -308,8 +318,11 @@ class CIVisibility(Service):
             "Content-Type": "application/json",
         }
         if self._requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS:
-            url = EVP_PROXY_AGENT_BASE_PATH + SKIPPABLE_ENDPOINT
-            _headers = {EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_API_VALUE}
+            url = get_trace_url() + EVP_PROXY_AGENT_BASE_PATH + SKIPPABLE_ENDPOINT
+            _headers = {
+                EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_API_VALUE,
+                EVP_NEEDS_APP_KEY_HEADER_NAME: EVP_NEEDS_APP_KEY_HEADER_VALUE,
+            }
         elif self._requests_mode == REQUESTS_MODE.AGENTLESS_EVENTS:
             url = "https://api." + self._dd_site + SKIPPABLE_ENDPOINT
         else:
