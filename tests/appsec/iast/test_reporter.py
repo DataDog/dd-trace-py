@@ -14,8 +14,8 @@ from ddtrace.internal import core
 
 
 if python_supported_by_iast():
-    from ddtrace.appsec.iast.taint_sinks._base import VulnerabilityBase
-    from ddtrace.appsec.iast.taint_sinks.sql_injection import SqlInjection
+    from ddtrace.appsec.iast.vulnerabilities._base import VulnerabilityBase
+    from ddtrace.appsec.iast.vulnerabilities.sql_injection import SqlInjection
 
 from ddtrace.internal.utils.cache import LFUCache
 from tests.utils import override_env

@@ -5,7 +5,7 @@ import pytest
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec.iast._util import _is_python_version_supported as python_supported_by_iast
 from ddtrace.appsec.iast.constants import VULN_INSECURE_HASHING_TYPE
-from ddtrace.appsec.iast.taint_sinks.weak_hash import unpatch_iast
+from ddtrace.appsec.iast.vulnerabilities.weak_hash import unpatch_iast
 from ddtrace.internal import core
 from tests.appsec.iast.fixtures.weak_algorithms import hashlib_new
 from tests.appsec.iast.fixtures.weak_algorithms import parametrized_week_hash

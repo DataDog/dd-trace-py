@@ -8,7 +8,7 @@ from ddtrace.appsec.iast._taint_tracking import taint_ranges_as_evidence_info
 from ddtrace.appsec.iast._util import _scrub_get_tokens_positions
 from ddtrace.appsec.iast.constants import EVIDENCE_SQL_INJECTION
 from ddtrace.appsec.iast.constants import VULN_SQL_INJECTION
-from ddtrace.appsec.iast.taint_sinks._base import VulnerabilityBase
+from ddtrace.appsec.iast.vulnerabilities._base import VulnerabilityBase
 
 
 if TYPE_CHECKING:

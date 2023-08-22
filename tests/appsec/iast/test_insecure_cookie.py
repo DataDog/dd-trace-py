@@ -2,7 +2,7 @@ from ddtrace.appsec._constants import IAST
 from ddtrace.appsec.iast.constants import VULN_INSECURE_COOKIE
 from ddtrace.appsec.iast.constants import VULN_NO_HTTPONLY_COOKIE
 from ddtrace.appsec.iast.constants import VULN_NO_SAMESITE_COOKIE
-from ddtrace.appsec.iast.taint_sinks.insecure_cookie import asm_check_cookies
+from ddtrace.appsec.iast.vulnerabilities.insecure_cookie import asm_check_cookies
 from ddtrace.internal import core
 
 

@@ -17,7 +17,7 @@ import six
 
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace.appsec.iast.taint_sinks.command_injection import CommandInjection
+from ddtrace.appsec.iast.vulnerabilities.command_injection import CommandInjection
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.subprocess.constants import COMMANDS
 from ddtrace.ext import SpanTypes

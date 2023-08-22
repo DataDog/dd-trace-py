@@ -517,7 +517,7 @@ def set_http_meta(
         from ddtrace.appsec.iast._util import _is_iast_enabled
 
         if request_cookies and _is_iast_enabled():
-            from ddtrace.appsec.iast.taint_sinks.insecure_cookie import asm_check_cookies
+            from ddtrace.appsec.iast.taint_sinks import asm_check_cookies
 
             asm_check_cookies(request_cookies)
 

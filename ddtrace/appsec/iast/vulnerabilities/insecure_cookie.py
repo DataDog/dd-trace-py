@@ -5,7 +5,7 @@ from ddtrace.appsec.iast.constants import EVIDENCE_COOKIE
 from ddtrace.appsec.iast.constants import VULN_INSECURE_COOKIE
 from ddtrace.appsec.iast.constants import VULN_NO_HTTPONLY_COOKIE
 from ddtrace.appsec.iast.constants import VULN_NO_SAMESITE_COOKIE
-from ddtrace.appsec.iast.taint_sinks._base import VulnerabilityBase
+from ddtrace.appsec.iast.vulnerabilities import VulnerabilityBase
 from ddtrace.internal.compat import six
 
 

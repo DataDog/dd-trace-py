@@ -14,7 +14,7 @@ from ddtrace.appsec.iast.constants import EVIDENCE_ALGORITHM_TYPE
 from ddtrace.appsec.iast.constants import RC2_DEF
 from ddtrace.appsec.iast.constants import RC4_DEF
 from ddtrace.appsec.iast.constants import VULN_WEAK_CIPHER_TYPE
-from ddtrace.appsec.iast.taint_sinks._base import VulnerabilityBase
+from ddtrace.appsec.iast.vulnerabilities._base import VulnerabilityBase
 from ddtrace.internal.logger import get_logger
 
 

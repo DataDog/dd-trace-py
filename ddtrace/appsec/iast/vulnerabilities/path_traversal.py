@@ -5,7 +5,7 @@ from ddtrace.appsec.iast._patch import set_module_unpatched
 from ddtrace.appsec.iast._taint_tracking import taint_ranges_as_evidence_info
 from ddtrace.appsec.iast.constants import EVIDENCE_PATH_TRAVERSAL
 from ddtrace.appsec.iast.constants import VULN_PATH_TRAVERSAL
-from ddtrace.appsec.iast.taint_sinks._base import VulnerabilityBase
+from ddtrace.appsec.iast.vulnerabilities._base import VulnerabilityBase
 from ddtrace.internal.logger import get_logger
 
 

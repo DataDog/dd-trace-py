@@ -106,7 +106,7 @@ class TracedCursor(wrapt.ObjectProxy):
             if _is_iast_enabled():
                 try:
                     from ddtrace.appsec.iast._taint_utils import check_tainted_args
-                    from ddtrace.appsec.iast.taint_sinks.sql_injection import SqlInjection
+                    from ddtrace.appsec.iast.vulnerabilities.sql_injection import SqlInjection
 
                     if check_tainted_args(args, kwargs, pin.tracer, self._self_config.integration_name, method):
                         SqlInjection.report(evidence_value=args[0])

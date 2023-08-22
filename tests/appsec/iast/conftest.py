@@ -4,12 +4,12 @@ import pytest
 
 from ddtrace.appsec.iast import oce
 from ddtrace.appsec.iast._util import _is_python_version_supported
-from ddtrace.appsec.iast.taint_sinks._base import VulnerabilityBase
-from ddtrace.appsec.iast.taint_sinks.path_traversal import patch as path_traversal_patch
-from ddtrace.appsec.iast.taint_sinks.weak_cipher import patch as weak_cipher_patch
-from ddtrace.appsec.iast.taint_sinks.weak_cipher import unpatch_iast as weak_cipher_unpatch
-from ddtrace.appsec.iast.taint_sinks.weak_hash import patch as weak_hash_patch
-from ddtrace.appsec.iast.taint_sinks.weak_hash import unpatch_iast as weak_hash_unpatch
+from ddtrace.appsec.iast.vulnerabilities._base import VulnerabilityBase
+from ddtrace.appsec.iast.vulnerabilities.path_traversal import patch as path_traversal_patch
+from ddtrace.appsec.iast.vulnerabilities.weak_cipher import patch as weak_cipher_patch
+from ddtrace.appsec.iast.vulnerabilities.weak_cipher import unpatch_iast as weak_cipher_unpatch
+from ddtrace.appsec.iast.vulnerabilities.weak_hash import patch as weak_hash_patch
+from ddtrace.appsec.iast.vulnerabilities.weak_hash import unpatch_iast as weak_hash_unpatch
 from tests.utils import override_env
 
 

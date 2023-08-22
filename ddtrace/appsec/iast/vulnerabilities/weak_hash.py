@@ -13,7 +13,7 @@ from ddtrace.appsec.iast.constants import EVIDENCE_ALGORITHM_TYPE
 from ddtrace.appsec.iast.constants import MD5_DEF
 from ddtrace.appsec.iast.constants import SHA1_DEF
 from ddtrace.appsec.iast.constants import VULN_INSECURE_HASHING_TYPE
-from ddtrace.appsec.iast.taint_sinks._base import VulnerabilityBase
+from ddtrace.appsec.iast.vulnerabilities._base import VulnerabilityBase
 from ddtrace.internal.logger import get_logger
 
 

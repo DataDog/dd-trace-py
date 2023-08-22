@@ -2,7 +2,7 @@ from ddtrace.appsec.iast import oce
 from ddtrace.appsec.iast._taint_tracking import taint_ranges_as_evidence_info
 from ddtrace.appsec.iast.constants import EVIDENCE_CMDI
 from ddtrace.appsec.iast.constants import VULN_CMDI
-from ddtrace.appsec.iast.taint_sinks._base import VulnerabilityBase
+from ddtrace.appsec.iast.vulnerabilities import VulnerabilityBase
 
 
 @oce.register

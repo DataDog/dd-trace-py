@@ -3,12 +3,12 @@
 To add new vulnerabilities analyzers (Taint sink) we should update `IAST_PATCH` in
 `ddtrace/appsec/iast/_patch_modules.py`
 
-Create new file with the same name: `ddtrace/appsec/iast/taint_sinks/[my_new_vulnerability].py`
+Create new file with the same name: `ddtrace/appsec/iast/vulnerabilities/[my_new_vulnerability].py`
 
 Then, implement the `patch()` function and its wrappers.
 
 In order to have the better performance, the Overhead control engine (OCE) helps us to control the overhead of our
-wrapped functions. We should create a class that inherit from `ddtrace.appsec.iast.taint_sinks._base.VulnerabilityBase`
+wrapped functions. We should create a class that inherit from `ddtrace.appsec.iast.vulnerabilities._base.VulnerabilityBase`
 and register with `ddtrace.appsec.iast.oce`.
 
 @oce.register
