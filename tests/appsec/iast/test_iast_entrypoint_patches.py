@@ -23,6 +23,7 @@ def test_ddtrace_iast_flask_patch():
         assert "Disassembly of run" not in str_output
 
 
+@pytest.mark.skipif(not _is_python_version_supported(), reason="IAST compatible versions")
 def test_ddtrace_iast_flask_no_patch():
     with override_global_config(dict(_iast_enabled=True)), override_env(dict(DD_IAST_ENABLED="true")):
         import tests.appsec.iast.fixtures.entrypoint.app as flask_entrypoint
