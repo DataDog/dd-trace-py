@@ -431,7 +431,7 @@ def test_git_client_upload_packfiles(git_repo):
 def test_git_do_request_agentless(git_repo):
     mock_serializer = CIVisibilityGitClientSerializerV1("fakeapikey", "fakeappkey")
     response = mock.MagicMock()
-    setattr(response, "status", 200)
+    setattr(response, "status", 200)  # noqa: B010
 
     with mock.patch("ddtrace.internal.ci_visibility.git_client.get_connection") as mock_get_connection:
         with mock.patch("ddtrace.internal.compat.get_connection_response", return_value=response):
@@ -465,7 +465,7 @@ def test_git_do_request_agentless(git_repo):
 def test_git_do_request_evp(git_repo):
     mock_serializer = CIVisibilityGitClientSerializerV1("foo", "bar")
     response = mock.MagicMock()
-    setattr(response, "status", 200)
+    setattr(response, "status", 200)  # noqa: B010
 
     with mock.patch("ddtrace.internal.ci_visibility.git_client.get_connection") as mock_get_connection:
         with mock.patch("ddtrace.internal.compat.get_connection_response", return_value=response):
