@@ -37,9 +37,7 @@ def configure_ddtrace_logger():
 
     """
     ddtrace_logger = logging.getLogger("ddtrace")
-
-    if not os.environ.get("DD_TRACE_LOG_FILE"):
-        ddtrace_logger.addHandler(logging.StreamHandler())
+    ddtrace_logger.addHandler(logging.StreamHandler())
     _configure_ddtrace_debug_logger(ddtrace_logger)
     _configure_ddtrace_file_logger(ddtrace_logger)
 
@@ -85,4 +83,5 @@ def _configure_log_injection():
     patch(logging=True)
     ddtrace_logger = logging.getLogger("ddtrace")
     if ddtrace_logger.hasHandlers():
-        ddtrace_logger.handlers[0].setFormatter(logging.Formatter(DD_LOG_FORMAT))
+        for handler in ddtrace_logger.handlers:
+            handler.setFormatter(logging.Formatter(DD_LOG_FORMAT))
