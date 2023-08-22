@@ -155,7 +155,7 @@ def test_heartbeat_interval_invalid_configuration(run_python_code_in_subprocess)
     env = os.environ.copy()
     env["DD_TELEMETRY_HEARTBEAT_INTERVAL"] = heartbeat_interval
 
-    _, stderr, status, _ = run_python_code_in_subprocess("from ddtrace import config", env=env)
+    _, stderr, status, _ = run_python_code_in_subprocess("from ddtrace import config; assert config._telemetry_heartbeat_interval == 10", env=env)
     assert status == 0, stderr
     assert (
         b"Setting DD_TELEMETRY_HEARTBEAT_INTERVAL to a value less than 10 seconds is not supported. "
