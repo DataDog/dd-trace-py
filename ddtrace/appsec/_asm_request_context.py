@@ -6,7 +6,6 @@ from ddtrace import config
 from ddtrace.appsec import handlers
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
-from ddtrace.appsec.iast._metrics import _set_metric_iast_instrumented_source
 from ddtrace.appsec.iast._util import _is_iast_enabled
 from ddtrace.internal import core
 from ddtrace.internal.compat import parse
@@ -409,6 +408,7 @@ def _on_wrapped_view(kwargs):
 
 def _on_set_request_tags(request, span, flask_config):
     if _is_iast_enabled():
+        from ddtrace.appsec.iast._metrics import _set_metric_iast_instrumented_source
         from ddtrace.appsec.iast._taint_tracking import OriginType
         from ddtrace.appsec.iast._taint_utils import LazyTaintDict
 
