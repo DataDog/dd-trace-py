@@ -12,6 +12,10 @@ from ddtrace.internal.ci_visibility.constants import SUITE_ID
 from ddtrace.contrib.unittest.constants import COMPONENT_VALUE
 from ddtrace.contrib.unittest.constants import FRAMEWORK
 from ddtrace.contrib.unittest.constants import KIND
+from ddtrace.contrib.unittest.constants import TEST_OPERATION_NAME
+from ddtrace.contrib.unittest.constants import SUITE_OPERATION_NAME
+from ddtrace.contrib.unittest.constants import MODULE_OPERATION_NAME
+from ddtrace.contrib.unittest.constants import SESSION_OPERATION_NAME
 from ddtrace.contrib.unittest.patch import _set_tracer
 from ddtrace.contrib.unittest.patch import patch
 from ddtrace.ext import SpanTypes
@@ -349,7 +353,7 @@ class UnittestTestCase(TracerTestCase):
                 assert spans[i].get_tag(COMPONENT) == COMPONENT_VALUE
                 assert spans[i].get_tag(SESSION_ID) == str(test_session_span.span_id)
 
-            assert spans[0].name == "unittest.test"
+            assert spans[0].name == TEST_OPERATION_NAME
             assert spans[0].get_tag(test.NAME) == "test_will_be_skipped_with_a_reason"
             assert spans[0].get_tag(test.TEST_STATUS) == test.Status.SKIP.value
             assert spans[0].get_tag(test.SKIP_REASON) == "another skip reason"
@@ -358,7 +362,7 @@ class UnittestTestCase(TracerTestCase):
             assert spans[0].get_tag(MODULE_ID) == str(test_module_span.span_id)
             assert spans[0].get_tag(SUITE_ID) == str(test_suite_span.span_id)
 
-            assert spans[1].name == "unittest.test"
+            assert spans[1].name == TEST_OPERATION_NAME
             assert spans[1].get_tag(test.NAME) == "test_will_fail_first"
             assert spans[1].get_tag(test.TEST_STATUS) == test.Status.FAIL.value
             assert spans[1].get_tag(test.SKIP_REASON) is None
@@ -372,7 +376,7 @@ class UnittestTestCase(TracerTestCase):
             assert spans[1].get_tag(MODULE_ID) == str(test_module_span.span_id)
             assert spans[1].get_tag(SUITE_ID) == str(test_suite_span.span_id)
 
-            assert spans[2].name == "unittest.test"
+            assert spans[2].name == TEST_OPERATION_NAME
             assert spans[2].get_tag(test.NAME) == "test_will_pass_first"
             assert spans[2].get_tag(test.TEST_STATUS) == test.Status.PASS.value
             assert spans[2].get_tag(test.SKIP_REASON) is None
@@ -381,6 +385,7 @@ class UnittestTestCase(TracerTestCase):
             assert spans[2].get_tag(MODULE_ID) == str(test_module_span.span_id)
             assert spans[2].get_tag(SUITE_ID) == str(test_suite_span.span_id)
 
+            assert test_suite_span.name == SUITE_OPERATION_NAME
             assert test_suite_span.get_tag(test.COMMAND) == "python"
             assert test_suite_span.get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
             assert test_suite_span.get_tag(test.SUITE) == "UnittestExampleTestCase"
@@ -389,6 +394,7 @@ class UnittestTestCase(TracerTestCase):
             assert test_suite_span.get_tag(MODULE_ID) == str(test_module_span.span_id)
             assert test_suite_span.get_tag(SUITE_ID) == str(test_suite_span.span_id)
 
+            assert test_module_span.name == MODULE_OPERATION_NAME
             assert test_module_span.get_tag(test.COMMAND) == "python"
             assert test_module_span.get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
             assert test_module_span.get_tag(test.SUITE) is None
@@ -396,6 +402,7 @@ class UnittestTestCase(TracerTestCase):
             assert test_module_span.get_tag(test.SKIP_REASON) is None
             assert test_module_span.get_tag(MODULE_ID) == str(test_module_span.span_id)
 
+            assert test_session_span.name == SESSION_OPERATION_NAME
             assert test_session_span.get_tag(test.COMMAND) == "python"
             assert test_session_span.get_tag(test.MODULE) is None
             assert test_session_span.get_tag(test.SUITE) is None
