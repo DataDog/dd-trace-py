@@ -52,15 +52,10 @@ def _store_span_with_name(item, span, name):
 
 def _store_session_span(module, span):
     """Store session span at `unittest` module instance"""
-    while not hasattr(module, "_datadog_object") or module._datadog_object != "module":
-        if hasattr(module, "test"):
-            module = module.test
-            continue
-        elif hasattr(module, "_tests") and len(module._tests):
-            module = module._tests[0]
-            continue
-        break
-    setattr(module, "_datadog_session_span", span)
+    if hasattr(module, "test") and hasattr(module.test, "_tests"):
+        for submodule in module.test._tests:
+            setattr(submodule, "_datadog_session_span", span)
+            setattr(submodule, "_datadog_object", "module")
 
 
 def _store_module_span(suite, span):
@@ -68,8 +63,7 @@ def _store_module_span(suite, span):
     if hasattr(suite, "_tests"):
         for subsuite in suite._tests:
             setattr(subsuite, "_datadog_module_span", span)
-    else:
-        setattr(suite, "_datadog_module_span", span)
+            setattr(subsuite, "_datadog_object", "suite")
 
 
 def _store_suite_span(test, span):
@@ -77,6 +71,7 @@ def _store_suite_span(test, span):
     if hasattr(test, "_tests"):
         for test_object in test._tests:
             setattr(test_object, "_datadog_suite_span", span)
+            setattr(test_object, "_datadog_object", "test")
 
 
 def _is_test_class(item):
@@ -426,7 +421,7 @@ def _create_session(instance, special=False):
     _store_test_span(instance, test_session_span)
     if not special:
         _store_session_span(instance, test_session_span)
-        _store_identifier(instance, "session")
+        _store_identifier(instance.test, "session")
     else:
         _store_span_with_name(instance, test_session_span, "_datadog_session_span")
     return test_session_span
@@ -455,13 +450,13 @@ def _create_module(instance, special=False):
     test_module_span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
     test_module_span.set_tag_str(test.COMMAND, test_session_span.get_tag(test.COMMAND))
     test_module_span.set_tag_str(_EVENT_TYPE, _MODULE_TYPE)
-    if test_session_span:
-        test_module_span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
+    test_module_span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
     test_module_span.set_tag_str(_MODULE_ID, str(test_module_span.span_id))
     test_module_span.set_tag_str(test.MODULE, test_module_name)
     test_module_span.set_tag_str(test.MODULE_PATH, _extract_module_file_path(instance))
     if not special:
         _store_module_span(instance, test_module_span)
+        _store_identifier(instance.test, "module")
     else:
         _store_span_with_name(instance, test_module_span, "_datadog_module_span")
     return test_module_span, test_session_span
@@ -481,7 +476,6 @@ def handle_session_wrapper(func, instance, args, kwargs):
         and len(instance.test._tests[0]._tests)
         and not hasattr(instance.test, "_datadog_entry")
     ):
-        _find_module_and_suite_objects(instance)
         test_session_span = _create_session(instance)
         setattr(instance.test, "_datadog_entry", "cli")
     try:
@@ -506,14 +500,9 @@ def handle_text_test_runner_wrapper(func, instance, args, kwargs):
     ):
         return func(*args, **kwargs)
     setattr(args[0], "_datadog_entry", "TextTestRunner")
-    _find_module_and_suite_objects(args)
-    if not hasattr(args[0], "_datadog_object"):
-        return func(*args, **kwargs)
     test_session_span = _create_session(args[0], special=True)
     test_module_span, _ = _create_module(args[0], special=True)
     result = func(*args, **kwargs)
-    if test_module_span:
-        _finish_module(test_module_span, test_session_span)
-    if test_session_span:
-        _finish_session(test_session_span)
+    _finish_module(test_module_span, test_session_span)
+    _finish_session(test_session_span)
     return result
