@@ -1,5 +1,6 @@
-from typing import Any
 from sys import version_info
+from typing import Any
+
 
 # 3.11 and above
 def _sanitize_string_check(value: Any) -> str:
