@@ -5,13 +5,12 @@ import sys
 import pytest
 
 from ddtrace.contrib.pytest.plugin import _extract_span as _extract_feature_span
+from ddtrace.contrib.pytest_bdd import get_version
 from ddtrace.contrib.pytest_bdd.constants import FRAMEWORK
 from ddtrace.contrib.pytest_bdd.constants import STEP_KIND
 from ddtrace.ext import test
 from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
 from ddtrace.internal.logger import get_logger
-
-from .__init__ import get_version
 
 
 log = get_logger(__name__)
