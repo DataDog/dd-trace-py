@@ -63,9 +63,9 @@ Global Configuration
 
 import os
 
-import pytest
-
 from ddtrace import config
+
+from .plugin import get_version
 
 
 # pytest default settings
@@ -78,5 +78,4 @@ config._add(
 )
 
 
-def get_version():
-    return getattr(pytest, "__version__", "0.0.0")
+__all__ = ["get_version"]

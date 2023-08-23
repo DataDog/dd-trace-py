@@ -53,6 +53,15 @@ log = get_logger(__name__)
 _global_skipped_elements = 0
 
 
+def get_version():
+    try:
+        import importlib.metadata as importlib_metadata
+    except ImportError:
+        import importlib_metadata  # type: ignore[no-redef]
+
+    return str(importlib_metadata.version(pytest.__package__))
+
+
 def encode_test_parameter(parameter):
     param_repr = repr(parameter)
     # if the representation includes an id() we'll remove it
