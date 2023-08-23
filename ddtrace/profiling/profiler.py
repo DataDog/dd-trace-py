@@ -232,7 +232,7 @@ class _ProfilerInstance(service.Service):
             )
 
         if self._lock_collector_enabled:
-            self.collectors.append(threading.ThreadingLockCollector(r, tracer=self.tracer))
+            self._collectors.append(threading.ThreadingLockCollector(r, tracer=self.tracer))
 
         if _asyncio.is_asyncio_available():
 
