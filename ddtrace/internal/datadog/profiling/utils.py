@@ -15,10 +15,12 @@ def _sanitize_string_check(value):
 
     return value
 
+
 # 3.10 and below (the noop version)
 def _sanitize_string_identity(value):
     # type: (Any) -> str
     return value
+
 
 # Assign based on version
 sanitize_string = _sanitize_string_check if version_info[:2] > (3, 10) else _sanitize_string_identity
