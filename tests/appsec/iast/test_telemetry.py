@@ -60,7 +60,7 @@ def test_metric_executed_sink(mock_telemetry_lifecycle_writer):
             m.update(b"Nobody inspects")
             m.update(b" the spammish repetition")
             num_vulnerabilities = 10
-            for i in range(0, num_vulnerabilities):
+            for _ in range(0, num_vulnerabilities):
                 m.digest()
         metrics_result = mock_telemetry_lifecycle_writer._namespace._metrics_data
 

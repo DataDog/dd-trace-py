@@ -21,7 +21,7 @@ def decode_var_int_64(b):
 def encode_var_uint_64(v):
     # type: (int) -> bytes
     b = b""
-    for i in range(0, MAX_VAR_LEN_64):
+    for _ in range(0, MAX_VAR_LEN_64):
         if v < 0x80:
             break
         b += struct.pack("B", (v & 255) | 0x80)
