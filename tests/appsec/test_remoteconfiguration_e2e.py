@@ -269,7 +269,7 @@ def _request_200(client, debug_mode=False, max_retries=40, sleep_time=1):
         else:
             previous = False
         time.sleep(sleep_time * pow(8, id_try / max_retries))
-    assert False, "request_200 failed, max_retries=%d, sleep_time=%f" % (max_retries, sleep_time)
+    raise AssertionError("request_200 failed, max_retries=%d, sleep_time=%f" % (max_retries, sleep_time))
 
 
 def _request_403(client, debug_mode=False, max_retries=40, sleep_time=1):
@@ -289,7 +289,7 @@ def _request_403(client, debug_mode=False, max_retries=40, sleep_time=1):
         else:
             previous = False
         time.sleep(sleep_time * pow(8, id_try / max_retries))
-    assert False, "request_403 failed, max_retries=%d, sleep_time=%f" % (max_retries, sleep_time)
+    raise AssertionError("request_403 failed, max_retries=%d, sleep_time=%f" % (max_retries, sleep_time))
 
 
 @pytest.mark.skipif(

@@ -44,7 +44,7 @@ def patch():
 
     if getattr(c, "_datadog_patch", False):
         return
-    setattr(c, "_datadog_patch", True)
+    c._datadog_patch = True
 
     wrapt.wrap_function_wrapper(c, "Connect", patched_connect)
     wrapt.wrap_function_wrapper(c, "connect", patched_connect)
@@ -59,7 +59,7 @@ def unpatch():
         c = sys.modules.get("snowflake.connector")
 
     if getattr(c, "_datadog_patch", False):
-        setattr(c, "_datadog_patch", False)
+        c._datadog_patch = False
 
         unwrap(c, "Connect")
         unwrap(c, "connect")
