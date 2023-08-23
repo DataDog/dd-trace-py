@@ -86,7 +86,7 @@ api_join_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
     PyObject* sep = args[0];
     PyObject* arg0 = args[1];
 
-    if (PyIter_Check(arg0) or PyIter_Check(arg0) or PySet_Check(arg0) or PyFrozenSet_Check(arg0)) {
+    if (PyIter_Check(arg0) or PySet_Check(arg0) or PyFrozenSet_Check(arg0)) {
         PyObject* iterator = PyObject_GetIter(arg0);
 
         if (iterator != NULL) {
