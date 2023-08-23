@@ -175,6 +175,9 @@ class RemoteConfigPoller(periodic.PeriodicService):
         except Exception:
             log.debug("error starting the RCM client", exc_info=True)
 
+    def get_registered(self, product):
+        return self._client._products.get(product)
+
     def __enter__(self):
         # type: () -> RemoteConfigPoller
         self.enable()
