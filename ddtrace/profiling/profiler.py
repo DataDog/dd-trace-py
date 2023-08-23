@@ -220,8 +220,7 @@ class _ProfilerInstance(service.Service):
             default_max_events=config.max_events,
         )
 
-        self._collectors = [
-        ]
+        self._collectors = []
 
         if self._stack_collector_enabled:
             self._collectors.append(
