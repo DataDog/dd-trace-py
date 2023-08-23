@@ -120,7 +120,7 @@ def patch():
 
     if getattr(sanic, "__datadog_patch", False):
         return
-    setattr(sanic, "__datadog_patch", True)
+    sanic.__datadog_patch = True
 
     SANIC_VERSION = tuple(map(int, sanic.__version__.split(".")))
 
@@ -148,7 +148,7 @@ def unpatch():
             _u(sanic.Sanic, "_run_request_middleware")
             _u(sanic.request.Request, "respond")
 
-    setattr(sanic, "__datadog_patch", False)
+    sanic.__datadog_patch = False
 
 
 def patch_sanic_init(wrapped, instance, args, kwargs):

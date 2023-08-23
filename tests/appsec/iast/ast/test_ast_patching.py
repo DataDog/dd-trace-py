@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import pytest
 
-from ddtrace.appsec.iast._util import _is_python_version_supported as python_supported_by_iast
+from ddtrace.appsec.iast._utils import _is_python_version_supported as python_supported_by_iast
 
 
 try:

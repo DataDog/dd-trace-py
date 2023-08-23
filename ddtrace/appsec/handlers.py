@@ -7,7 +7,7 @@ import xmltodict
 from ddtrace import config
 from ddtrace.appsec.iast._patch import if_iast_taint_returned_object_for
 from ddtrace.appsec.iast._patch import if_iast_taint_yield_tuple_for
-from ddtrace.appsec.iast._util import _is_iast_enabled
+from ddtrace.appsec.iast._utils import _is_iast_enabled
 from ddtrace.contrib import trace_utils
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
