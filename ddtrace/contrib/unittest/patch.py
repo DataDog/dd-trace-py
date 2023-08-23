@@ -476,9 +476,14 @@ def _finish_module(test_module_span, test_session_span):
 
 def handle_session_wrapper(func, instance, args, kwargs):
     test_session_span = None
-    if _is_unittest_support_enabled() and len(instance.test._tests[0]._tests):
+    if (
+        _is_unittest_support_enabled()
+        and len(instance.test._tests[0]._tests)
+        and not hasattr(instance.test, "_datadog_entry")
+    ):
         _find_module_and_suite_objects(instance)
         test_session_span = _create_session(instance)
+        setattr(instance.test, "_datadog_entry", "cli")
     try:
         result = func(*args, **kwargs)
     except SystemExit as e:
@@ -497,8 +502,10 @@ def handle_text_test_runner_wrapper(func, instance, args, kwargs):
         or not len(args[0]._tests)
         or type(args[0]._tests[0]) == unittest.TestSuite
         and not len(args[0]._tests[0]._tests)
+        or hasattr(args[0], "_datadog_entry")
     ):
         return func(*args, **kwargs)
+    setattr(args[0], "_datadog_entry", "TextTestRunner")
     _find_module_and_suite_objects(args)
     if not hasattr(args[0], "_datadog_object"):
         return func(*args, **kwargs)
