@@ -118,6 +118,8 @@ class _ProfilerInstance(service.Service):
     api_key = attr.ib(factory=lambda: os.environ.get("DD_API_KEY"), type=Optional[str])
     agentless = attr.ib(type=bool, default=config.agentless)
     _memory_collector_enabled = attr.ib(type=bool, default=config.memory.enabled)
+    _stack_collector_enabled = attr.ib(type=bool, default=config.stack.enabled)
+    _lock_collector_enabled = attr.ib(type=bool, default=config.lock.enabled)
     enable_code_provenance = attr.ib(type=bool, default=config.code_provenance)
     endpoint_collection_enabled = attr.ib(type=bool, default=config.endpoint_collection)
 
@@ -219,13 +221,19 @@ class _ProfilerInstance(service.Service):
         )
 
         self._collectors = [
-            stack.StackCollector(
-                r,
-                tracer=self.tracer,
-                endpoint_collection_enabled=self.endpoint_collection_enabled,
-            ),  # type: ignore[call-arg]
-            threading.ThreadingLockCollector(r, tracer=self.tracer),
         ]
+
+        if self._stack_collector_enabled:
+            self._collectors.append(
+                stack.StackCollector(
+                    r,
+                    tracer=self.tracer,
+                    endpoint_collection_enabled=self.endpoint_collection_enabled,
+                )
+            )
+
+        if self._lock_collector_enabled:
+            self.collectors.append(threading.ThreadingLockCollector(r, tracer=self.tracer))
 
         if _asyncio.is_asyncio_available():
 
