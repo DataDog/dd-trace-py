@@ -84,4 +84,5 @@ def get_version():
 
     return str(importlib_metadata.version("pytest"))
 
+
 __all__ = ["get_version"]
