@@ -70,8 +70,8 @@ def patch():
         trace_utils.wrap(subprocess, "Popen.__init__", _traced_subprocess_init(subprocess))
         trace_utils.wrap(subprocess, "Popen.wait", _traced_subprocess_wait(subprocess))
 
-        setattr(os, "_datadog_patch", True)
-        setattr(subprocess, "_datadog_patch", True)
+        os._datadog_patch = True
+        subprocess._datadog_patch = True
         patched.append("subprocess")
 
     return patched
@@ -334,8 +334,8 @@ def unpatch():
 
     SubprocessCmdLine._clear_cache()
 
-    setattr(os, "_datadog_patch", False)
-    setattr(subprocess, "_datadog_patch", False)
+    os._datadog_patch = False
+    subprocess._datadog_patch = False
 
 
 @trace_utils.with_traced_module

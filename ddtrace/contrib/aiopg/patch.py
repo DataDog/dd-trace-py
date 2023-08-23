@@ -22,7 +22,7 @@ def patch():
     """
     if getattr(aiopg, "_datadog_patch", False):
         return
-    setattr(aiopg, "_datadog_patch", True)
+    aiopg._datadog_patch = True
 
     wrapt.wrap_function_wrapper(aiopg.connection, "_connect", patched_connect)
     _patch_extensions(_aiopg_extensions)  # do this early just in case
@@ -30,7 +30,7 @@ def patch():
 
 def unpatch():
     if getattr(aiopg, "_datadog_patch", False):
-        setattr(aiopg, "_datadog_patch", False)
+        aiopg._datadog_patch = False
         _u(aiopg.connection, "_connect")
         _unpatch_extensions(_aiopg_extensions)
 

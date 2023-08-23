@@ -30,7 +30,7 @@ def patch():
     if getattr(pylons.wsgiapp, "_datadog_patch", False):
         return
 
-    setattr(pylons.wsgiapp, "_datadog_patch", True)
+    pylons.wsgiapp._datadog_patch = True
     wrapt.wrap_function_wrapper("pylons.wsgiapp", "PylonsApp.__init__", traced_init)
 
 
@@ -38,7 +38,7 @@ def unpatch():
     """Disable Pylons tracing"""
     if not getattr(pylons.wsgiapp, "__datadog_patch", False):
         return
-    setattr(pylons.wsgiapp, "__datadog_patch", False)
+    pylons.wsgiapp.__datadog_patch = False
 
     _u(pylons.wsgiapp.PylonsApp, "__init__")
 

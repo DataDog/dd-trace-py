@@ -91,7 +91,7 @@ def noop_if_no_unpatch(f):
 
     @functools.wraps(f)
     def wrapper(self, *args, **kwargs):
-        if getattr(self, "__unpatch_func__") is None:
+        if self.__unpatch_func__ is None:
             self.skipTest(reason="No unpatch function given")
         return f(self, *args, **kwargs)
 

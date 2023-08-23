@@ -178,7 +178,7 @@ def patch():
     if getattr(httpx, "_datadog_patch", False):
         return
 
-    setattr(httpx, "_datadog_patch", True)
+    httpx._datadog_patch = True
 
     pin = Pin()
 
@@ -199,7 +199,7 @@ def unpatch():
     if not getattr(httpx, "_datadog_patch", False):
         return
 
-    setattr(httpx, "_datadog_patch", False)
+    httpx._datadog_patch = False
 
     if HTTPX_VERSION >= (0, 11):
         # See above patching code for when this patching occurred

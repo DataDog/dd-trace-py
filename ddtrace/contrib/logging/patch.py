@@ -123,7 +123,7 @@ def patch():
     """
     if getattr(logging, "_datadog_patch", False):
         return
-    setattr(logging, "_datadog_patch", True)
+    logging._datadog_patch = True
 
     _w(logging.Logger, "makeRecord", _w_makeRecord)
     if hasattr(logging, "StrFormatStyle"):
@@ -135,7 +135,7 @@ def patch():
 
 def unpatch():
     if getattr(logging, "_datadog_patch", False):
-        setattr(logging, "_datadog_patch", False)
+        logging._datadog_patch = False
 
         _u(logging.Logger, "makeRecord")
         if hasattr(logging, "StrFormatStyle"):

@@ -22,7 +22,7 @@ def patch():
 
     if getattr(thread, "__datadog_patch", False):
         return
-    setattr(thread, "__datadog_patch", True)
+    thread.__datadog_patch = True
 
     if PY2:
         _w(thread.ThreadPoolExecutor.submit.__func__, _wrap_submit)
@@ -41,7 +41,7 @@ def unpatch():
 
     if not getattr(thread, "__datadog_patch", False):
         return
-    setattr(thread, "__datadog_patch", False)
+    thread.__datadog_patch = False
 
     if PY2:
         _u(thread.ThreadPoolExecutor.submit.__func__, _wrap_submit)

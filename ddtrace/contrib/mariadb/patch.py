@@ -30,13 +30,13 @@ def get_version():
 def patch():
     if getattr(mariadb, "_datadog_patch", False):
         return
-    setattr(mariadb, "_datadog_patch", True)
+    mariadb._datadog_patch = True
     wrapt.wrap_function_wrapper("mariadb", "connect", _connect)
 
 
 def unpatch():
     if getattr(mariadb, "_datadog_patch", False):
-        setattr(mariadb, "_datadog_patch", False)
+        mariadb._datadog_patch = False
         unwrap(mariadb, "connect")
 
 

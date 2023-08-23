@@ -31,7 +31,7 @@ def patch():
     """
     if getattr(gevent, "__datadog_patch", False):
         return
-    setattr(gevent, "__datadog_patch", True)
+    gevent.__datadog_patch = True
 
     _replace(TracedGreenlet, TracedIMap, TracedIMapUnordered)
     ddtrace.tracer.configure(context_provider=GeventContextProvider())
@@ -45,7 +45,7 @@ def unpatch():
     """
     if not getattr(gevent, "__datadog_patch", False):
         return
-    setattr(gevent, "__datadog_patch", False)
+    gevent.__datadog_patch = False
 
     _replace(__Greenlet, __IMap, __IMapUnordered)
     ddtrace.tracer.configure(context_provider=DefaultContextProvider())

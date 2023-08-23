@@ -49,7 +49,7 @@ def patch():
     """Patch the instrumented methods"""
     if getattr(molten, "_datadog_patch", False):
         return
-    setattr(molten, "_datadog_patch", True)
+    molten._datadog_patch = True
 
     pin = Pin()
 
@@ -63,7 +63,7 @@ def patch():
 def unpatch():
     """Remove instrumentation"""
     if getattr(molten, "_datadog_patch", False):
-        setattr(molten, "_datadog_patch", False)
+        molten._datadog_patch = False
 
         # remove pin
         pin = Pin.get_from(molten)

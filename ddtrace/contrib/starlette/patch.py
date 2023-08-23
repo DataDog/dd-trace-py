@@ -72,7 +72,7 @@ def patch():
     if getattr(starlette, "_datadog_patch", False):
         return
 
-    setattr(starlette, "_datadog_patch", True)
+    starlette._datadog_patch = True
 
     _w("starlette.applications", "Starlette.__init__", traced_init)
 
@@ -87,7 +87,7 @@ def unpatch():
     if not getattr(starlette, "_datadog_patch", False):
         return
 
-    setattr(starlette, "_datadog_patch", False)
+    starlette._datadog_patch = False
 
     _u(starlette.applications.Starlette, "__init__")
 

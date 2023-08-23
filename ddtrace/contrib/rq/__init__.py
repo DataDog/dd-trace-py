@@ -254,7 +254,7 @@ def patch():
     Pin().onto(rq.worker.Worker)
     trace_utils.wrap(rq.worker, "Worker.perform_job", traced_perform_job(rq))
 
-    setattr(rq, "_datadog_patch", True)
+    rq._datadog_patch = True
 
 
 def unpatch():
@@ -278,4 +278,4 @@ def unpatch():
     Pin().remove_from(rq.worker.Worker)
     trace_utils.unwrap(rq.worker.Worker, "perform_job")
 
-    setattr(rq, "_datadog_patch", False)
+    rq._datadog_patch = False

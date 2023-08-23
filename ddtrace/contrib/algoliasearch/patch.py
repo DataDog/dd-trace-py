@@ -42,7 +42,7 @@ def patch():
     if getattr(algoliasearch, DD_PATCH_ATTR, False):
         return
 
-    setattr(algoliasearch, "_datadog_patch", True)
+    algoliasearch._datadog_patch = True
 
     pin = Pin()
 

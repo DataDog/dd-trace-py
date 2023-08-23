@@ -36,7 +36,7 @@ def patch():
     """
     if getattr(redis, "_datadog_patch", False):
         return
-    setattr(redis, "_datadog_patch", True)
+    redis._datadog_patch = True
 
     _w = wrapt.wrap_function_wrapper
 
@@ -87,7 +87,7 @@ def patch():
 
 def unpatch():
     if getattr(redis, "_datadog_patch", False):
-        setattr(redis, "_datadog_patch", False)
+        redis._datadog_patch = False
 
         if redis.VERSION < (3, 0, 0):
             unwrap(redis.StrictRedis, "execute_command")

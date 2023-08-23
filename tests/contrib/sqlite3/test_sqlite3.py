@@ -84,7 +84,7 @@ class TestSQLite(TracerTestCase):
 
             # run a query with an error and ensure all is well
             q = "select * from some_non_existant_table"
-            with pytest.raises(Exception):
+            with pytest.raises(sqlite3.OperationalError):
                 db.execute(q)
 
             self.assert_structure(

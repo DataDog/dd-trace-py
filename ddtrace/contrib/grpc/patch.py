@@ -101,7 +101,7 @@ def unpatch():
 def _patch_client():
     if getattr(constants.GRPC_PIN_MODULE_CLIENT, "__datadog_patch", False):
         return
-    setattr(constants.GRPC_PIN_MODULE_CLIENT, "__datadog_patch", True)
+    constants.GRPC_PIN_MODULE_CLIENT.__datadog_patch = True
 
     Pin().onto(constants.GRPC_PIN_MODULE_CLIENT)
 
@@ -113,7 +113,7 @@ def _patch_client():
 def _patch_aio_client():
     if getattr(GRPC_AIO_PIN_MODULE_CLIENT, "__datadog_patch", False):
         return
-    setattr(GRPC_AIO_PIN_MODULE_CLIENT, "__datadog_patch", True)
+    GRPC_AIO_PIN_MODULE_CLIENT.__datadog_patch = True
 
     Pin().onto(GRPC_AIO_PIN_MODULE_CLIENT)
 
@@ -124,7 +124,7 @@ def _patch_aio_client():
 def _unpatch_client():
     if not getattr(constants.GRPC_PIN_MODULE_CLIENT, "__datadog_patch", False):
         return
-    setattr(constants.GRPC_PIN_MODULE_CLIENT, "__datadog_patch", False)
+    constants.GRPC_PIN_MODULE_CLIENT.__datadog_patch = False
 
     pin = Pin.get_from(constants.GRPC_PIN_MODULE_CLIENT)
     if pin:
@@ -138,7 +138,7 @@ def _unpatch_client():
 def _unpatch_aio_client():
     if not getattr(GRPC_AIO_PIN_MODULE_CLIENT, "__datadog_patch", False):
         return
-    setattr(GRPC_AIO_PIN_MODULE_CLIENT, "__datadog_patch", False)
+    GRPC_AIO_PIN_MODULE_CLIENT.__datadog_patch = False
 
     pin = Pin.get_from(GRPC_AIO_PIN_MODULE_CLIENT)
     if pin:
@@ -151,7 +151,7 @@ def _unpatch_aio_client():
 def _patch_server():
     if getattr(constants.GRPC_PIN_MODULE_SERVER, "__datadog_patch", False):
         return
-    setattr(constants.GRPC_PIN_MODULE_SERVER, "__datadog_patch", True)
+    constants.GRPC_PIN_MODULE_SERVER.__datadog_patch = True
 
     Pin().onto(constants.GRPC_PIN_MODULE_SERVER)
 
@@ -161,7 +161,7 @@ def _patch_server():
 def _patch_aio_server():
     if getattr(GRPC_AIO_PIN_MODULE_SERVER, "__datadog_patch", False):
         return
-    setattr(GRPC_AIO_PIN_MODULE_SERVER, "__datadog_patch", True)
+    GRPC_AIO_PIN_MODULE_SERVER.__datadog_patch = True
 
     Pin().onto(GRPC_AIO_PIN_MODULE_SERVER)
 
@@ -171,7 +171,7 @@ def _patch_aio_server():
 def _unpatch_server():
     if not getattr(constants.GRPC_PIN_MODULE_SERVER, "__datadog_patch", False):
         return
-    setattr(constants.GRPC_PIN_MODULE_SERVER, "__datadog_patch", False)
+    constants.GRPC_PIN_MODULE_SERVER.__datadog_patch = False
 
     pin = Pin.get_from(constants.GRPC_PIN_MODULE_SERVER)
     if pin:
@@ -183,7 +183,7 @@ def _unpatch_server():
 def _unpatch_aio_server():
     if not getattr(GRPC_AIO_PIN_MODULE_SERVER, "__datadog_patch", False):
         return
-    setattr(GRPC_AIO_PIN_MODULE_SERVER, "__datadog_patch", False)
+    GRPC_AIO_PIN_MODULE_SERVER.__datadog_patch = False
 
     pin = Pin.get_from(GRPC_AIO_PIN_MODULE_SERVER)
     if pin:

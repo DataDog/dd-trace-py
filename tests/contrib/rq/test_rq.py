@@ -17,6 +17,7 @@ from tests.utils import snapshot_context
 
 from ..config import REDIS_CONFIG
 from .jobs import JobClass
+from .jobs import MyException
 from .jobs import job_add1
 from .jobs import job_fail
 
@@ -71,7 +72,7 @@ def test_queue_failing_job(sync_queue):
         sync_queue.enqueue(job_fail)
         return
 
-    with pytest.raises(Exception):
+    with pytest.raises(MyException):
         sync_queue.enqueue(job_fail)
 
 

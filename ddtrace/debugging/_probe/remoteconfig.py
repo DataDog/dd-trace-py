@@ -178,7 +178,7 @@ class LogProbeFactory(ProbeFactory):
                         "maxReferenceDepth": "max_level",
                         "maxCollectionSize": "max_size",
                         "maxLength": "max_len",
-                        "maxFieldDepth": "max_fields",
+                        "maxFieldCount": "max_fields",
                     },
                 )
             )
@@ -318,6 +318,19 @@ class DebuggerRemoteConfigSubscriber(RemoteConfigSubscriber):
         self._next_status_update_timestamp()
 
     def _exec_callback(self, data, test_tracer=None):
+        # Check if it is time to re-emit probe status messages.
+        # DEV: We use the periodic signal from the remote config client worker
+        # thread to avoid having to spawn a separate thread for this.
+        if time.time() > self._status_timestamp:
+            log.debug(
+                "[%s][P: %s] Dynamic Instrumentation,Emitting probe status log messages",
+                os.getpid(),
+                os.getppid(),
+            )
+            probes = [probe for config in self._configs.values() for probe in config.values()]
+            self._callback(ProbePollerEvent.STATUS_UPDATE, probes)
+            self._next_status_update_timestamp()
+
         if data:
             metadatas = data["metadata"]
             rc_configs = data["config"]
@@ -325,15 +338,6 @@ class DebuggerRemoteConfigSubscriber(RemoteConfigSubscriber):
             # separate thread for this.
             log.debug("[%s][P: %s] Dynamic Instrumentation Updated", os.getpid(), os.getppid())
             for idx in range(len(rc_configs)):
-                if time.time() > self._status_timestamp:
-                    log.debug(
-                        "[%s][P: %s] Dynamic Instrumentation,Emitting probe status log messages",
-                        os.getpid(),
-                        os.getppid(),
-                    )
-                    probes = [probe for config in self._configs.values() for probe in config.values()]
-                    self._callback(ProbePollerEvent.STATUS_UPDATE, probes)
-                    self._next_status_update_timestamp()
                 if metadatas[idx] is None:
                     log.debug("[%s][P: %s] Dynamic Instrumentation, no RCM metadata", os.getpid(), os.getppid())
                     return

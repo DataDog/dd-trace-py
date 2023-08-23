@@ -143,7 +143,7 @@ def patch():
     Pin().onto(asyncpg)
     _patch(asyncpg)
 
-    setattr(asyncpg, "_datadog_patch", True)
+    asyncpg._datadog_patch = True
 
 
 def _unpatch(asyncpg):
@@ -162,4 +162,4 @@ def unpatch():
 
     _unpatch(asyncpg)
 
-    setattr(asyncpg, "_datadog_patch", False)
+    asyncpg._datadog_patch = False

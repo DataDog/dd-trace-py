@@ -33,7 +33,7 @@ def _extract_span(item):
 
 def _store_span(item, span):
     """Store span at `step_func`."""
-    setattr(item, "_datadog_span", span)
+    item._datadog_span = span
 
 
 def _extract_step_func_args(step, step_func, step_func_args):

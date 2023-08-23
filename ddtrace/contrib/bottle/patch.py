@@ -27,7 +27,7 @@ def patch():
     if getattr(bottle, "_datadog_patch", False):
         return
 
-    setattr(bottle, "_datadog_patch", True)
+    bottle._datadog_patch = True
     wrapt.wrap_function_wrapper("bottle", "Bottle.__init__", traced_init)
 
 

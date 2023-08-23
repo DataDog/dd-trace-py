@@ -28,7 +28,7 @@ def get_version():
 def patch():
     if getattr(dogpile_cache, "_datadog_patch", False):
         return
-    setattr(dogpile_cache, "_datadog_patch", True)
+    dogpile_cache._datadog_patch = True
 
     _w("dogpile.cache.region", "CacheRegion.get_or_create", _wrap_get_create)
     _w("dogpile.cache.region", "CacheRegion.get_or_create_multi", _wrap_get_create_multi)
@@ -40,7 +40,7 @@ def patch():
 def unpatch():
     if not getattr(dogpile_cache, "_datadog_patch", False):
         return
-    setattr(dogpile_cache, "_datadog_patch", False)
+    dogpile_cache._datadog_patch = False
     # This looks silly but the unwrap util doesn't support class instance methods, even
     # though wrapt does. This was causing the patches to stack on top of each other
     # during testing.
