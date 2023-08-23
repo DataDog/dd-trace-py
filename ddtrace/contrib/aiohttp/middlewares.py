@@ -139,7 +139,7 @@ def trace_app(app, tracer, service="aiohttp-web"):
     # safe-guard: don't trace an application twice
     if getattr(app, "__datadog_trace", False):
         return
-    setattr(app, "__datadog_trace", True)
+    app.__datadog_trace = True
 
     # configure datadog settings
     app[CONFIG_KEY] = {

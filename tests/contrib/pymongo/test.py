@@ -226,7 +226,7 @@ class PymongoCore(object):
         # wildcard query (using the [] syntax)
         cursor = db["teams"].find()
         count = 0
-        for row in cursor:
+        for _row in cursor:
             count += 1
         assert count == len(teams)
 
@@ -392,7 +392,7 @@ class PymongoCore(object):
 
         assert len(queried) == 2
         count = 0
-        for row in queried:
+        for _row in queried:
             count += 1
         assert count == 2
 
@@ -703,7 +703,7 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         # assert one team was deleted
         cursor = db["teams"].find()
         count = 0
-        for row in cursor:
+        for _row in cursor:
             count += 1
         assert count == len(teams) - 1
 
