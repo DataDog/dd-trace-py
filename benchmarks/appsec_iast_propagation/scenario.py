@@ -25,7 +25,7 @@ def taint_pyobject_with_ranges(pyobject, ranges):  # type: (Any, tuple) -> None
 def normal_function(internal_loop, tainted):
     value = ""
     res = value
-    for j in range(internal_loop):
+    for _ in range(internal_loop):
         res += "_".join((tainted, "_", tainted))
         value = res
         res += tainted
@@ -38,7 +38,7 @@ def normal_function(internal_loop, tainted):
 def aspect_function(internal_loop, tainted):
     value = ""
     res = value
-    for j in range(internal_loop):
+    for _ in range(internal_loop):
         res = add_aspect(res, join_aspect("_", (tainted, "_", tainted)))
         value = res
         res = add_aspect(res, tainted)
@@ -60,7 +60,7 @@ def new_request(enable_propagation):
 
 
 def launch_function(enable_propagation, func, internal_loop, caller_loop):
-    for i in range(caller_loop):
+    for _ in range(caller_loop):
         tainted_value = new_request(enable_propagation)
         func(internal_loop, tainted_value)
 
