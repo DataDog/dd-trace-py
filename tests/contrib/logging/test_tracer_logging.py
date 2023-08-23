@@ -38,8 +38,6 @@ def assert_file_logging(expected_log, out, err, dd_trace_debug, dd_log_path):
 
         if PY2 and dd_trace_debug == "true":
             assert 'No handlers could be found for logger "ddtrace' in err
-        else:
-            assert err == b""
 
         assert_file_contains_log(dd_log_path)
     else:
@@ -177,8 +175,6 @@ ddtrace_logger.warning('ddtrace warning log')
 
         if dd_trace_debug == "true":
             assert "ddtrace.commands.ddtrace_run" in str(err)  # comes from ddtrace-run debug logging
-        else:
-            assert err == b""
 
         assert_file_contains_log(tmpdir.strpath + "/" + dd_trace_log_file)
 
@@ -236,10 +232,10 @@ import ddtrace
 
 ddtrace_logger = logging.getLogger('ddtrace')
 assert ddtrace_logger.getEffectiveLevel() == logging.WARN
-assert len(ddtrace_logger.handlers) == 1
-assert isinstance(ddtrace_logger.handlers[0], logging.handlers.RotatingFileHandler)
-assert ddtrace_logger.handlers[0].maxBytes == 200000
-assert ddtrace_logger.handlers[0].backupCount == 1
+assert len(ddtrace_logger.handlers) == 2
+assert isinstance(ddtrace_logger.handlers[1], logging.handlers.RotatingFileHandler)
+assert ddtrace_logger.handlers[1].maxBytes == 200000
+assert ddtrace_logger.handlers[1].backupCount == 1
 
 ddtrace_logger.warning('warning log')
 """
@@ -249,10 +245,10 @@ import logging
 
 ddtrace_logger = logging.getLogger('ddtrace')
 assert ddtrace_logger.getEffectiveLevel() == logging.WARN
-assert len(ddtrace_logger.handlers) == 1
-assert isinstance(ddtrace_logger.handlers[0], logging.handlers.RotatingFileHandler)
-assert ddtrace_logger.handlers[0].maxBytes == 200000
-assert ddtrace_logger.handlers[0].backupCount == 1
+assert len(ddtrace_logger.handlers) == 2
+assert isinstance(ddtrace_logger.handlers[1], logging.handlers.RotatingFileHandler)
+assert ddtrace_logger.handlers[1].maxBytes == 200000
+assert ddtrace_logger.handlers[1].backupCount == 1
 
 ddtrace_logger.warning('warning log')
 """
@@ -263,7 +259,7 @@ ddtrace_logger.warning('warning log')
     ]:
         out, err, status, pid = run_in_subprocess(code, env=env)
         assert status == 0, err
-        assert err == b"", err.decode()
+        assert err == b"warning log\n", err.decode()
         assert out == b"", out.decode()
         with open(log_file) as file:
             first_line = file.readline()
@@ -351,12 +347,12 @@ import ddtrace
 
 ddtrace_logger = logging.getLogger('ddtrace')
 assert ddtrace_logger.getEffectiveLevel() == logging.DEBUG
-assert len(ddtrace_logger.handlers) == 1
-assert isinstance(ddtrace_logger.handlers[0], logging.handlers.RotatingFileHandler)
-assert ddtrace_logger.handlers[0].maxBytes == 10
-assert ddtrace_logger.handlers[0].backupCount == 1
+assert len(ddtrace_logger.handlers) == 2
+assert isinstance(ddtrace_logger.handlers[1], logging.handlers.RotatingFileHandler)
+assert ddtrace_logger.handlers[1].maxBytes == 10
+assert ddtrace_logger.handlers[1].backupCount == 1
 if os.environ.get("DD_TRACE_LOG_FILE_LEVEL") is not None:
-    ddtrace_logger.handlers[0].level == getattr(logging, os.environ.get("DD_TRACE_LOG_FILE_LEVEL"))
+    ddtrace_logger.handlers[1].level == getattr(logging, os.environ.get("DD_TRACE_LOG_FILE_LEVEL"))
 
 ddtrace_logger = logging.getLogger('ddtrace')
 
@@ -370,8 +366,6 @@ for attempt in range(100):
 
     if PY2:
         assert 'No handlers could be found for logger "ddtrace' in err
-    else:
-        assert err == b""
 
     assert out == b""
 
@@ -383,13 +377,13 @@ import os
 
 ddtrace_logger = logging.getLogger('ddtrace')
 assert ddtrace_logger.getEffectiveLevel() == logging.DEBUG
-assert len(ddtrace_logger.handlers) == 1
-assert isinstance(ddtrace_logger.handlers[0], logging.handlers.RotatingFileHandler)
-assert ddtrace_logger.handlers[0].maxBytes == 10
-assert ddtrace_logger.handlers[0].backupCount == 1
+assert len(ddtrace_logger.handlers) == 2
+assert isinstance(ddtrace_logger.handlers[1], logging.handlers.RotatingFileHandler)
+assert ddtrace_logger.handlers[1].maxBytes == 10
+assert ddtrace_logger.handlers[1].backupCount == 1
 
 if os.environ.get("DD_TRACE_LOG_FILE_LEVEL") is not None:
-    ddtrace_logger.handlers[0].level == getattr(logging, os.environ.get("DD_TRACE_LOG_FILE_LEVEL"))
+    ddtrace_logger.handlers[1].level == getattr(logging, os.environ.get("DD_TRACE_LOG_FILE_LEVEL"))
 
 for attempt in range(100):
     ddtrace_logger.debug('ddtrace multiple debug log')
