@@ -144,6 +144,7 @@ class TracedServer(ObjectProxy):
         return span
 
     if VERSION >= (4, 5, 0):
+
         @contextlib.contextmanager
         def checkout(self, *args, **kwargs):
             with self.__wrapped__.checkout(*args, **kwargs) as s:
@@ -151,7 +152,9 @@ class TracedServer(ObjectProxy):
                     s = TracedSocket(s)
                 ddtrace.Pin.get_from(self).onto(s)
                 yield s
+
     else:
+
         @contextlib.contextmanager
         def get_socket(self, *args, **kwargs):
             with self.__wrapped__.get_socket(*args, **kwargs) as s:
@@ -161,6 +164,7 @@ class TracedServer(ObjectProxy):
                 yield s
 
     if VERSION >= (3, 12, 0):
+
         def run_operation(self, sock_info, operation, *args, **kwargs):
             span = self._datadog_trace_operation(operation)
             if span is None:

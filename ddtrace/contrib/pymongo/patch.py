@@ -75,7 +75,7 @@ def traced_get_socket(wrapped, instance, args, kwargs):
     with pin.tracer.trace(
         "pymongo.%s" % CHECKOUT_FN_NAME,
         service=trace_utils.int_service(pin, config.pymongo),
-        span_type=SpanTypes.MONGODB
+        span_type=SpanTypes.MONGODB,
     ) as span:
         span.set_tag_str(COMPONENT, config.pymongo.integration_name)
         span.set_tag_str(db.SYSTEM, mongo.SERVICE)
