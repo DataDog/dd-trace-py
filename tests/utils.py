@@ -451,11 +451,11 @@ class TracerTestCase(TestSpanContainer, BaseTestCase):
     def override_global_tracer(self, tracer=None):
         original = ddtrace.tracer
         tracer = tracer or self.tracer
-        setattr(ddtrace, "tracer", tracer)
+        ddtrace.tracer = tracer
         try:
             yield
         finally:
-            setattr(ddtrace, "tracer", original)
+            ddtrace.tracer = original
 
 
 class DummyWriterMixin:
@@ -997,7 +997,7 @@ def snapshot_context(token, ignores=None, tracer=None, async_mode=True, variants
         # Wait for the traces to be available
         if wait_for_num_traces is not None:
             traces = []
-            for i in range(50):
+            for _ in range(50):
                 try:
                     conn.request("GET", "/test/session/traces?test_session_token=%s" % token)
                     r = conn.getresponse()

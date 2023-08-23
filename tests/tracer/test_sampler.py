@@ -133,7 +133,7 @@ class RateSamplerTest(unittest.TestCase):
                 len(samples) <= 1
             ), "evaluating sampling rules against a span should result in either dropping or not dropping it"
             sampled = 1 == len(samples)
-            for j in range(10):
+            for _ in range(10):
                 other_span = Span(str(i), trace_id=span.trace_id)
                 assert sampled == tracer._sampler.sample(
                     other_span

@@ -5,7 +5,7 @@ import pytest
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec.iast import oce
-from ddtrace.appsec.iast._util import _is_python_version_supported as python_supported_by_iast
+from ddtrace.appsec.iast._utils import _is_python_version_supported as python_supported_by_iast
 from ddtrace.appsec.iast.constants import VULN_SQL_INJECTION
 from ddtrace.contrib.sqlite3.patch import patch
 from tests.appsec.iast.iast_utils import get_line_and_hash
