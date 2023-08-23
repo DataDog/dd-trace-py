@@ -43,7 +43,19 @@ cpdef traceback_to_frames(traceback, max_nframes):
     while tb is not None:
         if nframes < max_nframes:
             frame = tb.tb_frame
+            IF PY_VERSION_HEX >= 0x030b0000:
+                if not isinstance(frame, FrameType):
+                    log.warning(
+                        "Got object of type '%s' instead of a frame object during stack unwinding [tb]", type(frame).__name__
+                    )
+                    return [], 0
             code = frame.f_code
+            IF PY_VERSION_HEX >= 0x030b0000:
+                if not isinstance(code, CodeType):
+                    log.warning(
+                        "Got object of type '%s' instead of a code object during stack unwinding [tb]", type(code).__name__
+                    )
+                    return [], 0
             lineno = 0 if frame.f_lineno is None else frame.f_lineno
             frames.insert(0, DDFrame(code.co_filename, lineno, code.co_name, _extract_class_name(frame)))
         nframes += 1
@@ -75,7 +87,7 @@ cpdef pyframe_to_frames(frame, max_nframes):
         IF PY_VERSION_HEX >= 0x030b0000:
             if not isinstance(frame, FrameType):
                 log.warning(
-                    "Got object of type '%s' instead of a frame object during stack unwinding", type(frame).__name__
+                    "Got object of type '%s' instead of a frame object during stack unwinding [pf]", type(frame).__name__
                 )
                 return [], 0
 
@@ -84,7 +96,7 @@ cpdef pyframe_to_frames(frame, max_nframes):
             IF PY_VERSION_HEX >= 0x030b0000:
                 if not isinstance(code, CodeType):
                     log.warning(
-                        "Got object of type '%s' instead of a code object during stack unwinding", type(code).__name__
+                        "Got object of type '%s' instead of a code object during stack unwinding [pf]", type(code).__name__
                     )
                     return [], 0
 
