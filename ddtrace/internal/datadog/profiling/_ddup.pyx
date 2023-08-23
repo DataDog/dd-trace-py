@@ -48,8 +48,8 @@ IF UNAME_SYSNAME == "Linux":
         void ddup_push_threadinfo(int64_t thread_id, int64_t thread_native_id, const char *thread_name)
         void ddup_push_task_id(int64_t task_id)
         void ddup_push_task_name(const char *task_name)
-        void ddup_push_span_id(int64_t span_id)
-        void ddup_push_local_root_span_id(int64_t local_root_span_id)
+        void ddup_push_span_id(uint64_t span_id)
+        void ddup_push_local_root_span_id(uint64_t local_root_span_id)
         void ddup_push_trace_type(const char *trace_type)
         void ddup_push_trace_resource_container(const char *trace_resource_container)
         void ddup_push_exceptioninfo(const char *exception_type, int64_t count)
@@ -144,13 +144,18 @@ IF UNAME_SYSNAME == "Linux":
         ddup_push_class_name(ensure_binary(class_name))
 
     def push_span(span: typing.Optional[Span], endpoint_collection_enabled: bool) -> None:
-        if span:
+        if not span:
+            return
+        if span.span_id:
             ddup_push_span_id(span.span_id)
-            if span._local_root is not None:
-                ddup_push_local_root_span_id(span._local_root)
-                ddup_push_trace_type(span._local_root.span_type)
-                if endpoint_collection_enabled:
-                    ddup_push_trace_resource_container(span._local_root._resource)
+        if not span._local_root:
+            return
+        if span._local_root.span_id:
+            ddup_push_local_root_span_id(span._local_root.span_id)
+        if span._local_root.span_type:
+            ddup_push_trace_type(span._local_root.span_type)
+        if endpoint_collection_enabled:
+            ddup_push_trace_resource_container(span._local_root._resource)
 
     def flush_sample() -> None:
         ddup_flush_sample()

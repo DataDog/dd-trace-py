@@ -293,7 +293,8 @@ ddup_upload()
         // Rationalize return for interface
         std::cout << "WHOA NOT INITIALIZED" << std::endl;
     }
-    new std::thread(ddup_upload_impl, g_profile); // set it and forget it
+    std::thread(ddup_upload_impl, g_profile).detach(); // set it and forget it
+
     g_prof_flag ^= true;
     g_profile = g_profile_real[g_prof_flag];
     g_profile->reset();
