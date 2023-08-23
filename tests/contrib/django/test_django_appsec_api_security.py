@@ -65,35 +65,35 @@ def test_api_security(client, test_spans, tracer):
         headers_schema = {
             "1": [
                 {
-                    "Content-Type": [8],
-                    "Content-Length": [8],
-                    "X-Frame-Options": [8],
+                    "content-type": [8],
+                    "content-length": [8],
+                    "x-frame-options": [8],
                 }
             ],
             "2": [
                 {
-                    "Content-Type": [8],
-                    "Content-Length": [8],
-                    "X-Frame-Options": [8],
+                    "content-type": [8],
+                    "content-length": [8],
+                    "x-frame-options": [8],
                 }
             ],
             "3": [
                 {
-                    "Content-Type": [8],
-                    "X-Content-Type-Options": [8],
-                    "Referrer-Policy": [8],
-                    "X-Frame-Options": [8],
-                    "Content-Length": [8],
+                    "content-type": [8],
+                    "x-content-type-options": [8],
+                    "referrer-policy": [8],
+                    "x-frame-options": [8],
+                    "content-length": [8],
                 }
             ],
             "4": [
                 {
-                    "Content-Type": [8],
-                    "Cross-Origin-Opener-Policy": [8],
-                    "X-Content-Type-Options": [8],
-                    "Referrer-Policy": [8],
-                    "X-Frame-Options": [8],
-                    "Content-Length": [8],
+                    "content-type": [8],
+                    "cross-origin-opener-policy": [8],
+                    "x-content-type-options": [8],
+                    "referrer-policy": [8],
+                    "x-frame-options": [8],
+                    "content-length": [8],
                 }
             ],
         }
@@ -102,7 +102,7 @@ def test_api_security(client, test_spans, tracer):
             ("_dd.appsec.s.req.body", [{"key": [8], "ids": [[[4]], {"len": 4}]}]),
             (
                 "_dd.appsec.s.req.headers",
-                [{"Cookie": [8], "Content-Length": [8], "Content-Type": [8]}],
+                [{"content-length": [8], "content-type": [8]}],
             ),
             ("_dd.appsec.s.req.query", [{"x": [[[8]], {"len": 1}]}]),
             ("_dd.appsec.s.req.params", [{"year": [4], "month": [8]}]),
@@ -112,4 +112,4 @@ def test_api_security(client, test_spans, tracer):
             value = root_span.get_tag(name)
             assert value, name
             api = json.loads(gzip.decompress(base64.b64decode(value)).decode())
-            assert equal_without_meta(api, expected_value)
+            assert equal_without_meta(api, expected_value), name

@@ -1,13 +1,14 @@
 import base64
 import gzip
+import json
 import os
 from typing import TYPE_CHECKING
 
 from ddtrace._tracing._limits import MAX_SPAN_META_VALUE_LEN
 from ddtrace.appsec import processor as appsec_processor
-from ddtrace.appsec._api_security.schema import get_json_schema
 from ddtrace.appsec._asm_request_context import _WAF_RESULTS
 from ddtrace.appsec._asm_request_context import add_context_callback
+from ddtrace.appsec._asm_request_context import call_waf_callback
 from ddtrace.appsec._asm_request_context import remove_context_callback
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
@@ -34,12 +35,12 @@ class TooLargeSchemaException(Exception):
 
 class APIManager(Service):
     COLLECTED = [
-        (SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, API_SECURITY.REQUEST_HEADERS_NO_COOKIES, dict),
-        (SPAN_DATA_NAMES.REQUEST_QUERY, API_SECURITY.REQUEST_QUERY, dict),
-        (SPAN_DATA_NAMES.REQUEST_PATH_PARAMS, API_SECURITY.REQUEST_PATH_PARAMS, dict),
-        (SPAN_DATA_NAMES.REQUEST_BODY, API_SECURITY.REQUEST_BODY, None),
-        (SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, API_SECURITY.RESPONSE_HEADERS_NO_COOKIES, dict),
-        (SPAN_DATA_NAMES.RESPONSE_BODY, API_SECURITY.RESPONSE_BODY, None),
+        ("REQUEST_HEADERS_NO_COOKIES", API_SECURITY.REQUEST_HEADERS_NO_COOKIES, dict),
+        ("REQUEST_QUERY", API_SECURITY.REQUEST_QUERY, dict),
+        ("REQUEST_PATH_PARAMS", API_SECURITY.REQUEST_PATH_PARAMS, dict),
+        ("REQUEST_BODY", API_SECURITY.REQUEST_BODY, None),
+        ("RESPONSE_HEADERS_NO_COOKIES", API_SECURITY.RESPONSE_HEADERS_NO_COOKIES, dict),
+        ("RESPONSE_BODY", API_SECURITY.RESPONSE_BODY, None),
     ]
     GLOBAL_RATE_LIMIT = 50.0  # requests per seconds
 
@@ -146,29 +147,35 @@ class APIManager(Service):
         except Exception:
             self._log_limiter.limit(log.debug, "Failed to enrich request span with headers", exc_info=True)
 
+        waf_payload = {}
         for address, meta_name, transform in self.COLLECTED:
-            value = env.waf_addresses.get(address, _sentinel)
+            value = env.waf_addresses.get(SPAN_DATA_NAMES[address], _sentinel)
             if value is _sentinel:
                 log.debug("no value for %s", address)
                 continue
-            json_serialized = ()
-            b64_gzip_content = b""
-            try:
-                if transform is not None:
-                    value = transform(value)
-                json_serialized = get_json_schema(value)
-                b64_gzip_content = base64.b64encode(gzip.compress(json_serialized.encode())).decode()
-                if len(b64_gzip_content) >= MAX_SPAN_META_VALUE_LEN:
-                    raise TooLargeSchemaException
-                root._meta[meta_name] = b64_gzip_content
-            except Exception as e:
-                self._schema_meter.increment("errors", tags={"exc": e.__class__.__name__, "address": address})
-                self._log_limiter.limit(
-                    log.warning,
-                    "Failed to get schema from %r [schema length=%d]:\n%s",
-                    address,
-                    len(b64_gzip_content),
-                    repr(value)[:256],
-                    exc_info=True,
-                )
+            if transform is not None:
+                value = transform(value)
+            waf_payload[address] = value
+        if waf_payload:
+            waf_payload["SETTINGS"] = {"extract-schema": True}
+            result = call_waf_callback(waf_payload)
+            for meta, schema in result.items():
+                b64_gzip_content = b""
+                try:
+                    b64_gzip_content = base64.b64encode(
+                        gzip.compress(json.dumps(schema, separators=",:").encode())
+                    ).decode()
+                    if len(b64_gzip_content) >= MAX_SPAN_META_VALUE_LEN:
+                        raise TooLargeSchemaException
+                    root._meta[meta] = b64_gzip_content
+                except Exception as e:
+                    self._schema_meter.increment("errors", tags={"exc": e.__class__.__name__, "address": address})
+                    self._log_limiter.limit(
+                        log.warning,
+                        "Failed to get schema from %r [schema length=%d]:\n%s",
+                        address,
+                        len(b64_gzip_content),
+                        repr(value)[:256],
+                        exc_info=True,
+                    )
         self._schema_meter.increment("spans")

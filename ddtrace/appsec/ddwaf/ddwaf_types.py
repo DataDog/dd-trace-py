@@ -263,7 +263,7 @@ class ddwaf_result(ctypes.Structure):
         ("timeout", ctypes.c_bool),
         ("events", ddwaf_object),
         ("actions", ddwaf_object),
-        ("ddwaf_object derivatives", ddwaf_object),
+        ("derivatives", ddwaf_object),
         ("total_runtime", ctypes.c_uint64),
     ]
 
