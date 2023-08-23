@@ -178,7 +178,7 @@ class LogProbeFactory(ProbeFactory):
                         "maxReferenceDepth": "max_level",
                         "maxCollectionSize": "max_size",
                         "maxLength": "max_len",
-                        "maxFieldDepth": "max_fields",
+                        "maxFieldCount": "max_fields",
                     },
                 )
             )
