@@ -39,31 +39,34 @@ class RCClientMockPubSub2(PubSub):
 
 @mock.patch.object(RemoteConfigClient, "_extract_target_file")
 def test_load_new_configurations_update_applied_configs(mock_extract_target_file):
-    mock_config_content = {"test": "content"}
-    mock_extract_target_file.return_value = mock_config_content
-    mock_callback = MagicMock()
-    mock_config = ConfigMetadata(id="", product_name="ASM_FEATURES", sha256_hash="sha256_hash", length=5, tuf_version=5)
+    with override_global_config(dict(_remote_config_enabled=True)):
+        mock_config_content = {"test": "content"}
+        mock_extract_target_file.return_value = mock_config_content
+        mock_callback = MagicMock()
+        mock_config = ConfigMetadata(
+            id="", product_name="ASM_FEATURES", sha256_hash="sha256_hash", length=5, tuf_version=5
+        )
 
-    applied_configs = {}
-    payload = {}
-    client_configs = {"mock/ASM_FEATURES": mock_config}
+        applied_configs = {}
+        payload = {}
+        client_configs = {"mock/ASM_FEATURES": mock_config}
 
-    rc_client = RemoteConfigClient()
-    rc_client.register_product("ASM_FEATURES", mock_callback)
+        rc_client = RemoteConfigClient()
+        rc_client.register_product("ASM_FEATURES", mock_callback)
 
-    list_callbacks = []
-    rc_client._load_new_configurations(list_callbacks, applied_configs, client_configs, payload=payload)
-    rc_client._publish_configuration(list_callbacks)
+        list_callbacks = []
+        rc_client._load_new_configurations(list_callbacks, applied_configs, client_configs, payload=payload)
+        rc_client._publish_configuration(list_callbacks)
 
-    mock_extract_target_file.assert_called_with(payload, "mock/ASM_FEATURES", mock_config)
-    mock_callback.append.assert_called_once_with(mock_config_content, "mock/ASM_FEATURES", mock_config)
-    mock_callback.publish.assert_called_once()
-    assert applied_configs == client_configs
+        mock_extract_target_file.assert_called_with(payload, "mock/ASM_FEATURES", mock_config)
+        mock_callback.append.assert_called_once_with(mock_config_content, "mock/ASM_FEATURES", mock_config)
+        mock_callback.publish.assert_called_once()
+        assert applied_configs == client_configs
 
 
 @mock.patch.object(RemoteConfigClient, "_extract_target_file")
 def test_load_new_configurations_dispatch_applied_configs(mock_extract_target_file):
-    with override_global_config(dict(_remote_config_poll_interval=0.1)):
+    with override_global_config(dict(_remote_config_poll_interval=0.1, _remote_config_enabled=True)):
         mock_callback = MagicMock()
 
         def _mock_appsec_callback(features, test_tracer=None):
@@ -111,46 +114,52 @@ def test_load_new_configurations_dispatch_applied_configs(mock_extract_target_fi
 
 @mock.patch.object(RemoteConfigClient, "_extract_target_file")
 def test_load_new_configurations_config_exists(mock_extract_target_file):
-    mock_callback = MagicMock()
-    mock_config = ConfigMetadata(id="", product_name="ASM_FEATURES", sha256_hash="sha256_hash", length=5, tuf_version=5)
+    with override_global_config(dict(_remote_config_enabled=True)):
+        mock_callback = MagicMock()
+        mock_config = ConfigMetadata(
+            id="", product_name="ASM_FEATURES", sha256_hash="sha256_hash", length=5, tuf_version=5
+        )
 
-    applied_configs = {}
-    payload = {}
-    client_configs = {"mock/ASM_FEATURES": mock_config}
+        applied_configs = {}
+        payload = {}
+        client_configs = {"mock/ASM_FEATURES": mock_config}
 
-    rc_client = RemoteConfigClient()
-    rc_client.register_product("ASM_FEATURES", mock_callback)
-    rc_client._applied_configs = {"mock/ASM_FEATURES": mock_config}
+        rc_client = RemoteConfigClient()
+        rc_client.register_product("ASM_FEATURES", mock_callback)
+        rc_client._applied_configs = {"mock/ASM_FEATURES": mock_config}
 
-    list_callbacks = []
-    rc_client._load_new_configurations(list_callbacks, applied_configs, client_configs, payload=payload)
-    rc_client._publish_configuration(list_callbacks)
+        list_callbacks = []
+        rc_client._load_new_configurations(list_callbacks, applied_configs, client_configs, payload=payload)
+        rc_client._publish_configuration(list_callbacks)
 
-    mock_extract_target_file.assert_not_called()
-    mock_callback.assert_not_called()
-    assert applied_configs == {}
+        mock_extract_target_file.assert_not_called()
+        mock_callback.assert_not_called()
+        assert applied_configs == {}
 
 
 @mock.patch.object(RemoteConfigClient, "_extract_target_file")
 def test_load_new_configurations_error_extract_target_file(mock_extract_target_file):
-    mock_extract_target_file.return_value = None
-    mock_callback = MagicMock()
-    mock_config = ConfigMetadata(id="", product_name="ASM_FEATURES", sha256_hash="sha256_hash", length=5, tuf_version=5)
+    with override_global_config(dict(_remote_config_enabled=True)):
+        mock_extract_target_file.return_value = None
+        mock_callback = MagicMock()
+        mock_config = ConfigMetadata(
+            id="", product_name="ASM_FEATURES", sha256_hash="sha256_hash", length=5, tuf_version=5
+        )
 
-    applied_configs = {}
-    payload = {}
-    client_configs = {"mock/ASM_FEATURES": mock_config}
+        applied_configs = {}
+        payload = {}
+        client_configs = {"mock/ASM_FEATURES": mock_config}
 
-    rc_client = RemoteConfigClient()
-    rc_client.register_product("ASM_FEATURES", mock_callback)
+        rc_client = RemoteConfigClient()
+        rc_client.register_product("ASM_FEATURES", mock_callback)
 
-    list_callbacks = []
-    rc_client._load_new_configurations(list_callbacks, applied_configs, client_configs, payload=payload)
-    rc_client._publish_configuration(list_callbacks)
+        list_callbacks = []
+        rc_client._load_new_configurations(list_callbacks, applied_configs, client_configs, payload=payload)
+        rc_client._publish_configuration(list_callbacks)
 
-    mock_extract_target_file.assert_called_with(payload, "mock/ASM_FEATURES", mock_config)
-    mock_callback.assert_not_called()
-    assert applied_configs == {}
+        mock_extract_target_file.assert_called_with(payload, "mock/ASM_FEATURES", mock_config)
+        mock_callback.assert_not_called()
+        assert applied_configs == {}
 
 
 @mock.patch.object(RemoteConfigClient, "_extract_target_file")
@@ -161,25 +170,28 @@ def test_load_new_configurations_error_callback(mock_extract_target_file):
     def exception_callback():
         raise RemoteConfigCallbackTestException("error")
 
-    mock_config_content = {"test": "content"}
-    mock_extract_target_file.return_value = mock_config_content
-    mock_config = ConfigMetadata(id="", product_name="ASM_FEATURES", sha256_hash="sha256_hash", length=5, tuf_version=5)
+    with override_global_config(dict(_remote_config_enabled=True)):
+        mock_config_content = {"test": "content"}
+        mock_extract_target_file.return_value = mock_config_content
+        mock_config = ConfigMetadata(
+            id="", product_name="ASM_FEATURES", sha256_hash="sha256_hash", length=5, tuf_version=5
+        )
 
-    applied_configs = {}
-    payload = {}
-    client_configs = {"mock/ASM_FEATURES": mock_config}
+        applied_configs = {}
+        payload = {}
+        client_configs = {"mock/ASM_FEATURES": mock_config}
 
-    rc_client = RemoteConfigClient()
-    rc_client.register_product("ASM_FEATURES", exception_callback)
+        rc_client = RemoteConfigClient()
+        rc_client.register_product("ASM_FEATURES", exception_callback)
 
-    list_callbacks = []
-    rc_client._load_new_configurations(list_callbacks, applied_configs, client_configs, payload=payload)
-    rc_client._publish_configuration(list_callbacks)
+        list_callbacks = []
+        rc_client._load_new_configurations(list_callbacks, applied_configs, client_configs, payload=payload)
+        rc_client._publish_configuration(list_callbacks)
 
-    mock_extract_target_file.assert_called_with(payload, "mock/ASM_FEATURES", mock_config)
+        mock_extract_target_file.assert_called_with(payload, "mock/ASM_FEATURES", mock_config)
 
-    # An exception prevents the configuration from being applied
-    assert applied_configs["mock/ASM_FEATURES"].apply_state in (1, 3)
+        # An exception prevents the configuration from being applied
+        assert applied_configs["mock/ASM_FEATURES"].apply_state in (1, 3)
 
 
 @pytest.mark.parametrize(

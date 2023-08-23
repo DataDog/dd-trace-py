@@ -47,18 +47,24 @@ def _set_and_get_appsec_tags(tracer):
     return span.get_tag(APPSEC.JSON)
 
 
+@pytest.mark.xfail(
+    reason="DD_REMOTE_CONFIGURATION_ENABLED is set to false for all riot venvs, "
+    "this is not the default behavior for users"
+)
 def test_rc_enabled_by_default(tracer):
+    # TODO: remove https://github.com/DataDog/dd-trace-py/blob/1.x/riotfile.py#L100 or refactor this test
     result = _set_and_get_appsec_tags(tracer)
     assert result is None
     assert _appsec_rc_features_is_enabled()
 
 
 def test_rc_activate_is_active_and_get_processor_tags(tracer, remote_config_worker):
-    result = _set_and_get_appsec_tags(tracer)
-    assert result is None
-    rc_config = {"config": {"asm": {"enabled": True}}}
-    _appsec_callback(rc_config, tracer)
-    assert "triggers" in _set_and_get_appsec_tags(tracer)
+    with override_global_config(dict(_remote_config_enabled=True)):
+        result = _set_and_get_appsec_tags(tracer)
+        assert result is None
+        rc_config = {"config": {"asm": {"enabled": True}}}
+        _appsec_callback(rc_config, tracer)
+        assert "triggers" in _set_and_get_appsec_tags(tracer)
 
 
 @pytest.mark.parametrize(
@@ -70,9 +76,9 @@ def test_rc_activate_is_active_and_get_processor_tags(tracer, remote_config_work
     ],
 )
 def test_rc_activation_states_on(tracer, appsec_enabled, rc_value, remote_config_worker):
-    with override_global_config(dict(_appsec_enabled=asbool(appsec_enabled))), override_env(
-        {APPSEC.ENV: appsec_enabled}
-    ):
+    with override_global_config(
+        dict(_appsec_enabled=asbool(appsec_enabled), _remote_config_enabled=True)
+    ), override_env({APPSEC.ENV: appsec_enabled}):
         if appsec_enabled == "":
             del os.environ[APPSEC.ENV]
         else:
@@ -112,23 +118,26 @@ def test_rc_activation_states_off(tracer, appsec_enabled, rc_value, remote_confi
 @pytest.mark.parametrize(
     "rc_enabled, appsec_enabled, capability",
     [
-        ("true", "true", "A/w="),  # All capabilities except ASM_ACTIVATION
-        ("false", "true", ""),
-        ("true", "false", ""),
-        ("false", "false", ""),
-        ("true", "", "Ag=="),  # ASM_ACTIVATION
-        ("false", "", ""),
+        (True, "true", "A/w="),  # All capabilities except ASM_ACTIVATION
+        (False, "true", ""),
+        (True, "false", ""),
+        (False, "false", ""),
+        (True, "", "Ag=="),  # ASM_ACTIVATION
+        (False, "", ""),
     ],
 )
 def test_rc_capabilities(rc_enabled, appsec_enabled, capability, tracer):
+    env = {}
     config = {}
     tracer.configure(appsec_enabled=False, api_version="v0.4")
     if appsec_enabled:
+        env[APPSEC.ENV] = appsec_enabled
         config["appsec_enabled"] = asbool(appsec_enabled)
         config["api_version"] = "v0.4"
-    with override_global_config(dict(_remote_config_enabled=rc_enabled, _appsec_enabled=appsec_enabled)):
-        tracer.configure(**config)
-        assert _appsec_rc_capabilities(test_tracer=tracer) == capability
+    with override_env(env):
+        with override_global_config(dict(_remote_config_enabled=rc_enabled)):
+            tracer.configure(**config)
+            assert _appsec_rc_capabilities(test_tracer=tracer) == capability
 
 
 @pytest.mark.parametrize(
@@ -139,9 +148,8 @@ def test_rc_capabilities(rc_enabled, appsec_enabled, capability, tracer):
     ],
 )
 def test_rc_activation_capabilities(tracer, remote_config_worker, env_rules, expected):
-    env = env_rules.copy()
-    with override_env(env), override_global_config(
-        dict(_remote_config_enabled=True, _appsec_enabled=False, api_version="v0.4")
+    with override_env(env_rules), override_global_config(
+        dict(_appsec_enabled=False, api_version="v0.4", _remote_config_enabled=True)
     ):
         rc_config = {"config": {"asm": {"enabled": True}}}
 
@@ -153,7 +161,7 @@ def test_rc_activation_capabilities(tracer, remote_config_worker, env_rules, exp
 
 
 def test_rc_activation_validate_products(tracer, remote_config_worker):
-    with override_global_config(dict(_appsec_enabled=False, api_version="v0.4")):
+    with override_global_config(dict(_appsec_enabled=False, _remote_config_enabled=True, api_version="v0.4")):
         assert not remoteconfig_poller._worker
 
         enable_appsec_rc()
@@ -172,8 +180,7 @@ def test_rc_activation_validate_products(tracer, remote_config_worker):
 def test_rc_activation_check_asm_features_product_disables_rest_of_products(
     tracer, remote_config_worker, env_rules, expected
 ):
-    env = env_rules.copy()
-    with override_env(env), override_global_config(
+    with override_env(env_rules), override_global_config(
         dict(_remote_config_enabled=True, _appsec_enabled=True, api_version="v0.4")
     ):
         tracer.configure(appsec_enabled=True, api_version="v0.4")
@@ -196,7 +203,7 @@ def test_rc_activation_check_asm_features_product_disables_rest_of_products(
 def test_load_new_configurations_dispatch_applied_configs(
     mock_appsec_rules_data, mock_appsec_1click_activation, remote_config_worker, tracer
 ):
-    with override_global_config(dict(_appsec_enabled=True, api_version="v0.4")):
+    with override_global_config(dict(_appsec_enabled=True, _remote_config_enabled=True, api_version="v0.4")):
         tracer.configure(appsec_enabled=True, api_version="v0.4")
         enable_appsec_rc(tracer)
         asm_features_data = b'{"asm":{"enabled":true}}'
@@ -238,7 +245,7 @@ def test_load_new_configurations_dispatch_applied_configs(
 def test_load_new_configurations_empty_config(
     mock_appsec_rules_data, mock_appsec_1click_activation, remote_config_worker, tracer
 ):
-    with override_global_config(dict(_appsec_enabled=True, api_version="v0.4")):
+    with override_global_config(dict(_appsec_enabled=True, _remote_config_enabled=True, api_version="v0.4")):
         tracer.configure(appsec_enabled=True, api_version="v0.4")
         enable_appsec_rc(tracer)
         asm_features_data = b'{"asm":{"enabled":true}}'
@@ -285,7 +292,8 @@ def test_load_new_configurations_remove_config_and_dispatch_applied_configs(
     mock_preprocess_results_appsec_1click_activation,
     remote_config_worker,
 ):
-    enable_appsec_rc()
+    with override_global_config(dict(_remote_config_enabled=True)):
+        enable_appsec_rc()
     asm_features_data = b'{"asm":{"enabled":true}}'
     asm_data_data = b'{"data":{}}'
     payload = AgentPayload(
@@ -343,7 +351,8 @@ def test_load_new_configurations_remove_config_and_dispatch_applied_configs_erro
     The previous code raises a key error in `self._products[config.product_name]` when appsec features is disabled
     with ASM_FEATURES product and then loops over the config in _load_new_configurations
     """
-    enable_appsec_rc()
+    with override_global_config(dict(_remote_config_enabled=True)):
+        enable_appsec_rc()
     asm_features_data = b'{"asm":{"enabled":true}}'
     asm_data_data = b'{"data":{}}'
     payload = AgentPayload(
@@ -384,7 +393,7 @@ def test_load_new_configurations_remove_config_and_dispatch_applied_configs_erro
 def test_load_multiple_targets_file_same_product(
     mock_appsec_rules_data, mock_appsec_1click_activation, remote_config_worker, tracer
 ):
-    with override_global_config(dict(_appsec_enabled=True, api_version="v0.4")):
+    with override_global_config(dict(_appsec_enabled=True, _remote_config_enabled=True, api_version="v0.4")):
         tracer.configure(appsec_enabled=True, api_version="v0.4")
         enable_appsec_rc(tracer)
         asm_features_data = b'{"asm":{"enabled":true}}'
@@ -521,7 +530,7 @@ def test_load_new_config_and_remove_targets_file_same_product(
         remoteconfig_poller._poll_data()
 
         mock_appsec_rules_data.assert_called_with({"asm": {"enabled": True}, "data": [{"a": 1}]}, None)
-    disable_appsec_rc()
+        disable_appsec_rc()
 
 
 @pytest.mark.skipif(sys.version_info[:2] < (3, 6), reason="Mock return order is different in python <= 3.5")
