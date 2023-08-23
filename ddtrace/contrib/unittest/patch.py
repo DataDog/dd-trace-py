@@ -361,6 +361,7 @@ def handle_module_suite_wrapper(func, instance, args, kwargs):
             test_module_path = test_module_span.get_tag(test.MODULE_PATH)
             test_suite_span.set_tag_str(test.MODULE_PATH, test_module_path)
             test_suite_span.set_tag_str(test.SUITE, test_suite_name)
+            test_suite_span.set_tag_str(test.TEST_TYPE, SpanTypes.TEST)
             _store_test_span(instance, test_suite_span)
             _store_suite_span(instance, test_suite_span)
             result = func(*args, **kwargs)
@@ -389,6 +390,7 @@ def _create_session(instance, special=False):
         span_type=SpanTypes.TEST,
         resource=resource_name,
     )
+    test_session_span.set_tag_str(test.TEST_TYPE, SpanTypes.TEST)
     test_session_span.set_tag_str(COMPONENT, COMPONENT_VALUE)
     test_session_span.set_tag_str(SPAN_KIND, KIND)
     test_session_span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
@@ -428,6 +430,7 @@ def _create_module(instance, special=False):
     test_module_span.set_tag_str(SPAN_KIND, KIND)
     test_module_span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
     test_module_span.set_tag_str(test.COMMAND, test_session_span.get_tag(test.COMMAND))
+    test_module_span.set_tag_str(test.TEST_TYPE, SpanTypes.TEST)
     test_module_span.set_tag_str(_EVENT_TYPE, _MODULE_TYPE)
     test_module_span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
     test_module_span.set_tag_str(_MODULE_ID, str(test_module_span.span_id))
