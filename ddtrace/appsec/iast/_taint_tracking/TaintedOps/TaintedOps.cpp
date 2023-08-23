@@ -9,8 +9,6 @@ typedef struct _PyASCIIObject_State_Hidden
 PyObject*
 new_pyobject_id(PyObject* tainted_object, Py_ssize_t object_length)
 {
-    py::bytes empty_bytes = "";
-    py::bytearray empty_bytearray = empty_bytes;
     PyObject* empty_unicode = PyUnicode_New(0, 127);
     if (PyUnicode_Check(tainted_object)) {
         //        if (PyUnicode_CHECK_INTERNED(tainted_object) == 0) { //
@@ -21,11 +19,13 @@ new_pyobject_id(PyObject* tainted_object, Py_ssize_t object_length)
         return PyUnicode_Join(empty_unicode, Py_BuildValue("(OO)", tainted_object, empty_unicode));
     }
     if (PyBytes_Check(tainted_object)) {
-        py::bytes result_ptr = empty_bytes.attr("join")(py::reinterpret_borrow<py::object>(tainted_object));
-        return result_ptr.ptr();
+        auto tainted_object_ob = py::reinterpret_borrow<py::object>(tainted_object);
+        // py::bytes result_ptr = empty_bytes_join(tainted_object_ob);
+        return tainted_object_ob.ptr();
     } else if (PyByteArray_Check(tainted_object)) {
-        py::bytearray result_ptr = empty_bytearray.attr("join")(py::reinterpret_borrow<py::object>(tainted_object));
-        return result_ptr.ptr();
+        auto tainted_object_ob = py::reinterpret_borrow<py::object>(tainted_object);
+        // py::bytearray result_ptr = empty_bytearray.attr("join")(py::reinterpret_borrow<py::object>(tainted_object));
+        return tainted_object_ob.ptr();
     }
     return tainted_object;
 }
