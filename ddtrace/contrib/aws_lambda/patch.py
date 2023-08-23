@@ -161,7 +161,7 @@ def _get_handler_and_module():
         from datadog_lambda.wrapper import datadog_lambda_wrapper
 
         wrapper_module = datadog_lambda_wrapper
-        wrapper_handler = getattr(datadog_lambda_wrapper, "__call__")
+        wrapper_handler = datadog_lambda_wrapper.__call__
 
         return wrapper_handler, wrapper_module, _datadog_instrumentation
     else:
@@ -186,7 +186,7 @@ def _get_handler_and_module():
             # note: if handler is a class instance with `__code__` defined,
             # we will prioritize the `__call__` method, ignoring `__code__`.
             class_module = getattr(handler_module, class_name)
-            class_handler = getattr(class_module, "__call__")
+            class_handler = class_module.__call__
 
             if isinstance(handler, type):
                 # class handler is a metaclass
@@ -235,7 +235,7 @@ def patch():
 
         wrap(handler, wrapper)
 
-        setattr(handler_module, "_datadog_patch", True)
+        handler_module._datadog_patch = True
     except AttributeError:
         # User code might contain `ddtrace.patch_all()` or `ddtrace.patch(aws_lambda=True)`
         # which might cause a circular dependency. Skipping.
@@ -258,7 +258,7 @@ def unpatch():
 
         unwrap(handler, wrapper)
 
-        setattr(handler_module, "_datadog_patch", False)
+        handler_module._datadog_patch = False
     except AttributeError:
         return
     except Exception:

@@ -46,7 +46,7 @@ def parse_payload(data):
 
 def _gunicorn_settings_factory(
     env=None,  # type: Dict[str, str]
-    directory=os.getcwd(),  # type: str
+    directory=None,  # type: str
     app_path="tests.contrib.gunicorn.wsgi_mw_app:app",  # type: str
     num_workers="4",  # type: str
     worker_class="sync",  # type: str
@@ -62,6 +62,8 @@ def _gunicorn_settings_factory(
 ):
     # type: (...) -> GunicornServerSettings
     """Factory for creating gunicorn settings with simple defaults if settings are not defined."""
+    if directory is None:
+        directory = os.getcwd()
     if env is None:
         env = os.environ.copy()
     if import_auto_in_app is not None:
