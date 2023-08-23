@@ -228,7 +228,7 @@ class _ProfilerInstance(service.Service):
                     r,
                     tracer=self.tracer,
                     endpoint_collection_enabled=self.endpoint_collection_enabled,
-                ) # type: ignore[call-arg]
+                )  # type: ignore[call-arg]
             )
 
         if self._lock_collector_enabled:
