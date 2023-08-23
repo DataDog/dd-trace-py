@@ -3,7 +3,7 @@
 from ddtrace.internal.logger import get_logger
 
 from ._ast.ast_patching import astpatch_module
-from ._util import _is_iast_enabled
+from ._utils import _is_iast_enabled
 
 
 log = get_logger(__name__)

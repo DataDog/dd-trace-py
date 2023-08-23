@@ -4,7 +4,7 @@ import pytest
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec.iast import oce
-from ddtrace.appsec.iast._util import _is_python_version_supported as python_supported_by_iast
+from ddtrace.appsec.iast._utils import _is_python_version_supported as python_supported_by_iast
 from ddtrace.appsec.iast.reporter import Evidence
 from ddtrace.appsec.iast.reporter import IastSpanReporter
 from ddtrace.appsec.iast.reporter import Location
