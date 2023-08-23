@@ -223,7 +223,7 @@ def _on_response_context_started(ctx):
 
 def _on_response_prepared(resp_span, response):
     if hasattr(response, "__class__"):
-        resp_class = getattr(getattr(response, "__class__"), "__name__", None)
+        resp_class = getattr(response.__class__, "__name__", None)
         if resp_class:
             resp_span.set_tag_str("result_class", resp_class)
 
