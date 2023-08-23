@@ -176,9 +176,6 @@ try:
 
             from ddtrace.appsec.iast._ast.ast_patching import _should_iast_patch
             from ddtrace.appsec.iast._loader import _exec_iast_patched_module
-            from ddtrace.appsec.iast._taint_tracking import setup
-
-            setup(bytes.join, bytearray.join)
 
             ModuleWatchdog.register_pre_exec_module_hook(_should_iast_patch, _exec_iast_patched_module)
 

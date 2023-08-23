@@ -33,7 +33,6 @@ if _is_python_version_supported():
     from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import shift_taint_range
     from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import shift_taint_ranges
 
-    setup = ops.setup
     new_pyobject_id = ops.new_pyobject_id
     is_pyobject_tainted = is_tainted
 

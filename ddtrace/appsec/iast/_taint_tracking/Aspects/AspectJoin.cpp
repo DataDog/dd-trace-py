@@ -38,7 +38,7 @@ aspect_join(PyObject* sep, PyObject* result, PyObject* iterable_elements, TaintR
                 if (current_pos == 0 and !first_tainted_to) {
                     first_tainted_to = to_element;
                 } else {
-                    if (!result_to) {
+                    if (result_to == nullptr) {
                         // If first_tainted_to is null, it's ranges won't be copied
                         result_to = initializer->allocate_tainted_object_copy(first_tainted_to);
                         first_tainted_to = nullptr;
@@ -50,7 +50,7 @@ aspect_join(PyObject* sep, PyObject* result, PyObject* iterable_elements, TaintR
             current_pos += element_len;
         }
         if (len_sep > 0 and i < len_iterable - 1 and to_joiner) {
-            if (!result_to) {
+            if (result_to == nullptr) {
                 // If first_tainted_to is null, it's ranges won't be copied
                 result_to = initializer->allocate_tainted_object_copy(first_tainted_to);
                 first_tainted_to = nullptr;
@@ -60,7 +60,7 @@ aspect_join(PyObject* sep, PyObject* result, PyObject* iterable_elements, TaintR
         current_pos += len_sep;
     }
 
-    if (!result_to) {
+    if (result_to == nullptr) {
         if (first_tainted_to) {
             result_to = initializer->allocate_tainted_object_copy(first_tainted_to);
         } else {
