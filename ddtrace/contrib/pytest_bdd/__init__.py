@@ -24,8 +24,6 @@ Please follow the instructions for enabling `pytest` integration.
 
 from ddtrace import config
 
-from .plugin import get_version
-
 
 # pytest-bdd default settings
 config._add(
@@ -36,4 +34,10 @@ config._add(
 )
 
 
-__all__ = ["get_version"]
+def get_version():
+    try:
+        import importlib.metadata as importlib_metadata
+    except ImportError:
+        import importlib_metadata  # type: ignore[no-redef]
+
+    return str(importlib_metadata.version("pytest-bdd"))

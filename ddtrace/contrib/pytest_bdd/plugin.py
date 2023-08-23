@@ -15,17 +15,6 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 
-def get_version():
-    import pytest_bdd
-
-    try:
-        import importlib.metadata as importlib_metadata
-    except ImportError:
-        import importlib_metadata  # type: ignore[no-redef]
-
-    return str(importlib_metadata.version(pytest_bdd.__package__))
-
-
 def _extract_span(item):
     """Extract span from `step_func`."""
     return getattr(item, "_datadog_span", None)
