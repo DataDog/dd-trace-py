@@ -83,7 +83,7 @@ class _DDWSGIMiddlewareBase(object):
     def __call__(self, environ, start_response):
         # type: (Iterable, Callable) -> wrapt.ObjectProxy
         headers = get_request_headers(environ)
-        closing_iterator = ()
+        closing_iterable = ()
         not_blocked = True
         with core.context_with_data(
             "wsgi.__call__",
@@ -96,7 +96,7 @@ class _DDWSGIMiddlewareBase(object):
             if core.get_item(HTTP_REQUEST_BLOCKED):
                 status, ctype, content = core.dispatch("wsgi.block.started", [ctx, construct_url])[0][0]
                 start_response(str(status), [("content-type", ctype)])
-                closing_iterator = [content]
+                closing_iterable = [content]
                 not_blocked = False
 
             def blocked_view():
@@ -108,17 +108,17 @@ class _DDWSGIMiddlewareBase(object):
             if not_blocked:
                 core.dispatch("wsgi.request.prepare", [ctx, start_response])
                 try:
-                    closing_iterator = self.app(environ, ctx.get_item("intercept_start_response"))
+                    closing_iterable = self.app(environ, ctx.get_item("intercept_start_response"))
                 except BaseException:
                     core.dispatch("wsgi.app.exception", [ctx])
                     raise
                 else:
-                    core.dispatch("wsgi.app.success", [ctx, closing_iterator])
+                    core.dispatch("wsgi.app.success", [ctx, closing_iterable])
                 if core.get_item(HTTP_REQUEST_BLOCKED):
                     _, _, content = core.dispatch("wsgi.block.started", [ctx, construct_url])[0][0]
-                    closing_iterator = [content]
+                    closing_iterable = [content]
 
-            return core.dispatch("wsgi.request.complete", [ctx, closing_iterator])[0][0]
+            return core.dispatch("wsgi.request.complete", [ctx, closing_iterable])[0][0]
 
     def _traced_start_response(self, start_response, request_span, app_span, status, environ, exc_info=None):
         # type: (Callable, Span, Span, str, Dict, Any) -> None
