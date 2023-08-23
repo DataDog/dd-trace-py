@@ -286,9 +286,9 @@ class AppSecSpanProcessor(SpanProcessor):
         if span.span_type != SpanTypes.WEB:
             return None
 
-        if core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span) or core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
+        if core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span) or core.get_item(WAF_CONTEXT_NAMES.BLOCKED) or True:
             # We still must run the waf if we need to extract schemas for API SECURITY
-            if not custom_data or custom_data.get("API_SECURITY_FLAG", False):
+            if not custom_data or not custom_data.get("SETTINGS", {}).get("extract-schema", False):
                 return None
 
         data = {}
@@ -300,7 +300,7 @@ class AppSecSpanProcessor(SpanProcessor):
         # type ignore because mypy seems to not detect that both results of the if
         # above can iter if not None
         force_keys = custom_data.get("SETTINGS", {}).get("extract-schema", False) if custom_data else False
-        for key, waf_name in iter_data:  # type: ignore[attr-defined]
+        for key, waf_name in iter_data:
             if key in data_already_sent:
                 continue
             if self._is_needed(waf_name) or force_keys:

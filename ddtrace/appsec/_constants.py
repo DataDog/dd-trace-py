@@ -37,7 +37,12 @@ class Constant_Class(type):
         return aux()
 
     def get(self, k, default=None):
+        # type: ("Constant_Class", str, Any) -> Any
         return self.__dict__.get(k, default)
+
+    def __contains__(self, k):
+        # type: ("Constant_Class", str) -> bool
+        return k in self.__dict__
 
     def __getitem__(self, k):
         # type: ("Constant_Class", str) -> Any
