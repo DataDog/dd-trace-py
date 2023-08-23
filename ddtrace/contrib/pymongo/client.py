@@ -143,9 +143,24 @@ class TracedServer(ObjectProxy):
             span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
         return span
 
-    # Pymongo >= 3.12
-    if VERSION >= (3, 12, 0):
+    if VERSION >= (4, 5, 0):
+        @contextlib.contextmanager
+        def checkout(self, *args, **kwargs):
+            with self.__wrapped__.checkout(*args, **kwargs) as s:
+                if not isinstance(s, TracedSocket):
+                    s = TracedSocket(s)
+                ddtrace.Pin.get_from(self).onto(s)
+                yield s
+    else:
+        @contextlib.contextmanager
+        def get_socket(self, *args, **kwargs):
+            with self.__wrapped__.get_socket(*args, **kwargs) as s:
+                if not isinstance(s, TracedSocket):
+                    s = TracedSocket(s)
+                ddtrace.Pin.get_from(self).onto(s)
+                yield s
 
+    if VERSION >= (3, 12, 0):
         def run_operation(self, sock_info, operation, *args, **kwargs):
             span = self._datadog_trace_operation(operation)
             if span is None:
@@ -159,7 +174,6 @@ class TracedServer(ObjectProxy):
                         set_query_rowcount(docs=result.docs, span=span)
                 return result
 
-    # Pymongo >= 3.9, <3.12
     elif (3, 9, 0) <= VERSION < (3, 12, 0):
 
         def run_operation_with_response(self, sock_info, operation, *args, **kwargs):
@@ -175,7 +189,6 @@ class TracedServer(ObjectProxy):
                         set_query_rowcount(docs=result.docs, span=span)
                 return result
 
-    # Pymongo < 3.9
     else:
 
         def send_message_with_response(self, operation, *args, **kwargs):
@@ -199,14 +212,6 @@ class TracedServer(ObjectProxy):
                                     docs = data.get("data", None)
                                     set_query_rowcount(docs=docs, span=span)
                 return result
-
-    @contextlib.contextmanager
-    def get_socket(self, *args, **kwargs):
-        with self.__wrapped__.get_socket(*args, **kwargs) as s:
-            if not isinstance(s, TracedSocket):
-                s = TracedSocket(s)
-            ddtrace.Pin.get_from(self).onto(s)
-            yield s
 
     @staticmethod
     def _is_query(op):
