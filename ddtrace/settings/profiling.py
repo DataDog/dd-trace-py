@@ -162,7 +162,7 @@ class ProfilingConfig(En):
             "enabled",
             default=True,
             help_type="Boolean",
-            help="Whether to enable the stack (cpu/wall/exception) profiler",
+            help="Whether to enable the stack profiler",
         )
 
     class Lock(En):
