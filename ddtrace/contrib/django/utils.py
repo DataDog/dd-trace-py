@@ -43,10 +43,6 @@ else:
     Resolver404 = django.urls.exceptions.Resolver404
 
 
-def get_version():
-    return getattr(django, "__version__", "0.0.0")
-
-
 DJANGO22 = django.VERSION >= (2, 2, 0)
 
 REQUEST_DEFAULT_RESOURCE = "__django_request"
