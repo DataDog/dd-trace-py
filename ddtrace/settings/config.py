@@ -257,7 +257,7 @@ class Config(object):
         self._telemetry_heartbeat_interval = float(os.getenv("DD_TELEMETRY_HEARTBEAT_INTERVAL", "60"))
         if self._telemetry_heartbeat_interval < 10:
             log.warning(
-                "Setting DD_TELEMETRY_HEARTBEAT_INTERVAL less than 10 seconds is not supported. "
+                "Setting DD_TELEMETRY_HEARTBEAT_INTERVAL to a value less than 10 seconds is not supported. "
                 "The heartbeat interval will be set to 10 seconds."
             )
             self._telemetry_heartbeat_interval = 10
