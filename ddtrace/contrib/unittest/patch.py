@@ -208,29 +208,6 @@ def _get_identifier(item):
     return getattr(item, "_datadog_object", None)
 
 
-def _find_module_and_suite_object_helper(item):
-    module, suite = None, item
-    while len(suite._tests) and type(suite._tests[0]) == unittest.TestSuite:
-        if not hasattr(suite, "_tests"):
-            break
-        module = suite
-        suite = module._tests[0]
-    if module:
-        _store_identifier(module, "module")
-    if suite:
-        _store_identifier(suite, "suite")
-
-
-def _find_module_and_suite_objects(args):
-    if type(args) == tuple:
-        if not len(args):
-            return
-        for item in args:
-            _find_module_and_suite_object_helper(item)
-    elif args:
-        _find_module_and_suite_object_helper(args.test)
-
-
 def patch():
     """
     Patch the instrumented methods from unittest
@@ -314,7 +291,7 @@ def add_skip_test_wrapper(func, instance, args, kwargs):
 
 
 def handle_test_wrapper(func, instance, args, kwargs):
-    if _is_unittest_support_enabled() and _is_test_class(instance):
+    if _is_unittest_support_enabled() and _is_test_class(instance) and not len(kwargs):
         tracer = getattr(unittest, "_datadog_tracer", _CIVisibility._instance.tracer)
 
         suite_name = _extract_class_hierarchy_name(instance)
@@ -358,7 +335,7 @@ def handle_test_wrapper(func, instance, args, kwargs):
 
 
 def handle_module_suite_wrapper(func, instance, args, kwargs):
-    if _is_unittest_support_enabled():
+    if _is_unittest_support_enabled() and type(func).__name__ == "method":
         tracer = getattr(unittest, "_datadog_tracer", _CIVisibility._instance.tracer)
         if _is_test_suite(instance):
             test_module_span = _extract_module_span(instance)
@@ -436,6 +413,8 @@ def _create_module(instance, special=False):
     tracer = getattr(unittest, "_datadog_tracer", _CIVisibility._instance.tracer)
     test_session_span = _extract_session_span(instance)
     test_module_name = _extract_module_name_from_module(instance)
+    if not test_module_name:
+        return None, None
     resource_name = _generate_module_resource(FRAMEWORK, test_module_name)
     test_module_span = tracer._start_span(
         "unittest.test_module",
@@ -456,13 +435,14 @@ def _create_module(instance, special=False):
     test_module_span.set_tag_str(test.MODULE_PATH, _extract_module_file_path(instance))
     if not special:
         _store_module_span(instance, test_module_span)
-        _store_identifier(instance.test, "module")
     else:
         _store_span_with_name(instance, test_module_span, "_datadog_module_span")
     return test_module_span, test_session_span
 
 
 def _finish_module(test_module_span, test_session_span):
+    if not test_module_span:
+        return
     module_status = test_module_span.get_tag(test.STATUS)
     if module_status:
         _update_status_item(test_session_span, module_status)
@@ -471,11 +451,7 @@ def _finish_module(test_module_span, test_session_span):
 
 def handle_session_wrapper(func, instance, args, kwargs):
     test_session_span = None
-    if (
-        _is_unittest_support_enabled()
-        and len(instance.test._tests[0]._tests)
-        and not hasattr(instance.test, "_datadog_entry")
-    ):
+    if _is_unittest_support_enabled() and len(instance.test._tests) and not hasattr(instance.test, "_datadog_entry"):
         test_session_span = _create_session(instance)
         setattr(instance.test, "_datadog_entry", "cli")
     try:
@@ -500,6 +476,7 @@ def handle_text_test_runner_wrapper(func, instance, args, kwargs):
     ):
         return func(*args, **kwargs)
     setattr(args[0], "_datadog_entry", "TextTestRunner")
+    _store_identifier(args[0], "suite")
     test_session_span = _create_session(args[0], special=True)
     test_module_span, _ = _create_module(args[0], special=True)
     result = func(*args, **kwargs)
