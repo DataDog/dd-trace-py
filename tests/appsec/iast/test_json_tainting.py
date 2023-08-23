@@ -14,7 +14,7 @@ try:
     from ddtrace.appsec.iast._taint_utils import LazyTaintDict
     from ddtrace.appsec.iast._taint_utils import LazyTaintList
     from ddtrace.appsec.iast._taint_utils import _is_tainted_struct
-    from ddtrace.appsec.iast._util import _is_python_version_supported as python_supported_by_iast
+    from ddtrace.appsec.iast._utils import _is_python_version_supported as python_supported_by_iast
 except (ImportError, AttributeError):
     pytest.skip("IAST not supported for this Python version", allow_module_level=True)
 

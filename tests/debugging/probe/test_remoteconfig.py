@@ -42,7 +42,9 @@ class MockConfig(object):
                 pass
 
 
-def config_metadata(config_id=uuid4()):
+def config_metadata(config_id=None):
+    if config_id is None:
+        config_id = uuid4()
     return ConfigMetadata(config_id, product_name="LIVE_DEBUGGING", sha256_hash="hash", length=123, tuf_version=1)
 
 

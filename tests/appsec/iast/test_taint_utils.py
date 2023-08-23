@@ -184,8 +184,8 @@ def test_recursivity():
 
 def test_checked_tainted_args():
     cursor = mock.Mock()
-    setattr(cursor.execute, "__name__", "execute")
-    setattr(cursor.executemany, "__name__", "executemany")
+    cursor.execute.__name__ = "execute"
+    cursor.executemany.__name__ = "executemany"
 
     arg = "nobody expects the spanish inquisition"
 

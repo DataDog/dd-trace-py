@@ -147,11 +147,11 @@ class AIOTracedConnection(wrapt.ObjectProxy):
 def patch():
     if getattr(aiomysql, "__datadog_patch", False):
         return
-    setattr(aiomysql, "__datadog_patch", True)
+    aiomysql.__datadog_patch = True
     wrapt.wrap_function_wrapper(aiomysql.connection, "_connect", patched_connect)
 
 
 def unpatch():
     if getattr(aiomysql, "__datadog_patch", False):
-        setattr(aiomysql, "__datadog_patch", False)
+        aiomysql.__datadog_patch = False
         unwrap(aiomysql.connection, "_connect")
