@@ -286,7 +286,7 @@ class AppSecSpanProcessor(SpanProcessor):
         if span.span_type != SpanTypes.WEB:
             return None
 
-        if core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span) or core.get_item(WAF_CONTEXT_NAMES.BLOCKED) or True:
+        if core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span) or core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
             # We still must run the waf if we need to extract schemas for API SECURITY
             if not custom_data or not custom_data.get("SETTINGS", {}).get("extract-schema", False):
                 return None
@@ -300,7 +300,7 @@ class AppSecSpanProcessor(SpanProcessor):
         # type ignore because mypy seems to not detect that both results of the if
         # above can iter if not None
         force_keys = custom_data.get("SETTINGS", {}).get("extract-schema", False) if custom_data else False
-        for key, waf_name in iter_data:
+        for key, waf_name in iter_data:  # type: ignore[attr-defined]
             if key in data_already_sent:
                 continue
             if self._is_needed(waf_name) or force_keys:
@@ -309,7 +309,6 @@ class AppSecSpanProcessor(SpanProcessor):
                     value = custom_data.get(key)
                 elif key in SPAN_DATA_NAMES:
                     value = _asm_request_context.get_value("waf_addresses", SPAN_DATA_NAMES[key])
-
                 if value:
                     data[waf_name] = _transform_headers(value) if key.endswith("HEADERS_NO_COOKIES") else value
                     data_already_sent.add(key)
