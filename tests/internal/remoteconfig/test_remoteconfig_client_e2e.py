@@ -23,10 +23,15 @@ def _expected_payload(
     has_errors=False,
     targets_version=0,
     backend_client_state=None,
-    config_states=[],
-    cached_target_files=[],
+    config_states=None,
+    cached_target_files=None,
     error_msg=None,
 ):
+    if config_states is None:
+        config_states = []
+    if cached_target_files is None:
+        cached_target_files = []
+
     payload = {
         "client": {
             "id": rc_client.id,

@@ -6,6 +6,7 @@ import os
 import mock
 from paste import fixture
 from paste.deploy import loadapp
+from paste.fixture import AppError
 import pylons
 import pytest
 from routes import url_for
@@ -129,7 +130,7 @@ class PylonsTestCase(TracerTestCase):
         app = PylonsTraceMiddleware(wsgiapp, self.tracer, service="web")
         app = fixture.TestApp(app)
 
-        with pytest.raises(Exception):
+        with pytest.raises(Exception, match="Middleware exception"):
             app.get(url_for(controller="root", action="index"))
 
         spans = self.pop_spans()
@@ -323,7 +324,7 @@ class PylonsTestCase(TracerTestCase):
         assert template.error == 0
 
     def test_template_render_exception(self):
-        with pytest.raises(Exception):
+        with pytest.raises(Exception, match="integer division or modulo by zero"):
             self.app.get(url_for(controller="root", action="render_exception"))
 
         spans = self.pop_spans()
@@ -345,7 +346,7 @@ class PylonsTestCase(TracerTestCase):
         assert "ZeroDivisionError: integer division or modulo by zero" in template.get_tag("error.stack")
 
     def test_failure_500(self):
-        with pytest.raises(Exception):
+        with pytest.raises(Exception, match="Ouch!"):
             self.app.get(url_for(controller="root", action="raise_exception"))
 
         spans = self.pop_spans()
@@ -364,7 +365,7 @@ class PylonsTestCase(TracerTestCase):
         assert "Exception: Ouch!" in span.get_tag("error.stack")
 
     def test_failure_500_with_wrong_code(self):
-        with pytest.raises(Exception):
+        with pytest.raises(Exception, match="Ouch!"):
             self.app.get(url_for(controller="root", action="raise_wrong_code"))
 
         spans = self.pop_spans()
@@ -383,7 +384,7 @@ class PylonsTestCase(TracerTestCase):
         assert "Exception: Ouch!" in span.get_tag("error.stack")
 
     def test_failure_500_with_custom_code(self):
-        with pytest.raises(Exception):
+        with pytest.raises(Exception, match="Ouch!"):
             self.app.get(url_for(controller="root", action="raise_custom_code"))
 
         spans = self.pop_spans()
@@ -402,7 +403,7 @@ class PylonsTestCase(TracerTestCase):
         assert "Exception: Ouch!" in span.get_tag("error.stack")
 
     def test_failure_500_with_code_method(self):
-        with pytest.raises(Exception):
+        with pytest.raises(Exception, match="Ouch!"):
             self.app.get(url_for(controller="root", action="raise_code_method"))
 
         spans = self.pop_spans()
@@ -813,7 +814,7 @@ class PylonsTestCase(TracerTestCase):
         assert spans[0].get_tag("http.method") == "GET"
 
     def test_request_method_get_404(self):
-        with pytest.raises(Exception):
+        with pytest.raises(AppError):
             res = self.app.get(url_for(controller="root", action="index") + "nonexistent-path")
             assert res.status == 404
         spans = self.pop_spans()

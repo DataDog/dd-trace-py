@@ -17,7 +17,6 @@ import six
 
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace.appsec.iast.taint_sinks.command_injection import CommandInjection
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.subprocess.constants import COMMANDS
 from ddtrace.ext import SpanTypes
@@ -67,8 +66,8 @@ def patch():
         trace_utils.wrap(subprocess, "Popen.__init__", _traced_subprocess_init(subprocess))
         trace_utils.wrap(subprocess, "Popen.wait", _traced_subprocess_wait(subprocess))
 
-        setattr(os, "_datadog_patch", True)
-        setattr(subprocess, "_datadog_patch", True)
+        os._datadog_patch = True
+        subprocess._datadog_patch = True
         patched.append("subprocess")
 
     return patched
@@ -197,6 +196,8 @@ class SubprocessCmdLine(object):
         )
 
         if report_cmdi:
+            from ddtrace.appsec.iast.taint_sinks.command_injection import CommandInjection
+
             CommandInjection.report(evidence_value=report_cmdi)
 
     def scrub_env_vars(self, tokens):
@@ -329,8 +330,8 @@ def unpatch():
 
     SubprocessCmdLine._clear_cache()
 
-    setattr(os, "_datadog_patch", False)
-    setattr(subprocess, "_datadog_patch", False)
+    os._datadog_patch = False
+    subprocess._datadog_patch = False
 
 
 @trace_utils.with_traced_module

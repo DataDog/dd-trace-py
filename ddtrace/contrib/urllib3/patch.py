@@ -42,7 +42,7 @@ def patch():
     """Enable tracing for all urllib3 requests"""
     if getattr(urllib3, "__datadog_patch", False):
         return
-    setattr(urllib3, "__datadog_patch", True)
+    urllib3.__datadog_patch = True
 
     _w("urllib3", "connectionpool.HTTPConnectionPool.urlopen", _wrap_urlopen)
     Pin().onto(urllib3.connectionpool.HTTPConnectionPool)
@@ -51,7 +51,7 @@ def patch():
 def unpatch():
     """Disable trace for all urllib3 requests"""
     if getattr(urllib3, "__datadog_patch", False):
-        setattr(urllib3, "__datadog_patch", False)
+        urllib3.__datadog_patch = False
 
         _u(urllib3.connectionpool.HTTPConnectionPool, "urlopen")
 

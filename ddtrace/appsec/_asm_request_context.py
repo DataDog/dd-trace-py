@@ -6,7 +6,7 @@ from ddtrace import config
 from ddtrace.appsec import handlers
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
-from ddtrace.appsec.iast._util import _is_iast_enabled
+from ddtrace.appsec.iast._utils import _is_iast_enabled
 from ddtrace.internal import core
 from ddtrace.internal.compat import parse
 from ddtrace.internal.constants import REQUEST_PATH_PARAMS
