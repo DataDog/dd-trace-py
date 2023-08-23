@@ -8,12 +8,11 @@ def _sanitize_string_check(value: Any) -> str:
     LOG = get_logger(__name__)
 
     if not isinstance(value, str):
-        LOG.warning(
-            "Got object of type '%s' instead of str during profile serialization", type(value).__name__
-        )
+        LOG.warning("Got object of type '%s' instead of str during profile serialization", type(value).__name__)
         return "[invalid string]%s" % type(value).__name__
 
     return value
+
 
 # 3.10 and below (the noop version)
 def _sanitize_string_identity(value: Any) -> str:
