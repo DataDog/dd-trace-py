@@ -9,7 +9,7 @@ try:
     from ddtrace.appsec.iast._patch_modules import patch_iast
     from ddtrace.appsec.iast._taint_tracking import OriginType
     from ddtrace.appsec.iast._taint_tracking import taint_pyobject
-    from ddtrace.appsec.iast._util import _is_python_version_supported
+    from ddtrace.appsec.iast._utils import _is_python_version_supported
     from ddtrace.ext import SpanTypes
     from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_IAST
     from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_GENERATE_METRICS
