@@ -247,7 +247,7 @@ def test_weak_check_repeated(iast_span_defaults):
     m.update(b"Nobody inspects")
     m.update(b" the spammish repetition")
     num_vulnerabilities = 10
-    for i in range(0, num_vulnerabilities):
+    for _ in range(0, num_vulnerabilities):
         m.digest()
 
     span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
