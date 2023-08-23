@@ -16,7 +16,7 @@ class TestTracedCursor(TracerTestCase):
 
         super(TestTracedCursor, self).setUp()
         self.cursor = mock.Mock()
-        setattr(self.cursor.execute, "__name__", "execute")
+        self.cursor.execute.__name__ = "execute"
 
         setup(bytes.join, bytearray.join)
 

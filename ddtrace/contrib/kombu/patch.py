@@ -50,7 +50,7 @@ def patch():
     """
     if getattr(kombu, "_datadog_patch", False):
         return
-    setattr(kombu, "_datadog_patch", True)
+    kombu._datadog_patch = True
 
     _w = wrapt.wrap_function_wrapper
     # We wrap the _publish method because the publish method:
@@ -78,7 +78,7 @@ def patch():
 
 def unpatch():
     if getattr(kombu, "_datadog_patch", False):
-        setattr(kombu, "_datadog_patch", False)
+        kombu._datadog_patch = False
         unwrap(kombu.Producer, "_publish")
         unwrap(kombu.Consumer, "receive")
 

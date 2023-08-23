@@ -60,7 +60,7 @@ if "gevent" in sys.modules or "gevent.monkey" in sys.modules:
     import gevent.monkey  # noqa
 
     if gevent.monkey.is_module_patched("threading"):
-        warnings.warn(
+        warnings.warn(  # noqa: B028
             "Loading ddtrace after gevent.monkey.patch_all() is not supported and is "
             "likely to break the application. Use ddtrace-run to fix this, or "
             "import ddtrace.auto before calling gevent.monkey.patch_all().",
