@@ -1,4 +1,5 @@
 import contextlib
+import socket
 import sys
 
 import pytest
@@ -611,7 +612,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
     def test_httplib_bad_url(self):
         conn = self.get_http_connection("DNE", "80")
         with contextlib.closing(conn):
-            with pytest.raises(Exception):
+            with pytest.raises(socket.gaierror):
                 conn.request("GET", "/status/500")
 
         spans = self.pop_spans()

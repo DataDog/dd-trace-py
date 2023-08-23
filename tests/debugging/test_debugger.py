@@ -74,7 +74,7 @@ def test_debugger_line_probe_on_instance_method():
             line=36,
             condition=None,
         ),
-        lambda: getattr(Stuff(), "instancestuff")(),
+        lambda: Stuff().instancestuff(),
     )
 
     (snapshot,) = snapshots
@@ -85,7 +85,6 @@ def test_debugger_line_probe_on_instance_method():
 
 
 def test_debugger_line_probe_on_imported_module_function():
-
     lineno = min(linenos(imported_modulestuff))
     snapshots = simple_debugger_test(
         create_snapshot_line_probe(
@@ -112,7 +111,7 @@ def test_debugger_line_probe_on_imported_module_function():
                 func_qname="Stuff.instancestuff",
                 rate=1000,
             ),
-            lambda: getattr(Stuff(), "instancestuff")(42),
+            lambda: Stuff().instancestuff(42),
         ),
         (
             create_snapshot_line_probe(
@@ -121,7 +120,7 @@ def test_debugger_line_probe_on_imported_module_function():
                 line=36,
                 rate=1000,
             ),
-            lambda: getattr(Stuff(), "instancestuff")(42),
+            lambda: Stuff().instancestuff(42),
         ),
     ],
 )
@@ -257,7 +256,7 @@ def test_debugger_conditional_line_probe_on_instance_method():
             line=36,
             condition=DDExpression(dsl="True", callable=dd_compile(True)),
         ),
-        lambda: getattr(Stuff(), "instancestuff")(),
+        lambda: Stuff().instancestuff(),
     )
 
     (snapshot,) = snapshots
@@ -383,7 +382,7 @@ def test_debugger_captured_exception():
             line=96,
             condition=None,
         ),
-        lambda: getattr(stuff, "excstuff")(),
+        lambda: stuff.excstuff(),
     )
 
     (snapshot,) = snapshots
