@@ -8,6 +8,9 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.unittest.constants import COMPONENT_VALUE
 from ddtrace.contrib.unittest.constants import FRAMEWORK
 from ddtrace.contrib.unittest.constants import KIND
+from ddtrace.contrib.unittest.constants import SUITE_OPERATION_NAME
+from ddtrace.contrib.unittest.constants import MODULE_OPERATION_NAME
+from ddtrace.contrib.unittest.constants import SESSION_OPERATION_NAME
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
 from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
@@ -342,7 +345,7 @@ def handle_module_suite_wrapper(func, instance, args, kwargs):
             test_suite_name = _extract_suite_name(instance)
             resource_name = _generate_suite_resource(FRAMEWORK, test_suite_name)
             test_suite_span = tracer._start_span(
-                "unittest.test_suite",
+                SUITE_OPERATION_NAME,
                 service=_CIVisibility._instance._service,
                 span_type=SpanTypes.TEST,
                 activate=True,
@@ -385,7 +388,7 @@ def _create_session(instance, special=False):
     test_command = _extract_command_name_from_session(instance)
     resource_name = _generate_session_resource(FRAMEWORK, test_command)
     test_session_span = tracer.trace(
-        "unittest.test_session",
+        SESSION_OPERATION_NAME,
         service=_CIVisibility._instance._service,
         span_type=SpanTypes.TEST,
         resource=resource_name,
@@ -419,7 +422,7 @@ def _create_module(instance, special=False):
         return None, None
     resource_name = _generate_module_resource(FRAMEWORK, test_module_name)
     test_module_span = tracer._start_span(
-        "unittest.test_module",
+        MODULE_OPERATION_NAME,
         service=_CIVisibility._instance._service,
         span_type=SpanTypes.TEST,
         activate=True,
