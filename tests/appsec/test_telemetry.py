@@ -26,7 +26,7 @@ from tests.utils import override_global_config
 def _assert_generate_metrics(metrics_result, is_rule_triggered=False, is_blocked_request=False):
     generate_metrics = metrics_result[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE_TAG_APPSEC]
     assert len(generate_metrics) == 2, "Expected 2 generate_metrics"
-    for metric_id, metric in generate_metrics.items():
+    for _metric_id, metric in generate_metrics.items():
         if metric.name == "waf.requests":
             assert ("rule_triggered", str(is_rule_triggered).lower()) in metric._tags
             assert ("request_blocked", str(is_blocked_request).lower()) in metric._tags
@@ -44,7 +44,7 @@ def _assert_distributions_metrics(metrics_result, is_rule_triggered=False, is_bl
     distributions_metrics = metrics_result[TELEMETRY_TYPE_DISTRIBUTION][TELEMETRY_NAMESPACE_TAG_APPSEC]
 
     assert len(distributions_metrics) == 2, "Expected 2 distributions_metrics"
-    for metric_id, metric in distributions_metrics.items():
+    for _metric_id, metric in distributions_metrics.items():
         if metric.name in ["waf.duration", "waf.duration_ext"]:
             assert len(metric._points) >= 1
             assert type(metric._points[0]) is float

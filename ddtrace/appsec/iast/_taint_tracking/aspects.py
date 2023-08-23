@@ -241,6 +241,7 @@ def format_value_aspect(
     options=0,  # type: int
     format_spec=None,  # type: Optional[str]
 ):  # type: (...) -> str
+
     if options == 115:
         new_text = str(element)
     elif options == 114:

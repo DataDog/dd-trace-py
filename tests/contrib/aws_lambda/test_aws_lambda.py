@@ -35,7 +35,9 @@ def context():
     return create_context
 
 
-def get_env(env={}):
+def get_env(env=None):
+    if env is None:
+        env = {}
     common_env = {
         "DD_TRACE_AGENT_URL": "http://localhost:9126/",
         "DD_TRACE_ENABLED": "true",

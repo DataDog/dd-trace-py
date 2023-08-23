@@ -43,7 +43,7 @@ def patch():
     # patch only once
     if getattr(MySQLdb, "__datadog_patch", False):
         return
-    setattr(MySQLdb, "__datadog_patch", True)
+    MySQLdb.__datadog_patch = True
 
     Pin().onto(MySQLdb)
 
@@ -59,7 +59,7 @@ def patch():
 def unpatch():
     if not getattr(MySQLdb, "__datadog_patch", False):
         return
-    setattr(MySQLdb, "__datadog_patch", False)
+    MySQLdb.__datadog_patch = False
 
     pin = Pin.get_from(MySQLdb)
     if pin:

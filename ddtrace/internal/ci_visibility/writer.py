@@ -85,8 +85,8 @@ class CIVisibilityWriter(HTTPWriter):
         intake_url="",  # type: str
         sampler=None,  # type: Optional[BaseSampler]
         priority_sampler=None,  # type: Optional[BasePrioritySampler]
-        processing_interval=get_writer_interval_seconds(),  # type: float
-        timeout=agent.get_trace_agent_timeout(),  # type: float
+        processing_interval=None,  # type: Optional[float]
+        timeout=None,  # type: Optional[float]
         dogstatsd=None,  # type: Optional[DogStatsd]
         sync_mode=False,  # type: bool
         report_metrics=False,  # type: bool
@@ -97,6 +97,10 @@ class CIVisibilityWriter(HTTPWriter):
         coverage_enabled=False,  # type: bool
         itr_suite_skipping_mode=False,  # type: bool
     ):
+        if processing_interval is None:
+            processing_interval = get_writer_interval_seconds()
+        if timeout is None:
+            timeout = agent.get_trace_agent_timeout()
         intake_cov_url = None
         if use_evp:
             intake_url = agent.get_trace_url()
