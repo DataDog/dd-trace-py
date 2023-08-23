@@ -54,7 +54,7 @@ def test_api_security(client, test_spans, tracer):
             client,
             test_spans,
             tracer,
-            url="/appsec/path-params/2022/path_param/?x=1",
+            url="/appsec/path-params/2022/path_param/?y=0&x=1&y=2",
             payload=payload,
             content_type="application/json",
         )
@@ -104,7 +104,7 @@ def test_api_security(client, test_spans, tracer):
                 "_dd.appsec.s.req.headers",
                 [{"content-length": [8], "content-type": [8]}],
             ),
-            ("_dd.appsec.s.req.query", [{"x": [[[8]], {"len": 1}]}]),
+            ("_dd.appsec.s.req.query", [{"y": [8], "x": [8]}]),
             ("_dd.appsec.s.req.params", [{"year": [4], "month": [8]}]),
             ("_dd.appsec.s.res.headers", headers_schema[django.__version__[0]]),
             ("_dd.appsec.s.res.body", [{"year": [4], "month": [8]}]),

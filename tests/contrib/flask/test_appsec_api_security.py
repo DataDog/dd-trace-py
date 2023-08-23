@@ -54,7 +54,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         ):
             self._aux_appsec_prepare_tracer()
             resp = self.client.post(
-                "/response-header/posting?extended=345",
+                "/response-header/posting?x=2&extended=345&x=3",
                 data=json.dumps(payload),
                 content_type="application/json",
             )
@@ -66,20 +66,20 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
                 (API_SECURITY.REQUEST_BODY, [{"key": [8], "ids": [[[4]], {"len": 4}]}]),
                 (
                     API_SECURITY.REQUEST_HEADERS_NO_COOKIES,
-                    [{"User-Agent": [8], "Host": [8], "Content-Type": [8], "Content-Length": [8]}],
+                    [{"user-agent": [8], "host": [8], "content-type": [8], "content-length": [8]}],
                 ),
-                (API_SECURITY.REQUEST_QUERY, [{"extended": [8]}]),
+                (API_SECURITY.REQUEST_QUERY, [{"extended": [8], "x": [8]}]),
                 (API_SECURITY.REQUEST_PATH_PARAMS, [{"str_param": [8]}]),
                 (
                     API_SECURITY.RESPONSE_HEADERS_NO_COOKIES,
-                    [{"Content-Type": [8], "Content-Length": [8], "extended": [8]}],
+                    [{"content-type": [8], "content-length": [8], "extended": [8], "x": [[[8]], {"len": 2}]}],
                 ),
                 (API_SECURITY.RESPONSE_BODY, [{"ids": [[[4]], {"len": 4}], "key": [8], "validate": [2], "value": [8]}]),
             ]:
                 value = root_span.get_tag(name)
                 assert value
                 api = json.loads(gzip.decompress(base64.b64decode(value)).decode())
-                assert equal_without_meta(api, expected_value)
+                assert equal_without_meta(api, expected_value), name
 
         # appsec disabled must not block
         with override_global_config(dict(_appsec_enabled=False, _api_security_enabled=False)), override_env(
