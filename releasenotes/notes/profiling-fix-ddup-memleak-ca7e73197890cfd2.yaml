@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix memory leak and potential invalid references in exporter native extension.
