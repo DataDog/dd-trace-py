@@ -170,7 +170,7 @@ try:
 
     if asbool(os.getenv("DD_IAST_ENABLED", False)):
 
-        from ddtrace.appsec.iast._util import _is_python_version_supported
+        from ddtrace.appsec.iast._utils import _is_python_version_supported
 
         if _is_python_version_supported():
 
