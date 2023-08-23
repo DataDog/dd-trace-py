@@ -347,24 +347,21 @@ class UnittestTestCase(TracerTestCase):
                 assert spans[i].get_tag(test.TEST_FRAMEWORK) == FRAMEWORK
                 assert spans[i].get_tag(SPAN_KIND) == KIND
                 assert spans[i].get_tag(COMPONENT) == COMPONENT_VALUE
+                assert spans[i].get_tag(SESSION_ID) == str(test_session_span.span_id)
 
             assert spans[0].name == "unittest.test"
             assert spans[0].get_tag(test.NAME) == "test_will_be_skipped_with_a_reason"
             assert spans[0].get_tag(test.TEST_STATUS) == test.Status.SKIP.value
             assert spans[0].get_tag(test.SKIP_REASON) == "another skip reason"
-            assert spans[0].get_tag(SESSION_ID) == str(test_session_span.span_id)
-            assert spans[0].get_tag(MODULE_ID) == str(test_module_span.span_id)
-            assert spans[0].get_tag(SUITE_ID) == str(test_suite_span.span_id)
             assert spans[0].get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
             assert spans[0].get_tag(test.SUITE) == "UnittestExampleTestCase"
+            assert spans[0].get_tag(MODULE_ID) == str(test_module_span.span_id)
+            assert spans[0].get_tag(SUITE_ID) == str(test_suite_span.span_id)
 
             assert spans[1].name == "unittest.test"
             assert spans[1].get_tag(test.NAME) == "test_will_fail_first"
             assert spans[1].get_tag(test.TEST_STATUS) == test.Status.FAIL.value
             assert spans[1].get_tag(test.SKIP_REASON) is None
-            assert spans[1].get_tag("test_session_id") == str(test_session_span.span_id)
-            assert spans[1].get_tag("test_module_id") == str(test_module_span.span_id)
-            assert spans[1].get_tag("test_suite_id") == str(test_suite_span.span_id)
             assert spans[1].get_tag(ERROR_MSG) == "False is not true"
             if sys.version_info[0] >= 3:
                 assert spans[1].get_tag(ERROR_TYPE) == "builtins.AssertionError"
@@ -372,16 +369,38 @@ class UnittestTestCase(TracerTestCase):
                 assert spans[1].get_tag(ERROR_TYPE) == "exceptions.AssertionError"
             assert spans[1].get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
             assert spans[1].get_tag(test.SUITE) == "UnittestExampleTestCase"
+            assert spans[1].get_tag(MODULE_ID) == str(test_module_span.span_id)
+            assert spans[1].get_tag(SUITE_ID) == str(test_suite_span.span_id)
 
             assert spans[2].name == "unittest.test"
             assert spans[2].get_tag(test.NAME) == "test_will_pass_first"
             assert spans[2].get_tag(test.TEST_STATUS) == test.Status.PASS.value
             assert spans[2].get_tag(test.SKIP_REASON) is None
-            assert spans[2].get_tag("test_session_id") == str(test_session_span.span_id)
-            assert spans[2].get_tag("test_module_id") == str(test_module_span.span_id)
-            assert spans[2].get_tag("test_suite_id") == str(test_suite_span.span_id)
             assert spans[2].get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
             assert spans[2].get_tag(test.SUITE) == "UnittestExampleTestCase"
+            assert spans[2].get_tag(MODULE_ID) == str(test_module_span.span_id)
+            assert spans[2].get_tag(SUITE_ID) == str(test_suite_span.span_id)
+
+            assert test_suite_span.get_tag(test.COMMAND) == "python"
+            assert test_suite_span.get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
+            assert test_suite_span.get_tag(test.SUITE) == "UnittestExampleTestCase"
+            assert test_suite_span.get_tag(test.TEST_STATUS) == test.Status.FAIL.value
+            assert test_suite_span.get_tag(test.SKIP_REASON) is None
+            assert test_suite_span.get_tag(MODULE_ID) == str(test_module_span.span_id)
+            assert test_suite_span.get_tag(SUITE_ID) == str(test_suite_span.span_id)
+
+            assert test_module_span.get_tag(test.COMMAND) == "python"
+            assert test_module_span.get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
+            assert test_module_span.get_tag(test.SUITE) is None
+            assert test_module_span.get_tag(test.TEST_STATUS) == test.Status.FAIL.value
+            assert test_module_span.get_tag(test.SKIP_REASON) is None
+            assert test_module_span.get_tag(MODULE_ID) == str(test_module_span.span_id)
+
+            assert test_session_span.get_tag(test.COMMAND) == "python"
+            assert test_session_span.get_tag(test.MODULE) is None
+            assert test_session_span.get_tag(test.SUITE) is None
+            assert test_session_span.get_tag(test.TEST_STATUS) == test.Status.FAIL.value
+            assert test_session_span.get_tag(test.SKIP_REASON) is None
 
         def test_unittest_nested_test_cases(self):
             """Test with `unittest` test cases which pass, get skipped and fail combined."""
