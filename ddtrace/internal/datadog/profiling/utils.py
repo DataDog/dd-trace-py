@@ -3,15 +3,10 @@ from typing import Any
 
 def sanitize_string(value):
     # type: (Any) -> str
-    if isinstance(value, str):
-        return value
     try:
-        # uncommon, so just check for `decode` instead of bytes etc
-        return value.decode("utf-8", "ignore")
-    except AttributeError:
+        return six.ensure_str(value)
+    except Exception:
         try:
             return str(value)
         except Exception:
             return "[error]({})".format(value.__class__.__name__)
-    except Exception:
-        return "[error]({})".format(value.__class__.__name__)
