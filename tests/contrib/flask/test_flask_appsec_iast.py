@@ -34,9 +34,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             super(FlaskAppSecIASTEnabledTestCase, self).setUp()
             patch()
             oce.reconfigure()
-            from ddtrace.appsec.iast._taint_tracking import setup
 
-            setup(bytes.join, bytearray.join)
             self.tracer._iast_enabled = True
             self.tracer._appsec_enabled = True
             self.tracer.configure(api_version="v0.4")
@@ -343,10 +341,6 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             )
         ), override_env(IAST_ENV):
             oce.reconfigure()
-            from ddtrace.appsec.iast._taint_tracking import setup
-
-            setup(bytes.join, bytearray.join)
-
             self.client.set_cookie("localhost", "test-cookie1", "sqlite_master")
             resp = self.client.post("/sqli/cookies/")
             assert resp.status_code == 200
@@ -558,10 +552,6 @@ class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
             cur.execute(add_aspect("SELECT 1 FROM ", key))
 
             return "OK", 200
-
-        from ddtrace.appsec.iast._taint_tracking import setup
-
-        setup(bytes.join, bytearray.join)
 
         self.client.set_cookie("localhost", "sqlite_master", "sqlite_master3")
         resp = self.client.post("/sqli/cookies/")
