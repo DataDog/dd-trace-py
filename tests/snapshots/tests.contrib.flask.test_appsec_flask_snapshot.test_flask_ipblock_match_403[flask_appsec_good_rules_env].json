@@ -33,7 +33,6 @@
       "runtime-id": "d2959b0279054916bf9b9abce4a2cfb9"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.appsec.enabled": 1.0,
       "_dd.appsec.event_rules.error_count": 0,
       "_dd.appsec.event_rules.loaded": 5,
