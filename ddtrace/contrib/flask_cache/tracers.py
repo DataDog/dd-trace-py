@@ -37,7 +37,7 @@ def get_version():
     try:
         import flask_caching
 
-        return getattr(flask_caching, "__version__", "0.0.0")
+        return getattr(flask_caching, "__version__", "")
     except ImportError:
         return ""
 

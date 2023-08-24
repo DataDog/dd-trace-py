@@ -67,7 +67,7 @@ config._add(
 
 
 def get_version():
-    return getattr(flask, "__version__", "0.0.0")
+    return getattr(flask, "__version__", "")
 
 
 if _HAS_JSON_MIXIN:
@@ -91,7 +91,7 @@ else:
 #      (0, 9) == (0, 9)
 #      (0, 9, 0) != (0, 9)
 #      (0, 8, 5) <= (0, 9)
-flask_version_str = getattr(flask, "__version__", "0.0.0")
+flask_version_str = getattr(flask, "__version__", "")
 flask_version = parse_version(flask_version_str)
 
 

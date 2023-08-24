@@ -19,7 +19,7 @@ config._add(
 
 
 def get_version():
-    return getattr(bottle, "__version__", "0.0.0")
+    return getattr(bottle, "__version__", "")
 
 
 def patch():

@@ -35,7 +35,7 @@ HTTPX_VERSION = parse_version(httpx.__version__)
 
 
 def get_version():
-    return getattr(httpx, "__version__", "0.0.0")
+    return getattr(httpx, "__version__", "")
 
 
 config._add(

@@ -42,7 +42,7 @@ config._add(
 
 
 def get_version():
-    return getattr(molten, "__version__", "0.0.0")
+    return getattr(molten, "__version__", "")
 
 
 def patch():

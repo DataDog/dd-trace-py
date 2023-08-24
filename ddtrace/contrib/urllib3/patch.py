@@ -39,7 +39,7 @@ config._add(
 
 
 def get_version():
-    return getattr(urllib3, "__version__", "0.0.0")
+    return getattr(urllib3, "__version__", "")
 
 
 def patch():

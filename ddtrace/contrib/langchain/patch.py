@@ -41,7 +41,7 @@ log = get_logger(__name__)
 
 
 def get_version():
-    return getattr(langchain, "__version__", "0.0.0")
+    return getattr(langchain, "__version__", "")
 
 
 config._add(

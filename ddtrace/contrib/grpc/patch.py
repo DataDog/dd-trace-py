@@ -14,7 +14,7 @@ from .server_interceptor import create_server_interceptor
 
 
 def get_version():
-    return getattr(grpc, "__version__", "0.0.0")
+    return getattr(grpc, "__version__", "")
 
 
 try:

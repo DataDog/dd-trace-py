@@ -37,7 +37,7 @@ config._add(
 
 
 def get_version():
-    return getattr(cherrypy, "__version__", "0.0.0")
+    return getattr(cherrypy, "__version__", "")
 
 
 SPAN_NAME = schematize_url_operation("cherrypy.request", protocol="http", direction=SpanDirection.INBOUND)

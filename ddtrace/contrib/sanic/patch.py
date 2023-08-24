@@ -29,7 +29,7 @@ SANIC_VERSION = (0, 0, 0)
 
 
 def get_version():
-    return getattr(sanic, "__version__", "0.0.0")
+    return getattr(sanic, "__version__", "")
 
 
 def _get_current_span(request):

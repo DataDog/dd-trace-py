@@ -22,7 +22,7 @@ config._add(
 
 
 def get_version():
-    return getattr(pylons, "__version__", "0.0.0")
+    return getattr(pylons, "__version__", "")
 
 
 def patch():

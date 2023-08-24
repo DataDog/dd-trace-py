@@ -26,7 +26,7 @@ config._add(
 
 
 def get_version():
-    return getattr(jinja2, "__version__", "0.0.0")
+    return getattr(jinja2, "__version__", "")
 
 
 def patch():

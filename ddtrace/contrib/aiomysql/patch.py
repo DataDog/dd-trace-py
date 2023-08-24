@@ -26,7 +26,7 @@ config._add(
 
 
 def get_version():
-    return getattr(aiomysql, "__version__", "0.0.0")
+    return getattr(aiomysql, "__version__", "")
 
 
 CONN_ATTR_BY_TAG = {

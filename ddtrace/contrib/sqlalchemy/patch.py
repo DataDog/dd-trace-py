@@ -7,7 +7,7 @@ from .engine import _wrap_create_engine
 
 
 def get_version():
-    return getattr(sqlalchemy, "__version__", "0.0.0")
+    return getattr(sqlalchemy, "__version__", "")
 
 
 def patch():

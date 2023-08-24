@@ -29,7 +29,7 @@ config._add(
 
 
 def get_version():
-    return getattr(fastapi, "__version__", "0.0.0")
+    return getattr(fastapi, "__version__", "")
 
 
 @removals.remove(removal_version="2.0.0", category=DDTraceDeprecationWarning)

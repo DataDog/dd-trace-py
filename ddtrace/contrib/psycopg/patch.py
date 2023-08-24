@@ -110,7 +110,7 @@ def _patch(psycopg_module):
         return
     psycopg_module._datadog_patch = True
 
-    PATCHED_VERSIONS[psycopg_module.__name__] = getattr(psycopg_module, "__version__", "0.0.0")
+    PATCHED_VERSIONS[psycopg_module.__name__] = getattr(psycopg_module, "__version__", "")
 
     Pin(_config=config.psycopg).onto(psycopg_module)
 

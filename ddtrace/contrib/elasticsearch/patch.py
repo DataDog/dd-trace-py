@@ -55,8 +55,8 @@ versions = {}
 
 def get_version_tuple(elasticsearch):
     if getattr(elasticsearch, "__name__", None):
-        versions[elasticsearch.__name__] = getattr(elasticsearch, "__versionstr__", "0.0.0")
-    return getattr(elasticsearch, "__version__", "0.0.0")
+        versions[elasticsearch.__name__] = getattr(elasticsearch, "__versionstr__", "")
+    return getattr(elasticsearch, "__version__", "")
 
 
 def get_version():

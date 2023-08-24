@@ -24,7 +24,7 @@ config._add(
 
 
 def get_version():
-    return getattr(yaaredis, "__version__", "0.0.0")
+    return getattr(yaaredis, "__version__", "")
 
 
 def patch():

@@ -17,7 +17,7 @@ __IMapUnordered = gevent.pool.IMapUnordered
 
 
 def get_version():
-    return getattr(gevent, "__version__", "0.0.0")
+    return getattr(gevent, "__version__", "")
 
 
 def patch():

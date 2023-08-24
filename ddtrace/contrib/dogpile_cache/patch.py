@@ -22,7 +22,7 @@ _lock_ctor = dogpile_lock.Lock.__init__
 
 
 def get_version():
-    return getattr(dogpile_cache, "__version__", "0.0.0")
+    return getattr(dogpile_cache, "__version__", "")
 
 
 def patch():

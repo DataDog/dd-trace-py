@@ -13,7 +13,7 @@ from ddtrace.vendor import wrapt
 
 
 def get_version():
-    return getattr(aiopg, "__version__", "0.0.0")
+    return getattr(aiopg, "__version__", "")
 
 
 def patch():

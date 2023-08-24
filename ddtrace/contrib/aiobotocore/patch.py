@@ -26,7 +26,7 @@ from ...pin import Pin
 from ..trace_utils import unwrap
 
 
-aiobotocore_version_str = getattr(aiobotocore, "__version__", "0.0.0")
+aiobotocore_version_str = getattr(aiobotocore, "__version__", "")
 AIOBOTOCORE_VERSION = parse_version(aiobotocore_version_str)
 
 if AIOBOTOCORE_VERSION <= (0, 10, 0):

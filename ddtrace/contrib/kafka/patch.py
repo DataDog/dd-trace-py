@@ -38,7 +38,7 @@ config._add(
 
 
 def get_version():
-    return getattr(confluent_kafka, "__version__", "0.0.0")
+    return getattr(confluent_kafka, "__version__", "")
 
 
 class TracedProducer(confluent_kafka.Producer):

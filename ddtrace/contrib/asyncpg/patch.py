@@ -46,7 +46,7 @@ log = get_logger(__name__)
 
 
 def get_version():
-    return getattr(asyncpg, "__version__", "0.0.0")
+    return getattr(asyncpg, "__version__", "")
 
 
 def _get_connection_tags(conn):

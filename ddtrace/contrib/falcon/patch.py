@@ -23,7 +23,7 @@ config._add(
 
 
 def get_version():
-    return getattr(falcon, "__version__", "0.0.0")
+    return getattr(falcon, "__version__", "")
 
 
 def patch():

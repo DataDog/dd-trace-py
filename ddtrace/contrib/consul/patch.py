@@ -23,7 +23,7 @@ _KV_FUNCS = ["put", "get", "delete"]
 
 
 def get_version():
-    return getattr(consul, "__version__", "0.0.0")
+    return getattr(consul, "__version__", "")
 
 
 def patch():

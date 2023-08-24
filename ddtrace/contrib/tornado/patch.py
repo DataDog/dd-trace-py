@@ -24,7 +24,7 @@ config._add(
 
 
 def get_version():
-    return getattr(tornado, "version", "0.0.0")
+    return getattr(tornado, "version", "")
 
 
 def patch():

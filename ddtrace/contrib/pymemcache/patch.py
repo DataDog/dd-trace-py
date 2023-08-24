@@ -17,7 +17,7 @@ _hash_HashClient = pymemcache.client.hash.Client
 
 
 def get_version():
-    return getattr(pymemcache, "__version__", "0.0.0")
+    return getattr(pymemcache, "__version__", "")
 
 
 def patch():

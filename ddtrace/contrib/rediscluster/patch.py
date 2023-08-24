@@ -40,7 +40,7 @@ config._add(
 
 
 def get_version():
-    return getattr(rediscluster, "__version__", "0.0.0")
+    return getattr(rediscluster, "__version__", "")
 
 
 def patch():

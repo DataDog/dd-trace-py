@@ -23,12 +23,7 @@ config._add(
 
 
 def get_version():
-    try:
-        import importlib.metadata as importlib_metadata
-    except ImportError:
-        import importlib_metadata  # type: ignore[no-redef]
-
-    return str(importlib_metadata.version(celery.__package__))
+    return celery.__version__
 
 
 def patch():

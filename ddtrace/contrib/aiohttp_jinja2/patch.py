@@ -18,7 +18,7 @@ config._add(
 
 
 def get_version():
-    return getattr(aiohttp_jinja2, "__version__", "0.0.0")
+    return getattr(aiohttp_jinja2, "__version__", "")
 
 
 @with_traced_module

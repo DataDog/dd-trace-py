@@ -26,7 +26,7 @@ config._add(
 
 
 def get_version():
-    return getattr(pymongo, "__version__", "0.0.0")
+    return getattr(pymongo, "__version__", "")
 
 
 # Original Client class

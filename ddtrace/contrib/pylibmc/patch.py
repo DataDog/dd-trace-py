@@ -8,7 +8,7 @@ _Client = pylibmc.Client
 
 
 def get_version():
-    return getattr(pylibmc, "__version__", "0.0.0")
+    return getattr(pylibmc, "__version__", "")
 
 
 def patch():

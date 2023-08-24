@@ -16,7 +16,7 @@ from .constants import DEFAULT_TEMPLATE_NAME
 
 
 def get_version():
-    return getattr(mako, "__version__", "0.0.0")
+    return getattr(mako, "__version__", "")
 
 
 def patch():
