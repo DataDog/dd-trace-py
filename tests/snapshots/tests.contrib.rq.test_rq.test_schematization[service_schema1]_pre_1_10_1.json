@@ -19,7 +19,6 @@
       "span.kind": "producer"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
@@ -96,7 +95,6 @@
       "runtime-id": "19ae7dc66c8b449d85423548397e6209"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
