@@ -20,7 +20,6 @@ from tests.utils import override_global_config
 try:
     from ddtrace.appsec.iast._taint_tracking import OriginType  # noqa: F401
     from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
-    from ddtrace.appsec.iast._taint_tracking import setup as taint_tracking_setup
     from ddtrace.appsec.iast._taint_tracking import taint_pyobject
     from ddtrace.appsec.iast._taint_tracking.aspects import add_aspect
 except (ImportError, AttributeError):
@@ -44,7 +43,6 @@ def auto_unpatch():
 
 def setup():
     oce._enabled = True
-    taint_tracking_setup(bytes.join, bytearray.join)
 
 
 def test_ossystem(tracer, iast_span_defaults):
