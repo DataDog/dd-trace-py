@@ -40,6 +40,7 @@ aspect_join(PyObject* sep, PyObject* result, PyObject* iterable_elements, TaintR
                 } else {
                     if (!result_to) {
                         // If first_tainted_to is null, it's ranges won't be copied
+                        std::cerr << "JJJ JOIN calling allocate tainted object copy 1\n";
                         result_to = initializer->allocate_tainted_object_copy(first_tainted_to);
                         first_tainted_to = nullptr;
                     }
@@ -52,6 +53,7 @@ aspect_join(PyObject* sep, PyObject* result, PyObject* iterable_elements, TaintR
         if (len_sep > 0 and i < len_iterable - 1 and to_joiner) {
             if (!result_to) {
                 // If first_tainted_to is null, it's ranges won't be copied
+                std::cerr << "JJJ JOIN calling allocate tainted object copy 2\n";
                 result_to = initializer->allocate_tainted_object_copy(first_tainted_to);
                 first_tainted_to = nullptr;
             }
@@ -62,6 +64,7 @@ aspect_join(PyObject* sep, PyObject* result, PyObject* iterable_elements, TaintR
 
     if (!result_to) {
         if (first_tainted_to) {
+            std::cerr << "JJJ JOIN calling allocate tainted object copy 3\n";
             result_to = initializer->allocate_tainted_object_copy(first_tainted_to);
         } else {
             // No taints at all
@@ -71,7 +74,7 @@ aspect_join(PyObject* sep, PyObject* result, PyObject* iterable_elements, TaintR
 
     PyObject* new_result{ new_pyobject_id(result, get_pyobject_size(result)) };
     set_tainted_object(new_result, result_to, tx_taint_map);
-    // Py_DECREF(result);
+    Py_DECREF(result);
     return new_result;
 }
 

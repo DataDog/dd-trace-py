@@ -38,7 +38,8 @@ struct TaintRange
     int length = 0;
     SourcePtr source = nullptr;
 
-    TaintRange() = default;
+    TaintRange();
+    ~TaintRange();
 
     TaintRange(int start, int length, SourcePtr source)
       : start(start)

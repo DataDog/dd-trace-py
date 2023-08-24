@@ -27,6 +27,8 @@ setup(PyObject* Py_UNUSED(module), PyObject* args)
 PyObject*
 new_pyobject_id(PyObject* tainted_object, Py_ssize_t object_length)
 {
+    // JJJ LEAK GORDO AQUI
+    return tainted_object;
     if (PyUnicode_Check(tainted_object)) {
         //        if (PyUnicode_CHECK_INTERNED(tainted_object) == 0) { //
         //        SSTATE_NOT_INTERNED

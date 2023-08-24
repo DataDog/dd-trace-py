@@ -15,7 +15,8 @@ class TaintedObject
     constexpr static int TAINT_RANGE_LIMIT = 100;
     constexpr static int RANGES_INITIAL_RESERVE = 16;
 
-    TaintedObject() { ranges_.reserve(RANGES_INITIAL_RESERVE); };
+    TaintedObject();
+    ~TaintedObject();
 
     TaintedObject& operator=(const TaintedObject&) = delete;
 

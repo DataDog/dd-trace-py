@@ -72,6 +72,18 @@ TaintRange::TaintRange(int start, int length, const Source& source)
   , length(length)
 {
     this->source = initializer->allocate_taint_source(source.name, source.value, source.origin);
+    initializer->JJJ_num_ranges_created++;
+}
+
+TaintRange::TaintRange() {
+    initializer->JJJ_num_ranges_created++;
+}
+
+TaintRange::~TaintRange() {
+    if (initializer)
+        initializer->JJJ_num_ranges_destroyed++;
+    else
+        std::cerr << "JJJ could not log destroyed taintrange, no initializer\n";
 }
 
 void
@@ -174,6 +186,7 @@ set_ranges(const PyObject* str, const TaintRangeRefs& ranges, TaintRangeMapType*
 
     auto hash = get_unique_id(str);
     auto it = tx_map->find(hash);
+    std::cerr << "JJJ calling allocate tainted object from set_ranges\n";
     auto new_tainted_object = initializer->allocate_tainted_object(ranges);
     set_fast_tainted_if_notinterned_unicode(str);
     new_tainted_object->incref();
@@ -231,7 +244,7 @@ get_range_by_hash(size_t range_hash, optional<TaintRangeRefs>& taint_ranges)
     return null_range;
 }
 
-TaintedObject*
+TaintedObjectPtr
 get_tainted_object(const PyObject* str, TaintRangeMapType* tx_map)
 {
     if (not str)

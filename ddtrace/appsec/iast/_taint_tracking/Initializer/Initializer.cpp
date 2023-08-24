@@ -16,19 +16,20 @@ thread_local struct ThreadContextCache_
 Initializer::Initializer()
 {
     // Fill the taintedobjects stack
-    for (int i = 0; i < TAINTEDOBJECTS_STACK_SIZE; i++) {
-        available_taintedobjects_stack.push(new TaintedObject());
-    }
+//    for (int i = 0; i < TAINTEDOBJECTS_STACK_SIZE; i++) {
+//        std:cerr << "JJJ filling stack, count: " << i << " stack size: " << TAINTEDOBJECTS_STACK_SIZE << "\n";
+//        available_taintedobjects_stack.push(new TaintedObject());
+//    }
 
     // Fill the ranges stack
-    for (int i = 0; i < TAINTRANGES_STACK_SIZE; i++) {
-        available_ranges_stack.push(make_shared<TaintRange>());
-    }
-
-    // Fill the taint origin stack
-    for (int i = 0; i < SOURCE_STACK_SIZE; i++) {
-        available_source_stack.push(new Source());
-    }
+//    for (int i = 0; i < TAINTRANGES_STACK_SIZE; i++) {
+//        available_ranges_stack.push(make_shared<TaintRange>());
+//    }
+//
+//    // Fill the taint origin stack
+//    for (int i = 0; i < SOURCE_STACK_SIZE; i++) {
+//        available_source_stack.push(new Source());
+//    }
 }
 
 TaintRangeMapType*
@@ -42,19 +43,24 @@ Initializer::create_tainting_map()
 void
 Initializer::free_tainting_map(TaintRangeMapType* tx_map)
 {
+    std::cerr << "JJJ free tainting map\n";
     auto it = active_map_addreses.find(tx_map);
     if (it == active_map_addreses.end()) {
         // Map wasn't in the set, do nothing
+        std::cerr << "JJJ free tainting map: map not in the set of active_map_addresses, do nothing\n";
         return;
     }
 
     for (auto& kv_taint_map : *tx_map) {
+        std::cerr << "JJJ free tainting map, calling defref\n";
         kv_taint_map.second->decref();
     }
     if (tx_map) {
         tx_map->clear();
+        std::cerr << "JJJ free tainting map, deleting tx_map\n";
         delete tx_map;
     }
+    std::cerr << "JJJ free tainting map, deleting active_map_addresses\n";
     active_map_addreses.erase(it);
 }
 
@@ -108,29 +114,38 @@ TaintedObjectPtr
 Initializer::allocate_tainted_object()
 {
     if (!available_taintedobjects_stack.empty()) {
+        std::cerr << "JJJ retrieving tainted object from stack\n";
         const auto& toptr = available_taintedobjects_stack.top();
         available_taintedobjects_stack.pop();
         return toptr;
     }
     // Stack is empty, create new object
-    return new TaintedObject();
+    std::cerr << "JJJ calling new TaintedObject from allocate_tainted_object\n";
+    auto* tobject = new TaintedObject();
+    return tobject;
 }
 
 // TODO: Release tainted objects, where?
 void
 Initializer::release_tainted_object(TaintedObjectPtr tobj)
 {
-    if (!tobj)
+    std::cerr << "JJJ in release tainted object\n";
+    if (!tobj) {
+        std::cerr << "JJJ return because null object\n";
         return;
+    }
 
+    std::cerr << "JJJ calling TaintedObject::reset\n";
     tobj->reset();
     if (available_taintedobjects_stack.size() < TAINTEDOBJECTS_STACK_SIZE) {
+        std::cerr << "JJJ storing the resetted tainted object in the stack\n";
         available_taintedobjects_stack.push(tobj);
         return;
     }
 
     // Stack full, just delete the object (but to a reset before so ranges are
     // reused or freed)
+    std::cerr << "JJJ Deleting TaintedObject using delete\n";
     delete tobj;
 }
 
@@ -344,5 +359,8 @@ pyexport_initializer(py::module& m)
       "tx_id"_a = 0);
     m.def("contexts_reset", [] { initializer->contexts_reset(); });
     m.def("destroy_context", [] { initializer->destroy_context(); });
-
+    m.def("num_created_tobjects", [] { return initializer->JJJ_num_taintedobjects_created; });
+    m.def("num_destroyed_tobjects", [] { return initializer->JJJ_num_taintedobjects_destroyed; });
+    m.def("num_created_ranges", [] { return initializer->JJJ_num_ranges_created; });
+    m.def("num_destroyed_ranges", [] { return initializer->JJJ_num_ranges_destroyed; });
 }

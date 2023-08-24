@@ -11,7 +11,8 @@ set(CMAKE_CXX_STANDARD 17)
 # -U_FORTIFY_SOURCE to fix a bug in alpine and pybind11
 # https://github.com/pybind/pybind11/issues/1650
 # https://gitlab.alpinelinux.org/alpine/aports/-/issues/8626
-add_compile_options(-fPIC -fexceptions -fvisibility=hidden -fpermissive -pthread -Wall -Wno-unknown-pragmas -U_FORTIFY_SOURCE)
+# JJJ added -ggdb3
+add_compile_options(-ggdb3 -fPIC -fexceptions -fvisibility=hidden -fpermissive -pthread -Wall -Wno-unknown-pragmas -U_FORTIFY_SOURCE)
 
 if(BUILD_MACOS)
     # https://pybind11.readthedocs.io/en/stable/compiling.html#building-manually

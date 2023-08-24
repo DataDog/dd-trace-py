@@ -33,6 +33,7 @@ add_aspect(PyObject* result_o, PyObject* candidate_text, PyObject* text_to_add, 
         return res_new_id;
     }
 
+    std::cerr << "JJJ ADD2 calling allocate tainted copy\n";
     auto to_result = initializer->allocate_tainted_object(to_candidate_text);
     to_result->add_ranges_shifted(to_text_to_add, (long)len_candidate_text);
 
@@ -60,10 +61,12 @@ api_add_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
         PyBytes_Concat(&candidate_text, text_to_add);
         result_o = candidate_text;
         candidate_text = tmp_bytes;
-        Py_INCREF(candidate_text);
+        Py_IncRef(candidate_text);
     } else if (PyByteArray_Check(candidate_text)) {
         result_o = PyByteArray_Concat(candidate_text, text_to_add);
+        Py_DecRef(result_o);
     }
+
     // Quickly skip if both are noninterned-unicodes and not tainted
     if (is_notinterned_notfasttainted_unicode(candidate_text) && is_notinterned_notfasttainted_unicode(text_to_add)) {
         return result_o;

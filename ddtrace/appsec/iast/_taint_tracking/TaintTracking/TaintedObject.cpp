@@ -14,6 +14,26 @@ shift_taint_range(const TaintRangePtr& source_taint_range, long offset)
     return tptr;
 }
 
+TaintedObject::TaintedObject() {
+    ranges_.reserve(RANGES_INITIAL_RESERVE);
+    if (initializer) {
+        std::cerr << "JJJ Creating and accounting for TaintedObject \n";
+        initializer->JJJ_num_taintedobjects_created++;
+    } else {
+        std::cerr << "JJJ No initializer created when creating tainted object \n";
+    }
+}
+
+
+TaintedObject::~TaintedObject() {
+    if (initializer) {
+        std::cerr << "JJJ Destroying and accounting for TaintedObject \n";
+        initializer->JJJ_num_taintedobjects_destroyed++;
+    } else {
+        std::cerr << "JJJ No initializer created when destroying tainted object \n";
+    }
+}
+
 void
 TaintedObject::add_ranges_shifted(TaintedObjectPtr tainted_object, long offset)
 {
@@ -68,6 +88,7 @@ TaintedObject::move_ranges_to_stack()
 void
 TaintedObject::reset()
 {
+    std::cerr << "JJJ TaintedObject::reset\n";
     move_ranges_to_stack();
     rc_ = 0;
     //    if (initializer) {
@@ -79,11 +100,13 @@ void
 TaintedObject::incref()
 {
     rc_++;
+    std::cerr << "JJJ tobject of [" << this << "] INCREF, current rc: " << rc_ << "\n";
 }
 
 void
 TaintedObject::decref()
 {
+    std::cerr << "JJJ tobject of [" << this << "] DECREF, current rc: " << rc_ << "\n";
     if (--rc_ <= 0) {
         release();
     }
@@ -94,7 +117,8 @@ TaintedObject::release()
 {
     // If rc_ is negative, there is a bug. We check it with an assert (let release builds to tolerate it).
     assert(rc_ == 0);
-    // initializer->release_tainted_object(this);
+    std::cerr << "JJJ calling release_tainted_object\n";
+    initializer->release_tainted_object(this);
 }
 
 void
