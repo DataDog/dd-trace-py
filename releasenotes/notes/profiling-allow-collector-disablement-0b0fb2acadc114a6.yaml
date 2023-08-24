@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    profiling: allow individual collectors to be disabled.
