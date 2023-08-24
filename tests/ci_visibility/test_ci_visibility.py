@@ -611,47 +611,48 @@ def test_civisibility_check_enabled_features_agentless_do_request_called_correct
                 '{"code_coverage":true,"tests_skipping":true}}}',
             )
             with mock.patch.object(CIVisibility, "__init__", return_value=None):
-                mock_civisibilty = CIVisibility()
+                with override_env({"DD_CIVISIBILITY_ITR_ENABLED": "true"}):
+                    mock_civisibilty = CIVisibility()
 
-                ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
-                mock_civisibilty._requests_mode = REQUESTS_MODE.AGENTLESS_EVENTS
-                mock_civisibilty._service = "service"
-                mock_civisibilty._api_key = "myfakeapikey"
-                mock_civisibilty._app_key = "myfakeappkey"
-                mock_civisibilty._dd_site = "datad0g.com"
-                mock_civisibilty._tags = {
-                    ci.git.REPOSITORY_URL: "my_repo_url",
-                    ci.git.COMMIT_SHA: "mycommitshaaaaaaalalala",
-                    ci.git.BRANCH: "notmain",
-                }
-
-                enabled_features = mock_civisibilty._check_enabled_features()
-
-                mock_do_request.assert_called_once()
-                do_request_call_args = mock_do_request.call_args[0]
-                do_request_payload = json.loads(do_request_call_args[2])
-
-                assert do_request_call_args[0] == "POST"
-                assert do_request_call_args[1] == "https://api.datad0g.com/api/v2/libraries/tests/services/setting"
-                assert do_request_call_args[3] == {
-                    "dd-api-key": "myfakeapikey",
-                    "dd-application-key": "myfakeappkey",
-                    "Content-Type": "application/json",
-                }
-                assert do_request_payload == {
-                    "data": {
-                        "id": "checkoutmyuuid4",
-                        "type": "ci_app_test_service_libraries_settings",
-                        "attributes": {
-                            "service": "service",
-                            "env": None,
-                            "repository_url": "my_repo_url",
-                            "sha": "mycommitshaaaaaaalalala",
-                            "branch": "notmain",
-                        },
+                    ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+                    mock_civisibilty._requests_mode = REQUESTS_MODE.AGENTLESS_EVENTS
+                    mock_civisibilty._service = "service"
+                    mock_civisibilty._api_key = "myfakeapikey"
+                    mock_civisibilty._app_key = "myfakeappkey"
+                    mock_civisibilty._dd_site = "datad0g.com"
+                    mock_civisibilty._tags = {
+                        ci.git.REPOSITORY_URL: "my_repo_url",
+                        ci.git.COMMIT_SHA: "mycommitshaaaaaaalalala",
+                        ci.git.BRANCH: "notmain",
                     }
-                }
-                assert enabled_features == (True, True)
+
+                    enabled_features = mock_civisibilty._check_enabled_features()
+
+                    mock_do_request.assert_called_once()
+                    do_request_call_args = mock_do_request.call_args[0]
+                    do_request_payload = json.loads(do_request_call_args[2])
+
+                    assert do_request_call_args[0] == "POST"
+                    assert do_request_call_args[1] == "https://api.datad0g.com/api/v2/libraries/tests/services/setting"
+                    assert do_request_call_args[3] == {
+                        "dd-api-key": "myfakeapikey",
+                        "dd-application-key": "myfakeappkey",
+                        "Content-Type": "application/json",
+                    }
+                    assert do_request_payload == {
+                        "data": {
+                            "id": "checkoutmyuuid4",
+                            "type": "ci_app_test_service_libraries_settings",
+                            "attributes": {
+                                "service": "service",
+                                "env": None,
+                                "repository_url": "my_repo_url",
+                                "sha": "mycommitshaaaaaaalalala",
+                                "branch": "notmain",
+                            },
+                        }
+                    }
+                    assert enabled_features == (True, True)
 
 
 def test_civisibility_check_enabled_features_evp_do_request_called_correctly():
@@ -663,43 +664,47 @@ def test_civisibility_check_enabled_features_evp_do_request_called_correctly():
                 '{"code_coverage":true,"tests_skipping":true}}}',
             )
             with mock.patch.object(CIVisibility, "__init__", return_value=None):
-                mock_civisibilty = CIVisibility()
+                with override_env({"DD_CIVISIBILITY_ITR_ENABLED": "true"}):
+                    mock_civisibilty = CIVisibility()
 
-                ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
-                mock_civisibilty._requests_mode = REQUESTS_MODE.EVP_PROXY_EVENTS
-                mock_civisibilty._service = "service"
-                mock_civisibilty._tags = {
-                    ci.git.REPOSITORY_URL: "my_repo_url",
-                    ci.git.COMMIT_SHA: "mycommitshaaaaaaalalala",
-                    ci.git.BRANCH: "notmain",
-                }
-
-                enabled_features = mock_civisibilty._check_enabled_features()
-
-                mock_do_request.assert_called_once()
-                do_request_call_args = mock_do_request.call_args[0]
-                do_request_payload = json.loads(do_request_call_args[2])
-
-                assert do_request_call_args[0] == "POST"
-                assert (
-                    do_request_call_args[1]
-                    == "http://localhost:8126/evp_proxy/v2/api/v2/libraries/tests/services/setting"
-                )
-                assert do_request_call_args[3] == {"X-Datadog-EVP-Subdomain": "api", "X-Datadog-NeedsAppKey": "true"}
-                assert do_request_payload == {
-                    "data": {
-                        "id": "checkoutmyuuid4",
-                        "type": "ci_app_test_service_libraries_settings",
-                        "attributes": {
-                            "service": "service",
-                            "env": None,
-                            "repository_url": "my_repo_url",
-                            "sha": "mycommitshaaaaaaalalala",
-                            "branch": "notmain",
-                        },
+                    ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+                    mock_civisibilty._requests_mode = REQUESTS_MODE.EVP_PROXY_EVENTS
+                    mock_civisibilty._service = "service"
+                    mock_civisibilty._tags = {
+                        ci.git.REPOSITORY_URL: "my_repo_url",
+                        ci.git.COMMIT_SHA: "mycommitshaaaaaaalalala",
+                        ci.git.BRANCH: "notmain",
                     }
-                }
-                assert enabled_features == (True, True)
+
+                    enabled_features = mock_civisibilty._check_enabled_features()
+
+                    mock_do_request.assert_called_once()
+                    do_request_call_args = mock_do_request.call_args[0]
+                    do_request_payload = json.loads(do_request_call_args[2])
+
+                    assert do_request_call_args[0] == "POST"
+                    assert (
+                        do_request_call_args[1]
+                        == "http://localhost:8126/evp_proxy/v2/api/v2/libraries/tests/services/setting"
+                    )
+                    assert do_request_call_args[3] == {
+                        "X-Datadog-EVP-Subdomain": "api",
+                        "X-Datadog-NeedsAppKey": "true",
+                    }
+                    assert do_request_payload == {
+                        "data": {
+                            "id": "checkoutmyuuid4",
+                            "type": "ci_app_test_service_libraries_settings",
+                            "attributes": {
+                                "service": "service",
+                                "env": None,
+                                "repository_url": "my_repo_url",
+                                "sha": "mycommitshaaaaaaalalala",
+                                "branch": "notmain",
+                            },
+                        }
+                    }
+                    assert enabled_features == (True, True)
 
 
 @mock.patch("ddtrace.internal.ci_visibility.recorder._do_request")
