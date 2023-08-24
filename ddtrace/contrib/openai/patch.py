@@ -40,12 +40,13 @@ config._add(
 
 
 def get_version():
-    try:
-        import importlib.metadata as importlib_metadata
-    except ImportError:
-        import importlib_metadata  # type: ignore[no-redef]
+    # try:
+    #     import importlib.metadata as importlib_metadata
+    # except ImportError:
+    #     import importlib_metadata  # type: ignore[no-redef]
 
-    return str(importlib_metadata.version(openai.__package__))
+    # return str(importlib_metadata.version(openai.__package__))
+    return openai.__version__
 
 
 class _OpenAIIntegration(BaseLLMIntegration):
