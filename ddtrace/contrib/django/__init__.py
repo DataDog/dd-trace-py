@@ -188,5 +188,6 @@ with require_modules(required_modules) as missing_modules:
         from . import patch as _patch
         from .patch import patch
         from .patch import unpatch
+        from .utils import get_version
 
         __all__ = ["patch", "unpatch", "_patch", "get_version"]
