@@ -330,23 +330,6 @@ def _on_render_template_context_started_flask(ctx):
     ctx.set_item("current_span", span)
 
 
-def _on_function_context_started_flask(ctx):
-    pin = ctx.get_item("pin")
-    name = ctx.get_item("name")
-    flask_config = ctx.get_item("flask_config")
-    kwargs = {"service": trace_utils.int_service(pin, flask_config)}
-    for kwarg in ("span_type", "resource"):
-        kwarg_value = ctx.get_item(kwarg)
-        if kwarg_value:
-            kwargs[kwarg] = kwarg_value
-    span = pin.tracer.trace(name, **kwargs)
-    span.set_tag_str(COMPONENT, flask_config.integration_name)
-    signal = ctx.get_item("signal")
-    if signal:
-        span.set_tag_str("flask.signal", signal)
-    ctx.set_item("flask_call", span)
-
-
 def _on_request_span_modifier(
     span, flask_config, request, environ, _HAS_JSON_MIXIN, flask_version, flask_version_str, exception_type
 ):
@@ -384,6 +367,23 @@ def _on_request_span_modifier_post(span, flask_config, request, req_body):
 
 def _on_start_response_blocked(req_span, flask_config, response_headers, status):
     trace_utils.set_http_meta(req_span, flask_config, status_code=status, response_headers=response_headers)
+
+
+def _on_function_context_started_flask(ctx):
+    pin = ctx.get_item("pin")
+    name = ctx.get_item("name")
+    flask_config = ctx.get_item("flask_config")
+    kwargs = {"service": trace_utils.int_service(pin, flask_config)}
+    for kwarg in ("span_type", "resource"):
+        kwarg_value = ctx.get_item(kwarg)
+        if kwarg_value:
+            kwargs[kwarg] = kwarg_value
+    span = pin.tracer.trace(name, **kwargs)
+    span.set_tag_str(COMPONENT, flask_config.integration_name)
+    signal = ctx.get_item("signal")
+    if signal:
+        span.set_tag_str("flask.signal", signal)
+    ctx.set_item("flask_call", span)
 
 
 def listen():
