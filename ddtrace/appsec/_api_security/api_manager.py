@@ -148,7 +148,7 @@ class APIManager(Service):
             self._log_limiter.limit(log.debug, "Failed to enrich request span with headers", exc_info=True)
 
         waf_payload = {}
-        for address, meta_name, transform in self.COLLECTED:
+        for address, _, transform in self.COLLECTED:
             value = env.waf_addresses.get(SPAN_DATA_NAMES[address], _sentinel)
             if value is _sentinel:
                 log.debug("no value for %s", address)
