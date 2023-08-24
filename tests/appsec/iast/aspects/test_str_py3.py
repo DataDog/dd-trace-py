@@ -26,9 +26,6 @@ class TestOperatorsReplacement(BaseReplacement):
     @pytest.mark.skip(reason="IAST isn't working correctly with Format strings")
     def test_string_build_string_tainted(self):  # type: () -> None
         # import tests.appsec.iast.fixtures.aspects.str_methods_py3 as mod
-        from ddtrace.appsec.iast._taint_tracking import setup
-
-        setup(bytes.join, bytearray.join)
         string_input = "foo"
         result = mod_py3.do_fmt_value(string_input)  # pylint: disable=no-member
         assert result == "foo     bar"
@@ -41,9 +38,6 @@ class TestOperatorsReplacement(BaseReplacement):
     @pytest.mark.skip(reason="IAST isn't working correctly with Format strings")
     def test_string_format_tainted(self):
         # type: () -> None
-        from ddtrace.appsec.iast._taint_tracking import setup
-
-        setup(bytes.join, bytearray.join)
         string_input = create_taint_range_with_format(":+-foo-+:")
 
         result = mod_py3.do_repr_fstring(string_input)  # pylint: disable=no-member
@@ -51,9 +45,6 @@ class TestOperatorsReplacement(BaseReplacement):
 
     def test_string_fstring_twice_tainted(self):
         # type: () -> None
-        from ddtrace.appsec.iast._taint_tracking import setup
-
-        setup(bytes.join, bytearray.join)
         string_input = create_taint_range_with_format(":+-foo-+:")
         obj = mod.MyObject(string_input)  # pylint: disable=no-member
 
