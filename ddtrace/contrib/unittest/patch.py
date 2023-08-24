@@ -28,12 +28,12 @@ config._add(
 
 
 def _set_tracer(tracer):
-    setattr(unittest, "_datadog_tracer", tracer)
+    unittest._datadog_tracer = tracer
 
 
 def _store_span(item, span):
     """Store span at `unittest` instance."""
-    setattr(item, "_datadog_span", span)
+    item._datadog_span = span
 
 
 def _extract_span(item):
@@ -89,7 +89,7 @@ def patch():
 
     _CIVisibility.enable(config=ddtrace.config.unittest)
 
-    setattr(unittest, "_datadog_patch", True)
+    unittest._datadog_patch = True
 
     _w = wrapt.wrap_function_wrapper
 
@@ -111,7 +111,7 @@ def unpatch():
     _u(unittest.TextTestResult, "addSkip")
     _u(unittest.TestCase, "run")
 
-    setattr(unittest, "_datadog_patch", False)
+    unittest._datadog_patch = False
     _CIVisibility.disable()
 
 
