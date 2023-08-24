@@ -69,6 +69,7 @@ datastores
 dbapi
 ddtrace
 deprecations
+deserializing
 django
 docstring
 doctest
