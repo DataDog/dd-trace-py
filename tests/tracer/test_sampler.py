@@ -719,7 +719,12 @@ def test_datadog_sampler_sample_no_rules(mock_sample, dummy_tracer):
     spans = dummy_tracer.pop()
     assert len(spans) == 1, "Span should have been written"
     assert_sampling_decision_tags(
-        spans[0], agent=None, limit=None, rule=None, sampling_priority=AUTO_REJECT, trace_tag=None
+        spans[0],
+        agent=None,
+        limit=None,
+        rule=None,
+        sampling_priority=AUTO_REJECT,
+        trace_tag="-{}".format(SamplingMechanism.DEFAULT),
     )
 
 
