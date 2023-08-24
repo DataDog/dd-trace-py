@@ -1,11 +1,12 @@
 from ddtrace import config
+from ddtrace.internal.schema import schematize_service_name
 
 
 config._add(
     "foo",
     {
         "distributed_tracing": True,
-        "_default_service": "foo",
+        "_default_service": schematize_service_name("foo"),
     },
 )
 

@@ -38,8 +38,8 @@ if config.logs_injection:
 if not config._debug_mode and config._call_basic_config:
     deprecate(
         "ddtrace.tracer.logging.basicConfig",
-        message="`logging.basicConfig()` should be called in a user's application."
-        " ``DD_CALL_BASIC_CONFIG`` will be removed in a future version.",
+        message="`logging.basicConfig()` should be called in a user's application.",
+        removal_version="2.0.0",
     )
     if config.logs_injection:
         logging.basicConfig(format=DD_LOG_FORMAT)
@@ -60,7 +60,7 @@ if "gevent" in sys.modules or "gevent.monkey" in sys.modules:
     import gevent.monkey  # noqa
 
     if gevent.monkey.is_module_patched("threading"):
-        warnings.warn(
+        warnings.warn(  # noqa: B028
             "Loading ddtrace after gevent.monkey.patch_all() is not supported and is "
             "likely to break the application. Use ddtrace-run to fix this, or "
             "import ddtrace.auto before calling gevent.monkey.patch_all().",
@@ -170,7 +170,7 @@ try:
 
     if asbool(os.getenv("DD_IAST_ENABLED", False)):
 
-        from ddtrace.appsec.iast._util import _is_python_version_supported
+        from ddtrace.appsec.iast._utils import _is_python_version_supported
 
         if _is_python_version_supported():
 

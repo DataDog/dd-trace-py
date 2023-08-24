@@ -1,8 +1,17 @@
 version: 2.1
 
-python310_image: &python310_image cimg/python:3.10
+python310_image: &python310_image cimg/python:3.10.12
 
 setup: true
+
+parameters:
+  coverage:
+    type: boolean
+    default: false
+  riot_run_latest:
+    type: boolean
+    default: false
+
 
 orbs:
   continuation: circleci/continuation@0.1.2
@@ -21,8 +30,8 @@ jobs:
       - run:
           name: Generate config
           command: |
-            pip3 install cogapp
-            cog -I scripts .circleci/config.templ.yml > .circleci/config.gen.yml
+            pip3 install riot==0.17.7
+            riot -v run --pass-env -s circleci-gen-config -- -v
       - continuation/continue:
           configuration_path: .circleci/config.gen.yml
 

@@ -66,8 +66,8 @@ def patch():
         trace_utils.wrap(subprocess, "Popen.__init__", _traced_subprocess_init(subprocess))
         trace_utils.wrap(subprocess, "Popen.wait", _traced_subprocess_wait(subprocess))
 
-        setattr(os, "_datadog_patch", True)
-        setattr(subprocess, "_datadog_patch", True)
+        os._datadog_patch = True
+        subprocess._datadog_patch = True
         patched.append("subprocess")
 
     return patched
@@ -144,6 +144,21 @@ class SubprocessCmdLine(object):
     def __init__(self, shell_args, shell=False):
         # type: (Union[str, List[str]], bool) -> None
 
+        report_cmdi = False
+        if config._iast_enabled:
+            # We delay the reporting to later when the strings are already scrubbed (but we need
+            # to check them unscrubbed here)
+            from ddtrace.appsec.iast._taint_tracking import get_tainted_ranges
+            from ddtrace.appsec.iast._taint_tracking.aspects import join_aspect
+
+            if isinstance(shell_args, (list, tuple)):
+                for arg in shell_args:
+                    if get_tainted_ranges(arg):
+                        report_cmdi = join_aspect(" ", shell_args)
+                        break
+            elif get_tainted_ranges(shell_args):
+                report_cmdi = shell_args
+
         cache_key = str(shell_args) + str(shell)
         self._cache_entry = SubprocessCmdLine._CACHE.get(cache_key)
         if self._cache_entry:
@@ -179,6 +194,11 @@ class SubprocessCmdLine(object):
         self._cache_entry = SubprocessCmdLine._add_new_cache_entry(
             cache_key, self.env_vars, self.binary, self.arguments, self.truncated
         )
+
+        if report_cmdi:
+            from ddtrace.appsec.iast.taint_sinks.command_injection import CommandInjection
+
+            CommandInjection.report(evidence_value=report_cmdi)
 
     def scrub_env_vars(self, tokens):
         for idx, token in enumerate(tokens):
@@ -310,8 +330,8 @@ def unpatch():
 
     SubprocessCmdLine._clear_cache()
 
-    setattr(os, "_datadog_patch", False)
-    setattr(subprocess, "_datadog_patch", False)
+    os._datadog_patch = False
+    subprocess._datadog_patch = False
 
 
 @trace_utils.with_traced_module

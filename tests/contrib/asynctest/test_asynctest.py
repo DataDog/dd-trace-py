@@ -7,6 +7,7 @@ import ddtrace
 from ddtrace.contrib.pytest.plugin import is_enabled
 from ddtrace.ext import test
 from ddtrace.internal.ci_visibility import CIVisibility
+from tests.ci_visibility.util import _patch_dummy_writer
 from tests.utils import DummyCIVisibilityWriter
 from tests.utils import TracerTestCase
 from tests.utils import override_env
@@ -25,9 +26,10 @@ class TestPytest(TracerTestCase):
             @staticmethod
             def pytest_configure(config):
                 if is_enabled(config):
-                    assert CIVisibility.enabled
-                    CIVisibility.disable()
-                    CIVisibility.enable(tracer=self.tracer, config=ddtrace.config.pytest)
+                    with _patch_dummy_writer():
+                        assert CIVisibility.enabled
+                        CIVisibility.disable()
+                        CIVisibility.enable(tracer=self.tracer, config=ddtrace.config.pytest)
 
         with override_env(dict(DD_API_KEY="foobar.baz")):
             self.tracer.configure(writer=DummyCIVisibilityWriter("https://citestcycle-intake.banana"))

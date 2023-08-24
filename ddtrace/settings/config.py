@@ -10,12 +10,14 @@ from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.constants import IAST_ENV
+from ddtrace.internal.serverless import in_azure_function_consumption_plan
 from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.utils.cache import cachedmethod
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor.debtcollector import deprecate
 
 from ..internal import gitmetadata
+from ..internal.constants import DEFAULT_SAMPLING_RATE_LIMIT
 from ..internal.constants import PROPAGATION_STYLE_ALL
 from ..internal.constants import PROPAGATION_STYLE_B3
 from ..internal.constants import _PROPAGATION_STYLE_DEFAULT
@@ -195,6 +197,16 @@ class Config(object):
 
         self._debug_mode = asbool(os.getenv("DD_TRACE_DEBUG", default=False))
         self._call_basic_config = asbool(os.environ.get("DD_CALL_BASIC_CONFIG", "false"))
+        if self._call_basic_config:
+            deprecate(
+                "`DD_CALL_BASIC_CONFIG` is deprecated and will be removed in the next major version.",
+                message="Call `logging.basicConfig()` to configure logging in your application",
+                removal_version="2.0.0",
+            )
+
+        self._trace_sample_rate = os.getenv("DD_TRACE_SAMPLE_RATE")
+        self._trace_rate_limit = int(os.getenv("DD_TRACE_RATE_LIMIT", default=DEFAULT_SAMPLING_RATE_LIMIT))
+        self._trace_sampling_rules = os.getenv("DD_TRACE_SAMPLING_RULES")
 
         header_tags = parse_tags_str(os.getenv("DD_TRACE_HEADER_TAGS", ""))
         self.http = HttpConfig(header_tags=header_tags)
@@ -218,10 +230,14 @@ class Config(object):
         if self.service is None and in_gcp_function():
             self.service = os.environ.get("K_SERVICE", os.environ.get("FUNCTION_NAME"))
 
+        if self.service is None and in_azure_function_consumption_plan():
+            self.service = os.environ.get("WEBSITE_SITE_NAME")
+
         self.version = os.getenv("DD_VERSION", default=self.tags.get("version"))
         self.http_server = self._HTTPServerConfig()
 
-        self.service_mapping = parse_tags_str(os.getenv("DD_SERVICE_MAPPING", default=""))
+        self._unparsed_service_mapping = os.getenv("DD_SERVICE_MAPPING", default="")
+        self.service_mapping = parse_tags_str(self._unparsed_service_mapping)
 
         # The service tag corresponds to span.service and should not be
         # included in the global tags.
@@ -244,6 +260,9 @@ class Config(object):
         self._128_bit_trace_id_enabled = asbool(os.getenv("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", False))
 
         self._128_bit_trace_id_logging_enabled = asbool(os.getenv("DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED", False))
+
+        self._sampling_rules = os.getenv("DD_SPAN_SAMPLING_RULES")
+        self._sampling_rules_file = os.getenv("DD_SPAN_SAMPLING_RULES_FILE")
 
         # Propagation styles
         self._propagation_style_extract = self._propagation_style_inject = _parse_propagation_styles(
@@ -273,8 +292,12 @@ class Config(object):
 
         # Raise certain errors only if in testing raise mode to prevent crashing in production with non-critical errors
         self._raise = asbool(os.getenv("DD_TESTING_RAISE", False))
+
+        trace_compute_stats_default = in_gcp_function() or in_azure_function_consumption_plan()
         self._trace_compute_stats = asbool(
-            os.getenv("DD_TRACE_COMPUTE_STATS", os.getenv("DD_TRACE_STATS_COMPUTATION_ENABLED", in_gcp_function()))
+            os.getenv(
+                "DD_TRACE_COMPUTE_STATS", os.getenv("DD_TRACE_STATS_COMPUTATION_ENABLED", trace_compute_stats_default)
+            )
         )
         self._data_streams_enabled = asbool(os.getenv("DD_DATA_STREAMS_ENABLED", False))
         self._appsec_enabled = asbool(os.getenv(APPSEC_ENV, False))
@@ -318,6 +341,20 @@ class Config(object):
             os.environ["OTEL_PYTHON_CONTEXT"] = "ddcontextvars_context"
         self._ddtrace_bootstrapped = False
         self._span_aggregator_rlock = asbool(os.getenv("DD_TRACE_SPAN_AGGREGATOR_RLOCK", False))
+
+        self._iast_redaction_enabled = asbool(os.getenv("DD_IAST_REDACTION_ENABLED", default=True))
+        self._iast_redaction_name_pattern = os.getenv(
+            "DD_IAST_REDACTION_NAME_PATTERN",
+            default=r"(?i)^.*(?:p(?:ass)?w(?:or)?d|pass(?:_?phrase)?|secret|(?:api_?|private_?|"
+            + r"public_?|access_?|secret_?)key(?:_?id)?|token|consumer_?(?:id|key|secret)|"
+            + r"sign(?:ed|ature)?|auth(?:entication|orization)?)",
+        )
+        self._iast_redaction_value_pattern = os.getenv(
+            "DD_IAST_REDACTION_VALUE_PATTERN",
+            default=r"(?i)bearer\s+[a-z0-9\._\-]+|token:[a-z0-9]{13}|gh[opsu]_[0-9a-zA-Z]{36}|"
+            + r"ey[I-L][\w=-]+\.ey[I-L][\w=-]+(\.[\w.+\/=-]+)?|[\-]{5}BEGIN[a-z\s]+PRIVATE\sKEY"
+            + r"[\-]{5}[^\-]+[\-]{5}END[a-z\s]+PRIVATE\sKEY|ssh-rsa\s*[a-z0-9\/\.+]{100,}",
+        )
 
     def __getattr__(self, name):
         if name not in self._config:

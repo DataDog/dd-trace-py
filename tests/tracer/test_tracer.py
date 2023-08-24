@@ -38,7 +38,6 @@ from ddtrace.internal._encoding import MsgpackEncoderV03
 from ddtrace.internal._encoding import MsgpackEncoderV05
 from ddtrace.internal.serverless import has_aws_lambda_agent_extension
 from ddtrace.internal.serverless import in_aws_lambda
-from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.settings import Config
@@ -942,20 +941,6 @@ class EnvTracerTestCase(TracerTestCase):
                     assert child2.service == "django"
                     assert VERSION_KEY in child2.get_tags() and child2.get_tag(VERSION_KEY) == "0.1.2"
 
-    @run_in_subprocess(env_overrides=dict(FUNCTION_NAME="my-func", GCP_PROJECT="project-name"))
-    def test_detect_gcp_function_old_runtime(self):
-        assert in_gcp_function()
-        tracer = Tracer()
-        assert isinstance(tracer._writer, AgentWriter)
-        assert tracer._writer._sync_mode
-
-    @run_in_subprocess(env_overrides=dict(K_SERVICE="my-func", FUNCTION_TARGET="function-target"))
-    def test_detect_gcp_function_new_runtime(self):
-        assert in_gcp_function()
-        tracer = Tracer()
-        assert isinstance(tracer._writer, AgentWriter)
-        assert tracer._writer._sync_mode
-
     @run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
     def test_detect_agentless_env_with_lambda(self):
         assert in_aws_lambda()
@@ -1450,7 +1435,7 @@ def test_multithreaded(tracer, test_spans):
             with tracer.trace("s3"):
                 pass
 
-    for i in range(1000):
+    for _ in range(1000):
         ts = [threading.Thread(target=target) for _ in range(10)]
         for t in ts:
             t.start()

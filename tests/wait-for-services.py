@@ -25,7 +25,7 @@ def try_until_timeout(exception):
         def wrapper(*args, **kwargs):
             err = None
 
-            for i in range(100):
+            for _ in range(100):
                 try:
                     fn()
                 except exception as e:

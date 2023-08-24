@@ -23,7 +23,11 @@ from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from .. import compat
 from ..utils.http import Response
 from ..utils.http import get_connection
+from .constants import AGENTLESS_API_KEY_HEADER_NAME
+from .constants import AGENTLESS_APP_KEY_HEADER_NAME
 from .constants import AGENTLESS_DEFAULT_SITE
+from .constants import EVP_NEEDS_APP_KEY_HEADER_NAME
+from .constants import EVP_NEEDS_APP_KEY_HEADER_VALUE
 from .constants import EVP_PROXY_AGENT_BASE_PATH
 from .constants import EVP_SUBDOMAIN_HEADER_API_VALUE
 from .constants import EVP_SUBDOMAIN_HEADER_NAME
@@ -76,8 +80,18 @@ class CIVisibilityGitClient(object):
             self._worker = None
 
     @classmethod
-    def _run_protocol(cls, serializer, requests_mode, base_url, _tags={}, _response=None, cwd=None):
-        # type: (CIVisibilityGitClientSerializerV1, int, str, Dict[str, str], Optional[Response], Optional[str]) -> None
+    def _run_protocol(
+        cls,
+        serializer,  # CIVisibilityGitClientSerializerV1
+        requests_mode,  # int
+        base_url,  # str
+        _tags=None,  # Optional[Dict[str, str]]
+        _response=None,  # Optional[Response]
+        cwd=None,  # Optional[str]
+    ):
+        # type: (...) -> None
+        if _tags is None:
+            _tags = {}
         repo_url = cls._get_repository_url(tags=_tags, cwd=cwd)
 
         if cls._is_shallow_repository(cwd=cwd) and extract_git_version(cwd=cwd) >= (2, 27, 0):
@@ -105,8 +119,10 @@ class CIVisibilityGitClient(object):
                 )
 
     @classmethod
-    def _get_repository_url(cls, tags={}, cwd=None):
-        # type: (Dict[str, str], Optional[str]) -> str
+    def _get_repository_url(cls, tags=None, cwd=None):
+        # type: (Optional[Dict[str, str]], Optional[str]) -> str
+        if tags is None:
+            tags = {}
         result = tags.get(ci.git.REPOSITORY_URL, "")
         if not result:
             result = extract_remote_url(cwd=cwd)
@@ -134,9 +150,15 @@ class CIVisibilityGitClient(object):
     def _do_request(cls, requests_mode, base_url, endpoint, payload, serializer, headers=None):
         # type: (int, str, str, str, CIVisibilityGitClientSerializerV1, Optional[dict]) -> Response
         url = "{}/repository{}".format(base_url, endpoint)
-        _headers = {"dd-api-key": serializer.api_key, "dd-application-key": serializer.app_key}
+        _headers = {
+            AGENTLESS_API_KEY_HEADER_NAME: serializer.api_key,
+            AGENTLESS_APP_KEY_HEADER_NAME: serializer.app_key,
+        }
         if requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS:
-            _headers = {EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_API_VALUE}
+            _headers = {
+                EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_API_VALUE,
+                EVP_NEEDS_APP_KEY_HEADER_NAME: EVP_NEEDS_APP_KEY_HEADER_VALUE,
+            }
         if headers is not None:
             _headers.update(headers)
         try:
@@ -206,7 +228,10 @@ class CIVisibilityGitClientSerializerV1(object):
         # type: (str) -> List[str]
         res = []  # type: List[str]
         try:
-            parsed = json.loads(payload)
+            if isinstance(payload, bytes):
+                parsed = json.loads(payload.decode())
+            else:
+                parsed = json.loads(payload)
             return [item["id"] for item in parsed["data"] if item["type"] == "commit"]
         except KeyError:
             log.warning("Expected information not found in search_commits response", exc_info=True)

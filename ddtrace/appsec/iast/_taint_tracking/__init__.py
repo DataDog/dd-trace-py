@@ -3,7 +3,7 @@
 from typing import TYPE_CHECKING
 
 from ddtrace.appsec.iast._metrics import _set_metric_iast_executed_source
-from ddtrace.appsec.iast._util import _is_python_version_supported
+from ddtrace.appsec.iast._utils import _is_python_version_supported
 
 
 if _is_python_version_supported():
@@ -69,6 +69,7 @@ __all__ = [
     "common_replace",
     "as_formatted_evidence",
     "parse_params",
+    "num_objects_tainted",
 ]
 
 
@@ -81,7 +82,7 @@ def taint_pyobject(pyobject, source_name, source_value, source_origin=None, star
     if not pyobject or not isinstance(pyobject, (str, bytes, bytearray)):
         return pyobject
 
-    if len_pyobject is None:
+    if not len_pyobject:
         len_pyobject = len(pyobject)
     pyobject = new_pyobject_id(pyobject, len_pyobject)
     if isinstance(source_name, (bytes, bytearray)):

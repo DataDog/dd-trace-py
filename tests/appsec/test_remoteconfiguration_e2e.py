@@ -255,11 +255,11 @@ def _multi_requests(client, debug_mode=False):
     return results
 
 
-def _request_200(client, debug_mode=False, max_retries=7, sleep_time=1):
+def _request_200(client, debug_mode=False, max_retries=40, sleep_time=1):
     """retry until it gets at least 2 successful checks"""
     time.sleep(sleep_time)
     previous = False
-    for _ in range(max_retries):
+    for id_try in range(max_retries):
         results = _multi_requests(client, debug_mode)
         check = all(response.status_code == 200 and response.content == b"OK" for response in results)
         if check:
@@ -268,15 +268,15 @@ def _request_200(client, debug_mode=False, max_retries=7, sleep_time=1):
             previous = True
         else:
             previous = False
-        time.sleep(sleep_time)
-    assert False, "request_200 failed, max_retries=%d, sleep_time=%f" % (max_retries, sleep_time)
+        time.sleep(sleep_time * pow(8, id_try / max_retries))
+    raise AssertionError("request_200 failed, max_retries=%d, sleep_time=%f" % (max_retries, sleep_time))
 
 
-def _request_403(client, debug_mode=False, max_retries=7, sleep_time=1):
+def _request_403(client, debug_mode=False, max_retries=40, sleep_time=1):
     """retry until it gets at least 2 successful checks"""
     time.sleep(sleep_time)
     previous = False
-    for _ in range(max_retries):
+    for id_try in range(max_retries):
         results = _multi_requests(client, debug_mode)
         check = all(
             response.status_code == 403 and response.content.startswith(b'{"errors": [{"title": "You\'ve been blocked"')
@@ -288,8 +288,8 @@ def _request_403(client, debug_mode=False, max_retries=7, sleep_time=1):
             previous = True
         else:
             previous = False
-        time.sleep(sleep_time)
-    assert False, "request_403 failed, max_retries=%d, sleep_time=%f" % (max_retries, sleep_time)
+        time.sleep(sleep_time * pow(8, id_try / max_retries))
+    raise AssertionError("request_403 failed, max_retries=%d, sleep_time=%f" % (max_retries, sleep_time))
 
 
 @pytest.mark.skipif(

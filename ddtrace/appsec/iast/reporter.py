@@ -1,4 +1,9 @@
+from functools import reduce
+import json
+import operator
+import os
 from typing import Set
+from typing import TYPE_CHECKING
 import zlib
 
 import attr
@@ -6,25 +11,61 @@ import attr
 from ddtrace.internal.compat import PY2
 
 
-@attr.s(eq=True, hash=True)
+if TYPE_CHECKING:
+    import Any
+    import Dict
+    import List
+    import Optional
+
+
+def _only_if_true(value):
+    return value if value else None
+
+
+@attr.s(eq=False, hash=False)
 class Evidence(object):
-    value = attr.ib(type=str, default=None)
-    valueParts = attr.ib(type=Set, default=None, hash=False)
+    value = attr.ib(type=str, default=None)  # type: Optional[str]
+    pattern = attr.ib(type=str, default=None)  # type: Optional[str]
+    valueParts = attr.ib(type=list, default=None)  # type: Optional[List[Dict[str, Any]]]
+    redacted = attr.ib(type=bool, default=False, converter=_only_if_true)  # type: bool
+
+    def _valueParts_hash(self):
+        if not self.valueParts:
+            return
+
+        _hash = 0
+        for part in self.valueParts:
+            json_str = json.dumps(part, sort_keys=True)
+            part_hash = zlib.crc32(json_str.encode())
+            _hash ^= part_hash
+
+        return _hash
+
+    def __hash__(self):
+        return hash((self.value, self.pattern, self._valueParts_hash(), self.redacted))
+
+    def __eq__(self, other):
+        return (
+            self.value == other.value
+            and self.pattern == other.pattern
+            and self._valueParts_hash() == other._valueParts_hash()
+            and self.redacted == other.redacted
+        )
 
 
 @attr.s(eq=True, hash=True)
 class Location(object):
-    path = attr.ib(type=str)
-    line = attr.ib(type=int)
-    spanId = attr.ib(type=int, eq=False, hash=False, repr=False)
+    path = attr.ib(type=str)  # type: str
+    line = attr.ib(type=int)  # type: int
+    spanId = attr.ib(type=int, eq=False, hash=False, repr=False)  # type: int
 
 
 @attr.s(eq=True, hash=True)
 class Vulnerability(object):
-    type = attr.ib(type=str)
-    evidence = attr.ib(type=Evidence, repr=False)
-    location = attr.ib(type=Location)
-    hash = attr.ib(init=False, eq=False, hash=False, repr=False)
+    type = attr.ib(type=str)  # type: str
+    evidence = attr.ib(type=Evidence, repr=False)  # type: Evidence
+    location = attr.ib(type=Location, hash="PYTEST_CURRENT_TEST" in os.environ)  # type: Location
+    hash = attr.ib(init=False, eq=False, hash=False, repr=False)  # type: int
 
     def __attrs_post_init__(self):
         self.hash = zlib.crc32(repr(self).encode())
@@ -34,12 +75,17 @@ class Vulnerability(object):
 
 @attr.s(eq=True, hash=True)
 class Source(object):
-    origin = attr.ib(type=str)
-    name = attr.ib(type=str)
-    value = attr.ib(type=str)
+    origin = attr.ib(type=str)  # type: str
+    name = attr.ib(type=str)  # type: str
+    redacted = attr.ib(type=bool, default=False, converter=_only_if_true)  # type: bool
+    value = attr.ib(type=str, default=None)  # type: Optional[str]
+    pattern = attr.ib(type=str, default=None)  # type: Optional[str]
 
 
-@attr.s(eq=False)
+@attr.s(eq=False, hash=False)
 class IastSpanReporter(object):
-    sources = attr.ib(type=Set[Source], factory=set)
-    vulnerabilities = attr.ib(type=Set[Vulnerability], factory=set)
+    sources = attr.ib(type=Set[Source], factory=set)  # type: Set[Source]
+    vulnerabilities = attr.ib(type=Set[Vulnerability], factory=set)  # type: Set[Vulnerability]
+
+    def __hash__(self):
+        return reduce(operator.xor, (hash(obj) for obj in self.sources | self.vulnerabilities))

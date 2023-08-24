@@ -27,13 +27,37 @@ of code organization.
 How do I run the test suite?
 ----------------------------
 
-With `docker <https://www.docker.com/products/docker>`_ installed, run this.
+We assume you have `docker <https://www.docker.com/products/docker>`_ installed.
+
+In addition, you will need `riot <https://ddriot.readthedocs.io/en/latest/>`_ and `hatch <https://hatch.pypa.io/latest/>`_.
+
+.. code-block:: bash
+
+    $ pip install riot==0.17.4
+    $ pip install hatch==1.7.0
+
+Some of our test environments are managed with Riot, others with Hatch.
+
+For riot environments, you can run:
 
 .. code-block:: bash
 
     $ scripts/ddtest riot run -p 3.10
 
 This command runs the entire test suite, which is probably not what you want to do.
+
+For hatch environments, you can run:
+
+.. code-block:: bash
+
+    $ hatch run lint:style
+
+If you make a change to the `hatch.toml` or library dependencies, be sure to remove environments before re-running:
+
+.. code-block:: bash
+
+    $ hatch env remove <ENV> # or hatch env prune
+
 
 How do I run only the tests I care about?
 -----------------------------------------

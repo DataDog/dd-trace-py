@@ -14,7 +14,7 @@ def patch():
     """
     if getattr(asyncio, "_datadog_patch", False):
         return
-    setattr(asyncio, "_datadog_patch", True)
+    asyncio._datadog_patch = True
 
     if sys.version_info < (3, 7, 0):
         _w(asyncio.BaseEventLoop, "create_task", wrapped_create_task)
@@ -29,7 +29,7 @@ def unpatch():
     """Remove tracing from patched modules."""
 
     if getattr(asyncio, "_datadog_patch", False):
-        setattr(asyncio, "_datadog_patch", False)
+        asyncio._datadog_patch = False
 
         if sys.version_info < (3, 7, 0):
             _u(asyncio.BaseEventLoop, "create_task")

@@ -107,7 +107,7 @@ class AstVisitor(ast.NodeTransformer):
         self.excluded_functions = self._aspects_spec["excluded_from_patching"].get(self.module_name, {})
 
         self.dont_patch_these_functionsdefs = set()
-        for k, v in iteritems(self.excluded_functions):
+        for _, v in iteritems(self.excluded_functions):
             if v:
                 for i in v:
                     self.dont_patch_these_functionsdefs.add(i)
@@ -176,7 +176,8 @@ class AstVisitor(ast.NodeTransformer):
             lineno=lineno, end_lineno=end_lineno, col_offset=col_offset, end_col_offset=end_col_offset, **kwargs
         )
 
-    def _name_node(self, from_node, _id, ctx=ast.Load()):  # type: (Any, str, Any) -> ast.Name
+    def _name_node(self, from_node, _id, ctx=ast.Load()):  # noqa: B008
+        # type: (Any, str, Any) -> ast.Name
         return self._node(
             ast.Name,
             from_node,
@@ -184,7 +185,8 @@ class AstVisitor(ast.NodeTransformer):
             ctx=ctx,
         )
 
-    def _attr_node(self, from_node, attr, ctx=ast.Load()):  # type: (Any, str, Any) -> ast.Name
+    def _attr_node(self, from_node, attr, ctx=ast.Load()):  # noqa: B008
+        # type: (Any, str, Any) -> ast.Name
         attr_attr = ""
         name_attr = ""
         if attr:
@@ -229,7 +231,8 @@ class AstVisitor(ast.NodeTransformer):
 
         return insert_position
 
-    def _none_constant(self, from_node, ctx=ast.Load()):  # type: (Any, Any) -> Any
+    def _none_constant(self, from_node, ctx=ast.Load()):  # noqa: B008
+        # type: (Any, Any) -> Any
         if PY30_37:
             return ast.NameConstant(lineno=from_node.lineno, col_offset=from_node.col_offset, value=None)
 
@@ -253,7 +256,7 @@ class AstVisitor(ast.NodeTransformer):
         Insert the import statement for the replacements module
         """
         insert_position = self.find_insert_position(module_node)
-        assert self._aspects_spec
+
         definitions_module = self._aspects_spec["definitions_module"]
         replacements_import = self._node(
             ast.Import,
@@ -318,11 +321,11 @@ class AstVisitor(ast.NodeTransformer):
             if aspect:
                 call_node.func = self._attr_node(call_node, aspect)
                 self.ast_modified = call_modified = True
-
-            sink_point = self._sinkpoints_functions.get(func_name_node)
-            if sink_point:
-                call_node.func = self._attr_node(call_node, sink_point)
-                self.ast_modified = call_modified = True
+            else:
+                sink_point = self._sinkpoints_functions.get(func_name_node)
+                if sink_point:
+                    call_node.func = self._attr_node(call_node, sink_point)
+                    self.ast_modified = call_modified = True
         # Call [attr] -> Attribute [value]-> Attribute [value]-> Attribute
         # a.b.c.method()
         # replaced_method(a.b.c)

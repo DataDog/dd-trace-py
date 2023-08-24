@@ -98,143 +98,31 @@ venv = Venv(
     env={
         "DD_TESTING_RAISE": "1",
         "DD_REMOTE_CONFIGURATION_ENABLED": "false",
+        "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
+        "DD_CIVISIBILITY_CODE_COVERAGE_ENABLED": "1",
+        "DD_CIVISIBILITY_ITR_ENABLED": "1",
     },
     venvs=[
         Venv(
             pys=["3"],
-            pkgs={
-                "black": "==21.4b2",
-                "isort": [latest],
-                # See https://github.com/psf/black/issues/2964 for incompatibility with click==8.1.0
-                "click": "<8.1.0",
-            },
-            venvs=[
-                Venv(
-                    name="fmt",
-                    command="isort . && black .",
-                ),
-                Venv(
-                    name="black",
-                    command="black {cmdargs}",
-                ),
-                Venv(
-                    name="isort",
-                    command="isort {cmdargs}",
-                ),
-            ],
-        ),
-        Venv(
-            pys=["3"],
-            pkgs={
-                "flake8": ">=3.8,<3.9",
-                "flake8-blind-except": latest,
-                "flake8-builtins": latest,
-                "flake8-docstrings": latest,
-                "flake8-logging-format": latest,
-                "flake8-rst-docstrings": latest,
-                "flake8-isort": latest,
-                "pygments": latest,
-            },
-            venvs=[
-                Venv(
-                    name="flake8",
-                    command="flake8 {cmdargs}",
-                ),
-            ],
-        ),
-        Venv(
-            pys=["3"],
-            pkgs={
-                "cython-lint": latest,
-            },
-            name="cython-lint",
-            command="cython-lint {cmdargs} .",
-        ),
-        Venv(
-            pys=["3"],
-            name="mypy",
-            command="mypy {cmdargs}",
-            create=True,
-            skip_dev_install=True,
-            pkgs={
-                "mypy": "==0.991",
-                "envier": "==0.4.0",
-                "types-attrs": "==19.1.0",
-                "types-docutils": "==0.19.1.1",
-                "types-protobuf": "==3.20.4.5",
-                "types-PyYAML": "==6.0.12.2",
-                "types-setuptools": "==65.6.0.0",
-                "types-six": "==1.16.21.4",
-            },
-        ),
-        Venv(
-            pys=["3"],
-            pkgs={"codespell": "==2.1.0"},
-            venvs=[
-                Venv(
-                    name="codespell",
-                    command='codespell --skip="ddwaf.h" ddtrace/ tests/',
-                ),
-                Venv(
-                    name="hook-codespell",
-                    command="codespell {cmdargs}",
-                ),
-            ],
-        ),
-        Venv(
-            pys=["3"],
-            pkgs={"slotscheck": latest},
-            venvs=[
-                Venv(
-                    name="slotscheck",
-                    command="python -m slotscheck -v ddtrace/",
-                ),
-            ],
-        ),
-        Venv(
-            pys=["3"],
-            pkgs={"bandit": latest},
-            venvs=[
-                Venv(
-                    name="bandit",
-                    command="bandit -c pyproject.toml {cmdargs} -r ddtrace/",
-                ),
-            ],
-        ),
-        Venv(
-            pys=["3"],
-            pkgs={"ddapm-test-agent": ">=1.2.0"},
-            venvs=[
-                Venv(
-                    name="snapshot-fmt",
-                    command="ddapm-test-agent-fmt {cmdargs} tests/snapshots/",
-                ),
-            ],
-        ),
-        Venv(
-            pys=["3"],
-            name="riot-helpers",
-            # DEV: pytest really doesn't want to execute only `riotfile.py`, call doctest directly
-            command="python -m doctest {cmdargs} riotfile.py",
-            pkgs={"riot": "==0.17.5"},
-        ),
-        Venv(
-            pys=["3"],
             name="scripts",
-            command="python -m doctest {cmdargs} scripts/get-target-milestone.py scripts/needs_testrun.py",
+            command="python -m doctest {cmdargs} "
+            "scripts/get-target-milestone.py "
+            "scripts/needs_testrun.py "
+            "tests/suitespec.py",
         ),
         Venv(
-            name="docs",
-            pys=["3.10"],
+            pys=["3"],
+            name="meta-testing",
+            command="pytest {cmdargs} tests/meta",
+        ),
+        Venv(
+            name="circleci-gen-config",
+            command="python scripts/gen_circleci_config.py {cmdargs}",
+            pys=["3"],
             pkgs={
-                "reno[sphinx]": "~=3.5.0",
-                "sphinx": "~=4.0",
-                "sphinxcontrib-spelling": "==7.7.0",
-                "PyEnchant": "==3.2.2",
-                "sphinx-copybutton": "==0.5.1",
-                "furo": latest,
+                "ruamel.yaml": latest,
             },
-            command="scripts/build-docs",
         ),
         Venv(
             name="appsec",
@@ -251,26 +139,6 @@ venv = Venv(
             env={
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
             },
-        ),
-        Venv(
-            pys=select_pys(),
-            pkgs={
-                # pytest-benchmark depends on cpuinfo which dropped support for Python<=3.6 in 9.0
-                # See https://github.com/workhorsy/py-cpuinfo/issues/177
-                "pytest-benchmark": latest,
-                "py-cpuinfo": "~=8.0.0",
-                "msgpack": latest,
-            },
-            venvs=[
-                Venv(
-                    name="benchmarks",
-                    command="pytest --no-cov --benchmark-warmup=on {cmdargs} tests/benchmarks",
-                ),
-                Venv(
-                    name="benchmarks-nogc",
-                    command="pytest --no-cov --benchmark-warmup=on --benchmark-disable-gc {cmdargs} tests/benchmarks",
-                ),
-            ],
         ),
         Venv(
             name="profile-diff",
@@ -332,7 +200,8 @@ venv = Venv(
         Venv(
             name="integration",
             # Enabling coverage for integration tests breaks certain tests in CI
-            command="pytest --no-cov {cmdargs} tests/integration/",
+            # Also, running two separate pytest sessions, the ``civisibility`` one with --no-ddtrace
+            command="pytest --no-ddtrace --no-cov --ignore-glob='*civisibility*' {cmdargs} tests/integration/ && pytest --no-cov --no-ddtrace {cmdargs} tests/integration/test_integration_civisibility.py",  # noqa: E501
             pkgs={"msgpack": [latest], "coverage": latest},
             venvs=[
                 Venv(
@@ -1505,7 +1374,10 @@ venv = Venv(
             name="botocore",
             command="pytest {cmdargs} tests/contrib/botocore",
             venvs=[
-                Venv(pys=select_pys(min_version="3.8"), pkgs={"moto[all]": latest, "botocore": latest}),
+                Venv(
+                    pys=select_pys(min_version="3.7"),
+                    pkgs={"moto[all]": latest, "botocore": latest},
+                ),
                 Venv(
                     pys=["2.7"],
                     pkgs={
@@ -1535,14 +1407,6 @@ venv = Venv(
                                 "moto[all]": "~=2.0",
                                 "graphql-core": "~=3.1.0",
                             },
-                            venvs=[
-                                Venv(
-                                    pys=["3.7"],
-                                    pkgs={
-                                        "markupsafe": "<2.0",
-                                    },
-                                ),
-                            ],
                         ),
                     ],
                 ),
@@ -1729,7 +1593,7 @@ venv = Venv(
         ),
         Venv(
             name="pytest",
-            command="pytest {cmdargs} tests/contrib/pytest/",
+            command="pytest --no-ddtrace {cmdargs} tests/contrib/pytest/",
             venvs=[
                 Venv(
                     pys=["2.7"],
@@ -1782,7 +1646,7 @@ venv = Venv(
         ),
         Venv(
             name="asynctest",
-            command="pytest {cmdargs} tests/contrib/asynctest/",
+            command="pytest --no-ddtrace {cmdargs} tests/contrib/asynctest/",
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.5", max_version="3.9"),
@@ -1796,8 +1660,27 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="pytest-benchmark",
+            command="pytest {cmdargs} tests/contrib/pytest_benchmark/",
+            pkgs={"msgpack": latest},
+            venvs=[
+                Venv(
+                    venvs=[
+                        Venv(
+                            pys=select_pys(min_version="3.7", max_version="3.10"),
+                            pkgs={
+                                "pytest-benchmark": [
+                                    ">=3.1.0,<=4.0.0",
+                                ]
+                            },
+                        )
+                    ],
+                ),
+            ],
+        ),
+        Venv(
             name="pytest-bdd",
-            command="pytest {cmdargs} tests/contrib/pytest_bdd/",
+            command="pytest --no-ddtrace {cmdargs} tests/contrib/pytest_bdd/",
             pkgs={"msgpack": latest},
             venvs=[
                 Venv(
@@ -2577,6 +2460,14 @@ venv = Venv(
                         "openai[embeddings]": ["==0.27.2", latest],
                     },
                 ),
+                Venv(
+                    pys=select_pys(min_version="3.8"),
+                    pkgs={
+                        "openai[embeddings]": [latest],
+                        "tiktoken": latest,
+                    },
+                    env={"TIKTOKEN_AVAILABLE": "True"},
+                ),
             ],
         ),
         Venv(
@@ -2874,9 +2765,14 @@ venv = Venv(
         ),
         Venv(
             name="ci_visibility",
-            command="pytest {cmdargs} tests/ci_visibility",
+            command="pytest --no-ddtrace {cmdargs} tests/ci_visibility",
             pys=select_pys(),
             pkgs={"msgpack": latest, "coverage": latest},
+        ),
+        Venv(
+            name="subprocess",
+            command="pytest {cmdargs} tests/contrib/subprocess",
+            pys=select_pys(),
         ),
         Venv(
             name="profile",

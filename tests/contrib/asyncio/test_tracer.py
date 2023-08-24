@@ -76,7 +76,7 @@ async def test_exception(tracer):
         with tracer.trace("f1"):
             raise Exception("f1 error")
 
-    with pytest.raises(Exception):
+    with pytest.raises(Exception, match="f1 error"):
         await f1()
     traces = tracer.pop_traces()
     assert 1 == len(traces)
@@ -98,7 +98,7 @@ async def test_nested_exceptions(tracer):
         with tracer.trace("f2"):
             await f1()
 
-    with pytest.raises(Exception):
+    with pytest.raises(Exception, match="f1 error"):
         await f2()
 
     traces = tracer.pop_traces()

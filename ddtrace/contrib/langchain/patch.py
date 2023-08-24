@@ -25,10 +25,12 @@ from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.agent import get_stats_url
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.pin import Pin
+from ddtrace.vendor import wrapt
 
 
 if TYPE_CHECKING:
@@ -326,7 +328,7 @@ async def traced_llm_agenerate(langchain, pin, func, instance, args, kwargs):
 @with_traced_module
 def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
     llm_provider = instance._llm_type.split("-")[0]
-    chat_messages = get_argument_value(args, kwargs, 0, "chat_messages")
+    chat_messages = get_argument_value(args, kwargs, 0, "messages")
     integration = langchain._datadog_integration
     span = integration.trace(
         pin,
@@ -417,7 +419,7 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
 @with_traced_module
 async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwargs):
     llm_provider = instance._llm_type.split("-")[0]
-    chat_messages = get_argument_value(args, kwargs, 0, "chat_messages")
+    chat_messages = get_argument_value(args, kwargs, 0, "messages")
     integration = langchain._datadog_integration
     span = integration.trace(
         pin,
@@ -507,7 +509,15 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
 
 @with_traced_module
 def traced_embedding(langchain, pin, func, instance, args, kwargs):
-    input_texts = get_argument_value(args, kwargs, 0, "text")
+    """
+    This traces both embed_query(text) and embed_documents(texts), so we need to make sure
+    we get the right arg/kwarg.
+    """
+    try:
+        input_texts = get_argument_value(args, kwargs, 0, "texts")
+    except ArgumentError:
+        input_texts = get_argument_value(args, kwargs, 0, "text")
+
     provider = instance.__class__.__name__.split("Embeddings")[0].lower()
     integration = langchain._datadog_integration
     span = integration.trace(
@@ -559,7 +569,7 @@ def traced_chain_call(langchain, pin, func, instance, args, kwargs):
     span = integration.trace(pin, "%s.%s" % (instance.__module__, instance.__class__.__name__), interface_type="chain")
     final_outputs = {}
     try:
-        inputs = args[0]
+        inputs = get_argument_value(args, kwargs, 0, "inputs")
         if not isinstance(inputs, dict):
             inputs = {instance.input_keys[0]: inputs}
         if integration.is_pc_sampled_span(span):
@@ -605,7 +615,7 @@ async def traced_chain_acall(langchain, pin, func, instance, args, kwargs):
     span = integration.trace(pin, "%s.%s" % (instance.__module__, instance.__class__.__name__), interface_type="chain")
     final_outputs = {}
     try:
-        inputs = args[0]
+        inputs = get_argument_value(args, kwargs, 0, "inputs")
         if not isinstance(inputs, dict):
             inputs = {instance.input_keys[0]: inputs}
         if integration.is_pc_sampled_span(span):
@@ -717,7 +727,7 @@ def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
 def patch():
     if getattr(langchain, "_datadog_patch", False):
         return
-    setattr(langchain, "_datadog_patch", True)
+    langchain._datadog_patch = True
 
     #  TODO: How do we test this? Can we mock out the metric/logger/sampler?
     ddsite = os.getenv("DD_SITE", "datadoghq.com")
@@ -730,7 +740,7 @@ def patch():
         site=ddsite,
         api_key=ddapikey,
     )
-    setattr(langchain, "_datadog_integration", integration)
+    langchain._datadog_integration = integration
 
     if config.langchain.logs_enabled:
         if not ddapikey:
@@ -741,9 +751,8 @@ def patch():
             )
         integration.start_log_writer()
 
-    # TODO: check if we need to version gate LLM/Chat/TextEmbedding
     wrap("langchain", "llms.base.BaseLLM.generate", traced_llm_generate(langchain))
-    wrap("langchain", "llms.BaseLLM.agenerate", traced_llm_agenerate(langchain))
+    wrap("langchain", "llms.base.BaseLLM.agenerate", traced_llm_agenerate(langchain))
     wrap("langchain", "chat_models.base.BaseChatModel.generate", traced_chat_model_generate(langchain))
     wrap("langchain", "chat_models.base.BaseChatModel.agenerate", traced_chat_model_agenerate(langchain))
     wrap("langchain", "chains.base.Chain.__call__", traced_chain_call(langchain))
@@ -752,18 +761,32 @@ def patch():
     #  wrap each langchain-provided text embedding model.
     for text_embedding_model in text_embedding_models:
         if hasattr(langchain.embeddings, text_embedding_model):
-            wrap("langchain", "embeddings.%s.embed_query" % text_embedding_model, traced_embedding(langchain))
-            wrap("langchain", "embeddings.%s.embed_documents" % text_embedding_model, traced_embedding(langchain))
-            # TODO: langchain >= 0.0.209 includes async embedding implementation (only for OpenAI)
+            # Ensure not double patched, as some Embeddings interfaces are pointers to other Embeddings.
+            if not isinstance(
+                deep_getattr(langchain.embeddings, "%s.embed_query" % text_embedding_model), wrapt.ObjectProxy
+            ):
+                wrap("langchain", "embeddings.%s.embed_query" % text_embedding_model, traced_embedding(langchain))
+            if not isinstance(
+                deep_getattr(langchain.embeddings, "%s.embed_documents" % text_embedding_model), wrapt.ObjectProxy
+            ):
+                wrap("langchain", "embeddings.%s.embed_documents" % text_embedding_model, traced_embedding(langchain))
+                # TODO: langchain >= 0.0.209 includes async embedding implementation (only for OpenAI)
     # We need to do the same with Vectorstores.
     for vectorstore in vectorstores:
         if hasattr(langchain.vectorstores, vectorstore):
-            wrap("langchain", "vectorstores.%s.similarity_search" % vectorstore, traced_similarity_search(langchain))
+            # Ensure not double patched, as some Embeddings interfaces are pointers to other Embeddings.
+            if not isinstance(
+                deep_getattr(langchain.vectorstores, "%s.similarity_search" % vectorstore), wrapt.ObjectProxy
+            ):
+                wrap(
+                    "langchain", "vectorstores.%s.similarity_search" % vectorstore, traced_similarity_search(langchain)
+                )
 
 
 def unpatch():
-    if getattr(langchain, "_datadog_patch", False):
-        setattr(langchain, "_datadog_patch", False)
+    if not getattr(langchain, "_datadog_patch", False):
+        return
+    langchain._datadog_patch = False
 
     unwrap(langchain.llms.base.BaseLLM, "generate")
     unwrap(langchain.llms.base.BaseLLM, "agenerate")
@@ -773,10 +796,19 @@ def unpatch():
     unwrap(langchain.chains.base.Chain, "acall")
     for text_embedding_model in text_embedding_models:
         if hasattr(langchain.embeddings, text_embedding_model):
-            unwrap(getattr(langchain.embeddings, text_embedding_model), "embed_query")
-            unwrap(getattr(langchain.embeddings, text_embedding_model), "embed_documents")
+            if isinstance(
+                deep_getattr(langchain.embeddings, "%s.embed_query" % text_embedding_model), wrapt.ObjectProxy
+            ):
+                unwrap(getattr(langchain.embeddings, text_embedding_model), "embed_query")
+            if isinstance(
+                deep_getattr(langchain.embeddings, "%s.embed_documents" % text_embedding_model), wrapt.ObjectProxy
+            ):
+                unwrap(getattr(langchain.embeddings, text_embedding_model), "embed_documents")
     for vectorstore in vectorstores:
         if hasattr(langchain.vectorstores, vectorstore):
-            unwrap(getattr(langchain.vectorstores, vectorstore), "similarity_search")
+            if isinstance(
+                deep_getattr(langchain.vectorstores, "%s.similarity_search" % vectorstore), wrapt.ObjectProxy
+            ):
+                unwrap(getattr(langchain.vectorstores, vectorstore), "similarity_search")
 
     delattr(langchain, "_datadog_integration")

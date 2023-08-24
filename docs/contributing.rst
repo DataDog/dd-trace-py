@@ -47,16 +47,16 @@ You can find the list of past released versions `on this GitHub page <https://gi
 
 Pull requests are named according to the `conventional commit <https://www.conventionalcommits.org/en/v1.0.0/>`_
 standard, which is enforced by a continuous integration job. The standardized "scopes" we use
-in pull request names are enumerated `in the release notes documentation <releasenotes.rst#Scope>`_.
+in pull request names are enumerated :ref:`in the release notes documentation<release_notes_scope>`.
 
-Pull requests that change the library's public API require a `release note <releasenotes.rst>`_.
+Pull requests that change the library's public API require a :ref:`release note<release_notes>`.
 If your pull request doesn't change the public API, apply the ``no-changelog`` label.
 
 Backporting
 -----------
 
 Each minor version has its own branch. Bug fixes are "backported" from trunk to certain
-minor version branches according to the `version support policy <versioning.rst#release-versions>`_.
+minor version branches according to the :ref:`version support policy<versioning_release>`.
 
 * **Fix PRs** are backported to all maintained release branches.
 * **CI PRs** are backported to the maintained release branches.

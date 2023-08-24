@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    langchain: This fix resolves an issue where chat messages and embedding arguments
+     passed in as keyword arguments were not parsed correctly and resulted in an ``ArgumentError``.

@@ -13,7 +13,7 @@ base_exception_name = "builtins.Exception"
 if PY2:
     base_exception_name = "exceptions.Exception"
 
-EXPECTED_METADATA = {"component": "flask"}
+EXPECTED_METADATA = {"component": "flask", "_dd.p.dm": "-0"}
 
 
 class FlaskViewTestCase(BaseFlaskTestCase):

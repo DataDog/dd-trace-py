@@ -19,7 +19,7 @@ def span(tracer):
 @pytest.fixture
 def fn_task():
     _ = Mock()
-    setattr(_, "__dd_task_span", None)
+    _.__dd_task_span = None
     yield _
 
 
@@ -38,7 +38,7 @@ def test_span_delete(span, fn_task):
     task_id = "7c6731af-9533-40c3-83a9-25b58f0d837f"
     attach_span(fn_task, task_id, span)
     # delete the Span
-    weak_dict = getattr(fn_task, "__dd_task_span")
+    weak_dict = fn_task.__dd_task_span
     detach_span(fn_task, task_id)
     assert weak_dict.get((task_id, False)) is None
 
@@ -63,7 +63,7 @@ def test_memory_leak_safety(tracer, fn_task):
     # propagate and finish a Span for `fn_task`
     task_id = "7c6731af-9533-40c3-83a9-25b58f0d837f"
     attach_span(fn_task, task_id, tracer.trace("celery.run"))
-    weak_dict = getattr(fn_task, "__dd_task_span")
+    weak_dict = fn_task.__dd_task_span
     key = (task_id, False)
     assert weak_dict.get(key)
     # flush data and force the GC

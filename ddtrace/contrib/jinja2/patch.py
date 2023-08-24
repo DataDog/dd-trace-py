@@ -29,7 +29,7 @@ def patch():
     if getattr(jinja2, "__datadog_patch", False):
         # already patched
         return
-    setattr(jinja2, "__datadog_patch", True)
+    jinja2.__datadog_patch = True
     Pin(
         service=config.jinja2["service_name"],
         _config=config.jinja2,
@@ -43,7 +43,7 @@ def patch():
 def unpatch():
     if not getattr(jinja2, "__datadog_patch", False):
         return
-    setattr(jinja2, "__datadog_patch", False)
+    jinja2.__datadog_patch = False
     _u(jinja2.Template, "render")
     _u(jinja2.Template, "generate")
     _u(jinja2.Environment, "compile")

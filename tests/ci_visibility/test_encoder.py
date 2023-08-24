@@ -1,8 +1,6 @@
-from contextlib import contextmanager
 import json
 import os
 
-import mock
 import msgpack
 import pytest
 
@@ -17,7 +15,7 @@ from ddtrace.internal.ci_visibility.encoder import CIVisibilityEncoderV01
 from ddtrace.internal.compat import msgpack_type
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.span import Span
-from tests.utils import DummyCIVisibilityWriter
+from tests.ci_visibility.util import _patch_dummy_writer
 from tests.utils import TracerTestCase
 from tests.utils import override_env
 
@@ -160,11 +158,12 @@ def test_encode_traces_civisibility_v2_coverage_per_suite():
     ]
 
     encoder = CIVisibilityCoverageEncoderV02(0, 0)
+    encoder._set_itr_suite_skipping_mode(True)
     for trace in traces:
         encoder.put(trace)
-    with mock.patch("ddtrace.internal.ci_visibility.recorder._get_test_skipping_level", return_value="suite"):
-        payload = encoder._build_data(traces)
-        complete_payload = encoder.encode()
+
+    payload = encoder._build_data(traces)
+    complete_payload = encoder.encode()
     assert isinstance(payload, msgpack_type)
     decoded = msgpack.unpackb(payload, raw=True, strict_map_key=False)
     assert decoded[b"version"] == 2
@@ -221,14 +220,6 @@ def test_encode_traces_civisibility_v2_coverage_empty_traces():
 
     complete_payload = encoder.encode()
     assert complete_payload is None
-
-
-@contextmanager
-def _patch_dummy_writer():
-    original = ddtrace.internal.ci_visibility.recorder.CIVisibilityWriter
-    ddtrace.internal.ci_visibility.recorder.CIVisibilityWriter = DummyCIVisibilityWriter
-    yield
-    ddtrace.internal.ci_visibility.recorder.CIVisibilityWriter = original
 
 
 class PytestEncodingTestCase(TracerTestCase):
