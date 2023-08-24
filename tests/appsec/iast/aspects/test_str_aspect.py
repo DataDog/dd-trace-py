@@ -85,3 +85,22 @@ class TestOperatorsReplacement(BaseReplacement):
         string_input = create_taint_range_with_format(":+-foo-+:")
         ljusted = mod.do_ljust(string_input, 4)  # pylint: disable=no-member
         assert as_formatted_evidence(ljusted) == ":+-foo-+: "
+
+    def test_zfill(self):
+        # Not tainted
+        string_input = '-1234'
+        res = mod.do_zfill(string_input, 6)  # pylint: disable=no-member
+        assert as_formatted_evidence(res) == '-01234'
+
+        # Tainted
+        string_input = create_taint_range_with_format(':+--12-+:34')
+        res = mod.do_zfill(string_input, 6)  # pylint: disable=no-member
+        assert as_formatted_evidence(res) == ':+---+:0:+-12-+:34'
+
+        string_input = create_taint_range_with_format(':+-+12-+:34')
+        res = mod.do_zfill(string_input, 7)  # pylint: disable=no-member
+        assert as_formatted_evidence(res) == ':+-+-+:00:+-12-+:34'
+
+        string_input = create_taint_range_with_format(':+-012-+:34')
+        res = mod.do_zfill(string_input, 7)  # pylint: disable=no-member
+        assert as_formatted_evidence(res) == '00:+-012-+:34'
