@@ -49,9 +49,7 @@ def equal_value(t1, t2):
         return len(t1) == len(t2) and all(any(equal_with_meta(a, b) for b in t2) for a in t1)
     if isinstance(t1, dict) and isinstance(t2, dict):
         return len(t1) == len(t2) and all(equal_with_meta(t1[k], t2.get(k)) for k in t1)
-    if isinstance(t1, int) and isinstance(t2, int):
-        return t1 == t2
-    return False
+    return t1 == t2
 
 
 @pytest.mark.parametrize(
