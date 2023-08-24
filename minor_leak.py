@@ -23,7 +23,6 @@ from ddtrace.appsec.iast._taint_tracking import destroy_context
 from ddtrace.appsec.iast._taint_tracking import num_contexts
 from ddtrace.appsec.iast._taint_tracking import initializer_size
 from ddtrace.appsec.iast._taint_tracking import active_map_addreses_size
-from ddtrace.appsec.iast._taint_tracking import setup
 from ddtrace.appsec.iast._taint_tracking.aspects import join_aspect, add_aspect
 from ddtrace.appsec.iast._taint_tracking import num_objects_tainted
 
@@ -51,6 +50,7 @@ def get_random_string(length):
 
 def taint_pyobject_with_ranges(pyobject, ranges):  # type: (Any, tuple) -> None
     set_ranges(pyobject, tuple(ranges))
+    print("JJJ ranges: %s" % get_ranges(pyobject))
 
 
 def print_created():
@@ -74,6 +74,7 @@ def new_request(enable_propagation: bool) -> str:
 
     if ENABLE_TAINTING:
         taint_pyobject_with_ranges(tainted, (CHECK_RANGES[0],))
+    print("JJJ get_ranges 3: %s" % get_ranges(tainted))
     return tainted
 
 
@@ -113,6 +114,7 @@ def aspect_function(internal_loop: int, tainted: str) -> str:
         # value = res
         # res = add_aspect(res, " ")
         value = res
+        print("JJJ ranges 2: %s" % get_ranges(tainted))
 
     return value
 
@@ -137,16 +139,15 @@ def launch_function(func: Callable, internal_loop: float, caller_loop: int) -> f
 
 
 def main() -> None:
-    setup(bytes.join, bytearray.join)
-    # internal_loop = 1000
-    # caller_loop = 100
-    # repetitions = 0
-    # repetitions_end = 5
-
     internal_loop = 100
     caller_loop = 100
     repetitions = 0
-    repetitions_end = 10
+    repetitions_end = 2
+
+    # internal_loop = 1
+    # caller_loop = 100
+    # repetitions = 0
+    # repetitions_end = 10
 
     total_time_normal = 0.0
     total_time_aspect = 0.0
@@ -161,6 +162,7 @@ def main() -> None:
         repetitions += 1
         print('Iteration %d' % repetitions)
         process_time_aspect = launch_function(aspect_function, internal_loop, caller_loop)
+        # process_time_aspect = launch_function(normal_function, internal_loop, caller_loop)
 
 
     contexts_reset()

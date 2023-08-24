@@ -188,6 +188,7 @@ set_ranges(const PyObject* str, const TaintRangeRefs& ranges, TaintRangeMapType*
     auto it = tx_map->find(hash);
     std::cerr << "JJJ calling allocate tainted object from set_ranges\n";
     auto new_tainted_object = initializer->allocate_tainted_object(ranges);
+    // JJJ commenting it here make it not work
     set_fast_tainted_if_notinterned_unicode(str);
     new_tainted_object->incref();
     if (it != tx_map->end()) {
