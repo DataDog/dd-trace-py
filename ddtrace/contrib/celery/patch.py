@@ -23,7 +23,7 @@ config._add(
 
 
 def get_version():
-    return celery.__version__
+    return str(celery.__version__)
 
 
 def patch():

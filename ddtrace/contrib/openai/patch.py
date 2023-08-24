@@ -3,7 +3,7 @@ import sys
 from typing import Optional
 from typing import TYPE_CHECKING
 
-import openai
+from openai import version
 
 from ddtrace import config
 from ddtrace.contrib._trace_utils_llm import BaseLLMIntegration
@@ -40,13 +40,7 @@ config._add(
 
 
 def get_version():
-    # try:
-    #     import importlib.metadata as importlib_metadata
-    # except ImportError:
-    #     import importlib_metadata  # type: ignore[no-redef]
-
-    # return str(importlib_metadata.version(openai.__package__))
-    return openai.__version__
+    return version.VERSION
 
 
 class _OpenAIIntegration(BaseLLMIntegration):

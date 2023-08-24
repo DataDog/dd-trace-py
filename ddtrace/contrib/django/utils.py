@@ -53,7 +53,7 @@ _quantize_param = Union[_quantize_text, List[_quantize_text], Dict[_quantize_tex
 
 
 def get_version():
-    return django.VERSION.join(".")
+    return ".".join(map(str, django.VERSION))
 
 
 def resource_from_cache_prefix(resource, cache):
