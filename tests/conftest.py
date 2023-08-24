@@ -9,8 +9,6 @@ import sys
 from tempfile import NamedTemporaryFile
 import time
 
-from _pytest.runner import CallInfo
-from _pytest.runner import TestReport
 from _pytest.runner import call_and_report
 from _pytest.runner import pytest_runtest_protocol as default_pytest_runtest_protocol
 import pytest
@@ -211,7 +209,13 @@ def run_function_from_file(item, params=None):
     pythonpath = os.getenv("PYTHONPATH", None)
     base_path = os.path.dirname(os.path.dirname(__file__))
     env["PYTHONPATH"] = os.pathsep.join((base_path, pythonpath)) if pythonpath is not None else base_path
-    env.update(marker.kwargs.get("env", {}))
+
+    for key, value in marker.kwargs.get("env", {}).items():
+        if value is None:  # None means remove the variable
+            env.pop(key, None)
+        else:
+            env[key] = value
+
     if params is not None:
         env.update(params)
 
@@ -251,7 +255,7 @@ def run_function_from_file(item, params=None):
             if not is_stream_ok(err, expected_err):
                 raise AssertionError("STDERR: Expected [%s] got [%s]" % (expected_err, err))
 
-        return TestReport.from_item_and_call(item, CallInfo.from_call(_subprocess_wrapper, "call"))
+        return _subprocess_wrapper()
 
 
 @pytest.hookimpl(tryfirst=True)
@@ -281,7 +285,8 @@ def pytest_runtest_protocol(item):
             ihook.pytest_runtest_logreport(report=report)
 
             # Call
-            report = run_function_from_file(item, ps)
+            item.runtest = lambda: run_function_from_file(item, ps)  # noqa: B023
+            report = call_and_report(item, "call", log=False)
             report.nodeid = nodeid
             ihook.pytest_runtest_logreport(report=report)
 

@@ -17,8 +17,6 @@ import six
 
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace.appsec.iast._taint_tracking import get_tainted_ranges
-from ddtrace.appsec.iast.taint_sinks.command_injection import CommandInjection
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.subprocess.constants import COMMANDS
 from ddtrace.ext import SpanTypes
@@ -68,8 +66,8 @@ def patch():
         trace_utils.wrap(subprocess, "Popen.__init__", _traced_subprocess_init(subprocess))
         trace_utils.wrap(subprocess, "Popen.wait", _traced_subprocess_wait(subprocess))
 
-        setattr(os, "_datadog_patch", True)
-        setattr(subprocess, "_datadog_patch", True)
+        os._datadog_patch = True
+        subprocess._datadog_patch = True
         patched.append("subprocess")
 
     return patched
@@ -150,10 +148,16 @@ class SubprocessCmdLine(object):
         if config._iast_enabled:
             # We delay the reporting to later when the strings are already scrubbed (but we need
             # to check them unscrubbed here)
-            if isinstance(shell_args, (list, tuple)) and any(get_tainted_ranges(i) for i in shell_args):
-                report_cmdi = True
+            from ddtrace.appsec.iast._taint_tracking import get_tainted_ranges
+            from ddtrace.appsec.iast._taint_tracking.aspects import join_aspect
+
+            if isinstance(shell_args, (list, tuple)):
+                for arg in shell_args:
+                    if get_tainted_ranges(arg):
+                        report_cmdi = join_aspect(" ", shell_args)
+                        break
             elif get_tainted_ranges(shell_args):
-                report_cmdi = True
+                report_cmdi = shell_args
 
         cache_key = str(shell_args) + str(shell)
         self._cache_entry = SubprocessCmdLine._CACHE.get(cache_key)
@@ -192,8 +196,9 @@ class SubprocessCmdLine(object):
         )
 
         if report_cmdi:
-            scrubbed_evidences = [self.binary] + self.arguments
-            CommandInjection.report(evidence_value=scrubbed_evidences)
+            from ddtrace.appsec.iast.taint_sinks.command_injection import CommandInjection
+
+            CommandInjection.report(evidence_value=report_cmdi)
 
     def scrub_env_vars(self, tokens):
         for idx, token in enumerate(tokens):
@@ -325,8 +330,8 @@ def unpatch():
 
     SubprocessCmdLine._clear_cache()
 
-    setattr(os, "_datadog_patch", False)
-    setattr(subprocess, "_datadog_patch", False)
+    os._datadog_patch = False
+    subprocess._datadog_patch = False
 
 
 @trace_utils.with_traced_module

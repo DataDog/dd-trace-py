@@ -1,6 +1,5 @@
 from typing import Dict
 
-from ddtrace.internal.compat import ensure_pep562
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
 
@@ -76,13 +75,3 @@ def use_psycopg3_parse_dsn(psycopg_module):
     except ImportError:
         # Best effort, we'll use our own parser: _dd_parse_pg_dsn
         pass
-
-
-def __getattr__(name):
-    if name in globals():
-        return globals()[name]
-
-    raise AttributeError("'%s' has no attribute '%s'", __name__, name)
-
-
-ensure_pep562(__name__)

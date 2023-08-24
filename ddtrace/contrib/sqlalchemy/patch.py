@@ -9,7 +9,7 @@ from .engine import _wrap_create_engine
 def patch():
     if getattr(sqlalchemy.engine, "__datadog_patch", False):
         return
-    setattr(sqlalchemy.engine, "__datadog_patch", True)
+    sqlalchemy.engine.__datadog_patch = True
 
     # patch the engine creation function
     _w("sqlalchemy", "create_engine", _wrap_create_engine)
@@ -19,6 +19,6 @@ def patch():
 def unpatch():
     # unpatch sqlalchemy
     if getattr(sqlalchemy.engine, "__datadog_patch", False):
-        setattr(sqlalchemy.engine, "__datadog_patch", False)
+        sqlalchemy.engine.__datadog_patch = False
         unwrap(sqlalchemy, "create_engine")
         unwrap(sqlalchemy.engine, "create_engine")

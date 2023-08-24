@@ -6,6 +6,7 @@ import six
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.constants import REQUEST_PATH_PARAMS
 from ddtrace.internal.constants import RESPONSE_HEADERS
+from ddtrace.internal.constants import STATUS_403_TYPE_AUTO
 
 
 if TYPE_CHECKING:
@@ -149,6 +150,18 @@ class WAF_ACTIONS(object):
     """string identifier for actions returned by the waf"""
 
     BLOCK = "block"
+    PARAMETERS = "parameters"
+    TYPE = "type"
+    ID = "id"
+    DEFAULT_PARAMETERS = STATUS_403_TYPE_AUTO
+    BLOCK_ACTION = "block_request"
+    DEFAULT_ACTONS = {
+        BLOCK: {
+            ID: BLOCK,
+            TYPE: BLOCK_ACTION,
+            PARAMETERS: DEFAULT_PARAMETERS,
+        }
+    }
 
 
 @six.add_metaclass(Constant_Class)  # required for python2/3 compatibility

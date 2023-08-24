@@ -1,0 +1,256 @@
+[[
+  {
+    "name": "trace7",
+    "service": "",
+    "resource": "trace7",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-4",
+      "language": "python",
+      "runtime-id": "6f2eeb0b30c54268b96f6eca8a2d66ba"
+    },
+    "metrics": {
+      "_dd.rule_psr": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 2,
+      "process_id": 15844
+    },
+    "duration": 54362,
+    "start": 1690574476628735754
+  },
+     {
+       "name": "child",
+       "service": "",
+       "resource": "child",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "duration": 11715,
+       "start": 1690574476628770928
+     }],
+[
+  {
+    "name": "trace6",
+    "service": "",
+    "resource": "trace6",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "language": "python",
+      "runtime-id": "6f2eeb0b30c54268b96f6eca8a2d66ba"
+    },
+    "metrics": {
+      "_dd.rule_psr": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": -1,
+      "process_id": 15844
+    },
+    "duration": 54307,
+    "start": 1690574476627657664
+  },
+     {
+       "name": "child",
+       "service": "",
+       "resource": "child",
+       "trace_id": 1,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "duration": 12752,
+       "start": 1690574476627692203
+     }],
+[
+  {
+    "name": "trace5",
+    "service": "",
+    "resource": "trace5",
+    "trace_id": 2,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "language": "python",
+      "runtime-id": "6f2eeb0b30c54268b96f6eca8a2d66ba"
+    },
+    "metrics": {
+      "_dd.rule_psr": 0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": -1,
+      "process_id": 15844
+    },
+    "duration": 48010,
+    "start": 1690574476626552013
+  },
+     {
+       "name": "child",
+       "service": "",
+       "resource": "child",
+       "trace_id": 2,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "duration": 7332,
+       "start": 1690574476626585194
+     }],
+[
+  {
+    "name": "trace4",
+    "service": "",
+    "resource": "trace4",
+    "trace_id": 3,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-3",
+      "language": "python",
+      "runtime-id": "6f2eeb0b30c54268b96f6eca8a2d66ba"
+    },
+    "metrics": {
+      "_dd.rule_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 2,
+      "process_id": 15844
+    },
+    "duration": 54731,
+    "start": 1690574476625440423
+  },
+     {
+       "name": "child",
+       "service": "",
+       "resource": "child",
+       "trace_id": 3,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "duration": 7522,
+       "start": 1690574476625479881
+     }],
+[
+  {
+    "name": "trace3",
+    "service": "",
+    "resource": "trace3",
+    "trace_id": 4,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "language": "python",
+      "runtime-id": "6f2eeb0b30c54268b96f6eca8a2d66ba"
+    },
+    "metrics": {
+      "_dd.rule_psr": 1e-06,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": -1,
+      "process_id": 15844
+    },
+    "duration": 58818,
+    "start": 1690574476624262329
+  },
+     {
+       "name": "child",
+       "service": "",
+       "resource": "child",
+       "trace_id": 4,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "duration": 7704,
+       "start": 1690574476624305295
+     }],
+[
+  {
+    "name": "trace2",
+    "service": "",
+    "resource": "trace2",
+    "trace_id": 5,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-3",
+      "language": "python",
+      "runtime-id": "6f2eeb0b30c54268b96f6eca8a2d66ba"
+    },
+    "metrics": {
+      "_dd.rule_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 2,
+      "process_id": 15844
+    },
+    "duration": 89899,
+    "start": 1690574476622906462
+  },
+     {
+       "name": "child",
+       "service": "",
+       "resource": "child",
+       "trace_id": 5,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "duration": 7840,
+       "start": 1690574476622978394
+     }],
+[
+  {
+    "name": "trace1",
+    "service": "",
+    "resource": "trace1",
+    "trace_id": 6,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "language": "python",
+      "runtime-id": "6f2eeb0b30c54268b96f6eca8a2d66ba"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 15844
+    },
+    "duration": 95086,
+    "start": 1690574476621560661
+  },
+     {
+       "name": "child",
+       "service": "",
+       "resource": "child",
+       "trace_id": 6,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "duration": 13539,
+       "start": 1690574476621625665
+     }]]

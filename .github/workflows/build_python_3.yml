@@ -9,6 +9,9 @@ on:
       cibw_skip:
         required: false
         type: string
+      cibw_prerelease_pythons:
+        required: false
+        type: string
 
 jobs:
   build:
@@ -49,6 +52,7 @@ jobs:
           CIBW_ARCHS: ${{ matrix.archs }}
           CIBW_BUILD: ${{ inputs.cibw_build }}
           CIBW_SKIP: ${{ inputs.cibw_skip }}
+          CIBW_PRERELEASE_PYTHONS: ${{ inputs.cibw_prerelease_pythons }}
 
       - uses: actions/upload-artifact@v3
         with:

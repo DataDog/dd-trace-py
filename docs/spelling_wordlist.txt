@@ -105,6 +105,7 @@ https
 httpx
 iPython
 ini
+InitContainer
 initializer
 integration
 integrations
@@ -142,6 +143,7 @@ mysql
 mysqlclient
 mysqldb
 namespace
+NeedsAppKey
 obfuscator
 openai
 opensearch

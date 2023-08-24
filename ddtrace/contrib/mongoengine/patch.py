@@ -8,8 +8,8 @@ _connect = mongoengine.connect
 
 
 def patch():
-    setattr(mongoengine, "connect", WrappedConnect(_connect))
+    mongoengine.connect = WrappedConnect(_connect)
 
 
 def unpatch():
-    setattr(mongoengine, "connect", _connect)
+    mongoengine.connect = _connect

@@ -16,7 +16,7 @@
       "http.status_code": "200",
       "http.url": "http://127.0.0.1:54583/child",
       "language": "python",
-      "runtime-id": "37ec48c2f73448bf8f97e1ff289da866",
+      "runtime-id": "9a08b4f1e5b54d83ac7803b87f6dc11d",
       "span.kind": "server"
     },
     "metrics": {
@@ -24,10 +24,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 54385
+      "process_id": 10249
     },
-    "duration": 739000,
-    "start": 1666809663616209000
+    "duration": 3030995,
+    "start": 1691161847911159370
   },
      {
        "name": "child",
@@ -39,8 +39,9 @@
        "type": "",
        "error": 0,
        "meta": {
+         "_dd.p.dm": "-0",
          "a": "b"
        },
-       "duration": 14000,
-       "start": 1666809663616406000
+       "duration": 84346,
+       "start": 1691161847911526879
      }]]

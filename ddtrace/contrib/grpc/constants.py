@@ -1,7 +1,5 @@
 import grpc
 
-from ddtrace.internal.compat import ensure_pep562
-
 
 GRPC_PIN_MODULE_SERVER = grpc.Server
 GRPC_PIN_MODULE_CLIENT = grpc.Channel
@@ -26,13 +24,3 @@ GRPC_SERVICE_SERVER = "grpc-server"
 GRPC_AIO_SERVICE_SERVER = "grpc-aio-server"
 GRPC_SERVICE_CLIENT = "grpc-client"
 GRPC_AIO_SERVICE_CLIENT = "grpc-aio-client"
-
-
-def __getattr__(name):
-    if name in globals():
-        return globals()[name]
-
-    raise AttributeError("'%s' has no attribute '%s'", __name__, name)
-
-
-ensure_pep562(__name__)

@@ -1,4 +1,7 @@
+import time
+
 import confluent_kafka
+from confluent_kafka import TopicPartition
 
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -17,6 +20,8 @@ from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils import set_argument_value
+from ddtrace.internal.utils.formats import asbool
 from ddtrace.pin import Pin
 
 
@@ -56,33 +61,40 @@ class TracedConsumer(confluent_kafka.Consumer):
     def __init__(self, config, *args, **kwargs):
         super(TracedConsumer, self).__init__(config, *args, **kwargs)
         self._group_id = config.get("group.id", "")
+        self._auto_commit = asbool(config.get("enable.auto.commit", True))
 
     def poll(self, timeout=1):
         return super(TracedConsumer, self).poll(timeout)
+
+    def commit(self, message=None, *args, **kwargs):
+        return super(TracedConsumer, self).commit(message, args, kwargs)
 
 
 def patch():
     if getattr(confluent_kafka, "_datadog_patch", False):
         return
-    setattr(confluent_kafka, "_datadog_patch", True)
+    confluent_kafka._datadog_patch = True
 
     confluent_kafka.Producer = TracedProducer
     confluent_kafka.Consumer = TracedConsumer
 
     trace_utils.wrap(TracedProducer, "produce", traced_produce)
     trace_utils.wrap(TracedConsumer, "poll", traced_poll)
+    trace_utils.wrap(TracedConsumer, "commit", traced_commit)
     Pin().onto(confluent_kafka.Producer)
     Pin().onto(confluent_kafka.Consumer)
 
 
 def unpatch():
     if getattr(confluent_kafka, "_datadog_patch", False):
-        setattr(confluent_kafka, "_datadog_patch", False)
+        confluent_kafka._datadog_patch = False
 
     if trace_utils.iswrapped(TracedProducer.produce):
         trace_utils.unwrap(TracedProducer, "produce")
     if trace_utils.iswrapped(TracedConsumer.poll):
         trace_utils.unwrap(TracedConsumer, "poll")
+    if trace_utils.iswrapped(TracedConsumer.commit):
+        trace_utils.unwrap(TracedConsumer, "commit")
 
     confluent_kafka.Producer = _Producer
     confluent_kafka.Consumer = _Consumer
@@ -106,6 +118,34 @@ def traced_produce(func, instance, args, kwargs):
         pathway = pin.tracer.data_streams_processor.set_checkpoint(["direction:out", "topic:" + topic, "type:kafka"])
         headers[PROPAGATION_KEY] = pathway.encode()
         kwargs["headers"] = headers
+
+        on_delivery_kwarg = "on_delivery"
+        on_delivery_arg = 5
+        on_delivery = None
+        try:
+            on_delivery = get_argument_value(args, kwargs, on_delivery_arg, on_delivery_kwarg)
+        except ArgumentError:
+            on_delivery_kwarg = "callback"
+            on_delivery_arg = 4
+            try:
+                on_delivery = get_argument_value(args, kwargs, on_delivery_arg, on_delivery_kwarg)
+            except ArgumentError:
+                on_delivery = None
+
+        def wrapped_callback(err, msg):
+            if err is None:
+                if pin.tracer.data_streams_processor:
+                    pin.tracer.data_streams_processor.track_kafka_produce(
+                        msg.topic(), msg.partition(), msg.offset() or -1, time.time()
+                    )
+            if on_delivery is not None:
+                on_delivery(err, msg)
+
+        try:
+            args, kwargs = set_argument_value(args, kwargs, on_delivery_arg, on_delivery_kwarg, wrapped_callback)
+        except ArgumentError:
+            # we set the callback even if it's not set by the client, to track produce calls correctly.
+            kwargs[on_delivery_kwarg] = wrapped_callback
 
     with pin.tracer.trace(
         schematize_messaging_operation(kafkax.PRODUCE, provider="kafka", direction=SpanDirection.OUTBOUND),
@@ -151,6 +191,13 @@ def traced_poll(func, instance, args, kwargs):
                 ctx.set_checkpoint(
                     ["direction:in", "group:" + instance._group_id, "topic:" + message.topic(), "type:kafka"]
                 )
+                if instance._auto_commit:
+                    # it's not exactly true, but if auto commit is enabled, we consider that a message is acknowledged
+                    # when it's read.
+                    pin.tracer.data_streams_processor.track_kafka_commit(
+                        instance._group_id, message.topic(), message.partition(), message.offset() or -1, time.time()
+                    )
+
             message_key = message.key() or ""
             message_offset = message.offset() or -1
             span.set_tag_str(kafkax.TOPIC, message.topic())
@@ -163,3 +210,20 @@ def traced_poll(func, instance, args, kwargs):
         if rate is not None:
             span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, rate)
         return message
+
+
+def traced_commit(func, instance, args, kwargs):
+    pin = Pin.get_from(instance)
+    if not pin or not pin.enabled():
+        return func(*args, **kwargs)
+
+    if config._data_streams_enabled:
+        message = get_argument_value(args, kwargs, 0, "message")
+        offsets = kwargs.get("offsets", [])
+        if message is not None:
+            offsets = [TopicPartition(message.topic(), message.partition(), offset=message.offset())]
+        for offset in offsets:
+            pin.tracer.data_streams_processor.track_kafka_commit(
+                instance._group_id, offset.topic, offset.partition, offset.offset or -1, time.time()
+            )
+    return func(*args, **kwargs)

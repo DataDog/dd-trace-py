@@ -5,6 +5,8 @@ on:
       - 0.x
       - 1.x
   pull_request:
+    paths:
+      - 'ddtrace/**'
 jobs:
   django-overhead-profile:
     runs-on: ubuntu-latest

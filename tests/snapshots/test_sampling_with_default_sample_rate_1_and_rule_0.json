@@ -10,17 +10,17 @@
     "error": 0,
     "meta": {
       "language": "python",
-      "runtime-id": "920bc049d045440d84bcac9f8e5d75ac"
+      "runtime-id": "d5f3e666fe79454c90ec7063f44787b5"
     },
     "metrics": {
       "_dd.rule_psr": 0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": -1,
-      "process_id": 17067
+      "process_id": 19794
     },
-    "duration": 84947,
-    "start": 1690576754794142563
+    "duration": 98844,
+    "start": 1691163616766926118
   },
      {
        "name": "child",
@@ -31,6 +31,6 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
-       "duration": 15550,
-       "start": 1690576754794200656
+       "duration": 11972,
+       "start": 1691163616766999066
      }]]

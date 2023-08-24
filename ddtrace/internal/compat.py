@@ -279,22 +279,6 @@ else:
 
 
 try:
-    from pep562 import Pep562  # noqa
-
-    def ensure_pep562(module_name):
-        # type: (str) -> None
-        if sys.version_info < (3, 7):
-            Pep562(module_name)
-
-
-except ImportError:
-
-    def ensure_pep562(module_name):
-        # type: (str) -> None
-        pass
-
-
-try:
     from collections.abc import Iterable  # noqa
 except ImportError:
     from collections import Iterable  # type: ignore[no-redef, attr-defined]  # noqa
@@ -491,3 +475,13 @@ except ImportError:
         # type: (Iterable[str]) -> str
         """Return a shell-escaped string from *args*."""
         return " ".join(shquote(arg) for arg in args)
+
+
+try:
+    from contextlib import nullcontext
+except ImportError:
+    from contextlib import contextmanager
+
+    @contextmanager  # type: ignore[no-redef]
+    def nullcontext(enter_result=None):
+        yield enter_result

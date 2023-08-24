@@ -15,6 +15,7 @@ from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.utils.cache import cachedmethod
 
 from ..internal import gitmetadata
+from ..internal.constants import DEFAULT_SAMPLING_RATE_LIMIT
 from ..internal.constants import PROPAGATION_STYLE_ALL
 from ..internal.constants import _PROPAGATION_STYLE_DEFAULT
 from ..internal.logger import get_logger
@@ -184,6 +185,9 @@ class Config(object):
         self._config = {}
 
         self._debug_mode = asbool(os.getenv("DD_TRACE_DEBUG", default=False))
+        self._trace_sample_rate = os.getenv("DD_TRACE_SAMPLE_RATE")
+        self._trace_rate_limit = int(os.getenv("DD_TRACE_RATE_LIMIT", default=DEFAULT_SAMPLING_RATE_LIMIT))
+        self._trace_sampling_rules = os.getenv("DD_TRACE_SAMPLING_RULES")
 
         header_tags = parse_tags_str(os.getenv("DD_TRACE_HEADER_TAGS", ""))
         self.http = HttpConfig(header_tags=header_tags)
@@ -213,7 +217,8 @@ class Config(object):
         self.version = os.getenv("DD_VERSION", default=self.tags.get("version"))
         self.http_server = self._HTTPServerConfig()
 
-        self.service_mapping = parse_tags_str(os.getenv("DD_SERVICE_MAPPING", default=""))
+        self._unparsed_service_mapping = os.getenv("DD_SERVICE_MAPPING", default="")
+        self.service_mapping = parse_tags_str(self._unparsed_service_mapping)
 
         # The service tag corresponds to span.service and should not be
         # included in the global tags.

@@ -26,7 +26,7 @@
       "langchain.response.completions.0.0.content": "As an AI language model, I do not have access to the secret Krabby Patty recipe. It is a closely guarded secret by the creators ...",
       "langchain.response.completions.0.0.message_type": "AIMessage",
       "language": "python",
-      "runtime-id": "fee8e436b6394c02893eb6af74d2ada2"
+      "runtime-id": "dfd2ce0f0c3347ffb6655649ad48bd1f"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -38,8 +38,8 @@
       "langchain.tokens.prompt_tokens": 0,
       "langchain.tokens.total_cost": 0.0,
       "langchain.tokens.total_tokens": 0,
-      "process_id": 98111
+      "process_id": 52007
     },
-    "duration": 3391000,
-    "start": 1688048579231256000
+    "duration": 6188992,
+    "start": 1691167369347993555
   }]]
