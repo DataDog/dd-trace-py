@@ -50,7 +50,7 @@ def is_double_callable(application):
     if inspect.isclass(application):
         return True
     # Instanted classes depend on their __call__
-    if hasattr(application, "__call__"):
+    if hasattr(application, "__call__"):  # noqa: B004
         # We only check to see if its __call__ is a coroutine function -
         # if it's not, it still might be a coroutine function itself.
         if asyncio.iscoroutinefunction(application.__call__):

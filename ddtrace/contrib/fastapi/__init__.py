@@ -16,8 +16,7 @@ Or use :func:`patch()<ddtrace.patch>` to manually enable the integration::
     app = FastAPI()
 
 
-If using Python 3.6, the legacy ``AsyncioContextProvider`` will have to be
-enabled before using the middleware::
+On Python 3.6 and below, you must enable the legacy ``AsyncioContextProvider`` before using the middleware::
 
     from ddtrace.contrib.asyncio.provider import AsyncioContextProvider
     from ddtrace import tracer  # Or whichever tracer instance you plan to use

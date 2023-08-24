@@ -4,7 +4,7 @@ import os
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
-import ddtrace
+from ddtrace import Tracer
 from ddtrace import config as ddconfig
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import ci
@@ -22,9 +22,14 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.writer.writer import Response
+from ddtrace.provider import CIContextProvider
 
 from .. import agent
+from .constants import AGENTLESS_API_KEY_HEADER_NAME
+from .constants import AGENTLESS_APP_KEY_HEADER_NAME
 from .constants import AGENTLESS_DEFAULT_SITE
+from .constants import EVP_NEEDS_APP_KEY_HEADER_NAME
+from .constants import EVP_NEEDS_APP_KEY_HEADER_VALUE
 from .constants import EVP_PROXY_AGENT_BASE_PATH
 from .constants import EVP_SUBDOMAIN_HEADER_API_VALUE
 from .constants import EVP_SUBDOMAIN_HEADER_EVENT_VALUE
@@ -46,7 +51,6 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Optional
     from typing import Tuple
 
-    from ddtrace import Tracer
     from ddtrace.settings import IntegrationConfig
 
 log = get_logger(__name__)
@@ -93,9 +97,18 @@ class CIVisibility(Service):
         # type: (Optional[Tracer], Optional[IntegrationConfig], Optional[str]) -> None
         super(CIVisibility, self).__init__()
 
-        self.tracer = tracer or ddtrace.tracer
-        self._app_key = os.getenv("DD_APP_KEY", os.getenv("DD_APPLICATION_KEY", os.getenv("DATADOG_APPLICATION_KEY")))
-        self._api_key = os.getenv("DD_API_KEY")
+        if tracer:
+            self.tracer = tracer
+        else:
+            # Create a new CI tracer
+            self.tracer = Tracer(context_provider=CIContextProvider())
+
+        self._app_key = os.getenv(
+            "_CI_DD_APP_KEY",
+            os.getenv("DD_APP_KEY", os.getenv("DD_APPLICATION_KEY", os.getenv("DATADOG_APPLICATION_KEY"))),
+        )
+        self._api_key = os.getenv("_CI_DD_API_KEY", os.getenv("DD_API_KEY"))
+
         self._dd_site = os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE)
         self._suite_skipping_mode = asbool(os.getenv("_DD_CIVISIBILITY_ITR_SUITE_MODE", default=False))
         self.config = config  # type: Optional[IntegrationConfig]
@@ -133,10 +146,12 @@ class CIVisibility(Service):
 
         if ddconfig._ci_visibility_intelligent_testrunner_enabled:
             if self._app_key is None:
-                log.warning("Environment variable DD_APPLICATION_KEY not set, so no git metadata will be uploaded.")
+                log.warning("Environment variable DD_APP_KEY not set, so no git metadata will be uploaded.")
             elif self._requests_mode == REQUESTS_MODE.TRACES:
                 log.warning("Cannot start git client if mode is not agentless or evp proxy")
             else:
+                if not self._test_skipping_enabled_by_api:
+                    log.warning("Intelligent Test Runner test skipping disabled by API")
                 self._git_client = CIVisibilityGitClient(
                     api_key=self._api_key or "", app_key=self._app_key, requests_mode=self._requests_mode
                 )
@@ -166,24 +181,27 @@ class CIVisibility(Service):
 
     def _check_enabled_features(self):
         # type: () -> Tuple[bool, bool]
-        if not self._app_key:
-            return False, False
-
         # DEV: Remove this ``if`` once ITR is in GA
         if not ddconfig._ci_visibility_intelligent_testrunner_enabled:
             return False, False
 
-        _headers = {
-            "dd-api-key": self._api_key,
-            "dd-application-key": self._app_key,
-            "Content-Type": "application/json",
-        }
-
         if self._requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS:
             url = get_trace_url() + EVP_PROXY_AGENT_BASE_PATH + SETTING_ENDPOINT
-            _headers = {EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_API_VALUE}
+            _headers = {
+                EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_API_VALUE,
+                EVP_NEEDS_APP_KEY_HEADER_NAME: EVP_NEEDS_APP_KEY_HEADER_VALUE,
+            }
+            log.debug("Making EVP request to agent: url=%s, headers=%s", url, _headers)
         elif self._requests_mode == REQUESTS_MODE.AGENTLESS_EVENTS:
+            if not self._app_key or not self._api_key:
+                log.debug("Cannot make request to setting endpoint if application key is not set")
+                return False, False
             url = "https://api." + self._dd_site + SETTING_ENDPOINT
+            _headers = {
+                AGENTLESS_API_KEY_HEADER_NAME: self._api_key,
+                AGENTLESS_APP_KEY_HEADER_NAME: self._app_key,
+                "Content-Type": "application/json",
+            }
         else:
             log.warning("Cannot make requests to setting endpoint if mode is not agentless or evp proxy")
             return False, False
@@ -292,8 +310,11 @@ class CIVisibility(Service):
             "Content-Type": "application/json",
         }
         if self._requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS:
-            url = EVP_PROXY_AGENT_BASE_PATH + SKIPPABLE_ENDPOINT
-            _headers = {EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_API_VALUE}
+            url = get_trace_url() + EVP_PROXY_AGENT_BASE_PATH + SKIPPABLE_ENDPOINT
+            _headers = {
+                EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_API_VALUE,
+                EVP_NEEDS_APP_KEY_HEADER_NAME: EVP_NEEDS_APP_KEY_HEADER_VALUE,
+            }
         elif self._requests_mode == REQUESTS_MODE.AGENTLESS_EVENTS:
             url = "https://api." + self._dd_site + SKIPPABLE_ENDPOINT
         else:
@@ -346,11 +367,21 @@ class CIVisibility(Service):
     @classmethod
     def enable(cls, tracer=None, config=None, service=None):
         # type: (Optional[Tracer], Optional[Any], Optional[str]) -> None
+        log.debug("Enabling %s", cls.__name__)
+
+        if ddconfig._ci_visibility_agentless_enabled:
+            if not os.getenv("_CI_DD_API_KEY", os.getenv("DD_API_KEY")):
+                log.critical(
+                    "%s disabled: environment variable DD_CIVISIBILITY_AGENTLESS_ENABLED is true but"
+                    " DD_API_KEY is not set",
+                    cls.__name__,
+                )
+                cls.enabled = False
+                return
 
         if cls._instance is not None:
             log.debug("%s already enabled", cls.__name__)
             return
-        log.debug("Enabling %s", cls.__name__)
 
         cls._instance = cls(tracer=tracer, config=config, service=service)
         cls.enabled = True

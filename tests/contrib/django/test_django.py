@@ -23,7 +23,9 @@ from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
+from ddtrace.contrib import trace_utils
 from ddtrace.contrib.django.patch import instrument_view
+from ddtrace.contrib.django.patch import traced_get_response
 from ddtrace.contrib.django.utils import get_request_uri
 from ddtrace.ext import http
 from ddtrace.ext import user
@@ -1218,6 +1220,7 @@ def test_cache_get_many(test_spans):
         "component": "django",
         "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
         "django.cache.key": "missing_key another_key",
+        "_dd.p.dm": "-0",
     }
 
     assert_dict_issuperset(span_get_many.get_tags(), expected_meta)
@@ -1419,12 +1422,14 @@ def test_cached_view(client, test_spans):
         "django.cache.key": (
             "views.decorators.cache.cache_page..GET.03cdc1cc4aab71b038a6764e5fcabb82.d41d8cd98f00b204e9800998ecf8..."
         ),
+        "_dd.p.dm": "-0",
     }
 
     expected_meta_header = {
         "component": "django",
         "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
         "django.cache.key": "views.decorators.cache.cache_header..03cdc1cc4aab71b038a6764e5fcabb82.en-us",
+        "_dd.p.dm": "-0",
     }
 
     assert span_view.get_tags() == expected_meta_view
@@ -1463,6 +1468,7 @@ def test_cached_template(client, test_spans):
         "component": "django",
         "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
         "django.cache.key": "template.cache.users_list.d41d8cd98f00b204e9800998ecf8427e",
+        "_dd.p.dm": "-0",
     }
 
     assert span_template_cache.get_tags() == expected_meta
@@ -2394,3 +2400,22 @@ def test_django_get_user(client, test_spans):
     assert root.get_tag(user.NAME) == "usr.name"
     assert root.get_tag(user.ROLE) == "usr.role"
     assert root.get_tag(user.SCOPE) == "usr.scope"
+
+
+@pytest.mark.skipif(django.VERSION < (2, 0, 0), reason="")
+def test_django_base_handler_failure(client, test_spans):
+    """
+    This tests the failure mode seen with Gunicorn during timeouts, where the Django
+    Handler is terminated after <x> seconds and no response is returned by
+    django.core.handler.base.BaseHandler.get_response.  We expect to populate the resource
+    with "GET <resource>" instead of what we did before this test "GET"
+    """
+    trace_utils.unwrap(client.handler, "get_response")
+    with mock.patch.object(client.handler, "get_response", side_effect=Exception("test")):
+        trace_utils.wrap(client.handler, "get_response", traced_get_response(django))
+        try:
+            client.get("/")
+        except Exception:
+            pass  # We expect an error
+        root = test_spans.get_root_span()
+        assert root.resource == "GET ^$"

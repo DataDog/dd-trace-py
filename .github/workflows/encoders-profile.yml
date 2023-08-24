@@ -5,6 +5,8 @@ on:
       - 0.x
       - 1.x
   pull_request:
+    paths:
+      - 'ddtrace/internal/_encoding.pyx'
 jobs:
   encoders-profile:
     runs-on: ubuntu-latest

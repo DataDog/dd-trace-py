@@ -25,21 +25,15 @@ except ImportError:
     Coverage = None  # type: ignore[misc,assignment]
     EXECUTE_ATTR = ""
 
-ROOT_DIR = None
-
 
 def is_coverage_available():
     return Coverage is not None
 
 
 def _initialize_coverage(root_dir):
-    global ROOT_DIR
-    if ROOT_DIR is None:
-        ROOT_DIR = root_dir
-
     coverage_kwargs = {
         "data_file": None,
-        "source": [ROOT_DIR],
+        "source": [root_dir],
         "config_file": False,
         "omit": [
             "*/site-packages/*",
@@ -52,7 +46,7 @@ def segments(lines):
     # type: (Iterable[int]) -> List[Tuple[int, int, int, int, int]]
     """Extract the relevant report data for a single file."""
     _segments = []
-    for key, g in groupby(enumerate(sorted(lines)), lambda x: x[1] - x[0]):
+    for _key, g in groupby(enumerate(sorted(lines)), lambda x: x[1] - x[0]):
         group = list(g)
         start = group[0][1]
         end = group[-1][1]
@@ -72,8 +66,8 @@ def _lines(coverage, context):
     }
 
 
-def build_payload(coverage, test_id=None):
-    # type: (Coverage, Optional[str]) -> str
+def build_payload(coverage, root_dir, test_id=None):
+    # type: (Coverage, str, Optional[str]) -> str
     """
     Generate a CI Visibility coverage payload, formatted as follows:
 
@@ -97,19 +91,21 @@ def build_payload(coverage, test_id=None):
             If the number is >0 then it indicates the number of executions
             If the number is -1 then it indicates that the number of executions are unknown
 
+    :param coverage: Coverage object containing coverage data
+    :param root_dir: the directory relative to which paths to covered files should be resolved
     :param test_id: a unique identifier for the current test run
-    :param root: the directory relative to which paths to covered files should be resolved
     """
+    root_dir_str = str(root_dir)
     return json.dumps(
         {
             "files": [
                 {
-                    "filename": os.path.relpath(filename, ROOT_DIR) if ROOT_DIR is not None else filename,
+                    "filename": os.path.relpath(filename, root_dir_str),
                     "segments": lines,
                 }
                 if lines
                 else {
-                    "filename": os.path.relpath(filename, ROOT_DIR) if ROOT_DIR is not None else filename,
+                    "filename": os.path.relpath(filename, root_dir_str),
                 }
                 for filename, lines in _lines(coverage, test_id).items()
             ]

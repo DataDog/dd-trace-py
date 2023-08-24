@@ -475,3 +475,13 @@ except ImportError:
         # type: (Iterable[str]) -> str
         """Return a shell-escaped string from *args*."""
         return " ".join(shquote(arg) for arg in args)
+
+
+try:
+    from contextlib import nullcontext
+except ImportError:
+    from contextlib import contextmanager
+
+    @contextmanager  # type: ignore[no-redef]
+    def nullcontext(enter_result=None):
+        yield enter_result

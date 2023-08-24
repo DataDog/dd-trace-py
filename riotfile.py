@@ -95,18 +95,11 @@ venv = Venv(
     env={
         "DD_TESTING_RAISE": "1",
         "DD_REMOTE_CONFIGURATION_ENABLED": "false",
+        "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
+        "DD_CIVISIBILITY_CODE_COVERAGE_ENABLED": "1",
+        "DD_CIVISIBILITY_ITR_ENABLED": "1",
     },
     venvs=[
-        Venv(
-            pys=["3"],
-            pkgs={"slotscheck": latest},
-            venvs=[
-                Venv(
-                    name="slotscheck",
-                    command="python -m slotscheck -v ddtrace/",
-                ),
-            ],
-        ),
         Venv(
             pys=["3"],
             name="scripts",
@@ -114,6 +107,11 @@ venv = Venv(
             "scripts/get-target-milestone.py "
             "scripts/needs_testrun.py "
             "tests/suitespec.py",
+        ),
+        Venv(
+            pys=["3"],
+            name="meta-testing",
+            command="pytest {cmdargs} tests/meta",
         ),
         Venv(
             name="circleci-gen-config",
@@ -199,7 +197,8 @@ venv = Venv(
         Venv(
             name="integration",
             # Enabling coverage for integration tests breaks certain tests in CI
-            command="pytest --no-cov {cmdargs} tests/integration/",
+            # Also, running two separate pytest sessions, the ``civisibility`` one with --no-ddtrace
+            command="pytest --no-ddtrace --no-cov --ignore-glob='*civisibility*' {cmdargs} tests/integration/ && pytest --no-cov --no-ddtrace {cmdargs} tests/integration/test_integration_civisibility.py",  # noqa: E501
             pkgs={"msgpack": [latest], "coverage": latest},
             venvs=[
                 Venv(
@@ -1115,7 +1114,10 @@ venv = Venv(
             name="botocore",
             command="pytest {cmdargs} tests/contrib/botocore",
             venvs=[
-                Venv(pys=select_pys(min_version="3.8"), pkgs={"moto[all]": latest, "botocore": latest}),
+                Venv(
+                    pys=select_pys(min_version="3.7"),
+                    pkgs={"moto[all]": latest, "botocore": latest},
+                ),
                 Venv(
                     pys=["3.7"],
                     pkgs={
@@ -1270,7 +1272,7 @@ venv = Venv(
         ),
         Venv(
             name="pytest",
-            command="pytest {cmdargs} tests/contrib/pytest/",
+            command="pytest --no-ddtrace {cmdargs} tests/contrib/pytest/",
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.7", max_version="3.9"),
@@ -1314,7 +1316,7 @@ venv = Venv(
         ),
         Venv(
             name="asynctest",
-            command="pytest {cmdargs} tests/contrib/asynctest/",
+            command="pytest --no-ddtrace {cmdargs} tests/contrib/asynctest/",
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.7", max_version="3.9"),
@@ -1329,7 +1331,7 @@ venv = Venv(
         ),
         Venv(
             name="pytest-bdd",
-            command="pytest {cmdargs} tests/contrib/pytest_bdd/",
+            command="pytest --no-ddtrace {cmdargs} tests/contrib/pytest_bdd/",
             pkgs={
                 "msgpack": latest,
                 "more_itertools": "<8.11.0",
@@ -1354,6 +1356,25 @@ venv = Venv(
                             ">=6.0,<6.1",
                         ]
                     },
+                ),
+            ],
+        ),
+        Venv(
+            name="pytest-benchmark",
+            command="pytest {cmdargs} tests/contrib/pytest_benchmark/",
+            pkgs={"msgpack": latest},
+            venvs=[
+                Venv(
+                    venvs=[
+                        Venv(
+                            pys=select_pys(min_version="3.7", max_version="3.10"),
+                            pkgs={
+                                "pytest-benchmark": [
+                                    ">=3.1.0,<=4.0.0",
+                                ]
+                            },
+                        )
+                    ],
                 ),
             ],
         ),
@@ -2180,9 +2201,14 @@ venv = Venv(
         ),
         Venv(
             name="ci_visibility",
-            command="pytest {cmdargs} tests/ci_visibility",
+            command="pytest --no-ddtrace {cmdargs} tests/ci_visibility",
             pys=select_pys(),
             pkgs={"msgpack": latest, "coverage": latest},
+        ),
+        Venv(
+            name="subprocess",
+            command="pytest {cmdargs} tests/contrib/subprocess",
+            pys=select_pys(),
         ),
         Venv(
             name="profile",

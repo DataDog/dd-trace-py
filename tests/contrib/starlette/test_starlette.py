@@ -47,10 +47,10 @@ def tracer(engine):
         tracer.configure(context_provider=AsyncioContextProvider())
 
     Pin.override(engine, tracer=tracer)
-    setattr(ddtrace, "tracer", tracer)
+    ddtrace.tracer = tracer
     starlette_patch()
     yield tracer
-    setattr(ddtrace, "tracer", original_tracer)
+    ddtrace.tracer = original_tracer
     starlette_unpatch()
 
 

@@ -62,7 +62,7 @@ def encode_test_parameter(parameter):
 
 def is_enabled(config):
     """Check if the ddtrace plugin is enabled."""
-    return config.getoption("ddtrace") or config.getini("ddtrace")
+    return (config.getoption("ddtrace") or config.getini("ddtrace")) and not config.getoption("no-ddtrace")
 
 
 def _extract_span(item):
@@ -72,21 +72,24 @@ def _extract_span(item):
 
 def _store_span(item, span):
     """Store span at `pytest.Item` instance."""
-    setattr(item, "_datadog_span", span)
+    item._datadog_span = span
 
 
 def _attach_coverage(item):
     coverage = _initialize_coverage(str(item.config.rootdir))
-    setattr(item, "_coverage", coverage)
+    item._coverage = coverage
     coverage.start()
 
 
 def _detach_coverage(item, span):
     if not hasattr(item, "_coverage"):
+        log.warning("No coverage object found for item")
         return
     span_id = str(span.trace_id)
     item._coverage.stop()
-    span.set_tag(COVERAGE_TAG_NAME, build_coverage_payload(item._coverage, test_id=span_id))
+    if not item._coverage._collector or len(item._coverage._collector.data) == 0:
+        log.warning("No coverage collector or data found for item")
+    span.set_tag(COVERAGE_TAG_NAME, build_coverage_payload(item._coverage, item.config.rootdir, test_id=span_id))
     item._coverage.erase()
     del item._coverage
 
@@ -98,14 +101,14 @@ def _extract_module_span(item):
 
 def _store_module_span(item, span):
     """Store span at `pytest.Item` instance."""
-    setattr(item, "_datadog_span_module", span)
+    item._datadog_span_module = span
 
 
 def _mark_failed(item):
     """Store test failed status at `pytest.Item` instance."""
     if item.parent:
         _mark_failed(item.parent)
-    setattr(item, "_failed", True)
+    item._failed = True
 
 
 def _check_failed(item):
@@ -117,7 +120,7 @@ def _mark_not_skipped(item):
     """Mark test suite/module/session `pytest.Item` as not skipped."""
     if item.parent:
         _mark_not_skipped(item.parent)
-    setattr(item, "_fully_skipped", False)
+    item._fully_skipped = False
 
 
 def _check_fully_skipped(item):
@@ -276,6 +279,14 @@ def pytest_addoption(parser):
     )
 
     group._addoption(
+        "--no-ddtrace",
+        action="store_true",
+        dest="no-ddtrace",
+        default=False,
+        help=HELP_MSG,
+    )
+
+    group._addoption(
         "--ddtrace-patch-all",
         action="store_true",
         dest="ddtrace-patch-all",
@@ -284,6 +295,7 @@ def pytest_addoption(parser):
     )
 
     parser.addini("ddtrace", HELP_MSG, type="bool")
+    parser.addini("no-ddtrace", HELP_MSG, type="bool")
     parser.addini("ddtrace-patch-all", PATCH_ALL_HELP_MSG, type="bool")
 
 
@@ -390,11 +402,20 @@ def pytest_runtest_protocol(item, nextitem):
         yield
         return
 
-    is_skipped_by_itr = [
-        marker
-        for marker in item.iter_markers(name="skip")
-        if "reason" in marker.kwargs and marker.kwargs["reason"] == SKIPPED_BY_ITR
-    ]
+    is_skipped = bool(
+        item.get_closest_marker("skip")
+        or any([marker for marker in item.iter_markers(name="skipif") if marker.args[0] is True])
+    )
+    is_skipped_by_itr = bool(
+        is_skipped
+        and any(
+            [
+                marker
+                for marker in item.iter_markers(name="skip")
+                if "reason" in marker.kwargs and marker.kwargs["reason"] == SKIPPED_BY_ITR
+            ]
+        )
+    )
 
     test_session_span = _extract_span(item.session)
 
@@ -426,6 +447,8 @@ def pytest_runtest_protocol(item, nextitem):
     test_suite_span = _extract_span(pytest_module_item)
     if pytest_module_item is not None and test_suite_span is None:
         # Start coverage for the test suite if coverage is enabled
+        # In ITR suite skipping mode, all tests in a skipped suite should be marked
+        # as skipped
         test_suite_span = _start_test_suite_span(
             pytest_module_item,
             test_module_span,
@@ -494,12 +517,13 @@ def pytest_runtest_protocol(item, nextitem):
         coverage_per_test = (
             not _CIVisibility._instance._suite_skipping_mode
             and _CIVisibility._instance._collect_coverage_enabled
-            and not is_skipped_by_itr
+            and not is_skipped
         )
         if coverage_per_test:
             _attach_coverage(item)
         # Run the actual test
         yield
+
         # Finish coverage for the test suite if coverage is enabled
         if coverage_per_test:
             _detach_coverage(item, span)
@@ -508,6 +532,8 @@ def pytest_runtest_protocol(item, nextitem):
         if nextitem is None or nextitem_pytest_module_item != pytest_module_item and not test_suite_span.finished:
             _mark_test_status(pytest_module_item, test_suite_span)
             # Finish coverage for the test suite if coverage is enabled
+            # In ITR suite skipping mode, all tests in a skipped suite should be marked
+            # as skipped
             if (
                 _CIVisibility._instance._suite_skipping_mode
                 and _CIVisibility._instance._collect_coverage_enabled

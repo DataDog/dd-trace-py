@@ -6,12 +6,13 @@
       {
         "Name": "diff-op",
         "Resource": "/users/list",
+        "Service": "my-svc",
         "Type": "db",
         "HTTPStatusCode": 0,
         "Synthetics": false,
         "Hits": 1,
         "TopLevelHits": 1,
-        "Duration": 7000,
+        "Duration": 999999999,
         "Errors": 0,
         "OkSummary": 1046,
         "ErrorSummary": 15
@@ -19,12 +20,13 @@
       {
         "Name": "diff-op",
         "Resource": "/users/list",
+        "Service": "my-svc",
         "Type": "web",
         "HTTPStatusCode": 0,
         "Synthetics": false,
         "Hits": 1,
         "TopLevelHits": 1,
-        "Duration": 8000,
+        "Duration": 999999999,
         "Errors": 0,
         "OkSummary": 1046,
         "ErrorSummary": 15
@@ -32,12 +34,13 @@
       {
         "Name": "op",
         "Resource": "/users/list",
+        "Service": "my-svc",
         "Type": "web",
         "HTTPStatusCode": 0,
         "Synthetics": false,
         "Hits": 1,
         "TopLevelHits": 1,
-        "Duration": 42000,
+        "Duration": 999999999,
         "Errors": 0,
         "OkSummary": 1046,
         "ErrorSummary": 15
@@ -45,12 +48,13 @@
       {
         "Name": "op",
         "Resource": "/users/list",
+        "Service": "diff-svc",
         "Type": "web",
         "HTTPStatusCode": 0,
         "Synthetics": false,
         "Hits": 1,
         "TopLevelHits": 1,
-        "Duration": 10000,
+        "Duration": 999999999,
         "Errors": 0,
         "OkSummary": 1046,
         "ErrorSummary": 15
@@ -58,12 +62,13 @@
       {
         "Name": "op",
         "Resource": "/users/list",
+        "Service": "my-svc",
         "Type": "web",
         "HTTPStatusCode": 200,
         "Synthetics": false,
         "Hits": 1,
         "TopLevelHits": 1,
-        "Duration": 14000,
+        "Duration": 999999999,
         "Errors": 0,
         "OkSummary": 1046,
         "ErrorSummary": 15
@@ -71,12 +76,13 @@
       {
         "Name": "op",
         "Resource": "/users/list",
+        "Service": "my-svc",
         "Type": "web",
         "HTTPStatusCode": 0,
         "Synthetics": true,
         "Hits": 1,
         "TopLevelHits": 1,
-        "Duration": 10000,
+        "Duration": 999999999,
         "Errors": 0,
         "OkSummary": 1046,
         "ErrorSummary": 15
@@ -84,12 +90,13 @@
       {
         "Name": "op",
         "Resource": "/users/view",
+        "Service": "my-svc",
         "Type": "web",
         "HTTPStatusCode": 0,
         "Synthetics": false,
         "Hits": 1,
         "TopLevelHits": 1,
-        "Duration": 13000,
+        "Duration": 999999999,
         "Errors": 0,
         "OkSummary": 1046,
         "ErrorSummary": 15

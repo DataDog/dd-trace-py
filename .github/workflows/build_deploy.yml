@@ -53,6 +53,7 @@ jobs:
     uses: ./.github/workflows/build_python_3.yml
     with:
       cibw_build: 'cp312*'
+      cibw_prerelease_pythons: 'True'
 
   build_sdist:
     name: Build source distribution
