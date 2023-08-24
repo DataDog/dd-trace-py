@@ -12,6 +12,10 @@ from ...pin import Pin
 log = get_logger(__name__)
 
 
+def wrap_view(instance, func, name=None, resource=None):
+    return _wrap_call_with_pin_check(func, instance, name or func_name(func), resource=resource, do_dispatch=True)
+
+
 def get_current_app():
     """Helper to get the flask.app.Flask from the current app context"""
     try:
@@ -59,10 +63,6 @@ def _wrap_call_with_pin_check(func, instance, name, resource=None, signal=None, 
         )
 
     return patch_func(func)
-
-
-def wrap_view(instance, func, name=None, resource=None):
-    return _wrap_call_with_pin_check(func, instance, name or func_name(func), resource=resource, do_dispatch=True)
 
 
 def wrap_function(instance, func, name=None, resource=None):

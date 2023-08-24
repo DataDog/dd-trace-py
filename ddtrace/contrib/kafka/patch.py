@@ -73,7 +73,7 @@ class TracedConsumer(confluent_kafka.Consumer):
 def patch():
     if getattr(confluent_kafka, "_datadog_patch", False):
         return
-    setattr(confluent_kafka, "_datadog_patch", True)
+    confluent_kafka._datadog_patch = True
 
     confluent_kafka.Producer = TracedProducer
     confluent_kafka.Consumer = TracedConsumer
@@ -87,7 +87,7 @@ def patch():
 
 def unpatch():
     if getattr(confluent_kafka, "_datadog_patch", False):
-        setattr(confluent_kafka, "_datadog_patch", False)
+        confluent_kafka._datadog_patch = False
 
     if trace_utils.iswrapped(TracedProducer.produce):
         trace_utils.unwrap(TracedProducer, "produce")

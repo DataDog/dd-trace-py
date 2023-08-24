@@ -154,7 +154,7 @@ def patch():
     # Check to see if we have patched Flask yet or not
     if getattr(flask, "_datadog_patch", False):
         return
-    setattr(flask, "_datadog_patch", True)
+    flask._datadog_patch = True
 
     Pin().onto(flask.Flask)
     core.dispatch("flask.patch", [flask_version])
@@ -263,7 +263,7 @@ def patch():
 def unpatch():
     if not getattr(flask, "_datadog_patch", False):
         return
-    setattr(flask, "_datadog_patch", False)
+    flask._datadog_patch = False
 
     props = [
         # Flask

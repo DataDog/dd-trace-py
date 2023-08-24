@@ -72,7 +72,7 @@ class FlaskSignalsTestCase(BaseFlaskTestCase):
         # DEV: We call `patch()` in `setUp`
         for signal_name in self.signals():
             signal = self.get_signal(signal_name)
-            receivers_for = getattr(signal, "receivers_for")
+            receivers_for = signal.receivers_for
             self.assert_is_wrapped(receivers_for)
 
     def test_unpatch(self):
@@ -84,7 +84,7 @@ class FlaskSignalsTestCase(BaseFlaskTestCase):
 
         for signal_name in self.signals():
             signal = self.get_signal(signal_name)
-            receivers_for = getattr(signal, "receivers_for")
+            receivers_for = signal.receivers_for
             self.assert_is_not_wrapped(receivers_for)
 
     def test_signals(self):

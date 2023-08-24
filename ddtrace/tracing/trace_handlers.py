@@ -223,7 +223,7 @@ def _on_response_context_started(ctx):
 
 def _on_response_prepared(resp_span, response):
     if hasattr(response, "__class__"):
-        resp_class = getattr(getattr(response, "__class__"), "__name__", None)
+        resp_class = getattr(response.__class__, "__name__", None)
         if resp_class:
             resp_span.set_tag_str("result_class", resp_class)
 
@@ -278,9 +278,25 @@ def _on_start_response_pre(request, ctx, flask_config, status_code, headers):
     if not span.get_tag(FLASK_ENDPOINT) and not span.get_tag(FLASK_URL_RULE):
         span.resource = " ".join((request.method, code))
 
+    response_cookies = _cookies_from_response_headers(headers)
     trace_utils.set_http_meta(
-        span, flask_config, status_code=code, response_headers=headers, route=span.get_tag(FLASK_URL_RULE)
+        span,
+        flask_config,
+        status_code=code,
+        response_headers=headers,
+        route=span.get_tag(FLASK_URL_RULE),
+        response_cookies=response_cookies,
     )
+
+
+def _cookies_from_response_headers(response_headers):
+    cookies = {}
+    for header_tuple in response_headers:
+        if header_tuple[0] == "Set-Cookie":
+            cookie_tokens = header_tuple[1].split("=", 1)
+            cookies[cookie_tokens[0]] = cookie_tokens[1]
+
+    return cookies
 
 
 def _on_traced_request_context_started_flask(ctx):
@@ -348,23 +364,6 @@ def _on_render_template_context_started_flask(ctx):
     ctx.set_item("current_span", span)
 
 
-def _on_function_context_started_flask(ctx):
-    pin = ctx.get_item("pin")
-    name = ctx.get_item("name")
-    flask_config = ctx.get_item("flask_config")
-    kwargs = {"service": trace_utils.int_service(pin, flask_config)}
-    for kwarg in ("span_type", "resource"):
-        kwarg_value = ctx.get_item(kwarg)
-        if kwarg_value:
-            kwargs[kwarg] = kwarg_value
-    span = pin.tracer.trace(name, **kwargs)
-    span.set_tag_str(COMPONENT, flask_config.integration_name)
-    signal = ctx.get_item("signal")
-    if signal:
-        span.set_tag_str("flask.signal", signal)
-    ctx.set_item("flask_call", span)
-
-
 def _on_request_span_modifier(
     ctx, flask_config, request, environ, _HAS_JSON_MIXIN, flask_version, flask_version_str, exception_type
 ):
@@ -406,6 +405,23 @@ def _on_start_response_blocked(flask_config, response_headers, status):
     trace_utils.set_http_meta(
         core.get_item("req_span"), flask_config, status_code=status, response_headers=response_headers
     )
+
+
+def _on_function_context_started_flask(ctx):
+    pin = ctx.get_item("pin")
+    name = ctx.get_item("name")
+    flask_config = ctx.get_item("flask_config")
+    kwargs = {"service": trace_utils.int_service(pin, flask_config)}
+    for kwarg in ("span_type", "resource"):
+        kwarg_value = ctx.get_item(kwarg)
+        if kwarg_value:
+            kwargs[kwarg] = kwarg_value
+    span = pin.tracer.trace(name, **kwargs)
+    span.set_tag_str(COMPONENT, flask_config.integration_name)
+    signal = ctx.get_item("signal")
+    if signal:
+        span.set_tag_str("flask.signal", signal)
+    ctx.set_item("flask_call", span)
 
 
 def listen():

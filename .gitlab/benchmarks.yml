@@ -81,3 +81,8 @@ benchmark-otel-span:
   extends: .benchmarks
   variables:
     SCENARIO: "otel_span"
+
+appsec-iast-propagation:
+  extends: .benchmarks
+  variables:
+    SCENARIO: "appsec_iast_propagation"
