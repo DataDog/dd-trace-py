@@ -13,6 +13,7 @@ from ddtrace.constants import IAST_ENV
 from ddtrace.internal.serverless import in_azure_function_consumption_plan
 from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.utils.cache import cachedmethod
+from ddtrace.vendor.debtcollector import deprecate
 
 from ..internal import gitmetadata
 from ..internal.constants import DEFAULT_SAMPLING_RATE_LIMIT
