@@ -8,7 +8,7 @@ from django.http import JsonResponse
 
 from ddtrace import tracer
 from ddtrace.appsec import _asm_request_context
-from ddtrace.appsec.iast._util import _is_python_version_supported as python_supported_by_iast
+from ddtrace.appsec.iast._utils import _is_python_version_supported as python_supported_by_iast
 from ddtrace.appsec.trace_utils import block_request_if_user_blocked
 
 

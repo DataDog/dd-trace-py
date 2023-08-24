@@ -64,7 +64,7 @@ def _patch(elasticsearch):
     # elasticsearch 8 is not yet supported
     if getattr(elasticsearch, "_datadog_patch", False) or get_version(elasticsearch) >= (8, 0, 0):
         return
-    setattr(elasticsearch, "_datadog_patch", True)
+    elasticsearch._datadog_patch = True
     _w(elasticsearch.transport, "Transport.perform_request", _get_perform_request(elasticsearch))
     Pin().onto(elasticsearch.transport.Transport)
 
@@ -76,7 +76,7 @@ def unpatch():
 
 def _unpatch(elasticsearch):
     if getattr(elasticsearch, "_datadog_patch", False):
-        setattr(elasticsearch, "_datadog_patch", False)
+        elasticsearch._datadog_patch = False
         _u(elasticsearch.transport.Transport, "perform_request")
 
 

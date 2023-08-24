@@ -143,7 +143,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         """Ensure that double patch doesn't duplicate instrumentation"""
         patch()
         connpool = urllib3.connectionpool.HTTPConnectionPool(HOST, PORT)
-        setattr(connpool, "datadog_tracer", self.tracer)
+        connpool.datadog_tracer = self.tracer
 
         out = connpool.urlopen("GET", URL_200)
         assert out.status == 200
@@ -387,7 +387,7 @@ class TestUrllib3(BaseUrllib3TestCase):
     def test_split_by_domain_includes_port(self):
         """Test the port is included if not 80 or 443"""
         with self.override_config("urllib3", dict(split_by_domain=True)):
-            with pytest.raises(Exception):
+            with pytest.raises(urllib3.exceptions.MaxRetryError):
                 # Using a port the service is not listening on will throw an error, which is fine
                 self.http.request("GET", "http://httpbin.org:8000/hello", timeout=0.0001, retries=0)
 

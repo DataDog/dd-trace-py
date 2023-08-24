@@ -11,6 +11,7 @@ from six import ensure_binary
 
 from ddtrace import config
 from ddtrace.appsec import _asm_request_context
+from ddtrace.appsec._capabilities import _appsec_rc_file_is_not_static
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
@@ -24,7 +25,6 @@ from ddtrace.appsec._metrics import _set_waf_updates_metric
 from ddtrace.appsec.ddwaf import DDWaf
 from ddtrace.appsec.ddwaf import version
 from ddtrace.appsec.trace_utils import _asm_manual_keep
-from ddtrace.appsec.utils import _appsec_rc_file_is_not_static
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.constants import RUNTIME_FAMILY
 from ddtrace.contrib import trace_utils
