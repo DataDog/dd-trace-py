@@ -79,6 +79,14 @@ _NotSet = object()
 psycopg_cursor_cls = Psycopg2TracedCursor = Psycopg3TracedCursor = _NotSet
 
 
+def get_version():
+    try:
+        import importlib.metadata as importlib_metadata
+    except ImportError:
+        import importlib_metadata  # type: ignore[no-redef]
+    return str(importlib_metadata.version("django"))
+
+
 def patch_conn(django, conn):
     global psycopg_cursor_cls, Psycopg2TracedCursor, Psycopg3TracedCursor
 

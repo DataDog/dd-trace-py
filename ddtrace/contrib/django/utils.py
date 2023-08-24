@@ -52,10 +52,6 @@ _quantize_text = Union[Text, bytes]
 _quantize_param = Union[_quantize_text, List[_quantize_text], Dict[_quantize_text, Any], Any]
 
 
-def get_version():
-    return ".".join(map(str, django.VERSION))
-
-
 def resource_from_cache_prefix(resource, cache):
     """
     Combine the resource name with the cache prefix (if any)

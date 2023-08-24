@@ -4,6 +4,7 @@
 # from being overwritten by future re-generations.
 
 from ddtrace.contrib.psycopg.patch import get_version
+from ddtrace.contrib.psycopg.patch import get_versions
 from ddtrace.contrib.psycopg.patch import patch
 
 
@@ -30,6 +31,7 @@ class TestPsycopgPatch(PatchTestCase.Base):
         pass
 
     def assert_module_implements_get_version(self):
-        version = get_version()
-        assert type(version) == str
-        assert version != ""
+        assert get_version() == ""
+        versions = get_versions()
+        assert "psycopg2" in versions
+        assert versions["psycopg2"] != ""
