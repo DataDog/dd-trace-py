@@ -21,10 +21,8 @@ ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_path_traversal(iast_span_defaults):
     from ddtrace.appsec.iast._taint_tracking import OriginType
-    from ddtrace.appsec.iast._taint_tracking import setup
 
     mod = _iast_patched_module("tests.appsec.iast.fixtures.path_traversal")
-    setup(bytes.join, bytearray.join)
 
     file_path = os.path.join(ROOT_DIR, "fixtures", "path_traversal_test_file.txt")
     mod.pt_open(file_path)
