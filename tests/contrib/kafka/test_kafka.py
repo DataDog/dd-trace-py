@@ -228,30 +228,30 @@ def test_data_streams_kafka_serializing(tracer, deserializing_consumer, serializ
         del tracer.data_streams_processor._current_context.value
     except AttributeError:
         pass
-    producer.produce(kafka_topic, PAYLOAD, key="test_key_2")
-    producer.flush()
+    serializing_producer.produce(kafka_topic, PAYLOAD, key="test_key_2")
+    serializing_producer.flush()
     message = None
     while message is None or str(message.value()) != str(PAYLOAD):
-        message = consumer.poll(1.0)
+        message = deserializing_consumer.poll(1.0)
     buckets = tracer.data_streams_processor._buckets
     assert len(buckets) == 1
     first = list(buckets.values())[0].pathway_stats
     assert (
         first[
-            ("direction:out,topic:{},type:kafka".format(kafka_topic), 7591515074392955298, 0)
+            ("direction:out,topic:{},type:kafka".format(kafka_topic), 10451282778496195491, 0)
         ].full_pathway_latency._count
         >= 1
     )
     assert (
-        first[("direction:out,topic:{},type:kafka".format(kafka_topic), 7591515074392955298, 0)].edge_latency._count
+        first[("direction:out,topic:{},type:kafka".format(kafka_topic), 10451282778496195491, 0)].edge_latency._count
         >= 1
     )
     assert (
         first[
             (
                 "direction:in,group:test_group,topic:{},type:kafka".format(kafka_topic),
-                6611771803293368236,
-                7591515074392955298,
+                6736498786733974928,
+                10451282778496195491,
             )
         ].full_pathway_latency._count
         >= 1
@@ -260,8 +260,8 @@ def test_data_streams_kafka_serializing(tracer, deserializing_consumer, serializ
         first[
             (
                 "direction:in,group:test_group,topic:{},type:kafka".format(kafka_topic),
-                6611771803293368236,
-                7591515074392955298,
+                6736498786733974928,
+                10451282778496195491,
             )
         ].edge_latency._count
         >= 1
