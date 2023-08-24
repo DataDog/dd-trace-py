@@ -66,7 +66,9 @@ def test_debug_mode_generates_debug_output():
     env.update({"DD_TRACE_DEBUG": "true"})
     p = import_ddtrace_in_subprocess(env)
     assert p.stdout.read() == b""
-    assert b"debug mode has been enabled for the ddtrace logger" in p.stderr.read(), "stderr should have some debug lines when DD_TRACE_DEBUG is set"
+    assert (
+        b"debug mode has been enabled for the ddtrace logger" in p.stderr.read()
+    ), "stderr should have some debug lines when DD_TRACE_DEBUG is set"
 
 
 def test_import_ddtrace_generates_no_output_by_default(ddtrace_run_python_code_in_subprocess):
