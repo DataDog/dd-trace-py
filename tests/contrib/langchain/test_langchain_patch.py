@@ -66,4 +66,4 @@ class TestLangchainPatch(PatchTestCase.Base):
     def assert_module_implements_get_version(self):
         version = get_version()
         assert type(version) == str
-        assert version != "0.0.0"
+        assert version != ""

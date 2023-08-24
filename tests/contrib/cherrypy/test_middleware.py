@@ -58,7 +58,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
 
         version = get_version()
         assert type(version) == str
-        assert version != "0.0.0"
+        assert version != ""
 
     def test_double_instrumentation(self):
         # ensure CherryPy is never instrumented twice when `ddtrace-run`

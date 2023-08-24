@@ -476,4 +476,4 @@ def test_backup(patched_conn):
 def test_module_implements_get_version():
     version = get_version()
     assert type(version) == str
-    assert version != "0.0.0"
+    assert version != ""

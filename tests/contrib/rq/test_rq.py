@@ -61,7 +61,7 @@ def test_sync_queue_enqueue(sync_queue):
 def test_module_implements_get_version():
     version = get_version()
     assert type(version) == str
-    assert version != "0.0.0"
+    assert version != ""
 
 
 @snapshot(ignores=snapshot_ignores, variants={"": rq_version >= (1, 10, 1), "pre_1_10_1": rq_version < (1, 10, 1)})

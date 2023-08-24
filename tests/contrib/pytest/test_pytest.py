@@ -54,7 +54,7 @@ class PytestTestCase(TracerTestCase):
     def test_module_implements_get_version(self):
         version = get_version()
         assert type(version) == str
-        assert version != "0.0.0"
+        assert version != ""
 
     @pytest.mark.skipif(sys.version_info[0] == 2, reason="Triggers a bug with coverage, sqlite and Python 2")
     def test_patch_all(self):

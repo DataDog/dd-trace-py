@@ -55,7 +55,7 @@ class TestPytest(TracerTestCase):
     def test_module_implements_get_version(self):
         version = get_version()
         assert type(version) == str
-        assert version != "0.0.0"
+        assert version != ""
 
     def test_pytest_bdd_scenario_with_parameters(self):
         """Test that pytest-bdd traces scenario with all steps."""

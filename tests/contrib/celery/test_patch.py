@@ -28,4 +28,4 @@ class CeleryPatchTest(unittest.TestCase):
 
         version = get_version()
         assert type(version) == str
-        assert version != "0.0.0"
+        assert version != ""
