@@ -138,6 +138,9 @@ def test_heartbeat_interval_configuration(run_python_code_in_subprocess):
     env = os.environ.copy()
     env["DD_TELEMETRY_HEARTBEAT_INTERVAL"] = "61"
     code = """
+from ddtrace import config
+assert config._telemetry_heartbeat_interval == 61
+
 from ddtrace.internal.telemetry import telemetry_writer
 assert telemetry_writer._is_periodic is True
 assert telemetry_writer.interval == 10
@@ -147,24 +150,6 @@ assert telemetry_writer._periodic_threshold == 5
     _, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
     assert status == 0, stderr
     assert stderr == b""
-
-
-def test_heartbeat_interval_invalid_configuration(run_python_code_in_subprocess):
-    """assert that DD_TELEMETRY_HEARTBEAT_INTERVAL config sets the telemetry writer interval"""
-    heartbeat_interval = "9"
-    env = os.environ.copy()
-    env["DD_TELEMETRY_HEARTBEAT_INTERVAL"] = heartbeat_interval
-
-    _, stderr, status, _ = run_python_code_in_subprocess(
-        "import logging; logging.basicConfig();"  # Required for PY27
-        "from ddtrace import config; assert config._telemetry_heartbeat_interval == 10",
-        env=env,
-    )
-    assert status == 0, stderr
-    assert (
-        b"Setting DD_TELEMETRY_HEARTBEAT_INTERVAL to a value less than 10 seconds is not supported. "
-        b"The heartbeat interval will be set to 10 seconds." in stderr
-    )
 
 
 def test_logs_after_fork(run_python_code_in_subprocess):

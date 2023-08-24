@@ -158,10 +158,10 @@ class TelemetryWriter(PeriodicService):
 
     def __init__(self, is_periodic=True):
         # type: (bool) -> None
-        super(TelemetryWriter, self).__init__(interval=10)
+        super(TelemetryWriter, self).__init__(interval=min(config._telemetry_heartbeat_interval, 10))
         # Decouples the aggregation and sending of the telemetry events
         # TelemetryWriter events will only be sent when _periodic_count == _periodic_threshold.
-        # This will occur at 10 second intervals.
+        # By default this will occur at 10 second intervals.
         self._periodic_threshold = int(config._telemetry_heartbeat_interval // self.interval) - 1
         self._periodic_count = 0
         self._is_periodic = is_periodic
@@ -415,8 +415,8 @@ class TelemetryWriter(PeriodicService):
         payload = {"dependencies": get_dependencies()}
         self.add_event(payload, "app-dependencies-loaded")
 
-    def add_log(self, level, message, stack_trace="", tags={}):
-        # type: (str, str, str, Dict) -> None
+    def add_log(self, level, message, stack_trace="", tags=None):
+        # type: (str, str, str, Optional[Dict]) -> None
         """
         Queues log. This event is meant to send library logs to Datadog’s backend through the Telemetry intake.
         This will make support cycles easier and ensure we know about potentially silent issues in libraries.
