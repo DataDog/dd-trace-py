@@ -78,8 +78,6 @@ Global Configuration
 """
 import os
 
-import rq
-
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
@@ -117,6 +115,8 @@ config._add(
 
 
 def get_version():
+    import rq
+
     return str(getattr(rq, "__version__", "0.0.0"))
 
 
