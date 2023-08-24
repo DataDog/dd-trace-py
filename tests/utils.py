@@ -128,6 +128,7 @@ def override_global_config(values):
         "_sampling_rules_file",
         "_trace_sample_rate",
         "_trace_rate_limit",
+        "_trace_sampling_rules",
     ]
 
     # Grab the current values of all keys
