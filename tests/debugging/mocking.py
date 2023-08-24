@@ -71,6 +71,19 @@ class MockProbeStatusLogger(DummyProbeStatusLogger):
         super(MockProbeStatusLogger, self).__init__(service, encoder)
         self.queue = []
 
+    def clear(self):
+        self.queue[:] = []
+
+    def wait(self, cond, timeout=1.0):
+        end = monotonic() + timeout
+
+        while monotonic() < end:
+            if cond(self.queue):
+                return True
+            sleep(0.01)
+
+        raise PayloadWaitTimeout()
+
 
 class TestSignalCollector(SignalCollector):
     def __init__(self, *args, **kwargs):
