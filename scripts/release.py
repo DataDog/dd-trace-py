@@ -88,7 +88,7 @@ def create_release_draft(dd_repo, base, rc, patch):
         # figure out the patch version we want
         search = r"v%s.((\d+))" % base
         tags = dd_repo.get_tags()
-        latest_patch_version = 1
+        latest_patch_version = -1
         for tag in tags:
             try:
                 other_patch_num = re.findall(search, tag.name)[0][0]
@@ -97,7 +97,7 @@ def create_release_draft(dd_repo, base, rc, patch):
                 continue
             if other_patch_num > latest_patch_version:
                 latest_patch_version = other_patch_num
-        new_patch_version = latest_patch_version if latest_patch_version == 1 else latest_patch_version + 1
+        new_patch_version = 1 if latest_patch_version == -1 else latest_patch_version + 1
 
         name = "%s.%s" % (base, str(new_patch_version))
         tag = "v%s" % name
