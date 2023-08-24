@@ -104,7 +104,7 @@ upgrade:
 
     ``DD_CALL_BASIC_CONFIG`` is removed.
     There is no special configuration necessary to replace ``DD_CALL_BASIC_CONFIG``.
-    The ddtrace logger will log to standard out by default or to a file specified by ``DD_TRACE_LOG_FILE``.
+    The ddtrace logger will log to standard out by default or additionally to a file specified by ``DD_TRACE_LOG_FILE``.
 
 
     "

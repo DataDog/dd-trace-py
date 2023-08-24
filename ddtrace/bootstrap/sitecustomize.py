@@ -23,7 +23,7 @@ from ddtrace.internal.utils.formats import parse_tags_str  # noqa
 
 
 # Debug mode from the tracer will do the same here, so only need to do this otherwise.
-if not config._debug_mode and config.logs_injection:
+if config.logs_injection:
     _configure_log_injection()
 
 

@@ -82,6 +82,5 @@ def _configure_log_injection():
 
     patch(logging=True)
     ddtrace_logger = logging.getLogger("ddtrace")
-    if ddtrace_logger.hasHandlers():
-        for handler in ddtrace_logger.handlers:
-            handler.setFormatter(logging.Formatter(DD_LOG_FORMAT))
+    for handler in ddtrace_logger.handlers:
+        handler.setFormatter(logging.Formatter(DD_LOG_FORMAT))

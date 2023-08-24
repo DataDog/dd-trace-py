@@ -80,7 +80,7 @@ from typing import TypeVar
 log = get_logger(__name__)
 
 
-if config._debug_mode and config.logs_injection:
+if config.logs_injection:
     # We need to ensure logging is patched in case the tracer logs during initialization
     _configure_log_injection()
 
