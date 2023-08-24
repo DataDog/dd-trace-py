@@ -26,7 +26,7 @@ _BODY_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
 
 
 def _on_request_span_modifier(
-    span, flask_config, request, environ, _HAS_JSON_MIXIN, flask_version, flask_version_str, exception_type
+    ctx, flask_config, request, environ, _HAS_JSON_MIXIN, flask_version, flask_version_str, exception_type
 ):
     req_body = None
     if config._appsec_enabled and request.method in _BODY_METHODS:
