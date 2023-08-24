@@ -1,3 +1,4 @@
+import platform
 import sys
 import unittest
 
@@ -349,6 +350,7 @@ class UnittestTestCase(TracerTestCase):
             for i in range(len(spans)):
                 assert spans[i].get_tag(test.TEST_TYPE) == SpanTypes.TEST
                 assert spans[i].get_tag(test.TEST_FRAMEWORK) == FRAMEWORK
+                assert spans[i].get_tag(test.FRAMEWORK_VERSION) == platform.python_version()
                 assert spans[i].get_tag(SPAN_KIND) == KIND
                 assert spans[i].get_tag(COMPONENT) == COMPONENT_VALUE
                 assert spans[i].get_tag(SESSION_ID) == str(test_session_span.span_id)
@@ -386,7 +388,7 @@ class UnittestTestCase(TracerTestCase):
             assert spans[2].get_tag(SUITE_ID) == str(test_suite_span.span_id)
 
             assert test_suite_span.name == SUITE_OPERATION_NAME
-            assert test_suite_span.get_tag(test.COMMAND) == "python"
+            assert test_suite_span.get_tag(test.COMMAND) == "python -m unittest"
             assert test_suite_span.get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
             assert test_suite_span.get_tag(test.SUITE) == "UnittestExampleTestCase"
             assert test_suite_span.get_tag(test.TEST_STATUS) == test.Status.FAIL.value
@@ -395,7 +397,7 @@ class UnittestTestCase(TracerTestCase):
             assert test_suite_span.get_tag(SUITE_ID) == str(test_suite_span.span_id)
 
             assert test_module_span.name == MODULE_OPERATION_NAME
-            assert test_module_span.get_tag(test.COMMAND) == "python"
+            assert test_module_span.get_tag(test.COMMAND) == "python -m unittest"
             assert test_module_span.get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
             assert test_module_span.get_tag(test.SUITE) is None
             assert test_module_span.get_tag(test.TEST_STATUS) == test.Status.FAIL.value
@@ -403,7 +405,7 @@ class UnittestTestCase(TracerTestCase):
             assert test_module_span.get_tag(MODULE_ID) == str(test_module_span.span_id)
 
             assert test_session_span.name == SESSION_OPERATION_NAME
-            assert test_session_span.get_tag(test.COMMAND) == "python"
+            assert test_session_span.get_tag(test.COMMAND) == "python -m unittest"
             assert test_session_span.get_tag(test.MODULE) is None
             assert test_session_span.get_tag(test.SUITE) is None
             assert test_session_span.get_tag(test.TEST_STATUS) == test.Status.FAIL.value

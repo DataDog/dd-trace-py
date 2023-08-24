@@ -25,8 +25,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.vendor import wrapt
-
-import sys
+import platform
 
 log = get_logger(__name__)
 
@@ -97,7 +96,7 @@ def _extract_span(item):
 def _extract_command_name_from_session(session):
     """Extract command name from `unittest` instance"""
     if not hasattr(session, "progName"):
-        return os.path.basename(sys.executable)
+        return "python -m unittest"
     return getattr(session, "progName", None)
 
 
@@ -318,6 +317,7 @@ def handle_test_wrapper(func, instance, args, kwargs):
 
         span.set_tag_str(test.COMMAND, test_suite_span.get_tag(test.COMMAND))
         span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
+        span.set_tag_str(test.FRAMEWORK_VERSION, platform.python_version())
         span.set_tag_str(test.TYPE, SpanTypes.TEST)
 
         span.set_tag_str(test.NAME, test_name)
@@ -355,6 +355,7 @@ def handle_module_suite_wrapper(func, instance, args, kwargs):
             test_suite_span.set_tag_str(COMPONENT, COMPONENT_VALUE)
             test_suite_span.set_tag_str(SPAN_KIND, KIND)
             test_suite_span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
+            test_suite_span.set_tag_str(test.FRAMEWORK_VERSION, platform.python_version())
             test_suite_span.set_tag_str(test.COMMAND, test_module_span.get_tag(test.COMMAND))
             test_suite_span.set_tag_str(_EVENT_TYPE, _SUITE_TYPE)
             test_suite_span.set_tag_str(_SESSION_ID, test_module_span.get_tag(_SESSION_ID))
@@ -372,16 +373,16 @@ def handle_module_suite_wrapper(func, instance, args, kwargs):
             test_suite_span.finish()
             return result
         elif _is_test_module(instance):
-            test_module_span, test_session_span = _create_module(instance)
+            test_module_span, test_session_span = _start_test_module_span(instance)
             result = func(*args, **kwargs)
-            _finish_module(test_module_span, test_session_span)
+            _finish_test_module_span(test_module_span, test_session_span)
             return result
 
     result = func(*args, **kwargs)
     return result
 
 
-def _create_session(instance, special=False):
+def _start_test_session_span(instance, special=False):
     if _get_identifier(instance) and not special:
         return None
     tracer = getattr(unittest, "_datadog_tracer", _CIVisibility._instance.tracer)
@@ -397,6 +398,7 @@ def _create_session(instance, special=False):
     test_session_span.set_tag_str(COMPONENT, COMPONENT_VALUE)
     test_session_span.set_tag_str(SPAN_KIND, KIND)
     test_session_span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
+    test_session_span.set_tag_str(test.FRAMEWORK_VERSION, platform.python_version())
     test_session_span.set_tag_str(_EVENT_TYPE, _SESSION_TYPE)
     test_session_span.set_tag_str(test.COMMAND, test_command)
     test_session_span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
@@ -409,12 +411,12 @@ def _create_session(instance, special=False):
     return test_session_span
 
 
-def _finish_session(test_session_span):
+def _finish_test_session_span(test_session_span):
     log.debug("CI Visibility enabled - finishing unittest test session")
     test_session_span.finish()
 
 
-def _create_module(instance, special=False):
+def _start_test_module_span(instance, special=False):
     tracer = getattr(unittest, "_datadog_tracer", _CIVisibility._instance.tracer)
     test_session_span = _extract_session_span(instance)
     test_module_name = _extract_module_name_from_module(instance)
@@ -432,6 +434,7 @@ def _create_module(instance, special=False):
     test_module_span.set_tag_str(COMPONENT, COMPONENT_VALUE)
     test_module_span.set_tag_str(SPAN_KIND, KIND)
     test_module_span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
+    test_module_span.set_tag_str(test.FRAMEWORK_VERSION, platform.python_version())
     test_module_span.set_tag_str(test.COMMAND, test_session_span.get_tag(test.COMMAND))
     test_module_span.set_tag_str(test.TEST_TYPE, SpanTypes.TEST)
     test_module_span.set_tag_str(_EVENT_TYPE, _MODULE_TYPE)
@@ -446,7 +449,7 @@ def _create_module(instance, special=False):
     return test_module_span, test_session_span
 
 
-def _finish_module(test_module_span, test_session_span):
+def _finish_test_module_span(test_module_span, test_session_span):
     if not test_module_span:
         return
     module_status = test_module_span.get_tag(test.STATUS)
@@ -458,13 +461,13 @@ def _finish_module(test_module_span, test_session_span):
 def handle_session_wrapper(func, instance, args, kwargs):
     test_session_span = None
     if _is_unittest_support_enabled() and len(instance.test._tests) and not hasattr(instance.test, "_datadog_entry"):
-        test_session_span = _create_session(instance)
+        test_session_span = _start_test_session_span(instance)
         setattr(instance.test, "_datadog_entry", "cli")
     try:
         result = func(*args, **kwargs)
     except SystemExit as e:
         if _CIVisibility.enabled and test_session_span:
-            _finish_session(test_session_span)
+            _finish_test_session_span(test_session_span)
             _CIVisibility.disable()
         raise e
     return result
@@ -483,9 +486,9 @@ def handle_text_test_runner_wrapper(func, instance, args, kwargs):
         return func(*args, **kwargs)
     setattr(args[0], "_datadog_entry", "TextTestRunner")
     _store_identifier(args[0], "suite")
-    test_session_span = _create_session(args[0], special=True)
-    test_module_span, _ = _create_module(args[0], special=True)
+    test_session_span = _start_test_session_span(args[0], special=True)
+    test_module_span, _ = _start_test_module_span(args[0], special=True)
     result = func(*args, **kwargs)
-    _finish_module(test_module_span, test_session_span)
-    _finish_session(test_session_span)
+    _finish_test_module_span(test_module_span, test_session_span)
+    _finish_test_session_span(test_session_span)
     return result
