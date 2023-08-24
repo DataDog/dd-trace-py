@@ -38,7 +38,7 @@ aspect_join(PyObject* sep, PyObject* result, PyObject* iterable_elements, TaintR
                 if (current_pos == 0 and !first_tainted_to) {
                     first_tainted_to = to_element;
                 } else {
-                    if (!result_to) {
+                    if (result_to == nullptr) {
                         // If first_tainted_to is null, it's ranges won't be copied
                         std::cerr << "JJJ JOIN calling allocate tainted object copy 1\n";
                         result_to = initializer->allocate_tainted_object_copy(first_tainted_to);
@@ -51,7 +51,7 @@ aspect_join(PyObject* sep, PyObject* result, PyObject* iterable_elements, TaintR
             current_pos += element_len;
         }
         if (len_sep > 0 and i < len_iterable - 1 and to_joiner) {
-            if (!result_to) {
+            if (result_to == nullptr) {
                 // If first_tainted_to is null, it's ranges won't be copied
                 std::cerr << "JJJ JOIN calling allocate tainted object copy 2\n";
                 result_to = initializer->allocate_tainted_object_copy(first_tainted_to);
@@ -62,7 +62,7 @@ aspect_join(PyObject* sep, PyObject* result, PyObject* iterable_elements, TaintR
         current_pos += len_sep;
     }
 
-    if (!result_to) {
+    if (result_to == nullptr) {
         if (first_tainted_to) {
             std::cerr << "JJJ JOIN calling allocate tainted object copy 3\n";
             result_to = initializer->allocate_tainted_object_copy(first_tainted_to);
@@ -89,7 +89,7 @@ api_join_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
     PyObject* sep = args[0];
     PyObject* arg0 = args[1];
 
-    if (PyIter_Check(arg0) or PyIter_Check(arg0) or PySet_Check(arg0) or PyFrozenSet_Check(arg0)) {
+    if (PyIter_Check(arg0) or PySet_Check(arg0) or PyFrozenSet_Check(arg0)) {
         PyObject* iterator = PyObject_GetIter(arg0);
 
         if (iterator != NULL) {

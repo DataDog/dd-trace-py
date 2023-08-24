@@ -3,7 +3,7 @@
 from typing import TYPE_CHECKING
 
 from ddtrace.appsec.iast._metrics import _set_metric_iast_executed_source
-from ddtrace.appsec.iast._util import _is_python_version_supported
+from ddtrace.appsec.iast._utils import _is_python_version_supported
 
 
 if _is_python_version_supported():
@@ -40,7 +40,6 @@ if _is_python_version_supported():
     from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import shift_taint_range
     from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import shift_taint_ranges
 
-    setup = ops.setup
     new_pyobject_id = ops.new_pyobject_id
     is_pyobject_tainted = is_tainted
 

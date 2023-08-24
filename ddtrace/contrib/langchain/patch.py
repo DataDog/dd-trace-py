@@ -727,7 +727,7 @@ def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
 def patch():
     if getattr(langchain, "_datadog_patch", False):
         return
-    setattr(langchain, "_datadog_patch", True)
+    langchain._datadog_patch = True
 
     #  TODO: How do we test this? Can we mock out the metric/logger/sampler?
     ddsite = os.getenv("DD_SITE", "datadoghq.com")
@@ -740,7 +740,7 @@ def patch():
         site=ddsite,
         api_key=ddapikey,
     )
-    setattr(langchain, "_datadog_integration", integration)
+    langchain._datadog_integration = integration
 
     if config.langchain.logs_enabled:
         if not ddapikey:
@@ -786,7 +786,7 @@ def patch():
 def unpatch():
     if not getattr(langchain, "_datadog_patch", False):
         return
-    setattr(langchain, "_datadog_patch", False)
+    langchain._datadog_patch = False
 
     unwrap(langchain.llms.base.BaseLLM, "generate")
     unwrap(langchain.llms.base.BaseLLM, "agenerate")

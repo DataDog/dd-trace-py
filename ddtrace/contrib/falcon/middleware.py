@@ -17,7 +17,9 @@ from ...internal.schema import schematize_url_operation
 
 
 class TraceMiddleware(object):
-    def __init__(self, tracer, service=schematize_service_name("falcon"), distributed_tracing=None):
+    def __init__(self, tracer, service=None, distributed_tracing=None):
+        if service is None:
+            service = schematize_service_name("falcon")
         # store tracing references
         self.tracer = tracer
         self.service = service

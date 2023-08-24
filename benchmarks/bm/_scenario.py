@@ -80,4 +80,4 @@ class Scenario(six.with_metaclass(ScenarioMeta)):
         except StopIteration:
             pass
         finally:
-            return dt
+            return dt  # noqa: B012

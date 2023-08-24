@@ -17,6 +17,7 @@ from ddtrace.appsec._constants import PRODUCTS
 from ddtrace.appsec._remoteconfiguration import _appsec_callback
 from ddtrace.appsec._remoteconfiguration import _appsec_rules_data
 from ddtrace.appsec._remoteconfiguration import _preprocess_results_appsec_1click_activation
+from ddtrace.appsec._remoteconfiguration import disable_appsec_rc
 from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
 from ddtrace.appsec.processor import AppSecSpanProcessor
 from ddtrace.appsec.utils import _appsec_rc_features_is_enabled
@@ -160,6 +161,7 @@ def test_rc_activation_validate_products(tracer, remote_config_worker):
         enable_appsec_rc()
 
         assert remoteconfig_poller._client._products["ASM_FEATURES"]
+    disable_appsec_rc()
 
 
 @pytest.mark.parametrize(
@@ -187,6 +189,7 @@ def test_rc_activation_check_asm_features_product_disables_rest_of_products(
         assert remoteconfig_poller._client._products.get(PRODUCTS.ASM_DATA) is None
         assert remoteconfig_poller._client._products.get(PRODUCTS.ASM) is None
         assert remoteconfig_poller._client._products.get(PRODUCTS.ASM_FEATURES)
+    disable_appsec_rc()
 
 
 @mock.patch("ddtrace.appsec._remoteconfiguration._appsec_1click_activation")
@@ -228,6 +231,7 @@ def test_load_new_configurations_dispatch_applied_configs(
         mock_appsec_rules_data.assert_called_with({"asm": {"enabled": True}, "data": [{"test": "data"}]}, None)
 
         mock_appsec_1click_activation.assert_called_with({"asm": {"enabled": True}, "data": [{"test": "data"}]}, None)
+    disable_appsec_rc()
 
 
 @mock.patch("ddtrace.appsec._remoteconfiguration._appsec_1click_activation")
@@ -270,6 +274,7 @@ def test_load_new_configurations_empty_config(
         mock_appsec_rules_data.assert_called_with({"asm": {"enabled": True}, "data": []}, None)
 
         mock_appsec_1click_activation.assert_called_with({"asm": {"enabled": True}, "data": []}, None)
+    disable_appsec_rc()
 
 
 @mock.patch("ddtrace.appsec._remoteconfiguration._preprocess_results_appsec_1click_activation")
@@ -331,6 +336,7 @@ def test_load_new_configurations_remove_config_and_dispatch_applied_configs(
     remoteconfig_poller._poll_data()
     mock_appsec_rules_data.assert_not_called()  # ({"asm": {"enabled": False}}, None)
     mock_appsec_1click_activation.assert_not_called()  # ({"asm": {"enabled": False}}, None)
+    disable_appsec_rc()
 
 
 def test_load_new_configurations_remove_config_and_dispatch_applied_configs_error(remote_config_worker):
@@ -370,6 +376,7 @@ def test_load_new_configurations_remove_config_and_dispatch_applied_configs_erro
 
     remoteconfig_poller._client._load_new_configurations(list_callbacks, {}, client_configs, payload=payload)
     remoteconfig_poller._client._publish_configuration(list_callbacks)
+    disable_appsec_rc()
 
 
 @pytest.mark.skipif(sys.version_info[:2] < (3, 6), reason="Mock return order is different in python <= 3.5")
@@ -421,6 +428,7 @@ def test_load_multiple_targets_file_same_product(
         mock_appsec_rules_data.assert_called_with({"asm": {"enabled": True}, "data": [{"a": 1}, {"b": 2}]}, None)
 
         mock_appsec_1click_activation.assert_called_with({"asm": {"enabled": True}, "data": [{"a": 1}, {"b": 2}]}, None)
+    disable_appsec_rc()
 
 
 @pytest.mark.skipif(sys.version_info[:2] < (3, 6), reason="Mock return order is different in python <= 3.5")
@@ -514,6 +522,7 @@ def test_load_new_config_and_remove_targets_file_same_product(
         remoteconfig_poller._poll_data()
 
         mock_appsec_rules_data.assert_called_with({"asm": {"enabled": True}, "data": [{"a": 1}]}, None)
+    disable_appsec_rc()
 
 
 @pytest.mark.skipif(sys.version_info[:2] < (3, 6), reason="Mock return order is different in python <= 3.5")
@@ -595,6 +604,8 @@ def test_fullpath_appsec_rules_data(mock_update_rules, remote_config_worker, tra
         mock_update_rules.assert_called_with({"exclusions": [{"a": 1}, {"b": 2}]})
         mock_update_rules.reset_mock()
 
+        # ensure enable_appsec_rc is reentrant
+        enable_appsec_rc(tracer)
         list_callbacks = []
         remoteconfig_poller._client._remove_previously_applied_configurations(
             list_callbacks, {}, second_config, target_file
@@ -604,6 +615,7 @@ def test_fullpath_appsec_rules_data(mock_update_rules, remote_config_worker, tra
         remoteconfig_poller._poll_data()
 
         mock_update_rules.assert_called_with({"exclusions": [{"a": 1}]})
+    disable_appsec_rc()
 
 
 @pytest.mark.skipif(sys.version_info[:2] < (3, 6), reason="Mock return order is different in python <= 3.5")
@@ -678,6 +690,7 @@ def test_fullpath_appsec_rules_data_empty_data(mock_update_rules, remote_config_
         remoteconfig_poller._poll_data(tracer)
 
         mock_update_rules.assert_not_called()
+    disable_appsec_rc()
 
 
 @pytest.mark.skipif(sys.version_info[:2] < (3, 6), reason="Mock return order is different in python <= 3.5")
@@ -749,6 +762,7 @@ def test_fullpath_appsec_rules_data_add_delete_file(mock_update_rules, remote_co
         remoteconfig_poller._poll_data(tracer)
 
         mock_update_rules.assert_called_with({"exclusions": []})
+    disable_appsec_rc()
 
 
 @pytest.mark.skipif(sys.version_info[:2] < (3, 6), reason="Mock return order is different in python <= 3.5")
@@ -841,6 +855,7 @@ def test_load_new_empty_config_and_remove_targets_file_same_product(
         remoteconfig_poller._poll_data()
 
         mock_appsec_rules_data.assert_called_with({"asm": {"enabled": True}, "data": [{"x": 1}], "data2": []}, None)
+    disable_appsec_rc()
 
 
 def test_rc_activation_ip_blocking_data(tracer, remote_config_worker):

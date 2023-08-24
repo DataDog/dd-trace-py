@@ -20,9 +20,6 @@ _SOURCE1 = Source("test", "foobar", OriginType.PARAMETER)
 
 @pytest.fixture(autouse=True)
 def reset_context():
-    from ddtrace.appsec.iast._taint_tracking import setup
-
-    setup(bytes.join, bytearray.join)
     yield
     contexts_reset()
     _ = create_context()
