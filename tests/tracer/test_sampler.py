@@ -719,7 +719,7 @@ def test_datadog_sampler_sample_no_rules(mock_sample, dummy_tracer):
     spans = dummy_tracer.pop()
     assert len(spans) == 1, "Span should have been written"
     assert_sampling_decision_tags(
-        spans[0], agent=1.0, limit=None, rule=None, sampling_priority=AUTO_REJECT, trace_tag=None
+        spans[0], agent=None, limit=None, rule=None, sampling_priority=AUTO_REJECT, trace_tag=None
     )
 
 
@@ -978,13 +978,9 @@ def context():
         (SamplingMechanism.DEFAULT, True, "-0"),
         (SamplingMechanism.MANUAL, True, "-4"),
         (SamplingMechanism.DEFAULT, True, "-0"),
-        (SamplingMechanism.DEFAULT, False, None),
+        (SamplingMechanism.DEFAULT, False, "-0"),
     ],
 )
 def test_trace_tag(context, sampling_mechanism, sampled, expected):
-
     update_sampling_decision(context, sampling_mechanism, sampled)
-    if sampled:
-        assert context._meta["_dd.p.dm"] == expected
-    else:
-        assert "_dd.p.dm" not in context._meta
+    assert context._meta["_dd.p.dm"] == expected
