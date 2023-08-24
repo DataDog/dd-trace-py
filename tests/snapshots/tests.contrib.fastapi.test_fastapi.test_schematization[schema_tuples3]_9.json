@@ -40,7 +40,6 @@
        "type": "web",
        "error": 0,
        "meta": {
-         "_dd.p.dm": "-0",
          "component": "fastapi",
          "http.method": "GET",
          "http.route": "/sub-app/hello/{name}",
@@ -63,7 +62,6 @@
           "type": "web",
           "error": 0,
           "meta": {
-            "_dd.p.dm": "-0",
             "component": "fastapi",
             "http.method": "GET",
             "http.status_code": "200",
@@ -84,9 +82,6 @@
              "parent_id": 3,
              "type": "",
              "error": 0,
-             "meta": {
-               "_dd.p.dm": "-0"
-             },
              "duration": 87587,
              "start": 1691166911366639806
            }]]

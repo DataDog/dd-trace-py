@@ -31,9 +31,6 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
-       "meta": {
-         "_dd.p.dm": "-0"
-       },
        "duration": 101975430,
        "start": 1691164174283377785
      },
@@ -46,9 +43,6 @@
           "parent_id": 2,
           "type": "",
           "error": 0,
-          "meta": {
-            "_dd.p.dm": "-0"
-          },
           "duration": 40291630,
           "start": 1691164174303607026
         },
@@ -61,9 +55,6 @@
           "parent_id": 2,
           "type": "",
           "error": 0,
-          "meta": {
-            "_dd.p.dm": "-0"
-          },
           "duration": 41164537,
           "start": 1691164174344146455
         },
@@ -76,9 +67,6 @@
              "parent_id": 4,
              "type": "",
              "error": 0,
-             "meta": {
-               "_dd.p.dm": "-0"
-             },
              "duration": 20721650,
              "start": 1691164174364534600
            },
@@ -91,9 +79,6 @@
                 "parent_id": 5,
                 "type": "",
                 "error": 0,
-                "meta": {
-                  "_dd.p.dm": "-0"
-                },
                 "duration": 20354052,
                 "start": 1691164174364742772
               }]]

@@ -36,7 +36,6 @@
        "type": "graphql",
        "error": 0,
        "meta": {
-         "_dd.p.dm": "-0",
          "component": "graphql",
          "graphql.source": "{ invalid_schema }"
        },
@@ -53,7 +52,6 @@
        "type": "graphql",
        "error": 1,
        "meta": {
-         "_dd.p.dm": "-0",
          "component": "graphql",
          "error.message": "Cannot query field 'invalid_schema' on type 'RootQueryType'.\n\nGraphQL request:1:3\n1 | { invalid_schema }\n  |   ^",
          "error.type": "graphql.error.graphql_error.GraphQLError",

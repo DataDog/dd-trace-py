@@ -43,7 +43,6 @@
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.p.dm": "-0",
          "langchain.request.inputs.style": "a 90s rapper",
          "langchain.request.inputs.text": "\\n        Chains allow us to combine multiple\\n\\n\\n        components together to create a single, coherent application.\\n\\n    ...",
          "langchain.request.type": "chain",
@@ -65,7 +64,6 @@
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.p.dm": "-0",
          "langchain.request.inputs.output_text": "\\n Chains allow us to combine multiple\\n components together to create a single, coherent application.\\n For example, we can cre...",
          "langchain.request.inputs.style": "a 90s rapper",
          "langchain.request.inputs.text": "\\n        Chains allow us to combine multiple\\n\\n\\n        components together to create a single, coherent application.\\n\\n    ...",
@@ -93,7 +91,6 @@
           "type": "",
           "error": 0,
           "meta": {
-            "_dd.p.dm": "-0",
             "langchain.request.api_key": "...key>",
             "langchain.request.model": "text-davinci-003",
             "langchain.request.openai.parameters.frequency_penalty": "0",

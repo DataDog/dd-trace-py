@@ -37,7 +37,6 @@
        "type": "worker",
        "error": 0,
        "meta": {
-         "_dd.p.dm": "-0",
          "component": "rq",
          "job.id": "0fa49efb-9c83-4333-9863-ca9c3c81c8ca",
          "job.origin": "q",
@@ -67,7 +66,6 @@
           "type": "",
           "error": 0,
           "meta": {
-            "_dd.p.dm": "-0",
             "component": "rq",
             "job.id": "0fa49efb-9c83-4333-9863-ca9c3c81c8ca"
           },
@@ -113,7 +111,6 @@
        "type": "worker",
        "error": 0,
        "meta": {
-         "_dd.p.dm": "-0",
          "component": "rq",
          "job.id": "2aaf424a-a748-4e3e-ac24-c0374aaa1f70",
          "job.origin": "q",
@@ -143,7 +140,6 @@
           "type": "",
           "error": 0,
           "meta": {
-            "_dd.p.dm": "-0",
             "component": "rq",
             "job.id": "2aaf424a-a748-4e3e-ac24-c0374aaa1f70"
           },
@@ -189,7 +185,6 @@
        "type": "worker",
        "error": 0,
        "meta": {
-         "_dd.p.dm": "-0",
          "component": "rq",
          "job.id": "70f56a01-163d-4dba-ba07-07b8da917b18",
          "job.origin": "q",
@@ -219,7 +214,6 @@
           "type": "",
           "error": 0,
           "meta": {
-            "_dd.p.dm": "-0",
             "component": "rq",
             "job.id": "70f56a01-163d-4dba-ba07-07b8da917b18"
           },

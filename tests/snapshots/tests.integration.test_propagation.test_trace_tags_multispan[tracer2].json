@@ -9,7 +9,6 @@
     "type": "",
     "error": 0,
     "meta": {
-      "_dd.p.dm": "-1",
       "_dd.p.test": "value",
       "language": "python",
       "runtime-id": "d5f3e666fe79454c90ec7063f44787b5"
@@ -34,7 +33,6 @@
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.p.dm": "-1",
          "_dd.p.test": "value",
          "language": "python"
        },

@@ -39,7 +39,6 @@
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.p.dm": "-0",
          "component": "aiohttp"
        },
        "duration": 1297932,
@@ -86,7 +85,6 @@
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.p.dm": "-0",
          "component": "aiohttp"
        },
        "duration": 68027,
@@ -133,7 +131,6 @@
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.p.dm": "-0",
          "component": "aiohttp"
        },
        "duration": 52765,

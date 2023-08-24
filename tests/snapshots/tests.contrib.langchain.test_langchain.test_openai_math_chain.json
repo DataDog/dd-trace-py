@@ -42,7 +42,6 @@
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.p.dm": "-0",
          "langchain.request.inputs.question": "what is two raised to the fifty-fourth power?",
          "langchain.request.inputs.stop": "['```output']",
          "langchain.request.prompt": "Translate a math problem into a expression that can be executed using Python's numexpr library. Use the output of running this c...",
@@ -71,7 +70,6 @@
           "type": "",
           "error": 0,
           "meta": {
-            "_dd.p.dm": "-0",
             "langchain.request.api_key": "...key>",
             "langchain.request.model": "text-davinci-003",
             "langchain.request.openai.parameters.frequency_penalty": "0",

@@ -31,9 +31,6 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
-       "meta": {
-         "_dd.p.dm": "-0"
-       },
        "duration": 101305442,
        "start": 1691164174023443313
      },
@@ -46,9 +43,6 @@
           "parent_id": 2,
           "type": "",
           "error": 0,
-          "meta": {
-            "_dd.p.dm": "-0"
-          },
           "duration": 60367898,
           "start": 1691164174064181692
         },
@@ -61,9 +55,6 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
-       "meta": {
-         "_dd.p.dm": "-0"
-       },
        "duration": 102511059,
        "start": 1691164174124877672
      },
