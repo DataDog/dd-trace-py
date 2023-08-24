@@ -32,6 +32,7 @@
        "type": "web",
        "error": 0,
        "meta": {
+         "_dd.p.dm": "-0",
          "component": "flask",
          "flask.endpoint": "otel",
          "flask.url_rule": "/otel",
