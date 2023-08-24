@@ -26,13 +26,13 @@ config._add(
 def patch():
     if getattr(pyodbc, "_datadog_patch", False):
         return
-    setattr(pyodbc, "_datadog_patch", True)
+    pyodbc._datadog_patch = True
     wrap("pyodbc", "connect", _connect)
 
 
 def unpatch():
     if getattr(pyodbc, "_datadog_patch", False):
-        setattr(pyodbc, "_datadog_patch", False)
+        pyodbc._datadog_patch = False
         unwrap(pyodbc, "connect")
 
 

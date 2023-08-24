@@ -191,7 +191,7 @@ def test_large_payload_is_sent_without_warning_logs(encoding, monkeypatch):
 
     t = Tracer()
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
-        for i in range(10000):
+        for _ in range(10000):
             with t.trace("operation"):
                 pass
 
@@ -207,7 +207,7 @@ def test_child_spans_do_not_cause_warning_logs(encoding, monkeypatch):
     t = Tracer()
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
         spans = []
-        for i in range(10000):
+        for _ in range(10000):
             spans.append(t.trace("op"))
         for s in spans:
             s.finish()
@@ -232,7 +232,7 @@ def _test_metrics(
         with mock.patch("ddtrace.internal.writer.writer.log") as log:
             for _ in range(5):
                 spans = []
-                for i in range(3000):
+                for _ in range(3000):
                     spans.append(tracer.trace("op"))
                 for s in spans:
                     s.finish()
@@ -333,7 +333,7 @@ def test_single_trace_too_large_partial_flush_disabled(encoding, monkeypatch):
     )
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
         with t.trace("huge"):
-            for i in range(200000):
+            for _ in range(200000):
                 with t.trace("operation") as s:
                     s.set_tag("a" * 10, "b" * 10)
         t.shutdown()

@@ -2,7 +2,6 @@ from ddtrace.appsec.iast import oce
 from ddtrace.appsec.iast._metrics import _set_metric_iast_instrumented_sink
 from ddtrace.appsec.iast._patch import set_and_check_module_is_patched
 from ddtrace.appsec.iast._patch import set_module_unpatched
-from ddtrace.appsec.iast._taint_tracking import taint_ranges_as_evidence_info
 from ddtrace.appsec.iast.constants import EVIDENCE_PATH_TRAVERSAL
 from ddtrace.appsec.iast.constants import VULN_PATH_TRAVERSAL
 from ddtrace.appsec.iast.taint_sinks._base import VulnerabilityBase
@@ -21,6 +20,8 @@ class PathTraversal(VulnerabilityBase):
     @classmethod
     def report(cls, evidence_value=None, sources=None):
         if isinstance(evidence_value, (str, bytes, bytearray)):
+            from ddtrace.appsec.iast._taint_tracking import taint_ranges_as_evidence_info
+
             evidence_value, sources = taint_ranges_as_evidence_info(evidence_value)
         super(PathTraversal, cls).report(evidence_value=evidence_value, sources=sources)
 

@@ -149,7 +149,7 @@ def test_otel_span_end(oteltracer):
 
 
 def test_otel_span_exception_handling(oteltracer):
-    with pytest.raises(Exception):
+    with pytest.raises(Exception, match="Sorry Friend, I failed you"):
         with oteltracer.start_span("otel1") as span:
             raise Exception("Sorry Friend, I failed you")
 
