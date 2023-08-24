@@ -532,7 +532,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                     # [Suspicious Request Blocking on response]
                     if core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span):
                         response = blocked_response()
-                        return response
+                        return response  # noqa: B012
 
 
 @trace_utils.with_traced_module
@@ -935,7 +935,7 @@ def patch():
         return
     _patch(django)
 
-    setattr(django, "_datadog_patch", True)
+    django._datadog_patch = True
 
 
 def _unpatch(django):
@@ -965,4 +965,4 @@ def unpatch():
 
     _unpatch(django)
 
-    setattr(django, "_datadog_patch", False)
+    django._datadog_patch = False

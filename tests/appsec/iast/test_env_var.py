@@ -5,7 +5,7 @@ import subprocess
 import pytest
 from six import PY2
 
-from ddtrace.appsec.iast._util import _is_python_version_supported
+from ddtrace.appsec.iast._utils import _is_python_version_supported
 
 
 def _run_python_file(*args, **kwargs):

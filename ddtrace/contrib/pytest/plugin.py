@@ -73,12 +73,12 @@ def _extract_span(item):
 
 def _store_span(item, span):
     """Store span at `pytest.Item` instance."""
-    setattr(item, "_datadog_span", span)
+    item._datadog_span = span
 
 
 def _attach_coverage(item):
     coverage = _initialize_coverage(str(item.config.rootdir))
-    setattr(item, "_coverage", coverage)
+    item._coverage = coverage
     coverage.start()
 
 
@@ -102,14 +102,14 @@ def _extract_module_span(item):
 
 def _store_module_span(item, span):
     """Store span at `pytest.Item` instance."""
-    setattr(item, "_datadog_span_module", span)
+    item._datadog_span_module = span
 
 
 def _mark_failed(item):
     """Store test failed status at `pytest.Item` instance."""
     if item.parent:
         _mark_failed(item.parent)
-    setattr(item, "_failed", True)
+    item._failed = True
 
 
 def _check_failed(item):
@@ -121,7 +121,7 @@ def _mark_not_skipped(item):
     """Mark test suite/module/session `pytest.Item` as not skipped."""
     if item.parent:
         _mark_not_skipped(item.parent)
-    setattr(item, "_fully_skipped", False)
+    item._fully_skipped = False
 
 
 def _check_fully_skipped(item):

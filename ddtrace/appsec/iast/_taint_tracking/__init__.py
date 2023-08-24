@@ -3,7 +3,7 @@
 from typing import TYPE_CHECKING
 
 from ddtrace.appsec.iast._metrics import _set_metric_iast_executed_source
-from ddtrace.appsec.iast._util import _is_python_version_supported
+from ddtrace.appsec.iast._utils import _is_python_version_supported
 
 
 if _is_python_version_supported():

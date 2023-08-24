@@ -70,6 +70,16 @@ class _TracedIterable(wrapt.ObjectProxy):
         return super(_TracedIterable, self).__getattribute__(name)
 
 
+def _cookies_from_response_headers(response_headers):
+    cookies = {}
+    for header_tuple in response_headers:
+        if header_tuple[0] == "Set-Cookie":
+            cookie_tokens = header_tuple[1].split("=", 1)
+            cookies[cookie_tokens[0]] = cookie_tokens[1]
+
+    return cookies
+
+
 def _on_start_response_pre(request, span, flask_config, status_code, headers):
     code, _, _ = status_code.partition(" ")
     # If values are accessible, set the resource as `<method> <path>` and add other request tags
@@ -83,8 +93,14 @@ def _on_start_response_pre(request, span, flask_config, status_code, headers):
     if not span.get_tag(FLASK_ENDPOINT) and not span.get_tag(FLASK_URL_RULE):
         span.resource = " ".join((request.method, code))
 
+    response_cookies = _cookies_from_response_headers(headers)
     trace_utils.set_http_meta(
-        span, flask_config, status_code=code, response_headers=headers, route=span.get_tag(FLASK_URL_RULE)
+        span,
+        flask_config,
+        status_code=code,
+        response_headers=headers,
+        route=span.get_tag(FLASK_URL_RULE),
+        response_cookies=response_cookies,
     )
 
 
@@ -207,7 +223,7 @@ def _on_response_context_started(ctx):
 
 def _on_response_prepared(resp_span, response):
     if hasattr(response, "__class__"):
-        resp_class = getattr(getattr(response, "__class__"), "__name__", None)
+        resp_class = getattr(response.__class__, "__name__", None)
         if resp_class:
             resp_span.set_tag_str("result_class", resp_class)
 
