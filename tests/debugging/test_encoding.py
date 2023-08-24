@@ -267,6 +267,14 @@ def test_encoding_none():
     assert utils.capture_value(None) == {"isNull": True, "type": "NoneType"}
 
 
+def test_encoding_zero_fields():
+    assert utils.capture_value(Custom(), maxfields=0) == {
+        "fields": {},
+        "notCapturedReason": "fieldCount",
+        "type": "Custom",
+    }
+
+
 class CountBudget(object):
     """Make stopping condition for the value capturing deterministic."""
 
