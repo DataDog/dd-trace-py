@@ -19,3 +19,4 @@
 - [ ] Release note makes sense to a user of the library.
 - [ ] Reviewer has explicitly acknowledged and discussed the performance implications of this PR as reported in the benchmarks PR comment.
 - [ ] Backport labels are set in a manner that is consistent with the [release branch maintenance policy](https://ddtrace.readthedocs.io/en/latest/contributing.html#backporting)
+- [ ] Additional review has been requested from `@DataDog/security-design-and-guidance` if this PR changes credentials or alters how builds/packages are signed or published.
