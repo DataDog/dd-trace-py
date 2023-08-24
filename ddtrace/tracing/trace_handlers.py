@@ -386,22 +386,6 @@ def _on_start_response_blocked(req_span, flask_config, response_headers, status)
     trace_utils.set_http_meta(req_span, flask_config, status_code=status, response_headers=response_headers)
 
 
-def _on_function_context_started_flask(ctx):
-    pin = ctx.get_item("pin")
-    name = ctx.get_item("name")
-    flask_config = ctx.get_item("flask_config")
-    resource = ctx.get_item("resource")
-    kwargs = {"service": trace_utils.int_service(pin, flask_config)}
-    if resource:
-        kwargs["resource"] = resource
-    span = pin.tracer.trace(name, **kwargs)
-    span.set_tag_str(COMPONENT, flask_config.integration_name)
-    signal = ctx.get_item("signal")
-    if signal:
-        span.set_tag_str("flask.signal", signal)
-    ctx.set_item("flask_call", span)
-
-
 def listen():
     core.on("context.started.wsgi.__call__", _on_context_started)
     core.on("context.started.wsgi.response", _on_response_context_started)
