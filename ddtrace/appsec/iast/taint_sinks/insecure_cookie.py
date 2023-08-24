@@ -19,18 +19,21 @@ class InsecureCookie(VulnerabilityBase):
     vulnerability_type = VULN_INSECURE_COOKIE
     evidence_type = EVIDENCE_COOKIE
     scrub_evidence = False
+    skip_location = True
 
 
 @oce.register
 class NoHttpOnlyCookie(VulnerabilityBase):
     vulnerability_type = VULN_NO_HTTPONLY_COOKIE
     evidence_type = EVIDENCE_COOKIE
+    skip_location = True
 
 
 @oce.register
 class NoSameSite(VulnerabilityBase):
     vulnerability_type = VULN_NO_SAMESITE_COOKIE
     evidence_type = EVIDENCE_COOKIE
+    skip_location = True
 
 
 def asm_check_cookies(cookies):  # type: (Optional[Dict[str, str]]) -> None

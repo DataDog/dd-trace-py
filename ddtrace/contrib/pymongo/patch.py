@@ -33,18 +33,18 @@ def patch():
     patch_pymongo_module()
     # We should progressively get rid of TracedMongoClient. We now try to
     # wrap methods individually. cf #1501
-    setattr(pymongo, "MongoClient", TracedMongoClient)
+    pymongo.MongoClient = TracedMongoClient
 
 
 def unpatch():
     unpatch_pymongo_module()
-    setattr(pymongo, "MongoClient", _MongoClient)
+    pymongo.MongoClient = _MongoClient
 
 
 def patch_pymongo_module():
     if getattr(pymongo, "_datadog_patch", False):
         return
-    setattr(pymongo, "_datadog_patch", True)
+    pymongo._datadog_patch = True
     Pin().onto(pymongo.server.Server)
 
     # Whenever a pymongo command is invoked, the lib either:
@@ -56,7 +56,7 @@ def patch_pymongo_module():
 def unpatch_pymongo_module():
     if not getattr(pymongo, "_datadog_patch", False):
         return
-    setattr(pymongo, "_datadog_patch", False)
+    pymongo._datadog_patch = False
 
     _u(pymongo.server.Server, "get_socket")
 

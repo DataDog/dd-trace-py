@@ -19,6 +19,7 @@ from tests.utils import override_global_config
 # This is done to avoid making real calls to the API which could introduce
 # flakiness and cost.
 
+
 # To (re)-generate the cassettes: pass a real API key with
 # {PROVIDER}_API_KEY, delete the old cassettes and re-run the tests.
 # NOTE: be sure to check that the generated cassettes don't contain your
@@ -134,7 +135,7 @@ def test_global_tags(ddtrace_config_langchain, langchain, request_vcr, mock_metr
 
     assert mock_logs.enqueue.call_count == 1
     assert mock_metrics.mock_calls
-    for _, args, kwargs in mock_metrics.mock_calls:
+    for _, _args, kwargs in mock_metrics.mock_calls:
         expected_metrics = [
             "service:test-svc",
             "env:staging",
@@ -148,7 +149,7 @@ def test_global_tags(ddtrace_config_langchain, langchain, request_vcr, mock_metr
         for m in expected_metrics:
             assert m in actual_tags
 
-    for call, args, kwargs in mock_logs.mock_calls:
+    for call, args, _kwargs in mock_logs.mock_calls:
         if call != "enqueue":
             continue
         log = args[0]
@@ -233,8 +234,10 @@ async def test_openai_llm_async_stream(langchain, request_vcr):
 
 @pytest.mark.snapshot(ignores=["meta.error.stack"])
 def test_openai_llm_error(langchain, request_vcr):
+    import openai  # Imported here because the os env OPENAI_API_KEY needs to be set via langchain fixture before import
+
     llm = langchain.llms.OpenAI()
-    with pytest.raises(Exception):
+    with pytest.raises(openai.error.InvalidRequestError):
         with request_vcr.use_cassette("openai_completion_error.yaml"):
             llm.generate([12345, 123456])
 
