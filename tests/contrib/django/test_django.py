@@ -1220,7 +1220,6 @@ def test_cache_get_many(test_spans):
         "component": "django",
         "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
         "django.cache.key": "missing_key another_key",
-        "_dd.p.dm": "-0",
     }
 
     assert_dict_issuperset(span_get_many.get_tags(), expected_meta)
@@ -1428,7 +1427,6 @@ def test_cached_view(client, test_spans):
         "component": "django",
         "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
         "django.cache.key": "views.decorators.cache.cache_header..03cdc1cc4aab71b038a6764e5fcabb82.en-us",
-        "_dd.p.dm": "-0",
     }
 
     assert span_view.get_tags() == expected_meta_view
