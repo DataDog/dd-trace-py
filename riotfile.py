@@ -676,7 +676,7 @@ venv = Venv(
                     # pymongo added support for Python 3.10 in 3.12.1
                     # pymongo added support for Python 3.11 in 3.12.3
                     pys=select_pys(min_version="3.10"),
-                    pkgs={"pymongo": ["~=3.12.3", "~=4.5", latest]},
+                    pkgs={"pymongo": ["~=3.12.3", "~=4.0", latest]},
                 ),
             ],
         ),
