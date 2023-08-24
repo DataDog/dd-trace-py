@@ -309,7 +309,7 @@ class AppSecSpanProcessor(SpanProcessor):
                     value = custom_data.get(key)
                 elif key in SPAN_DATA_NAMES:
                     value = _asm_request_context.get_value("waf_addresses", SPAN_DATA_NAMES[key])
-                if value:
+                if value is not None:
                     data[waf_name] = _transform_headers(value) if key.endswith("HEADERS_NO_COOKIES") else value
                     data_already_sent.add(key)
                     log.debug("[action] WAF got value %s", SPAN_DATA_NAMES.get(key, key))

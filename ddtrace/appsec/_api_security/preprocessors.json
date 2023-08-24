@@ -1,5 +1,33 @@
 {
   "version": "2.2",
+  "rules": [
+    {
+      "id": "tst-000-001-",
+      "name": "useless rule to avoid empty rule list",
+      "tags": {
+        "type": "lfi",
+        "crs_id": "000001",
+        "category": "attack_attempt"
+      },
+      "conditions": [
+        {
+          "parameters": {
+            "inputs": [
+              {
+                "address": "server.request.query"
+              }
+            ],
+            "regex": "$x"
+          },
+          "operator": "match_regex"
+        }
+      ],
+      "transformers": [],
+      "on_match": [
+        "block"
+      ]
+    }
+  ],
   "preprocessors": [
     {
       "id": "preprocessor-001",

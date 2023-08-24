@@ -154,7 +154,6 @@ if _DDWAF_LOADED:
         ):
             # type: (...) -> DDWaf_result
             start = time.time()
-
             if not ctx:
                 LOGGER.debug("DDWaf.run: dry run. no context created.")
                 return DDWaf_result(None, [], 0, (time.time() - start) * 1e6, False, 0, {})
@@ -187,7 +186,7 @@ else:
         info = DDWaf_info(0, 0, {}, "")  # type: DDWaf_info
 
         def __init__(self, rules, obfuscation_parameter_key_regexp, obfuscation_parameter_value_regexp):
-            # type: (DDWaf, Union[None, int, text_type, list[Any], dict[text_type, Any]], text_type, text_type) -> None
+            # type: (DDWaf, dict[text_type, Any], text_type, text_type) -> None
             self._handle = None
 
         def run(

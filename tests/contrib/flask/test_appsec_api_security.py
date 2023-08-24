@@ -9,7 +9,7 @@ import pytest
 from ddtrace import config
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.contrib.sqlite3.patch import patch
-from tests.appsec.api_security.test_schema_fuzz import equal_without_meta
+from tests.appsec.api_security.test_schema_fuzz import equal_with_meta
 from tests.appsec.test_processor import RULES_SRB
 from tests.contrib.flask import BaseFlaskTestCase
 from tests.utils import override_env
@@ -79,7 +79,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
                 value = root_span.get_tag(name)
                 assert value
                 api = json.loads(gzip.decompress(base64.b64decode(value)).decode())
-                assert equal_without_meta(api, expected_value), name
+                assert equal_with_meta(api, expected_value), name
 
         # appsec disabled must not block
         with override_global_config(dict(_appsec_enabled=False, _api_security_enabled=False)), override_env(
