@@ -47,7 +47,7 @@ _connect = cassandra_cluster.Cluster.connect
 
 def patch():
     """patch will add tracing to the cassandra library."""
-    setattr(cassandra_cluster.Cluster, "connect", wrapt.FunctionWrapper(_connect, traced_connect))
+    cassandra_cluster.Cluster.connect = wrapt.FunctionWrapper(_connect, traced_connect)
     Pin(service=SERVICE).onto(cassandra_cluster.Cluster)
 
 
@@ -59,7 +59,7 @@ def traced_connect(func, instance, args, kwargs):
     session = func(*args, **kwargs)
     if not isinstance(session.execute, wrapt.FunctionWrapper):
         # FIXME[matt] this should probably be private.
-        setattr(session, "execute_async", wrapt.FunctionWrapper(session.execute_async, traced_execute_async))
+        session.execute_async = wrapt.FunctionWrapper(session.execute_async, traced_execute_async)
     return session
 
 
@@ -152,17 +152,12 @@ def traced_execute_async(func, instance, args, kwargs):
         result = func(*args, **kwargs)
         setattr(result, CURRENT_SPAN, span)
         setattr(result, PAGE_NUMBER, 1)
-        setattr(result, "_set_final_result", wrapt.FunctionWrapper(result._set_final_result, traced_set_final_result))
-        setattr(
-            result,
-            "_set_final_exception",
-            wrapt.FunctionWrapper(result._set_final_exception, traced_set_final_exception),
+        result._set_final_result = wrapt.FunctionWrapper(result._set_final_result, traced_set_final_result)
+        result._set_final_exception = wrapt.FunctionWrapper(result._set_final_exception, traced_set_final_exception)
+        result.start_fetching_next_page = wrapt.FunctionWrapper(
+            result.start_fetching_next_page, traced_start_fetching_next_page
         )
-        setattr(
-            result,
-            "start_fetching_next_page",
-            wrapt.FunctionWrapper(result.start_fetching_next_page, traced_start_fetching_next_page),
-        )
+
         # Since we cannot be sure that the previous methods were overwritten
         # before the call ended, we add callbacks that will be run
         # synchronously if the call already returned and we remove them right
@@ -247,7 +242,7 @@ def _extract_result_metas(result):
             metas[cassx.KEYSPACE] = query.keyspace.lower()
 
         page_number = getattr(future, PAGE_NUMBER, 1)
-        has_more_pages = getattr(future, "has_more_pages")
+        has_more_pages = future.has_more_pages
         is_paginated = has_more_pages or page_number > 1
         metas[cassx.PAGINATED] = is_paginated
         if is_paginated:
