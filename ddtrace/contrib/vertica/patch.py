@@ -119,14 +119,9 @@ config._add(
 
 
 def get_version():
-    try:
-        from importlib import metadata
+    import vertica_python
 
-        return metadata.version("vertica-python")
-    except ImportError:
-        import pkg_resources
-
-        return pkg_resources.get_distribution("vertica-python").version
+    return vertica_python.__version__
 
 
 def patch():
