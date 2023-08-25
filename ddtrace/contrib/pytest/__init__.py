@@ -77,12 +77,8 @@ config._add(
 
 
 def get_version():
-    try:
-        import importlib.metadata as importlib_metadata
-    except ImportError:
-        import importlib_metadata  # type: ignore[no-redef]
-
-    return str(importlib_metadata.version("pytest"))
+    import pytest
+    return pytest.__version__
 
 
 __all__ = ["get_version"]
