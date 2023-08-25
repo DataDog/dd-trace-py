@@ -176,10 +176,9 @@ Uploader::set_runtime_id(std::string_view id)
 }
 
 bool
-Uploader::upload(Profile* profile)
+Uploader::upload(const Profile* profile)
 {
     ddog_prof_Profile_SerializeResult result = ddog_prof_Profile_serialize(profile->ddog_profile, nullptr, nullptr);
-    profile->reset();
     if (result.tag != DDOG_PROF_PROFILE_SERIALIZE_RESULT_OK) {
         std::string ddog_err(ddog_Error_message(&result.err).ptr);
         errmsg = "Error serializing pprof, err:" + ddog_err;
