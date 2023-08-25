@@ -42,7 +42,7 @@ DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT = (
     r"(?:old[-_]?|new[-_]?)?p(?:ass)?w(?:or)?d(?:1|2)?"  # pw, password variants
     r"|pass(?:[-_]?phrase)?"  # pass, passphrase variants
     r"|secret"
-    r"|(?: # key, key_id variants"
+    r"|(?:"  # key, key_id variants
     r"api[-_]?"
     r"|private[-_]?"
     r"|public[-_]?"
@@ -358,7 +358,7 @@ class Config(object):
                     dd_trace_obfuscation_query_string_pattern.encode("ascii")
                 )
             except Exception:
-                log.warning("Invalid obfuscation pattern, disabling query string tracing")
+                log.warning("Invalid obfuscation pattern, disabling query string tracing", exc_info=True)
                 self.http_tag_query_string = False  # Disable query string tagging if malformed obfuscation pattern
 
         self._ci_visibility_agentless_enabled = asbool(os.getenv("DD_CIVISIBILITY_AGENTLESS_ENABLED", default=False))
