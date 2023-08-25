@@ -1,4 +1,5 @@
 import unittest
+
 import pytest
 
 from ddtrace.contrib.unittest.patch import _set_tracer
