@@ -168,8 +168,36 @@ def ljust_aspect(candidate_text, *args, **kwargs):
 
 
 def zfill_aspect(candidate_text, *args, **kwargs):
-    # type: (Any, Any, Any) -> str
-    return candidate_text.zfill(*args, **kwargs)
+    # type: (Any, Any, Any) -> Any
+    if not isinstance(candidate_text, TEXT_TYPES):
+        return candidate_text.zfill(*args, **kwargs)
+    try:
+        ranges_orig = get_ranges(candidate_text)
+        if not ranges_orig:
+            return candidate_text.zfill(*args, **kwargs)
+        prefix = candidate_text[0] in ("-", "+")
+        res = candidate_text.zfill(*args, **kwargs)
+
+        difflen = len(res) - len(candidate_text)
+        ranges_new = []  # type: List[TaintRange]
+        ranges_new_append = ranges_new.append
+        ranges_new_extend = ranges_new.extend
+
+        for r in ranges_orig:
+            if not prefix or r.start > 0:
+                ranges_new_append(TaintRange(start=r.start + difflen, length=r.length, source=r.source))
+            else:
+                ranges_new_extend(
+                    [
+                        TaintRange(start=0, length=1, source=r.source),
+                        TaintRange(start=r.start + difflen + 1, length=r.length - 1, source=r.source),
+                    ]
+                )
+        taint_pyobject_with_ranges(res, tuple(ranges_new))
+        return res
+    except Exception as e:
+        _set_iast_error_metric("IAST propagation error. format_aspect. {}".format(e), traceback.format_exc())
+        return candidate_text.zfill(*args, **kwargs)
 
 
 def format_aspect(
@@ -235,6 +263,24 @@ def format_map_aspect(candidate_text, *args, **kwargs):  # type: (str, Any, Any)
     except Exception as e:
         _set_iast_error_metric("IAST propagation error. format_map_aspect. {}".format(e), traceback.format_exc())
         return candidate_text.format_map(*args, **kwargs)
+
+
+def repr_aspect(*args, **kwargs):
+    # type: (Any, Any) -> Any
+    result = repr(*args, **kwargs)
+    if isinstance(args[0], TEXT_TYPES) and is_pyobject_tainted(args[0]):
+        try:
+            if isinstance(args[0], (bytes, bytearray)):
+                check_offset = args[0].decode("utf-8")
+            else:
+                check_offset = args[0]
+            offset = result.index(check_offset)
+            new_ranges = [shift_taint_range(text_range, offset) for text_range in get_tainted_ranges(args[0])]
+            if new_ranges:
+                taint_pyobject_with_ranges(result, tuple(new_ranges))
+        except Exception as e:
+            _set_iast_error_metric("IAST propagation error. repr_aspect. {}".format(e), traceback.format_exc())
+    return result
 
 
 def format_value_aspect(
