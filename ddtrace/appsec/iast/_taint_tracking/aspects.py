@@ -466,3 +466,7 @@ def translate_aspect(candidate_text, *args, **kwargs):  # type: (Any, Any, Any) 
     except Exception as e:
         _set_iast_error_metric("IAST propagation error. translate_aspect. {}".format(e), traceback.format_exc())
         return candidate_text.translate(*args, **kwargs)
+
+
+def empty_func(*args, **kwargs):
+    pass
