@@ -92,9 +92,6 @@ def test_metric_request_tainted(mock_telemetry_lifecycle_writer):
         tracer = DummyTracer(iast_enabled=True)
 
         with tracer.trace("test", span_type=SpanTypes.WEB) as span:
-            from ddtrace.appsec.iast._taint_tracking import setup
-
-            setup(bytes.join, bytearray.join)
             taint_pyobject(
                 pyobject="bar",
                 source_name="test_string_operator_add_two",
