@@ -25,8 +25,10 @@ def _aux_appsec_get_root_span(
     url="/",
     content_type="text/plain",
     headers=None,
-    cookies={},
+    cookies=None,
 ):
+    if cookies is None:
+        cookies = {}
     tracer._appsec_enabled = config._appsec_enabled
     tracer._iast_enabled = config._iast_enabled
     # Hack: need to pass an argument to configure so that the processors are recreated
@@ -48,10 +50,7 @@ def _aux_appsec_get_root_span(
 
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_django_weak_hash(client, test_spans, tracer):
-    from ddtrace.appsec.iast._taint_tracking import setup
-
     with override_global_config(dict(_appsec_enabled=True, _iast_enabled=True)):
-        setup(bytes.join, bytearray.join)
         oce.reconfigure()
         patch_iast({"weak_hash": True})
         root_span, _ = _aux_appsec_get_root_span(client, test_spans, tracer, url="/appsec/weak-hash/")
@@ -64,12 +63,9 @@ def test_django_weak_hash(client, test_spans, tracer):
 
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_django_tainted_user_agent_iast_enabled(client, test_spans, tracer):
-    from ddtrace.appsec.iast._taint_tracking import setup
-
     with override_global_config(dict(_iast_enabled=True)):
         oce.reconfigure()
         tracer._iast_enabled = True
-        setup(bytes.join, bytearray.join)
 
         root_span, response = _aux_appsec_get_root_span(
             client,
@@ -87,11 +83,8 @@ def test_django_tainted_user_agent_iast_enabled(client, test_spans, tracer):
 
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_django_tainted_user_agent_iast_disabled(client, test_spans, tracer):
-    from ddtrace.appsec.iast._taint_tracking import setup
-
     with override_global_config(dict(_iast_enabled=False)):
         oce.reconfigure()
-        setup(bytes.join, bytearray.join)
 
         root_span, response = _aux_appsec_get_root_span(
             client,
@@ -112,13 +105,9 @@ def test_django_tainted_user_agent_iast_disabled(client, test_spans, tracer):
 @pytest.mark.django_db()
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_django_tainted_user_agent_iast_enabled_sqli_http_request_parameter(client, test_spans, tracer):
-    from ddtrace.appsec.iast._taint_tracking import setup
-
     with override_global_config(dict(_iast_enabled=True)), mock.patch(
         "ddtrace.contrib.dbapi._is_iast_enabled", return_value=True
     ):
-        setup(bytes.join, bytearray.join)
-
         root_span, response = _aux_appsec_get_root_span(
             client,
             test_spans,
@@ -153,13 +142,9 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_request_parameter(clie
 @pytest.mark.django_db()
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_django_tainted_user_agent_iast_enabled_sqli_http_request_header_value(client, test_spans, tracer):
-    from ddtrace.appsec.iast._taint_tracking import setup
-
     with override_global_config(dict(_iast_enabled=True)), mock.patch(
         "ddtrace.contrib.dbapi._is_iast_enabled", return_value=True
     ):
-        setup(bytes.join, bytearray.join)
-
         root_span, response = _aux_appsec_get_root_span(
             client,
             test_spans,
@@ -193,13 +178,9 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_request_header_value(c
 @pytest.mark.django_db()
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_django_tainted_user_agent_iast_disabled_sqli_http_request_header_value(client, test_spans, tracer):
-    from ddtrace.appsec.iast._taint_tracking import setup
-
     with override_global_config(dict(_iast_enabled=False)), mock.patch(
         "ddtrace.contrib.dbapi._is_iast_enabled", return_value=False
     ):
-        setup(bytes.join, bytearray.join)
-
         root_span, response = _aux_appsec_get_root_span(
             client,
             test_spans,
@@ -219,13 +200,9 @@ def test_django_tainted_user_agent_iast_disabled_sqli_http_request_header_value(
 @pytest.mark.django_db()
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_django_tainted_user_agent_iast_enabled_sqli_http_request_header_name(client, test_spans, tracer):
-    from ddtrace.appsec.iast._taint_tracking import setup
-
     with override_global_config(dict(_iast_enabled=True)), mock.patch(
         "ddtrace.contrib.dbapi._is_iast_enabled", return_value=True
     ):
-        setup(bytes.join, bytearray.join)
-
         root_span, response = _aux_appsec_get_root_span(
             client,
             test_spans,
@@ -260,13 +237,9 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_request_header_name(cl
 @pytest.mark.django_db()
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_django_tainted_user_agent_iast_disabled_sqli_http_request_header_name(client, test_spans, tracer):
-    from ddtrace.appsec.iast._taint_tracking import setup
-
     with override_global_config(dict(_iast_enabled=False)), mock.patch(
         "ddtrace.contrib.dbapi._is_iast_enabled", return_value=True
     ):
-        setup(bytes.join, bytearray.join)
-
         root_span, response = _aux_appsec_get_root_span(
             client,
             test_spans,
@@ -286,13 +259,9 @@ def test_django_tainted_user_agent_iast_disabled_sqli_http_request_header_name(c
 @pytest.mark.django_db()
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_django_iast_enabled_full_sqli_http_path_parameter(client, test_spans, tracer):
-    from ddtrace.appsec.iast._taint_tracking import setup
-
     with override_global_config(dict(_iast_enabled=True)), mock.patch(
         "ddtrace.contrib.dbapi._is_iast_enabled", return_value=True
     ):
-        setup(bytes.join, bytearray.join)
-
         root_span, response = _aux_appsec_get_root_span(
             client,
             test_spans,
@@ -326,13 +295,9 @@ def test_django_iast_enabled_full_sqli_http_path_parameter(client, test_spans, t
 @pytest.mark.django_db()
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_django_iast_disabled_full_sqli_http_path_parameter(client, test_spans, tracer):
-    from ddtrace.appsec.iast._taint_tracking import setup
-
     with override_global_config(dict(_iast_enabled=False)), mock.patch(
         "ddtrace.contrib.dbapi._is_iast_enabled", return_value=False
     ):
-        setup(bytes.join, bytearray.join)
-
         root_span, response = _aux_appsec_get_root_span(
             client,
             test_spans,
@@ -350,13 +315,9 @@ def test_django_iast_disabled_full_sqli_http_path_parameter(client, test_spans, 
 @pytest.mark.django_db()
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_django_tainted_user_agent_iast_enabled_sqli_http_cookies_name(client, test_spans, tracer):
-    from ddtrace.appsec.iast._taint_tracking import setup
-
     with override_global_config(dict(_iast_enabled=True)), mock.patch(
         "ddtrace.contrib.dbapi._is_iast_enabled", return_value=True
     ):
-        setup(bytes.join, bytearray.join)
-
         root_span, response = _aux_appsec_get_root_span(
             client,
             test_spans,
@@ -386,13 +347,9 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_cookies_name(client, t
 @pytest.mark.django_db()
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_django_tainted_iast_disabled_sqli_http_cookies_name(client, test_spans, tracer):
-    from ddtrace.appsec.iast._taint_tracking import setup
-
     with override_global_config(dict(_iast_enabled=False)), mock.patch(
         "ddtrace.contrib.dbapi._is_iast_enabled", return_value=False
     ):
-        setup(bytes.join, bytearray.join)
-
         root_span, response = _aux_appsec_get_root_span(
             client,
             test_spans,
@@ -410,13 +367,9 @@ def test_django_tainted_iast_disabled_sqli_http_cookies_name(client, test_spans,
 @pytest.mark.django_db()
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_django_tainted_user_agent_iast_enabled_sqli_http_cookies_value(client, test_spans, tracer):
-    from ddtrace.appsec.iast._taint_tracking import setup
-
     with override_global_config(dict(_iast_enabled=True)), mock.patch(
         "ddtrace.contrib.dbapi._is_iast_enabled", return_value=True
     ):
-        setup(bytes.join, bytearray.join)
-
         root_span, response = _aux_appsec_get_root_span(
             client,
             test_spans,
@@ -445,13 +398,9 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_cookies_value(client, 
 @pytest.mark.django_db()
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_django_tainted_iast_disabled_sqli_http_cookies_value(client, test_spans, tracer):
-    from ddtrace.appsec.iast._taint_tracking import setup
-
     with override_global_config(dict(_iast_enabled=False)), mock.patch(
         "ddtrace.contrib.dbapi._is_iast_enabled", return_value=False
     ):
-        setup(bytes.join, bytearray.join)
-
         root_span, response = _aux_appsec_get_root_span(
             client,
             test_spans,
@@ -476,13 +425,9 @@ def test_django_tainted_iast_disabled_sqli_http_cookies_value(client, test_spans
 @pytest.mark.django_db()
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_django_tainted_user_agent_iast_enabled_sqli_http_body(client, test_spans, tracer, payload, content_type):
-    from ddtrace.appsec.iast._taint_tracking import setup
-
     with override_global_config(dict(_iast_enabled=True)), mock.patch(
         "ddtrace.contrib.dbapi._is_iast_enabled", return_value=True
     ):
-        setup(bytes.join, bytearray.join)
-
         root_span, response = _aux_appsec_get_root_span(
             client,
             test_spans,
@@ -512,13 +457,9 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_body(client, test_span
 @pytest.mark.django_db()
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_django_tainted_iast_disabled_sqli_http_body(client, test_spans, tracer):
-    from ddtrace.appsec.iast._taint_tracking import setup
-
     with override_global_config(dict(_iast_enabled=False)), mock.patch(
         "ddtrace.contrib.dbapi._is_iast_enabled", return_value=False
     ):
-        setup(bytes.join, bytearray.join)
-
         root_span, response = _aux_appsec_get_root_span(
             client,
             test_spans,
@@ -536,13 +477,9 @@ def test_django_tainted_iast_disabled_sqli_http_body(client, test_spans, tracer)
 
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_querydict_django_with_iast(client, test_spans, tracer):
-    from ddtrace.appsec.iast._taint_tracking import setup
-
     with override_global_config(dict(_iast_enabled=True)), mock.patch(
         "ddtrace.contrib.dbapi._is_iast_enabled", return_value=False
     ):
-        setup(bytes.join, bytearray.join)
-
         root_span, response = _aux_appsec_get_root_span(
             client,
             test_spans,

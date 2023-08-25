@@ -12,13 +12,9 @@ from tests.utils import TracerTestCase
 
 class TestTracedCursor(TracerTestCase):
     def setUp(self):
-        from ddtrace.appsec.iast._taint_tracking import setup
-
         super(TestTracedCursor, self).setUp()
         self.cursor = mock.Mock()
-        setattr(self.cursor.execute, "__name__", "execute")
-
-        setup(bytes.join, bytearray.join)
+        self.cursor.execute.__name__ = "execute"
 
     @pytest.mark.skipif(not _is_python_version_supported(), reason="IAST compatible versions")
     def test_tainted_query(self):

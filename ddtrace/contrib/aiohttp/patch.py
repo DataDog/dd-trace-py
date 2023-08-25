@@ -129,7 +129,7 @@ def patch():
 
     _patch_client(aiohttp)
 
-    setattr(aiohttp, "_datadog_patch", True)
+    aiohttp._datadog_patch = True
 
 
 def _unpatch_client(aiohttp):
@@ -145,4 +145,4 @@ def unpatch():
 
     _unpatch_client(aiohttp)
 
-    setattr(aiohttp, "_datadog_patch", False)
+    aiohttp._datadog_patch = False
