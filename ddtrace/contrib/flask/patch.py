@@ -26,7 +26,6 @@ from ddtrace import Pin
 from ddtrace import config
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
-from .. import trace_utils
 from ...contrib.wsgi.wsgi import _DDWSGIMiddlewareBase
 from ...internal.logger import get_logger
 from ...internal.utils import get_argument_value
@@ -155,24 +154,23 @@ def patch():
     Pin().onto(flask.Flask)
     core.dispatch("flask.patch", [flask_version])
     # flask.app.Flask methods that have custom tracing (add metadata, wrap functions, etc)
-    _w("flask", "Flask.wsgi_app", traced_wsgi_app)
-    _w("flask", "Flask.dispatch_request", request_tracer("dispatch_request"))
-    _w("flask", "Flask.preprocess_request", request_tracer("preprocess_request"))
-    _w("flask", "Flask.add_url_rule", traced_add_url_rule)
-    _w("flask", "Flask.endpoint", traced_endpoint)
+    _w("flask", "Flask.wsgi_app", patched_wsgi_app)
+    _w("flask", "Flask.dispatch_request", request_patcher("dispatch_request"))
+    _w("flask", "Flask.preprocess_request", request_patcher("preprocess_request"))
+    _w("flask", "Flask.add_url_rule", patched_add_url_rule)
+    _w("flask", "Flask.endpoint", patched_endpoint)
 
-    _w("flask", "Flask.finalize_request", traced_finalize_request)
+    _w("flask", "Flask.finalize_request", patched_finalize_request)
 
     if flask_version >= (2, 0, 0):
-        _w("flask", "Flask.register_error_handler", traced_register_error_handler)
+        _w("flask", "Flask.register_error_handler", patched_register_error_handler)
     else:
-        _w("flask", "Flask._register_error_handler", traced__register_error_handler)
+        _w("flask", "Flask._register_error_handler", patched__register_error_handler)
 
     # flask.blueprints.Blueprint methods that have custom tracing (add metadata, wrap functions, etc)
-    _w("flask", "Blueprint.register", traced_blueprint_register)
-    _w("flask", "Blueprint.add_url_rule", traced_blueprint_add_url_rule)
+    _w("flask", "Blueprint.register", patched_blueprint_register)
+    _w("flask", "Blueprint.add_url_rule", patched_blueprint_add_url_rule)
 
-    # flask.app.Flask traced hook decorators
     flask_hooks = [
         "before_request",
         "after_request",
@@ -183,10 +181,9 @@ def patch():
         flask_hooks.append("before_first_request")
 
     for hook in flask_hooks:
-        _w("flask", "Flask.{}".format(hook), traced_flask_hook)
-    _w("flask", "after_this_request", traced_flask_hook)
+        _w("flask", "Flask.{}".format(hook), patched_flask_hook)
+    _w("flask", "after_this_request", patched_flask_hook)
 
-    # flask.app.Flask traced methods
     flask_app_traces = [
         "process_response",
         "handle_exception",
@@ -205,14 +202,12 @@ def patch():
     _w("flask", "send_file", simple_tracer("flask.send_file"))
 
     # flask.json.jsonify
-    _w("flask", "jsonify", traced_jsonify)
+    _w("flask", "jsonify", patched_jsonify)
 
-    # flask.templating traced functions
-    _w("flask.templating", "_render", traced_render)
-    _w("flask", "render_template", traced_render_template)
-    _w("flask", "render_template_string", traced_render_template_string)
+    _w("flask.templating", "_render", patched_render)
+    _w("flask", "render_template", _build_render_template_wrapper("render_template"))
+    _w("flask", "render_template_string", _build_render_template_wrapper("render_template_string"))
 
-    # flask.blueprints.Blueprint traced hook decorators
     bp_hooks = [
         "after_app_request",
         "after_request",
@@ -225,9 +220,8 @@ def patch():
         bp_hooks.append("before_app_first_request")
 
     for hook in bp_hooks:
-        _w("flask", "Blueprint.{}".format(hook), traced_flask_hook)
+        _w("flask", "Blueprint.{}".format(hook), patched_flask_hook)
 
-    # flask.signals signals
     if config.flask["trace_signals"]:
         signals = [
             "template_rendered",
@@ -258,7 +252,7 @@ def patch():
                 module = "flask.signals"
 
             # DEV: Patch `receivers_for` instead of `connect` to ensure we don't mess with `disconnect`
-            _w(module, "{}.receivers_for".format(signal), traced_signal_receivers_for(signal))
+            _w(module, "{}.receivers_for".format(signal), patched_signal_receivers_for(signal))
 
 
 def unpatch():
@@ -355,12 +349,8 @@ def unpatch():
 
 
 @with_instance_pin
-def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
-    """
-    Wrapper for flask.app.Flask.wsgi_app
-
-    This wrapper is the starting point for all requests.
-    """
+def patched_wsgi_app(pin, wrapped, instance, args, kwargs):
+    # This wrapper is the starting point for all requests.
     # DEV: This is safe before this is the args for a WSGI handler
     #   https://www.python.org/dev/peps/pep-3333/
     environ, start_response = args
@@ -368,7 +358,7 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
     return middleware(environ, start_response)
 
 
-def traced_finalize_request(wrapped, instance, args, kwargs):
+def patched_finalize_request(wrapped, instance, args, kwargs):
     """
     Wrapper for flask.app.Flask.finalize_request
     """
@@ -377,7 +367,7 @@ def traced_finalize_request(wrapped, instance, args, kwargs):
     return rv
 
 
-def traced_blueprint_register(wrapped, instance, args, kwargs):
+def patched_blueprint_register(wrapped, instance, args, kwargs):
     """
     Wrapper for flask.blueprints.Blueprint.register
 
@@ -394,7 +384,7 @@ def traced_blueprint_register(wrapped, instance, args, kwargs):
     return wrapped(*args, **kwargs)
 
 
-def traced_blueprint_add_url_rule(wrapped, instance, args, kwargs):
+def patched_blueprint_add_url_rule(wrapped, instance, args, kwargs):
     pin = Pin._find(wrapped, instance)
     if not pin:
         return wrapped(*args, **kwargs)
@@ -407,7 +397,7 @@ def traced_blueprint_add_url_rule(wrapped, instance, args, kwargs):
     return _wrap(*args, **kwargs)
 
 
-def traced_add_url_rule(wrapped, instance, args, kwargs):
+def patched_add_url_rule(wrapped, instance, args, kwargs):
     """Wrapper for flask.app.Flask.add_url_rule to wrap all views attached to this app"""
 
     def _wrap(rule, endpoint=None, view_func=None, **kwargs):
@@ -421,7 +411,7 @@ def traced_add_url_rule(wrapped, instance, args, kwargs):
     return _wrap(*args, **kwargs)
 
 
-def traced_endpoint(wrapped, instance, args, kwargs):
+def patched_endpoint(wrapped, instance, args, kwargs):
     """Wrapper for flask.app.Flask.endpoint to ensure all endpoints are wrapped"""
     endpoint = kwargs.get("endpoint", args[0])
 
@@ -432,8 +422,7 @@ def traced_endpoint(wrapped, instance, args, kwargs):
     return _wrapper
 
 
-def traced_flask_hook(wrapped, instance, args, kwargs):
-    """Wrapper for hook functions (before_request, after_request, etc) are properly traced"""
+def patched_flask_hook(wrapped, instance, args, kwargs):
     func = get_argument_value(args, kwargs, 0, "f")
     return wrapped(wrap_function(instance, func))
 
@@ -461,7 +450,7 @@ def _build_render_template_wrapper(name):
     return traced_render
 
 
-def traced_render(wrapped, instance, args, kwargs):
+def patched_render(wrapped, instance, args, kwargs):
     """
     Wrapper for flask.templating._render
 
@@ -482,18 +471,14 @@ def traced_render(wrapped, instance, args, kwargs):
     return _wrap(*args, **kwargs)
 
 
-def traced__register_error_handler(wrapped, instance, args, kwargs):
-    """Wrapper to trace all functions registered with flask.app._register_error_handler"""
-
+def patched__register_error_handler(wrapped, instance, args, kwargs):
     def _wrap(key, code_or_exception, f):
         return wrapped(key, code_or_exception, wrap_function(instance, f))
 
     return _wrap(*args, **kwargs)
 
 
-def traced_register_error_handler(wrapped, instance, args, kwargs):
-    """Wrapper to trace all functions registered with flask.app.register_error_handler"""
-
+def patched_register_error_handler(wrapped, instance, args, kwargs):
     def _wrap(code_or_exception, f):
         return wrapped(code_or_exception, wrap_function(instance, f))
 
@@ -501,45 +486,30 @@ def traced_register_error_handler(wrapped, instance, args, kwargs):
 
 
 def _block_request_callable(call):
-    request = flask.request
     core.set_item(HTTP_REQUEST_BLOCKED, STATUS_403_TYPE_AUTO)
     core.dispatch("flask.blocked_request_callable", [call])
-    ctype = "text/html" if "text/html" in request.headers.get("Accept", "").lower() else "text/json"
+    ctype = "text/html" if "text/html" in flask.request.headers.get("Accept", "").lower() else "text/json"
     abort(flask.Response(http_utils._get_blocked_template(ctype), content_type=ctype, status=403))
 
 
-def request_tracer(name):
+def request_patcher(name):
     @with_instance_pin
-    def _traced_request(pin, wrapped, instance, args, kwargs):
-        """
-        Wrapper to trace a Flask function while trying to extract endpoint information
-          (endpoint, url_rule, view_args, etc)
-
-        This wrapper will add identifier tags to the current span from `flask.app.Flask.wsgi_app`.
-        """
-        current_span = pin.tracer.current_span()
-        if not pin.enabled or not current_span:
-            return wrapped(*args, **kwargs)
-
+    def _patched_request(pin, wrapped, instance, args, kwargs):
         with core.context_with_data(
-            "flask._traced_request",
+            "flask._patched_request",
             name=".".join(("flask", name)),
-            service=trace_utils.int_service(pin, config.flask, pin),
             pin=pin,
             flask_config=config.flask,
             flask_request=flask.request,
-            current_span=current_span,
             block_request_callable=_block_request_callable,
             ignored_exception_type=NotFound,
         ) as ctx, ctx.get_item("flask_request_span"):
             return wrapped(*args, **kwargs)
 
-    return _traced_request
+    return _patched_request
 
 
-def traced_signal_receivers_for(signal):
-    """Wrapper for flask.signals.{signal}.receivers_for to ensure all signal receivers are traced"""
-
+def patched_signal_receivers_for(signal):
     def outer(wrapped, instance, args, kwargs):
         sender = get_argument_value(args, kwargs, 0, "sender")
         # See if they gave us the flask.app.Flask as the sender
@@ -552,7 +522,7 @@ def traced_signal_receivers_for(signal):
     return outer
 
 
-def traced_jsonify(wrapped, instance, args, kwargs):
+def patched_jsonify(wrapped, instance, args, kwargs):
     pin = Pin._find(wrapped, instance, get_current_app())
     if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)

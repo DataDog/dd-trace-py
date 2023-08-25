@@ -27,6 +27,20 @@ You may also enable Flask tracing automatically via ddtrace-run::
 
     ddtrace-run python app.py
 
+Note that if you are using IAST/Custom Code to detect vulnerabilities (`DD_IAST_ENABLED=1`)
+and your main `app.py` file contains code outside the `app.run()` call (e.g. routes or
+utility functions) you will need to import and call `ddtrace_iast_flask_patch()` before
+the `app.run()` to ensure the code inside the main module is patched to propagation works:
+
+    from flask import Flask
+    from ddtrace.appsec.iast import ddtrace_iast_flask_patch
+
+    app = Flask(__name__)
+
+    if __name__ == '__main__':
+        ddtrace_iast_flask_patch()
+        app.run()
+
 
 Configuration
 ~~~~~~~~~~~~~

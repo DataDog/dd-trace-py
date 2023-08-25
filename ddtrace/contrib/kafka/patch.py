@@ -27,6 +27,10 @@ from ddtrace.pin import Pin
 
 _Producer = confluent_kafka.Producer
 _Consumer = confluent_kafka.Consumer
+_SerializingProducer = confluent_kafka.SerializingProducer if hasattr(confluent_kafka, "SerializingProducer") else None
+_DeserializingConsumer = (
+    confluent_kafka.DeserializingConsumer if hasattr(confluent_kafka, "DeserializingConsumer") else None
+)
 
 
 config._add(
@@ -81,6 +85,10 @@ def patch():
 
     confluent_kafka.Producer = TracedProducer
     confluent_kafka.Consumer = TracedConsumer
+    if _SerializingProducer is not None:
+        confluent_kafka.SerializingProducer = TracedProducer
+    if _DeserializingConsumer is not None:
+        confluent_kafka.DeserializingConsumer = TracedConsumer
 
     trace_utils.wrap(TracedProducer, "produce", traced_produce)
     trace_utils.wrap(TracedConsumer, "poll", traced_poll)
@@ -102,6 +110,10 @@ def unpatch():
 
     confluent_kafka.Producer = _Producer
     confluent_kafka.Consumer = _Consumer
+    if _SerializingProducer is not None:
+        confluent_kafka.SerializingProducer = _SerializingProducer
+    if _DeserializingConsumer is not None:
+        confluent_kafka.DeserializingConsumer = _DeserializingConsumer
 
 
 def traced_produce(func, instance, args, kwargs):
