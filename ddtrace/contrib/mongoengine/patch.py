@@ -8,6 +8,7 @@ _connect = mongoengine.connect
 
 
 def get_version():
+    # type: () -> str
     return getattr(mongoengine, "__version__", "")
 
 

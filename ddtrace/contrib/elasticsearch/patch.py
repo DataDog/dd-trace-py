@@ -1,4 +1,5 @@
 from importlib import import_module
+from typing import List
 
 from ddtrace import config
 from ddtrace._tracing import _limits
@@ -60,10 +61,12 @@ def get_version_tuple(elasticsearch):
 
 
 def get_version():
+    # type: () -> str
     return ""
 
 
 def get_versions():
+    # type: () -> List[str]
     return versions
 
 

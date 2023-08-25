@@ -27,6 +27,7 @@ class PathTraversal(VulnerabilityBase):
 
 
 def get_version():
+    # type: () -> str
     return ""
 
 

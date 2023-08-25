@@ -57,6 +57,7 @@ config._add(
 
 
 def get_version():
+    # type: () -> str
     return aiobotocore_version_str
 
 

@@ -35,6 +35,7 @@ HTTPX_VERSION = parse_version(httpx.__version__)
 
 
 def get_version():
+    # type: () -> str
     return getattr(httpx, "__version__", "")
 
 

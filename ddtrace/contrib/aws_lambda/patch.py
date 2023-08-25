@@ -16,6 +16,7 @@ from ._cold_start import set_cold_start
 
 
 def get_version():
+    # type: () -> str
     return ""
 
 

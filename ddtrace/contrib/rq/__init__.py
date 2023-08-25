@@ -115,6 +115,7 @@ config._add(
 
 
 def get_version():
+    # type: () -> str
     import rq
 
     return str(getattr(rq, "__version__", ""))

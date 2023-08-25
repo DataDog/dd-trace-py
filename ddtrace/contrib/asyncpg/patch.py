@@ -46,6 +46,7 @@ log = get_logger(__name__)
 
 
 def get_version():
+    # type: () -> str
     return getattr(asyncpg, "__version__", "")
 
 

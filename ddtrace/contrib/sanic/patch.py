@@ -29,6 +29,7 @@ SANIC_VERSION = (0, 0, 0)
 
 
 def get_version():
+    # type: () -> str
     return getattr(sanic, "__version__", "")
 
 

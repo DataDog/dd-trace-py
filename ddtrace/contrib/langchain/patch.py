@@ -41,6 +41,7 @@ log = get_logger(__name__)
 
 
 def get_version():
+    # type: () -> str
     return getattr(langchain, "__version__", "")
 
 

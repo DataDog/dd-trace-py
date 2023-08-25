@@ -26,6 +26,7 @@ DD_PATCH = "_datadog_patch"
 
 
 def get_version():
+    # type: () -> str
     try:
         import importlib.metadata as importlib_metadata
     except ImportError:

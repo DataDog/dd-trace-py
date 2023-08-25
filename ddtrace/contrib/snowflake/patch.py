@@ -29,6 +29,7 @@ config._add(
 
 
 def get_version():
+    # type: () -> str
     try:
         import snowflake.connector as c
     except AttributeError:

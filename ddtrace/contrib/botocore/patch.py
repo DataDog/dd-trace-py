@@ -88,6 +88,7 @@ config._add(
 
 
 def get_version():
+    # type: () -> str
     return __version__
 
 

@@ -34,6 +34,7 @@ CONTACT_POINTS = "flask_cache.contact_points"
 
 
 def get_version():
+    # type: () -> str
     try:
         import flask_caching
 

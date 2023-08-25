@@ -8,6 +8,7 @@ _Client = pylibmc.Client
 
 
 def get_version():
+    # type: () -> str
     return getattr(pylibmc, "__version__", "")
 
 

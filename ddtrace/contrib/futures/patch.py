@@ -8,6 +8,7 @@ from .threading import _wrap_submit
 
 
 def get_version():
+    # type: () -> str
     return ""
 
 

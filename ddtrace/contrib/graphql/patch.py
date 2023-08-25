@@ -54,6 +54,7 @@ else:
 
 
 def get_version():
+    # type: () -> str
     return _graphql_version_str
 
 

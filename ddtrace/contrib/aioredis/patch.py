@@ -45,6 +45,7 @@ aioredis_version = tuple([int(i) for i in aioredis_version_str.split(".")])
 
 
 def get_version():
+    # type: () -> str
     return aioredis_version_str
 
 

@@ -23,6 +23,7 @@ config._add(
 
 
 def get_version():
+    # type: () -> str
     return getattr(falcon, "__version__", "")
 
 

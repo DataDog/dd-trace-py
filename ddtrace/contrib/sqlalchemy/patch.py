@@ -7,6 +7,7 @@ from .engine import _wrap_create_engine
 
 
 def get_version():
+    # type: () -> str
     return getattr(sqlalchemy, "__version__", "")
 
 

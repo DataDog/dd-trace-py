@@ -15,6 +15,7 @@ _DEFAULT_ATTR = "_datadog_json_tainting_patch"
 
 
 def get_version():
+    # type: () -> str
     return ""
 
 

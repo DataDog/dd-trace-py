@@ -22,6 +22,7 @@ _lock_ctor = dogpile_lock.Lock.__init__
 
 
 def get_version():
+    # type: () -> str
     return getattr(dogpile_cache, "__version__", "")
 
 

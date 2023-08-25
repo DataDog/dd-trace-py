@@ -9,6 +9,7 @@ from .wrappers import wrapped_create_task
 
 
 def get_version():
+    # type: () -> str
     return ""
 
 

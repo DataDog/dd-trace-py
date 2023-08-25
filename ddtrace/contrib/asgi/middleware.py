@@ -42,6 +42,7 @@ ASGI_SPEC_VERSION = "asgi.spec_version"
 
 
 def get_version():
+    # type: () -> str
     return ""
 
 

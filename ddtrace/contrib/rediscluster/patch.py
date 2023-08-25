@@ -40,6 +40,7 @@ config._add(
 
 
 def get_version():
+    # type: () -> str
     return getattr(rediscluster, "__version__", "")
 
 

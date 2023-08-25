@@ -13,6 +13,7 @@ from ddtrace.vendor import wrapt
 
 
 def get_version():
+    # type: () -> str
     return getattr(aiopg, "__version__", "")
 
 

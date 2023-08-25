@@ -32,6 +32,7 @@ except ImportError:
 
 
 def get_version():
+    # type: () -> str
     return VERSION
 
 

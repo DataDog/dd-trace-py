@@ -1,6 +1,7 @@
 from importlib import import_module
 import inspect
 import os
+from typing import List
 
 from ddtrace import Pin
 from ddtrace import config
@@ -75,6 +76,7 @@ config._add(
 
 
 def get_version():
+    # type: () -> str
     return ""
 
 
@@ -82,6 +84,7 @@ PATCHED_VERSIONS = {}
 
 
 def get_versions():
+    # type: () -> List[str]
     return PATCHED_VERSIONS
 
 

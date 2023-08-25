@@ -16,6 +16,7 @@ from .constants import DEFAULT_TEMPLATE_NAME
 
 
 def get_version():
+    # type: () -> str
     return getattr(mako, "__version__", "")
 
 

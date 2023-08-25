@@ -23,6 +23,7 @@ _KV_FUNCS = ["put", "get", "delete"]
 
 
 def get_version():
+    # type: () -> str
     return getattr(consul, "__version__", "")
 
 

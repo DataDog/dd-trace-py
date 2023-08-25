@@ -35,6 +35,7 @@ config._add(
 
 
 def get_version():
+    # type: () -> str
     try:
         import importlib.metadata as importlib_metadata
     except ImportError:

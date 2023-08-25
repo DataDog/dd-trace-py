@@ -45,6 +45,7 @@ config._add(
 
 
 def get_version():
+    # type: () -> str
     return aiohttp.__version__
 
 

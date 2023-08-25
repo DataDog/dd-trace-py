@@ -60,6 +60,7 @@ def unpatch_iast():
 
 
 def get_version():
+    # type: () -> str
     return ""
 
 
