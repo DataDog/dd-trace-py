@@ -8,7 +8,7 @@ import pymongo
 from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.pymongo.client import normalize_filter
-from ddtrace.contrib.pymongo.patch import CHECKOUT_FN_NAME
+from ddtrace.contrib.pymongo.patch import _CHECKOUT_FN_NAME
 from ddtrace.contrib.pymongo.patch import patch
 from ddtrace.contrib.pymongo.patch import unpatch
 from ddtrace.ext import SpanTypes
@@ -753,7 +753,7 @@ class TestPymongoSocketTracing(TracerTestCase):
 
     @staticmethod
     def check_socket_metadata(span):
-        assert span.name == "pymongo.%s" % CHECKOUT_FN_NAME
+        assert span.name == "pymongo.%s" % _CHECKOUT_FN_NAME
         assert span.service == "pymongo"
         assert span.span_type == SpanTypes.MONGODB
         assert span.get_tag("out.host") == "localhost"
@@ -821,8 +821,8 @@ class TestPymongoSocketTracing(TracerTestCase):
             # run_operation_with_response() which takes as an argument a sock_info. The
             # lib now first calls get_socket() and then run_operation_with_response(sock_info),
             # which makes more sense and also allows us to trace the function correctly.
-            assert {first_span.name, second_span.name} == {"pymongo.cmd", "pymongo.%s" % CHECKOUT_FN_NAME}
-            if first_span.name == "pymongo.%s" % CHECKOUT_FN_NAME:
+            assert {first_span.name, second_span.name} == {"pymongo.cmd", "pymongo.%s" % _CHECKOUT_FN_NAME}
+            if first_span.name == "pymongo.%s" % _CHECKOUT_FN_NAME:
                 self.check_socket_metadata(first_span)
             else:
                 self.check_socket_metadata(second_span)
