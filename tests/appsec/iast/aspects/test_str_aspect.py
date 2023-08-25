@@ -88,19 +88,19 @@ class TestOperatorsReplacement(BaseReplacement):
 
     def test_zfill(self):
         # Not tainted
-        string_input = '-1234'
+        string_input = "-1234"
         res = mod.do_zfill(string_input, 6)  # pylint: disable=no-member
-        assert as_formatted_evidence(res) == '-01234'
+        assert as_formatted_evidence(res) == "-01234"
 
         # Tainted
-        string_input = create_taint_range_with_format(':+--12-+:34')
+        string_input = create_taint_range_with_format(":+--12-+:34")
         res = mod.do_zfill(string_input, 6)  # pylint: disable=no-member
-        assert as_formatted_evidence(res) == ':+---+:0:+-12-+:34'
+        assert as_formatted_evidence(res) == ":+---+:0:+-12-+:34"
 
-        string_input = create_taint_range_with_format(':+-+12-+:34')
+        string_input = create_taint_range_with_format(":+-+12-+:34")
         res = mod.do_zfill(string_input, 7)  # pylint: disable=no-member
-        assert as_formatted_evidence(res) == ':+-+-+:00:+-12-+:34'
+        assert as_formatted_evidence(res) == ":+-+-+:00:+-12-+:34"
 
-        string_input = create_taint_range_with_format(':+-012-+:34')
+        string_input = create_taint_range_with_format(":+-012-+:34")
         res = mod.do_zfill(string_input, 7)  # pylint: disable=no-member
-        assert as_formatted_evidence(res) == '00:+-012-+:34'
+        assert as_formatted_evidence(res) == "00:+-012-+:34"
