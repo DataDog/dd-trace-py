@@ -152,7 +152,7 @@ def add_skip_test_wrapper(func, instance, args, kwargs):
 def start_test_wrapper_unittest(func, instance, args, kwargs):
     if is_unittest_support_enabled():
         tracer = getattr(unittest, "_datadog_tracer", _CIVisibility._instance.tracer)
-        span = tracer._start_span(
+        span = tracer.trace(
             ddtrace.config.unittest.operation_name,
             service=_CIVisibility._instance._service,
             resource="unittest.test",
