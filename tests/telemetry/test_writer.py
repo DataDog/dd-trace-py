@@ -91,7 +91,7 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
             {"name": "DD_TRACE_ENABLED", "origin": "unknown", "value": True},
             {"name": "DD_TRACE_HEALTH_METRICS_ENABLED", "origin": "unknown", "value": False},
             {
-                "name": "DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN",
+                "name": "DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP",
                 "origin": "unknown",
                 "value": "(?i)(?:p(?:ass)?w(?:or)?d|pass(?:_?phrase)?|secret|(?:api_?|private_?"
                 "|public_?|access_?|secret_?)key(?:_?id)?|token|consumer_?(?:id|key|secret)|sign"
@@ -160,7 +160,7 @@ telemetry_writer.disable()
     env["DD_TRACE_DEBUG"] = "True"
     env["DD_TRACE_ENABLED"] = "False"
     env["DD_TRACE_HEALTH_METRICS_ENABLED"] = "True"
-    env["DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN"] = ".*"
+    env["DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP"] = ".*"
     env["DD_TRACE_OTEL_ENABLED"] = "True"
     env["DD_TRACE_PROPAGATION_STYLE_EXTRACT"] = "tracecontext"
     env["DD_TRACE_PROPAGATION_STYLE_INJECT"] = "tracecontext"
@@ -209,7 +209,7 @@ telemetry_writer.disable()
         {"name": "DD_TRACE_DEBUG", "origin": "unknown", "value": True},
         {"name": "DD_TRACE_ENABLED", "origin": "unknown", "value": False},
         {"name": "DD_TRACE_HEALTH_METRICS_ENABLED", "origin": "unknown", "value": True},
-        {"name": "DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN", "origin": "unknown", "value": ".*"},
+        {"name": "DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP", "origin": "unknown", "value": ".*"},
         {"name": "DD_TRACE_OTEL_ENABLED", "origin": "unknown", "value": True},
         {"name": "DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED", "origin": "unknown", "value": True},
         {"name": "DD_TRACE_PEER_SERVICE_MAPPING", "origin": "unknown", "value": "default_service:remapped_service"},
