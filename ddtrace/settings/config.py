@@ -33,15 +33,47 @@ from .integration import IntegrationConfig
 log = get_logger(__name__)
 
 
-DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN_DEFAULT = (
-    r"(?i)(?:p(?:ass)?w(?:or)?d|pass(?:_?phrase)?|secret|(?:api_?|"
-    r"private_?|public_?|access_?|secret_?)key(?:_?id)?|token|consumer_?(?:id|key|secret)|"
-    r'sign(?:ed|ature)?|auth(?:entication|orization)?)(?:(?:\s|%20)*(?:=|%3D)[^&]+|(?:"|%22)'
-    r'(?:\s|%20)*(?::|%3A)(?:\s|%20)*(?:"|%22)(?:%2[^2]|%[^2]|[^"%])+(?:"|%22))|bearer(?:\s|%20)'
-    r"+[a-z0-9\._\-]|token(?::|%3A)[a-z0-9]{13}|gh[opsu]_[0-9a-zA-Z]{36}|ey[I-L](?:[\w=-]|%3D)+\.ey[I-L]"
-    r"(?:[\w=-]|%3D)+(?:\.(?:[\w.+\/=-]|%3D|%2F|%2B)+)?|[\-]{5}BEGIN(?:[a-z\s]|%20)+"
-    r"PRIVATE(?:\s|%20)KEY[\-]{5}[^\-]+[\-]{5}END(?:[a-z\s]|%20)+PRIVATE(?:\s|%20)KEY|"
-    r"ssh-rsa(?:\s|%20)*(?:[a-z0-9\/\.+]|%2F|%5C|%2B){100,}"
+DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT = (
+    r"(?ix)"
+    r"(?:"  # JSON-ish leading quote
+    r'(?:"|%22)?'
+    r")"
+    r"(?:"  # common keys"
+    r"(?:old[-_]?|new[-_]?)?p(?:ass)?w(?:or)?d(?:1|2)?"  # pw, password variants
+    r"|pass(?:[-_]?phrase)?"  # pass, passphrase variants
+    r"|secret"
+    r"|(?: # key, key_id variants"
+    r"api[-_]?"
+    r"|private[-_]?"
+    r"|public[-_]?"
+    r"|access[-_]?"
+    r"|secret[-_]?"
+    r")key(?:[-_]?id)?"
+    r"|token"
+    r"|consumer[-_]?(?:id|key|secret)"
+    r"|sign(?:ed|ature)?"
+    r"|auth(?:entication|orization)?"
+    r")"
+    r"(?:"
+    # '=' query string separator, plus value til next '&' separator
+    r"(?:\s|%20)*(?:=|%3D)[^&]+"
+    # JSON-ish '": "somevalue"', key being handled with case above, without the opening '"'
+    r'|(?:"|%22)'  # closing '"' at end of key
+    r"(?:\s|%20)*(?::|%3A)(?:\s|%20)*"  # ':' key-value separator, with surrounding spaces
+    r'(?:"|%22)'  # opening '"' at start of value
+    r'(?:%2[^2]|%[^2]|[^"%])+'  # value
+    r'(?:"|%22)'  # closing '"' at end of value
+    r")"
+    r"|(?:"  # other common secret values
+    r" bearer(?:\s|%20)+[a-z0-9._\-]+"
+    r"|token(?::|%3A)[a-z0-9]{13}"
+    r"|gh[opsu]_[0-9a-zA-Z]{36}"
+    r"|ey[I-L](?:[\w=-]|%3D)+\.ey[I-L](?:[\w=-]|%3D)+(?:\.(?:[\w.+/=-]|%3D|%2F|%2B)+)?"
+    r"|-{5}BEGIN(?:[a-z\s]|%20)+PRIVATE(?:\s|%20)KEY-{5}[^\-]+-{5}END"
+    r"(?:[a-z\s]|%20)+PRIVATE(?:\s|%20)KEY(?:-{5})?(?:\n|%0A)?"
+    r"|(?:ssh-(?:rsa|dss)|ecdsa-[a-z0-9]+-[a-z0-9]+)(?:\s|%20|%09)+(?:[a-z0-9/.+]"
+    r"|%2F|%5C|%2B){100,}(?:=|%3D)*(?:(?:\s|%20|%09)+[a-z0-9._-]+)?"
+    r")"
 )
 
 
@@ -314,7 +346,7 @@ class Config(object):
             pass
 
         dd_trace_obfuscation_query_string_pattern = os.getenv(
-            "DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN", DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN_DEFAULT
+            "DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP", DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
         )
         self.global_query_string_obfuscation_disabled = True  # If empty obfuscation pattern
         self._obfuscation_query_string_pattern = None
