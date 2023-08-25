@@ -1,16 +1,6 @@
 import unittest
 import pytest
-import sys
-import unittest
 
-import pytest
-
-from ddtrace.constants import ERROR_MSG
-from ddtrace.constants import ERROR_TYPE
-from ddtrace.constants import SPAN_KIND
-from ddtrace.contrib.unittest.constants import COMPONENT_VALUE
-from ddtrace.contrib.unittest.constants import FRAMEWORK
-from ddtrace.contrib.unittest.constants import KIND
 from ddtrace.contrib.unittest.patch import _set_tracer
 from ddtrace.contrib.unittest.patch import patch
 from tests.utils import TracerTestCase
