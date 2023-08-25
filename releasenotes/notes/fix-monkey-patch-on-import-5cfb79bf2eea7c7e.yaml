@@ -1,0 +1,5 @@
+---
+issues:
+  - |
+    There are known issues configuring python's builtin multiprocessing library when ddtrace is installed.
+    To use the multiprocessing library with ddtrace ensure ``DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE`` is set to ``True``.
