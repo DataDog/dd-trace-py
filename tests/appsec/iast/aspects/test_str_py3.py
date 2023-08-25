@@ -25,8 +25,6 @@ class TestOperatorsReplacement(BaseReplacement):
 
     def test_string_build_string_tainted(self):  # type: () -> None
         string_input = "foo"
-        assert f"{string_input:<8s}bar" == "foo     bar"
-
         result = mod_py3.do_fmt_value(string_input)  # pylint: disable=no-member
         assert result == "foo     bar"
 
@@ -37,8 +35,6 @@ class TestOperatorsReplacement(BaseReplacement):
 
     def test_string_fstring_tainted(self):
         # type: () -> None
-        a = "foo"
-        assert f"{a!r:}" == "'foo'"
         string_input = "foo"
         result = mod_py3.do_repr_fstring(string_input)
         assert result == "'foo'"
@@ -50,8 +46,6 @@ class TestOperatorsReplacement(BaseReplacement):
 
     def test_string_fstring_with_format_tainted(self):
         # type: () -> None
-        a = "foo"
-        assert f"{a!r:10}" == "'foo'     "
         string_input = "foo"
         result = mod_py3.do_repr_fstring_with_format(string_input)
         assert result == "'foo'     "
@@ -64,7 +58,6 @@ class TestOperatorsReplacement(BaseReplacement):
     def test_string_fstring_repr_str_twice_tainted(self):
         # type: () -> None
         string_input = "foo"
-        assert f"{string_input!r} {string_input!r}" == "'foo' 'foo'"
 
         result = mod_py3.do_repr_fstring_twice(string_input)  # pylint: disable=no-member
         assert result == "'foo' 'foo'"
