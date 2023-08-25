@@ -72,6 +72,7 @@ def new_request(enable_propagation: bool) -> str:
     print_created()
     print("#" * 50)
 
+    # import pdb; pdb.set_trace()
     if ENABLE_TAINTING:
         taint_pyobject_with_ranges(tainted, (CHECK_RANGES[0],))
     print("JJJ get_ranges 3: %s" % get_ranges(tainted))
@@ -115,7 +116,7 @@ def aspect_function(internal_loop: int, tainted: str) -> str:
         # value = res
         # res = add_aspect(res, " ")
         value = res
-        print("JJJ ranges aspect after: %s" % get_ranges(tainted))
+    print("JJJ ranges aspect after: %s" % get_ranges(value))
 
     return value
 
@@ -146,9 +147,9 @@ def main() -> None:
     # repetitions_end = 2
 
     internal_loop = 1
-    caller_loop = 100
+    caller_loop = 1
     repetitions = 0
-    repetitions_end = 10
+    repetitions_end = 2
 
     total_time_normal = 0.0
     total_time_aspect = 0.0
