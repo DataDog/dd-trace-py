@@ -17,20 +17,14 @@ shift_taint_range(const TaintRangePtr& source_taint_range, long offset)
 TaintedObject::TaintedObject() {
     ranges_.reserve(RANGES_INITIAL_RESERVE);
     if (initializer) {
-        std::cerr << "JJJ Creating and accounting for TaintedObject \n";
         initializer->JJJ_num_taintedobjects_created++;
-    } else {
-        std::cerr << "JJJ No initializer created when creating tainted object \n";
     }
 }
 
 
 TaintedObject::~TaintedObject() {
     if (initializer) {
-        std::cerr << "JJJ Destroying and accounting for TaintedObject \n";
         initializer->JJJ_num_taintedobjects_destroyed++;
-    } else {
-        std::cerr << "JJJ No initializer created when destroying tainted object \n";
     }
 }
 

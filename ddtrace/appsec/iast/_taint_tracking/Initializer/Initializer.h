@@ -25,8 +25,7 @@ class Initializer
     py::object pyfunc_get_python_lib;
     unordered_map<size_t, shared_ptr<Context>> contexts;
     static constexpr int TAINTRANGES_STACK_SIZE = 4096;
-//    static constexpr int TAINTEDOBJECTS_STACK_SIZE = 4096;
-    static constexpr int TAINTEDOBJECTS_STACK_SIZE = 2;  // JJJ
+    static constexpr int TAINTEDOBJECTS_STACK_SIZE = 4096;
     static constexpr int SOURCE_STACK_SIZE = 1024;
     stack<TaintedObjectPtr> available_taintedobjects_stack;
     stack<TaintRangePtr> available_ranges_stack;

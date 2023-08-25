@@ -98,6 +98,7 @@ def normal_function(internal_loop: int, tainted: str) -> str:
 def aspect_function(internal_loop: int, tainted: str) -> str:
     value = ''
     res = value
+    print("JJJ ranges aspect start: %s" % get_ranges(tainted))
     for j in range(internal_loop):
         # res = add_aspect(res, join_aspect("_", (tainted, "_", tainted)))
         # value = res
@@ -114,7 +115,7 @@ def aspect_function(internal_loop: int, tainted: str) -> str:
         # value = res
         # res = add_aspect(res, " ")
         value = res
-        print("JJJ ranges 2: %s" % get_ranges(tainted))
+        print("JJJ ranges aspect after: %s" % get_ranges(tainted))
 
     return value
 
@@ -139,15 +140,15 @@ def launch_function(func: Callable, internal_loop: float, caller_loop: int) -> f
 
 
 def main() -> None:
-    internal_loop = 100
-    caller_loop = 100
-    repetitions = 0
-    repetitions_end = 2
-
-    # internal_loop = 1
+    # internal_loop = 100
     # caller_loop = 100
     # repetitions = 0
-    # repetitions_end = 10
+    # repetitions_end = 2
+
+    internal_loop = 1
+    caller_loop = 100
+    repetitions = 0
+    repetitions_end = 10
 
     total_time_normal = 0.0
     total_time_aspect = 0.0

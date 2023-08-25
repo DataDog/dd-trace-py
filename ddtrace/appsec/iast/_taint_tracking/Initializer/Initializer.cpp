@@ -16,20 +16,19 @@ thread_local struct ThreadContextCache_
 Initializer::Initializer()
 {
     // Fill the taintedobjects stack
-//    for (int i = 0; i < TAINTEDOBJECTS_STACK_SIZE; i++) {
-//        std:cerr << "JJJ filling stack, count: " << i << " stack size: " << TAINTEDOBJECTS_STACK_SIZE << "\n";
-//        available_taintedobjects_stack.push(new TaintedObject());
-//    }
+    for (int i = 0; i < TAINTEDOBJECTS_STACK_SIZE; i++) {
+        available_taintedobjects_stack.push(new TaintedObject());
+    }
 
     // Fill the ranges stack
-//    for (int i = 0; i < TAINTRANGES_STACK_SIZE; i++) {
-//        available_ranges_stack.push(make_shared<TaintRange>());
-//    }
-//
-//    // Fill the taint origin stack
-//    for (int i = 0; i < SOURCE_STACK_SIZE; i++) {
-//        available_source_stack.push(new Source());
-//    }
+    for (int i = 0; i < TAINTRANGES_STACK_SIZE; i++) {
+        available_ranges_stack.push(make_shared<TaintRange>());
+    }
+
+    // Fill the taint origin stack
+    for (int i = 0; i < SOURCE_STACK_SIZE; i++) {
+        available_source_stack.push(new Source());
+    }
 }
 
 TaintRangeMapType*

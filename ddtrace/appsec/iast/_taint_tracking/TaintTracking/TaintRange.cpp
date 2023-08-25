@@ -75,17 +75,6 @@ TaintRange::TaintRange(int start, int length, const Source& source)
     initializer->JJJ_num_ranges_created++;
 }
 
-TaintRange::TaintRange() {
-    initializer->JJJ_num_ranges_created++;
-}
-
-TaintRange::~TaintRange() {
-    if (initializer)
-        initializer->JJJ_num_ranges_destroyed++;
-    else
-        std::cerr << "JJJ could not log destroyed taintrange, no initializer\n";
-}
-
 void
 TaintRange::reset()
 {
