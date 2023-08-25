@@ -9,7 +9,11 @@ from ddtrace.internal.compat import PYTHON_VERSION_INFO as PY
 def linenos(f):
     # type: (FunctionType) -> Set[int]
     """Get the line numbers of a function."""
-    ls = {instr.lineno for instr in Bytecode.from_code(f.__code__) if hasattr(instr, "lineno")}
+    ls = {
+        _
+        for _ in (instr.lineno for instr in Bytecode.from_code(f.__code__) if hasattr(instr, "lineno"))
+        if _ is not None
+    }
     if PY >= (3, 11):
         # Python 3.11 has introduced some no-op instructions that are used as
         # part of the specialisation process. These new opcodes appear on a
