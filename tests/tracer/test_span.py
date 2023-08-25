@@ -581,9 +581,7 @@ def test_span_pprint():
     assert "resource='r'" in actual
     assert "type='web'" in actual
     assert "error=0" in actual
-    assert (
-        "tags={'_dd.base_service': '', 't': 'v'}" if six.PY3 else "tags={'_dd.base_service': u'', 't': u'v'}"
-    ) in actual
+    assert ("tags={'t': 'v'}" if six.PY3 else "tags={'t': u'v'}") in actual
     assert "metrics={'m': 1.0}" in actual
     assert re.search("id=[0-9]+", actual) is not None
     assert re.search("trace_id=[0-9]+", actual) is not None

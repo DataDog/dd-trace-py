@@ -14,7 +14,6 @@ import six
 
 from . import config
 from .constants import ANALYTICS_SAMPLE_RATE_KEY
-from .constants import BASE_SERVICE_KEY
 from .constants import ERROR_MSG
 from .constants import ERROR_STACK
 from .constants import ERROR_TYPE
@@ -44,7 +43,6 @@ from .internal.constants import SPAN_API_DATADOG
 from .internal.logger import get_logger
 from .internal.sampling import SamplingMechanism
 from .internal.sampling import update_sampling_decision
-from .internal.schema import schematize_service_name
 
 
 _NUMERIC_TAGS = (ANALYTICS_SAMPLE_RATE_KEY,)
@@ -256,10 +254,6 @@ class Span(object):
         # type: (float) -> None
         self.duration_ns = int(value * 1e9)
 
-    def _set_dd_base_service(self):
-        if self.service not in (None, config.service):
-            self.set_tag(key=BASE_SERVICE_KEY, value=schematize_service_name(config.service or ""))
-
     def finish(self, finish_time=None):
         # type: (Optional[float]) -> None
         """Mark the end time of the span and submit it to the tracer.
@@ -267,7 +261,6 @@ class Span(object):
 
         :param finish_time: The end time of the span, in seconds. Defaults to ``now``.
         """
-        self._set_dd_base_service()
         if finish_time is None:
             self._finish_ns(time_ns())
         else:
