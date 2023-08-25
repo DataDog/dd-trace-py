@@ -250,7 +250,7 @@ def repr_aspect(*args, **kwargs):
             if new_ranges:
                 taint_pyobject_with_ranges(result, tuple(new_ranges))
         except Exception as e:
-            _set_iast_error_metric("IAST propagation error. bytearray_aspect. {}".format(e), traceback.format_exc())
+            _set_iast_error_metric("IAST propagation error. repr_aspect. {}".format(e), traceback.format_exc())
     return result
 
 
