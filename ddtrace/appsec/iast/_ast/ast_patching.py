@@ -3,6 +3,7 @@
 import ast
 import codecs
 import os
+import re
 from sys import builtin_module_names
 from typing import TYPE_CHECKING
 
@@ -102,7 +103,27 @@ def visit_ast(
     return modified_ast
 
 
-def astpatch_module(module):  # type: (ModuleType) -> Tuple[str, str]
+_FLASK_INSTANCE_REGEXP = re.compile(r"(\S*)\s*=.*Flask\(.*")
+
+
+def _remove_flask_run(text):  # type (str) -> str
+    """
+    Find and remove flask app.run() call. This is used for patching
+    the app.py file and exec'ing to replace the module without creating
+    a new instance.
+    """
+    flask_instance_name = re.search(_FLASK_INSTANCE_REGEXP, text)
+    groups = flask_instance_name.groups()
+    if not groups:
+        return text
+
+    instance_name = groups[-1]
+    new_text = re.sub(instance_name + r"\.run\(.*\)", "pass", text)
+    return new_text
+
+
+def astpatch_module(module, remove_flask_run=False):
+    # type: (ModuleType, bool) -> Tuple[str, str]
     module_name = module.__name__
     module_path = origin(module)
     try:
@@ -135,6 +156,9 @@ def astpatch_module(module):  # type: (ModuleType) -> Tuple[str, str]
         # Don't patch empty files like __init__.py
         log.debug("empty file: %s", module_path)
         return "", ""
+
+    if remove_flask_run:
+        source_text = _remove_flask_run(source_text)
 
     new_source = visit_ast(
         source_text,
