@@ -60,8 +60,8 @@ def _extract_module_name_from_test_method(item):
     return getattr(item, "__module__", None)
 
 
-def _extract_test_skip_reason(args):
-    return args[1]
+def _extract_test_skip_reason(item):
+    return item[1]
 
 
 def _extract_test_file_name(item):
@@ -115,29 +115,28 @@ def unpatch():
     _CIVisibility.disable()
 
 
-def _set_test_span_status(args, status):
-    test_item = args[0]
+def _set_test_span_status(test_item, status, reason=None):
     span = _extract_span(test_item)
     if not span:
         return
     span.set_tag_str(test.STATUS, status)
     if status == test.Status.FAIL.value:
-        exc_info = args[1]
+        exc_info = reason
         span.set_exc_info(exc_info[0], exc_info[1], exc_info[2])
     elif status == test.Status.SKIP.value:
-        span.set_tag_str(test.SKIP_REASON, _extract_test_skip_reason(args))
+        span.set_tag_str(test.SKIP_REASON, reason)
 
 
 def add_success_test_wrapper(func, instance, args, kwargs):
     if is_unittest_support_enabled() and _is_valid_result(instance, args):
-        _set_test_span_status(args, test.Status.PASS.value)
+        _set_test_span_status(test_item=args[0], status=test.Status.PASS.value)
 
     return func(*args, **kwargs)
 
 
 def add_failure_test_wrapper(func, instance, args, kwargs):
     if is_unittest_support_enabled() and _is_valid_result(instance, args):
-        _set_test_span_status(args, test.Status.FAIL.value)
+        _set_test_span_status(test_item=args[0], reason=args[1], status=test.Status.FAIL.value)
 
     return func(*args, **kwargs)
 
@@ -145,7 +144,7 @@ def add_failure_test_wrapper(func, instance, args, kwargs):
 def add_skip_test_wrapper(func, instance, args, kwargs):
     result = func(*args, **kwargs)
     if is_unittest_support_enabled() and _is_valid_result(instance, args):
-        _set_test_span_status(args, test.Status.SKIP.value)
+        _set_test_span_status(test_item=args[0], reason=args[1], status=test.Status.SKIP.value)
 
     return result
 
