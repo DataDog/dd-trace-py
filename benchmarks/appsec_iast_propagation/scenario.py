@@ -4,7 +4,6 @@ import bm
 
 from ddtrace.appsec.iast._taint_tracking import contexts_reset
 from ddtrace.appsec.iast._taint_tracking import create_context
-from ddtrace.appsec.iast._taint_tracking import setup
 from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import OriginType
 from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import Source
 from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import TaintRange
@@ -70,7 +69,6 @@ class IastPropagation(bm.Scenario):
     internal_loop = bm.var(type=int)
 
     def run(self):
-        setup(bytes.join, bytearray.join)
         caller_loop = 10
         if self.iast_enabled:
             func = aspect_function

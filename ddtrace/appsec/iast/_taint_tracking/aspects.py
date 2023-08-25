@@ -223,12 +223,18 @@ def format_aspect(
         )
 
         new_args = list(map(fun, args))
-        new_kwargs = {key: fun(value) for key, value in iteritems(kwargs)}
 
-        return _convert_escaped_text_to_tainted_text(
+        new_kwargs = {key: fun(value) for key, value in iteritems(kwargs)}
+        result = _convert_escaped_text_to_tainted_text(
             new_template.format(*new_args, **new_kwargs),
             ranges_orig=ranges_orig,
         )
+        if result != candidate_text.format(*args):
+            raise Exception(
+                "format_aspect result %s is different to candidate_text.format %s"
+                % (result, candidate_text.format(*args))
+            )
+        return result
     except Exception as e:
         _set_iast_error_metric("IAST propagation error. format_aspect. {}".format(e), traceback.format_exc())
         return candidate_text.format(*args, **kwargs)
@@ -290,31 +296,36 @@ def format_value_aspect(
 ):  # type: (...) -> str
 
     if options == 115:
-        new_text = str(element)
+        new_text = str_aspect(element)
     elif options == 114:
         # TODO: use our repr once we have implemented it
-        new_text = repr(element)
+        new_text = repr_aspect(element)
     elif options == 97:
         new_text = ascii(element)
     else:
         new_text = element
+    if not isinstance(new_text, TEXT_TYPES):
+        return new_text
+
     try:
         if format_spec:
             # Apply formatting
-            new_text = format_aspect("{:%s}" % format_spec, new_text)  # type:ignore
+            text_ranges = get_tainted_ranges(new_text)
+            if text_ranges:
+                new_new_text = ("{:%s}" % format_spec).format(new_text)
+                try:
+                    new_ranges = list()
+                    for text_range in text_ranges:
+                        new_ranges.append(shift_taint_range(text_range, new_new_text.index(new_text)))
+                    if new_ranges:
+                        taint_pyobject_with_ranges(new_new_text, tuple(new_ranges))
+                    return new_new_text
+                except ValueError:
+                    return ("{:%s}" % format_spec).format(new_text)
+            else:
+                return ("{:%s}" % format_spec).format(new_text)
         else:
-            new_text = str(new_text)
-
-        # FIXME: can we return earlier here?
-        if not isinstance(new_text, TEXT_TYPES):
-            return new_text
-
-        ranges_new = get_tainted_ranges(new_text) if isinstance(element, TEXT_TYPES) else ()
-        if not ranges_new:
-            return new_text
-
-        taint_pyobject_with_ranges(new_text, ranges_new)
-        return new_text
+            return str_aspect(new_text)
     except Exception as e:
         _set_iast_error_metric("IAST propagation error. format_value_aspect. {}".format(e), traceback.format_exc())
         return new_text
