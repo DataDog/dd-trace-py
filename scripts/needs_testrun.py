@@ -24,8 +24,6 @@ logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
 
 LOGGER = logging.getLogger(__name__)
 
-BASE_BRANCH_PATTERN = re.compile(r':<span class="css-truncate-target">([^<]+)')
-
 
 @cache
 def get_base_branch(pr_number: int) -> str:
@@ -35,9 +33,8 @@ def get_base_branch(pr_number: int) -> str:
     '1.x'
     """
 
-    pr_page_content = urlopen(f"https://github.com/DataDog/dd-trace-py/pull/{pr_number}").read().decode("utf-8")
-
-    return BASE_BRANCH_PATTERN.search(pr_page_content).group(1)
+    response = json.load(urlopen(f"https://api.github.com/repos/datadog/dd-trace-py/pulls/{pr_number}"))
+    return response["base"]["ref"]
 
 
 @cache
