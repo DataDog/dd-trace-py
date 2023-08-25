@@ -33,8 +33,8 @@ config._add(
 def patch():
     wrapped = wrapt.FunctionWrapper(_connect, traced_connect)
 
-    setattr(sqlite3, "connect", wrapped)
-    setattr(sqlite3.dbapi2, "connect", wrapped)
+    sqlite3.connect = wrapped
+    sqlite3.dbapi2.connect = wrapped
 
 
 def unpatch():

@@ -12,6 +12,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal.compat import maybe_stringify
+from ddtrace.internal.compat import nullcontext
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import FLASK_ENDPOINT
 from ddtrace.internal.constants import FLASK_URL_RULE
@@ -70,6 +71,16 @@ class _TracedIterable(wrapt.ObjectProxy):
         return super(_TracedIterable, self).__getattribute__(name)
 
 
+def _cookies_from_response_headers(response_headers):
+    cookies = {}
+    for header_tuple in response_headers:
+        if header_tuple[0] == "Set-Cookie":
+            cookie_tokens = header_tuple[1].split("=", 1)
+            cookies[cookie_tokens[0]] = cookie_tokens[1]
+
+    return cookies
+
+
 def _on_start_response_pre(request, span, flask_config, status_code, headers):
     code, _, _ = status_code.partition(" ")
     # If values are accessible, set the resource as `<method> <path>` and add other request tags
@@ -83,8 +94,14 @@ def _on_start_response_pre(request, span, flask_config, status_code, headers):
     if not span.get_tag(FLASK_ENDPOINT) and not span.get_tag(FLASK_URL_RULE):
         span.resource = " ".join((request.method, code))
 
+    response_cookies = _cookies_from_response_headers(headers)
     trace_utils.set_http_meta(
-        span, flask_config, status_code=code, response_headers=headers, route=span.get_tag(FLASK_URL_RULE)
+        span,
+        flask_config,
+        status_code=code,
+        response_headers=headers,
+        route=span.get_tag(FLASK_URL_RULE),
+        response_cookies=response_cookies,
     )
 
 
@@ -207,7 +224,7 @@ def _on_response_context_started(ctx):
 
 def _on_response_prepared(resp_span, response):
     if hasattr(response, "__class__"):
-        resp_class = getattr(getattr(response, "__class__"), "__name__", None)
+        resp_class = getattr(response.__class__, "__name__", None)
         if resp_class:
             resp_span.set_tag_str("result_class", resp_class)
 
@@ -249,10 +266,24 @@ def _set_request_tags(request, span, flask_config):
 
 
 def _on_traced_request_context_started_flask(ctx):
-    _set_request_tags(ctx.get_item("flask_request"), ctx.get_item("current_span"), ctx.get_item("flask_config"))
-    request_span = ctx.get_item("pin").tracer.trace(ctx.get_item("name"), service=ctx.get_item("service"))
+    """
+    trace a Flask function while trying to extract endpoint information (endpoint, url_rule, view_args, etc)
+
+    This wrapper will add identifier tags to the current span from `flask.app.Flask.wsgi_app`.
+    """
+    pin = ctx.get_item("pin")
+    current_span = pin.tracer.current_span()
+    if not pin.enabled or not current_span:
+        ctx.set_item("flask_request_span", nullcontext())
+        return
+
+    ctx.set_item("current_span", current_span)
+    flask_config = ctx.get_item("flask_config")
+    service = trace_utils.int_service(pin, flask_config, pin)
+    _set_request_tags(ctx.get_item("flask_request"), current_span, flask_config)
+    request_span = pin.tracer.trace(ctx.get_item("name"), service=service)
     ctx.set_item("flask_request_span", request_span)
-    request_span.set_tag_str(COMPONENT, ctx.get_item("flask_config").integration_name)
+    request_span.set_tag_str(COMPONENT, flask_config.integration_name)
     request_span._ignore_exception(ctx.get_item("ignored_exception_type"))
 
 
@@ -334,6 +365,22 @@ def _on_start_response_blocked(req_span, flask_config, response_headers, status)
     trace_utils.set_http_meta(req_span, flask_config, status_code=status, response_headers=response_headers)
 
 
+def _on_function_context_started_flask(ctx):
+    pin = ctx.get_item("pin")
+    name = ctx.get_item("name")
+    flask_config = ctx.get_item("flask_config")
+    resource = ctx.get_item("resource")
+    kwargs = {"service": trace_utils.int_service(pin, flask_config)}
+    if resource:
+        kwargs["resource"] = resource
+    span = pin.tracer.trace(name, **kwargs)
+    span.set_tag_str(COMPONENT, flask_config.integration_name)
+    signal = ctx.get_item("signal")
+    if signal:
+        span.set_tag_str("flask.signal", signal)
+    ctx.set_item("flask_call", span)
+
+
 def listen():
     core.on("context.started.wsgi.__call__", _on_context_started)
     core.on("context.started.wsgi.response", _on_response_context_started)
@@ -350,6 +397,8 @@ def listen():
     core.on("flask.request_span_modifier.post", _on_request_span_modifier_post)
     core.on("flask.render", _on_flask_render)
     core.on("flask.start_response.blocked", _on_start_response_blocked)
-    core.on("context.started.flask._traced_request", _on_traced_request_context_started_flask)
+    core.on("context.started.flask._patched_request", _on_traced_request_context_started_flask)
     core.on("context.started.flask.jsonify", _on_jsonify_context_started_flask)
     core.on("context.started.flask.render_template", _on_render_template_context_started_flask)
+    core.on("context.started.flask.signal", _on_function_context_started_flask)
+    core.on("context.started.flask.function", _on_function_context_started_flask)

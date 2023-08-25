@@ -40,7 +40,7 @@ def injection_target(a, b):
 
 
 def loop_target(n):
-    for i in range(n):
+    for _ in range(n):
         a, b = injection_target(n, n + 1)
 
 

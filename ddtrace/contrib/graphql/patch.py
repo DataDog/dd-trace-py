@@ -44,7 +44,7 @@ from .. import trace_utils
 from ...ext import SpanTypes
 
 
-_graphql_version = parse_version(getattr(graphql, "__version__"))
+_graphql_version = parse_version(graphql.__version__)
 
 if _graphql_version < (3, 0):
     from graphql.language.ast import Document
@@ -68,7 +68,7 @@ _GRAPHQL_OPERATION_NAME = "graphql.operation.name"
 def patch():
     if getattr(graphql, "_datadog_patch", False):
         return
-    setattr(graphql, "_datadog_patch", True)
+    graphql._datadog_patch = True
     Pin().onto(graphql)
 
     for module_str, func_name, wrapper in _get_patching_candidates():
@@ -82,7 +82,7 @@ def unpatch():
     for module_str, func_name, wrapper in _get_patching_candidates():
         _update_patching(unwrap, module_str, func_name, wrapper)
 
-    setattr(graphql, "_datadog_patch", False)
+    graphql._datadog_patch = False
 
 
 def _get_patching_candidates():
