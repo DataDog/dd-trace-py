@@ -30,11 +30,12 @@ config._add(
 
 def get_version():
     try:
-        import importlib.metadata as importlib_metadata
-    except ImportError:
-        import importlib_metadata  # type: ignore[no-redef]
+        import snowflake.connector as c
+    except AttributeError:
+        import sys
 
-    return str(importlib_metadata.version("snowflake-connector-python"))
+        c = sys.modules.get("snowflake.connector")
+    return c.__version__
 
 
 class _SFTracedCursor(TracedCursor):
