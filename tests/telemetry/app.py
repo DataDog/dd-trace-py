@@ -20,9 +20,3 @@ def metrics_view():
         1.0,
     )
     return "OK", 200
-
-
-@app.route("/flush_metrics")
-def flush_metrics():
-    telemetry_writer.periodic(force_flush=True)
-    return "OK", 200

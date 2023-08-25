@@ -216,6 +216,8 @@ class TelemetryWriter(PeriodicService):
         if self._is_periodic and self.status is ServiceStatus.RUNNING:
             atexit.unregister(self.stop)
             self.stop()
+        else:
+            self.status = ServiceStatus.STOPPED
 
     def add_event(self, payload, payload_type):
         # type: (Union[Dict[str, Any], List[Any]], str) -> None
