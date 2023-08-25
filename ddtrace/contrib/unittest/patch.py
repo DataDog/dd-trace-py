@@ -152,31 +152,30 @@ def add_skip_test_wrapper(func, instance, args, kwargs):
 def start_test_wrapper_unittest(func, instance, args, kwargs):
     if is_unittest_support_enabled():
         tracer = getattr(unittest, "_datadog_tracer", _CIVisibility._instance.tracer)
-        span = tracer.trace(
+        with tracer.trace(
             ddtrace.config.unittest.operation_name,
             service=_CIVisibility._instance._service,
             resource="unittest.test",
             span_type=SpanTypes.TEST,
-        )
-        span.set_tag_str(_EVENT_TYPE, SpanTypes.TEST)
+        ) as span:
+            span.set_tag_str(_EVENT_TYPE, SpanTypes.TEST)
 
-        span.set_tag_str(COMPONENT, COMPONENT_VALUE)
-        span.set_tag_str(SPAN_KIND, KIND)
+            span.set_tag_str(COMPONENT, COMPONENT_VALUE)
+            span.set_tag_str(SPAN_KIND, KIND)
 
-        span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
-        span.set_tag_str(test.TYPE, SpanTypes.TEST)
-        suite_name = _extract_suite_name_from_test_method(instance)
-        span.set_tag_str(test.NAME, _extract_test_method_name(instance))
-        span.set_tag_str(test.SUITE, suite_name)
-        span.set_tag_str(test.MODULE, _extract_module_name_from_test_method(instance))
+            span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
+            span.set_tag_str(test.TYPE, SpanTypes.TEST)
+            suite_name = _extract_suite_name_from_test_method(instance)
+            span.set_tag_str(test.NAME, _extract_test_method_name(instance))
+            span.set_tag_str(test.SUITE, suite_name)
+            span.set_tag_str(test.MODULE, _extract_module_name_from_test_method(instance))
 
-        span.set_tag_str(test.STATUS, test.Status.FAIL.value)
-        span.set_tag_str(test.CLASS_HIERARCHY, suite_name)
-        _CIVisibility.set_codeowners_of(_extract_test_file_name(instance), span=span)
+            span.set_tag_str(test.STATUS, test.Status.FAIL.value)
+            span.set_tag_str(test.CLASS_HIERARCHY, suite_name)
+            _CIVisibility.set_codeowners_of(_extract_test_file_name(instance), span=span)
 
-        _store_span(instance, span)
-        result = func(*args, **kwargs)
-        span.finish()
-        return result
+            _store_span(instance, span)
+            result = func(*args, **kwargs)
+            return result
 
     return func(*args, **kwargs)
