@@ -237,6 +237,24 @@ def format_map_aspect(candidate_text, *args, **kwargs):  # type: (str, Any, Any)
         return candidate_text.format_map(*args, **kwargs)
 
 
+def repr_aspect(*args, **kwargs):
+    # type: (Any, Any) -> Any
+    result = repr(*args, **kwargs)
+    if isinstance(args[0], TEXT_TYPES) and is_pyobject_tainted(args[0]):
+        try:
+            if isinstance(args[0], (bytes, bytearray)):
+                check_offset = args[0].decode("utf-8")
+            else:
+                check_offset = args[0]
+            offset = result.index(check_offset)
+            new_ranges = [shift_taint_range(text_range, offset) for text_range in get_tainted_ranges(args[0])]
+            if new_ranges:
+                taint_pyobject_with_ranges(result, tuple(new_ranges))
+        except Exception as e:
+            _set_iast_error_metric("IAST propagation error. repr_aspect. {}".format(e), traceback.format_exc())
+    return result
+
+
 def format_value_aspect(
     element,  # type: Any
     options=0,  # type: int
