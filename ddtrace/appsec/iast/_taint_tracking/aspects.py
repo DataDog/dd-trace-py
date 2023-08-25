@@ -6,7 +6,6 @@ import traceback
 from typing import TYPE_CHECKING
 
 from ddtrace.appsec.iast._metrics import _set_iast_error_metric
-from ddtrace.appsec.iast._taint_tracking import OriginType
 from ddtrace.appsec.iast._taint_tracking import TagMappingMode
 from ddtrace.appsec.iast._taint_tracking import TaintRange
 from ddtrace.appsec.iast._taint_tracking import _convert_escaped_text_to_tainted_text
@@ -18,7 +17,6 @@ from ddtrace.appsec.iast._taint_tracking import get_tainted_ranges
 from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
 from ddtrace.appsec.iast._taint_tracking import parse_params
 from ddtrace.appsec.iast._taint_tracking import shift_taint_range
-from ddtrace.appsec.iast._taint_tracking import taint_pyobject
 from ddtrace.appsec.iast._taint_tracking import taint_pyobject_with_ranges
 from ddtrace.appsec.iast._taint_tracking._native import aspects  # noqa: F401
 from ddtrace.internal.compat import iteritems
@@ -52,13 +50,34 @@ def add_aspect(op1, op2):
 
 def str_aspect(*args, **kwargs):
     # type: (Any, Any) -> str
-    # TODO: migrate this function to C++ and shift ranges instead to create a new one
     result = builtin_str(*args, **kwargs)
     if isinstance(args[0], TEXT_TYPES) and is_pyobject_tainted(args[0]):
-        result = taint_pyobject(
-            pyobject=result, source_name="str_aspect", source_value=result, source_origin=OriginType.PARAMETER
-        )
+        try:
+            taint_pyobject_with_ranges(result, tuple(get_ranges(args[0])))
+        except Exception as e:
+            _set_iast_error_metric("IAST propagation error. str_aspect. {}".format(e), traceback.format_exc())
+    return result
 
+
+def bytes_aspect(*args, **kwargs):
+    # type: (Any, Any) -> bytes
+    result = builtin_bytes(*args, **kwargs)
+    if isinstance(args[0], TEXT_TYPES) and is_pyobject_tainted(args[0]):
+        try:
+            taint_pyobject_with_ranges(result, tuple(get_ranges(args[0])))
+        except Exception as e:
+            _set_iast_error_metric("IAST propagation error. bytes_aspect. {}".format(e), traceback.format_exc())
+    return result
+
+
+def bytearray_aspect(*args, **kwargs):
+    # type: (Any, Any) -> bytearray
+    result = builtin_bytearray(*args, **kwargs)
+    if isinstance(args[0], TEXT_TYPES) and is_pyobject_tainted(args[0]):
+        try:
+            taint_pyobject_with_ranges(result, tuple(get_ranges(args[0])))
+        except Exception as e:
+            _set_iast_error_metric("IAST propagation error. bytearray_aspect. {}".format(e), traceback.format_exc())
     return result
 
 
@@ -82,24 +101,6 @@ def bytearray_extend_aspect(op1, op2):
     except Exception as e:
         _set_iast_error_metric("IAST propagation error. extend_aspect. {}".format(e), traceback.format_exc())
         return op1.extend(op2)
-
-
-def bytes_aspect(*args, **kwargs):
-    # type: (Any, Any) -> bytes
-    result = builtin_bytes(*args, **kwargs)
-    if isinstance(args[0], TEXT_TYPES) and is_pyobject_tainted(args[0]):
-        result = taint_pyobject(result, source_name="bytes_aspect", source_value=result)
-
-    return result
-
-
-def bytearray_aspect(*args, **kwargs):
-    # type: (Any, Any) -> bytearray
-    result = builtin_bytearray(*args, **kwargs)
-    if isinstance(args[0], TEXT_TYPES) and is_pyobject_tainted(args[0]):
-        result = taint_pyobject(result, source_name="bytearray_aspect", source_value=result)
-
-    return result
 
 
 def modulo_aspect(candidate_text, candidate_tuple):
