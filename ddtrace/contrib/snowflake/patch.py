@@ -35,7 +35,7 @@ def get_version():
         import sys
 
         c = sys.modules.get("snowflake.connector")
-    return c.__version__
+    return str(c.__version__)
 
 
 class _SFTracedCursor(TracedCursor):
