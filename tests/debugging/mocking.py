@@ -72,7 +72,7 @@ class MockProbeStatusLogger(DummyProbeStatusLogger):
         self.queue = []
 
     def clear(self):
-        self.queue[:] = []
+        self.queue[:] =[]
 
     def wait(self, cond, timeout=1.0):
         end = monotonic() + timeout
