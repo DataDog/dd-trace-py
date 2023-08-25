@@ -241,10 +241,12 @@ def repr_aspect(*args, **kwargs):
     result = repr(*args, **kwargs)
     if isinstance(args[0], TEXT_TYPES) and is_pyobject_tainted(args[0]):
         try:
-            new_ranges = list()
-            text_ranges = get_tainted_ranges(args[0])
-            for text_range in text_ranges:
-                new_ranges.append(shift_taint_range(text_range, result.index(args[0])))  # type: ignore[arg-type]
+            if isinstance(args[0], (bytes, bytearray)):
+                check_offset = args[0].decode("utf-8")
+            else:
+                check_offset = args[0]
+            offset = result.index(check_offset)
+            new_ranges = [shift_taint_range(text_range, offset) for text_range in get_tainted_ranges(args[0])]
             if new_ranges:
                 taint_pyobject_with_ranges(result, tuple(new_ranges))
         except Exception as e:
