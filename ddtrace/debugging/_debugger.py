@@ -186,6 +186,8 @@ class Debugger(Service):
 
         log.debug("Enabling %s", cls.__name__)
 
+        di_config.enabled = True
+
         cls.__watchdog__.install()
 
         if di_config.metrics:
@@ -215,6 +217,8 @@ class Debugger(Service):
 
         log.debug("Disabling %s", cls.__name__)
 
+        remoteconfig_poller.unregister("LIVE_DEBUGGING")
+
         forksafe.unregister(cls._restart)
         atexit.unregister(cls.disable)
         unregister_post_run_module_hook(cls._on_run_module)
@@ -228,6 +232,8 @@ class Debugger(Service):
         cls.__watchdog__.uninstall()
         if di_config.metrics:
             metrics.disable()
+
+        di_config.enabled = False
 
         log.debug("%s disabled", cls.__name__)
 

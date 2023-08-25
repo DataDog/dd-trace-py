@@ -44,25 +44,22 @@ def wrap_view(instance, func, name=None, resource=None):
     return trace_func(func)
 
 
-def wrap_function(instance, func, name=None, resource=None):
-    """
-    Helper function to wrap common flask.app.Flask methods.
-
-    This helper will first ensure that a Pin is available and enabled before tracing
-    """
-    if not name:
-        name = func_name(func)
-
+def _wrap_call(func, instance, name, resource):
     @function_wrapper
     def trace_func(wrapped, _instance, args, kwargs):
         pin = Pin._find(wrapped, _instance, instance, get_current_app())
         if not pin or not pin.enabled():
             return wrapped(*args, **kwargs)
-        with pin.tracer.trace(name, service=trace_utils.int_service(pin, config.flask), resource=resource) as span:
-            span.set_tag_str(COMPONENT, config.flask.integration_name)
+        with core.context_with_data(
+            "flask.function", name=name, pin=pin, flask_config=config.flask, resource=resource
+        ) as ctx, ctx.get_item("flask_call"):
             return wrapped(*args, **kwargs)
 
     return trace_func(func)
+
+
+def wrap_function(instance, func, name=None, resource=None):
+    return _wrap_call(func, instance, name or func_name(func), resource)
 
 
 def wrap_signal(app, signal, func):
@@ -74,15 +71,14 @@ def wrap_signal(app, signal, func):
     name = func_name(func)
 
     @function_wrapper
-    def trace_func(wrapped, instance, args, kwargs):
+    def patch_func(wrapped, instance, args, kwargs):
         pin = Pin._find(wrapped, instance, app, get_current_app())
         if not pin or not pin.enabled():
             return wrapped(*args, **kwargs)
 
-        with pin.tracer.trace(name, service=trace_utils.int_service(pin, config.flask)) as span:
-            span.set_tag_str(COMPONENT, config.flask.integration_name)
-
-            span.set_tag_str("flask.signal", signal)
+        with core.context_with_data(
+            "flask.signal", name=name, signal=signal, pin=pin, flask_config=config.flask
+        ) as ctx, ctx.get_item("flask_call"):
             return wrapped(*args, **kwargs)
 
-    return trace_func(func)
+    return patch_func(func)
