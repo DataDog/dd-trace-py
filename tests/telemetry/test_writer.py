@@ -109,7 +109,10 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
             {"name": "ddtrace_auto_used", "origin": "unknown", "value": False},
             {"name": "ddtrace_bootstrapped", "origin": "unknown", "value": False},
         ],
-        "error": {"code": 0, "message": "",},
+        "error": {
+            "code": 0,
+            "message": "",
+        },
     }
     assert events[0] == _get_request_body(payload, "app-started")
 
@@ -298,8 +301,16 @@ def test_app_client_configuration_changed_event(telemetry_writer, test_agent_ses
 
     # assert the latest configuration value is send to the agent
     assert received_configurations == [
-        {"name": "DD_TRACE_PROPAGATION_STYLE_EXTRACT", "origin": "unknown", "value": "datadog",},
-        {"name": "appsec_enabled", "origin": "env_var", "value": False,},
+        {
+            "name": "DD_TRACE_PROPAGATION_STYLE_EXTRACT",
+            "origin": "unknown",
+            "value": "datadog",
+        },
+        {
+            "name": "appsec_enabled",
+            "origin": "env_var",
+            "value": False,
+        },
     ]
 
 
