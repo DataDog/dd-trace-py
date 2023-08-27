@@ -7,7 +7,6 @@ from ddtrace.appsec.iast import oce
 try:
     from ddtrace.appsec.iast._taint_tracking import OriginType
     from ddtrace.appsec.iast._taint_tracking import Source
-    from ddtrace.appsec.iast._taint_tracking import setup as taint_tracking_setup
     from ddtrace.appsec.iast._taint_tracking import taint_pyobject
     from ddtrace.appsec.iast._taint_tracking import taint_ranges_as_evidence_info
     from ddtrace.appsec.iast._taint_tracking.aspects import add_aspect
@@ -17,7 +16,6 @@ except (ImportError, AttributeError):
 
 
 def setup():
-    taint_tracking_setup(bytes.join, bytearray.join)
     oce._enabled = True
 
 

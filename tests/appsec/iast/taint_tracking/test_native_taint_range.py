@@ -20,7 +20,6 @@ try:
     from ddtrace.appsec.iast._taint_tracking import num_objects_tainted
     from ddtrace.appsec.iast._taint_tracking import set_fast_tainted_if_notinterned_unicode
     from ddtrace.appsec.iast._taint_tracking import set_ranges
-    from ddtrace.appsec.iast._taint_tracking import setup as taint_tracking_setup
     from ddtrace.appsec.iast._taint_tracking import shift_taint_range
     from ddtrace.appsec.iast._taint_tracking import shift_taint_ranges
     from ddtrace.appsec.iast._taint_tracking import taint_pyobject
@@ -29,7 +28,6 @@ except (ImportError, AttributeError):
 
 
 def setup():
-    taint_tracking_setup(bytes.join, bytearray.join)
     oce._enabled = True
 
 
