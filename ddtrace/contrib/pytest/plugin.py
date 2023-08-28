@@ -342,12 +342,14 @@ def pytest_sessionfinish(session, exitstatus):
 
 @pytest.fixture(scope="function")
 def ddspan(request):
+    """When Datadog CI visibility is enabled: return the Datadog span associated with the current test."""
     if _CIVisibility.enabled:
         return _extract_span(request.node)
 
 
 @pytest.fixture(scope="session")
 def ddtracer():
+    """When Datadog CI visibility is enabled: return he Datadog tracer for the current session."""
     if _CIVisibility.enabled:
         return _CIVisibility._instance.tracer
     return ddtrace.tracer
@@ -355,6 +357,7 @@ def ddtracer():
 
 @pytest.fixture(scope="session", autouse=True)
 def patch_all(request):
+    """When ddtrace-patch-all used in command or specified in .ini: patch all available modules for Datadog tracing"""
     if request.config.getoption("ddtrace-patch-all") or request.config.getini("ddtrace-patch-all"):
         ddtrace.patch_all()
 
