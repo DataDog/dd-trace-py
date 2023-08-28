@@ -95,11 +95,6 @@ class LogData(dict):
         )
 
 
-def _get_heartbeat_interval_or_default():
-    # type: () -> float
-    return float(os.getenv("DD_TELEMETRY_HEARTBEAT_INTERVAL", default=60))
-
-
 class _TelemetryClient:
     def __init__(self, endpoint):
         # type: (str) -> None
@@ -162,9 +157,15 @@ class TelemetryWriter(PeriodicService):
     # payloads is only used in tests and is not required to process Telemetry events.
     _sequence = itertools.count(1)
 
-    def __init__(self):
-        # type: () -> None
-        super(TelemetryWriter, self).__init__(interval=_get_heartbeat_interval_or_default())
+    def __init__(self, is_periodic=True):
+        # type: (bool) -> None
+        super(TelemetryWriter, self).__init__(interval=min(config._telemetry_heartbeat_interval, 10))
+        # Decouples the aggregation and sending of the telemetry events
+        # TelemetryWriter events will only be sent when _periodic_count == _periodic_threshold.
+        # By default this will occur at 10 second intervals.
+        self._periodic_threshold = int(config._telemetry_heartbeat_interval // self.interval) - 1
+        self._periodic_count = 0
+        self._is_periodic = is_periodic
         self._integrations_queue = dict()  # type: Dict[str, Dict]
         # Currently telemetry only supports reporting a single error.
         # If we'd like to report multiple errors in the future
@@ -185,8 +186,8 @@ class TelemetryWriter(PeriodicService):
 
         self._client = _TelemetryClient(self.ENDPOINT_V2)
 
-    def enable(self, start_worker_thread=True):
-        # type: (bool) -> bool
+    def enable(self):
+        # type: () -> bool
         """
         Enable the instrumentation telemetry collection service. If the service has already been
         activated before, this method does nothing. Use ``disable`` to turn off the telemetry collection service.
@@ -197,10 +198,11 @@ class TelemetryWriter(PeriodicService):
         if self.status == ServiceStatus.RUNNING:
             return True
 
-        if start_worker_thread:
+        if self._is_periodic:
             self.start()
             atexit.register(self.app_shutdown)
             return True
+
         self.status = ServiceStatus.RUNNING
         return True
 
@@ -212,8 +214,7 @@ class TelemetryWriter(PeriodicService):
         """
         self._disabled = True
         self.reset_queues()
-
-        if self.is_periodic:
+        if self._is_periodic and self.status is ServiceStatus.RUNNING:
             atexit.unregister(self.stop)
             self.stop()
         else:
@@ -241,15 +242,6 @@ class TelemetryWriter(PeriodicService):
                 "request_type": payload_type,
             }
             self._events_queue.append(event)
-
-    @property
-    def is_periodic(self):
-        # type: () -> bool
-        """
-        Returns true if the the telemetry writer is running and was enabled using
-        telemetry_writer.enable(start_worker_thread=True)
-        """
-        return self.status is ServiceStatus.RUNNING and self._worker and self._worker.is_alive()
 
     def add_integration(self, integration_name, patched, auto_patched=None, error_msg=None):
         # type: (str, bool, Optional[bool], Optional[str]) -> None
@@ -535,15 +527,7 @@ class TelemetryWriter(PeriodicService):
         log.debug("%s request payload", TELEMETRY_TYPE_LOGS)
         self.add_event(list(payload), TELEMETRY_TYPE_LOGS)
 
-    def periodic(self):
-        integrations = self._flush_integrations_queue()
-        if integrations:
-            self._app_integrations_changed_event(integrations)
-
-        configurations = self._flush_configuration_queue()
-        if configurations:
-            self._app_client_configuration_changed_event(configurations)
-
+    def periodic(self, force_flush=False):
         namespace_metrics = self._namespace.flush()
         if namespace_metrics:
             self._generate_metrics_event(namespace_metrics)
@@ -551,6 +535,24 @@ class TelemetryWriter(PeriodicService):
         logs_metrics = self._flush_log_metrics()
         if logs_metrics:
             self._generate_logs_event(logs_metrics)
+
+        # Telemetry metrics and logs should be aggregated into payloads every time periodic is called.
+        # This ensures metrics and logs are submitted in 0 to 10 second time buckets.
+        # Optimization: All other events should be aggregated using `config._telemetry_heartbeat_interval`.
+        # Telemetry payloads will be submitted according to `config._telemetry_heartbeat_interval`.
+        if self._is_periodic and force_flush is False:
+            if self._periodic_count < self._periodic_threshold:
+                self._periodic_count += 1
+                return
+            self._periodic_count = 0
+
+        integrations = self._flush_integrations_queue()
+        if integrations:
+            self._app_integrations_changed_event(integrations)
+
+        configurations = self._flush_configuration_queue()
+        if configurations:
+            self._app_client_configuration_changed_event(configurations)
 
         if not self._events_queue:
             # Optimization: only queue heartbeat if no other events are queued
@@ -571,7 +573,7 @@ class TelemetryWriter(PeriodicService):
 
     def app_shutdown(self):
         self._app_closing_event()
-        self.periodic()
+        self.periodic(force_flush=True)
 
     def reset_queues(self):
         # type: () -> None
