@@ -13,13 +13,12 @@ import psutil
 from ddtrace.appsec.iast._taint_tracking import active_map_addreses_size
 from ddtrace.appsec.iast._taint_tracking import contexts_reset
 from ddtrace.appsec.iast._taint_tracking import create_context
-from ddtrace.appsec.iast._taint_tracking import destroy_context
 from ddtrace.appsec.iast._taint_tracking import initializer_size
 from ddtrace.appsec.iast._taint_tracking import num_contexts
+# from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import get_ranges
 from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import OriginType
 from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import Source
 from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import TaintRange
-from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import get_ranges
 from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import set_ranges
 
 
@@ -58,7 +57,7 @@ def normal_function(internal_loop: int, tainted: str) -> str:
     #        for INPLACE_ADD assuming we can optimize something for that case.
     value = ""
     res = value
-    for j in range(internal_loop):
+    for _ in range(internal_loop):
         # FIXME: we're using replace instead of join in other languages.
         res += "_".join((tainted, "_", tainted))
         value = res
@@ -66,8 +65,8 @@ def normal_function(internal_loop: int, tainted: str) -> str:
         value = res
         res += " "
         value = res
-    if ENABLE_CHECKING:
-        ranges = get_ranges(res)
+    # if ENABLE_CHECKING:
+    #     ranges = get_ranges(res)
     if DEBUG_MODE:
         pass
     return value
@@ -85,7 +84,8 @@ def aspect_function(internal_loop: int, tainted: str) -> str:
         value = res
 
     if ENABLE_CHECKING:
-        ranges = get_ranges(res)
+        pass
+        # ranges = get_ranges(res)
         # print("RANGES: {}".format(len(ranges)))
         # assert len(ranges) == 100, "Fail. ranges are %s" % len(ranges)
     if DEBUG_MODE:
@@ -132,8 +132,8 @@ def main() -> None:
             launch_function(normal_function, internal_loop, caller_loop)
             launch_function(aspect_function, internal_loop, caller_loop)
 
-    total_time_normal = 0.0
-    total_time_aspect = 0.0
+    # total_time_normal = 0.0
+    # total_time_aspect = 0.0
     process_times_normal = []
     process_times_aspect = []
     relative_overheads = []
