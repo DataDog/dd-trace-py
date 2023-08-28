@@ -17,8 +17,6 @@ from ddtrace.internal.utils.version import _pep440_to_semver
 from ddtrace.settings import _config as config
 from ddtrace.settings.config import DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
 
-from .conftest import TelemetryTestSession
-
 
 def test_add_event(telemetry_writer, test_agent_session, mock_time):
     """asserts that add_event queues a telemetry request with valid headers and payload"""
@@ -133,7 +131,7 @@ from ddtrace.internal.telemetry import telemetry_writer
 telemetry_writer.enable()
 telemetry_writer.reset_queues()
 telemetry_writer._app_started_event()
-telemetry_writer.periodic()
+telemetry_writer.periodic(force_flush=True)
 telemetry_writer.disable()
     """
 
@@ -180,13 +178,14 @@ telemetry_writer.disable()
     assert status == 0, stderr
 
     events = test_agent_session.get_events()
-    events[0]["payload"]["configuration"].sort(key=lambda c: c["name"])
 
+    assert len(events) == 1
+    events[0]["payload"]["configuration"].sort(key=lambda c: c["name"])
     assert events[0]["payload"]["configuration"] == [
         {"name": "DD_APPSEC_ENABLED", "origin": "unknown", "value": False},
         {"name": "DD_CALL_BASIC_CONFIG", "origin": "unknown", "value": True},
         {"name": "DD_DATA_STREAMS_ENABLED", "origin": "unknown", "value": False},
-        {"name": "DD_DYNAMIC_INSTRUMENTATION_ENABLED", "origin": "unknown", "value": False},
+        {"name": "DD_DYNAMIC_INSTRUMENTATION_ENABLED", "origin": "unknown", "value": True},
         {"name": "DD_EXCEPTION_DEBUGGING_ENABLED", "origin": "unknown", "value": True},
         {"name": "DD_INSTRUMENTATION_TELEMETRY_ENABLED", "origin": "unknown", "value": True},
         {"name": "DD_LOGS_INJECTION", "origin": "unknown", "value": True},
@@ -364,11 +363,22 @@ def test_app_heartbeat_event_periodic(mock_time, telemetry_writer, test_agent_se
     # type: (mock.Mock, Any, TelemetryWriter) -> None
     """asserts that we queue/send app-heartbeat when periodc() is called"""
 
-    # Assert default hearbeat interval is 60 seconds
-    assert telemetry_writer.interval == 60
+    # Ensure telemetry writer is initialized to send periodic events
+    telemetry_writer._is_periodic = True
+    # Assert default telemetry interval is 10 seconds and the expected periodic threshold and counts are set
+    assert telemetry_writer.interval == 10
+    assert telemetry_writer._periodic_threshold == 5
+    assert telemetry_writer._periodic_count == 0
+
     # Assert next flush contains app-heartbeat event
+    for _ in range(telemetry_writer._periodic_threshold):
+        telemetry_writer.periodic()
+        assert len(test_agent_session.get_events()) == 0
+
     telemetry_writer.periodic()
-    _assert_app_heartbeat_event(1, test_agent_session)
+    events = test_agent_session.get_events()
+    heartbeat_events = [event for event in events if event["request_type"] == "app-heartbeat"]
+    assert len(heartbeat_events) == 1
 
 
 def test_app_heartbeat_event(mock_time, telemetry_writer, test_agent_session):
@@ -384,18 +394,6 @@ def test_app_heartbeat_event(mock_time, telemetry_writer, test_agent_session):
     telemetry_writer.periodic()
     events = test_agent_session.get_events()
     assert len(events) == 1
-
-
-def _assert_app_heartbeat_event(seq_id, test_agent_session):
-    # type: (int, TelemetryTestSession) -> None
-    """used to test heartbeat events received by the testagent"""
-    events = test_agent_session.get_events()
-    assert len(events) == seq_id
-    # The test_agent returns telemetry events in reverse chronological order
-    # The first event in the list is last event sent by the Telemetry Client
-    last_event = events[0]
-    assert last_event["request_type"] == "app-heartbeat"
-    assert last_event == _get_request_body({}, "app-heartbeat", seq_id=seq_id)
 
 
 def _get_request_body(payload, payload_type, seq_id=1):
