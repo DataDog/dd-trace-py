@@ -347,8 +347,8 @@ pyexport_initializer(py::module& m)
       "tx_id"_a = 0);
     m.def("contexts_reset", [] { initializer->contexts_reset(); });
     m.def("destroy_context", [] { initializer->destroy_context(); });
-    m.def("num_created_tobjects", [] { return initializer->JJJ_num_taintedobjects_created; });
-    m.def("num_destroyed_tobjects", [] { return initializer->JJJ_num_taintedobjects_destroyed; });
-    m.def("num_created_ranges", [] { return initializer->JJJ_num_ranges_created; });
-    m.def("num_destroyed_ranges", [] { return initializer->JJJ_num_ranges_destroyed; });
+    m.def("num_created_tobjects", [] { return initializer->num_taintedobjects_created; });
+    m.def("num_destroyed_tobjects", [] { return initializer->num_taintedobjects_destroyed; });
+    m.def("num_created_ranges", [] { return initializer->num_ranges_created; });
+    m.def("num_destroyed_ranges", [] { return initializer->num_ranges_destroyed; });
 }

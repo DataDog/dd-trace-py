@@ -35,10 +35,10 @@ class Initializer
 
   public:
     Initializer();
-    unsigned long JJJ_num_taintedobjects_created = 0;
-    unsigned long JJJ_num_taintedobjects_destroyed = 0;
-    unsigned long JJJ_num_ranges_created = 0;
-    unsigned long JJJ_num_ranges_destroyed = 0;
+    unsigned long num_taintedobjects_created = 0;
+    unsigned long num_taintedobjects_destroyed = 0;
+    unsigned long num_ranges_created = 0;
+    unsigned long num_ranges_destroyed= 0;
 
     TaintRangeMapType* create_tainting_map();
 
