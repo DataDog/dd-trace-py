@@ -14,15 +14,13 @@ Source::Source(string name, string value, OriginType origin)
   : name(move(name))
   , value(move(value))
   , origin(origin)
-{
-}
+{}
 
 Source::Source(int name, string value, OriginType origin)
   : name(origin_to_str(OriginType{ name }))
   , value(move(value))
   , origin(origin)
-{
-}
+{}
 
 string
 Source::toString() const
