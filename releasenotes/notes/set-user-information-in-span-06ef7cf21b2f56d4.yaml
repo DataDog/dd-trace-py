@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    ASM: This fix resolves issue where user information was only set in root span.
+    Now span for user information can be selected.
