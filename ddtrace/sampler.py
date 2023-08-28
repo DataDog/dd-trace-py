@@ -29,7 +29,7 @@ from .internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
 from .internal.logger import get_logger
 from .internal.rate_limiter import RateLimiter
 from .internal.sampling import SamplingMechanism
-from .internal.sampling import update_sampling_decision
+from .internal.sampling import set_sampling_decision_maker
 from .internal.utils.cache import cachedmethod
 from .settings import _config as ddconfig
 
@@ -170,7 +170,7 @@ class RateByServiceSampler(BasePrioritySampler):
         else:
             mechanism = SamplingMechanism.AGENT_RATE
             span.set_metric(SAMPLING_AGENT_DECISION, sampler.sample_rate)
-        update_sampling_decision(span.context, mechanism, sampled)
+        set_sampling_decision_maker(span.context, mechanism)
 
     def sample(self, span):
         # type: (Span) -> bool
@@ -327,7 +327,7 @@ class DatadogSampler(RateByServiceSampler):
         else:
             self._set_priority(span, USER_KEEP)
 
-        update_sampling_decision(span.context, SamplingMechanism.TRACE_SAMPLING_RULE, sampled)
+        set_sampling_decision_maker(span.context, SamplingMechanism.TRACE_SAMPLING_RULE)
 
     def sample(self, span):
         # type: (Span) -> bool

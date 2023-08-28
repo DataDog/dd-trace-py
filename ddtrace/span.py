@@ -45,7 +45,7 @@ from .internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
 from .internal.constants import SPAN_API_DATADOG
 from .internal.logger import get_logger
 from .internal.sampling import SamplingMechanism
-from .internal.sampling import update_sampling_decision
+from .internal.sampling import set_sampling_decision_maker
 
 
 _NUMERIC_TAGS = (ANALYTICS_SAMPLE_RATE_KEY,)
@@ -282,7 +282,7 @@ class Span(object):
 
     def _override_sampling_decision(self, decision):
         self.context.sampling_priority = decision
-        update_sampling_decision(self.context, SamplingMechanism.MANUAL, decision == USER_KEEP)
+        set_sampling_decision_maker(self.context, SamplingMechanism.MANUAL)
         for key in (SAMPLING_RULE_DECISION, SAMPLING_AGENT_DECISION, SAMPLING_LIMIT_DECISION):
             if key in self._local_root._metrics:
                 del self._local_root._metrics[key]

@@ -72,31 +72,6 @@ SpanSamplingRules = TypedDict(
 )
 
 
-def _set_trace_tag(
-    context,  # type: Context
-    sampling_mechanism,  # type: int
-):
-    # type: (...) -> Optional[Text]
-
-    value = "-%d" % sampling_mechanism
-
-    context._meta[SAMPLING_DECISION_TRACE_TAG_KEY] = value
-
-    return value
-
-
-def _unset_trace_tag(
-    context,  # type: Context
-):
-    # type: (...) -> Optional[Text]
-    if SAMPLING_DECISION_TRACE_TAG_KEY not in context._meta:
-        return None
-
-    value = context._meta[SAMPLING_DECISION_TRACE_TAG_KEY]
-    del context._meta[SAMPLING_DECISION_TRACE_TAG_KEY]
-    return value
-
-
 def validate_sampling_decision(
     meta,  # type: Dict[str, str]
 ):
@@ -111,15 +86,14 @@ def validate_sampling_decision(
     return meta
 
 
-def update_sampling_decision(
+def set_sampling_decision_maker(
     context,  # type: Context
     sampling_mechanism,  # type: int
-    sampled,  # type: bool
 ):
     # type: (...) -> Optional[Text]
-    # When sampler keeps trace, we need to set sampling decision trace tag.
-    # If sampler rejects trace, we need to remove sampling decision trace tag to avoid unnecessary propagation.
-    return _set_trace_tag(context, sampling_mechanism)
+    value = "-%d" % sampling_mechanism
+    context._meta[SAMPLING_DECISION_TRACE_TAG_KEY] = value
+    return value
 
 
 class SpanSamplingRule:
