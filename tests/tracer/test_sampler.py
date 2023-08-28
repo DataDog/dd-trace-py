@@ -976,16 +976,16 @@ def context():
 
 
 @pytest.mark.parametrize(
-    "sampling_mechanism,sampled,expected",
+    "sampling_mechanism,expected",
     [
-        (SamplingMechanism.AGENT_RATE, True, "-1"),
-        (SamplingMechanism.TRACE_SAMPLING_RULE, True, "-3"),
-        (SamplingMechanism.DEFAULT, True, "-0"),
-        (SamplingMechanism.MANUAL, True, "-4"),
-        (SamplingMechanism.DEFAULT, True, "-0"),
-        (SamplingMechanism.DEFAULT, False, "-0"),
+        (SamplingMechanism.AGENT_RATE, "-1"),
+        (SamplingMechanism.TRACE_SAMPLING_RULE, "-3"),
+        (SamplingMechanism.DEFAULT, "-0"),
+        (SamplingMechanism.MANUAL, "-4"),
+        (SamplingMechanism.DEFAULT, "-0"),
+        (SamplingMechanism.DEFAULT, "-0"),
     ],
 )
-def test_trace_tag(context, sampling_mechanism, sampled, expected):
-    set_sampling_decision_maker(context, sampling_mechanism, sampled)
+def test_trace_tag(context, sampling_mechanism, expected):
+    set_sampling_decision_maker(context, sampling_mechanism)
     assert context._meta["_dd.p.dm"] == expected
