@@ -173,8 +173,9 @@ Many of the tests are based on "snapshots": saved copies of actual traces sent t
 `APM test agent <../README.md#use-the-apm-test-agent>`_.
 
 To update the snapshots expected by a test, first update the library and test code to generate
-new traces. Then, delete the snapshot file corresponding to your test. Use `docker-compose up -d testagent`
-to start the APM test agent, and re-run the test. Use `--pass-env` as described
+new traces. Then, delete the snapshot file corresponding to your test at ``tests/snapshots/<snapshot_file>``.
+
+Use `docker-compose up -d testagent`to start the APM test agent, and re-run the test. Use `--pass-env` as described
 `here <../README.md#use-the-apm-test-agent>`_ to ensure that your test run can talk to the
 test agent. Once the run finishes, the snapshot file will have been regenerated.
 
@@ -248,6 +249,17 @@ are not yet any expected spans stored for it, so we need to create some.
     not match.
 13. Repeat steps 7 through 9 until you've achieved test coverage for the entire "happy path" of normal usage
     for the library you're integrating with, as well as coverage of any known likely edge cases.
+14. Enable the `snapshot` option in `.circleci/config.templ.yml` and run the test as a `machine_executor` at ``.circleci/config.templ.yml``
+    just like:
+
+.. code-block:: yml
+
+  <test_suite_name>:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: '<test_suite_name>'
+          snapshot: true
 
 
 Trace Examples
