@@ -116,7 +116,6 @@ Initializer::allocate_tainted_object()
     return new TaintedObject();
 }
 
-// TODO: Release tainted objects, where?
 void
 Initializer::release_tainted_object(TaintedObjectPtr tobj)
 {
@@ -216,9 +215,12 @@ Initializer::release_taint_source(SourcePtr sourceptr)
     if (--(sourceptr->refcount) == 0) {
         // No more references pointing to this origin; move it back from the map
         // to the stack (or delete it if the stack is full)
+        std::cerr << "JJJ available_source_stack.size(): " << available_source_stack.size() << std::endl;
+        std::cerr << "JJJ SOURCE_STACK_SIZE: " << SOURCE_STACK_SIZE << std::endl;
         if (available_source_stack.size() < SOURCE_STACK_SIZE) {
+            std::cerr << "JJJ should push into stack instead of deleting\n";
             // Move the range to the allocated origins stack
-            available_source_stack.push(sourceptr);
+//            available_source_stack.push(sourceptr);
             return;
         }
 
