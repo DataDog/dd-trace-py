@@ -174,13 +174,14 @@ telemetry_writer.disable()
     assert status == 0, stderr
 
     events = test_agent_session.get_events()
-    events[0]["payload"]["configuration"].sort(key=lambda c: c["name"])
 
+    assert len(events) == 1
+    events[0]["payload"]["configuration"].sort(key=lambda c: c["name"])
     assert events[0]["payload"]["configuration"] == [
         {"name": "DD_APPSEC_ENABLED", "origin": "unknown", "value": False},
         {"name": "DD_CALL_BASIC_CONFIG", "origin": "unknown", "value": True},
         {"name": "DD_DATA_STREAMS_ENABLED", "origin": "unknown", "value": False},
-        {"name": "DD_DYNAMIC_INSTRUMENTATION_ENABLED", "origin": "unknown", "value": False},
+        {"name": "DD_DYNAMIC_INSTRUMENTATION_ENABLED", "origin": "unknown", "value": True},
         {"name": "DD_EXCEPTION_DEBUGGING_ENABLED", "origin": "unknown", "value": True},
         {"name": "DD_INSTRUMENTATION_TELEMETRY_ENABLED", "origin": "unknown", "value": True},
         {"name": "DD_LOGS_INJECTION", "origin": "unknown", "value": True},
