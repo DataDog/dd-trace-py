@@ -939,7 +939,7 @@ class MyObject(object):
         return self.str_param + " a"
 
 
-def do_repr_fstring(a):  # type: (Any) -> str
+def do_format_fill(a):  # type: (Any) -> str
     return "{:10}".format(a)
 
 
