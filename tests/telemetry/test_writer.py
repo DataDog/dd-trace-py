@@ -164,7 +164,7 @@ telemetry_writer.disable()
     env["DD_TRACE_OTEL_ENABLED"] = "True"
     env["DD_TRACE_PROPAGATION_STYLE_EXTRACT"] = "tracecontext"
     env["DD_TRACE_PROPAGATION_STYLE_INJECT"] = "tracecontext"
-    env["DD_REMOTE_CONFIGURATION_ENABLED"] = "False"
+    env["DD_REMOTE_CONFIGURATION_ENABLED"] = "True"
     env["DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS"] = "1"
     env["DD_TRACE_SAMPLE_RATE"] = "0.5"
     env["DD_TRACE_RATE_LIMIT"] = "50"
@@ -200,7 +200,7 @@ telemetry_writer.disable()
         {"name": "DD_INSTRUMENTATION_TELEMETRY_ENABLED", "origin": "unknown", "value": True},
         {"name": "DD_LOGS_INJECTION", "origin": "unknown", "value": True},
         {"name": "DD_PROFILING_ENABLED", "origin": "unknown", "value": True},
-        {"name": "DD_REMOTE_CONFIGURATION_ENABLED", "origin": "unknown", "value": False},
+        {"name": "DD_REMOTE_CONFIGURATION_ENABLED", "origin": "unknown", "value": True},
         {"name": "DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "origin": "unknown", "value": 1.0},
         {"name": "DD_RUNTIME_METRICS_ENABLED", "origin": "unknown", "value": True},
         {"name": "DD_SERVICE_MAPPING", "origin": "unknown", "value": "default_dd_service:remapped_dd_service"},
