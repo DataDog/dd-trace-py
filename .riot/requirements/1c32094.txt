@@ -28,7 +28,7 @@ pytest==6.1.2
 six==1.16.0
 sortedcontainers==2.4.0
 toml==0.10.2
-uwsgi==2.0.21
+uwsgi==2.0.22
 zipp==1.2.0
 
 # The following packages are considered to be unsafe in a requirements file:

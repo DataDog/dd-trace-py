@@ -23,7 +23,7 @@ pytest-cov==4.1.0
 pytest-mock==3.10.0
 sortedcontainers==2.4.0
 tomli==2.0.1
-uwsgi==2.0.21
+uwsgi==2.0.22
 
 # The following packages are considered to be unsafe in a requirements file:
 # setuptools
