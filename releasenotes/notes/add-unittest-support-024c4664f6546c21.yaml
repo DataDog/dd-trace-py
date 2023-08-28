@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    CI Visibility: adds test level visibility for `unittest <https://docs.python.org/3/library/unittest.html>`_
