@@ -38,7 +38,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         self.tracer.configure(api_version="v0.4")
 
     @pytest.mark.skipif((sys.version_info.major, sys.version_info.minor) < (3, 7), reason="python<3.7 not supported")
-    def test_api_content(self):
+    def test_api_security(self):
         @self.app.route("/response-header/<string:str_param>", methods=["POST"])
         def specific_reponse(str_param):
             data = request.get_json()
@@ -50,7 +50,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         payload = {"key": "secret", "ids": [0, 1, 2, 3]}
 
         with override_global_config(dict(_appsec_enabled=True, _api_security_enabled=True)), override_env(
-            dict(DD_APPSEC_RULES=RULES_SRB)
+            {"DD_APPSEC_RULES": RULES_SRB, API_SECURITY.INTERVAL_PER_ROUTE: "0.0"}
         ):
             self._aux_appsec_prepare_tracer()
             resp = self.client.post(
@@ -81,9 +81,64 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
                 api = json.loads(gzip.decompress(base64.b64decode(value)).decode())
                 assert equal_with_meta(api, expected_value), name
 
+    @pytest.mark.skipif((sys.version_info.major, sys.version_info.minor) < (3, 7), reason="python<3.7 not supported")
+    def test_api_security_srb(self):
+        @self.app.route("/response-header/<string:str_param>", methods=["POST"])
+        def specific_reponse(str_param):
+            data = request.get_json()
+            query_params = request.args
+            data["validate"] = True
+            data["value"] = str_param
+            return data, query_params
+
+        payload = {"key": "secret", "ids": [0, 1, 2, 3]}
+
+        with override_global_config(dict(_appsec_enabled=True, _api_security_enabled=True)), override_env(
+            {"DD_APPSEC_RULES": RULES_SRB, API_SECURITY.INTERVAL_PER_ROUTE: "0.0"}
+        ):
+            self._aux_appsec_prepare_tracer()
+            resp = self.client.post(
+                "/response-header/posting?x=2&extended=xtrace&x=3",
+                data=json.dumps(payload),
+                content_type="application/json",
+            )
+            assert resp.status_code == 403
+            root_span = self.pop_spans()[0]
+            assert config._api_security_enabled
+
+            for name, expected_value in [
+                (API_SECURITY.REQUEST_BODY, [{"key": [8], "ids": [[[4]], {"len": 4}]}]),
+                (
+                    API_SECURITY.REQUEST_HEADERS_NO_COOKIES,
+                    [{"user-agent": [8], "host": [8], "content-type": [8], "content-length": [8]}],
+                ),
+                (API_SECURITY.REQUEST_QUERY, [{"extended": [8], "x": [8]}]),
+                (API_SECURITY.REQUEST_PATH_PARAMS, [{"str_param": [8]}]),
+                (
+                    API_SECURITY.RESPONSE_HEADERS_NO_COOKIES,
+                    [{"content-length": [8], "content-type": [8]}],
+                ),
+                (API_SECURITY.RESPONSE_BODY, [{"errors": [[[{"detail": [8], "title": [8]}]], {"len": 1}]}]),
+            ]:
+                value = root_span.get_tag(name)
+                assert value, name
+                api = json.loads(gzip.decompress(base64.b64decode(value)).decode())
+                assert equal_with_meta(api, expected_value), name
+
+    @pytest.mark.skipif((sys.version_info.major, sys.version_info.minor) < (3, 7), reason="python<3.7 not supported")
+    def test_api_security_disabled(self):
+        @self.app.route("/response-header/<string:str_param>", methods=["POST"])
+        def specific_reponse(str_param):
+            data = request.get_json()
+            query_params = request.args
+            data["validate"] = True
+            data["value"] = str_param
+            return data, query_params
+
+        payload = {"key": "secret", "ids": [0, 1, 2, 3]}
         # appsec disabled must not block
         with override_global_config(dict(_appsec_enabled=False, _api_security_enabled=False)), override_env(
-            dict(DD_APPSEC_RULES=RULES_SRB)
+            {"DD_APPSEC_RULES": RULES_SRB, API_SECURITY.INTERVAL_PER_ROUTE: "0.0"}
         ):
             self._aux_appsec_prepare_tracer(appsec_enabled=False)
             resp = self.client.post(
