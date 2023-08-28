@@ -342,12 +342,18 @@ def pytest_sessionfinish(session, exitstatus):
 
 @pytest.fixture(scope="function")
 def ddspan(request):
+    """Return the :class:`ddtrace.span.Span` instance associated with the
+    current test when Datadog CI Visibility is enabled.
+    """
     if _CIVisibility.enabled:
         return _extract_span(request.node)
 
 
 @pytest.fixture(scope="session")
 def ddtracer():
+    """Return the :class:`ddtrace.tracer.Tracer` instance for Datadog CI
+    visibility if it is enabled, otherwise return the default Datadog tracer.
+    """
     if _CIVisibility.enabled:
         return _CIVisibility._instance.tracer
     return ddtrace.tracer
@@ -355,6 +361,9 @@ def ddtracer():
 
 @pytest.fixture(scope="session", autouse=True)
 def patch_all(request):
+    """Patch all available modules for Datadog tracing when ddtrace-patch-all
+    is specified in command or .ini.
+    """
     if request.config.getoption("ddtrace-patch-all") or request.config.getini("ddtrace-patch-all"):
         ddtrace.patch_all()
 
