@@ -152,7 +152,7 @@ Next, we will need to add a new CircleCI job to run the newly added test suite a
 
 After this, a new component must be added to ``tests/.suitespec.json`` under ``"components":`` like:
 
-.. code-block:: json
+.. code-block:: JSON
 
     "asyncio": [
         "ddtrace/contrib/asyncio/*"
@@ -160,7 +160,7 @@ After this, a new component must be added to ``tests/.suitespec.json`` under ``"
 
 Lastly, we will register it as a suite in the same file under ``"suites":``:
 
-.. code-block:: json
+.. code-block:: JSON
 
     "asyncio": [
         "@asyncio",

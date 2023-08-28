@@ -252,7 +252,7 @@ are not yet any expected spans stored for it, so we need to create some.
 14. Enable the `snapshot` option in `.circleci/config.templ.yml` and run the test as a `machine_executor` at ``.circleci/config.templ.yml``
     just like:
 
-.. code-block:: yml
+.. code-block:: yaml
 
   <test_suite_name>:
     <<: *machine_executor
