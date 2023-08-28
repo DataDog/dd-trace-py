@@ -29,13 +29,14 @@ from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 from ...contrib.wsgi.wsgi import _DDWSGIMiddlewareBase
 from ...internal.logger import get_logger
 from ...internal.utils import get_argument_value
+from ...internal.utils.importlib import func_name
 from ...internal.utils.version import parse_version
 from ..trace_utils import unwrap as _u
-from .helpers import get_current_app
-from .helpers import simple_tracer
-from .helpers import with_instance_pin
+from .wrappers import _wrap_call_with_pin_check
+from .wrappers import get_current_app
+from .wrappers import simple_call_wrapper
+from .wrappers import with_instance_pin
 from .wrappers import wrap_function
-from .wrappers import wrap_signal
 from .wrappers import wrap_view
 
 
@@ -193,9 +194,9 @@ def patch():
         flask_app_traces.append("try_trigger_before_first_request_functions")
 
     for name in flask_app_traces:
-        _w("flask", "Flask.{}".format(name), simple_tracer("flask.{}".format(name)))
+        _w("flask", "Flask.{}".format(name), simple_call_wrapper("flask.{}".format(name)))
     # flask static file helpers
-    _w("flask", "send_file", simple_tracer("flask.send_file"))
+    _w("flask", "send_file", simple_call_wrapper("flask.send_file"))
 
     # flask.json.jsonify
     _w("flask", "jsonify", patched_jsonify)
@@ -412,7 +413,6 @@ def patched_endpoint(wrapped, instance, args, kwargs):
     endpoint = kwargs.get("endpoint", args[0])
 
     def _wrapper(func):
-        # DEV: `wrap_function` will call `func_name(func)` for us
         return wrapped(endpoint)(wrap_function(instance, func, resource=endpoint))
 
     return _wrapper
@@ -447,21 +447,13 @@ def _build_render_template_wrapper(name):
 
 
 def patched_render(wrapped, instance, args, kwargs):
-    """
-    Wrapper for flask.templating._render
-
-    This wrapper is used for setting template tags on the span.
-
-    This method is called for render_template or render_template_string
-    """
     pin = Pin._find(wrapped, instance, get_current_app())
-    span = pin.tracer.current_span()
 
-    if not pin.enabled or not span:
+    if not pin.enabled:
         return wrapped(*args, **kwargs)
 
     def _wrap(template, context, app):
-        core.dispatch("flask.render", [span, template, config.flask])
+        core.dispatch("flask.render", [template, config.flask])
         return wrapped(*args, **kwargs)
 
     return _wrap(*args, **kwargs)
@@ -513,7 +505,7 @@ def patched_signal_receivers_for(signal):
         if isinstance(sender, flask.Flask):
             app = sender
         for receiver in wrapped(*args, **kwargs):
-            yield wrap_signal(app, signal, receiver)
+            yield _wrap_call_with_pin_check(receiver, app, func_name(receiver), signal=signal)
 
     return outer
 
