@@ -57,7 +57,7 @@ bool
 is_tainted(PyObject* tainted_object, TaintRangeMapType* tx_taint_map)
 {
     const auto& to_initial = get_tainted_object(tainted_object, tx_taint_map);
-    if (to_initial and to_initial->get_ranges().size()) {
+    if (to_initial and !to_initial->get_ranges().empty()) {
         return true;
     }
     return false;
