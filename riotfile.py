@@ -1650,7 +1650,7 @@ venv = Venv(
             + " --ignore=tests/contrib/unittest_plugin/snapshot/",
             pkgs={"msgpack": latest},
             env={"DD_CIVISIBILITY_UNITTEST_ENABLED": "1"},
-            pys=select_pys(min_version="2.7", max_version="3.11"),
+            pys=select_pys(),
         ),
         Venv(
             name="unittest-snapshot",
