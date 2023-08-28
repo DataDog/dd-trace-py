@@ -14,11 +14,6 @@ shift_taint_range(const TaintRangePtr& source_taint_range, long offset)
     return tptr;
 }
 
-TaintedObject::TaintedObject() {
-    ranges_.reserve(RANGES_INITIAL_RESERVE);
-}
-
-
 void
 TaintedObject::add_ranges_shifted(TaintedObjectPtr tainted_object, long offset)
 {
