@@ -522,10 +522,10 @@ class cpp_function : public function
                               "#define PYBIND11_DETAILED_ERROR_MESSAGES or compile in debug mode for more "
                               "details"
 #else
-                               "error while attempting to bind " +
-                               std::string(rec->is_method ? "instance" : "static") + " method " +
-                               std::string(pybind11::str(rec->scope.attr("__name__"))) + "." + std::string(rec->name) +
-                               signature
+                              "error while attempting to bind " +
+                              std::string(rec->is_method ? "instance" : "static") + " method " +
+                              std::string(pybind11::str(rec->scope.attr("__name__"))) + "." + std::string(rec->name) +
+                              signature
 #endif
                 );
             }
