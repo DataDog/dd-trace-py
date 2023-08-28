@@ -1,5 +1,5 @@
-#include "Initializer/Initializer.h"
 #include "Helpers.h"
+#include "Initializer/Initializer.h"
 #include <ostream>
 #include <regex>
 

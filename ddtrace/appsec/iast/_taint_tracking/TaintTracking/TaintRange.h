@@ -44,7 +44,8 @@ struct TaintRange
       : start(start)
       , length(length)
       , source(std::move(source))
-    {}
+    {
+    }
 
     inline void set_values(int start_, int length_, Source source_)
     {
