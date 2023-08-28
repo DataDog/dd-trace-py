@@ -98,7 +98,6 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
 
     def _wrapped_start_response(self, start_response, ctx, status_code, headers, exc_info=None):
         core.dispatch("flask.start_response.pre", flask.request, ctx, config.flask, status_code, headers)
-
         if not core.get_item(HTTP_REQUEST_BLOCKED):
             headers_from_context = ""
             results, exceptions = core.dispatch("flask.start_response", [])
