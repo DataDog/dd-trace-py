@@ -353,8 +353,8 @@ def ddspan(request):
 @pytest.fixture(scope="session")
 def ddtracer():
     """Return the :class:`ddtrace.tracer.Tracer` tracer for Datadog CI visibility if it is enabled, otherwise return the
-     default Datadog tracer.
-     """
+    default Datadog tracer.
+    """
     if _CIVisibility.enabled:
         return _CIVisibility._instance.tracer
     return ddtrace.tracer
