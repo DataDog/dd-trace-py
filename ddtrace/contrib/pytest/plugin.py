@@ -26,6 +26,7 @@ from ddtrace.contrib.pytest.constants import FRAMEWORK
 from ddtrace.contrib.pytest.constants import HELP_MSG
 from ddtrace.contrib.pytest.constants import KIND
 from ddtrace.contrib.pytest.constants import XFAIL_REASON
+from ddtrace.contrib.unittest import unpatch as unpatch_unittest
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
 from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
@@ -214,7 +215,8 @@ def _start_test_module_span(pytest_package_item=None, pytest_module_item=None):
     test_module_span.set_tag_str(test.FRAMEWORK_VERSION, pytest.__version__)
     test_module_span.set_tag_str(test.COMMAND, _get_pytest_command(item.config))
     test_module_span.set_tag_str(_EVENT_TYPE, _MODULE_TYPE)
-    test_module_span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
+    if test_session_span:
+        test_module_span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
     test_module_span.set_tag_str(_MODULE_ID, str(test_module_span.span_id))
     test_module_span.set_tag_str(test.MODULE, _get_module_name(item, is_package))
     test_module_span.set_tag_str(test.MODULE_PATH, _get_module_path(item))
@@ -250,7 +252,8 @@ def _start_test_suite_span(item, test_module_span, should_enable_coverage=False)
     test_suite_span.set_tag_str(test.FRAMEWORK_VERSION, pytest.__version__)
     test_suite_span.set_tag_str(test.COMMAND, _get_pytest_command(item.config))
     test_suite_span.set_tag_str(_EVENT_TYPE, _SUITE_TYPE)
-    test_suite_span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
+    if test_session_span:
+        test_suite_span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
     test_suite_span.set_tag_str(_SUITE_ID, str(test_suite_span.span_id))
     test_module_path = None
     if test_module_span is not None:
@@ -300,6 +303,7 @@ def pytest_addoption(parser):
 
 
 def pytest_configure(config):
+    unpatch_unittest()
     config.addinivalue_line("markers", "dd_tags(**kwargs): add tags to current span")
     if is_enabled(config):
         _CIVisibility.enable(config=ddtrace.config.pytest)
@@ -481,7 +485,8 @@ def pytest_runtest_protocol(item, nextitem):
         span.set_tag_str(_EVENT_TYPE, SpanTypes.TEST)
         span.set_tag_str(test.NAME, item.name)
         span.set_tag_str(test.COMMAND, _get_pytest_command(item.config))
-        span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
+        if test_session_span:
+            span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
 
         span.set_tag_str(_MODULE_ID, str(test_module_span.span_id))
         span.set_tag_str(test.MODULE, test_module_span.get_tag(test.MODULE))
