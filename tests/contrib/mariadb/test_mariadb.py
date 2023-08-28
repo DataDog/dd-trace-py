@@ -51,6 +51,18 @@ def connection(tracer):
         yield connection
 
 
+def test_connection_no_port_or_user_does_not_raise():
+    conf = MARIADB_CONFIG.copy()
+    del conf["port"]
+    del conf["user"]
+    try:
+        mariadb.connect(**conf)
+    except mariadb.OperationalError as exc:
+        # this error is expected because mariadb defaults user to root when not given
+        if "Access denied for user 'root'" not in str(exc):
+            raise exc
+
+
 def test_simple_query(connection, tracer):
     cursor = connection.cursor()
     cursor.execute("SELECT 1")
