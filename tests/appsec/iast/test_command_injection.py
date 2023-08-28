@@ -24,7 +24,7 @@ try:
 except (ImportError, AttributeError):
     pytest.skip("IAST not supported for this Python version", allow_module_level=True)
 
-FIXTURES_PATH = "test_command_injection.py"
+FIXTURES_PATH = "tests/appsec/iast/test_command_injection.py"
 _PARAMS = ["/bin/ls", "-l"]
 
 
