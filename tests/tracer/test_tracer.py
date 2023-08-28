@@ -533,6 +533,28 @@ class TracerTestCases(TracerTestCase):
         assert span.get_tag(user.SCOPE)
         assert span.context.dd_user_id is None
 
+    def test_tracer_set_user_in_span(self):
+        parent_span = self.trace("root_span")
+        user_span = self.trace("user_span")
+        user_span.parent_id = parent_span.span_id
+        set_user(
+            self.tracer,
+            user_id="usr.id",
+            email="usr.email",
+            name="usr.name",
+            session_id="usr.session_id",
+            role="usr.role",
+            scope="usr.scope",
+            span=user_span,
+        )
+        assert user_span.get_tag(user.ID) and parent_span.get_tag(user.ID) is None
+        assert user_span.get_tag(user.EMAIL) and parent_span.get_tag(user.EMAIL) is None
+        assert user_span.get_tag(user.SESSION_ID) and parent_span.get_tag(user.SESSION_ID) is None
+        assert user_span.get_tag(user.NAME) and parent_span.get_tag(user.NAME) is None
+        assert user_span.get_tag(user.ROLE) and parent_span.get_tag(user.ROLE) is None
+        assert user_span.get_tag(user.SCOPE) and parent_span.get_tag(user.SCOPE) is None
+        assert user_span.context.dd_user_id is None
+
     def test_tracer_set_user_mandatory(self):
         span = self.trace("fake_span")
         set_user(
