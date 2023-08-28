@@ -67,7 +67,6 @@ def is_enabled(config):
 
 def _extract_span(item):
     """Extract span from `pytest.Item` instance."""
-    breakpoint()
     return getattr(item, "_datadog_span", None)
 
 
