@@ -44,7 +44,8 @@ struct TaintRange
       : start(start)
       , length(length)
       , source(source)
-    {}
+    {
+    }
 
     TaintRange(int start, int length, const Source& source);
 

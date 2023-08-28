@@ -29,7 +29,6 @@ class Initializer
     static constexpr int SOURCE_STACK_SIZE = 1024;
     stack<TaintedObjectPtr> available_taintedobjects_stack;
     stack<TaintRangePtr> available_ranges_stack;
-    stack<SourcePtr> available_source_stack;
     unordered_set<TaintRangeMapType*> active_map_addreses;
     absl::node_hash_map<size_t, SourcePtr> allocated_sources_map;
 
@@ -38,7 +37,7 @@ class Initializer
     unsigned long num_taintedobjects_created = 0;
     unsigned long num_taintedobjects_destroyed = 0;
     unsigned long num_ranges_created = 0;
-    unsigned long num_ranges_destroyed= 0;
+    unsigned long num_ranges_destroyed = 0;
 
     TaintRangeMapType* create_tainting_map();
 

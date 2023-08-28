@@ -24,11 +24,6 @@ Initializer::Initializer()
     for (int i = 0; i < TAINTRANGES_STACK_SIZE; i++) {
         available_ranges_stack.push(make_shared<TaintRange>());
     }
-
-    // Fill the taint origin stack
-    for (int i = 0; i < SOURCE_STACK_SIZE; i++) {
-        available_source_stack.push(new Source());
-    }
 }
 
 TaintRangeMapType*
@@ -177,19 +172,7 @@ Initializer::allocate_taint_source(string name, string value, OriginType origin)
         return it->second;
     }
 
-    // else: not in the map, retrieve from the stack and insert in the map before
-    // returning it
-
-    if (!available_source_stack.empty()) {
-        auto toptr = available_source_stack.top();
-        available_source_stack.pop();
-        toptr->set_values(move(name), move(value), origin);
-        ++(toptr->refcount);
-        allocated_sources_map.insert({ source_hash, toptr });
-        return toptr;
-    }
-
-    // Stack is empty, create a new object
+    // Stack is empty, create a new object and insert it into the source map
     auto toptr = new Source(move(name), move(value), origin);
     ++(toptr->refcount);
     allocated_sources_map.insert({ source_hash, toptr });
@@ -213,16 +196,8 @@ Initializer::release_taint_source(SourcePtr sourceptr)
         return;
 
     if (--(sourceptr->refcount) == 0) {
-        // No more references pointing to this origin; move it back from the map
-        // to the stack (or delete it if the stack is full)
-        if (available_source_stack.size() < SOURCE_STACK_SIZE) {
-            // Move the range to the allocated origins stack
-            available_source_stack.push(sourceptr);
-            return;
-        }
-
-        // Stack full or initializer already cleared (interpreter finishing), just
-        // delete the object
+        // No more references pointing to this origin; remove it from the map and delete it
+        allocated_sources_map.erase(Source::hash(sourceptr->name, sourceptr->value, sourceptr->origin));
         delete sourceptr;
         return;
     }
