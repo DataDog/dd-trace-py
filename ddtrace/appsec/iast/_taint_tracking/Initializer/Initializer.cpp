@@ -126,11 +126,10 @@ Initializer::release_tainted_object(TaintedObjectPtr tobj)
     }
 
     tobj->reset();
-//    if (available_taintedobjects_stack.size() < TAINTEDOBJECTS_STACK_SIZE) {
-//        std::cerr << "JJJ rto: storing the resetted tainted object in the stack\n";
-//        available_taintedobjects_stack.push(tobj);
-//        return;
-//    }
+    if (available_taintedobjects_stack.size() < TAINTEDOBJECTS_STACK_SIZE) {
+        available_taintedobjects_stack.push(tobj);
+        return;
+    }
 
     // Stack full, just delete the object (but to a reset before so ranges are
     // reused or freed)
