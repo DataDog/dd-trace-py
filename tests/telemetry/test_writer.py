@@ -110,6 +110,7 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
             {"name": "DD_TRACE_SAMPLE_RATE", "origin": "unknown", "value": None},
             {"name": "DD_TRACE_SAMPLING_RULES", "origin": "unknown", "value": None},
             {"name": "DD_TRACE_SPAN_ATTRIBUTE_SCHEMA", "origin": "unknown", "value": "v0"},
+            {"name": "DD_TRACE_STARTUP_LOGS", "origin": "unknown", "value": False},
             {"name": "ddtrace_auto_used", "origin": "unknown", "value": False},
             {"name": "ddtrace_bootstrapped", "origin": "unknown", "value": False},
         ],
@@ -145,6 +146,7 @@ telemetry_writer.disable()
     # Change configuration default values
     env["DD_EXCEPTION_DEBUGGING_ENABLED"] = "True"
     env["DD_INSTRUMENTATION_TELEMETRY_ENABLED"] = "True"
+    env["DD_TRACE_STARTUP_LOGS"] = "True"
     env["DD_LOGS_INJECTION"] = "True"
     env["DD_CALL_BASIC_CONFIG"] = "True"
     env["DD_PROFILING_ENABLED"] = "True"
@@ -223,6 +225,7 @@ telemetry_writer.disable()
             "value": '[{"sample_rate":1.0,"service":"xyz","name":"abc"}]',
         },
         {"name": "DD_TRACE_SPAN_ATTRIBUTE_SCHEMA", "origin": "unknown", "value": "v1"},
+        {"name": "DD_TRACE_STARTUP_LOGS", "origin": "unknown", "value": True},
         {"name": "ddtrace_auto_used", "origin": "unknown", "value": True},
         {"name": "ddtrace_bootstrapped", "origin": "unknown", "value": True},
     ]
