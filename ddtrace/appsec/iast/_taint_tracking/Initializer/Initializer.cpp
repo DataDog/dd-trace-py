@@ -42,24 +42,19 @@ Initializer::create_tainting_map()
 void
 Initializer::free_tainting_map(TaintRangeMapType* tx_map)
 {
-    std::cerr << "JJJ free tainting map\n";
     auto it = active_map_addreses.find(tx_map);
     if (it == active_map_addreses.end()) {
         // Map wasn't in the set, do nothing
-        std::cerr << "JJJ free tainting map: map not in the set of active_map_addresses, do nothing\n";
         return;
     }
 
     for (auto& kv_taint_map : *tx_map) {
-        std::cerr << "JJJ free tainting map, calling defref\n";
         kv_taint_map.second->decref();
     }
     if (tx_map) {
         tx_map->clear();
-        std::cerr << "JJJ free tainting map, deleting tx_map\n";
         delete tx_map;
     }
-    std::cerr << "JJJ free tainting map, deleting active_map_addresses\n";
     active_map_addreses.erase(it);
 }
 
@@ -113,13 +108,11 @@ TaintedObjectPtr
 Initializer::allocate_tainted_object()
 {
     if (!available_taintedobjects_stack.empty()) {
-        std::cerr << "JJJ retrieving tainted object from stack\n";
         const auto& toptr = available_taintedobjects_stack.top();
         available_taintedobjects_stack.pop();
         return toptr;
     }
     // Stack is empty, create new object
-    std::cerr << "JJJ calling new TaintedObject from allocate_tainted_object\n";
     auto* tobject = new TaintedObject();
     return tobject;
 }
@@ -128,23 +121,19 @@ Initializer::allocate_tainted_object()
 void
 Initializer::release_tainted_object(TaintedObjectPtr tobj)
 {
-    std::cerr << "JJJ in release tainted object\n";
     if (!tobj) {
-        std::cerr << "JJJ return because null object\n";
         return;
     }
 
-    std::cerr << "JJJ calling TaintedObject::reset\n";
     tobj->reset();
-    if (available_taintedobjects_stack.size() < TAINTEDOBJECTS_STACK_SIZE) {
-        std::cerr << "JJJ storing the resetted tainted object in the stack\n";
-        available_taintedobjects_stack.push(tobj);
-        return;
-    }
+//    if (available_taintedobjects_stack.size() < TAINTEDOBJECTS_STACK_SIZE) {
+//        std::cerr << "JJJ rto: storing the resetted tainted object in the stack\n";
+//        available_taintedobjects_stack.push(tobj);
+//        return;
+//    }
 
     // Stack full, just delete the object (but to a reset before so ranges are
     // reused or freed)
-    std::cerr << "JJJ Deleting TaintedObject using delete\n";
     delete tobj;
 }
 
@@ -231,7 +220,7 @@ Initializer::release_taint_source(SourcePtr sourceptr)
         // to the stack (or delete it if the stack is full)
         if (available_source_stack.size() < SOURCE_STACK_SIZE) {
             // Move the range to the allocated origins stack
-            available_source_stack.push(sourceptr);
+//            available_source_stack.push(sourceptr);
             return;
         }
 
@@ -240,7 +229,7 @@ Initializer::release_taint_source(SourcePtr sourceptr)
         delete sourceptr;
     }
 
-    // else: still references to this origin exist so it remains in the map
+//     else: still references to this origin exist so it remains in the map
 }
 
 recursive_mutex contexts_mutex; // NOLINT(cert-err58-cpp)
@@ -358,8 +347,4 @@ pyexport_initializer(py::module& m)
       "tx_id"_a = 0);
     m.def("contexts_reset", [] { initializer->contexts_reset(); });
     m.def("destroy_context", [] { initializer->destroy_context(); });
-    m.def("num_created_tobjects", [] { return initializer->JJJ_num_taintedobjects_created; });
-    m.def("num_destroyed_tobjects", [] { return initializer->JJJ_num_taintedobjects_destroyed; });
-    m.def("num_created_ranges", [] { return initializer->JJJ_num_ranges_created; });
-    m.def("num_destroyed_ranges", [] { return initializer->JJJ_num_ranges_destroyed; });
 }

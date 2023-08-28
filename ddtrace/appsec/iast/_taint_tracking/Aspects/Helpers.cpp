@@ -1,5 +1,4 @@
 #include "Helpers.h"
-#include <iostream> // JJJ: remove
 #include <ostream>
 #include <regex>
 

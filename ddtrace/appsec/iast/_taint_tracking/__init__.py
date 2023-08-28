@@ -21,10 +21,6 @@ if _is_python_version_supported():
     from ddtrace.appsec.iast._taint_tracking._native.initializer import num_contexts
     from ddtrace.appsec.iast._taint_tracking._native.initializer import initializer_size
     from ddtrace.appsec.iast._taint_tracking._native.initializer import active_map_addreses_size
-    from ddtrace.appsec.iast._taint_tracking._native.initializer import num_created_tobjects  # JJJ
-    from ddtrace.appsec.iast._taint_tracking._native.initializer import num_destroyed_tobjects  # JJJ
-    from ddtrace.appsec.iast._taint_tracking._native.initializer import num_created_ranges  # JJJ
-    from ddtrace.appsec.iast._taint_tracking._native.initializer import num_destroyed_ranges  # JJJ
     from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import OriginType
     from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import Source
     from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import TagMappingMode
@@ -80,8 +76,6 @@ __all__ = [
     "as_formatted_evidence",
     "parse_params",
     "num_objects_tainted",
-    "num_created_tobjects",  # JJJ
-    "num_destroyed_tobjects",  # JJJ
 ]
 
 

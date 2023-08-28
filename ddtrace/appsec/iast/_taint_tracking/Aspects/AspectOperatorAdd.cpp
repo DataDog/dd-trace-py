@@ -17,7 +17,7 @@ add_aspect(PyObject* result_o, PyObject* candidate_text, PyObject* text_to_add, 
     const auto& to_candidate_text = get_tainted_object(candidate_text, tx_taint_map);
     if (to_candidate_text and to_candidate_text->get_ranges().size() >= TaintedObject::TAINT_RANGE_LIMIT) {
         const auto& res_new_id = new_pyobject_id(result_o, len_result_o);
-//        Py_DECREF(result_o);
+        Py_DECREF(result_o);
         // If left side is already at the maximum taint ranges, we just reuse its
         // ranges, we don't need to look at left side.
         set_tainted_object(res_new_id, to_candidate_text, tx_taint_map);
@@ -30,7 +30,7 @@ add_aspect(PyObject* result_o, PyObject* candidate_text, PyObject* text_to_add, 
     }
     if (!to_text_to_add) {
         const auto& res_new_id = new_pyobject_id(result_o, len_result_o);
-//        Py_DECREF(result_o);
+        Py_DECREF(result_o);
         set_tainted_object(res_new_id, to_candidate_text, tx_taint_map);
         return res_new_id;
     }
@@ -42,7 +42,6 @@ add_aspect(PyObject* result_o, PyObject* candidate_text, PyObject* text_to_add, 
     Py_DECREF(result_o);
     set_tainted_object(res_new_id, tainted, tx_taint_map);
 
-    // JJJ this is the return
     return res_new_id;
 }
 
@@ -64,10 +63,9 @@ api_add_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
         PyBytes_Concat(&candidate_text, text_to_add);
         result_o = candidate_text;
         candidate_text = tmp_bytes;
-        Py_IncRef(candidate_text);
+        Py_INCREF(candidate_text);
     } else if (PyByteArray_Check(candidate_text)) {
         result_o = PyByteArray_Concat(candidate_text, text_to_add);
-        Py_DecRef(result_o);
     }
 
     // Quickly skip if both are noninterned-unicodes and not tainted
@@ -79,5 +77,6 @@ api_add_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
     if (not ctx_map or ctx_map->empty()) {
         return result_o;
     }
-    return add_aspect(result_o, candidate_text, text_to_add, ctx_map);
+    auto res = add_aspect(result_o, candidate_text, text_to_add, ctx_map);
+    return res;
 }
