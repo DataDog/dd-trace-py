@@ -24,7 +24,7 @@ if _is_python_version_supported():
     from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import OriginType
     from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import Source
     from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import TagMappingMode
-    from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import TaintRange
+    from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import taint_range as TaintRange
     from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import are_all_text_all_ranges
     from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import get_range_by_hash
     from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import get_ranges
