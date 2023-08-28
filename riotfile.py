@@ -1830,7 +1830,7 @@ venv = Venv(
         ),
         Venv(
             name="rq",
-            command="pytest tests/contrib/rq",
+            command="pytest {cmdargs} tests/contrib/rq",
             venvs=[
                 Venv(
                     # rq dropped support for Python 2.7 in 1.4.0
