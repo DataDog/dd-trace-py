@@ -1738,11 +1738,7 @@ venv = Venv(
             name="unittest-snapshot",
             command="pytest --no-ddtrace {cmdargs} tests/contrib/unittest_plugin/snapshot/",
             pkgs={"msgpack": latest},
-            env={
-                "DD_CIVISIBILITY_UNITTEST_ENABLED": "1",
-                "DD_TRACE_AGENT_URL": "http://localhost:9126",
-                "AGENT_VERSION": "testagent",
-            },
+            env={"DD_CIVISIBILITY_UNITTEST_ENABLED": "1"},
             pys=select_pys(min_version="2.7", max_version="3.11"),
         ),
         Venv(

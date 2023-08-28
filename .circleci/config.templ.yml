@@ -789,8 +789,7 @@ jobs:
     steps:
       - run_test:
           pattern: 'unittest'
-          snapshot: true
-        
+
 
   asynctest:
     executor: ddtrace_dev

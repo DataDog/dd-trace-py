@@ -12,12 +12,12 @@
       "_dd.p.dm": "-0",
       "component": "unittest",
       "language": "python",
-      "runtime-id": "cd7a355def934374b1edf80630718fc4",
+      "runtime-id": "79ebad4b8fa2417ebe9ce699d07be2f1",
       "span.kind": "test",
       "test.class_hierarchy": "MyTestSuite",
       "test.codeowners": "[\"@DataDog/apm-core-python\"]",
       "test.framework": "unittest",
-      "test.module": "tests.contrib.unittest_plugin.test_unittest_snapshot",
+      "test.module": "test_unittest_snapshot",
       "test.name": "test_will_be_skipped",
       "test.skip_reason": "we will need to skip this!",
       "test.status": "skip",
@@ -30,10 +30,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 32811
+      "process_id": 24752
     },
-    "duration": 99500,
-    "start": 1692976782499444052
+    "duration": 134000,
+    "start": 1693226339018517000
   }],
 [
   {
@@ -49,15 +49,15 @@
       "_dd.p.dm": "-0",
       "component": "unittest",
       "error.message": "False is not true",
-      "error.stack": "Traceback (most recent call last):\n  File \"/root/.pyenv/versions/3.10.11/lib/python3.10/unittest/case.py\", line 59, in testPartExecutor\n    yield\n  File \"/root/.pyenv/versions/3.10.11/lib/python3.10/unittest/case.py\", line 591, in run\n    self._callTestMethod(testMethod)\n  File \"/root/.pyenv/versions/3.10.11/lib/python3.10/unittest/case.py\", line 549, in _callTestMethod\n    method()\n  File \"/Users/eric.navarro/Desktop/ddog/dd-trace-py/tests/contrib/unittest_plugin/test_unittest_snapshot.py\", line 39, in test_will_fail\n  File \"/root/.pyenv/versions/3.10.11/lib/python3.10/unittest/case.py\", line 687, in assertTrue\n    raise self.failureException(msg)\nAssertionError: False is not true\n",
+      "error.stack": "Traceback (most recent call last):\n  File \"/Library/Frameworks/Python.framework/Versions/3.10/lib/python3.10/unittest/case.py\", line 59, in testPartExecutor\n    yield\n  File \"/Library/Frameworks/Python.framework/Versions/3.10/lib/python3.10/unittest/case.py\", line 591, in run\n    self._callTestMethod(testMethod)\n  File \"/Library/Frameworks/Python.framework/Versions/3.10/lib/python3.10/unittest/case.py\", line 549, in _callTestMethod\n    method()\n  File \"/Users/eric.navarro/Desktop/ddog/dd-trace-py/tests/contrib/unittest_plugin/snapshot/test_unittest_snapshot.py\", line 30, in test_will_fail\n    self.assertTrue(1 == 2)\n  File \"/Library/Frameworks/Python.framework/Versions/3.10/lib/python3.10/unittest/case.py\", line 687, in assertTrue\n    raise self.failureException(msg)\nAssertionError: False is not true\n",
       "error.type": "builtins.AssertionError",
       "language": "python",
-      "runtime-id": "cd7a355def934374b1edf80630718fc4",
+      "runtime-id": "79ebad4b8fa2417ebe9ce699d07be2f1",
       "span.kind": "test",
       "test.class_hierarchy": "MyTestSuite",
       "test.codeowners": "[\"@DataDog/apm-core-python\"]",
       "test.framework": "unittest",
-      "test.module": "tests.contrib.unittest_plugin.test_unittest_snapshot",
+      "test.module": "test_unittest_snapshot",
       "test.name": "test_will_fail",
       "test.status": "fail",
       "test.suite": "MyTestSuite",
@@ -69,10 +69,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 32811
+      "process_id": 24752
     },
-    "duration": 290875,
-    "start": 1692976782499855219
+    "duration": 1321000,
+    "start": 1693226339042406000
   }],
 [
   {
@@ -88,12 +88,12 @@
       "_dd.p.dm": "-0",
       "component": "unittest",
       "language": "python",
-      "runtime-id": "cd7a355def934374b1edf80630718fc4",
+      "runtime-id": "79ebad4b8fa2417ebe9ce699d07be2f1",
       "span.kind": "test",
       "test.class_hierarchy": "MyTestSuite",
       "test.codeowners": "[\"@DataDog/apm-core-python\"]",
       "test.framework": "unittest",
-      "test.module": "tests.contrib.unittest_plugin.test_unittest_snapshot",
+      "test.module": "test_unittest_snapshot",
       "test.name": "test_will_pass",
       "test.status": "pass",
       "test.suite": "MyTestSuite",
@@ -105,8 +105,8 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 32811
+      "process_id": 24752
     },
-    "duration": 91709,
-    "start": 1692976782500228260
+    "duration": 108000,
+    "start": 1693226339043840000
   }]]
