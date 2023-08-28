@@ -635,7 +635,6 @@ def test_probe_status_logging(remote_config_worker):
 
         logger = d.probe_status_logger
 
-
         def count_status(queue):
             return Counter(_["debugger"]["diagnostics"]["status"] for _ in queue)
 
