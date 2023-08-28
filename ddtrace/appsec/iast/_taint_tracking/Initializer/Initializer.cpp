@@ -113,8 +113,7 @@ Initializer::allocate_tainted_object()
         return toptr;
     }
     // Stack is empty, create new object
-    auto* tobject = new TaintedObject();
-    return tobject;
+    return new TaintedObject();
 }
 
 // TODO: Release tainted objects, where?
@@ -219,16 +218,16 @@ Initializer::release_taint_source(SourcePtr sourceptr)
         // to the stack (or delete it if the stack is full)
         if (available_source_stack.size() < SOURCE_STACK_SIZE) {
             // Move the range to the allocated origins stack
-//            available_source_stack.push(sourceptr);
+            available_source_stack.push(sourceptr);
             return;
         }
 
         // Stack full or initializer already cleared (interpreter finishing), just
-        // delte the object
+        // delete the object
         delete sourceptr;
     }
 
-//     else: still references to this origin exist so it remains in the map
+    // else: still references to this origin exist so it remains in the map
 }
 
 recursive_mutex contexts_mutex; // NOLINT(cert-err58-cpp)

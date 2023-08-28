@@ -19,7 +19,6 @@ from ddtrace.appsec.iast._taint_tracking import destroy_context
 from ddtrace.appsec.iast._taint_tracking import num_contexts
 from ddtrace.appsec.iast._taint_tracking import initializer_size
 from ddtrace.appsec.iast._taint_tracking import active_map_addreses_size
-from ddtrace.appsec.iast._taint_tracking import setup
 
 from aspects import join_aspect, add_aspect
 
@@ -124,7 +123,6 @@ def launch_function(func: Callable, internal_loop: float, caller_loop: int) -> f
 
 
 def main() -> None:
-    setup(bytes.join, bytearray.join)
     internal_loop = 1000
     caller_loop = 100
     repetitions = 0

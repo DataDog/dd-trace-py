@@ -15,9 +15,7 @@ class TaintedObject
     constexpr static int TAINT_RANGE_LIMIT = 100;
     constexpr static int RANGES_INITIAL_RESERVE = 16;
 
-    TaintedObject() {
-        ranges_.reserve(RANGES_INITIAL_RESERVE);
-    }
+    TaintedObject() { ranges_.reserve(RANGES_INITIAL_RESERVE); };
 
     TaintedObject& operator=(const TaintedObject&) = delete;
 
@@ -35,9 +33,7 @@ class TaintedObject
         ranges_ = ranges;
     }
 
-    [[nodiscard]] const TaintRangeRefs& get_ranges() const {
-        return ranges_;
-    }
+    [[nodiscard]] const TaintRangeRefs& get_ranges() const { return ranges_; }
 
     [[nodiscard]] TaintRangeRefs get_ranges_copy() const { return ranges_; }
 
