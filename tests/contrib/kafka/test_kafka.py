@@ -92,6 +92,28 @@ def consumer(tracer, kafka_topic):
     _consumer.close()
 
 
+@pytest.fixture
+def serializing_producer(tracer):
+    _producer = confluent_kafka.Producer({"bootstrap.servers": BOOTSTRAP_SERVERS})
+    Pin.override(_producer, tracer=tracer)
+    return _producer
+
+
+@pytest.fixture
+def deserializing_consumer(tracer, kafka_topic):
+    _consumer = confluent_kafka.Consumer(
+        {
+            "bootstrap.servers": BOOTSTRAP_SERVERS,
+            "group.id": GROUP_ID,
+            "auto.offset.reset": "earliest",
+        }
+    )
+    Pin.override(_consumer, tracer=tracer)
+    _consumer.subscribe([kafka_topic])
+    yield _consumer
+    _consumer.close()
+
+
 def test_consumer_created_with_logger_does_not_raise(tracer):
     """Test that adding a logger to a Consumer init does not raise any errors."""
     logger = logging.getLogger()
@@ -198,6 +220,52 @@ def retry_until_not_none(factory):
             return x
         time.sleep(0.1)
     return None
+
+
+def test_data_streams_kafka_serializing(tracer, deserializing_consumer, serializing_producer, kafka_topic):
+    PAYLOAD = bytes("data streams", encoding="utf-8") if six.PY3 else bytes("data streams")
+    try:
+        del tracer.data_streams_processor._current_context.value
+    except AttributeError:
+        pass
+    serializing_producer.produce(kafka_topic, PAYLOAD, key="test_key_2")
+    serializing_producer.flush()
+    message = None
+    while message is None or str(message.value()) != str(PAYLOAD):
+        message = deserializing_consumer.poll(1.0)
+    buckets = tracer.data_streams_processor._buckets
+    assert len(buckets) == 1
+    first = list(buckets.values())[0].pathway_stats
+    assert (
+        first[
+            ("direction:out,topic:{},type:kafka".format(kafka_topic), 10451282778496195491, 0)
+        ].full_pathway_latency._count
+        >= 1
+    )
+    assert (
+        first[("direction:out,topic:{},type:kafka".format(kafka_topic), 10451282778496195491, 0)].edge_latency._count
+        >= 1
+    )
+    assert (
+        first[
+            (
+                "direction:in,group:test_group,topic:{},type:kafka".format(kafka_topic),
+                6736498786733974928,
+                10451282778496195491,
+            )
+        ].full_pathway_latency._count
+        >= 1
+    )
+    assert (
+        first[
+            (
+                "direction:in,group:test_group,topic:{},type:kafka".format(kafka_topic),
+                6736498786733974928,
+                10451282778496195491,
+            )
+        ].edge_latency._count
+        >= 1
+    )
 
 
 def test_data_streams_kafka(tracer, consumer, producer, kafka_topic):
