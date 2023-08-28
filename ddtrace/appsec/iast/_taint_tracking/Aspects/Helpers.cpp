@@ -80,8 +80,8 @@ mapper_replace(const TaintRangePtr& taint_range, const optional<const py::dict>&
 py::object
 get_default_content(const TaintRangePtr& taint_range)
 {
-    if (!taint_range->source->name.empty()) {
-        return py::str(taint_range->source->name);
+    if (!taint_range->source.name.empty()) {
+        return py::str(taint_range->source.name);
     }
 
     return py::cast<py::none>(Py_None);

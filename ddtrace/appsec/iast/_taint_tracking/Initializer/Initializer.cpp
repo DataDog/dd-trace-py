@@ -130,12 +130,12 @@ Initializer::release_tainted_object(TaintedObjectPtr tobj)
 }
 
 TaintRangePtr
-Initializer::allocate_taint_range(int start, int length, SourcePtr origin)
+Initializer::allocate_taint_range(int start, int length, Source origin)
 {
     if (!available_ranges_stack.empty()) {
         auto rptr = available_ranges_stack.top();
         available_ranges_stack.pop();
-        rptr->set_values(start, length, reuse_taint_source(origin));
+        rptr->set_values(start, length, origin);
         return rptr;
     }
 
@@ -159,50 +159,6 @@ Initializer::release_taint_range(TaintRangePtr rangeptr)
     // Stack full or initializer already cleared (interpreter finishing), just
     // release the object
     rangeptr.reset();
-}
-
-SourcePtr
-Initializer::allocate_taint_source(string name, string value, OriginType origin)
-{
-    auto source_hash = Source::hash(name, value, origin);
-    auto it = allocated_sources_map.find(source_hash);
-    if (it != allocated_sources_map.end()) {
-        // It's already in the map, increase the reference count and return it
-        ++(it->second->refcount);
-        return it->second;
-    }
-
-    // Stack is empty, create a new object and insert it into the source map
-    auto toptr = new Source(move(name), move(value), origin);
-    ++(toptr->refcount);
-    allocated_sources_map.insert({ source_hash, toptr });
-    return toptr;
-}
-
-SourcePtr
-Initializer::reuse_taint_source(SourcePtr source)
-{
-    if (!source)
-        return nullptr;
-
-    ++(source->refcount);
-    return source;
-}
-
-void
-Initializer::release_taint_source(SourcePtr sourceptr)
-{
-    if (!sourceptr)
-        return;
-
-    if (--(sourceptr->refcount) == 0) {
-        // No more references pointing to this origin; remove it from the map and delete it
-        allocated_sources_map.erase(Source::hash(sourceptr->name, sourceptr->value, sourceptr->origin));
-        delete sourceptr;
-        return;
-    }
-
-    // else: still references to this origin exist so it remains in the map
 }
 
 recursive_mutex contexts_mutex; // NOLINT(cert-err58-cpp)

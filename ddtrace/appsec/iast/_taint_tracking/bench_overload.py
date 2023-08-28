@@ -1,28 +1,26 @@
 #!/usr/bin/env python3
-import string
 import os
-
 from random import choice
-
-import time
-import psutil
 from statistics import median
+import string
+import time
+from typing import Callable
 
+from aspects import add_aspect
+from aspects import join_aspect
+import psutil
+
+from ddtrace.appsec.iast._taint_tracking import active_map_addreses_size
+from ddtrace.appsec.iast._taint_tracking import contexts_reset
+from ddtrace.appsec.iast._taint_tracking import create_context
+from ddtrace.appsec.iast._taint_tracking import destroy_context
+from ddtrace.appsec.iast._taint_tracking import initializer_size
+from ddtrace.appsec.iast._taint_tracking import num_contexts
 from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import OriginType
 from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import Source
 from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import TaintRange
-from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import set_ranges
 from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import get_ranges
-from ddtrace.appsec.iast._taint_tracking import create_context
-from ddtrace.appsec.iast._taint_tracking import contexts_reset
-from ddtrace.appsec.iast._taint_tracking import destroy_context
-from ddtrace.appsec.iast._taint_tracking import num_contexts
-from ddtrace.appsec.iast._taint_tracking import initializer_size
-from ddtrace.appsec.iast._taint_tracking import active_map_addreses_size
-
-from aspects import join_aspect, add_aspect
-
-from typing import Callable
+from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import set_ranges
 
 
 ENABLE_PROPAGATION = bool(int(os.environ.get("ENABLE_PROPAGATION", True)))

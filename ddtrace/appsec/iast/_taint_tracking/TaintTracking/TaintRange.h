@@ -36,24 +36,22 @@ struct TaintRange
 {
     int start = 0;
     int length = 0;
-    SourcePtr source = nullptr;
+    Source source;
 
     TaintRange() = default;
 
-    TaintRange(int start, int length, SourcePtr source)
+    TaintRange(int start, int length, Source source)
       : start(start)
       , length(length)
-      , source(source)
+      , source(std::move(source))
     {
     }
 
-    TaintRange(int start, int length, const Source& source);
-
-    inline void set_values(int start_, int length_, SourcePtr source_)
+    inline void set_values(int start_, int length_, Source source_)
     {
         start = start_;
         length = length_;
-        source = source_;
+        source = std::move(source_);
     }
 
     void reset();

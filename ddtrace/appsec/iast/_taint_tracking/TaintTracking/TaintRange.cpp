@@ -65,27 +65,10 @@ set_fast_tainted_if_notinterned_unicode(const PyObject* objptr)
     }
 }
 
-// Only for Python! C++ should use the constructor with the TaintOriginPtr
-// defined in the header
-TaintRange::TaintRange(int start, int length, const Source& source)
-  : start(start)
-  , length(length)
-{
-    this->source = initializer->allocate_taint_source(source.name, source.value, source.origin);
-}
-
 void
 TaintRange::reset()
 {
-    if (source) {
-        if (initializer) {
-            initializer->release_taint_source(source);
-        } else {
-            delete source;
-        }
-    }
-    source = nullptr;
-
+    source.reset();
     start = 0;
     length = 0;
 };
@@ -95,7 +78,7 @@ TaintRange::toString() const
 {
     ostringstream ret;
     ret << "TaintRange at " << this << " "
-        << "[start=" << start << ", length=" << length << " source=" << source->toString() << "]";
+        << "[start=" << start << ", length=" << length << " source=" << source.toString() << "]";
     return ret.str();
 }
 
@@ -111,7 +94,7 @@ TaintRange::get_hash() const
 {
     uint hstart = hash<uint>()(this->start);
     uint hlength = hash<uint>()(this->length);
-    uint hsource = hash<uint>()(this->source->get_hash());
+    uint hsource = hash<uint>()(this->source.get_hash());
     return hstart ^ hlength ^ hsource;
 };
 
