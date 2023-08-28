@@ -20,7 +20,7 @@ from ddtrace.internal.compat import iteritems
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.sampling import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.sampling import SamplingMechanism
-from ddtrace.internal.sampling import update_sampling_decision
+from ddtrace.internal.sampling import set_sampling_decision_maker
 from ddtrace.sampler import AllSampler
 from ddtrace.sampler import DatadogSampler
 from ddtrace.sampler import RateByServiceSampler
@@ -987,5 +987,5 @@ def context():
     ],
 )
 def test_trace_tag(context, sampling_mechanism, sampled, expected):
-    update_sampling_decision(context, sampling_mechanism, sampled)
+    set_sampling_decision_maker(context, sampling_mechanism, sampled)
     assert context._meta["_dd.p.dm"] == expected
