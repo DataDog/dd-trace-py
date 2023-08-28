@@ -218,9 +218,8 @@ class DDWSGIMiddleware(_DDWSGIMiddlewareBase):
             status=status,
             environ=environ,
             start_span=True,
-        ) as ctx:
-            with ctx.get_item("response_span"):
-                return start_response(status, environ, exc_info)
+        ) as ctx, ctx.get_item("response_span"):
+            return start_response(status, environ, exc_info)
 
     def _request_span_modifier(self, req_span, environ, parsed_headers=None):
         url = construct_url(environ)
