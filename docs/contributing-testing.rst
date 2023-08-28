@@ -121,7 +121,7 @@ changes you made to ``riotfile.py``.
 How do I add a new test suite?
 ------------------------------
 
-We use `riot <https://github.com/DataDog/riot/>`_, a Python virtual environment constructor, to run the test suites.
+We use `riot <https://ddriot.readthedocs.io/en/latest/>`_, a Python virtual environment constructor, to run the test suites.
 It is necessary to create a new ``Venv`` instance in ``riotfile.py`` if it does not exist already. It can look like this:
 
 .. code-block:: python
