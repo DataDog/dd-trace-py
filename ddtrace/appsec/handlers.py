@@ -249,7 +249,8 @@ def _on_django_patch():
 
 
 def listen():
-    core.on("flask.request_span_modifier", _on_request_span_modifier)
+    core.on("flask.request_call_modifier", _on_request_span_modifier)
+    core.on("flask.request_init", _on_request_init)
 
 
 core.on("django.func.wrapped", _on_django_func_wrapped)
