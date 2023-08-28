@@ -5,7 +5,6 @@ import sys
 
 import pytest
 
-from ddtrace import Pin
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec.iast import oce
 from ddtrace.appsec.iast.constants import VULN_CMDI
@@ -20,7 +19,6 @@ from tests.utils import override_global_config
 try:
     from ddtrace.appsec.iast._taint_tracking import OriginType  # noqa: F401
     from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
-    from ddtrace.appsec.iast._taint_tracking import setup as taint_tracking_setup
     from ddtrace.appsec.iast._taint_tracking import taint_pyobject
     from ddtrace.appsec.iast._taint_tracking.aspects import add_aspect
 except (ImportError, AttributeError):
@@ -44,13 +42,11 @@ def auto_unpatch():
 
 def setup():
     oce._enabled = True
-    taint_tracking_setup(bytes.join, bytearray.join)
 
 
 def test_ossystem(tracer, iast_span_defaults):
     with override_global_config(dict(_appsec_enabled=True, _iast_enabled=True)):
         patch()
-        Pin.get_from(os).clone(tracer=tracer).onto(os)
         _BAD_DIR = "forbidden_dir/"
         _BAD_DIR = taint_pyobject(
             pyobject=_BAD_DIR,
@@ -86,7 +82,6 @@ def test_ossystem(tracer, iast_span_defaults):
 def test_communicate(tracer, iast_span_defaults):
     with override_global_config(dict(_appsec_enabled=True, _iast_enabled=True)):
         patch()
-        Pin.get_from(os).clone(tracer=tracer).onto(os)
         _BAD_DIR = "forbidden_dir/"
         _BAD_DIR = taint_pyobject(
             pyobject=_BAD_DIR,
@@ -123,7 +118,6 @@ def test_communicate(tracer, iast_span_defaults):
 def test_run(tracer, iast_span_defaults):
     with override_global_config(dict(_appsec_enabled=True, _iast_enabled=True)):
         patch()
-        Pin.get_from(os).clone(tracer=tracer).onto(os)
         _BAD_DIR = "forbidden_dir/"
         _BAD_DIR = taint_pyobject(
             pyobject=_BAD_DIR,
@@ -158,7 +152,6 @@ def test_run(tracer, iast_span_defaults):
 def test_popen_wait(tracer, iast_span_defaults):
     with override_global_config(dict(_appsec_enabled=True, _iast_enabled=True)):
         patch()
-        Pin.get_from(os).clone(tracer=tracer).onto(os)
         _BAD_DIR = "forbidden_dir/"
         _BAD_DIR = taint_pyobject(
             pyobject=_BAD_DIR,
@@ -194,7 +187,6 @@ def test_popen_wait(tracer, iast_span_defaults):
 def test_popen_wait_shell_true(tracer, iast_span_defaults):
     with override_global_config(dict(_appsec_enabled=True, _iast_enabled=True)):
         patch()
-        Pin.get_from(os).clone(tracer=tracer).onto(os)
         _BAD_DIR = "forbidden_dir/"
         _BAD_DIR = taint_pyobject(
             pyobject=_BAD_DIR,
@@ -244,7 +236,6 @@ def test_popen_wait_shell_true(tracer, iast_span_defaults):
 def test_osspawn_variants(tracer, iast_span_defaults, function, mode, arguments, tag):
     with override_global_config(dict(_appsec_enabled=True, _iast_enabled=True)):
         patch()
-        Pin.get_from(os).clone(tracer=tracer).onto(os)
         _BAD_DIR = "forbidden_dir/"
         _BAD_DIR = taint_pyobject(
             pyobject=_BAD_DIR,
@@ -287,3 +278,22 @@ def test_osspawn_variants(tracer, iast_span_defaults, function, mode, arguments,
         assert vulnerability.location.path == FIXTURES_PATH
         assert vulnerability.location.line == line
         assert vulnerability.hash == hash_value
+
+
+def test_multiple_cmdi(tracer, iast_span_defaults):
+    with override_global_config(dict(_appsec_enabled=True, _iast_enabled=True)):
+        patch()
+        _BAD_DIR = taint_pyobject(
+            pyobject="forbidden_dir/",
+            source_name="test_run",
+            source_value="forbidden_dir/",
+            source_origin=OriginType.PARAMETER,
+        )
+        with tracer.trace("test_multiple_cmdi"):
+            subprocess.run(["dir", "-l", _BAD_DIR])
+            subprocess.run(["dir", "-l", _BAD_DIR])
+
+        span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+        assert span_report
+
+        assert len(list(span_report.vulnerabilities)) == 2
