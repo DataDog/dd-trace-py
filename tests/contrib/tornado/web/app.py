@@ -303,11 +303,13 @@ class ExecutorExceptionWrapHandler(tornado.web.RequestHandler):
         self.write("OK")
 
 
-def make_app(settings={}):
+def make_app(settings=None):
     """
     Create a Tornado web application, useful to test
     different behaviors.
     """
+    if settings is None:
+        settings = {}
     settings["ui_modules"] = uimodules
 
     return tornado.web.Application(

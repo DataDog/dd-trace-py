@@ -55,7 +55,7 @@ async def test_exception(ot_tracer, test_spans):
         with ot_tracer.start_span("f1"):
             raise Exception("f1 error")
 
-    with pytest.raises(Exception):
+    with pytest.raises(Exception, match="f1 error"):
         await f1()
 
     traces = test_spans.pop_traces()

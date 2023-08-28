@@ -6,8 +6,7 @@ from ddtrace import config
 from ddtrace.appsec import handlers
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
-from ddtrace.appsec.iast._metrics import _set_metric_iast_instrumented_source
-from ddtrace.appsec.iast._util import _is_iast_enabled
+from ddtrace.appsec.iast._utils import _is_iast_enabled
 from ddtrace.internal import core
 from ddtrace.internal.compat import parse
 from ddtrace.internal.constants import REQUEST_PATH_PARAMS
@@ -407,6 +406,7 @@ def _on_wrapped_view(kwargs):
 
 def _on_set_request_tags(request, span, flask_config):
     if _is_iast_enabled():
+        from ddtrace.appsec.iast._metrics import _set_metric_iast_instrumented_source
         from ddtrace.appsec.iast._taint_tracking import OriginType
         from ddtrace.appsec.iast._taint_utils import LazyTaintDict
 
@@ -450,7 +450,7 @@ def _on_block_decided(callback):
 def listen_context_handlers():
     core.on("flask.finalize_request.post", _on_post_finalizerequest)
     core.on("flask.wrapped_view", _on_wrapped_view)
-    core.on("context.started.flask._traced_request", _on_pre_tracedrequest)
+    core.on("context.started.flask._patched_request", _on_pre_tracedrequest)
     core.on("wsgi.block_decided", _on_block_decided)
     core.on("flask.start_response", _on_start_response)
     core.on("flask.set_request_tags", _on_set_request_tags)

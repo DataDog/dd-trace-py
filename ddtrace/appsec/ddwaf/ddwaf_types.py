@@ -76,6 +76,10 @@ class DDWAF_OBJ_TYPE(IntEnum):
     DDWAF_OBJ_MAP = 1 << 4
     # Value shall be decode as bool
     DDWAF_OBJ_BOOL = 1 << 5
+    # 64-bit float (or double) type
+    DDWAF_OBJ_FLOAT = 1 << 6
+    # Null type, only used for its semantical value
+    DDWAF_OBJ_NULL = 1 << 7
 
 
 class DDWAF_RET_CODE(IntEnum):
@@ -121,7 +125,7 @@ class ddwaf_object(ctypes.Structure):
     def __init__(
         self,
         struct=None,
-        observator=_observator(),
+        observator=_observator(),  # noqa : B008
         max_objects=DDWAF_MAX_CONTAINER_SIZE,
         max_depth=DDWAF_MAX_CONTAINER_DEPTH,
         max_string_length=DDWAF_MAX_STRING_LENGTH,
@@ -144,7 +148,7 @@ class ddwaf_object(ctypes.Structure):
         elif isinstance(struct, bytes):
             ddwaf_object_string(self, truncate_string(struct))
         elif isinstance(struct, float):
-            ddwaf_object_string(self, truncate_string(unicode(struct).encode("UTF-8", errors="ignore")))
+            ddwaf_object_float(self, struct)
         elif isinstance(struct, list):
             if max_depth <= 0:
                 observator.truncation |= _TRUNC_CONTAINER_DEPTH
@@ -220,6 +224,10 @@ class ddwaf_object(ctypes.Structure):
             }
         if self.type == DDWAF_OBJ_TYPE.DDWAF_OBJ_BOOL:
             return self.value.boolean
+        if self.type == DDWAF_OBJ_TYPE.DDWAF_OBJ_FLOAT:
+            return self.value.f64
+        if self.type == DDWAF_OBJ_TYPE.DDWAF_OBJ_NULL:
+            return None
         log.debug("ddwaf_object struct: unknown object type: %s", repr(type(self.type)))
         return None
 
@@ -237,6 +245,7 @@ class ddwaf_value(ctypes.Union):
         ("intValue", ctypes.c_longlong),
         ("array", ddwaf_object_p),
         ("boolean", ctypes.c_bool),
+        ("f64", ctypes.c_double),
     ]
 
 
@@ -254,6 +263,7 @@ class ddwaf_result(ctypes.Structure):
         ("timeout", ctypes.c_bool),
         ("events", ddwaf_object),
         ("actions", ddwaf_object),
+        ("ddwaf_object derivatives", ddwaf_object),
         ("total_runtime", ctypes.c_uint64),
     ]
 
@@ -470,6 +480,22 @@ ddwaf_object_string = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_
 
 # object_string variants not used
 
+ddwaf_object_string_from_unsigned = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_uint64)(
+    ("ddwaf_object_string_from_unsigned", ddwaf),
+    (
+        (3, "object"),
+        (1, "value"),
+    ),
+)
+
+ddwaf_object_string_from_signed = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_int64)(
+    ("ddwaf_object_string_from_signed", ddwaf),
+    (
+        (3, "object"),
+        (1, "value"),
+    ),
+)
+
 ddwaf_object_unsigned = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_uint64)(
     ("ddwaf_object_unsigned", ddwaf),
     (
@@ -494,6 +520,20 @@ ddwaf_object_bool = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_bo
         (3, "object"),
         (1, "value"),
     ),
+)
+
+
+ddwaf_object_float = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_double)(
+    ("ddwaf_object_float", ddwaf),
+    (
+        (3, "object"),
+        (1, "value"),
+    ),
+)
+
+ddwaf_object_null = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p)(
+    ("ddwaf_object_null", ddwaf),
+    ((3, "object"),),
 )
 
 ddwaf_object_array = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p)(
@@ -533,6 +573,7 @@ ddwaf_object_map_add = ctypes.CFUNCTYPE(ctypes.c_bool, ddwaf_object_p, ctypes.c_
 # ddwaf_object_get_signed
 # ddwaf_object_get_index
 # ddwaf_object_get_bool https://github.com/DataDog/libddwaf/commit/7dc68dacd972ae2e2a3c03a69116909c98dbd9cb
+# ddwaf_object_get_float
 
 
 ddwaf_get_version = ctypes.CFUNCTYPE(ctypes.c_char_p)(

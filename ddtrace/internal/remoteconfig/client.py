@@ -19,7 +19,7 @@ import cattr
 import six
 
 import ddtrace
-from ddtrace.appsec.utils import _appsec_rc_capabilities
+from ddtrace.appsec._capabilities import _appsec_rc_capabilities
 from ddtrace.internal import agent
 from ddtrace.internal import runtime
 from ddtrace.internal.hostname import get_hostname
@@ -162,8 +162,7 @@ class RemoteConfigClient(object):
         tracer_version = _pep440_to_semver()
 
         self.id = str(uuid.uuid4())
-        self.agent_url = agent_url = agent.get_trace_url()
-        self._conn = agent.get_connection(agent_url, timeout=agent.get_trace_agent_timeout())
+        self.agent_url = agent.get_trace_url()
 
         self._headers = {"content-type": "application/json"}
         additional_header_str = os.environ.get("_DD_REMOTE_CONFIGURATION_ADDITIONAL_HEADERS")
@@ -216,6 +215,11 @@ class RemoteConfigClient(object):
         self._last_error = None  # type: Optional[str]
         self._backend_state = None  # type: Optional[str]
 
+    def renew_id(self):
+        # called after the process is forked to declare a new id
+        self.id = str(uuid.uuid4())
+        self._client_tracer["runtime_id"] = runtime.get_runtime_id()
+
     def register_product(self, product_name, pubsub_instance=None):
         # type: (str, Optional[PubSub]) -> None
         if pubsub_instance is not None:
@@ -257,14 +261,15 @@ class RemoteConfigClient(object):
             log.debug(
                 "[%s][P: %s] Requesting RC data from products: %s", os.getpid(), os.getppid(), str(self._products)
             )  # noqa: G200
-            self._conn.request("POST", REMOTE_CONFIG_AGENT_ENDPOINT, payload, self._headers)
-            resp = self._conn.getresponse()
+            conn = agent.get_connection(self.agent_url, timeout=agent.get_trace_agent_timeout())
+            conn.request("POST", REMOTE_CONFIG_AGENT_ENDPOINT, payload, self._headers)
+            resp = conn.getresponse()
             data = resp.read()
         except OSError as e:
             log.debug("Unexpected connection error in remote config client request: %s", str(e))  # noqa: G200
             return None
         finally:
-            self._conn.close()
+            conn.close()
 
         if resp.status == 404:
             # Remote configuration is not enabled or unsupported by the agent
