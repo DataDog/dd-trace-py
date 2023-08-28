@@ -37,6 +37,7 @@
        "type": "worker",
        "error": 1,
        "meta": {
+         "_dd.p.dm": "-0",
          "component": "rq",
          "job.id": "149805b2-4afe-485b-b312-a1751c6a2cb3",
          "job.origin": "q",
