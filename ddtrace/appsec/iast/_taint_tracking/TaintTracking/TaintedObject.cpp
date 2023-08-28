@@ -92,7 +92,7 @@ TaintedObject::decref()
 void
 TaintedObject::release()
 {
-    // If rc_ is negative, there is a bug. We check it with an assert (let release builds to tolerate it).
+    // If rc_ is negative, there is a bug.
     assert(rc_ == 0);
     initializer->release_tainted_object(this);
 }
