@@ -312,7 +312,10 @@ def _on_flask_blocked_request(span):
         log.warning("Could not set some span tags on blocked request: %s", str(e))  # noqa: G200
 
 
-def _on_flask_render(span, template, flask_config):
+def _on_flask_render(template, flask_config):
+    span = core.get_item("current_span")
+    if not span:
+        return
     name = maybe_stringify(getattr(template, "name", None) or flask_config.get("template_default_name"))
     if name is not None:
         span.resource = name
@@ -324,6 +327,7 @@ def _on_render_template_context_started_flask(ctx):
     span = ctx.get_item("pin").tracer.trace(name, span_type=SpanTypes.TEMPLATE)
     span.set_tag_str(COMPONENT, ctx.get_item("flask_config").integration_name)
     ctx.set_item(name + ".call", span)
+    ctx.set_item("current_span", span)
 
 
 def _on_request_span_modifier(
@@ -369,10 +373,11 @@ def _on_function_context_started_flask(ctx):
     pin = ctx.get_item("pin")
     name = ctx.get_item("name")
     flask_config = ctx.get_item("flask_config")
-    resource = ctx.get_item("resource")
     kwargs = {"service": trace_utils.int_service(pin, flask_config)}
-    if resource:
-        kwargs["resource"] = resource
+    for kwarg in ("span_type", "resource"):
+        kwarg_value = ctx.get_item(kwarg)
+        if kwarg_value:
+            kwargs[kwarg] = kwarg_value
     span = pin.tracer.trace(name, **kwargs)
     span.set_tag_str(COMPONENT, flask_config.integration_name)
     signal = ctx.get_item("signal")
@@ -400,5 +405,4 @@ def listen():
     core.on("context.started.flask._patched_request", _on_traced_request_context_started_flask)
     core.on("context.started.flask.jsonify", _on_jsonify_context_started_flask)
     core.on("context.started.flask.render_template", _on_render_template_context_started_flask)
-    core.on("context.started.flask.signal", _on_function_context_started_flask)
-    core.on("context.started.flask.function", _on_function_context_started_flask)
+    core.on("context.started.flask.call", _on_function_context_started_flask)

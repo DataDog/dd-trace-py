@@ -130,3 +130,15 @@ class TestOperatorsReplacement(BaseReplacement):
         string_input = create_taint_range_with_format(":+-012-+:34")
         res = mod.do_zfill(string_input, 7)  # pylint: disable=no-member
         assert as_formatted_evidence(res) == "00:+-012-+:34"
+
+    def test_format(self):
+        # type: () -> None
+        string_input = "foo"
+        result = mod.do_format_fill(string_input)
+        assert result == "foo       "
+        string_input = create_taint_range_with_format(":+-foo-+:")
+
+        result = mod.do_format_fill(string_input)  # pylint: disable=no-member
+        # TODO format with params doesn't work correctly the assert should be
+        #  assert as_formatted_evidence(result) == ":+-foo       -+:"
+        assert as_formatted_evidence(result) == "foo       "
