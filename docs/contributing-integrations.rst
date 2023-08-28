@@ -175,7 +175,7 @@ Many of the tests are based on "snapshots": saved copies of actual traces sent t
 To update the snapshots expected by a test, first update the library and test code to generate
 new traces. Then, delete the snapshot file corresponding to your test at ``tests/snapshots/<snapshot_file>``.
 
-Use `docker-compose up -d testagent`to start the APM test agent, and re-run the test. Use `--pass-env` as described
+Use `docker-compose up -d testagent` to start the APM test agent, and then re-run the test. Use `--pass-env` as described
 `here <../README.md#use-the-apm-test-agent>`_ to ensure that your test run can talk to the
 test agent. Once the run finishes, the snapshot file will have been regenerated.
 

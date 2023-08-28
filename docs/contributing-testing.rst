@@ -73,7 +73,7 @@ Lastly, we will register it as a suite in the same file under ``"suites":``:
         "tests/contrib/asyncio/*"
     ],
 
-Once these steps have been completed, CircleCI should now detect the new test suite.
+Once you've completed these steps, CircleCI will run the new test suite.
 
 How do I run the test suite?
 ----------------------------
