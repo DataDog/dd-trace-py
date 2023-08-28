@@ -18,8 +18,8 @@ from tests.utils import request_token
 
 @pytest.fixture
 def telemetry_writer():
-    telemetry_writer = TelemetryWriter()
-    telemetry_writer.enable(start_worker_thread=False)
+    telemetry_writer = TelemetryWriter(is_periodic=False)
+    telemetry_writer.enable()
     yield telemetry_writer
 
 
