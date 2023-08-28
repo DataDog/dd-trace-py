@@ -1,5 +1,6 @@
 from ctypes import c_char
 import json
+import multiprocessing
 import os
 import sys
 from typing import Any
@@ -38,8 +39,6 @@ class PublisherSubscriberConnector(object):
     """
 
     def __init__(self):
-        import multiprocessing
-
         self.data = multiprocessing.Array(c_char, SHARED_MEMORY_SIZE, lock=False)
         # Checksum attr validates if the Publisher send new data
         self.checksum = -1
