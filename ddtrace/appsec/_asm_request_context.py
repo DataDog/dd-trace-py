@@ -131,7 +131,7 @@ class _DataHandler:
         if self.active:
             env = self.execution_context.get_item("asm_env")
             callbacks = GLOBAL_CALLBACKS.get(_CONTEXT_CALL, [])
-            if env is not None:
+            if env is not None and env.callbacks is not None and env.callbacks.get(_CONTEXT_CALL):
                 callbacks += env.callbacks.get(_CONTEXT_CALL)
             if callbacks:
                 if env is not None:
