@@ -160,7 +160,7 @@ Initializer::release_taint_range(TaintRangePtr rangeptr)
 
     // Stack full or initializer already cleared (interpreter finishing), just
     // release the object
-    rangeptr.reset();
+    rangeptr.reset();  // Not duplicated or typo, calling reset on the shared_ptr, not the TaintRange
 }
 
 recursive_mutex contexts_mutex; // NOLINT(cert-err58-cpp)
