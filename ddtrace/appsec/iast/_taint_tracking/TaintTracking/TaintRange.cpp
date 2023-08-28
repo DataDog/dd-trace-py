@@ -77,9 +77,14 @@ TaintRange::TaintRange(int start, int length, const Source& source)
 void
 TaintRange::reset()
 {
-    if (source and initializer) {
-        initializer->release_taint_source(source);
+    if (source) {
+        if (initializer) {
+            initializer->release_taint_source(source);
+        } else {
+            delete source;
+        }
     }
+    source = nullptr;
 
     start = 0;
     length = 0;
