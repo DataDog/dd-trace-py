@@ -248,7 +248,7 @@ are not yet any expected spans stored for it, so we need to create some.
     not match.
 13. Repeat steps 7 through 9 until you've achieved test coverage for the entire "happy path" of normal usage
     for the library you're integrating with, as well as coverage of any known likely edge cases.
-
+14. Next,
 
 Trace Examples
 --------------
