@@ -6,7 +6,6 @@ from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.internal.compat import parse
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.http import _get_blocked_template  # noqa
 from ddtrace.settings import _config as config
 
