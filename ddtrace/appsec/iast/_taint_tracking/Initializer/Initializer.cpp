@@ -95,13 +95,13 @@ Initializer::num_contexts()
 int
 Initializer::initializer_size()
 {
-  return sizeof(*this);
+    return sizeof(*this);
 }
 
 int
 Initializer::active_map_addreses_size()
 {
-  return active_map_addreses.size();
+    return active_map_addreses.size();
 }
 
 TaintedObjectPtr

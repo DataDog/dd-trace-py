@@ -13,18 +13,18 @@ if _is_python_version_supported():
     from ddtrace.appsec.iast._taint_tracking._native.aspect_helpers import as_formatted_evidence
     from ddtrace.appsec.iast._taint_tracking._native.aspect_helpers import common_replace
     from ddtrace.appsec.iast._taint_tracking._native.aspect_helpers import parse_params
+    from ddtrace.appsec.iast._taint_tracking._native.initializer import active_map_addreses_size
     from ddtrace.appsec.iast._taint_tracking._native.initializer import contexts_reset
     from ddtrace.appsec.iast._taint_tracking._native.initializer import create_context
     from ddtrace.appsec.iast._taint_tracking._native.initializer import destroy_context
     from ddtrace.appsec.iast._taint_tracking._native.initializer import get_context
-    from ddtrace.appsec.iast._taint_tracking._native.initializer import num_objects_tainted
-    from ddtrace.appsec.iast._taint_tracking._native.initializer import num_contexts
     from ddtrace.appsec.iast._taint_tracking._native.initializer import initializer_size
-    from ddtrace.appsec.iast._taint_tracking._native.initializer import active_map_addreses_size
-    from ddtrace.appsec.iast._taint_tracking._native.initializer import num_created_tobjects
-    from ddtrace.appsec.iast._taint_tracking._native.initializer import num_destroyed_tobjects
+    from ddtrace.appsec.iast._taint_tracking._native.initializer import num_contexts
     from ddtrace.appsec.iast._taint_tracking._native.initializer import num_created_ranges
+    from ddtrace.appsec.iast._taint_tracking._native.initializer import num_created_tobjects
     from ddtrace.appsec.iast._taint_tracking._native.initializer import num_destroyed_ranges
+    from ddtrace.appsec.iast._taint_tracking._native.initializer import num_destroyed_tobjects
+    from ddtrace.appsec.iast._taint_tracking._native.initializer import num_objects_tainted
     from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import OriginType
     from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import Source
     from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import TagMappingMode
