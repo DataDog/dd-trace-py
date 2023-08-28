@@ -785,7 +785,7 @@ jobs:
           pattern: 'pytest'
 
   unittest:
-    <<: *machine_executor
+    <<: *contrib_job
     steps:
       - run_test:
           pattern: 'unittest'
