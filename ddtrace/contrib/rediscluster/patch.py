@@ -39,6 +39,11 @@ config._add(
 )
 
 
+def get_version():
+    # type: () -> str
+    return getattr(rediscluster, "__version__", "")
+
+
 def patch():
     """Patch the instrumented methods"""
     if getattr(rediscluster, "_datadog_patch", False):

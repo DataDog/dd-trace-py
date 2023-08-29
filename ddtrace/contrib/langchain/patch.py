@@ -40,6 +40,11 @@ if TYPE_CHECKING:
 log = get_logger(__name__)
 
 
+def get_version():
+    # type: () -> str
+    return getattr(langchain, "__version__", "")
+
+
 config._add(
     "langchain",
     {
