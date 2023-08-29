@@ -25,10 +25,11 @@ Global Configuration
 
    Default: ``"unittest.test"``
 """
+from .patch import get_version
 from .patch import patch
 from .patch import unpatch
 
 
-__all__ = ["patch", "unpatch"]
+__all__ = ["patch", "unpatch", "get_version"]
 
 patch()

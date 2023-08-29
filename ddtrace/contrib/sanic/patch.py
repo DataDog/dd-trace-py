@@ -28,6 +28,11 @@ config._add("sanic", dict(_default_service=schematize_service_name("sanic"), dis
 SANIC_VERSION = (0, 0, 0)
 
 
+def get_version():
+    # type: () -> str
+    return getattr(sanic, "__version__", "")
+
+
 def _get_current_span(request):
     pin = Pin._find(request.ctx)
     if not pin or not pin.enabled():
