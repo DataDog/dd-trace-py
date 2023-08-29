@@ -7,8 +7,8 @@ import os
 import platform
 import re
 from typing import Dict
-from typing import MutableMapping
 from typing import List
+from typing import MutableMapping
 from typing import Optional
 
 from ddtrace.ext import git
@@ -240,7 +240,7 @@ def extract_bitbucket(env):
         git.REPOSITORY_URL: env.get("BITBUCKET_GIT_SSH_ORIGIN") or env.get("BITBUCKET_GIT_HTTP_ORIGIN"),
         git.TAG: env.get("BITBUCKET_TAG"),
         JOB_URL: url,
-        PIPELINE_ID: env.get("BITBUCKET_PIPELINE_UUID", "").strip("{}}") or None,
+        PIPELINE_ID: env.get("BITBUCKET_PIPELINE_UUID", "").strip("{}}") or None,  # noqa: B005
         PIPELINE_NAME: env.get("BITBUCKET_REPO_FULL_NAME"),
         PIPELINE_NUMBER: env.get("BITBUCKET_BUILD_NUMBER"),
         PIPELINE_URL: url,

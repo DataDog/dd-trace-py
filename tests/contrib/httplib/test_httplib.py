@@ -1,4 +1,5 @@
 import contextlib
+import socket
 import sys
 
 import pytest
@@ -135,7 +136,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         request = self.get_http_connection(parsed.hostname, parsed.port)
         pin = Pin.get_from(request)
         self.assertTrue(should_skip_request(pin, request))
-    
+
     def test_httplib_request_get_request_no_ddtrace(self):
         """
         When making a GET request via httplib.HTTPConnection.request
@@ -611,7 +612,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
     def test_httplib_bad_url(self):
         conn = self.get_http_connection("DNE", "80")
         with contextlib.closing(conn):
-            with pytest.raises(Exception):
+            with pytest.raises(socket.gaierror):
                 conn.request("GET", "/status/500")
 
         spans = self.pop_spans()

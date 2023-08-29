@@ -11,12 +11,12 @@ from ddtrace.vendor import wrapt
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_KIND
-from ...internal.constants import _HTTPLIB_NO_TRACE_REQUEST
 from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...internal.compat import PY2
 from ...internal.compat import httplib
 from ...internal.compat import parse
+from ...internal.constants import _HTTPLIB_NO_TRACE_REQUEST
 from ...internal.logger import get_logger
 from ...internal.schema import schematize_url_operation
 from ...internal.utils.formats import asbool
@@ -88,7 +88,7 @@ def _wrap_request(func, instance, args, kwargs):
         # set span.kind to the type of operation being performed
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
-        setattr(instance, "_datadog_span", span)
+        instance._datadog_span = span
 
         # propagate distributed tracing headers
         if cfg.get("distributed_tracing"):
@@ -133,7 +133,7 @@ def _wrap_putrequest(func, instance, args, kwargs):
             # set span.kind to the type of operation being performed
             span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
-            setattr(instance, "_datadog_span", span)
+            instance._datadog_span = span
 
         method, path = args[:2]
         scheme = "https" if isinstance(instance, httplib.HTTPSConnection) else "http"
@@ -204,29 +204,21 @@ def patch():
     """patch the built-in urllib/httplib/httplib.client methods for tracing"""
     if getattr(httplib, "__datadog_patch", False):
         return
-    setattr(httplib, "__datadog_patch", True)
+    httplib.__datadog_patch = True
 
     # Patch the desired methods
-    setattr(httplib.HTTPConnection, "__init__", wrapt.FunctionWrapper(httplib.HTTPConnection.__init__, _wrap_init))
-    setattr(
-        httplib.HTTPConnection,
-        "getresponse",
-        wrapt.FunctionWrapper(httplib.HTTPConnection.getresponse, _wrap_getresponse),
-    )
-    setattr(httplib.HTTPConnection, "request", wrapt.FunctionWrapper(httplib.HTTPConnection.request, _wrap_request))
-    setattr(
-        httplib.HTTPConnection, "putrequest", wrapt.FunctionWrapper(httplib.HTTPConnection.putrequest, _wrap_putrequest)
-    )
-    setattr(
-        httplib.HTTPConnection, "putheader", wrapt.FunctionWrapper(httplib.HTTPConnection.putheader, _wrap_putheader)
-    )
+    httplib.HTTPConnection.__init__ = wrapt.FunctionWrapper(httplib.HTTPConnection.__init__, _wrap_init)
+    httplib.HTTPConnection.getresponse = wrapt.FunctionWrapper(httplib.HTTPConnection.getresponse, _wrap_getresponse)
+    httplib.HTTPConnection.request = wrapt.FunctionWrapper(httplib.HTTPConnection.request, _wrap_request)
+    httplib.HTTPConnection.putrequest = wrapt.FunctionWrapper(httplib.HTTPConnection.putrequest, _wrap_putrequest)
+    httplib.HTTPConnection.putheader = wrapt.FunctionWrapper(httplib.HTTPConnection.putheader, _wrap_putheader)
 
 
 def unpatch():
     """unpatch any previously patched modules"""
     if not getattr(httplib, "__datadog_patch", False):
         return
-    setattr(httplib, "__datadog_patch", False)
+    httplib.__datadog_patch = False
 
     _u(httplib.HTTPConnection, "__init__")
     _u(httplib.HTTPConnection, "getresponse")

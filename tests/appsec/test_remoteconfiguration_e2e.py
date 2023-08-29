@@ -269,7 +269,7 @@ def _request_200(client, debug_mode=False, max_retries=40, sleep_time=1):
         else:
             previous = False
         time.sleep(sleep_time * pow(8, id_try / max_retries))
-    assert False, "request_200 failed, max_retries=%d, sleep_time=%f" % (max_retries, sleep_time)
+    raise AssertionError("request_200 failed, max_retries=%d, sleep_time=%f" % (max_retries, sleep_time))
 
 
 def _request_403(client, debug_mode=False, max_retries=40, sleep_time=1):
@@ -289,7 +289,7 @@ def _request_403(client, debug_mode=False, max_retries=40, sleep_time=1):
         else:
             previous = False
         time.sleep(sleep_time * pow(8, id_try / max_retries))
-    assert False, "request_403 failed, max_retries=%d, sleep_time=%f" % (max_retries, sleep_time)
+    raise AssertionError("request_403 failed, max_retries=%d, sleep_time=%f" % (max_retries, sleep_time))
 
 
 @pytest.mark.skipif(
@@ -374,3 +374,55 @@ def test_load_testing_appsec_1click_and_ip_blocking_gunicorn_block_and_kill_chil
         _unblock_ip(token)
 
         _request_200(gunicorn_client, debug_mode=False)
+
+
+@pytest.mark.parametrize(
+    "module_unloading_env",
+    [
+        True,
+        pytest.param(
+            False,
+            marks=pytest.mark.xfail(
+                reason="FIXME: multiprocessing is only supported when DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE is set"
+            ),
+        ),
+    ],
+    ids=[
+        "module_unloading_enabled",
+        "module_unloading_unset",
+    ],
+)
+@pytest.mark.skipif(sys.version_info[0] < 3, reason="Python2.7 is not supported")
+def test_compatiblity_with_multiprocessing(module_unloading_env, ddtrace_run_python_code_in_subprocess):
+    """This test validates that module unloading resolves multiprocessing context errors"""
+    code = """
+import multiprocessing
+from multiprocessing import Process, Value, Array
+
+def f(n, a):
+    n.value = 420
+    for i in range(len(a)):
+        a[i] = i*10
+
+if __name__ == '__main__':
+    multiprocessing.set_start_method('spawn')
+    num = Value('d', 0.0)
+    arr = Array('i', range(10))
+
+    p = Process(target=f, args=(num, arr))
+    p.start()
+    p.join()
+
+    assert arr[:] == [0, 10, 20, 30, 40, 50, 60, 70, 80, 90]
+    assert num.value == 420
+    print("success")
+"""
+    env = os.environ.copy()
+    env["DD_REMOTE_CONFIGURATION_ENABLED"] = "true"
+
+    if module_unloading_env is True:
+        env["DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE"] = "true"
+
+    out, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    assert status == 0, stderr
+    assert out == b"success\n"

@@ -89,7 +89,7 @@ PATCH_MODULES = {
     "openai": True,
     "langchain": True,
     "subprocess": True,
-    "unittest": True
+    "unittest": True,
 }
 
 
@@ -188,7 +188,7 @@ def patch_all(**patch_modules):
     modules = PATCH_MODULES.copy()
 
     # The enabled setting can be overridden by environment variables
-    for module, enabled in modules.items():
+    for module, _enabled in modules.items():
         env_var = "DD_TRACE_%s_ENABLED" % module.upper()
         if env_var in os.environ:
             modules[module] = formats.asbool(os.environ[env_var])

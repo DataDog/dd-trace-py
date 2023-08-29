@@ -17,6 +17,9 @@ from ddtrace.contrib.unittest.constants import TEST_OPERATION_NAME
 from ddtrace.contrib.unittest.constants import SUITE_OPERATION_NAME
 from ddtrace.contrib.unittest.constants import MODULE_OPERATION_NAME
 from ddtrace.contrib.unittest.constants import SESSION_OPERATION_NAME
+from ddtrace.contrib.unittest.constants import COMPONENT_VALUE
+from ddtrace.contrib.unittest.constants import FRAMEWORK
+from ddtrace.contrib.unittest.constants import KIND
 from ddtrace.contrib.unittest.patch import _set_tracer
 from ddtrace.contrib.unittest.patch import patch
 from ddtrace.ext import SpanTypes
@@ -494,7 +497,7 @@ class UnittestTestCase(TracerTestCase):
             assert test_session_span.get_tag(test.SUITE) is None
             assert test_session_span.get_tag(ERROR_MSG) is None
             assert test_session_span.get_tag(ERROR_TYPE) is None
-
+            
         def test_unittest_fail_multiple(self):
             """Test with `unittest` tests which should fail."""
             _set_tracer(self.tracer)

@@ -50,7 +50,7 @@ def patch():
 
     _patch(aiohttp_jinja2)
 
-    setattr(aiohttp_jinja2, "_datadog_patch", True)
+    aiohttp_jinja2._datadog_patch = True
 
 
 def _unpatch(aiohttp_jinja2):
@@ -65,4 +65,4 @@ def unpatch():
 
     _unpatch(aiohttp_jinja2)
 
-    setattr(aiohttp_jinja2, "_datadog_patch", False)
+    aiohttp_jinja2._datadog_patch = False

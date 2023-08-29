@@ -166,7 +166,7 @@ class MemoryCollector(collector.PeriodicCollector):
         thread_id_ignore_set = self._get_thread_id_ignore_set()
 
         if self._export_libdd_enabled:
-            for (frames, nframes, thread_id), size, domain in events:
+            for (frames, nframes, thread_id), size, _domain in events:
                 if thread_id in thread_id_ignore_set:
                     continue
                 ddup.start_sample(nframes)
@@ -183,7 +183,6 @@ class MemoryCollector(collector.PeriodicCollector):
                     #      re-initialization.  ddup re-initializes the sample on `start_sample()`, so no
                     #      need to cleanup.
                     LOG.debug("Invalid state detected in memalloc module, suppressing profile")
-
 
         if self._export_py_enabled:
             return (

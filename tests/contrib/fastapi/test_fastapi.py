@@ -35,10 +35,10 @@ def tracer():
 
         tracer.configure(context_provider=AsyncioContextProvider())
 
-    setattr(ddtrace, "tracer", tracer)
+    ddtrace.tracer = tracer
     fastapi_patch()
     yield tracer
-    setattr(ddtrace, "tracer", original_tracer)
+    ddtrace.tracer = original_tracer
     fastapi_unpatch()
 
 

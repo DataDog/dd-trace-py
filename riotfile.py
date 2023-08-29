@@ -670,7 +670,7 @@ venv = Venv(
                     pkgs={"pymongo": ["~=3.4", "~=3.11", "~=3.13"]},
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.7", max_version="3.9"), pkgs={"pymongo": ["~=3.11", "~=4.0", latest]}
+                    pys=select_pys(min_version="3.7", max_version="3.9"), pkgs={"pymongo": ["~=3.11", "~=4.5", latest]}
                 ),
                 Venv(
                     # pymongo added support for Python 3.10 in 3.12.1
@@ -1643,6 +1643,13 @@ venv = Venv(
                     },
                 ),
             ],
+        ),
+        Venv(
+            name="unittest",
+            command="pytest --no-ddtrace {cmdargs} tests/contrib/unittest_plugin/",
+            pkgs={"msgpack": latest},
+            env={"DD_CIVISIBILITY_UNITTEST_ENABLED": "1"},
+            pys=select_pys(),
         ),
         Venv(
             name="asynctest",

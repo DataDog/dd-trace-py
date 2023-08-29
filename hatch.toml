@@ -24,6 +24,7 @@ dependencies = [
     "flake8-blind-except",
     "flake8-builtins",
     "flake8-docstrings",
+    "flake8-bugbear",
     "flake8-logging-format",
     "flake8-rst-docstrings",
     "flake8-isort",
@@ -33,8 +34,8 @@ dependencies = [
 
 [envs.lint.scripts]
 style = [
-    "isort -q {args:.}",
-    "black -q {args:.}",
+    "isort --check --diff {args:.}",
+    "black --check --diff {args:.}",
     "flake8 {args}",
     "cython-lint {args:.}",
 ]
@@ -66,7 +67,8 @@ extra-dependencies = [
     "sphinxcontrib-spelling==7.7.0",
     "PyEnchant==3.2.2",
     "sphinx-copybutton==0.5.1",
-    "furo",
+    # Later release of furro breaks formatting for code blocks
+    "furo<=2023.05.20",
 ]
 pre-install-commands = [
     "scripts/docs/install.sh",

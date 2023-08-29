@@ -1,0 +1,7 @@
+---
+other:
+  - |
+    Add a `ddtrace_iast_flask_patch` function defined in `ddtrace.appsec.iast` to ensure that the main Flask `app.py` 
+    file is patched for IAST propagation. This function should be called before the `app.run()` call. You only need this
+    if you have set `DD_IAST_ENABLED=1`. Only the main file needs to call this functions, other imported modules are
+    automatically patched.
