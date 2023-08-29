@@ -4,15 +4,15 @@ from ddtrace.appsec._constants import IAST
 from ddtrace.appsec.iast.constants import VULN_WEAK_CIPHER_TYPE
 from ddtrace.appsec.iast.taint_sinks.weak_cipher import unpatch_iast
 from ddtrace.internal import core
-from tests.appsec.iast.fixtures.weak_algorithms import cipher_arc2
-from tests.appsec.iast.fixtures.weak_algorithms import cipher_arc4
-from tests.appsec.iast.fixtures.weak_algorithms import cipher_blowfish
-from tests.appsec.iast.fixtures.weak_algorithms import cipher_des
-from tests.appsec.iast.fixtures.weak_algorithms import cryptography_algorithm
+from tests.appsec.iast.fixtures.taint_sinks.weak_algorithms import cipher_arc2
+from tests.appsec.iast.fixtures.taint_sinks.weak_algorithms import cipher_arc4
+from tests.appsec.iast.fixtures.taint_sinks.weak_algorithms import cipher_blowfish
+from tests.appsec.iast.fixtures.taint_sinks.weak_algorithms import cipher_des
+from tests.appsec.iast.fixtures.taint_sinks.weak_algorithms import cryptography_algorithm
 from tests.appsec.iast.iast_utils import get_line_and_hash
 
 
-FIXTURES_PATH = "tests/appsec/iast/fixtures/weak_algorithms.py"
+FIXTURES_PATH = "tests/appsec/iast/fixtures/taint_sinks/weak_algorithms.py"
 
 
 @pytest.mark.parametrize(
