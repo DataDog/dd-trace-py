@@ -29,7 +29,7 @@ from .internal.logger import get_logger
 from .internal.rate_limiter import RateLimiter
 from .internal.sampling import SamplingMechanism
 from .internal.sampling import SamplingRule
-from .internal.sampling import update_sampling_decision
+from .internal.sampling import set_sampling_decision_maker
 from .settings import _config as ddconfig
 
 
@@ -144,6 +144,12 @@ class RateByServiceSampler(BasePrioritySampler):
         self._default_sampler = RateSampler(self.sample_rate)
         self._by_service_samplers = {}  # type: Dict[str, RateSampler]
 
+    @classmethod
+    def from_datadog_sampler(cls, ddsampler):
+        instance = cls(sample_rate=ddsampler.sample_rate)
+        instance._by_service_samplers = ddsampler._by_service_samplers.copy()
+        return instance
+
     def set_sample_rate(
         self,
         sample_rate,  # type: float
@@ -160,12 +166,12 @@ class RateByServiceSampler(BasePrioritySampler):
         span.context.sampling_priority = priority
 
     def _set_sampler_decision(self, span, sampler, sampled, has_remote_root):
-        # type: (Span, RateSampler, bool, bool) -> None
+        # type: (Span, RateSampler, bool, bool, bool) -> None
         priority, sampled, sampling_mechanism = _apply_sampling_overrides(span, sampler, sampled, self._default_sampler)
         self._set_priority(span, priority, sampling_mechanism)
-        if not has_remote_root:
+        if not has_remote_root and sampler is not self._default_sampler:
             span.set_metric(SAMPLING_AGENT_DECISION, sampler.sample_rate)
-        update_sampling_decision(span.context, sampling_mechanism, sampled)
+        set_sampling_decision_maker(span.context, sampling_mechanism)
 
     def sample(self, trace):
         # type: (List[Span]) -> bool
@@ -307,11 +313,7 @@ class DatadogSampler(RateByServiceSampler):
     __repr__ = __str__
 
     def _set_sampler_decision(self, span, sampler, sampled, has_remote_root):
-        # type: (Span, Union[RateSampler, SamplingRule, RateLimiter], bool, bool) -> None
-        if isinstance(sampler, RateSampler):
-            # When agent based sampling is used
-            return super(DatadogSampler, self)._set_sampler_decision(span, sampler, sampled, has_remote_root)
-
+        # type: (Span, Union[RateSampler, SamplingRule, RateLimiter], bool, bool, bool) -> None
         priority, sampled, sampling_mechanism = _apply_sampling_overrides(span, sampler, sampled, self._default_sampler)
         if sampling_mechanism not in (SamplingMechanism.MANUAL, SamplingMechanism.DEFAULT):
             sampling_mechanism = SamplingMechanism.TRACE_SAMPLING_RULE
@@ -320,17 +322,11 @@ class DatadogSampler(RateByServiceSampler):
                 priority = USER_REJECT
             else:
                 priority = USER_KEEP
-
+        set_sampling_decision_maker(span.context, SamplingMechanism.TRACE_SAMPLING_RULE)
         if isinstance(sampler, SamplingRule):
             span.set_metric(SAMPLING_RULE_DECISION, sampler.sample_rate)
-        elif isinstance(sampler, RateLimiter) and not sampled:
-            # We only need to set the rate limit metric if the limiter is rejecting the span
-            # DEV: Setting this allows us to properly compute metrics and debug the
-            #      various sample rates that are getting applied to this span
-            span.set_metric(SAMPLING_LIMIT_DECISION, sampler.effective_rate)
 
         self._set_priority(span, priority, sampling_mechanism)
-        update_sampling_decision(span.context, sampling_mechanism, sampled)
 
     def find_highest_precedence_rule_matching(self, trace):
         # type: (List[Span]) -> Optional[SamplingRule]
@@ -363,17 +359,24 @@ class DatadogSampler(RateByServiceSampler):
     def sample(self, trace):
         # type: (List[Span]) -> bool
         chunk_root = trace[0]
+        has_configured_rate_limit = self.limiter.rate_limit != DEFAULT_SAMPLING_RATE_LIMIT
         has_local_root = any(chunk_root.span_id == a.parent_id for a in trace)
         has_remote_root = not has_local_root and chunk_root.parent_id is not None
         rule = self.find_highest_precedence_rule_matching(trace)
         if rule:
-            decision = rule.sample(chunk_root)
-
-            self._set_sampler_decision(chunk_root, rule, decision, has_remote_root)
-            if decision:
-                allowed = self.limiter.is_allowed(chunk_root.start_ns)
-                if not allowed:
-                    self._set_sampler_decision(chunk_root, self.limiter, allowed, has_remote_root)
-            return decision
+            sampler = rule
         else:
-            return super(DatadogSampler, self).sample(trace)
+            sampler = RateByServiceSampler.from_datadog_sampler(self)
+
+        sampled = sampler.sample(trace)
+
+        if rule or has_configured_rate_limit:
+            self._set_sampler_decision(chunk_root, sampler, sampled, has_remote_root)
+
+        # Ensure all allowed traces adhere to the global rate limit
+        allowed = self.limiter.is_allowed(chunk_root.start_ns)
+        if not allowed:
+            self._set_priority(chunk_root, USER_REJECT)
+        if has_configured_rate_limit:
+            chunk_root.set_metric(SAMPLING_LIMIT_DECISION, self.limiter.effective_rate)
+        return not allowed or sampled

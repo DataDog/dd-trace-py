@@ -138,3 +138,27 @@ def test_extended_sampling_tags_and_resource(writer, tracer):
         span.set_tag(key, TAGS[key])
     with tracer.trace("should_send3", resource=RESOURCE) as span:
         span.set_tag("banana", True)
+
+
+@snapshot_parametrized_with_writers
+def test_sampling_with_sample_rate_1_and_rate_limit_0(writer, tracer):
+    sampler = DatadogSampler(default_sample_rate=1, rate_limit=0)
+    tracer.configure(sampler=sampler, writer=writer)
+    with tracer.trace("trace5"):
+        tracer.trace("child").finish()
+
+
+@snapshot_parametrized_with_writers
+def test_sampling_with_sample_rate_1_and_rate_limit_3_and_rule_0(writer, tracer):
+    sampler = DatadogSampler(default_sample_rate=1, rules=[SamplingRule(0)], rate_limit=3)
+    tracer.configure(sampler=sampler, writer=writer)
+    with tracer.trace("trace5"):
+        tracer.trace("child").finish()
+
+
+@snapshot_parametrized_with_writers
+def test_sampling_with_rate_limit_3(writer, tracer):
+    sampler = DatadogSampler(rate_limit=3)
+    tracer.configure(sampler=sampler, writer=writer)
+    with tracer.trace("trace5"):
+        tracer.trace("child").finish()

@@ -42,7 +42,6 @@
       "usr.id": "123456"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.appsec.enabled": 1.0,
       "_dd.appsec.event_rules.error_count": 0,
       "_dd.appsec.event_rules.loaded": 5,
@@ -67,7 +66,6 @@
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.p.dm": "-4",
          "component": "flask",
          "flask.endpoint": "checkuser",
          "flask.url_rule": "/checkuser/<user_id>",
@@ -89,7 +87,6 @@
           "type": "",
           "error": 0,
           "meta": {
-            "_dd.p.dm": "-4",
             "component": "flask"
           },
           "duration": 41713,
@@ -105,7 +102,6 @@
           "type": "",
           "error": 0,
           "meta": {
-            "_dd.p.dm": "-4",
             "component": "flask"
           },
           "duration": 58366,
@@ -121,7 +117,6 @@
           "type": "",
           "error": 1,
           "meta": {
-            "_dd.p.dm": "-4",
             "component": "flask",
             "error.message": "??? Unknown Error: None",
             "error.stack": "Traceback (most recent call last):\n  File \"/root/project/ddtrace/contrib/flask/patch.py\", line 599, in _traced_request\n    return wrapped(*args, **kwargs)\n  File \"/root/project/.riot/venv_py3816_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_blinker_requests_flask~10_itsdangerous210_markupsafe20_werkzeug20/lib/python3.8/site-packages/flask/app.py\", line 1936, in dispatch_request\n    return self.view_functions[rule.endpoint](**req.view_args)\n  File \"/root/project/ddtrace/contrib/flask/wrappers.py\", line 42, in trace_func\n    return wrapped(*args, **kwargs)\n  File \"/root/project/tests/contrib/flask/app.py\", line 68, in checkuser\n    block_request_if_user_blocked(tracer, user_id)\n  File \"/root/project/ddtrace/appsec/trace_utils.py\", line 242, in block_request_if_user_blocked\n    _asm_request_context.block_request()\n  File \"/root/project/ddtrace/appsec/_asm_request_context.py\", line 284, in block_request\n    _callable()\n  File \"/root/project/ddtrace/contrib/flask/patch.py\", line 571, in _block_request_callable\n    abort(flask.Response(http_utils._get_blocked_template(ctype), content_type=ctype, status=403))\n  File \"/root/project/.riot/venv_py3816_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_blinker_requests_flask~10_itsdangerous210_markupsafe20_werkzeug20/lib/python3.8/site-packages/werkzeug/exceptions.py\", line 822, in abort\n    return _aborter(status, *args, **kwargs)\n  File \"/root/project/.riot/venv_py3816_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_blinker_requests_flask~10_itsdangerous210_markupsafe20_werkzeug20/lib/python3.8/site-packages/werkzeug/exceptions.py\", line 804, in __call__\n    raise HTTPException(response=code)\nwerkzeug.exceptions.HTTPException: ??? Unknown Error: None\n",
@@ -140,7 +135,6 @@
              "type": "",
              "error": 1,
              "meta": {
-               "_dd.p.dm": "-4",
                "component": "flask",
                "error.message": "??? Unknown Error: None",
                "error.stack": "Traceback (most recent call last):\n  File \"/root/project/ddtrace/contrib/flask/wrappers.py\", line 42, in trace_func\n    return wrapped(*args, **kwargs)\n  File \"/root/project/tests/contrib/flask/app.py\", line 68, in checkuser\n    block_request_if_user_blocked(tracer, user_id)\n  File \"/root/project/ddtrace/appsec/trace_utils.py\", line 242, in block_request_if_user_blocked\n    _asm_request_context.block_request()\n  File \"/root/project/ddtrace/appsec/_asm_request_context.py\", line 284, in block_request\n    _callable()\n  File \"/root/project/ddtrace/contrib/flask/patch.py\", line 571, in _block_request_callable\n    abort(flask.Response(http_utils._get_blocked_template(ctype), content_type=ctype, status=403))\n  File \"/root/project/.riot/venv_py3816_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_blinker_requests_flask~10_itsdangerous210_markupsafe20_werkzeug20/lib/python3.8/site-packages/werkzeug/exceptions.py\", line 822, in abort\n    return _aborter(status, *args, **kwargs)\n  File \"/root/project/.riot/venv_py3816_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_blinker_requests_flask~10_itsdangerous210_markupsafe20_werkzeug20/lib/python3.8/site-packages/werkzeug/exceptions.py\", line 804, in __call__\n    raise HTTPException(response=code)\nwerkzeug.exceptions.HTTPException: ??? Unknown Error: None\n",
@@ -159,7 +153,6 @@
           "type": "",
           "error": 0,
           "meta": {
-            "_dd.p.dm": "-4",
             "component": "flask"
           },
           "duration": 145621,
@@ -175,7 +168,6 @@
              "type": "",
              "error": 0,
              "meta": {
-               "_dd.p.dm": "-4",
                "component": "flask"
              },
              "duration": 31667,
@@ -191,7 +183,6 @@
           "type": "",
           "error": 0,
           "meta": {
-            "_dd.p.dm": "-4",
             "component": "flask"
           },
           "duration": 44970,
@@ -207,7 +198,6 @@
           "type": "",
           "error": 0,
           "meta": {
-            "_dd.p.dm": "-4",
             "component": "flask"
           },
           "duration": 46724,
@@ -223,7 +213,6 @@
           "type": "",
           "error": 0,
           "meta": {
-            "_dd.p.dm": "-4",
             "component": "flask"
           },
           "duration": 35206,
@@ -239,7 +228,6 @@
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.p.dm": "-4",
          "component": "flask"
        },
        "duration": 561202,

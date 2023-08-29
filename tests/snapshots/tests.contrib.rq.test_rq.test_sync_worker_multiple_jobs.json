@@ -19,7 +19,6 @@
       "span.kind": "producer"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
@@ -68,7 +67,6 @@
           "type": "",
           "error": 0,
           "meta": {
-            "_dd.p.dm": "-0",
             "component": "rq",
             "job.id": "0fa49efb-9c83-4333-9863-ca9c3c81c8ca"
           },
@@ -96,7 +94,6 @@
       "span.kind": "producer"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
@@ -145,7 +142,6 @@
           "type": "",
           "error": 0,
           "meta": {
-            "_dd.p.dm": "-0",
             "component": "rq",
             "job.id": "2aaf424a-a748-4e3e-ac24-c0374aaa1f70"
           },
@@ -173,7 +169,6 @@
       "span.kind": "producer"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
@@ -222,7 +217,6 @@
           "type": "",
           "error": 0,
           "meta": {
-            "_dd.p.dm": "-0",
             "component": "rq",
             "job.id": "70f56a01-163d-4dba-ba07-07b8da917b18"
           },

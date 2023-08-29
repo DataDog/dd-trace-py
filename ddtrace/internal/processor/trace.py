@@ -101,8 +101,6 @@ class TraceSamplingProcessor(TraceProcessor):
                     return single_spans or None
 
             for span in trace:
-                for k, v in _get_metas_to_propagate(chunk_root.context):
-                    span._meta[k] = v
                 if span.sampled:
                     sampled_trace = True
 

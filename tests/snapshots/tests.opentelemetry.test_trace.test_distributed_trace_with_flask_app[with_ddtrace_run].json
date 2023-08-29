@@ -14,7 +14,6 @@
       "runtime-id": "370b7d1e226648e4b58d1faeeb4884d8"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
@@ -69,7 +68,6 @@
           "type": "",
           "error": 0,
           "meta": {
-            "_dd.p.dm": "-0",
             "component": "flask",
             "flask.endpoint": "otel",
             "flask.url_rule": "/otel"
@@ -87,7 +85,6 @@
              "type": "",
              "error": 0,
              "meta": {
-               "_dd.p.dm": "-0",
                "component": "flask"
              },
              "duration": 40121,
@@ -103,7 +100,6 @@
              "type": "",
              "error": 0,
              "meta": {
-               "_dd.p.dm": "-0",
                "component": "flask"
              },
              "duration": 46645,
@@ -119,7 +115,6 @@
              "type": "",
              "error": 0,
              "meta": {
-               "_dd.p.dm": "-0",
                "component": "flask"
              },
              "duration": 21608644,
@@ -135,7 +130,6 @@
                 "type": "",
                 "error": 0,
                 "meta": {
-                  "_dd.p.dm": "-0",
                   "component": "flask"
                 },
                 "duration": 21521916,
@@ -150,9 +144,6 @@
                    "parent_id": 11,
                    "type": "",
                    "error": 0,
-                   "meta": {
-                     "_dd.p.dm": "-0"
-                   },
                    "duration": 31006,
                    "start": 1691164175270774594
                  },
@@ -166,7 +157,6 @@
              "type": "",
              "error": 0,
              "meta": {
-               "_dd.p.dm": "-0",
                "component": "flask"
              },
              "duration": 15944,
@@ -182,7 +172,6 @@
              "type": "",
              "error": 0,
              "meta": {
-               "_dd.p.dm": "-0",
                "component": "flask"
              },
              "duration": 12430,
@@ -198,7 +187,6 @@
              "type": "",
              "error": 0,
              "meta": {
-               "_dd.p.dm": "-0",
                "component": "flask"
              },
              "duration": 9767,
@@ -214,7 +202,6 @@
           "type": "",
           "error": 0,
           "meta": {
-            "_dd.p.dm": "-0",
             "component": "flask"
           },
           "duration": 181899,

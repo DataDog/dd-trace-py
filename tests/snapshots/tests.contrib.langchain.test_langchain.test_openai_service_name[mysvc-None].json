@@ -30,7 +30,6 @@
       "runtime-id": "3fe7fe665fa44c33b9b166f3a8e55375"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
@@ -54,7 +53,6 @@
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.p.dm": "-0",
          "component": "openai",
          "openai.api_base": "https://api.openai.com/v1",
          "openai.api_type": "open_ai",
@@ -96,7 +94,6 @@
           "type": "http",
           "error": 0,
           "meta": {
-            "_dd.p.dm": "-0",
             "component": "requests",
             "http.method": "POST",
             "http.status_code": "200",

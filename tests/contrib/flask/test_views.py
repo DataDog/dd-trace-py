@@ -13,7 +13,7 @@ base_exception_name = "builtins.Exception"
 if PY2:
     base_exception_name = "exceptions.Exception"
 
-EXPECTED_METADATA = {"component": "flask", "_dd.p.dm": "-0"}
+EXPECTED_METADATA = {"component": "flask"}
 
 
 class FlaskViewTestCase(BaseFlaskTestCase):
@@ -52,6 +52,7 @@ class FlaskViewTestCase(BaseFlaskTestCase):
         # tests.contrib.flask.test_views.hello
         # DEV: We do not add any additional metadata to view spans
         self.assertEqual(handler_span.error, 0)
+        self.assertNotEqual(handler_span.parent_id, 0)
         self.assertEqual(handler_span.get_tags(), EXPECTED_METADATA)
 
     def test_view_handler_error(self):
@@ -137,6 +138,7 @@ class FlaskViewTestCase(BaseFlaskTestCase):
         # tests.contrib.flask.test_views.hello
         # DEV: We do not add any additional metadata to view spans
         self.assertEqual(handler_span.error, 0)
+        self.assertNotEqual(handler_span.parent_id, 0)
         self.assertEqual(handler_span.get_tags(), EXPECTED_METADATA)
 
     def test_method_view_handler_error(self):

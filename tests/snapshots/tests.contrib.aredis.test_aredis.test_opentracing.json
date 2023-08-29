@@ -14,7 +14,6 @@
       "runtime-id": "5b123f084d794aabb3984a6f6f20866a"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
@@ -33,7 +32,6 @@
        "type": "redis",
        "error": 0,
        "meta": {
-         "_dd.p.dm": "-0",
          "component": "aredis",
          "db.system": "redis",
          "out.host": "localhost",

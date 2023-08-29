@@ -89,31 +89,6 @@ SPAN_SAMPLING_JSON_SCHEMA = {
 }
 
 
-def _set_trace_tag(
-    context,  # type: Context
-    sampling_mechanism,  # type: int
-):
-    # type: (...) -> Optional[Text]
-
-    value = "-%d" % sampling_mechanism
-
-    context._meta[SAMPLING_DECISION_TRACE_TAG_KEY] = value
-
-    return value
-
-
-def _unset_trace_tag(
-    context,  # type: Context
-):
-    # type: (...) -> Optional[Text]
-    if SAMPLING_DECISION_TRACE_TAG_KEY not in context._meta:
-        return None
-
-    value = context._meta[SAMPLING_DECISION_TRACE_TAG_KEY]
-    del context._meta[SAMPLING_DECISION_TRACE_TAG_KEY]
-    return value
-
-
 def validate_sampling_decision(
     meta,  # type: Dict[str, str]
 ):
@@ -128,18 +103,14 @@ def validate_sampling_decision(
     return meta
 
 
-def update_sampling_decision(
+def set_sampling_decision_maker(
     context,  # type: Context
     sampling_mechanism,  # type: int
-    sampled,  # type: bool
 ):
     # type: (...) -> Optional[Text]
-    # When sampler keeps trace, we need to set sampling decision trace tag.
-    # If sampler rejects trace, we need to remove sampling decision trace tag to avoid unnecessary propagation.
-    if sampled:
-        return _set_trace_tag(context, sampling_mechanism)
-    else:
-        return _unset_trace_tag(context)
+    value = "-%d" % sampling_mechanism
+    context._meta[SAMPLING_DECISION_TRACE_TAG_KEY] = value
+    return value
 
 
 class SpanSamplingRule:
@@ -539,8 +510,8 @@ class SamplingRule:
                 return False
         return tag_match
 
-    def sample(self, span):
-        # type: (Span) -> bool
+    def sample(self, trace):
+        # type: (List[Span]) -> bool
         """
         Return if this rule chooses to sample the span
 
@@ -554,7 +525,8 @@ class SamplingRule:
         elif self.sample_rate == 0:
             return False
 
-        return ((span._trace_id_64bits * KNUTH_FACTOR) % _MAX_UINT_64BITS) <= self._sampling_id_threshold
+        chunk_root = trace[0]
+        return ((chunk_root._trace_id_64bits * KNUTH_FACTOR) % _MAX_UINT_64BITS) <= self._sampling_id_threshold
 
     def _no_rule_or_self(self, val):
         return "NO_RULE" if val is self.NO_RULE else val

@@ -22,7 +22,6 @@
       "span.kind": "server"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
@@ -41,7 +40,6 @@
        "type": "web",
        "error": 0,
        "meta": {
-         "_dd.p.dm": "-0",
          "component": "fastapi",
          "http.method": "GET",
          "http.status_code": "200",
@@ -62,9 +60,6 @@
           "parent_id": 2,
           "type": "",
           "error": 0,
-          "meta": {
-            "_dd.p.dm": "-0"
-          },
           "duration": 35564,
           "start": 1691162789247306952
         }]]

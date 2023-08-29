@@ -28,7 +28,6 @@
       "runtime-id": "01197c9c10d246f98ba2c35e3309e0db"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
@@ -52,7 +51,6 @@
        "type": "http",
        "error": 0,
        "meta": {
-         "_dd.p.dm": "-0",
          "component": "requests",
          "http.method": "POST",
          "http.status_code": "200",
