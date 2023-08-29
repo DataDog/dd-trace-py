@@ -177,7 +177,6 @@ def test_remote_config_forksafe():
         exit(0)
 
 
-
 def test_remote_configuration_check_deprecated_var():
     with override_global_config(dict(_remote_config_poll_interval="0.1")):
         with warnings.catch_warnings(record=True) as capture:
