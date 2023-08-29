@@ -361,9 +361,11 @@ class DatadogSampler(RateByServiceSampler):
             self._set_sampler_decision(span, sampler, sampled)
 
         # Ensure all allowed traces adhere to the global rate limit
-        allowed = self.limiter.is_allowed(span.start_ns)
-        if not allowed:
-            self._set_priority(span, USER_REJECT)
+        allowed = True
+        if sampled:
+            allowed = self.limiter.is_allowed(span.start_ns)
+            if not allowed:
+                self._set_priority(span, USER_REJECT)
         if has_configured_rate_limit:
             span.set_metric(SAMPLING_LIMIT_DECISION, self.limiter.effective_rate)
         return not allowed or sampled
