@@ -8,6 +8,7 @@ import pytest
 import ddtrace
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
+from ddtrace.contrib.pytest import get_version
 from ddtrace.contrib.pytest.constants import XFAIL_REASON
 from ddtrace.contrib.pytest.plugin import is_enabled
 from ddtrace.ext import ci
@@ -49,6 +50,11 @@ class PytestTestCase(TracerTestCase):
         """Execute test script with test tracer."""
         with override_env(dict(DD_API_KEY="foobar.baz")):
             return self.testdir.runpytest_subprocess(*args)
+
+    def test_module_implements_get_version(self):
+        version = get_version()
+        assert type(version) == str
+        assert version != ""
 
     @pytest.mark.skipif(sys.version_info[0] == 2, reason="Triggers a bug with coverage, sqlite and Python 2")
     def test_patch_all(self):

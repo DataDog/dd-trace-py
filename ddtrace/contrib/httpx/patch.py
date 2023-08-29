@@ -33,6 +33,12 @@ if typing.TYPE_CHECKING:  # pragma: no cover
 
 HTTPX_VERSION = parse_version(httpx.__version__)
 
+
+def get_version():
+    # type: () -> str
+    return getattr(httpx, "__version__", "")
+
+
 config._add(
     "httpx",
     {

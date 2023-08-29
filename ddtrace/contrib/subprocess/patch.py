@@ -34,6 +34,11 @@ config._add(
 )
 
 
+def get_version():
+    # type: () -> str
+    return ""
+
+
 def patch():
     # type: () -> List[str]
     patched = []  # type: List[str]
