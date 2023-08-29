@@ -92,12 +92,12 @@ flask_version = parse_version(flask_version_str)
 
 
 class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
-    _request_span_name = schematize_url_operation("flask.request", protocol="http", direction=SpanDirection.INBOUND)
-    _application_span_name = "flask.application"
-    _response_span_name = "flask.response"
+    _request_call_name = schematize_url_operation("flask.request", protocol="http", direction=SpanDirection.INBOUND)
+    _application_call_name = "flask.application"
+    _response_call_name = "flask.response"
 
-    def _traced_start_response(self, start_response, req_span, app_span, status_code, headers, exc_info=None):
-        core.dispatch("flask.start_response.pre", [flask.request, req_span, config.flask, status_code, headers])
+    def _wrapped_start_response(self, start_response, ctx, status_code, headers, exc_info=None):
+        core.dispatch("flask.start_response.pre", [flask.request, ctx, config.flask, status_code, headers])
 
         if not core.get_item(HTTP_REQUEST_BLOCKED):
             headers_from_context = ""
@@ -106,7 +106,7 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
                 headers_from_context = results[0]
             if core.get_item(HTTP_REQUEST_BLOCKED):
                 # response code must be set here, or it will be too late
-                block_config = core.get_item(HTTP_REQUEST_BLOCKED, span=req_span)
+                block_config = core.get_item(HTTP_REQUEST_BLOCKED)
                 if block_config.get("type", "auto") == "auto":
                     ctype = "text/html" if "text/html" in headers_from_context else "text/json"
                 else:
@@ -114,29 +114,30 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
                 status = block_config.get("status_code", 403)
                 response_headers = [("content-type", ctype)]
                 result = start_response(str(status), response_headers)
-                core.dispatch("flask.start_response.blocked", [req_span, config.flask, response_headers, status])
+                core.dispatch("flask.start_response.blocked", [config.flask, response_headers, status])
             else:
                 result = start_response(status_code, headers)
         else:
             result = start_response(status_code, headers)
         return result
 
-    def _request_span_modifier(self, span, environ, parsed_headers=None):
+    def _request_call_modifier(self, ctx, parsed_headers=None):
+        environ = ctx.get_item("environ")
         # Create a werkzeug request from the `environ` to make interacting with it easier
         # DEV: This executes before a request context is created
         request = _RequestType(environ)
 
         req_body = None
         results, exceptions = core.dispatch(
-            "flask.request_span_modifier",
-            [span, config.flask, request, environ, _HAS_JSON_MIXIN, FLASK_VERSION, flask_version_str, BadRequest],
+            "flask.request_call_modifier",
+            [ctx, config.flask, request, environ, _HAS_JSON_MIXIN, FLASK_VERSION, flask_version_str, BadRequest],
         )
         if not any(exceptions) and results and any(results):
             for result in results:
                 if result is not None:
                     req_body = result
                     break
-        core.dispatch("flask.request_span_modifier.post", [span, config.flask, request, req_body])
+        core.dispatch("flask.request_call_modifier.post", [ctx, config.flask, request, req_body])
 
 
 def patch():
@@ -491,7 +492,7 @@ def request_patcher(name):
             flask_request=flask.request,
             block_request_callable=_block_request_callable,
             ignored_exception_type=NotFound,
-        ) as ctx, ctx.get_item("flask_request_span"):
+        ) as ctx, ctx.get_item("flask_request_call"):
             return wrapped(*args, **kwargs)
 
     return _patched_request
