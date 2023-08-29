@@ -35,7 +35,7 @@ def test_sql_injection(iast_span_defaults):
     assert span_report
 
     vulnerability = list(span_report.vulnerabilities)[0]
-    source = list(span_report.sources)[0]
+    source = span_report.sources[0]
     assert vulnerability.type == VULN_SQL_INJECTION
     assert vulnerability.evidence.valueParts == [{"value": "SELECT 1 FROM "}, {"source": 0, "value": "students"}]
     assert vulnerability.evidence.value is None
