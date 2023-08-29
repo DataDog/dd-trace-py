@@ -378,7 +378,7 @@ class DatadogSampler(RateByServiceSampler):
         if sampled:
             allowed = self.limiter.is_allowed(chunk_root.start_ns)
             if not allowed:
-                self._set_priority(chunk_root, USER_REJECT)
+                self._set_priority(chunk_root, USER_REJECT, SamplingMechanism.TRACE_SAMPLING_RULE)
         if has_configured_rate_limit:
             chunk_root.set_metric(SAMPLING_LIMIT_DECISION, self.limiter.effective_rate)
         return not allowed or sampled
