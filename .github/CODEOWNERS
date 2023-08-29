@@ -81,4 +81,5 @@ mypy.ini                            @DataDog/python-guild  @DataDog/apm-core-pyt
 .github/PULL_REQUEST_TEMPLATE.md    @DataDog/python-guild  @DataDog/apm-core-python
 .github/ISSUE_TEMPLATE.md           @DataDog/python-guild  @DataDog/apm-core-python
 .github/CODEOWNERS                  @DataDog/python-guild  @DataDog/apm-core-python
+.github/workflows/system-tests.yml  @DataDog/python-guild  @DataDog/apm-core-python
 ddtrace/internal/compat.py          @DataDog/python-guild  @DataDog/apm-core-python
