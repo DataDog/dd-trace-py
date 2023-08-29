@@ -1,0 +1,12 @@
+no-propagation: &base_variant
+  iast_enabled: 0
+  internal_loop: 10
+propagation_enabled: &propagation_enabled
+  <<: *base_variant
+  iast_enabled: 1
+propagation_enabled_100:
+  <<: *propagation_enabled
+  internal_loop: 100
+propagation_enabled_1000:
+  <<: *propagation_enabled
+  internal_loop: 1000

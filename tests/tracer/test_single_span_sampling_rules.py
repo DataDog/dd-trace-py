@@ -381,14 +381,14 @@ def test_single_span_rule_unsupported_pattern_escape_character_literal_evaluatio
 
 def test_multiple_span_rule_match():
     rule = SpanSamplingRule(service="test_service", name="test_name", sample_rate=1.0, max_per_second=-1)
-    for i in range(10):
+    for _ in range(10):
         span = traced_function(rule)
         assert_sampling_decision_tags(span)
 
 
 def test_single_span_rules_not_applied_if_span_dropped_by_single_span_rate_limiter():
     rule = SpanSamplingRule(service="test_service", name="test_name", sample_rate=1.0, max_per_second=0)
-    for i in range(10):
+    for _ in range(10):
         span = traced_function(rule)
         assert_sampling_decision_tags(span, sample_rate=None, mechanism=None, limit=None)
 

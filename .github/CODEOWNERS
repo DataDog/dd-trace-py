@@ -7,7 +7,9 @@
 ddtrace/ext/                        @DataDog/apm-core-python @DataDog/apm-framework-integrations-reviewers-py
 ddtrace/contrib/                    @DataDog/apm-core-python @DataDog/apm-framework-integrations-reviewers-py
 ddtrace/internal/schema/            @DataDog/apm-core-python @DataDog/apm-framework-integrations-reviewers-py
-tests/                              @DataDog/apm-core-python @DataDog/apm-framework-integrations-reviewers-py
+tests/contrib/                      @DataDog/apm-core-python @DataDog/apm-framework-integrations-reviewers-py
+tests/internal/peer_service         @DataDog/apm-core-python @DataDog/apm-framework-integrations-reviewers-py
+tests/internal/service_name         @DataDog/apm-core-python @DataDog/apm-framework-integrations-reviewers-py
 
 # Files which can be approved by anyone
 # DEV: This helps not requiring apm-core-python to review new files added
@@ -34,6 +36,7 @@ ddtrace/ext/test.py                 @DataDog/apm-core-python @DataDog/ci-app-lib
 ddtrace/internal/codeowners.py      @DataDog/apm-core-python @datadog/ci-app-libraries
 ddtrace/internal/ci_visibility/     @DataDog/apm-core-python @DataDog/ci-app-libraries
 tests/internal/ci_visibility/       @DataDog/apm-core-python @DataDog/ci-app-libraries
+tests/ci_visibility                 @DataDog/apm-core-python @DataDog/ci-app-libraries
 
 # Debugger
 ddtrace/debugging/                  @DataDog/debugger-python
@@ -81,4 +84,5 @@ mypy.ini                            @DataDog/python-guild  @DataDog/apm-core-pyt
 .github/PULL_REQUEST_TEMPLATE.md    @DataDog/python-guild  @DataDog/apm-core-python
 .github/ISSUE_TEMPLATE.md           @DataDog/python-guild  @DataDog/apm-core-python
 .github/CODEOWNERS                  @DataDog/python-guild  @DataDog/apm-core-python
+.github/workflows/system-tests.yml  @DataDog/python-guild  @DataDog/apm-core-python
 ddtrace/internal/compat.py          @DataDog/python-guild  @DataDog/apm-core-python

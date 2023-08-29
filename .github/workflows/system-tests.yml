@@ -22,7 +22,7 @@ jobs:
         run:  |
           git fetch origin ${{ github.event.pull_request.base.sha }}
           export PATHS=$(git diff --name-only HEAD ${{ github.event.pull_request.base.sha }})
-          python -c "import os,sys,fnmatch;sys.exit(not bool([_ for pattern in {'ddtrace/*', 'setup*', 'pyproject.toml'} for _ in fnmatch.filter(os.environ['PATHS'].splitlines(), pattern)]))"
+          python -c "import os,sys,fnmatch;sys.exit(not bool([_ for pattern in {'ddtrace/*', 'setup*', 'pyproject.toml', '.github/workflows/system-tests.yml'} for _ in fnmatch.filter(os.environ['PATHS'].splitlines(), pattern)]))"
         continue-on-error: true
 
   system-tests:
@@ -38,7 +38,10 @@ jobs:
     env:
       TEST_LIBRARY: python
       WEBLOG_VARIANT: ${{ matrix.weblog-variant }}
-      DD_API_KEY: ${{ secrets.DD_API_KEY }}
+      # system-tests requires an API_KEY, but it does not have to be a valid key, as long as we don't run a scenario
+      # that make assertion on backend data. Using a fake key allow to run system tests on PR originating from forks.
+      # If ever it's needed, a valid key exists in the repo, using ${{ secrets.DD_API_KEY }}
+      DD_API_KEY: 1234567890abcdef1234567890abcdef
     steps:
       - name: Setup python 3.9
         if: needs.needs-run.outputs.outcome == 'success'
@@ -51,6 +54,7 @@ jobs:
         uses: actions/checkout@v3
         with:
           repository: 'DataDog/system-tests'
+          ref: '49e9abbe3f83a680a509eaf19c7649e26509e08a'
 
       - name: Checkout dd-trace-py
         if: needs.needs-run.outputs.outcome == 'success'
@@ -160,6 +164,7 @@ jobs:
         uses: actions/checkout@v3
         with:
           repository: 'DataDog/system-tests'
+          ref: '49e9abbe3f83a680a509eaf19c7649e26509e08a'
 
       - uses: actions/setup-python@v4
         if: needs.needs-run.outputs.outcome == 'success'

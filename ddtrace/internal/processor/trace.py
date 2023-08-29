@@ -284,7 +284,7 @@ class SpanAggregator(SpanProcessor):
             self._queue_span_count_metrics("spans_finished", "integration_name", None)
             # The telemetry metrics writer can be shutdown before the tracer.
             # This ensures all tracer metrics always sent.
-            telemetry_writer.periodic()
+            telemetry_writer.periodic(True)
 
         try:
             self._writer.stop(timeout)
