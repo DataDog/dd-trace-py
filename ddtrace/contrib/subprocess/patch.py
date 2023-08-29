@@ -148,22 +148,6 @@ class SubprocessCmdLine(object):
 
     def __init__(self, shell_args, shell=False):
         # type: (Union[str, List[str]], bool) -> None
-
-        report_cmdi = False
-        if config._iast_enabled:
-            # We delay the reporting to later when the strings are already scrubbed (but we need
-            # to check them unscrubbed here)
-            from ddtrace.appsec.iast._taint_tracking import get_tainted_ranges
-            from ddtrace.appsec.iast._taint_tracking.aspects import join_aspect
-
-            if isinstance(shell_args, (list, tuple)):
-                for arg in shell_args:
-                    if get_tainted_ranges(arg):
-                        report_cmdi = join_aspect(" ", shell_args)
-                        break
-            elif get_tainted_ranges(shell_args):
-                report_cmdi = shell_args
-
         cache_key = str(shell_args) + str(shell)
         self._cache_entry = SubprocessCmdLine._CACHE.get(cache_key)
         if self._cache_entry:
@@ -171,39 +155,37 @@ class SubprocessCmdLine(object):
             self.binary = self._cache_entry.binary
             self.arguments = self._cache_entry.arguments
             self.truncated = self._cache_entry.truncated
-            return
-
-        self.env_vars = []
-        self.binary = ""
-        self.arguments = []
-        self.truncated = False
-
-        if isinstance(shell_args, six.string_types):
-            tokens = shlex.split(shell_args)
         else:
-            tokens = cast(List[str], shell_args)
+            self.env_vars = []
+            self.binary = ""
+            self.arguments = []
+            self.truncated = False
 
-        # Extract previous environment variables, scrubbing all the ones not
-        # in ENV_VARS_ALLOWLIST
-        if shell:
-            self.scrub_env_vars(tokens)
-        else:
-            self.binary = tokens[0]
-            self.arguments = tokens[1:]
+            if isinstance(shell_args, six.string_types):
+                tokens = shlex.split(shell_args)
+            else:
+                tokens = cast(List[str], shell_args)
 
-        self.arguments = list(self.arguments) if isinstance(self.arguments, tuple) else self.arguments
-        self.scrub_arguments()
+            # Extract previous environment variables, scrubbing all the ones not
+            # in ENV_VARS_ALLOWLIST
+            if shell:
+                self.scrub_env_vars(tokens)
+            else:
+                self.binary = tokens[0]
+                self.arguments = tokens[1:]
 
-        # Create a new cache entry to store the computed values except as_list
-        # and as_string that are computed and stored lazily
-        self._cache_entry = SubprocessCmdLine._add_new_cache_entry(
-            cache_key, self.env_vars, self.binary, self.arguments, self.truncated
-        )
+            self.arguments = list(self.arguments) if isinstance(self.arguments, tuple) else self.arguments
+            self.scrub_arguments()
 
-        if report_cmdi:
-            from ddtrace.appsec.iast.taint_sinks.command_injection import CommandInjection
+            # Create a new cache entry to store the computed values except as_list
+            # and as_string that are computed and stored lazily
+            self._cache_entry = SubprocessCmdLine._add_new_cache_entry(
+                cache_key, self.env_vars, self.binary, self.arguments, self.truncated
+            )
+        if config._iast_enabled:
+            from ddtrace.appsec.iast.taint_sinks.command_injection import _iast_report_cmdi
 
-            CommandInjection.report(evidence_value=report_cmdi)
+            _iast_report_cmdi(shell_args)
 
     def scrub_env_vars(self, tokens):
         for idx, token in enumerate(tokens):

@@ -33,6 +33,9 @@ def get_version():
 # Original Client class
 _MongoClient = pymongo.MongoClient
 
+_VERSION = pymongo.version_tuple
+_CHECKOUT_FN_NAME = "get_socket" if _VERSION < (4, 5) else "checkout"
+
 
 def patch():
     patch_pymongo_module()
@@ -55,7 +58,7 @@ def patch_pymongo_module():
     # Whenever a pymongo command is invoked, the lib either:
     # - Creates a new socket & performs a TCP handshake
     # - Grabs a socket already initialized before
-    _w("pymongo.server", "Server.get_socket", traced_get_socket)
+    _w("pymongo.server", "Server.%s" % _CHECKOUT_FN_NAME, traced_get_socket)
 
 
 def unpatch_pymongo_module():
@@ -63,7 +66,7 @@ def unpatch_pymongo_module():
         return
     pymongo._datadog_patch = False
 
-    _u(pymongo.server.Server, "get_socket")
+    _u(pymongo.server.Server, _CHECKOUT_FN_NAME)
 
 
 @contextlib.contextmanager
@@ -75,7 +78,9 @@ def traced_get_socket(wrapped, instance, args, kwargs):
             return
 
     with pin.tracer.trace(
-        "pymongo.get_socket", service=trace_utils.int_service(pin, config.pymongo), span_type=SpanTypes.MONGODB
+        "pymongo.%s" % _CHECKOUT_FN_NAME,
+        service=trace_utils.int_service(pin, config.pymongo),
+        span_type=SpanTypes.MONGODB,
     ) as span:
         span.set_tag_str(COMPONENT, config.pymongo.integration_name)
         span.set_tag_str(db.SYSTEM, mongo.SERVICE)
