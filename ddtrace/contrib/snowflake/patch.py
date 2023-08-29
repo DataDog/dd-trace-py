@@ -28,6 +28,17 @@ config._add(
 )
 
 
+def get_version():
+    # type: () -> str
+    try:
+        import snowflake.connector as c
+    except AttributeError:
+        import sys
+
+        c = sys.modules.get("snowflake.connector")
+    return str(c.__version__)
+
+
 class _SFTracedCursor(TracedCursor):
     def _set_post_execute_tags(self, span):
         super(_SFTracedCursor, self)._set_post_execute_tags(span)

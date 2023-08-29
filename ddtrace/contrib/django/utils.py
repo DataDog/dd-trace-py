@@ -42,6 +42,7 @@ if django.VERSION < (1, 10, 0):
 else:
     Resolver404 = django.urls.exceptions.Resolver404
 
+
 DJANGO22 = django.VERSION >= (2, 2, 0)
 
 REQUEST_DEFAULT_RESOURCE = "__django_request"

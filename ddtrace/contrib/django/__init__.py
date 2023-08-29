@@ -182,10 +182,12 @@ from ...internal.utils.importlib import require_modules
 
 required_modules = ["django"]
 
+
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
         from . import patch as _patch
+        from .patch import get_version
         from .patch import patch
         from .patch import unpatch
 
-        __all__ = ["patch", "unpatch", "_patch"]
+        __all__ = ["patch", "unpatch", "_patch", "get_version"]
