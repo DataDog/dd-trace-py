@@ -9,6 +9,7 @@
     "type": "sql",
     "error": 0,
     "meta": {
+      "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "component": "psycopg",
       "db.application": "None",
@@ -17,7 +18,7 @@
       "db.user": "postgres",
       "language": "python",
       "out.host": "127.0.0.1",
-      "runtime-id": "1b018a1ff6344b3a95773b9b631c4ada",
+      "runtime-id": "91b9e07942704e02bd33721f33785cc6",
       "span.kind": "client"
     },
     "metrics": {
@@ -27,8 +28,8 @@
       "_sampling_priority_v1": 1,
       "db.row_count": 2,
       "network.destination.port": 5432,
-      "process_id": 78166
+      "process_id": 75536
     },
-    "duration": 2382000,
-    "start": 1667243097706684000
+    "duration": 789458,
+    "start": 1692712207066515758
   }]]

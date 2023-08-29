@@ -9,13 +9,14 @@
     "type": "redis",
     "error": 0,
     "meta": {
+      "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "component": "yaaredis",
       "db.system": "redis",
       "language": "python",
       "out.host": "localhost",
       "redis.raw_command": "GET \ud83d\ude10",
-      "runtime-id": "5547e917355d4080b87142160fa8bf83",
+      "runtime-id": "4d0d479c17be4095b8e0dee5a0839596",
       "span.kind": "client"
     },
     "metrics": {
@@ -25,9 +26,9 @@
       "_sampling_priority_v1": 1,
       "network.destination.port": 6379,
       "out.redis_db": 0,
-      "process_id": 65429,
+      "process_id": 5119,
       "redis.args_length": 2
     },
-    "duration": 1151000,
-    "start": 1667244350010819000
+    "duration": 211291,
+    "start": 1692650065781665049
   }]]

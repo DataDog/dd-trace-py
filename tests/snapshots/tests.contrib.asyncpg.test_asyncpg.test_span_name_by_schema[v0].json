@@ -9,6 +9,7 @@
     "type": "sql",
     "error": 0,
     "meta": {
+      "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "component": "asyncpg",
       "db.name": "postgres",
@@ -16,7 +17,7 @@
       "db.user": "postgres",
       "language": "python",
       "out.host": "127.0.0.1",
-      "runtime-id": "dd258666b8924453819a9350532ab574",
+      "runtime-id": "581d26e8d4404e38b734546af613c057",
       "span.kind": "client"
     },
     "metrics": {
@@ -24,10 +25,10 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "network.destination.port": 5432,
-      "process_id": 6384
+      "process_id": 25730
     },
-    "duration": 5285791,
-    "start": 1682559187016282966
+    "duration": 4967916,
+    "start": 1692706989773945216
   }],
 [
   {
@@ -40,6 +41,7 @@
     "type": "sql",
     "error": 0,
     "meta": {
+      "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "component": "asyncpg",
       "db.name": "postgres",
@@ -47,7 +49,7 @@
       "db.user": "postgres",
       "language": "python",
       "out.host": "127.0.0.1",
-      "runtime-id": "dd258666b8924453819a9350532ab574",
+      "runtime-id": "581d26e8d4404e38b734546af613c057",
       "span.kind": "client"
     },
     "metrics": {
@@ -56,8 +58,8 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "network.destination.port": 5432,
-      "process_id": 6384
+      "process_id": 25730
     },
-    "duration": 612625,
-    "start": 1682559187053365757
+    "duration": 668750,
+    "start": 1692706989811021216
   }]]

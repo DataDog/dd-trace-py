@@ -9,6 +9,7 @@
     "type": "web",
     "error": 0,
     "meta": {
+      "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "component": "sanic",
       "http.method": "GET",
@@ -16,7 +17,7 @@
       "http.url": "http://0.0.0.0:8000/hello",
       "http.useragent": "python-requests/2.28.2",
       "language": "python",
-      "runtime-id": "d185c6560ccb49b9ab2da444f2b6d35d",
+      "runtime-id": "daf9ebe6695a4a03a506ea6e7a5ef21b",
       "sanic.route.name": "test_sanic_server.hello",
       "span.kind": "server"
     },
@@ -24,10 +25,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 25379
+      "process_id": 83642
     },
-    "duration": 67983981,
-    "start": 1691164594853477757
+    "duration": 4186542,
+    "start": 1692712781295910593
   },
      {
        "name": "random_sleep",
@@ -38,8 +39,11 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
-       "duration": 67243101,
-       "start": 1691164594853863710
+       "meta": {
+         "_dd.base_service": ""
+       },
+       "duration": 3887500,
+       "start": 1692712781296113551
      }],
 [
   {
@@ -52,6 +56,7 @@
     "type": "web",
     "error": 0,
     "meta": {
+      "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "component": "sanic",
       "http.method": "GET",
@@ -59,7 +64,7 @@
       "http.url": "http://0.0.0.0:8000/hello",
       "http.useragent": "python-requests/2.28.2",
       "language": "python",
-      "runtime-id": "d185c6560ccb49b9ab2da444f2b6d35d",
+      "runtime-id": "daf9ebe6695a4a03a506ea6e7a5ef21b",
       "sanic.route.name": "test_sanic_server.hello",
       "span.kind": "server"
     },
@@ -67,10 +72,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 25379
+      "process_id": 83642
     },
-    "duration": 77824017,
-    "start": 1691164594951384840
+    "duration": 64079709,
+    "start": 1692712781362308801
   },
      {
        "name": "random_sleep",
@@ -81,6 +86,9 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
-       "duration": 77244694,
-       "start": 1691164594951561949
+       "meta": {
+         "_dd.base_service": ""
+       },
+       "duration": 63839500,
+       "start": 1692712781362424718
      }]]

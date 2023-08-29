@@ -9,14 +9,15 @@
     "type": "web",
     "error": 0,
     "meta": {
+      "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "component": "aiohttp",
       "http.method": "GET",
       "http.status_code": "200",
-      "http.url": "http://127.0.0.1:46641/template/",
-      "http.useragent": "Python/3.10 aiohttp/3.8.4",
+      "http.url": "http://127.0.0.1:45601/template/",
+      "http.useragent": "Python/3.9 aiohttp/3.8.4",
       "language": "python",
-      "runtime-id": "7b0a9cce138a4ba4aa6acec20df15a54",
+      "runtime-id": "328e4400ed094bfa91264883f71777a9",
       "span.kind": "server"
     },
     "metrics": {
@@ -24,10 +25,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 59537
+      "process_id": 13541
     },
-    "duration": 3177743,
-    "start": 1691169095341464160
+    "duration": 819042,
+    "start": 1692706257648916043
   },
      {
        "name": "aiohttp.template",
@@ -39,9 +40,10 @@
        "type": "template",
        "error": 0,
        "meta": {
+         "_dd.base_service": "",
          "aiohttp.template": "/template.jinja2",
          "component": "aiohttp_jinja2"
        },
-       "duration": 2632399,
-       "start": 1691169095341728465
+       "duration": 558792,
+       "start": 1692706257649020960
      }]]
