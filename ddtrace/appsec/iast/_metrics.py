@@ -1,7 +1,7 @@
 import os
 
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec.utils import deduplication
+from ddtrace.appsec._deduplications import deduplication
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_IAST

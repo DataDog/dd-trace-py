@@ -217,9 +217,7 @@
         ],
         "botocore": [
             "ddtrace/contrib/botocore/*",
-            "ddtrace/contrib/aiobotocore/*",
-            "tests/contrib/botocore/*",
-            "tests/contrib/aiobotocore/*"
+            "ddtrace/contrib/aiobotocore/*"
         ],
         "mysql": [
             "ddtrace/contrib/mysql/*",
