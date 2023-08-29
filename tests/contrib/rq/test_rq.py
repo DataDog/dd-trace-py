@@ -8,6 +8,7 @@ import redis
 import rq
 
 from ddtrace import Pin
+from ddtrace.contrib.rq import get_version
 from ddtrace.contrib.rq import patch
 from ddtrace.contrib.rq import unpatch
 from tests.utils import override_config
@@ -16,6 +17,7 @@ from tests.utils import snapshot_context
 
 from ..config import REDIS_CONFIG
 from .jobs import JobClass
+from .jobs import MyException
 from .jobs import job_add1
 from .jobs import job_fail
 
@@ -56,6 +58,12 @@ def test_sync_queue_enqueue(sync_queue):
     sync_queue.enqueue(job_add1, 1)
 
 
+def test_module_implements_get_version():
+    version = get_version()
+    assert type(version) == str
+    assert version != ""
+
+
 @snapshot(ignores=snapshot_ignores, variants={"": rq_version >= (1, 10, 1), "pre_1_10_1": rq_version < (1, 10, 1)})
 def test_queue_failing_job(sync_queue):
     # Exception raising behavior was changed in 1.10.1
@@ -64,7 +72,7 @@ def test_queue_failing_job(sync_queue):
         sync_queue.enqueue(job_fail)
         return
 
-    with pytest.raises(Exception):
+    with pytest.raises(MyException):
         sync_queue.enqueue(job_fail)
 
 

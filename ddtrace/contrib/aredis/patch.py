@@ -23,11 +23,16 @@ config._add(
 )
 
 
+def get_version():
+    # type: () -> str
+    return getattr(aredis, "__version__", "")
+
+
 def patch():
     """Patch the instrumented methods"""
     if getattr(aredis, "_datadog_patch", False):
         return
-    setattr(aredis, "_datadog_patch", True)
+    aredis._datadog_patch = True
 
     _w = wrapt.wrap_function_wrapper
 
@@ -40,7 +45,7 @@ def patch():
 
 def unpatch():
     if getattr(aredis, "_datadog_patch", False):
-        setattr(aredis, "_datadog_patch", False)
+        aredis._datadog_patch = False
 
         unwrap(aredis.client.StrictRedis, "execute_command")
         unwrap(aredis.client.StrictRedis, "pipeline")

@@ -15,6 +15,7 @@ from typing import Set
 from typing import Tuple
 from typing import Union
 
+from botocore import __version__
 import botocore.client
 import botocore.exceptions
 
@@ -84,6 +85,11 @@ config._add(
         "instrument_internals": asbool(os.getenv("DD_BOTOCORE_INSTRUMENT_INTERNALS", default=False)),
     },
 )
+
+
+def get_version():
+    # type: () -> str
+    return __version__
 
 
 class TraceInjectionSizeExceed(Exception):
@@ -430,7 +436,7 @@ def inject_trace_to_client_context(params, span):
 def patch():
     if getattr(botocore.client, "_datadog_patch", False):
         return
-    setattr(botocore.client, "_datadog_patch", True)
+    botocore.client._datadog_patch = True
 
     wrapt.wrap_function_wrapper("botocore.client", "BaseClient._make_api_call", patched_api_call)
     Pin(service="aws").onto(botocore.client.BaseClient)
@@ -442,7 +448,7 @@ def patch():
 def unpatch():
     _PATCHED_SUBMODULES.clear()
     if getattr(botocore.client, "_datadog_patch", False):
-        setattr(botocore.client, "_datadog_patch", False)
+        botocore.client._datadog_patch = False
         unwrap(botocore.parsers.ResponseParser, "parse")
         unwrap(botocore.client.BaseClient, "_make_api_call")
 

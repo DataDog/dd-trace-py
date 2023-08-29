@@ -119,10 +119,15 @@ class MemoryCollector(collector.PeriodicCollector):
                     ddup.push_threadinfo(
                         thread_id, _threading.get_thread_native_id(thread_id), _threading.get_thread_name(thread_id)
                     )
-                    ddup.push_class_name(frames[0].class_name)
-                    for frame in frames:
-                        ddup.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
-                    ddup.flush_sample()
+                    try:
+                        for frame in frames:
+                            ddup.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
+                        ddup.flush_sample()
+                    except AttributeError:
+                        # DEV: This might happen if the memalloc sofile is unlinked and relinked without module
+                        #      re-initialization.  ddup re-initializes the sample on `start_sample()`, so no
+                        #      need to cleanup.
+                        LOG.debug("Invalid state detected in memalloc module, suppressing profile")
 
         if self._export_py_enabled:
             return (
@@ -161,7 +166,7 @@ class MemoryCollector(collector.PeriodicCollector):
         thread_id_ignore_set = self._get_thread_id_ignore_set()
 
         if self._export_libdd_enabled:
-            for (frames, nframes, thread_id), size, domain in events:
+            for (frames, nframes, thread_id), size, _domain in events:
                 if thread_id in thread_id_ignore_set:
                     continue
                 ddup.start_sample(nframes)
@@ -169,10 +174,15 @@ class MemoryCollector(collector.PeriodicCollector):
                 ddup.push_threadinfo(
                     thread_id, _threading.get_thread_native_id(thread_id), _threading.get_thread_name(thread_id)
                 )
-                ddup.push_class_name(frames[0].class_name)
-                for frame in frames:
-                    ddup.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
-                ddup.flush_sample()
+                try:
+                    for frame in frames:
+                        ddup.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
+                    ddup.flush_sample()
+                except AttributeError:
+                    # DEV: This might happen if the memalloc sofile is unlinked and relinked without module
+                    #      re-initialization.  ddup re-initializes the sample on `start_sample()`, so no
+                    #      need to cleanup.
+                    LOG.debug("Invalid state detected in memalloc module, suppressing profile")
 
         if self._export_py_enabled:
             return (

@@ -1,3 +1,4 @@
+from ddtrace.contrib.django import get_version
 from ddtrace.contrib.django import patch
 from tests.contrib.patch import PatchTestCase
 
@@ -49,3 +50,8 @@ class TestDjangoPatch(PatchTestCase.Base):
             self.assert_not_double_wrapped(django.urls.path)
             self.assert_not_double_wrapped(django.urls.re_path)
         self.assert_not_double_wrapped(django.views.generic.base.View.as_view)
+
+    def assert_module_implements_get_version(self):
+        version = get_version()
+        assert type(version) == str
+        assert version != ""

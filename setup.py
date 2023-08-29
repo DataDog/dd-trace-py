@@ -3,7 +3,6 @@ import os
 import platform
 import re
 import shutil
-import subprocess
 import sys
 import tarfile
 
@@ -47,7 +46,7 @@ IAST_DIR = os.path.join(HERE, os.path.join("ddtrace", "appsec", "iast", "_taint_
 
 CURRENT_OS = platform.system()
 
-LIBDDWAF_VERSION = "1.12.0"
+LIBDDWAF_VERSION = "1.13.1"
 
 LIBDATADOG_PROF_DOWNLOAD_DIR = os.path.join(
     HERE, os.path.join("ddtrace", "internal", "datadog", "profiling", "libdatadog")
@@ -296,10 +295,6 @@ class CleanLibraries(CleanCommand):
 
 
 class CMakeBuild(build_ext):
-    @staticmethod
-    def strip_symbols(so_file):
-        subprocess.check_output(["strip", "-g", so_file])
-
     def build_extension(self, ext):
         tmp_iast_file_path = os.path.abspath(self.get_ext_fullpath(ext.name))
         tmp_iast_path = os.path.join(os.path.dirname(tmp_iast_file_path))
@@ -374,12 +369,6 @@ class CMakeBuild(build_ext):
                     shutil.copy(iast_artifact, tmp_iast_file_path)
         else:
             build_ext.build_extension(self, ext)
-            if CURRENT_OS == "Linux":
-                for ext in self.extensions:
-                    try:
-                        self.strip_symbols(self.get_ext_fullpath(ext.name))
-                    except Exception:
-                        pass
 
 
 long_description = """
@@ -487,15 +476,15 @@ def get_ddup_ext():
             cythonize(
                 [
                     Cython.Distutils.Extension(
-                        "ddtrace.internal.datadog.profiling.ddup",
+                        "ddtrace.internal.datadog.profiling._ddup",
                         sources=[
                             "ddtrace/internal/datadog/profiling/src/exporter.cpp",
                             "ddtrace/internal/datadog/profiling/src/interface.cpp",
-                            "ddtrace/internal/datadog/profiling/ddup.pyx",
+                            "ddtrace/internal/datadog/profiling/_ddup.pyx",
                         ],
                         include_dirs=LibDatadogDownload.get_include_dirs(),
                         extra_objects=LibDatadogDownload.get_extra_objects(),
-                        extra_compile_args=["-std=c++17", "-flto"],
+                        extra_compile_args=["-std=c++17"],
                         language="c++",
                     )
                 ],
@@ -577,7 +566,6 @@ setup(
         # users can include opentracing by having:
         # install_requires=['ddtrace[opentracing]', ...]
         "opentracing": ["opentracing>=2.0.0"],
-        "openai": ["tiktoken"],
     },
     tests_require=["flake8"],
     cmdclass={
@@ -592,7 +580,6 @@ setup(
         "pytest11": [
             "ddtrace = ddtrace.contrib.pytest.plugin",
             "ddtrace.pytest_bdd = ddtrace.contrib.pytest_bdd.plugin",
-            "ddtrace.pytest_benchmark = ddtrace.contrib.pytest_benchmark.plugin",
         ],
         "opentelemetry_context": [
             "ddcontextvars_context = ddtrace.opentelemetry._context:DDRuntimeContext",

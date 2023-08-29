@@ -26,6 +26,7 @@ from ddtrace.contrib.pytest.constants import FRAMEWORK
 from ddtrace.contrib.pytest.constants import HELP_MSG
 from ddtrace.contrib.pytest.constants import KIND
 from ddtrace.contrib.pytest.constants import XFAIL_REASON
+from ddtrace.contrib.unittest import unpatch as unpatch_unittest
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
 from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
@@ -72,12 +73,12 @@ def _extract_span(item):
 
 def _store_span(item, span):
     """Store span at `pytest.Item` instance."""
-    setattr(item, "_datadog_span", span)
+    item._datadog_span = span
 
 
 def _attach_coverage(item):
     coverage = _initialize_coverage(str(item.config.rootdir))
-    setattr(item, "_coverage", coverage)
+    item._coverage = coverage
     coverage.start()
 
 
@@ -101,14 +102,14 @@ def _extract_module_span(item):
 
 def _store_module_span(item, span):
     """Store span at `pytest.Item` instance."""
-    setattr(item, "_datadog_span_module", span)
+    item._datadog_span_module = span
 
 
 def _mark_failed(item):
     """Store test failed status at `pytest.Item` instance."""
     if item.parent:
         _mark_failed(item.parent)
-    setattr(item, "_failed", True)
+    item._failed = True
 
 
 def _check_failed(item):
@@ -120,7 +121,7 @@ def _mark_not_skipped(item):
     """Mark test suite/module/session `pytest.Item` as not skipped."""
     if item.parent:
         _mark_not_skipped(item.parent)
-    setattr(item, "_fully_skipped", False)
+    item._fully_skipped = False
 
 
 def _check_fully_skipped(item):
@@ -214,7 +215,8 @@ def _start_test_module_span(pytest_package_item=None, pytest_module_item=None):
     test_module_span.set_tag_str(test.FRAMEWORK_VERSION, pytest.__version__)
     test_module_span.set_tag_str(test.COMMAND, _get_pytest_command(item.config))
     test_module_span.set_tag_str(_EVENT_TYPE, _MODULE_TYPE)
-    test_module_span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
+    if test_session_span:
+        test_module_span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
     test_module_span.set_tag_str(_MODULE_ID, str(test_module_span.span_id))
     test_module_span.set_tag_str(test.MODULE, _get_module_name(item, is_package))
     test_module_span.set_tag_str(test.MODULE_PATH, _get_module_path(item))
@@ -250,7 +252,8 @@ def _start_test_suite_span(item, test_module_span, should_enable_coverage=False)
     test_suite_span.set_tag_str(test.FRAMEWORK_VERSION, pytest.__version__)
     test_suite_span.set_tag_str(test.COMMAND, _get_pytest_command(item.config))
     test_suite_span.set_tag_str(_EVENT_TYPE, _SUITE_TYPE)
-    test_suite_span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
+    if test_session_span:
+        test_suite_span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
     test_suite_span.set_tag_str(_SUITE_ID, str(test_suite_span.span_id))
     test_module_path = None
     if test_module_span is not None:
@@ -300,6 +303,7 @@ def pytest_addoption(parser):
 
 
 def pytest_configure(config):
+    unpatch_unittest()
     config.addinivalue_line("markers", "dd_tags(**kwargs): add tags to current span")
     if is_enabled(config):
         _CIVisibility.enable(config=ddtrace.config.pytest)
@@ -342,12 +346,18 @@ def pytest_sessionfinish(session, exitstatus):
 
 @pytest.fixture(scope="function")
 def ddspan(request):
+    """Return the :class:`ddtrace.span.Span` instance associated with the
+    current test when Datadog CI Visibility is enabled.
+    """
     if _CIVisibility.enabled:
         return _extract_span(request.node)
 
 
 @pytest.fixture(scope="session")
 def ddtracer():
+    """Return the :class:`ddtrace.tracer.Tracer` instance for Datadog CI
+    visibility if it is enabled, otherwise return the default Datadog tracer.
+    """
     if _CIVisibility.enabled:
         return _CIVisibility._instance.tracer
     return ddtrace.tracer
@@ -355,6 +365,9 @@ def ddtracer():
 
 @pytest.fixture(scope="session", autouse=True)
 def patch_all(request):
+    """Patch all available modules for Datadog tracing when ddtrace-patch-all
+    is specified in command or .ini.
+    """
     if request.config.getoption("ddtrace-patch-all") or request.config.getini("ddtrace-patch-all"):
         ddtrace.patch_all()
 
@@ -472,7 +485,8 @@ def pytest_runtest_protocol(item, nextitem):
         span.set_tag_str(_EVENT_TYPE, SpanTypes.TEST)
         span.set_tag_str(test.NAME, item.name)
         span.set_tag_str(test.COMMAND, _get_pytest_command(item.config))
-        span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
+        if test_session_span:
+            span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
 
         span.set_tag_str(_MODULE_ID, str(test_module_span.span_id))
         span.set_tag_str(test.MODULE, test_module_span.get_tag(test.MODULE))

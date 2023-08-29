@@ -102,6 +102,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
         """Subscribers need to be restarted when application forks"""
         self._enable = False
         log.debug("[%s][P: %s] Remote Config Poller fork. Starting Pubsub services", os.getpid(), os.getppid())
+        self._client.renew_id()
         for pubsub in self._client.get_pubsubs():
             pubsub.restart_subscriber()
 
@@ -174,6 +175,9 @@ class RemoteConfigPoller(periodic.PeriodicService):
             self._client.unregister_product(product)
         except Exception:
             log.debug("error starting the RCM client", exc_info=True)
+
+    def get_registered(self, product):
+        return self._client._products.get(product)
 
     def __enter__(self):
         # type: () -> RemoteConfigPoller
