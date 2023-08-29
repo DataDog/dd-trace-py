@@ -29,9 +29,15 @@ from ddtrace.contrib.pytest.constants import XFAIL_REASON
 from ddtrace.contrib.unittest import unpatch as unpatch_unittest
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
+from ddtrace.ext.test import ITR_SUITE_FORCED_BY_UNSKIPPABLE_TEST
+from ddtrace.ext.test import ITR_TEST_FORCED_BY_UNSKIPPABLE_SUITE
+from ddtrace.ext.test import ITR_TEST_FORCED_BY_UNSKIPPABLE_TEST
+from ddtrace.ext.test import ITR_TEST_UNSKIPPABLE
 from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import EVENT_TYPE as _EVENT_TYPE
+from ddtrace.internal.ci_visibility.constants import ITR_SUITE_UNSKIPPABLE_NAME
+from ddtrace.internal.ci_visibility.constants import ITR_TEST_UNSKIPPABLE_REASON
 from ddtrace.internal.ci_visibility.constants import MODULE_ID as _MODULE_ID
 from ddtrace.internal.ci_visibility.constants import MODULE_TYPE as _MODULE_TYPE
 from ddtrace.internal.ci_visibility.constants import SESSION_ID as _SESSION_ID
@@ -52,6 +58,8 @@ PATCH_ALL_HELP_MSG = "Call ddtrace.patch_all before running tests."
 log = get_logger(__name__)
 
 _global_skipped_elements = 0
+_global_unskipped_suites = 0
+_global_unskipped_tests = 0
 
 
 def encode_test_parameter(parameter):
@@ -187,6 +195,22 @@ def _get_suite_name(item, test_module_path=None):
         suite_path = os.path.relpath(item.nodeid, start=test_module_path)
         return suite_path
     return item.nodeid
+
+
+def _is_suite_unskippable(item):
+    return bool(getattr(item.module, ITR_SUITE_UNSKIPPABLE_NAME, False))
+
+
+def _is_test_unskippable(item):
+    return any(
+        [
+            True
+            for marker in item.iter_markers(name="skipif")
+            if marker.args[0] is False
+            and "reason" in marker.kwargs
+            and marker.kwargs["reason"] is ITR_TEST_UNSKIPPABLE_REASON
+        ]
+    )
 
 
 def _start_test_module_span(pytest_package_item=None, pytest_module_item=None):
@@ -431,9 +455,48 @@ def _get_test_class_hierarchy(item):
 def pytest_collection_modifyitems(session, config, items):
     if _CIVisibility.test_skipping_enabled():
         skip = pytest.mark.skip(reason=SKIPPED_BY_ITR_REASON)
+
+        items_to_skip = {}
+        current_suite_has_unskippable_test = False
+
+        skip = pytest.mark.skip(reason=SKIPPED_BY_ITR_REASON)
         for item in items:
+            suite_is_unskippable = _is_suite_unskippable(item)
+            test_is_unskippable = _is_test_unskippable(item)
+
+            if suite_is_unskippable:
+                log.debug("Module %s is marked as unskippable" % item.module)
+                item._dd_itr_suite_unskippable = True
+
+            if test_is_unskippable:
+                log.debug("Test %s in module %s is marked as unskippable" % (item.name, item.module))
+                item._dd_itr_test_unskippable = True
+
+            # Due to suite skipping mode, delay adding ITR skip marker until unskippable status of the suite has been
+            # fully resolved because Pytest markers cannot be dynamically removed
+            if _CIVisibility._instance._suite_skipping_mode:
+                if item.module not in items_to_skip:
+                    items_to_skip[item.module] = []
+                    current_suite_has_unskippable_test = False
+
+                if test_is_unskippable and not current_suite_has_unskippable_test:
+                    current_suite_has_unskippable_test = True
+                    items_to_skip[item.module] = []
+
             if _CIVisibility._instance._should_skip_path(str(get_fslocation_from_item(item)[0]), item.name):
-                item.add_marker(skip)
+                if suite_is_unskippable:
+                    item._dd_itr_forced_by_suite = True
+                elif test_is_unskippable:
+                    item._dd_itr_forced_by_test = True
+                elif _CIVisibility._instance._suite_skipping_mode and current_suite_has_unskippable_test:
+                    item._dd_itr_forced_by_test_in_suite = True
+                else:
+                    items_to_skip.setdefault(item.module, []).append(item)
+
+        # Mark remaining tests that should be skipped
+        for items_to_skip in items_to_skip.values():
+            for item_to_skip in items_to_skip:
+                item_to_skip.add_marker(skip)
 
 
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)
@@ -554,6 +617,28 @@ def pytest_runtest_protocol(item, nextitem):
                     parameters["arguments"][param_name] = "Could not encode"
                     log.warning("Failed to encode %r", param_name, exc_info=True)
             span.set_tag_str(test.PARAMETERS, json.dumps(parameters))
+
+        if not is_skipped:
+            # breakpoint()
+            if getattr(item, "_dd_itr_forced_by_suite", False):
+                log.debug(
+                    "Intelligent Test Runner: test item %s forced to run by unskippable module %s"
+                    % (item.name, item.module)
+                )
+            elif getattr(item, "_dd_itr_forced_by_test", False):
+                log.debug("Intelligent Test Runner: test item %s forced to run by unskippable status" % item.name)
+            elif getattr(item, "_dd_itr_forced_by_test_in_suite", False):
+                log.debug(
+                    "Intelligent Test Runner: test item %s forced to run by unskippable test in module %s"
+                    % (item.name, item.module)
+                )
+
+        #                 if suite_is_unskippable:
+        #                     item._dd_itr_forced_by_suite = True
+        #                 elif test_is_unskippable:
+        #                     item._dd_itr_forced_by_test = True
+        #                 elif current_suite_has_unskippable:
+        #                     item._dd_itr_force_by_test_in_suite = True
 
         markers = [marker.kwargs for marker in item.iter_markers(name="dd_tags")]
         for tags in markers:
