@@ -117,3 +117,54 @@ when the riotfile changes. Thus, if you make changes to the riotfile, you need t
 
 You can commit and pull request the resulting changes to files in ``.riot/requirements`` alongside the
 changes you made to ``riotfile.py``.
+
+How do I add a new test suite?
+------------------------------
+
+We use `riot <https://ddriot.readthedocs.io/en/latest/>`_, a Python virtual environment constructor, to run the test suites.
+It is necessary to create a new ``Venv`` instance in ``riotfile.py`` if it does not exist already. It can look like this:
+
+.. code-block:: python
+
+    Venv(
+        name="asyncio",
+        command="pytest {cmdargs} tests/contrib/asyncio",
+        pys=select_pys(),
+        pkgs={
+            "pytest-asyncio": latest,
+        },
+        env={
+            "DD_ENV_VARIABLE": "1",  # if needed
+        },
+    )
+
+Once a ``Venv`` instance has been created, you will be able to run it as explained in the section below.
+Next, we will need to add a new CircleCI job to run the newly added test suite at ``.circleci/config.templ.yml`` just like:
+
+.. code-block:: python
+
+    asyncio:
+    <<: *contrib_job
+    steps:
+      - run_test:
+          pattern: 'asyncio'
+
+
+After this, a new component must be added to ``tests/.suitespec.json`` under ``"components":`` like:
+
+.. code-block:: JSON
+
+    "asyncio": [
+        "ddtrace/contrib/asyncio/*"
+    ],
+
+Lastly, we will register it as a suite in the same file under ``"suites":``:
+
+.. code-block:: JSON
+
+    "asyncio": [
+        "@asyncio",
+        "tests/contrib/asyncio/*"
+    ],
+
+Once you've completed these steps, CircleCI will run the new test suite.

@@ -89,6 +89,7 @@ PATCH_MODULES = {
     "openai": True,
     "langchain": True,
     "subprocess": True,
+    "unittest": True,
 }
 
 
