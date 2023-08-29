@@ -42,16 +42,17 @@ except OSError:
 
 
 class DDWaf_result(object):
-    __slots__ = ["data", "actions", "runtime", "total_runtime", "timeout", "truncation"]
+    __slots__ = ["data", "actions", "runtime", "total_runtime", "timeout", "truncation", "derivatives"]
 
-    def __init__(self, data, actions, runtime, total_runtime, timeout, truncation):
-        # type: (DDWaf_result, text_type|None, list[text_type], float, float, bool, int) -> None
+    def __init__(self, data, actions, runtime, total_runtime, timeout, truncation, derivatives):
+        # type: (DDWaf_result, text_type|None, list[text_type], float, float, bool, int, dict[str, Any]) -> None
         self.data = data
         self.actions = actions
         self.runtime = runtime
         self.total_runtime = total_runtime
         self.timeout = timeout
         self.truncation = truncation
+        self.derivatives = derivatives
 
 
 class DDWaf_info(object):
@@ -153,10 +154,9 @@ if _DDWAF_LOADED:
         ):
             # type: (...) -> DDWaf_result
             start = time.time()
-
             if not ctx:
                 LOGGER.debug("DDWaf.run: dry run. no context created.")
-                return DDWaf_result(None, [], 0, (time.time() - start) * 1e6, False, 0)
+                return DDWaf_result(None, [], 0, (time.time() - start) * 1e6, False, 0, {})
 
             result = ddwaf_result()
             observator = _observator()
@@ -171,6 +171,7 @@ if _DDWAF_LOADED:
                 (time.time() - start) * 1e6,
                 result.timeout,
                 observator.truncation,
+                result.derivatives.struct,
             )
 
     def version():
@@ -185,7 +186,7 @@ else:
         info = DDWaf_info(0, 0, {}, "")  # type: DDWaf_info
 
         def __init__(self, rules, obfuscation_parameter_key_regexp, obfuscation_parameter_value_regexp):
-            # type: (DDWaf, Union[None, int, text_type, list[Any], dict[text_type, Any]], text_type, text_type) -> None
+            # type: (DDWaf, dict[text_type, Any], text_type, text_type) -> None
             self._handle = None
 
         def run(
@@ -196,7 +197,7 @@ else:
         ):
             # type: (...) -> DDWaf_result
             LOGGER.debug("DDWaf features disabled. dry run")
-            return DDWaf_result(None, [], 0.0, 0.0, False, 0)
+            return DDWaf_result(None, [], 0.0, 0.0, False, 0, {})
 
         def update_rules(self, _):
             # type: (dict[text_type, DDWafRulesType]) -> bool
