@@ -159,7 +159,7 @@ def test_api_security_with_srb(client, test_spans, tracer):
 
 @pytest.mark.skipif(sys.version_info.major < 3, reason="Python 2 not supported for api security")
 def test_api_security_deactivated(client, test_spans, tracer):
-    """Test if blocking is still working as expected with api security activated"""
+    """Test if blocking is still working as expected with api security deactivated"""
 
     with override_global_config(dict(_appsec_enabled=True, _api_security_enabled=False)), override_env(
         {_constants.API_SECURITY.INTERVAL_PER_ROUTE: "0.0", "DD_APPSEC_RULES": RULES_SRB}

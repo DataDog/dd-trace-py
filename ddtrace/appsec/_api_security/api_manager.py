@@ -4,6 +4,7 @@ import json
 import os
 from typing import TYPE_CHECKING
 
+from ddtrace import config
 from ddtrace._tracing._limits import MAX_SPAN_META_VALUE_LEN
 from ddtrace.appsec import processor as appsec_processor
 from ddtrace.appsec._asm_request_context import _WAF_RESULTS
@@ -125,7 +126,7 @@ class APIManager(Service):
         return r.limit() is not RateLimitExceeded
 
     def _schema_callback(self, env):
-        if env.span is None:
+        if env.span is None or not (config._api_security_enabled and config._appsec_enabled):
             return
         root = env.span._local_root or env.span
         if not root or any(meta_name in root._meta for _, meta_name, _ in self.COLLECTED):
