@@ -15,6 +15,11 @@ from ._cold_start import is_cold_start
 from ._cold_start import set_cold_start
 
 
+def get_version():
+    # type: () -> str
+    return ""
+
+
 class DDLambdaLogger:
     """Uses `DDLogger` to log only on cold start invocations."""
 

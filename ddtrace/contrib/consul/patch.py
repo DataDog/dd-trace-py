@@ -22,6 +22,11 @@ from ...pin import Pin
 _KV_FUNCS = ["put", "get", "delete"]
 
 
+def get_version():
+    # type: () -> str
+    return getattr(consul, "__version__", "")
+
+
 def patch():
     if getattr(consul, "__datadog_patch", False):
         return

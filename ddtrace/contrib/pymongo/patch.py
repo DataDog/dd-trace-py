@@ -25,6 +25,11 @@ config._add(
 )
 
 
+def get_version():
+    # type: () -> str
+    return getattr(pymongo, "__version__", "")
+
+
 # Original Client class
 _MongoClient = pymongo.MongoClient
 
