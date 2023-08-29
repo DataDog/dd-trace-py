@@ -142,6 +142,7 @@ mysql
 mysqlclient
 mysqldb
 namespace
+NeedsAppKey
 obfuscator
 openai
 opensearch

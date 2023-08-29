@@ -23,7 +23,11 @@ from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from .. import compat
 from ..utils.http import Response
 from ..utils.http import get_connection
+from .constants import AGENTLESS_API_KEY_HEADER_NAME
+from .constants import AGENTLESS_APP_KEY_HEADER_NAME
 from .constants import AGENTLESS_DEFAULT_SITE
+from .constants import EVP_NEEDS_APP_KEY_HEADER_NAME
+from .constants import EVP_NEEDS_APP_KEY_HEADER_VALUE
 from .constants import EVP_PROXY_AGENT_BASE_PATH
 from .constants import EVP_SUBDOMAIN_HEADER_API_VALUE
 from .constants import EVP_SUBDOMAIN_HEADER_NAME
@@ -134,9 +138,15 @@ class CIVisibilityGitClient(object):
     def _do_request(cls, requests_mode, base_url, endpoint, payload, serializer, headers=None):
         # type: (int, str, str, str, CIVisibilityGitClientSerializerV1, Optional[dict]) -> Response
         url = "{}/repository{}".format(base_url, endpoint)
-        _headers = {"dd-api-key": serializer.api_key, "dd-application-key": serializer.app_key}
+        _headers = {
+            AGENTLESS_API_KEY_HEADER_NAME: serializer.api_key,
+            AGENTLESS_APP_KEY_HEADER_NAME: serializer.app_key,
+        }
         if requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS:
-            _headers = {EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_API_VALUE}
+            _headers = {
+                EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_API_VALUE,
+                EVP_NEEDS_APP_KEY_HEADER_NAME: EVP_NEEDS_APP_KEY_HEADER_VALUE,
+            }
         if headers is not None:
             _headers.update(headers)
         try:
