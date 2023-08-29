@@ -545,7 +545,7 @@ class Tracer(object):
         self._generate_diagnostic_logs()
 
     def _generate_diagnostic_logs(self):
-        if config._debug_mode or asbool(environ.get("DD_TRACE_STARTUP_LOGS", False)):
+        if config._debug_mode or config._startup_logs_enabled:
             try:
                 info = debug.collect(self)
             except Exception as e:

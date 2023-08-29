@@ -297,6 +297,9 @@
             "ddtrace/contrib/pytest/*",
             "ddtrace/contrib/pytest_bdd/*"
         ],
+        "unittest": [
+            "ddtrace/contrib/unittest/*"
+        ],
         "appsec": [
             "ddtrace/appsec/*"
         ]
@@ -748,6 +751,10 @@
             "@pytest",
             "@ci_visibility",
             "tests/contrib/pytest/*"
+        ],
+        "unittest": [
+            "@unittest",
+            "tests/contrib/unittest_plugin/*"
         ],
         "asynctest": [
             "@bootstrap",
