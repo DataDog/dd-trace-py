@@ -34,7 +34,7 @@
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.base_service": "",
+         "_dd.base_service": ""
        },
        "metrics": {
          "_dd.span_sampling.mechanism": 8

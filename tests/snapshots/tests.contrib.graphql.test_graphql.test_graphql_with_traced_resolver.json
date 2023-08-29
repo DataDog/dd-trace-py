@@ -35,7 +35,7 @@
        "type": "graphql",
        "error": 0,
        "meta": {
-         "_dd.base_service": ""
+         "_dd.base_service": "",
          "component": "graphql",
          "graphql.source": "query HELLO { hello }"
        },

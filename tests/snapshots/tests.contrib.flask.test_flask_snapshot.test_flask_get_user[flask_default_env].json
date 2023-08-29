@@ -50,11 +50,7 @@
        "type": "",
        "error": 0,
        "meta": {
-<<<<<<< HEAD
-=======
          "_dd.base_service": "",
-         "_dd.p.dm": "-0",
->>>>>>> 1.x
          "component": "flask",
          "flask.endpoint": "identify",
          "flask.url_rule": "/identify"
@@ -72,11 +68,7 @@
           "type": "",
           "error": 0,
           "meta": {
-<<<<<<< HEAD
-=======
             "_dd.base_service": "",
-            "_dd.p.dm": "-0",
->>>>>>> 1.x
             "component": "flask"
           },
           "duration": 14667,
@@ -92,11 +84,7 @@
           "type": "",
           "error": 0,
           "meta": {
-<<<<<<< HEAD
-=======
             "_dd.base_service": "",
-            "_dd.p.dm": "-0",
->>>>>>> 1.x
             "component": "flask"
           },
           "duration": 18125,
@@ -112,11 +100,7 @@
           "type": "",
           "error": 0,
           "meta": {
-<<<<<<< HEAD
-=======
             "_dd.base_service": "",
-            "_dd.p.dm": "-0",
->>>>>>> 1.x
             "component": "flask"
           },
           "duration": 50042,
@@ -132,11 +116,7 @@
              "type": "",
              "error": 0,
              "meta": {
-<<<<<<< HEAD
-=======
                "_dd.base_service": "",
-               "_dd.p.dm": "-0",
->>>>>>> 1.x
                "component": "flask"
              },
              "duration": 18834,
@@ -152,11 +132,7 @@
           "type": "",
           "error": 0,
           "meta": {
-<<<<<<< HEAD
-=======
             "_dd.base_service": "",
-            "_dd.p.dm": "-0",
->>>>>>> 1.x
             "component": "flask"
           },
           "duration": 12750,
@@ -172,11 +148,7 @@
           "type": "",
           "error": 0,
           "meta": {
-<<<<<<< HEAD
-=======
             "_dd.base_service": "",
-            "_dd.p.dm": "-0",
->>>>>>> 1.x
             "component": "flask"
           },
           "duration": 14000,
@@ -192,11 +164,7 @@
           "type": "",
           "error": 0,
           "meta": {
-<<<<<<< HEAD
-=======
             "_dd.base_service": "",
-            "_dd.p.dm": "-0",
->>>>>>> 1.x
             "component": "flask"
           },
           "duration": 10709,
@@ -212,11 +180,7 @@
        "type": "",
        "error": 0,
        "meta": {
-<<<<<<< HEAD
-=======
          "_dd.base_service": "",
-         "_dd.p.dm": "-0",
->>>>>>> 1.x
          "component": "flask"
        },
        "duration": 197500,

@@ -56,11 +56,7 @@
        "type": "",
        "error": 0,
        "meta": {
-<<<<<<< HEAD
-=======
          "_dd.base_service": "",
-         "_dd.p.dm": "-0",
->>>>>>> 1.x
          "component": "flask",
          "flask.endpoint": "run_osspawn",
          "flask.url_rule": "/executions/osspawn"
@@ -78,11 +74,7 @@
           "type": "",
           "error": 0,
           "meta": {
-<<<<<<< HEAD
-=======
             "_dd.base_service": "",
-            "_dd.p.dm": "-0",
->>>>>>> 1.x
             "component": "flask"
           },
           "duration": 58041,
@@ -98,11 +90,7 @@
           "type": "",
           "error": 0,
           "meta": {
-<<<<<<< HEAD
-=======
             "_dd.base_service": "",
-            "_dd.p.dm": "-0",
->>>>>>> 1.x
             "component": "flask"
           },
           "duration": 23105958,
@@ -118,11 +106,7 @@
              "type": "",
              "error": 0,
              "meta": {
-<<<<<<< HEAD
-=======
                "_dd.base_service": "",
-               "_dd.p.dm": "-0",
->>>>>>> 1.x
                "component": "flask"
              },
              "duration": 23001750,
@@ -138,11 +122,7 @@
                 "type": "system",
                 "error": 0,
                 "meta": {
-<<<<<<< HEAD
-=======
                   "_dd.base_service": "",
-                  "_dd.p.dm": "-0",
->>>>>>> 1.x
                   "cmd.exec": "['/bin/ls', '-l', '/']",
                   "cmd.exit_code": "0",
                   "component": "os"
@@ -160,11 +140,7 @@
                    "type": "system",
                    "error": 0,
                    "meta": {
-<<<<<<< HEAD
-=======
                      "_dd.base_service": "",
-                     "_dd.p.dm": "-0",
->>>>>>> 1.x
                      "cmd.exec": "['os.fork']",
                      "component": "os"
                    },
@@ -181,11 +157,7 @@
           "type": "",
           "error": 0,
           "meta": {
-<<<<<<< HEAD
-=======
             "_dd.base_service": "",
-            "_dd.p.dm": "-0",
->>>>>>> 1.x
             "component": "flask"
           },
           "duration": 227250,
@@ -201,11 +173,7 @@
           "type": "",
           "error": 0,
           "meta": {
-<<<<<<< HEAD
-=======
             "_dd.base_service": "",
-            "_dd.p.dm": "-0",
->>>>>>> 1.x
             "component": "flask"
           },
           "duration": 159125,
@@ -221,11 +189,7 @@
           "type": "",
           "error": 0,
           "meta": {
-<<<<<<< HEAD
-=======
             "_dd.base_service": "",
-            "_dd.p.dm": "-0",
->>>>>>> 1.x
             "component": "flask"
           },
           "duration": 27792,
@@ -241,11 +205,7 @@
        "type": "",
        "error": 0,
        "meta": {
-<<<<<<< HEAD
-=======
          "_dd.base_service": "",
-         "_dd.p.dm": "-0",
->>>>>>> 1.x
          "component": "flask"
        },
        "duration": 779583,

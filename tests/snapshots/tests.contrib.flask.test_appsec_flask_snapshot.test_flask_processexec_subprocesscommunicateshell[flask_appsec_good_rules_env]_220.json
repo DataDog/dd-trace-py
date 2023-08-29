@@ -56,11 +56,7 @@
        "type": "",
        "error": 0,
        "meta": {
-<<<<<<< HEAD
-=======
          "_dd.base_service": "",
-         "_dd.p.dm": "-0",
->>>>>>> 1.x
          "component": "flask",
          "flask.endpoint": "run_subcommunicateshell",
          "flask.url_rule": "/executions/subcommunicateshell"
@@ -78,11 +74,7 @@
           "type": "",
           "error": 0,
           "meta": {
-<<<<<<< HEAD
-=======
             "_dd.base_service": "",
-            "_dd.p.dm": "-0",
->>>>>>> 1.x
             "component": "flask"
           },
           "duration": 37792,
@@ -98,11 +90,7 @@
           "type": "",
           "error": 0,
           "meta": {
-<<<<<<< HEAD
-=======
             "_dd.base_service": "",
-            "_dd.p.dm": "-0",
->>>>>>> 1.x
             "component": "flask"
           },
           "duration": 7326709,
@@ -118,11 +106,7 @@
              "type": "",
              "error": 0,
              "meta": {
-<<<<<<< HEAD
-=======
                "_dd.base_service": "",
-               "_dd.p.dm": "-0",
->>>>>>> 1.x
                "component": "flask"
              },
              "duration": 7279916,
@@ -137,17 +121,11 @@
                 "parent_id": 9,
                 "type": "system",
                 "error": 0,
-<<<<<<< HEAD
-                "duration": 205206,
-                "start": 1691167092766604514
-=======
                 "meta": {
-                  "_dd.base_service": "",
-                  "_dd.p.dm": "-0"
+                  "_dd.base_service": ""
                 },
                 "duration": 43667,
                 "start": 1692722833376451673
->>>>>>> 1.x
               },
               {
                 "name": "command_execution",
@@ -159,11 +137,7 @@
                 "type": "system",
                 "error": 0,
                 "meta": {
-<<<<<<< HEAD
-=======
                   "_dd.base_service": "",
-                  "_dd.p.dm": "-0",
->>>>>>> 1.x
                   "cmd.exit_code": "0",
                   "cmd.shell": "dir -li /",
                   "component": "subprocess"
@@ -181,11 +155,7 @@
                 "type": "system",
                 "error": 0,
                 "meta": {
-<<<<<<< HEAD
-=======
                   "_dd.base_service": "",
-                  "_dd.p.dm": "-0",
->>>>>>> 1.x
                   "cmd.exit_code": "0",
                   "cmd.shell": "dir -li /",
                   "component": "subprocess"
@@ -203,11 +173,7 @@
           "type": "",
           "error": 0,
           "meta": {
-<<<<<<< HEAD
-=======
             "_dd.base_service": "",
-            "_dd.p.dm": "-0",
->>>>>>> 1.x
             "component": "flask"
           },
           "duration": 49750,
@@ -223,11 +189,7 @@
           "type": "",
           "error": 0,
           "meta": {
-<<<<<<< HEAD
-=======
             "_dd.base_service": "",
-            "_dd.p.dm": "-0",
->>>>>>> 1.x
             "component": "flask"
           },
           "duration": 23000,
@@ -243,11 +205,7 @@
           "type": "",
           "error": 0,
           "meta": {
-<<<<<<< HEAD
-=======
             "_dd.base_service": "",
-            "_dd.p.dm": "-0",
->>>>>>> 1.x
             "component": "flask"
           },
           "duration": 12375,
@@ -263,11 +221,7 @@
        "type": "",
        "error": 0,
        "meta": {
-<<<<<<< HEAD
-=======
          "_dd.base_service": "",
-         "_dd.p.dm": "-0",
->>>>>>> 1.x
          "component": "flask"
        },
        "duration": 500417,

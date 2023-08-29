@@ -487,6 +487,8 @@
                          "meta": {
                            "_dd.base_service": "",
                            "component": "django"
+                         },
+                         "duration": 40250,
                          "start": 1692647371693842718
                        },
                     {

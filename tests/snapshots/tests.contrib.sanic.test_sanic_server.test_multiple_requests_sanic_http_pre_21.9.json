@@ -84,15 +84,9 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
-<<<<<<< HEAD
-       "duration": 46211338,
-       "start": 1691164562110832477
-=======
        "meta": {
-         "_dd.base_service": "",
-         "_dd.p.dm": "-0"
+         "_dd.base_service": ""
        },
        "duration": 38914250,
        "start": 1692712725078909886
->>>>>>> 1.x
      }]]

@@ -69,11 +69,7 @@
           "type": "",
           "error": 0,
           "meta": {
-<<<<<<< HEAD
-=======
             "_dd.base_service": "",
-            "_dd.p.dm": "-0",
->>>>>>> 1.x
             "component": "rq",
             "job.id": "97f1d8cc-a944-48c9-a71f-2f1f316d0a19"
           },
