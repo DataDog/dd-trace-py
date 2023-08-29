@@ -9,13 +9,14 @@
     "type": "redis",
     "error": 0,
     "meta": {
+      "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "component": "yaaredis",
       "db.system": "redis",
       "language": "python",
       "out.host": "localhost",
       "redis.raw_command": "FLUSHALL",
-      "runtime-id": "1545dcd987e243359900ff34d06254bc",
+      "runtime-id": "f9e411adfc7a4c2cabc38392dd511dbf",
       "span.kind": "client"
     },
     "metrics": {
@@ -25,11 +26,11 @@
       "_sampling_priority_v1": 1,
       "network.destination.port": 6379,
       "out.redis_db": 0,
-      "process_id": 14210,
+      "process_id": 5145,
       "redis.args_length": 1
     },
-    "duration": 7501000,
-    "start": 1685545834151940000
+    "duration": 13703875,
+    "start": 1692650068046894758
   }],
 [
   {
@@ -42,13 +43,14 @@
     "type": "redis",
     "error": 0,
     "meta": {
+      "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "component": "yaaredis",
       "db.system": "redis",
       "language": "python",
       "out.host": "localhost",
       "redis.raw_command": "GET cheese",
-      "runtime-id": "1545dcd987e243359900ff34d06254bc",
+      "runtime-id": "f9e411adfc7a4c2cabc38392dd511dbf",
       "span.kind": "client"
     },
     "metrics": {
@@ -58,9 +60,9 @@
       "_sampling_priority_v1": 1,
       "network.destination.port": 6379,
       "out.redis_db": 0,
-      "process_id": 14210,
+      "process_id": 5145,
       "redis.args_length": 2
     },
-    "duration": 435000,
-    "start": 1685545834191973000
+    "duration": 337542,
+    "start": 1692650068093153508
   }]]

@@ -12,6 +12,7 @@ import attr
 import six
 
 from ddtrace import config
+from ddtrace.constants import BASE_SERVICE_KEY
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import USER_KEEP
@@ -22,6 +23,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.processor import SpanProcessor
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import is_single_span_sampled
+from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_TRACER
@@ -374,3 +376,23 @@ class PeerServiceProcessor(TraceProcessor):
         if tag in self._mapping:
             span.set_tag_str(self._config.remap_tag_name, tag)
             span.set_tag_str(self._config.tag_name, self._config.peer_service_mapping[tag])
+
+
+class BaseServiceProcessor(TraceProcessor):
+    def __init__(self):
+        self._global_service = schematize_service_name((config.service or "").lower())
+
+    def process_trace(self, trace):
+        if not trace:
+            return
+
+        traces_to_process = filter(
+            lambda x: x.service and x.service.lower() != self._global_service,
+            trace,
+        )
+        any(map(lambda x: self._update_dd_base_service(x), traces_to_process))
+
+        return trace
+
+    def _update_dd_base_service(self, span):
+        span.set_tag_str(key=BASE_SERVICE_KEY, value=self._global_service)

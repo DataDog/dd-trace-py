@@ -10,6 +10,7 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "_dd.base_service": "",
       "component": "wsgi",
       "http.method": "GET",
       "http.status_code": "200",
@@ -39,11 +40,11 @@
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.p.dm": "-0",
+         "_dd.base_service": "",
          "component": "wsgi"
        },
-       "duration": 544449,
-       "start": 1691522435823193362
+       "duration": 362875,
+       "start": 1692650304974530757
      },
         {
           "name": "wsgi.request",
@@ -55,7 +56,7 @@
           "type": "web",
           "error": 0,
           "meta": {
-            "_dd.p.dm": "-0",
+            "_dd.base_service": "",
             "component": "wsgi",
             "http.method": "GET",
             "http.status_code": "200",
@@ -63,8 +64,8 @@
             "http.url": "http://localhost:80/",
             "span.kind": "server"
           },
-          "duration": 537864,
-          "start": 1691522435823315436
+          "duration": 382375,
+          "start": 1692650304974611798
         },
            {
              "name": "wsgi.application",
@@ -76,11 +77,11 @@
              "type": "",
              "error": 0,
              "meta": {
-               "_dd.p.dm": "-0",
+               "_dd.base_service": "",
                "component": "wsgi"
              },
-             "duration": 265095,
-             "start": 1691522435823400709
+             "duration": 170750,
+             "start": 1692650304974671632
            },
               {
                 "name": "wsgi.start_response",
@@ -92,12 +93,12 @@
                 "type": "web",
                 "error": 0,
                 "meta": {
-                  "_dd.p.dm": "-0",
+                  "_dd.base_service": "",
                   "component": "wsgi",
                   "span.kind": "server"
                 },
-                "duration": 147798,
-                "start": 1691522435823478798
+                "duration": 102458,
+                "start": 1692650304974721132
               },
            {
              "name": "wsgi.response",
@@ -109,12 +110,12 @@
              "type": "",
              "error": 0,
              "meta": {
-               "_dd.p.dm": "-0",
+               "_dd.base_service": "",
                "component": "wsgi",
                "result_class": "list"
              },
-             "duration": 148569,
-             "start": 1691522435823692894
+             "duration": 123125,
+             "start": 1692650304974859715
            },
         {
           "name": "wsgi.start_response",
@@ -126,12 +127,12 @@
           "type": "web",
           "error": 0,
           "meta": {
-            "_dd.p.dm": "-0",
+            "_dd.base_service": "",
             "component": "wsgi",
             "span.kind": "server"
           },
-          "duration": 50137,
-          "start": 1691522435823537543
+          "duration": 39625,
+          "start": 1692650304974762340
         },
      {
        "name": "wsgi.response",
@@ -143,10 +144,10 @@
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.p.dm": "-0",
+         "_dd.base_service": "",
          "component": "wsgi",
          "result_class": "list_iterator"
        },
-       "duration": 104486,
-       "start": 1691522435823761987
+       "duration": 81667,
+       "start": 1692650304974924090
      }]]

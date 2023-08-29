@@ -9,20 +9,21 @@
     "type": "graphql",
     "error": 0,
     "meta": {
+      "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "component": "graphql",
       "language": "python",
-      "runtime-id": "a29bd63c3ed34a228f90f1913029129d"
+      "runtime-id": "13a9a43400594de89a6aa537a3cb7b8e"
     },
     "metrics": {
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 17751
+      "process_id": 50292
     },
-    "duration": 1381414,
-    "start": 1691163325731562817
+    "duration": 1105500,
+    "start": 1692710417165780513
   },
      {
        "name": "graphql.parse",
@@ -34,11 +35,12 @@
        "type": "graphql",
        "error": 0,
        "meta": {
+         "_dd.base_service": "",
          "component": "graphql",
          "graphql.source": "query HELLO { hello }"
        },
-       "duration": 129015,
-       "start": 1691163325731865304
+       "duration": 102458,
+       "start": 1692710417166025138
      },
      {
        "name": "graphql.validate",
@@ -50,11 +52,12 @@
        "type": "graphql",
        "error": 0,
        "meta": {
+         "_dd.base_service": "",
          "component": "graphql",
          "graphql.source": "query HELLO { hello }"
        },
-       "duration": 686453,
-       "start": 1691163325732045916
+       "duration": 548167,
+       "start": 1692710417166169721
      },
      {
        "name": "graphql.execute",
@@ -66,6 +69,7 @@
        "type": "graphql",
        "error": 0,
        "meta": {
+         "_dd.base_service": "",
          "component": "graphql",
          "graphql.operation.name": "HELLO",
          "graphql.operation.type": "query",
@@ -74,8 +78,8 @@
        "metrics": {
          "_dd.measured": 1
        },
-       "duration": 141738,
-       "start": 1691163325732787719
+       "duration": 115208,
+       "start": 1692710417166756971
      },
         {
           "name": "graphql.resolve",
@@ -87,8 +91,9 @@
           "type": "graphql",
           "error": 0,
           "meta": {
+            "_dd.base_service": "",
             "component": "graphql"
           },
-          "duration": 20973,
-          "start": 1691163325732876400
+          "duration": 18959,
+          "start": 1692710417166824804
         }]]

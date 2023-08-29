@@ -9,6 +9,7 @@
     "type": "web",
     "error": 0,
     "meta": {
+      "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "component": "sanic",
       "http.method": "GET",
@@ -16,17 +17,17 @@
       "http.url": "http://0.0.0.0:8000/hello",
       "http.useragent": "python-requests/2.28.2",
       "language": "python",
-      "runtime-id": "a5b8266a9a42402e9e4fe58d4ef4deb5",
+      "runtime-id": "95d5761a51704f358d8e92dc815192d2",
       "span.kind": "server"
     },
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 25292
+      "process_id": 83553
     },
-    "duration": 46619072,
-    "start": 1691164562030673791
+    "duration": 39547333,
+    "start": 1692712724983737220
   },
      {
        "name": "random_sleep",
@@ -37,8 +38,11 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
-       "duration": 46179987,
-       "start": 1691164562030776940
+       "meta": {
+         "_dd.base_service": ""
+       },
+       "duration": 39386375,
+       "start": 1692712724983815803
      }],
 [
   {
@@ -51,6 +55,7 @@
     "type": "web",
     "error": 0,
     "meta": {
+      "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "component": "sanic",
       "http.method": "GET",
@@ -58,17 +63,17 @@
       "http.url": "http://0.0.0.0:8000/hello",
       "http.useragent": "python-requests/2.28.2",
       "language": "python",
-      "runtime-id": "a5b8266a9a42402e9e4fe58d4ef4deb5",
+      "runtime-id": "95d5761a51704f358d8e92dc815192d2",
       "span.kind": "server"
     },
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 25292
+      "process_id": 83553
     },
-    "duration": 46773870,
-    "start": 1691164562110713772
+    "duration": 39160708,
+    "start": 1692712725078800220
   },
      {
        "name": "random_sleep",
@@ -79,6 +84,9 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
-       "duration": 46211338,
-       "start": 1691164562110832477
+       "meta": {
+         "_dd.base_service": ""
+       },
+       "duration": 38914250,
+       "start": 1692712725078909886
      }]]

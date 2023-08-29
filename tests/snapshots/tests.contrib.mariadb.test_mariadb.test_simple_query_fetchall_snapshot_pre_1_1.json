@@ -9,6 +9,7 @@
     "type": "sql",
     "error": 0,
     "meta": {
+      "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "component": "mariadb",
       "db.name": "test",
@@ -16,7 +17,7 @@
       "db.user": "test",
       "language": "python",
       "out.host": "127.0.0.1",
-      "runtime-id": "82fe6b527e8b4430bec59269ebe73552",
+      "runtime-id": "82fb0609ae3943fd9aed73ca9abbca8f",
       "span.kind": "client"
     },
     "metrics": {
@@ -26,10 +27,10 @@
       "_sampling_priority_v1": 1,
       "db.row_count": 0,
       "network.destination.port": 3306,
-      "process_id": 9600
+      "process_id": 19547
     },
-    "duration": 4783000,
-    "start": 1667513574939043000
+    "duration": 174875,
+    "start": 1692647267117817670
   }],
 [
   {
@@ -42,6 +43,7 @@
     "type": "sql",
     "error": 0,
     "meta": {
+      "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "component": "mariadb",
       "db.name": "test",
@@ -49,7 +51,7 @@
       "db.user": "test",
       "language": "python",
       "out.host": "127.0.0.1",
-      "runtime-id": "82fe6b527e8b4430bec59269ebe73552",
+      "runtime-id": "82fb0609ae3943fd9aed73ca9abbca8f",
       "span.kind": "client"
     },
     "metrics": {
@@ -58,8 +60,8 @@
       "_sampling_priority_v1": 1,
       "db.row_count": 1,
       "network.destination.port": 3306,
-      "process_id": 9600
+      "process_id": 19547
     },
-    "duration": 56000,
-    "start": 1667513574944045000
+    "duration": 50833,
+    "start": 1692647267118267295
   }]]

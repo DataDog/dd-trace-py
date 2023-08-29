@@ -9,6 +9,7 @@
     "type": "sql",
     "error": 0,
     "meta": {
+      "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "component": "mariadb",
       "db.name": "test",
@@ -16,7 +17,7 @@
       "db.user": "test",
       "language": "python",
       "out.host": "127.0.0.1",
-      "runtime-id": "7b31b30cdaf94e739b0482954743165e",
+      "runtime-id": "b6892bcaa1ca4405a344e37f07fe8a18",
       "span.kind": "client",
       "sql.executemany": "true"
     },
@@ -27,10 +28,10 @@
       "_sampling_priority_v1": 1,
       "db.row_count": 2,
       "network.destination.port": 3306,
-      "process_id": 9677
+      "process_id": 19671
     },
-    "duration": 937000,
-    "start": 1667513581474433000
+    "duration": 360125,
+    "start": 1692647311232537135
   }],
 [
   {
@@ -43,6 +44,7 @@
     "type": "sql",
     "error": 0,
     "meta": {
+      "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "component": "mariadb",
       "db.name": "test",
@@ -50,7 +52,7 @@
       "db.user": "test",
       "language": "python",
       "out.host": "127.0.0.1",
-      "runtime-id": "7b31b30cdaf94e739b0482954743165e",
+      "runtime-id": "b6892bcaa1ca4405a344e37f07fe8a18",
       "span.kind": "client"
     },
     "metrics": {
@@ -60,10 +62,10 @@
       "_sampling_priority_v1": 1,
       "db.row_count": 2,
       "network.destination.port": 3306,
-      "process_id": 9677
+      "process_id": 19671
     },
-    "duration": 912000,
-    "start": 1667513581475616000
+    "duration": 216166,
+    "start": 1692647311233205177
   }],
 [
   {
@@ -76,6 +78,7 @@
     "type": "sql",
     "error": 0,
     "meta": {
+      "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "component": "mariadb",
       "db.name": "test",
@@ -83,7 +86,7 @@
       "db.user": "test",
       "language": "python",
       "out.host": "127.0.0.1",
-      "runtime-id": "7b31b30cdaf94e739b0482954743165e",
+      "runtime-id": "b6892bcaa1ca4405a344e37f07fe8a18",
       "span.kind": "client"
     },
     "metrics": {
@@ -92,8 +95,8 @@
       "_sampling_priority_v1": 1,
       "db.row_count": 2,
       "network.destination.port": 3306,
-      "process_id": 9677
+      "process_id": 19671
     },
-    "duration": 55000,
-    "start": 1667513581476598000
+    "duration": 53916,
+    "start": 1692647311233482427
   }]]

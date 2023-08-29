@@ -147,7 +147,7 @@ class RateByServiceSampler(BasePrioritySampler):
     @classmethod
     def from_datadog_sampler(cls, ddsampler):
         instance = cls(sample_rate=ddsampler.sample_rate)
-        instance._by_service_samplers = ddsampler._by_service_samplers.copy()
+        instance._by_service_samplers = ddsampler._by_service_samplers
         return instance
 
     def set_sample_rate(
@@ -374,9 +374,11 @@ class DatadogSampler(RateByServiceSampler):
             self._set_sampler_decision(chunk_root, sampler, sampled, has_remote_root)
 
         # Ensure all allowed traces adhere to the global rate limit
-        allowed = self.limiter.is_allowed(chunk_root.start_ns)
-        if not allowed:
-            self._set_priority(chunk_root, USER_REJECT)
+        allowed = True
+        if sampled:
+            allowed = self.limiter.is_allowed(chunk_root.start_ns)
+            if not allowed:
+                self._set_priority(chunk_root, USER_REJECT)
         if has_configured_rate_limit:
             chunk_root.set_metric(SAMPLING_LIMIT_DECISION, self.limiter.effective_rate)
         return not allowed or sampled
