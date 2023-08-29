@@ -151,9 +151,9 @@ def test_undecorate():
     assert dddf is not ddf
 
     name, path = f.__code__.co_name, abspath(__file__)
-    assert _undecorate(dddf, name, path) is f
-    assert _undecorate(ddf, name, path) is f
-    assert _undecorate(df, name, path) is f
-    assert _undecorate(f, name, path) is f
+    assert f is _undecorate(dddf, name, path)
+    assert f is _undecorate(ddf, name, path)
+    assert f is _undecorate(df, name, path)
+    assert f is _undecorate(f, name, path)
 
     assert _undecorate(_undecorate, name, path) is _undecorate
