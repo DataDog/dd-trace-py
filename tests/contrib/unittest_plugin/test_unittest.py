@@ -7,23 +7,20 @@ import pytest
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SPAN_KIND
-from ddtrace.internal.ci_visibility.constants import SESSION_ID
-from ddtrace.internal.ci_visibility.constants import MODULE_ID
-from ddtrace.internal.ci_visibility.constants import SUITE_ID
 from ddtrace.contrib.unittest.constants import COMPONENT_VALUE
 from ddtrace.contrib.unittest.constants import FRAMEWORK
 from ddtrace.contrib.unittest.constants import KIND
-from ddtrace.contrib.unittest.constants import TEST_OPERATION_NAME
-from ddtrace.contrib.unittest.constants import SUITE_OPERATION_NAME
 from ddtrace.contrib.unittest.constants import MODULE_OPERATION_NAME
 from ddtrace.contrib.unittest.constants import SESSION_OPERATION_NAME
-from ddtrace.contrib.unittest.constants import COMPONENT_VALUE
-from ddtrace.contrib.unittest.constants import FRAMEWORK
-from ddtrace.contrib.unittest.constants import KIND
+from ddtrace.contrib.unittest.constants import SUITE_OPERATION_NAME
+from ddtrace.contrib.unittest.constants import TEST_OPERATION_NAME
 from ddtrace.contrib.unittest.patch import _set_tracer
 from ddtrace.contrib.unittest.patch import patch
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
+from ddtrace.internal.ci_visibility.constants import MODULE_ID
+from ddtrace.internal.ci_visibility.constants import SESSION_ID
+from ddtrace.internal.ci_visibility.constants import SUITE_ID
 from ddtrace.internal.constants import COMPONENT
 from tests.utils import TracerTestCase
 from tests.utils import override_env
@@ -497,7 +494,7 @@ class UnittestTestCase(TracerTestCase):
             assert test_session_span.get_tag(test.SUITE) is None
             assert test_session_span.get_tag(ERROR_MSG) is None
             assert test_session_span.get_tag(ERROR_TYPE) is None
-            
+
         def test_unittest_fail_multiple(self):
             """Test with `unittest` tests which should fail."""
             _set_tracer(self.tracer)

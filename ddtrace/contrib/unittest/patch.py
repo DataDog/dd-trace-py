@@ -1,5 +1,6 @@
 import inspect
 import os
+import platform
 import unittest
 
 import ddtrace
@@ -8,30 +9,26 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.unittest.constants import COMPONENT_VALUE
 from ddtrace.contrib.unittest.constants import FRAMEWORK
 from ddtrace.contrib.unittest.constants import KIND
-from ddtrace.contrib.unittest.constants import SUITE_OPERATION_NAME
 from ddtrace.contrib.unittest.constants import MODULE_OPERATION_NAME
 from ddtrace.contrib.unittest.constants import SESSION_OPERATION_NAME
+from ddtrace.contrib.unittest.constants import SUITE_OPERATION_NAME
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
 from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
 from ddtrace.internal.ci_visibility.constants import EVENT_TYPE as _EVENT_TYPE
-from ddtrace.internal.ci_visibility.constants import MODULE_TYPE as _MODULE_TYPE
 from ddtrace.internal.ci_visibility.constants import MODULE_ID as _MODULE_ID
+from ddtrace.internal.ci_visibility.constants import MODULE_TYPE as _MODULE_TYPE
 from ddtrace.internal.ci_visibility.constants import SESSION_ID as _SESSION_ID
 from ddtrace.internal.ci_visibility.constants import SESSION_TYPE as _SESSION_TYPE
-from ddtrace.internal.ci_visibility.constants import SUITE_TYPE as _SUITE_TYPE
 from ddtrace.internal.ci_visibility.constants import SUITE_ID as _SUITE_ID
+from ddtrace.internal.ci_visibility.constants import SUITE_TYPE as _SUITE_TYPE
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.vendor import wrapt
-import platform
+
 
 log = get_logger(__name__)
-from ddtrace.internal.constants import COMPONENT
-from ddtrace.internal.utils.wrappers import unwrap as _u
-from ddtrace.vendor import wrapt
-
 
 # unittest default settings
 config._add(
@@ -52,32 +49,28 @@ def _store_test_span(item, span):
     item._datadog_span = span
 
 
-def _store_span_with_name(item, span, name):
-    setattr(item, name, span)
-
-
 def _store_session_span(module, span):
     """Store session span at `unittest` module instance"""
     if hasattr(module, "test") and hasattr(module.test, "_tests"):
         for submodule in module.test._tests:
-            setattr(submodule, "_datadog_session_span", span)
-            setattr(submodule, "_datadog_object", "module")
+            submodule._datadog_session_span = span
+            _store_identifier(submodule, "module")
 
 
 def _store_module_span(suite, span):
     """Store module span at `unittest` suite instance"""
     if hasattr(suite, "_tests"):
         for subsuite in suite._tests:
-            setattr(subsuite, "_datadog_module_span", span)
-            setattr(subsuite, "_datadog_object", "suite")
+            subsuite._datadog_module_span = span
+            _store_identifier(subsuite, "suite")
 
 
 def _store_suite_span(test, span):
     """Store suite span at `unittest` test instance"""
     if hasattr(test, "_tests"):
         for test_object in test._tests:
-            setattr(test_object, "_datadog_suite_span", span)
-            setattr(test_object, "_datadog_object", "test")
+            test_object._datadog_suite_span = span
+            _store_identifier(test_object, "test")
 
 
 def _is_test_class(item):
@@ -90,10 +83,6 @@ def _is_test_suite(item):
 
 def _is_test_module(item):
     return _extract_session_span(item) and len(item._tests)
-
-def _store_span(item, span):
-    """Store span at `unittest` instance."""
-    item._datadog_span = span
 
 
 def _extract_span(item):
@@ -135,10 +124,6 @@ def _update_status_item(item, status):
         return
     item.set_tag_str(test.STATUS, status)
 
-def _extract_test_method_name(item):
-    """Extract test method name from `unittest` instance."""
-    return getattr(item, "_testMethodName", None)
-
 
 def _extract_suite_name_from_test_method(item):
     item_type = type(item)
@@ -175,8 +160,8 @@ def _extract_module_name_from_module(item):
     return module_name
 
 
-def _extract_test_skip_reason(item):
-    return item[1]
+def _extract_test_skip_reason(args):
+    return args[1]
 
 
 def _extract_test_file_name(item):
@@ -215,14 +200,11 @@ def _generate_session_resource(framework_name, test_command):
 
 
 def _store_identifier(item, identifier):
-    setattr(item, "_datadog_object", identifier)
+    item._datadog_object = identifier
 
 
 def _get_identifier(item):
     return getattr(item, "_datadog_object", None)
-
-  def is_unittest_support_enabled():
-    return unittest and getattr(unittest, "_datadog_patch", False) and _CIVisibility.enabled
 
 
 def _is_valid_result(instance, args):
@@ -238,21 +220,18 @@ def patch():
 
     _CIVisibility.enable(config=ddtrace.config.unittest)
 
-
     unittest._datadog_patch = True
 
     _w = wrapt.wrap_function_wrapper
 
     _w(unittest, "TextTestResult.addSuccess", add_success_test_wrapper)
     _w(unittest, "TextTestResult.addFailure", add_failure_test_wrapper)
-    _w(unittest, "TextTestResult.addError", add_error_test_wrapper)
+    _w(unittest, "TextTestResult.addError", add_failure_test_wrapper)
     _w(unittest, "TextTestResult.addSkip", add_skip_test_wrapper)
     _w(unittest, "TextTestRunner.run", handle_text_test_runner_wrapper)
     _w(unittest, "TestCase.run", handle_test_wrapper)
     _w(unittest, "TestSuite.run", handle_module_suite_wrapper)
     _w(unittest, "TestProgram.runTests", handle_session_wrapper)
-
-    _w(unittest, "TestCase.run", start_test_wrapper_unittest)
 
 
 def unpatch():
@@ -263,31 +242,13 @@ def unpatch():
     _u(unittest.TextTestResult, "addFailure")
     _u(unittest.TextTestResult, "addError")
     _u(unittest.TextTestResult, "addSkip")
+    _u(unittest.TextTestRunner, "run")
     _u(unittest.TestCase, "run")
+    _u(unittest.TestSuite, "run")
+    _u(unittest.TestProgram, "runTests")
 
-    setattr(unittest, "_datadog_patch", False)
+    unittest._datadog_patch = False
     _CIVisibility.disable()
-
-
-def add_success_test_wrapper(func, instance, args, kwargs):
-    if _is_unittest_support_enabled() and instance and type(instance) == unittest.runner.TextTestResult and args:
-        test_item = args[0]
-        span = _extract_span(test_item)
-        if span:
-            span.set_tag_str(test.STATUS, test.Status.PASS.value)
-
-    return func(*args, **kwargs)
-
-
-def add_failure_test_wrapper(func, instance, args, kwargs):
-    if _is_unittest_support_enabled() and instance and type(instance) == unittest.runner.TextTestResult and args:
-        test_item = args[0]
-        span = _extract_span(test_item)
-        if span:
-            span.set_tag_str(test.STATUS, test.Status.FAIL.value)
-        if len(args) > 1:
-            exc_info = args[1]
-            span.set_exc_info(exc_info[0], exc_info[1], exc_info[2])
 
 
 def _set_test_span_status(test_item, status, reason=None):
@@ -303,21 +264,14 @@ def _set_test_span_status(test_item, status, reason=None):
 
 
 def add_success_test_wrapper(func, instance, args, kwargs):
-    if is_unittest_support_enabled() and _is_valid_result(instance, args):
+    if _is_valid_result(instance, args):
         _set_test_span_status(test_item=args[0], status=test.Status.PASS.value)
 
     return func(*args, **kwargs)
 
 
-def add_error_test_wrapper(func, instance, args, kwargs):
-    if _is_unittest_support_enabled() and instance and type(instance) == unittest.runner.TextTestResult and args:
-        test_item = args[0]
-        span = _extract_span(test_item)
-        if span:
-            span.set_tag_str(test.STATUS, test.Status.FAIL.value)
-            
 def add_failure_test_wrapper(func, instance, args, kwargs):
-    if is_unittest_support_enabled() and _is_valid_result(instance, args):
+    if _is_valid_result(instance, args):
         _set_test_span_status(test_item=args[0], reason=args[1], status=test.Status.FAIL.value)
 
     return func(*args, **kwargs)
@@ -325,12 +279,8 @@ def add_failure_test_wrapper(func, instance, args, kwargs):
 
 def add_skip_test_wrapper(func, instance, args, kwargs):
     result = func(*args, **kwargs)
-    if _is_unittest_support_enabled() and instance and type(instance) == unittest.runner.TextTestResult and args:
-        test_item = args[0]
-        span = _extract_span(test_item)
-        if span:
-            span.set_tag_str(test.STATUS, test.Status.SKIP.value)
-            span.set_tag_str(test.SKIP_REASON, _extract_test_skip_reason(args))
+    if _is_valid_result(instance, args):
+        _set_test_span_status(test_item=args[0], reason=args[1], status=test.Status.SKIP.value)
 
     return result
 
@@ -450,7 +400,7 @@ def _start_test_session_span(instance, special=False):
         _store_session_span(instance, test_session_span)
         _store_identifier(instance.test, "session")
     else:
-        _store_span_with_name(instance, test_session_span, "_datadog_session_span")
+        instance._datadog_session_span = test_session_span
     return test_session_span
 
 
@@ -488,7 +438,7 @@ def _start_test_module_span(instance, special=False):
     if not special:
         _store_module_span(instance, test_module_span)
     else:
-        _store_span_with_name(instance, test_module_span, "_datadog_module_span")
+        instance._datadog_module_span = test_module_span
     return test_module_span, test_session_span
 
 
@@ -505,7 +455,7 @@ def handle_session_wrapper(func, instance, args, kwargs):
     test_session_span = None
     if _is_unittest_support_enabled() and len(instance.test._tests) and not hasattr(instance.test, "_datadog_entry"):
         test_session_span = _start_test_session_span(instance)
-        setattr(instance.test, "_datadog_entry", "cli")
+        instance.test._datadog_entry = "cli"
     try:
         result = func(*args, **kwargs)
     except SystemExit as e:
@@ -527,7 +477,7 @@ def handle_text_test_runner_wrapper(func, instance, args, kwargs):
         or hasattr(args[0], "_datadog_entry")
     ):
         return func(*args, **kwargs)
-    setattr(args[0], "_datadog_entry", "TextTestRunner")
+    args[0]._datadog_entry = "TextTestRunner"
     _store_identifier(args[0], "suite")
     test_session_span = _start_test_session_span(args[0], special=True)
     test_module_span, _ = _start_test_module_span(args[0], special=True)
@@ -535,34 +485,3 @@ def handle_text_test_runner_wrapper(func, instance, args, kwargs):
     _finish_test_module_span(test_module_span, test_session_span)
     _finish_test_session_span(test_session_span)
     return result
-
-  def start_test_wrapper_unittest(func, instance, args, kwargs):
-    if is_unittest_support_enabled():
-        tracer = getattr(unittest, "_datadog_tracer", _CIVisibility._instance.tracer)
-        with tracer.trace(
-            ddtrace.config.unittest.operation_name,
-            service=_CIVisibility._instance._service,
-            resource="unittest.test",
-            span_type=SpanTypes.TEST,
-        ) as span:
-            span.set_tag_str(_EVENT_TYPE, SpanTypes.TEST)
-
-            span.set_tag_str(COMPONENT, COMPONENT_VALUE)
-            span.set_tag_str(SPAN_KIND, KIND)
-
-            span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
-            span.set_tag_str(test.TYPE, SpanTypes.TEST)
-            suite_name = _extract_suite_name_from_test_method(instance)
-            span.set_tag_str(test.NAME, _extract_test_method_name(instance))
-            span.set_tag_str(test.SUITE, suite_name)
-            span.set_tag_str(test.MODULE, _extract_module_name_from_test_method(instance))
-
-            span.set_tag_str(test.STATUS, test.Status.FAIL.value)
-            span.set_tag_str(test.CLASS_HIERARCHY, suite_name)
-            _CIVisibility.set_codeowners_of(_extract_test_file_name(instance), span=span)
-
-            _store_span(instance, span)
-            result = func(*args, **kwargs)
-            return result
-
-    return func(*args, **kwargs)
