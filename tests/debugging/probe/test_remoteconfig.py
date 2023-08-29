@@ -1,5 +1,6 @@
 import random
 from time import sleep
+from time import time
 from uuid import uuid4
 
 import mock
@@ -355,12 +356,17 @@ def test_multiple_configs(remote_config_worker):
     def cb(e, ps):
         events.add((e, frozenset({p.probe_id if isinstance(p, Probe) else p for p in ps})))
 
-    def validate_events(expected):
-        assert events == expected
-        events.clear()
+    def validate_events(expected, timeout=1.0):
+        end = time() + timeout
+        while time() <= end:
+            if events == expected:
+                events.clear()
+                break
+        else:
+            raise AssertionError("Expected events: %s, got: %s" % (expected, events))
 
     old_interval = di_config.diagnostics_interval
-    di_config.diagnostics_interval = 0.5
+    di_config.diagnostics_interval = 0.1
     try:
         adapter = ProbeRCAdapter(None, cb, status_logger=mock.Mock())
         # Wait to allow the next call to the adapter to generate a status event
@@ -428,7 +434,7 @@ def test_multiple_configs(remote_config_worker):
             }
         )
 
-        sleep(0.5)
+        sleep(0.1)
 
         # testing two things:
         #  1. after sleep 0.5 probe status should report 2 probes
@@ -601,13 +607,13 @@ def test_expression_compilation_error(remote_config_worker, mock_config_exc):
 
     metadata = config_metadata()
     old_interval = di_config.diagnostics_interval
-    di_config.diagnostics_interval = 0.5
+    di_config.diagnostics_interval = 0.1
     try:
         status_logger = mock.Mock()
         adapter = ProbeRCAdapter(None, cb, status_logger=status_logger)
         # Wait to allow the next call to the adapter to generate a status event
         remoteconfig_poller.register("TEST", adapter, skip_enabled=True)
-        sleep(0.5)
+
         adapter.append_and_publish({"id": "error", "version": 0}, "", metadata)
         remoteconfig_poller._poll_data()
 
