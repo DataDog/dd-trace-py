@@ -1,5 +1,5 @@
 ---
 fixes:
   - |
-    datastreams: This fix resolves an issue where datastream context propagation would not propagate via SNS if raw
+    data_streams: This fix resolves an issue where data stream context propagation would not propagate via SNS if raw
     message delivery was enabled.
