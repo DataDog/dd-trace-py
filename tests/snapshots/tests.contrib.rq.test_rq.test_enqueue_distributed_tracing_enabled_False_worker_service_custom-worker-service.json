@@ -11,35 +11,6 @@
     "meta": {
       "_dd.p.dm": "-0",
       "component": "rq",
-      "job.func_name": "tests.contrib.rq.jobs.job_add1",
-      "job.id": "264cc976-ded7-449d-8abb-3e33c6cc842a",
-      "language": "python",
-      "queue.name": "q",
-      "runtime-id": "dc862c6ff169400783e513c72f18a9f3",
-      "span.kind": "producer"
-    },
-    "metrics": {
-      "_dd.top_level": 1,
-      "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 55795
-    },
-    "duration": 3371896,
-    "start": 1691167588906412895
-  }],
-[
-  {
-    "name": "rq.worker.perform_job",
-    "service": "custom-worker-service",
-    "resource": "tests.contrib.rq.jobs.job_add1",
-    "trace_id": 1,
-    "span_id": 1,
-    "parent_id": 0,
-    "type": "worker",
-    "error": 0,
-    "meta": {
-      "_dd.p.dm": "-0",
-      "component": "rq",
       "job.id": "264cc976-ded7-449d-8abb-3e33c6cc842a",
       "job.origin": "q",
       "job.status": "finished",
@@ -94,7 +65,6 @@
       "span.kind": "producer"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
