@@ -1,6 +1,7 @@
 from importlib import import_module
 import inspect
 import os
+from typing import List
 
 from ddtrace import Pin
 from ddtrace import config
@@ -74,6 +75,19 @@ config._add(
 )
 
 
+def get_version():
+    # type: () -> str
+    return ""
+
+
+PATCHED_VERSIONS = {}
+
+
+def get_versions():
+    # type: () -> List[str]
+    return PATCHED_VERSIONS
+
+
 def _psycopg_modules():
     module_names = (
         "psycopg",
@@ -98,6 +112,8 @@ def _patch(psycopg_module):
     if getattr(psycopg_module, "_datadog_patch", False):
         return
     psycopg_module._datadog_patch = True
+
+    PATCHED_VERSIONS[psycopg_module.__name__] = getattr(psycopg_module, "__version__", "")
 
     Pin(_config=config.psycopg).onto(psycopg_module)
 

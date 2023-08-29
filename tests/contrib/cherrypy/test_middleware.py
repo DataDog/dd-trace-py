@@ -53,6 +53,13 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
             distributed_tracing=True,
         )
 
+    def test_get_version(self):
+        from ddtrace.contrib.cherrypy import get_version
+
+        version = get_version()
+        assert type(version) == str
+        assert version != ""
+
     def test_double_instrumentation(self):
         # ensure CherryPy is never instrumented twice when `ddtrace-run`
         # and `TraceMiddleware` are used together. `traced_app` MUST
