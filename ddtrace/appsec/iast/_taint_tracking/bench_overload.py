@@ -15,6 +15,7 @@ from ddtrace.appsec.iast._taint_tracking import contexts_reset
 from ddtrace.appsec.iast._taint_tracking import create_context
 from ddtrace.appsec.iast._taint_tracking import initializer_size
 from ddtrace.appsec.iast._taint_tracking import num_contexts
+
 # from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import get_ranges
 from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import OriginType
 from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import Source
@@ -114,7 +115,7 @@ def launch_function(func: Callable, internal_loop: float, caller_loop: int) -> f
             num_contexts(),
             initializer_size(),
             active_map_addreses_size(),
-            psutil.Process(os.getpid()).memory_info().rss / 1024 ** 2,
+            psutil.Process(os.getpid()).memory_info().rss / 1024**2,
         )
     )
     return (end - start) * 1000
