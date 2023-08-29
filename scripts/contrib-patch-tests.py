@@ -60,6 +60,7 @@ def generate_patch_test_source(contrib):
             # removed the ``_generated`` suffix from the file name, to prevent the content
             # from being overwritten by future re-generations.
 
+            from ddtrace.contrib.{contrib} import get_version
             from ddtrace.contrib.{contrib}.patch import patch
 
 
@@ -84,6 +85,11 @@ def generate_patch_test_source(contrib):
 
                 def assert_not_module_double_patched(self, {module.replace(".", "_")}):
                     pass
+
+                def assert_module_implements_get_version(self):
+                    version = get_version()
+                    assert type(version) == str
+                    assert version != ''
             """
         ).lstrip()
     )

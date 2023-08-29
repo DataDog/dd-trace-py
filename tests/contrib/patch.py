@@ -296,6 +296,12 @@ class PatchTestCase(object):
             """
             raise NotImplementedError(self.assert_not_module_double_patched.__doc__)
 
+        def assert_module_implements_get_version(self):
+            """
+            Module patch should implement get_version returning the str version
+            """
+            raise NotImplementedError(self.assert_module_implements_get_version.__doc__)
+
         @raise_if_no_attrs
         def test_import_patch(self):
             """
@@ -315,6 +321,12 @@ class PatchTestCase(object):
             self.assert_not_module_patched(module)
             self.__patch_func__()
             self.assert_module_patched(module)
+
+        def test_get_version(self):
+            """
+            Module patch should implement get_version returning the str version
+            """
+            self.assert_module_implements_get_version()
 
         @raise_if_no_attrs
         def test_patch_import(self):

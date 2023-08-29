@@ -23,6 +23,11 @@ config._add(
 )
 
 
+def get_version():
+    # type: () -> str
+    return getattr(mariadb, "__version__", "")
+
+
 def patch():
     if getattr(mariadb, "_datadog_patch", False):
         return
