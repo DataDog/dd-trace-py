@@ -31,7 +31,7 @@ Your development process might look like this:
 
   - Write the integration (see more on this below).
 
-  - Open a `pull request <contributing.rst#change-process>`_ containing your changes.
+  - Open a :ref:`pull request<change_process>` containing your changes.
 
 All integrations live in ``ddtrace/contrib/`` and contain at least two files,
 ``__init__.py`` and ``patch.py``. A skeleton integration is available under

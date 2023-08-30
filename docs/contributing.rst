@@ -15,6 +15,8 @@ and `docker-compose <https://www.docker.com/products/docker-compose>`_.
 
 Thanks for working with us!
 
+.. _change_process:
+
 Change Process
 ==============
 
