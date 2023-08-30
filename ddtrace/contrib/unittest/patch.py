@@ -73,10 +73,6 @@ def _store_suite_span(test, span):
             _store_identifier(test_object, "test")
 
 
-def _is_test_class(item):
-    return type(item) != unittest.loader._FailedTest
-
-
 def _is_test_suite(item):
     return _extract_module_span(item) and len(item._tests)
 
@@ -286,7 +282,7 @@ def add_skip_test_wrapper(func, instance, args, kwargs):
 
 
 def handle_test_wrapper(func, instance, args, kwargs):
-    if _is_unittest_support_enabled() and _is_test_class(instance) and not len(kwargs):
+    if _is_unittest_support_enabled() and not len(kwargs):
         tracer = getattr(unittest, "_datadog_tracer", _CIVisibility._instance.tracer)
 
         suite_name = _extract_class_hierarchy_name(instance)
