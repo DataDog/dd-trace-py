@@ -134,7 +134,6 @@ def override_global_config(values):
         "_tracing_writer_payload_size",
         "_tracing_interval_seconds",
         "_writer_connection_reuse",
-        "_writer_additional_headers",
         "_writer_log_err_payload",
     ]
 

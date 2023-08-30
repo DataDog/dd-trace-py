@@ -229,7 +229,6 @@ class Config(object):
         self._writer_connection_reuse = asbool(
             os.getenv("DD_TRACE_WRITER_REUSE_CONNECTIONS", DEFAULT_REUSE_CONNECTIONS)
         )
-        self._writer_additional_headers = os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
         self._writer_log_err_payload = asbool(os.environ.get("_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", False))
 
         # Master switch for turning on and off trace search by default
