@@ -23,6 +23,11 @@ config._add(
 )
 
 
+def get_version():
+    # type: () -> str
+    return getattr(aredis, "__version__", "")
+
+
 def patch():
     """Patch the instrumented methods"""
     if getattr(aredis, "_datadog_patch", False):

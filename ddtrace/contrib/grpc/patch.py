@@ -13,6 +13,11 @@ from .client_interceptor import intercept_channel
 from .server_interceptor import create_server_interceptor
 
 
+def get_version():
+    # type: () -> str
+    return getattr(grpc, "__version__", "")
+
+
 try:
     # `grpc.aio` is only available with `grpcio>=1.32`.
     import grpc.aio

@@ -68,7 +68,7 @@ class ExceptionDebuggingTestCase(TracerTestCase):
 
                     # Check that we have all the tags for each snapshot
                     assert span.get_tag("_dd.debug.error.%d.snapshot_id" % i) in snapshots
-                    assert span.get_tag("_dd.debug.error.%d.file" % i) == __file__, span.get_tag(
+                    assert span.get_tag("_dd.debug.error.%d.file" % i) == __file__.replace(".pyc", ".py"), span.get_tag(
                         "_dd.debug.error.%d.file" % i
                     )
                     assert span.get_tag("_dd.debug.error.%d.function" % i) == fn, "_dd.debug.error.%d.function = %s" % (
@@ -144,7 +144,7 @@ class ExceptionDebuggingTestCase(TracerTestCase):
 
                     # Check that we have all the tags for each snapshot
                     assert span.get_tag("_dd.debug.error.%d.snapshot_id" % i) in snapshots
-                    assert span.get_tag("_dd.debug.error.%d.file" % i) == __file__, span.get_tag(
+                    assert span.get_tag("_dd.debug.error.%d.file" % i) == __file__.replace(".pyc", ".py"), span.get_tag(
                         "_dd.debug.error.%d.file" % i
                     )
                     assert span.get_tag("_dd.debug.error.%d.function" % i) == fn, "_dd.debug.error.%d.function = %s" % (

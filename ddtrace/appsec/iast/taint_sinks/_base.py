@@ -155,7 +155,15 @@ class VulnerabilityBase(Operation):
                     }
                 )
             if sources:
-                report.sources = {Source(origin=x.origin, name=x.name, value=x.value) for x in sources}
+
+                def cast_value(value):
+                    if isinstance(value, (bytes, bytearray)):
+                        value_decoded = value.decode("utf-8")
+                    else:
+                        value_decoded = value
+                    return value_decoded
+
+                report.sources = [Source(origin=x.origin, name=x.name, value=cast_value(x.value)) for x in sources]
 
             redacted_report = cls._redacted_report_cache.get(
                 hash(report), lambda x: cls._redact_report(cast(IastSpanReporter, report))

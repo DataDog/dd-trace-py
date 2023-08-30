@@ -66,6 +66,11 @@ config._add(
 )
 
 
+def get_version():
+    # type: () -> str
+    return getattr(flask, "__version__", "")
+
+
 if _HAS_JSON_MIXIN:
 
     class RequestWithJson(werkzeug.Request, JSONMixin):
@@ -87,7 +92,7 @@ else:
 #      (0, 9) == (0, 9)
 #      (0, 9, 0) != (0, 9)
 #      (0, 8, 5) <= (0, 9)
-flask_version_str = getattr(flask, "__version__", "0.0.0")
+flask_version_str = getattr(flask, "__version__", "")
 flask_version = parse_version(flask_version_str)
 
 
@@ -97,8 +102,7 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
     _response_call_name = "flask.response"
 
     def _wrapped_start_response(self, start_response, ctx, status_code, headers, exc_info=None):
-        core.dispatch("flask.start_response.pre", [flask.request, ctx, config.flask, status_code, headers])
-
+        core.dispatch("flask.start_response.pre", flask.request, ctx, config.flask, status_code, headers)
         if not core.get_item(HTTP_REQUEST_BLOCKED):
             headers_from_context = ""
             results, exceptions = core.dispatch("flask.start_response", [])
@@ -114,7 +118,7 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
                 status = block_config.get("status_code", 403)
                 response_headers = [("content-type", ctype)]
                 result = start_response(str(status), response_headers)
-                core.dispatch("flask.start_response.blocked", [config.flask, response_headers, status])
+                core.dispatch("flask.start_response.blocked", config.flask, response_headers, status)
             else:
                 result = start_response(status_code, headers)
         else:
@@ -130,14 +134,21 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
         req_body = None
         results, exceptions = core.dispatch(
             "flask.request_call_modifier",
-            [ctx, config.flask, request, environ, _HAS_JSON_MIXIN, FLASK_VERSION, flask_version_str, BadRequest],
+            ctx,
+            config.flask,
+            request,
+            environ,
+            _HAS_JSON_MIXIN,
+            FLASK_VERSION,
+            flask_version_str,
+            BadRequest,
         )
         if not any(exceptions) and results and any(results):
             for result in results:
                 if result is not None:
                     req_body = result
                     break
-        core.dispatch("flask.request_call_modifier.post", [ctx, config.flask, request, req_body])
+        core.dispatch("flask.request_call_modifier.post", ctx, config.flask, request, req_body)
 
 
 def patch():
@@ -361,7 +372,7 @@ def patched_finalize_request(wrapped, instance, args, kwargs):
     Wrapper for flask.app.Flask.finalize_request
     """
     rv = wrapped(*args, **kwargs)
-    core.dispatch("flask.finalize_request.post", [rv])
+    core.dispatch("flask.finalize_request.post", rv)
     return rv
 
 
@@ -454,7 +465,7 @@ def patched_render(wrapped, instance, args, kwargs):
         return wrapped(*args, **kwargs)
 
     def _wrap(template, context, app):
-        core.dispatch("flask.render", [template, config.flask])
+        core.dispatch("flask.render", template, config.flask)
         return wrapped(*args, **kwargs)
 
     return _wrap(*args, **kwargs)
@@ -476,7 +487,7 @@ def patched_register_error_handler(wrapped, instance, args, kwargs):
 
 def _block_request_callable(call):
     core.set_item(HTTP_REQUEST_BLOCKED, STATUS_403_TYPE_AUTO)
-    core.dispatch("flask.blocked_request_callable", [call])
+    core.dispatch("flask.blocked_request_callable", call)
     ctype = "text/html" if "text/html" in flask.request.headers.get("Accept", "").lower() else "text/json"
     abort(flask.Response(http_utils._get_blocked_template(ctype), content_type=ctype, status=403))
 
