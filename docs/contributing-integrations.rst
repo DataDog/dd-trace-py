@@ -1,3 +1,5 @@
+.. _integration_guidelines:
+
 ===========================
 How To Write an Integration
 ===========================

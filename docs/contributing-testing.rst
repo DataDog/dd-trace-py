@@ -1,3 +1,5 @@
+.. _testing_guidelines:
+
 Testing
 =======
 

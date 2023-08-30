@@ -99,7 +99,7 @@ Tests
 -----
 
 If your change touches Python code, it should probably include at least one test. See the
-`testing guidelines <contributing-testing.rst>`_ for details.
+:ref:`testing guidelines<testing_guidelines>` for details.
 
 Documentation
 -------------
@@ -107,7 +107,7 @@ Documentation
 Pull requests implementing new features should include documentation for those features. The audience for this
 documentation is the public population of library users. The Products and Core logic are documented alongside
 this document, in the ``docs`` directory. The documentation for each Integration is contained in a docstring
-in that integration's ``__init__.py`` file. See `this page <contributing-integrations.rst>`_ for more information
+in that integration's ``__init__.py`` file. See :ref:`this page<integration_guidelines>` for more information
 on writing documentation for Integrations.
 
 Logging
