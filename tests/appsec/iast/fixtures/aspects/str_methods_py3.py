@@ -29,6 +29,10 @@ def do_repr_fstring_with_format(a):  # type: (Any) -> str
     return f"{a!r:10}"
 
 
+def do_repr_fstring_with_format_twice(a):  # type: (Any) -> str
+    return f"{a!r:10} {a!r:11}"
+
+
 class Resolver404(Exception):
     pass
 

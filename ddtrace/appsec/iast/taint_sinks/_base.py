@@ -2,22 +2,21 @@ import os
 from typing import TYPE_CHECKING
 from typing import cast
 
-import six
-
 from ddtrace import tracer
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec.iast import oce
 from ddtrace.appsec.iast._metrics import _set_metric_iast_executed_sink
 from ddtrace.appsec.iast._overhead_control_engine import Operation
-from ddtrace.appsec.iast._util import _has_to_scrub
-from ddtrace.appsec.iast._util import _is_evidence_value_parts
-from ddtrace.appsec.iast._util import _scrub
+from ddtrace.appsec.iast._utils import _has_to_scrub
+from ddtrace.appsec.iast._utils import _is_evidence_value_parts
+from ddtrace.appsec.iast._utils import _scrub
 from ddtrace.appsec.iast.reporter import Evidence
 from ddtrace.appsec.iast.reporter import IastSpanReporter
 from ddtrace.appsec.iast.reporter import Location
 from ddtrace.appsec.iast.reporter import Source
 from ddtrace.appsec.iast.reporter import Vulnerability
 from ddtrace.internal import core
+from ddtrace.internal.compat import six
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.cache import LFUCache
 from ddtrace.settings import _config
@@ -89,6 +88,7 @@ class VulnerabilityBase(Operation):
 
         TODO: check deduplications if DD_IAST_DEDUPLICATION_ENABLED is true
         """
+
         if cls.acquire_quota():
             if not tracer or not hasattr(tracer, "current_root_span"):
                 log.debug(
@@ -104,15 +104,20 @@ class VulnerabilityBase(Operation):
                 )
                 return None
 
-            frame_info = get_info_frame(CWD)
-            if not frame_info:
-                return None
+            file_name = ""
+            line_number = 0
 
-            file_name, line_number = frame_info
+            skip_location = getattr(cls, "skip_location", False)
+            if not skip_location:
+                frame_info = get_info_frame(CWD)
+                if not frame_info:
+                    return None
 
-            # Remove CWD prefix
-            if file_name.startswith(CWD):
-                file_name = os.path.relpath(file_name, start=CWD)
+                file_name, line_number = frame_info
+
+                # Remove CWD prefix
+                if file_name.startswith(CWD):
+                    file_name = os.path.relpath(file_name, start=CWD)
 
             if _is_evidence_value_parts(evidence_value):
                 evidence = Evidence(valueParts=evidence_value)
@@ -150,7 +155,15 @@ class VulnerabilityBase(Operation):
                     }
                 )
             if sources:
-                report.sources = {Source(origin=x.origin, name=x.name, value=x.value) for x in sources}
+
+                def cast_value(value):
+                    if isinstance(value, (bytes, bytearray)):
+                        value_decoded = value.decode("utf-8")
+                    else:
+                        value_decoded = value
+                    return value_decoded
+
+                report.sources = [Source(origin=x.origin, name=x.name, value=cast_value(x.value)) for x in sources]
 
             redacted_report = cls._redacted_report_cache.get(
                 hash(report), lambda x: cls._redact_report(cast(IastSpanReporter, report))
@@ -161,7 +174,7 @@ class VulnerabilityBase(Operation):
     def _extract_sensitive_tokens(cls, report):
         # type: (Dict[Vulnerability, str]) -> Dict[int, Dict[str, Any]]
         log.debug("Base class VulnerabilityBase._extract_sensitive_tokens called")
-        raise NotImplementedError()
+        return {}
 
     @classmethod
     def _get_vulnerability_text(cls, vulnerability):

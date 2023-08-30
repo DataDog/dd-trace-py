@@ -7,9 +7,14 @@ from .client import TracedClient
 _Client = pylibmc.Client
 
 
+def get_version():
+    # type: () -> str
+    return getattr(pylibmc, "__version__", "")
+
+
 def patch():
-    setattr(pylibmc, "Client", TracedClient)
+    pylibmc.Client = TracedClient
 
 
 def unpatch():
-    setattr(pylibmc, "Client", _Client)
+    pylibmc.Client = _Client

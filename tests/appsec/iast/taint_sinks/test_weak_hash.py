@@ -3,17 +3,17 @@ import sys
 import pytest
 
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec.iast._util import _is_python_version_supported as python_supported_by_iast
+from ddtrace.appsec.iast._utils import _is_python_version_supported as python_supported_by_iast
 from ddtrace.appsec.iast.constants import VULN_INSECURE_HASHING_TYPE
 from ddtrace.appsec.iast.taint_sinks.weak_hash import unpatch_iast
 from ddtrace.internal import core
-from tests.appsec.iast.fixtures.weak_algorithms import hashlib_new
-from tests.appsec.iast.fixtures.weak_algorithms import parametrized_week_hash
+from tests.appsec.iast.fixtures.taint_sinks.weak_algorithms import hashlib_new
+from tests.appsec.iast.fixtures.taint_sinks.weak_algorithms import parametrized_week_hash
 from tests.appsec.iast.iast_utils import get_line_and_hash
 
 
-WEAK_ALGOS_FIXTURES_PATH = "tests/appsec/iast/fixtures/weak_algorithms.py"
-WEAK_HASH_FIXTURES_PATH = "tests/appsec/iast/test_weak_hash.py"
+WEAK_ALGOS_FIXTURES_PATH = "tests/appsec/iast/fixtures/taint_sinks/weak_algorithms.py"
+WEAK_HASH_FIXTURES_PATH = "tests/appsec/iast/taint_sinks/test_weak_hash.py"
 
 
 @pytest.mark.parametrize(
@@ -247,7 +247,7 @@ def test_weak_check_repeated(iast_span_defaults):
     m.update(b"Nobody inspects")
     m.update(b" the spammish repetition")
     num_vulnerabilities = 10
-    for i in range(0, num_vulnerabilities):
+    for _ in range(0, num_vulnerabilities):
         m.digest()
 
     span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)

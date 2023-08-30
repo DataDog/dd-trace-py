@@ -5,7 +5,7 @@ import six
 
 from ddtrace.appsec.iast import oce
 from ddtrace.appsec.iast._taint_tracking import taint_ranges_as_evidence_info
-from ddtrace.appsec.iast._util import _scrub_get_tokens_positions
+from ddtrace.appsec.iast._utils import _scrub_get_tokens_positions
 from ddtrace.appsec.iast.constants import EVIDENCE_SQL_INJECTION
 from ddtrace.appsec.iast.constants import VULN_SQL_INJECTION
 from ddtrace.appsec.iast.taint_sinks._base import VulnerabilityBase

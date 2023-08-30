@@ -125,7 +125,7 @@ class ddwaf_object(ctypes.Structure):
     def __init__(
         self,
         struct=None,
-        observator=_observator(),
+        observator=_observator(),  # noqa : B008
         max_objects=DDWAF_MAX_CONTAINER_SIZE,
         max_depth=DDWAF_MAX_CONTAINER_DEPTH,
         max_string_length=DDWAF_MAX_STRING_LENGTH,
@@ -165,8 +165,7 @@ class ddwaf_object(ctypes.Structure):
                     max_depth=max_depth - 1,
                     max_string_length=max_string_length,
                 )
-                if obj.type:  # discards invalid objects
-                    ddwaf_object_array_add(array, obj)
+                ddwaf_object_array_add(array, obj)
         elif isinstance(struct, dict):
             if max_depth <= 0:
                 observator.truncation |= _TRUNC_CONTAINER_DEPTH
@@ -187,8 +186,7 @@ class ddwaf_object(ctypes.Structure):
                     max_depth=max_depth - 1,
                     max_string_length=max_string_length,
                 )
-                if obj.type:  # discards invalid objects
-                    ddwaf_object_map_add(map_o, res_key, obj)
+                ddwaf_object_map_add(map_o, res_key, obj)
         elif struct is not None:
             struct = str(struct)
             if isinstance(struct, bytes):  # Python 2
@@ -196,7 +194,7 @@ class ddwaf_object(ctypes.Structure):
             else:  # Python 3
                 ddwaf_object_string(self, truncate_string(struct.encode("UTF-8", errors="ignore")))
         else:
-            ddwaf_object_invalid(self)
+            ddwaf_object_null(self)
 
     @classmethod
     def create_without_limits(cls, struct):
@@ -263,7 +261,7 @@ class ddwaf_result(ctypes.Structure):
         ("timeout", ctypes.c_bool),
         ("events", ddwaf_object),
         ("actions", ddwaf_object),
-        ("ddwaf_object derivatives", ddwaf_object),
+        ("derivatives", ddwaf_object),
         ("total_runtime", ctypes.c_uint64),
     ]
 

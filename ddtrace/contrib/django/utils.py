@@ -42,6 +42,7 @@ if django.VERSION < (1, 10, 0):
 else:
     Resolver404 = django.urls.exceptions.Resolver404
 
+
 DJANGO22 = django.VERSION >= (2, 2, 0)
 
 REQUEST_DEFAULT_RESOURCE = "__django_request"
@@ -375,6 +376,12 @@ def _after_request_tags(pin, span, request, response):
                 request_headers = _get_request_headers(request)
 
             response_headers = dict(response.items()) if response else {}
+
+            response_cookies = {}
+            if response.cookies:
+                for k, v in six.iteritems(response.cookies):
+                    response_cookies[k] = v.OutputString()
+
             raw_uri = url
             if raw_uri and request.META.get("QUERY_STRING"):
                 raw_uri += "?" + request.META["QUERY_STRING"]
@@ -395,6 +402,7 @@ def _after_request_tags(pin, span, request, response):
                 request_body=_extract_body(request),
                 peer_ip=core.get_item("http.request.remote_ip", span=span),
                 headers_are_case_sensitive=core.get_item("http.request.headers_case_sensitive", span=span),
+                response_cookies=response_cookies,
             )
             if config._appsec_enabled and config._api_security_enabled:
                 _asm_request_context.set_body_response(response.content)

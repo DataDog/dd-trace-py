@@ -8,7 +8,7 @@ try:
     from ddtrace.appsec.iast._taint_tracking import OriginType
     from ddtrace.appsec.iast._taint_tracking import contexts_reset
     from ddtrace.appsec.iast._taint_tracking import create_context
-    from ddtrace.appsec.iast._util import _is_python_version_supported as python_supported_by_iast
+    from ddtrace.appsec.iast._utils import _is_python_version_supported as python_supported_by_iast
 except (ImportError, AttributeError):
     pytest.skip("IAST not supported for this Python version", allow_module_level=True)
 
@@ -16,9 +16,6 @@ except (ImportError, AttributeError):
 @pytest.fixture(autouse=True)
 def reset_context():
     oce._enabled = True
-    from ddtrace.appsec.iast._taint_tracking import setup
-
-    setup(bytes.join, bytearray.join)
     yield
     contexts_reset()
     _ = create_context()

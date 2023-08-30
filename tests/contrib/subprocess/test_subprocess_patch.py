@@ -31,6 +31,9 @@ class TestSubprocessPatch(PatchTestCase.Base):
         self.assert_not_double_wrapped(subprocess.Popen.__init__)
         self.assert_not_double_wrapped(subprocess.Popen.wait)
 
+    def assert_module_implements_get_version(self):
+        pass
+
     # These are disabled because the base class uses @run_in_subprocess which
     # import subprocess before we have a chance to patch. However, the contrib
     # unittests already test patch and unpatch

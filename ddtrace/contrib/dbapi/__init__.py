@@ -4,7 +4,7 @@ Generic dbapi tracing code.
 import six
 
 from ddtrace import config
-from ddtrace.appsec.iast._util import _is_iast_enabled
+from ddtrace.appsec.iast._utils import _is_iast_enabled
 from ddtrace.internal.constants import COMPONENT
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -35,6 +35,11 @@ config._add(
         trace_fetch_methods=None,  # Part of the API. Should be implemented at the integration level.
     ),
 )
+
+
+def get_version():
+    # type: () -> str
+    return ""
 
 
 class TracedCursor(wrapt.ObjectProxy):
