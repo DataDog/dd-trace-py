@@ -1113,24 +1113,8 @@ venv = Venv(
         Venv(
             name="botocore",
             command="pytest {cmdargs} tests/contrib/botocore",
-            venvs=[
-                Venv(
-                    pys=select_pys(min_version="3.7"),
-                    pkgs={"moto[all]": latest, "botocore": latest},
-                ),
-                Venv(
-                    pys=["3.7"],
-                    pkgs={
-                        "cffi": "==1.14.0",
-                        "cfn-lint": "==0.33.2",
-                        "jinja2": "~=2.11.0",
-                        "python-jose[cryptography]": "==3.1.0",
-                        "moto[all]": "~=2.0",
-                        "graphql-core": "~=3.1.0",
-                        "markupsafe": "<2.0",
-                    },
-                ),
-            ],
+            pys=select_pys(min_version="3.7"),
+            pkgs={"moto[all]": latest, "botocore": latest},
         ),
         Venv(
             name="mongoengine",
