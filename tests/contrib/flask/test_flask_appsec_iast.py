@@ -253,7 +253,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
 
             header_ranges = get_tainted_ranges(request.headers["User-Agent"])
             assert header_ranges
-            assert header_ranges[0].source.name == "User-Agent"
+            assert header_ranges[0].source.name.lower() == "user-agent"
             assert header_ranges[0].source.origin == OriginType.HEADER
 
             _ = get_tainted_ranges(request.query_string)
