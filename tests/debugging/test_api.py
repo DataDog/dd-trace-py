@@ -1,11 +1,22 @@
+import sys
+
 import pytest
 
 
+@pytest.mark.skipif(sys.version_info >= (3, 12), reason="Dynamic Instrumentation is not supported with Python 3.11")
 @pytest.mark.subprocess(ddtrace_run=True, env=dict(DD_DYNAMIC_INSTRUMENTATION_ENABLED="true"), err=None)
 def test_debugger_enabled_ddtrace_run():
     from ddtrace.debugging import DynamicInstrumentation
 
     assert DynamicInstrumentation._instance is not None
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="Dynamic Instrumentation disabled for Python 3.12")
+@pytest.mark.subprocess(ddtrace_run=True, env=dict(DD_DYNAMIC_INSTRUMENTATION_ENABLED="true"), err=None)
+def test_debugger_enabled_ddtrace_run_py312():
+    from ddtrace.debugging import DynamicInstrumentation
+
+    assert DynamicInstrumentation._instance is None
 
 
 @pytest.mark.subprocess(ddtrace_run=True, err=None)

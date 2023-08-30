@@ -26,6 +26,11 @@ Configuration
 
 See the :ref:`Configuration` page for more details on how to configure
 Dynamic Instrumentation.
+
+
+.. note::
+    Dynamic Instrumentation is not supported with Python 3.12.
+
 """
 
 from ddtrace.debugging._debugger import Debugger as DynamicInstrumentation
