@@ -18,7 +18,8 @@ add_aspect(PyObject* result_o, PyObject* candidate_text, PyObject* text_to_add, 
     }
 
     const auto& to_candidate_text = get_tainted_object(candidate_text, tx_taint_map);
-    if (!to_candidate_text) std::cout << "JJJ add_aspect, to_candidate_text is nullptr\n";
+    if (!to_candidate_text)
+        std::cout << "JJJ add_aspect, to_candidate_text is nullptr\n";
     std::cout << "JJJ add_aspect, num ranges candidate text: " << get_ranges(candidate_text).size() << std::endl;
     if (to_candidate_text and to_candidate_text->get_ranges().size() >= TaintedObject::TAINT_RANGE_LIMIT) {
         const auto& res_new_id = new_pyobject_id(result_o, len_result_o);
