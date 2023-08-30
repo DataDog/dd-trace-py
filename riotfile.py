@@ -101,6 +101,7 @@ venv = Venv(
         "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
         "DD_CIVISIBILITY_CODE_COVERAGE_ENABLED": "1",
         "DD_CIVISIBILITY_ITR_ENABLED": "1",
+        "DD_PATCH_MODULES": "unittest:false",
     },
     venvs=[
         Venv(
@@ -1648,7 +1649,7 @@ venv = Venv(
             name="unittest",
             command="pytest --no-ddtrace {cmdargs} tests/contrib/unittest_plugin/",
             pkgs={"msgpack": latest},
-            env={"DD_CIVISIBILITY_UNITTEST_ENABLED": "1"},
+            env={"DD_PATCH_MODULES": "unittest:true"},
             pys=select_pys(),
         ),
         Venv(
@@ -1732,12 +1733,6 @@ venv = Venv(
                     ],
                 ),
             ],
-        ),
-        Venv(
-            name="unittest",
-            command="pytest --no-ddtrace {cmdargs} tests/contrib/unittest_plugin/",
-            pkgs={"msgpack": latest},
-            pys=select_pys(min_version="2.7", max_version="3.11"),
         ),
         Venv(
             name="grpc",
