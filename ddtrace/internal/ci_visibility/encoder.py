@@ -3,7 +3,6 @@ import threading
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
-from ddtrace import config
 from ddtrace.ext import SpanTypes
 from ddtrace.internal._encoding import BufferedEncoder
 from ddtrace.internal._encoding import packb as msgpack_packb
@@ -34,7 +33,6 @@ class CIVisibilityEncoderV01(BufferedEncoder):
     PAYLOAD_FORMAT_VERSION = 1
     TEST_SUITE_EVENT_VERSION = 1
     TEST_EVENT_VERSION = 2
-
 
     def __init__(self, *args):
         super(CIVisibilityEncoderV01, self).__init__()
