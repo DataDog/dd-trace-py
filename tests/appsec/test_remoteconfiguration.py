@@ -536,7 +536,7 @@ def test_load_new_config_and_remove_targets_file_same_product(
 @pytest.mark.skipif(sys.version_info[:2] < (3, 6), reason="Mock return order is different in python <= 3.5")
 @mock.patch.object(AppSecSpanProcessor, "_update_rules")
 def test_fullpath_appsec_rules_data(mock_update_rules, remote_config_worker, tracer):
-    with override_global_config(dict(_appsec_enabled=True, _remote_config_enabled=True, remotapi_version="v0.4")):
+    with override_global_config(dict(_appsec_enabled=True, _remote_config_enabled=True, api_version="v0.4")):
         tracer.configure(appsec_enabled=True, api_version="v0.4")
         applied_configs = {}
         enable_appsec_rc(tracer)
