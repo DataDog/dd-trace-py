@@ -37,7 +37,7 @@
     "name": "redis.command",
     "service": "redis",
     "resource": "SET cheese my-cheese",
-    "trace_id": 2,
+    "trace_id": 1,
     "span_id": 1,
     "parent_id": 0,
     "type": "redis",
