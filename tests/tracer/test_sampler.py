@@ -73,7 +73,9 @@ def assert_sampling_decision_tags(
         assert SAMPLING_DECISION_TRACE_TAG_KEY not in span.context._meta
 
 
-def create_span(tracer=None, name="test.span", service="", resource="", tags={}):
+def create_span(tracer=None, name="test.span", service="", resource="", tags=None):
+    if tags is None:
+        tags = {}
     tracer = tracer or DummyTracer()
     span = tracer.trace(name=name, service=service, resource=resource)
     for k, v in tags.items():

@@ -27,7 +27,6 @@ from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_TRACER
-from ddtrace.internal.utils import _get_metas_to_propagate
 from ddtrace.internal.writer import TraceWriter
 from ddtrace.span import Span
 from ddtrace.span import _get_64_highest_order_bits_as_hex

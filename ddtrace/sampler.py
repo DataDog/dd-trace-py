@@ -336,11 +336,11 @@ class DatadogSampler(RateByServiceSampler):
         # need to check span context object tags since they haven't yet been added to the root span.
         context = trace[0].context
         for rule in self.rules:
-            for tag in context._meta:
+            for _ in context._meta:
                 if rule.tag_match(context._meta):
                     rule_decision[self.rules.index(rule)] += 1
                     break
-            for metric in context._metrics:
+            for _ in context._metrics:
                 if rule.tag_match(context._metrics):
                     rule_decision[self.rules.index(rule)] += 1
                     break
