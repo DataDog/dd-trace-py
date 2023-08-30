@@ -85,7 +85,6 @@ class TraceSamplingProcessor(TraceProcessor):
 
     def process_trace(self, trace):
         # type: (List[Span]) -> Optional[List[Span]]
-        sampled_trace = False
         if trace:
             chunk_root = trace[0]
             root_ctx = chunk_root._context
@@ -102,13 +101,9 @@ class TraceSamplingProcessor(TraceProcessor):
 
                     return single_spans or None
 
-            for span in trace:
-                if span.sampled:
-                    sampled_trace = True
-
             log.debug("dropping trace %d with %d spans", trace[0].trace_id, len(trace))
 
-        return trace if sampled_trace else None
+        return trace
 
 
 @attr.s
