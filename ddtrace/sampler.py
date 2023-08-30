@@ -223,7 +223,7 @@ class DatadogSampler(RateByServiceSampler):
     provided. It is not used when the agent supplied sample rates are used.
     """
 
-    __slots__ = ("limiter", "rules")
+    __slots__ = ("limiter", "rules", "_simpler_sampler")
 
     NO_RATE_LIMIT = -1
     # deprecate and remove the DEFAULT_RATE_LIMIT field from DatadogSampler
@@ -281,6 +281,8 @@ class DatadogSampler(RateByServiceSampler):
 
         # Configure rate limiter
         self.limiter = RateLimiter(rate_limit)
+
+        self._simpler_sampler = RateByServiceSampler.from_datadog_sampler(self)
 
         log.debug("initialized %r", self)
 
@@ -353,7 +355,7 @@ class DatadogSampler(RateByServiceSampler):
                 break
 
         if not rule_matched:
-            sampler = RateByServiceSampler.from_datadog_sampler(self)
+            sampler = self._simpler_sampler
 
         sampled = sampler.sample(span)
 
