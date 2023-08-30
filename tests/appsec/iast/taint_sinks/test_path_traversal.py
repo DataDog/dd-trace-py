@@ -2,16 +2,11 @@ import os
 
 import pytest
 
+from ddtrace.appsec._constants import IAST
 from ddtrace.appsec.iast._utils import _is_python_version_supported as python_supported_by_iast
+from ddtrace.appsec.iast.constants import VULN_PATH_TRAVERSAL
 from ddtrace.internal import core
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
-
-
-try:
-    from ddtrace.appsec._constants import IAST
-    from ddtrace.appsec.iast.constants import VULN_PATH_TRAVERSAL
-except (ImportError, AttributeError):
-    pytest.skip("IAST not supported for this Python version", allow_module_level=True)
 
 
 FIXTURES_PATH = "tests/appsec/iast/fixtures/taint_sinks/path_traversal.py"
@@ -33,7 +28,7 @@ def test_path_traversal(iast_span_defaults):
     mod.pt_open(tainted_string)
     span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
     vulnerability = list(span_report.vulnerabilities)[0]
-    source = list(span_report.sources)[0]
+    source = span_report.sources[0]
     assert vulnerability.type == VULN_PATH_TRAVERSAL
     assert source.name == "path"
     assert source.origin == OriginType.PATH

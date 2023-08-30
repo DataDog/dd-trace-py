@@ -20,6 +20,11 @@ from ..trace_utils import iswrapped
 log = get_logger(__name__)
 
 
+def get_version():
+    # type: () -> str
+    return ""
+
+
 class TracedAsyncCursor(TracedCursor):
     async def __aenter__(self):
         # previous versions of the dbapi didn't support context managers. let's

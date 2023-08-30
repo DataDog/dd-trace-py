@@ -9,6 +9,7 @@
     "type": "http",
     "error": 0,
     "meta": {
+      "_dd.base_service": "mysvc",
       "_dd.p.dm": "-0",
       "component": "requests",
       "http.method": "GET",
@@ -17,7 +18,7 @@
       "http.useragent": "testclient",
       "language": "python",
       "out.host": "testserver",
-      "runtime-id": "95fa2528b538461787a31066d27b73ba",
+      "runtime-id": "0b463fb506cf4ed7a31a3138af3c8229",
       "span.kind": "client"
     },
     "metrics": {
@@ -26,10 +27,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 26943
+      "process_id": 75698
     },
-    "duration": 1326000,
-    "start": 1691164877541543000
+    "duration": 2086000,
+    "start": 1692821903062908000
   },
      {
        "name": "starlette.request",
@@ -53,8 +54,8 @@
        "metrics": {
          "_dd.top_level": 1
        },
-       "duration": 293000,
-       "start": 1691164877542302000
+       "duration": 308000,
+       "start": 1692821903064412000
      },
         {
           "name": "starlette.request",
@@ -75,6 +76,6 @@
             "http.version": "1.1",
             "span.kind": "server"
           },
-          "duration": 159000,
-          "start": 1691164877542462000
+          "duration": 165000,
+          "start": 1692821903064574000
         }]]
