@@ -197,8 +197,6 @@ def sqli_http_request_body(request):
         value = request.POST[key]
     else:
         value = decode_aspect(request.body)
-    from ddtrace.appsec.iast._taint_tracking import get_ranges
-    print("JJJ get_ranges: %s" % get_ranges(value))
     with connection.cursor() as cursor:
         # label iast_enabled_sqli_http_body
         cursor.execute(add_aspect("SELECT 1 FROM sqlite_", value))
