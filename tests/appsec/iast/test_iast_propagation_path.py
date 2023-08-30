@@ -10,7 +10,6 @@ from tests.appsec.iast.iast_utils import get_line_and_hash
 
 
 FIXTURES_PATH = "tests/appsec/iast/fixtures/propagation_path.py"
-FIXTURES_PATH = "fixtures/propagation_path.py"
 
 
 def _assert_vulnerability(span_report, value_parts, file_line_label):
