@@ -32,6 +32,10 @@ from tests.utils import TracerTestCase
 from tests.utils import call_program
 
 
+if sys.version_info[:2] == (3, 12):
+    pytest.skip("Dynamic instrumentation is not supported with Python 3.12", allow_module_level=True)
+
+
 def good_probe():
     # DEV: We build this on demand to ensure that rate limiting gets reset.
     return create_snapshot_line_probe(
