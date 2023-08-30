@@ -347,7 +347,7 @@ class CMakeBuild(build_ext):
                     build_args += ["-j{}".format(self.parallel)]
                 else:
                     # Let CMake determine the parallelism to use
-                    build_args += ["-j"]
+                    build_args += ["-j1"]
             try:
                 cmake_cmd_with_args = [cmake_command] + cmake_args
                 subprocess.run(cmake_cmd_with_args, cwd=tmp_iast_path, check=True)
