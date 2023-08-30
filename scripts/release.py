@@ -51,7 +51,6 @@ Generate release notes for the 1.15 release: `BASE=1.15 python release.py`
 
 
 def create_release_draft(dd_repo, base, rc, patch):
-
     # make sure we're up to date
     subprocess.run("git fetch", shell=True, cwd=os.pardir)
 
@@ -142,7 +141,6 @@ def clean_rn(rn_raw):
 
 
 def generate_rn(branch):
-
     subprocess.check_output(
         "git checkout {branch} && \
             git pull origin {branch}".format(
@@ -402,7 +400,6 @@ Check the release notebook {nb_url} for asynchronous updates on the release proc
 
 
 if __name__ == "__main__":
-
     subprocess.check_output(
         "git stash",
         shell=True,
@@ -449,7 +446,7 @@ if __name__ == "__main__":
     )
     print(
         (
-            "\nYou've been switch back to your original branch, if you had uncomitted changes before"
+            "\nYou've been switch back to your original branch, if you had uncommitted changes before"
             "running this command, run `git stash pop` to get them back."
         )
     )

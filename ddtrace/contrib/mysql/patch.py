@@ -24,6 +24,12 @@ config._add(
     ),
 )
 
+
+def get_version():
+    # type: () -> str
+    return mysql.connector.version.VERSION_TEXT
+
+
 CONN_ATTR_BY_TAG = {
     net.TARGET_HOST: "server_host",
     net.TARGET_PORT: "server_port",

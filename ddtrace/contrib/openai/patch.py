@@ -3,6 +3,8 @@ import sys
 from typing import Optional
 from typing import TYPE_CHECKING
 
+from openai import version
+
 from ddtrace import config
 from ddtrace.contrib._trace_utils_llm import BaseLLMIntegration
 from ddtrace.internal.agent import get_stats_url
@@ -35,6 +37,11 @@ config._add(
         "_api_key": os.getenv("DD_API_KEY"),
     },
 )
+
+
+def get_version():
+    # type: () -> str
+    return version.VERSION
 
 
 class _OpenAIIntegration(BaseLLMIntegration):

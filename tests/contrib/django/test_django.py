@@ -1423,6 +1423,7 @@ def test_cached_view(client, test_spans):
             "views.decorators.cache.cache_page..GET.03cdc1cc4aab71b038a6764e5fcabb82.d41d8cd98f00b204e9800998ecf8..."
         ),
         "_dd.p.dm": "-0",
+        "_dd.base_service": "",
     }
 
     expected_meta_header = {
@@ -1430,6 +1431,7 @@ def test_cached_view(client, test_spans):
         "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
         "django.cache.key": "views.decorators.cache.cache_header..03cdc1cc4aab71b038a6764e5fcabb82.en-us",
         "_dd.p.dm": "-0",
+        "_dd.base_service": "",
     }
 
     assert span_view.get_tags() == expected_meta_view
@@ -1468,6 +1470,7 @@ def test_cached_template(client, test_spans):
         "component": "django",
         "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
         "django.cache.key": "template.cache.users_list.d41d8cd98f00b204e9800998ecf8427e",
+        "_dd.base_service": "",
         "_dd.p.dm": "-0",
     }
 

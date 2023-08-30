@@ -15,6 +15,7 @@ import ddtrace
 from ddtrace import Pin
 from ddtrace import Span
 from ddtrace import patch
+from ddtrace.contrib.openai.patch import get_version
 from ddtrace.contrib.openai.patch import unpatch
 from ddtrace.contrib.openai.utils import _est_tokens
 from ddtrace.filters import TraceFilter
@@ -186,6 +187,12 @@ def test_config(ddtrace_config_openai, mock_tracer, openai):
 
 def iswrapped(obj):
     return hasattr(obj, "__dd_wrapped__")
+
+
+def test_module_implements_get_version():
+    version = get_version()
+    assert type(version) == str
+    assert version != ""
 
 
 def test_patching(openai):
