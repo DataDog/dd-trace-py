@@ -3,14 +3,17 @@
 PyObject*
 add_aspect(PyObject* result_o, PyObject* candidate_text, PyObject* text_to_add, TaintRangeMapType* tx_taint_map)
 {
+    std::cout << "JJJ add 1\n";
     size_t len_candidate_text{ get_pyobject_size(candidate_text) };
     size_t len_text_to_add{ get_pyobject_size(text_to_add) };
     size_t len_result_o{ get_pyobject_size(result_o) };
 
     if (len_text_to_add == 0 and len_candidate_text > 0) {
+        std::cout << "JJJ add return 2\n";
         return candidate_text;
     }
     if (len_text_to_add > 0 and len_candidate_text == 0 and text_to_add == result_o) {
+        std::cout << "JJJ add return 3\n";
         return text_to_add;
     }
 
@@ -21,6 +24,7 @@ add_aspect(PyObject* result_o, PyObject* candidate_text, PyObject* text_to_add, 
         // If left side is already at the maximum taint ranges, we just reuse its
         // ranges, we don't need to look at left side.
         set_tainted_object(res_new_id, to_candidate_text, tx_taint_map);
+        std::cout << "JJJ add return 4\n";
         return res_new_id;
     }
 
@@ -32,6 +36,7 @@ add_aspect(PyObject* result_o, PyObject* candidate_text, PyObject* text_to_add, 
         const auto& res_new_id = new_pyobject_id(result_o, len_result_o);
         Py_DECREF(result_o);
         set_tainted_object(res_new_id, to_candidate_text, tx_taint_map);
+        std::cout << "JJJ add return 5\n";
         return res_new_id;
     }
 
@@ -42,6 +47,7 @@ add_aspect(PyObject* result_o, PyObject* candidate_text, PyObject* text_to_add, 
     Py_DECREF(result_o);
     set_tainted_object(res_new_id, tainted, tx_taint_map);
 
+    std::cout << "JJJ add return 6\n";
     return res_new_id;
 }
 
