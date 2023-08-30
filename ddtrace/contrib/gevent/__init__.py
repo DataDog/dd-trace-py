@@ -64,9 +64,4 @@ with require_modules(required_modules) as missing_modules:
 
         context_provider = GeventContextProvider()
 
-        __all__ = [
-            "patch",
-            "unpatch",
-            "context_provider",
-            "get_version"
-        ]
+        __all__ = ["patch", "unpatch", "context_provider", "get_version"]
