@@ -357,7 +357,7 @@ class DatadogSampler(RateByServiceSampler):
 
         if not rule_matched:
             sampled = super(DatadogSampler, self).sample(span)
-            sampler = self
+            sampler = self  # type: ignore
         else:
             sampled = sampler.sample(span)
 
