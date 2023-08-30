@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    pymongo: This upgrades the PyMongo integration to work with PyMongo versions 4.5.0 and above by choosing the root function
+    of the integration on the basis of the PyMongo version.

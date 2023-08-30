@@ -29,13 +29,14 @@ from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 from ...contrib.wsgi.wsgi import _DDWSGIMiddlewareBase
 from ...internal.logger import get_logger
 from ...internal.utils import get_argument_value
+from ...internal.utils.importlib import func_name
 from ...internal.utils.version import parse_version
 from ..trace_utils import unwrap as _u
-from .helpers import get_current_app
-from .helpers import simple_tracer
-from .helpers import with_instance_pin
+from .wrappers import _wrap_call_with_pin_check
+from .wrappers import get_current_app
+from .wrappers import simple_call_wrapper
+from .wrappers import with_instance_pin
 from .wrappers import wrap_function
-from .wrappers import wrap_signal
 from .wrappers import wrap_view
 
 
@@ -91,12 +92,12 @@ flask_version = parse_version(flask_version_str)
 
 
 class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
-    _request_span_name = schematize_url_operation("flask.request", protocol="http", direction=SpanDirection.INBOUND)
-    _application_span_name = "flask.application"
-    _response_span_name = "flask.response"
+    _request_call_name = schematize_url_operation("flask.request", protocol="http", direction=SpanDirection.INBOUND)
+    _application_call_name = "flask.application"
+    _response_call_name = "flask.response"
 
-    def _traced_start_response(self, start_response, req_span, app_span, status_code, headers, exc_info=None):
-        core.dispatch("flask.start_response.pre", [flask.request, req_span, config.flask, status_code, headers])
+    def _wrapped_start_response(self, start_response, ctx, status_code, headers, exc_info=None):
+        core.dispatch("flask.start_response.pre", [flask.request, ctx, config.flask, status_code, headers])
 
         if not core.get_item(HTTP_REQUEST_BLOCKED):
             headers_from_context = ""
@@ -105,7 +106,7 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
                 headers_from_context = results[0]
             if core.get_item(HTTP_REQUEST_BLOCKED):
                 # response code must be set here, or it will be too late
-                block_config = core.get_item(HTTP_REQUEST_BLOCKED, span=req_span)
+                block_config = core.get_item(HTTP_REQUEST_BLOCKED)
                 if block_config.get("type", "auto") == "auto":
                     ctype = "text/html" if "text/html" in headers_from_context else "text/json"
                 else:
@@ -113,29 +114,30 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
                 status = block_config.get("status_code", 403)
                 response_headers = [("content-type", ctype)]
                 result = start_response(str(status), response_headers)
-                core.dispatch("flask.start_response.blocked", [req_span, config.flask, response_headers, status])
+                core.dispatch("flask.start_response.blocked", [config.flask, response_headers, status])
             else:
                 result = start_response(status_code, headers)
         else:
             result = start_response(status_code, headers)
         return result
 
-    def _request_span_modifier(self, span, environ, parsed_headers=None):
+    def _request_call_modifier(self, ctx, parsed_headers=None):
+        environ = ctx.get_item("environ")
         # Create a werkzeug request from the `environ` to make interacting with it easier
         # DEV: This executes before a request context is created
         request = _RequestType(environ)
 
         req_body = None
         results, exceptions = core.dispatch(
-            "flask.request_span_modifier",
-            [span, config.flask, request, environ, _HAS_JSON_MIXIN, FLASK_VERSION, flask_version_str, BadRequest],
+            "flask.request_call_modifier",
+            [ctx, config.flask, request, environ, _HAS_JSON_MIXIN, FLASK_VERSION, flask_version_str, BadRequest],
         )
         if not any(exceptions) and results and any(results):
             for result in results:
                 if result is not None:
                     req_body = result
                     break
-        core.dispatch("flask.request_span_modifier.post", [span, config.flask, request, req_body])
+        core.dispatch("flask.request_call_modifier.post", [ctx, config.flask, request, req_body])
 
 
 def patch():
@@ -193,9 +195,9 @@ def patch():
         flask_app_traces.append("try_trigger_before_first_request_functions")
 
     for name in flask_app_traces:
-        _w("flask", "Flask.{}".format(name), simple_tracer("flask.{}".format(name)))
+        _w("flask", "Flask.{}".format(name), simple_call_wrapper("flask.{}".format(name)))
     # flask static file helpers
-    _w("flask", "send_file", simple_tracer("flask.send_file"))
+    _w("flask", "send_file", simple_call_wrapper("flask.send_file"))
 
     # flask.json.jsonify
     _w("flask", "jsonify", patched_jsonify)
@@ -412,7 +414,6 @@ def patched_endpoint(wrapped, instance, args, kwargs):
     endpoint = kwargs.get("endpoint", args[0])
 
     def _wrapper(func):
-        # DEV: `wrap_function` will call `func_name(func)` for us
         return wrapped(endpoint)(wrap_function(instance, func, resource=endpoint))
 
     return _wrapper
@@ -447,21 +448,13 @@ def _build_render_template_wrapper(name):
 
 
 def patched_render(wrapped, instance, args, kwargs):
-    """
-    Wrapper for flask.templating._render
-
-    This wrapper is used for setting template tags on the span.
-
-    This method is called for render_template or render_template_string
-    """
     pin = Pin._find(wrapped, instance, get_current_app())
-    span = pin.tracer.current_span()
 
-    if not pin.enabled or not span:
+    if not pin.enabled:
         return wrapped(*args, **kwargs)
 
     def _wrap(template, context, app):
-        core.dispatch("flask.render", [span, template, config.flask])
+        core.dispatch("flask.render", [template, config.flask])
         return wrapped(*args, **kwargs)
 
     return _wrap(*args, **kwargs)
@@ -499,7 +492,7 @@ def request_patcher(name):
             flask_request=flask.request,
             block_request_callable=_block_request_callable,
             ignored_exception_type=NotFound,
-        ) as ctx, ctx.get_item("flask_request_span"):
+        ) as ctx, ctx.get_item("flask_request_call"):
             return wrapped(*args, **kwargs)
 
     return _patched_request
@@ -513,7 +506,7 @@ def patched_signal_receivers_for(signal):
         if isinstance(sender, flask.Flask):
             app = sender
         for receiver in wrapped(*args, **kwargs):
-            yield wrap_signal(app, signal, receiver)
+            yield _wrap_call_with_pin_check(receiver, app, func_name(receiver), signal=signal)
 
     return outer
 
