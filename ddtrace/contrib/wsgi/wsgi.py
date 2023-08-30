@@ -46,6 +46,11 @@ config._add(
 )
 
 
+def get_version():
+    # type: () -> str
+    return ""
+
+
 class _DDWSGIMiddlewareBase(object):
     """Base WSGI middleware class.
 
@@ -94,31 +99,31 @@ class _DDWSGIMiddlewareBase(object):
             middleware=self,
         ) as ctx:
             if core.get_item(HTTP_REQUEST_BLOCKED):
-                status, ctype, content = core.dispatch("wsgi.block.started", [ctx, construct_url])[0][0]
+                status, ctype, content = core.dispatch("wsgi.block.started", ctx, construct_url)[0][0]
                 start_response(str(status), [("content-type", ctype)])
                 closing_iterator = [content]
                 not_blocked = False
 
             def blocked_view():
-                status, ctype, content = core.dispatch("wsgi.block.started", [ctx, construct_url])[0][0]
+                status, ctype, content = core.dispatch("wsgi.block.started", ctx, construct_url)[0][0]
                 return content, status, [("content-type", ctype)]
 
-            core.dispatch("wsgi.block_decided", [blocked_view])
+            core.dispatch("wsgi.block_decided", blocked_view)
 
             if not_blocked:
-                core.dispatch("wsgi.request.prepare", [ctx, start_response])
+                core.dispatch("wsgi.request.prepare", ctx, start_response)
                 try:
                     closing_iterator = self.app(environ, ctx.get_item("intercept_start_response"))
                 except BaseException:
-                    core.dispatch("wsgi.app.exception", [ctx])
+                    core.dispatch("wsgi.app.exception", ctx)
                     raise
                 else:
-                    core.dispatch("wsgi.app.success", [ctx, closing_iterator])
+                    core.dispatch("wsgi.app.success", ctx, closing_iterator)
                 if core.get_item(HTTP_REQUEST_BLOCKED):
-                    _, _, content = core.dispatch("wsgi.block.started", [ctx, construct_url])[0][0]
+                    _, _, content = core.dispatch("wsgi.block.started", ctx, construct_url)[0][0]
                     closing_iterator = [content]
 
-            return core.dispatch("wsgi.request.complete", [ctx, closing_iterator])[0][0]
+            return core.dispatch("wsgi.request.complete", ctx, closing_iterator)[0][0]
 
     def _traced_start_response(self, start_response, request_span, app_span, status, environ, exc_info=None):
         # type: (Callable, Span, Span, str, Dict, Any) -> None
@@ -218,14 +223,13 @@ class DDWSGIMiddleware(_DDWSGIMiddlewareBase):
             status=status,
             environ=environ,
             start_span=True,
-        ) as ctx:
-            with ctx.get_item("response_span"):
-                return start_response(status, environ, exc_info)
+        ) as ctx, ctx.get_item("response_span"):
+            return start_response(status, environ, exc_info)
 
     def _request_span_modifier(self, req_span, environ, parsed_headers=None):
         url = construct_url(environ)
         request_headers = parsed_headers if parsed_headers is not None else get_request_headers(environ)
-        core.dispatch("wsgi.request.prepared", [self, req_span, url, request_headers, environ])
+        core.dispatch("wsgi.request.prepared", self, req_span, url, request_headers, environ)
 
     def _response_span_modifier(self, resp_span, response):
-        core.dispatch("wsgi.response.prepared", [resp_span, response])
+        core.dispatch("wsgi.response.prepared", resp_span, response)

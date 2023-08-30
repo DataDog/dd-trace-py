@@ -7,6 +7,11 @@ from ddtrace.internal.wrapping import wrap as _w
 from .threading import _wrap_submit
 
 
+def get_version():
+    # type: () -> str
+    return ""
+
+
 def patch():
     """Enables Context Propagation between threads"""
     try:

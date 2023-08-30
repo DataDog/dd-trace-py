@@ -41,6 +41,11 @@ config._add(
 )
 
 
+def get_version():
+    # type: () -> str
+    return getattr(molten, "__version__", "")
+
+
 def patch():
     """Patch the instrumented methods"""
     if getattr(molten, "_datadog_patch", False):

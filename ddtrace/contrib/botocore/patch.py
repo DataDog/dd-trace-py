@@ -15,6 +15,7 @@ from typing import Set
 from typing import Tuple
 from typing import Union
 
+from botocore import __version__
 import botocore.client
 import botocore.exceptions
 
@@ -84,6 +85,11 @@ config._add(
         "instrument_internals": asbool(os.getenv("DD_BOTOCORE_INSTRUMENT_INTERNALS", default=False)),
     },
 )
+
+
+def get_version():
+    # type: () -> str
+    return __version__
 
 
 class TraceInjectionSizeExceed(Exception):

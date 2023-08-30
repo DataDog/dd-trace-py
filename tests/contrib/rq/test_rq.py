@@ -8,6 +8,7 @@ import redis
 import rq
 
 from ddtrace import Pin
+from ddtrace.contrib.rq import get_version
 from ddtrace.contrib.rq import patch
 from ddtrace.contrib.rq import unpatch
 from tests.utils import override_config
@@ -55,6 +56,12 @@ def sync_queue(connection):
 @snapshot(ignores=snapshot_ignores)
 def test_sync_queue_enqueue(sync_queue):
     sync_queue.enqueue(job_add1, 1)
+
+
+def test_module_implements_get_version():
+    version = get_version()
+    assert type(version) == str
+    assert version != ""
 
 
 @snapshot(ignores=snapshot_ignores, variants={"": rq_version >= (1, 10, 1), "pre_1_10_1": rq_version < (1, 10, 1)})

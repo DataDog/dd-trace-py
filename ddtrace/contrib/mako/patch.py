@@ -15,6 +15,11 @@ from ..trace_utils import wrap as _w
 from .constants import DEFAULT_TEMPLATE_NAME
 
 
+def get_version():
+    # type: () -> str
+    return getattr(mako, "__version__", "")
+
+
 def patch():
     if getattr(mako, "__datadog_patch", False):
         # already patched

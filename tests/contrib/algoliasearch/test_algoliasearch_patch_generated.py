@@ -3,6 +3,7 @@
 # removed the ``_generated`` suffix from the file name, to prevent the content
 # from being overwritten by future re-generations.
 
+from ddtrace.contrib.algoliasearch import get_version
 from ddtrace.contrib.algoliasearch.patch import patch
 
 
@@ -27,3 +28,8 @@ class TestAlgoliasearchPatch(PatchTestCase.Base):
 
     def assert_not_module_double_patched(self, algoliasearch):
         pass
+
+    def assert_module_implements_get_version(self):
+        version = get_version()
+        assert type(version) == str
+        assert version != ""

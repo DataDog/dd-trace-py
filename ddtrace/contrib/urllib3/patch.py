@@ -38,6 +38,11 @@ config._add(
 )
 
 
+def get_version():
+    # type: () -> str
+    return getattr(urllib3, "__version__", "")
+
+
 def patch():
     """Enable tracing for all urllib3 requests"""
     if getattr(urllib3, "__datadog_patch", False):

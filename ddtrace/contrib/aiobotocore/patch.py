@@ -26,7 +26,7 @@ from ...pin import Pin
 from ..trace_utils import unwrap
 
 
-aiobotocore_version_str = getattr(aiobotocore, "__version__", "0.0.0")
+aiobotocore_version_str = getattr(aiobotocore, "__version__", "")
 AIOBOTOCORE_VERSION = parse_version(aiobotocore_version_str)
 
 if AIOBOTOCORE_VERSION <= (0, 10, 0):
@@ -54,6 +54,11 @@ config._add(
         "tag_all_params": asbool(os.getenv("DD_AWS_TAG_ALL_PARAMS", default=False)),
     },
 )
+
+
+def get_version():
+    # type: () -> str
+    return aiobotocore_version_str
 
 
 def patch():
