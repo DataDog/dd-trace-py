@@ -1,20 +1,20 @@
 ---
 prelude: >
-  The Datadog APM Python team is happy to announce the release of v2.0.0 of
-  ddtrace. This release introduces a formal :ref:`support policy< 
-  introduces a formal :ref:`versioning support policy<versioning_support_levels>` for the major
-  versions of the ddtrace library, drops support for Python 2.7, 3.5, and 3.6, and
-  adds support for Python 3.12.
+  The Datadog APM Python team is happy to announce the release of v2.0.0 of ddtrace.
+  This release introduces a formal :ref:`versioning support policy<versioning_support_levels>` for the major
+  versions of the ddtrace library, drops support for Python 2.7, 3.5, and 3.6, and adds support for Python 3.12.
+
 
   .. important::
     ddtrace v2.0.0 drops support for Python 2.7, 3.5, and 3.6. Users running these unsupported
     Python versions should consider upgrading their Python version or continue using ddtrace v1
     of the ddtrace library, which is now in maintenance mode and will only receive bug fixes. 
-    
+
     Before upgrading to v2.0.0, we recommend users install
     ``ddtrace>=1.18.0,<2.0.0`` and enable deprecation warnings. All removals to
     the library interface and environment variables were deprecated on the 1.x
     branch.
+
 
   .. note::
     The changes to environment variables apply only to the configuration of the
@@ -65,9 +65,6 @@ prelude: >
     * - ``DD_REMOTECONFIG_POLL_SECONDS``
       - ``DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS``
       - :ref:`📝<rename-remote-config-poll-seconds>`
-    * - ``DD_CALL_BASIC_CONFIG``
-      - None
-      - :ref:`📝<remove-basic-config>`
 
 
   .. _removed-2.0-tracing-interfaces:
