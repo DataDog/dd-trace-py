@@ -16,6 +16,11 @@ __IMap = gevent.pool.IMap
 __IMapUnordered = gevent.pool.IMapUnordered
 
 
+def get_version():
+    # type: () -> str
+    return getattr(gevent, "__version__", "")
+
+
 def patch():
     """
     Patch the gevent module so that all references to the

@@ -2,6 +2,7 @@ import sqlalchemy
 
 from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.contrib.sqlalchemy import get_version
 from ddtrace.contrib.sqlalchemy import patch
 from ddtrace.contrib.sqlalchemy import unpatch
 from tests.utils import TracerTestCase
@@ -105,3 +106,8 @@ class SQLAlchemyPatchTestCase(TracerTestCase):
                 else:
                     assert root.get_metric(ANALYTICS_SAMPLE_RATE_KEY) == metric_value
                 self.reset()
+
+    def test_module_implements_get_version(self):
+        version = get_version()
+        assert type(version) == str
+        assert version != ""
