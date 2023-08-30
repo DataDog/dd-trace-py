@@ -356,7 +356,7 @@ class DatadogSampler(RateByServiceSampler):
 
         if not rule_matched:
             sampler = self._simpler_sampler
-            sampler._by_service_samplers = self._by_service_samplers
+            sampler._by_service_samplers = self._by_service_samplers  # type: ignore
             sampler.sample_rate = self.sample_rate
 
         sampled = sampler.sample(span)
