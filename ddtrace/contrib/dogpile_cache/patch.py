@@ -21,6 +21,11 @@ _get_or_create_multi = dogpile_cache.region.CacheRegion.get_or_create_multi
 _lock_ctor = dogpile_lock.Lock.__init__
 
 
+def get_version():
+    # type: () -> str
+    return getattr(dogpile_cache, "__version__", "")
+
+
 def patch():
     if getattr(dogpile_cache, "_datadog_patch", False):
         return

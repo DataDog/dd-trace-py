@@ -53,6 +53,7 @@ from .constants import TELEMETRY_RUNTIMEMETRICS_ENABLED
 from .constants import TELEMETRY_SERVICE_MAPPING
 from .constants import TELEMETRY_SPAN_SAMPLING_RULES
 from .constants import TELEMETRY_SPAN_SAMPLING_RULES_FILE
+from .constants import TELEMETRY_STARTUP_LOGS_ENABLED
 from .constants import TELEMETRY_TRACE_COMPUTE_STATS
 from .constants import TELEMETRY_TRACE_DEBUG
 from .constants import TELEMETRY_TRACE_HEALTH_METRICS_ENABLED
@@ -243,8 +244,8 @@ class TelemetryWriter(PeriodicService):
             }
             self._events_queue.append(event)
 
-    def add_integration(self, integration_name, patched, auto_patched=None, error_msg=None):
-        # type: (str, bool, Optional[bool], Optional[str]) -> None
+    def add_integration(self, integration_name, patched, auto_patched=None, error_msg=None, version=""):
+        # type: (str, bool, Optional[bool], Optional[str], Optional[str]) -> None
         """
         Creates and queues the names and settings of a patched module
 
@@ -256,7 +257,7 @@ class TelemetryWriter(PeriodicService):
             if integration_name not in self._integrations_queue:
                 self._integrations_queue[integration_name] = {"name": integration_name}
 
-            self._integrations_queue[integration_name]["version"] = ""
+            self._integrations_queue[integration_name]["version"] = version
             self._integrations_queue[integration_name]["enabled"] = patched
 
             if auto_patched is not None:
@@ -287,6 +288,7 @@ class TelemetryWriter(PeriodicService):
             [
                 (TELEMETRY_TRACING_ENABLED, config._tracing_enabled, "unknown"),
                 (TELEMETRY_CALL_BASIC_CONFIG, config._call_basic_config, "unknown"),
+                (TELEMETRY_STARTUP_LOGS_ENABLED, config._call_basic_config, "unknown"),
                 (TELEMETRY_DSM_ENABLED, config._data_streams_enabled, "unknown"),
                 (TELEMETRY_ASM_ENABLED, config._appsec_enabled, "unknown"),
                 (TELEMETRY_PROFILING_ENABLED, profiling_config.enabled, "unknown"),

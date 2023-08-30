@@ -39,6 +39,11 @@ KWPOS_BY_TAG = {
 }
 
 
+def get_version():
+    # type: () -> str
+    return ".".join(map(str, MySQLdb.version_info[0:3]))
+
+
 def patch():
     # patch only once
     if getattr(MySQLdb, "__datadog_patch", False):
