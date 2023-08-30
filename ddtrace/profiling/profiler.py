@@ -321,9 +321,6 @@ class _ProfilerInstance(service.Service):
                 ddup.flush_sample()
             
 
-
-        # self._recorder.torch_events.extend(prof.events()[:10])
-
     def add_pytorch_profiler(self, torch_prof):
         torch_prof.on_trace_ready = self.handle_torch_trace
 
