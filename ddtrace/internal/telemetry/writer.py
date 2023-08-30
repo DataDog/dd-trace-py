@@ -286,7 +286,7 @@ class TelemetryWriter(PeriodicService):
         self.add_configurations(
             [
                 (TELEMETRY_TRACING_ENABLED, config._tracing_enabled, "unknown"),
-                (TELEMETRY_STARTUP_LOGS_ENABLED, config._call_basic_config, "unknown"),
+                (TELEMETRY_STARTUP_LOGS_ENABLED, config._startup_logs_enabled, "unknown"),
                 (TELEMETRY_DSM_ENABLED, config._data_streams_enabled, "unknown"),
                 (TELEMETRY_ASM_ENABLED, config._appsec_enabled, "unknown"),
                 (TELEMETRY_PROFILING_ENABLED, profiling_config.enabled, "unknown"),
