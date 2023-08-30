@@ -107,12 +107,18 @@ class RateSampler(BaseSampler):
         self.sample_rate = float(sample_rate)
         self.sampling_id_threshold = self.sample_rate * _MAX_UINT_64BITS
 
-    def sample(self, span):
+    def sample(self, span, is_being_default=False):
         # type: (Span) -> bool
         if isinstance(span, list):
-            span = span[-1]
+            span = span[0]
         sampled = ((span._trace_id_64bits * KNUTH_FACTOR) % _MAX_UINT_64BITS) <= self.sampling_id_threshold
         span.sampled = sampled
+        if not is_being_default:
+            priority = USER_KEEP if sampled else USER_REJECT
+            span.set_metric(SAMPLING_PRIORITY_KEY, priority)
+            span.context.sampling_priority = priority
+            span.set_metric(SAMPLING_RULE_DECISION, self.sample_rate)
+            set_sampling_decision_maker(span.context, SamplingMechanism.TRACE_SAMPLING_RULE)
         return sampled
 
 
@@ -159,8 +165,8 @@ class RateByServiceSampler(BasePrioritySampler):
         # type: (...) -> None
         self._by_service_samplers[self._key(service, env)] = RateSampler(sample_rate)
 
-    def _set_priority(self, span, priority, sampling_mechanism):
-        # type: (Span, int, int) -> None
+    def _set_priority(self, span, priority):
+        # type: (Span, int) -> None
         span.sampled = priority > 0  # Positive priorities mean it was kept
         span.set_metric(SAMPLING_PRIORITY_KEY, priority)
         span.context.sampling_priority = priority
@@ -168,7 +174,7 @@ class RateByServiceSampler(BasePrioritySampler):
     def _set_sampler_decision(self, span, sampler, sampled, has_remote_root):
         # type: (Span, RateSampler, bool, bool, bool) -> None
         priority, sampled, sampling_mechanism = _apply_sampling_overrides(span, sampler, sampled, self._default_sampler)
-        self._set_priority(span, priority, sampling_mechanism)
+        self._set_priority(span, priority)
         if not has_remote_root and sampler is not self._default_sampler:
             span.set_metric(SAMPLING_AGENT_DECISION, sampler.sample_rate)
         set_sampling_decision_maker(span.context, sampling_mechanism)
@@ -180,7 +186,7 @@ class RateByServiceSampler(BasePrioritySampler):
         key = self._key(chunk_root.service, env)
 
         sampler = self._by_service_samplers.get(key) or self._default_sampler
-        sampled = sampler.sample(chunk_root)
+        sampled = sampler.sample(chunk_root, is_being_default=self._default_sampler is sampler)
         has_local_root = any(chunk_root.span_id == a.parent_id for a in trace)
         has_remote_root = not has_local_root and chunk_root.parent_id is not None
         self._set_sampler_decision(chunk_root, sampler, sampled, has_remote_root)
@@ -315,18 +321,11 @@ class DatadogSampler(RateByServiceSampler):
     def _set_sampler_decision(self, span, sampler, sampled, has_remote_root):
         # type: (Span, Union[RateSampler, SamplingRule, RateLimiter], bool, bool, bool) -> None
         priority, sampled, sampling_mechanism = _apply_sampling_overrides(span, sampler, sampled, self._default_sampler)
-        if sampling_mechanism not in (SamplingMechanism.MANUAL, SamplingMechanism.DEFAULT):
-            sampling_mechanism = SamplingMechanism.TRACE_SAMPLING_RULE
-        if span.context.sampling_priority not in (AUTO_KEEP, AUTO_REJECT):
-            if not sampled:
-                priority = USER_REJECT
-            else:
-                priority = USER_KEEP
         set_sampling_decision_maker(span.context, SamplingMechanism.TRACE_SAMPLING_RULE)
-        if isinstance(sampler, SamplingRule):
+        if sampling_mechanism != SamplingMechanism.MANUAL and isinstance(sampler, SamplingRule):
             span.set_metric(SAMPLING_RULE_DECISION, sampler.sample_rate)
 
-        self._set_priority(span, priority, sampling_mechanism)
+        self._set_priority(span, USER_KEEP if priority > 0 else USER_REJECT)
 
     def find_highest_precedence_rule_matching(self, trace):
         # type: (List[Span]) -> Optional[SamplingRule]
@@ -378,7 +377,7 @@ class DatadogSampler(RateByServiceSampler):
         if sampled:
             allowed = self.limiter.is_allowed(chunk_root.start_ns)
             if not allowed:
-                self._set_priority(chunk_root, USER_REJECT, SamplingMechanism.TRACE_SAMPLING_RULE)
+                self._set_priority(chunk_root, USER_REJECT)
         if has_configured_rate_limit:
             chunk_root.set_metric(SAMPLING_LIMIT_DECISION, self.limiter.effective_rate)
         return not allowed or sampled
