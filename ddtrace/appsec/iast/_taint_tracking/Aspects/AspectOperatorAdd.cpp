@@ -18,6 +18,8 @@ add_aspect(PyObject* result_o, PyObject* candidate_text, PyObject* text_to_add, 
     }
 
     const auto& to_candidate_text = get_tainted_object(candidate_text, tx_taint_map);
+    if (!to_candidate_text) std::cout << "JJJ add_aspect, to_candidate_text is nullptr\n";
+    std::cout << "JJJ add_aspect, num ranges candidate text: " << get_ranges(candidate_text).size() << std::endl;
     if (to_candidate_text and to_candidate_text->get_ranges().size() >= TaintedObject::TAINT_RANGE_LIMIT) {
         const auto& res_new_id = new_pyobject_id(result_o, len_result_o);
         Py_DECREF(result_o);
@@ -29,6 +31,7 @@ add_aspect(PyObject* result_o, PyObject* candidate_text, PyObject* text_to_add, 
     }
 
     const auto& to_text_to_add = get_tainted_object(text_to_add, tx_taint_map);
+    std::cout << "JJJ add_aspect, num ranges to_text_to_add: " << get_ranges(text_to_add).size() << std::endl;
     if (!to_candidate_text and !to_text_to_add) {
         return result_o;
     }
@@ -41,12 +44,14 @@ add_aspect(PyObject* result_o, PyObject* candidate_text, PyObject* text_to_add, 
     }
 
     auto tainted = initializer->allocate_tainted_object(to_candidate_text);
+    std::cout << "JJJ add_aspect, num ranges tainted allocated: " << tainted->get_ranges().size() << std::endl;
     tainted->add_ranges_shifted(to_text_to_add, (long)len_candidate_text);
-
+    std::cout << "JJJ add_aspect, num ranges tainted after add: " << tainted->get_ranges().size() << std::endl;
     const auto& res_new_id = new_pyobject_id(result_o, len_result_o);
     Py_DECREF(result_o);
     set_tainted_object(res_new_id, tainted, tx_taint_map);
 
+    std::cout << "JJJ add_aspect, num ranges res_new_id: " << get_ranges(res_new_id).size() << std::endl;
     std::cout << "JJJ add return 6\n";
     return res_new_id;
 }

@@ -37,22 +37,27 @@ Initializer::create_tainting_map()
 void
 Initializer::free_tainting_map(TaintRangeMapType* tx_map)
 {
+    std::cout << "JJJ free_tainting_map 1\n";
     if (not tx_map)
         return;
 
+    std::cout << "JJJ free_tainting_map 2\n";
     auto it = active_map_addreses.find(tx_map);
     if (it == active_map_addreses.end()) {
         // Map wasn't in the set, do nothing
         return;
     }
 
+    std::cout << "JJJ free_tainting_map 3\n";
     for (auto& kv_taint_map : *tx_map) {
         kv_taint_map.second->decref();
     }
 
+    std::cout << "JJJ free_tainting_map 4\n";
     tx_map->clear();
     delete tx_map;
     active_map_addreses.erase(it);
+    std::cout << "JJJ free_tainting_map 5\n";
 }
 
 // User must check for nullptr return
@@ -121,10 +126,10 @@ Initializer::release_tainted_object(TaintedObjectPtr tobj)
     }
 
     tobj->reset();
-    if (available_taintedobjects_stack.size() < TAINTEDOBJECTS_STACK_SIZE) {
-        available_taintedobjects_stack.push(tobj);
-        return;
-    }
+//    if (available_taintedobjects_stack.size() < TAINTEDOBJECTS_STACK_SIZE) {
+//        available_taintedobjects_stack.push(tobj);
+//        return;
+//    }
 
     // Stack full, just delete the object (but to a reset before so ranges are
     // reused or freed)

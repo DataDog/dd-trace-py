@@ -6,10 +6,19 @@ import pytest
 
 
 try:
-    from ddtrace.appsec.iast._taint_tracking import TaintRange
+    from ddtrace.appsec.iast._taint_tracking import contexts_reset
+    from ddtrace.appsec.iast._taint_tracking import create_context
+    from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import TaintRange_
     import ddtrace.appsec.iast._taint_tracking.aspects as ddtrace_aspects
 except (ImportError, AttributeError):
     pytest.skip("IAST not supported for this Python version", allow_module_level=True)
+
+
+@pytest.fixture(autouse=True)
+def reset_context():
+    yield
+    contexts_reset()
+    _ = create_context()
 
 
 @pytest.mark.parametrize(
@@ -128,7 +137,7 @@ def test_add_aspect_tainting_right_hand(obj1, obj2, should_be_tainted):
     if isinstance(obj2, (str, bytes, bytearray)) and len(obj2):
         tainted_ranges = get_tainted_ranges(result)
         assert type(tainted_ranges) is list
-        assert all(type(c) is TaintRange for c in tainted_ranges)
+        assert all(type(c) is TaintRange_ for c in tainted_ranges)
         assert (tainted_ranges != []) == should_be_tainted
         if should_be_tainted:
             assert len(tainted_ranges) == len(get_tainted_ranges(obj1)) + len(get_tainted_ranges(obj2))
