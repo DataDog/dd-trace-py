@@ -348,9 +348,18 @@ class Config(object):
         except (TypeError, ValueError):
             pass
 
-        dd_trace_obfuscation_query_string_pattern = os.getenv(
-            "DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP", DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
-        )
+        if "DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN" in os.environ:
+            deprecate(
+                "`DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN` is deprecated "
+                "and will be removed in the next major version.",
+                message="use `DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP` instead",
+                removal_version="2.0.0",
+            )
+            dd_trace_obfuscation_query_string_pattern = os.getenv("DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN")
+        else:
+            dd_trace_obfuscation_query_string_pattern = os.getenv(
+                "DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP", DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
+            )
         self.global_query_string_obfuscation_disabled = True  # If empty obfuscation pattern
         self._obfuscation_query_string_pattern = None
         self.http_tag_query_string = True  # Default behaviour of query string tagging in http.url
