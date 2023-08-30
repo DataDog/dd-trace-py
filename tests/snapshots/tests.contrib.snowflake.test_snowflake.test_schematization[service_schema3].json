@@ -9,6 +9,7 @@
     "type": "sql",
     "error": 0,
     "meta": {
+      "_dd.base_service": "mysvc",
       "_dd.p.dm": "-0",
       "component": "snowflake",
       "db.application": "PythonConnector",
@@ -19,7 +20,7 @@
       "db.warehouse": "mock-warehouse-name",
       "language": "python",
       "out.host": "mock-account.snowflakecomputing.com",
-      "runtime-id": "fbeb6cd4658e4d07a2b27c60e2191d28",
+      "runtime-id": "9dd5d50abaa64b6dbe14ca8c7942ae24",
       "sfqid": "mocksfqid-29244a72-90a0-4309-9168-9dcf67721f6d",
       "span.kind": "client"
     },
@@ -31,8 +32,8 @@
       "_sampling_priority_v1": 1,
       "db.row_count": 1,
       "network.destination.port": 443,
-      "process_id": 1592
+      "process_id": 83838
     },
-    "duration": 613125,
-    "start": 1685475280182749597
+    "duration": 627000,
+    "start": 1692823346821900421
   }]]

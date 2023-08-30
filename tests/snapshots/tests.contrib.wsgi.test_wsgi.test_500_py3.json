@@ -9,6 +9,7 @@
     "type": "web",
     "error": 1,
     "meta": {
+      "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "component": "wsgi",
       "error.message": "Oops!",
@@ -17,7 +18,7 @@
       "http.method": "GET",
       "http.url": "http://localhost:80/error",
       "language": "python",
-      "runtime-id": "52dc0ff97a184fe1a42834967e9abf10",
+      "runtime-id": "2161c5835c094c75b8ddbd3c00e590d6",
       "span.kind": "server"
     },
     "metrics": {
@@ -25,10 +26,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 40869
+      "process_id": 7611
     },
-    "duration": 447160,
-    "start": 1691165279996138070
+    "duration": 299791,
+    "start": 1692650304947961007
   },
      {
        "name": "wsgi.application",
@@ -40,12 +41,13 @@
        "type": "",
        "error": 1,
        "meta": {
+         "_dd.base_service": "",
          "_dd.p.dm": "-0",
          "component": "wsgi",
          "error.message": "Oops!",
          "error.stack": "Traceback (most recent call last):\n  File \"/root/project/ddtrace/contrib/wsgi/wsgi.py\", line 111, in __call__\n    closing_iterator = self.app(environ, ctx.get_item(\"intercept_start_response\"))\n  File \"/root/project/tests/contrib/wsgi/test_wsgi.py\", line 37, in application\n    raise Exception(\"Oops!\")\nException: Oops!\n",
          "error.type": "builtins.Exception"
        },
-       "duration": 219737,
-       "start": 1691165279996345113
+       "duration": 181375,
+       "start": 1692650304948061465
      }]]

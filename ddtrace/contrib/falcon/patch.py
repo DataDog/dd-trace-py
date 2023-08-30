@@ -22,6 +22,11 @@ config._add(
 )
 
 
+def get_version():
+    # type: () -> str
+    return getattr(falcon, "__version__", "")
+
+
 def patch():
     """
     Patch falcon.API to include contrib.falcon.TraceMiddleware

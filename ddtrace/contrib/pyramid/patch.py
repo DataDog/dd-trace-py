@@ -1,5 +1,6 @@
 import os
 
+import pyramid
 import pyramid.config
 
 from ddtrace import config
@@ -22,6 +23,16 @@ config._add(
 )
 
 DD_PATCH = "_datadog_patch"
+
+
+def get_version():
+    # type: () -> str
+    try:
+        import importlib.metadata as importlib_metadata
+    except ImportError:
+        import importlib_metadata  # type: ignore[no-redef]
+
+    return str(importlib_metadata.version(pyramid.__package__))
 
 
 def patch():
