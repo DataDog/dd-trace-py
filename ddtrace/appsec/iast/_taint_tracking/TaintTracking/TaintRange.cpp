@@ -320,7 +320,7 @@ pyexport_taintrange(py::module& m)
     // Fake constructor, used to force calling allocate_taint_range for performance reasons
     m.def("taint_range", [](int start, int length, Source source) {
         return initializer->allocate_taint_range(start, length, std::move(source));
-    });
+    }, "start"_a, "length"_a, "source"_a);
 
     py::class_<TaintRange, shared_ptr<TaintRange>>(m, "TaintRange_")
       // Normal constructor disabled on the Python side, see above
