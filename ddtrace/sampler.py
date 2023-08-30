@@ -141,12 +141,6 @@ class RateByServiceSampler(BasePrioritySampler):
         self._default_sampler = RateSampler(self.sample_rate)
         self._by_service_samplers = {}  # type: Dict[str, RateSampler]
 
-    @classmethod
-    def from_datadog_sampler(cls, ddsampler):
-        instance = cls(sample_rate=ddsampler.sample_rate)
-        instance._by_service_samplers = ddsampler._by_service_samplers
-        return instance
-
     def set_sample_rate(
         self,
         sample_rate,  # type: float
