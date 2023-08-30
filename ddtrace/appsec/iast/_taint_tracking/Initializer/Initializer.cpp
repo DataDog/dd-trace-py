@@ -151,16 +151,18 @@ Initializer::release_taint_range(TaintRangePtr rangeptr)
     if (!rangeptr)
         return;
 
-    rangeptr->reset();
-    if (available_ranges_stack.size() < TAINTRANGES_STACK_SIZE) {
-        // Move the range to the allocated ranges stack
-        available_ranges_stack.push(rangeptr);
-        return;
-    }
+    if (rangeptr.use_count() == 1) {
+        rangeptr->reset();
+        if (available_ranges_stack.size() < TAINTRANGES_STACK_SIZE) {
+            // Move the range to the allocated ranges stack
+            available_ranges_stack.push(rangeptr);
+            return;
+        }
 
-    // Stack full or initializer already cleared (interpreter finishing), just
-    // release the object
-    rangeptr.reset(); // Not duplicated or typo, calling reset on the shared_ptr, not the TaintRange
+        // Stack full or initializer already cleared (interpreter finishing), just
+        // release the object
+        rangeptr.reset(); // Not duplicated or typo, calling reset on the shared_ptr, not the TaintRange
+    }
 }
 
 recursive_mutex contexts_mutex; // NOLINT(cert-err58-cpp)
