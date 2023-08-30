@@ -346,7 +346,6 @@ class CMakeBuild(build_ext):
                 if hasattr(self, "parallel") and self.parallel:
                     build_args += ["-j{}".format(self.parallel)]
                 else:
-                    # Let CMake determine the parallelism to use
                     build_args += ["-j1"]
             try:
                 cmake_cmd_with_args = [cmake_command] + cmake_args
