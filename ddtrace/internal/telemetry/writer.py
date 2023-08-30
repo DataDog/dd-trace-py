@@ -54,6 +54,7 @@ from .constants import TELEMETRY_SERVICE_MAPPING
 from .constants import TELEMETRY_SPAN_SAMPLING_RULES
 from .constants import TELEMETRY_SPAN_SAMPLING_RULES_FILE
 from .constants import TELEMETRY_STARTUP_LOGS_ENABLED
+from .constants import TELEMETRY_TRACE_API_VERSION
 from .constants import TELEMETRY_TRACE_COMPUTE_STATS
 from .constants import TELEMETRY_TRACE_DEBUG
 from .constants import TELEMETRY_TRACE_HEALTH_METRICS_ENABLED
@@ -64,6 +65,10 @@ from .constants import TELEMETRY_TRACE_SAMPLING_LIMIT
 from .constants import TELEMETRY_TRACE_SAMPLING_RATE
 from .constants import TELEMETRY_TRACE_SAMPLING_RULES
 from .constants import TELEMETRY_TRACE_SPAN_ATTRIBUTE_SCHEMA
+from .constants import TELEMETRY_TRACE_WRITER_BUFFER_SIZE_BYTES
+from .constants import TELEMETRY_TRACE_WRITER_INTERVAL_SECONDS
+from .constants import TELEMETRY_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES
+from .constants import TELEMETRY_TRACE_WRITER_REUSE_CONNECTIONS
 from .constants import TELEMETRY_TRACING_ENABLED
 from .constants import TELEMETRY_TYPE_DISTRIBUTION
 from .constants import TELEMETRY_TYPE_GENERATE_METRICS
@@ -327,6 +332,11 @@ class TelemetryWriter(PeriodicService):
                 (TELEMETRY_TRACE_PEER_SERVICE_DEFAULTS_ENABLED, _ps_config.set_defaults_enabled, "unknown"),
                 (TELEMETRY_TRACE_PEER_SERVICE_MAPPING, _ps_config._unparsed_peer_service_mapping, "unknown"),
                 (TELEMETRY_SERVICE_MAPPING, config._unparsed_service_mapping, "unknown"),
+                (TELEMETRY_TRACE_API_VERSION, config._tracing_api, "unknown"),
+                (TELEMETRY_TRACE_WRITER_BUFFER_SIZE_BYTES, config._tracing_writer_buffer_size, "unknown"),
+                (TELEMETRY_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES, config._tracing_writer_payload_size, "unknown"),
+                (TELEMETRY_TRACE_WRITER_INTERVAL_SECONDS, config._tracing_interval_seconds, "unknown"),
+                (TELEMETRY_TRACE_WRITER_REUSE_CONNECTIONS, config._writer_connection_reuse, "unknown"),
             ]
         )
 
