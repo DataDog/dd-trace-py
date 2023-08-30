@@ -8,28 +8,30 @@
         "$harness": [
             "riotfile.py",
             "scripts/ddtest",
-            "hatch.toml"
+            "hatch.toml",
+            "tests/conftest.py",
+            "tests/__init__.py",
+            "tests/.suitespec.json"
         ],
         "core": [
             "ddtrace/internal/*",
             "ddtrace/__init__.py",
-            "tests/internal/*",
-            "tests/integration/*",
-            "tests/lib-injection"
+            "ddtrace/py.typed",
+            "ddtrace/version.py"
         ],
         "bootstrap": [
             "ddtrace/bootstrap/*",
             "ddtrace/commands/*",
-            "ddtrace/auto.py",
-            "tests/commands/*"
+            "ddtrace/auto.py"
         ],
         "tracing": [
             "ddtrace/_hooks.py",
             "ddtrace/_logger.py",
             "ddtrace/_monkey.py",
+            "ddtrace/_tracing/*",
             "ddtrace/constants.py",
             "ddtrace/context.py",
-            "ddtrace/filter.py",
+            "ddtrace/filters.py",
             "ddtrace/pin.py",
             "ddtrace/provider.py",
             "ddtrace/sampler.py",
@@ -39,13 +41,26 @@
             "ddtrace/settings/__init__.py",
             "ddtrace/settings/config.py",
             "ddtrace/settings/http.py",
-            "ddtrace/settings/integration.py",
-            "tests/tracer/*",
-            "tests/integration/*"
+            "ddtrace/settings/integration.py"
+        ],
+        "runtime": [
+            "ddtrace/runtime/__init__.py"
         ],
         "contrib": [
+            "ddtrace/contrib/__init__.py",
             "ddtrace/contrib/trace_utils.py",
-            "ddtrace/contrib/_trace_utils_llm.py"
+            "ddtrace/contrib/_trace_utils_llm.py",
+            "ddtrace/contrib/trace_utils_async.py",
+            "ddtrace/ext/__init__.py",
+            "ddtrace/ext/http.py",
+            "ddtrace/ext/net.py",
+            "ddtrace/ext/sql.py",
+            "ddtrace/ext/test.py",
+            "ddtrace/ext/user.py",
+            "ddtrace/propagation/*",
+            "ddtrace/settings/_database_monitoring.py",
+            "tests/contrib/patch.py",
+            "tests/contrib/__init__.py"
         ],
         "redis": [
             "ddtrace/contrib/rediscluster/*",
@@ -53,352 +68,295 @@
             "ddtrace/contrib/aioredis/*",
             "ddtrace/contrib/aredis/*",
             "ddtrace/contrib/yaaredis/*",
-            "tests/contrib/rediscluster/*",
-            "tests/contrib/redis/*",
-            "tests/contrib/aioredis/*",
-            "tests/contrib/aredis/*",
-            "tests/contrib/yaaredis/*",
-            "ddtrace/contrib/trace_utils_redis.py"
+            "ddtrace/contrib/trace_utils_redis.py",
+            "ddtrace/ext/redis.py"
         ],
         "mongo": [
             "ddtrace/contrib/pymongo/*",
             "ddtrace/contrib/mongoengine/*",
-            "tests/contrib/pymongo/*",
-            "tests/contrib/mongoengine/*"
+            "ddtrace/ext/mongo.py"
         ],
         "pg": [
             "ddtrace/contrib/aiopg/*",
             "ddtrace/contrib/asyncpg/*",
             "ddtrace/contrib/psycopg/*",
-            "ddtrace/contrib/psycopg2/*",
-            "tests/contrib/aiopg/*",
-            "tests/contrib/asyncpg/*",
-            "tests/contrib/psycopg/*",
-            "tests/contrib/psycopg2/*"
+            "ddtrace/contrib/psycopg2/*"
         ],
         "datastreams": [
-            "ddtrace/internal/datastreams/*",
-            "tests/datastreams/*"
+            "ddtrace/internal/datastreams/*"
         ],
         "debugging": [
             "ddtrace/debugging/*",
             "ddtrace/settings/dynamic_instrumentation.py",
-            "ddtrace/settings/exception_debugging.py",
-            "tests/debugging/*"
+            "ddtrace/settings/exception_debugging.py"
         ],
         "ci_visibility": [
-            "ddtrace/internal/ci_visibility/*",
-            "tests/ci_visibility/*"
+            "ddtrace/internal/ci_visibility/*"
         ],
         "sourcecode": [
-            "ddtrace/sourcecode/*",
-            "tests/sourcecode/*"
+            "ddtrace/sourcecode/*"
         ],
         "telemetry": [
-            "ddtrace/internal/telemetry/*",
-            "tests/telemetry/*"
+            "ddtrace/internal/telemetry/*"
         ],
         "opentracer": [
-            "ddtrace/opentracer/*",
-            "tests/opentracer/*"
+            "ddtrace/opentracer/*"
         ],
         "tornado": [
-            "ddtrace/contrib/tornado/*",
-            "tests/contrib/tornado/*"
+            "ddtrace/contrib/tornado/*"
         ],
         "pynamodb": [
-            "ddtrace/contrib/pynamodb/*",
-            "tests/contrib/pynamodb/*"
+            "ddtrace/contrib/pynamodb/*"
         ],
         "pyodbc": [
-            "ddtrace/contrib/pyodbc/*",
-            "tests/contrib/pyodbc/*"
+            "ddtrace/contrib/pyodbc/*"
         ],
         "flask": [
             "ddtrace/contrib/flask/*",
-            "tests/contrib/flask/*"
+            "ddtrace/contrib/flask_cache/*"
         ],
         "fastapi": [
-            "ddtrace/contrib/fastapi/*",
-            "tests/contrib/fastapi/*"
+            "ddtrace/contrib/fastapi/*"
         ],
         "gevent": [
-            "ddtrace/contrib/gevent/*",
-            "tests/contrib/gevent/*"
+            "ddtrace/contrib/gevent/*"
         ],
         "graphene": [
-            "ddtrace/contrib/graphene/*",
-            "tests/contrib/graphene/*"
+            "ddtrace/contrib/graphene/*"
         ],
         "starlette": [
-            "ddtrace/contrib/starlette/*",
-            "tests/contrib/starlette/*"
+            "ddtrace/contrib/starlette/*"
         ],
         "asgi": [
-            "ddtrace/contrib/asgi/*",
-            "tests/contrib/asgi/*"
+            "ddtrace/contrib/asgi/*"
         ],
         "pymemcache": [
             "ddtrace/contrib/pymemcache/*",
-            "tests/contrib/pymemcache/*"
+            "ddtrace/ext/memcached.py"
         ],
         "snowflake": [
-            "ddtrace/contrib/snowflake/*",
-            "tests/contrib/snowflake/*"
+            "ddtrace/contrib/snowflake/*"
         ],
         "sanic": [
-            "ddtrace/contrib/sanic/*",
-            "tests/contrib/sanic/*"
+            "ddtrace/contrib/sanic/*"
         ],
         "requests": [
-            "ddtrace/contrib/requests/*",
-            "tests/contrib/requests/*"
+            "ddtrace/contrib/requests/*"
         ],
         "pyramid": [
-            "ddtrace/contrib/pyramid/*",
-            "tests/contrib/pyramid/*"
+            "ddtrace/contrib/pyramid/*"
         ],
         "pylons": [
-            "ddtrace/contrib/pylons/*",
-            "tests/contrib/pylons/*"
+            "ddtrace/contrib/pylons/*"
         ],
         "langchain": [
-            "ddtrace/contrib/langchain/*",
-            "tests/contrib/langchain/*"
+            "ddtrace/contrib/langchain/*"
         ],
         "subprocess": [
-            "ddtrace/contrib/subprocess/*",
-            "tests/contrib/subprocess/*"
+            "ddtrace/contrib/subprocess/*"
         ],
         "sqlalchemy": [
-            "ddtrace/contrib/sqlalchemy/*",
-            "tests/contrib/sqlalchemy/*"
+            "ddtrace/contrib/sqlalchemy/*"
         ],
         "opentelemetry": [
-            "ddtrace/opentelemetry/*",
-            "tests/opentelemetry/*"
+            "ddtrace/opentelemetry/*"
         ],
         "profiling": [
             "ddtrace/profiling/*",
-            "tests/profiling/*"
+            "ddtrace/settings/profiling.py"
         ],
         "vendor": [
-            "ddtrace/vendor/*",
-            "tests/vendor/*"
+            "ddtrace/vendor/*"
         ],
         "urllib3": [
-            "ddtrace/contrib/urllib3/*",
-            "tests/contrib/urllib3/*"
+            "ddtrace/contrib/urllib3/*"
         ],
         "rq": [
-            "ddtrace/contrib/rq/*",
-            "tests/contrib/rq/*"
+            "ddtrace/contrib/rq/*"
         ],
         "mako": [
-            "ddtrace/contrib/mako/*",
-            "tests/contrib/mako/*"
+            "ddtrace/contrib/mako/*"
         ],
         "jinja2": [
-            "ddtrace/contrib/jinja2/*",
-            "tests/contrib/jinja2/*"
+            "ddtrace/contrib/jinja2/*"
         ],
         "kombu": [
             "ddtrace/contrib/kombu/*",
-            "tests/contrib/kombu/*"
+            "ddtrace/ext/kombu.py"
         ],
         "wsgi": [
-            "ddtrace/contrib/wsgi/*",
-            "tests/contrib/wsgi/*"
+            "ddtrace/contrib/wsgi/*"
         ],
         "vertica": [
-            "ddtrace/contrib/vertica/*",
-            "tests/contrib/vertica/*"
+            "ddtrace/contrib/vertica/*"
         ],
         "algoliasearch": [
-            "ddtrace/contrib/algoliasearch/*",
-            "tests/contrib/algoliasearch/*"
+            "ddtrace/contrib/algoliasearch/*"
         ],
         "kafka": [
             "ddtrace/contrib/kafka/*",
-            "tests/contrib/kafka/*"
+            "ddtrace/ext/kafka.py"
         ],
         "graphql": [
-            "ddtrace/contrib/graphql/*",
-            "tests/contrib/graphql/*"
+            "ddtrace/contrib/graphql/*"
         ],
         "grpc": [
-            "ddtrace/contrib/grpc/*",
-            "tests/contrib/grpc/*"
+            "ddtrace/contrib/grpc/*"
         ],
         "gunicorn": [
-            "ddtrace/contrib/gunicorn/*",
-            "tests/contrib/gunicorn/*"
+            "ddtrace/contrib/gunicorn/*"
         ],
         "httplib": [
-            "ddtrace/contrib/httplib/*",
-            "tests/contrib/httplib/*"
+            "ddtrace/contrib/httplib/*"
         ],
         "httpx": [
-            "ddtrace/contrib/httpx/*",
-            "tests/contrib/httpx/*"
+            "ddtrace/contrib/httpx/*"
         ],
         "mariadb": [
-            "ddtrace/contrib/mariadb/*",
-            "tests/contrib/mariadb/*"
+            "ddtrace/contrib/mariadb/*"
         ],
         "molten": [
-            "ddtrace/contrib/molten/*",
-            "tests/contrib/molten/*"
+            "ddtrace/contrib/molten/*"
         ],
         "boto": [
             "ddtrace/contrib/boto/*",
             "ddtrace/contrib/botocore/*",
-            "ddtrace/contrib/aiobotocore/*",
-            "tests/contrib/boto/*",
-            "tests/contrib/botocore/*",
-            "tests/contrib/aiobotocore/*"
+            "ddtrace/contrib/aiobotocore/*"
         ],
         "mysql": [
+            "ddtrace/contrib/mysql/*",
             "ddtrace/contrib/mysqldb/*",
-            "tests/contrib/mysqldb/*",
             "ddtrace/contrib/mysqlconnector/*",
-            "tests/contrib/mysqlconnector/*",
             "ddtrace/contrib/mysqlpython/*",
-            "tests/contrib/mysqlpython/*",
             "ddtrace/contrib/pymysql/*",
-            "tests/contrib/pymysql/*",
-            "ddtrace/contrib/aiomysql/*",
-            "tests/contrib/aiomysql/*"
+            "ddtrace/contrib/aiomysql/*"
         ],
         "pylibmc": [
-            "ddtrace/contrib/pylibmc/*",
-            "tests/contrib/pylibmc/*"
+            "ddtrace/contrib/pylibmc/*"
         ],
         "asynctest": [
-            "ddtrace/contrib/asynctest/*",
-            "tests/contrib/asynctest/*"
+            "ddtrace/contrib/asynctest/*"
         ],
         "logging": [
-            "ddtrace/contrib/logging/*",
-            "tests/contrib/logging/*"
+            "ddtrace/contrib/logging/*"
         ],
         "sqlite3": [
-            "ddtrace/contrib/sqlite3/*",
-            "tests/contrib/sqlite3/*"
+            "ddtrace/contrib/sqlite3/*"
         ],
         "asyncio": [
-            "ddtrace/contrib/asyncio/*",
-            "tests/contrib/asyncio/*"
+            "ddtrace/contrib/asyncio/*"
         ],
         "futures": [
-            "ddtrace/contrib/futures/*",
-            "tests/contrib/futures/*"
+            "ddtrace/contrib/futures/*"
         ],
         "dbapi": [
             "ddtrace/contrib/dbapi/*",
             "ddtrace/contrib/dbapi_async/*",
-            "tests/contrib/dbapi/*",
-            "tests/contrib/dbapi_async/*"
+            "ddtrace/ext/db.py"
         ],
         "aws_lambda": [
             "ddtrace/contrib/aws_lambda/*",
-            "tests/contrib/aws_lambda/*"
+            "ddtrace/ext/aws.py"
         ],
         "aiohttp": [
             "ddtrace/contrib/aiohttp/*",
-            "tests/contrib/aiohttp/*"
+            "ddtrace/contrib/aiohttp_jinja2/*"
         ],
         "openai": [
-            "ddtrace/contrib/openai/*",
-            "tests/contrib/openai/*"
+            "ddtrace/contrib/openai/*"
         ],
         "falcon": [
-            "ddtrace/contrib/falcon/*",
-            "tests/contrib/falcon/*"
+            "ddtrace/contrib/falcon/*"
         ],
         "elasticsearch": [
             "ddtrace/contrib/elasticsearch/*",
-            "tests/contrib/elasticsearch/*"
+            "ddtrace/ext/elasticsearch.py"
         ],
         "dogpile_cache": [
-            "ddtrace/contrib/dogpile_cache/*",
-            "tests/contrib/dogpile_cache/*"
+            "ddtrace/contrib/dogpile_cache/*"
         ],
         "cherrypy": [
-            "ddtrace/contrib/cherrypy/*",
-            "tests/contrib/cherrypy/*"
+            "ddtrace/contrib/cherrypy/*"
         ],
         "celery": [
-            "ddtrace/contrib/celery/*",
-            "tests/contrib/celery/*"
+            "ddtrace/contrib/celery/*"
         ],
         "cassandra": [
             "ddtrace/contrib/cassandra/*",
-            "tests/contrib/cassandra/*"
+            "ddtrace/ext/cassandra.py"
         ],
         "bottle": [
-            "ddtrace/contrib/bottle/*",
-            "tests/contrib/bottle/*"
+            "ddtrace/contrib/bottle/*"
         ],
         "consul": [
             "ddtrace/contrib/consul/*",
-            "tests/contrib/consul/*"
+            "ddtrace/ext/consul.py"
         ],
         "django": [
             "ddtrace/contrib/django/*",
             "ddtrace/contrib/django_hosts/*",
-            "ddtrace/contrib/djangorestframework/*",
-            "tests/contrib/django/*",
-            "tests/contrib/django_hosts/*",
-            "tests/contrib/djangorestframework/*"
+            "ddtrace/contrib/djangorestframework/*"
         ],
         "pytest": [
             "ddtrace/contrib/pytest/*",
-            "tests/contrib/pytest/*",
-            "ddtrace/contrib/pytest_bdd/*",
-            "tests/contrib/pytest_bdd/*"
+            "ddtrace/contrib/pytest_bdd/*"
+        ],
+        "unittest": [
+            "ddtrace/contrib/unittest/*"
         ],
         "appsec": [
-            "ddtrace/appsec/*",
-            "tests/appsec/*"
+            "ddtrace/appsec/*"
         ]
     },
     "suites": {
         "internal": [
-            "@core"
+            "@core",
+            "tests/internal/*",
+            "tests/submod/*",
+            "tests/cache/*"
         ],
         "ddtracerun": [
             "@contrib",
             "@bootstrap",
-            "@core"
+            "@core",
+            "tests/commands/*",
+            "tests/ddtrace_run.py"
         ],
         "debugger": [
             "@debugging",
             "@bootstrap",
             "@core",
-            "@tracing"
+            "@tracing",
+            "tests/debugging/*"
         ],
         "kafka": [
             "@bootstrap",
             "@core",
             "@tracing",
             "@contrib",
-            "@kafka"
+            "@kafka",
+            "tests/contrib/kafka/*",
+            "tests/snapshots/tests.contrib.kafka.*"
         ],
         "tracer": [
             "@tracing",
             "@bootstrap",
-            "@core"
+            "@core",
+            "tests/tracer/*"
         ],
         "integration_agent": [
             "@tracing",
             "@bootstrap",
-            "@core"
+            "@core",
+            "tests/integration/*",
+            "tests/snapshots/tests.integration.*"
         ],
         "integration_testagent": [
             "@tracing",
             "@bootstrap",
-            "@core"
+            "@core",
+            "tests/integration/*",
+            "tests/snapshots/tests.integration.*"
         ],
         "stdlib": [
             "@tracing",
@@ -408,81 +366,105 @@
             "@asyncio",
             "@futures",
             "@sqlite3",
-            "@dbapi"
+            "@dbapi",
+            "tests/contrib/logging/*",
+            "tests/contrib/sqlite3/*",
+            "tests/contrib/asyncio/*",
+            "tests/contrib/futures/*",
+            "tests/contrib/dbapi/*",
+            "tests/contrib/dbapi_async/*"
         ],
         "appsec": [
             "@bootstrap",
             "@core",
             "@tracing",
-            "@appsec"
+            "@appsec",
+            "tests/appsec/*",
+            "tests/snapshots/tests.appsec.*"
         ],
         "aws_lambda": [
             "@bootstrap",
             "@core",
             "@tracing",
-            "@aws_lambda"
+            "@aws_lambda",
+            "tests/contrib/aws_lambda/*",
+            "tests/snapshots/tests.contrib.{suite}.*"
         ],
         "datastreams": [
             "@bootstrap",
             "@core",
             "@tracing",
-            "@datastreams"
+            "@datastreams",
+            "tests/datastreams/*"
         ],
         "ci_visibility": [
             "@bootstrap",
             "@core",
             "@tracing",
             "@ci_visibility",
-            "@pytest"
+            "@pytest",
+            "tests/ci_visibility/*"
         ],
         "sourcecode": [
             "@bootstrap",
             "@core",
-            "@sourcecode"
+            "@sourcecode",
+            "tests/sourcecode/*"
         ],
         "telemetry": [
             "@bootstrap",
             "@core",
-            "@telemetry"
+            "@telemetry",
+            "tests/telemetry/*",
+            "tests/snapshots/tests.telemetry.*"
         ],
         "openai": [
             "@bootstrap",
             "@core",
             "@tracing",
             "@contrib",
-            "@openai"
+            "@openai",
+            "tests/contrib/openai/*",
+            "tests/snapshots/tests.contrib.openai.*"
         ],
         "opentracer": [
             "@bootstrap",
             "@core",
             "@tracing",
-            "@opentracer"
+            "@opentracer",
+            "tests/opentracer/*"
         ],
         "opentelemetry": [
             "@bootstrap",
             "@core",
             "@tracing",
-            "@opentelemetry"
+            "@opentelemetry",
+            "tests/opentelemetry/*",
+            "tests/snapshots/tests.opentelemetry.*"
         ],
         "profile": [
             "@bootstrap",
             "@core",
-            "@profiling"
+            "@profiling",
+            "tests/profiling/*"
         ],
         "vendor": [
-            "@vendor"
+            "@vendor",
+            "tests/vendor/*"
         ],
         "boto": [
             "@bootstrap",
             "@core",
             "@tracing",
-            "@boto"
+            "@boto",
+            "tests/contrib/boto/*"
         ],
         "botocore": [
             "@bootstrap",
             "@core",
             "@tracing",
-            "@boto"
+            "@boto",
+            "tests/contrib/botocore/*"
         ],
         "test_logging": [
             "@bootstrap",
@@ -526,20 +508,27 @@
             "@bootstrap",
             "@core",
             "@tracing",
-            "@pg"
+            "@pg",
+            "tests/contrib/asyncpg/*",
+            "tests/snapshots/tests.contrib.{suite}.*"
         ],
         "pylons": [
             "@bootstrap",
             "@core",
             "@tracing",
             "@appsec",
-            "@pylons"
+            "@pylons",
+            "tests/contrib/pylons/*"
         ],
         "aiohttp": [
             "@bootstrap",
             "@core",
             "@tracing",
-            "@aiohttp"
+            "@aiohttp",
+            "tests/contrib/aiohttp/*",
+            "tests/contrib/aiohttp_jinja2/*",
+            "tests/snapshots/tests.contrib.aiohttp_jinja2.*",
+            "tests/snapshots/tests.contrib.{suite}.*"
         ],
         "asgi": [
             "@bootstrap",
@@ -547,56 +536,67 @@
             "@tracing",
             "@asyncio",
             "@appsec",
-            "@asgi"
+            "@asgi",
+            "tests/contrib/asgi/*"
         ],
         "bottle": [
             "@bootstrap",
             "@core",
             "@tracing",
-            "@bottle"
+            "@bottle",
+            "tests/contrib/bottle/*"
         ],
         "cassandra": [
             "@bootstrap",
             "@core",
             "@tracing",
-            "@cassandra"
+            "@cassandra",
+            "tests/contrib/cassandra/*"
         ],
         "celery": [
             "@bootstrap",
             "@core",
             "@tracing",
-            "@celery"
+            "@celery",
+            "tests/contrib/celery/*"
         ],
         "cherrypy": [
             "@bootstrap",
             "@core",
             "@tracing",
-            "@cherrypy"
+            "@cherrypy",
+            "tests/contrib/cherrypy/*",
+            "tests/snapshots/tests.contrib.{suite}.*"
         ],
         "consul": [
             "@bootstrap",
             "@core",
             "@tracing",
-            "@consul"
+            "@consul",
+            "tests/contrib/consul/*"
         ],
         "dogpile_cache": [
             "@bootstrap",
             "@core",
             "@tracing",
-            "@dogpile_cache"
+            "@dogpile_cache",
+            "tests/contrib/dogpile_cache/*"
         ],
         "elasticsearch": [
             "@bootstrap",
             "@core",
             "@tracing",
             "@contrib",
-            "@elasticsearch"
+            "@elasticsearch",
+            "tests/contrib/elasticsearch/*",
+            "tests/snapshots/tests.contrib.{suite}.*"
         ],
         "falcon": [
             "@bootstrap",
             "@core",
             "@tracing",
-            "@falcon"
+            "@falcon",
+            "tests/contrib/falcon/*"
         ],
         "django": [
             "@bootstrap",
@@ -607,21 +607,27 @@
             "@asgi",
             "@django",
             "@dbapi",
-            "@pg"
+            "@pg",
+            "tests/contrib/django/*",
+            "tests/contrib/django_celery/*",
+            "tests/snapshots/tests.contrib.{suite}.*"
         ],
         "django_hosts": [
             "@bootstrap",
             "@core",
             "@tracing",
             "@appsec",
-            "@django"
+            "@django",
+            "tests/contrib/django_hosts/*",
+            "tests/snapshots/tests.contrib.{suite}.*"
         ],
         "djangorestframework": [
             "@bootstrap",
             "@core",
             "@tracing",
             "@appsec",
-            "@django"
+            "@django",
+            "tests/contrib/djangorestframework/*"
         ],
         "fastapi": [
             "@bootstrap",
@@ -630,7 +636,10 @@
             "@starlette",
             "@fastapi",
             "@asgi",
-            "@asyncio"
+            "@asyncio",
+            "tests/contrib/fastapi/*",
+            "tests/snapshots/tests.contrib.starlette.*",
+            "tests/snapshots/tests.contrib.{suite}.*"
         ],
         "flask": [
             "@bootstrap",
@@ -638,63 +647,83 @@
             "@tracing",
             "@flask",
             "@appsec",
-            "@wsgi"
+            "@wsgi",
+            "tests/contrib/flask/*",
+            "tests/contrib/flask_autopatch/*",
+            "tests/contrib/flask_cache/*",
+            "tests/snapshots/tests.contrib.flask.*"
         ],
         "gevent": [
             "@bootstrap",
             "@core",
             "@tracing",
-            "@gevent"
+            "@gevent",
+            "tests/contrib/gevent/*"
         ],
         "graphene": [
             "@bootstrap",
             "@core",
             "@tracing",
-            "@graphene"
+            "@graphene",
+            "tests/contrib/graphene/*",
+            "tests/snapshots/tests.contrib.graphene.*"
         ],
         "graphql": [
             "@bootstrap",
             "@core",
             "@tracing",
-            "@graphql"
+            "@graphql",
+            "tests/contrib/graphql/*",
+            "tests/snapshots/tests.contrib.graphql.*"
         ],
         "grpc": [
             "@bootstrap",
             "@core",
             "@tracing",
-            "@grpc"
+            "@grpc",
+            "tests/contrib/grpc/*",
+            "tests/contrib/grpc_aio/*",
+            "tests/snapshots/tests.contrib.grpc.*"
         ],
         "gunicorn": [
             "@bootstrap",
             "@core",
             "@tracing",
-            "@gunicorn"
+            "@gunicorn",
+            "tests/contrib/gunicorn/*",
+            "tests/snapshots/tests.contrib.gunicorn.*"
         ],
         "httplib": [
             "@bootstrap",
             "@core",
             "@tracing",
-            "@httplib"
+            "@httplib",
+            "tests/contrib/httplib/*"
         ],
         "httpx": [
             "@bootstrap",
             "@core",
             "@tracing",
             "@contrib",
-            "@httpx"
+            "@httpx",
+            "tests/contrib/httpx/*",
+            "tests/snapshots/tests.contrib.httpx.*"
         ],
         "mariadb": [
             "@bootstrap",
             "@core",
             "@tracing",
             "@dbapi",
-            "@mariadb"
+            "@mariadb",
+            "tests/contrib/mariadb/*",
+            "tests/snapshots/tests.contrib.mariadb.*"
         ],
         "molten": [
             "@bootstrap",
             "@core",
             "@tracing",
-            "@molten"
+            "@molten",
+            "tests/contrib/molten/*"
         ],
         "mysqldb": [
             "@bootstrap",
@@ -702,109 +731,133 @@
             "@tracing",
             "@contrib",
             "@dbapi",
-            "@mysql"
+            "@mysql",
+            "tests/contrib/mysqldb/*"
         ],
         "mysqlconnector": [
             "@bootstrap",
             "@core",
             "@tracing",
-            "@mysql"
+            "@mysql",
+            "tests/contrib/mysqlconnector/*"
         ],
         "mysqlpython": [
             "@bootstrap",
             "@core",
             "@tracing",
-            "@mysql"
+            "@mysql",
+            "tests/contrib/mysqlpython/*"
         ],
         "pymysql": [
             "@bootstrap",
             "@core",
             "@tracing",
             "@dbapi",
-            "@mysql"
+            "@mysql",
+            "tests/contrib/pymysql/*"
         ],
         "pylibmc": [
             "@bootstrap",
             "@core",
             "@tracing",
-            "@pylibmc"
+            "@pylibmc",
+            "tests/contrib/pylibmc/*"
         ],
         "pytest": [
             "@bootstrap",
             "@core",
             "@tracing",
             "@pytest",
-            "@ci_visibility"
+            "@ci_visibility",
+            "tests/contrib/pytest/*"
+        ],
+        "unittest": [
+            "@unittest",
+            "tests/contrib/unittest_plugin/*"
         ],
         "asynctest": [
             "@bootstrap",
             "@core",
             "@tracing",
-            "@asynctest"
+            "@asynctest",
+            "tests/contrib/asynctest/*"
         ],
         "pytestbdd": [
             "@bootstrap",
             "@core",
             "@tracing",
-            "@pytest"
+            "@pytest",
+            "tests/contrib/pytest_bdd/*"
         ],
         "pymemcache": [
             "@bootstrap",
             "@core",
             "@tracing",
-            "@pymemcache"
+            "@pymemcache",
+            "tests/contrib/pymemcache/*"
         ],
         "mongoengine": [
             "@bootstrap",
             "@core",
             "@tracing",
-            "@mongo"
+            "@mongo",
+            "tests/contrib/mongoengine/*"
         ],
         "pymongo": [
             "@bootstrap",
             "@core",
             "@tracing",
             "@contrib",
-            "@mongo"
+            "@mongo",
+            "tests/contrib/pymongo/*"
         ],
         "pynamodb": [
             "@bootstrap",
             "@core",
             "@tracing",
-            "@pynamodb"
+            "@pynamodb",
+            "tests/contrib/pynamodb/*"
         ],
         "pyodbc": [
             "@bootstrap",
             "@core",
             "@tracing",
             "@pyodbc",
-            "@dbapi"
+            "@dbapi",
+            "tests/contrib/pyodbc/*"
         ],
         "pyramid": [
             "@bootstrap",
             "@core",
             "@tracing",
-            "@pyramid"
+            "@pyramid",
+            "tests/contrib/pyramid/*",
+            "tests/snapshots/tests.contrib.pyramid.*"
         ],
         "requests": [
             "@bootstrap",
             "@core",
             "@tracing",
-            "@requests"
+            "@requests",
+            "tests/contrib/requests/*"
         ],
         "sanic": [
             "@bootstrap",
             "@core",
             "@tracing",
             "@sanic",
-            "@asyncio"
+            "@asyncio",
+            "tests/contrib/sanic/*",
+            "tests/snapshots/tests.contrib.sanic.*"
         ],
         "snowflake": [
             "@bootstrap",
             "@core",
             "@tracing",
             "@dbapi",
-            "@snowflake"
+            "@snowflake",
+            "tests/contrib/snowflake/*",
+            "tests/snapshots/tests.contrib.snowflake.*"
         ],
         "starlette": [
             "@bootstrap",
@@ -812,14 +865,16 @@
             "@tracing",
             "@asyncio",
             "@starlette",
-            "@asgi"
+            "@asgi",
+            "tests/contrib/starlette/*"
         ],
         "sqlalchemy": [
             "@bootstrap",
             "@core",
             "@tracing",
             "@sqlalchemy",
-            "@dbapi"
+            "@dbapi",
+            "tests/contrib/sqlalchemy/*"
         ],
         "subprocess": [
             "@bootstrap",
@@ -827,7 +882,8 @@
             "@tracing",
             "@contrib",
             "@subprocess",
-            "@appsec"
+            "@appsec",
+            "tests/contrib/subprocess/*"
         ],
         "psycopg": [
             "@bootstrap",
@@ -835,125 +891,158 @@
             "@tracing",
             "@contrib",
             "@dbapi",
-            "@pg"
+            "@pg",
+            "tests/contrib/psycopg/*",
+            "tests/snapshots/tests.contrib.psycopg.*"
         ],
         "psycopg2": [
             "@bootstrap",
             "@core",
             "@dbapi",
             "@tracing",
-            "@pg"
+            "@pg",
+            "tests/contrib/psycopg2/*",
+            "tests/snapshots/tests.contrib.psycopg2.*"
         ],
         "aiobotocore": [
             "@bootstrap",
             "@core",
             "@tracing",
-            "@boto"
+            "@boto",
+            "tests/contrib/aiobotocore/*"
         ],
         "aiomysql": [
             "@bootstrap",
             "@core",
             "@tracing",
             "@dbapi",
-            "@mysql"
+            "@mysql",
+            "tests/contrib/aiomysql/*",
+            "tests/snapshots/tests.contrib.{suite}.*"
         ],
         "aiopg": [
             "@bootstrap",
             "@core",
             "@tracing",
             "@dbapi",
-            "@pg"
+            "@pg",
+            "tests/contrib/aiopg/*"
         ],
         "aioredis": [
             "@bootstrap",
             "@core",
             "@tracing",
-            "@redis"
+            "@redis",
+            "tests/contrib/aioredis/*",
+            "tests/snapshots/tests.contrib.{suite}.*"
         ],
         "aredis": [
             "@bootstrap",
             "@core",
             "@tracing",
-            "@redis"
+            "@redis",
+            "tests/contrib/aredis/*",
+            "tests/snapshots/tests.contrib.{suite}.*"
         ],
         "yaaredis": [
             "@core",
             "@bootstrap",
             "@tracing",
-            "@redis"
+            "@redis",
+            "tests/contrib/yaaredis/*",
+            "tests/snapshots/tests.contrib.yaaredis.*"
         ],
         "redis": [
             "@bootstrap",
             "@core",
             "@tracing",
-            "@redis"
+            "@redis",
+            "tests/contrib/redis/*",
+            "tests/snapshots/tests.contrib.redis.*"
         ],
         "tornado": [
             "@bootstrap",
             "@core",
             "@tracing",
-            "@tornado"
+            "@tornado",
+            "tests/contrib/tornado/*"
         ],
         "rediscluster": [
             "@bootstrap",
             "@core",
             "@tracing",
-            "@redis"
+            "@redis",
+            "tests/contrib/rediscluster/*",
+            "tests/snapshots/tests.contrib.rediscluster.*"
         ],
         "rq": [
             "@bootstrap",
             "@core",
             "@tracing",
-            "@rq"
+            "@rq",
+            "tests/contrib/rq/*",
+            "tests/snapshots/tests.contrib.rq.*"
         ],
         "urllib3": [
             "@bootstrap",
             "@core",
             "@tracing",
-            "@urllib3"
+            "@urllib3",
+            "tests/contrib/urllib3/*",
+            "tests/snapshots/tests.contrib.urllib3.*"
         ],
         "vertica": [
             "@bootstrap",
             "@core",
             "@tracing",
-            "@vertica"
+            "@vertica",
+            "tests/contrib/vertica/*"
         ],
         "wsgi": [
             "@bootstrap",
             "@core",
             "@tracing",
-            "@wsgi"
+            "@wsgi",
+            "tests/contrib/wsgi/*",
+            "tests/contrib/uwsgi/__init__.py",
+            "tests/snapshots/tests.contrib.wsgi.*"
         ],
         "kombu": [
             "@bootstrap",
             "@core",
             "@tracing",
-            "@kombu"
+            "@kombu",
+            "tests/contrib/kombu/*"
         ],
         "jinja2": [
             "@bootstrap",
             "@core",
             "@tracing",
-            "@jinja2"
+            "@jinja2",
+            "tests/contrib/jinja2/*"
         ],
         "mako": [
             "@bootstrap",
             "@core",
             "@tracing",
-            "@mako"
+            "@mako",
+            "tests/contrib/mako/*"
         ],
         "algoliasearch": [
             "@bootstrap",
             "@core",
             "@tracing",
-            "@algoliasearch"
+            "@algoliasearch",
+            "tests/contrib/algoliasearch/*"
         ],
         "langchain": [
             "@bootstrap",
             "@core",
             "@tracing",
             "@contrib",
-            "@langchain"
+            "@langchain",
+            "tests/contrib/langchain/*",
+            "tests/snapshots/tests.contrib.{suite}.*"
         ]
     }
 }

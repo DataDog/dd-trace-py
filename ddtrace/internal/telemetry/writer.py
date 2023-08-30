@@ -14,9 +14,12 @@ from typing import Union
 from ...internal import atexit
 from ...internal import forksafe
 from ...internal.compat import parse
+from ...internal.schema import SCHEMA_VERSION
+from ...internal.schema import _remove_client_service_names
 from ...settings import _config as config
 from ...settings.dynamic_instrumentation import config as di_config
 from ...settings.exception_debugging import config as ed_config
+from ...settings.peer_service import _ps_config
 from ...settings.profiling import config as profiling_config
 from ..agent import get_connection
 from ..agent import get_trace_url
@@ -47,11 +50,20 @@ from .constants import TELEMETRY_PROFILING_ENABLED
 from .constants import TELEMETRY_PROPAGATION_STYLE_EXTRACT
 from .constants import TELEMETRY_PROPAGATION_STYLE_INJECT
 from .constants import TELEMETRY_RUNTIMEMETRICS_ENABLED
+from .constants import TELEMETRY_SERVICE_MAPPING
 from .constants import TELEMETRY_SPAN_SAMPLING_RULES
 from .constants import TELEMETRY_SPAN_SAMPLING_RULES_FILE
+from .constants import TELEMETRY_STARTUP_LOGS_ENABLED
 from .constants import TELEMETRY_TRACE_COMPUTE_STATS
 from .constants import TELEMETRY_TRACE_DEBUG
 from .constants import TELEMETRY_TRACE_HEALTH_METRICS_ENABLED
+from .constants import TELEMETRY_TRACE_PEER_SERVICE_DEFAULTS_ENABLED
+from .constants import TELEMETRY_TRACE_PEER_SERVICE_MAPPING
+from .constants import TELEMETRY_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED
+from .constants import TELEMETRY_TRACE_SAMPLING_LIMIT
+from .constants import TELEMETRY_TRACE_SAMPLING_RATE
+from .constants import TELEMETRY_TRACE_SAMPLING_RULES
+from .constants import TELEMETRY_TRACE_SPAN_ATTRIBUTE_SCHEMA
 from .constants import TELEMETRY_TRACING_ENABLED
 from .constants import TELEMETRY_TYPE_DISTRIBUTION
 from .constants import TELEMETRY_TYPE_GENERATE_METRICS
@@ -82,11 +94,6 @@ class LogData(dict):
             and self.get("tags") == other.get("tags")
             and self.get("stack_trace") == other.get("stack_trace")
         )
-
-
-def _get_heartbeat_interval_or_default():
-    # type: () -> float
-    return float(os.getenv("DD_TELEMETRY_HEARTBEAT_INTERVAL", default=60))
 
 
 class _TelemetryClient:
@@ -151,9 +158,15 @@ class TelemetryWriter(PeriodicService):
     # payloads is only used in tests and is not required to process Telemetry events.
     _sequence = itertools.count(1)
 
-    def __init__(self):
-        # type: () -> None
-        super(TelemetryWriter, self).__init__(interval=_get_heartbeat_interval_or_default())
+    def __init__(self, is_periodic=True):
+        # type: (bool) -> None
+        super(TelemetryWriter, self).__init__(interval=min(config._telemetry_heartbeat_interval, 10))
+        # Decouples the aggregation and sending of the telemetry events
+        # TelemetryWriter events will only be sent when _periodic_count == _periodic_threshold.
+        # By default this will occur at 10 second intervals.
+        self._periodic_threshold = int(config._telemetry_heartbeat_interval // self.interval) - 1
+        self._periodic_count = 0
+        self._is_periodic = is_periodic
         self._integrations_queue = dict()  # type: Dict[str, Dict]
         # Currently telemetry only supports reporting a single error.
         # If we'd like to report multiple errors in the future
@@ -174,8 +187,8 @@ class TelemetryWriter(PeriodicService):
 
         self._client = _TelemetryClient(self.ENDPOINT_V2)
 
-    def enable(self, start_worker_thread=True):
-        # type: (bool) -> bool
+    def enable(self):
+        # type: () -> bool
         """
         Enable the instrumentation telemetry collection service. If the service has already been
         activated before, this method does nothing. Use ``disable`` to turn off the telemetry collection service.
@@ -186,10 +199,11 @@ class TelemetryWriter(PeriodicService):
         if self.status == ServiceStatus.RUNNING:
             return True
 
-        if start_worker_thread:
+        if self._is_periodic:
             self.start()
             atexit.register(self.app_shutdown)
             return True
+
         self.status = ServiceStatus.RUNNING
         return True
 
@@ -201,8 +215,7 @@ class TelemetryWriter(PeriodicService):
         """
         self._disabled = True
         self.reset_queues()
-
-        if self.is_periodic:
+        if self._is_periodic and self.status is ServiceStatus.RUNNING:
             atexit.unregister(self.stop)
             self.stop()
         else:
@@ -231,17 +244,8 @@ class TelemetryWriter(PeriodicService):
             }
             self._events_queue.append(event)
 
-    @property
-    def is_periodic(self):
-        # type: () -> bool
-        """
-        Returns true if the the telemetry writer is running and was enabled using
-        telemetry_writer.enable(start_worker_thread=True)
-        """
-        return self.status is ServiceStatus.RUNNING and self._worker and self._worker.is_alive()
-
-    def add_integration(self, integration_name, patched, auto_patched=None, error_msg=None):
-        # type: (str, bool, Optional[bool], Optional[str]) -> None
+    def add_integration(self, integration_name, patched, auto_patched=None, error_msg=None, version=""):
+        # type: (str, bool, Optional[bool], Optional[str], Optional[str]) -> None
         """
         Creates and queues the names and settings of a patched module
 
@@ -253,7 +257,7 @@ class TelemetryWriter(PeriodicService):
             if integration_name not in self._integrations_queue:
                 self._integrations_queue[integration_name] = {"name": integration_name}
 
-            self._integrations_queue[integration_name]["version"] = ""
+            self._integrations_queue[integration_name]["version"] = version
             self._integrations_queue[integration_name]["enabled"] = patched
 
             if auto_patched is not None:
@@ -284,6 +288,7 @@ class TelemetryWriter(PeriodicService):
             [
                 (TELEMETRY_TRACING_ENABLED, config._tracing_enabled, "unknown"),
                 (TELEMETRY_CALL_BASIC_CONFIG, config._call_basic_config, "unknown"),
+                (TELEMETRY_STARTUP_LOGS_ENABLED, config._call_basic_config, "unknown"),
                 (TELEMETRY_DSM_ENABLED, config._data_streams_enabled, "unknown"),
                 (TELEMETRY_ASM_ENABLED, config._appsec_enabled, "unknown"),
                 (TELEMETRY_PROFILING_ENABLED, profiling_config.enabled, "unknown"),
@@ -312,8 +317,16 @@ class TelemetryWriter(PeriodicService):
                 (TELEMETRY_OTEL_ENABLED, config._otel_enabled, "unknown"),
                 (TELEMETRY_TRACE_HEALTH_METRICS_ENABLED, config.health_metrics_enabled, "unknown"),
                 (TELEMETRY_RUNTIMEMETRICS_ENABLED, config._runtime_metrics_enabled, "unknown"),
+                (TELEMETRY_TRACE_SAMPLING_RATE, config._trace_sample_rate, "unknown"),
+                (TELEMETRY_TRACE_SAMPLING_LIMIT, config._trace_rate_limit, "unknown"),
                 (TELEMETRY_SPAN_SAMPLING_RULES, config._sampling_rules, "unknown"),
                 (TELEMETRY_SPAN_SAMPLING_RULES_FILE, config._sampling_rules_file, "unknown"),
+                (TELEMETRY_TRACE_SAMPLING_RULES, config._trace_sampling_rules, "unknown"),
+                (TELEMETRY_TRACE_SPAN_ATTRIBUTE_SCHEMA, SCHEMA_VERSION, "unknown"),
+                (TELEMETRY_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED, _remove_client_service_names, "unknown"),
+                (TELEMETRY_TRACE_PEER_SERVICE_DEFAULTS_ENABLED, _ps_config.set_defaults_enabled, "unknown"),
+                (TELEMETRY_TRACE_PEER_SERVICE_MAPPING, _ps_config._unparsed_peer_service_mapping, "unknown"),
+                (TELEMETRY_SERVICE_MAPPING, config._unparsed_service_mapping, "unknown"),
             ]
         )
 
@@ -408,12 +421,15 @@ class TelemetryWriter(PeriodicService):
         payload = {"dependencies": get_dependencies()}
         self.add_event(payload, "app-dependencies-loaded")
 
-    def add_log(self, level, message, stack_trace="", tags={}):
-        # type: (str, str, str, Dict) -> None
+    def add_log(self, level, message, stack_trace="", tags=None):
+        # type: (str, str, str, Optional[Dict]) -> None
         """
         Queues log. This event is meant to send library logs to Datadog’s backend through the Telemetry intake.
         This will make support cycles easier and ensure we know about potentially silent issues in libraries.
         """
+        if tags is None:
+            tags = {}
+
         if self.enable():
             data = LogData(
                 {
@@ -513,15 +529,7 @@ class TelemetryWriter(PeriodicService):
         log.debug("%s request payload", TELEMETRY_TYPE_LOGS)
         self.add_event(list(payload), TELEMETRY_TYPE_LOGS)
 
-    def periodic(self):
-        integrations = self._flush_integrations_queue()
-        if integrations:
-            self._app_integrations_changed_event(integrations)
-
-        configurations = self._flush_configuration_queue()
-        if configurations:
-            self._app_client_configuration_changed_event(configurations)
-
+    def periodic(self, force_flush=False):
         namespace_metrics = self._namespace.flush()
         if namespace_metrics:
             self._generate_metrics_event(namespace_metrics)
@@ -529,6 +537,24 @@ class TelemetryWriter(PeriodicService):
         logs_metrics = self._flush_log_metrics()
         if logs_metrics:
             self._generate_logs_event(logs_metrics)
+
+        # Telemetry metrics and logs should be aggregated into payloads every time periodic is called.
+        # This ensures metrics and logs are submitted in 0 to 10 second time buckets.
+        # Optimization: All other events should be aggregated using `config._telemetry_heartbeat_interval`.
+        # Telemetry payloads will be submitted according to `config._telemetry_heartbeat_interval`.
+        if self._is_periodic and force_flush is False:
+            if self._periodic_count < self._periodic_threshold:
+                self._periodic_count += 1
+                return
+            self._periodic_count = 0
+
+        integrations = self._flush_integrations_queue()
+        if integrations:
+            self._app_integrations_changed_event(integrations)
+
+        configurations = self._flush_configuration_queue()
+        if configurations:
+            self._app_client_configuration_changed_event(configurations)
 
         if not self._events_queue:
             # Optimization: only queue heartbeat if no other events are queued
@@ -549,7 +575,7 @@ class TelemetryWriter(PeriodicService):
 
     def app_shutdown(self):
         self._app_closing_event()
-        self.periodic()
+        self.periodic(force_flush=True)
 
     def reset_queues(self):
         # type: () -> None

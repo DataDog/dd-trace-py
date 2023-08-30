@@ -59,6 +59,11 @@ def unpatch_iast():
     try_unwrap("cryptography.hazmat.primitives.ciphers", "Cipher.encryptor")
 
 
+def get_version():
+    # type: () -> str
+    return ""
+
+
 def patch():
     # type: () -> None
     """Wrap hashing functions.

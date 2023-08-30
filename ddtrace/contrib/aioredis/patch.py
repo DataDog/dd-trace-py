@@ -40,14 +40,19 @@ config._add(
     ),
 )
 
-aioredis_version_str = getattr(aioredis, "__version__", "0.0.0")
+aioredis_version_str = getattr(aioredis, "__version__", "")
 aioredis_version = tuple([int(i) for i in aioredis_version_str.split(".")])
+
+
+def get_version():
+    # type: () -> str
+    return aioredis_version_str
 
 
 def patch():
     if getattr(aioredis, "_datadog_patch", False):
         return
-    setattr(aioredis, "_datadog_patch", True)
+    aioredis._datadog_patch = True
     pin = Pin()
     if aioredis_version >= (2, 0):
         _w("aioredis.client", "Redis.execute_command", traced_execute_command)
@@ -65,7 +70,7 @@ def unpatch():
     if not getattr(aioredis, "_datadog_patch", False):
         return
 
-    setattr(aioredis, "_datadog_patch", False)
+    aioredis._datadog_patch = False
     if aioredis_version >= (2, 0):
         _u(aioredis.client.Redis, "execute_command")
         _u(aioredis.client.Redis, "pipeline")

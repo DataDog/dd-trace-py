@@ -9,6 +9,7 @@
     "type": "elasticsearch",
     "error": 0,
     "meta": {
+      "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "component": "elasticsearch",
       "elasticsearch.method": "PUT",
@@ -16,7 +17,7 @@
       "elasticsearch.url": "/ddtrace_index",
       "language": "python",
       "out.host": "localhost",
-      "runtime-id": "87b450ba30ec4f2e8fd734e998aaaa85",
+      "runtime-id": "27e4a57364294c508534900540eff0c3",
       "span.kind": "client"
     },
     "metrics": {
@@ -25,10 +26,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 1309
+      "process_id": 40244
     },
-    "duration": 97388500,
-    "start": 1632159160791219000
+    "duration": 38135709,
+    "start": 1692709769424646129
   }],
 [
   {
@@ -41,6 +42,7 @@
     "type": "elasticsearch",
     "error": 0,
     "meta": {
+      "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "component": "elasticsearch",
       "elasticsearch.method": "DELETE",
@@ -48,7 +50,7 @@
       "elasticsearch.url": "/ddtrace_index",
       "language": "python",
       "out.host": "localhost",
-      "runtime-id": "87b450ba30ec4f2e8fd734e998aaaa85",
+      "runtime-id": "27e4a57364294c508534900540eff0c3",
       "span.kind": "client"
     },
     "metrics": {
@@ -57,8 +59,8 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 1309
+      "process_id": 40244
     },
-    "duration": 106286200,
-    "start": 1632159160889071100
+    "duration": 24317125,
+    "start": 1692709769508045379
   }]]

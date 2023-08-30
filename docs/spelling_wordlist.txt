@@ -69,6 +69,7 @@ datastores
 dbapi
 ddtrace
 deprecations
+deserializing
 django
 docstring
 doctest
@@ -103,7 +104,9 @@ httplib
 https
 httpx
 iPython
+iast
 ini
+InitContainer
 initializer
 integration
 integrations
@@ -141,6 +144,7 @@ mysql
 mysqlclient
 mysqldb
 namespace
+NeedsAppKey
 obfuscator
 openai
 opensearch

@@ -15,6 +15,7 @@ import os
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.appsec import _asm_request_context
+from ddtrace.appsec import _constants as _asm_constants
 from ddtrace.appsec import utils as appsec_utils
 from ddtrace.appsec.trace_utils import track_user_login_failure_event
 from ddtrace.appsec.trace_utils import track_user_login_success_event
@@ -76,6 +77,13 @@ config._add(
 
 _NotSet = object()
 psycopg_cursor_cls = Psycopg2TracedCursor = Psycopg3TracedCursor = _NotSet
+
+
+def get_version():
+    # type: () -> str
+    import django
+
+    return django.__version__
 
 
 def patch_conn(django, conn):
@@ -410,7 +418,7 @@ def _block_request_callable(request, request_headers, span):
     # at any point so it's a callable stored in the ASM context.
     from django.core.exceptions import PermissionDenied
 
-    core.set_item(WAF_CONTEXT_NAMES.BLOCKED, True, span=span)
+    core.set_item(WAF_CONTEXT_NAMES.BLOCKED, _asm_constants.WAF_ACTIONS.DEFAULT_PARAMETERS, span=span)
     _set_block_tags(request, request_headers, span)
     raise PermissionDenied()
 
@@ -460,11 +468,16 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
             response = None
 
             def blocked_response():
-                from django.http import HttpResponseForbidden
+                from django.http import HttpResponse
 
-                ctype = "text/html" if "text/html" in request_headers.get("Accept", "").lower() else "text/json"
+                block_config = core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span)
+                if block_config.get("type", "auto") == "auto":
+                    ctype = "text/html" if "text/html" in request_headers.get("Accept", "").lower() else "text/json"
+                else:
+                    ctype = "text/" + block_config["type"]
+                status = block_config.get("status_code", 403)
                 content = appsec_utils._get_blocked_template(ctype)
-                response = HttpResponseForbidden(content, content_type=ctype)
+                response = HttpResponse(content, content_type=ctype, status=status)
                 response.content = content
                 utils._after_request_tags(pin, span, request, response)
                 return response
@@ -526,7 +539,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                     # [Suspicious Request Blocking on response]
                     if core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span):
                         response = blocked_response()
-                        return response
+                        return response  # noqa: B012
 
 
 @trace_utils.with_traced_module
@@ -929,7 +942,7 @@ def patch():
         return
     _patch(django)
 
-    setattr(django, "_datadog_patch", True)
+    django._datadog_patch = True
 
 
 def _unpatch(django):
@@ -959,4 +972,4 @@ def unpatch():
 
     _unpatch(django)
 
-    setattr(django, "_datadog_patch", False)
+    django._datadog_patch = False

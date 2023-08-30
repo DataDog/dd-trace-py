@@ -2,13 +2,6 @@
 // under the Apache License Version 2.0. This product includes software
 // developed at Datadog (https://www.datadoghq.com/). Copyright 2021-Present
 // Datadog, Inc.
-
-// High-level skip for invalid architectures
-#ifndef __linux__
-#elif __aarch64__
-#elif __i386__
-#else
-
 #include "exporter.hpp"
 #include <iostream>
 
@@ -735,5 +728,3 @@ Profile::push_gpu_device_name(std::string_view device_name)
     }
     return true;
 }
-
-#endif

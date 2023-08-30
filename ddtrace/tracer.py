@@ -15,7 +15,8 @@ from ddtrace.internal.compat import ensure_pep562
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import get_span_sampling_rules
-from ddtrace.settings.peer_service import PeerServiceConfig
+from ddtrace.internal.utils import _get_metas_to_propagate
+from ddtrace.settings.peer_service import _ps_config
 from ddtrace.vendor import debtcollector
 
 from . import _hooks
@@ -34,11 +35,13 @@ from .internal import compat
 from .internal import debug
 from .internal import forksafe
 from .internal import hostname
+from .internal.atexit import register_on_exit_signal
 from .internal.constants import SPAN_API_DATADOG
 from .internal.dogstatsd import get_dogstatsd_client
 from .internal.logger import get_logger
 from .internal.logger import hasHandlers
 from .internal.processor import SpanProcessor
+from .internal.processor.trace import BaseServiceProcessor
 from .internal.processor.trace import PeerServiceProcessor
 from .internal.processor.trace import SpanAggregator
 from .internal.processor.trace import SpanSamplingProcessor
@@ -144,7 +147,7 @@ def _default_span_processors_factory(
     # FIXME: type should be AppsecSpanProcessor but we have a cyclic import here
     """Construct the default list of span processors to use."""
     trace_processors = []  # type: List[TraceProcessor]
-    trace_processors += [TraceTagsProcessor(), PeerServiceProcessor(PeerServiceConfig())]
+    trace_processors += [TraceTagsProcessor(), PeerServiceProcessor(_ps_config), BaseServiceProcessor()]
     trace_processors += [TraceSamplingProcessor(compute_stats_enabled)]
     trace_processors += trace_filters
 
@@ -301,6 +304,7 @@ class Tracer(object):
         self._hooks = _hooks.Hooks()
         atexit.register(self._atexit)
         forksafe.register(self._child_after_fork)
+        register_on_exit_signal(self._atexit)
 
         self._shutdown_lock = RLock()
 
@@ -543,7 +547,7 @@ class Tracer(object):
         self._generate_diagnostic_logs()
 
     def _generate_diagnostic_logs(self):
-        if config._debug_mode or asbool(environ.get("DD_TRACE_STARTUP_LOGS", False)):
+        if config._debug_mode or config._startup_logs_enabled:
             try:
                 info = debug.collect(self)
             except Exception as e:
@@ -718,6 +722,8 @@ class Tracer(object):
 
             if span._local_root is None:
                 span._local_root = span
+            for k, v in _get_metas_to_propagate(context):
+                span._meta[k] = v
         else:
             # this is the root span of a new trace
             span = Span(
@@ -1045,6 +1051,14 @@ class Tracer(object):
         """
         with self._shutdown_lock:
             # Thread safety: Ensures tracer is shutdown synchronously
+            try:
+                # Data streams tries to flush data on shutdown.
+                # Adding a try except here to ensure we don't crash the application if the agent is killed before
+                # the application for example.
+                self.data_streams_processor.shutdown(timeout)
+            except Exception as e:
+                if config._data_streams_enabled:
+                    log.warning("Failed to shutdown data streams processor: %s", repr(e))
             span_processors = self._span_processors
             deferred_processors = self._deferred_processors
             self._span_processors = []
@@ -1052,11 +1066,6 @@ class Tracer(object):
             for processor in chain(span_processors, SpanProcessor.__processors__, deferred_processors):
                 if hasattr(processor, "shutdown"):
                     processor.shutdown(timeout)
-            try:
-                self.data_streams_processor.shutdown(timeout)
-            except Exception as e:
-                if config._data_streams_enabled:
-                    log.warning("Failed to shutdown data streams processor: %s", repr(e))
 
             atexit.unregister(self._atexit)
             forksafe.unregister(self._child_after_fork)

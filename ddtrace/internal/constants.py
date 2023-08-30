@@ -15,6 +15,7 @@ W3C_TRACESTATE_KEY = "tracestate"
 W3C_TRACEPARENT_KEY = "traceparent"
 W3C_TRACESTATE_ORIGIN_KEY = "o"
 W3C_TRACESTATE_SAMPLING_PRIORITY_KEY = "s"
+DEFAULT_SAMPLING_RATE_LIMIT = 100
 SAMPLING_DECISION_TRACE_TAG_KEY = "_dd.p.dm"
 DEFAULT_SERVICE_NAME = "unnamed_python_service"
 # Used to set the name of an integration on a span
@@ -24,7 +25,6 @@ MAX_UINT_64BITS = (1 << 64) - 1
 SPAN_API_DATADOG = "datadog"
 SPAN_API_OTEL = "otel"
 SPAN_API_OPENTRACING = "opentracing"
-
 BLOCKED_RESPONSE_HTML = """
 <!DOCTYPE html><html lang="en"><head> <meta charset="UTF-8"> <meta name="viewport"
 content="width=device-width,initial-scale=1"> <title>You've been blocked</title>
@@ -60,5 +60,12 @@ HTTP_REQUEST_PARAMETER = "http.request.parameter"
 HTTP_REQUEST_BODY = "http.request.body"
 HTTP_REQUEST_PATH_PARAMETER = "http.request.path.parameter"
 REQUEST_PATH_PARAMS = "http.request.path_params"
+STATUS_403_TYPE_AUTO = {"status_code": 403, "type": "auto"}
 
 MESSAGING_SYSTEM = "messaging.system"
+
+FLASK_ENDPOINT = "flask.endpoint"
+FLASK_VIEW_ARGS = "flask.view_args"
+FLASK_URL_RULE = "flask.url_rule"
+
+_HTTPLIB_NO_TRACE_REQUEST = "_dd_no_trace"

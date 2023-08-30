@@ -41,6 +41,11 @@ ASGI_VERSION = "asgi.version"
 ASGI_SPEC_VERSION = "asgi.spec_version"
 
 
+def get_version():
+    # type: () -> str
+    return ""
+
+
 def bytes_to_str(str_or_bytes):
     return str_or_bytes.decode() if isinstance(str_or_bytes, bytes) else str_or_bytes
 

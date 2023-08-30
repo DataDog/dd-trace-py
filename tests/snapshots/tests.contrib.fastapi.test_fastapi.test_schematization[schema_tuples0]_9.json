@@ -17,7 +17,7 @@
       "http.useragent": "testclient",
       "language": "python",
       "out.host": "testserver",
-      "runtime-id": "61273ba765c545a7b4a92444e3f3da39",
+      "runtime-id": "bf8cfc21d0c440d1ba3b80715bafc2ec",
       "span.kind": "client"
     },
     "metrics": {
@@ -26,10 +26,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 6449
+      "process_id": 42817
     },
-    "duration": 1846167,
-    "start": 1685581104882546169
+    "duration": 1681875,
+    "start": 1692709997548359096
   },
      {
        "name": "fastapi.request",
@@ -41,6 +41,8 @@
        "type": "web",
        "error": 0,
        "meta": {
+         "_dd.base_service": "",
+         "_dd.p.dm": "-0",
          "component": "fastapi",
          "http.method": "GET",
          "http.route": "/sub-app/hello/{name}",
@@ -53,8 +55,8 @@
        "metrics": {
          "_dd.top_level": 1
        },
-       "duration": 796166,
-       "start": 1685581104883201003
+       "duration": 715166,
+       "start": 1692709997548974388
      },
         {
           "name": "fastapi.request",
@@ -66,6 +68,8 @@
           "type": "web",
           "error": 0,
           "meta": {
+            "_dd.base_service": "",
+            "_dd.p.dm": "-0",
             "component": "fastapi",
             "http.method": "GET",
             "http.status_code": "200",
@@ -74,8 +78,8 @@
             "http.version": "1.1",
             "span.kind": "server"
           },
-          "duration": 663834,
-          "start": 1685581104883340669
+          "duration": 592583,
+          "start": 1692709997549105096
         },
            {
              "name": "fastapi.serialize_response",
@@ -86,6 +90,10 @@
              "parent_id": 3,
              "type": "",
              "error": 0,
-             "duration": 25500,
-             "start": 1685581104883889253
+             "meta": {
+               "_dd.base_service": "",
+               "_dd.p.dm": "-0"
+             },
+             "duration": 24084,
+             "start": 1692709997549583179
            }]]

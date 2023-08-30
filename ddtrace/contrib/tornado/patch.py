@@ -23,6 +23,11 @@ config._add(
 )
 
 
+def get_version():
+    # type: () -> str
+    return getattr(tornado, "version", "")
+
+
 def patch():
     """
     Tracing function that patches the Tornado web application so that it will be
@@ -31,7 +36,7 @@ def patch():
     # patch only once
     if getattr(tornado, "__datadog_patch", False):
         return
-    setattr(tornado, "__datadog_patch", True)
+    tornado.__datadog_patch = True
 
     # patch Application to initialize properly our settings and tracer
     _w("tornado.web", "Application.__init__", application.tracer_config)
@@ -57,7 +62,7 @@ def unpatch():
     """
     if not getattr(tornado, "__datadog_patch", False):
         return
-    setattr(tornado, "__datadog_patch", False)
+    tornado.__datadog_patch = False
 
     # unpatch Tornado
     _u(tornado.web.RequestHandler, "_execute")

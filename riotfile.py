@@ -105,21 +105,16 @@ venv = Venv(
     venvs=[
         Venv(
             pys=["3"],
-            pkgs={"slotscheck": latest},
-            venvs=[
-                Venv(
-                    name="slotscheck",
-                    command="python -m slotscheck -v ddtrace/",
-                ),
-            ],
-        ),
-        Venv(
-            pys=["3"],
             name="scripts",
             command="python -m doctest {cmdargs} "
             "scripts/get-target-milestone.py "
             "scripts/needs_testrun.py "
             "tests/suitespec.py",
+        ),
+        Venv(
+            pys=["3"],
+            name="meta-testing",
+            command="pytest {cmdargs} tests/meta",
         ),
         Venv(
             name="circleci-gen-config",
@@ -206,7 +201,7 @@ venv = Venv(
             name="integration",
             # Enabling coverage for integration tests breaks certain tests in CI
             # Also, running two separate pytest sessions, the ``civisibility`` one with --no-ddtrace
-            command="pytest --no-cov --ignore-glob='*civisibility*' {cmdargs} tests/integration/ && pytest --no-cov --no-ddtrace {cmdargs} tests/integration/test_integration_civisibility.py",  # noqa: E501
+            command="pytest --no-ddtrace --no-cov --ignore-glob='*civisibility*' {cmdargs} tests/integration/ && pytest --no-cov --no-ddtrace {cmdargs} tests/integration/test_integration_civisibility.py",  # noqa: E501
             pkgs={"msgpack": [latest], "coverage": latest},
             venvs=[
                 Venv(
@@ -675,7 +670,7 @@ venv = Venv(
                     pkgs={"pymongo": ["~=3.4", "~=3.11", "~=3.13"]},
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.7", max_version="3.9"), pkgs={"pymongo": ["~=3.11", "~=4.0", latest]}
+                    pys=select_pys(min_version="3.7", max_version="3.9"), pkgs={"pymongo": ["~=3.11", "~=4.5", latest]}
                 ),
                 Venv(
                     # pymongo added support for Python 3.10 in 3.12.1
@@ -1650,6 +1645,13 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="unittest",
+            command="pytest --no-ddtrace {cmdargs} tests/contrib/unittest_plugin/",
+            pkgs={"msgpack": latest},
+            env={"DD_CIVISIBILITY_UNITTEST_ENABLED": "1"},
+            pys=select_pys(),
+        ),
+        Venv(
             name="asynctest",
             command="pytest --no-ddtrace {cmdargs} tests/contrib/asynctest/",
             venvs=[
@@ -1661,6 +1663,25 @@ venv = Venv(
                         ],
                         "asynctest": "==0.13.0",
                     },
+                ),
+            ],
+        ),
+        Venv(
+            name="pytest-benchmark",
+            command="pytest {cmdargs} tests/contrib/pytest_benchmark/",
+            pkgs={"msgpack": latest},
+            venvs=[
+                Venv(
+                    venvs=[
+                        Venv(
+                            pys=select_pys(min_version="3.7", max_version="3.10"),
+                            pkgs={
+                                "pytest-benchmark": [
+                                    ">=3.1.0,<=4.0.0",
+                                ]
+                            },
+                        )
+                    ],
                 ),
             ],
         ),
@@ -1816,7 +1837,7 @@ venv = Venv(
         ),
         Venv(
             name="rq",
-            command="pytest tests/contrib/rq",
+            command="pytest {cmdargs} tests/contrib/rq",
             venvs=[
                 Venv(
                     # rq dropped support for Python 2.7 in 1.4.0

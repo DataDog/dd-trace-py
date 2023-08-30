@@ -30,7 +30,7 @@ from ddtrace.span import Span
 
 from ..subprocesstest import run_in_subprocess
 from ..utils import DummyTracer
-from ..utils import override_env
+from ..utils import override_global_config
 
 
 @pytest.fixture
@@ -133,7 +133,7 @@ class RateSamplerTest(unittest.TestCase):
                 len(samples) <= 1
             ), "evaluating sampling rules against a span should result in either dropping or not dropping it"
             sampled = 1 == len(samples)
-            for j in range(10):
+            for _ in range(10):
                 other_span = Span(str(i), trace_id=span.trace_id)
                 assert sampled == tracer._sampler.sample(
                     other_span
@@ -355,18 +355,18 @@ def test_sampling_rule_eq(rule_1, rule_2, expected_to_be_equal):
 
 
 def test_sampling_rule_init_via_env():
-    with override_env(dict(DD_TRACE_SAMPLING_RULES='[{"sample_rate":1.0,"service":"xyz","name":"abc"}]')):
+    with override_global_config(dict(_trace_sampling_rules='[{"sample_rate":1.0,"service":"xyz","name":"abc"}]')):
         sampling_rule = DatadogSampler().rules
         assert sampling_rule[0].sample_rate == 1.0, "DatadogSampler initializes one rule from envvar"
         assert sampling_rule[0].service == "xyz"
         assert sampling_rule[0].name == "abc"
         assert len(sampling_rule) == 1
 
-    with override_env(
+    with override_global_config(
         dict(
-            DD_TRACE_SAMPLING_RULES='[{"sample_rate":1.0,"service":"xyz","name":"abc"}, \
+            _trace_sampling_rules='[{"sample_rate":1.0,"service":"xyz","name":"abc"}, \
             {"sample_rate":0.5,"service":"my-service","name":"my-name"}]'
-        )
+        ),
     ):
         sampling_rule = DatadogSampler().rules
         assert sampling_rule[0].sample_rate == 1.0, "DatadogSampler initializes from envvar containing multiple rules"
@@ -378,21 +378,21 @@ def test_sampling_rule_init_via_env():
         assert sampling_rule[1].name == "my-name"
         assert len(sampling_rule) == 2
 
-    with override_env(dict(DD_TRACE_SAMPLING_RULES='[{"sample_rate":1.0}]')):
+    with override_global_config(dict(_trace_sampling_rules='[{"sample_rate":1.0}]')):
         sampling_rule = DatadogSampler().rules
         assert sampling_rule[0].sample_rate == 1.0, "DatadogSampler initializes from envvar with only sample_rate set"
         assert sampling_rule[0].service == SamplingRule.NO_RULE
         assert sampling_rule[0].name == SamplingRule.NO_RULE
         assert len(sampling_rule) == 1
 
-    with override_env(dict(DD_TRACE_SAMPLING_RULES='[{"sample_rate":1.0,"service":"xyz"}]')):
+    with override_global_config(dict(_trace_sampling_rules='[{"sample_rate":1.0,"service":"xyz"}]')):
         sampling_rule = DatadogSampler().rules
         assert sampling_rule[0].sample_rate == 1.0, "DatadogSampler initializes from envvar without name set"
         assert sampling_rule[0].service == "xyz"
         assert sampling_rule[0].name == SamplingRule.NO_RULE
         assert len(sampling_rule) == 1
 
-    with override_env(dict(DD_TRACE_SAMPLING_RULES='[{"sample_rate":1.0,"name":"abc"}]')):
+    with override_global_config(dict(_trace_sampling_rules='[{"sample_rate":1.0,"name":"abc"}]')):
         sampling_rule = DatadogSampler().rules
         assert sampling_rule[0].sample_rate == 1.0, "DatadogSampler initializes from envvar without service set"
         assert sampling_rule[0].service == SamplingRule.NO_RULE
@@ -403,7 +403,7 @@ def test_sampling_rule_init_via_env():
     # to Python's undefined ordering of dictionary keys
 
     with pytest.raises(ValueError) as excinfo:
-        with override_env(dict(DD_TRACE_SAMPLING_RULES='[{"sample_rate":2.0,"service":"xyz","name":"abc"}]')):
+        with override_global_config(dict(_trace_sampling_rules='[{"sample_rate":2.0,"service":"xyz","name":"abc"}]')):
             sampling_rule = DatadogSampler().rules
     assert str(excinfo.value).endswith(
         "SamplingRule(sample_rate=2.0) must be greater than or equal to 0.0 and less than or equal to 1.0"
@@ -413,23 +413,23 @@ def test_sampling_rule_init_via_env():
     assert '"name": "abc"' in str(excinfo.value)
 
     with pytest.raises(KeyError) as excinfo:
-        with override_env(dict(DD_TRACE_SAMPLING_RULES='[{"service":"xyz","name":"abc"}]')):
+        with override_global_config(dict(_trace_sampling_rules='[{"service":"xyz","name":"abc"}]')):
             sampling_rule = DatadogSampler().rules
     assert str(excinfo.value).startswith("'No sample_rate provided for sampling rule: ")
     assert '"service": "xyz"' in str(excinfo.value)
     assert '"name": "abc"' in str(excinfo.value)
 
     with pytest.raises(ValueError) as excinfo:
-        with override_env(dict(DD_TRACE_SAMPLING_RULES='["sample_rate":1.0,"service":"xyz","name":"abc"]')):
+        with override_global_config(dict(_trace_sampling_rules='["sample_rate":1.0,"service":"xyz","name":"abc"]')):
             sampling_rule = DatadogSampler().rules
     assert 'Unable to parse DD_TRACE_SAMPLING_RULES=["sample_rate":1.0,"service":"xyz","name":"abc"]' == str(
         excinfo.value
     )
 
     with pytest.raises(KeyError) as excinfo:
-        with override_env(
+        with override_global_config(
             dict(
-                DD_TRACE_SAMPLING_RULES='[{"sample_rate":1.0,"service":"xyz","name":"abc"},'
+                _trace_sampling_rules='[{"sample_rate":1.0,"service":"xyz","name":"abc"},'
                 + '{"service":"my-service","name":"my-name"}]'
             )
         ):
@@ -648,7 +648,7 @@ def test_datadog_sampler_init():
         SamplingRule(sample_rate=0.5)
     ], "DatadogSampler initialized with default_sample_rate should hold a SamplingRule with that rate"
 
-    with override_env(dict(DD_TRACE_SAMPLE_RATE="0.5", DD_TRACE_RATE_LIMIT="10")):
+    with override_global_config(dict(_trace_sample_rate="0.5", _trace_rate_limit=10)):
         sampler = DatadogSampler()
         assert (
             sampler.limiter.rate_limit == 10
@@ -657,7 +657,7 @@ def test_datadog_sampler_init():
             SamplingRule(sample_rate=0.5)
         ], "DatadogSampler initialized with no arguments and envvars set should hold a sample_rate from the envvar"
 
-    with override_env(dict(DD_TRACE_SAMPLE_RATE="0")):
+    with override_global_config(dict(_trace_sample_rate="0")):
         sampler = DatadogSampler()
         assert (
             sampler.limiter.rate_limit == DatadogSampler.DEFAULT_RATE_LIMIT
@@ -666,11 +666,11 @@ def test_datadog_sampler_init():
             SamplingRule(sample_rate=0)
         ], "DatadogSampler initialized with DD_TRACE_SAMPLE_RATE=0 envvar should hold sample_rate=0"
 
-    with override_env(dict(DD_TRACE_SAMPLE_RATE="invalid-rate")):
+    with override_global_config(dict(_trace_sample_rate="asdf")):
         with pytest.raises(ValueError):
             DatadogSampler()
 
-    with override_env(dict(DD_TRACE_RATE_LIMIT="invalid-limit")):
+    with override_global_config(dict(_trace_rate_limit="invalid-limit")):
         with pytest.raises(ValueError):
             DatadogSampler()
 

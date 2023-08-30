@@ -9,6 +9,7 @@
     "type": "web",
     "error": 0,
     "meta": {
+      "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "component": "cherrypy",
       "http.method": "GET",
@@ -16,7 +17,7 @@
       "http.status_code": "200",
       "http.url": "http://127.0.0.1:54583/child",
       "language": "python",
-      "runtime-id": "37ec48c2f73448bf8f97e1ff289da866",
+      "runtime-id": "cbe1e1e90a5d40fa99c819048a89e5d6",
       "span.kind": "server"
     },
     "metrics": {
@@ -24,10 +25,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 54385
+      "process_id": 30485
     },
-    "duration": 739000,
-    "start": 1666809663616209000
+    "duration": 2272917,
+    "start": 1692708385201285127
   },
      {
        "name": "child",
@@ -39,8 +40,10 @@
        "type": "",
        "error": 0,
        "meta": {
+         "_dd.base_service": "",
+         "_dd.p.dm": "-0",
          "a": "b"
        },
-       "duration": 14000,
-       "start": 1666809663616406000
+       "duration": 87000,
+       "start": 1692708385201727252
      }]]

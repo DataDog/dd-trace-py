@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 from collections import abc
 
-from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
-from ddtrace.appsec.iast._taint_tracking import taint_pyobject
 from ddtrace.internal.logger import get_logger
 
 
@@ -32,6 +30,9 @@ class LazyTaintList:
     def _taint(self, value):
         if value:
             if isinstance(value, (str, bytes, bytearray)):
+                from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
+                from ddtrace.appsec.iast._taint_tracking import taint_pyobject
+
                 if not is_pyobject_tainted(value) or self._override_pyobject_tainted:
                     try:
                         # TODO: migrate this part to shift ranges instead of creating a new one
@@ -200,6 +201,9 @@ class LazyTaintDict:
             origin = self._origin_value
         if value:
             if isinstance(value, (str, bytes, bytearray)):
+                from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
+                from ddtrace.appsec.iast._taint_tracking import taint_pyobject
+
                 if not is_pyobject_tainted(value) or self._override_pyobject_tainted:
                     try:
                         # TODO: migrate this part to shift ranges instead of creating a new one
@@ -353,6 +357,28 @@ class LazyTaintDict:
         for _, v in self.items():
             yield v
 
+    # Django Query Dict support
+    def getlist(self, key, default=None):
+        return self._taint(self._obj.getlist(key, default=default), key)
+
+    def setlist(self, key, list_):
+        self._obj.setlist(key, list_)
+
+    def appendlist(self, key, item):
+        self._obj.appendlist(key, item)
+
+    def setlistdefault(self, key, default_list=None):
+        return self._taint(self._obj.setlistdefault(key, default_list=default_list), key)
+
+    def lists(self):
+        return self._taint(self._obj.lists(), self._origin_value)
+
+    def dict(self):
+        return self
+
+    def urlencode(self, safe=None):
+        return self._taint(self._obj.urlencode(safe=safe), self._origin_value)
+
 
 def supported_dbapi_integration(integration_name):
     return integration_name in DBAPI_INTEGRATIONS or integration_name.startswith(DBAPI_PREFIXES)
@@ -360,6 +386,8 @@ def supported_dbapi_integration(integration_name):
 
 def check_tainted_args(args, kwargs, tracer, integration_name, method):
     if supported_dbapi_integration(integration_name) and method.__name__ == "execute":
+        from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
+
         return len(args) and args[0] and is_pyobject_tainted(args[0])
 
     return False

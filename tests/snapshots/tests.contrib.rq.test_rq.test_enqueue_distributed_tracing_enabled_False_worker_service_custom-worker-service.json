@@ -11,11 +11,11 @@
     "meta": {
       "_dd.p.dm": "-0",
       "component": "rq",
-      "job.id": "2797c14a-7b40-4d56-8de8-45c0f5f16729",
+      "job.id": "503d25d4-c7d5-451c-8b83-8f7e467b4dba",
       "job.origin": "q",
       "job.status": "finished",
       "language": "python",
-      "runtime-id": "d475baa7b1254d59a6514370b88b3fd4",
+      "runtime-id": "01f946fada474bc88f2b6b2a8733bb21",
       "span.kind": "consumer"
     },
     "metrics": {
@@ -23,10 +23,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 50211
+      "process_id": 2623
     },
-    "duration": 15707000,
-    "start": 1672864523705609000
+    "duration": 10435292,
+    "start": 1692649892989179344
   },
      {
        "name": "rq.job.perform",
@@ -38,11 +38,12 @@
        "type": "",
        "error": 0,
        "meta": {
+         "_dd.p.dm": "-0",
          "component": "rq",
-         "job.id": "2797c14a-7b40-4d56-8de8-45c0f5f16729"
+         "job.id": "503d25d4-c7d5-451c-8b83-8f7e467b4dba"
        },
-       "duration": 2780000,
-       "start": 1672864523711977000
+       "duration": 7019167,
+       "start": 1692649892990994469
      }],
 [
   {
@@ -55,13 +56,14 @@
     "type": "worker",
     "error": 0,
     "meta": {
+      "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "component": "rq",
       "job.func_name": "tests.contrib.rq.jobs.job_add1",
-      "job.id": "2797c14a-7b40-4d56-8de8-45c0f5f16729",
+      "job.id": "503d25d4-c7d5-451c-8b83-8f7e467b4dba",
       "language": "python",
       "queue.name": "q",
-      "runtime-id": "70c5dc2645ba42f4a47c8b89c961f267",
+      "runtime-id": "696c3bcd1bb346e982f3c710445cbea1",
       "span.kind": "producer"
     },
     "metrics": {
@@ -69,8 +71,8 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 50181
+      "process_id": 2601
     },
-    "duration": 3373000,
-    "start": 1672864523141654000
+    "duration": 2229458,
+    "start": 1692649892260471094
   }]]

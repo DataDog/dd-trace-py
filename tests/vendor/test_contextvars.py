@@ -74,7 +74,7 @@ class ContextTest(unittest.TestCase):
         assert "ContextVar key was expected" in str(e.value)
 
         with pytest.raises(TypeError):
-            1 in ctx
+            assert 1 in ctx
         assert "ContextVar key was expected" in str(e.value)
 
         with pytest.raises(TypeError) as e:

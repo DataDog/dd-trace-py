@@ -1,11 +1,4 @@
 #include "TaintedOps.h"
-#include <iostream> // JJJ remove
-
-PyObject* bytes_join = NULL;
-PyObject* bytearray_join = NULL;
-PyObject* empty_bytes = NULL;
-PyObject* empty_bytearray = NULL;
-PyObject* empty_unicode = NULL;
 
 typedef struct _PyASCIIObject_State_Hidden
 {
@@ -13,21 +6,11 @@ typedef struct _PyASCIIObject_State_Hidden
     unsigned int hidden : 24;
 } PyASCIIObject_State_Hidden;
 
-// TODO: detect when this has not been called but one of the functions below has been
-PyObject*
-setup(PyObject* Py_UNUSED(module), PyObject* args)
-{
-    PyArg_ParseTuple(args, "OO", &bytes_join, &bytearray_join);
-    empty_bytes = PyBytes_FromString("");
-    empty_bytearray = PyByteArray_FromObject(empty_bytes);
-    empty_unicode = PyUnicode_New(0, 127);
-    Py_RETURN_NONE;
-}
-
 PyObject*
 new_pyobject_id(PyObject* tainted_object, Py_ssize_t object_length)
 {
     if (PyUnicode_Check(tainted_object)) {
+        PyObject* empty_unicode = PyUnicode_New(0, 127);
         //        if (PyUnicode_CHECK_INTERNED(tainted_object) == 0) { //
         //        SSTATE_NOT_INTERNED
         //            Py_INCREF(tainted_object);
@@ -36,11 +19,16 @@ new_pyobject_id(PyObject* tainted_object, Py_ssize_t object_length)
         return PyUnicode_Join(empty_unicode, Py_BuildValue("(OO)", tainted_object, empty_unicode));
     }
     if (PyBytes_Check(tainted_object)) {
+        PyObject* empty_bytes = PyBytes_FromString("");
+        auto bytes_join_ptr = py::reinterpret_borrow<py::bytes>(empty_bytes).attr("join");
         return PyObject_CallFunctionObjArgs(
-          bytes_join, empty_bytes, Py_BuildValue("(OO)", tainted_object, empty_bytes), NULL);
+          bytes_join_ptr.ptr(), Py_BuildValue("(OO)", tainted_object, empty_bytes), NULL);
     } else if (PyByteArray_Check(tainted_object)) {
+        PyObject* empty_bytes = PyBytes_FromString("");
+        PyObject* empty_bytearray = PyByteArray_FromObject(empty_bytes);
+        auto bytearray_join_ptr = py::reinterpret_borrow<py::bytes>(empty_bytearray).attr("join");
         return PyObject_CallFunctionObjArgs(
-          bytearray_join, empty_bytearray, Py_BuildValue("(OO)", tainted_object, empty_bytearray), NULL);
+          bytearray_join_ptr.ptr(), Py_BuildValue("(OO)", tainted_object, empty_bytearray), NULL);
     }
     return tainted_object;
 }

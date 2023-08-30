@@ -23,12 +23,30 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 
-def _track_user_login_common(
-    tracer, success, metadata=None, login_events_mode=LOGIN_EVENTS_MODE.SDK, login=None, name=None, email=None
-):
-    # type: (Tracer, bool, Optional[dict], str, Optional[str], Optional[str], Optional[str]) -> Optional[Span]
+def _asm_manual_keep(span):
+    # type: (Span) -> None
+    from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
+    from ddtrace.internal.sampling import SamplingMechanism
 
-    span = tracer.current_root_span()
+    span.set_tag(constants.MANUAL_KEEP_KEY)
+    # set decision maker to ASM = -5
+    span.set_tag_str(SAMPLING_DECISION_TRACE_TAG_KEY, "-%d" % SamplingMechanism.APPSEC)
+
+
+def _track_user_login_common(
+    tracer,  # type: Tracer
+    success,  # type: bool
+    metadata=None,  # type: Optional[dict]
+    login_events_mode=LOGIN_EVENTS_MODE.SDK,  # type: str
+    login=None,  # type: Optional[str]
+    name=None,  # type: Optional[str]
+    email=None,  # type: Optional[str]
+    span=None,  # type: Optional[Span]
+):
+    # type: (...) -> Optional[Span]
+
+    if span is None:
+        span = tracer.current_root_span()
     if span:
         success_str = "success" if success else "failure"
         tag_prefix = "%s.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX, success_str)
@@ -53,7 +71,7 @@ def _track_user_login_common(
         if name:
             span.set_tag_str("%s.username" % tag_prefix, name)
 
-        span.set_tag_str(constants.MANUAL_KEEP_KEY, "true")
+        _asm_manual_keep(span)
         return span
     else:
         log.warning(
@@ -65,19 +83,20 @@ def _track_user_login_common(
 
 
 def track_user_login_success_event(
-    tracer,
-    user_id,
-    metadata=None,
-    login=None,
-    name=None,
-    email=None,
-    scope=None,
-    role=None,
-    session_id=None,
-    propagate=False,
-    login_events_mode=LOGIN_EVENTS_MODE.SDK,
+    tracer,  # type: Tracer
+    user_id,  # type: str
+    metadata=None,  # type: Optional[dict]
+    login=None,  # type: Optional[str]
+    name=None,  # type: Optional[str]
+    email=None,  # type: Optional[str]
+    scope=None,  # type: Optional[str]
+    role=None,  # type: Optional[str]
+    session_id=None,  # type: Optional[str]
+    propagate=False,  # type: bool
+    login_events_mode=LOGIN_EVENTS_MODE.SDK,  # type: str
+    span=None,  # type: Optional[Span]
 ):
-    # type: (Tracer, str, Optional[dict], Optional[str], Optional[str], Optional[str], Optional[str], Optional[str], Optional[str], bool, str) -> None # noqa: E501
+    # type: (...) -> None # noqa: E501
     """
     Add a new login success tracking event. The parameters after metadata (name, email,
     scope, role, session_id, propagate) will be passed to the `set_user` function that will be called
@@ -90,12 +109,12 @@ def track_user_login_success_event(
     :param metadata: a dictionary with additional metadata information to be stored with the event
     """
 
-    span = _track_user_login_common(tracer, True, metadata, login_events_mode, login, name, email)
+    span = _track_user_login_common(tracer, True, metadata, login_events_mode, login, name, email, span)
     if not span:
         return
 
     # usr.id will be set by set_user
-    set_user(tracer, user_id, name, email, scope, role, session_id, propagate)
+    set_user(tracer, user_id, name, email, scope, role, session_id, propagate, span)
 
 
 def track_user_login_failure_event(tracer, user_id, exists, metadata=None, login_events_mode=LOGIN_EVENTS_MODE.SDK):
@@ -124,7 +143,7 @@ def track_user_signup_event(tracer, user_id, success, login_events_mode=LOGIN_EV
         success_str = "true" if success else "false"
         span.set_tag_str(APPSEC.USER_SIGNUP_EVENT, success_str)
         span.set_tag_str(user.ID, user_id)
-        span.set_tag_str(constants.MANUAL_KEEP_KEY, "true")
+        _asm_manual_keep(span)
 
         # This is used to mark if the call was done from the SDK of the automatic login events
         if login_events_mode == LOGIN_EVENTS_MODE.SDK:
@@ -173,7 +192,7 @@ def track_custom_event(tracer, event_name, metadata):
 
     for k, v in six.iteritems(metadata):
         span.set_tag_str("%s.%s.%s" % (APPSEC.CUSTOM_EVENT_PREFIX, event_name, k), str(v))
-        span.set_tag_str(constants.MANUAL_KEEP_KEY, "true")
+        _asm_manual_keep(span)
 
 
 def should_block_user(tracer, userid):  # type: (Tracer, str) -> bool

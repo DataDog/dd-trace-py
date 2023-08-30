@@ -10,7 +10,7 @@ def get_line(label, filename=None):
         for nb_line, line in enumerate(file_in):
             if re.search("label " + re.escape(label), line):
                 return nb_line + 2
-    assert False, "label %s not found" % label
+    raise AssertionError("label %s not found" % label)
 
 
 def get_line_and_hash(label, vuln_type, filename=None):

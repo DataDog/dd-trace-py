@@ -42,6 +42,7 @@ if django.VERSION < (1, 10, 0):
 else:
     Resolver404 = django.urls.exceptions.Resolver404
 
+
 DJANGO22 = django.VERSION >= (2, 2, 0)
 
 REQUEST_DEFAULT_RESOURCE = "__django_request"
@@ -329,6 +330,9 @@ def _after_request_tags(pin, span, request, response):
             except Exception:
                 log.debug("Error retrieving authentication information for user", exc_info=True)
 
+        # DEV: Resolve the view and resource name at the end of the request in case
+        #      urlconf changes at any point during the request
+        _set_resolver_tags(pin, span, request)
         if response:
             status = response.status_code
             span.set_tag_str("django.response.class", func_name(response))
@@ -361,10 +365,6 @@ def _after_request_tags(pin, span, request, response):
 
             url = get_request_uri(request)
 
-            # DEV: Resolve the view and resource name at the end of the request in case
-            #      urlconf changes at any point during the request
-            _set_resolver_tags(pin, span, request)
-
             request_headers = None
             if config._appsec_enabled:
                 from ddtrace.appsec import _asm_request_context
@@ -376,6 +376,12 @@ def _after_request_tags(pin, span, request, response):
                 request_headers = _get_request_headers(request)
 
             response_headers = dict(response.items()) if response else {}
+
+            response_cookies = {}
+            if response.cookies:
+                for k, v in six.iteritems(response.cookies):
+                    response_cookies[k] = v.OutputString()
+
             raw_uri = url
             if raw_uri and request.META.get("QUERY_STRING"):
                 raw_uri += "?" + request.META["QUERY_STRING"]
@@ -396,6 +402,7 @@ def _after_request_tags(pin, span, request, response):
                 request_body=_extract_body(request),
                 peer_ip=core.get_item("http.request.remote_ip", span=span),
                 headers_are_case_sensitive=core.get_item("http.request.headers_case_sensitive", span=span),
+                response_cookies=response_cookies,
             )
             if config._appsec_enabled and config._api_security_enabled:
                 _asm_request_context.set_body_response(response.content)

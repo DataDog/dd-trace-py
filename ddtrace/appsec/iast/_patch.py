@@ -3,7 +3,7 @@ import gc
 import sys
 from typing import TYPE_CHECKING
 
-from ddtrace.appsec.iast._util import _is_iast_enabled
+from ddtrace.appsec.iast._utils import _is_iast_enabled
 from ddtrace.internal.logger import get_logger
 from ddtrace.vendor.wrapt import FunctionWrapper
 from ddtrace.vendor.wrapt import resolve_path
@@ -74,7 +74,9 @@ def apply_patch(parent, attribute, replacement):
         patch_builtins(parent, attribute, replacement)
 
 
-def wrap_object(module, name, factory, args=(), kwargs={}):
+def wrap_object(module, name, factory, args=(), kwargs=None):
+    if kwargs is None:
+        kwargs = {}
     (parent, attribute, original) = resolve_path(module, name)
     wrapper = factory(original, *args, **kwargs)
     apply_patch(parent, attribute, wrapper)

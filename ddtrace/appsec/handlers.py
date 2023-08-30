@@ -5,12 +5,12 @@ from six import BytesIO
 import xmltodict
 
 from ddtrace import config
-from ddtrace.appsec.iast._metrics import _set_metric_iast_instrumented_source
 from ddtrace.appsec.iast._patch import if_iast_taint_returned_object_for
 from ddtrace.appsec.iast._patch import if_iast_taint_yield_tuple_for
-from ddtrace.appsec.iast._util import _is_iast_enabled
+from ddtrace.appsec.iast._utils import _is_iast_enabled
 from ddtrace.contrib import trace_utils
 from ddtrace.internal import core
+from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.logger import get_logger
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 from ddtrace.vendor.wrapt.importer import when_imported
@@ -26,22 +26,9 @@ log = get_logger(__name__)
 _BODY_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
 
 
-def _on_set_request_tags(request):
-    if _is_iast_enabled():
-        from ddtrace.appsec.iast._taint_tracking import OriginType
-        from ddtrace.appsec.iast._taint_utils import LazyTaintDict
-
-        _set_metric_iast_instrumented_source(OriginType.COOKIE_NAME)
-        _set_metric_iast_instrumented_source(OriginType.COOKIE)
-
-        return LazyTaintDict(
-            request.cookies,
-            origins=(OriginType.COOKIE_NAME, OriginType.COOKIE),
-            override_pyobject_tainted=True,
-        )
-
-
-def _on_request_span_modifier(request, environ, _HAS_JSON_MIXIN, exception_type):
+def _on_request_span_modifier(
+    ctx, flask_config, request, environ, _HAS_JSON_MIXIN, flask_version, flask_version_str, exception_type
+):
     req_body = None
     if config._appsec_enabled and request.method in _BODY_METHODS:
         content_type = request.content_type
@@ -96,6 +83,7 @@ def _on_request_init(wrapped, instance, args, kwargs):
     wrapped(*args, **kwargs)
     if _is_iast_enabled():
         try:
+            from ddtrace.appsec.iast._metrics import _set_metric_iast_instrumented_source
             from ddtrace.appsec.iast._taint_tracking import OriginType
             from ddtrace.appsec.iast._taint_tracking import taint_pyobject
 
@@ -121,6 +109,7 @@ def _on_request_init(wrapped, instance, args, kwargs):
 def _on_flask_patch(flask_version):
     if _is_iast_enabled():
         try:
+            from ddtrace.appsec.iast._metrics import _set_metric_iast_instrumented_source
             from ddtrace.appsec.iast._taint_tracking import OriginType
 
             _w(
@@ -164,37 +153,52 @@ def _on_flask_patch(flask_version):
             log.debug("Unexpected exception while patch IAST functions", exc_info=True)
 
 
+def _on_flask_blocked_request():
+    core.set_item(HTTP_REQUEST_BLOCKED, True)
+
+
 def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type):
     # If IAST is enabled and we're wrapping a Django view call, taint the kwargs (view's
     # path parameters)
     if _is_iast_enabled() and fn_args and isinstance(fn_args[0], first_arg_expected_type):
         from ddtrace.appsec.iast._taint_tracking import OriginType  # noqa: F401
+        from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
         from ddtrace.appsec.iast._taint_tracking import taint_pyobject
         from ddtrace.appsec.iast._taint_utils import LazyTaintDict
 
-        if not isinstance(fn_args[0].COOKIES, LazyTaintDict):
-            fn_args[0].COOKIES = LazyTaintDict(fn_args[0].COOKIES, origins=(OriginType.COOKIE_NAME, OriginType.COOKIE))
-        if not isinstance(fn_args[0].GET, LazyTaintDict):
-            fn_args[0].GET = LazyTaintDict(fn_args[0].GET, origins=(OriginType.PARAMETER_NAME, OriginType.PARAMETER))
-        if not isinstance(fn_args[0].POST, LazyTaintDict):
-            fn_args[0].POST = LazyTaintDict(fn_args[0].POST, origins=(OriginType.BODY, OriginType.BODY))
-        if not isinstance(fn_args[0].META, LazyTaintDict):
-            fn_args[0].META = LazyTaintDict(fn_args[0].META, origins=(OriginType.HEADER_NAME, OriginType.HEADER))
-        if not isinstance(fn_args[0].headers, LazyTaintDict):
-            fn_args[0].headers = LazyTaintDict(fn_args[0].headers, origins=(OriginType.HEADER_NAME, OriginType.HEADER))
-        fn_args[0].path = taint_pyobject(
-            fn_args[0].path, source_name="path", source_value=fn_args[0].path, source_origin=OriginType.PATH
+        http_req = fn_args[0]
+
+        if not isinstance(http_req.COOKIES, LazyTaintDict):
+            http_req.COOKIES = LazyTaintDict(http_req.COOKIES, origins=(OriginType.COOKIE_NAME, OriginType.COOKIE))
+        if not isinstance(http_req.GET, LazyTaintDict):
+            http_req.GET = LazyTaintDict(http_req.GET, origins=(OriginType.PARAMETER_NAME, OriginType.PARAMETER))
+        if not isinstance(http_req.POST, LazyTaintDict):
+            http_req.POST = LazyTaintDict(http_req.POST, origins=(OriginType.BODY, OriginType.BODY))
+        if not is_pyobject_tainted(getattr(http_req, "_body", None)):
+            http_req._body = taint_pyobject(
+                http_req.body,
+                source_name="body",
+                source_value=http_req.body,
+                source_origin=OriginType.BODY,
+            )
+
+        if not isinstance(http_req.META, LazyTaintDict):
+            http_req.META = LazyTaintDict(http_req.META, origins=(OriginType.HEADER_NAME, OriginType.HEADER))
+        if not isinstance(http_req.headers, LazyTaintDict):
+            http_req.headers = LazyTaintDict(http_req.headers, origins=(OriginType.HEADER_NAME, OriginType.HEADER))
+        http_req.path = taint_pyobject(
+            http_req.path, source_name="path", source_value=http_req.path, source_origin=OriginType.PATH
         )
-        fn_args[0].path_info = taint_pyobject(
-            fn_args[0].path_info,
+        http_req.path_info = taint_pyobject(
+            http_req.path_info,
             source_name="path",
-            source_value=fn_args[0].path,
+            source_value=http_req.path,
             source_origin=OriginType.PATH,
         )
-        fn_args[0].environ["PATH_INFO"] = taint_pyobject(
-            fn_args[0].environ["PATH_INFO"],
+        http_req.environ["PATH_INFO"] = taint_pyobject(
+            http_req.environ["PATH_INFO"],
             source_name="path",
-            source_value=fn_args[0].path,
+            source_value=http_req.path,
             source_origin=OriginType.PATH,
         )
         if fn_kwargs:
@@ -212,6 +216,7 @@ def _on_wsgi_environ(wrapped, _instance, args, kwargs):
         if not args:
             return wrapped(*args, **kwargs)
 
+        from ddtrace.appsec.iast._metrics import _set_metric_iast_instrumented_source
         from ddtrace.appsec.iast._taint_tracking import OriginType  # noqa: F401
         from ddtrace.appsec.iast._taint_utils import LazyTaintDict
 
@@ -249,8 +254,9 @@ def _on_django_patch():
 
 
 def listen():
-    core.on("flask.set_request_tags", _on_set_request_tags)
-    core.on("flask.request_span_modifier", _on_request_span_modifier)
+    core.on("flask.request_call_modifier", _on_request_span_modifier)
+    core.on("flask.request_init", _on_request_init)
+    core.on("flask.blocked_request_callable", _on_flask_blocked_request)
 
 
 core.on("django.func.wrapped", _on_django_func_wrapped)
