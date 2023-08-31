@@ -61,6 +61,7 @@ def test_filters(writer, tracer):
     if writer == "sync":
         writer = AgentWriter(
             tracer.agent_trace_url,
+            priority_sampling=config._priority_sampling,
             sync_mode=True,
         )
         # Need to copy the headers which contain the test token to associate
