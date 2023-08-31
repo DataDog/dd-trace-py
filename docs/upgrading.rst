@@ -1,17 +1,12 @@
 Upgrading
 ---------
 
-.. _upgrade-0.x:
-
-Upgrade 0.x
-^^^^^^^^^^^
-
 .. _`Upgrading and deprecation warnings`:
 
 Deprecation warnings
 ********************
 
-As of v0.60.0, the library provides `Python
+As of v0.60.0, the ddtrace library provides `Python
 warnings <https://docs.python.org/3/library/warnings.html>`_ for deprecations
 with an additional warning category ``ddtrace.DDTraceDeprecationWarning``.
 
@@ -34,6 +29,12 @@ Before v0.60.0, you must enable all deprecation warnings and filter the applicat
     $ PYTHONWARNINGS=all python app.py
 
 
+
+.. _upgrade-0.x:
+
+Upgrade to 1.x
+^^^^^^^^^^^^^^
+
 Environment variables
 *********************
 
@@ -46,3 +47,25 @@ Use the following patterns to identify the deprecated environment variables in a
       -e "DD_SERVICE_NAME" \
       -e "DD_TRACER_PARTIAL_FLUSH_ENABLED" \
       -e "DD_TRACER_PARTIAL_FLUSH_MIN_SPANS"
+
+
+.. _upgrade-1.x:
+
+Upgrade to 2.x
+^^^^^^^^^^^^^^
+
+Environment variables
+*********************
+
+Use the following patterns to identify the deprecated environment variables in a code base::
+
+    git grep -e "DD_GEVENT_PATCH_ALL" \
+      -e "DD_AWS_TAG_ALL_PARAMS" \
+      -e "DD_REMOTECONFIG_POLL_SECONDS" \
+      -e "DD_CALL_BASIC_CONFIG" \
+
+
+Legacy tracing interfaces
+*************************
+
+Reference the :ref:`2.x release note <removed-2.0-tracing-interfaces>` to identify and remove the deprecated legacy tracing interfaces in a code base.

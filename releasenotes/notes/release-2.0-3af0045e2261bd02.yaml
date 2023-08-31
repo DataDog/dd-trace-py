@@ -70,6 +70,8 @@ prelude: >
       - :ref:`📝<remove-basic-config>`
 
 
+  .. _removed-2.0-tracing-interfaces:
+
 
   Removed legacy tracing interfaces
 
