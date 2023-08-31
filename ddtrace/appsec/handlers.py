@@ -10,6 +10,7 @@ from ddtrace.appsec.iast._patch import if_iast_taint_yield_tuple_for
 from ddtrace.appsec.iast._utils import _is_iast_enabled
 from ddtrace.contrib import trace_utils
 from ddtrace.internal import core
+from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.logger import get_logger
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 from ddtrace.vendor.wrapt.importer import when_imported
@@ -152,6 +153,10 @@ def _on_flask_patch(flask_version):
             log.debug("Unexpected exception while patch IAST functions", exc_info=True)
 
 
+def _on_flask_blocked_request():
+    core.set_item(HTTP_REQUEST_BLOCKED, True)
+
+
 def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type):
     # If IAST is enabled and we're wrapping a Django view call, taint the kwargs (view's
     # path parameters)
@@ -251,6 +256,7 @@ def _on_django_patch():
 def listen():
     core.on("flask.request_call_modifier", _on_request_span_modifier)
     core.on("flask.request_init", _on_request_init)
+    core.on("flask.blocked_request_callable", _on_flask_blocked_request)
 
 
 core.on("django.func.wrapped", _on_django_func_wrapped)

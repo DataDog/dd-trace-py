@@ -30,6 +30,11 @@ config._add(
 )
 
 
+def get_version():
+    # type: () -> str
+    return getattr(starlette, "__version__", "")
+
+
 def traced_init(wrapped, instance, args, kwargs):
     mw = kwargs.pop("middleware", [])
     mw.insert(0, Middleware(TraceMiddleware, integration_config=config.starlette))

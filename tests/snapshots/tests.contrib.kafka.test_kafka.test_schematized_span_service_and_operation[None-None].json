@@ -9,6 +9,7 @@
     "type": "worker",
     "error": 0,
     "meta": {
+      "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "component": "kafka",
       "kafka.group_id": "test_group",
@@ -18,7 +19,7 @@
       "kafka.topic": "test_schematized_span_service_and_operation_None-None",
       "language": "python",
       "messaging.system": "kafka",
-      "runtime-id": "314057b20ee846c0a16aeb74336a2528",
+      "runtime-id": "a5412e673eac4f06a4742e0a89ffca35",
       "span.kind": "consumer"
     },
     "metrics": {
@@ -27,12 +28,12 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "kafka.message_offset": 1,
+      "kafka.message_offset": -1,
       "kafka.partition": 0,
-      "process_id": 6139
+      "process_id": 87154
     },
-    "duration": 15356375,
-    "start": 1685640762778065631
+    "duration": 96712041,
+    "start": 1692823711109940340
   }],
 [
   {
@@ -45,6 +46,7 @@
     "type": "worker",
     "error": 0,
     "meta": {
+      "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "component": "kafka",
       "kafka.message_key": "test_key",
@@ -53,7 +55,7 @@
       "language": "python",
       "messaging.kafka.bootstrap.servers": "localhost:29092",
       "messaging.system": "kafka",
-      "runtime-id": "314057b20ee846c0a16aeb74336a2528",
+      "runtime-id": "a5412e673eac4f06a4742e0a89ffca35",
       "span.kind": "producer"
     },
     "metrics": {
@@ -63,8 +65,8 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "kafka.partition": -1,
-      "process_id": 6139
+      "process_id": 87154
     },
-    "duration": 232583,
-    "start": 1685640758740211129
+    "duration": 86958,
+    "start": 1692823708092119130
   }]]

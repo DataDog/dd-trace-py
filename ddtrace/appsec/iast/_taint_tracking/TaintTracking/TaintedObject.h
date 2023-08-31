@@ -23,7 +23,7 @@ class TaintedObject
     {
         // Move back the ranges to the ranges stack
         move_ranges_to_stack();
-        ranges_ = move(ranges);
+        ranges_ = std::move(ranges);
     }
 
     inline void copy_values(const TaintRangeRefs& ranges)

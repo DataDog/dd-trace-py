@@ -2,6 +2,7 @@ import base64
 import datetime
 import io
 import json
+import sys
 import unittest
 import zipfile
 
@@ -966,10 +967,29 @@ class BotocoreTest(TracerTestCase):
         assert spans
         assert len(spans) == 1
 
-    @mock_sns
-    @mock_sqs
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     def test_data_streams_sns_to_sqs(self):
+        self._test_data_streams_sns_to_sqs(False)
+
+    @mock.patch.object(sys.modules["ddtrace.contrib.botocore.patch"], "_encode_data")
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
+    def test_data_streams_sns_to_sqs_raw_delivery(self, mock_encode):
+        """
+        Moto doesn't currently handle raw delivery message handling quite correctly.
+        In the real world, AWS will encode data for us. Moto does not.
+
+        So, we patch our code here to encode the data
+        """
+
+        def _moto_compatible_encode(trace_data):
+            return base64.b64encode(json.dumps(trace_data).encode("utf-8"))
+
+        mock_encode.side_effect = _moto_compatible_encode
+        self._test_data_streams_sns_to_sqs(True)
+
+    @mock_sns
+    @mock_sqs
+    def _test_data_streams_sns_to_sqs(self, use_raw_delivery):
         # DEV: We want to mock time to ensure we only create a single bucket
         with mock.patch("time.time") as mt:
             mt.return_value = 1642544540
@@ -982,7 +1002,14 @@ class BotocoreTest(TracerTestCase):
             sqs_url = self.sqs_test_queue["QueueUrl"]
             url_parts = sqs_url.split("/")
             sqs_arn = "arn:aws:sqs:{}:{}:{}".format("us-east-1", url_parts[-2], url_parts[-1])
-            sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_arn)
+            subscription = sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_arn)
+
+            if use_raw_delivery:
+                sns.set_subscription_attributes(
+                    SubscriptionArn=subscription["SubscriptionArn"],
+                    AttributeName="RawMessageDelivery",
+                    AttributeValue="true",
+                )
 
             Pin.get_from(sns).clone(tracer=self.tracer).onto(sns)
             Pin.get_from(self.sqs_client).clone(tracer=self.tracer).onto(self.sqs_client)

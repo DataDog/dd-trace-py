@@ -243,8 +243,8 @@ class TelemetryWriter(PeriodicService):
             }
             self._events_queue.append(event)
 
-    def add_integration(self, integration_name, patched, auto_patched=None, error_msg=None):
-        # type: (str, bool, Optional[bool], Optional[str]) -> None
+    def add_integration(self, integration_name, patched, auto_patched=None, error_msg=None, version=""):
+        # type: (str, bool, Optional[bool], Optional[str], Optional[str]) -> None
         """
         Creates and queues the names and settings of a patched module
 
@@ -256,7 +256,7 @@ class TelemetryWriter(PeriodicService):
             if integration_name not in self._integrations_queue:
                 self._integrations_queue[integration_name] = {"name": integration_name}
 
-            self._integrations_queue[integration_name]["version"] = ""
+            self._integrations_queue[integration_name]["version"] = version
             self._integrations_queue[integration_name]["enabled"] = patched
 
             if auto_patched is not None:

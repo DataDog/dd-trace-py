@@ -107,7 +107,7 @@ def get_mock_encoded_msg(msg):
 def test_remote_config_register_auto_enable():
     # ASM_FEATURES product is enabled by default, but LIVE_DEBUGGER isn't
     class MockPubsub:
-        def stop(self):
+        def stop(self, *args, **kwargs):
             pass
 
     mock_pubsub = MockPubsub()

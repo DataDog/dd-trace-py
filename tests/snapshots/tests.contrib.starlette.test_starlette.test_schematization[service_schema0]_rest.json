@@ -9,6 +9,7 @@
     "type": "web",
     "error": 0,
     "meta": {
+      "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "component": "starlette",
       "http.method": "GET",
@@ -18,7 +19,7 @@
       "http.useragent": "testclient",
       "http.version": "1.1",
       "language": "python",
-      "runtime-id": "cfb315cedc6c47c98f1118fe6dfc3d3f",
+      "runtime-id": "71f82c9c091544a6a66d2ba5863d3b6a",
       "span.kind": "server"
     },
     "metrics": {
@@ -26,10 +27,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 26634
+      "process_id": 12580
     },
-    "duration": 289191,
-    "start": 1691164832153716031
+    "duration": 432458,
+    "start": 1692650843096905006
   },
      {
        "name": "starlette.request",
@@ -41,6 +42,7 @@
        "type": "web",
        "error": 0,
        "meta": {
+         "_dd.base_service": "",
          "_dd.p.dm": "-0",
          "component": "starlette",
          "http.method": "GET",
@@ -50,6 +52,6 @@
          "http.version": "1.1",
          "span.kind": "server"
        },
-       "duration": 129739,
-       "start": 1691164832153894521
+       "duration": 256959,
+       "start": 1692650843097109297
      }]]
