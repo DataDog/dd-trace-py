@@ -5,8 +5,6 @@ import pytest
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec.iast import oce
-from ddtrace.appsec.iast._taint_tracking import contexts_reset
-from ddtrace.appsec.iast._taint_tracking import create_context
 from ddtrace.appsec.iast._utils import _is_python_version_supported as python_supported_by_iast
 from ddtrace.appsec.iast.constants import VULN_SQL_INJECTION
 from ddtrace.contrib.sqlite3.patch import patch
@@ -23,6 +21,9 @@ IAST_ENV_SAMPLING_0 = {"DD_IAST_REQUEST_SAMPLING": "0"}
 
 @pytest.fixture(autouse=True)
 def reset_context():
+    from ddtrace.appsec.iast._taint_tracking import contexts_reset
+    from ddtrace.appsec.iast._taint_tracking import create_context
+
     yield
     contexts_reset()
     _ = create_context()
