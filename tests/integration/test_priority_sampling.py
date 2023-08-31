@@ -38,7 +38,7 @@ def _prime_tracer_with_priority_sample_rate_from_agent(t, service, env):
     t.flush()
 
     sampler_key = "service:{},env:{}".format(service, env)
-    while sampler_key not in t._writer._priority_sampler._by_service_samplers:
+    while sampler_key not in t._writer._sampler._by_service_samplers:
         time.sleep(1)
         s = t.trace("operation", service=service)
         s.finish()
@@ -64,9 +64,9 @@ def test_priority_sampling_rate_honored(encoding, monkeypatch):
 
         _prime_tracer_with_priority_sample_rate_from_agent(t, service, env)
         sampler_key = "service:{},env:{}".format(service, env)
-        assert sampler_key in t._writer._priority_sampler._by_service_samplers
+        assert sampler_key in t._writer._sampler._by_service_samplers
 
-        rate_from_agent = t._writer._priority_sampler._by_service_samplers[sampler_key].sample_rate
+        rate_from_agent = t._writer._sampler._by_service_samplers[sampler_key].sample_rate
         assert 0 < rate_from_agent < 1
 
         _turn_tracer_into_dummy(t)
@@ -97,9 +97,9 @@ def test_priority_sampling_response(encoding, monkeypatch):
         service = "my-svc-{}".format(_id)
         sampler_key = "service:{},env:{}".format(service, env)
         t = Tracer()
-        assert sampler_key not in t._writer._priority_sampler._by_service_samplers
+        assert sampler_key not in t._writer._sampler._by_service_samplers
         _prime_tracer_with_priority_sample_rate_from_agent(t, service, env)
         assert (
-            sampler_key in t._writer._priority_sampler._by_service_samplers
+            sampler_key in t._writer._sampler._by_service_samplers
         ), "after fetching priority sample rates from the agent, the tracer should hold those rates"
         t.shutdown()
