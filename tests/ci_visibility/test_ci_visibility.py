@@ -966,15 +966,13 @@ def test_encoder_pack_payload():
     )
     if PY2:
         assert (
-            packed_payload
-            == "\x81\xaastring_key\x94\x01\x81\xabunicode_key\xacstring_value"
-               "\xadunicode_value\x81\xaastring_key\xadunicode_value"
+            packed_payload == "\x81\xaastring_key\x94\x01\x81\xabunicode_key\xacstring_value"
+            "\xadunicode_value\x81\xaastring_key\xadunicode_value"
         )
     else:
         assert (
-            packed_payload
-            == b"\x81\xaastring_key\x94\x01\x81\xabunicode_key\xacstring_value"
-               b"\xadunicode_value\x81\xaastring_key\xadunicode_value"
+            packed_payload == b"\x81\xaastring_key\x94\x01\x81\xabunicode_key\xacstring_value"
+            b"\xadunicode_value\x81\xaastring_key\xadunicode_value"
         )
 
 
