@@ -2245,18 +2245,8 @@ venv = Venv(
                             },
                             pkgs={
                                 "gunicorn[gevent]": latest,
+                                "gevent": latest,
                             },
-                            venvs=[
-                                Venv(
-                                    pkgs={
-                                        "gevent": "==1.4.0",
-                                        "greenlet": "==0.4.14",
-                                    }
-                                ),
-                                Venv(
-                                    pkgs={"gevent": latest},
-                                ),
-                            ],
                         ),
                     ],
                 ),
@@ -2277,18 +2267,8 @@ venv = Venv(
                             },
                             pkgs={
                                 "gunicorn[gevent]": latest,
+                                "gevent": latest,
                             },
-                            venvs=[
-                                Venv(
-                                    pkgs={
-                                        "gevent": "==20.6.1",
-                                        "greenlet": "==0.4.16",
-                                    }
-                                ),
-                                Venv(
-                                    pkgs={"gevent": latest},
-                                ),
-                            ],
                         ),
                     ],
                 ),
