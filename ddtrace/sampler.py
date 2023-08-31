@@ -20,10 +20,10 @@ from .internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
 from .internal.constants import _PRIORITY_CATEGORY
 from .internal.logger import get_logger
 from .internal.rate_limiter import RateLimiter
-from .internal.sampling import SamplingRule
 from .internal.sampling import _apply_rate_limit
 from .internal.sampling import _get_highest_precedence_rule_matching
 from .internal.sampling import _set_sampling_tags
+from .sampling_rule import SamplingRule
 from .settings import _config as ddconfig
 
 
@@ -155,7 +155,7 @@ class RateByServiceSampler(BasePrioritySampler):
             span,
             sampled,
             sampler.sample_rate,
-            priority_category=self._choose_priority_category(sampler),
+            self._choose_priority_category(sampler is self._default_sampler),
         )
         return not allow_false or sampled
 
@@ -166,12 +166,12 @@ class RateByServiceSampler(BasePrioritySampler):
         return _PRIORITY_CATEGORY.AUTO
 
     def _make_sampling_decision(self, span):
-        # type: (Span) -> Tuple[bool, bool]
+        # type: (Span) -> Tuple[bool, BaseSampler]
         env = span.get_tag(ENV_KEY)
         key = self._key(span.service, env)
         sampler = self._by_service_samplers.get(key) or self._default_sampler
         sampled = sampler.sample(span)
-        return sampled, sampler is self._default_sampler
+        return sampled, sampler
 
     def update_rate_by_service_sample_rates(self, rate_by_service):
         # type: (Dict[str, float]) -> None
@@ -302,17 +302,16 @@ class DatadogSampler(RateByServiceSampler):
         """
         matched_rule = _get_highest_precedence_rule_matching(span, self.rules)
 
-        default_was_used = False
         if matched_rule:
             sampled = matched_rule.sample(span, allow_false=True)
         else:
-            sampled, default_was_used = super(DatadogSampler, self)._make_sampling_decision(span)
+            sampled, _ = super(DatadogSampler, self)._make_sampling_decision(span)
 
         _set_sampling_tags(
             span,
             sampled,
             matched_rule.sample_rate if matched_rule else self.sample_rate,
-            priority_category=self._choose_priority_category(default_was_used, bool(matched_rule)),
+            self._choose_priority_category(bool(matched_rule)),
         )
         cleared_rate_limit = _apply_rate_limit(span, sampled, self.limiter)
 
@@ -320,10 +319,10 @@ class DatadogSampler(RateByServiceSampler):
             return True
         return not cleared_rate_limit or sampled
 
-    def _choose_priority_category(self, default_was_used, matched_rule):
-        # type: (bool, bool) -> str
+    def _choose_priority_category(self, matched_rule):
+        # type: (bool) -> str
         if matched_rule:
             return _PRIORITY_CATEGORY.RULE
         if self.limiter._has_been_configured:
             return _PRIORITY_CATEGORY.USER
-        return super(DatadogSampler, self)._choose_priority_category(default_was_used)
+        return super(DatadogSampler, self)._choose_priority_category(True)
