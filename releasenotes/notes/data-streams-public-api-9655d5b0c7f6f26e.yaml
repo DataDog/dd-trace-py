@@ -1,0 +1,3 @@
+features:
+  - |
+    data_streams: Adds public api to set produce and consume checkpoints.
