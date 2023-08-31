@@ -154,17 +154,6 @@ class RateByServiceSampler(BasePrioritySampler):
         # type: (...) -> None
         self._by_service_samplers[self._key(service, env)] = RateSampler(sample_rate)
 
-    def _set_sampler_decision(self, span, sampler, sampled):
-        # type: (Span, RateSampler, bool) -> None
-        priority = AUTO_KEEP if sampled else AUTO_REJECT
-        _set_priority(span, priority)
-        if sampler is self._default_sampler:
-            mechanism = SamplingMechanism.DEFAULT
-        else:
-            mechanism = SamplingMechanism.AGENT_RATE
-            span.set_metric(SAMPLING_AGENT_DECISION, sampler.sample_rate)
-        set_sampling_decision_maker(span.context, mechanism)
-
     def sample(self, span, allow_false=False):
         # type: (Span, bool) -> bool
         env = span.get_tag(ENV_KEY)
@@ -172,7 +161,7 @@ class RateByServiceSampler(BasePrioritySampler):
 
         sampler = self._by_service_samplers.get(key) or self._default_sampler
         sampled = sampler.sample(span)
-        self._set_sampler_decision(span, sampler, sampled)
+        _set_sampler_decision(span, sampler, sampled, default_sampler=self._default_sampler)
 
         return not allow_false or sampled
 
@@ -183,6 +172,24 @@ class RateByServiceSampler(BasePrioritySampler):
             samplers[key] = RateSampler(sample_rate)
 
         self._by_service_samplers = samplers
+
+
+_PRIORITIES = {"user": (USER_KEEP, USER_REJECT), "auto": (AUTO_KEEP, AUTO_REJECT)}
+
+
+def _set_sampler_decision(span, sampler, sampled, default_sampler=None, priority_category="auto"):
+    # type: (Span, RateSampler, bool) -> None
+    priority = _PRIORITIES[priority_category][0] if sampled else _PRIORITIES[priority_category][1]
+    _set_priority(span, priority)
+    mechanism = SamplingMechanism.TRACE_SAMPLING_RULE
+    if isinstance(sampler, SamplingRule):
+        span.set_metric(SAMPLING_RULE_DECISION, sampler.sample_rate)
+    elif sampler is default_sampler:
+        mechanism = SamplingMechanism.DEFAULT
+    elif priority_category == "auto":
+        mechanism = SamplingMechanism.AGENT_RATE
+        span.set_metric(SAMPLING_AGENT_DECISION, sampler.sample_rate)
+    set_sampling_decision_maker(span.context, mechanism)
 
 
 class DatadogSampler(RateByServiceSampler):
@@ -305,21 +312,6 @@ class DatadogSampler(RateByServiceSampler):
             sampling_rules.append(sampling_rule)
         return sampling_rules
 
-    def _set_sampler_decision(self, span, sampler, sampled):
-        # type: (Span, Union[RateSampler, SamplingRule, RateLimiter], bool) -> None
-        if isinstance(sampler, RateSampler):
-            return super(DatadogSampler, self)._set_sampler_decision(span, sampler, sampled)
-
-        if isinstance(sampler, SamplingRule):
-            span.set_metric(SAMPLING_RULE_DECISION, sampler.sample_rate)
-
-        if not sampled:
-            _set_priority(span, USER_REJECT)
-        else:
-            _set_priority(span, USER_KEEP)
-
-        set_sampling_decision_maker(span.context, SamplingMechanism.TRACE_SAMPLING_RULE)
-
     def sample(self, span, allow_false=False):
         # type: (Span, bool) -> bool
         """
@@ -332,20 +324,22 @@ class DatadogSampler(RateByServiceSampler):
         :returns: Whether the span was sampled or not
         :rtype: :obj:`bool`
         """
-        rule = _get_highest_precedence_rule_matching(span, self.rules)
+        matched_rule = _get_highest_precedence_rule_matching(span, self.rules)
 
-        if not rule:
+        if matched_rule:
+            sampler = matched_rule
+            sampled = sampler.sample(span, allow_false=True)
+        else:
             sampled = super(DatadogSampler, self).sample(span)
             sampler = self  # type: ignore
-        else:
-            sampler = rule
-            sampled = sampler.sample(span, allow_false=True)
 
-        if rule or self.limiter._has_been_configured:
-            self._set_sampler_decision(span, sampler, sampled)
-
+        if matched_rule or self.limiter._has_been_configured:
+            _set_sampler_decision(span, sampler, sampled, priority_category="user")
         allowed = _apply_rate_limit(span, sampled, self.limiter)
-        return not allow_false or not allowed or sampled
+
+        if not allow_false:
+            return True
+        return not allowed or sampled
 
 
 def _apply_rate_limit(span, sampled, limiter):
