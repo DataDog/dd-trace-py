@@ -300,6 +300,9 @@ def handle_test_wrapper(func, instance, args, kwargs):
         suite_name = _extract_class_hierarchy_name(instance)
         test_name = _extract_test_method_name(instance)
         resource_name = _generate_test_resource(suite_name, test_name)
+        test_suite_span = _extract_suite_span(instance)
+        if not test_suite_span:
+            return func(*args, **kwargs)
         span = tracer._start_span(
             ddtrace.config.unittest.operation_name,
             service=_CIVisibility._instance._service,
@@ -307,7 +310,6 @@ def handle_test_wrapper(func, instance, args, kwargs):
             span_type=SpanTypes.TEST,
             activate=True,
         )
-        test_suite_span = _extract_suite_span(instance)
         span.set_tag_str(_EVENT_TYPE, SpanTypes.TEST)
         span.set_tag_str(_SESSION_ID, test_suite_span.get_tag(_SESSION_ID))
         span.set_tag_str(_MODULE_ID, test_suite_span.get_tag(_MODULE_ID))
@@ -334,8 +336,7 @@ def handle_test_wrapper(func, instance, args, kwargs):
         _update_status_item(test_suite_span, span.get_tag(test.STATUS))
         span.finish()
         return result
-    result = func(*args, **kwargs)
-    return result
+    return func(*args, **kwargs)
 
 
 def handle_module_suite_wrapper(func, instance, args, kwargs):
