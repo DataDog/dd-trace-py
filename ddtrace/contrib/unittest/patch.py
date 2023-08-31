@@ -138,8 +138,6 @@ def _extract_module_name_from_test_method(item):
 def _extract_module_name_from_module(item):
     if not len(item._tests):
         return None
-    if type(item._tests[0]) == unittest.loader._FailedTest:
-        return item._tests[0]._testMethodName
     module_name = None
     for suite in item._tests:
         if type(suite) != unittest.TestSuite:
@@ -165,7 +163,7 @@ def _extract_test_file_name(item):
 
 
 def _extract_module_file_path(item):
-    if not len(item._tests) or type(item._tests[0]) == unittest.loader._FailedTest:
+    if not len(item._tests):
         return ""
     if type(item._tests[0]) != unittest.TestSuite:
         return os.path.relpath(inspect.getfile(item._tests[0].__class__))
@@ -327,7 +325,7 @@ def handle_test_wrapper(func, instance, args, kwargs):
 
 
 def handle_module_suite_wrapper(func, instance, args, kwargs):
-    if _is_unittest_support_enabled() and type(func).__name__ == "method":
+    if _is_unittest_support_enabled() and type(func).__name__ == "method" or type(func).__name__ == "instancemethod":
         tracer = getattr(unittest, "_datadog_tracer", _CIVisibility._instance.tracer)
         if _is_test_suite(instance):
             test_module_span = _extract_module_span(instance)

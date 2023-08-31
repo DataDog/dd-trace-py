@@ -547,7 +547,7 @@ class UnittestTestCase(TracerTestCase):
             assert spans[1].name == TEST_OPERATION_NAME
             assert spans[1].get_tag(test.NAME) == "test_will_fail_second"
             assert spans[1].get_tag(ERROR_MSG) == "False is not true"
-            if sys.version_info[1] >= 3:
+            if sys.version_info[0] >= 3:
                 assert spans[1].get_tag(ERROR_TYPE) == "builtins.AssertionError"
             else:
                 assert spans[1].get_tag(ERROR_TYPE) == "exceptions.AssertionError"
