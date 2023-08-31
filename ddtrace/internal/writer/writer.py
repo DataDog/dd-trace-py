@@ -494,6 +494,7 @@ class AgentWriter(HTTPWriter):
         self,
         agent_url,  # type: str
         sampler=None,  # type: Optional[BaseSampler]
+        priority_sampling=False,  # type: bool
         processing_interval=None,  # type: Optional[float]
         # Match the payload size since there is no functionality
         # to flush dynamically.
@@ -526,7 +527,9 @@ class AgentWriter(HTTPWriter):
             "v0.4" if (is_windows or in_gcp_function() or in_azure_function_consumption_plan()) else "v0.5"
         )
 
-        self._api_version = api_version or os.getenv("DD_TRACE_API_VERSION") or default_api_version
+        self._api_version = (
+            api_version or os.getenv("DD_TRACE_API_VERSION") or (default_api_version if priority_sampling else "v0.3")
+        )
         if is_windows and self._api_version == "v0.5":
             raise RuntimeError(
                 "There is a known compatibility issue with v0.5 API and Windows, "
