@@ -111,8 +111,8 @@ class RemoteConfigPoller(periodic.PeriodicService):
         for pubsub in self._client.get_pubsubs():
             pubsub._poll_data(test_tracer=test_tracer)
 
-    def stop_subscribers(self):
-        # type: () -> None
+    def stop_subscribers(self, join=False):
+        # type: (bool) -> None
         """
         Disable the remote config service and drop, remote config can be re-enabled
         by calling ``enable`` again.
@@ -123,11 +123,11 @@ class RemoteConfigPoller(periodic.PeriodicService):
             self._parent_id,
         )
         for pubsub in self._client.get_pubsubs():
-            pubsub.stop()
+            pubsub.stop(join=join)
 
-    def disable(self):
-        # type: () -> None
-        self.stop_subscribers()
+    def disable(self, join=False):
+        # type: (bool) -> None
+        self.stop_subscribers(join=join)
         self._client.reset_products()
 
         if self.status == ServiceStatus.STOPPED:

@@ -382,7 +382,7 @@ def _stop_remote_config_worker():
 
 @pytest.fixture
 def remote_config_worker():
-    remoteconfig_poller.disable()
+    remoteconfig_poller.disable(join=True)
     remoteconfig_poller._client = RemoteConfigClient()
     try:
         yield
