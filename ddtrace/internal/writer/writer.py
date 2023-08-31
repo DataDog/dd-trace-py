@@ -133,7 +133,6 @@ class LogWriter(TraceWriter):
         self,
         out=sys.stdout,  # type: TextIO
         sampler=None,  # type: Optional[BaseSampler]
-        priority_sampler=None,  # type: Optional[BasePrioritySampler]
     ):
         # type: (...) -> None
         self._sampler = sampler
@@ -180,7 +179,6 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         intake_url,  # type: str
         clients,  # type: List[WriterClientBase]
         sampler=None,  # type: Optional[BaseSampler]
-        priority_sampler=None,  # type: Optional[BasePrioritySampler]
         processing_interval=None,  # type: Optional[float]
         # Match the payload size since there is no functionality
         # to flush dynamically.
@@ -496,7 +494,6 @@ class AgentWriter(HTTPWriter):
         self,
         agent_url,  # type: str
         sampler=None,  # type: Optional[BaseSampler]
-        priority_sampler=None,  # type: Optional[BasePrioritySampler]
         processing_interval=None,  # type: Optional[float]
         # Match the payload size since there is no functionality
         # to flush dynamically.
