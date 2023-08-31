@@ -207,9 +207,7 @@ class AgentWriterTests(BaseTestCase):
             writer = self.WRITER_CLASS("http://asdf:1234", dogstatsd=statsd, sync_mode=False)
             writer._metrics_reset = writer_metrics_reset
             for i in range(10):
-                writer.write(
-                    [Span(name="name", trace_id=i, span_id=j, parent_id=max(0, j - 1) or None) for j in range(5)]
-                )
+                writer.write([Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
             writer.stop()
             writer.join()
 
@@ -225,11 +223,9 @@ class AgentWriterTests(BaseTestCase):
             writer = self.WRITER_CLASS("http://asdf:1234", dogstatsd=statsd)
             writer._metrics_reset = writer_metrics_reset
             for i in range(10):
-                writer.write(
-                    [Span(name="name", trace_id=i, span_id=j, parent_id=max(0, j - 1) or None) for j in range(5)]
-                )
+                writer.write([Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
             writer.write(
-                [Span(name="a" * 5000, trace_id=i, span_id=j, parent_id=max(0, j - 1) or None) for j in range(2 ** 10)]
+                [Span(name="a" * 5000, trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(2 ** 10)]
             )
             writer.stop()
             writer.join()
@@ -247,10 +243,8 @@ class AgentWriterTests(BaseTestCase):
             writer = self.WRITER_CLASS("http://asdf:1234", buffer_size=5125, dogstatsd=statsd)
             writer._metrics_reset = writer_metrics_reset
             for i in range(10):
-                writer.write(
-                    [Span(name="name", trace_id=i, span_id=j, parent_id=max(0, j - 1) or None) for j in range(5)]
-                )
-            writer.write([Span(name="a", trace_id=i, span_id=j, parent_id=max(0, j - 1) or None) for j in range(5)])
+                writer.write([Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
+            writer.write([Span(name="a", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
             writer.stop()
             writer.join()
 
