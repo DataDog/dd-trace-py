@@ -254,10 +254,6 @@ class Tracer(object):
         self.enabled = asbool(os.getenv("DD_TRACE_ENABLED", default=True))
         self.context_provider = context_provider or DefaultContextProvider()
         self._sampler = DatadogSampler()  # type: BaseSampler
-        if asbool(os.getenv("DD_PRIORITY_SAMPLING", True)):
-            self._priority_sampler = RateByServiceSampler()  # type: Optional[BasePrioritySampler]
-        else:
-            self._priority_sampler = None
         self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
         self._compute_stats = config._trace_compute_stats
         self._agent_url = agent.get_trace_url() if url is None else url  # type: str
@@ -443,13 +439,6 @@ class Tracer(object):
 
         if iast_enabled is not None:
             self._iast_enabled = config._iast_enabled = iast_enabled
-
-        # If priority sampling is not set or is True and no priority sampler is set yet
-        if priority_sampling in (None, True) and not self._priority_sampler:
-            self._priority_sampler = RateByServiceSampler()
-        # Explicitly disable priority sampling
-        elif priority_sampling is False:
-            self._priority_sampler = None
 
         if sampler is not None:
             self._sampler = sampler

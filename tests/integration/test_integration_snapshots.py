@@ -60,7 +60,6 @@ def test_filters(writer, tracer):
     if writer == "sync":
         writer = AgentWriter(
             tracer.agent_trace_url,
-            priority_sampler=tracer._priority_sampler,
             sync_mode=True,
         )
         # Need to copy the headers which contain the test token to associate
@@ -98,7 +97,7 @@ def test_filters(writer, tracer):
 @snapshot(async_mode=False)
 def test_synchronous_writer():
     tracer = Tracer()
-    writer = AgentWriter(tracer._writer.agent_url, sync_mode=True, priority_sampler=tracer._priority_sampler)
+    writer = AgentWriter(tracer._writer.agent_url, sync_mode=True)
     tracer.configure(writer=writer)
     with tracer.trace("operation1", service="my-svc"):
         with tracer.trace("child1"):

@@ -94,7 +94,7 @@ def test_standard_tags():
     assert f.get("is_global_tracer") is True
     assert f.get("tracer_enabled") is True
     assert f.get("sampler_type") == "DatadogSampler"
-    assert f.get("priority_sampler_type") == "RateByServiceSampler"
+    assert f.get("priority_sampler_type") == "N/A"
     assert f.get("service") == ""
     assert f.get("dd_version") == ""
     assert f.get("debug") is False
@@ -103,7 +103,7 @@ def test_standard_tags():
     assert f.get("log_injection_enabled") is False
     assert f.get("health_metrics_enabled") is False
     assert f.get("runtime_metrics_enabled") is False
-    assert f.get("priority_sampling_enabled") is True
+    assert f.get("priority_sampling_enabled") is False
     assert f.get("sampler_rules") == []
     assert f.get("global_tags") == ""
     assert f.get("tracer_tags") == ""
