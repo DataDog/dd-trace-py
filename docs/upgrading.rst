@@ -33,10 +33,10 @@ Before v0.60.0, you must enable all deprecation warnings and filter the applicat
 .. _upgrade-0.x:
 
 Upgrade to 1.x
-^^^^^^^^^^^^^^
+**************
 
 Environment variables
-*********************
+^^^^^^^^^^^^^^^^^^^^^
 
 Use the following patterns to identify the deprecated environment variables in a code base::
 
@@ -52,10 +52,10 @@ Use the following patterns to identify the deprecated environment variables in a
 .. _upgrade-1.x:
 
 Upgrade to 2.x
-^^^^^^^^^^^^^^
+**************
 
 Environment variables
-*********************
+^^^^^^^^^^^^^^^^^^^^^
 
 Use the following patterns to identify the deprecated environment variables in a code base::
 
@@ -66,6 +66,6 @@ Use the following patterns to identify the deprecated environment variables in a
 
 
 Legacy tracing interfaces
-*************************
+^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Reference the :ref:`2.x release note <removed-2.0-tracing-interfaces>` to identify and remove the deprecated legacy tracing interfaces in a code base.
