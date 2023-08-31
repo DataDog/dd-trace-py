@@ -161,7 +161,7 @@ class RateByServiceSampler(BasePrioritySampler):
 
         sampler = self._by_service_samplers.get(key) or self._default_sampler
         sampled = sampler.sample(span)
-        _set_sampler_decision(span, sampler, sampled, default_sampler=self._default_sampler)
+        _set_sampling_decision(span, sampler, sampled, default_sampler=self._default_sampler, priority_category="auto")
 
         return not allow_false or sampled
 
@@ -177,8 +177,10 @@ class RateByServiceSampler(BasePrioritySampler):
 _PRIORITIES = {"user": (USER_KEEP, USER_REJECT), "auto": (AUTO_KEEP, AUTO_REJECT)}
 
 
-def _set_sampler_decision(span, sampler, sampled, default_sampler=None, priority_category="auto"):
+def _set_sampling_decision(span, sampler, sampled, default_sampler=None, priority_category=None):
     # type: (Span, RateSampler, bool) -> None
+    if priority_category is None:
+        return
     priority = _PRIORITIES[priority_category][0] if sampled else _PRIORITIES[priority_category][1]
     _set_priority(span, priority)
     mechanism = SamplingMechanism.TRACE_SAMPLING_RULE
@@ -315,14 +317,7 @@ class DatadogSampler(RateByServiceSampler):
     def sample(self, span, allow_false=False):
         # type: (Span, bool) -> bool
         """
-        Decide whether the provided span should be sampled or not
-
-        The span provided should be the root span in the trace.
-
-        :param span: The root span of a trace
-        :type span: :class:`ddtrace.span.Span`
-        :returns: Whether the span was sampled or not
-        :rtype: :obj:`bool`
+        If allow_false is False, this function will return True regardless of the sampling decision
         """
         matched_rule = _get_highest_precedence_rule_matching(span, self.rules)
 
@@ -333,8 +328,12 @@ class DatadogSampler(RateByServiceSampler):
             sampled = super(DatadogSampler, self).sample(span)
             sampler = self  # type: ignore
 
-        if matched_rule or self.limiter._has_been_configured:
-            _set_sampler_decision(span, sampler, sampled, priority_category="user")
+        _set_sampling_decision(
+            span,
+            sampler,
+            sampled,
+            priority_category="user" if matched_rule or self.limiter._has_been_configured else None,
+        )
         allowed = _apply_rate_limit(span, sampled, self.limiter)
 
         if not allow_false:
