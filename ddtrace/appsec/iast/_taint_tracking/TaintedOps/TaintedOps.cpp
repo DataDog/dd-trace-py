@@ -11,11 +11,6 @@ new_pyobject_id(PyObject* tainted_object, Py_ssize_t object_length)
 {
     if (PyUnicode_Check(tainted_object)) {
         PyObject* empty_unicode = PyUnicode_New(0, 127);
-        if (PyUnicode_CHECK_INTERNED(tainted_object) == SSTATE_NOT_INTERNED) {
-            Py_INCREF(tainted_object);
-            Py_DECREF(empty_unicode);
-            return tainted_object;
-        }
         PyObject* val = Py_BuildValue("(OO)", tainted_object, empty_unicode);
         PyObject* result = PyUnicode_Join(empty_unicode, val);
         Py_DECREF(empty_unicode);
