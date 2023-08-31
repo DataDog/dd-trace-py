@@ -65,6 +65,9 @@ prelude: >
     * - ``DD_REMOTECONFIG_POLL_SECONDS``
       - ``DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS``
       - :ref:`📝<rename-remote-config-poll-seconds>`
+    * - ``DD_CALL_BASIC_CONFIG``
+      - None
+      - :ref:`📝<remove-basic-config>`
 
 
   .. _removed-2.0-tracing-interfaces:
@@ -163,3 +166,6 @@ prelude: >
     * - ``ddtrace.filters``
       - ``TraceCiVisibilityFilter``
       - :ref:`📝<remove-trace-ci-visibility-filter>`
+    * - ``ddtrace.tracer``
+      - ``DD_LOG_FORMAT``
+      - :ref:`📝<remove-dd-log-format>`
