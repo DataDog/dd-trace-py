@@ -52,5 +52,6 @@ required_modules = ["flask_cache", "flask_caching"]
 with require_modules(required_modules) as missing_modules:
     if len(missing_modules) < len(required_modules):
         from .tracers import get_traced_cache
+        from .tracers import get_version
 
-        __all__ = ["get_traced_cache"]
+        __all__ = ["get_traced_cache", "get_version"]

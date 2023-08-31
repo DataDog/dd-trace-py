@@ -37,6 +37,11 @@ config._add(
 )
 
 
+def get_version():
+    # type: () -> str
+    return ""
+
+
 class TracedCursor(wrapt.ObjectProxy):
     """TracedCursor wraps a psql cursor and traces its queries."""
 

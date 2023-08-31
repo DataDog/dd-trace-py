@@ -6,10 +6,19 @@ import pytest
 
 
 try:
-    from ddtrace.appsec.iast._taint_tracking import TaintRange
+    from ddtrace.appsec.iast._taint_tracking import contexts_reset
+    from ddtrace.appsec.iast._taint_tracking import create_context
+    from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import TaintRange_
     import ddtrace.appsec.iast._taint_tracking.aspects as ddtrace_aspects
 except (ImportError, AttributeError):
     pytest.skip("IAST not supported for this Python version", allow_module_level=True)
+
+
+@pytest.fixture(autouse=True)
+def reset_context():
+    yield
+    contexts_reset()
+    _ = create_context()
 
 
 @pytest.mark.parametrize(
@@ -18,7 +27,7 @@ except (ImportError, AttributeError):
         (3.5, 3.3),
         # (complex(2, 1), complex(3, 4)),
         ("Hello ", "world"),
-        ("🙀", "🙀"),
+        ("🙀", "🌝"),
         (b"Hi", b""),
         (["a"], ["b"]),
         (bytearray("a", "utf-8"), bytearray("b", "utf-8")),
@@ -96,7 +105,7 @@ def test_add_aspect_tainting_left_hand(obj1, obj2, should_be_tainted):
         ("Hello ", "world", True),
         (b"a", b"a", True),
         (b"bye ", b"bye ", True),
-        ("🙀", "🙀", True),
+        ("🙀", "🌝", True),
         (b"Hi", b"", False),
         (["a"], ["b"], False),
         (bytearray("a", "utf-8"), bytearray("b", "utf-8"), True),
@@ -128,7 +137,7 @@ def test_add_aspect_tainting_right_hand(obj1, obj2, should_be_tainted):
     if isinstance(obj2, (str, bytes, bytearray)) and len(obj2):
         tainted_ranges = get_tainted_ranges(result)
         assert type(tainted_ranges) is list
-        assert all(type(c) is TaintRange for c in tainted_ranges)
+        assert all(type(c) is TaintRange_ for c in tainted_ranges)
         assert (tainted_ranges != []) == should_be_tainted
         if should_be_tainted:
             assert len(tainted_ranges) == len(get_tainted_ranges(obj1)) + len(get_tainted_ranges(obj2))

@@ -1,6 +1,7 @@
 import inspect
 import os
 
+from boto import __version__
 import boto.connection
 
 from ddtrace import config
@@ -45,6 +46,11 @@ config._add(
         "tag_no_params": asbool(os.getenv("DD_AWS_TAG_NO_PARAMS", default=False)),
     },
 )
+
+
+def get_version():
+    # type: () -> str
+    return __version__
 
 
 def patch():

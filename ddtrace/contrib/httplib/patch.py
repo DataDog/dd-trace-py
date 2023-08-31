@@ -40,6 +40,11 @@ config._add(
 )
 
 
+def get_version():
+    # type: () -> str
+    return ""
+
+
 def _wrap_init(func, instance, args, kwargs):
     Pin(service=None, _config=config.httplib).onto(instance)
     return func(*args, **kwargs)
