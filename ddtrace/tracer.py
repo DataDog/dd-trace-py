@@ -21,8 +21,6 @@ from ddtrace.vendor import debtcollector
 
 from . import _hooks
 from ._monkey import patch
-from .constants import AUTO_KEEP
-from .constants import AUTO_REJECT
 from .constants import ENV_KEY
 from .constants import HOSTNAME_KEY
 from .constants import PID
@@ -62,10 +60,8 @@ from .internal.writer import AgentWriter
 from .internal.writer import LogWriter
 from .internal.writer import TraceWriter
 from .provider import DefaultContextProvider
-from .sampler import BasePrioritySampler
 from .sampler import BaseSampler
 from .sampler import DatadogSampler
-from .sampler import RateByServiceSampler
 from .sampler import RateSampler
 from .span import Span
 
