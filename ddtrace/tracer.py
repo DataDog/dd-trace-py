@@ -260,6 +260,7 @@ class Tracer(object):
             writer = AgentWriter(
                 agent_url=self._agent_url,
                 sampler=self._sampler,
+                priority_sampling=config._priority_sampling,
                 dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
                 sync_mode=self._use_sync_mode(),
                 headers={"Datadog-Client-Computed-Stats": "yes"} if self._compute_stats else {},
@@ -478,6 +479,7 @@ class Tracer(object):
             self._writer = AgentWriter(
                 self._agent_url,
                 sampler=self._sampler,
+                priority_sampling=priority_sampling in (None, True) and not config._priority_sampling,
                 dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
                 sync_mode=self._use_sync_mode(),
                 api_version=api_version,
