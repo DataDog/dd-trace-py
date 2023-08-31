@@ -12,8 +12,8 @@ from ddtrace import Tracer
 from ddtrace.internal.writer import AgentWriter
 from tests.integration.utils import AGENT_VERSION
 from tests.integration.utils import BadEncoder
-from tests.integration.utils import SUPPORTED_ENCODINGS
 from tests.integration.utils import import_ddtrace_in_subprocess
+from tests.integration.utils import parametrize_with_all_encodings
 from tests.integration.utils import send_invalid_payload_and_get_logs
 from tests.integration.utils import skip_if_testagent
 from tests.utils import call_program
@@ -90,7 +90,7 @@ t.join()
     assert status == 0
 
 
-@pytest.mark.subprocess(parametrize={"DD_TRACE_API_VERSION": SUPPORTED_ENCODINGS})
+@parametrize_with_all_encodings
 @pytest.mark.skipif(AGENT_VERSION != "latest", reason="Agent v5 doesn't support UDS")
 def test_single_trace_uds():
     import mock
@@ -107,7 +107,7 @@ def test_single_trace_uds():
         log.error.assert_not_called()
 
 
-@pytest.mark.subprocess(parametrize={"DD_TRACE_API_VERSION": SUPPORTED_ENCODINGS})
+@parametrize_with_all_encodings
 def test_uds_wrong_socket_path():
     import os
 
@@ -132,14 +132,13 @@ def test_uds_wrong_socket_path():
 
 
 @skip_if_testagent
-@pytest.mark.subprocess(
-    parametrize={"DD_TRACE_API_VERSION": SUPPORTED_ENCODINGS},
+@parametrize_with_all_encodings(
     env={
         "DD_TRACE_WRITER_BUFFER_SIZE_BYTES": str(FOUR_KB),
         "DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES": str(FOUR_KB),
         # use a long processing_interval to ensure a flush doesn't happen partway through
         "DD_TRACE_WRITER_INTERVAL_SECONDS": "1000",
-    },
+    }
 )
 def test_payload_too_large():
     import os
@@ -147,12 +146,13 @@ def test_payload_too_large():
     import mock
 
     from ddtrace import tracer as t
+    from tests.integration.test_integration import FOUR_KB
     from tests.utils import AnyInt
     from tests.utils import AnyStr
 
     encoding = os.environ["DD_TRACE_API_VERSION"]
-    assert t._writer._max_payload_size == 1 << 12
-    assert t._writer._buffer_size == 1 << 12
+    assert t._writer._max_payload_size == FOUR_KB
+    assert t._writer._buffer_size == FOUR_KB
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
         for i in range(100000 if encoding == "v0.5" else 1000):
             with t.trace("operation") as s:
@@ -185,11 +185,12 @@ def test_resource_name_too_large():
     import pytest
 
     from ddtrace import tracer as t
+    from tests.integration.test_integration import FOUR_KB
 
-    assert t._writer._buffer_size == 1 << 12
+    assert t._writer._buffer_size == FOUR_KB
     s = t.trace("operation", service="foo")
     # Maximum string length is set to 10% of the maximum buffer size
-    s.resource = "B" * int(0.1 * (1 << 12) + 1)
+    s.resource = "B" * int(0.1 * FOUR_KB + 1)
     try:
         s.finish()
     except ValueError:
@@ -198,7 +199,7 @@ def test_resource_name_too_large():
     assert b"<dropped string of length 410 because it's too long (max allowed length 409)>" in encoded_spans
 
 
-@pytest.mark.subprocess(parametrize={"DD_TRACE_API_VERSION": SUPPORTED_ENCODINGS})
+@parametrize_with_all_encodings
 def test_large_payload_is_sent_without_warning_logs():
     import mock
 
@@ -214,7 +215,7 @@ def test_large_payload_is_sent_without_warning_logs():
         log.error.assert_not_called()
 
 
-@pytest.mark.subprocess(parametrize={"DD_TRACE_API_VERSION": SUPPORTED_ENCODINGS})
+@parametrize_with_all_encodings
 def test_child_spans_do_not_cause_warning_logs():
     import mock
 
@@ -271,9 +272,7 @@ def _test_metrics(
                 )
 
 
-@pytest.mark.subprocess(
-    parametrize={"DD_TRACE_API_VERSION": SUPPORTED_ENCODINGS}, env={"DD_TRACE_HEALTH_METRICS_ENABLED": "true"}
-)
+@parametrize_with_all_encodings(env={"DD_TRACE_HEALTH_METRICS_ENABLED": "true"})
 def test_metrics():
     from ddtrace import tracer as t
     from tests.integration.test_integration import _test_metrics
@@ -292,9 +291,7 @@ def test_metrics():
 
 
 @skip_if_testagent
-@pytest.mark.subprocess(
-    parametrize={"DD_TRACE_API_VERSION": SUPPORTED_ENCODINGS}, env={"DD_TRACE_HEALTH_METRICS_ENABLED": "true"}
-)
+@parametrize_with_all_encodings(env={"DD_TRACE_HEALTH_METRICS_ENABLED": "true"})
 def test_metrics_partial_flush_disabled():
     from ddtrace import tracer as t
     from tests.integration.test_integration import _test_metrics
@@ -312,7 +309,7 @@ def test_metrics_partial_flush_disabled():
     )
 
 
-@pytest.mark.subprocess(parametrize={"DD_TRACE_API_VERSION": SUPPORTED_ENCODINGS})
+@parametrize_with_all_encodings
 def test_single_trace_too_large():
     import mock
 
@@ -347,9 +344,7 @@ def test_single_trace_too_large():
 
 
 @skip_if_testagent
-@pytest.mark.subprocess(
-    parametrize={"DD_TRACE_API_VERSION": SUPPORTED_ENCODINGS}, env={"DD_TRACE_PARTIAL_FLUSH_ENABLED": "false"}
-)
+@parametrize_with_all_encodings(env={"DD_TRACE_PARTIAL_FLUSH_ENABLED": "false"})
 def test_single_trace_too_large_partial_flush_disabled():
     import mock
 
@@ -368,7 +363,7 @@ def test_single_trace_too_large_partial_flush_disabled():
         log.error.assert_not_called()
 
 
-@pytest.mark.subprocess(parametrize={"DD_TRACE_API_VERSION": SUPPORTED_ENCODINGS})
+@parametrize_with_all_encodings
 def test_trace_generates_error_logs_when_hostname_invalid():
     import os
 
@@ -395,7 +390,7 @@ def test_trace_generates_error_logs_when_hostname_invalid():
 
 
 @skip_if_testagent
-@pytest.mark.subprocess(parametrize={"DD_TRACE_API_VERSION": SUPPORTED_ENCODINGS})
+@parametrize_with_all_encodings
 def test_validate_headers_in_payload_to_intake():
     import mock
 
@@ -417,7 +412,7 @@ def test_validate_headers_in_payload_to_intake():
 
 
 @skip_if_testagent
-@pytest.mark.subprocess(parametrize={"DD_TRACE_API_VERSION": SUPPORTED_ENCODINGS})
+@parametrize_with_all_encodings
 def test_validate_headers_in_payload_to_intake_with_multiple_traces():
     import mock
 
@@ -433,7 +428,7 @@ def test_validate_headers_in_payload_to_intake_with_multiple_traces():
 
 
 @skip_if_testagent
-@pytest.mark.subprocess(parametrize={"DD_TRACE_API_VERSION": SUPPORTED_ENCODINGS})
+@parametrize_with_all_encodings
 def test_validate_headers_in_payload_to_intake_with_nested_spans():
     import mock
 
@@ -485,7 +480,7 @@ def test_trace_with_invalid_payload_generates_error_log():
 
 
 @skip_if_testagent
-@pytest.mark.subprocess(env={"_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS": "true"})
+@parametrize_with_all_encodings(env={"_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS": "true"})
 def test_trace_with_invalid_payload_logs_payload_when_LOG_ERROR_PAYLOADS():
     import mock
 
@@ -506,11 +501,7 @@ def test_trace_with_invalid_payload_logs_payload_when_LOG_ERROR_PAYLOADS():
 
 
 @skip_if_testagent
-@pytest.mark.subprocess(
-    env=dict(
-        _DD_TRACE_WRITER_LOG_ERROR_PAYLOADS="true",
-    )
-)
+@parametrize_with_all_encodings(env={"_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS": "true"})
 def test_trace_with_non_bytes_payload_logs_payload_when_LOG_ERROR_PAYLOADS():
     import mock
 
@@ -551,10 +542,7 @@ def test_trace_with_failing_encoder_generates_error_log():
 
 
 @skip_if_testagent
-@pytest.mark.subprocess(
-    parametrize={"DD_TRACE_API_VERSION": SUPPORTED_ENCODINGS},
-    err=None,
-)
+@parametrize_with_all_encodings(err=None)
 def test_api_version_downgrade_generates_no_warning_logs():
     import os
 
@@ -579,7 +567,7 @@ def test_synchronous_writer_shutdown_raises_no_exception():
 
 
 @skip_if_testagent
-@pytest.mark.subprocess(parametrize={"DD_TRACE_API_VERSION": SUPPORTED_ENCODINGS})
+@parametrize_with_all_encodings
 def test_writer_flush_queue_generates_debug_log():
     import logging
     import os
@@ -670,7 +658,7 @@ print(len(root.handlers))
         assert out == six.b("0\n")
 
 
-@pytest.mark.subprocess(
+@parametrize_with_all_encodings(
     env=dict(
         DD_TRACE_WRITER_BUFFER_SIZE_BYTES="1000",
         DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES="5000",
@@ -726,7 +714,7 @@ assert ddtrace.tracer._writer._interval == 1.0
     assert status == 0, (out, err)
 
 
-@pytest.mark.subprocess(parametrize={"DD_TRACE_API_VERSION": SUPPORTED_ENCODINGS})
+@parametrize_with_all_encodings
 def test_partial_flush_log():
     import mock
 

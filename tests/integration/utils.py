@@ -9,7 +9,6 @@ from ddtrace import Tracer
 
 
 AGENT_VERSION = os.environ.get("AGENT_VERSION")
-SUPPORTED_ENCODINGS = ["v0.5", "v0.4"]
 
 
 class BadEncoder:
@@ -38,8 +37,11 @@ def send_invalid_payload_and_get_logs(encoder_cls=BadEncoder):
     return log
 
 
-def parametrize_with_all_encodings(f):
-    return pytest.mark.parametrize("encoding", SUPPORTED_ENCODINGS)(f)
+def parametrize_with_all_encodings(env=None, out="", err=""):
+    def decorator(f):
+        return pytest.mark.subprocess(parametrize={"DD_TRACE_API_VERSION": ["v0.5", "v0.4"]}, env=env, out=out, err=err)
+
+    return decorator
 
 
 def mark_snapshot(f):
