@@ -31,5 +31,3 @@ from .patch import unpatch
 
 
 __all__ = ["patch", "unpatch"]
-
-patch()
