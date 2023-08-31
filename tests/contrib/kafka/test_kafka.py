@@ -8,6 +8,8 @@ from confluent_kafka import admin as kafka_admin
 import pytest
 import six
 
+import ddtrace.internal.datastreams
+import mock
 from ddtrace import Pin
 from ddtrace import Tracer
 from ddtrace.contrib.kafka.patch import patch
@@ -68,6 +70,12 @@ def tracer():
         t.flush()
         t.shutdown()
         unpatch()
+
+@pytest.fixture
+def dsm_processor(tracer):
+    processor = tracer.data_streams_processor
+    with mock.patch("ddtrace.internal.datastreams.data_streams_processor", return_value=processor):
+        yield processor
 
 
 @pytest.fixture
@@ -222,10 +230,10 @@ def retry_until_not_none(factory):
     return None
 
 
-def test_data_streams_kafka_serializing(tracer, deserializing_consumer, serializing_producer, kafka_topic):
+def test_data_streams_kafka_serializing(dsm_processor, deserializing_consumer, serializing_producer, kafka_topic):
     PAYLOAD = bytes("data streams", encoding="utf-8") if six.PY3 else bytes("data streams")
     try:
-        del tracer.data_streams_processor._current_context.value
+        del dsm_processor._current_context.value
     except AttributeError:
         pass
     serializing_producer.produce(kafka_topic, PAYLOAD, key="test_key_2")
@@ -233,7 +241,7 @@ def test_data_streams_kafka_serializing(tracer, deserializing_consumer, serializ
     message = None
     while message is None or str(message.value()) != str(PAYLOAD):
         message = deserializing_consumer.poll(1.0)
-    buckets = tracer.data_streams_processor._buckets
+    buckets = dsm_processor._buckets
     assert len(buckets) == 1
     first = list(buckets.values())[0].pathway_stats
     assert (
@@ -268,10 +276,10 @@ def test_data_streams_kafka_serializing(tracer, deserializing_consumer, serializ
     )
 
 
-def test_data_streams_kafka(tracer, consumer, producer, kafka_topic):
+def test_data_streams_kafka(dsm_processor, consumer, producer, kafka_topic):
     PAYLOAD = bytes("data streams", encoding="utf-8") if six.PY3 else bytes("data streams")
     try:
-        del tracer.data_streams_processor._current_context.value
+        del dsm_processor._current_context.value
     except AttributeError:
         pass
     producer.produce(kafka_topic, PAYLOAD, key="test_key_2")
@@ -279,7 +287,7 @@ def test_data_streams_kafka(tracer, consumer, producer, kafka_topic):
     message = None
     while message is None or str(message.value()) != str(PAYLOAD):
         message = consumer.poll(1.0)
-    buckets = tracer.data_streams_processor._buckets
+    buckets = dsm_processor._buckets
     assert len(buckets) == 1
     first = list(buckets.values())[0].pathway_stats
     assert (
