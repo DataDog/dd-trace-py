@@ -17,6 +17,16 @@ from tests.utils import override_global_config
 TEST_FILE = "tests/contrib/django/django_app/appsec_urls.py"
 
 
+@pytest.fixture(autouse=True)
+def reset_context():
+    from ddtrace.appsec.iast._taint_tracking import contexts_reset
+    from ddtrace.appsec.iast._taint_tracking import create_context
+
+    yield
+    contexts_reset()
+    _ = create_context()
+
+
 def _aux_appsec_get_root_span(
     client,
     test_spans,
