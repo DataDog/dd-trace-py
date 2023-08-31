@@ -1,5 +1,7 @@
+from os.path import abspath
 import typing as t
 
+from _config import config as expl_config
 from debugger import COLS
 from debugger import ExplorationDebugger
 from debugger import ModuleCollector
@@ -9,6 +11,8 @@ from debugging.utils import create_snapshot_function_probe
 
 from ddtrace.debugging._function.discovery import FunctionDiscovery
 from ddtrace.debugging._probe.model import FunctionLocationMixin
+from ddtrace.debugging._signal.snapshot import Snapshot
+from ddtrace.internal.module import origin
 
 
 # Track all instrumented functions and their call count.
@@ -21,6 +25,11 @@ class FunctionCollector(ModuleCollector):
         module = discovery._module
         status("[profiler] Collecting functions from %s" % module.__name__)
         for fname, f in discovery._fullname_index.items():
+            if origin(module) != abspath(f.__code__.co_filename):
+                # Do not wrap functions that do not belong to the module. We
+                # will have a chance to wrap them when we discover the module
+                # they belong to.
+                continue
             _tracked_funcs[fname] = 0
             DeterministicProfiler.add_probe(
                 create_snapshot_function_probe(
@@ -28,6 +37,7 @@ class FunctionCollector(ModuleCollector):
                     module=module.__name__,
                     func_qname=fname.replace(module.__name__, "").lstrip("."),
                     rate=float("inf"),
+                    limits=expl_config.limits,
                 )
             )
 
@@ -52,14 +62,20 @@ class DeterministicProfiler(ExplorationDebugger):
         print("")
         print(("{:<%d} {:>5}" % w).format("Function", "Calls"))
         print("=" * (w + 6))
-        for calls, func in calls:
-            print(("{:<%d} {:>5}" % w).format(func, calls))
+        for ncalls, func in calls:
+            print(("{:<%d} {:>5}" % w).format(func, ncalls))
         print("")
 
     @classmethod
     def on_disable(cls):
         # type: () -> None
         cls.report_func_calls()
+
+    @classmethod
+    def on_snapshot(cls, snapshot):
+        # type: (Snapshot) -> None
+        if config.profiler.delete_probes:
+            cls.delete_probe(snapshot.probe)
 
 
 if config.profiler.enabled:

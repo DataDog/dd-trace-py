@@ -11,9 +11,12 @@ from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.schema import schematize_url_operation
+from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
 from .. import trace_utils
-from ...internal import _context
+from ...appsec._constants import WAF_CONTEXT_NAMES
+from ...internal import core
 from ...internal.compat import reraise
 from ...internal.logger import get_logger
 from .utils import guarantee_single_callable
@@ -36,6 +39,11 @@ config._add(
 
 ASGI_VERSION = "asgi.version"
 ASGI_SPEC_VERSION = "asgi.spec_version"
+
+
+def get_version():
+    # type: () -> str
+    return ""
 
 
 def bytes_to_str(str_or_bytes):
@@ -80,7 +88,7 @@ def span_from_scope(scope):
 
 
 def _request_blocked(span):
-    return span and config._appsec_enabled and _context.get_item("http.request.blocked", span=span)
+    return span and config._appsec_enabled and core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span)
 
 
 async def _blocked_asgi_app(scope, receive, send):
@@ -133,10 +141,12 @@ class TraceMiddleware:
             ip = ""
 
         resource = " ".join((scope["method"], scope["path"]))
+        operation_name = self.integration_config.get("request_span_name", "asgi.request")
+        operation_name = schematize_url_operation(operation_name, direction=SpanDirection.INBOUND, protocol="http")
 
         with _asm_request_context.asm_request_context_manager(ip, headers):
             span = self.tracer.trace(
-                name=self.integration_config.get("request_span_name", "asgi.request"),
+                name=operation_name,
                 service=trace_utils.int_service(None, self.integration_config),
                 resource=resource,
                 span_type=SpanTypes.WEB,
@@ -213,14 +223,19 @@ class TraceMiddleware:
                 trace_utils.set_http_meta(
                     span, self.integration_config, status_code=status_code, response_headers=response_headers
                 )
-
                 try:
                     return await send(message)
                 finally:
                     # Per asgi spec, "more_body" is used if there is still data to send
                     # Close the span if "http.response.body" has no more data left to send in the
                     # response.
-                    if message.get("type") == "http.response.body" and not message.get("more_body", False):
+                    if (
+                        message.get("type") == "http.response.body"
+                        and not message.get("more_body", False)
+                        # If the span has an error status code delay finishing the span until the
+                        # traceback and exception message is available
+                        and span.error == 0
+                    ):
                         span.finish()
 
             async def wrapped_blocked_send(message):
@@ -246,7 +261,7 @@ class TraceMiddleware:
                 try:
                     return await send(message)
                 finally:
-                    if message.get("type") == "http.response.body":
+                    if message.get("type") == "http.response.body" and span.error == 0:
                         span.finish()
 
             try:
@@ -259,9 +274,6 @@ class TraceMiddleware:
                 self.handle_exception_span(exc, span)
                 reraise(exc_type, exc_val, exc_tb)
             finally:
-                try:
-                    del scope["datadog"]["request_span"]
-                except KeyError:
-                    pass
-
+                if span in scope["datadog"]["request_spans"]:
+                    scope["datadog"]["request_spans"].remove(span)
                 span.finish()

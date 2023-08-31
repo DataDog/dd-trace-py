@@ -11,10 +11,15 @@ from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
 from ...internal.compat import iteritems
+from ...internal.schema import SpanDirection
+from ...internal.schema import schematize_service_name
+from ...internal.schema import schematize_url_operation
 
 
 class TraceMiddleware(object):
-    def __init__(self, tracer, service="falcon", distributed_tracing=None):
+    def __init__(self, tracer, service=None, distributed_tracing=None):
+        if service is None:
+            service = schematize_service_name("falcon")
         # store tracing references
         self.tracer = tracer
         self.service = service
@@ -27,7 +32,7 @@ class TraceMiddleware(object):
         trace_utils.activate_distributed_headers(self.tracer, int_config=config.falcon, request_headers=headers)
 
         span = self.tracer.trace(
-            "falcon.request",
+            schematize_url_operation("falcon.request", protocol="http", direction=SpanDirection.INBOUND),
             service=self.service,
             span_type=SpanTypes.WEB,
         )
@@ -60,9 +65,9 @@ class TraceMiddleware(object):
 
         status = resp.status.partition(" ")[0]
 
-        # FIXME[matt] falcon does not map errors or unmatched routes
-        # to proper status codes, so we we have to try to infer them
-        # here. See https://github.com/falconry/falcon/issues/606
+        # falcon does not map errors or unmatched routes
+        # to proper status codes, so we have to try to infer them
+        # here.
         if resource is None:
             status = "404"
             span.resource = "%s 404" % req.method

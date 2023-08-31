@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    This fix resolves an issue causing MyPy linting to fail on files that import ddtrace.

@@ -7,14 +7,14 @@ import threading
 
 import pytest
 
-from ddtrace.debugging._capture import utils
-from ddtrace.debugging._capture.snapshot import Snapshot
 from ddtrace.debugging._encoding import BatchJsonEncoder
-from ddtrace.debugging._encoding import SnapshotJsonEncoder
-from ddtrace.debugging._encoding import _capture_context
-from ddtrace.debugging._encoding import format_message
+from ddtrace.debugging._encoding import LogSignalJsonEncoder
 from ddtrace.debugging._probe.model import CaptureLimits
 from ddtrace.debugging._probe.model import MAXSIZE
+from ddtrace.debugging._signal import utils
+from ddtrace.debugging._signal.snapshot import Snapshot
+from ddtrace.debugging._signal.snapshot import _capture_context
+from ddtrace.debugging._signal.snapshot import format_message
 from ddtrace.internal._encoding import BufferFull
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import PY3
@@ -196,7 +196,7 @@ def test_batch_json_encoder():
     cake = "After the test there will be ✨ 🍰 ✨ in the annex"
 
     buffer_size = 30 * (1 << 10)
-    encoder = BatchJsonEncoder({Snapshot: SnapshotJsonEncoder(None)}, buffer_size=buffer_size)
+    encoder = BatchJsonEncoder({Snapshot: LogSignalJsonEncoder(None)}, buffer_size=buffer_size)
 
     s.line()
 
@@ -230,7 +230,7 @@ def test_batch_flush_reencode():
 
     s.line()
 
-    encoder = BatchJsonEncoder({Snapshot: SnapshotJsonEncoder(None)})
+    encoder = BatchJsonEncoder({Snapshot: LogSignalJsonEncoder(None)})
 
     snapshot_total_size = sum(encoder.put(s) for _ in range(2))
     assert encoder.count == 2
@@ -265,3 +265,193 @@ def test_format_message(args, expected):
 
 def test_encoding_none():
     assert utils.capture_value(None) == {"isNull": True, "type": "NoneType"}
+
+
+def test_encoding_zero_fields():
+    assert utils.capture_value(Custom(), maxfields=0) == {
+        "fields": {},
+        "notCapturedReason": "fieldCount",
+        "type": "Custom",
+    }
+
+
+class CountBudget(object):
+    """Make stopping condition for the value capturing deterministic."""
+
+    __name__ = "CountBudget"
+
+    def __init__(self, counts):
+        self.counts = counts
+
+    def __call__(self, _):
+        if self.counts:
+            self.counts -= 1
+            return False
+        return True
+
+
+@pytest.mark.parametrize(
+    "count,result",
+    [
+        (1, {"entries": [], "notCapturedReason": "CountBudget", "size": 1, "type": "dict"}),
+        (
+            5,
+            {
+                "type": "dict",
+                "entries": [
+                    (
+                        {"type": "str", "value": "'a'"},
+                        {
+                            "type": "dict",
+                            "entries": [
+                                (
+                                    {"type": "str", "notCapturedReason": "CountBudget"},
+                                    {"type": "dict", "notCapturedReason": "CountBudget", "size": 1},
+                                )
+                            ],
+                            "size": 1,
+                        },
+                    )
+                ],
+                "size": 1,
+            },
+        ),
+        (
+            10,
+            {
+                "type": "dict",
+                "entries": [
+                    (
+                        {"type": "str", "value": "'a'"},
+                        {
+                            "type": "dict",
+                            "entries": [
+                                (
+                                    {"type": "str", "value": "'a'"},
+                                    {
+                                        "type": "dict",
+                                        "entries": [
+                                            (
+                                                {"type": "str", "value": "'a'"},
+                                                {
+                                                    "type": "dict",
+                                                    "entries": [],
+                                                    "size": 1,
+                                                    "notCapturedReason": "CountBudget",
+                                                },
+                                            )
+                                        ],
+                                        "size": 1,
+                                    },
+                                )
+                            ],
+                            "size": 1,
+                        },
+                    )
+                ],
+                "size": 1,
+            },
+        ),
+    ],
+)
+def test_encoding_stopping_cond_level(count, result):
+    # Create a self-recursive object
+    a = {}
+    a["a"] = a
+
+    assert utils.capture_value(a, level=300, stopping_cond=CountBudget(count)) == result
+
+
+@pytest.mark.parametrize("count,nfields", [(1, 0), (5, 2), (10, 5)])
+def test_encoding_stopping_cond_fields(count, nfields):
+    class Obj(object):
+        pass
+
+    a = Obj()
+    a.__dict__ = {"field%d" % i: i for i in range(100)}
+
+    result = utils.capture_value(a, stopping_cond=CountBudget(count))
+
+    assert result["type"] == "Obj" if PY2 else "test_encoding_stopping_cond_fields.<locals>.Obj"
+    assert result["notCapturedReason"] == "CountBudget"
+    # We cannot assert fields because the order is not guaranteed
+    assert len(result["fields"]) == nfields
+
+
+@pytest.mark.parametrize(
+    "count,result",
+    [
+        (1, {"notCapturedReason": "CountBudget", "elements": [], "type": "list", "size": 100}),
+        (
+            5,
+            {
+                "notCapturedReason": "CountBudget",
+                "elements": [{"type": "int", "value": "0"}, {"type": "int", "value": "1"}],
+                "type": "list",
+                "size": 100,
+            },
+        ),
+        (
+            10,
+            {
+                "notCapturedReason": "CountBudget",
+                "elements": [
+                    {"type": "int", "value": "0"},
+                    {"type": "int", "value": "1"},
+                    {"type": "int", "value": "2"},
+                    {"type": "int", "value": "3"},
+                    {"notCapturedReason": "CountBudget", "type": "int"},
+                ],
+                "type": "list",
+                "size": 100,
+            },
+        ),
+    ],
+)
+def test_encoding_stopping_cond_collection_size(count, result):
+    assert utils.capture_value(list(range(100)), stopping_cond=CountBudget(count)) == result
+
+
+@pytest.mark.parametrize(
+    "count,result",
+    [
+        (1, {"notCapturedReason": "CountBudget", "size": 100, "type": "dict", "entries": []}),
+        (
+            5,
+            {
+                "notCapturedReason": "CountBudget",
+                "size": 100,
+                "type": "dict",
+                "entries": [
+                    ({"type": "int", "value": "0"}, {"type": "int", "value": "0"}),
+                    (
+                        {"notCapturedReason": "CountBudget", "type": "int"},
+                        {"notCapturedReason": "CountBudget", "type": "int"},
+                    ),
+                ],
+            },
+        ),
+        (
+            20,
+            {
+                "notCapturedReason": "CountBudget",
+                "size": 100,
+                "type": "dict",
+                "entries": [
+                    ({"type": "int", "value": "0"}, {"type": "int", "value": "0"}),
+                    ({"type": "int", "value": "1"}, {"type": "int", "value": "1"}),
+                    ({"type": "int", "value": "2"}, {"type": "int", "value": "2"}),
+                    ({"type": "int", "value": "3"}, {"type": "int", "value": "3"}),
+                    ({"type": "int", "value": "4"}, {"type": "int", "value": "4"}),
+                    ({"type": "int", "value": "5"}, {"type": "int", "value": "5"}),
+                    (
+                        {"notCapturedReason": "CountBudget", "type": "int"},
+                        {"notCapturedReason": "CountBudget", "type": "int"},
+                    ),
+                ],
+            },
+        ),
+    ],
+)
+def test_encoding_stopping_cond_map_size(count, result):
+    assert utils.capture_value({i: i for i in range(100)}, stopping_cond=CountBudget(count)) == result

@@ -1,6 +1,7 @@
 import inspect
 import os
 
+from boto import __version__
 import boto.connection
 
 from ddtrace import config
@@ -17,6 +18,8 @@ from ddtrace.pin import Pin
 from ddtrace.vendor import debtcollector
 from ddtrace.vendor import wrapt
 
+from ...internal.schema import schematize_cloud_api_operation
+from ...internal.schema import schematize_service_name
 from ...internal.utils import get_argument_value
 from ...internal.utils.formats import asbool
 
@@ -54,10 +57,15 @@ config._add(
 )
 
 
+def get_version():
+    # type: () -> str
+    return __version__
+
+
 def patch():
     if getattr(boto.connection, "_datadog_patch", False):
         return
-    setattr(boto.connection, "_datadog_patch", True)
+    boto.connection._datadog_patch = True
 
     # AWSQueryConnection and AWSAuthConnection are two different classes called by
     # different services for connection.
@@ -70,23 +78,24 @@ def patch():
 
 def unpatch():
     if getattr(boto.connection, "_datadog_patch", False):
-        setattr(boto.connection, "_datadog_patch", False)
+        boto.connection._datadog_patch = False
         unwrap(boto.connection.AWSQueryConnection, "make_request")
         unwrap(boto.connection.AWSAuthConnection, "make_request")
 
 
 # ec2, sqs, kinesis
 def patched_query_request(original_func, instance, args, kwargs):
-
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
         return original_func(*args, **kwargs)
 
-    endpoint_name = getattr(instance, "host").split(".")[0]
+    endpoint_name = instance.host.split(".")[0]
 
     with pin.tracer.trace(
-        "{}.command".format(endpoint_name),
-        service="{}.{}".format(pin.service, endpoint_name),
+        schematize_cloud_api_operation(
+            "{}.command".format(endpoint_name), cloud_provider="aws", cloud_service=endpoint_name
+        ),
+        service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
         span_type=SpanTypes.HTTP,
     ) as span:
         span.set_tag_str(COMPONENT, config.boto.integration_name)
@@ -120,13 +129,14 @@ def patched_query_request(original_func, instance, args, kwargs):
         }
         if region_name:
             meta[aws.REGION] = region_name
+            meta[aws.AWSREGION] = region_name
 
         span.set_tags(meta)
 
         # Original func returns a boto.connection.HTTPResponse object
         result = original_func(*args, **kwargs)
-        span.set_tag(http.STATUS_CODE, getattr(result, "status"))
-        span.set_tag_str(http.METHOD, getattr(result, "_method"))
+        span.set_tag(http.STATUS_CODE, result.status)
+        span.set_tag_str(http.METHOD, result._method)
 
         # set analytics sample rate
         span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.boto.get_analytics_sample_rate())
@@ -136,7 +146,6 @@ def patched_query_request(original_func, instance, args, kwargs):
 
 # s3, lambda
 def patched_auth_request(original_func, instance, args, kwargs):
-
     # Catching the name of the operation that called make_request()
     operation_name = None
 
@@ -159,11 +168,13 @@ def patched_auth_request(original_func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return original_func(*args, **kwargs)
 
-    endpoint_name = getattr(instance, "host").split(".")[0]
+    endpoint_name = instance.host.split(".")[0]
 
     with pin.tracer.trace(
-        "{}.command".format(endpoint_name),
-        service="{}.{}".format(pin.service, endpoint_name),
+        schematize_cloud_api_operation(
+            "{}.command".format(endpoint_name), cloud_provider="aws", cloud_service=endpoint_name
+        ),
+        service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
         span_type=SpanTypes.HTTP,
     ) as span:
         span.set_tag(SPAN_MEASURED_KEY)
@@ -185,13 +196,14 @@ def patched_auth_request(original_func, instance, args, kwargs):
         }
         if region_name:
             meta[aws.REGION] = region_name
+            meta[aws.AWSREGION] = region_name
 
         span.set_tags(meta)
 
         # Original func returns a boto.connection.HTTPResponse object
         result = original_func(*args, **kwargs)
-        span.set_tag(http.STATUS_CODE, getattr(result, "status"))
-        span.set_tag_str(http.METHOD, getattr(result, "_method"))
+        span.set_tag(http.STATUS_CODE, result.status)
+        span.set_tag_str(http.METHOD, result._method)
 
         # set analytics sample rate
         span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.boto.get_analytics_sample_rate())

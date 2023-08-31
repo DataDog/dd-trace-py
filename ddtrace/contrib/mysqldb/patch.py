@@ -9,12 +9,14 @@ from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.contrib.trace_utils import ext_service
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...ext import db
 from ...ext import net
+from ...internal.schema import schematize_service_name
 from ...internal.utils.formats import asbool
 from ...internal.utils.wrappers import unwrap as _u
 
@@ -22,8 +24,9 @@ from ...internal.utils.wrappers import unwrap as _u
 config._add(
     "mysqldb",
     dict(
-        _default_service="mysql",
+        _default_service=schematize_service_name("mysql"),
         _dbapi_span_name_prefix="mysql",
+        _dbapi_span_operation_name=schematize_database_operation("mysql.query", database_provider="mysql"),
         trace_fetch_methods=asbool(os.getenv("DD_MYSQLDB_TRACE_FETCH_METHODS", default=False)),
         trace_connect=asbool(os.getenv("DD_MYSQLDB_TRACE_CONNECT", default=False)),
     ),
@@ -36,11 +39,16 @@ KWPOS_BY_TAG = {
 }
 
 
+def get_version():
+    # type: () -> str
+    return ".".join(map(str, MySQLdb.version_info[0:3]))
+
+
 def patch():
     # patch only once
     if getattr(MySQLdb, "__datadog_patch", False):
         return
-    setattr(MySQLdb, "__datadog_patch", True)
+    MySQLdb.__datadog_patch = True
 
     Pin().onto(MySQLdb)
 
@@ -56,7 +64,7 @@ def patch():
 def unpatch():
     if not getattr(MySQLdb, "__datadog_patch", False):
         return
-    setattr(MySQLdb, "__datadog_patch", False)
+    MySQLdb.__datadog_patch = False
 
     pin = Pin.get_from(MySQLdb)
     if pin:

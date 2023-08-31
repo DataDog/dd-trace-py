@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    psycopg: Resolves an issue where an AttributeError is raised when ``psycopg.AsyncConnection`` is traced.
+

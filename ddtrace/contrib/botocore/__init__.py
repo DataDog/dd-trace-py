@@ -13,6 +13,11 @@ Or use :func:`patch()<ddtrace.patch>` to manually enable the integration::
     from ddtrace import patch
     patch(botocore=True)
 
+To patch only specific botocore modules, pass a list of the module names instead::
+
+    from ddtrace import patch
+    patch(botocore=['s3', 'sns'])
+
 Configuration
 ~~~~~~~~~~~~~
 
@@ -78,6 +83,14 @@ Configuration
 
     Default: ``False``
 
+.. py:data:: ddtrace.config.botocore['instrument_internals']
+
+    This opts into collecting spans for some internal functions, including ``parsers.ResponseParser.parse``.
+
+    Can also be enabled with the ``DD_BOTOCORE_INSTRUMENT_INTERNALS`` environment variable.
+
+    Default: ``False``
+
 
 Example::
 
@@ -96,6 +109,8 @@ required_modules = ["botocore.client"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
+        from .patch import get_version
         from .patch import patch
+        from .patch import patch_submodules
 
-        __all__ = ["patch"]
+        __all__ = ["patch", "patch_submodules", "get_version"]

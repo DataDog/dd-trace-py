@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    dynamic instrumentation: Fix a bug where the dynamic instrumentation would
+    stop injecting function probes after the first failed one.

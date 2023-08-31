@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    django: Fixed a bug that prevented a Django application from starting with
+    celery and gevent workers if ``DJANGO_SETTINGS_MODULE`` was not explicitly
+    set.

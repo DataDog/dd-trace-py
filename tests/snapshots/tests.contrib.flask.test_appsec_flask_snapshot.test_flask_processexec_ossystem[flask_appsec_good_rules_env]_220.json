@@ -1,0 +1,206 @@
+[[
+  {
+    "name": "flask.request",
+    "service": "flask",
+    "resource": "GET /executions/ossystem",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "error": 0,
+    "meta": {
+      "_dd.appsec.event_rules.version": "rules_good",
+      "_dd.appsec.waf.version": "1.13.1",
+      "_dd.base_service": "",
+      "_dd.p.dm": "-0",
+      "_dd.runtime_family": "python",
+      "component": "flask",
+      "flask.endpoint": "run_ossystem",
+      "flask.url_rule": "/executions/ossystem",
+      "flask.version": "2.3.1",
+      "http.client_ip": "127.0.0.1",
+      "http.method": "GET",
+      "http.response.headers.content-length": "1",
+      "http.response.headers.content-type": "text/html; charset=utf-8",
+      "http.route": "/executions/ossystem",
+      "http.status_code": "200",
+      "http.url": "http://0.0.0.0:8000/executions/ossystem",
+      "http.useragent": "python-requests/2.29.0",
+      "language": "python",
+      "network.client.ip": "127.0.0.1",
+      "runtime-id": "4da55daf726d4d53be96c08aa53082ec",
+      "span.kind": "server"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.appsec.enabled": 1.0,
+      "_dd.appsec.event_rules.error_count": 0,
+      "_dd.appsec.event_rules.loaded": 5,
+      "_dd.appsec.waf.duration": 23.792,
+      "_dd.appsec.waf.duration_ext": 312.3283386230469,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 15210
+    },
+    "duration": 18772416,
+    "start": 1692722825165912461
+  },
+     {
+       "name": "flask.application",
+       "service": "flask",
+       "resource": "GET /executions/ossystem",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "",
+         "_dd.p.dm": "-0",
+         "component": "flask",
+         "flask.endpoint": "run_ossystem",
+         "flask.url_rule": "/executions/ossystem"
+       },
+       "duration": 17142708,
+       "start": 1692722825166633669
+     },
+        {
+          "name": "flask.preprocess_request",
+          "service": "flask",
+          "resource": "flask.preprocess_request",
+          "trace_id": 0,
+          "span_id": 4,
+          "parent_id": 2,
+          "type": "",
+          "error": 0,
+          "meta": {
+            "_dd.base_service": "",
+            "_dd.p.dm": "-0",
+            "component": "flask"
+          },
+          "duration": 73459,
+          "start": 1692722825166938252
+        },
+        {
+          "name": "flask.dispatch_request",
+          "service": "flask",
+          "resource": "flask.dispatch_request",
+          "trace_id": 0,
+          "span_id": 5,
+          "parent_id": 2,
+          "type": "",
+          "error": 0,
+          "meta": {
+            "_dd.base_service": "",
+            "_dd.p.dm": "-0",
+            "component": "flask"
+          },
+          "duration": 15229500,
+          "start": 1692722825167100336
+        },
+           {
+             "name": "tests.contrib.flask.app.run_ossystem",
+             "service": "flask",
+             "resource": "/executions/ossystem",
+             "trace_id": 0,
+             "span_id": 9,
+             "parent_id": 5,
+             "type": "",
+             "error": 0,
+             "meta": {
+               "_dd.base_service": "",
+               "_dd.p.dm": "-0",
+               "component": "flask"
+             },
+             "duration": 15112167,
+             "start": 1692722825167171377
+           },
+              {
+                "name": "command_execution",
+                "service": "flask",
+                "resource": "dir",
+                "trace_id": 0,
+                "span_id": 10,
+                "parent_id": 9,
+                "type": "system",
+                "error": 0,
+                "meta": {
+                  "_dd.base_service": "",
+                  "_dd.p.dm": "-0",
+                  "cmd.exit_code": "0",
+                  "cmd.shell": "dir -li /",
+                  "component": "os"
+                },
+                "duration": 12918541,
+                "start": 1692722825169082336
+              },
+        {
+          "name": "flask.process_response",
+          "service": "flask",
+          "resource": "flask.process_response",
+          "trace_id": 0,
+          "span_id": 6,
+          "parent_id": 2,
+          "type": "",
+          "error": 0,
+          "meta": {
+            "_dd.base_service": "",
+            "_dd.p.dm": "-0",
+            "component": "flask"
+          },
+          "duration": 154333,
+          "start": 1692722825182732044
+        },
+        {
+          "name": "flask.do_teardown_request",
+          "service": "flask",
+          "resource": "flask.do_teardown_request",
+          "trace_id": 0,
+          "span_id": 7,
+          "parent_id": 2,
+          "type": "",
+          "error": 0,
+          "meta": {
+            "_dd.base_service": "",
+            "_dd.p.dm": "-0",
+            "component": "flask"
+          },
+          "duration": 49625,
+          "start": 1692722825183587711
+        },
+        {
+          "name": "flask.do_teardown_appcontext",
+          "service": "flask",
+          "resource": "flask.do_teardown_appcontext",
+          "trace_id": 0,
+          "span_id": 8,
+          "parent_id": 2,
+          "type": "",
+          "error": 0,
+          "meta": {
+            "_dd.base_service": "",
+            "_dd.p.dm": "-0",
+            "component": "flask"
+          },
+          "duration": 25500,
+          "start": 1692722825183689961
+        },
+     {
+       "name": "flask.response",
+       "service": "flask",
+       "resource": "flask.response",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "",
+         "_dd.p.dm": "-0",
+         "component": "flask"
+       },
+       "duration": 862375,
+       "start": 1692722825183797377
+     }]]

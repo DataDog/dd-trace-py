@@ -9,19 +9,20 @@
     "type": "",
     "error": 0,
     "meta": {
+      "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "language": "python",
-      "runtime-id": "b8f85bec81c04f81aa7a1e60a8dd199f"
+      "runtime-id": "3cf1df7fb079462ab81608355e026651"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 773
+      "process_id": 19999
     },
-    "duration": 4109944,
-    "start": 1667243546069421056
+    "duration": 534179,
+    "start": 1692651821803009280
   },
      {
        "name": "redis.command",
@@ -33,6 +34,8 @@
        "type": "redis",
        "error": 0,
        "meta": {
+         "_dd.base_service": "",
+         "_dd.p.dm": "-0",
          "component": "redis",
          "db.system": "redis",
          "out.host": "localhost",
@@ -47,6 +50,6 @@
          "out.redis_db": 0,
          "redis.args_length": 2
        },
-       "duration": 3931000,
-       "start": 1667243546069545000
+       "duration": 358500,
+       "start": 1692651821803151542
      }]]

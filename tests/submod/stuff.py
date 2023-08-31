@@ -125,12 +125,13 @@ class PropertyStuff(object):
     foo = property(operator.attrgetter("_foo"))
 
 
-from time import sleep  # noqa
+from ddtrace.internal.compat import monotonic_ns  # noqa
 
 
 def durationstuff(ns):
-
-    sleep(ns / 1e9)
+    end = monotonic_ns() + ns
+    while monotonic_ns() < end:
+        pass
 
 
 def mutator(arg):
@@ -139,3 +140,19 @@ def mutator(arg):
 
 def age_checker(people, age, name=None):
     return filter(lambda person: person.age > age, people)
+
+
+def caller(f, *args, **kwargs):
+    return f(*args, **kwargs)
+
+
+def finallystuff():
+    a = 0
+    try:
+        if a == 0:
+            Exception("Hello", "world!", 42)
+    except Exception:
+        return a
+    finally:
+        a = 42
+    return a

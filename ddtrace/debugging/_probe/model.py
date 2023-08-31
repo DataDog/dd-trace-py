@@ -20,6 +20,7 @@ from ddtrace.debugging._expressions import DDExpression
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import _resolve
 from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLimiter
+from ddtrace.internal.safety import _isinstance
 from ddtrace.internal.utils.cache import cached
 
 
@@ -66,10 +67,34 @@ class CaptureLimits(object):
     max_fields = attr.ib(type=int, default=MAXFIELDS)  # type: int
 
 
-@attr.s(hash=True)
+DEFAULT_CAPTURE_LIMITS = CaptureLimits()
+
+
+@attr.s
 class Probe(six.with_metaclass(abc.ABCMeta)):
     probe_id = attr.ib(type=str)
+    version = attr.ib(type=int)
     tags = attr.ib(type=dict, eq=False)
+
+    def update(self, other):
+        # type: (Probe) -> None
+        """Update the mutable fields from another probe."""
+        if self.probe_id != other.probe_id:
+            log.error("Probe ID mismatch when updating mutable fields")
+            return
+
+        if self.version == other.version:
+            return
+
+        for attrib in (_.name for _ in self.__attrs_attrs__ if _.eq):
+            setattr(self, attrib, getattr(other, attrib))
+
+    def __hash__(self):
+        return hash(self.probe_id)
+
+
+@attr.s
+class RateLimitMixin(six.with_metaclass(abc.ABCMeta)):
     rate = attr.ib(type=float, eq=False)
     limiter = attr.ib(type=RateLimiter, init=False, repr=False, eq=False)  # type: RateLimiter
 
@@ -119,8 +144,8 @@ class ProbeLocationMixin(object):
 
 @attr.s
 class LineLocationMixin(ProbeLocationMixin):
-    source_file = attr.ib(type=str, converter=_resolve_source_file)  # type: ignore[misc]
-    line = attr.ib(type=int)
+    source_file = attr.ib(type=str, converter=_resolve_source_file, eq=False)  # type: ignore[misc]
+    line = attr.ib(type=int, eq=False)
 
     def location(self):
         return (self.source_file, self.line)
@@ -135,8 +160,8 @@ class ProbeEvaluateTimingForMethod(object):
 
 @attr.s
 class FunctionLocationMixin(ProbeLocationMixin):
-    module = attr.ib(type=str)
-    func_qname = attr.ib(type=str)
+    module = attr.ib(type=str, eq=False)
+    func_qname = attr.ib(type=str, eq=False)
     evaluate_at = attr.ib(type=ProbeEvaluateTimingForMethod)
 
     def location(self):
@@ -155,7 +180,7 @@ class MetricProbeKind(object):
 class MetricProbeMixin(object):
     kind = attr.ib(type=str)
     name = attr.ib(type=str)
-    value = attr.ib(type=Optional[Callable[[Dict[str, Any]], Any]])
+    value = attr.ib(type=Optional[DDExpression])
 
 
 @attr.s
@@ -195,6 +220,19 @@ class ExpressionTemplateSegment(TemplateSegment):
 
 
 @attr.s
+class StringTemplate(object):
+    template = attr.ib(type=str)
+    segments = attr.ib(type=List[TemplateSegment])
+
+    def render(self, _locals, serializer):
+        # type: (Dict[str,Any], Callable[[Any], str]) -> str
+        def _to_str(value):
+            return value if _isinstance(value, six.string_types) else serializer(value)
+
+        return "".join([_to_str(s.eval(_locals)) for s in self.segments])
+
+
+@attr.s
 class LogProbeMixin(object):
     template = attr.ib(type=str)
     segments = attr.ib(type=List[TemplateSegment])
@@ -203,19 +241,64 @@ class LogProbeMixin(object):
 
 
 @attr.s
-class LogLineProbe(Probe, LineLocationMixin, LogProbeMixin, ProbeConditionMixin):
+class LogLineProbe(Probe, LineLocationMixin, LogProbeMixin, ProbeConditionMixin, RateLimitMixin):
     pass
 
 
 @attr.s
-class LogFunctionProbe(Probe, FunctionLocationMixin, LogProbeMixin, ProbeConditionMixin):
+class LogFunctionProbe(Probe, FunctionLocationMixin, LogProbeMixin, ProbeConditionMixin, RateLimitMixin):
     pass
 
 
-LineProbe = Union[LogLineProbe, MetricLineProbe]
-FunctionProbe = Union[LogFunctionProbe, MetricFunctionProbe]
+@attr.s
+class SpanProbeMixin(object):
+    pass
+
+
+@attr.s
+class SpanFunctionProbe(Probe, FunctionLocationMixin, SpanProbeMixin, ProbeConditionMixin):
+    pass
+
+
+class SpanDecorationTargetSpan(object):
+    ROOT = "ROOT"
+    ACTIVE = "ACTIVE"
+
+
+@attr.s
+class SpanDecorationTag(object):
+    name = attr.ib(type=str)
+    value = attr.ib(type=StringTemplate)
+
+
+@attr.s
+class SpanDecoration(object):
+    when = attr.ib(type=Optional[DDExpression])
+    tags = attr.ib(type=List[SpanDecorationTag])
+
+
+@attr.s
+class SpanDecorationMixin(object):
+    target_span = attr.ib(type=SpanDecorationTargetSpan)
+    decorations = attr.ib(type=List[SpanDecoration])
+
+
+@attr.s
+class SpanDecorationLineProbe(Probe, LineLocationMixin, SpanDecorationMixin):
+    pass
+
+
+@attr.s
+class SpanDecorationFunctionProbe(Probe, FunctionLocationMixin, SpanDecorationMixin):
+    pass
+
+
+LineProbe = Union[LogLineProbe, MetricLineProbe, SpanDecorationLineProbe]
+FunctionProbe = Union[LogFunctionProbe, MetricFunctionProbe, SpanFunctionProbe, SpanDecorationFunctionProbe]
 
 
 class ProbeType(object):
     LOG_PROBE = "LOG_PROBE"
     METRIC_PROBE = "METRIC_PROBE"
+    SPAN_PROBE = "SPAN_PROBE"
+    SPAN_DECORATION_PROBE = "SPAN_DECORATION_PROBE"

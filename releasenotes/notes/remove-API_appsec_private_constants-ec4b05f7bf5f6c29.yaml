@@ -1,0 +1,3 @@
+deprecations:
+  - |
+    ASM: Several deprecated ASM constants that were added to the public API will be removed. This should not affect existing code as they were meant for private use only.

@@ -9,13 +9,14 @@
     "type": "worker",
     "error": 0,
     "meta": {
+      "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "component": "rq",
       "job.func_name": "tests.contrib.rq.jobs.job_add1",
-      "job.id": "0034ff18-8e15-4c60-b598-9bdb0121b525",
+      "job.id": "30c861b5-640d-4d34-aed4-f4a5270723f1",
       "language": "python",
       "queue.name": "q",
-      "runtime-id": "2cbc4798a5e1448ea9627228c43b1739",
+      "runtime-id": "696c3bcd1bb346e982f3c710445cbea1",
       "span.kind": "producer"
     },
     "metrics": {
@@ -23,10 +24,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 67067
+      "process_id": 2601
     },
-    "duration": 2567000,
-    "start": 1667319043624219000
+    "duration": 830708,
+    "start": 1692649887569483383
   },
      {
        "name": "rq.worker.perform_job",
@@ -38,23 +39,26 @@
        "type": "worker",
        "error": 0,
        "meta": {
+         "_dd.base_service": "",
          "_dd.p.dm": "-0",
          "component": "rq",
-         "job.id": "0034ff18-8e15-4c60-b598-9bdb0121b525",
+         "job.id": "30c861b5-640d-4d34-aed4-f4a5270723f1",
          "job.origin": "q",
          "job.status": "finished",
          "language": "python",
-         "runtime-id": "2cbc4798a5e1448ea9627228c43b1739",
-         "span.kind": "consumer"
+         "runtime-id": "696c3bcd1bb346e982f3c710445cbea1",
+         "span.kind": "consumer",
+         "traceparent": "00-0000000000000000dfe7ed03d1f23df4-d773b116ed54102c-01",
+         "tracestate": "dd=s:1;t.dm:-0"
        },
        "metrics": {
          "_dd.top_level": 1,
          "_dd.tracer_kr": 1.0,
          "_sampling_priority_v1": 1,
-         "process_id": 67067
+         "process_id": 2601
        },
-       "duration": 6298000,
-       "start": 1667319043644170000
+       "duration": 1692083,
+       "start": 1692649887575252633
      },
         {
           "name": "rq.job.perform",
@@ -66,9 +70,11 @@
           "type": "",
           "error": 0,
           "meta": {
+            "_dd.base_service": "",
+            "_dd.p.dm": "-0",
             "component": "rq",
-            "job.id": "0034ff18-8e15-4c60-b598-9bdb0121b525"
+            "job.id": "30c861b5-640d-4d34-aed4-f4a5270723f1"
           },
-          "duration": 662000,
-          "start": 1667319043645344000
+          "duration": 178917,
+          "start": 1692649887575690758
         }]]

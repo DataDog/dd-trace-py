@@ -3,6 +3,8 @@
 # removed the ``_generated`` suffix from the file name, to prevent the content
 # from being overwritten by future re-generations.
 
+from ddtrace.contrib.psycopg.patch import get_version
+from ddtrace.contrib.psycopg.patch import get_versions
 from ddtrace.contrib.psycopg.patch import patch
 
 
@@ -15,15 +17,23 @@ from tests.contrib.patch import PatchTestCase
 
 class TestPsycopgPatch(PatchTestCase.Base):
     __integration_name__ = "psycopg"
-    __module_name__ = "psycopg2"
+    __module_name__ = "psycopg"
     __patch_func__ = patch
     __unpatch_func__ = unpatch
 
-    def assert_module_patched(self, psycopg2):
+    def assert_module_patched(self, psycopg):
         pass
 
-    def assert_not_module_patched(self, psycopg2):
+    def assert_not_module_patched(self, psycopg):
         pass
 
-    def assert_not_module_double_patched(self, psycopg2):
+    def assert_not_module_double_patched(self, psycopg):
         pass
+
+    def assert_module_implements_get_version(self):
+        patch()
+        assert get_version() == ""
+        versions = get_versions()
+        assert "psycopg" in versions
+        assert versions["psycopg"] != ""
+        unpatch()

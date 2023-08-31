@@ -1,0 +1,48 @@
+[[
+  {
+    "name": "openai.request",
+    "service": "",
+    "resource": "retrieveFineTune",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "component": "openai",
+      "language": "python",
+      "openai.api_base": "https://api.openai.com/v1",
+      "openai.api_type": "open_ai",
+      "openai.request.endpoint": "/v1/fine-tunes/*",
+      "openai.request.fine_tune_id": "ft-sADEaavxRFrjOQ65XkQKm0zM",
+      "openai.request.method": "GET",
+      "openai.request.user": "ddtrace-test",
+      "openai.response.created_at": "1685662960",
+      "openai.response.fine_tuned_model": "None",
+      "openai.response.hyperparams.batch_size": "5",
+      "openai.response.hyperparams.learning_rate_multiplier": "0.05",
+      "openai.response.hyperparams.n_epochs": "4",
+      "openai.response.hyperparams.prompt_loss_weight": "0.01",
+      "openai.response.id": "ft-sADEaavxRFrjOQ65XkQKm0zM",
+      "openai.response.model": "babbage",
+      "openai.response.status": "cancelled",
+      "openai.response.updated_at": "1685663003",
+      "openai.user.api_key": "sk-...key>",
+      "runtime-id": "da6540c2a7284fd696d49e06e7c612cc"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "openai.response.events_count": 2,
+      "openai.response.result_files_count": 0,
+      "openai.response.training_files_count": 1,
+      "openai.response.validation_files_count": 0,
+      "process_id": 93389
+    },
+    "duration": 3378000,
+    "start": 1686844438913285000
+  }]]

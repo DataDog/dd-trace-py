@@ -1,0 +1,36 @@
+[[
+  {
+    "name": "openai.request",
+    "service": "",
+    "resource": "createCompletion",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 1,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "component": "openai",
+      "error.message": "Must provide an 'engine' or 'model' parameter to create a <class 'openai.api_resources.completion.Completion'>",
+      "error.stack": "Traceback (most recent call last):\n  File \"/Users/yun.kim/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/openai/patch.py\", line 465, in patched_endpoint\n    resp = func(*args, **kwargs)\n  File \"/Users/yun.kim/go/src/github.com/DataDog/dd-trace-py/.riot/venv_py3105_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_openai[embeddings]_vcrpy421_urllib3~126_pytest-asyncio_pillow/lib/python3.10/site-packages/openai/api_resources/completion.py\", line 25, in create\n    return super().create(*args, **kwargs)\n  File \"/Users/yun.kim/go/src/github.com/DataDog/dd-trace-py/.riot/venv_py3105_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_openai[embeddings]_vcrpy421_urllib3~126_pytest-asyncio_pillow/lib/python3.10/site-packages/openai/api_resources/abstract/engine_api_resource.py\", line 149, in create\n    ) = cls.__prepare_create_request(\n  File \"/Users/yun.kim/go/src/github.com/DataDog/dd-trace-py/.riot/venv_py3105_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_openai[embeddings]_vcrpy421_urllib3~126_pytest-asyncio_pillow/lib/python3.10/site-packages/openai/api_resources/abstract/engine_api_resource.py\", line 90, in __prepare_create_request\n    raise error.InvalidRequestError(\nopenai.error.InvalidRequestError: Must provide an 'engine' or 'model' parameter to create a <class 'openai.api_resources.completion.Completion'>\n",
+      "error.type": "openai.error.InvalidRequestError",
+      "language": "python",
+      "openai.api_base": "https://api.openai.com/v1",
+      "openai.api_type": "open_ai",
+      "openai.request.endpoint": "/v1/completions",
+      "openai.request.method": "POST",
+      "openai.request.prompt": "",
+      "openai.user.api_key": "sk-...key>",
+      "runtime-id": "da6540c2a7284fd696d49e06e7c612cc"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 93389
+    },
+    "duration": 3386000,
+    "start": 1686844439531778000
+  }]]

@@ -1,9 +1,11 @@
 from inspect import isgeneratorfunction
 import ipaddress
+import os
 import platform
 import random
 import re
 import sys
+from tempfile import mkdtemp
 import textwrap
 import threading
 from types import BuiltinFunctionType
@@ -18,6 +20,7 @@ from typing import Text
 from typing import Tuple
 from typing import Type
 from typing import Union
+import warnings
 
 import six
 
@@ -32,6 +35,7 @@ __all__ = [
     "Queue",
     "stringify",
     "StringIO",
+    "TimeoutError",
     "urlencode",
     "parse",
     "reraise",
@@ -41,6 +45,12 @@ __all__ = [
 PYTHON_VERSION_INFO = sys.version_info
 PY2 = sys.version_info[0] == 2
 PY3 = sys.version_info[0] == 3
+
+try:
+    from builtin import TimeoutError
+except ImportError:
+    # Purposely shadowing a missing python builtin
+    from socket import timeout as TimeoutError  # noqa: A001
 
 if not PY2:
     long = int
@@ -64,6 +74,7 @@ reload_module = six.moves.reload_module
 
 ensure_text = six.ensure_text
 ensure_str = six.ensure_str
+ensure_binary = six.ensure_binary
 stringify = six.text_type
 string_type = six.string_types[0]
 text_type = six.text_type
@@ -172,7 +183,7 @@ else:
 
 
 if PYTHON_VERSION_INFO[0:2] >= (3, 5):
-    from asyncio import iscoroutinefunction
+    from inspect import iscoroutinefunction
 
     # Execute from a string to get around syntax errors from `yield from`
     # DEV: The idea to do this was stolen from `six`
@@ -181,7 +192,6 @@ if PYTHON_VERSION_INFO[0:2] >= (3, 5):
         textwrap.dedent(
             """
     import functools
-    import asyncio
 
 
     def make_async_decorator(tracer, coro, *params, **kw_params):
@@ -354,6 +364,12 @@ except ImportError:
 ExcInfoType = Union[Tuple[Type[BaseException], BaseException, Optional[TracebackType]], Tuple[None, None, None]]
 
 
+try:
+    from json import JSONDecodeError
+except ImportError:
+    JSONDecodeError = ValueError  # type: ignore[misc,assignment]
+
+
 def ip_is_global(ip):
     # type: (str) -> bool
     """
@@ -365,3 +381,123 @@ def ip_is_global(ip):
         return parsed_ip.is_global
 
     return not (parsed_ip.is_loopback or parsed_ip.is_private)
+
+
+# https://stackoverflow.com/a/19299884
+class TemporaryDirectory(object):
+    """Create and return a temporary directory.  This has the same
+    behavior as mkdtemp but can be used as a context manager.  For
+    example:
+
+        with TemporaryDirectory() as tmpdir:
+            ...
+
+    Upon exiting the context, the directory and everything contained
+    in it are removed.
+    """
+
+    def __init__(self, suffix="", prefix="tmp", _dir=None):
+        self._closed = False
+        self.name = None  # Handle mkdtemp raising an exception
+        self.name = mkdtemp(suffix, prefix, _dir)
+
+    def __repr__(self):
+        return "<{} {!r}>".format(self.__class__.__name__, self.name)
+
+    def __enter__(self):
+        return self.name
+
+    def cleanup(self, _warn=False):
+        if self.name and not self._closed:
+            try:
+                self._rmtree(self.name)
+            except (TypeError, AttributeError) as ex:
+                # Issue #10188: Emit a warning on stderr
+                # if the directory could not be cleaned
+                # up due to missing globals
+                if "None" not in str(ex):
+                    raise
+                return
+            self._closed = True
+            if _warn:
+                self._warn("Implicitly cleaning up {!r}".format(self), ResourceWarning)
+
+    def __exit__(self, exc, value, tb):
+        self.cleanup()
+
+    def __del__(self):
+        # Issue a ResourceWarning if implicit cleanup needed
+        self.cleanup(_warn=True)
+
+    # XXX (ncoghlan): The following code attempts to make
+    # this class tolerant of the module nulling out process
+    # that happens during CPython interpreter shutdown
+    # Alas, it doesn't actually manage it. See issue #10188
+    _listdir = staticmethod(os.listdir)
+    _path_join = staticmethod(os.path.join)
+    _isdir = staticmethod(os.path.isdir)
+    _islink = staticmethod(os.path.islink)
+    _remove = staticmethod(os.remove)
+    _rmdir = staticmethod(os.rmdir)
+    _warn = warnings.warn
+
+    def _rmtree(self, path):
+        # Essentially a stripped down version of shutil.rmtree.  We can't
+        # use globals because they may be None'ed out at shutdown.
+        for name in self._listdir(path):
+            fullname = self._path_join(path, name)
+            try:
+                isdir = self._isdir(fullname) and not self._islink(fullname)
+            except OSError:
+                isdir = False
+            if isdir:
+                self._rmtree(fullname)
+            else:
+                try:
+                    self._remove(fullname)
+                except OSError:
+                    pass
+        try:
+            self._rmdir(path)
+        except OSError:
+            pass
+
+
+try:
+    from shlex import quote as shquote
+except ImportError:
+    import re
+
+    _find_unsafe = re.compile(r"[^\w@%+=:,./-]").search
+
+    def shquote(s):
+        # type: (str) -> str
+        """Return a shell-escaped version of the string *s*."""
+        if not s:
+            return "''"
+        if _find_unsafe(s) is None:
+            return s
+
+        # use single quotes, and put single quotes into double quotes
+        # the string $'b is then quoted as '$'"'"'b'
+        return "'" + s.replace("'", "'\"'\"'") + "'"
+
+
+try:
+    from shlex import join as shjoin
+except ImportError:
+
+    def shjoin(args):  # type: ignore[misc]
+        # type: (Iterable[str]) -> str
+        """Return a shell-escaped string from *args*."""
+        return " ".join(shquote(arg) for arg in args)
+
+
+try:
+    from contextlib import nullcontext
+except ImportError:
+    from contextlib import contextmanager
+
+    @contextmanager  # type: ignore[no-redef]
+    def nullcontext(enter_result=None):
+        yield enter_result

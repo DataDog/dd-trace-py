@@ -1,0 +1,72 @@
+[[
+  {
+    "name": "kafka.process",
+    "service": "mysvc",
+    "resource": "kafka.process",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "component": "kafka",
+      "kafka.group_id": "test_group",
+      "kafka.message_key": "test_key",
+      "kafka.received_message": "True",
+      "kafka.tombstone": "False",
+      "kafka.topic": "test_schematized_span_service_and_operation_v1-mysvc",
+      "language": "python",
+      "messaging.system": "kafka",
+      "runtime-id": "8af9dc81131d4efe986cb7db2a15b2f9",
+      "span.kind": "consumer"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "kafka.message_offset": 6,
+      "kafka.partition": 0,
+      "process_id": 6249
+    },
+    "duration": 998148917,
+    "start": 1685640783842182043
+  }],
+[
+  {
+    "name": "kafka.send",
+    "service": "mysvc",
+    "resource": "kafka.send",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.peer.service.source": "messaging.kafka.bootstrap.servers",
+      "component": "kafka",
+      "kafka.message_key": "test_key",
+      "kafka.tombstone": "False",
+      "kafka.topic": "test_schematized_span_service_and_operation_v1-mysvc",
+      "language": "python",
+      "messaging.kafka.bootstrap.servers": "localhost:29092",
+      "messaging.system": "kafka",
+      "peer.service": "localhost:29092",
+      "runtime-id": "8af9dc81131d4efe986cb7db2a15b2f9",
+      "span.kind": "producer"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "kafka.partition": -1,
+      "process_id": 6249
+    },
+    "duration": 564667,
+    "start": 1685640781811028917
+  }]]

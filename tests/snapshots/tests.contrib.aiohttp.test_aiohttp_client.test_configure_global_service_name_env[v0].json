@@ -1,0 +1,48 @@
+[[
+  {
+    "name": "aiohttp.request",
+    "service": "global-service-name",
+    "resource": "aiohttp.request",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "http",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "component": "aiohttp_client",
+      "http.method": "GET",
+      "http.status_code": "200",
+      "http.status_msg": "OK",
+      "http.url": "http://localhost:8001/status/200",
+      "language": "python",
+      "out.host": "localhost",
+      "runtime-id": "d0a85359bd8643f7b8f3bd198b9352f6",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 2212
+    },
+    "duration": 4550133,
+    "start": 1691160520298108746
+  },
+     {
+       "name": "TCPConnector.connect",
+       "service": "global-service-name",
+       "resource": "TCPConnector.connect",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.p.dm": "-0",
+         "component": "aiohttp"
+       },
+       "duration": 3167129,
+       "start": 1691160520298456315
+     }]]

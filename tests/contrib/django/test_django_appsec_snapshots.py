@@ -42,8 +42,8 @@ def daphne_client(django_asgi, additional_env=None):
     cmd = ["ddtrace-run", "daphne", "-p", str(SERVER_PORT), "tests.contrib.django.asgi:%s" % django_asgi]
     proc = subprocess.Popen(
         cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
         close_fds=True,
         env=env,
     )
@@ -148,9 +148,7 @@ def test_request_ipblock_match_403():
             },
         )
         assert result.status_code == 403
-        as_bytes = (
-            bytes(constants.APPSEC_BLOCKED_RESPONSE_HTML, "utf-8") if PY3 else constants.APPSEC_BLOCKED_RESPONSE_HTML
-        )
+        as_bytes = bytes(constants.BLOCKED_RESPONSE_HTML, "utf-8") if PY3 else constants.BLOCKED_RESPONSE_HTML
         assert result.content == as_bytes
 
 
@@ -182,7 +180,5 @@ def test_request_ipblock_match_403_json():
             },
         )
         assert result.status_code == 403
-        as_bytes = (
-            bytes(constants.APPSEC_BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else constants.APPSEC_BLOCKED_RESPONSE_JSONP
-        )
+        as_bytes = bytes(constants.BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else constants.BLOCKED_RESPONSE_JSONP
         assert result.content == as_bytes

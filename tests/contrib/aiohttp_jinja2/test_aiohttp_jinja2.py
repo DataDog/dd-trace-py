@@ -45,7 +45,10 @@ async def test_template_rendering_snapshot(untraced_app_tracer_jinja, aiohttp_cl
 
 @pytest.mark.parametrize("use_global_tracer", [True])
 async def test_template_rendering_snapshot_patched_server(
-    patched_app_tracer_jinja, aiohttp_client, snapshot_context, use_global_tracer
+    patched_app_tracer_jinja,
+    aiohttp_client,
+    snapshot_context,
+    use_global_tracer,
 ):
     app, _ = patched_app_tracer_jinja
     Pin.override(aiohttp_jinja2, tracer=tracer)

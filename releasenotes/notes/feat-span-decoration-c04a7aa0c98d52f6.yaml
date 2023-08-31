@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    dynamic instrumentation: Added support for span decoration probes.

@@ -3,6 +3,7 @@ import os
 import molten
 
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.vendor import wrapt
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
@@ -15,6 +16,8 @@ from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...internal.compat import urlencode
+from ...internal.schema import schematize_service_name
+from ...internal.schema import schematize_url_operation
 from ...internal.utils.formats import asbool
 from ...internal.utils.importlib import func_name
 from ...internal.utils.version import parse_version
@@ -32,17 +35,22 @@ MOLTEN_VERSION = parse_version(molten.__version__)
 config._add(
     "molten",
     dict(
-        _default_service="molten",
+        _default_service=schematize_service_name("molten"),
         distributed_tracing=asbool(os.getenv("DD_MOLTEN_DISTRIBUTED_TRACING", default=True)),
     ),
 )
+
+
+def get_version():
+    # type: () -> str
+    return getattr(molten, "__version__", "")
 
 
 def patch():
     """Patch the instrumented methods"""
     if getattr(molten, "_datadog_patch", False):
         return
-    setattr(molten, "_datadog_patch", True)
+    molten._datadog_patch = True
 
     pin = Pin()
 
@@ -56,7 +64,7 @@ def patch():
 def unpatch():
     """Remove instrumentation"""
     if getattr(molten, "_datadog_patch", False):
-        setattr(molten, "_datadog_patch", False)
+        molten._datadog_patch = False
 
         # remove pin
         pin = Pin.get_from(molten)
@@ -87,7 +95,7 @@ def patch_app_call(wrapped, instance, args, kwargs):
     )
 
     with pin.tracer.trace(
-        "molten.request",
+        schematize_url_operation("molten.request", protocol="http", direction=SpanDirection.INBOUND),
         service=trace_utils.int_service(pin, config.molten),
         resource=resource,
         span_type=SpanTypes.WEB,

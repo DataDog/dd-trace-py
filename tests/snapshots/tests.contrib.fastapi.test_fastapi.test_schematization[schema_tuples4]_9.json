@@ -1,0 +1,93 @@
+[[
+  {
+    "name": "http.request",
+    "service": "mysvc",
+    "resource": "http.request",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "http",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "component": "httpx",
+      "http.method": "GET",
+      "http.status_code": "200",
+      "http.url": "http://testserver/sub-app/hello/name",
+      "http.useragent": "testclient",
+      "language": "python",
+      "out.host": "testserver",
+      "runtime-id": "3fe4022acb6a46688de442faa1bb49e1",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 47368
+    },
+    "duration": 2012135,
+    "start": 1691166912034260069
+  },
+     {
+       "name": "fastapi.request",
+       "service": "mysvc",
+       "resource": "GET /sub-app/hello/{name}",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "web",
+       "error": 0,
+       "meta": {
+         "_dd.p.dm": "-0",
+         "component": "fastapi",
+         "http.method": "GET",
+         "http.route": "/sub-app/hello/{name}",
+         "http.status_code": "200",
+         "http.url": "http://testserver/sub-app/hello/name",
+         "http.useragent": "testclient",
+         "http.version": "1.1",
+         "span.kind": "server"
+       },
+       "duration": 838163,
+       "start": 1691166912034927798
+     },
+        {
+          "name": "fastapi.request",
+          "service": "mysvc",
+          "resource": "GET /hello/{name}",
+          "trace_id": 0,
+          "span_id": 3,
+          "parent_id": 2,
+          "type": "web",
+          "error": 0,
+          "meta": {
+            "_dd.p.dm": "-0",
+            "component": "fastapi",
+            "http.method": "GET",
+            "http.status_code": "200",
+            "http.url": "http://testserver/sub-app/hello/name",
+            "http.useragent": "testclient",
+            "http.version": "1.1",
+            "span.kind": "server"
+          },
+          "duration": 695400,
+          "start": 1691166912035077990
+        },
+           {
+             "name": "fastapi.serialize_response",
+             "service": "mysvc",
+             "resource": "fastapi.serialize_response",
+             "trace_id": 0,
+             "span_id": 4,
+             "parent_id": 3,
+             "type": "",
+             "error": 0,
+             "meta": {
+               "_dd.p.dm": "-0"
+             },
+             "duration": 85739,
+             "start": 1691166912035584642
+           }]]

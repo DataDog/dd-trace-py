@@ -25,6 +25,17 @@ Global Configuration
    The option can also be set with the ``DD_REDISCLUSTER_SERVICE`` environment variable
 
    Default: ``'rediscluster'``
+
+
+.. py:data:: ddtrace.config.rediscluster["cmd_max_length"]
+
+   Max allowable size for the rediscluster command span tag.
+   Anything beyond the max length will be replaced with ``"..."``.
+
+   This option can also be set with the ``DD_REDISCLUSTER_CMD_MAX_LENGTH`` environment
+   variable.
+
+   Default: ``1000``
 """
 
 from ...internal.utils.importlib import require_modules
@@ -34,6 +45,7 @@ required_modules = ["rediscluster", "rediscluster.client"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
+        from .patch import get_version
         from .patch import patch
 
-        __all__ = ["patch"]
+        __all__ = ["patch", "get_version"]

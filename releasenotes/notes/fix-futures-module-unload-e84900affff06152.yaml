@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    futures: Resolves an issue that prevents tasks from being submitted to a
+    thread pool executor when gevent is used (e.g. as a worker class for
+    gunicorn or celery).

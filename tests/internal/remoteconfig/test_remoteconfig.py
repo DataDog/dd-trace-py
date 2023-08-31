@@ -3,20 +3,37 @@ import base64
 import datetime
 import hashlib
 import json
+from time import sleep
 import warnings
 
 import mock
+from mock.mock import ANY
 import pytest
 
 from ddtrace.internal.compat import PY2
-from ddtrace.internal.remoteconfig import RemoteConfig
+from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
+from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisherMergeDicts
+from ddtrace.internal.remoteconfig._pubsub import PubSub
+from ddtrace.internal.remoteconfig._subscribers import RemoteConfigSubscriber
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.remoteconfig.constants import ASM_FEATURES_PRODUCT
 from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
-from ddtrace.internal.remoteconfig.worker import RemoteConfigWorker
-from ddtrace.internal.remoteconfig.worker import get_poll_interval_seconds
+from ddtrace.internal.remoteconfig.utils import get_poll_interval_seconds
+from ddtrace.internal.remoteconfig.worker import RemoteConfigPoller
+from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+from ddtrace.internal.service import ServiceStatus
 from tests.internal.test_utils_version import _assert_and_get_version_agent_format
 from tests.utils import override_env
+
+
+class RCMockPubSub(PubSub):
+    __subscriber_class__ = RemoteConfigSubscriber
+    __publisher_class__ = RemoteConfigPublisherMergeDicts
+    __shared_data__ = PublisherSubscriberConnector()
+
+    def __init__(self, _preprocess_results, callback):
+        self._publisher = self.__publisher_class__(self.__shared_data__, _preprocess_results)
+        self._subscriber = self.__subscriber_class__(self.__shared_data__, callback, "TESTS")
 
 
 def to_bytes(string):
@@ -91,50 +108,74 @@ def get_mock_encoded_msg(msg):
 
 def test_remote_config_register_auto_enable():
     # ASM_FEATURES product is enabled by default, but LIVE_DEBUGGER isn't
-    assert RemoteConfig._worker is None
+    class MockPubsub:
+        def stop(self, *args, **kwargs):
+            pass
 
-    RemoteConfig.register("LIVE_DEBUGGER", lambda m, c: None)
+    mock_pubsub = MockPubsub()
+    remoteconfig_poller.disable()
+    with override_env(dict(DD_REMOTE_CONFIGURATION_ENABLED="true")):
+        assert remoteconfig_poller.status == ServiceStatus.STOPPED
 
-    assert RemoteConfig._worker._client._products["LIVE_DEBUGGER"] is not None
+        remoteconfig_poller.register("LIVE_DEBUGGER", mock_pubsub)
 
-    RemoteConfig.disable()
+        assert remoteconfig_poller.status == ServiceStatus.RUNNING
+        assert remoteconfig_poller._client._products["LIVE_DEBUGGER"] is not None
 
-    assert RemoteConfig._worker is None
+        remoteconfig_poller.disable()
+
+
+def test_remote_config_register_validate_rc_disabled():
+    remoteconfig_poller.disable()
+    assert remoteconfig_poller.status == ServiceStatus.STOPPED
+
+    with override_env(dict(DD_REMOTE_CONFIGURATION_ENABLED="false")):
+        remoteconfig_poller.register("LIVE_DEBUGGER", lambda m, c: None)
+
+        assert remoteconfig_poller.status == ServiceStatus.STOPPED
+
+
+def test_remote_config_enable_validate_rc_disabled():
+    remoteconfig_poller.disable()
+    assert remoteconfig_poller.status == ServiceStatus.STOPPED
+
+    with override_env(dict(DD_REMOTE_CONFIGURATION_ENABLED="false")):
+        remoteconfig_poller.enable()
+
+        assert remoteconfig_poller.status == ServiceStatus.STOPPED
 
 
 @pytest.mark.subprocess
 def test_remote_config_forksafe():
     import os
 
-    from ddtrace.internal.remoteconfig import RemoteConfig
+    from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+    from ddtrace.internal.service import ServiceStatus
+    from tests.utils import override_env
 
-    RemoteConfig.enable()
+    with override_env(dict(DD_REMOTE_CONFIGURATION_ENABLED="true")):
+        remoteconfig_poller.enable()
 
-    parent_worker = RemoteConfig._worker
-    assert parent_worker is not None
+        parent_worker = remoteconfig_poller
+        assert parent_worker.status == ServiceStatus.RUNNING
 
-    if os.fork() == 0:
-        assert RemoteConfig._worker is not None
-        assert RemoteConfig._worker is not parent_worker
-        exit(0)
+        client_id = remoteconfig_poller._client.id
+        runtime_id = remoteconfig_poller._client._client_tracer["runtime_id"]
 
+        parent_payload = remoteconfig_poller._client._build_payload(None)
 
-@mock.patch.object(RemoteConfigClient, "_send_request")
-def test_remote_configuration_1_click(mock_send_request):
-    class Callback:
-        features = {}
+        assert client_id == parent_payload["client"]["id"]
+        assert runtime_id == parent_payload["client"]["client_tracer"]["runtime_id"]
 
-        def _reload_features(self, metadata, features):
-            self.features = features
+        if os.fork() == 0:
+            assert remoteconfig_poller.status == ServiceStatus.RUNNING
+            assert remoteconfig_poller._worker is not parent_worker
 
-    callback = Callback()
+            child_payload = remoteconfig_poller._client._build_payload(None)
 
-    with RemoteConfig() as rc:
-        mock_send_request.return_value = get_mock_encoded_msg(b'{"asm":{"enabled":true}}')
-        rc.register(ASM_FEATURES_PRODUCT, callback._reload_features)
-        rc._worker._online()
-        mock_send_request.assert_called()
-        assert callback.features == {"asm": {"enabled": True}}
+            assert client_id != child_payload["client"]["id"]
+            assert runtime_id != child_payload["client"]["client_tracer"]["runtime_id"]
+            exit(0)
 
 
 def test_remote_configuration_check_deprecated_var():
@@ -142,6 +183,31 @@ def test_remote_configuration_check_deprecated_var():
         with warnings.catch_warnings(record=True) as capture:
             get_poll_interval_seconds()
             assert len(capture) == 0
+
+
+@mock.patch.object(RemoteConfigClient, "_send_request")
+def test_remote_configuration_1_click(mock_send_request):
+    class Callback:
+        features = {}
+
+        def _reload_features(self, features, test_tracer=None):
+            self.features = features
+
+    callback = Callback()
+    with override_env(dict(DD_REMOTE_CONFIGURATION_ENABLED="true", DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS="0.5")):
+        with RemoteConfigPoller() as rc:
+            mock_send_request.return_value = get_mock_encoded_msg(b'{"asm":{"enabled":true}}')
+            mock_pubsub = RCMockPubSub(None, callback._reload_features)
+            rc.register(ASM_FEATURES_PRODUCT, mock_pubsub)
+            mock_pubsub.start_subscriber()
+            rc._online()
+            mock_send_request.assert_called()
+            sleep(0.5)
+            assert callback.features == {
+                "config": {"asm": {"enabled": True}},
+                "metadata": {},
+                "shared_data_counter": ANY,
+            }
 
 
 def test_remote_configuration_check_deprecated_var_message():
@@ -165,31 +231,39 @@ def test_remote_configuration_ip_blocking(mock_send_request):
     class Callback:
         features = {}
 
-        def _reload_features(self, metadata, features):
-            self.features = features
+        def _reload_features(self, features, test_tracer=None):
+            self.features = dict(features)
 
     callback = Callback()
 
-    with override_env(dict(DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS="0.1")):
+    with override_env(dict(DD_REMOTE_CONFIGURATION_ENABLED="true", DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS="0.1")):
         mock_send_request.return_value = get_mock_encoded_msg(
             b'{"rules_data": [{"data": [{"expiration": 1662804872, "value": "127.0.0.0"}, '
             b'{"expiration": 1662804872, "value": "52.80.198.1"}], "id": "blocking_ips", '
             b'"type": "ip_with_expiration"}]}'
         )
-        with RemoteConfig() as rc:
-            rc.register(ASM_FEATURES_PRODUCT, callback._reload_features)
-            rc._worker._online()
+        with RemoteConfigPoller() as rc:
+            mock_pubsub = RCMockPubSub(None, callback._reload_features)
+            rc.register(ASM_FEATURES_PRODUCT, mock_pubsub)
+            mock_pubsub.start_subscriber()
+            rc._online()
+            mock_send_request.assert_called_once()
+            sleep(0.5)
             assert callback.features == {
-                "rules_data": [
-                    {
-                        "data": [
-                            {"expiration": 1662804872, "value": "127.0.0.0"},
-                            {"expiration": 1662804872, "value": "52.80.198.1"},
-                        ],
-                        "id": "blocking_ips",
-                        "type": "ip_with_expiration",
-                    }
-                ]
+                "config": {
+                    "rules_data": [
+                        {
+                            "data": [
+                                {"expiration": 1662804872, "value": "127.0.0.0"},
+                                {"expiration": 1662804872, "value": "52.80.198.1"},
+                            ],
+                            "id": "blocking_ips",
+                            "type": "ip_with_expiration",
+                        }
+                    ]
+                },
+                "metadata": {},
+                "shared_data_counter": ANY,
             }
 
 
@@ -213,7 +287,7 @@ def test_remoteconfig_semver():
 def test_remote_configuration_check_remote_config_enable_in_agent_errors(mock_info, result, expected):
     mock_info.return_value = result
 
-    worker = RemoteConfigWorker()
+    worker = RemoteConfigPoller()
 
     # Check that the initial state is agent_check
     assert worker._state == worker._agent_check

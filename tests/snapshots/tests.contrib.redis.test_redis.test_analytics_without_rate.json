@@ -9,13 +9,14 @@
     "type": "redis",
     "error": 0,
     "meta": {
+      "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "component": "redis",
       "db.system": "redis",
       "language": "python",
       "out.host": "localhost",
       "redis.raw_command": "GET cheese",
-      "runtime-id": "b8f85bec81c04f81aa7a1e60a8dd199f",
+      "runtime-id": "3cf1df7fb079462ab81608355e026651",
       "span.kind": "client"
     },
     "metrics": {
@@ -28,9 +29,9 @@
       "db.row_count": 0,
       "network.destination.port": 6379,
       "out.redis_db": 0,
-      "process_id": 773,
+      "process_id": 19999,
       "redis.args_length": 2
     },
-    "duration": 2804000,
-    "start": 1667243545616006000
+    "duration": 340708,
+    "start": 1692651820591814875
   }]]

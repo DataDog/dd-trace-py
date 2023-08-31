@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    ASM: Add information about Application Security config values on `ddtrace-run --info`.

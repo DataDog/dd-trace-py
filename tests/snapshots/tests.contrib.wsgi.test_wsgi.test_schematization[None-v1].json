@@ -1,0 +1,81 @@
+[[
+  {
+    "name": "http.server.request",
+    "service": "unnamed-python-service",
+    "resource": "GET /",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "component": "wsgi",
+      "http.method": "GET",
+      "http.status_code": "200",
+      "http.status_msg": "OK",
+      "http.url": "http://localhost:80/",
+      "language": "python",
+      "runtime-id": "aaefa1ff28fd487ab9d2f07b4fabfd75",
+      "span.kind": "server"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 40591
+    },
+    "duration": 312659,
+    "start": 1691165160222513998
+  },
+     {
+       "name": "wsgi.application",
+       "service": "unnamed-python-service",
+       "resource": "wsgi.application",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.p.dm": "-0",
+         "component": "wsgi"
+       },
+       "duration": 118179,
+       "start": 1691165160222629270
+     },
+        {
+          "name": "wsgi.start_response",
+          "service": "unnamed-python-service",
+          "resource": "wsgi.start_response",
+          "trace_id": 0,
+          "span_id": 4,
+          "parent_id": 2,
+          "type": "web",
+          "error": 0,
+          "meta": {
+            "_dd.p.dm": "-0",
+            "component": "wsgi",
+            "span.kind": "server"
+          },
+          "duration": 37432,
+          "start": 1691165160222682601
+        },
+     {
+       "name": "wsgi.response",
+       "service": "unnamed-python-service",
+       "resource": "wsgi.response",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.p.dm": "-0",
+         "component": "wsgi",
+         "result_class": "list"
+       },
+       "duration": 55860,
+       "start": 1691165160222763108
+     }]]

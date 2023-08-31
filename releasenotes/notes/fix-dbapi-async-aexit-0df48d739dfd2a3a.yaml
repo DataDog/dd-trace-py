@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    psycopg: Resolves ``TypeError`` raised when an async cursor object is traced. This fix ensures `exc_type`, `exc_val`, and `exc_tb` are passed down to the wrapped object on `__aexit__`.

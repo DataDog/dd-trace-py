@@ -236,12 +236,24 @@ Jinja2
 ^^^^^^
 .. automodule:: ddtrace.contrib.jinja2
 
+.. _kafka:
+
+Kafka
+^^^^^
+
+.. automodule:: ddtrace.contrib.kafka
 
 .. _kombu:
 
 kombu
 ^^^^^
 .. automodule:: ddtrace.contrib.kombu
+
+.. _langchain:
+
+LangChain
+^^^^^^^^^
+.. automodule:: ddtrace.contrib.langchain
 
 
 .. _mako:
@@ -285,6 +297,13 @@ mysql-connector
 mysqlclient
 ^^^^^^^^^^^^
 .. automodule:: ddtrace.contrib.mysqldb
+
+
+.. _openai:
+
+OpenAI
+^^^^^^
+.. automodule:: ddtrace.contrib.openai
 
 
 .. _pylibmc:
@@ -431,6 +450,13 @@ SQLite
 Tornado
 ^^^^^^^
 .. automodule:: ddtrace.contrib.tornado
+
+
+.. _unittest:
+
+unittest
+^^^^^^^^
+.. automodule:: ddtrace.contrib.unittest
 
 
 .. _urllib3:

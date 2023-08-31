@@ -3,6 +3,7 @@
 # removed the ``_generated`` suffix from the file name, to prevent the content
 # from being overwritten by future re-generations.
 
+from ddtrace.contrib.boto import get_version
 from ddtrace.contrib.boto.patch import patch
 
 
@@ -27,3 +28,8 @@ class TestBotoPatch(PatchTestCase.Base):
 
     def assert_not_module_double_patched(self, boto_connection):
         pass
+
+    def assert_module_implements_get_version(self):
+        version = get_version()
+        assert type(version) == str
+        assert version != ""

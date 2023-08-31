@@ -5,6 +5,7 @@ import sys
 import mock
 import pytest
 
+import ddtrace
 from ddtrace.internal.compat import PY3
 from ddtrace.internal.packages import get_distributions
 from ddtrace.internal.runtime.container import CGroupInfo
@@ -15,7 +16,6 @@ from ddtrace.internal.telemetry.data import get_application
 from ddtrace.internal.telemetry.data import get_dependencies
 from ddtrace.internal.telemetry.data import get_host_info
 from ddtrace.internal.telemetry.data import get_hostname
-from ddtrace.internal.telemetry.data import get_version
 from ddtrace.settings import _config as config
 
 
@@ -32,10 +32,10 @@ def test_get_application():
         "env": "",
         "language_name": "python",
         "language_version": _format_version_info(sys.version_info),
-        "tracer_version": get_version(),
+        "tracer_version": ddtrace.__version__,
         "runtime_name": platform.python_implementation(),
         "runtime_version": runtime_v,
-        "products": {"appsec": {"version": get_version(), "enabled": config._appsec_enabled}},
+        "products": {"appsec": {"version": ddtrace.__version__, "enabled": config._appsec_enabled}},
     }
 
     assert get_application("", "", "") == expected_application
@@ -94,7 +94,7 @@ def test_format_version_info():
 def test_get_host_info():
     """validates whether the HOST singleton contains the expected fields"""
     expected_host = {
-        "os": platform.platform(aliased=1, terse=1),
+        "os": platform.system(),
         "hostname": get_hostname(),
         "os_version": _get_os_version(),
         "kernel_name": platform.system(),
@@ -111,7 +111,7 @@ def test_get_host_info():
     [
         (("", "", ""), ("", "4.1.6", "", ""), ("", ""), "4.1.6"),
         (("3.5.6", "", ""), ("", "", "", ""), ("", ""), "3.5.6"),
-        (("", "", ""), ("", "", "", ""), ("", "1.2.7"), "1.2.7"),
+        (("", "", ""), ("", "", "", ""), ("", "1.2.7"), ""),
         (("", "", ""), ("", "", "", ""), ("", ""), ""),
     ],
 )
@@ -122,6 +122,9 @@ def test_get_os_version(mac_ver, win32_ver, libc_ver, expected):
         with mock.patch("platform.win32_ver") as win32:
             win32.return_value = win32_ver
             with mock.patch("platform.libc_ver") as libc:
+                # platform.libc_ver is used to retrieve the version of Linux platforms. This value is NOT the
+                # os version. This value should NOT be sent in telemetry payloads.
+                # TODO: Find a way to get the OS version on Linux
                 libc.return_value = libc_ver
                 assert _get_os_version() == expected
 
@@ -189,15 +192,15 @@ def test_enable_products(run_python_code_in_subprocess):
 
     out, err, status, _ = run_python_code_in_subprocess(
         """
+import ddtrace
 from ddtrace.internal.telemetry.data import get_application
-from ddtrace.internal.telemetry.data import get_version
 
 application = get_application("service-x", "1.1.1", "staging")
 assert "products" in application
 
 assert application["products"] == {
     "appsec": {
-        "version": get_version(),
+        "version": ddtrace.__version__,
         "enabled": True,
     },
 }

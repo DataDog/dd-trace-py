@@ -1,13 +1,13 @@
 """
 Tags for common CI attributes
 """
-from collections import OrderedDict
 import json
 import logging
 import os
 import platform
 import re
 from typing import Dict
+from typing import List
 from typing import MutableMapping
 from typing import Optional
 
@@ -41,6 +41,12 @@ PIPELINE_URL = "ci.pipeline.url"
 
 # Provider
 PROVIDER_NAME = "ci.provider.name"
+
+# CI Node Name
+NODE_NAME = "ci.node.name"
+
+# CI Node Labels
+NODE_LABELS = "ci.node.labels"
 
 # Workspace Path
 WORKSPACE_PATH = "ci.workspace_path"
@@ -211,15 +217,12 @@ def extract_azure_pipelines(env):
         git.COMMIT_AUTHOR_EMAIL: env.get("BUILD_REQUESTEDFOREMAIL"),
         STAGE_NAME: env.get("SYSTEM_STAGEDISPLAYNAME"),
         JOB_NAME: env.get("SYSTEM_JOBDISPLAYNAME"),
-        # OrderedDict is necessary for comparing against a fixture in testing
         _CI_ENV_VARS: json.dumps(
-            OrderedDict(
-                [
-                    ("SYSTEM_TEAMPROJECTID", env.get("SYSTEM_TEAMPROJECTID")),
-                    ("BUILD_BUILDID", env.get("BUILD_BUILDID")),
-                    ("SYSTEM_JOBID", env.get("SYSTEM_JOBID")),
-                ]
-            ),
+            {
+                "SYSTEM_TEAMPROJECTID": env.get("SYSTEM_TEAMPROJECTID"),
+                "BUILD_BUILDID": env.get("BUILD_BUILDID"),
+                "SYSTEM_JOBID": env.get("SYSTEM_JOBID"),
+            },
             separators=(",", ":"),
         ),
     }
@@ -234,10 +237,10 @@ def extract_bitbucket(env):
     return {
         git.BRANCH: env.get("BITBUCKET_BRANCH"),
         git.COMMIT_SHA: env.get("BITBUCKET_COMMIT"),
-        git.REPOSITORY_URL: env.get("BITBUCKET_GIT_SSH_ORIGIN"),
+        git.REPOSITORY_URL: env.get("BITBUCKET_GIT_SSH_ORIGIN") or env.get("BITBUCKET_GIT_HTTP_ORIGIN"),
         git.TAG: env.get("BITBUCKET_TAG"),
         JOB_URL: url,
-        PIPELINE_ID: env.get("BITBUCKET_PIPELINE_UUID", "").strip("{}}") or None,
+        PIPELINE_ID: env.get("BITBUCKET_PIPELINE_UUID", "").strip("{}}") or None,  # noqa: B005
         PIPELINE_NAME: env.get("BITBUCKET_REPO_FULL_NAME"),
         PIPELINE_NUMBER: env.get("BITBUCKET_BUILD_NUMBER"),
         PIPELINE_URL: url,
@@ -249,6 +252,14 @@ def extract_bitbucket(env):
 def extract_buildkite(env):
     # type: (MutableMapping[str, str]) -> Dict[str, Optional[str]]
     """Extract CI tags from Buildkite environ."""
+    # Get all keys which start with BUILDKITE_AGENT_META_DATA_x
+    node_label_list = []  # type: List[str]
+    buildkite_agent_meta_data_prefix = "BUILDKITE_AGENT_META_DATA_"
+    for env_variable in env:
+        if env_variable.startswith(buildkite_agent_meta_data_prefix):
+            key = env_variable.replace(buildkite_agent_meta_data_prefix, "").lower()
+            value = env.get(env_variable)
+            node_label_list.append("{}:{}".format(key, value))
     return {
         git.BRANCH: env.get("BUILDKITE_BRANCH"),
         git.COMMIT_SHA: env.get("BUILDKITE_COMMIT"),
@@ -266,16 +277,15 @@ def extract_buildkite(env):
         git.COMMIT_AUTHOR_EMAIL: env.get("BUILDKITE_BUILD_AUTHOR_EMAIL"),
         git.COMMIT_COMMITTER_NAME: env.get("BUILDKITE_BUILD_CREATOR"),
         git.COMMIT_COMMITTER_EMAIL: env.get("BUILDKITE_BUILD_CREATOR_EMAIL"),
-        # OrderedDict is necessary for comparing against a fixture in testing
         _CI_ENV_VARS: json.dumps(
-            OrderedDict(
-                [
-                    ("BUILDKITE_BUILD_ID", env.get("BUILDKITE_BUILD_ID")),
-                    ("BUILDKITE_JOB_ID", env.get("BUILDKITE_JOB_ID")),
-                ]
-            ),
+            {
+                "BUILDKITE_BUILD_ID": env.get("BUILDKITE_BUILD_ID"),
+                "BUILDKITE_JOB_ID": env.get("BUILDKITE_JOB_ID"),
+            },
             separators=(",", ":"),
         ),
+        NODE_LABELS: json.dumps(node_label_list, separators=(",", ":")),
+        NODE_NAME: env.get("BUILDKITE_AGENT_ID"),
     }
 
 
@@ -295,14 +305,29 @@ def extract_circle_ci(env):
         JOB_NAME: env.get("CIRCLE_JOB"),
         PROVIDER_NAME: "circleci",
         WORKSPACE_PATH: env.get("CIRCLE_WORKING_DIRECTORY"),
-        # OrderedDict is necessary for comparing against a fixture in testing
         _CI_ENV_VARS: json.dumps(
-            OrderedDict(
-                [
-                    ("CIRCLE_WORKFLOW_ID", env.get("CIRCLE_WORKFLOW_ID")),
-                    ("CIRCLE_BUILD_NUM", env.get("CIRCLE_BUILD_NUM")),
-                ]
-            ),
+            {
+                "CIRCLE_WORKFLOW_ID": env.get("CIRCLE_WORKFLOW_ID"),
+                "CIRCLE_BUILD_NUM": env.get("CIRCLE_BUILD_NUM"),
+            },
+            separators=(",", ":"),
+        ),
+    }
+
+
+def extract_codefresh(env):
+    # type: (MutableMapping[str, str]) -> Dict[str, Optional[str]]
+    """Extract CI tags from Codefresh environ."""
+    build_id = env.get("CF_BUILD_ID")
+    return {
+        git.BRANCH: env.get("CF_BRANCH"),
+        PIPELINE_ID: build_id,
+        PIPELINE_NAME: env.get("CF_PIPELINE_NAME"),
+        PIPELINE_URL: env.get("CF_BUILD_URL"),
+        JOB_NAME: env.get("CF_STEP_NAME"),
+        PROVIDER_NAME: "codefresh",
+        _CI_ENV_VARS: json.dumps(
+            {"CF_BUILD_ID": build_id},
             separators=(",", ":"),
         ),
     }
@@ -321,14 +346,11 @@ def extract_github_actions(env):
     if run_attempt:
         pipeline_url = "{0}/attempts/{1}".format(pipeline_url, run_attempt)
 
-    # OrderedDict is necessary for comparing against a fixture in testing
-    env_vars = OrderedDict(
-        [
-            ("GITHUB_SERVER_URL", env.get("GITHUB_SERVER_URL")),
-            ("GITHUB_REPOSITORY", env.get("GITHUB_REPOSITORY")),
-            ("GITHUB_RUN_ID", env.get("GITHUB_RUN_ID")),
-        ]
-    )
+    env_vars = {
+        "GITHUB_SERVER_URL": env.get("GITHUB_SERVER_URL"),
+        "GITHUB_REPOSITORY": env.get("GITHUB_REPOSITORY"),
+        "GITHUB_RUN_ID": env.get("GITHUB_RUN_ID"),
+    }
     if env.get("GITHUB_RUN_ATTEMPT") is not None:
         env_vars["GITHUB_RUN_ATTEMPT"] = env["GITHUB_RUN_ATTEMPT"]
 
@@ -346,7 +368,6 @@ def extract_github_actions(env):
         JOB_NAME: env.get("GITHUB_JOB"),
         PROVIDER_NAME: "github",
         WORKSPACE_PATH: env.get("GITHUB_WORKSPACE"),
-        # OrderedDict is necessary for comparing against a fixture in testing
         _CI_ENV_VARS: json.dumps(env_vars, separators=(",", ":")),
     }
 
@@ -361,9 +382,6 @@ def extract_gitlab(env):
         # Extract name and email from `author` which is in the form "name <email>"
         author_name, author_email = author.strip("> ").split(" <")
     commit_timestamp = env.get("CI_COMMIT_TIMESTAMP")
-    url = env.get("CI_PIPELINE_URL")
-    if url:
-        url = re.sub("/-/pipelines/", "/pipelines/", url)
     return {
         git.BRANCH: env.get("CI_COMMIT_REF_NAME"),
         git.COMMIT_SHA: env.get("CI_COMMIT_SHA"),
@@ -375,24 +393,23 @@ def extract_gitlab(env):
         PIPELINE_ID: env.get("CI_PIPELINE_ID"),
         PIPELINE_NAME: env.get("CI_PROJECT_PATH"),
         PIPELINE_NUMBER: env.get("CI_PIPELINE_IID"),
-        PIPELINE_URL: url,
+        PIPELINE_URL: env.get("CI_PIPELINE_URL"),
         PROVIDER_NAME: "gitlab",
         WORKSPACE_PATH: env.get("CI_PROJECT_DIR"),
         git.COMMIT_MESSAGE: env.get("CI_COMMIT_MESSAGE"),
         git.COMMIT_AUTHOR_NAME: author_name,
         git.COMMIT_AUTHOR_EMAIL: author_email,
         git.COMMIT_AUTHOR_DATE: commit_timestamp,
-        # OrderedDict is necessary for comparing against a fixture in testing
         _CI_ENV_VARS: json.dumps(
-            OrderedDict(
-                [
-                    ("CI_PROJECT_URL", env.get("CI_PROJECT_URL")),
-                    ("CI_PIPELINE_ID", env.get("CI_PIPELINE_ID")),
-                    ("CI_JOB_ID", env.get("CI_JOB_ID")),
-                ]
-            ),
+            {
+                "CI_PROJECT_URL": env.get("CI_PROJECT_URL"),
+                "CI_PIPELINE_ID": env.get("CI_PIPELINE_ID"),
+                "CI_JOB_ID": env.get("CI_JOB_ID"),
+            },
             separators=(",", ":"),
         ),
+        NODE_LABELS: env.get("CI_RUNNER_TAGS"),
+        NODE_NAME: env.get("CI_RUNNER_ID"),
     }
 
 
@@ -405,7 +422,10 @@ def extract_jenkins(env):
         name = re.sub("/{0}".format(git.normalize_ref(branch)), "", name)
     if name:
         name = "/".join((v for v in name.split("/") if v and "=" not in v))
-
+    node_labels_list = []  # type:  List[str]
+    node_labels_env = env.get("NODE_LABELS")  # type: Optional[str]
+    if node_labels_env:
+        node_labels_list = node_labels_env.split()
     return {
         git.BRANCH: env.get("GIT_BRANCH"),
         git.COMMIT_SHA: env.get("GIT_COMMIT"),
@@ -416,15 +436,14 @@ def extract_jenkins(env):
         PIPELINE_URL: env.get("BUILD_URL"),
         PROVIDER_NAME: "jenkins",
         WORKSPACE_PATH: env.get("WORKSPACE"),
-        # OrderedDict is necessary for comparing against a fixture in testing
         _CI_ENV_VARS: json.dumps(
-            OrderedDict(
-                [
-                    ("DD_CUSTOM_TRACE_ID", env.get("DD_CUSTOM_TRACE_ID")),
-                ]
-            ),
+            {
+                "DD_CUSTOM_TRACE_ID": env.get("DD_CUSTOM_TRACE_ID"),
+            },
             separators=(",", ":"),
         ),
+        NODE_LABELS: json.dumps(node_labels_list, separators=(",", ":")),
+        NODE_NAME: env.get("NODE_NAME"),
     }
 
 
@@ -515,6 +534,7 @@ PROVIDERS = (
     ("BITBUCKET_COMMIT", extract_bitbucket),
     ("BUILDKITE", extract_buildkite),
     ("CIRCLECI", extract_circle_ci),
+    ("CF_BUILD_ID", extract_codefresh),
     ("GITHUB_SHA", extract_github_actions),
     ("GITLAB_CI", extract_gitlab),
     ("JENKINS_URL", extract_jenkins),

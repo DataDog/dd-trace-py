@@ -1,0 +1,108 @@
+[[
+  {
+    "name": "otel-root",
+    "service": "",
+    "resource": "otel-root",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "language": "python",
+      "runtime-id": "370b7d1e226648e4b58d1faeeb4884d8"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 22384
+    },
+    "duration": 224542605,
+    "start": 1691164174002885806
+  },
+     {
+       "name": "otel-parent1",
+       "service": "",
+       "resource": "otel-parent1",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.p.dm": "-0"
+       },
+       "duration": 101305442,
+       "start": 1691164174023443313
+     },
+        {
+          "name": "otel-child1",
+          "service": "",
+          "resource": "otel-child1",
+          "trace_id": 0,
+          "span_id": 5,
+          "parent_id": 2,
+          "type": "",
+          "error": 0,
+          "meta": {
+            "_dd.p.dm": "-0"
+          },
+          "duration": 60367898,
+          "start": 1691164174064181692
+        },
+     {
+       "name": "orphan1",
+       "service": "",
+       "resource": "orphan1",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.p.dm": "-0"
+       },
+       "duration": 102511059,
+       "start": 1691164174124877672
+     },
+     {
+       "name": "otel-parent2",
+       "service": "",
+       "resource": "otel-parent2",
+       "trace_id": 0,
+       "span_id": 4,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "runtime-id": "370b7d1e226648e4b58d1faeeb4884d8"
+       },
+       "metrics": {
+         "_dd.top_level": 1,
+         "process_id": 22384
+       },
+       "duration": 101872924,
+       "start": 1691164174125480219
+     },
+        {
+          "name": "otel-child2",
+          "service": "",
+          "resource": "otel-child2",
+          "trace_id": 0,
+          "span_id": 6,
+          "parent_id": 4,
+          "type": "",
+          "error": 0,
+          "meta": {
+            "runtime-id": "370b7d1e226648e4b58d1faeeb4884d8"
+          },
+          "metrics": {
+            "_dd.top_level": 1,
+            "process_id": 22384
+          },
+          "duration": 60462788,
+          "start": 1691164174166713523
+        }]]

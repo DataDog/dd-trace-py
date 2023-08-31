@@ -1,0 +1,73 @@
+[[
+  {
+    "name": "test-otel-distributed-trace",
+    "service": "",
+    "resource": "test-otel-distributed-trace",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "language": "python",
+      "runtime-id": "29953bb1123f44a79c3c786defdb1bd5"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 34011
+    },
+    "duration": 17919000,
+    "start": 1675884561931051000
+  },
+     {
+       "name": "/otel",
+       "service": "",
+       "resource": "/otel",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "http.flavor": "1.1",
+         "http.host": "0.0.0.0:8001",
+         "http.method": "GET",
+         "http.route": "/otel",
+         "http.scheme": "http",
+         "http.server_name": "0.0.0.0",
+         "http.status_code": "200",
+         "http.target": "/otel",
+         "http.user_agent": "python-requests/2.28.1",
+         "language": "python",
+         "net.peer.ip": "127.0.0.1",
+         "runtime-id": "c6467d51b30d46e0960922cfeddda2a4",
+         "span.kind": "server",
+         "tracestate": "dd=s:1;t.dm:-0"
+       },
+       "metrics": {
+         "_dd.top_level": 1,
+         "_dd.tracer_kr": 1.0,
+         "_sampling_priority_v1": 0,
+         "net.host.port": 8001,
+         "net.peer.port": 50782,
+         "process_id": 34028
+       },
+       "duration": 354944,
+       "start": 1675884561932909056
+     },
+        {
+          "name": "otel-flask-manual-span",
+          "service": "",
+          "resource": "otel-flask-manual-span",
+          "trace_id": 0,
+          "span_id": 3,
+          "parent_id": 2,
+          "type": "",
+          "error": 0,
+          "duration": 15000,
+          "start": 1675884561933174000
+        }]]

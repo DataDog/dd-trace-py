@@ -1,0 +1,3 @@
+features:
+  - |
+    kafka: Adds support for the Kafka serializing producer and deserializing consumer.

@@ -29,15 +29,24 @@ def generate_patch_test_source(contrib):
     # Parse the contrib module to get the ``required_modules`` list
     # DEV: Parsing the module is much lighter and safer than importing it
     module_ast = ast.parse((CONTRIB_PATH / contrib / "__init__.py").read_text())
+    # require modules must be defined as module level array
     required_modules_node = [
         _ for _ in module_ast.body if isinstance(_, ast.Assign) and _.targets[0].id == "required_modules"
     ]
     if not required_modules_node:
+        print(
+            f"WARNING: failed to generate patch test for {contrib},"
+            " required_modules not found in ddtrace.contrib.{contrib}.__init__"
+        )
         return
 
     required_modules = [_.value for _ in required_modules_node[0].value.elts]
 
     if not required_modules:
+        print(
+            f"WARNING: failed to generate patch test for {contrib},"
+            " ddtrace.contrib.{contrib}.required_modules could not be parsed"
+        )
         return
 
     # We use the first entry in the ``required_modules`` for the module name.
@@ -51,6 +60,7 @@ def generate_patch_test_source(contrib):
             # removed the ``_generated`` suffix from the file name, to prevent the content
             # from being overwritten by future re-generations.
 
+            from ddtrace.contrib.{contrib} import get_version
             from ddtrace.contrib.{contrib}.patch import patch
 
 
@@ -75,6 +85,11 @@ def generate_patch_test_source(contrib):
 
                 def assert_not_module_double_patched(self, {module.replace(".", "_")}):
                     pass
+
+                def assert_module_implements_get_version(self):
+                    version = get_version()
+                    assert type(version) == str
+                    assert version != ''
             """
         ).lstrip()
     )

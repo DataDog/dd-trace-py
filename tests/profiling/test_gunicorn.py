@@ -35,38 +35,32 @@ def gunicorn(monkeypatch):
     yield _run_gunicorn
 
 
-def _get_worker_pids(stdout, num_worker, num_app_started=1):
-    # type: (...) -> list[int]
-    worker_pids = []
-
-    while len(worker_pids) != num_worker:
-        line = stdout.readline()
-        if line == b"":
-            raise RuntimeError("Boot failure")
-
-        m = re.search(r"Booting worker with pid: (\d+)", line.decode())
-        if m:
-            worker_pids.append(int(m.group(1)))
-
-    return worker_pids
+def _get_worker_pids(stdout):
+    # type: (str) -> list[int]
+    return [int(_) for _ in re.findall(r"Booting worker with pid: (\d+)", stdout)]
 
 
 def _test_gunicorn(gunicorn, tmp_path, monkeypatch, *args):
     # type: (...) -> None
     filename = str(tmp_path / "gunicorn.pprof")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
-    proc = gunicorn(*args)
-    worker_pids = _get_worker_pids(proc.stdout, 1)
-    assert len(worker_pids) == 1
+
+    proc = gunicorn("-w", "3", *args)
     time.sleep(3)
     proc.terminate()
-    assert proc.wait() == 0
+    output = proc.stdout.read().decode()
+    worker_pids = _get_worker_pids(output)
+
+    assert len(worker_pids) == 3, output
+    assert proc.wait() == 0, output
+    assert "module 'threading' has no attribute '_active'" not in output, output
+
     utils.check_pprof_file("%s.%d.1" % (filename, proc.pid))
     for pid in worker_pids:
         utils.check_pprof_file("%s.%d.1" % (filename, pid))
 
 
-@pytest.mark.skipif(TESTING_GEVENT, reason="Only testing gevent worker class")
 def test_gunicorn(gunicorn, tmp_path, monkeypatch):
     # type: (...) -> None
-    _test_gunicorn(gunicorn, tmp_path, monkeypatch)
+    args = ("-k", "gevent") if TESTING_GEVENT else tuple()
+    _test_gunicorn(gunicorn, tmp_path, monkeypatch, *args)

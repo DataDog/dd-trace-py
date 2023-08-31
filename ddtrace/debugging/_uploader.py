@@ -1,8 +1,6 @@
 from typing import Optional
 
-import tenacity
-
-from ddtrace.debugging._config import config
+from ddtrace.debugging._config import di_config
 from ddtrace.debugging._encoding import BufferedEncoder
 from ddtrace.debugging._metrics import metrics
 from ddtrace.internal import compat
@@ -10,6 +8,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import AwakeablePeriodicService
 from ddtrace.internal.runtime import container
 from ddtrace.internal.utils.http import connector
+from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 
 
 log = get_logger(__name__)
@@ -23,13 +22,13 @@ class LogsIntakeUploaderV1(AwakeablePeriodicService):
     the debugger and the events platform.
     """
 
-    ENDPOINT = config._intake_endpoint
+    ENDPOINT = di_config._intake_endpoint
 
     RETRY_ATTEMPTS = 3
 
     def __init__(self, encoder, interval=None):
         # type: (BufferedEncoder, Optional[float]) -> None
-        super(LogsIntakeUploaderV1, self).__init__(interval or config.upload_flush_interval)
+        super(LogsIntakeUploaderV1, self).__init__(interval or di_config.upload_flush_interval)
         self._encoder = encoder
         self._headers = {
             "Content-type": "application/json; charset=utf-8",
@@ -42,27 +41,25 @@ class LogsIntakeUploaderV1(AwakeablePeriodicService):
             if container_id is not None:
                 self._headers["Datadog-Container-Id"] = container_id
 
-        if config._tags_in_qs and config.tags:
-            self.ENDPOINT += "?ddtags=" + config.tags
-        self._connect = connector(config._intake_url, timeout=config.upload_timeout)
-        self._retry_upload = tenacity.Retrying(
-            # Retry RETRY_ATTEMPTS times within the first half of the processing
-            # interval, using a Fibonacci policy with jitter
-            wait=tenacity.wait_random_exponential(
-                multiplier=0.618 * self.interval / (1.618 ** self.RETRY_ATTEMPTS) / 2, exp_base=1.618
-            ),
-            stop=tenacity.stop_after_attempt(self.RETRY_ATTEMPTS),
-        )
+        if di_config._tags_in_qs and di_config.tags:
+            self.ENDPOINT += "?ddtags=" + di_config.tags
+        self._connect = connector(di_config._intake_url, timeout=di_config.upload_timeout)
+
+        # Make it retryable
+        self._write_with_backoff = fibonacci_backoff_with_jitter(
+            initial_wait=0.618 * self.interval / (1.618 ** self.RETRY_ATTEMPTS) / 2,
+            attempts=self.RETRY_ATTEMPTS,
+        )(self._write)
 
         log.debug(
             "Logs intake uploader initialized (url: %s, endpoint: %s, interval: %f)",
-            config._intake_url,
+            di_config._intake_url,
             self.ENDPOINT,
             self.interval,
         )
 
     def _write(self, payload):
-        # type: (str) -> None
+        # type: (bytes) -> None
         try:
             with self._connect() as conn:
                 conn.request(
@@ -78,7 +75,6 @@ class LogsIntakeUploaderV1(AwakeablePeriodicService):
                 else:
                     meter.increment("upload.success")
                     meter.distribution("upload.size", len(payload))
-                    log.debug("Payload uploaded: %s", payload)
         except Exception:
             log.error("Failed to write payload", exc_info=True)
             meter.increment("error")
@@ -94,10 +90,11 @@ class LogsIntakeUploaderV1(AwakeablePeriodicService):
         count = self._encoder.count
         if count:
             payload = self._encoder.encode()
-            try:
-                self._retry_upload(self._write, payload)
-                meter.distribution("batch.cardinality", count)
-            except Exception:
-                log.debug("Cannot upload logs payload", exc_info=True)
+            if payload is not None:
+                try:
+                    self._write_with_backoff(payload)
+                    meter.distribution("batch.cardinality", count)
+                except Exception:
+                    log.debug("Cannot upload logs payload", exc_info=True)
 
     on_shutdown = periodic

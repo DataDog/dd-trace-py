@@ -60,11 +60,28 @@ The following environment variables for the tracer are supported:
        v0.41.0: |
            Formerly named ``DATADOG_TRACE_ENABLED``
 
+   DD_TRACE_OTEL_ENABLED:
+     type: Boolean
+     default: False
+     description: |
+         When used with ``ddtrace-run`` this configuration enables OpenTelemetry support. To enable OpenTelemetry without `ddtrace-run` refer
+         to the following :mod:`docs <ddtrace.opentelemetry>`.
+     version_added:
+       v1.12.0:
+
    DD_INSTRUMENTATION_TELEMETRY_ENABLED:
      type: Boolean
      default: True
      description: |
          Enables sending :ref:`telemetry <Instrumentation Telemetry>` events to the agent.
+
+   DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED:
+     type: Boolean
+     default: False
+     description: |
+         This configuration enables the generation of 128 bit trace ids.
+     version_added:
+       v1.12.0:
 
    DD_TRACE_DEBUG:
      type: Boolean
@@ -276,7 +293,7 @@ The following environment variables for the tracer are supported:
 
    DD_TRACE_PROPAGATION_STYLE:
      default: |
-         ``datadog``
+         ``tracecontext,datadog``
      description: |
          Comma separated list of propagation styles used for extracting trace context from inbound request headers and injecting trace context into outbound request headers.
 
@@ -284,31 +301,12 @@ The following environment variables for the tracer are supported:
 
          Overridden by ``DD_TRACE_PROPAGATION_STYLE_INJECT`` for injection.
 
-         The supported values are ``datadog``, ``b3multi``, and ``b3 single header``, and ``none``.
+         The supported values are ``datadog``, ``b3multi``, and ``b3 single header``, ``tracecontext``, and ``none``.
 
          When checking inbound request headers we will take the first valid trace context in the order provided.
          When ``none`` is the only propagator listed, propagation is disabled.
 
          All provided styles are injected into the headers of outbound requests.
-
-         Example: ``DD_TRACE_PROPAGATION_STYLE_EXTRACT="datadog,b3multi"`` to check for both ``x-datadog-*`` and ``x-b3-*``
-         headers when parsing incoming request headers for a trace context.
-
-     version_added:
-       v1.7.0: The ``b3multi`` propagation style was added and ``b3`` was deprecated in favor it.
-
-   DD_TRACE_PROPAGATION_STYLE_EXTRACT:
-     default: |
-         ``datadog``
-     description: |
-         Comma separated list of propagation styles used for extracting trace context from inbound request headers.
-
-         Overrides ``DD_TRACE_PROPAGATION_STYLE`` for extraction propagation style.
-
-         The supported values are ``datadog``, ``b3multi``, and ``b3 single header``, and ``none``.
-
-         When checking inbound request headers we will take the first valid trace context in the order provided.
-         When ``none`` is the only propagator listed, extraction is disabled.
 
          Example: ``DD_TRACE_PROPAGATION_STYLE="datadog,b3"`` to check for both ``x-datadog-*`` and ``x-b3-*``
          headers when parsing incoming request headers for a trace context. In addition, to inject both ``x-datadog-*`` and ``x-b3-*``
@@ -316,16 +314,36 @@ The following environment variables for the tracer are supported:
 
      version_added:
        v1.7.0: The ``b3multi`` propagation style was added and ``b3`` was deprecated in favor it.
+       v1.7.0: Added support for ``tracecontext`` W3C headers. Changed the default value to ``DD_TRACE_PROPAGATION_STYLE="tracecontext,datadog"``.
+
+   DD_TRACE_PROPAGATION_STYLE_EXTRACT:
+     default: |
+         ``tracecontext,datadog``
+     description: |
+         Comma separated list of propagation styles used for extracting trace context from inbound request headers.
+
+         Overrides ``DD_TRACE_PROPAGATION_STYLE`` for extraction propagation style.
+
+         The supported values are ``datadog``, ``b3multi``, and ``b3 single header``, ``tracecontext``, and ``none``.
+
+         When checking inbound request headers we will take the first valid trace context in the order provided.
+         When ``none`` is the only propagator listed, extraction is disabled.
+
+         Example: ``DD_TRACE_PROPAGATION_STYLE_EXTRACT="datadog,b3multi"`` to check for both ``x-datadog-*`` and ``x-b3-*``
+         headers when parsing incoming request headers for a trace context.
+
+     version_added:
+       v1.7.0: The ``b3multi`` propagation style was added and ``b3`` was deprecated in favor it.
 
    DD_TRACE_PROPAGATION_STYLE_INJECT:
      default: |
-         ``datadog``
+         ``tracecontext,datadog``
      description: |
          Comma separated list of propagation styles used for injecting trace context into outbound request headers.
 
          Overrides ``DD_TRACE_PROPAGATION_STYLE`` for injection propagation style.
 
-         The supported values are ``datadog``, ``b3multi``, and ``b3 single header``, and ``none``.
+         The supported values are ``datadog``, ``b3multi``, and ``b3 single header``, ``tracecontext``, and ``none``.
 
          All provided styles are injected into the headers of outbound requests.
          When ``none`` is the only propagator listed, injection is disabled.
@@ -348,71 +366,10 @@ The following environment variables for the tracer are supported:
      default: True
      description: Prevents large payloads being sent to APM.
 
-   DD_PROFILING_ENABLED:
-     type: Boolean
-     default: False
-     description: Enable Datadog profiling when using ``ddtrace-run``.
-
-   DD_PROFILING_API_TIMEOUT:
-     type: Float
-     default: 10
-     description: The timeout in seconds before dropping events if the HTTP API does not reply.
-
-   DD_PROFILING_MAX_TIME_USAGE_PCT:
-     type: Float
-     default: 1
-     description: |
-         The percentage of maximum time the stack profiler can use when computing
-         statistics. Must be greater than 0 and lesser or equal to 100.
-
-   DD_PROFILING_MAX_FRAMES:
+   DD_TRACE_PARTIAL_FLUSH_MIN_SPANS:
      type: Integer
-     default: 64
-     description: The maximum number of frames to capture in stack execution tracing.
-
-   DD_PROFILING_ENABLE_CODE_PROVENANCE:
-     type: Boolean
-     default: False
-     description: Whether to enable code provenance.
-
-   DD_PROFILING_MEMORY_ENABLED:
-     type: Boolean
-     default: True
-     description: Whether to enable the memory profiler.
-
-   DD_PROFILING_HEAP_ENABLED:
-     type: Boolean
-     default: True
-     description: Whether to enable the heap memory profiler.
-
-   DD_PROFILING_CAPTURE_PCT:
-     type: Float
-     default: 1
-     description: |
-         The percentage of events that should be captured (e.g. memory
-         allocation). Greater values reduce the program execution speed. Must be
-         greater than 0 lesser or equal to 100.
-
-   DD_PROFILING_UPLOAD_INTERVAL:
-     type: Float
-     default: 60
-     description: The interval in seconds to wait before flushing out recorded events.
-
-   DD_PROFILING_IGNORE_PROFILER:
-     type: Boolean
-     default: False
-     description: |
-       **Deprecated**: whether to ignore the profiler in the generated data.
-
-   DD_PROFILING_TAGS:
-     description: |
-         The tags to apply to uploaded profile. Must be a list in the
-         ``key1:value,key2:value2`` format.
-
-   DD_PROFILING_ENDPOINT_COLLECTION_ENABLED:
-     type: Boolean
-     default: True
-     description: Whether to enable the endpoint data collection in profiles.
+     default: 500
+     description: Maximum number of spans sent per trace per payload when ``DD_TRACE_PARTIAL_FLUSH_ENABLED=True``.
 
    DD_APPSEC_ENABLED:
      type: Boolean
@@ -438,6 +395,12 @@ The following environment variables for the tracer are supported:
          ``(?i)(?:p(?:ass)?w(?:or)?d|pass(?:_?phrase)?|secret|(?:api_?|private_?|public_?|access_?|secret_?)key(?:_?id)?|token|consumer_?(?:id|key|secret)|sign(?:ed|ature)?|auth(?:entication|orization)?)(?:\s*=[^;]|"\s*:\s*"[^"]+")|bearer\s+[a-z0-9\._\-]+|token:[a-z0-9]{13}|gh[opsu]_[0-9a-zA-Z]{36}|ey[I-L][\w=-]+\.ey[I-L][\w=-]+(?:\.[\w.+\/=-]+)?|[\-]{5}BEGIN[a-z\s]+PRIVATE\sKEY[\-]{5}[^\-]+[\-]{5}END[a-z\s]+PRIVATE\sKEY|ssh-rsa\s*[a-z0-9\/\.+]{100,}``
      description: Sensitive parameter value regexp for obfuscation.
 
+   DD_SUBPROCESS_SENSITIVE_WILDCARDS:
+     type: String
+     description: |
+         Add more possible matches to the internal list of subprocess execution argument scrubbing. Must be a comma-separated list and 
+         each item can take `fnmatch` style wildcards, for example: ``*ssn*,*personalid*,*idcard*,*creditcard*``.
+
    DD_HTTP_CLIENT_TAG_QUERY_STRING:
      type: Boolean
      default: True
@@ -447,6 +410,11 @@ The following environment variables for the tracer are supported:
      type: Boolean
      default: True
      description: Send query strings in http.url tag in http server integrations.
+    
+   DD_TRACE_SPAN_AGGREGATOR_RLOCK:
+     type: Boolean
+     default: False
+     description: Whether the ``SpanAggregator`` should use an RLock or a Lock.
 
    DD_IAST_ENABLED:
      type: Boolean
@@ -473,9 +441,38 @@ The following environment variables for the tracer are supported:
      default: "DES,Blowfish,RC2,RC4,IDEA"
      description: Weak cipher algorithms that should be reported, comma separated.
 
+   DD_IAST_REDACTION_ENABLED:
+     type: Boolean
+     default: True
+     description: |
+        Replace potentially sensitive information in the vulnerability report, like passwords with ``*`` for non tainted strings and ``abcde...``
+        for tainted ones. This will use the regular expressions of the two next settings to decide what to scrub.
+     version_added:
+        v1.17.0:
+
+   DD_IAST_REDACTION_NAME_PATTERN:
+     type: String
+     default: |
+       ``(?i)^.*(?:p(?:ass)?w(?:or)?d|pass(?:_?phrase)?|secret|(?:api_?|private_?|public_?|access_?|secret_?)key(?:_?id)?|token|consumer_?(?:id|key|secret)|sign(?:ed|ature)?|auth(?:entication|orization)?)``
+     description: |
+        Regular expression containing key or name style strings matched against vulnerability origin and evidence texts.
+        If it matches, the scrubbing of the report will be enabled.
+     version_added:
+        v1.17.0:
+
+   DD_IAST_REDACTION_VALUE_PATTERN:
+     type: String
+     default: |
+       ``(?i)bearer\s+[a-z0-9\._\-]+|token:[a-z0-9]{13}|gh[opsu]_[0-9a-zA-Z]{36}|ey[I-L][\w=-]+\.ey[I-L][\w=-]+(\.[\w.+\/=-]+)?|[\-]{5}BEGIN[a-z\s]+PRIVATE\sKEY[\-]{5}[^\-]+[\-]{5}END[a-z\s]+PRIVATE\sKEY|ssh-rsa\s*[a-z0-9\/\.+]{100,}``
+     description: |
+        Regular expression containing value style strings matched against vulnerability origin and evidence texts.
+        If it matches, the scrubbing of the report will be enabled.
+     version_added:
+        v1.17.0:
+
    DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE:
      type: String
-     default: "0"
+     default: "auto"
      description: |
         Controls whether module cloning logic is executed by ``ddtrace-run``. Module cloning involves saving copies of dependency modules for internal use by ``ddtrace``
         that will be unaffected by future imports of and changes to those modules by application code. Valid values for this variable are ``1``, ``0``, and ``auto``. ``1`` tells
@@ -484,10 +481,91 @@ The following environment variables for the tracer are supported:
      version_added:
         v1.9.0:
 
+   DD_CIVISIBILITY_AGENTLESS_ENABLED:
+     type: Boolean
+     default: False
+     description: |
+        Configures the ``CIVisibility`` service to use a test-reporting ``CIVisibilityWriter``.
+        This writer sends payloads for traces on which it's used to the intake endpoint for
+        Datadog CI Visibility. If there is a reachable Datadog agent that supports proxying
+        these requests, the writer will send its payloads to that agent instead.
+     version_added:
+        v1.12.0:
+
+   DD_CIVISIBILITY_AGENTLESS_URL:
+     type: String
+     default: ""
+     description: |
+        Configures the ``CIVisibility`` service to send event payloads to the specified host. If unspecified, the host "https://citestcycle-intake.<DD_SITE>"
+        is used, where ``<DD_SITE>`` is replaced by that environment variable's value, or "datadoghq.com" if unspecified.
+     version_added:
+        v1.13.0:
+
+   DD_CIVISIBILITY_ITR_ENABLED:
+     type: Boolean
+     default: False
+     description: |
+        Configures the ``CIVisibility`` service to generate and upload git packfiles in support
+        of the Datadog Intelligent Test Runner. This configuration has no effect if ``DD_CIVISIBILITY_AGENTLESS_ENABLED`` is false.
+     version_added:
+        v1.13.0:
+
+   DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING:
+      type: String
+      default: "safe"
+      description: |
+         Sets the mode for the automated user login events tracking feature which sets some traces on each user login event. The
+         supported modes are ``safe`` which will only store the user id or primary key, ``extended`` which will also store
+         the username, email and full name and ``disabled``. Note that this feature requires ``DD_APPSEC_ENABLED`` to be 
+         set to ``true`` to work.  
+      version_added:
+         v1.15.0:
+
+   DD_USER_MODEL_LOGIN_FIELD:
+      type: String
+      default: ""
+      description: |
+         Field to be used to read the user login when using a custom ``User`` model for the automatic login events. This field will take precedence over automatic inference.
+         Please note that, if set, this field will be used to retrieve the user login even if ``DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING`` is set to ``safe`` and, 
+         in some cases, the selected field could hold potentially private information.
+      version_added:
+         v1.15.0:
+
+   DD_USER_MODEL_EMAIL_FIELD:
+      type: String
+      default: ""
+      description: |
+         Field to be used to read the user email when using a custom ``User`` model for the automatic login events. This field will take precedence over automatic inference.
+      version_added:
+         v1.15.0:
+
+   DD_USER_MODEL_NAME_FIELD:
+      type: String
+      default: ""
+      description: |
+         Field to be used to read the user name when using a custom ``User`` model for the automatic login events. This field will take precedence over automatic inference.
+      version_added:
+         v1.15.0:
+
+
+
 .. _Unified Service Tagging: https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging/
+
+
+Profiling
+---------
+
+.. ddtrace-envier-configuration:: ddtrace.settings.profiling:ProfilingConfig
+   :recursive: true
 
 
 Dynamic Instrumentation
 -----------------------
 
-.. envier:: ddtrace.settings.dynamic_instrumentation:DynamicInstrumentationConfig
+.. ddtrace-envier-configuration:: ddtrace.settings.dynamic_instrumentation:DynamicInstrumentationConfig
+
+
+Exception Debugging
+-------------------
+
+.. ddtrace-envier-configuration:: ddtrace.settings.exception_debugging:ExceptionDebuggingConfig

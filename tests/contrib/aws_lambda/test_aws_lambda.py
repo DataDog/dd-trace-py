@@ -1,14 +1,17 @@
-import os
-
 import pytest
 
 from ddtrace.contrib.aws_lambda import patch
 from ddtrace.contrib.aws_lambda import unpatch
+from tests.contrib.aws_lambda.handlers import class_handler
 from tests.contrib.aws_lambda.handlers import datadog
 from tests.contrib.aws_lambda.handlers import finishing_spans_early_handler
 from tests.contrib.aws_lambda.handlers import handler
+from tests.contrib.aws_lambda.handlers import instance_handler
+from tests.contrib.aws_lambda.handlers import instance_handler_with_code
 from tests.contrib.aws_lambda.handlers import manually_wrapped_handler
+from tests.contrib.aws_lambda.handlers import static_handler
 from tests.contrib.aws_lambda.handlers import timeout_handler
+from tests.utils import override_env
 
 
 class LambdaContext:
@@ -32,67 +35,73 @@ def context():
     return create_context
 
 
+def get_env(env=None):
+    if env is None:
+        env = {}
+    common_env = {
+        "DD_TRACE_AGENT_URL": "http://localhost:9126/",
+        "DD_TRACE_ENABLED": "true",
+    }
+    return {**common_env, **env}
+
+
 @pytest.fixture(autouse=True)
 def setup():
-    os.environ.update(
-        {
-            "DD_TRACE_AGENT_URL": "http://localhost:9126/",
-            "DD_TRACE_ENABLED": "true",
-        }
-    )
     yield
     unpatch()
 
 
-@pytest.mark.parametrize("customApmFlushDeadline", [("100"), ("200")])
-@pytest.mark.snapshot()
+@pytest.mark.parametrize("customApmFlushDeadline", [("-100"), ("10"), ("100"), ("200")])
+@pytest.mark.snapshot
 def test_timeout_traces(context, customApmFlushDeadline):
-    os.environ.update(
+    env = get_env(
         {
             "AWS_LAMBDA_FUNCTION_NAME": "timeout_handler",
             "DD_LAMBDA_HANDLER": "tests.contrib.aws_lambda.handlers.timeout_handler",
-            "DD_APM_FLUSH_DEADLINE": customApmFlushDeadline,
+            "DD_APM_FLUSH_DEADLINE_MILLISECONDS": customApmFlushDeadline,
         }
     )
 
-    patch()
+    with override_env(env):
+        patch()
 
-    datadog(timeout_handler)({}, context())
+        datadog(timeout_handler)({}, context())
 
 
-@pytest.mark.snapshot()
+@pytest.mark.snapshot
 def test_continue_on_early_trace_ending(context):
     """
     These scenario expects no timeout error being tagged on the root span
     when closing all spans in the customers code and reaching a timeout.
     """
-    os.environ.update(
+    env = get_env(
         {
             "AWS_LAMBDA_FUNCTION_NAME": "finishing_spans_early_handler",
             "DD_LAMBDA_HANDLER": "tests.contrib.aws_lambda.handlers.finishing_spans_early_handler",
         }
     )
 
-    patch()
+    with override_env(env):
+        patch()
 
-    datadog(finishing_spans_early_handler)({}, context())
+        datadog(finishing_spans_early_handler)({}, context())
 
 
 @pytest.mark.snapshot
 async def test_file_patching(context):
-    os.environ.update(
+    env = get_env(
         {
             "AWS_LAMBDA_FUNCTION_NAME": "handler",
             "DD_LAMBDA_HANDLER": "tests.contrib.aws_lambda.handlers.handler",
         }
     )
 
-    patch()
+    with override_env(env):
+        patch()
 
-    result = datadog(handler)({}, context())
+        result = datadog(handler)({}, context())
 
-    assert result == {"success": True}
-    return
+        assert result == {"success": True}
 
 
 @pytest.mark.snapshot
@@ -100,15 +109,40 @@ async def test_module_patching(mocker, context):
     mocker.patch("datadog_lambda.wrapper._LambdaDecorator._before")
     mocker.patch("datadog_lambda.wrapper._LambdaDecorator._after")
 
-    os.environ.update(
+    env = get_env(
         {
             "AWS_LAMBDA_FUNCTION_NAME": "manually_wrapped_handler",
         }
     )
 
-    patch()
+    with override_env(env):
+        patch()
 
-    result = manually_wrapped_handler({}, context())
+        result = manually_wrapped_handler({}, context())
 
-    assert result == {"success": True}
-    return
+        assert result == {"success": True}
+
+
+@pytest.mark.parametrize(
+    "handler,function_name",
+    [
+        (static_handler, "static_handler"),
+        (class_handler, "class_handler"),
+        (instance_handler, "instance_handler"),
+        (instance_handler_with_code, "instance_handler_with_code"),
+    ],
+)
+@pytest.mark.snapshot
+def test_class_based_handlers(context, handler, function_name):
+    env = get_env(
+        {
+            "AWS_LAMBDA_FUNCTION_NAME": function_name,
+            "DD_LAMBDA_HANDLER": "tests.contrib.aws_lambda.handlers." + function_name,
+        }
+    )
+
+    with override_env(env):
+        patch()
+
+        result = datadog(handler)({}, context())
+        assert result == {"success": True}

@@ -23,13 +23,16 @@ from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
+from ddtrace.contrib import trace_utils
 from ddtrace.contrib.django.patch import instrument_view
+from ddtrace.contrib.django.patch import traced_get_response
 from ddtrace.contrib.django.utils import get_request_uri
 from ddtrace.ext import http
 from ddtrace.ext import user
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import binary_type
 from ddtrace.internal.compat import string_type
+from ddtrace.internal.schema.span_attribute_schema import _DEFAULT_SPAN_SERVICE_NAMES
 from ddtrace.propagation._utils import get_wsgi_header
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
@@ -492,6 +495,30 @@ def test_request_view(client, test_spans):
     )
 
 
+def test_class_views_resource_names(client, test_spans):
+    """
+    When making a request to a Django app and DD_DJANGO_USE_HANDLER_RESOURCE_FORMAT=True
+        The resource name of the django.request span should contain the name of the view
+    """
+    with override_config("django", dict(use_handler_resource_format=True)):
+        # Send a request to a endpoint with a class based view
+        resp = client.get("/simple/")
+        assert resp.status_code == 200
+        assert resp.content == b""
+
+    view_spans = list(test_spans.filter_spans(name="django.view"))
+    assert len(view_spans) == 1
+    # Assert span properties
+    view_span = view_spans[0]
+    view_span.assert_matches(
+        name="django.view", service="django", resource="tests.contrib.django.views.BasicView", error=0
+    )
+    # Get request span
+    request_span = list(test_spans.filter_spans(name="django.request"))[0]
+    # Ensure resource name contains the view
+    assert view_span.resource in request_span.resource
+
+
 def test_lambda_based_view(client, test_spans):
     # ensures that the internals are properly traced when using a function view
     assert client.get("/lambda-view/").status_code == 200
@@ -771,6 +798,170 @@ def test_cache_get_rowcount_missing_key(test_spans):
     assert_dict_issuperset(span.get_metrics(), {"db.row_count": 0})
 
 
+class NoBool:
+    def __bool__(self):
+        raise NotImplementedError
+
+
+def test_cache_get_rowcount_empty_key(test_spans):
+    # get the default cache
+    cache = django.core.cache.caches["default"]
+    cache.set(1, NoBool())
+
+    result = cache.get(1)
+
+    assert isinstance(result, NoBool) is True
+
+    spans = test_spans.get_spans()
+    assert len(spans) == 2
+
+    get_span = spans[1]
+    assert get_span.service == "django"
+    assert get_span.resource == "django.core.cache.backends.locmem.get"
+
+    assert_dict_issuperset(get_span.get_metrics(), {"db.row_count": 1})
+
+
+def test_cache_get_rowcount_missing_key_with_default(test_spans):
+    # get the default cache
+    cache = django.core.cache.caches["default"]
+
+    # This is the diff with `test_cache_get_rowcount_missing_key`,
+    # we are setting a default value to be returned in case of a cache miss
+    cache.get("missing_key", default="default_value")
+
+    spans = test_spans.get_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.service == "django"
+    assert span.resource == "django.core.cache.backends.locmem.get"
+    assert_dict_issuperset(span.get_metrics(), {"db.row_count": 1})
+
+
+class RaiseNotImplementedError:
+    def __eq__(self, _):
+        raise NotImplementedError
+
+
+class RaiseValueError:
+    def __eq__(self, _):
+        raise ValueError
+
+
+class RaiseAttributeError:
+    def __eq__(self, _):
+        raise AttributeError
+
+
+def test_cache_get_rowcount_throws_attribute_and_value_error(test_spans):
+
+    # get the default cache
+    cache = django.core.cache.caches["default"]
+
+    cache.set(1, RaiseNotImplementedError())
+    cache.set(2, RaiseValueError())
+    cache.set(3, RaiseAttributeError())
+
+    # This is the diff with `test_cache_get_rowcount_missing_key`,
+    # we are setting a default value to be returned in case of a cache miss
+    result = cache.get(1)
+    assert isinstance(result, RaiseNotImplementedError)
+
+    result = cache.get(2)
+    assert isinstance(result, RaiseValueError)
+
+    result = cache.get(3)
+    assert isinstance(result, RaiseAttributeError)
+
+    spans = test_spans.get_spans()
+    assert len(spans) == 6
+
+    set_1 = spans[0]
+    set_2 = spans[1]
+    set_3 = spans[2]
+    assert set_1.resource == "django.core.cache.backends.locmem.set"
+    assert set_2.resource == "django.core.cache.backends.locmem.set"
+    assert set_3.resource == "django.core.cache.backends.locmem.set"
+
+    get_1 = spans[3]
+    assert get_1.service == "django"
+    assert get_1.resource == "django.core.cache.backends.locmem.get"
+    assert_dict_issuperset(get_1.get_metrics(), {"db.row_count": 0})
+
+    get_2 = spans[4]
+    assert get_2.service == "django"
+    assert get_2.resource == "django.core.cache.backends.locmem.get"
+    assert_dict_issuperset(get_2.get_metrics(), {"db.row_count": 0})
+
+    get_3 = spans[5]
+    assert get_3.service == "django"
+    assert get_3.resource == "django.core.cache.backends.locmem.get"
+    assert_dict_issuperset(get_3.get_metrics(), {"db.row_count": 0})
+
+
+class MockDataFrame:
+    def __init__(self, data):
+        self.data = data
+
+    def __eq__(self, other):
+        if isinstance(other, str):
+            return MockDataFrame([item == other for item in self.data])
+        else:
+            return MockDataFrame([row == other for row in self.data])
+
+    def __bool__(self):
+        raise ValueError("Cannot determine truthiness of comparison result for DataFrame.")
+
+    def __iter__(self):
+        return iter(self.data)
+
+
+@pytest.mark.skipif(django.VERSION < (2, 0, 0), reason="")
+def test_cache_get_rowcount_iterable_ambiguous_truthiness(test_spans):
+    # get the default cache
+
+    data = {"col1": 1, "col2": 2, "col3": 3}
+
+    cache = django.core.cache.caches["default"]
+    cache.set(1, MockDataFrame(data))
+    cache.set(2, None)
+
+    # throw error to verify that mock class has ambigiuous truthiness, django patch will do a similar
+    # set of comparisons when trying to get rowcount
+    with pytest.raises(ValueError):
+        df = MockDataFrame(data)
+        assert df is not None
+        check_result = df == "some_result"
+        if check_result:
+            print("This should never print.")
+
+    # Test to ensure that a DF does not throw a bool error when trying to
+    # determine if the result was valid.
+    result = cache.get(1)
+    assert isinstance(result, MockDataFrame)
+
+    result = cache.get(2)
+    assert result is None
+
+    spans = test_spans.get_spans()
+    assert len(spans) == 4
+
+    set_1 = spans[0]
+    set_2 = spans[1]
+    assert set_1.resource == "django.core.cache.backends.locmem.set"
+    assert set_2.resource == "django.core.cache.backends.locmem.set"
+
+    get_1 = spans[2]
+    assert get_1.service == "django"
+    assert get_1.resource == "django.core.cache.backends.locmem.get"
+    assert_dict_issuperset(get_1.get_metrics(), {"db.row_count": 1})
+
+    get_2 = spans[3]
+    assert get_2.service == "django"
+    assert get_2.resource == "django.core.cache.backends.locmem.get"
+    assert_dict_issuperset(get_2.get_metrics(), {"db.row_count": 0})
+
+
 def test_cache_get_unicode(test_spans):
     # get the default cache
     cache = django.core.cache.caches["default"]
@@ -1029,6 +1220,7 @@ def test_cache_get_many(test_spans):
         "component": "django",
         "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
         "django.cache.key": "missing_key another_key",
+        "_dd.p.dm": "-0",
     }
 
     assert_dict_issuperset(span_get_many.get_tags(), expected_meta)
@@ -1230,12 +1422,16 @@ def test_cached_view(client, test_spans):
         "django.cache.key": (
             "views.decorators.cache.cache_page..GET.03cdc1cc4aab71b038a6764e5fcabb82.d41d8cd98f00b204e9800998ecf8..."
         ),
+        "_dd.p.dm": "-0",
+        "_dd.base_service": "",
     }
 
     expected_meta_header = {
         "component": "django",
         "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
         "django.cache.key": "views.decorators.cache.cache_header..03cdc1cc4aab71b038a6764e5fcabb82.en-us",
+        "_dd.p.dm": "-0",
+        "_dd.base_service": "",
     }
 
     assert span_view.get_tags() == expected_meta_view
@@ -1274,6 +1470,8 @@ def test_cached_template(client, test_spans):
         "component": "django",
         "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
         "django.cache.key": "template.cache.users_list.d41d8cd98f00b204e9800998ecf8427e",
+        "_dd.base_service": "",
+        "_dd.p.dm": "-0",
     }
 
     assert span_template_cache.get_tags() == expected_meta
@@ -1294,6 +1492,145 @@ def test_service_can_be_overridden(client, test_spans):
 
     span = spans[0]
     assert span.service == "test-service"
+
+
+@pytest.mark.parametrize("global_service_name", [None, "mysvc"])
+@pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
+def test_schematized_default_service_name(ddtrace_run_python_code_in_subprocess, schema_version, global_service_name):
+    expected_service_name = {
+        None: global_service_name or "django",
+        "v0": global_service_name or "django",
+        "v1": global_service_name or _DEFAULT_SPAN_SERVICE_NAMES["v1"],
+    }[schema_version]
+    code = """
+import pytest
+import sys
+
+import django
+
+from tests.contrib.django.conftest import *
+from tests.utils import override_config
+
+def test(client, test_spans):
+    response = client.get("/")
+    assert response.status_code == 200
+
+    spans = test_spans.get_spans()
+    assert len(spans) > 0
+
+    span = spans[0]
+    assert span.service == "{}"
+
+if __name__ == "__main__":
+    sys.exit(pytest.main(["-x", __file__]))
+    """.format(
+        expected_service_name
+    )
+
+    env = os.environ.copy()
+    if schema_version is not None:
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
+    if global_service_name is not None:
+        env["DD_SERVICE"] = global_service_name
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(
+        code,
+        env=env,
+    )
+    assert status == 0, (out, err)
+
+
+@pytest.mark.parametrize("global_service_name", [None, "mysvc"])
+@pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
+def test_schematized_default_db_service_name(
+    ddtrace_run_python_code_in_subprocess, schema_version, global_service_name
+):
+    expected_service_name = {
+        None: "defaultdb",
+        "v0": "defaultdb",
+        "v1": global_service_name or _DEFAULT_SPAN_SERVICE_NAMES["v1"],
+    }[schema_version]
+    code = """
+import pytest
+import sys
+
+import django
+
+from tests.contrib.django.conftest import *
+from tests.utils import override_config
+
+@pytest.mark.django_db
+def test_connection(client, test_spans):
+    from django.contrib.auth.models import User
+
+    users = User.objects.count()
+    assert users == 0
+
+    test_spans.assert_span_count(1)
+    spans = test_spans.get_spans()
+
+    span = spans[0]
+    assert span.name == "sqlite.query"
+    assert span.service == "{}"
+    assert span.span_type == "sql"
+    assert span.get_tag("django.db.vendor") == "sqlite"
+    assert span.get_tag("django.db.alias") == "default"
+
+if __name__ == "__main__":
+    sys.exit(pytest.main(["-x", __file__]))
+    """.format(
+        expected_service_name
+    )
+
+    env = os.environ.copy()
+    if schema_version is not None:
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
+    if global_service_name is not None:
+        env["DD_SERVICE"] = global_service_name
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(
+        code,
+        env=env,
+    )
+    assert status == 0, (out, err)
+
+
+@pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
+def test_schematized_operation_name(ddtrace_run_python_code_in_subprocess, schema_version):
+    expected_operation_name = {None: "django.request", "v0": "django.request", "v1": "http.server.request"}[
+        schema_version
+    ]
+    code = """
+import pytest
+import sys
+
+import django
+
+from tests.contrib.django.conftest import *
+from tests.utils import override_config
+
+def test(client, test_spans):
+    response = client.get("/")
+    assert response.status_code == 200
+
+    spans = test_spans.get_spans()
+    assert len(spans) > 0
+
+    span = spans[0]
+    assert span.name == "{}"
+
+if __name__ == "__main__":
+    sys.exit(pytest.main(["-x", __file__]))
+    """.format(
+        expected_operation_name
+    )
+
+    env = os.environ.copy()
+    if schema_version is not None:
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(
+        code,
+        env=env,
+    )
+    assert status == 0, (out, err)
 
 
 @pytest.mark.django_db
@@ -1699,6 +2036,8 @@ def test_django_use_handler_resource_format(client, test_spans):
         resource = "GET tests.contrib.django.views.index"
 
         root.assert_matches(resource=resource, parent_id=None, span_type="web")
+        if django.VERSION >= (2, 2, 0):
+            root.assert_meta({"http.route": "^$"})
 
 
 def test_django_use_handler_with_url_name_resource_format(client, test_spans):
@@ -2064,3 +2403,22 @@ def test_django_get_user(client, test_spans):
     assert root.get_tag(user.NAME) == "usr.name"
     assert root.get_tag(user.ROLE) == "usr.role"
     assert root.get_tag(user.SCOPE) == "usr.scope"
+
+
+@pytest.mark.skipif(django.VERSION < (2, 0, 0), reason="")
+def test_django_base_handler_failure(client, test_spans):
+    """
+    This tests the failure mode seen with Gunicorn during timeouts, where the Django
+    Handler is terminated after <x> seconds and no response is returned by
+    django.core.handler.base.BaseHandler.get_response.  We expect to populate the resource
+    with "GET <resource>" instead of what we did before this test "GET"
+    """
+    trace_utils.unwrap(client.handler, "get_response")
+    with mock.patch.object(client.handler, "get_response", side_effect=Exception("test")):
+        trace_utils.wrap(client.handler, "get_response", traced_get_response(django))
+        try:
+            client.get("/")
+        except Exception:
+            pass  # We expect an error
+        root = test_spans.get_root_span()
+        assert root.resource == "GET ^$"

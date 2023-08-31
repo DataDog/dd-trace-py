@@ -4,6 +4,7 @@ from mako.template import Template
 
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.schema import schematize_service_name
 
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
@@ -14,13 +15,18 @@ from ..trace_utils import wrap as _w
 from .constants import DEFAULT_TEMPLATE_NAME
 
 
+def get_version():
+    # type: () -> str
+    return getattr(mako, "__version__", "")
+
+
 def patch():
     if getattr(mako, "__datadog_patch", False):
         # already patched
         return
-    setattr(mako, "__datadog_patch", True)
+    mako.__datadog_patch = True
 
-    Pin(service=config.service or "mako").onto(Template)
+    Pin(service=config.service or schematize_service_name("mako")).onto(Template)
 
     _w(mako, "template.Template.render", _wrap_render)
     _w(mako, "template.Template.render_unicode", _wrap_render)
@@ -30,7 +36,7 @@ def patch():
 def unpatch():
     if not getattr(mako, "__datadog_patch", False):
         return
-    setattr(mako, "__datadog_patch", False)
+    mako.__datadog_patch = False
 
     _u(mako.template.Template, "render")
     _u(mako.template.Template, "render_unicode")

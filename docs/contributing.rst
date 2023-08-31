@@ -2,403 +2,134 @@
  Contributing
 ==============
 
-When contributing to this repository, we advise you to discuss the change you
-wish to make via an `issue <https://github.com/DataDog/dd-trace-py/issues>`_.
+Contributions are welcome!
 
+The best way to suggest a change to the library is to open a
+`pull request <https://github.com/DataDog/dd-trace-py/pulls>`_.
 
-Branches
-========
+You may also consider opening an `issue <https://github.com/DataDog/dd-trace-py/issues>`_
+if you'd like to report a bug or request a new feature.
 
-Development happens in the `1.x` branch. When all the features for the next
-milestone are merged, the next version is released and tagged on the `1.x`
-branch as `vVERSION`.
+Before working on the library, install `docker <https://www.docker.com/products/docker>`_
+and `docker-compose <https://www.docker.com/products/docker-compose>`_.
 
-Your pull request should target the `1.x` branch.
+Thanks for working with us!
 
-Once a new version is released, a `VERSION` branch might be created to
-support micro releases to `VERSION`. Patches should be cherry-picking from the
-`1.x` branch where possible — or otherwise created from scratch.
+.. _change_process:
 
+Change Process
+==============
 
-Internal API
-============
+The process of making a change to the library starts with a pull request. When you open one,
+reviewers are automatically assigned based on the CODEOWNERS file. Many different continuous integration
+jobs are also triggered, including unit tests, integration tests, benchmarks, and linters.
 
-The `ddtrace.internal` module contains code that must only be used inside
-`ddtrace` itself. Relying on the API of this module is dangerous and can break
-at anytime. Don't do it.
+Marking your pull request as a draft using the "Convert to draft" link communicates to potential reviewers
+that your pull request is not ready to be reviewed. Use the "ready for review" button when this changes.
+It's often beneficial to open an in-progress pull request and mark it as a draft while you confirm that the test
+suite passes.
 
-Python Versions and Implementations Support
-===========================================
+Within a few business days, one of the maintainers will respond with a code review. The review will
+primarily focus on idiomatic Python usage, efficiency, testing, and adherence to the versioning policy.
+Correctness and code style are automatically checked in continuous integration, with style linting managed by
+various tools including Flake8, Black, and MyPy. This means that code reviews don't need to worry about style
+and can focus on substance.
 
-The following Python implementations are supported:
+If you get errors from ``git commit`` that mention "pre-commit", run ``$ rm .git/hooks/pre-commit`` and try again.
 
-- CPython
+Branches and Pull Requests
+--------------------------
 
-Versions of those implementations that are supported are the Python versions
-that are currently supported by the community.
+This library follows the practice of `trunk-based development <https://trunkbaseddevelopment.com/>`_.
 
-Code Style
-==========
+The "trunk" branch, which new pull requests should target, is ``1.x``.
+Roughly every two weeks, we checkpoint the current state of this branch as a new
+release branch, whose naming follows `semantic versioning <https://semver.org/>`_.
+You can find the list of past released versions `on this GitHub page <https://github.com/DataDog/dd-trace-py/releases>`_.
 
-The code style is enforced by `flake8 <https://pypi.org/project/flake8>`_, its
-configuration, and possibly extensions. No code style review should be done by
-a human. All code style enforcement must be automated to avoid bikeshedding
-and losing time.
+Pull requests are named according to the `conventional commit <https://www.conventionalcommits.org/en/v1.0.0/>`_
+standard, which is enforced by a continuous integration job. The standardized "scopes" we use
+in pull request names are enumerated :ref:`in the release notes documentation<release_notes_scope>`.
 
+Pull requests that change the library's public API require a :ref:`release note<release_notes>`.
+If your pull request doesn't change the public API, apply the ``no-changelog`` label.
+
+Backporting
+-----------
+
+Each minor version has its own branch. Bug fixes are "backported" from trunk to certain
+minor version branches according to the :ref:`version support policy<versioning_release>`.
+
+* **Fix PRs** are backported to all maintained release branches.
+* **CI PRs** are backported to the maintained release branches.
+* **New features** (``feat`` PRs) are not backported.
+* **Chore, documentation, and other PRs** are not backported.
+
+If your pull request is a ``fix`` or ``ci`` change, apply the backport labels corresponding to the minor
+versions that need the change.
+
+Implementation Guidelines
+=========================
+
+Parts of the Library
+--------------------
+
+When designing a change, one of the first decisions to make is where it should be made. This is an overview
+of the main functional areas of the library.
+
+A **product** is a unit of code within the library that implements functionality specific to a small set of
+customer-facing Datadog products. Examples include the `appsec module <https://github.com/DataDog/dd-trace-py/tree/1.x/ddtrace/appsec>`_
+implementing functionality for `Application Security Management <https://www.datadoghq.com/product/application-security-management/>`_
+and the `profiling <https://github.com/DataDog/dd-trace-py/tree/1.x/ddtrace/profiling>`_ module implementing
+functionality for `Continuous Profiling <https://docs.datadoghq.com/profiler/>`_. Ideally it only contains code
+that is specific to the Datadog product being supported, and no code related to Integrations.
+
+An **integration** is one of the modules in the `contrib <https://github.com/DataDog/dd-trace-py/tree/f26a526a6f79870e6e6a21d281f4796a434616bb/ddtrace/contrib>`_
+directory, hooking our code into the internal logic of a given Python library. Ideally it only contains code
+that is specific to the library being integrated with, and no code related to Products.
+
+The **core** of the library is the abstraction layer that allows Products and Integrations to keep their concerns
+separate. It is implemented in the Python files in the `top level of ddtracepy <https://github.com/DataDog/dd-trace-py/tree/1.x/ddtrace>`_
+and in the `internal` module. As an implementation detail, the core logic also happens to directly support
+`Application Performance Monitoring <https://docs.datadoghq.com/tracing/>`_.
+
+Be mindful and intentional about which of these categories your change fits into, and avoid mixing concerns between
+categories. If doing so requires more foundational refactoring or additional layers of abstraction, consider
+opening an issue describing the limitations of the current design.
+
+Tests
+-----
+
+If your change touches Python code, it should probably include at least one test. See the
+:ref:`testing guidelines<testing_guidelines>` for details.
+
+Documentation
+-------------
+
+Pull requests implementing new features should include documentation for those features. The audience for this
+documentation is the public population of library users. The Products and Core logic are documented alongside
+this document, in the ``docs`` directory. The documentation for each Integration is contained in a docstring
+in that integration's ``__init__.py`` file. See :ref:`this page<integration_guidelines>` for more information
+on writing documentation for Integrations.
 
 Logging
-=======
+-------
 
-The ddtrace logger should be used to log events in the dd-trace-py library. Use ``ddtrace.internal.logger.get_logger(__name__)`` to initialize/retrieve an instance of the ddtrace logger (DDLogger).
+Use ``ddtrace.internal.logger.get_logger(__name__)`` to initialize/retrieve a ``DDLogger`` object you can use
+to emit well-formatted log messages from your code.
 
-To ensure the ddtrace library produces consistent and secure logs the following best practices should be followed:
+Keep the following in mind when writing logging code:
 
-* Logs should be generated with the level DEBUG, INFO, WARNING, or ERROR.
-* Log messages are grammatically correct and do not contain spelling errors.
+* Logs should be generated with the level ``DEBUG``, ``INFO``, ``WARNING``, or ``ERROR`` according to conventions
+  `like these <https://stackoverflow.com/a/2031209/735204>`_.
+* Log messages should be grammatically correct and should not contain spelling errors.
 * Log messages should be standalone and actionable. They should not require context from other logs, metrics or trace data.
 * Log data is sensitive and should not contain application secrets or other sensitive data.
 
 
-Release Notes
-=============
-Release notes are the primary product documentation a user will see when updating the library. Therefore, we must take care to ensure the quality of release notes.
-
-A release note entry should be included for every pull request that changes how a user interacts with the library.
-
-Requiring a Release Note
-++++++++++++++++++++++++
-
-A release note is **required** if a PR is user-impacting, or if it meets any of the following conditions:
-
-* `Breaking change to the public API <https://ddtrace.readthedocs.io/en/stable/versioning.html#release-versions>`_
-* New feature
-* Bug fix
-* Deprecations
-* Dependency upgrades
-
-Otherwise, a release note is not required.
-Examples of when a release note is **not required** are:
-
-* CI chores (e.g., upgrade/pinning dependency versions to fix CI)
-* Changes to internal API (Non-public facing, or not-yet released components/features)
-
-Release Note Style Guidelines
-+++++++++++++++++++++++++++++
-
-The main goal of a release note is to provide a brief overview of a change.
-If necessary, we can also provide actionable steps to the user.
-
-The release note should clearly communicate what the change is, why the change was made,
-and how a user can migrate their code.
-
-The release note should also clearly distinguish between announcements and user instructions. Use:
-
-* Past tense for previous/existing behavior (ex: ``resulted, caused, failed``)
-* Third person present tense for the change itself (ex: ``adds, fixes, upgrades``)
-* Active present infinitive for user instructions (ex: ``set, use, add``)
-
-Release notes should:
-
-* Use plain language.
-* Be concise.
-* Include actionable steps with the necessary code changes.
-* Include relevant links (bug issues, upstream issues or release notes, documentation pages).
-* Use full sentences with sentence-casing and punctuation.
-* Before using Datadog specific acronyms/terminology, a release note must first introduce them with a definition.
-
-Release notes should not:
-
-* Be vague. Example: ``fixes an issue in tracing``.
-* Use overly technical language.
-* Use dynamic links (``stable/latest/1.x`` URLs). Instead, use static links (specific version, commit hash) whenever possible so that they don't break in the future.
-
-Generating a Release Note
-+++++++++++++++++++++++++
-Release notes are generated with the command line tool ``reno`` which can be used with riot::
-
-    $ riot run reno new <title-slug>
-
-The ``<title-slug>`` is used as the prefix for a new file created in ``releasenotes/notes``.
-The ``<title-slug>`` is used internally and is not visible in the the product documentation.
-
-Generally, the format of the ``<title-slug>`` is lowercase words separated by hyphens.
-
-For example:
-
-* ``fix-aioredis-catch-canceled-error``
-* ``deprecate-tracer-writer``
-
-Release Note Sections
-+++++++++++++++++++++
-
-Generated release note files are templates and include all possible categories.
-All irrelevant sections should be removed for the final release note.
-Once finished, the release note should be committed with the rest of the changes.
-
-* Features: New features such as a new integration or component. For example::
-
-    features:
-    - |
-      graphene: Adds support for ``graphene>=2``. `See the graphql documentation <https://ddtrace.readthedocs.io/en/1.6.0/integrations.html#graphql>`_
-      for more information.
-
-* Upgrade: Enhanced functionality or if dependencies are upgraded. Also used for if components are removed. Usually includes instruction or recommendation to user in regards to how to adjust to the new change. For example::
-
-    upgrade:
-    - |
-      tracing: Use ``Span.set_tag_str()`` instead of ``Span.set_tag()`` when the tag value is a
-      text type as a performance optimization in manual instrumentation.
-
-* Deprecations: Warning of a component being removed from the public API in the future. For example::
-
-    deprecations:
-    - |
-      tracing: ``ddtrace.Span.meta`` has been deprecated. Use ``ddtrace.Span.get_tag`` and ``ddtrace.Span.set_tag`` instead.
-
-* Fixes: Bug fixes. For example::
-
-    fixes:
-    - |
-      django: Fixes an issue where a manually set ``django.request`` span resource would get overwritten by the integration.
-
-* Other: Any change which does not fall into any of the above categories. For example::
-
-    other:
-    - |
-      docs: Adds documentation on how to use Gunicorn with the ``gevent`` worker class.
-
-* Prelude: Not required for every change. Required for major changes such as a new component or new feature which would benefit the user by providing additional context or theme. For example::
-
-    prelude: >
-      dynamic instrumentation: Dynamic Instrumentation allows instrumenting a running service dynamically
-      to extract runtime information that could be useful for, e.g., debugging
-      purposes, or to add extra metrics without having to make code changes and
-      re-deploy the service. See https://ddtrace.readthedocs.io/en/1.6.0/configuration.html
-      for more details.
-    features:
-    - |
-      dynamic instrumentation: Introduces the public interface for the dynamic instrumentation service. See
-      https://ddtrace.readthedocs.io/en/1.6.0/configuration.html for more details.
-
-Release Note Formatting
-+++++++++++++++++++++++
-
-In general, a release note entry should follow the following format::
-
-  ---
-  <section>:
-    - |
-      scope: note
-
-Scope
-~~~~~
-
-This is a one-word scope, which is ideally the name of the library component, sub-component or integration
-that is impacted by this change. This should not be capitalized unless it is an acronym.
-
-To ensure consistency in component naming, the convention in referring to components is as follows:
-
-* Tracer: ``tracing``
-* Profiler: ``profiling``
-* Application Security Monitoring: ``ASM``
-* Dynamic Instrumentation: ``dynamic instrumentation``
-* CI Visibility: ``CI visibility``
-* Integrations: ``integration_name``
-
-Note
-~~~~
-
-The note is a brief description of the change. It should consist of full sentence(s) with sentence-case capitalization.
-The note should also follow valid restructured text (RST) formatting. See the template release note for
-more details and instructions.
-
-How To: Write an Integration
-============================
-
-An integration should provide concise, insightful data about the library or
-framework that will aid developers in monitoring their application's health and
-performance.
-
-The best way to get started writing a new integration is to refer to existing
-integrations. Looking at a similarly themed library or framework is a great
-starting point. To write a new integration for ``memcached`` we might refer to
-the existing ``redis`` integration as a starting point since both of these
-would generate similar spans.
-
-The development process looks like this:
-
-  - Research the library or framework that is to be instrumented. Reading
-    through its docs and code examples will reveal what APIs are meaningful to
-    instrument.
-
-  - Copy the skeleton module provided in ``templates/integration`` and replace
-    ``foo`` with the integration name. The integration name typically matches
-    the library or framework being instrumented::
-
-      cp -r templates/integration ddtrace/contrib/<integration>
-
-  - Create a test file for the integration under
-    ``tests/contrib/<integration>/test_<integration>.py``.
-
-  - Write the integration (see more on this below).
-
-  - Open up a draft PR using the `integration checklist
-    <https://github.com/DataDog/dd-trace-py/.github/PULL_REQUEST_TEMPLATE/integration.md>`_.
-
-
-Integration Fundamentals
-++++++++++++++++++++++++
-
-Code structure
-~~~~~~~~~~~~~~
-
-All integrations live in ``ddtrace/contrib/`` and contain at least two files,
-``__init__.py`` and ``patch.py``. A skeleton integration is available under
-``templates/integration`` which can be used as a starting point::
-
-    cp -r templates/integration ddtrace/contrib/<integration>
-
-
-It is preferred to keep as much code as possible in ``patch.py``.
-
-All spans generated by the integration must add the tag ``component:<integration_name>`` to each span.
-`Example of component tag being set in Flask integration <https://github.com/DataDog/dd-trace-py/blob/a01c18f20de2348ed34bde3ac2fe7a1e010a2d38/ddtrace/contrib/flask/patch.py#L486-L487>`_.
-
-Pin API
-~~~~~~~
-
-The Pin API is used to configure the instrumentation at run-time. This includes
-enabling and disabling the instrumentation and overriding the service name.
-
-
-Library support
-~~~~~~~~~~~~~~~
-
-``ddtrace`` supports as many active versions of a library as possible, however testing all possible versions of a
-library combined with all supported Python versions is a heavy maintenance burden and provides limited added value in practice.
-Testing using the below guidelines helps alleviate that burden.
-
-The ``ddtrace`` library's testing support guidelines is as follows:
-
-  - Test the oldest and latest minor versions of the most latest major version going back 2 years.
-
-  - Test the latest minor version of any previous major version going back 2 years.
-
-  - If there are no new releases in the past 2 years, test the latest released version.
-
-  - For legacy Python versions (2.7,3.5,3.6), test the latest minor version known to support that legacy Python version.
-
-For libraries with many versions it is recommended to pull out the version of
-the library to use when instrumenting volatile features. A great example of
-this is the Flask integration:
-
-    - pulling out the version: `flask version <https://github.com/DataDog/dd-trace-py/blob/96dc6403e329da87fe40a1e912ce72f2b452d65c/ddtrace/contrib/flask/patch.py#L45-L58>`_
-    - using it to instrument a later-added feature `flask version usage <https://github.com/DataDog/dd-trace-py/blob/96dc6403e329da87fe40a1e912ce72f2b452d65c/ddtrace/contrib/flask/patch.py#L149-L151>`_
-
-
-Exceptions/Errors
-~~~~~~~~~~~~~~~~~
-
-Exceptions provide a lot of useful information about errors and the application
-as a whole and are fortunately usually quite easy to deal with. Exceptions are
-a great place to start instrumenting. There are a couple of considerations when
-dealing with exceptions in ``ddtrace``:
-
-    - Re-raising the exception: it is crucial that we do not interfere with the
-      application, so exceptions must be re-raised. See the `bottle exception handling <https://github.com/DataDog/dd-trace-py/blob/96dc6403e329da87fe40a1e912ce72f2b452d65c/ddtrace/contrib/bottle/trace.py#L50-L69>`_
-      instrumentation for an example.
-
-    - Gathering relevant information: ``ddtrace`` provides a helper for pulling
-      out this information and adding it to a span.  See the `cassandra
-      exception handling
-      <https://github.com/DataDog/dd-trace-py/blob/96dc6403e329da87fe40a1e912ce72f2b452d65c/ddtrace/contrib/cassandra/session.py#L117-L122>`_
-      instrumentation for an example.
-
-
-Cross execution tracing
-~~~~~~~~~~~~~~~~~~~~~~~
-
-Some integrations can propagate a trace across execution boundaries to other
-executions where the trace is continued (processes, threads, tasks, etc). Refer
-to the :ref:`context` section of the documentation for more information.
-
-    - Propagating the trace example: `requests <https://github.com/DataDog/dd-trace-py/blob/46a2600/ddtrace/contrib/requests/connection.py#L95-L97>`_
-    - Receiving and activating a propagated trace example: `django <https://github.com/DataDog/dd-trace-py/blob/46a2600/ddtrace/contrib/django/patch.py#L304>`__
-
-
-Web frameworks
-++++++++++++++
-
-
-A web framework integration must do the following if possible:
-
-    - Install the WSGI or ASGI trace middlewares already provided by ``ddtrace``.
-    - Trace the duration of the request.
-    - Assign a resource name for a route.
-    - Use ``trace_utils.set_http_meta`` to set the standard http tags.
-    - Have an internal service name.
-    - Support distributed tracing (configurable).
-    - Provide insight to middlewares and views.
-    - Use the `SpanTypes.WEB` span type.
-
-Some example web framework integrations::
-    - `flask <https://github.com/DataDog/dd-trace-py/tree/46a2600/ddtrace/contrib/flask>`_
-    - `django <https://github.com/DataDog/dd-trace-py/tree/46a2600/ddtrace/contrib/django>`__
-
-
-Database libraries
-++++++++++++++++++
-
-``ddtrace`` already provides base instrumentation for the Python database API
-(PEP 249) which most database client libraries implement in the
-`ddtrace.contrib.dbapi <https://github.com/DataDog/dd-trace-py/blob/46a2600/ddtrace/contrib/dbapi/__init__.py>`_
-module.
-
-Check out some of our existing database integrations for how to use the `dbapi`:
-
-    - `mariadb <https://github.com/DataDog/dd-trace-py/tree/46a2600/ddtrace/contrib/mariadb>`_
-    - `psycopg <https://github.com/DataDog/dd-trace-py/tree/46a2600/ddtrace/contrib/psycopg>`_
-    - `mysql <https://github.com/DataDog/dd-trace-py/tree/46a2600/ddtrace/contrib/mysql>`_
-
-
-Testing
-+++++++
-
-The tests must be defined in its own module in ``tests/contrib/<integration>/``.
-
-Testing is the most important part of the integration. We have to be certain
-that the integration:
-
-    1) works: submits meaningful information to Datadog
-
-    2) is invisible: does not impact the library or application by disturbing state,
-       performance or causing errors
-
-The best way to get started writing tests is to reference other integration test
-suites. ``tests/contrib/django`` and ``tests/contrib/mariadb`` are good examples.
-Be sure to make use of the test utilities and fixtures which will make testing
-less of a burden.
-
-
-Snapshot Tests
-++++++++++++++
-
-Many of the tests are based on "snapshots": saved copies of actual traces sent to the
-`APM test agent <../README.md#use-the-apm-test-agent>`_.
-
-To update the snapshots expected by a test, first update the library and test code to generate
-new traces. Then, delete the snapshot file corresponding to your test. Use `docker-compose up -d testagent`
-to start the APM test agent, and re-run the test. Use `--pass-env` as described
-`here <../README.md#use-the-apm-test-agent>`_ to ensure that your test run can talk to the
-test agent. Once the run finishes, the snapshot file will have been regenerated.
-
-
-Trace Examples
-++++++++++++++
-
-Optional! But it would be great if you have a sample app that you could add to
-`trace examples repository <https://github.com/Datadog/trace-examples>`_ along
-with screenshots of some example traces in the PR description.
-
-These applications are helpful to quickly spin up example app to test as well
-as see how traces look like for that integration you added.
+.. toctree::
+    :hidden:
+
+    contributing-integrations
+    contributing-testing
+    releasenotes

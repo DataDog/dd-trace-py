@@ -3,4 +3,4 @@
 pyperf
 pyyaml
 attrs
-httpretty==0.9.7
+httpretty==1.1.4

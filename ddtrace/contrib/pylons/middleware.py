@@ -12,6 +12,7 @@ import xmltodict
 from ddtrace import config as ddconfig
 from ddtrace.internal.compat import iteritems
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -22,6 +23,8 @@ from ...ext import SpanTypes
 from ...ext import http
 from ...internal.compat import reraise
 from ...internal.logger import get_logger
+from ...internal.schema import schematize_service_name
+from ...internal.schema import schematize_url_operation
 from ...internal.utils.formats import asbool
 from .constants import CONFIG_MIDDLEWARE
 from .renderer import trace_rendering
@@ -38,7 +41,9 @@ _BODY_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
 
 
 class PylonsTraceMiddleware(object):
-    def __init__(self, app, tracer, service="pylons", distributed_tracing=None):
+    def __init__(self, app, tracer, service=None, distributed_tracing=None):
+        if service is None:
+            service = schematize_service_name("pylons")
         self.app = app
         self._service = service
         self._tracer = tracer
@@ -86,7 +91,8 @@ class PylonsTraceMiddleware(object):
             self._tracer, int_config=ddconfig.pylons, request_headers=request.headers
         )
 
-        with self._tracer.trace("pylons.request", service=self._service, span_type=SpanTypes.WEB) as span:
+        span_name = schematize_url_operation("pylons.request", protocol="http", direction=SpanDirection.INBOUND)
+        with self._tracer.trace(span_name, service=self._service, span_type=SpanTypes.WEB) as span:
             span.set_tag_str(COMPONENT, ddconfig.pylons.integration_name)
 
             # set span.kind to the type of operation being performed

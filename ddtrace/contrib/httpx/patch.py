@@ -15,6 +15,8 @@ from ddtrace.contrib.trace_utils import set_http_meta
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.schema import schematize_url_operation
+from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.version import parse_version
@@ -30,6 +32,12 @@ if typing.TYPE_CHECKING:  # pragma: no cover
 
 
 HTTPX_VERSION = parse_version(httpx.__version__)
+
+
+def get_version():
+    # type: () -> str
+    return getattr(httpx, "__version__", "")
+
 
 config._add(
     "httpx",
@@ -100,6 +108,7 @@ def _set_span_meta(span, request, response):
         config.httpx,
         method=request.method,
         url=_url_to_str(request.url),
+        target_host=request.url.host,
         status_code=response.status_code if response else None,
         query=request.url.query,
         request_headers=request.headers,
@@ -110,7 +119,7 @@ def _set_span_meta(span, request, response):
 async def _wrapped_async_send(
     wrapped,  # type: BoundFunctionWrapper
     instance,  # type: httpx.AsyncClient
-    args,  # type: typing.Tuple[httpx.Request],
+    args,  # type: typing.Tuple[httpx.Request]
     kwargs,  # type: typing.Dict[typing.Str, typing.Any]
 ):
     # type: (...) -> typing.Coroutine[None, None, httpx.Response]
@@ -120,7 +129,8 @@ async def _wrapped_async_send(
     if not pin or not pin.enabled():
         return await wrapped(*args, **kwargs)
 
-    with pin.tracer.trace("http.request", service=_get_service_name(pin, req), span_type=SpanTypes.HTTP) as span:
+    operation_name = schematize_url_operation("http.request", protocol="http", direction=SpanDirection.OUTBOUND)
+    with pin.tracer.trace(operation_name, service=_get_service_name(pin, req), span_type=SpanTypes.HTTP) as span:
         span.set_tag_str(COMPONENT, config.httpx.integration_name)
 
         # set span.kind to the operation type being performed
@@ -148,7 +158,8 @@ def _wrapped_sync_send(
 
     req = get_argument_value(args, kwargs, 0, "request")
 
-    with pin.tracer.trace("http.request", service=_get_service_name(pin, req), span_type=SpanTypes.HTTP) as span:
+    operation_name = schematize_url_operation("http.request", protocol="http", direction=SpanDirection.OUTBOUND)
+    with pin.tracer.trace(operation_name, service=_get_service_name(pin, req), span_type=SpanTypes.HTTP) as span:
         span.set_tag_str(COMPONENT, config.httpx.integration_name)
 
         # set span.kind to the operation type being performed
@@ -168,7 +179,7 @@ def patch():
     if getattr(httpx, "_datadog_patch", False):
         return
 
-    setattr(httpx, "_datadog_patch", True)
+    httpx._datadog_patch = True
 
     pin = Pin()
 
@@ -189,7 +200,7 @@ def unpatch():
     if not getattr(httpx, "_datadog_patch", False):
         return
 
-    setattr(httpx, "_datadog_patch", False)
+    httpx._datadog_patch = False
 
     if HTTPX_VERSION >= (0, 11):
         # See above patching code for when this patching occurred

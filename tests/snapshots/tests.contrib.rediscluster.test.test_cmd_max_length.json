@@ -1,0 +1,64 @@
+[[
+  {
+    "name": "redis.command",
+    "service": "rediscluster",
+    "resource": "FLUSHALL",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "redis",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "",
+      "_dd.p.dm": "-0",
+      "component": "rediscluster",
+      "db.system": "redis",
+      "language": "python",
+      "redis.raw_command": "FLUSHALL",
+      "runtime-id": "3f274e442442409ebe2921656289c272",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 19879,
+      "redis.args_length": 1
+    },
+    "duration": 6147917,
+    "start": 1692651754310637094
+  }],
+[
+  {
+    "name": "redis.command",
+    "service": "rediscluster",
+    "resource": "GET here...",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "redis",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "",
+      "_dd.p.dm": "-0",
+      "component": "rediscluster",
+      "db.system": "redis",
+      "language": "python",
+      "redis.raw_command": "GET here...",
+      "runtime-id": "3f274e442442409ebe2921656289c272",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 19879,
+      "redis.args_length": 2
+    },
+    "duration": 311583,
+    "start": 1692651754317740053
+  }]]

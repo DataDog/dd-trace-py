@@ -16,6 +16,8 @@ from ...ext import SpanTypes
 from ...ext import aws
 from ...ext import http
 from ...internal.compat import PYTHON_VERSION_INFO
+from ...internal.schema import schematize_cloud_api_operation
+from ...internal.schema import schematize_service_name
 from ...internal.utils import ArgumentError
 from ...internal.utils import get_argument_value
 from ...internal.utils.formats import asbool
@@ -24,7 +26,7 @@ from ...pin import Pin
 from ..trace_utils import unwrap
 
 
-aiobotocore_version_str = getattr(aiobotocore, "__version__", "0.0.0")
+aiobotocore_version_str = getattr(aiobotocore, "__version__", "")
 AIOBOTOCORE_VERSION = parse_version(aiobotocore_version_str)
 
 if AIOBOTOCORE_VERSION <= (0, 10, 0):
@@ -54,10 +56,15 @@ config._add(
 )
 
 
+def get_version():
+    # type: () -> str
+    return aiobotocore_version_str
+
+
 def patch():
     if getattr(aiobotocore.client, "_datadog_patch", False):
         return
-    setattr(aiobotocore.client, "_datadog_patch", True)
+    aiobotocore.client._datadog_patch = True
 
     wrapt.wrap_function_wrapper("aiobotocore.client", "AioBaseClient._make_api_call", _wrapped_api_call)
     Pin(service=config.service or "aws").onto(aiobotocore.client.AioBaseClient)
@@ -65,7 +72,7 @@ def patch():
 
 def unpatch():
     if getattr(aiobotocore.client, "_datadog_patch", False):
-        setattr(aiobotocore.client, "_datadog_patch", False)
+        aiobotocore.client._datadog_patch = False
         unwrap(aiobotocore.client.AioBaseClient, "_make_api_call")
 
 
@@ -118,7 +125,13 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
     endpoint_name = deep_getattr(instance, "_endpoint._endpoint_prefix")
 
     service = pin.service if pin.service != "aws" else "{}.{}".format(pin.service, endpoint_name)
-    with pin.tracer.trace("{}.command".format(endpoint_name), service=service, span_type=SpanTypes.HTTP) as span:
+    with pin.tracer.trace(
+        schematize_cloud_api_operation(
+            "{}.command".format(endpoint_name), cloud_provider="aws", cloud_service=endpoint_name
+        ),
+        service=schematize_service_name(service),
+        span_type=SpanTypes.HTTP,
+    ) as span:
         span.set_tag_str(COMPONENT, config.aiobotocore.integration_name)
 
         # set span.kind tag equal to type of request
@@ -148,6 +161,7 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
             "aws.agent": "aiobotocore",
             "aws.operation": operation,
             "aws.region": region_name,
+            "region": region_name,
         }
         span.set_tags(meta)
 

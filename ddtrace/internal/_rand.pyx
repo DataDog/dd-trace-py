@@ -50,9 +50,10 @@ test_rand64bits_no_pid         59.9690 (1.0)       99.0107 (1.0)       65.1900 (
 test_randbits_stdlib          114.1084 (1.90)     169.3871 (1.71)     125.7419 (1.93)     10.6180 (1.92)     122.7273 (1.93)     5.3290 (1.06)         16;9        7.9528 (0.52)         90      100000
 test_rand64bits_pid_check     121.8156 (2.03)     168.9837 (1.71)     130.3854 (2.00)      8.5097 (1.54)     127.8620 (2.01)     7.8514 (1.56)          9;5        7.6696 (0.50)         81      100000
 -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-"""
-import os
+"""  # noqa: E501
 import random
+
+from libc.time cimport time
 
 from ddtrace.internal import compat
 from ddtrace.internal import forksafe
@@ -85,6 +86,11 @@ cpdef rand64bits():
     state ^= state << 35
     state ^= state >> 4
     return <uint64_t>(state * <uint64_t>2685821657736338717)
+
+
+cpdef rand128bits():
+    # Returns a 128bit integer with the following format -> <32-bit unix seconds><32 bits of zero><64 random bits>
+    return int(time(NULL)) << 96 | rand64bits()
 
 
 seed()

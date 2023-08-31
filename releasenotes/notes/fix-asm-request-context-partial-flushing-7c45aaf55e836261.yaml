@@ -1,0 +1,3 @@
+fixes:
+  - |
+    ASM: Fixes encoding error when using AppSec and a trace is partial flushed.

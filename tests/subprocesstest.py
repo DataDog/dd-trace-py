@@ -15,6 +15,7 @@ import unittest
 SUBPROC_TEST_ATTR = "_subproc_test"
 SUBPROC_TEST_ENV_ATTR = "_subproc_test_env"
 SUBPROC_ENV_VAR = "SUBPROCESS_TEST"
+SUBPROC_USE_PYTEST = "_use_pytest"
 
 
 def run_in_subprocess(*args, **kwargs):
@@ -60,11 +61,13 @@ def run_in_subprocess(*args, **kwargs):
     :return:
     """
     env_overrides = kwargs.get("env_overrides")
+    use_pytest = kwargs.get("use_pytest")
 
     def wrapper(obj):
         setattr(obj, SUBPROC_TEST_ATTR, True)
         if env_overrides is not None:
             setattr(obj, SUBPROC_TEST_ENV_ATTR, env_overrides)
+            setattr(obj, SUBPROC_USE_PYTEST, use_pytest)
         return obj
 
     # Support both @run_in_subprocess and @run_in_subprocess(env_overrides=...) usage
@@ -77,7 +80,7 @@ def run_in_subprocess(*args, **kwargs):
 class SubprocessTestCase(unittest.TestCase):
     run_in_subprocess = staticmethod(run_in_subprocess)
 
-    def _full_method_name(self):
+    def _full_method_name(self, use_pytest=False):
         test = getattr(self, self._testMethodName)
         # DEV: we have to use the internal self reference of the bound test
         # method to pull out the class and module since using a mix of `self`
@@ -94,19 +97,22 @@ class SubprocessTestCase(unittest.TestCase):
             modpath = self.__class__.__module__
             clsname = self.__class__.__name__
         testname = test.__name__
-        testcase_name = "{}.{}.{}".format(modpath, clsname, testname)
+        format_string = "{}.py::{}::{}" if use_pytest else "{}.{}.{}"
+        modpath = modpath.replace(".", "/" if use_pytest else ".")
+        testcase_name = format_string.format(modpath, clsname, testname)
         return testcase_name
 
     def _run_test_in_subprocess(self, result):
-        full_testcase_name = self._full_method_name()
-
         # Copy the environment and include the special subprocess environment
         # variable for the subprocess to detect.
         env_overrides = self._get_env_overrides()
+        use_pytest = self._get_use_pytest()
+        full_testcase_name = self._full_method_name(use_pytest=use_pytest)
         sp_test_env = os.environ.copy()
         sp_test_env.update(env_overrides)
         sp_test_env[SUBPROC_ENV_VAR] = "True"
-        sp_test_cmd = ["python", "-m", "unittest", full_testcase_name]
+        test_framework = "pytest" if use_pytest else "unittest"
+        sp_test_cmd = ["python", "-m", test_framework, full_testcase_name]
         sp = subprocess.Popen(
             sp_test_cmd,
             stdout=subprocess.PIPE,
@@ -159,6 +165,16 @@ class SubprocessTestCase(unittest.TestCase):
             return getattr(test, SUBPROC_TEST_ENV_ATTR)
 
         return {}
+
+    def _get_use_pytest(self):
+        if hasattr(self, SUBPROC_USE_PYTEST):
+            return getattr(self, SUBPROC_USE_PYTEST)
+
+        test = getattr(self, self._testMethodName)
+        if hasattr(test, SUBPROC_USE_PYTEST):
+            return getattr(test, SUBPROC_USE_PYTEST)
+
+        return False
 
     def run(self, result=None):
         if not self._is_subprocess_test():

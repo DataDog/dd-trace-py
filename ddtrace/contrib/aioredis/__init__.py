@@ -27,6 +27,16 @@ Global Configuration
 
    Default: ``"redis"``
 
+.. py:data:: ddtrace.config.aioredis["cmd_max_length"]
+
+   Max allowable size for the aioredis command span tag.
+   Anything beyond the max length will be replaced with ``"..."``.
+
+   This option can also be set with the ``DD_AIOREDIS_CMD_MAX_LENGTH`` environment
+   variable.
+
+   Default: ``1000``
+
 
 Instance Configuration
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -47,7 +57,8 @@ required_modules = ["aioredis"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
+        from .patch import get_version
         from .patch import patch
         from .patch import unpatch
 
-        __all__ = ["patch", "unpatch"]
+        __all__ = ["patch", "unpatch", "get_version"]

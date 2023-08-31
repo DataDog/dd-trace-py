@@ -1,0 +1,85 @@
+[[
+  {
+    "name": "root",
+    "service": "",
+    "resource": "root",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "language": "python",
+      "runtime-id": "370b7d1e226648e4b58d1faeeb4884d8"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 22384
+    },
+    "duration": 82116289,
+    "start": 1691164174559744704
+  },
+     {
+       "name": "corountine 1",
+       "service": "",
+       "resource": "corountine 1",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.p.dm": "-0"
+       },
+       "duration": 20236068,
+       "start": 1691164174559983603
+     },
+     {
+       "name": "corountine 2",
+       "service": "",
+       "resource": "corountine 2",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.p.dm": "-0"
+       },
+       "duration": 20310665,
+       "start": 1691164174580484576
+     },
+     {
+       "name": "corountine 3",
+       "service": "",
+       "resource": "corountine 3",
+       "trace_id": 0,
+       "span_id": 4,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.p.dm": "-0"
+       },
+       "duration": 20204009,
+       "start": 1691164174600931973
+     },
+     {
+       "name": "corountine 4",
+       "service": "",
+       "resource": "corountine 4",
+       "trace_id": 0,
+       "span_id": 5,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.p.dm": "-0"
+       },
+       "duration": 20316636,
+       "start": 1691164174621392975
+     }]]

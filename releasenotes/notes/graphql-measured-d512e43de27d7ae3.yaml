@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    graphql: ``graphql.execute`` spans are now marked as measured.

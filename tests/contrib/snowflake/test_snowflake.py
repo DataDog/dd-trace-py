@@ -1,5 +1,6 @@
 import contextlib
 import json
+import os
 
 import pytest
 import responses
@@ -315,3 +316,52 @@ def test_snowflake_ot_executemany_insert(client):
             )
             assert res == cur
             assert res.rowcount == 2
+
+
+@pytest.mark.snapshot()
+@pytest.mark.parametrize(
+    "service_schema",
+    [
+        (None, None),
+        (None, "v0"),
+        (None, "v1"),
+        ("mysvc", None),
+        ("mysvc", "v0"),
+        ("mysvc", "v1"),
+    ],
+)
+def test_schematization(ddtrace_run_python_code_in_subprocess, service_schema):
+    service, schema = service_schema
+    code = """
+import pytest
+import sys
+
+from tests.contrib.snowflake.test_snowflake import _client
+from tests.contrib.snowflake.test_snowflake import add_snowflake_query_response
+from tests.contrib.snowflake.test_snowflake import req_mock
+def test_snowflake_service_env():
+
+    with _client() as c:
+        with req_mock:
+            add_snowflake_query_response(
+                rowtype=["TEXT"],
+                rows=[("4.30.2",)],
+            )
+
+            with c.cursor() as cur:
+                res = cur.execute("select current_version();")
+                assert res == cur
+                assert cur.fetchone() == ("4.30.2",)
+
+if __name__ == "__main__":
+    sys.exit(pytest.main(["-x", __file__]))
+    """
+    env = os.environ.copy()
+    if service:
+        env["DD_SERVICE"] = service
+    if schema:
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema
+    env["DD_TRACE_REQUESTS_ENABLED"] = "false"
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    assert status == 0, (err.decode(), out.decode())
+    assert err == b"", err.decode()

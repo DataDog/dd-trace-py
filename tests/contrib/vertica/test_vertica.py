@@ -9,6 +9,7 @@ from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib.vertica.patch import patch
 from ddtrace.contrib.vertica.patch import unpatch
+from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.settings.config import _deepmerge
 from ddtrace.vendor import wrapt
 from tests.contrib.config import VERTICA_CONFIG
@@ -289,12 +290,12 @@ class TestVertica(TracerTestCase):
 
             cur.execute("SELECT * FROM {};".format(TEST_TABLE))
             cur.fetchone()
-            cur.rowcount == 1
+            assert cur.rowcount == 1
             cur.fetchone()
-            cur.rowcount == 2
+            assert cur.rowcount == 2
             # fetchall just calls fetchone for each remaining row
             cur.fetchall()
-            cur.rowcount == 5
+            assert cur.rowcount == 5
 
         spans = self.test_tracer.pop()
         assert len(spans) == 9
@@ -437,23 +438,200 @@ class TestVertica(TracerTestCase):
         self.assertEqual(len(spans), 2)
         self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
 
-    def test_user_specified_service(self):
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"), use_pytest=True)
+    @pytest.mark.usefixtures("test_tracer", "test_conn")
+    def test_user_specified_service_default(self):
         """
-        When a user specifies a service for the app
+        v0 (default): When a user specifies a service for the app
             The vertica integration should not use it.
         """
         # Ensure that the service name was configured
-        with self.override_global_config(dict(service="mysvc")):
-            from ddtrace import config
+        from ddtrace import config
 
-            assert config.service == "mysvc"
-            conn, cur = self.test_conn
-            Pin.override(cur, tracer=self.test_tracer)
-            with conn:
-                cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
-                cur.execute("SELECT * FROM {};".format(TEST_TABLE))
+        assert config.service == "mysvc"
+        conn, cur = self.test_conn
+        Pin.override(cur, tracer=self.test_tracer)
+        with conn:
+            cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
+            cur.execute("SELECT * FROM {};".format(TEST_TABLE))
 
         spans = self.test_tracer.pop()
         assert len(spans) == 2
         span = spans[0]
         assert span.service != "mysvc"
+
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), use_pytest=True
+    )
+    @pytest.mark.usefixtures("test_tracer", "test_conn")
+    def test_user_specified_service_v0(self):
+        """
+        v0: When a user specifies a service for the app
+            The vertica integration should not use it.
+        """
+        # Ensure that the service name was configured
+        from ddtrace import config
+
+        assert config.service == "mysvc"
+        conn, cur = self.test_conn
+        Pin.override(cur, tracer=self.test_tracer)
+        with conn:
+            cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
+            cur.execute("SELECT * FROM {};".format(TEST_TABLE))
+
+        spans = self.test_tracer.pop()
+        assert len(spans) == 2
+        span = spans[0]
+        assert span.service == "vertica"
+
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), use_pytest=True
+    )
+    @pytest.mark.usefixtures("test_tracer", "test_conn")
+    def test_user_specified_service_v1(self):
+        """
+        v1: When a user specifies a service for the app
+            The vertica integration should use it.
+        """
+        # Ensure that the service name was configured
+        from ddtrace import config
+
+        assert config.service == "mysvc"
+        conn, cur = self.test_conn
+        Pin.override(cur, tracer=self.test_tracer)
+        with conn:
+            cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
+            cur.execute("SELECT * FROM {};".format(TEST_TABLE))
+
+        spans = self.test_tracer.pop()
+        assert len(spans) == 2
+        span = spans[0]
+        assert span.service == "mysvc"
+
+    @pytest.mark.usefixtures("test_tracer", "test_conn")
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), use_pytest=True)
+    def test_unspecified_service_v0(self):
+        """
+        v1: When a service is unspecified, vertica
+            should result in the default DD_SERVICE the span service
+        """
+        conn, cur = self.test_conn
+        Pin.override(cur, tracer=self.test_tracer)
+        with conn:
+            cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
+            cur.execute("SELECT * FROM {};".format(TEST_TABLE))
+
+        spans = self.test_tracer.pop()
+        assert len(spans) == 2
+        span = spans[0]
+        assert span.service == "vertica"
+
+    @pytest.mark.usefixtures("test_tracer", "test_conn")
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), use_pytest=True)
+    def test_unspecified_service_v1(self):
+        """
+        v1: When a service is unspecified, vertica
+            should result in the default DD_SERVICE the span service
+        """
+        conn, cur = self.test_conn
+        Pin.override(cur, tracer=self.test_tracer)
+        with conn:
+            cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
+            cur.execute("SELECT * FROM {};".format(TEST_TABLE))
+
+        spans = self.test_tracer.pop()
+        assert len(spans) == 2
+        span = spans[0]
+        assert span.service == DEFAULT_SPAN_SERVICE_NAME
+
+    @pytest.mark.usefixtures("test_tracer", "test_conn")
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), use_pytest=True)
+    def test_operation_name_v0(self):
+        """
+        v0: Vertica has several different names for operations, including 'fetchall, 'fetchone', and 'query'
+        """
+        conn, cur = self.test_conn
+
+        with conn:
+            cur.execute(
+                """
+                INSERT INTO {} (a, b)
+                SELECT 1, 'a'
+                UNION ALL
+                SELECT 2, 'b'
+                UNION ALL
+                SELECT 3, 'c'
+                UNION ALL
+                SELECT 4, 'd'
+                UNION ALL
+                SELECT 5, 'e'
+                """.format(
+                    TEST_TABLE
+                )
+            )
+            assert cur.rowcount == -1
+
+            cur.execute("SELECT * FROM {};".format(TEST_TABLE))
+            cur.fetchone()
+            assert cur.rowcount == 1
+            cur.fetchone()
+            assert cur.rowcount == 2
+            # fetchall just calls fetchone for each remaining row
+            cur.fetchall()
+            assert cur.rowcount == 5
+
+        spans = self.test_tracer.pop()
+        assert len(spans) == 9
+
+        # check all the rowcounts
+        assert spans[0].name == "vertica.query"
+        assert spans[1].name == "vertica.query"
+        assert spans[2].name == "vertica.fetchone"
+        assert spans[3].name == "vertica.fetchone"
+        assert spans[4].name == "vertica.fetchall"
+
+    @pytest.mark.usefixtures("test_tracer", "test_conn")
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), use_pytest=True)
+    def test_operation_name_v1(self):
+        """
+        v1: Vertica should use 'query' for all operation names
+        """
+        conn, cur = self.test_conn
+
+        with conn:
+            cur.execute(
+                """
+                INSERT INTO {} (a, b)
+                SELECT 1, 'a'
+                UNION ALL
+                SELECT 2, 'b'
+                UNION ALL
+                SELECT 3, 'c'
+                UNION ALL
+                SELECT 4, 'd'
+                UNION ALL
+                SELECT 5, 'e'
+                """.format(
+                    TEST_TABLE
+                )
+            )
+            assert cur.rowcount == -1
+
+            cur.execute("SELECT * FROM {};".format(TEST_TABLE))
+            cur.fetchone()
+            assert cur.rowcount == 1
+            cur.fetchone()
+            assert cur.rowcount == 2
+            # fetchall just calls fetchone for each remaining row
+            cur.fetchall()
+            assert cur.rowcount == 5
+
+        spans = self.test_tracer.pop()
+        assert len(spans) == 9
+
+        # check all the rowcounts
+        assert spans[0].name == "vertica.query"
+        assert spans[1].name == "vertica.query"
+        assert spans[2].name == "vertica.query"  # previously fetchone
+        assert spans[3].name == "vertica.query"  # previously fetchone
+        assert spans[4].name == "vertica.query"  # previously fetchall

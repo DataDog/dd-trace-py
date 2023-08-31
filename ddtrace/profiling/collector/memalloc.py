@@ -1,6 +1,5 @@
 # -*- encoding: utf-8 -*-
 import logging
-import math
 import os
 import threading
 import typing
@@ -13,11 +12,11 @@ try:
 except ImportError:
     _memalloc = None  # type: ignore[assignment]
 
-from ddtrace.internal.utils import attr as attr_utils
-from ddtrace.internal.utils import formats
+from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
 from ddtrace.profiling import event
+from ddtrace.settings.profiling import config
 
 
 LOG = logging.getLogger(__name__)
@@ -48,35 +47,6 @@ class MemoryHeapSampleEvent(event.StackBasedEvent):
     """The sampling size."""
 
 
-def _get_default_heap_sample_size(
-    default_heap_sample_size=1024 * 1024,  # type: int
-):
-    # type: (...) -> int
-    heap_sample_size = os.environ.get("DD_PROFILING_HEAP_SAMPLE_SIZE")
-    if heap_sample_size is not None:
-        return int(heap_sample_size)
-
-    if not formats.asbool(os.environ.get("DD_PROFILING_HEAP_ENABLED", "1")):
-        return 0
-
-    try:
-        from ddtrace.vendor import psutil
-
-        total_mem = psutil.swap_memory().total + psutil.virtual_memory().total
-    except Exception:
-        LOG.warning(
-            "Unable to get total memory available, using default value of %d KB",
-            default_heap_sample_size / 1024,
-            exc_info=True,
-        )
-        return default_heap_sample_size
-
-    # This is TRACEBACK_ARRAY_MAX_COUNT
-    max_samples = 2 ** 16
-
-    return max(math.ceil(total_mem / max_samples), default_heap_sample_size)
-
-
 @attr.s
 class MemoryCollector(collector.PeriodicCollector):
     """Memory allocation collector."""
@@ -88,16 +58,12 @@ class MemoryCollector(collector.PeriodicCollector):
     _interval = attr.ib(default=_DEFAULT_INTERVAL, repr=False)
 
     # TODO make this dynamic based on the 1. interval and 2. the max number of events allowed in the Recorder
-    _max_events = attr.ib(
-        factory=attr_utils.from_env(
-            "_DD_PROFILING_MEMORY_EVENTS_BUFFER",
-            _DEFAULT_MAX_EVENTS,
-            int,
-        )
-    )
-    max_nframe = attr.ib(factory=attr_utils.from_env("DD_PROFILING_MAX_FRAMES", 64, int))
-    heap_sample_size = attr.ib(type=int, factory=_get_default_heap_sample_size)
-    ignore_profiler = attr.ib(factory=attr_utils.from_env("DD_PROFILING_IGNORE_PROFILER", False, formats.asbool))
+    _max_events = attr.ib(type=int, default=config.memory.events_buffer)
+    max_nframe = attr.ib(default=config.max_frames, type=int)
+    heap_sample_size = attr.ib(type=int, default=config.heap.sample_size)
+    ignore_profiler = attr.ib(default=config.ignore_profiler, type=bool)
+    _export_libdd_enabled = attr.ib(type=bool, default=config.export.libdd_enabled)
+    _export_py_enabled = attr.ib(type=bool, default=config.export.py_enabled)
 
     def _start_service(self):
         # type: (...) -> None
@@ -105,14 +71,20 @@ class MemoryCollector(collector.PeriodicCollector):
         if _memalloc is None:
             raise collector.CollectorUnavailable
 
-        _memalloc.start(self.max_nframe, self._max_events, self.heap_sample_size)
+        try:
+            _memalloc.start(self.max_nframe, self._max_events, self.heap_sample_size)
+        except RuntimeError:
+            # This happens on fork because we don't call the shutdown hook since
+            # the thread responsible for doing so is not running in the child
+            # process. Therefore we stop and restart the collector instead.
+            _memalloc.stop()
+            _memalloc.start(self.max_nframe, self._max_events, self.heap_sample_size)
 
         super(MemoryCollector, self)._start_service()
 
-    def _stop_service(self):
-        # type: (...) -> None
-        super(MemoryCollector, self)._stop_service()
-
+    @staticmethod
+    def on_shutdown():
+        # type: () -> None
         if _memalloc is not None:
             try:
                 _memalloc.stop()
@@ -131,48 +103,103 @@ class MemoryCollector(collector.PeriodicCollector):
 
     def snapshot(self):
         thread_id_ignore_set = self._get_thread_id_ignore_set()
-        return (
-            tuple(
-                MemoryHeapSampleEvent(
-                    thread_id=thread_id,
-                    thread_name=_threading.get_thread_name(thread_id),
-                    thread_native_id=_threading.get_thread_native_id(thread_id),
-                    frames=stack,
-                    nframes=nframes,
-                    size=size,
-                    sample_size=self.heap_sample_size,
-                )
-                for (stack, nframes, thread_id), size in _memalloc.heap()
-                if not self.ignore_profiler or thread_id not in thread_id_ignore_set
-            ),
-        )
+
+        try:
+            events = _memalloc.heap()
+        except RuntimeError:
+            # DEV: This can happen if either _memalloc has not been started or has been stopped.
+            LOG.debug("Unable to collect heap events from process %d", os.getpid(), exc_info=True)
+            return tuple()
+
+        if self._export_libdd_enabled:
+            for (frames, nframes, thread_id), size in events:
+                if not self.ignore_profiler or thread_id not in thread_id_ignore_set:
+                    ddup.start_sample(nframes)
+                    ddup.push_heap(size)
+                    ddup.push_threadinfo(
+                        thread_id, _threading.get_thread_native_id(thread_id), _threading.get_thread_name(thread_id)
+                    )
+                    try:
+                        for frame in frames:
+                            ddup.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
+                        ddup.flush_sample()
+                    except AttributeError:
+                        # DEV: This might happen if the memalloc sofile is unlinked and relinked without module
+                        #      re-initialization.  ddup re-initializes the sample on `start_sample()`, so no
+                        #      need to cleanup.
+                        LOG.debug("Invalid state detected in memalloc module, suppressing profile")
+
+        if self._export_py_enabled:
+            return (
+                tuple(
+                    MemoryHeapSampleEvent(
+                        thread_id=thread_id,
+                        thread_name=_threading.get_thread_name(thread_id),
+                        thread_native_id=_threading.get_thread_native_id(thread_id),
+                        frames=frames,
+                        nframes=nframes,
+                        size=size,
+                        sample_size=self.heap_sample_size,
+                    )
+                    for (frames, nframes, thread_id), size in events
+                    if not self.ignore_profiler or thread_id not in thread_id_ignore_set
+                ),
+            )
+        else:
+            return tuple()
 
     def collect(self):
+        # TODO: The event timestamp is slightly off since it's going to be the time we copy the data from the
+        # _memalloc buffer to our Recorder. This is fine for now, but we might want to store the nanoseconds
+        # timestamp in C and then return it via iter_events.
         try:
-            events, count, alloc_count = _memalloc.iter_events()
+            events_iter, count, alloc_count = _memalloc.iter_events()
         except RuntimeError:
             # DEV: This can happen if either _memalloc has not been started or has been stopped.
             LOG.debug("Unable to collect memory events from process %d", os.getpid(), exc_info=True)
             return tuple()
 
+        # `events_iter` is a consumable view into `iter_events()`; copy it so we can send it to both pyprof
+        # and libdatadog. This will be changed if/when we ever return to only a single possible exporter
+        events = list(events_iter)
         capture_pct = 100 * count / alloc_count
         thread_id_ignore_set = self._get_thread_id_ignore_set()
-        # TODO: The event timestamp is slightly off since it's going to be the time we copy the data from the
-        # _memalloc buffer to our Recorder. This is fine for now, but we might want to store the nanoseconds
-        # timestamp in C and then return it via iter_events.
-        return (
-            tuple(
-                MemoryAllocSampleEvent(
-                    thread_id=thread_id,
-                    thread_name=_threading.get_thread_name(thread_id),
-                    thread_native_id=_threading.get_thread_native_id(thread_id),
-                    frames=stack,
-                    nframes=nframes,
-                    size=size,
-                    capture_pct=capture_pct,
-                    nevents=alloc_count,
+
+        if self._export_libdd_enabled:
+            for (frames, nframes, thread_id), size, _domain in events:
+                if thread_id in thread_id_ignore_set:
+                    continue
+                ddup.start_sample(nframes)
+                ddup.push_alloc(((size + 0.51) * alloc_count) / count, count)  # Roundup to help float precision
+                ddup.push_threadinfo(
+                    thread_id, _threading.get_thread_native_id(thread_id), _threading.get_thread_name(thread_id)
                 )
-                for (stack, nframes, thread_id), size, domain in events
-                if not self.ignore_profiler or thread_id not in thread_id_ignore_set
-            ),
-        )
+                try:
+                    for frame in frames:
+                        ddup.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
+                    ddup.flush_sample()
+                except AttributeError:
+                    # DEV: This might happen if the memalloc sofile is unlinked and relinked without module
+                    #      re-initialization.  ddup re-initializes the sample on `start_sample()`, so no
+                    #      need to cleanup.
+                    LOG.debug("Invalid state detected in memalloc module, suppressing profile")
+
+        if self._export_py_enabled:
+            return (
+                tuple(
+                    MemoryAllocSampleEvent(
+                        thread_id=thread_id,
+                        thread_name=_threading.get_thread_name(thread_id),
+                        thread_native_id=_threading.get_thread_native_id(thread_id),
+                        frames=frames,
+                        nframes=nframes,
+                        size=size,
+                        capture_pct=capture_pct,
+                        nevents=alloc_count,
+                    )
+                    for (frames, nframes, thread_id), size, domain in events
+                    if not self.ignore_profiler or thread_id not in thread_id_ignore_set
+                ),
+            )
+        else:
+            return []

@@ -33,6 +33,9 @@ Tracing
 .. autoclass:: ddtrace.propagation.http.HTTPPropagator
     :members:
 
+.. automodule:: ddtrace.opentelemetry
+    :members:
+
 
 Runtime Metrics
 ===============
@@ -45,4 +48,11 @@ Dynamic Instrumentation
 =======================
 
 .. automodule:: ddtrace.debugging
+    :members:
+
+
+Source Code Integration
+=======================
+
+.. automodule:: ddtrace.sourcecode
     :members:

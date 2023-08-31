@@ -1,3 +1,4 @@
+import os
 from typing import Tuple
 
 import mariadb
@@ -32,6 +33,7 @@ def tracer():
     patch()
     try:
         yield tracer
+        tracer.pop_traces()
     finally:
         unpatch()
 
@@ -47,6 +49,18 @@ def get_connection(tracer):
 def connection(tracer):
     with get_connection(tracer) as connection:
         yield connection
+
+
+def test_connection_no_port_or_user_does_not_raise():
+    conf = MARIADB_CONFIG.copy()
+    del conf["port"]
+    del conf["user"]
+    try:
+        mariadb.connect(**conf)
+    except mariadb.OperationalError as exc:
+        # this error is expected because mariadb defaults user to root when not given
+        if "Access denied for user 'root'" not in str(exc):
+            raise exc
 
 
 def test_simple_query(connection, tracer):
@@ -132,17 +146,28 @@ def test_analytics_default(connection, tracer):
     assert span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
 
 
-@pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc"))
+@pytest.mark.parametrize(
+    "service_schema",
+    [
+        (None, None),
+        (None, "v0"),
+        (None, "v1"),
+        ("mysvc", None),
+        ("mysvc", "v0"),
+        ("mysvc", "v1"),
+    ],
+)
 @pytest.mark.snapshot(variants=SNAPSHOT_VARIANTS)
-def test_user_specified_dd_service_snapshot():
-    """
-    When a user specifies a service for the app
-        The mariadb integration should not use it.
-    """
-    import mariadb
+def test_schematized_service_and_operation(ddtrace_run_python_code_in_subprocess, service_schema):
+    service, schema = service_schema
+    code = """
+import pytest
+import sys
+import mariadb
 
-    from ddtrace import patch
+from ddtrace import patch
 
+def test():
     patch(mariadb=True)
     from tests.contrib.config import MARIADB_CONFIG
 
@@ -150,7 +175,19 @@ def test_user_specified_dd_service_snapshot():
     cursor = connection.cursor()
     cursor.execute("SELECT 1")
     rows = cursor.fetchall()
-    assert len(rows) == 1
+
+if __name__ == "__main__":
+    sys.exit(pytest.main(["-x", __file__]))
+    """
+    env = os.environ.copy()
+    if schema:
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema
+    if service:
+        env["DD_SERVICE"] = service
+
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    assert status == 0, (err.decode(), out.decode())
+    assert err == b"", err.decode()
 
 
 @pytest.mark.subprocess(env=dict(DD_MARIADB_SERVICE="mysvc"))

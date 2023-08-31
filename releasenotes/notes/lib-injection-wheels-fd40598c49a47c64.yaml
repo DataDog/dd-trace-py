@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    lib-injection: Switch installation to install from included wheels. Prior,
+      the wheels were merged together which caused conflicts between versions
+      of dependencies based on Python version.

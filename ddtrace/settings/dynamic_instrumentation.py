@@ -1,9 +1,9 @@
 from envier import En
 
-from ddtrace import config
 from ddtrace.internal.agent import get_trace_url
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.utils.config import get_application_name
+from ddtrace.settings import _config as ddconfig
 from ddtrace.version import get_version
 
 
@@ -13,8 +13,8 @@ DEFAULT_GLOBAL_RATE_LIMIT = 100.0
 
 def _derive_tags(c):
     # type: (En) -> str
-    _tags = dict(env=config.env, version=config.version, debugger_version=get_version())
-    _tags.update(config.tags)
+    _tags = dict(env=ddconfig.env, version=ddconfig.version, debugger_version=get_version())
+    _tags.update(ddconfig.tags)
 
     return ",".join([":".join((k, v)) for (k, v) in _tags.items() if v is not None])
 
@@ -22,7 +22,7 @@ def _derive_tags(c):
 class DynamicInstrumentationConfig(En):
     __prefix__ = "dd.dynamic_instrumentation"
 
-    service_name = En.d(str, lambda _: config.service or get_application_name() or DEFAULT_SERVICE_NAME)
+    service_name = En.d(str, lambda _: ddconfig.service or get_application_name() or DEFAULT_SERVICE_NAME)
     _intake_url = En.d(str, lambda _: get_trace_url())
     max_probes = En.d(int, lambda _: DEFAULT_MAX_PROBES)
     global_rate_limit = En.d(float, lambda _: DEFAULT_GLOBAL_RATE_LIMIT)
@@ -35,7 +35,7 @@ class DynamicInstrumentationConfig(En):
         "enabled",
         default=False,
         help_type="Boolean",
-        help="Enable the debugger",
+        help="Enable Dynamic Instrumentation",
     )
 
     metrics = En.v(
@@ -43,7 +43,7 @@ class DynamicInstrumentationConfig(En):
         "metrics.enabled",
         default=True,
         help_type="Boolean",
-        help="Enable diagnostic metrics",
+        help="Enable Dynamic Instrumentation diagnostic metrics",
     )
 
     max_payload_size = En.v(
@@ -59,7 +59,7 @@ class DynamicInstrumentationConfig(En):
         "upload.timeout",
         default=30,  # seconds
         help_type="Integer",
-        help="Timeout in seconds for uploading a snapshot",
+        help="Timeout in seconds for uploading Dynamic Instrumentation payloads",
     )
 
     upload_flush_interval = En.v(
@@ -67,7 +67,7 @@ class DynamicInstrumentationConfig(En):
         "upload.flush_interval",
         default=1.0,  # seconds
         help_type="Float",
-        help="Interval in seconds for flushing the snapshot upload queue.",
+        help="Interval in seconds for flushing the dynamic logs upload queue",
     )
 
     diagnostics_interval = En.v(
@@ -75,5 +75,8 @@ class DynamicInstrumentationConfig(En):
         "diagnostics.interval",
         default=3600,  # 1 hour
         help_type="Integer",
-        help="Interval in seconds for periodically sending probe diagnostic messages",
+        help="Interval in seconds for periodically emitting probe diagnostic messages",
     )
+
+
+config = DynamicInstrumentationConfig()

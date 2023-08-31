@@ -3,6 +3,7 @@ import logging
 import attr
 
 import ddtrace
+from ddtrace import config
 
 from ...internal.utils import get_argument_value
 from ...vendor.wrapt import wrap_function_wrapper as _w
@@ -18,12 +19,17 @@ RECORD_ATTR_VALUE_ZERO = "0"
 RECORD_ATTR_VALUE_EMPTY = ""
 _LOG_SPAN_KEY = "__datadog_log_span"
 
-ddtrace.config._add(
+config._add(
     "logging",
     dict(
         tracer=None,
     ),
 )  # by default, override here for custom tracer
+
+
+def get_version():
+    # type: () -> str
+    return getattr(logging, "__version__", "")
 
 
 @attr.s(slots=True)
@@ -60,9 +66,9 @@ def _w_makeRecord(func, instance, args, kwargs):
     # Get the LogRecord instance for this log
     record = func(*args, **kwargs)
 
-    setattr(record, RECORD_ATTR_VERSION, ddtrace.config.version or "")
-    setattr(record, RECORD_ATTR_ENV, ddtrace.config.env or "")
-    setattr(record, RECORD_ATTR_SERVICE, ddtrace.config.service or "")
+    setattr(record, RECORD_ATTR_VERSION, config.version or "")
+    setattr(record, RECORD_ATTR_ENV, config.env or "")
+    setattr(record, RECORD_ATTR_SERVICE, config.service or "")
 
     # logs from internal logger may explicitly pass the current span to
     # avoid deadlocks in getting the current span while already in locked code.
@@ -70,10 +76,13 @@ def _w_makeRecord(func, instance, args, kwargs):
     if isinstance(span_from_log, ddtrace.Span):
         span = span_from_log
     else:
-        span = _get_current_span(tracer=ddtrace.config.logging.tracer)
+        span = _get_current_span(tracer=config.logging.tracer)
 
     if span:
-        setattr(record, RECORD_ATTR_TRACE_ID, str(span.trace_id))
+        trace_id = span.trace_id
+        if config._128_bit_trace_id_enabled and not config._128_bit_trace_id_logging_enabled:
+            trace_id = span._trace_id_64bits
+        setattr(record, RECORD_ATTR_TRACE_ID, str(trace_id))
         setattr(record, RECORD_ATTR_SPAN_ID, str(span.span_id))
     else:
         setattr(record, RECORD_ATTR_TRACE_ID, RECORD_ATTR_VALUE_ZERO)
@@ -115,7 +124,7 @@ def patch():
     """
     if getattr(logging, "_datadog_patch", False):
         return
-    setattr(logging, "_datadog_patch", True)
+    logging._datadog_patch = True
 
     _w(logging.Logger, "makeRecord", _w_makeRecord)
     if hasattr(logging, "StrFormatStyle"):
@@ -127,7 +136,7 @@ def patch():
 
 def unpatch():
     if getattr(logging, "_datadog_patch", False):
-        setattr(logging, "_datadog_patch", False)
+        logging._datadog_patch = False
 
         _u(logging.Logger, "makeRecord")
         if hasattr(logging, "StrFormatStyle"):

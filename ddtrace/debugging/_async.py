@@ -2,12 +2,12 @@ import sys
 from types import CoroutineType
 from typing import List
 
-from ddtrace.debugging._capture.collector import CapturedEventWithContext
+from ddtrace.debugging._signal.collector import SignalContext
 from ddtrace.internal import compat
 
 
 async def dd_coroutine_wrapper(coro, contexts):
-    # type: (CoroutineType, List[CapturedEventWithContext]) -> CoroutineType
+    # type: (CoroutineType, List[SignalContext]) -> CoroutineType
     start_time = compat.monotonic_ns()
     try:
         retval = await coro

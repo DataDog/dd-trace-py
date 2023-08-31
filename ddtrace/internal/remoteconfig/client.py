@@ -1,8 +1,8 @@
-import abc
 import base64
 from datetime import datetime
 import hashlib
 import json
+import os
 import re
 import sys
 from typing import Any
@@ -19,7 +19,7 @@ import cattr
 import six
 
 import ddtrace
-from ddtrace.appsec.utils import _appsec_rc_capabilities
+from ddtrace.appsec._capabilities import _appsec_rc_capabilities
 from ddtrace.internal import agent
 from ddtrace.internal import runtime
 from ddtrace.internal.hostname import get_hostname
@@ -28,14 +28,16 @@ from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
 from ddtrace.internal.runtime import container
 from ddtrace.internal.utils.time import parse_isoformat
 
+from ..utils.formats import parse_tags_str
 from ..utils.version import _pep440_to_semver
+from ._pubsub import PubSub
 
 
 if TYPE_CHECKING:  # pragma: no cover
+    from typing import Callable
     from typing import MutableMapping
     from typing import Tuple
     from typing import Union
-
 
 log = get_logger(__name__)
 
@@ -49,7 +51,7 @@ class RemoteConfigError(Exception):
     """
 
 
-@attr.s(frozen=True)
+@attr.s
 class ConfigMetadata(object):
     """
     Configuration TUF target metadata
@@ -60,6 +62,8 @@ class ConfigMetadata(object):
     sha256_hash = attr.ib(type=Optional[str])
     length = attr.ib(type=Optional[int])
     tuf_version = attr.ib(type=Optional[int])
+    apply_state = attr.ib(type=Optional[int], default=1, eq=False)
+    apply_error = attr.ib(type=Optional[str], default=None, eq=False)
 
 
 @attr.s
@@ -147,48 +151,6 @@ AppliedConfigType = Dict[str, ConfigMetadata]
 TargetsType = Dict[str, ConfigMetadata]
 
 
-class RemoteConfigCallBack(six.with_metaclass(abc.ABCMeta)):
-    @abc.abstractmethod
-    def __call__(self, metadata, config):
-        # type: (Optional[ConfigMetadata], Any) -> None
-        pass
-
-
-class RemoteConfigCallBackAfterMerge(six.with_metaclass(abc.ABCMeta)):
-    configs = {}  # type: Dict[str, Any]
-
-    @abc.abstractmethod
-    def __call__(self, target, config):
-        # type: (str, Any) -> None
-        pass
-
-    def append(self, target, config):
-        if not self.configs.get(target):
-            self.configs[target] = {}
-        if config is False:
-            # Remove old config from the configs dict. _remove_previously_applied_configurations function should
-            # call to this method
-            del self.configs[target]
-        elif config is not None:
-            # Append the new config to the configs dict. _load_new_configurations function should
-            # call to this method
-            if isinstance(config, dict):
-                self.configs[target].update(config)
-            else:
-                raise ValueError("target %s config %s has type of %s" % (target, config, type(config)))
-
-    def dispatch(self):
-        config_result = {}
-        for target, config in self.configs.items():
-            for key, value in config.items():
-                if isinstance(value, list):
-                    config_result[key] = config_result.get(key, []) + value
-                else:
-                    raise ValueError("target %s key %s has type of %s" % (target, key, type(value)))
-        if config_result:
-            self.__call__("", config_result)
-
-
 class RemoteConfigClient(object):
     """
     The Remote Configuration client regularly checks for updates on the agent
@@ -200,9 +162,12 @@ class RemoteConfigClient(object):
         tracer_version = _pep440_to_semver()
 
         self.id = str(uuid.uuid4())
-        self.agent_url = agent_url = agent.get_trace_url()
-        self._conn = agent.get_connection(agent_url, timeout=agent.get_trace_agent_timeout())
+        self.agent_url = agent.get_trace_url()
+
         self._headers = {"content-type": "application/json"}
+        additional_header_str = os.environ.get("_DD_REMOTE_CONFIGURATION_ADDITIONAL_HEADERS")
+        if additional_header_str is not None:
+            self._headers.update(parse_tags_str(additional_header_str))
 
         container_info = container.get_container_info()
         if container_info is not None:
@@ -244,41 +209,74 @@ class RemoteConfigClient(object):
         self.converter.register_structure_hook(SignedRoot, base64_to_struct)
         self.converter.register_structure_hook(SignedTargets, base64_to_struct)
 
-        self._products = dict()  # type: MutableMapping[str, RemoteConfigCallBack]
+        self._products = dict()  # type: MutableMapping[str, PubSub]
         self._applied_configs = dict()  # type: AppliedConfigType
         self._last_targets_version = 0
         self._last_error = None  # type: Optional[str]
         self._backend_state = None  # type: Optional[str]
 
-    def register_product(self, product_name, func=None):
-        # type: (str, Optional[RemoteConfigCallBack]) -> None
-        if func is not None:
-            self._products[product_name] = func
+    def renew_id(self):
+        # called after the process is forked to declare a new id
+        self.id = str(uuid.uuid4())
+        self._client_tracer["runtime_id"] = runtime.get_runtime_id()
+
+    def register_product(self, product_name, pubsub_instance=None):
+        # type: (str, Optional[PubSub]) -> None
+        if pubsub_instance is not None:
+            self._products[product_name] = pubsub_instance
         else:
             self._products.pop(product_name, None)
+
+    def update_product_callback(self, product_name, callback):
+        # type: (str, Callable) -> bool
+        pubsub_instance = self._products.get(product_name)
+        if pubsub_instance:
+            pubsub_instance._subscriber._callback = callback
+            if not self.is_subscriber_running(pubsub_instance):
+                pubsub_instance.start_subscriber()
+            return True
+        return False
 
     def unregister_product(self, product_name):
         # type: (str) -> None
         self._products.pop(product_name, None)
 
+    def get_pubsubs(self):
+        for pubsub in set(self._products.values()):
+            yield pubsub
+
+    def is_subscriber_running(self, pubsub_to_check):
+        # type: (PubSub) -> bool
+        for pubsub in self.get_pubsubs():
+            if pubsub_to_check._subscriber is pubsub._subscriber and pubsub._subscriber.is_running:
+                return True
+        return False
+
+    def reset_products(self):
+        self._products = dict()
+
     def _send_request(self, payload):
         # type: (str) -> Optional[Mapping[str, Any]]
         try:
-            self._conn.request("POST", REMOTE_CONFIG_AGENT_ENDPOINT, payload, self._headers)
-            resp = self._conn.getresponse()
+            log.debug(
+                "[%s][P: %s] Requesting RC data from products: %s", os.getpid(), os.getppid(), str(self._products)
+            )  # noqa: G200
+            conn = agent.get_connection(self.agent_url, timeout=agent.get_trace_agent_timeout())
+            conn.request("POST", REMOTE_CONFIG_AGENT_ENDPOINT, payload, self._headers)
+            resp = conn.getresponse()
             data = resp.read()
         except OSError as e:
-            log.warning("Unexpected connection error in remote config client request: %s", str(e))  # noqa: G200
+            log.debug("Unexpected connection error in remote config client request: %s", str(e))  # noqa: G200
             return None
         finally:
-            self._conn.close()
+            conn.close()
 
         if resp.status == 404:
             # Remote configuration is not enabled or unsupported by the agent
             return None
 
         if resp.status < 200 or resp.status >= 300:
-            log.warning("Unexpected error: HTTP error status %s, reason %s", resp.status, resp.reason)
+            log.debug("Unexpected error: HTTP error status %s, reason %s", resp.status, resp.reason)
             return None
 
         return json.loads(data)
@@ -345,7 +343,20 @@ class RemoteConfigClient(object):
             root_version=1,
             targets_version=self._last_targets_version,
             config_states=[
-                dict(id=config.id, version=config.tuf_version, product=config.product_name)
+                dict(
+                    id=config.id,
+                    version=config.tuf_version,
+                    product=config.product_name,
+                    apply_state=config.apply_state,
+                    apply_error=config.apply_error,
+                )
+                if config.apply_error
+                else dict(
+                    id=config.id,
+                    version=config.tuf_version,
+                    product=config.product_name,
+                    apply_state=config.apply_state,
+                )
                 for config in self._applied_configs.values()
             ],
             has_error=has_error,
@@ -374,27 +385,20 @@ class RemoteConfigClient(object):
         return signed.version, backend_state, targets
 
     @staticmethod
-    def _apply_callback(list_callbacks, callback, config_content, target, config):
-        # type: (List[RemoteConfigCallBackAfterMerge], Any, Any, str, ConfigMetadata) -> None
-        if isinstance(callback, RemoteConfigCallBackAfterMerge):
-            callback.append(target, config_content)
-            if callback not in list_callbacks and not any(
-                filter(lambda x: isinstance(x, type(callback)), list_callbacks)
-            ):
-                list_callbacks.append(callback)
-        else:
-            callback(config, config_content)
+    def _apply_callback(list_callbacks, callback, config_content, target, config_metadata):
+        # type: (List[PubSub], Any, Any, str, ConfigMetadata) -> None
+        callback.append(config_content, target, config_metadata)
+        if callback not in list_callbacks and not any(filter(lambda x: x is callback, list_callbacks)):
+            list_callbacks.append(callback)
 
-    def _remove_previously_applied_configurations(self, applied_configs, client_configs, targets):
-        # type: (AppliedConfigType, TargetsType, TargetsType) -> None
-        list_callbacks = []  # type: List[RemoteConfigCallBackAfterMerge]
+    def _remove_previously_applied_configurations(self, list_callbacks, applied_configs, client_configs, targets):
+        # type: (List[PubSub], AppliedConfigType, TargetsType, TargetsType) -> None
         for target, config in self._applied_configs.items():
             if target in client_configs and targets.get(target) == config:
                 # The configuration has not changed.
                 applied_configs[target] = config
                 continue
             elif target not in client_configs:
-                log.debug("Disable configuration: %s", target)
                 callback_action = False
             else:
                 continue
@@ -402,18 +406,14 @@ class RemoteConfigClient(object):
             callback = self._products.get(config.product_name)
             if callback:
                 try:
-                    log.debug("Disable configuration 2: %s. ", target)
+                    log.debug("[%s][P: %s] Disabling configuration: %s", os.getpid(), os.getppid(), target)
                     self._apply_callback(list_callbacks, callback, callback_action, target, config)
                 except Exception:
                     log.debug("error while removing product %s config %r", config.product_name, config)
                     continue
 
-        for callback_to_dispach in list_callbacks:
-            callback_to_dispach.dispatch()
-
-    def _load_new_configurations(self, applied_configs, client_configs, payload):
-        # type: (AppliedConfigType, TargetsType, AgentPayload) -> None
-        list_callbacks = []  # type: List[RemoteConfigCallBackAfterMerge]
+    def _load_new_configurations(self, list_callbacks, applied_configs, client_configs, payload):
+        # type: (List[PubSub], AppliedConfigType, TargetsType, AgentPayload) -> None
         for target, config in client_configs.items():
             callback = self._products.get(config.product_name)
             if callback:
@@ -426,18 +426,18 @@ class RemoteConfigClient(object):
                     continue
 
                 try:
-                    log.debug("Load new configuration: %s. content ", target)
+                    log.debug("[%s][P: %s] Load new configuration: %s. content", os.getpid(), os.getppid(), target)
                     self._apply_callback(list_callbacks, callback, config_content, target, config)
                 except Exception:
-                    log.debug(
-                        "Failed to load configuration %s for product %r", config, config.product_name, exc_info=True
-                    )
+                    error_message = "Failed to apply configuration %s for product %r" % (config, config.product_name)
+                    log.debug(error_message, exc_info=True)
+                    config.apply_state = 3  # Error state
+                    config.apply_error = error_message
+                    applied_configs[target] = config
                     continue
                 else:
+                    config.apply_state = 2  # Acknowledged (applied)
                     applied_configs[target] = config
-
-        for callback_to_dispach in list_callbacks:
-            callback_to_dispach.dispatch()
 
     def _add_apply_config_to_cache(self):
         if self._applied_configs:
@@ -474,10 +474,14 @@ class RemoteConfigClient(object):
                     "target file %s not exists in client_config and signed targets" % (target.path,)
                 )
 
+    def _publish_configuration(self, list_callbacks):
+        # type: (List[PubSub]) -> None
+        for callback_to_dispach in list_callbacks:
+            callback_to_dispach.publish()
+
     def _process_response(self, data):
         # type: (Mapping[str, Any]) -> None
         try:
-            # log.debug("response payload: %r", data)
             payload = self.converter.structure_attrs_fromdict(data, AgentPayload)
         except Exception:
             log.debug("invalid agent payload received: %r", data, exc_info=True)
@@ -488,22 +492,28 @@ class RemoteConfigClient(object):
         # 1. Deserialize targets
         last_targets_version, backend_state, targets = self._process_targets(payload)
         if last_targets_version is None or targets is None:
-            log.debug("No targets in configuration payload")
-            for callback in self._products.values():
-                callback(None, None)
             return
 
         client_configs = {k: v for k, v in targets.items() if k in payload.client_configs}
-        log.debug("Retrieved client configs last version %s: %s", last_targets_version, client_configs)
+        log.debug(
+            "[%s][P: %s] Retrieved client configs last version %s: %s",
+            os.getpid(),
+            os.getppid(),
+            last_targets_version,
+            client_configs,
+        )
 
         self._validate_signed_target_files(payload.target_files, payload.targets.signed, client_configs)
 
         # 2. Remove previously applied configurations
         applied_configs = dict()  # type: AppliedConfigType
-        self._remove_previously_applied_configurations(applied_configs, client_configs, targets)
+        list_callbacks = []  # type: List[PubSub]
+        self._remove_previously_applied_configurations(list_callbacks, applied_configs, client_configs, targets)
 
         # 3. Load new configurations
-        self._load_new_configurations(applied_configs, client_configs, payload)
+        self._load_new_configurations(list_callbacks, applied_configs, client_configs, payload)
+
+        self._publish_configuration(list_callbacks)
 
         self._last_targets_version = last_targets_version
         self._applied_configs = applied_configs

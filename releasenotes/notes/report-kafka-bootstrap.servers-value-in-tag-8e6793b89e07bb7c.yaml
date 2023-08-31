@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    kafka: Adds `messaging.kafka.bootstrap.servers` tag for the confluent-kafka producer configuration value found in `metadata.broker.list` or
+    `bootstrap.servers`

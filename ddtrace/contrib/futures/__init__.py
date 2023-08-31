@@ -1,7 +1,8 @@
 """
 The ``futures`` integration propagates the current active tracing context
-between threads. The integration ensures that when operations are executed
-in a new thread, that thread can continue the previously generated trace.
+to tasks spawned using a :class:`~concurrent.futures.ThreadPoolExecutor`.
+The integration ensures that when operations are executed in another thread,
+those operations can continue the previously generated trace.
 
 
 Enabling
@@ -22,10 +23,12 @@ required_modules = ["concurrent.futures"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
+        from .patch import get_version
         from .patch import patch
         from .patch import unpatch
 
         __all__ = [
+            "get_version",
             "patch",
             "unpatch",
         ]

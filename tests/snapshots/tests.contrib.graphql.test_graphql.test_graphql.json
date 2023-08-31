@@ -9,10 +9,11 @@
     "type": "graphql",
     "error": 0,
     "meta": {
+      "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "component": "graphql",
       "language": "python",
-      "runtime-id": "bc0efee142884beb96fdb35ca56aa3dc"
+      "runtime-id": "13a9a43400594de89a6aa537a3cb7b8e"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -20,10 +21,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 76591
+      "process_id": 50292
     },
-    "duration": 2409000,
-    "start": 1658848788443487000
+    "duration": 1358041,
+    "start": 1692710417103585263
   },
      {
        "name": "graphql.parse",
@@ -35,11 +36,13 @@
        "type": "graphql",
        "error": 0,
        "meta": {
+         "_dd.base_service": "",
+         "_dd.p.dm": "-0",
          "component": "graphql",
          "graphql.source": "query HELLO { hello }"
        },
-       "duration": 147000,
-       "start": 1658848788444365000
+       "duration": 125459,
+       "start": 1692710417104051929
      },
      {
        "name": "graphql.validate",
@@ -51,11 +54,13 @@
        "type": "graphql",
        "error": 0,
        "meta": {
+         "_dd.base_service": "",
+         "_dd.p.dm": "-0",
          "component": "graphql",
          "graphql.source": "query HELLO { hello }"
        },
-       "duration": 674000,
-       "start": 1658848788444620000
+       "duration": 582292,
+       "start": 1692710417104228596
      },
      {
        "name": "graphql.execute",
@@ -67,11 +72,16 @@
        "type": "graphql",
        "error": 0,
        "meta": {
+         "_dd.base_service": "",
+         "_dd.p.dm": "-0",
          "component": "graphql",
          "graphql.operation.name": "HELLO",
          "graphql.operation.type": "query",
          "graphql.source": "query HELLO { hello }"
        },
-       "duration": 399000,
-       "start": 1658848788445460000
+       "metrics": {
+         "_dd.measured": 1
+       },
+       "duration": 79917,
+       "start": 1692710417104847096
      }]]

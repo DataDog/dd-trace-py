@@ -1,6 +1,7 @@
 import os
 
 import aiomysql
+import pymysql
 import pytest
 
 from ddtrace import Pin
@@ -53,7 +54,7 @@ async def test_queries(snapshot_conn):
     # run a query with an error and ensure all is well
     q = "select * from some_non_existant_table"
     cur = await db.cursor()
-    with pytest.raises(Exception):
+    with pytest.raises(pymysql.err.ProgrammingError):
         await cur.execute(q)
 
 
@@ -109,13 +110,14 @@ async def test_patch_unpatch(tracer, test_spans):
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot
-async def test_user_specified_service(ddtrace_run_python_code_in_subprocess):
+async def test_user_specified_service_v0(ddtrace_run_python_code_in_subprocess):
     """
-    When a user specifies a service for the app
+    v0: When a user specifies a service for the app
         The aiomysql integration should not use it.
     """
     env = os.environ.copy()
     env["DD_SERVICE"] = "my-service-name"
+    env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = "v0"
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(
         """
 import asyncio
@@ -124,6 +126,89 @@ from ddtrace import config
 from tests.contrib.aiomysql.test_aiomysql import AIOMYSQL_CONFIG
 
 assert config.service == "my-service-name"
+async def test():
+    conn = await aiomysql.connect(**AIOMYSQL_CONFIG)
+    await (await conn.cursor()).execute("select 'dba4x4'")
+    conn.close()
+asyncio.run(test())""",
+        env=env,
+    )
+    assert status == 0, err
+    assert out == err == b""
+
+
+@pytest.mark.asyncio
+@pytest.mark.snapshot
+async def test_user_specified_service_v1(ddtrace_run_python_code_in_subprocess):
+    """
+    v1: When a user specifies a service for the app
+        The aiomysql integration should use it.
+    """
+    env = os.environ.copy()
+    env["DD_SERVICE"] = "my-service-name"
+    env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = "v1"
+    out, err, status, pid = ddtrace_run_python_code_in_subprocess(
+        """
+import asyncio
+import aiomysql
+from ddtrace import config
+from tests.contrib.aiomysql.test_aiomysql import AIOMYSQL_CONFIG
+
+assert config.service == "my-service-name"
+async def test():
+    conn = await aiomysql.connect(**AIOMYSQL_CONFIG)
+    await (await conn.cursor()).execute("select 'dba4x4'")
+    conn.close()
+asyncio.run(test())""",
+        env=env,
+    )
+    assert status == 0, err
+    assert out == err == b""
+
+
+@pytest.mark.asyncio
+@pytest.mark.snapshot
+async def test_unspecified_service_v1(ddtrace_run_python_code_in_subprocess):
+    """
+    v1: When a user specifies nothing for a service,
+        it should default to internal.schema.DEFAULT_SPAN_SERVICE_NAME
+    """
+    env = os.environ.copy()
+    env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = "v1"
+    out, err, status, pid = ddtrace_run_python_code_in_subprocess(
+        """
+import asyncio
+import aiomysql
+from ddtrace import config
+from tests.contrib.aiomysql.test_aiomysql import AIOMYSQL_CONFIG
+
+async def test():
+    conn = await aiomysql.connect(**AIOMYSQL_CONFIG)
+    await (await conn.cursor()).execute("select 'dba4x4'")
+    conn.close()
+asyncio.run(test())""",
+        env=env,
+    )
+    assert status == 0, err
+    assert out == err == b""
+
+
+@pytest.mark.asyncio
+@pytest.mark.snapshot
+@pytest.mark.parametrize("version", ["v0", "v1"])
+async def test_schematized_span_name(ddtrace_run_python_code_in_subprocess, version):
+    """
+    When a user specifies a service for the app
+        The aiomysql integration should not use it.
+    """
+    env = os.environ.copy()
+    env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = version
+    out, err, status, pid = ddtrace_run_python_code_in_subprocess(
+        """
+import asyncio
+import aiomysql
+from ddtrace import config
+from tests.contrib.aiomysql.test_aiomysql import AIOMYSQL_CONFIG
 async def test():
     conn = await aiomysql.connect(**AIOMYSQL_CONFIG)
     await (await conn.cursor()).execute("select 'dba4x4'")

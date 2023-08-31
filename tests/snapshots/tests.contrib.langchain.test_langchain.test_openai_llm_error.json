@@ -1,0 +1,43 @@
+[[
+  {
+    "name": "langchain.request",
+    "service": "",
+    "resource": "langchain.llms.openai.OpenAI",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 1,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "error.message": "Invalid token in prompt: 123456. Minimum value is 0, maximum value is 50280 (inclusive).",
+      "error.stack": "Traceback (most recent call last):\n  File \"/root/project/ddtrace/contrib/langchain/patch.py\", line 216, in traced_llm_generate\n    completions = func(*args, **kwargs)\n                  ^^^^^^^^^^^^^^^^^^^^^\n  File \"/root/project/.riot/venv_py3113_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_langchain00192_openai_vcrpy_pytest-asyncio_tiktoken_pinecone-client_cohere_huggingface-hub_ai21_exceptiongroup_psutil/lib/python3.11/site-packages/langchain/llms/base.py\", line 192, in generate\n    raise e\n  File \"/root/project/.riot/venv_py3113_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_langchain00192_openai_vcrpy_pytest-asyncio_tiktoken_pinecone-client_cohere_huggingface-hub_ai21_exceptiongroup_psutil/lib/python3.11/site-packages/langchain/llms/base.py\", line 186, in generate\n    self._generate(prompts, stop=stop, run_manager=run_manager)\n  File \"/root/project/.riot/venv_py3113_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_langchain00192_openai_vcrpy_pytest-asyncio_tiktoken_pinecone-client_cohere_huggingface-hub_ai21_exceptiongroup_psutil/lib/python3.11/site-packages/langchain/llms/openai.py\", line 317, in _generate\n    response = completion_with_retry(self, prompt=_prompts, **params)\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/root/project/.riot/venv_py3113_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_langchain00192_openai_vcrpy_pytest-asyncio_tiktoken_pinecone-client_cohere_huggingface-hub_ai21_exceptiongroup_psutil/lib/python3.11/site-packages/langchain/llms/openai.py\", line 106, in completion_with_retry\n    return _completion_with_retry(**kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/root/project/.riot/venv_py3113_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_langchain00192_openai_vcrpy_pytest-asyncio_tiktoken_pinecone-client_cohere_huggingface-hub_ai21_exceptiongroup_psutil/lib/python3.11/site-packages/tenacity/__init__.py\", line 289, in wrapped_f\n    return self(f, *args, **kw)\n           ^^^^^^^^^^^^^^^^^^^^\n  File \"/root/project/.riot/venv_py3113_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_langchain00192_openai_vcrpy_pytest-asyncio_tiktoken_pinecone-client_cohere_huggingface-hub_ai21_exceptiongroup_psutil/lib/python3.11/site-packages/tenacity/__init__.py\", line 379, in __call__\n    do = self.iter(retry_state=retry_state)\n         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/root/project/.riot/venv_py3113_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_langchain00192_openai_vcrpy_pytest-asyncio_tiktoken_pinecone-client_cohere_huggingface-hub_ai21_exceptiongroup_psutil/lib/python3.11/site-packages/tenacity/__init__.py\", line 314, in iter\n    return fut.result()\n           ^^^^^^^^^^^^\n  File \"/root/.pyenv/versions/3.11.3/lib/python3.11/concurrent/futures/_base.py\", line 449, in result\n    return self.__get_result()\n           ^^^^^^^^^^^^^^^^^^^\n  File \"/root/.pyenv/versions/3.11.3/lib/python3.11/concurrent/futures/_base.py\", line 401, in __get_result\n    raise self._exception\n  File \"/root/project/.riot/venv_py3113_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_langchain00192_openai_vcrpy_pytest-asyncio_tiktoken_pinecone-client_cohere_huggingface-hub_ai21_exceptiongroup_psutil/lib/python3.11/site-packages/tenacity/__init__.py\", line 382, in __call__\n    result = fn(*args, **kwargs)\n             ^^^^^^^^^^^^^^^^^^^\n  File \"/root/project/.riot/venv_py3113_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_langchain00192_openai_vcrpy_pytest-asyncio_tiktoken_pinecone-client_cohere_huggingface-hub_ai21_exceptiongroup_psutil/lib/python3.11/site-packages/langchain/llms/openai.py\", line 104, in _completion_with_retry\n    return llm.client.create(**kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/root/project/.riot/venv_py3113_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_langchain00192_openai_vcrpy_pytest-asyncio_tiktoken_pinecone-client_cohere_huggingface-hub_ai21_exceptiongroup_psutil/lib/python3.11/site-packages/openai/api_resources/completion.py\", line 25, in create\n    return super().create(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/root/project/.riot/venv_py3113_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_langchain00192_openai_vcrpy_pytest-asyncio_tiktoken_pinecone-client_cohere_huggingface-hub_ai21_exceptiongroup_psutil/lib/python3.11/site-packages/openai/api_resources/abstract/engine_api_resource.py\", line 153, in create\n    response, _, api_key = requestor.request(\n                           ^^^^^^^^^^^^^^^^^^\n  File \"/root/project/.riot/venv_py3113_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_langchain00192_openai_vcrpy_pytest-asyncio_tiktoken_pinecone-client_cohere_huggingface-hub_ai21_exceptiongroup_psutil/lib/python3.11/site-packages/openai/api_requestor.py\", line 298, in request\n    resp, got_stream = self._interpret_response(result, stream)\n                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/root/project/.riot/venv_py3113_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_langchain00192_openai_vcrpy_pytest-asyncio_tiktoken_pinecone-client_cohere_huggingface-hub_ai21_exceptiongroup_psutil/lib/python3.11/site-packages/openai/api_requestor.py\", line 700, in _interpret_response\n    self._interpret_response_line(\n  File \"/root/project/.riot/venv_py3113_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_langchain00192_openai_vcrpy_pytest-asyncio_tiktoken_pinecone-client_cohere_huggingface-hub_ai21_exceptiongroup_psutil/lib/python3.11/site-packages/openai/api_requestor.py\", line 763, in _interpret_response_line\n    raise self.handle_error_response(\nopenai.error.InvalidRequestError: Invalid token in prompt: 123456. Minimum value is 0, maximum value is 50280 (inclusive).\n",
+      "error.type": "openai.error.InvalidRequestError",
+      "langchain.request.api_key": "...key>",
+      "langchain.request.model": "text-davinci-003",
+      "langchain.request.openai.parameters.frequency_penalty": "0",
+      "langchain.request.openai.parameters.max_tokens": "256",
+      "langchain.request.openai.parameters.model_name": "text-davinci-003",
+      "langchain.request.openai.parameters.n": "1",
+      "langchain.request.openai.parameters.presence_penalty": "0",
+      "langchain.request.openai.parameters.request_timeout": "None",
+      "langchain.request.openai.parameters.temperature": "0.7",
+      "langchain.request.openai.parameters.top_p": "1",
+      "langchain.request.prompts.0": "12345",
+      "langchain.request.prompts.1": "123456",
+      "langchain.request.provider": "openai",
+      "langchain.request.type": "llm",
+      "language": "python",
+      "runtime-id": "dfd2ce0f0c3347ffb6655649ad48bd1f"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 52007
+    },
+    "duration": 17047481,
+    "start": 1691167368650125963
+  }]]

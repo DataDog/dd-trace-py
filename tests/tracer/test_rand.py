@@ -9,6 +9,7 @@ except ImportError:
 
 import os
 import threading
+import time
 
 from ddtrace import Span
 from ddtrace import tracer
@@ -19,11 +20,45 @@ from ddtrace.internal.compat import Queue
 
 def test_random():
     m = set()
-    for i in range(0, 2 ** 16):
+    for _ in range(0, 2 ** 16):
         n = _rand.rand64bits()
         assert 0 <= n <= 2 ** 64 - 1
         assert n not in m
         m.add(n)
+
+
+def test_rand128bit():
+    """This test ensures 128bit integers are generated with the following format:
+    <32-bit unix seconds><32 bits of zero><64 random bits>
+    """
+    # This test validates the timestamp set in the trace id.
+    # To avoid random test failures t1 and t2 are set to an interval of 2 at least seconds.
+    t1 = int(time.time()) - 1
+    val1 = _rand.rand128bits()
+    val2 = _rand.rand128bits()
+    t2 = int(time.time()) + 1
+
+    val1_as_binary = format(val1, "b")
+    rand_64bit1 = int(val1_as_binary[-64:], 2)
+    zeros1 = int(val1_as_binary[-96:-64], 2)
+    unix_time1 = int(val1_as_binary[:-96], 2)
+
+    val2_as_binary = format(val2, "b")
+    rand_64bit2 = int(val2_as_binary[-64:], 2)
+    zeros2 = int(val2_as_binary[-96:-64], 2)
+    unix_time2 = int(val2_as_binary[:-96], 2)
+
+    # Assert that 64 lowest order bits of the 128 bit integers are random
+    assert 0 <= rand_64bit1 <= 2 ** 64 - 1
+    assert 0 <= rand_64bit2 <= 2 ** 64 - 1
+    assert rand_64bit1 != rand_64bit2
+
+    # Assert that bits 64 to 96 are zeros (from least significant to most)
+    assert zeros1 == zeros2 == 0
+
+    # Assert that the 32 most significant bits is unix time in seconds
+    assert t1 <= unix_time1 <= t2
+    assert t1 <= unix_time2 <= t2
 
 
 def test_fork_no_pid_check():

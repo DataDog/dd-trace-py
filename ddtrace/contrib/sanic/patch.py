@@ -9,6 +9,9 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.schema import schematize_url_operation
+from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.pin import Pin
 from ddtrace.vendor import wrapt
@@ -20,9 +23,14 @@ from ...internal.logger import get_logger
 
 log = get_logger(__name__)
 
-config._add("sanic", dict(_default_service="sanic", distributed_tracing=True))
+config._add("sanic", dict(_default_service=schematize_service_name("sanic"), distributed_tracing=True))
 
 SANIC_VERSION = (0, 0, 0)
+
+
+def get_version():
+    # type: () -> str
+    return getattr(sanic, "__version__", "")
 
 
 def _get_current_span(request):
@@ -96,7 +104,7 @@ def _get_path(request):
         try:
             value = str(value)
         except Exception:
-            # Best effort
+            log.debug("Failed to convert path parameter value to string", exc_info=True)
             continue
         path = path.replace(value, f"<{key}>")
     return path
@@ -117,7 +125,7 @@ def patch():
 
     if getattr(sanic, "__datadog_patch", False):
         return
-    setattr(sanic, "__datadog_patch", True)
+    sanic.__datadog_patch = True
 
     SANIC_VERSION = tuple(map(int, sanic.__version__.split(".")))
 
@@ -145,7 +153,7 @@ def unpatch():
             _u(sanic.Sanic, "_run_request_middleware")
             _u(sanic.request.Request, "respond")
 
-    setattr(sanic, "__datadog_patch", False)
+    sanic.__datadog_patch = False
 
 
 def patch_sanic_init(wrapped, instance, args, kwargs):
@@ -196,7 +204,7 @@ def _create_sanic_request_span(request):
     trace_utils.activate_distributed_headers(ddtrace.tracer, int_config=config.sanic, request_headers=headers)
 
     span = pin.tracer.trace(
-        "sanic.request",
+        schematize_url_operation("sanic.request", protocol="http", direction=SpanDirection.INBOUND),
         service=trace_utils.int_service(None, config.sanic),
         resource=resource,
         span_type=SpanTypes.WEB,

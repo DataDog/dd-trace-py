@@ -1,5 +1,5 @@
 """
-The psycopg integration instruments the psycopg2 library to trace Postgres queries.
+The psycopg integration instruments the psycopg and psycopg2 libraries to trace Postgres queries.
 
 
 Enabling
@@ -37,7 +37,7 @@ Global Configuration
 
 .. py:data:: ddtrace.config.psycopg["trace_connect"]
 
-   Whether or not to trace ``psycopg2.connect`` method.
+   Whether or not to trace ``psycopg.connect`` method.
 
    Can also configured via the ``DD_PSYCOPG_TRACE_CONNECT`` environment variable.
 
@@ -51,23 +51,18 @@ To configure the psycopg integration on an per-connection basis use the
 ``Pin`` API::
 
     from ddtrace import Pin
-    import psycopg2
+    import psycopg
 
-    db = psycopg2.connect(connection_factory=factory)
+    db = psycopg.connect(connection_factory=factory)
     # Use a pin to override the service name.
     Pin.override(db, service="postgres-users")
 
     cursor = db.cursor()
     cursor.execute("select * from users where id = 1")
 """
-from ...internal.utils.importlib import require_modules
+from .patch import get_version
+from .patch import get_versions
+from .patch import patch
 
 
-required_modules = ["psycopg2"]
-
-with require_modules(required_modules) as missing_modules:
-    if not missing_modules:
-        from .patch import patch
-        from .patch import patch_conn
-
-        __all__ = ["patch", "patch_conn"]
+__all__ = ["patch", "get_version", "get_versions"]

@@ -12,7 +12,7 @@ Full grammar:
     value_source            =>  <literal> | <operation>
     literal                 =>  <number> | true | false | "string"
     number                  =>  0 | ([1-9][0-9]*\.[0-9]+)
-    identifier              =>  [a-zA-Z][a-zA-Z0-9_]*
+    identifier              =>  <str.isidentifier>
     arg_predicate           =>  {"<arg_predicate_type>": [<argument_list>]}
     arg_predicate_type      =>  eq | ne | gt | ge | lt | le | any | all | and | or
                                 | startsWith | endsWith | contains | matches
@@ -45,7 +45,19 @@ from ddtrace.internal.compat import PYTHON_VERSION_INFO as PY
 
 DDASTType = Union[Dict[str, Any], Dict[str, List[Any]], Any]
 
-IDENT_RE = re.compile(r"[a-zA-Z][a-zA-Z0-9_]*")
+if PY < (3, 0):
+    IDENT_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
+
+    def _is_identifier(name):
+        # type: (str) -> bool
+        return isinstance(name, str) and IDENT_RE.match(name) is not None
+
+
+else:
+
+    def _is_identifier(name):
+        # type: (str) -> bool
+        return isinstance(name, str) and name.isidentifier()
 
 
 def _make_function(ast, args, name):
@@ -200,6 +212,10 @@ def _call_function(func, *args):
     # type: (Callable, List[Instr]) -> List[Instr]
     if PY < (3, 11):
         return [Instr("LOAD_CONST", func)] + list(chain(*args)) + [Instr("CALL_FUNCTION", len(args))]
+    elif PY >= (3, 12):
+        return [Instr("PUSH_NULL"), Instr("LOAD_CONST", func)] + list(chain(*args)) + [Instr("CALL", len(args))]
+
+    # Python 3.11
     return (
         [Instr("PUSH_NULL"), Instr("LOAD_CONST", func)]
         + list(chain(*args))
@@ -245,14 +261,15 @@ def _compile_arg_operation(ast):
         )
 
     if _type == "getmember":
-        v, atr = args
+        v, attr = args
+        if not _is_identifier(attr):
+            raise ValueError("Invalid identifier: %r" % attr)
+
         cv = _compile_predicate(v)
         if not cv:
             return None
-        if not isinstance(atr, str) or not IDENT_RE.match(atr):
-            return None
 
-        return _call_function(object.__getattribute__, cv, [Instr("LOAD_CONST", atr)])
+        return _call_function(object.__getattribute__, cv, [Instr("LOAD_CONST", attr)])
 
     if _type == "index":
         v, i = args
@@ -275,8 +292,8 @@ def _compile_operation(ast):
 
 def _compile_literal(ast):
     # type: (DDASTType) -> Optional[List[Instr]]
-    # literal  =>  <number> | true | false | "string"
-    if not isinstance(ast, (str, int, float, bool)):
+    # literal  =>  <number> | true | false | "string" | null
+    if not (isinstance(ast, (str, int, float, bool)) or ast is None):
         return None
 
     return [Instr("LOAD_CONST", ast)]
@@ -318,3 +335,6 @@ class DDExpression(object):
             return self.callable(_locals)
         except Exception as e:
             raise DDExpressionEvaluationError(self.dsl, e)
+
+    def __call__(self, _locals):
+        return self.eval(_locals)

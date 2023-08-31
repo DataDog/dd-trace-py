@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    tracing: Resolves an issue where ``DD_TRACE_<INTEGRATION>_ENABLED=False`` could not be used to disable
+    the following integrations when ``ddtrace-run`` was used: flask, django, bottle, falcon, and pyramid.

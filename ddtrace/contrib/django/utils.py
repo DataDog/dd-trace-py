@@ -2,11 +2,11 @@ import json
 from typing import Any
 from typing import Dict
 from typing import List
+from typing import Mapping
 from typing import Text
 from typing import Union
 
-from django.http import RawPostDataException
-from django.http import UnreadablePostError
+import django
 from django.utils.functional import SimpleLazyObject
 import six
 import xmltodict
@@ -20,8 +20,7 @@ from ddtrace.ext import user as _user
 from ddtrace.propagation._utils import from_wsgi_header
 
 from .. import trace_utils
-from ...appsec import _asm_request_context
-from ...internal import _context
+from ...internal import core
 from ...internal.logger import get_logger
 from ...internal.utils.formats import stringify_cache_args
 from ...vendor.wrapt import FunctionWrapper
@@ -38,9 +37,13 @@ except ImportError:
 
 log = get_logger(__name__)
 
-# Set on patch, when django is imported
-Resolver404 = None
-DJANGO22 = None
+if django.VERSION < (1, 10, 0):
+    Resolver404 = django.core.urlresolvers.Resolver404
+else:
+    Resolver404 = django.urls.exceptions.Resolver404
+
+
+DJANGO22 = django.VERSION >= (2, 2, 0)
 
 REQUEST_DEFAULT_RESOURCE = "__django_request"
 _BODY_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
@@ -185,21 +188,30 @@ def _set_resolver_tags(pin, span, request):
             # The request quite likely failed (e.g. 404) so we do the resolution anyway.
             resolver = get_resolver(getattr(request, "urlconf", None))
             resolver_match = resolver.resolve(request.path_info)
-        handler = func_name(resolver_match[0])
+
+        if hasattr(resolver_match[0], "view_class"):
+            # In django==4.0, view.__name__ defaults to <module>.views.view
+            # Accessing view.view_class is equired for django>4.0 to get the name of underlying view
+            handler = func_name(resolver_match[0].view_class)
+        else:
+            handler = func_name(resolver_match[0])
+
+        route = None
+        # In Django >= 2.2.0 we can access the original route or regex pattern
+        # TODO: Validate if `resolver.pattern.regex.pattern` is available on django<2.2
+        if DJANGO22:
+            # Determine the resolver and resource name for this request
+            route = get_django_2_route(request, resolver_match)
+            if route:
+                span.set_tag_str("http.route", route)
 
         if config.django.use_handler_resource_format:
             resource = " ".join((request.method, handler))
         elif config.django.use_legacy_resource_format:
             resource = handler
         else:
-            # In Django >= 2.2.0 we can access the original route or regex pattern
-            # TODO: Validate if `resolver.pattern.regex.pattern` is available on django<2.2
-            if DJANGO22:
-                # Determine the resolver and resource name for this request
-                route = get_django_2_route(request, resolver_match)
-                if route:
-                    resource = " ".join((request.method, route))
-                    span.set_tag_str("http.route", route)
+            if route:
+                resource = " ".join((request.method, route))
             else:
                 if config.django.use_handler_with_url_name_resource_format:
                     # Append url name in order to distinguish different routes of the same ViewSet
@@ -250,51 +262,36 @@ def _before_request_tags(pin, span, request):
 
 
 def _extract_body(request):
-    req_body = None
-
+    # DEV: Do not use request.POST or request.data, this could prevent custom parser to be used after
     if config._appsec_enabled and request.method in _BODY_METHODS:
+        from ddtrace.appsec.utils import parse_form_multipart
+        from ddtrace.appsec.utils import parse_form_params
+
+        req_body = None
         content_type = request.content_type if hasattr(request, "content_type") else request.META.get("CONTENT_TYPE")
-
-        rest_framework = hasattr(request, "data")
-
         try:
             if content_type == "application/x-www-form-urlencoded":
-                req_body = request.data.dict() if rest_framework else request.POST.dict()
-            elif content_type == "application/json":
-                req_body = (
-                    json.loads(request.data.decode("UTF-8"))
-                    if rest_framework
-                    else json.loads(request.body.decode("UTF-8"))
-                )
+                req_body = parse_form_params(request.body.decode("UTF-8", errors="ignore"))
+            elif content_type == "multipart/form-data":
+                req_body = parse_form_multipart(request.body.decode("UTF-8", errors="ignore"))
+            elif content_type in ("application/json", "text/json"):
+                req_body = json.loads(request.body.decode("UTF-8", errors="ignore"))
             elif content_type in ("application/xml", "text/xml"):
-                req_body = (
-                    xmltodict.parse(request.data.decode("UTF-8"))
-                    if rest_framework
-                    else xmltodict.parse(request.body.decode("UTF-8"))
-                )
+                req_body = xmltodict.parse(request.body.decode("UTF-8", errors="ignore"))
             else:  # text/plain, others: don't use them
                 req_body = None
-        except (
-            AttributeError,
-            RawPostDataException,
-            UnreadablePostError,
-            OSError,
-            ValueError,
-            JSONDecodeError,
-            xmltodict.expat.ExpatError,
-            xmltodict.ParsingInterrupted,
-        ):
-            log.warning("Failed to parse request body")
+        except BaseException:
+            log.debug("Failed to parse request body", exc_info=True)
             # req_body is None
-
         return req_body
 
 
 def _get_request_headers(request):
+    # type: (Any) -> Mapping[str, str]
     if DJANGO22:
-        request_headers = request.headers
+        request_headers = request.headers  # type: Mapping[str, str]
     else:
-        request_headers = {}
+        request_headers = {}  # type: Mapping[str, str]
         for header, value in request.META.items():
             name = from_wsgi_header(header)
             if name:
@@ -333,6 +330,9 @@ def _after_request_tags(pin, span, request, response):
             except Exception:
                 log.debug("Error retrieving authentication information for user", exc_info=True)
 
+        # DEV: Resolve the view and resource name at the end of the request in case
+        #      urlconf changes at any point during the request
+        _set_resolver_tags(pin, span, request)
         if response:
             status = response.status_code
             span.set_tag_str("django.response.class", func_name(response))
@@ -365,12 +365,10 @@ def _after_request_tags(pin, span, request, response):
 
             url = get_request_uri(request)
 
-            # DEV: Resolve the view and resource name at the end of the request in case
-            #      urlconf changes at any point during the request
-            _set_resolver_tags(pin, span, request)
-
             request_headers = None
             if config._appsec_enabled:
+                from ddtrace.appsec import _asm_request_context
+
                 request_headers = _asm_request_context.get_headers()
 
             if not request_headers:
@@ -378,6 +376,12 @@ def _after_request_tags(pin, span, request, response):
                 request_headers = _get_request_headers(request)
 
             response_headers = dict(response.items()) if response else {}
+
+            response_cookies = {}
+            if response.cookies:
+                for k, v in six.iteritems(response.cookies):
+                    response_cookies[k] = v.OutputString()
+
             raw_uri = url
             if raw_uri and request.META.get("QUERY_STRING"):
                 raw_uri += "?" + request.META["QUERY_STRING"]
@@ -396,9 +400,12 @@ def _after_request_tags(pin, span, request, response):
                 request_cookies=request.COOKIES,
                 request_path_params=request.resolver_match.kwargs if request.resolver_match is not None else None,
                 request_body=_extract_body(request),
-                peer_ip=_context.get_item("http.request.remote_ip", span=span),
-                headers_are_case_sensitive=_context.get_item("http.request.headers_case_sensitive", span=span),
+                peer_ip=core.get_item("http.request.remote_ip", span=span),
+                headers_are_case_sensitive=core.get_item("http.request.headers_case_sensitive", span=span),
+                response_cookies=response_cookies,
             )
+            if config._appsec_enabled and config._api_security_enabled:
+                _asm_request_context.set_body_response(response.content)
     finally:
         if span.resource == REQUEST_DEFAULT_RESOURCE:
             span.resource = request.method

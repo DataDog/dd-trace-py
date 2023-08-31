@@ -1,0 +1,83 @@
+[[
+  {
+    "name": "graphql.server.request",
+    "service": "unnamed-python-service",
+    "resource": "query HELLO { hello }",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "graphql",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "component": "graphql",
+      "language": "python",
+      "runtime-id": "c8ccd50c821741189c5511d3dcde8349"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 17760
+    },
+    "duration": 931909,
+    "start": 1691163327337036032
+  },
+     {
+       "name": "graphql.parse",
+       "service": "unnamed-python-service",
+       "resource": "graphql.parse",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "graphql",
+       "error": 0,
+       "meta": {
+         "_dd.p.dm": "-0",
+         "component": "graphql",
+         "graphql.source": "query HELLO { hello }"
+       },
+       "duration": 90499,
+       "start": 1691163327337248502
+     },
+     {
+       "name": "graphql.validate",
+       "service": "unnamed-python-service",
+       "resource": "graphql.validate",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "graphql",
+       "error": 0,
+       "meta": {
+         "_dd.p.dm": "-0",
+         "component": "graphql",
+         "graphql.source": "query HELLO { hello }"
+       },
+       "duration": 465866,
+       "start": 1691163327337375742
+     },
+     {
+       "name": "graphql.execute",
+       "service": "unnamed-python-service",
+       "resource": "query HELLO { hello }",
+       "trace_id": 0,
+       "span_id": 4,
+       "parent_id": 1,
+       "type": "graphql",
+       "error": 0,
+       "meta": {
+         "_dd.p.dm": "-0",
+         "component": "graphql",
+         "graphql.operation.name": "HELLO",
+         "graphql.operation.type": "query",
+         "graphql.source": "query HELLO { hello }"
+       },
+       "metrics": {
+         "_dd.measured": 1
+       },
+       "duration": 84189,
+       "start": 1691163327337873760
+     }]]

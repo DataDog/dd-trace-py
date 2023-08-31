@@ -1,3 +1,4 @@
+import functools
 import os
 from typing import Generator
 
@@ -36,6 +37,43 @@ def stats_tracer(sample_rate):
         )
         yield tracer
         tracer.shutdown()
+
+
+class consistent_end_trace(object):
+    """
+    This class wraps tracer.trace() in order to ensure that the span is finished with consistent end time and duration
+    """
+
+    def __init__(self, orig_trace_fn, *args, **kwargs):
+        self.args = args
+        self.kwargs = kwargs
+        self.orig_trace_fn = orig_trace_fn
+
+    def __enter__(self):
+        self.span = self.orig_trace_fn(*self.args, **self.kwargs)
+        return self.span
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.span.start_ns = 1
+        self.span.finish(finish_time=1)
+
+
+@pytest.fixture
+def send_once_stats_tracer(stats_tracer):
+    """
+    This is a variation on the tracer that has the SpanStatsProcessor disabled until we leave the tracer context.
+    """
+    stats_tracer.trace = functools.partial(consistent_end_trace, stats_tracer.trace)
+
+    # Stop the stats processor while running the function, to prevent flushing
+    for processor in stats_tracer._span_processors:
+        if isinstance(processor, SpanStatsProcessorV06):
+            processor.stop()
+            break
+    yield stats_tracer
+
+    # Restart the stats processor; it will be flushed during shutdown
+    processor.start()
 
 
 @pytest.mark.parametrize("envvar", ["DD_TRACE_STATS_COMPUTATION_ENABLED", "DD_TRACE_COMPUTE_STATS"])
@@ -77,71 +115,71 @@ def test_sampling_rate(stats_tracer, sample_rate):
 
 
 @pytest.mark.snapshot()
-def test_stats_100(stats_tracer, sample_rate):
-    for i in range(100):
-        with stats_tracer.trace("name", service="abc", resource="/users/list"):
+def test_stats_100(send_once_stats_tracer, sample_rate):
+    for _ in range(100):
+        with send_once_stats_tracer.trace("name", service="abc", resource="/users/list"):
             pass
 
 
 @pytest.mark.snapshot()
-def test_stats_errors(stats_tracer, sample_rate):
+def test_stats_errors(send_once_stats_tracer, sample_rate):
     for i in range(100):
-        with stats_tracer.trace("name", service="abc", resource="/users/list") as span:
+        with send_once_stats_tracer.trace("name", service="abc", resource="/users/list") as span:
             if i % 2 == 0:
                 span.error = 1
 
 
 @pytest.mark.snapshot()
-def test_stats_aggrs(stats_tracer, sample_rate):
+def test_stats_aggrs(send_once_stats_tracer, sample_rate):
     """
     When different span properties are set
         The stats are put into different aggregations
     """
-    with stats_tracer.trace(name="op", service="my-svc", span_type="web", resource="/users/list"):
+    with send_once_stats_tracer.trace(name="op", service="my-svc", span_type="web", resource="/users/list"):
         pass
 
     # Synthetics
-    with stats_tracer.trace(name="op", service="my-svc", span_type="web", resource="/users/list") as span:
+    with send_once_stats_tracer.trace(name="op", service="my-svc", span_type="web", resource="/users/list") as span:
         span.context.dd_origin = "synthetics"
 
     # HTTP status code
-    with stats_tracer.trace(name="op", service="my-svc", span_type="web", resource="/users/list") as span:
+    with send_once_stats_tracer.trace(name="op", service="my-svc", span_type="web", resource="/users/list") as span:
         span.set_tag(http.STATUS_CODE, 200)
 
     # Resource
-    with stats_tracer.trace(name="op", service="my-svc", span_type="web", resource="/users/view"):
+    with send_once_stats_tracer.trace(name="op", service="my-svc", span_type="web", resource="/users/view"):
         pass
 
     # Service
-    with stats_tracer.trace(name="op", service="diff-svc", span_type="web", resource="/users/list"):
+    with send_once_stats_tracer.trace(name="op", service="diff-svc", span_type="web", resource="/users/list"):
         pass
 
     # Name
-    with stats_tracer.trace(name="diff-op", service="my-svc", span_type="web", resource="/users/list"):
+    with send_once_stats_tracer.trace(name="diff-op", service="my-svc", span_type="web", resource="/users/list"):
         pass
 
     # Type
-    with stats_tracer.trace(name="diff-op", service="my-svc", span_type="db", resource="/users/list"):
+    with send_once_stats_tracer.trace(name="diff-op", service="my-svc", span_type="db", resource="/users/list"):
         pass
 
 
 @pytest.mark.snapshot()
-def test_measured_span(stats_tracer):
+def test_measured_span(send_once_stats_tracer):
     for _ in range(10):
-        with stats_tracer.trace("parent"):  # Should have stats
-            with stats_tracer.trace("child"):  # Shouldn't have stats
+        with send_once_stats_tracer.trace("parent"):  # Should have stats
+            with send_once_stats_tracer.trace("child"):  # Shouldn't have stats
                 pass
     for _ in range(10):
-        with stats_tracer.trace("parent"):  # Should have stats
-            with stats_tracer.trace("child_stats") as span:  # Should have stats
+        with send_once_stats_tracer.trace("parent"):  # Should have stats
+            with send_once_stats_tracer.trace("child_stats") as span:  # Should have stats
                 span.set_tag(SPAN_MEASURED_KEY)
 
 
 @pytest.mark.snapshot()
-def test_top_level(stats_tracer):
+def test_top_level(send_once_stats_tracer):
     for _ in range(100):
-        with stats_tracer.trace("parent", service="svc-one"):  # Should have stats
-            with stats_tracer.trace("child", service="svc-two"):  # Should have stats
+        with send_once_stats_tracer.trace("parent", service="svc-one"):  # Should have stats
+            with send_once_stats_tracer.trace("child", service="svc-two"):  # Should have stats
                 pass
 
 

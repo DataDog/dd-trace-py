@@ -1,3 +1,5 @@
+import os
+
 import pytest
 import six
 from webtest import TestApp
@@ -79,7 +81,7 @@ def test_middleware(tracer, test_spans):
     spans = test_spans.pop()
     assert len(spans) == 4
 
-    with pytest.raises(Exception):
+    with pytest.raises(Exception, match="Oops!"):
         app.get("/error")
 
     spans = test_spans.pop()
@@ -261,7 +263,7 @@ def test_200():
 @snapshot(ignores=["meta.error.stack"], variants={"py2": PY2, "py3": PY3})
 def test_500():
     app = TestApp(wsgi.DDWSGIMiddleware(application))
-    with pytest.raises(Exception):
+    with pytest.raises(Exception, match="Oops!"):
         app.get("/error")
 
 
@@ -290,7 +292,7 @@ def test_wsgi_base_middleware(use_global_tracer, tracer):
 def test_wsgi_base_middleware_500(use_global_tracer, tracer):
     # Note - span modifiers are not called
     app = TestApp(WsgiCustomMiddleware(application, tracer, config.wsgi, None))
-    with pytest.raises(Exception):
+    with pytest.raises(Exception, match="Oops!"):
         app.get("/error")
 
 
@@ -308,3 +310,72 @@ def test_distributed_tracing_nested():
     assert config.wsgi.distributed_tracing is True
     assert resp.status == "200 OK"
     assert resp.status_int == 200
+
+
+def test_wsgi_traced_iterable(tracer, test_spans):
+    # Regression test to ensure wsgi iterable does not define an __len__ attribute
+    middleware = wsgi.DDWSGIMiddleware(application)
+    environ = {
+        "PATH_INFO": "/chunked",
+        "wsgi.url_scheme": "http",
+        "SERVER_NAME": "localhost",
+        "SERVER_PORT": "80",
+        "REQUEST_METHOD": "GET",
+    }
+
+    def start_response(status, headers, exc_info=None):
+        pass
+
+    resp = middleware(environ, start_response)
+    assert hasattr(resp, "__iter__")
+    assert hasattr(resp, "close")
+    assert hasattr(resp, "next") or hasattr(resp, "__next__")
+    assert not hasattr(resp, "__len__"), "Iterables should not define __len__ attribute"
+
+
+@pytest.mark.parametrize(
+    "extra,expected",
+    [
+        ({}, {}),
+        # This is a regression for #6284
+        # DEV: We were checking for `HTTP` prefix for headers instead of `HTTP_` which is required
+        ({"HTTPS": "on"}, {}),
+        # Normal header
+        ({"HTTP_HEADER": "value"}, {"Header": "value"}),
+    ],
+)
+def test_get_request_headers(extra, expected):
+    # Normal environ stuff
+    environ = {
+        "PATH_INFO": "/",
+        "wsgi.url_scheme": "http",
+        "SERVER_NAME": "localhost",
+        "SERVER_PORT": "80",
+        "REQUEST_METHOD": "GET",
+    }
+    environ.update(extra)
+
+    headers = wsgi.get_request_headers(environ)
+    assert headers == expected
+
+
+@pytest.mark.snapshot()
+@pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
+@pytest.mark.parametrize("service_name", [None, "mysvc"])
+def test_schematization(ddtrace_run_python_code_in_subprocess, schema_version, service_name):
+    code = """
+from webtest import TestApp
+from ddtrace.contrib.wsgi import wsgi
+from tests.conftest import *
+from tests.contrib.wsgi.test_wsgi import application
+
+app = TestApp(wsgi.DDWSGIMiddleware(application))
+app.get("/")"""
+
+    env = os.environ.copy()
+    if schema_version is not None:
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
+    if service_name is not None:
+        env["DD_SERVICE"] = service_name
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    assert status == 0, stderr

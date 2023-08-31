@@ -9,17 +9,26 @@ from ddtrace.vendor import wrapt
 
 from ...ext import db
 from ...ext import net
+from ...internal.schema import schematize_database_operation
+from ...internal.schema import schematize_service_name
 from ...internal.utils.formats import asbool
 
 
 config._add(
     "mysql",
     dict(
-        _default_service="mysql",
+        _default_service=schematize_service_name("mysql"),
         _dbapi_span_name_prefix="mysql",
+        _dbapi_span_operation_name=schematize_database_operation("mysql.query", database_provider="mysql"),
         trace_fetch_methods=asbool(os.getenv("DD_MYSQL_TRACE_FETCH_METHODS", default=False)),
     ),
 )
+
+
+def get_version():
+    # type: () -> str
+    return mysql.connector.version.VERSION_TEXT
+
 
 CONN_ATTR_BY_TAG = {
     net.TARGET_HOST: "server_host",

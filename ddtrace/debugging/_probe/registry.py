@@ -38,6 +38,10 @@ class ProbeRegistryEntry(object):
         # type: (str) -> None
         self.message = message
 
+    def update(self, probe):
+        # type: (Probe) -> None
+        self.probe.update(probe)
+
 
 def _get_probe_location(probe):
     # type: (Probe) -> Optional[str]
@@ -86,6 +90,16 @@ class ProbeRegistry(dict):
 
                 self.logger.received(probe)
 
+    def update(self, probe):
+        with self._lock:
+            if probe not in self:
+                logger.error("Attempted to update unregistered probe %s", probe.probe_id)
+                return
+
+            self[probe.probe_id].update(probe)
+
+            self.log_probe_status(probe)
+
     def set_installed(self, probe):
         # type: (Probe) -> None
         """Set the installed flag for a probe."""
@@ -111,26 +125,36 @@ class ProbeRegistry(dict):
             self[probe.probe_id].set_message(message)
             self.logger.error(probe, message)
 
+    def _log_probe_status_unlocked(self, entry):
+        # type: (ProbeRegistryEntry) -> None
+        if entry.installed:
+            self.logger.installed(entry.probe)
+        elif entry.exc_info:
+            self.logger.error(entry.probe, exc_info=entry.exc_info)
+        elif entry.message:
+            self.logger.error(entry.probe, message=entry.message)
+        else:
+            self.logger.received(entry.probe)
+
+    def log_probe_status(self, probe):
+        # type: (Probe) -> None
+        """Log the status of a probe using the status logger."""
+        with self._lock:
+            self._log_probe_status_unlocked(self[probe.probe_id])
+
     def log_probes_status(self):
         # type: () -> None
         """Log the status of all the probes using the status logger."""
         with self._lock:
             for entry in self.values():
-                if entry.installed:
-                    self.logger.installed(entry.probe)
-                elif entry.exc_info:
-                    self.logger.error(entry.probe, exc_info=entry.exc_info)
-                elif entry.message:
-                    self.logger.error(entry.probe, message=entry.message)
-                else:
-                    self.logger.received(entry.probe)
+                self._log_probe_status_unlocked(entry)
 
     def _remove_pending(self, probe):
         # type: (Probe) -> None
         location = _get_probe_location(probe)
 
         # Pending probes must have valid location information
-        assert location is not None, probe
+        assert location is not None, probe  # nosec
 
         pending_probes = self._pending[location]
         try:
@@ -179,7 +203,7 @@ class ProbeRegistry(dict):
     def __contains__(self, probe):
         # type: (object) -> bool
         """Check if a probe is in the registry."""
-        assert isinstance(probe, Probe)
+        assert isinstance(probe, Probe), probe  # nosec
 
         with self._lock:
             return super(ProbeRegistry, self).__contains__(probe.probe_id)

@@ -10,6 +10,7 @@ from ddtrace.contrib.mongoengine.patch import unpatch
 from ddtrace.contrib.pymongo.client import TracedMongoClient
 from ddtrace.contrib.pymongo.client import TracedTopology
 from ddtrace.ext import mongo as mongox
+from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.opentracer.utils import init_tracer
 from tests.utils import DummyTracer
 from tests.utils import TracerTestCase
@@ -192,23 +193,6 @@ class MongoEngineCore(object):
             assert len(spans) == 1
             assert spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 1.0
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_user_specified_service(self):
-        """
-        When a user specifies a service for the app
-            The mongoengine integration should not use it.
-        """
-        from ddtrace import config
-
-        assert config.service == "mysvc"
-
-        tracer = self.get_tracer_and_connect()
-        Artist.drop_collection()
-
-        spans = tracer.pop()
-        assert len(spans) == 1
-        assert spans[0].service != "mysvc"
-
 
 class TestMongoEnginePatchConnectDefault(TracerTestCase, MongoEngineCore):
     """Test suite with a global Pin for the connect function with the default configuration"""
@@ -229,6 +213,119 @@ class TestMongoEnginePatchConnectDefault(TracerTestCase, MongoEngineCore):
         mongoengine.connect(port=MONGO_CONFIG["port"])
 
         return tracer
+
+
+class TestMongoEnginePatchConnectSchematization(TestMongoEnginePatchConnectDefault):
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    def test_user_specified_service_default(self):
+        """
+        : When a user specifies a service for the app
+            The mongoengine integration should not use it.
+        """
+        from ddtrace import config
+
+        assert config.service == "mysvc"
+
+        tracer = self.get_tracer_and_connect()
+        Artist.drop_collection()
+
+        spans = tracer.pop()
+        assert len(spans) == 1
+        assert spans[0].service != "mysvc"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0", DD_SERVICE="mysvc"))
+    def test_user_specified_service_v0(self):
+        """
+        v0: When a user specifies a service for the app
+            The mongoengine integration should not use it.
+        """
+        from ddtrace import config
+
+        assert config.service == "mysvc"
+
+        tracer = self.get_tracer_and_connect()
+        Artist.drop_collection()
+
+        spans = tracer.pop()
+        assert len(spans) == 1
+        assert spans[0].service != "mysvc"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1", DD_SERVICE="mysvc"))
+    def test_user_specified_service_v1(self):
+        """
+        In v1 of the span attribute schema, when a user specifies a service for the app
+            The mongoengine integration should use it as the default.
+        """
+        from ddtrace import config
+
+        assert config.service == "mysvc"
+
+        tracer = self.get_tracer_and_connect()
+        Artist.drop_collection()
+
+        spans = tracer.pop()
+        assert len(spans) == 1
+        assert spans[0].service == "mysvc"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_unspecified_service_v0(self):
+        """
+        In v0 of the span attribute schema, when there is no specified DD_SERVICE
+            The mongoengine integration should use None as the default.
+        """
+        from ddtrace import config
+
+        assert config.service is DEFAULT_SPAN_SERVICE_NAME
+
+        tracer = self.get_tracer_and_connect()
+        Artist.drop_collection()
+
+        spans = tracer.pop()
+        assert len(spans) == 1
+        assert spans[0].service == "mongodb"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_unspecified_service_v1(self):
+        """
+        In v1 of the span attribute schema, when there is no specified DD_SERVICE
+            The mongoengine integration should use DEFAULT_SPAN_SERVICE_NAME as the default.
+        """
+        from ddtrace import config
+
+        assert config.service == DEFAULT_SPAN_SERVICE_NAME
+
+        tracer = self.get_tracer_and_connect()
+        Artist.drop_collection()
+
+        spans = tracer.pop()
+        assert len(spans) == 1
+        assert spans[0].service == DEFAULT_SPAN_SERVICE_NAME
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_span_name_v0_schema(self):
+        """
+        When a user specifies a service for the app
+            The mongoengine integration should not use it.
+        """
+        tracer = self.get_tracer_and_connect()
+        Artist.drop_collection()
+
+        spans = tracer.pop()
+        assert len(spans) == 1
+        assert spans[0].name == "pymongo.cmd"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_span_name_v1_schema(self):
+        """
+        When a user specifies a service for the app
+            The mongoengine integration should not use it.
+        """
+        tracer = self.get_tracer_and_connect()
+        Artist.drop_collection()
+
+        spans = tracer.pop()
+        assert len(spans) == 1
+        assert spans[0].name == "mongodb.query"
 
 
 class TestMongoEnginePatchConnect(TestMongoEnginePatchConnectDefault):

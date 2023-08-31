@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    aws_lambda: Fix AttributeError raised when extracting context from arguments.

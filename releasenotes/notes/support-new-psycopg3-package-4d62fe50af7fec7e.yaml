@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    psycopg: This release adds support for the new psycopg3 package. This new integration has all the same tracing functionality 
+    as the previous psycopg2-binary package, with added support for new methods including async connection and async cursor classes.
+    The release also adds support for using Django>=4.2 with psycopg3 integrated tracing.

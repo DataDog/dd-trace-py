@@ -50,45 +50,44 @@ class PSUtilRuntimeMetricCollector(RuntimeMetricCollector):
     """
 
     required_modules = ["ddtrace.vendor.psutil"]
-    stored_value = dict(
-        CPU_TIME_SYS_TOTAL=0,
-        CPU_TIME_USER_TOTAL=0,
-        CTX_SWITCH_VOLUNTARY_TOTAL=0,
-        CTX_SWITCH_INVOLUNTARY_TOTAL=0,
-    )
+    delta_funs = {
+        CPU_TIME_SYS: lambda p: p.cpu_times().system,
+        CPU_TIME_USER: lambda p: p.cpu_times().user,
+        CTX_SWITCH_VOLUNTARY: lambda p: p.num_ctx_switches().voluntary,
+        CTX_SWITCH_INVOLUNTARY: lambda p: p.num_ctx_switches().involuntary,
+    }
+    abs_funs = {
+        THREAD_COUNT: lambda p: p.num_threads(),
+        MEM_RSS: lambda p: p.memory_info().rss,
+        CPU_PERCENT: lambda p: p.cpu_percent(),
+    }
 
     def _on_modules_load(self):
         self.proc = self.modules["ddtrace.vendor.psutil"].Process(os.getpid())
+        self.stored_values = {key: 0 for key in self.delta_funs.keys()}
 
     def collect_fn(self, keys):
         with self.proc.oneshot():
-            # only return time deltas
-            # TODO[tahir]: better abstraction for metrics based on last value
-            cpu_time_sys_total = self.proc.cpu_times().system
-            cpu_time_user_total = self.proc.cpu_times().user
-            cpu_time_sys = cpu_time_sys_total - self.stored_value["CPU_TIME_SYS_TOTAL"]
-            cpu_time_user = cpu_time_user_total - self.stored_value["CPU_TIME_USER_TOTAL"]
+            metrics = {}
 
-            ctx_switch_voluntary_total = self.proc.num_ctx_switches().voluntary
-            ctx_switch_involuntary_total = self.proc.num_ctx_switches().involuntary
-            ctx_switch_voluntary = ctx_switch_voluntary_total - self.stored_value["CTX_SWITCH_VOLUNTARY_TOTAL"]
-            ctx_switch_involuntary = ctx_switch_involuntary_total - self.stored_value["CTX_SWITCH_INVOLUNTARY_TOTAL"]
+            # Populate metrics for which we compute delta values
+            for metric, delta_fun in self.delta_funs.items():
+                try:
+                    value = delta_fun(self.proc)
+                except Exception:
+                    value = 0
 
-            self.stored_value = dict(
-                CPU_TIME_SYS_TOTAL=cpu_time_sys_total,
-                CPU_TIME_USER_TOTAL=cpu_time_user_total,
-                CTX_SWITCH_VOLUNTARY_TOTAL=ctx_switch_voluntary_total,
-                CTX_SWITCH_INVOLUNTARY_TOTAL=ctx_switch_involuntary_total,
-            )
+                delta = value - self.stored_values.get(metric, 0)
+                self.stored_values[metric] = value
+                metrics[metric] = delta
 
-            metrics = [
-                (THREAD_COUNT, self.proc.num_threads()),
-                (MEM_RSS, self.proc.memory_info().rss),
-                (CTX_SWITCH_VOLUNTARY, ctx_switch_voluntary),
-                (CTX_SWITCH_INVOLUNTARY, ctx_switch_involuntary),
-                (CPU_TIME_SYS, cpu_time_sys),
-                (CPU_TIME_USER, cpu_time_user),
-                (CPU_PERCENT, self.proc.cpu_percent()),
-            ]
+            # Populate metrics that just take instantaneous reading
+            for metric, abs_fun in self.abs_funs.items():
+                try:
+                    value = abs_fun(self.proc)
+                except Exception:
+                    value = 0
 
-            return metrics
+                metrics[metric] = value
+
+            return list(metrics.items())

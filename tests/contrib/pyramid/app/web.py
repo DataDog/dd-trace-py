@@ -20,6 +20,9 @@ def create_app(settings, instrument):
     def error(request):
         raise HTTPInternalServerError("oh no")
 
+    def patterned_hello_world(request):
+        return Response("Hello World %s!" % (request.matchdict["param"]))
+
     def exception(request):
         1 / 0
 
@@ -47,13 +50,16 @@ def create_app(settings, instrument):
     config = Configurator(settings=settings)
     config.add_route("index", "/")
     config.add_route("error", "/error")
+    config.add_route("hello_patterned", "/hello/{param}")
     config.add_route("exception", "/exception")
     config.add_route("json", "/json")
     config.add_route("renderer", "/renderer")
     config.add_route("raise_redirect", "/redirect")
     config.add_route("raise_no_content", "/nocontent")
+
     config.add_view(index, route_name="index")
     config.add_view(error, route_name="error")
+    config.add_view(patterned_hello_world, route_name="hello_patterned")
     config.add_view(exception, route_name="exception")
     config.add_view(json, route_name="json", renderer="json")
     config.add_view(renderer, route_name="renderer", renderer="template.pt")

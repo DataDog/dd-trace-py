@@ -19,6 +19,9 @@ Release Notes
 
 
 .. ddtrace-release-notes::
+    "1.10.0":
+      ignore_notes:
+        - "dbm-support-sql-queries-with-the-type-bytes-30fb4b75ea2f8cf8"
     "1.7.0":
       ignore_notes:
         - "Fix-version-constraints-for-Py27-e3a0069f43a84c16.yaml"

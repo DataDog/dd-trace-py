@@ -1,11 +1,10 @@
 # -*- encoding: utf-8 -*-
-import collections
 import os
 import time
 
+import pytest
+
 from ddtrace.internal import compat
-from ddtrace.profiling import profiler
-from ddtrace.profiling.collector import stack_event
 
 
 TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False)
@@ -66,9 +65,18 @@ def total_time(time_data, funcname):
     return sum(functime[funcname] for functime in time_data.values())
 
 
-def test_accuracy(monkeypatch):
+@pytest.mark.subprocess(env=dict(DD_PROFILING_MAX_TIME_USAGE_PCT="100"))
+def test_accuracy():
+    import collections
+
+    from ddtrace.profiling import profiler
+    from ddtrace.profiling.collector import stack_event
+    from tests.profiling.test_accuracy import CPU_TOLERANCE
+    from tests.profiling.test_accuracy import almost_equal
+    from tests.profiling.test_accuracy import spend_16
+    from tests.profiling.test_accuracy import total_time
+
     # Set this to 100 so we don't sleep too often and mess with the precision.
-    monkeypatch.setenv("DD_PROFILING_MAX_TIME_USAGE_PCT", "100")
     p = profiler.Profiler()
     # don't export data
     p._profiler._scheduler = None

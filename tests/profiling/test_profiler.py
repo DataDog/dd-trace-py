@@ -12,7 +12,6 @@ from ddtrace.profiling import exporter
 from ddtrace.profiling import profiler
 from ddtrace.profiling import scheduler
 from ddtrace.profiling.collector import asyncio
-from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import threading
 from ddtrace.profiling.exporter import http
@@ -157,47 +156,62 @@ def test_tags_api():
         pytest.fail("Unable to find HTTP exporter")
 
 
-@pytest.mark.parametrize(
-    "value,should_be_enabled",
-    [
-        (None, True),  # default value
-        ("true", True),
-        ("0", False),
-    ],
+@pytest.mark.subprocess()
+def test_default_memory():
+    from ddtrace.profiling import profiler
+    from ddtrace.profiling.collector import memalloc
+
+    assert any(isinstance(col, memalloc.MemoryCollector) for col in profiler.Profiler()._profiler._collectors)
+
+
+@pytest.mark.subprocess(env=dict(DD_PROFILING_MEMORY_ENABLED="true"))
+def test_enable_memory():
+    from ddtrace.profiling import profiler
+    from ddtrace.profiling.collector import memalloc
+
+    assert any(isinstance(col, memalloc.MemoryCollector) for col in profiler.Profiler()._profiler._collectors)
+
+
+@pytest.mark.subprocess(env=dict(DD_PROFILING_MEMORY_ENABLED="false"))
+def test_disable_memory():
+    from ddtrace.profiling import profiler
+    from ddtrace.profiling.collector import memalloc
+
+    assert all(not isinstance(col, memalloc.MemoryCollector) for col in profiler.Profiler()._profiler._collectors)
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_PROFILING_AGENTLESS="true", DD_API_KEY="foobar", DD_SITE=None),
+    err=None,
 )
-def test_disable_memory(value, should_be_enabled, monkeypatch):
-    if value is not None:
-        monkeypatch.setenv("DD_PROFILING_MEMORY_ENABLED", value)
-    prof = profiler.Profiler()
-    for col in prof._profiler._collectors:
-        if isinstance(col, memalloc.MemoryCollector):
-            if should_be_enabled:
-                break
-            else:
-                pytest.fail("MemoryCollector found")
-    else:
-        if should_be_enabled:
-            pytest.fail("MemoryCollector not found")
+def test_env_agentless():
+    from ddtrace.profiling import profiler
+    from tests.profiling.test_profiler import _check_url
 
-
-def test_env_agentless(monkeypatch):
-    monkeypatch.setenv("DD_PROFILING_AGENTLESS", "true")
-    monkeypatch.setenv("DD_API_KEY", "foobar")
     prof = profiler.Profiler()
     _check_url(prof, "https://intake.profile.datadoghq.com", "foobar", endpoint_path="/api/v2/profile")
 
 
-def test_env_agentless_site(monkeypatch):
-    monkeypatch.setenv("DD_SITE", "datadoghq.eu")
-    monkeypatch.setenv("DD_PROFILING_AGENTLESS", "true")
-    monkeypatch.setenv("DD_API_KEY", "foobar")
+@pytest.mark.subprocess(
+    env=dict(DD_PROFILING_AGENTLESS="true", DD_API_KEY="foobar", DD_SITE="datadoghq.eu"),
+    err=None,
+)
+def test_env_agentless_site():
+    from ddtrace.profiling import profiler
+    from tests.profiling.test_profiler import _check_url
+
     prof = profiler.Profiler()
     _check_url(prof, "https://intake.profile.datadoghq.eu", "foobar", endpoint_path="/api/v2/profile")
 
 
-def test_env_no_agentless(monkeypatch):
-    monkeypatch.setenv("DD_PROFILING_AGENTLESS", "false")
-    monkeypatch.setenv("DD_API_KEY", "foobar")
+@pytest.mark.subprocess(
+    env=dict(DD_PROFILING_AGENTLESS="false", DD_API_KEY="foobar"),
+    err=None,
+)
+def test_env_no_agentless():
+    from ddtrace.profiling import profiler
+    from tests.profiling.test_profiler import _check_url
+
     prof = profiler.Profiler()
     _check_url(prof, "http://localhost:8126", "foobar")
 

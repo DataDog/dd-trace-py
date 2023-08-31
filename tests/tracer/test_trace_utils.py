@@ -18,11 +18,14 @@ from ddtrace import Pin
 from ddtrace import Span
 from ddtrace import Tracer
 from ddtrace import config
+from ddtrace.appsec._constants import IAST
 from ddtrace.context import Context
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.trace_utils import _get_request_header_client_ip
+from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
-from ddtrace.internal import _context
+from ddtrace.ext import net
+from ddtrace.internal import core
 from ddtrace.internal.compat import six
 from ddtrace.internal.compat import stringify
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
@@ -306,12 +309,13 @@ def test_ext_service(int_config, pin, config_val, default, expected):
 
 
 @pytest.mark.parametrize("appsec_enabled", [False, True])
+@pytest.mark.parametrize("span_type", [SpanTypes.WEB, SpanTypes.HTTP, None])
 @pytest.mark.parametrize(
-    "method,url,status_code,status_msg,query,request_headers,response_headers,uri,path_params,cookies",
+    "method,url,status_code,status_msg,query,request_headers,response_headers,uri,path_params,cookies,target_host",
     [
-        ("GET", "http://localhost/", 0, None, None, None, None, None, None, None),
-        ("GET", "http://localhost/", 200, "OK", None, None, None, None, None, None),
-        (None, None, None, None, None, None, None, None, None, None),
+        ("GET", "http://localhost/", 0, None, None, None, None, None, None, None, "localhost"),
+        ("GET", "http://localhost/", 200, "OK", None, None, None, None, None, None, "localhost"),
+        (None, None, None, None, None, None, None, None, None, None, None),
         (
             "GET",
             "http://localhost/",
@@ -323,6 +327,7 @@ def test_ext_service(int_config, pin, config_val, default, expected):
             "http://localhost/",
             None,
             None,
+            "localhost",
         ),
         (
             "GET",
@@ -335,12 +340,13 @@ def test_ext_service(int_config, pin, config_val, default, expected):
             "http://localhost/search?q=test+query&q2=val",
             {"id": "val", "name": "vlad"},
             None,
+            "localhost",
         ),
-        ("GET", "http://user:pass@localhost/", 0, None, None, None, None, None, None, None),
-        ("GET", "http://user@localhost/", 0, None, None, None, None, None, None, None),
-        ("GET", "http://user:pass@localhost/api?q=test", 0, None, None, None, None, None, None, None),
-        ("GET", "http://localhost/api@test", 0, None, None, None, None, None, None, None),
-        ("GET", "http://localhost/?api@test", 0, None, None, None, None, None, None, None),
+        ("GET", "http://user:pass@localhost/", 0, None, None, None, None, None, None, None, None),
+        ("GET", "http://user@localhost/", 0, None, None, None, None, None, None, None, None),
+        ("GET", "http://user:pass@localhost/api?q=test", 0, None, None, None, None, None, None, None, None),
+        ("GET", "http://localhost/api@test", 0, None, None, None, None, None, None, None, None),
+        ("GET", "http://localhost/?api@test", 0, None, None, None, None, None, None, None, None),
     ],
 )
 def test_set_http_meta(
@@ -348,6 +354,7 @@ def test_set_http_meta(
     int_config,
     method,
     url,
+    target_host,
     status_code,
     status_msg,
     query,
@@ -357,15 +364,18 @@ def test_set_http_meta(
     path_params,
     cookies,
     appsec_enabled,
+    span_type,
 ):
     int_config.http.trace_headers(["my-header"])
     int_config.trace_query_string = True
+    span.span_type = span_type
     with override_global_config({"_appsec_enabled": appsec_enabled}):
         trace_utils.set_http_meta(
             span,
             int_config,
             method=method,
             url=url,
+            target_host=target_host,
             status_code=status_code,
             status_msg=status_msg,
             query=query,
@@ -379,6 +389,11 @@ def test_set_http_meta(
         assert span.get_tag(http.METHOD) == method
     else:
         assert http.METHOD not in span.get_tags()
+
+    if target_host is not None:
+        assert span.get_tag(net.TARGET_HOST) == target_host
+    else:
+        assert net.TARGET_HOST not in span.get_tags()
 
     if url is not None:
         if url.startswith("http://user"):
@@ -414,17 +429,17 @@ def test_set_http_meta(
             tag = "http.request.headers." + header
             assert span.get_tag(tag) == value
 
-    if appsec_enabled:
+    if appsec_enabled and span.span_type == SpanTypes.WEB:
         if uri is not None:
-            assert _context.get_item("http.request.uri", span=span) == uri
+            assert core.get_item("http.request.uri", span=span) == uri
         if method is not None:
-            assert _context.get_item("http.request.method", span=span) == method
+            assert core.get_item("http.request.method", span=span) == method
         if request_headers is not None:
-            assert _context.get_item("http.request.headers", span=span) == request_headers
+            assert core.get_item("http.request.headers", span=span) == request_headers
         if response_headers is not None:
-            assert _context.get_item("http.response.headers", span=span) == response_headers
+            assert core.get_item("http.response.headers", span=span) == response_headers
         if path_params is not None:
-            assert _context.get_item("http.request.path_params", span=span) == path_params
+            assert core.get_item("http.request.path_params", span=span) == path_params
 
 
 @mock.patch("ddtrace.settings.config.log")
@@ -465,6 +480,23 @@ def test_set_http_meta_no_headers(mock_store_headers, span, int_config):
     result_keys.sort(reverse=True)
     assert result_keys == ["runtime-id", http.USER_AGENT]
     mock_store_headers.assert_not_called()
+
+
+def test_set_http_meta_insecure_cookies_iast_disabled(span, int_config):
+    with override_global_config(dict(_iast_enabled=False)):
+        cookies = {"foo": "bar"}
+        trace_utils.set_http_meta(span, int_config.myint, request_cookies=cookies)
+        span_report = core.get_item(IAST.CONTEXT_KEY, span=span)
+        assert not span_report
+
+
+@pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ test")
+def test_set_http_meta_insecure_cookies_iast_enabled(span, int_config):
+    with override_global_config(dict(_iast_enabled=True, _appsec_enabled=True)):
+        cookies = {"foo": "bar"}
+        trace_utils.set_http_meta(span, int_config.myint, request_cookies=cookies)
+        span_report = core.get_item(IAST.CONTEXT_KEY, span=span)
+        assert span_report.vulnerabilities
 
 
 @mock.patch("ddtrace.contrib.trace_utils._store_headers")

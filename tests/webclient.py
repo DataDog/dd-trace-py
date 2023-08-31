@@ -1,9 +1,9 @@
 import requests
 import six
-import tenacity
 
 from ddtrace.context import Context
 from ddtrace.filters import TraceFilter
+from ddtrace.internal.utils.retry import retry
 from ddtrace.propagation.http import HTTPPropagator
 
 
@@ -46,7 +46,7 @@ class Client(object):
         # type: (str, int, float) -> None
         """Wait for the server to start by repeatedly http `get`ting `path` until a 200 is received."""
 
-        @tenacity.retry(stop=tenacity.stop_after_attempt(max_tries), wait=tenacity.wait_fixed(delay))
+        @retry(after=[delay] * (max_tries - 1))
         def ping():
             r = self.get_ignored(path, timeout=1)
             assert r.status_code == 200

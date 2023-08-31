@@ -2,49 +2,38 @@ import logging
 import os
 
 from ddtrace.internal import agent
+from ddtrace.internal import atexit
+from ddtrace.internal import forksafe
 from ddtrace.internal import periodic
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.remoteconfig._pubsub import PubSub
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
+from ddtrace.internal.remoteconfig.utils import get_poll_interval_seconds
+from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.time import StopWatch
-from ddtrace.vendor.debtcollector import deprecate
 
 
 log = get_logger(__name__)
 
 
-DEFAULT_REMOTECONFIG_POLL_SECONDS = 5.0  # seconds
-
-
-def get_poll_interval_seconds():
-    # type:() -> float
-    if os.getenv("DD_REMOTECONFIG_POLL_SECONDS"):
-        deprecate(
-            "Using environment variable 'DD_REMOTECONFIG_POLL_SECONDS' is deprecated",
-            message="Please use DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS instead.",
-            removal_version="2.0.0",
-        )
-    return float(
-        os.getenv(
-            "DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS",
-            default=os.getenv("DD_REMOTECONFIG_POLL_SECONDS", default=DEFAULT_REMOTECONFIG_POLL_SECONDS),
-        )
-    )
-
-
-class RemoteConfigWorker(periodic.PeriodicService):
+class RemoteConfigPoller(periodic.PeriodicService):
     """Remote configuration worker.
 
     This implements a finite-state machine that allows checking the agent for
     the expected endpoint, which could be enabled after the client is started.
     """
 
+    _worker_lock = forksafe.Lock()
+    _enable = True
+
     def __init__(self):
-        super(RemoteConfigWorker, self).__init__(interval=get_poll_interval_seconds())
+        super(RemoteConfigPoller, self).__init__(interval=get_poll_interval_seconds())
         self._client = RemoteConfigClient()
-        log.debug("RemoteConfigWorker created with polling interval %d", get_poll_interval_seconds())
         self._state = self._agent_check
+        self._parent_id = os.getpid()
+        log.debug("RemoteConfigWorker created with polling interval %d", get_poll_interval_seconds())
 
     def _agent_check(self):
         # type: () -> None
@@ -93,3 +82,111 @@ class RemoteConfigWorker(periodic.PeriodicService):
     def periodic(self):
         # type: () -> None
         return self._state()
+
+    def enable(self):
+        # type: () -> bool
+        # TODO: this is only temporary. DD_REMOTE_CONFIGURATION_ENABLED variable will be deprecated
+        rc_env_enabled = asbool(os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", "true"))
+        if rc_env_enabled and self._enable:
+            if self.status == ServiceStatus.RUNNING:
+                return True
+
+            self.start()
+            forksafe.register(self.start_subscribers)
+            atexit.register(self.disable)
+            return True
+        return False
+
+    def start_subscribers(self):
+        # type: () -> None
+        """Subscribers need to be restarted when application forks"""
+        self._enable = False
+        log.debug("[%s][P: %s] Remote Config Poller fork. Starting Pubsub services", os.getpid(), os.getppid())
+        self._client.renew_id()
+        for pubsub in self._client.get_pubsubs():
+            pubsub.restart_subscriber()
+
+    def _poll_data(self, test_tracer=None):
+        """Force subscribers to poll new data. This function is only used in tests"""
+        for pubsub in self._client.get_pubsubs():
+            pubsub._poll_data(test_tracer=test_tracer)
+
+    def stop_subscribers(self, join=False):
+        # type: (bool) -> None
+        """
+        Disable the remote config service and drop, remote config can be re-enabled
+        by calling ``enable`` again.
+        """
+        log.debug(
+            "[%s][P: %s] Remote Config Poller fork. Stopping  Pubsub services",
+            os.getpid(),
+            self._parent_id,
+        )
+        for pubsub in self._client.get_pubsubs():
+            pubsub.stop(join=join)
+
+    def disable(self, join=False):
+        # type: (bool) -> None
+        self.stop_subscribers(join=join)
+        self._client.reset_products()
+
+        if self.status == ServiceStatus.STOPPED:
+            return
+
+        forksafe.unregister(self.start_subscribers)
+        atexit.unregister(self.disable)
+
+        self.stop()
+
+    def _stop_service(self, *args, **kwargs):
+        # type: (...) -> None
+        self.stop_subscribers()
+
+        if self.status == ServiceStatus.STOPPED or self._worker is None:
+            return
+
+        super(RemoteConfigPoller, self)._stop_service(*args, **kwargs)
+
+    def update_product_callback(self, product, callback):
+        """Some Products fork and restart their instances when application creates new process. In that case,
+        we need to update the callback instance to ensure the instance of the child process receives correctly the
+        Remote Configuration payloads.
+        """
+        return self._client.update_product_callback(product, callback)
+
+    def register(self, product, pubsub_instance, skip_enabled=False):
+        # type: (str, PubSub, bool) -> None
+        try:
+            # By enabling on registration we ensure we start the RCM client only
+            # if there is at least one registered product.
+            enabled = True
+            if not skip_enabled:
+                enabled = self.enable()
+
+            if enabled:
+                self._client.register_product(product, pubsub_instance)
+                if not self._client.is_subscriber_running(pubsub_instance):
+                    pubsub_instance.start_subscriber()
+        except Exception:
+            log.debug("error starting the RCM client", exc_info=True)
+
+    def unregister(self, product):
+        try:
+            self._client.unregister_product(product)
+        except Exception:
+            log.debug("error starting the RCM client", exc_info=True)
+
+    def get_registered(self, product):
+        return self._client._products.get(product)
+
+    def __enter__(self):
+        # type: () -> RemoteConfigPoller
+        self.enable()
+        return self
+
+    def __exit__(self, *args):
+        # type: (...) -> None
+        self.disable()
+
+
+remoteconfig_poller = RemoteConfigPoller()

@@ -14,6 +14,7 @@ class CustomObject(object):
     def __init__(self, name, level=2):
         self.name = name
         self.myField = "hello"
+        self._privateField = "private"
         if level:
             self.collectionField = [CustomObject("foo%d" % _, 0) for _ in range(10)]
             self.field1 = CustomObject("field1", level - 1)
@@ -48,6 +49,7 @@ class CustomDict(dict):
         # Test references with operations
         ({"len": {"ref": "payload"}}, {"payload": "hello"}, 5),
         ({"len": {"getmember": [{"ref": "self"}, "collectionField"]}}, {"self": CustomObject("expr")}, 10),
+        ({"len": {"getmember": [{"ref": "self"}, "_privateField"]}}, {"self": CustomObject("expr")}, len("private")),
         ({"len": {"getmember": [{"ref": "self"}, "bogusField"]}}, {"self": CustomObject("expr")}, AttributeError),
         ({"len": {"ref": "payload"}}, {}, KeyError),
         # Test plain references
@@ -70,6 +72,7 @@ class CustomDict(dict):
         # Test argument predicates and operations
         ({"contains": [{"ref": "payload"}, "hello"]}, {"payload": "hello world"}, True),
         ({"eq": [{"ref": "hits"}, True]}, {"hits": True}, True),
+        ({"eq": [{"ref": "hits"}, None]}, {"hits": None}, True),
         ({"substring": [{"ref": "payload"}, 4, 7]}, {"payload": "hello world"}, "hello world"[4:7]),
         ({"any": [{"ref": "collection"}, {"isEmpty": {"ref": "@it"}}]}, {"collection": ["foo", "bar", ""]}, True),
         ({"startsWith": [{"ref": "local_string"}, "hello"]}, {"local_string": "hello world!"}, True),

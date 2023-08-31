@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    logging: Ensure that the logging module can report thread information, such as thread
+    names, correctly when a framework like gevent is used that requires modules
+    cleanup.

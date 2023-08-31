@@ -1,9 +1,13 @@
 from importlib import import_module
+from typing import List
 
 from ddtrace import config
 from ddtrace._tracing import _limits
 from ddtrace.contrib.trace_utils import ext_service
+from ddtrace.contrib.trace_utils import extract_netloc_and_query_info_from_url
+from ddtrace.ext import net
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.logger import get_logger
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -14,15 +18,18 @@ from ...ext import SpanTypes
 from ...ext import elasticsearch as metadata
 from ...ext import http
 from ...internal.compat import urlencode
+from ...internal.schema import schematize_service_name
 from ...internal.utils.wrappers import unwrap as _u
 from ...pin import Pin
 from .quantize import quantize
 
 
+log = get_logger(__name__)
+
 config._add(
     "elasticsearch",
     {
-        "_default_service": "elasticsearch",
+        "_default_service": schematize_service_name("elasticsearch"),
     },
 )
 
@@ -44,6 +51,25 @@ def _es_modules():
             pass
 
 
+versions = {}
+
+
+def get_version_tuple(elasticsearch):
+    if getattr(elasticsearch, "__name__", None):
+        versions[elasticsearch.__name__] = getattr(elasticsearch, "__versionstr__", "")
+    return getattr(elasticsearch, "__version__", "")
+
+
+def get_version():
+    # type: () -> str
+    return ""
+
+
+def get_versions():
+    # type: () -> List[str]
+    return versions
+
+
 # NB: We are patching the default elasticsearch.transport module
 def patch():
     for elasticsearch in _es_modules():
@@ -51,9 +77,10 @@ def patch():
 
 
 def _patch(elasticsearch):
-    if getattr(elasticsearch, "_datadog_patch", False):
+    # elasticsearch 8 is not yet supported
+    if getattr(elasticsearch, "_datadog_patch", False) or get_version_tuple(elasticsearch) >= (8, 0, 0):
         return
-    setattr(elasticsearch, "_datadog_patch", True)
+    elasticsearch._datadog_patch = True
     _w(elasticsearch.transport, "Transport.perform_request", _get_perform_request(elasticsearch))
     Pin().onto(elasticsearch.transport.Transport)
 
@@ -65,7 +92,7 @@ def unpatch():
 
 def _unpatch(elasticsearch):
     if getattr(elasticsearch, "_datadog_patch", False):
-        setattr(elasticsearch, "_datadog_patch", False)
+        elasticsearch._datadog_patch = False
         _u(elasticsearch.transport.Transport, "perform_request")
 
 
@@ -97,6 +124,12 @@ def _get_perform_request(elasticsearch):
             span.set_tag_str(metadata.METHOD, method)
             span.set_tag_str(metadata.URL, url)
             span.set_tag_str(metadata.PARAMS, encoded_params)
+            for connection in instance.connection_pool.connections:
+                hostname, _ = extract_netloc_and_query_info_from_url(connection.host)
+                if hostname:
+                    span.set_tag_str(net.TARGET_HOST, hostname)
+                    break
+
             if config.elasticsearch.trace_query_string:
                 span.set_tag_str(http.QUERY_STRING, encoded_params)
 
@@ -142,7 +175,7 @@ def _get_perform_request(elasticsearch):
                 if took:
                     span.set_metric(metadata.TOOK, int(took))
             except Exception:
-                pass
+                log.debug("Unexpected exception", exc_info=True)
 
             if status:
                 span.set_tag(http.STATUS_CODE, status)

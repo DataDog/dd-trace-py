@@ -1,3 +1,5 @@
+import os
+
 import graphql
 import pytest
 
@@ -146,3 +148,34 @@ def test_graphql_execute_sync_with_middlware_manager(
         res2 = graphql.execution.execute_sync(test_schema, ast, middleware=middleware_manager)
         assert res1.data == {"hello": "friend"}
         assert res2.data == {"hello": "friend"}
+
+
+@pytest.mark.snapshot
+@pytest.mark.skipif(graphql_version < (3, 0), reason="graphql.graphql_sync is NOT suppoerted in v2.0")
+@pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
+@pytest.mark.parametrize("service_name", [None, "my-service"])
+def test_span_schematization(ddtrace_run_python_code_in_subprocess, schema_version, service_name):
+    code = """
+import sys
+import pytest
+import graphql
+from tests.contrib.graphql.test_graphql import test_schema
+from tests.contrib.graphql.test_graphql import test_source_str
+from tests.contrib.graphql.test_graphql import enable_graphql_patching
+
+def test(test_schema, test_source_str):
+    result = graphql.graphql_sync(test_schema, test_source_str)
+    assert result.data == {"hello": "friend"}
+
+if __name__ == "__main__":
+    sys.exit(pytest.main(["-x", __file__]))
+    """
+
+    env = os.environ.copy()
+    if service_name:
+        env["DD_SERVICE"] = service_name
+    if schema_version:
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    assert status == 0, out.decode()
+    assert err == b"", err.decode()

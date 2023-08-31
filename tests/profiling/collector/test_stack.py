@@ -215,15 +215,16 @@ def test_collect_gevent_thread_task():
         for t in threads:
             t.join()
 
+    expected_task_ids = {thread.ident for thread in threads}
     for event in r.events[stack_event.StackSampleEvent]:
-        if event.thread_name is None and event.task_id in {thread.ident for thread in threads}:
+        if event.task_id in expected_task_ids:
             assert event.task_name.startswith("TestThread ")
             # This test is not uber-reliable as it has timing issue, therefore
             # if we find one of our TestThread with the correct info, we're
             # happy enough to stop here.
             break
     else:
-        pytest.fail("No gevent thread found")
+        pytest.fail("No gevent threads found")
 
 
 def test_max_time_usage():
@@ -301,7 +302,7 @@ def test_ignore_profiler_gevent_task():
             # Give some time for gevent to switch greenlets
             time.sleep(0.1)
         else:
-            assert False, "ignore == " + ignore
+            raise AssertionError("ignore == " + ignore)
 
         c.stop()
         p.stop(flush=False)
@@ -364,7 +365,7 @@ def test_stress_threads():
     NB_THREADS = 40
 
     threads = []
-    for i in range(NB_THREADS):
+    for _ in range(NB_THREADS):
         t = threading.Thread(target=_f0)  # noqa: E149,F821
         t.start()
         threads.append(t)
@@ -393,7 +394,7 @@ def test_stress_threads_run_as_thread():
     NB_THREADS = 40
 
     threads = []
-    for i in range(NB_THREADS):
+    for _ in range(NB_THREADS):
         t = threading.Thread(target=_f0)  # noqa: E149,F821
         t.start()
         threads.append(t)
@@ -413,7 +414,7 @@ def test_exception_collection_threads():
     NB_THREADS = 5
 
     threads = []
-    for i in range(NB_THREADS):
+    for _ in range(NB_THREADS):
         t = threading.Thread(target=_f0)  # noqa: E149,F821
         t.start()
         threads.append(t)
@@ -639,7 +640,7 @@ def test_stress_trace_collection(tracer_and_collector):
     NB_THREADS = 30
 
     threads = []
-    for i in range(NB_THREADS):
+    for _ in range(NB_THREADS):
         t = threading.Thread(target=_trace)
         threads.append(t)
 
@@ -744,7 +745,7 @@ def test_collect_gevent_threads():
         if event.task_name == "MainThread":
             main_thread_found = True
         elif event.task_id in {t.ident for t in threads}:
-            for filename, lineno, funcname, classname in event.frames:
+            for _filename, _lineno, funcname, _classname in event.frames:
                 if funcname in (
                     "_nothing",
                     "sleep",

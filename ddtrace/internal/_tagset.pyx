@@ -9,6 +9,7 @@ Tagset eBNF::
     space = " ";
 """
 
+
 class TagsetEncodeError(ValueError):
     pass
 
@@ -66,7 +67,9 @@ class TagsetMaxSizeDecodeError(TagsetDecodeError):
         self.tagset = tagset
         self.max_size = max_size
 
-        msg = "Tagset cannot decode {!r} which exceeds max size of {!r} with length {!r}".format(tagset, max_size, len(tagset))
+        msg = "Tagset cannot decode {!r} which exceeds max size of {!r} with length {!r}".format(
+            tagset, max_size, len(tagset),
+        )
         super(TagsetMaxSizeDecodeError, self).__init__(msg)
 
 
@@ -152,7 +155,9 @@ cpdef dict decode_tagset_string(str tagset, int max_size=512):
                 continue
 
             if not is_valid_value_char(o):
-                raise TagsetDecodeError("Unexpected character {!r} for value {}={}: {!r}".format(c, cur_key, cur_val, tagset))
+                raise TagsetDecodeError(
+                    "Unexpected character {!r} for value {}={}: {!r}".format(c, cur_key, cur_val, tagset),
+                )
             cur_val += c
 
     # Reached EOF, do we have a key/value pair we need to save?

@@ -1,0 +1,40 @@
+[[
+  {
+    "name": "aws.lambda",
+    "service": "",
+    "resource": "aws.lambda",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "language": "python",
+      "runtime-id": "93982c58c4fb4e3f83fa0f20f5b23229"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 9688
+    },
+    "duration": 146940,
+    "start": 1691161784465186433
+  },
+     {
+       "name": "result-trace",
+       "service": "",
+       "resource": "result-trace",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.p.dm": "-0"
+       },
+       "duration": 18933,
+       "start": 1691161784465284474
+     }]]

@@ -7,6 +7,7 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.bottle import TracePlugin
 from ddtrace.ext import http
 from ddtrace.internal import compat
+from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
@@ -456,9 +457,9 @@ class TraceBottleTest(TracerTestCase):
         assert dd_span.get_tag("span.kind") == "server"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_user_specified_service(self):
+    def test_user_specified_service_default_schema(self):
         """
-        When a service name is specified by the user
+        default/v0: When a service name is specified by the user
             The bottle integration should use it as the service name
         """
 
@@ -470,10 +471,132 @@ class TraceBottleTest(TracerTestCase):
         resp = self.app.get("/hi/dougie")
         assert resp.status_int == 200
         root = self.get_root_span()
-        root.assert_matches(
-            name="bottle.request",
-            service="mysvc",
-        )
+        root.assert_matches(service="mysvc")
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_user_specified_service_v0_schema(self):
+        """
+        v0: When a service name is specified by the user
+            The bottle integration should use it as the service name
+        """
+
+        @self.app.route("/hi/<name>")
+        def hi(name):
+            return "hi %s" % name
+
+        self._trace_app(self.tracer)
+        resp = self.app.get("/hi/dougie")
+        assert resp.status_int == 200
+        root = self.get_root_span()
+        root.assert_matches(service="mysvc")
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_user_specified_service_v1_schema(self):
+        """
+        v1: When a service name is specified by the user
+            The bottle integration should use it as the service name
+        """
+
+        @self.app.route("/hi/<name>")
+        def hi(name):
+            return "hi %s" % name
+
+        self._trace_app(self.tracer)
+        resp = self.app.get("/hi/dougie")
+        assert resp.status_int == 200
+        root = self.get_root_span()
+        root.assert_matches(service="mysvc")
+
+    @TracerTestCase.run_in_subprocess()
+    def test_unspecified_service_default_schema(self):
+        """
+        default/v0: When a service name is not specified by the user
+            The bottle integration should use the applications name as the service name (or "bottle")
+        """
+
+        @self.app.route("/hi/<name>")
+        def hi(name):
+            return "hi %s" % name
+
+        self.app.install(TracePlugin(tracer=self.tracer))
+        self.app = webtest.TestApp(self.app)
+        resp = self.app.get("/hi/dougie")
+        assert resp.status_int == 200
+        root = self.get_root_span()
+        root.assert_matches(service="bottle")
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_unspecified_service_v0_schema(self):
+        """
+        default/v0: When a service name is not specified by the user
+            The bottle integration should use "bottle" as the service name
+        """
+
+        @self.app.route("/hi/<name>")
+        def hi(name):
+            return "hi %s" % name
+
+        self.app.install(TracePlugin(tracer=self.tracer))
+        self.app = webtest.TestApp(self.app)
+        resp = self.app.get("/hi/dougie")
+        assert resp.status_int == 200
+        root = self.get_root_span()
+        root.assert_matches(service="bottle")
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_unspecified_service_v1_schema(self):
+        """
+        v1: When a service name is not specified by the user
+            The bottle integration should use internal.schema.DEFAULT_SERVICE_SPAN as the service name
+        """
+
+        @self.app.route("/hi/<name>")
+        def hi(name):
+            return "hi %s" % name
+
+        self._trace_app(self.tracer)
+        resp = self.app.get("/hi/dougie")
+        assert resp.status_int == 200
+        root = self.get_root_span()
+        root.assert_matches(service=DEFAULT_SPAN_SERVICE_NAME)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_operation_name_v0_schema(self):
+        """
+        v0: When a service name is not specified by the user
+            Then we expect 'bottle.request'
+        """
+
+        @self.app.route("/hi/<name>")
+        def hi(name):
+            return "hi %s" % name
+
+        self._trace_app(self.tracer)
+        resp = self.app.get("/hi/dougie")
+        assert resp.status_int == 200
+        root = self.get_root_span()
+        root.assert_matches(name="bottle.request")
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_operation_name_v1_schema(self):
+        """
+        v1: When a service name is not specified by the user
+            Then we expect 'http.server.request'
+        """
+
+        @self.app.route("/hi/<name>")
+        def hi(name):
+            return "hi %s" % name
+
+        self._trace_app(self.tracer)
+        resp = self.app.get("/hi/dougie")
+        assert resp.status_int == 200
+        root = self.get_root_span()
+        import os
+
+        assert "DD_TRACE_SPAN_ATTRIBUTE_SCHEMA" in os.environ
+        assert os.environ["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] == "v1"
+        root.assert_matches(name="http.server.request")
 
     def test_http_request_header_tracing(self):
         config.bottle.http.trace_headers(["my-header"])

@@ -9,6 +9,7 @@
     "type": "grpc",
     "error": 0,
     "meta": {
+      "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "component": "grpc",
       "grpc.host": "::",
@@ -18,8 +19,9 @@
       "grpc.method.service": "Servicer",
       "grpc.status.code": "StatusCode.OK",
       "language": "python",
-      "network.destination.port": "58143",
-      "runtime-id": "caedab5f1c2241329f6c693d7fa2c4e7",
+      "network.destination.port": "42519",
+      "rpc.service": "Servicer",
+      "runtime-id": "180fb6b32ef0466cab96598272d711aa",
       "span.kind": "client"
     },
     "metrics": {
@@ -28,10 +30,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 4211
+      "process_id": 55821
     },
-    "duration": 2526500,
-    "start": 1632161554730027200
+    "duration": 1629167,
+    "start": 1692710668968913379
   },
      {
        "name": "grpc",
@@ -43,21 +45,24 @@
        "type": "grpc",
        "error": 0,
        "meta": {
+         "_dd.base_service": "",
+         "_dd.p.dm": "-0",
          "component": "grpc_server",
          "grpc.method.kind": "unary",
          "grpc.method.name": "Handler",
          "grpc.method.path": "/Servicer/Handler",
          "grpc.method.service": "Servicer",
-         "runtime-id": "caedab5f1c2241329f6c693d7fa2c4e7",
+         "rpc.service": "Servicer",
+         "runtime-id": "180fb6b32ef0466cab96598272d711aa",
          "span.kind": "server"
        },
        "metrics": {
          "_dd.measured": 1,
          "_dd.top_level": 1,
-         "process_id": 4211
+         "process_id": 55821
        },
-       "duration": 87500,
-       "start": 1632161554732181000
+       "duration": 83292,
+       "start": 1692710668970220004
      }],
 [
   {
@@ -70,6 +75,7 @@
     "type": "grpc",
     "error": 0,
     "meta": {
+      "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "component": "grpc",
       "grpc.host": "::",
@@ -80,8 +86,9 @@
       "grpc.method.service": "Servicer",
       "grpc.status.code": "StatusCode.OK",
       "language": "python",
-      "network.destination.port": "58143",
-      "runtime-id": "caedab5f1c2241329f6c693d7fa2c4e7",
+      "network.destination.port": "42519",
+      "rpc.service": "pkg.Servicer",
+      "runtime-id": "180fb6b32ef0466cab96598272d711aa",
       "span.kind": "client"
     },
     "metrics": {
@@ -90,10 +97,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 4211
+      "process_id": 55821
     },
-    "duration": 1253200,
-    "start": 1632161554733222900
+    "duration": 626750,
+    "start": 1692710668970916171
   },
      {
        "name": "grpc",
@@ -105,20 +112,23 @@
        "type": "grpc",
        "error": 0,
        "meta": {
+         "_dd.base_service": "",
+         "_dd.p.dm": "-0",
          "component": "grpc_server",
          "grpc.method.kind": "unary",
          "grpc.method.name": "Handler",
          "grpc.method.package": "pkg",
          "grpc.method.path": "/pkg.Servicer/Handler",
          "grpc.method.service": "Servicer",
-         "runtime-id": "caedab5f1c2241329f6c693d7fa2c4e7",
+         "rpc.service": "pkg.Servicer",
+         "runtime-id": "180fb6b32ef0466cab96598272d711aa",
          "span.kind": "server"
        },
        "metrics": {
          "_dd.measured": 1,
          "_dd.top_level": 1,
-         "process_id": 4211
+         "process_id": 55821
        },
-       "duration": 72800,
-       "start": 1632161554734204000
+       "duration": 44042,
+       "start": 1692710668971378879
      }]]

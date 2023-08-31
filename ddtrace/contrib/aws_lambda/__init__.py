@@ -28,16 +28,19 @@ Configuration
 
 .. py:data:: DD_APM_FLUSH_DEADLINE_MILLISECONDS
 
-   When to flush unfinished spans in an impending timeout.
+   Used to determine when to submit spans before a timeout occurs.
+   When the remaining time in an AWS Lambda invocation is less than `DD_APM_FLUSH_DEADLINE_MILLISECONDS`,
+   the tracer will attempt to submit the current active spans and all finished spans.
 
-   Default: AWS Lambda function timeout limit.
+   Default: 100
 
 
 For additional configuration refer to
 `Instrumenting Python Serverless Applications by Datadog <https://docs.datadoghq.com/serverless/installation/python>`_.
 """
+from .patch import get_version
 from .patch import patch
 from .patch import unpatch
 
 
-__all__ = ["patch", "unpatch"]
+__all__ = ["patch", "unpatch", "get_version"]

@@ -18,6 +18,9 @@ from .. import trace_utils
 from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...internal import compat
+from ...internal.schema import SpanDirection
+from ...internal.schema import schematize_service_name
+from ...internal.schema import schematize_url_operation
 from ...internal.utils.formats import asbool
 
 
@@ -32,7 +35,13 @@ config._add(
     ),
 )
 
-SPAN_NAME = "cherrypy.request"
+
+def get_version():
+    # type: () -> str
+    return getattr(cherrypy, "__version__", "")
+
+
+SPAN_NAME = schematize_url_operation("cherrypy.request", protocol="http", direction=SpanDirection.INBOUND)
 
 
 class TraceTool(cherrypy.Tool):
@@ -61,7 +70,7 @@ class TraceTool(cherrypy.Tool):
 
     @service.setter
     def service(self, service):
-        config.cherrypy["service"] = service
+        config.cherrypy["service"] = schematize_service_name(service)
 
     def _setup(self):
         cherrypy.Tool._setup(self)

@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fixes an issue where harvesting runtime metrics on certain managed
+    environments, such as Google Cloud Run, would cause ddtrace to throw an
+    exception.

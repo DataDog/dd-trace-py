@@ -13,18 +13,21 @@ from typing import Dict
 import attr
 import six
 from six.moves import http_client
-import tenacity
 
 import ddtrace
+from ddtrace.ext.git import COMMIT_SHA
+from ddtrace.ext.git import REPOSITORY_URL
 from ddtrace.internal import agent
+from ddtrace.internal import gitmetadata
 from ddtrace.internal import runtime
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.runtime import container
-from ddtrace.internal.utils import attr as attr_utils
 from ddtrace.internal.utils.formats import parse_tags_str
+from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.profiling import exporter
 from ddtrace.profiling import recorder
 from ddtrace.profiling.exporter import pprof
+from ddtrace.settings.profiling import config
 
 
 HOSTNAME = platform.node()
@@ -32,16 +35,11 @@ PYTHON_IMPLEMENTATION = platform.python_implementation()
 PYTHON_VERSION = platform.python_version()
 
 
-class UploadFailed(tenacity.RetryError, exporter.ExportError):
-    """Upload failure."""
-
-    def __str__(self):
-        return str(self.last_attempt.exception())
-
-
 @attr.s
 class PprofHTTPExporter(pprof.PprofExporter):
     """PProf HTTP exporter."""
+
+    RETRY_ATTEMPTS = 3
 
     # repeat this to please mypy
     enable_code_provenance = attr.ib(default=True, type=bool)
@@ -50,36 +48,44 @@ class PprofHTTPExporter(pprof.PprofExporter):
     api_key = attr.ib(default=None, type=typing.Optional[str])
     # Do not use the default agent timeout: it is too short, the agent is just a unbuffered proxy and the profiling
     # backend is not as fast as the tracer one.
-    timeout = attr.ib(
-        factory=attr_utils.from_env("DD_PROFILING_API_TIMEOUT", 10.0, float),
-        type=float,
-    )
+    timeout = attr.ib(default=config.api_timeout, type=float)
     service = attr.ib(default=None, type=typing.Optional[str])
     env = attr.ib(default=None, type=typing.Optional[str])
     version = attr.ib(default=None, type=typing.Optional[str])
     tags = attr.ib(factory=dict, type=typing.Dict[str, str])
     max_retry_delay = attr.ib(default=None)
     _container_info = attr.ib(factory=container.get_container_info, repr=False)
-    _retry_upload = attr.ib(init=False, eq=False)
     endpoint_path = attr.ib(default="/profiling/v1/input")
 
     endpoint_call_counter_span_processor = attr.ib(default=None, type=EndpointCallCounterProcessor)
 
+    def _update_git_metadata_tags(self, tags):
+        """
+        Update profiler tags with git metadata
+        """
+        # clean tags, because values will be combined and inserted back in the same way as for tracer
+        gitmetadata.clean_tags(tags)
+        repository_url, commit_sha = gitmetadata.get_git_tags()
+        if repository_url:
+            tags[REPOSITORY_URL] = repository_url
+        if commit_sha:
+            tags[COMMIT_SHA] = commit_sha
+        return tags
+
     def __attrs_post_init__(self):
         if self.max_retry_delay is None:
             self.max_retry_delay = self.timeout * 3
-        self._retry_upload = tenacity.Retrying(
-            # Retry after 1s, 2s, 4s, 8s with some randomness
-            wait=tenacity.wait_random_exponential(multiplier=0.5),
-            stop=tenacity.stop_after_delay(self.max_retry_delay),
-            retry_error_cls=UploadFailed,
-            retry=tenacity.retry_if_exception_type((http_client.HTTPException, OSError, IOError)),
-        )
+
+        self._upload = fibonacci_backoff_with_jitter(
+            initial_wait=self.max_retry_delay / (1.618 ** (self.RETRY_ATTEMPTS - 1)),
+            attempts=self.RETRY_ATTEMPTS,
+        )(self._upload)
+
         tags = {
             k: six.ensure_str(v, "utf-8")
             for k, v in itertools.chain(
-                parse_tags_str(os.environ.get("DD_TAGS")).items(),
-                parse_tags_str(os.environ.get("DD_PROFILING_TAGS")).items(),
+                self._update_git_metadata_tags(parse_tags_str(os.environ.get("DD_TAGS"))).items(),
+                config.tags.items(),
             )
         }
         tags.update(self.tags)
@@ -224,13 +230,12 @@ class PprofHTTPExporter(pprof.PprofExporter):
         return profile, libs
 
     def _upload(self, client, path, body, headers):
-        self._retry_upload(self._upload_once, client, path, body, headers)
-
-    def _upload_once(self, client, path, body, headers):
         try:
             client.request("POST", path, body=body, headers=headers)
             response = client.getresponse()
             response.read()  # reading is mandatory
+        except (http_client.HTTPException, EnvironmentError) as e:
+            raise exporter.ExportError("HTTP upload request failed: %s" % e)
         finally:
             client.close()
 
@@ -238,7 +243,7 @@ class PprofHTTPExporter(pprof.PprofExporter):
             return
 
         if 500 <= response.status < 600:
-            raise tenacity.TryAgain
+            raise RuntimeError("Server returned %d" % response.status)
 
         if response.status == 400:
             raise exporter.ExportError("Server returned 400, check your API key")

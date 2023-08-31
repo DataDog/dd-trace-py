@@ -9,6 +9,7 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.elasticsearch.patch import patch
 from ddtrace.contrib.elasticsearch.patch import unpatch
 from ddtrace.ext import http
+from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.utils import TracerTestCase
 
 from ..config import ELASTICSEARCH_CONFIG
@@ -83,6 +84,7 @@ class ElasticsearchPatchTest(TracerTestCase):
         assert span.get_tag("component") == "elasticsearch"
         assert span.get_tag("span.kind") == "client"
         assert span.get_tag("elasticsearch.url") == "/%s" % self.ES_INDEX
+        assert span.get_tag("out.host") == "localhost"
         assert span.resource == "PUT /%s" % self.ES_INDEX
 
         args = self._get_index_args()
@@ -225,11 +227,25 @@ class ElasticsearchPatchTest(TracerTestCase):
         assert spans, spans
         assert len(spans) == 1
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_user_specified_service(self):
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_user_specified_service_v0(self):
         """
-        When a user specifies a service for the app
+        v0: When a user specifies a service for the app
             The elasticsearch integration should not use it.
+        """
+        assert config.service == "mysvc"
+
+        self.es.indices.create(index=self.ES_INDEX, ignore=400)
+        spans = self.get_spans()
+        self.reset()
+        assert len(spans) == 1
+        assert spans[0].service != "mysvc"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_user_specified_service_v1(self):
+        """
+        v1: When a user specifies a service for the app
+            The elasticsearch integration should use it.
         """
         assert config.service == "mysvc"
 
@@ -238,7 +254,24 @@ class ElasticsearchPatchTest(TracerTestCase):
         spans = self.get_spans()
         self.reset()
         assert len(spans) == 1
-        assert spans[0].service != "es"
+        assert spans[0].service == "mysvc"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_unspecified_service_v0(self):
+        self.es.indices.create(index=self.ES_INDEX, ignore=400)
+        spans = self.get_spans()
+        self.reset()
+        assert len(spans) == 1
+        assert spans[0].service == "elasticsearch"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_unspecified_service_v1(self):
+        self.es.indices.create(index=self.ES_INDEX, ignore=400)
+        Pin(service="es", tracer=self.tracer).onto(self.es.transport)
+        spans = self.get_spans()
+        self.reset()
+        assert len(spans) == 1
+        assert spans[0].service == DEFAULT_SPAN_SERVICE_NAME
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE_MAPPING="elasticsearch:custom-elasticsearch"))
     def test_service_mapping_config(self):

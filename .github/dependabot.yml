@@ -1,8 +1,14 @@
 version: 2
 updates:
-  - package-ecosystem: "github-actions"
-    directory: "/"
+  - package-ecosystem: "pip"
+    directory: "/benchmarks"
     schedule:
-      interval: "daily"
+      interval: "weekly"
+    labels:
+      - "changelog/no-changelog"
+  - package-ecosystem: "github-actions"
+    directory: "/.github/"
+    schedule:
+      interval: "weekly"
     labels:
       - "changelog/no-changelog"

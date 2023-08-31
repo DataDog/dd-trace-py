@@ -12,6 +12,8 @@ from grpc.aio._typing import ResponseIterableType
 from grpc.aio._typing import ResponseType
 
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.schema import schematize_url_operation
+from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
 from .. import trace_utils
 from ... import Pin
@@ -96,7 +98,7 @@ class _ClientInterceptor:
 
         method_as_str = client_call_details.method.decode()
         span = tracer.trace(
-            "grpc",
+            schematize_url_operation("grpc", protocol="grpc", direction=SpanDirection.OUTBOUND),
             span_type=SpanTypes.GRPC,
             service=trace_utils.ext_service(self._pin, config.grpc_aio_client),
             resource=method_as_str,

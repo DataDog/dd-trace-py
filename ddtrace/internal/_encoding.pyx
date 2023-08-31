@@ -174,13 +174,15 @@ cdef class StringTable(object):
             return 0
 
         ret = PyDict_Contains(self._table, string)
-        if ret == -1: return ret
+        if ret == -1:
+            return ret
         if ret:
             return PyLong_AsLong(<object>PyDict_GetItem(self._table, string))
 
         _id = self._next_id
         ret = PyDict_SetItem(self._table, string, PyLong_FromLong(_id))
-        if ret == -1: return ret
+        if ret == -1:
+            return ret
         self.insert(string)
         self._next_id += 1
         return _id
@@ -218,6 +220,7 @@ cdef class ListStringTable(StringTable):
 cdef class MsgpackStringTable(StringTable):
     cdef msgpack_packer pk
     cdef int max_size
+    cdef int _max_string_length
     cdef int _sp_len
     cdef stdint.uint32_t _sp_id
     cdef object _lock
@@ -229,6 +232,7 @@ cdef class MsgpackStringTable(StringTable):
         if self.pk.buf == NULL:
             raise MemoryError("Unable to allocate internal buffer.")
         self.max_size = max_size
+        self._max_string_length = int(0.1*max_size)
         self.pk.length = MSGPACK_STRING_TABLE_LENGTH_PREFIX_SIZE
         self._sp_len = 0
         self._lock = threading.RLock()
@@ -243,6 +247,11 @@ cdef class MsgpackStringTable(StringTable):
 
     cdef insert(self, object string):
         cdef int ret
+
+        if len(string) > self._max_string_length:
+            string = "<dropped string of length %d because it's too long (max allowed length %d)>" % (
+                len(string), self._max_string_length
+            )
 
         if self.pk.length + len(string) > self.max_size:
             raise ValueError(
@@ -265,15 +274,15 @@ cdef class MsgpackStringTable(StringTable):
             self._next_id = self._sp_id
 
     cdef get_bytes(self):
-        cdef int ret;
-        cdef stdint.uint32_t l = self._next_id
-        cdef int offset = MSGPACK_STRING_TABLE_LENGTH_PREFIX_SIZE - array_prefix_size(l)
+        cdef int ret
+        cdef stdint.uint32_t table_size = self._next_id
+        cdef int offset = MSGPACK_STRING_TABLE_LENGTH_PREFIX_SIZE - array_prefix_size(table_size)
         cdef int old_pos = self.pk.length
 
         with self._lock:
             # Update table size prefix
             self.pk.length = offset
-            ret = msgpack_pack_array(&self.pk, l)
+            ret = msgpack_pack_array(&self.pk, table_size)
             if ret:
                 return None
             # Add root array size prefix
@@ -463,14 +472,21 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
             raise ValueError("list is too large")
 
         ret = msgpack_pack_array(&self.pk, L)
-        if ret != 0: raise RuntimeError("Couldn't pack trace")
+        if ret != 0:
+            raise RuntimeError("Couldn't pack trace")
 
         if L > 0 and trace[0].context is not None and trace[0].context.dd_origin is not None:
             dd_origin = self.get_dd_origin_ref(trace[0].context.dd_origin)
 
         for span in trace:
-            ret = self.pack_span(span, dd_origin)
-            if ret != 0: raise RuntimeError("Couldn't pack span")
+            try:
+                ret = self.pack_span(span, dd_origin)
+            except Exception as e:
+                raise RuntimeError("failed to pack span: {!r}. Exception: {}".format(span, e))
+
+            # No exception was raised, but we got an error code from msgpack
+            if ret != 0:
+                raise RuntimeError("couldn't pack span: {!r}".format(span))
 
         return ret
 
@@ -498,7 +514,7 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
                     raise BufferFull(self.size - size_before)
 
                 self._count += 1
-            except:
+            except Exception:
                 # rollback
                 self.pk.length = len_before
                 raise
@@ -546,9 +562,11 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
             if ret == 0:
                 for k, v in d.items():
                     ret = pack_text(&self.pk, k)
-                    if ret != 0: break
+                    if ret != 0:
+                        break
                     ret = pack_text(&self.pk, v)
-                    if ret != 0: break
+                    if ret != 0:
+                        break
                 if dd_origin is not NULL:
                     ret = pack_bytes(&self.pk, _ORIGIN_KEY, _ORIGIN_KEY_LEN)
                     if ret == 0:
@@ -572,9 +590,11 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
             if ret == 0:
                 for k, v in d.items():
                     ret = pack_text(&self.pk, k)
-                    if ret != 0: break
+                    if ret != 0:
+                        break
                     ret = pack_number(&self.pk, v)
-                    if ret != 0: break
+                    if ret != 0:
+                        break
             return ret
 
         raise TypeError("Unhandled metrics type: %r" % type(metrics))
@@ -598,69 +618,93 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
 
         if ret == 0:
             ret = pack_bytes(&self.pk, <char *> b"trace_id", 8)
-            if ret != 0: return ret
-            ret = pack_number(&self.pk, span.trace_id)
-            if ret != 0: return ret
+            if ret != 0:
+                return ret
+            ret = pack_number(&self.pk, span._trace_id_64bits)
+            if ret != 0:
+                return ret
 
             if has_parent_id:
                 ret = pack_bytes(&self.pk, <char *> b"parent_id", 9)
-                if ret != 0: return ret
+                if ret != 0:
+                    return ret
                 ret = pack_number(&self.pk, span.parent_id)
-                if ret != 0: return ret
+                if ret != 0:
+                    return ret
 
             ret = pack_bytes(&self.pk, <char *> b"span_id", 7)
-            if ret != 0: return ret
+            if ret != 0:
+                return ret
             ret = pack_number(&self.pk, span.span_id)
-            if ret != 0: return ret
+            if ret != 0:
+                return ret
 
             ret = pack_bytes(&self.pk, <char *> b"service", 7)
-            if ret != 0: return ret
+            if ret != 0:
+                return ret
             ret = pack_text(&self.pk, span.service)
-            if ret != 0: return ret
+            if ret != 0:
+                return ret
 
             ret = pack_bytes(&self.pk, <char *> b"resource", 8)
-            if ret != 0: return ret
+            if ret != 0:
+                return ret
             ret = pack_text(&self.pk, span.resource)
-            if ret != 0: return ret
+            if ret != 0:
+                return ret
 
             ret = pack_bytes(&self.pk, <char *> b"name", 4)
-            if ret != 0: return ret
+            if ret != 0:
+                return ret
             ret = pack_text(&self.pk, span.name)
-            if ret != 0: return ret
+            if ret != 0:
+                return ret
 
             ret = pack_bytes(&self.pk, <char *> b"start", 5)
-            if ret != 0: return ret
+            if ret != 0:
+                return ret
             ret = pack_number(&self.pk, span.start_ns)
-            if ret != 0: return ret
+            if ret != 0:
+                return ret
 
             ret = pack_bytes(&self.pk, <char *> b"duration", 8)
-            if ret != 0: return ret
+            if ret != 0:
+                return ret
             ret = pack_number(&self.pk, span.duration_ns)
-            if ret != 0: return ret
+            if ret != 0:
+                return ret
 
             if has_error:
                 ret = pack_bytes(&self.pk, <char *> b"error", 5)
-                if ret != 0: return ret
+                if ret != 0:
+                    return ret
                 ret = msgpack_pack_long(&self.pk, <long> 1)
-                if ret != 0: return ret
+                if ret != 0:
+                    return ret
 
             if has_span_type:
                 ret = pack_bytes(&self.pk, <char *> b"type", 4)
-                if ret != 0: return ret
+                if ret != 0:
+                    return ret
                 ret = pack_text(&self.pk, span.span_type)
-                if ret != 0: return ret
+                if ret != 0:
+                    return ret
 
             if has_meta:
                 ret = pack_bytes(&self.pk, <char *> b"meta", 4)
-                if ret != 0: return ret
+                if ret != 0:
+                    return ret
                 ret = self._pack_meta(span._meta, <char *> dd_origin)
-                if ret != 0: return ret
+                if ret != 0:
+                    return ret
 
             if has_metrics:
                 ret = pack_bytes(&self.pk, <char *> b"metrics", 7)
-                if ret != 0: return ret
+                if ret != 0:
+                    return ret
                 ret = self._pack_metrics(span._metrics)
-                if ret != 0: return ret
+                if ret != 0:
+                    return ret
 
         return ret
 
@@ -674,7 +718,10 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
     cpdef flush(self):
         with self._lock:
             try:
-                self._st.append_raw(PyLong_FromLong(<long> self.get_buffer()), <Py_ssize_t> super(MsgpackEncoderV05, self).size)
+                self._st.append_raw(
+                    PyLong_FromLong(<long> self.get_buffer()),
+                    <Py_ssize_t> super(MsgpackEncoderV05, self).size,
+                )
                 return self._st.flush()
             finally:
                 self._reset_buffer()
@@ -704,64 +751,83 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
         cdef int ret
 
         ret = msgpack_pack_array(&self.pk, 12)
-        if ret != 0: return ret
+        if ret != 0:
+            return ret
 
         ret = self._pack_string(span.service)
-        if ret != 0: return ret
+        if ret != 0:
+            return ret
         ret = self._pack_string(span.name)
-        if ret != 0: return ret
+        if ret != 0:
+            return ret
         ret = self._pack_string(span.resource)
-        if ret != 0: return ret
+        if ret != 0:
+            return ret
 
-        _ = span.trace_id
+        _ = span._trace_id_64bits
         ret = msgpack_pack_uint64(&self.pk, _ if _ is not None else 0)
-        if ret != 0: return ret
-        
+        if ret != 0:
+            return ret
+
         _ = span.span_id
         ret = msgpack_pack_uint64(&self.pk, _ if _ is not None else 0)
-        if ret != 0: return ret
-        
+        if ret != 0:
+            return ret
+
         _ = span.parent_id
         ret = msgpack_pack_uint64(&self.pk, _ if _ is not None else 0)
-        if ret != 0: return ret
-        
+        if ret != 0:
+            return ret
+
         _ = span.start_ns
         ret = msgpack_pack_int64(&self.pk, _ if _ is not None else 0)
-        if ret != 0: return ret
-        
+        if ret != 0:
+            return ret
+
         _ = span.duration_ns
         ret = msgpack_pack_int64(&self.pk, _ if _ is not None else 0)
-        if ret != 0: return ret
-        
+        if ret != 0:
+            return ret
+
         _ = span.error
         ret = msgpack_pack_int32(&self.pk, _ if _ is not None else 0)
-        if ret != 0: return ret
+        if ret != 0:
+            return ret
 
         ret = msgpack_pack_map(&self.pk, len(span._meta) + (dd_origin is not NULL))
-        if ret != 0: return ret
+        if ret != 0:
+            return ret
         if span._meta:
             for k, v in span._meta.items():
                 ret = self._pack_string(k)
-                if ret != 0: return ret
+                if ret != 0:
+                    return ret
                 ret = self._pack_string(v)
-                if ret != 0: return ret
+                if ret != 0:
+                    return ret
         if dd_origin is not NULL:
             ret = msgpack_pack_uint32(&self.pk, <stdint.uint32_t> 1)
-            if ret != 0: return ret
+            if ret != 0:
+                return ret
             ret = msgpack_pack_uint32(&self.pk, <stdint.uint32_t> dd_origin)
-            if ret != 0: return ret
-        
+            if ret != 0:
+                return ret
+
         ret = msgpack_pack_map(&self.pk, len(span._metrics))
-        if ret != 0: return ret
+        if ret != 0:
+            return ret
         if span._metrics:
             for k, v in span._metrics.items():
                 ret = self._pack_string(k)
-                if ret != 0: return ret
+                if ret != 0:
+                    return ret
                 ret = pack_number(&self.pk, v)
-                if ret != 0: return ret
+                if ret != 0:
+                    return ret
 
         ret = self._pack_string(span.span_type)
-        if ret != 0: return ret
+        if ret != 0:
+            return ret
 
         return 0
 
@@ -813,15 +879,12 @@ cdef class Packer(object):
         cdef long long llval
         cdef unsigned long long ullval
         cdef long longval
-        cdef float fval
         cdef double dval
         cdef char* rawval
         cdef int ret
         cdef dict d
         cdef Py_ssize_t L
         cdef int default_used = 0
-        cdef Py_buffer view
-        cdef long i
 
         while True:
             if o is None:
@@ -879,10 +942,12 @@ cdef class Packer(object):
                 ret = msgpack_pack_map(&self.pk, L)
                 if ret == 0:
                     for k, v in d.items():
-                       ret = self._pack(k)
-                       if ret != 0: break
-                       ret = self._pack(v)
-                       if ret != 0: break
+                        ret = self._pack(k)
+                        if ret != 0:
+                            break
+                        ret = self._pack(v)
+                        if ret != 0:
+                            break
             elif PyList_CheckExact(o):
                 L = Py_SIZE(o)
                 if L > ITEM_LIMIT:
@@ -891,7 +956,8 @@ cdef class Packer(object):
                 if ret == 0:
                     for v in o:
                         ret = self._pack(v)
-                        if ret != 0: break
+                        if ret != 0:
+                            break
             elif PyBool_Check(o):
                 if o:
                     ret = msgpack_pack_true(&self.pk)
@@ -905,7 +971,7 @@ cdef class Packer(object):
         cdef int ret
         try:
             ret = self._pack(obj)
-        except:
+        except Exception:
             self.pk.length = 0
 
             raise

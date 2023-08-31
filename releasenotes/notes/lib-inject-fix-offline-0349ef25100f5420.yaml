@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    lib-injection: Ensure local package is installed. Previously the package
+      could still be pulled from the internet causing application slowdowns.

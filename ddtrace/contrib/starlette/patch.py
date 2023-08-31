@@ -11,6 +11,7 @@ from ddtrace import config
 from ddtrace.contrib.asgi.middleware import TraceMiddleware
 from ddtrace.ext import http
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.wrappers import unwrap as _u
@@ -26,12 +27,17 @@ log = get_logger(__name__)
 config._add(
     "starlette",
     dict(
-        _default_service="starlette",
+        _default_service=schematize_service_name("starlette"),
         request_span_name="starlette.request",
         distributed_tracing=True,
         aggregate_resources=True,
     ),
 )
+
+
+def get_version():
+    # type: () -> str
+    return getattr(starlette, "__version__", "")
 
 
 @removals.remove(removal_version="2.0.0", category=DDTraceDeprecationWarning)
@@ -67,7 +73,7 @@ def patch():
     if getattr(starlette, "_datadog_patch", False):
         return
 
-    setattr(starlette, "_datadog_patch", True)
+    starlette._datadog_patch = True
 
     _w("starlette.applications", "Starlette.__init__", traced_init)
 
@@ -82,7 +88,7 @@ def unpatch():
     if not getattr(starlette, "_datadog_patch", False):
         return
 
-    setattr(starlette, "_datadog_patch", False)
+    starlette._datadog_patch = False
 
     _u(starlette.applications.Starlette, "__init__")
 

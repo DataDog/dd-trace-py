@@ -19,9 +19,11 @@ from typing import cast
 
 from ddtrace import Pin
 from ddtrace import config
+from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
+from ddtrace.ext import net
 from ddtrace.ext import user
-from ddtrace.internal import _context
+from ddtrace.internal import core
 from ddtrace.internal.compat import ip_is_global
 from ddtrace.internal.compat import parse
 from ddtrace.internal.compat import six
@@ -421,6 +423,7 @@ def set_http_meta(
     integration_config,  # type: IntegrationConfig
     method=None,  # type: Optional[str]
     url=None,  # type: Optional[str]
+    target_host=None,  # type: Optional[str]
     status_code=None,  # type: Optional[Union[int, str]]
     status_msg=None,  # type: Optional[str]
     query=None,  # type: Optional[str]
@@ -435,6 +438,7 @@ def set_http_meta(
     peer_ip=None,  # type: Optional[str]
     headers_are_case_sensitive=False,  # type: bool
     route=None,  # type: Optional[str]
+    response_cookies=None,  # type: Optional[Dict[str, str]]
 ):
     # type: (...) -> None
     """
@@ -459,6 +463,9 @@ def set_http_meta(
     if url is not None:
         url = _sanitized_url(url)
         _set_url_tag(integration_config, span, url, query)
+
+    if target_host is not None:
+        span.set_tag_str(net.TARGET_HOST, target_host)
 
     if status_code is not None:
         try:
@@ -486,7 +493,7 @@ def set_http_meta(
         # https://datadoghq.atlassian.net/wiki/spaces/APS/pages/2118779066/Client+IP+addresses+resolution
         if config._appsec_enabled or config.retrieve_client_ip:
             # Retrieve the IP if it was calculated on AppSecProcessor.on_span_start
-            request_ip = _context.get_item("http.request.remote_ip", span=span)
+            request_ip = core.get_item("http.request.remote_ip", span=span)
 
             if not request_ip:
                 # Not calculated: framework does not support IP blocking or testing env
@@ -508,27 +515,42 @@ def set_http_meta(
         span.set_tag_str(http.RETRIES_REMAIN, str(retries_remain))
 
     if config._appsec_enabled:
-        status_code = str(status_code) if status_code is not None else None
+        from ddtrace.appsec.iast._utils import _is_iast_enabled
 
-        _context.set_items(
-            {
+        if _is_iast_enabled():
+            from ddtrace.appsec.iast.taint_sinks.insecure_cookie import asm_check_cookies
+
+            if request_cookies:
+                asm_check_cookies(request_cookies)
+
+            if response_cookies:
+                asm_check_cookies(response_cookies)
+
+        if span.span_type == SpanTypes.WEB:
+            from ddtrace.appsec._asm_request_context import set_waf_address
+            from ddtrace.appsec._constants import SPAN_DATA_NAMES
+
+            status_code = str(status_code) if status_code is not None else None
+
+            addresses = {
                 k: v
                 for k, v in [
-                    ("http.request.uri", raw_uri),
-                    ("http.request.method", method),
-                    ("http.request.cookies", request_cookies),
-                    ("http.request.query", parsed_query),
-                    ("http.request.headers", request_headers),
-                    ("http.response.headers", response_headers),
-                    ("http.response.status", status_code),
-                    ("http.request.path_params", request_path_params),
-                    ("http.request.body", request_body),
-                    ("http.request.remote_ip", request_ip),
+                    (SPAN_DATA_NAMES.REQUEST_URI_RAW, raw_uri),
+                    (SPAN_DATA_NAMES.REQUEST_METHOD, method),
+                    (SPAN_DATA_NAMES.REQUEST_COOKIES, request_cookies),
+                    (SPAN_DATA_NAMES.REQUEST_QUERY, parsed_query),
+                    (SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, request_headers),
+                    (SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, response_headers),
+                    (SPAN_DATA_NAMES.RESPONSE_STATUS, status_code),
+                    (SPAN_DATA_NAMES.REQUEST_PATH_PARAMS, request_path_params),
+                    (SPAN_DATA_NAMES.REQUEST_BODY, request_body),
+                    (SPAN_DATA_NAMES.REQUEST_HTTP_IP, request_ip),
+                    (SPAN_DATA_NAMES.REQUEST_ROUTE, route),
                 ]
                 if v is not None
-            },
-            span=span,
-        )
+            }
+            for k, v in addresses.items():
+                set_waf_address(k, v, span)
 
     if route is not None:
         span.set_tag_str(http.ROUTE, route)
@@ -605,19 +627,24 @@ def set_flattened_tags(
             span.set_tag(tag, processor(v) if processor is not None else v)
 
 
-def set_user(tracer, user_id, name=None, email=None, scope=None, role=None, session_id=None, propagate=False):
-    # type: (Tracer, str, Optional[str], Optional[str], Optional[str], Optional[str], Optional[str], bool) -> None
+def set_user(
+    tracer,  # type: Tracer
+    user_id,  # type: str
+    name=None,  # type: Optional[str]
+    email=None,  # type: Optional[str]
+    scope=None,  # type: Optional[str]
+    role=None,  # type: Optional[str]
+    session_id=None,  # type: Optional[str]
+    propagate=False,  # type bool
+    span=None,  # type: Optional[Span]
+):
+    # type: (...) -> None
     """Set user tags.
     https://docs.datadoghq.com/logs/log_configuration/attributes_naming_convention/#user-related-attributes
     https://docs.datadoghq.com/security_platform/application_security/setup_and_configure/?tab=set_tag&code-lang=python
     """
-
-    if config._appsec_enabled:
-        from ddtrace.appsec.trace_utils import block_request_if_user_blocked
-
-        block_request_if_user_blocked(tracer, user_id)
-
-    span = tracer.current_root_span()
+    if span is None:
+        span = tracer.current_root_span()
     if span:
         # Required unique identifier of the user
         str_user_id = str(user_id)
@@ -636,9 +663,28 @@ def set_user(tracer, user_id, name=None, email=None, scope=None, role=None, sess
             span.set_tag_str(user.ROLE, role)
         if session_id:
             span.set_tag_str(user.SESSION_ID, session_id)
+
+        if config._appsec_enabled:
+            from ddtrace.appsec.trace_utils import block_request_if_user_blocked
+
+            block_request_if_user_blocked(tracer, user_id)
     else:
         log.warning(
             "No root span in the current execution. Skipping set_user tags. "
             "See https://docs.datadoghq.com/security_platform/application_security/setup_and_configure/"
             "?tab=set_user&code-lang=python for more information.",
         )
+
+
+def extract_netloc_and_query_info_from_url(url):
+    # type: (str) -> Tuple[str, str]
+    parse_result = parse.urlparse(url)
+    query = parse_result.query
+
+    # Relative URLs don't have a netloc, so we force them
+    if not parse_result.netloc:
+        parse_result = parse.urlparse("//{url}".format(url=url))
+
+    netloc = parse_result.netloc.split("@", 1)[-1]  # Discard auth info
+    netloc = netloc.split(":", 1)[0]  # Discard port information
+    return netloc, query

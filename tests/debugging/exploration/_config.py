@@ -4,6 +4,8 @@ from warnings import warn
 
 from envier import En
 
+from ddtrace.debugging._probe.model import CaptureLimits
+
 
 def parse_venv(value):
     # type: (str) -> t.Optional[str]
@@ -53,6 +55,23 @@ class ExplorationConfig(En):
         help="Whether to include elusive modules in the exploration",
     )
 
+    conservative = En.v(
+        bool,
+        "dd.debugger.expl.conservative",
+        default=False,
+        help="Use extremely low capture limits to reduce overhead",
+    )
+
+    limits = En.d(
+        CaptureLimits,
+        lambda c: CaptureLimits(
+            max_level=0 if c.conservative else 1,
+            max_size=1,
+            max_len=1 if c.conservative else 8,
+            max_fields=1,
+        ),
+    )
+
     class ProfilerConfig(En):
         __item__ = "profiler"
         __prefix__ = "dd.debugger.expl.profiler"
@@ -62,6 +81,12 @@ class ExplorationConfig(En):
             "enabled",
             default=True,
             help="Whether to enable the exploration deterministic profiler",
+        )
+        delete_probes = En.v(
+            bool,
+            "delete_function_probes",
+            default=False,
+            help="Whether to delete function probes after they are triggered",
         )
 
     class CoverageConfig(En):

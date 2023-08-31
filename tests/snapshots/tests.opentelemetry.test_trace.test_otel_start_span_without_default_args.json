@@ -1,0 +1,42 @@
+[[
+  {
+    "name": "root-span",
+    "service": "",
+    "resource": "root-span",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "language": "python",
+      "runtime-id": "370b7d1e226648e4b58d1faeeb4884d8"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 22384
+    },
+    "duration": 161681,
+    "start": 1691164174693725216
+  },
+     {
+       "name": "rename-start-span",
+       "service": "",
+       "resource": "rename-start-span",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.p.dm": "-0",
+         "span.kind": "client",
+         "start_span_tag": "start_span_val"
+       },
+       "duration": 0,
+       "start": 0
+     }]]

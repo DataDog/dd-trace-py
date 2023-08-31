@@ -1,0 +1,72 @@
+[[
+  {
+    "name": "kafka.process",
+    "service": "unnamed-python-service",
+    "resource": "kafka.process",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "component": "kafka",
+      "kafka.group_id": "test_group",
+      "kafka.message_key": "test_key",
+      "kafka.received_message": "True",
+      "kafka.tombstone": "False",
+      "kafka.topic": "test_schematized_span_service_and_operation_v1-None",
+      "language": "python",
+      "messaging.system": "kafka",
+      "runtime-id": "c3db7669d3e945d19cc3700d7bc63a5c",
+      "span.kind": "consumer"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "kafka.message_offset": 5,
+      "kafka.partition": 0,
+      "process_id": 6227
+    },
+    "duration": 422791,
+    "start": 1685640780666665667
+  }],
+[
+  {
+    "name": "kafka.send",
+    "service": "unnamed-python-service",
+    "resource": "kafka.send",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.peer.service.source": "messaging.kafka.bootstrap.servers",
+      "component": "kafka",
+      "kafka.message_key": "test_key",
+      "kafka.tombstone": "False",
+      "kafka.topic": "test_schematized_span_service_and_operation_v1-None",
+      "language": "python",
+      "messaging.kafka.bootstrap.servers": "localhost:29092",
+      "messaging.system": "kafka",
+      "peer.service": "localhost:29092",
+      "runtime-id": "c3db7669d3e945d19cc3700d7bc63a5c",
+      "span.kind": "producer"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "kafka.partition": -1,
+      "process_id": 6227
+    },
+    "duration": 196500,
+    "start": 1685640777631172180
+  }]]

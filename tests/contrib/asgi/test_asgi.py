@@ -1,5 +1,6 @@
 import asyncio
 from functools import partial
+import os
 import random
 import sys
 
@@ -10,6 +11,7 @@ import pytest
 from ddtrace.constants import ERROR_MSG
 from ddtrace.contrib.asgi import TraceMiddleware
 from ddtrace.contrib.asgi import span_from_scope
+from ddtrace.internal.schema.span_attribute_schema import _DEFAULT_SPAN_SERVICE_NAMES
 from ddtrace.propagation import http as http_propagation
 from tests.utils import DummyTracer
 from tests.utils import override_http_config
@@ -186,6 +188,114 @@ async def test_basic_asgi(scope, tracer, test_spans):
     assert request_span.get_tag("component") == "asgi"
     assert request_span.get_tag("span.kind") == "server"
     _check_span_tags(scope, request_span)
+
+
+@pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
+def test_span_attribute_schema_operation_name(ddtrace_run_python_code_in_subprocess, schema_version):
+    expected_span_name = {None: "asgi.request", "v0": "asgi.request", "v1": "http.server.request"}[schema_version]
+    code = """
+import pytest
+from tests.conftest import *
+from tests.contrib.asgi.test_asgi import basic_app
+from tests.contrib.asgi.test_asgi import scope
+from tests.contrib.asgi.test_asgi import tracer
+from asgiref.testing import ApplicationCommunicator
+from ddtrace.contrib.asgi import TraceMiddleware
+from ddtrace.contrib.asgi import span_from_scope
+
+@pytest.mark.asyncio
+async def test(scope, tracer, test_spans):
+    app = TraceMiddleware(basic_app, tracer=tracer)
+    instance = ApplicationCommunicator(app, scope)
+    await instance.send_input({{"type": "http.request", "body": b""}})
+    response_start = await instance.receive_output(1)
+    assert response_start == {{
+        "type": "http.response.start",
+        "status": 200,
+        "headers": [[b"Content-Type", b"text/plain"]],
+    }}
+    response_body = await instance.receive_output(1)
+    assert response_body == {{
+        "type": "http.response.body",
+        "body": b"*",
+    }}
+
+    spans = test_spans.pop_traces()
+    assert len(spans) == 1
+    assert len(spans[0]) == 1
+    request_span = spans[0][0]
+    assert request_span.name == "{}"
+
+if __name__ == "__main__":
+    import sys
+    sys.exit(pytest.main(["-x", __file__]))
+    """.format(
+        expected_span_name
+    )
+    env = os.environ.copy()
+    if schema_version:
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
+    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
+    assert status == 0, (err, out)
+    assert err == b""
+
+
+@pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
+@pytest.mark.parametrize("global_service_name", [None, "mysvc"])
+def test_span_attribute_schema_service_name(ddtrace_run_python_code_in_subprocess, schema_version, global_service_name):
+    expected_service_name = {
+        None: global_service_name or "",
+        "v0": global_service_name or "",
+        "v1": global_service_name or _DEFAULT_SPAN_SERVICE_NAMES["v1"],
+    }[schema_version]
+    code = """
+import pytest
+from tests.conftest import *
+from tests.contrib.asgi.test_asgi import basic_app
+from tests.contrib.asgi.test_asgi import scope
+from tests.contrib.asgi.test_asgi import tracer
+from asgiref.testing import ApplicationCommunicator
+from ddtrace.contrib.asgi import TraceMiddleware
+from ddtrace.contrib.asgi import span_from_scope
+
+@pytest.mark.asyncio
+async def test(scope, tracer, test_spans):
+    app = TraceMiddleware(basic_app, tracer=tracer)
+    instance = ApplicationCommunicator(app, scope)
+    await instance.send_input({{"type": "http.request", "body": b""}})
+    response_start = await instance.receive_output(1)
+    assert response_start == {{
+        "type": "http.response.start",
+        "status": 200,
+        "headers": [[b"Content-Type", b"text/plain"]],
+    }}
+    response_body = await instance.receive_output(1)
+    assert response_body == {{
+        "type": "http.response.body",
+        "body": b"*",
+    }}
+
+    spans = test_spans.pop_traces()
+    assert len(spans) == 1
+    assert len(spans[0]) == 1
+    request_span = spans[0][0]
+    service = "{}"
+    assert request_span.service == (service or None)
+
+if __name__ == "__main__":
+    import sys
+    sys.exit(pytest.main(["-x", __file__]))
+    """.format(
+        expected_service_name
+    )
+    env = os.environ.copy()
+    if global_service_name:
+        env["DD_SERVICE"] = global_service_name
+    if schema_version:
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
+    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
+    assert status == 0, (err, out)
+    assert err == b""
 
 
 @pytest.mark.asyncio

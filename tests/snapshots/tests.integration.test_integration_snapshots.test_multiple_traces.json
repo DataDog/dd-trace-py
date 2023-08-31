@@ -9,10 +9,11 @@
     "type": "",
     "error": 0,
     "meta": {
+      "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "k": "v",
       "language": "python",
-      "runtime-id": "7fcf456c657a442d8e637e5adda7270d"
+      "runtime-id": "f335963d0a054add88871c4f52e100e1"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -22,10 +23,10 @@
       "float_metric": 12.34,
       "int_metric": 4321,
       "num": 1234,
-      "process_id": 52166
+      "process_id": 18654
     },
-    "duration": 98000,
-    "start": 1631827407277277000
+    "duration": 55833,
+    "start": 1692900308663710086
   },
      {
        "name": "child",
@@ -36,8 +37,12 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
-       "duration": 14000,
-       "start": 1631827407277347000
+       "meta": {
+         "_dd.base_service": "",
+         "_dd.p.dm": "-0"
+       },
+       "duration": 8792,
+       "start": 1692900308663749377
      }],
 [
   {
@@ -50,10 +55,11 @@
     "type": "",
     "error": 0,
     "meta": {
+      "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "k": "v",
       "language": "python",
-      "runtime-id": "7fcf456c657a442d8e637e5adda7270d"
+      "runtime-id": "f335963d0a054add88871c4f52e100e1"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -63,10 +69,10 @@
       "float_metric": 12.34,
       "int_metric": 4321,
       "num": 1234,
-      "process_id": 52166
+      "process_id": 18654
     },
-    "duration": 63000,
-    "start": 1631827407277595000
+    "duration": 35500,
+    "start": 1692900308664048211
   },
      {
        "name": "child",
@@ -77,6 +83,10 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
-       "duration": 11000,
-       "start": 1631827407277637000
+       "meta": {
+         "_dd.base_service": "",
+         "_dd.p.dm": "-0"
+       },
+       "duration": 7417,
+       "start": 1692900308664070169
      }]]

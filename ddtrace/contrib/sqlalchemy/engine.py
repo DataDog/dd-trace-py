@@ -19,6 +19,8 @@ from sqlalchemy.event import listen
 import ddtrace
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.schema import schematize_database_operation
+from ddtrace.internal.schema import schematize_service_name
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_KIND
@@ -62,8 +64,8 @@ class EngineTracer(object):
         self.tracer = tracer
         self.engine = engine
         self.vendor = sqlx.normalize_vendor(engine.name)
-        self.service = service or self.vendor
-        self.name = "%s.query" % self.vendor
+        self.service = schematize_service_name(service or self.vendor)
+        self.name = schematize_database_operation("%s.query" % self.vendor, database_provider=self.vendor)
 
         # attach the PIN
         Pin(tracer=tracer, service=self.service).onto(engine)

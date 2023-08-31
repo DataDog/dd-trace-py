@@ -1,6 +1,7 @@
 import re
 from typing import Dict
 from typing import FrozenSet
+from typing import List
 from typing import Optional
 from typing import Text
 from typing import Tuple
@@ -20,6 +21,8 @@ from ..internal._tagset import decode_tagset_string
 from ..internal._tagset import encode_tagset_values
 from ..internal.compat import ensure_str
 from ..internal.compat import ensure_text
+from ..internal.constants import HIGHER_ORDER_TRACE_ID_BITS as _HIGHER_ORDER_TRACE_ID_BITS
+from ..internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
 from ..internal.constants import PROPAGATION_STYLE_B3
 from ..internal.constants import PROPAGATION_STYLE_B3_SINGLE_HEADER
 from ..internal.constants import PROPAGATION_STYLE_DATADOG
@@ -30,6 +33,8 @@ from ..internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
 from ..internal.logger import get_logger
 from ..internal.sampling import validate_sampling_decision
 from ..span import _MetaDictType
+from ..span import _get_64_highest_order_bits_as_hex
+from ..span import _get_64_lowest_order_bits_as_int
 from ._utils import get_wsgi_header
 
 
@@ -101,11 +106,8 @@ def _extract_header_value(possible_header_names, headers, default=None):
 
 def _hex_id_to_dd_id(hex_id):
     # type: (str) -> int
-    """Helper to convert hex ids into Datadog compatible ints
-    If the id is > 64 bit then truncate the trailing 64 bit.
-    "463ac35c9f6413ad48485a3953bb6124" -> "48485a3953bb6124" -> 5208512171318403364
-    """
-    return int(hex_id[-16:], 16)
+    """Helper to convert hex ids into Datadog compatible ints."""
+    return int(hex_id, 16)
 
 
 _b3_id_to_dd_id = _hex_id_to_dd_id
@@ -113,9 +115,11 @@ _b3_id_to_dd_id = _hex_id_to_dd_id
 
 def _dd_id_to_b3_id(dd_id):
     # type: (int) -> str
-    """Helper to convert Datadog trace/span int ids into hex ids"""
-    # DEV: `hex(dd_id)` will give us `0xDEADBEEF`
-    # DEV: this gives us lowercase hex, which is what we want
+    """Helper to convert Datadog trace/span int ids into lower case hex values"""
+    if dd_id > _MAX_UINT_64BITS:
+        # b3 trace ids can have the length of 16 or 32 characters:
+        # https://github.com/openzipkin/b3-propagation#traceid
+        return "{:032x}".format(dd_id)
     return "{:016x}".format(dd_id)
 
 
@@ -153,7 +157,16 @@ class _DatadogMultiHeader:
             log.debug("tried to inject invalid context %r", span_context)
             return
 
-        headers[HTTP_HEADER_TRACE_ID] = str(span_context.trace_id)
+        if span_context.trace_id > _MAX_UINT_64BITS:
+            # set lower order 64 bits in `x-datadog-trace-id` header. For backwards compatibility these
+            # bits should be converted to a base 10 integer.
+            headers[HTTP_HEADER_TRACE_ID] = str(_get_64_lowest_order_bits_as_int(span_context.trace_id))
+            # set higher order 64 bits in `_dd.p.tid` to propagate the full 128 bit trace id.
+            # Note - The higher order bits must be encoded in hex
+            span_context._meta[_HIGHER_ORDER_TRACE_ID_BITS] = _get_64_highest_order_bits_as_hex(span_context.trace_id)
+        else:
+            headers[HTTP_HEADER_TRACE_ID] = str(span_context.trace_id)
+
         headers[HTTP_HEADER_PARENT_ID] = str(span_context.span_id)
         sampling_priority = span_context.sampling_priority
         # Propagate priority only if defined
@@ -196,11 +209,18 @@ class _DatadogMultiHeader:
     @staticmethod
     def _extract(headers):
         # type: (Dict[str, str]) -> Optional[Context]
-        trace_id = _extract_header_value(
-            POSSIBLE_HTTP_HEADER_TRACE_IDS,
-            headers,
-        )
-        if trace_id is None:
+        trace_id_str = _extract_header_value(POSSIBLE_HTTP_HEADER_TRACE_IDS, headers)
+        if trace_id_str is None:
+            return None
+        try:
+            trace_id = int(trace_id_str)
+        except ValueError:
+            trace_id = 0
+
+        if trace_id <= 0 or trace_id > _MAX_UINT_64BITS:
+            log.warning(
+                "Invalid trace id: %r. `x-datadog-trace-id` must be greater than zero and less than 2**64", trace_id_str
+            )
             return None
 
         parent_span_id = _extract_header_value(
@@ -245,6 +265,22 @@ class _DatadogMultiHeader:
                 }
                 log.debug("failed to decode x-datadog-tags: %r", tags_value, exc_info=True)
 
+        if meta and _HIGHER_ORDER_TRACE_ID_BITS in meta:
+            # When 128 bit trace ids are propagated the 64 lowest order bits are set in the `x-datadog-trace-id`
+            # header. The 64 highest order bits are encoded in base 16 and store in the `_dd.p.tid` tag.
+            # Here we reconstruct the full 128 bit trace_id.
+            trace_id_hob_hex = meta[_HIGHER_ORDER_TRACE_ID_BITS]
+            try:
+                if len(trace_id_hob_hex) != 16:
+                    raise ValueError("Invalid size")
+                # combine highest and lowest order hex values to create a 128 bit trace_id
+                trace_id = int(trace_id_hob_hex + "{:016x}".format(trace_id), 16)
+            except ValueError:
+                meta["_dd.propagation_error"] = "malformed_tid {}".format(trace_id_hob_hex)
+                log.warning("malformed_tid: %s. Failed to decode trace id from http headers", trace_id_hob_hex)
+            # After the full trace id is reconstructed this tag is no longer required
+            del meta[_HIGHER_ORDER_TRACE_ID_BITS]
+
         # Try to parse values into their expected types
         try:
             if sampling_priority is not None:
@@ -257,7 +293,7 @@ class _DatadogMultiHeader:
 
             return Context(
                 # DEV: Do not allow `0` for trace id or span id, use None instead
-                trace_id=int(trace_id) or None,
+                trace_id=trace_id or None,
                 span_id=int(parent_span_id) or None,  # type: ignore[arg-type]
                 sampling_priority=sampling_priority,  # type: ignore[arg-type]
                 dd_origin=origin,
@@ -611,12 +647,13 @@ class _TraceContext:
         return trace_id, span_id, sampling_priority
 
     @staticmethod
-    def _get_tracestate_values(ts):
-        # type: (str) -> Tuple[Optional[int], Dict[str, str], Optional[str]]
+    def _get_tracestate_values(ts_l):
+        # type: (List[str]) -> Tuple[Optional[int], Dict[str, str], Optional[str]]
 
-        # tracestate parsing, example: dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE
+        # tracestate list parsing example: ["dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64","congo=t61rcWkgMzE"]
+        # -> 2, {"_dd.p.dm":"-4","_dd.p.usr.id":"baz64"}, "rum"
+
         dd = None
-        ts_l = ts.strip().split(",")
         for list_mem in ts_l:
             if list_mem.startswith("dd="):
                 # cut out dd= before turning into dict
@@ -686,7 +723,12 @@ class _TraceContext:
         meta = {W3C_TRACEPARENT_KEY: tp}  # type: _MetaDictType
 
         ts = _extract_header_value(_POSSIBLE_HTTP_HEADER_TRACESTATE, headers)
+
         if ts:
+            # whitespace is allowed, but whitespace to start or end values should be trimmed
+            # e.g. "foo=1 \t , \t bar=2, \t baz=3" -> "foo=1,bar=2,baz=3"
+            ts_l = [member.strip() for member in ts.split(",")]
+            ts = ",".join(ts_l)
             # the value MUST contain only ASCII characters in the
             # range of 0x20 to 0x7E
             if re.search(r"[^\x20-\x7E]+", ts):
@@ -695,7 +737,7 @@ class _TraceContext:
                 # store tracestate so we keep other vendor data for injection, even if dd ends up being invalid
                 meta[W3C_TRACESTATE_KEY] = ts
                 try:
-                    tracestate_values = _TraceContext._get_tracestate_values(ts)
+                    tracestate_values = _TraceContext._get_tracestate_values(ts_l)
                 except (TypeError, ValueError):
                     log.debug("received invalid dd header value in tracestate: %r ", ts)
                     tracestate_values = None

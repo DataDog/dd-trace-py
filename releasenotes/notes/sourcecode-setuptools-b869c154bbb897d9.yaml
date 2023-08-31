@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Adds source code integration with setuptools build metadata. This enables traces and profiles to be automatically tagged with git metadata to track deployments in Datadog.

@@ -9,18 +9,24 @@ import time
 from typing import List
 
 import attr
+import pkg_resources
 import pytest
 
 import ddtrace
 from ddtrace import Span
 from ddtrace import Tracer
+from ddtrace import config as dd_config
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.ext import http
+from ddtrace.internal import agent
+from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
+from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import httplib
 from ddtrace.internal.compat import parse
 from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import MsgpackEncoderV03 as Encoder
+from ddtrace.internal.schema import SCHEMA_VERSION
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.vendor import wrapt
@@ -64,6 +70,10 @@ def override_env(env):
     # Copy the full original environment
     original = dict(os.environ)
 
+    for k in os.environ.keys():
+        if k.startswith(("_CI_DD_", "DD_CIVISIBILITY_", "DD_SITE")):
+            del os.environ[k]
+
     # Update based on the passed in arguments
     os.environ.update(env)
     try:
@@ -90,10 +100,10 @@ def override_global_config(values):
         "retrieve_client_ip",
         "report_hostname",
         "health_metrics_enabled",
-        "_telemetry_metrics_enabled",
         "_propagation_style_extract",
         "_propagation_style_inject",
         "_x_datadog_tags_max_length",
+        "_128_bit_trace_id_enabled",
         "_x_datadog_tags_enabled",
         "_propagate_service",
         "env",
@@ -102,8 +112,23 @@ def override_global_config(values):
         "_raise",
         "_trace_compute_stats",
         "_appsec_enabled",
+        "_api_security_enabled",
+        "_waf_timeout",
+        "_iast_enabled",
         "_obfuscation_query_string_pattern",
         "global_query_string_obfuscation_disabled",
+        "_ci_visibility_agentless_url",
+        "_ci_visibility_agentless_enabled",
+        "_subexec_sensitive_user_wildcards",
+        "_automatic_login_events_mode",
+        "_user_model_login_field",
+        "_user_model_email_field",
+        "_user_model_name_field",
+        "_sampling_rules",
+        "_sampling_rules_file",
+        "_trace_sample_rate",
+        "_trace_rate_limit",
+        "_trace_sampling_rules",
     ]
 
     # Grab the current values of all keys
@@ -395,7 +420,7 @@ class TracerTestCase(TestSpanContainer, BaseTestCase):
 
     def get_spans(self):
         """Required subclass method for TestSpanContainer"""
-        return self.tracer._writer.spans
+        return self.tracer.get_spans()
 
     def pop_spans(self):
         # type: () -> List[Span]
@@ -426,26 +451,17 @@ class TracerTestCase(TestSpanContainer, BaseTestCase):
     def override_global_tracer(self, tracer=None):
         original = ddtrace.tracer
         tracer = tracer or self.tracer
-        setattr(ddtrace, "tracer", tracer)
+        ddtrace.tracer = tracer
         try:
             yield
         finally:
-            setattr(ddtrace, "tracer", original)
+            ddtrace.tracer = original
 
 
-class DummyWriter(AgentWriter):
-    """DummyWriter is a small fake writer used for tests. not thread-safe."""
-
+class DummyWriterMixin:
     def __init__(self, *args, **kwargs):
-        # original call
-        if len(args) == 0 and "agent_url" not in kwargs:
-            kwargs["agent_url"] = "http://localhost:8126"
-
-        super(DummyWriter, self).__init__(*args, **kwargs)
         self.spans = []
         self.traces = []
-        self.json_encoder = JSONEncoder()
-        self.msgpack_encoder = Encoder(4 << 20, 4 << 20)
 
     def write(self, spans=None):
         if spans:
@@ -453,9 +469,6 @@ class DummyWriter(AgentWriter):
             # put spans in a list like we do in the real execution path
             # with both encoders
             traces = [spans]
-            self.json_encoder.encode_traces(traces)
-            self.msgpack_encoder.put(spans)
-            self.msgpack_encoder.encode()
             self.spans += spans
             self.traces += traces
 
@@ -472,6 +485,54 @@ class DummyWriter(AgentWriter):
         return traces
 
 
+class DummyWriter(DummyWriterMixin, AgentWriter):
+    """DummyWriter is a small fake writer used for tests. not thread-safe."""
+
+    def __init__(self, *args, **kwargs):
+        # original call
+        if len(args) == 0 and "agent_url" not in kwargs:
+            kwargs["agent_url"] = agent.get_trace_url()
+        kwargs["api_version"] = kwargs.get("api_version", "v0.5")
+
+        # only flush traces to test agent if ``trace_flush_enabled`` is explicitly set to True
+        self._trace_flush_enabled = kwargs.pop("trace_flush_enabled", False) is True
+
+        AgentWriter.__init__(self, *args, **kwargs)
+        DummyWriterMixin.__init__(self, *args, **kwargs)
+        self.json_encoder = JSONEncoder()
+        self.msgpack_encoder = Encoder(4 << 20, 4 << 20)
+
+    def write(self, spans=None):
+        DummyWriterMixin.write(self, spans=spans)
+        if spans:
+            traces = [spans]
+            self.json_encoder.encode_traces(traces)
+            if self._trace_flush_enabled:
+                AgentWriter.write(self, spans=spans)
+            else:
+                self.msgpack_encoder.put(spans)
+                self.msgpack_encoder.encode()
+
+    def pop(self):
+        spans = DummyWriterMixin.pop(self)
+        if self._trace_flush_enabled:
+            flush_test_tracer_spans(self)
+        return spans
+
+
+class DummyCIVisibilityWriter(DummyWriterMixin, CIVisibilityWriter):
+    def __init__(self, *args, **kwargs):
+        CIVisibilityWriter.__init__(self, *args, **kwargs)
+        DummyWriterMixin.__init__(self, *args, **kwargs)
+        self._encoded = None
+
+    def write(self, spans=None):
+        DummyWriterMixin.write(self, spans=spans)
+        CIVisibilityWriter.write(self, spans=spans)
+        # take a snapshot of the writer buffer for tests to inspect
+        self._encoded = self._encoder._build_payload()
+
+
 class DummyTracer(Tracer):
     """
     DummyTracer is a tracer which uses the DummyWriter by default
@@ -479,6 +540,7 @@ class DummyTracer(Tracer):
 
     def __init__(self, *args, **kwargs):
         super(DummyTracer, self).__init__()
+        self._trace_flush_enabled = True
         self.configure(*args, **kwargs)
 
     @property
@@ -491,19 +553,34 @@ class DummyTracer(Tracer):
         # type: () -> Encoder
         return self._writer.msgpack_encoder
 
+    def get_spans(self):
+        # type: () -> List[List[Span]]
+        spans = self._writer.spans
+        if self._trace_flush_enabled:
+            flush_test_tracer_spans(self._writer)
+        return spans
+
     def pop(self):
         # type: () -> List[Span]
-        return self._writer.pop()
+        spans = self._writer.pop()
+        return spans
 
     def pop_traces(self):
         # type: () -> List[List[Span]]
-        return self._writer.pop_traces()
+        traces = self._writer.pop_traces()
+        if self._trace_flush_enabled:
+            flush_test_tracer_spans(self._writer)
+        return traces
 
     def configure(self, *args, **kwargs):
         assert "writer" not in kwargs or isinstance(
-            kwargs["writer"], DummyWriter
+            kwargs["writer"], DummyWriterMixin
         ), "cannot configure writer of DummyTracer"
-        kwargs["writer"] = DummyWriter()
+
+        if not kwargs.get("writer"):
+            # if no writer is present, check if test agent is running to determine if we
+            # should emit traces.
+            kwargs["writer"] = DummyWriter(trace_flush_enabled=check_test_agent_status())
         super(DummyTracer, self).configure(*args, **kwargs)
 
 
@@ -920,7 +997,7 @@ def snapshot_context(token, ignores=None, tracer=None, async_mode=True, variants
         # Wait for the traces to be available
         if wait_for_num_traces is not None:
             traces = []
-            for i in range(50):
+            for _ in range(50):
                 try:
                     conn.request("GET", "/test/session/traces?test_session_token=%s" % token)
                     r = conn.getresponse()
@@ -1028,9 +1105,14 @@ class AnyFloat(object):
 
 
 def call_program(*args, **kwargs):
+    timeout = kwargs.pop("timeout", None)
     close_fds = sys.platform != "win32"
     subp = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=close_fds, **kwargs)
-    stdout, stderr = subp.communicate()
+    if PY2:
+        # Python 2 doesn't support timeout
+        stdout, stderr = subp.communicate()
+    else:
+        stdout, stderr = subp.communicate(timeout=timeout)
     return stdout, stderr, subp.wait(), subp.pid
 
 
@@ -1041,3 +1123,90 @@ def request_token(request):
     token += ".%s" % request.cls.__name__ if request.cls else ""
     token += ".%s" % request.node.name
     return token
+
+
+def package_installed(package_name):
+    try:
+        pkg_resources.get_distribution(package_name)
+        return True
+    except pkg_resources.DistributionNotFound:
+        return False
+
+
+def git_repo_empty(tmpdir):
+    """Create temporary empty git directory, meaning no commits/users/repository-url to extract (error)"""
+    cwd = str(tmpdir)
+    version = subprocess.check_output("git version", shell=True)
+    # decode "git version 2.28.0" to (2, 28, 0)
+    decoded_version = tuple(int(n) for n in version.decode().strip().split(" ")[-1].split(".") if n.isdigit())
+    if decoded_version >= (2, 28):
+        # versions starting from 2.28 can have a different initial branch name
+        # configured in ~/.gitconfig
+        subprocess.check_output("git init --initial-branch=master", cwd=cwd, shell=True)
+    else:
+        # versions prior to 2.28 will create a master branch by default
+        subprocess.check_output("git init", cwd=cwd, shell=True)
+    return cwd
+
+
+def git_repo(git_repo_empty):
+    """Create temporary git directory, with one added file commit with a unique author and committer."""
+    cwd = git_repo_empty
+    subprocess.check_output('git remote add origin "git@github.com:test-repo-url.git"', cwd=cwd, shell=True)
+    # Set temporary git directory to not require gpg commit signing
+    subprocess.check_output("git config --local commit.gpgsign false", cwd=cwd, shell=True)
+    # Set committer user to be "Jane Doe"
+    subprocess.check_output('git config --local user.name "Jane Doe"', cwd=cwd, shell=True)
+    subprocess.check_output('git config --local user.email "jane@doe.com"', cwd=cwd, shell=True)
+    subprocess.check_output("touch tmp.py", cwd=cwd, shell=True)
+    subprocess.check_output("git add tmp.py", cwd=cwd, shell=True)
+    # Override author to be "John Doe"
+    subprocess.check_output(
+        'GIT_COMMITTER_DATE="2021-01-20T04:37:21-0400" git commit --date="2021-01-19T09:24:53-0400" '
+        '-m "this is a commit msg" --author="John Doe <john@doe.com>" --no-edit',
+        cwd=cwd,
+        shell=True,
+    )
+    return cwd
+
+
+def check_test_agent_status():
+    agent_url = agent.get_trace_url()
+    try:
+        parsed = parse.urlparse(agent_url)
+        conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
+        conn.request("GET", "/info")
+        response = conn.getresponse()
+        if response.status == 200:
+            return True
+        else:
+            return False
+    except Exception:
+        return False
+
+
+def flush_test_tracer_spans(writer):
+    client = writer._clients[0]
+    n_traces = len(client.encoder)
+    try:
+        encoded_traces = client.encoder.encode()
+        if encoded_traces is None:
+            return
+        headers = writer._get_finalized_headers(n_traces, client)
+        response = writer._put(encoded_traces, add_dd_env_variables_to_headers(headers), client, no_trace=True)
+    except Exception:
+        return
+
+    assert response.status == 200, response.body
+
+
+def add_dd_env_variables_to_headers(headers):
+    dd_env_vars = {key: value for key, value in os.environ.items() if key.startswith("DD_")}
+    dd_env_vars["DD_SERVICE"] = dd_config.service
+    dd_env_vars["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = SCHEMA_VERSION
+
+    if dd_env_vars:
+        dd_env_vars_string = ",".join(["%s=%s" % (key, value) for key, value in dd_env_vars.items()])
+        headers["X-Datadog-Trace-Env-Variables"] = dd_env_vars_string
+
+    return headers

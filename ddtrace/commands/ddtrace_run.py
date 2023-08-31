@@ -9,7 +9,6 @@ import typing
 
 import ddtrace
 from ddtrace.internal.compat import PY2
-from ddtrace.internal.utils.formats import asbool
 
 
 if PY2:
@@ -92,9 +91,7 @@ def main():
     if args.profiling:
         os.environ["DD_PROFILING_ENABLED"] = "true"
 
-    debug_mode = args.debug or asbool(os.getenv("DD_TRACE_DEBUG", default=False))
-
-    if debug_mode:
+    if args.debug or ddtrace.config._debug_mode:
         logging.basicConfig(level=logging.DEBUG)
         os.environ["DD_TRACE_DEBUG"] = "true"
 

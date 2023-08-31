@@ -3,6 +3,8 @@ import re
 import sys
 from typing import TYPE_CHECKING
 
+from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Callable
@@ -27,6 +29,8 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.internal.compat import stringify
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
@@ -40,7 +44,8 @@ from .. import trace_utils
 from ...ext import SpanTypes
 
 
-_graphql_version = parse_version(getattr(graphql, "__version__"))
+_graphql_version_str = graphql.__version__
+_graphql_version = parse_version(_graphql_version_str)
 
 if _graphql_version < (3, 0):
     from graphql.language.ast import Document
@@ -48,10 +53,15 @@ else:
     from graphql.language.ast import DocumentNode as Document
 
 
+def get_version():
+    # type: () -> str
+    return _graphql_version_str
+
+
 config._add(
     "graphql",
     dict(
-        _default_service="graphql",
+        _default_service=schematize_service_name("graphql"),
         resolvers_enabled=asbool(os.getenv("DD_TRACE_GRAPHQL_RESOLVERS_ENABLED", default=False)),
     ),
 )
@@ -64,7 +74,7 @@ _GRAPHQL_OPERATION_NAME = "graphql.operation.name"
 def patch():
     if getattr(graphql, "_datadog_patch", False):
         return
-    setattr(graphql, "_datadog_patch", True)
+    graphql._datadog_patch = True
     Pin().onto(graphql)
 
     for module_str, func_name, wrapper in _get_patching_candidates():
@@ -78,7 +88,7 @@ def unpatch():
     for module_str, func_name, wrapper in _get_patching_candidates():
         _update_patching(unwrap, module_str, func_name, wrapper)
 
-    setattr(graphql, "_datadog_patch", False)
+    graphql._datadog_patch = False
 
 
 def _get_patching_candidates():
@@ -169,6 +179,8 @@ def _traced_execute(func, args, kwargs):
     ) as span:
         span.set_tag_str(COMPONENT, config.graphql.integration_name)
 
+        span.set_tag(SPAN_MEASURED_KEY)
+
         _set_span_operation_tags(span, document)
         span.set_tag_str(_GRAPHQL_SOURCE, source_str)
 
@@ -189,7 +201,7 @@ def _traced_query(func, args, kwargs):
     resource = _get_source_str(source)
 
     with pin.tracer.trace(
-        name="graphql.request",
+        name=schematize_url_operation("graphql.request", protocol="graphql", direction=SpanDirection.INBOUND),
         resource=resource,
         service=trace_utils.int_service(pin, config.graphql),
         span_type=SpanTypes.GRAPHQL,

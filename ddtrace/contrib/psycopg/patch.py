@@ -1,235 +1,215 @@
+from importlib import import_module
+import inspect
 import os
-
-import psycopg2
-from psycopg2.extensions import parse_dsn
-from psycopg2.sql import Composable
+from typing import List
 
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace.constants import SPAN_KIND
-from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import dbapi
-from ddtrace.contrib.trace_utils import ext_service
-from ddtrace.ext import SpanKind
-from ddtrace.ext import SpanTypes
-from ddtrace.ext import db
-from ddtrace.ext import net
-from ddtrace.internal.constants import COMPONENT
-from ddtrace.vendor import wrapt
 
+
+try:
+    from ddtrace.contrib.psycopg.async_connection import patched_connect_async_factory
+    from ddtrace.contrib.psycopg.async_cursor import Psycopg3FetchTracedAsyncCursor
+    from ddtrace.contrib.psycopg.async_cursor import Psycopg3TracedAsyncCursor
+# catch async function syntax errors when using Python<3.7 with no async support
+except SyntaxError:
+    pass
+from ddtrace.contrib.psycopg.connection import patched_connect_factory
+from ddtrace.contrib.psycopg.cursor import Psycopg3FetchTracedCursor
+from ddtrace.contrib.psycopg.cursor import Psycopg3TracedCursor
+from ddtrace.contrib.psycopg.extensions import _patch_extensions
+from ddtrace.contrib.psycopg.extensions import _unpatch_extensions
+from ddtrace.contrib.psycopg.extensions import get_psycopg2_extensions
+from ddtrace.propagation._database_monitoring import default_sql_injector as _default_sql_injector
+from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
+
+from ...internal.schema import schematize_database_operation
+from ...internal.schema import schematize_service_name
 from ...internal.utils.formats import asbool
-from ...internal.utils.version import parse_version
+from ...internal.utils.wrappers import unwrap as _u
 from ...propagation._database_monitoring import _DBM_Propagator
-from ...propagation._database_monitoring import default_sql_injector as _default_sql_injector
 
 
-def _psycopg2_sql_injector(dbm_comment, sql_statement):
-    # type: (str, Composable) -> Composable
-    if isinstance(sql_statement, Composable):
-        return psycopg2.sql.SQL(dbm_comment) + sql_statement
+try:
+    psycopg_import = import_module("psycopg")
+
+    # must get the original connect class method from the class __dict__ to use later in unpatch
+    # Python 3.11 and wrapt result in the class method being rebinded as an instance method when
+    # using unwrap
+    _original_connect = psycopg_import.Connection.__dict__["connect"]
+    _original_async_connect = psycopg_import.AsyncConnection.__dict__["connect"]
+except ImportError:
+    pass
+
+
+def _psycopg_sql_injector(dbm_comment, sql_statement):
+    for psycopg_module in config.psycopg["_patched_modules"]:
+        if (
+            hasattr(psycopg_module, "sql")
+            and hasattr(psycopg_module.sql, "Composable")
+            and isinstance(sql_statement, psycopg_module.sql.Composable)
+        ):
+            return psycopg_module.sql.SQL(dbm_comment) + sql_statement
     return _default_sql_injector(dbm_comment, sql_statement)
 
 
 config._add(
     "psycopg",
     dict(
-        _default_service="postgres",
+        _default_service=schematize_service_name("postgres"),
         _dbapi_span_name_prefix="postgres",
-        trace_fetch_methods=asbool(os.getenv("DD_PSYCOPG_TRACE_FETCH_METHODS", default=False)),
-        trace_connect=asbool(os.getenv("DD_PSYCOPG_TRACE_CONNECT", default=False)),
-        _dbm_propagator=_DBM_Propagator(0, "query", _psycopg2_sql_injector),
+        _dbapi_span_operation_name=schematize_database_operation("postgres.query", database_provider="postgresql"),
+        _patched_modules=set(),
+        trace_fetch_methods=asbool(
+            os.getenv("DD_PSYCOPG_TRACE_FETCH_METHODS", default=False)
+            or os.getenv("DD_PSYCOPG2_TRACE_FETCH_METHODS", default=False)
+        ),
+        trace_connect=asbool(
+            os.getenv("DD_PSYCOPG_TRACE_CONNECT", default=False)
+            or os.getenv("DD_PSYCOPG2_TRACE_CONNECT", default=False)
+        ),
+        _dbm_propagator=_DBM_Propagator(0, "query", _psycopg_sql_injector),
         dbms_name="postgresql",
     ),
 )
 
-# Original connect method
-_connect = psycopg2.connect
 
-PSYCOPG2_VERSION = parse_version(psycopg2.__version__)
+def get_version():
+    # type: () -> str
+    return ""
+
+
+PATCHED_VERSIONS = {}
+
+
+def get_versions():
+    # type: () -> List[str]
+    return PATCHED_VERSIONS
+
+
+def _psycopg_modules():
+    module_names = (
+        "psycopg",
+        "psycopg2",
+    )
+    for module_name in module_names:
+        try:
+            yield import_module(module_name)
+        except ImportError:
+            pass
 
 
 def patch():
+    for psycopg_module in _psycopg_modules():
+        _patch(psycopg_module)
+
+
+def _patch(psycopg_module):
     """Patch monkey patches psycopg's connection function
     so that the connection's functions are traced.
     """
-    if getattr(psycopg2, "_datadog_patch", False):
+    if getattr(psycopg_module, "_datadog_patch", False):
         return
-    setattr(psycopg2, "_datadog_patch", True)
+    psycopg_module._datadog_patch = True
 
-    Pin().onto(psycopg2)
-    wrapt.wrap_function_wrapper(psycopg2, "connect", patched_connect)
-    _patch_extensions(_psycopg2_extensions)  # do this early just in case
+    PATCHED_VERSIONS[psycopg_module.__name__] = getattr(psycopg_module, "__version__", "")
+
+    Pin(_config=config.psycopg).onto(psycopg_module)
+
+    if psycopg_module.__name__ == "psycopg2":
+
+        # patch all psycopg2 extensions
+        _psycopg2_extensions = get_psycopg2_extensions(psycopg_module)
+        config.psycopg["_extensions_to_patch"] = _psycopg2_extensions
+        _patch_extensions(_psycopg2_extensions)
+
+        _w(psycopg_module, "connect", patched_connect_factory(psycopg_module))
+
+        config.psycopg["_patched_modules"].add(psycopg_module)
+    else:
+
+        _w(psycopg_module, "connect", patched_connect_factory(psycopg_module))
+        _w(psycopg_module, "Cursor", init_cursor_from_connection_factory(psycopg_module))
+        _w(psycopg_module, "AsyncCursor", init_cursor_from_connection_factory(psycopg_module))
+
+        _w(psycopg_module.Connection, "connect", patched_connect_factory(psycopg_module))
+        _w(psycopg_module.AsyncConnection, "connect", patched_connect_async_factory(psycopg_module))
+
+        config.psycopg["_patched_modules"].add(psycopg_module)
 
 
 def unpatch():
-    if getattr(psycopg2, "_datadog_patch", False):
-        setattr(psycopg2, "_datadog_patch", False)
-        psycopg2.connect = _connect
-        _unpatch_extensions(_psycopg2_extensions)
+    for psycopg_module in _psycopg_modules():
+        _unpatch(psycopg_module)
 
-        pin = Pin.get_from(psycopg2)
+
+def _unpatch(psycopg_module):
+    if getattr(psycopg_module, "_datadog_patch", False):
+        psycopg_module._datadog_patch = False
+
+        if psycopg_module.__name__ == "psycopg2":
+            _u(psycopg_module, "connect")
+
+            _psycopg2_extensions = get_psycopg2_extensions(psycopg_module)
+            _unpatch_extensions(_psycopg2_extensions)
+        else:
+            _u(psycopg_module, "connect")
+            _u(psycopg_module, "Cursor")
+            _u(psycopg_module, "AsyncCursor")
+
+            # _u throws an attribute error for Python 3.11, no __get__ on the BoundFunctionWrapper
+            # unlike Python Class Methods which implement __get__
+            psycopg_module.Connection.connect = _original_connect
+            psycopg_module.AsyncConnection.connect = _original_async_connect
+
+        pin = Pin.get_from(psycopg_module)
         if pin:
-            pin.remove_from(psycopg2)
+            pin.remove_from(psycopg_module)
 
 
-class Psycopg2TracedCursor(dbapi.TracedCursor):
-    """TracedCursor for psycopg2"""
+def init_cursor_from_connection_factory(psycopg_module):
+    def init_cursor_from_connection(wrapped_cursor_cls, _, args, kwargs):
+        connection = kwargs.pop("connection", None)
+        if not connection:
+            args = list(args)
+            index = next((i for i, x in enumerate(args) if isinstance(x, dbapi.TracedConnection)), None)
+            if index is not None:
+                connection = args.pop(index)
 
-    def _trace_method(self, method, name, resource, extra_tags, dbm_propagator, *args, **kwargs):
-        # treat psycopg2.sql.Composable resource objects as strings
-        if isinstance(resource, Composable):
-            resource = resource.as_string(self.__wrapped__)
-        return super(Psycopg2TracedCursor, self)._trace_method(
-            method, name, resource, extra_tags, dbm_propagator, *args, **kwargs
-        )
+            # if we do not have an example of a traced connection, call the original cursor function
+            if not connection:
+                return wrapped_cursor_cls(*args, **kwargs)
 
+        pin = Pin.get_from(connection).clone()
+        cfg = config.psycopg
 
-class Psycopg2FetchTracedCursor(Psycopg2TracedCursor, dbapi.FetchTracedCursor):
-    """FetchTracedCursor for psycopg2"""
+        if cfg and cfg.trace_fetch_methods:
+            trace_fetch_methods = True
+        else:
+            trace_fetch_methods = False
 
+        if issubclass(wrapped_cursor_cls, psycopg_module.AsyncCursor):
+            traced_cursor_cls = Psycopg3FetchTracedAsyncCursor if trace_fetch_methods else Psycopg3TracedAsyncCursor
+        else:
+            traced_cursor_cls = Psycopg3FetchTracedCursor if trace_fetch_methods else Psycopg3TracedCursor
 
-class Psycopg2TracedConnection(dbapi.TracedConnection):
-    """TracedConnection wraps a Connection with tracing code."""
+        args_mapping = inspect.signature(wrapped_cursor_cls.__init__).parameters
+        # inspect.signature returns ordered dict[argument_name: str, parameter_type: type]
+        if "row_factory" in args_mapping and "row_factory" not in kwargs:
+            # check for row_factory in args by checking for functions
+            row_factory = None
+            for i in range(len(args)):
+                if callable(args[i]):
+                    row_factory = args.pop(i)
+                    break
+            # else just use the connection row factory
+            if row_factory is None:
+                row_factory = connection.row_factory
+            cursor = wrapped_cursor_cls(connection=connection, row_factory=row_factory, *args, **kwargs)  # noqa: B026
+        else:
+            cursor = wrapped_cursor_cls(connection, *args, **kwargs)
 
-    def __init__(self, conn, pin=None, cursor_cls=None):
-        if not cursor_cls:
-            # Do not trace `fetch*` methods by default
-            cursor_cls = Psycopg2FetchTracedCursor if config.psycopg.trace_fetch_methods else Psycopg2TracedCursor
+        return traced_cursor_cls(cursor=cursor, pin=pin, cfg=cfg)
 
-        super(Psycopg2TracedConnection, self).__init__(conn, pin, config.psycopg, cursor_cls=cursor_cls)
-
-
-def patch_conn(conn, traced_conn_cls=Psycopg2TracedConnection):
-    """Wrap will patch the instance so that its queries are traced."""
-    # ensure we've patched extensions (this is idempotent) in
-    # case we're only tracing some connections.
-    _patch_extensions(_psycopg2_extensions)
-
-    c = traced_conn_cls(conn)
-
-    # fetch tags from the dsn
-    dsn = parse_dsn(conn.dsn)
-    tags = {
-        net.TARGET_HOST: dsn.get("host"),
-        net.TARGET_PORT: dsn.get("port"),
-        db.NAME: dsn.get("dbname"),
-        db.USER: dsn.get("user"),
-        db.SYSTEM: config.psycopg.dbms_name,
-        "db.application": dsn.get("application_name"),
-    }
-
-    Pin(tags=tags).onto(c)
-
-    return c
-
-
-def _patch_extensions(_extensions):
-    # we must patch extensions all the time (it's pretty harmless) so split
-    # from global patching of connections. must be idempotent.
-    for _, module, func, wrapper in _extensions:
-        if not hasattr(module, func) or isinstance(getattr(module, func), wrapt.ObjectProxy):
-            continue
-        wrapt.wrap_function_wrapper(module, func, wrapper)
-
-
-def _unpatch_extensions(_extensions):
-    # we must patch extensions all the time (it's pretty harmless) so split
-    # from global patching of connections. must be idempotent.
-    for original, module, func, _ in _extensions:
-        setattr(module, func, original)
-
-
-#
-# monkeypatch targets
-#
-
-
-def patched_connect(connect_func, _, args, kwargs):
-    pin = Pin.get_from(psycopg2)
-
-    if not pin or not pin.enabled() or not config.psycopg.trace_connect:
-        conn = connect_func(*args, **kwargs)
-    else:
-        with pin.tracer.trace(
-            "psycopg2.connect", service=ext_service(pin, config.psycopg), span_type=SpanTypes.SQL
-        ) as span:
-            span.set_tag_str(COMPONENT, config.psycopg.integration_name)
-            if span.get_tag(db.SYSTEM) is None:
-                span.set_tag_str(db.SYSTEM, config.psycopg.dbms_name)
-
-            # set span.kind to the type of operation being performed
-            span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
-
-            span.set_tag(SPAN_MEASURED_KEY)
-            conn = connect_func(*args, **kwargs)
-    return patch_conn(conn)
-
-
-def _extensions_register_type(func, _, args, kwargs):
-    def _unroll_args(obj, scope=None):
-        return obj, scope
-
-    obj, scope = _unroll_args(*args, **kwargs)
-
-    # register_type performs a c-level check of the object
-    # type so we must be sure to pass in the actual db connection
-    if scope and isinstance(scope, wrapt.ObjectProxy):
-        scope = scope.__wrapped__
-
-    return func(obj, scope) if scope else func(obj)
-
-
-def _extensions_quote_ident(func, _, args, kwargs):
-    def _unroll_args(obj, scope=None):
-        return obj, scope
-
-    obj, scope = _unroll_args(*args, **kwargs)
-
-    # register_type performs a c-level check of the object
-    # type so we must be sure to pass in the actual db connection
-    if scope and isinstance(scope, wrapt.ObjectProxy):
-        scope = scope.__wrapped__
-
-    return func(obj, scope) if scope else func(obj)
-
-
-def _extensions_adapt(func, _, args, kwargs):
-    adapt = func(*args, **kwargs)
-    if hasattr(adapt, "prepare"):
-        return AdapterWrapper(adapt)
-    return adapt
-
-
-class AdapterWrapper(wrapt.ObjectProxy):
-    def prepare(self, *args, **kwargs):
-        func = self.__wrapped__.prepare
-        if not args:
-            return func(*args, **kwargs)
-        conn = args[0]
-
-        # prepare performs a c-level check of the object type so
-        # we must be sure to pass in the actual db connection
-        if isinstance(conn, wrapt.ObjectProxy):
-            conn = conn.__wrapped__
-
-        return func(conn, *args[1:], **kwargs)
-
-
-# extension hooks
-_psycopg2_extensions = [
-    (psycopg2.extensions.register_type, psycopg2.extensions, "register_type", _extensions_register_type),
-    (psycopg2._psycopg.register_type, psycopg2._psycopg, "register_type", _extensions_register_type),
-    (psycopg2.extensions.adapt, psycopg2.extensions, "adapt", _extensions_adapt),
-]
-
-# `_json` attribute is only available for psycopg >= 2.5
-if getattr(psycopg2, "_json", None):
-    _psycopg2_extensions += [
-        (psycopg2._json.register_type, psycopg2._json, "register_type", _extensions_register_type),
-    ]
-
-# `quote_ident` attribute is only available for psycopg >= 2.7
-if getattr(psycopg2, "extensions", None) and getattr(psycopg2.extensions, "quote_ident", None):
-    _psycopg2_extensions += [
-        (psycopg2.extensions.quote_ident, psycopg2.extensions, "quote_ident", _extensions_quote_ident),
-    ]
+    return init_cursor_from_connection

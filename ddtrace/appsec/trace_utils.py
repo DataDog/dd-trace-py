@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 
 from ddtrace.appsec import _asm_request_context
 from ddtrace.contrib.trace_utils import set_user
-from ddtrace.internal import _context
+from ddtrace.internal import core
 
 
 if TYPE_CHECKING:
@@ -13,6 +13,7 @@ if TYPE_CHECKING:
 from ddtrace import config
 from ddtrace import constants
 from ddtrace.appsec._constants import APPSEC
+from ddtrace.appsec._constants import LOGIN_EVENTS_MODE
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
 from ddtrace.ext import user
 from ddtrace.internal.compat import six
@@ -22,17 +23,55 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 
-def _track_user_login_common(tracer, user_id, success, metadata=None):
-    # type: (Tracer, str, bool, Optional[dict]) -> Optional[Span]
+def _asm_manual_keep(span):
+    # type: (Span) -> None
+    from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
+    from ddtrace.internal.sampling import SamplingMechanism
 
-    span = tracer.current_root_span()
+    span.set_tag(constants.MANUAL_KEEP_KEY)
+    # set decision maker to ASM = -5
+    span.set_tag_str(SAMPLING_DECISION_TRACE_TAG_KEY, "-%d" % SamplingMechanism.APPSEC)
+
+
+def _track_user_login_common(
+    tracer,  # type: Tracer
+    success,  # type: bool
+    metadata=None,  # type: Optional[dict]
+    login_events_mode=LOGIN_EVENTS_MODE.SDK,  # type: str
+    login=None,  # type: Optional[str]
+    name=None,  # type: Optional[str]
+    email=None,  # type: Optional[str]
+    span=None,  # type: Optional[Span]
+):
+    # type: (...) -> Optional[Span]
+
+    if span is None:
+        span = tracer.current_root_span()
     if span:
         success_str = "success" if success else "failure"
-        span.set_tag_str("%s.%s.track" % (APPSEC.USER_LOGIN_EVENT_PREFIX, success_str), "true")
+        tag_prefix = "%s.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX, success_str)
+        span.set_tag_str("%s.track" % tag_prefix, "true")
+
+        # This is used to mark if the call was done from the SDK of the automatic login events
+        if login_events_mode == LOGIN_EVENTS_MODE.SDK:
+            span.set_tag_str("%s.sdk" % tag_prefix, "true")
+        else:
+            span.set_tag_str("%s.auto.mode" % tag_prefix, str(login_events_mode))
+
         if metadata is not None:
             for k, v in six.iteritems(metadata):
-                span.set_tag_str("%s.%s.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX, success_str, k), str(v))
-        span.set_tag_str(constants.MANUAL_KEEP_KEY, "true")
+                span.set_tag_str("%s.%s" % (tag_prefix, k), str(v))
+
+        if login:
+            span.set_tag_str("%s.login" % tag_prefix, login)
+
+        if email:
+            span.set_tag_str("%s.email" % tag_prefix, email)
+
+        if name:
+            span.set_tag_str("%s.username" % tag_prefix, name)
+
+        _asm_manual_keep(span)
         return span
     else:
         log.warning(
@@ -44,17 +83,20 @@ def _track_user_login_common(tracer, user_id, success, metadata=None):
 
 
 def track_user_login_success_event(
-    tracer,
-    user_id,
-    metadata=None,
-    name=None,
-    email=None,
-    scope=None,
-    role=None,
-    session_id=None,
-    propagate=False,
+    tracer,  # type: Tracer
+    user_id,  # type: str
+    metadata=None,  # type: Optional[dict]
+    login=None,  # type: Optional[str]
+    name=None,  # type: Optional[str]
+    email=None,  # type: Optional[str]
+    scope=None,  # type: Optional[str]
+    role=None,  # type: Optional[str]
+    session_id=None,  # type: Optional[str]
+    propagate=False,  # type: bool
+    login_events_mode=LOGIN_EVENTS_MODE.SDK,  # type: str
+    span=None,  # type: Optional[Span]
 ):
-    # type: (Tracer, str, Optional[dict], Optional[str], Optional[str], Optional[str], Optional[str], Optional[str], bool) -> None # noqa: E501
+    # type: (...) -> None # noqa: E501
     """
     Add a new login success tracking event. The parameters after metadata (name, email,
     scope, role, session_id, propagate) will be passed to the `set_user` function that will be called
@@ -67,16 +109,16 @@ def track_user_login_success_event(
     :param metadata: a dictionary with additional metadata information to be stored with the event
     """
 
-    span = _track_user_login_common(tracer, user_id, True, metadata)
+    span = _track_user_login_common(tracer, True, metadata, login_events_mode, login, name, email, span)
     if not span:
         return
 
     # usr.id will be set by set_user
-    set_user(tracer, user_id, name, email, scope, role, session_id, propagate)
+    set_user(tracer, user_id, name, email, scope, role, session_id, propagate, span)
 
 
-def track_user_login_failure_event(tracer, user_id, exists, metadata=None):
-    # type: (Tracer, str, bool, Optional[dict]) -> None
+def track_user_login_failure_event(tracer, user_id, exists, metadata=None, login_events_mode=LOGIN_EVENTS_MODE.SDK):
+    # type: (Tracer, str, bool, Optional[dict], str) -> None
     """
     Add a new login failure tracking event.
     :param tracer: tracer instance to use
@@ -85,13 +127,37 @@ def track_user_login_failure_event(tracer, user_id, exists, metadata=None):
     :param metadata: a dictionary with additional metadata information to be stored with the event
     """
 
-    span = _track_user_login_common(tracer, user_id, False, metadata)
+    span = _track_user_login_common(tracer, False, metadata, login_events_mode)
     if not span:
         return
 
     span.set_tag_str("%s.failure.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX, user.ID), str(user_id))
     exists_str = "true" if exists else "false"
     span.set_tag_str("%s.failure.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX, user.EXISTS), exists_str)
+
+
+def track_user_signup_event(tracer, user_id, success, login_events_mode=LOGIN_EVENTS_MODE.SDK):
+    # type: (Tracer, str, bool, str) -> None
+    span = tracer.current_root_span()
+    if span:
+        success_str = "true" if success else "false"
+        span.set_tag_str(APPSEC.USER_SIGNUP_EVENT, success_str)
+        span.set_tag_str(user.ID, user_id)
+        _asm_manual_keep(span)
+
+        # This is used to mark if the call was done from the SDK of the automatic login events
+        if login_events_mode == LOGIN_EVENTS_MODE.SDK:
+            span.set_tag_str("%s.sdk" % APPSEC.USER_SIGNUP_EVENT, "true")
+        else:
+            span.set_tag_str("%s.auto.mode" % APPSEC.USER_SIGNUP_EVENT, str(login_events_mode))
+
+        return
+    else:
+        log.warning(
+            "No root span in the current execution. Skipping track_user_signup tags. "
+            "See https://docs.datadoghq.com/security_platform/application_security/setup_and_configure/"
+            "?tab=set_user&code-lang=python for more information.",
+        )
 
 
 def track_custom_event(tracer, event_name, metadata):
@@ -122,9 +188,11 @@ def track_custom_event(tracer, event_name, metadata):
         )
         return
 
+    span.set_tag_str("%s.%s.track" % (APPSEC.CUSTOM_EVENT_PREFIX, event_name), "true")
+
     for k, v in six.iteritems(metadata):
         span.set_tag_str("%s.%s.%s" % (APPSEC.CUSTOM_EVENT_PREFIX, event_name, k), str(v))
-        span.set_tag_str(constants.MANUAL_KEEP_KEY, "true")
+        _asm_manual_keep(span)
 
 
 def should_block_user(tracer, userid):  # type: (Tracer, str) -> bool
@@ -144,11 +212,20 @@ def should_block_user(tracer, userid):  # type: (Tracer, str) -> bool
 
     # Early check to avoid calling the WAF if the request is already blocked
     span = tracer.current_root_span()
-    if _context.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span):
+    if not span:
+        log.warning(
+            "No root span in the current execution. should_block_user returning False"
+            "See https://docs.datadoghq.com/security_platform/application_security"
+            "/setup_and_configure/"
+            "?tab=set_user&code-lang=python for more information.",
+        )
+        return False
+
+    if core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span):
         return True
 
     _asm_request_context.call_waf_callback(custom_data={"REQUEST_USER_ID": str(userid)})
-    return bool(_context.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span))
+    return bool(core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span))
 
 
 def block_request():  # type: () -> None

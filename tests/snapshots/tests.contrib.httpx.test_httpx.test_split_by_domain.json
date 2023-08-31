@@ -9,6 +9,7 @@
     "type": "http",
     "error": 0,
     "meta": {
+      "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "component": "httpx",
       "http.method": "GET",
@@ -16,7 +17,8 @@
       "http.url": "http://localhost:8001/status/200",
       "http.useragent": "python-httpx/x.xx.x",
       "language": "python",
-      "runtime-id": "75e629a190f54866a5d1c4c299c99fe2",
+      "out.host": "localhost",
+      "runtime-id": "4ebd9f57f446448abfdc8318a41ba0b0",
       "span.kind": "client"
     },
     "metrics": {
@@ -25,8 +27,8 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 85259
+      "process_id": 64752
     },
-    "duration": 6604000,
-    "start": 1667242897838299000
+    "duration": 1841250,
+    "start": 1692711105506687053
   }]]

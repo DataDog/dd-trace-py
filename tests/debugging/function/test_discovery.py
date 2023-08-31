@@ -1,6 +1,9 @@
+from os.path import abspath
+
 import pytest
 
 from ddtrace.debugging._function.discovery import FunctionDiscovery
+from ddtrace.debugging._function.discovery import _undecorate
 from ddtrace.internal.compat import PY2
 import tests.submod.stuff as stuff
 
@@ -126,3 +129,31 @@ def test_discovery_after_external_wrapping(stuff):
 def test_property_non_function_getter(stuff_discovery):
     with pytest.raises(ValueError):
         stuff_discovery.by_name("PropertyStuff.foo")
+
+
+def test_undecorate():
+    def d(f):
+        def wrapper(*args, **kwargs):
+            return f(*args, **kwargs)
+
+        return wrapper
+
+    def f():
+        pass
+
+    df = d(f)
+    assert df is not f
+
+    ddf = d(df)
+    assert ddf is not df
+
+    dddf = d(ddf)
+    assert dddf is not ddf
+
+    name, path = f.__code__.co_name, abspath(__file__)
+    assert f is _undecorate(dddf, name, path)
+    assert f is _undecorate(ddf, name, path)
+    assert f is _undecorate(df, name, path)
+    assert f is _undecorate(f, name, path)
+
+    assert _undecorate(_undecorate, name, path) is _undecorate

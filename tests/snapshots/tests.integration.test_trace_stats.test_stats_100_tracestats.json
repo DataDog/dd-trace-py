@@ -6,14 +6,15 @@
       {
         "Name": "name",
         "Resource": "/users/list",
+        "Service": "abc",
         "Type": null,
         "HTTPStatusCode": 0,
         "Synthetics": false,
         "Hits": 100,
         "TopLevelHits": 100,
-        "Duration": 5851000,
+        "Duration": 99999999900,
         "Errors": 0,
-        "OkSummary": 2070,
+        "OkSummary": 1046,
         "ErrorSummary": 15
       }
     ]

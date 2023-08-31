@@ -2,6 +2,8 @@ from ddtrace import config
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.schema import schematize_cloud_api_operation
+from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.pin import Pin
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
@@ -13,10 +15,11 @@ from ...constants import SPAN_MEASURED_KEY
 
 DD_PATCH_ATTR = "_datadog_patch"
 
-SERVICE_NAME = "algoliasearch"
+SERVICE_NAME = schematize_service_name("algoliasearch")
 APP_NAME = "algoliasearch"
 
 try:
+    VERSION = "0.0.0"
     import algoliasearch
     from algoliasearch.version import VERSION
 
@@ -28,6 +31,11 @@ except ImportError:
     algoliasearch_version = (0, 0)
 
 
+def get_version():
+    # type: () -> str
+    return VERSION
+
+
 def patch():
     if algoliasearch_version == (0, 0):
         return
@@ -35,7 +43,7 @@ def patch():
     if getattr(algoliasearch, DD_PATCH_ATTR, False):
         return
 
-    setattr(algoliasearch, "_datadog_patch", True)
+    algoliasearch._datadog_patch = True
 
     pin = Pin()
 
@@ -107,7 +115,7 @@ def _patched_search(func, instance, wrapt_args, wrapt_kwargs):
         return func(*wrapt_args, **wrapt_kwargs)
 
     with pin.tracer.trace(
-        "algoliasearch.search",
+        schematize_cloud_api_operation("algoliasearch.search", cloud_provider="algoliasearch", cloud_service="search"),
         service=trace_utils.ext_service(pin, config.algoliasearch),
         span_type=SpanTypes.HTTP,
     ) as span:
@@ -130,7 +138,7 @@ def _patched_search(func, instance, wrapt_args, wrapt_kwargs):
             for query_arg, tag_name in QUERY_ARGS_DD_TAG_MAP.items():
                 value = query_args.get(query_arg)
                 if value is not None:
-                    span.set_tag_str("query.args.{}".format(tag_name), value)
+                    span.set_tag("query.args.{}".format(tag_name), value)
 
         # Result would look like this
         # {

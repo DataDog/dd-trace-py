@@ -98,7 +98,7 @@ class ContainerIterator(Iterator, FullyNamedFunction):
             self._iter = iter(
                 (m, getattr(container, a)) for m, a in {("getter", "fget"), ("setter", "fset"), ("deleter", "fdel")}
             )
-            assert container.fget is not None
+            assert container.fget is not None  # nosec
             self.__name__ = container.fget.__name__
 
         elif isinstance(container, (classmethod, staticmethod)):
@@ -130,6 +130,47 @@ class ContainerIterator(Iterator, FullyNamedFunction):
 UnboundMethodType = type(ContainerIterator.__init__) if PY2 else None
 
 
+def _undecorate(f, name, path):
+    # type: (FunctionType, str, str) -> FunctionType
+    # Find the original function object from a decorated function. We use the
+    # expected function name to guide the search and pick the correct function.
+    # The recursion is needed in case of multiple decorators. We make it BFS
+    # to find the function as soon as possible.
+    # DEV: We are deliberately not handling decorators that store the original
+    #      function in __wrapped__ for now.
+    if not (f.__code__.co_name == name and abspath(f.__code__.co_filename) == path):
+        seen_functions = {f}
+        q = deque([f])  # FIFO: use popleft and append
+
+        while q:
+            next_f = q.popleft()
+
+            for g in (
+                _.cell_contents for _ in (next_f.__closure__ or []) if _isinstance(_.cell_contents, FunctionType)
+            ):
+                if g.__code__.co_name == name and abspath(g.__code__.co_filename) == path:
+                    return g
+                if g not in seen_functions:
+                    q.append(g)
+                    seen_functions.add(g)
+
+    return f
+
+
+def _local_name(name, f):
+    # type: (str, FunctionType) -> str
+    func_name = f.__name__
+    if func_name.startswith("__") and name.endswith(func_name):
+        # Quite likely a mangled name
+        return func_name
+
+    if name != func_name:
+        # Brought into scope by an import, or a decorator
+        return ".<alias>.".join((name, func_name))
+
+    return func_name
+
+
 def _collect_functions(module):
     # type: (ModuleType) -> Dict[str, FullyNamedFunction]
     """Collect functions from a given module.
@@ -137,8 +178,6 @@ def _collect_functions(module):
     All the collected functions are augmented with a ``__fullname__`` attribute
     to disambiguate the same functions assigned to different names.
     """
-    assert isinstance(module, ModuleType)
-
     path = origin(module)
     containers = deque([ContainerIterator(module)])
     functions = {}
@@ -146,7 +185,7 @@ def _collect_functions(module):
     seen_functions = set()
 
     while containers:
-        c = containers.pop()
+        c = containers.popleft()
 
         if id(c._container) in seen_containers:
             continue
@@ -157,15 +196,22 @@ def _collect_functions(module):
                 o = o.__func__
 
             code = getattr(o, "__code__", None) if _isinstance(o, (FunctionType, FunctionWrapper)) else None
-            if code is not None and abspath(code.co_filename) == path:
+            if code is not None:
+                local_name = _local_name(k, o) if isinstance(k, str) else o.__name__
+
                 if o not in seen_functions:
                     seen_functions.add(o)
                     o = cast(FullyNamedFunction, o)
-                    o.__fullname__ = ".".join((c.__fullname__, o.__name__)) if c.__fullname__ else o.__name__
+                    o.__fullname__ = ".".join((c.__fullname__, local_name)) if c.__fullname__ else local_name
 
-                for name in (k, o.__name__) if isinstance(k, str) else (o.__name__,):
+                for name in (k, local_name) if isinstance(k, str) and k != local_name else (local_name,):
                     fullname = ".".join((c.__fullname__, name)) if c.__fullname__ else name
-                    functions[fullname] = o
+                    if fullname not in functions or abspath(code.co_filename) == path:
+                        # Give precedence to code objects from the module and
+                        # try to retrieve any potentially decorated function so
+                        # that we don't end up returning the decorator function
+                        # instead of the original function.
+                        functions[fullname] = _undecorate(o, name, path) if name == k else o
 
                 try:
                     if o.__closure__:
@@ -199,10 +245,17 @@ class FunctionDiscovery(defaultdict):
 
         functions = _collect_functions(module)
         seen_functions = set()
+        module_path = origin(module)
+
         self._fullname_index = {}
 
         for fname, function in functions.items():
-            if function not in seen_functions:
+            if (
+                function not in seen_functions
+                and abspath(cast(FunctionType, function).__code__.co_filename) == module_path
+            ):
+                # We only map line numbers for functions that actually belong to
+                # the module.
                 for lineno in linenos(cast(FunctionType, function)):
                     self[lineno].append(function)
             self._fullname_index[fname] = function

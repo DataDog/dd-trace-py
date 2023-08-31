@@ -4,6 +4,8 @@ import os
 import typing
 from typing import List
 from typing import Optional
+from typing import Type
+from typing import Union
 
 import attr
 
@@ -14,8 +16,8 @@ from ddtrace.internal import forksafe
 from ddtrace.internal import service
 from ddtrace.internal import uwsgi
 from ddtrace.internal import writer
-from ddtrace.internal.utils import attr as attr_utils
-from ddtrace.internal.utils import formats
+from ddtrace.internal.datadog.profiling import ddup
+from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.profiling import collector
 from ddtrace.profiling import exporter
 from ddtrace.profiling import recorder
@@ -27,9 +29,9 @@ from ddtrace.profiling.collector import stack_event
 from ddtrace.profiling.collector import threading
 from ddtrace.profiling.exporter import file
 from ddtrace.profiling.exporter import http
+from ddtrace.settings.profiling import config
 
 from . import _asyncio
-from ._asyncio import DdtraceProfilerEventLoopPolicy
 
 
 LOG = logging.getLogger(__name__)
@@ -114,35 +116,27 @@ class _ProfilerInstance(service.Service):
     version = attr.ib(factory=lambda: os.environ.get("DD_VERSION"))
     tracer = attr.ib(default=ddtrace.tracer)
     api_key = attr.ib(factory=lambda: os.environ.get("DD_API_KEY"), type=Optional[str])
-    agentless = attr.ib(factory=lambda: formats.asbool(os.environ.get("DD_PROFILING_AGENTLESS", "False")), type=bool)
-    asyncio_loop_policy_class = attr.ib(default=DdtraceProfilerEventLoopPolicy)
-    _memory_collector_enabled = attr.ib(
-        factory=lambda: formats.asbool(os.environ.get("DD_PROFILING_MEMORY_ENABLED", "True")), type=bool
-    )
-    enable_code_provenance = attr.ib(
-        factory=attr_utils.from_env("DD_PROFILING_ENABLE_CODE_PROVENANCE", False, formats.asbool),
-        type=bool,
-    )
-    endpoint_collection_enabled = attr.ib(
-        factory=attr_utils.from_env("DD_PROFILING_ENDPOINT_COLLECTION_ENABLED", True, formats.asbool)
-    )
+    agentless = attr.ib(type=bool, default=config.agentless)
+    _memory_collector_enabled = attr.ib(type=bool, default=config.memory.enabled)
+    _stack_collector_enabled = attr.ib(type=bool, default=config.stack.enabled)
+    _lock_collector_enabled = attr.ib(type=bool, default=config.lock.enabled)
+    enable_code_provenance = attr.ib(type=bool, default=config.code_provenance)
+    endpoint_collection_enabled = attr.ib(type=bool, default=config.endpoint_collection)
 
     _recorder = attr.ib(init=False, default=None)
     _collectors = attr.ib(init=False, default=None)
-    _scheduler = attr.ib(
-        init=False,
-        default=None,
-        type=scheduler.Scheduler,
-    )
+    _scheduler = attr.ib(init=False, default=None, type=Union[scheduler.Scheduler, scheduler.ServerlessScheduler])
     _lambda_function_name = attr.ib(
         init=False, factory=lambda: os.environ.get("AWS_LAMBDA_FUNCTION_NAME"), type=Optional[str]
     )
+    _export_libdd_enabled = attr.ib(type=bool, default=config.export.libdd_enabled)
+    _export_py_enabled = attr.ib(type=bool, default=config.export.py_enabled)
 
     ENDPOINT_TEMPLATE = "https://intake.profile.{}"
 
     def _build_default_exporters(self):
         # type: (...) -> List[exporter.Exporter]
-        _OUTPUT_PPROF = os.environ.get("DD_PROFILING_OUTPUT_PPROF")
+        _OUTPUT_PPROF = config.output_pprof
         if _OUTPUT_PPROF:
             return [
                 file.PprofFileExporter(prefix=_OUTPUT_PPROF),
@@ -177,19 +171,36 @@ class _ProfilerInstance(service.Service):
         if self.endpoint_collection_enabled:
             endpoint_call_counter_span_processor.enable()
 
-        return [
-            http.PprofHTTPExporter(
-                service=self.service,
+        if self._export_libdd_enabled:
+            versionname = (
+                "{}.libdd".format(self.version)
+                if self._export_py_enabled and self.version is not None
+                else self.version
+            )
+            ddup.init(
                 env=self.env,
+                service=self.service,
+                version=versionname,
                 tags=self.tags,
-                version=self.version,
-                api_key=self.api_key,
-                endpoint=endpoint,
-                endpoint_path=endpoint_path,
-                enable_code_provenance=self.enable_code_provenance,
-                endpoint_call_counter_span_processor=endpoint_call_counter_span_processor,
-            ),
-        ]
+                max_nframes=config.max_frames,
+                url=endpoint,
+            )
+
+        if self._export_py_enabled:
+            return [
+                http.PprofHTTPExporter(
+                    service=self.service,
+                    env=self.env,
+                    tags=self.tags,
+                    version=self.version,
+                    api_key=self.api_key,
+                    endpoint=endpoint,
+                    endpoint_path=endpoint_path,
+                    enable_code_provenance=self.enable_code_provenance,
+                    endpoint_call_counter_span_processor=endpoint_call_counter_span_processor,
+                )
+            ]
+        return []
 
     def __attrs_post_init__(self):
         # type: (...) -> None
@@ -206,35 +217,58 @@ class _ProfilerInstance(service.Service):
                 # Do not limit the heap sample size as the number of events is relative to allocated memory anyway
                 memalloc.MemoryHeapSampleEvent: None,
             },
-            default_max_events=int(os.environ.get("DD_PROFILING_MAX_EVENTS", recorder.Recorder._DEFAULT_MAX_EVENTS)),
+            default_max_events=config.max_events,
         )
 
-        self._collectors = [
-            stack.StackCollector(
-                r, tracer=self.tracer, endpoint_collection_enabled=self.endpoint_collection_enabled
-            ),  # type: ignore[call-arg]
-            threading.ThreadingLockCollector(r, tracer=self.tracer),
-        ]
-        if _asyncio.asyncio_available:
-            self._collectors.append(asyncio.AsyncioLockCollector(r, tracer=self.tracer))
+        self._collectors = []
+
+        if self._stack_collector_enabled:
+            self._collectors.append(
+                stack.StackCollector(
+                    r,
+                    tracer=self.tracer,
+                    endpoint_collection_enabled=self.endpoint_collection_enabled,
+                )  # type: ignore[call-arg]
+            )
+
+        if self._lock_collector_enabled:
+            self._collectors.append(threading.ThreadingLockCollector(r, tracer=self.tracer))
+
+        if _asyncio.is_asyncio_available():
+
+            @ModuleWatchdog.after_module_imported("asyncio")
+            def _(_):
+                with self._service_lock:
+                    col = asyncio.AsyncioLockCollector(r, tracer=self.tracer)
+
+                    if self.status == service.ServiceStatus.RUNNING:
+                        # The profiler is already running so we need to start the collector
+                        try:
+                            col.start()
+                        except collector.CollectorUnavailable:
+                            LOG.debug("Collector %r is unavailable, disabling", col)
+                            return
+                        except Exception:
+                            LOG.error("Failed to start collector %r, disabling.", col, exc_info=True)
+                            return
+
+                    self._collectors.append(col)
 
         if self._memory_collector_enabled:
             self._collectors.append(memalloc.MemoryCollector(r))
 
         exporters = self._build_default_exporters()
 
-        if exporters:
-            if self._lambda_function_name is None:
-                scheduler_class = scheduler.Scheduler
-            else:
-                scheduler_class = scheduler.ServerlessScheduler
-            self._scheduler = scheduler_class(recorder=r, exporters=exporters, before_flush=self._collectors_snapshot)
+        if exporters or self._export_libdd_enabled:
+            scheduler_class = (
+                scheduler.ServerlessScheduler if self._lambda_function_name else scheduler.Scheduler
+            )  # type: (Type[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]])
 
-        self.set_asyncio_event_loop_policy()
-
-    def set_asyncio_event_loop_policy(self):
-        if self.asyncio_loop_policy_class is not None:
-            _asyncio.set_event_loop_policy(self.asyncio_loop_policy_class())
+            self._scheduler = scheduler_class(
+                recorder=r,
+                exporters=exporters,
+                before_flush=self._collectors_snapshot,
+            )
 
     def _collectors_snapshot(self):
         for c in self._collectors:
@@ -301,3 +335,6 @@ class _ProfilerInstance(service.Service):
         if join:
             for col in reversed(self._collectors):
                 col.join()
+
+    def visible_events(self):
+        return self._export_py_enabled

@@ -14,6 +14,8 @@ from ...ext import SpanTypes
 from ...ext import db as dbx
 from ...ext import net
 from ...internal.logger import get_logger
+from ...internal.schema import schematize_database_operation
+from ...internal.schema import schematize_service_name
 from ...internal.utils import get_argument_value
 from ...internal.utils.wrappers import unwrap
 from ...pin import Pin
@@ -61,7 +63,7 @@ def cursor_span_end(instance, cursor, _, conf, *args, **kwargs):
 config._add(
     "vertica",
     {
-        "_default_service": "vertica",
+        "_default_service": schematize_service_name("vertica"),
         "_dbapi_span_name_prefix": "vertica",
         "patch": {
             "vertica_python.vertica.connection.Connection": {
@@ -75,7 +77,7 @@ config._add(
             "vertica_python.vertica.cursor.Cursor": {
                 "routines": {
                     "execute": {
-                        "operation_name": "vertica.query",
+                        "operation_name": schematize_database_operation("vertica.query", database_provider="vertica"),
                         "span_type": SpanTypes.SQL,
                         "span_start": execute_span_start,
                         "span_end": execute_span_end,
@@ -88,19 +90,23 @@ config._add(
                         "measured": False,
                     },
                     "fetchone": {
-                        "operation_name": "vertica.fetchone",
+                        "operation_name": schematize_database_operation(
+                            "vertica.fetchone", database_provider="vertica"
+                        ),
                         "span_type": SpanTypes.SQL,
                         "span_end": fetch_span_end,
                         "measured": False,
                     },
                     "fetchall": {
-                        "operation_name": "vertica.fetchall",
+                        "operation_name": schematize_database_operation(
+                            "vertica.fetchall", database_provider="vertica"
+                        ),
                         "span_type": SpanTypes.SQL,
                         "span_end": fetch_span_end,
                         "measured": False,
                     },
                     "nextset": {
-                        "operation_name": "vertica.nextset",
+                        "operation_name": schematize_database_operation("vertica.nextset", database_provider="vertica"),
                         "span_type": SpanTypes.SQL,
                         "span_end": fetch_span_end,
                         "measured": False,
@@ -110,6 +116,13 @@ config._add(
         },
     },
 )
+
+
+def get_version():
+    # type: () -> str
+    import vertica_python
+
+    return vertica_python.__version__
 
 
 def patch():

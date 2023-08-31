@@ -2,6 +2,7 @@ import consul
 
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -10,6 +11,9 @@ from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...ext import consul as consulx
+from ...ext import net
+from ...internal.schema import schematize_service_name
+from ...internal.schema import schematize_url_operation
 from ...internal.utils import get_argument_value
 from ...internal.utils.wrappers import unwrap as _u
 from ...pin import Pin
@@ -18,12 +22,17 @@ from ...pin import Pin
 _KV_FUNCS = ["put", "get", "delete"]
 
 
+def get_version():
+    # type: () -> str
+    return getattr(consul, "__version__", "")
+
+
 def patch():
     if getattr(consul, "__datadog_patch", False):
         return
-    setattr(consul, "__datadog_patch", True)
+    consul.__datadog_patch = True
 
-    pin = Pin(service=consulx.SERVICE)
+    pin = Pin(service=schematize_service_name(consulx.SERVICE))
     pin.onto(consul.Consul.KV)
 
     for f_name in _KV_FUNCS:
@@ -33,7 +42,7 @@ def patch():
 def unpatch():
     if not getattr(consul, "__datadog_patch", False):
         return
-    setattr(consul, "__datadog_patch", False)
+    consul.__datadog_patch = False
 
     for f_name in _KV_FUNCS:
         _u(consul.Consul.KV, f_name)
@@ -52,8 +61,15 @@ def wrap_function(name):
         path = get_argument_value(args, kwargs, 0, "key")
         resource = name.upper()
 
-        with pin.tracer.trace(consulx.CMD, service=pin.service, resource=resource, span_type=SpanTypes.HTTP) as span:
+        with pin.tracer.trace(
+            schematize_url_operation(consulx.CMD, protocol="http", direction=SpanDirection.OUTBOUND),
+            service=pin.service,
+            resource=resource,
+            span_type=SpanTypes.HTTP,
+        ) as span:
             span.set_tag_str(COMPONENT, config.consul.integration_name)
+
+            span.set_tag_str(net.TARGET_HOST, instance.agent.http.host)
 
             # set span.kind to the type of request being performed
             span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)

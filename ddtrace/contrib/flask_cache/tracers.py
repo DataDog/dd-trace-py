@@ -12,6 +12,8 @@ from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...ext import db
+from ...internal.schema import schematize_cache_operation
+from ...internal.schema import schematize_service_name
 from .utils import _extract_client
 from .utils import _extract_conn_tags
 from .utils import _resource_from_cache_prefix
@@ -23,12 +25,22 @@ if typing.TYPE_CHECKING:  # pragma: no cover
 
 log = logging.Logger(__name__)
 
-DEFAULT_SERVICE = config.service or "flask-cache"
+DEFAULT_SERVICE = config.service or schematize_service_name("flask-cache")
 
 # standard tags
 COMMAND_KEY = "flask_cache.key"
 CACHE_BACKEND = "flask_cache.backend"
 CONTACT_POINTS = "flask_cache.contact_points"
+
+
+def get_version():
+    # type: () -> str
+    try:
+        import flask_caching
+
+        return getattr(flask_caching, "__version__", "")
+    except ImportError:
+        return ""
 
 
 def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None, cache_cls=None):
@@ -68,7 +80,11 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None, cache_cls=Non
             Start a tracing with default attributes and tags
             """
             # create a new span
-            s = self._datadog_tracer.trace(cmd, span_type=SpanTypes.CACHE, service=self._datadog_service)
+            s = self._datadog_tracer.trace(
+                schematize_cache_operation(cmd, cache_provider="flask_cache"),
+                span_type=SpanTypes.CACHE,
+                service=self._datadog_service,
+            )
 
             s.set_tag_str(COMPONENT, config.flask_cache.integration_name)
 

@@ -1,7 +1,7 @@
+from collections import Counter
 import glob
 import json
 import os
-import subprocess
 
 import mock
 import pytest
@@ -9,6 +9,7 @@ import six
 
 from ddtrace.ext import ci
 from ddtrace.ext import git
+from tests import utils
 
 
 def _ci_fixtures():
@@ -27,41 +28,12 @@ def _updateenv(monkeypatch, env):
 
 @pytest.fixture
 def git_repo_empty(tmpdir):
-    """Create temporary empty git directory, meaning no commits/users/repository-url to extract (error)"""
-    cwd = str(tmpdir)
-    version = subprocess.check_output("git version", shell=True)
-    # decode "git version 2.28.0" to (2, 28, 0)
-    decoded_version = tuple(int(n) for n in version.decode().strip().split(" ")[-1].split(".") if n.isdigit())
-    if decoded_version >= (2, 28):
-        # versions starting from 2.28 can have a different initial branch name
-        # configured in ~/.gitconfig
-        subprocess.check_output("git init --initial-branch=master", cwd=cwd, shell=True)
-    else:
-        # versions prior to 2.28 will create a master branch by default
-        subprocess.check_output("git init", cwd=cwd, shell=True)
-    yield cwd
+    yield utils.git_repo_empty(tmpdir)
 
 
 @pytest.fixture
 def git_repo(git_repo_empty):
-    """Create temporary git directory, with one added file commit with a unique author and committer."""
-    cwd = git_repo_empty
-    subprocess.check_output('git remote add origin "git@github.com:test-repo-url.git"', cwd=cwd, shell=True)
-    # Set temporary git directory to not require gpg commit signing
-    subprocess.check_output("git config --local commit.gpgsign false", cwd=cwd, shell=True)
-    # Set committer user to be "Jane Doe"
-    subprocess.check_output('git config --local user.name "Jane Doe"', cwd=cwd, shell=True)
-    subprocess.check_output('git config --local user.email "jane@doe.com"', cwd=cwd, shell=True)
-    subprocess.check_output("touch tmp.py", cwd=cwd, shell=True)
-    subprocess.check_output("git add tmp.py", cwd=cwd, shell=True)
-    # Override author to be "John Doe"
-    subprocess.check_output(
-        'GIT_COMMITTER_DATE="2021-01-20T04:37:21-0400" git commit --date="2021-01-19T09:24:53-0400" '
-        '-m "this is a commit msg" --author="John Doe <john@doe.com>" --no-edit',
-        cwd=cwd,
-        shell=True,
-    )
-    yield cwd
+    yield utils.git_repo(git_repo_empty)
 
 
 @pytest.mark.parametrize("name,environment,tags", _ci_fixtures())
@@ -70,7 +42,12 @@ def test_ci_providers(monkeypatch, name, environment, tags):
     _updateenv(monkeypatch, environment)
     extracted_tags = ci.tags(environment)
     for key, value in tags.items():
-        assert extracted_tags[key] == value, "wrong tags in {0} for {1}".format(name, environment)
+        if key == ci.NODE_LABELS:
+            assert Counter(json.loads(extracted_tags[key])) == Counter(json.loads(value))
+        elif key == ci._CI_ENV_VARS:
+            assert json.loads(extracted_tags[key]) == json.loads(value)
+        else:
+            assert extracted_tags[key] == value, "wrong tags in {0} for {1}".format(name, environment)
 
 
 def test_git_extract_user_info(git_repo):
@@ -126,8 +103,10 @@ def test_git_extract_workspace_path_error(tmpdir):
 
 def test_extract_git_metadata(git_repo):
     """Test that extract_git_metadata() sets all tags correctly."""
-    extracted_tags = git.extract_git_metadata(cwd=git_repo)
+    with mock.patch("ddtrace.ext.git._set_safe_directory") as mock_git_set_safe_directory:
+        extracted_tags = git.extract_git_metadata(cwd=git_repo)
 
+    mock_git_set_safe_directory.assert_called()
     assert extracted_tags["git.repository_url"] == "git@github.com:test-repo-url.git"
     assert extracted_tags["git.commit.message"] == "this is a commit msg"
     assert extracted_tags["git.commit.author.name"] == "John Doe"
@@ -256,3 +235,73 @@ def test_os_runtime_metadata_tagging():
     assert extracted_tags.get(ci.OS_VERSION) is not None
     assert extracted_tags.get(ci.RUNTIME_NAME) is not None
     assert extracted_tags.get(ci.RUNTIME_VERSION) is not None
+
+
+def test_get_rev_list_no_args_git_ge_223(git_repo):
+    with mock.patch("ddtrace.ext.git._git_subprocess_cmd") as mock_git_subprocess, mock.patch(
+        "ddtrace.ext.git.extract_git_version", return_value=(2, 23, 0)
+    ):
+        mock_git_subprocess.return_value = ["commithash1", "commithash2"]
+        assert git._get_rev_list(cwd=git_repo) == ["commithash1", "commithash2"]
+        mock_git_subprocess.assert_called_once_with(
+            ["rev-list", "--objects", "--filter=blob:none", '--since="1 month ago"', "--no-object-names", "HEAD"],
+            cwd=git_repo,
+        )
+
+
+def test_get_rev_list_git_lt_223(git_repo):
+    with mock.patch("ddtrace.ext.git._git_subprocess_cmd") as mock_git_subprocess, mock.patch(
+        "ddtrace.ext.git.extract_git_version", return_value=(2, 22, 0)
+    ):
+        mock_git_subprocess.return_value = ["commithash1", "commithash2"]
+        assert git._get_rev_list(
+            excluded_commit_shas=["exclude1", "exclude2"], included_commit_shas=["include1", "include2"], cwd=git_repo
+        ) == ["commithash1", "commithash2"]
+        mock_git_subprocess.assert_called_once_with(
+            ["rev-list", "--objects", "--filter=blob:none", "HEAD", "^exclude1", "^exclude2", "include1", "include2"],
+            cwd=git_repo,
+        )
+
+
+def test_is_shallow_repository_true(git_repo):
+    with mock.patch("ddtrace.ext.git._git_subprocess_cmd", return_value="true") as mock_git_subprocess:
+        assert git._is_shallow_repository(cwd=git_repo) is True
+        mock_git_subprocess.assert_called_once_with("rev-parse --is-shallow-repository", cwd=git_repo)
+
+
+def test_is_shallow_repository_false(git_repo):
+    with mock.patch("ddtrace.ext.git._git_subprocess_cmd", return_value="false") as mock_git_subprocess:
+        assert git._is_shallow_repository(cwd=git_repo) is False
+        mock_git_subprocess.assert_called_once_with("rev-parse --is-shallow-repository", cwd=git_repo)
+
+
+def test_unshallow_repository(git_repo):
+    with mock.patch(
+        "ddtrace.ext.git._extract_clone_defaultremotename", return_value="myremote"
+    ) as mock_defaultremotename:
+        with mock.patch(
+            "ddtrace.ext.git.extract_commit_sha", return_value="mycommitshaaaaaaaaaaaa123"
+        ) as mock_extract_sha:
+            with mock.patch("ddtrace.ext.git._git_subprocess_cmd") as mock_git_subprocess:
+                git._unshallow_repository(cwd=git_repo)
+
+                mock_defaultremotename.assert_called_once_with(git_repo)
+                mock_extract_sha.assert_called_once_with(git_repo)
+                mock_git_subprocess.assert_called_once_with(
+                    [
+                        "fetch",
+                        "--update-shallow",
+                        "--filter=blob:none",
+                        "--recurse-submodules=no",
+                        '--shallow-since="1 month ago"',
+                        "myremote",
+                        "mycommitshaaaaaaaaaaaa123",
+                    ],
+                    cwd=git_repo,
+                )
+
+
+def test_extract_clone_defaultremotename():
+    with mock.patch("ddtrace.ext.git._git_subprocess_cmd", return_value="default_remote_name") as mock_git_subprocess:
+        assert git._extract_clone_defaultremotename(cwd=git_repo) == "default_remote_name"
+        mock_git_subprocess.assert_called_once_with("config --default origin --get clone.defaultRemoteName")

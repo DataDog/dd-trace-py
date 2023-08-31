@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    gunicorn: This fix ensures ddtrace threads do not block the master process from spawning  workers when ``DD_TRACE_DEBUG=true``. 
+    This issue impacts gunicorn applications using gevent and ``python<=3.6``.

@@ -7,6 +7,7 @@ from ddtrace.contrib.kombu import utils
 from ddtrace.contrib.kombu.patch import patch
 from ddtrace.contrib.kombu.patch import unpatch
 from ddtrace.ext import kombu as kombux
+from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 
@@ -136,8 +137,30 @@ class TestKombuSettings(TracerTestCase):
         unpatch()
         super(TestKombuSettings, self).tearDown()
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_user_specified_service(self):
+
+class TestKombuSchematization(TracerTestCase):
+
+    TEST_PORT = RABBITMQ_CONFIG["port"]
+
+    def setUp(self):
+        super(TestKombuSchematization, self).setUp()
+
+        conn = kombu.Connection("amqp://guest:guest@127.0.0.1:{p}//".format(p=self.TEST_PORT))
+        conn.connect()
+        producer = conn.Producer()
+        Pin.override(producer, tracer=self.tracer)
+
+        self.conn = conn
+        self.producer = producer
+
+        patch()
+
+    def tearDown(self):
+        unpatch()
+
+        super(TestKombuSchematization, self).tearDown()
+
+    def _create_schematized_spans(self):
         """
         When a service name is specified by the user
             The kombu integration should use it as the service name for both
@@ -157,13 +180,57 @@ class TestKombuSettings(TracerTestCase):
             Pin.override(consumer, tracer=self.tracer)
             self.conn.drain_events(timeout=2)
 
-        spans = self.get_spans()
-        self.assertEqual(len(spans), 2)
+        return self.get_spans()
 
-        # Since no parent span exists for the producer it will inherit the
-        # global service name.
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    def test_schematized_service_name_default(self):
+        spans = self._create_schematized_spans()
         for span in spans:
-            assert span.service == "mysvc"
+            assert span.service == "mysvc", "Expected mysvc, got {}".format(span.service)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_schematized_service_name_v0(self):
+        spans = self._create_schematized_spans()
+        for span in spans:
+            assert span.service == "mysvc", "Expected mysvc, got {}".format(span.service)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_schematized_service_name_v1(self):
+        spans = self._create_schematized_spans()
+        for span in spans:
+            assert span.service == "mysvc", "Expected mysvc, got {}".format(span.service)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict())
+    def test_schematized_unspecified_service_name_default(self):
+        spans = self._create_schematized_spans()
+        for span in spans:
+            assert span.service is None, "Expected None, got {}".format(span.service)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_schematized_unspecified_service_name_v0(self):
+        spans = self._create_schematized_spans()
+        for span in spans:
+            assert span.service is None, "Expected None, got {}".format(span.service)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_schematized_unspecified_service_name_v1(self):
+        spans = self._create_schematized_spans()
+        for span in spans:
+            assert (
+                span.service == DEFAULT_SPAN_SERVICE_NAME
+            ), "Expected internal.schema.DEFAULT_SPAN_SERVICE_NAME got {}".format(span.service)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_schematized_operation_name_v0(self):
+        spans = self._create_schematized_spans()
+        assert spans[0].name == "kombu.publish", "Expected kombu.publish, got {}".format(spans[0].name)
+        assert spans[1].name == "kombu.receive", "Expected kombu.receive, got {}".format(spans[1].name)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_schematized_operation_name_v1(self):
+        spans = self._create_schematized_spans()
+        assert spans[0].name == "kombu.send", "Expected kombu.send, got {}".format(spans[0].name)
+        assert spans[1].name == "kombu.process", "Expected kombu.process, got {}".format(spans[1].name)
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_user_specified_service_producer(self):

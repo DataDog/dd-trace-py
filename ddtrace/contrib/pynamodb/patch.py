@@ -6,6 +6,8 @@ import pynamodb.connection.base
 
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.schema import schematize_cloud_api_operation
+from ddtrace.internal.schema import schematize_service_name
 from ddtrace.vendor import wrapt
 
 from .. import trace_utils
@@ -28,15 +30,20 @@ _PynamoDB_client = pynamodb.connection.base.Connection
 config._add(
     "pynamodb",
     {
-        "_default_service": "pynamodb",
+        "_default_service": schematize_service_name("pynamodb"),
     },
 )
+
+
+def get_version():
+    # type: () -> str
+    return getattr(pynamodb, "__version__", "")
 
 
 def patch():
     if getattr(pynamodb.connection.base, "_datadog_patch", False):
         return
-    setattr(pynamodb.connection.base, "_datadog_patch", True)
+    pynamodb.connection.base._datadog_patch = True
 
     wrapt.wrap_function_wrapper("pynamodb.connection.base", "Connection._make_api_call", patched_api_call)
     Pin(service=None).onto(pynamodb.connection.base.Connection)
@@ -44,7 +51,7 @@ def patch():
 
 def unpatch():
     if getattr(pynamodb.connection.base, "_datadog_patch", False):
-        setattr(pynamodb.connection.base, "_datadog_patch", False)
+        pynamodb.connection.base._datadog_patch = False
         unwrap(pynamodb.connection.base.Connection, "_make_api_call")
 
 
@@ -55,7 +62,9 @@ def patched_api_call(original_func, instance, args, kwargs):
         return original_func(*args, **kwargs)
 
     with pin.tracer.trace(
-        "pynamodb.command", service=trace_utils.ext_service(pin, config.pynamodb, "pynamodb"), span_type=SpanTypes.HTTP
+        schematize_cloud_api_operation("pynamodb.command", cloud_provider="aws", cloud_service="dynamodb"),
+        service=trace_utils.ext_service(pin, config.pynamodb, "pynamodb"),
+        span_type=SpanTypes.HTTP,
     ) as span:
         span.set_tag_str(COMPONENT, config.pynamodb.integration_name)
         span.set_tag_str(db.SYSTEM, "dynamodb")
@@ -72,6 +81,7 @@ def patched_api_call(original_func, instance, args, kwargs):
             if args[1] and "TableName" in args[1]:
                 table_name = args[1]["TableName"]
                 span.set_tag_str("table_name", table_name)
+                span.set_tag_str("tablename", table_name)
                 span.resource = span.resource + " " + table_name
 
         except ArgumentError:
@@ -84,6 +94,7 @@ def patched_api_call(original_func, instance, args, kwargs):
             "aws.agent": "pynamodb",
             "aws.operation": operation,
             "aws.region": region_name,
+            "region": region_name,
         }
         span.set_tags(meta)
 

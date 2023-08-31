@@ -1,4 +1,5 @@
 from ddtrace.debugging._probe.registry import ProbeRegistry
+from ddtrace.internal import runtime
 from tests.debugging.probe.test_status import DummyProbeStatusLogger
 from tests.debugging.utils import create_snapshot_line_probe
 
@@ -63,6 +64,13 @@ def test_registry_location_error():
             "service": "test",
             "message": "Unable to resolve location information for probe 42",
             "ddsource": "dd_debugger",
-            "debugger": {"diagnostics": {"probeId": 42, "status": "ERROR"}},
+            "debugger": {
+                "diagnostics": {
+                    "probeId": 42,
+                    "probeVersion": 0,
+                    "runtimeId": runtime.get_runtime_id(),
+                    "status": "ERROR",
+                }
+            },
         }
     ]

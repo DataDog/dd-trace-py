@@ -1,0 +1,19 @@
+baseline: &baseline
+  tracer_enabled: false
+  profiler_enabled: false
+  appsec_enabled: false
+  debugger_enabled: false
+  iast_enabled: false
+  post_request: true
+  telemetry_metrics_enabled: false
+tracer-enabled:
+  <<: *baseline
+  tracer_enabled: true
+appsec-enabled:
+  <<: *baseline
+  tracer_enabled: true
+  appsec_enabled: true
+iast-enabled:
+  <<: *baseline
+  tracer_enabled: true
+  iast_enabled: true

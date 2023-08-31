@@ -91,6 +91,18 @@ sqlcommenter
 
 Source: https://github.com/open-telemetry/opentelemetry-sqlcommenter/blob/2f8841add68358069ebf1c0ee560ab3e98a59aa9/python/sqlcommenter-python/opentelemetry/sqlcommenter/__init__.py
 License: Apache License 2.0
+
+
+packaging
+---------
+
+Source: https://github.com/pypa/packaging
+Version: 17.1
+License: Apache License 2.0
+
+Notes:
+  - We only vendor the packaging.version sub-module as this is all we currently
+    need.
 """
 
 # Initialize `ddtrace.vendor.datadog.base.log` logger with our custom rate limited logger
@@ -101,4 +113,4 @@ from ..internal.logger import get_logger
 from .dogstatsd import base
 
 
-base.log = get_logger('ddtrace.vendor.dogstatsd')
+base.log = get_logger("ddtrace.vendor.dogstatsd")

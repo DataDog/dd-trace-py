@@ -1,0 +1,3 @@
+features:
+  - |
+    pytest: Adds the ``DD_CIVISIBILITY_AGENTLESS_ENABLED`` environment variable to configure the ``CIVisibility`` service to use an agent-less test reporting ``CIVisibilityWriter``. Note that the ``CIVisibility`` service will use regular agent reporting by default.

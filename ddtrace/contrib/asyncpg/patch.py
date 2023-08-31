@@ -1,5 +1,7 @@
 from typing import TYPE_CHECKING
 
+import asyncpg
+
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
@@ -12,6 +14,8 @@ from ...ext import SpanTypes
 from ...ext import db
 from ...ext import net
 from ...internal.logger import get_logger
+from ...internal.schema import schematize_database_operation
+from ...internal.schema import schematize_service_name
 from ...internal.utils import get_argument_value
 from ..trace_utils import ext_service
 from ..trace_utils import unwrap
@@ -24,7 +28,6 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Dict
     from typing import Union
 
-    import asyncpg
     from asyncpg.prepared_stmt import PreparedStatement
 
 
@@ -34,12 +37,17 @@ DBMS_NAME = "postgresql"
 config._add(
     "asyncpg",
     dict(
-        _default_service="postgres",
+        _default_service=schematize_service_name("postgres"),
     ),
 )
 
 
 log = get_logger(__name__)
+
+
+def get_version():
+    # type: () -> str
+    return getattr(asyncpg, "__version__", "")
 
 
 def _get_connection_tags(conn):
@@ -96,7 +104,10 @@ async def _traced_connect(asyncpg, pin, func, instance, args, kwargs):
 
 async def _traced_query(pin, method, query, args, kwargs):
     with pin.tracer.trace(
-        "postgres.query", resource=query, service=ext_service(pin, config.asyncpg), span_type=SpanTypes.SQL
+        schematize_database_operation("postgres.query", database_provider="postgresql"),
+        resource=query,
+        service=ext_service(pin, config.asyncpg),
+        span_type=SpanTypes.SQL,
     ) as span:
         span.set_tag_str(COMPONENT, config.asyncpg.integration_name)
         span.set_tag_str(db.SYSTEM, DBMS_NAME)
@@ -133,7 +144,7 @@ def patch():
     Pin().onto(asyncpg)
     _patch(asyncpg)
 
-    setattr(asyncpg, "_datadog_patch", True)
+    asyncpg._datadog_patch = True
 
 
 def _unpatch(asyncpg):
@@ -152,4 +163,4 @@ def unpatch():
 
     _unpatch(asyncpg)
 
-    setattr(asyncpg, "_datadog_patch", False)
+    asyncpg._datadog_patch = False

@@ -14,6 +14,7 @@ from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.context import Context as DatadogContext
 from ddtrace.internal.compat import NumericType
+from ddtrace.internal.constants import SPAN_API_OPENTRACING
 from ddtrace.span import Span as DatadogSpan
 
 from .span_context import SpanContext
@@ -42,7 +43,7 @@ class Span(OpenTracingSpan):
         self.finished = False
         self._lock = threading.Lock()
         # use a datadog span
-        self._dd_span = DatadogSpan(operation_name, context=context._dd_context)
+        self._dd_span = DatadogSpan(operation_name, context=context._dd_context, span_api=SPAN_API_OPENTRACING)
 
     def finish(self, finish_time=None):
         # type: (Optional[float]) -> None

@@ -10,6 +10,7 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib.urllib3 import patch
 from ddtrace.contrib.urllib3 import unpatch
 from ddtrace.ext import http
+from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.pin import Pin
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
@@ -52,6 +53,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         assert s.get_tag(http.URL) == URL_200
         assert s.get_tag("component") == "urllib3"
         assert s.get_tag("span.kind") == "client"
+        assert s.get_tag("out.host") == "localhost"
 
         # Test an absolute URL
         r = pool.request("GET", URL_200)
@@ -69,6 +71,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         assert s.get_tag(http.URL) == "http://" + SOCKET + "/"
         assert s.get_tag("component") == "urllib3"
         assert s.get_tag("span.kind") == "client"
+        assert s.get_tag("out.host") == "localhost"
 
     def test_resource_path(self):
         """Tests that a successful request tags a single span with the URL"""
@@ -80,6 +83,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         assert s.get_tag("http.url") == URL_200
         assert s.get_tag("component") == "urllib3"
         assert s.get_tag("span.kind") == "client"
+        assert s.get_tag("out.host") == "localhost"
 
     def test_tracer_disabled(self):
         """Tests a disabled tracer produces no spans on request"""
@@ -123,6 +127,7 @@ class TestUrllib3(BaseUrllib3TestCase):
             assert s.get_tag("http.request.headers.accept") == "*"
             assert s.get_tag("component") == "urllib3"
             assert s.get_tag("span.kind") == "client"
+            assert s.get_tag("out.host") == "localhost"
 
     def test_untraced_request(self):
         """Disabling tracing with unpatch should submit no spans"""
@@ -138,7 +143,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         """Ensure that double patch doesn't duplicate instrumentation"""
         patch()
         connpool = urllib3.connectionpool.HTTPConnectionPool(HOST, PORT)
-        setattr(connpool, "datadog_tracer", self.tracer)
+        connpool.datadog_tracer = self.tracer
 
         out = connpool.urlopen("GET", URL_200)
         assert out.status == 200
@@ -157,6 +162,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         assert s.get_tag(http.STATUS_CODE) == "200"
         assert s.get_tag("component") == "urllib3"
         assert s.get_tag("span.kind") == "client"
+        assert s.get_tag("out.host") == "localhost"
         assert s.error == 0
         assert s.span_type == "http"
         assert http.QUERY_STRING not in s.get_tags()
@@ -177,6 +183,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         assert s.get_tag(http.URL) == URL_200_QS
         assert s.get_tag("component") == "urllib3"
         assert s.get_tag("span.kind") == "client"
+        assert s.get_tag("out.host") == "localhost"
         assert s.error == 0
         assert s.span_type == "http"
         assert s.get_tag(http.QUERY_STRING) == query_string
@@ -193,6 +200,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         assert s.get_tag(http.URL) == URL_500
         assert s.get_tag("component") == "urllib3"
         assert s.get_tag("span.kind") == "client"
+        assert s.get_tag("out.host") == "localhost"
         assert s.error == 1
 
     def test_connection_retries(self):
@@ -236,6 +244,102 @@ class TestUrllib3(BaseUrllib3TestCase):
         s = spans[0]
 
         assert s.service == "clients"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    def test_schematized_service_name_default(self):
+        """Test the user-set service name is set on the span"""
+        with self.override_config("urllib3", dict(split_by_domain=False)):
+            out = self.http.request("GET", URL_200)
+        assert out.status == 200
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        s = spans[0]
+
+        assert s.service == "urllib3"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_schematized_service_name_v0(self):
+        """Test the user-set service name is set on the span"""
+        with self.override_config("urllib3", dict(split_by_domain=False)):
+            out = self.http.request("GET", URL_200)
+        assert out.status == 200
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        s = spans[0]
+
+        assert s.service == "urllib3"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_schematized_service_name_v1(self):
+        """Test the user-set service name is set on the span"""
+        with self.override_config("urllib3", dict(split_by_domain=False)):
+            out = self.http.request("GET", URL_200)
+        assert out.status == 200
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        s = spans[0]
+
+        assert s.service == "mysvc"
+
+    @TracerTestCase.run_in_subprocess()
+    def test_schematized_unspecified_service_name_default(self):
+        """Test the user-set service name is set on the span"""
+        with self.override_config("urllib3", dict(split_by_domain=False)):
+            out = self.http.request("GET", URL_200)
+        assert out.status == 200
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        s = spans[0]
+
+        assert s.service == "urllib3"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_schematized_unspecified_service_name_v0(self):
+        """Test the user-set service name is set on the span"""
+        with self.override_config("urllib3", dict(split_by_domain=False)):
+            out = self.http.request("GET", URL_200)
+        assert out.status == 200
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        s = spans[0]
+
+        assert s.service == "urllib3"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_schematized_unspecified_service_name_v1(self):
+        """Test the user-set service name is set on the span"""
+        with self.override_config("urllib3", dict(split_by_domain=False)):
+            out = self.http.request("GET", URL_200)
+        assert out.status == 200
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        s = spans[0]
+
+        assert s.service == DEFAULT_SPAN_SERVICE_NAME
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_schematized_operation_name_v0(self):
+        """Test the user-set service name is set on the span"""
+        with self.override_config("urllib3", dict(split_by_domain=False)):
+            out = self.http.request("GET", URL_200)
+        assert out.status == 200
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        s = spans[0]
+
+        assert s.name == "urllib3.request"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_schematized_operation_name_v1(self):
+        """Test the user-set service name is set on the span"""
+        with self.override_config("urllib3", dict(split_by_domain=False)):
+            out = self.http.request("GET", URL_200)
+        assert out.status == 200
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        s = spans[0]
+
+        assert s.name == "http.client.request"
 
     def test_parent_service_name_split_by_domain(self):
         """
@@ -283,7 +387,7 @@ class TestUrllib3(BaseUrllib3TestCase):
     def test_split_by_domain_includes_port(self):
         """Test the port is included if not 80 or 443"""
         with self.override_config("urllib3", dict(split_by_domain=True)):
-            with pytest.raises(Exception):
+            with pytest.raises(urllib3.exceptions.MaxRetryError):
                 # Using a port the service is not listening on will throw an error, which is fine
                 self.http.request("GET", "http://httpbin.org:8000/hello", timeout=0.0001, retries=0)
 

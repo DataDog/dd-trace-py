@@ -3,9 +3,14 @@ import sys
 
 import pytest
 
-from ddtrace import Pin
+import ddtrace
+from ddtrace.contrib.pytest.plugin import is_enabled
 from ddtrace.ext import test
+from ddtrace.internal.ci_visibility import CIVisibility
+from tests.ci_visibility.util import _patch_dummy_writer
+from tests.utils import DummyCIVisibilityWriter
 from tests.utils import TracerTestCase
+from tests.utils import override_env
 
 
 class TestPytest(TracerTestCase):
@@ -17,13 +22,18 @@ class TestPytest(TracerTestCase):
     def inline_run(self, *args):
         """Execute test script with test tracer."""
 
-        class PinTracer:
+        class CIVisibilityPlugin:
             @staticmethod
             def pytest_configure(config):
-                if Pin.get_from(config) is not None:
-                    Pin.override(config, tracer=self.tracer)
+                if is_enabled(config):
+                    with _patch_dummy_writer():
+                        assert CIVisibility.enabled
+                        CIVisibility.disable()
+                        CIVisibility.enable(tracer=self.tracer, config=ddtrace.config.pytest)
 
-        return self.testdir.inline_run(*args, plugins=[PinTracer()])
+        with override_env(dict(DD_API_KEY="foobar.baz")):
+            self.tracer.configure(writer=DummyCIVisibilityWriter("https://citestcycle-intake.banana"))
+            return self.testdir.inline_run(*args, plugins=[CIVisibilityPlugin()])
 
     @pytest.mark.skipif(
         sys.version_info >= (3, 11, 0) or sys.version_info <= (3, 6, 0),
@@ -49,5 +59,6 @@ class TestPytest(TracerTestCase):
         rec.assertoutcome(passed=1)
         spans = self.pop_spans()
 
-        assert len(spans) == 1
-        assert spans[0].get_tag(test.STATUS) == test.Status.PASS.value
+        assert len(spans) == 4
+        test_span = spans[0]
+        assert test_span.get_tag(test.STATUS) == test.Status.PASS.value

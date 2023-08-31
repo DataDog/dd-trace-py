@@ -7,6 +7,7 @@ from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.ext import http
+from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.opentracer.utils import init_tracer
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code
@@ -659,3 +660,93 @@ class TestCustomTornadoWeb(TornadoTestCase):
         assert 0 == request_span.error
         assert request_span.get_tag("component") == "tornado"
         assert request_span.get_tag("span.kind") == "server"
+
+
+class TestSchematization(TornadoTestCase):
+    """
+    Ensure that schematization works for both service name and operations.
+    """
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    def test_service_name_schematization_default(self):
+        self.fetch("/success/")
+        traces = self.pop_traces()
+        assert 1 == len(traces)
+        assert 1 == len(traces[0])
+
+        request_span = traces[0][0]
+        assert "mysvc" == request_span.service, "Expected 'mysvc' but got {}".format(request_span.service)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_service_name_schematization_v0(self):
+        self.fetch("/success/")
+        traces = self.pop_traces()
+        assert 1 == len(traces)
+        assert 1 == len(traces[0])
+
+        request_span = traces[0][0]
+        assert "mysvc" == request_span.service, "Expected 'mysvc' but got {}".format(request_span.service)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_service_name_schematization_v1(self):
+        self.fetch("/success/")
+        traces = self.pop_traces()
+        assert 1 == len(traces)
+        assert 1 == len(traces[0])
+
+        request_span = traces[0][0]
+        assert "mysvc" == request_span.service, "Expected 'mysvc' but got {}".format(request_span.service)
+
+    @TracerTestCase.run_in_subprocess()
+    def test_unspecified_service_name_schematization_default(self):
+        self.fetch("/success/")
+        traces = self.pop_traces()
+        assert 1 == len(traces)
+        assert 1 == len(traces[0])
+
+        request_span = traces[0][0]
+        assert "tornado-web" == request_span.service, "Expected 'tornado-web' but got {}".format(request_span.service)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_unspecified_service_name_schematization_v0(self):
+        self.fetch("/success/")
+        traces = self.pop_traces()
+        assert 1 == len(traces)
+        assert 1 == len(traces[0])
+
+        request_span = traces[0][0]
+        assert "tornado-web" == request_span.service, "Expected 'tornado-web' but got {}".format(request_span.service)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_unspecified_service_name_schematization_v1(self):
+        self.fetch("/success/")
+        traces = self.pop_traces()
+        assert 1 == len(traces)
+        assert 1 == len(traces[0])
+
+        request_span = traces[0][0]
+        assert DEFAULT_SPAN_SERVICE_NAME == request_span.service, "Expected '{}' but got {}".format(
+            DEFAULT_SPAN_SERVICE_NAME, request_span.service
+        )
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_unspecified_operation_name_schematization_v0(self):
+        self.fetch("/success/")
+        traces = self.pop_traces()
+        assert 1 == len(traces)
+        assert 1 == len(traces[0])
+
+        request_span = traces[0][0]
+        assert "tornado.request" == request_span.name, "Expected 'tornado.request' but got {}".format(request_span.name)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_unspecified_operation_name_schematization_v1(self):
+        self.fetch("/success/")
+        traces = self.pop_traces()
+        assert 1 == len(traces)
+        assert 1 == len(traces[0])
+
+        request_span = traces[0][0]
+        assert "http.server.request" == request_span.name, "Expected 'http.server.request' but got {}".format(
+            request_span.name
+        )

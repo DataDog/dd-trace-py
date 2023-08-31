@@ -1,0 +1,81 @@
+[[
+  {
+    "name": "wsgi.request",
+    "service": "mysvc",
+    "resource": "GET /",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "component": "wsgi",
+      "http.method": "GET",
+      "http.status_code": "200",
+      "http.status_msg": "OK",
+      "http.url": "http://0.0.0.0:8080/",
+      "language": "python",
+      "runtime-id": "842ea41a2a2a483eb235e866daaac025",
+      "span.kind": "server"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 56346
+    },
+    "duration": 462451,
+    "start": 1691167684511805964
+  },
+     {
+       "name": "wsgi.application",
+       "service": "mysvc",
+       "resource": "wsgi.application",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.p.dm": "-0",
+         "component": "wsgi"
+       },
+       "duration": 140723,
+       "start": 1691167684511944549
+     },
+        {
+          "name": "wsgi.start_response",
+          "service": "mysvc",
+          "resource": "wsgi.start_response",
+          "trace_id": 0,
+          "span_id": 4,
+          "parent_id": 2,
+          "type": "web",
+          "error": 0,
+          "meta": {
+            "_dd.p.dm": "-0",
+            "component": "wsgi",
+            "span.kind": "server"
+          },
+          "duration": 30841,
+          "start": 1691167684512024496
+        },
+     {
+       "name": "wsgi.response",
+       "service": "mysvc",
+       "resource": "wsgi.response",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.p.dm": "-0",
+         "component": "wsgi",
+         "result_class": "list_iterator"
+       },
+       "duration": 142642,
+       "start": 1691167684512106102
+     }]]

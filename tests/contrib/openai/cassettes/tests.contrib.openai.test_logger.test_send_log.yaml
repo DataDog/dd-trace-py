@@ -1,0 +1,35 @@
+interactions:
+- request:
+    body: '[{"timestamp": 1682229510437.797, "message": "test msg", "hostname": "dev-mbp",
+      "ddsource": "python", "service": "", "status": "info", "ddtags": ""}]'
+    headers:
+      Content-Type:
+      - application/json
+      DD-API-KEY:
+      - XXXXXX
+    method: POST
+    uri: https://http-intake.logs.datadoghq.com/api/v2/logs
+  response:
+    body:
+      string: '{}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '2'
+      Content-Type:
+      - application/json
+      Date:
+      - Sun, 23 Apr 2023 05:58:30 GMT
+      accept-encoding:
+      - identity,gzip,x-gzip,deflate,x-deflate,zstd
+      cross-origin-resource-policy:
+      - cross-origin
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-content-type-options:
+      - nosniff
+    status:
+      code: 202
+      message: Accepted
+version: 1

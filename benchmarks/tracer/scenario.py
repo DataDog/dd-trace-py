@@ -1,11 +1,5 @@
 import bm
-
-from ddtrace.filters import TraceFilter
-
-
-class _DropTraces(TraceFilter):
-    def process_trace(self, trace):
-        return
+import bm.utils as utils
 
 
 class Tracer(bm.Scenario):
@@ -16,7 +10,8 @@ class Tracer(bm.Scenario):
         # an agent
         from ddtrace import tracer
 
-        tracer.configure(settings={"FILTERS": [_DropTraces()]})
+        utils.drop_traces(tracer)
+        utils.drop_telemetry_events()
 
         def _(loops):
             for _ in range(loops):

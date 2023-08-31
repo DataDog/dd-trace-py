@@ -82,6 +82,9 @@ from ddtrace import Pin
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.schema import schematize_messaging_operation
+from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
 from .. import trace_utils
 from ...ext import SpanKind
@@ -91,17 +94,14 @@ from ...internal.utils.formats import asbool
 from ...propagation.http import HTTPPropagator
 
 
-__all__ = [
-    "patch",
-    "unpatch",
-]
+__all__ = ["patch", "unpatch", "get_version"]
 
 
 config._add(
     "rq",
     dict(
         distributed_tracing_enabled=asbool(os.environ.get("DD_RQ_DISTRIBUTED_TRACING_ENABLED", True)),
-        _default_service="rq",
+        _default_service=schematize_service_name("rq"),
     ),
 )
 
@@ -109,9 +109,16 @@ config._add(
     "rq_worker",
     dict(
         distributed_tracing_enabled=asbool(os.environ.get("DD_RQ_DISTRIBUTED_TRACING_ENABLED", True)),
-        _default_service="rq-worker",
+        _default_service=schematize_service_name("rq-worker"),
     ),
 )
+
+
+def get_version():
+    # type: () -> str
+    import rq
+
+    return str(getattr(rq, "__version__", ""))
 
 
 @trace_utils.with_traced_module
@@ -128,7 +135,7 @@ def traced_queue_enqueue_job(rq, pin, func, instance, args, kwargs):
         resource = func_name
 
     with pin.tracer.trace(
-        "rq.queue.enqueue_job",
+        schematize_messaging_operation("rq.queue.enqueue_job", provider="rq", direction=SpanDirection.OUTBOUND),
         service=trace_utils.int_service(pin, config.rq),
         resource=resource,
         span_type=SpanTypes.WORKER,
@@ -150,7 +157,10 @@ def traced_queue_enqueue_job(rq, pin, func, instance, args, kwargs):
 
 @trace_utils.with_traced_module
 def traced_queue_fetch_job(rq, pin, func, instance, args, kwargs):
-    with pin.tracer.trace("rq.queue.fetch_job", service=trace_utils.int_service(pin, config.rq)) as span:
+    with pin.tracer.trace(
+        schematize_messaging_operation("rq.queue.fetch_job", provider="rq", direction=SpanDirection.PROCESSING),
+        service=trace_utils.int_service(pin, config.rq),
+    ) as span:
         span.set_tag_str(COMPONENT, config.rq.integration_name)
 
         job_id = get_argument_value(args, kwargs, 0, "job_id")
@@ -212,7 +222,10 @@ def traced_job_perform(rq, pin, func, instance, args, kwargs):
 @trace_utils.with_traced_module
 def traced_job_fetch_many(rq, pin, func, instance, args, kwargs):
     """Trace rq.Job.fetch_many(...)"""
-    with pin.tracer.trace("rq.job.fetch_many", service=trace_utils.ext_service(pin, config.rq_worker)) as span:
+    with pin.tracer.trace(
+        schematize_messaging_operation("rq.job.fetch_many", provider="rq", direction=SpanDirection.PROCESSING),
+        service=trace_utils.ext_service(pin, config.rq_worker),
+    ) as span:
         span.set_tag_str(COMPONENT, config.rq.integration_name)
 
         job_ids = get_argument_value(args, kwargs, 0, "job_ids")
@@ -242,7 +255,7 @@ def patch():
     Pin().onto(rq.worker.Worker)
     trace_utils.wrap(rq.worker, "Worker.perform_job", traced_perform_job(rq))
 
-    setattr(rq, "_datadog_patch", True)
+    rq._datadog_patch = True
 
 
 def unpatch():
@@ -266,4 +279,4 @@ def unpatch():
     Pin().remove_from(rq.worker.Worker)
     trace_utils.unwrap(rq.worker.Worker, "perform_job")
 
-    setattr(rq, "_datadog_patch", False)
+    rq._datadog_patch = False

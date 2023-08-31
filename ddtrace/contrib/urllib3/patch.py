@@ -4,6 +4,7 @@ import urllib3
 
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.pin import Pin
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
@@ -13,6 +14,8 @@ from ...constants import SPAN_KIND
 from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...internal.compat import parse
+from ...internal.schema import schematize_service_name
+from ...internal.schema import schematize_url_operation
 from ...internal.utils import ArgumentError
 from ...internal.utils import get_argument_value
 from ...internal.utils.formats import asbool
@@ -27,7 +30,7 @@ DROP_PORTS = (80, 443)
 config._add(
     "urllib3",
     {
-        "_default_service": "urllib3",
+        "_default_service": schematize_service_name("urllib3"),
         "distributed_tracing": asbool(os.getenv("DD_URLLIB3_DISTRIBUTED_TRACING", default=True)),
         "default_http_tag_query_string": os.getenv("DD_HTTP_CLIENT_TAG_QUERY_STRING", "true"),
         "split_by_domain": asbool(os.getenv("DD_URLLIB3_SPLIT_BY_DOMAIN", default=False)),
@@ -35,11 +38,16 @@ config._add(
 )
 
 
+def get_version():
+    # type: () -> str
+    return getattr(urllib3, "__version__", "")
+
+
 def patch():
     """Enable tracing for all urllib3 requests"""
     if getattr(urllib3, "__datadog_patch", False):
         return
-    setattr(urllib3, "__datadog_patch", True)
+    urllib3.__datadog_patch = True
 
     _w("urllib3", "connectionpool.HTTPConnectionPool.urlopen", _wrap_urlopen)
     Pin().onto(urllib3.connectionpool.HTTPConnectionPool)
@@ -48,7 +56,7 @@ def patch():
 def unpatch():
     """Disable trace for all urllib3 requests"""
     if getattr(urllib3, "__datadog_patch", False):
-        setattr(urllib3, "__datadog_patch", False)
+        urllib3.__datadog_patch = False
 
         _u(urllib3.connectionpool.HTTPConnectionPool, "urlopen")
 
@@ -97,7 +105,9 @@ def _wrap_urlopen(func, instance, args, kwargs):
         return func(*args, **kwargs)
 
     with pin.tracer.trace(
-        "urllib3.request", service=trace_utils.ext_service(pin, config.urllib3), span_type=SpanTypes.HTTP
+        schematize_url_operation("urllib3.request", protocol="http", direction=SpanDirection.OUTBOUND),
+        service=trace_utils.ext_service(pin, config.urllib3),
+        span_type=SpanTypes.HTTP,
     ) as span:
         span.set_tag_str(COMPONENT, config.urllib3.integration_name)
 
@@ -129,6 +139,7 @@ def _wrap_urlopen(func, instance, args, kwargs):
                 integration_config=config.urllib3,
                 method=request_method,
                 url=request_url,
+                target_host=instance.host,
                 status_code=None if response is None else response.status,
                 query=parsed_uri.query,
                 request_headers=request_headers,

@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    OpenAI: Add integration with support for metrics, logs and traces from
+      OpenAI requests. See `the docs <https://ddtrace.readthedocs.io/en/stable/integrations.html#openai>`_
+      for more information.

@@ -26,7 +26,7 @@ services:
         ports:
             - "127.0.0.1:8500:8500"
     postgres:
-        image: postgres:11-alpine
+        image: postgres:12-alpine
         environment:
             - POSTGRES_PASSWORD=postgres
             - POSTGRES_USER=postgres
@@ -56,7 +56,20 @@ services:
         image: redis:4.0-alpine
         ports:
             - "127.0.0.1:6379:6379"
+    kafka:
+      image: bitnami/kafka:3.5.1-debian-11-r3
+      ports:
+        - "127.0.0.1:29092:29092"
+      environment:
+        - ALLOW_PLAINTEXT_LISTENER=yes
+        - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:29092
+        - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092,EXTERNAL://localhost:29092
+        - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT,PLAINTEXT:PLAINTEXT
+        - KAFKA_CFG_BROKER_ID=1
+        - KAFKA_CFG_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+        - KAFKA_CFGOFFSETS_TOPIC_REPLICATION_FACTOR=1
     rediscluster:
+        platform: linux/amd64
         image: grokzen/redis-cluster:6.2.0
         environment:
             - IP=0.0.0.0
@@ -109,12 +122,14 @@ services:
             - DD_REMOTE_CONFIGURATION_KEY=${DD_REMOTE_CONFIGURATION_KEY-invalid_but_this_is_fine}
             - DD_REMOTE_CONFIGURATION_REFRESH_INTERVAL=5s
             - DD_APM_RECEIVER_SOCKET=/tmp/ddagent/trace.sock
+            - DD_DOGSTATSD_NON_LOCAL_TRAFFIC=true
         ports:
-            - "127.0.0.1:8126:8126"
+            - 8126:8126
+            - 8125:8125/udp
         volumes:
           - ddagent:/tmp/ddagent:rw
     testagent:
-        image: ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:latest
+        image: ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:v1.11.0
         ports:
             - "127.0.0.1:9126:8126"
         volumes:
@@ -123,6 +138,9 @@ services:
             - LOG_LEVEL=WARNING
             - SNAPSHOT_DIR=/snapshots
             - SNAPSHOT_CI
+            - DD_POOL_TRACE_CHECK_FAILURES=true
+            - DD_DISABLE_ERROR_RESPONSES=true
+            - ENABLED_CHECKS=trace_content_length,trace_stall,meta_tracer_version_header,trace_count_header,trace_peer_service,trace_dd_service
     vertica:
         image: sumitchawla/vertica
         environment:
@@ -133,36 +151,32 @@ services:
           - "127.0.0.1:5433:5433"
 
     testrunner:
-        image: datadog/dd-trace-py:buster
+        image: ghcr.io/datadog/dd-trace-py/testrunner:latest
         command: bash
         environment:
             - TOX_SKIP_DIST=True
         network_mode: host
+        userns_mode: host
         working_dir: /root/project/
         volumes:
           - ddagent:/tmp/ddagent
           - ./:/root/project
           - ./.ddtox:/root/project/.tox
-          - ./.ddriot:/root/project/.riot
+          - ./.riot:/root/project/.riot
 
     localstack:
-        image: localstack/localstack:0.14.1
-        network_mode: bridge
+        image: localstack/localstack:1.4.0
         ports:
           - "127.0.0.1:4566:4566"
           - "127.0.0.1:4571:4571"
         environment:
           - SERVICES=${SERVICES- }
           - DEBUG=${DEBUG- }
-          - DATA_DIR=${DATA_DIR- }
-          - PORT_WEB_UI=${PORT_WEB_UI- }
           - LAMBDA_EXECUTOR=local
           - KINESIS_ERROR_PROBABILITY=${KINESIS_ERROR_PROBABILITY- }
           - DOCKER_HOST=unix:///var/run/docker.sock
-          - HOST_TMP_FOLDER=${TMPDIR}
-          - INIT_SCRIPTS_PATH=/setup
         volumes:
-          - "${TMPDIR:-/tmp/localstack}:/tmp/localstack"
+          - "${TMPDIR:-/var/lib/localstack}:/var/lib/localstack"
           - "/var/run/docker.sock:/var/run/docker.sock"
 
     httpbin_local:

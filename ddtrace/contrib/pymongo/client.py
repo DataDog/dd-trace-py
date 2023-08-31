@@ -22,6 +22,8 @@ from ...ext import mongo as mongox
 from ...ext import net as netx
 from ...internal.compat import iteritems
 from ...internal.logger import get_logger
+from ...internal.schema import schematize_database_operation
+from ...internal.schema import schematize_service_name
 from ...internal.utils import get_argument_value
 from .parse import parse_msg
 from .parse import parse_query
@@ -40,6 +42,8 @@ if VERSION < (3, 6, 0):
 
 
 log = get_logger(__name__)
+
+_DEFAULT_SERVICE = schematize_service_name("pymongo")
 
 
 class TracedMongoClient(ObjectProxy):
@@ -73,7 +77,7 @@ class TracedMongoClient(ObjectProxy):
             client._topology = TracedTopology(client._topology)
 
         # Default Pin
-        ddtrace.Pin(service="pymongo").onto(self)
+        ddtrace.Pin(service=_DEFAULT_SERVICE).onto(self)
 
     def __setddpin__(self, pin):
         pin.onto(self._topology)
@@ -113,7 +117,11 @@ class TracedServer(ObjectProxy):
         if not cmd or not pin or not pin.enabled():
             return None
 
-        span = pin.tracer.trace("pymongo.cmd", span_type=SpanTypes.MONGODB, service=pin.service)
+        span = pin.tracer.trace(
+            schematize_database_operation("pymongo.cmd", database_provider="mongodb"),
+            span_type=SpanTypes.MONGODB,
+            service=pin.service,
+        )
 
         span.set_tag_str(COMPONENT, config.pymongo.integration_name)
 
@@ -135,7 +143,26 @@ class TracedServer(ObjectProxy):
             span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
         return span
 
-    # Pymongo >= 3.12
+    if VERSION >= (4, 5, 0):
+
+        @contextlib.contextmanager
+        def checkout(self, *args, **kwargs):
+            with self.__wrapped__.checkout(*args, **kwargs) as s:
+                if not isinstance(s, TracedSocket):
+                    s = TracedSocket(s)
+                ddtrace.Pin.get_from(self).onto(s)
+                yield s
+
+    else:
+
+        @contextlib.contextmanager
+        def get_socket(self, *args, **kwargs):
+            with self.__wrapped__.get_socket(*args, **kwargs) as s:
+                if not isinstance(s, TracedSocket):
+                    s = TracedSocket(s)
+                ddtrace.Pin.get_from(self).onto(s)
+                yield s
+
     if VERSION >= (3, 12, 0):
 
         def run_operation(self, sock_info, operation, *args, **kwargs):
@@ -151,7 +178,6 @@ class TracedServer(ObjectProxy):
                         set_query_rowcount(docs=result.docs, span=span)
                 return result
 
-    # Pymongo >= 3.9, <3.12
     elif (3, 9, 0) <= VERSION < (3, 12, 0):
 
         def run_operation_with_response(self, sock_info, operation, *args, **kwargs):
@@ -167,7 +193,6 @@ class TracedServer(ObjectProxy):
                         set_query_rowcount(docs=result.docs, span=span)
                 return result
 
-    # Pymongo < 3.9
     else:
 
         def send_message_with_response(self, operation, *args, **kwargs):
@@ -191,14 +216,6 @@ class TracedServer(ObjectProxy):
                                     docs = data.get("data", None)
                                     set_query_rowcount(docs=docs, span=span)
                 return result
-
-    @contextlib.contextmanager
-    def get_socket(self, *args, **kwargs):
-        with self.__wrapped__.get_socket(*args, **kwargs) as s:
-            if not isinstance(s, TracedSocket):
-                s = TracedSocket(s)
-            ddtrace.Pin.get_from(self).onto(s)
-            yield s
 
     @staticmethod
     def _is_query(op):
@@ -247,7 +264,11 @@ class TracedSocket(ObjectProxy):
 
     def __trace(self, cmd):
         pin = ddtrace.Pin.get_from(self)
-        s = pin.tracer.trace("pymongo.cmd", span_type=SpanTypes.MONGODB, service=pin.service)
+        s = pin.tracer.trace(
+            schematize_database_operation("pymongo.cmd", database_provider="mongodb"),
+            span_type=SpanTypes.MONGODB,
+            service=pin.service,
+        )
 
         s.set_tag_str(COMPONENT, config.pymongo.integration_name)
         s.set_tag_str(db.SYSTEM, mongox.SERVICE)

@@ -15,12 +15,15 @@ from ddtrace.constants import USER_REJECT
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
+from ddtrace.context import Context
 from ddtrace.ext import SpanTypes
+from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.processor.trace import SpanAggregator
 from ddtrace.internal.processor.trace import SpanProcessor
 from ddtrace.internal.processor.trace import SpanSamplingProcessor
 from ddtrace.internal.processor.trace import TraceProcessor
+from ddtrace.internal.processor.trace import TraceTagsProcessor
 from ddtrace.internal.processor.truncator import DEFAULT_SERVICE_NAME
 from ddtrace.internal.processor.truncator import DEFAULT_SPAN_NAME
 from ddtrace.internal.processor.truncator import MAX_META_KEY_LENGTH
@@ -319,6 +322,30 @@ def test_trace_top_level_span_processor_orphan_span():
     assert orphan_span.get_metric("_dd.top_level") is None
 
 
+@pytest.mark.parametrize(
+    "trace_id",
+    [
+        2 ** 128 - 1,
+        2 ** 64 + 1,
+        2 ** 96 - 1,
+    ],
+)
+def test_trace_128bit_processor(trace_id):
+    """
+    When 128bit trace ids are generated, ensure the TraceTagsProcessor tags stores
+    the higher order bits on the chunk root span.
+    """
+    ctx = Context(trace_id=trace_id, span_id=2 ** 64 - 1)
+    spans = [Span("hello", trace_id=ctx.trace_id, context=ctx, parent_id=ctx.span_id) for _ in range(10)]
+
+    spans = TraceTagsProcessor().process_trace(spans)
+
+    chunk_root = spans[0]
+    assert chunk_root.trace_id == ctx.trace_id
+    assert chunk_root.trace_id >= 2 ** 64
+    assert chunk_root._meta[HIGHER_ORDER_TRACE_ID_BITS] == "{:016x}".format(chunk_root.trace_id >> 64)
+
+
 def test_span_truncator():
     """TruncateSpanProcessor truncates information in spans"""
     span = Span("span1", resource="x" * (MAX_RESOURCE_NAME_LENGTH + 10))
@@ -345,6 +372,41 @@ def test_span_normalizator():
     assert span.name == DEFAULT_SPAN_NAME
     assert span.resource == DEFAULT_SPAN_NAME
     assert span.span_type == "x" * MAX_TYPE_LENGTH
+
+
+def test_span_creation_metrics():
+    """Test that telemetry metrics are queued in batches of 100 and the remainder is sent on shutdown"""
+    writer = DummyWriter()
+    aggr = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=0, trace_processors=[], writer=writer)
+
+    with mock.patch("ddtrace.internal.processor.trace.telemetry_writer.add_count_metric") as mock_tm:
+        for _ in range(300):
+            span = Span("span", on_finish=[aggr.on_span_finish])
+            aggr.on_span_start(span)
+            span.finish()
+
+        span = Span("span", on_finish=[aggr.on_span_finish])
+        aggr.on_span_start(span)
+        span.finish()
+
+        mock_tm.assert_has_calls(
+            [
+                mock.call("tracers", "spans_created", 100, tags=(("integration_name", "datadog"),)),
+                mock.call("tracers", "spans_finished", 100, tags=(("integration_name", "datadog"),)),
+                mock.call("tracers", "spans_created", 100, tags=(("integration_name", "datadog"),)),
+                mock.call("tracers", "spans_finished", 100, tags=(("integration_name", "datadog"),)),
+                mock.call("tracers", "spans_created", 100, tags=(("integration_name", "datadog"),)),
+                mock.call("tracers", "spans_finished", 100, tags=(("integration_name", "datadog"),)),
+            ]
+        )
+        mock_tm.reset_mock()
+        aggr.shutdown(None)
+        mock_tm.assert_has_calls(
+            [
+                mock.call("tracers", "spans_created", 1, tags=(("integration_name", "datadog"),)),
+                mock.call("tracers", "spans_finished", 1, tags=(("integration_name", "datadog"),)),
+            ]
+        )
 
 
 def test_single_span_sampling_processor():
@@ -598,3 +660,27 @@ def test_trace_tag_processor_adds_chunk_root_tags():
     # test that parent span gets required chunk root span tags and child does not get language tag
     assert parent.get_tag("language") == "python"
     assert child.get_tag("language") is None
+
+
+def test_register_unregister_span_processor():
+    class TestProcessor(SpanProcessor):
+        def on_span_start(self, span):
+            span.set_tag("on_start", "ok")
+
+        def on_span_finish(self, span):
+            span.set_tag("on_finish", "ok")
+
+    tp = TestProcessor()
+    tp.register()
+
+    tracer = Tracer()
+
+    with tracer.trace("test") as span:
+        assert span.get_tag("on_start") == "ok"
+    assert span.get_tag("on_finish") == "ok"
+
+    tp.unregister()
+
+    with tracer.trace("test") as span:
+        assert span.get_tag("on_start") is None
+    assert span.get_tag("on_finish") is None

@@ -25,6 +25,7 @@ class FlaskSignalsTestCase(BaseFlaskTestCase):
         func = mock.Mock(signal, name=name)
         func.__module__ = "tests.contrib.flask"
         func.__name__ = name
+        func.__code__.co_flags = 12  # Assume the signal uses *args and **kwargs
         return func
 
     def call_signal(self, signal_name, *args, **kwargs):
@@ -71,7 +72,7 @@ class FlaskSignalsTestCase(BaseFlaskTestCase):
         # DEV: We call `patch()` in `setUp`
         for signal_name in self.signals():
             signal = self.get_signal(signal_name)
-            receivers_for = getattr(signal, "receivers_for")
+            receivers_for = signal.receivers_for
             self.assert_is_wrapped(receivers_for)
 
     def test_unpatch(self):
@@ -83,7 +84,7 @@ class FlaskSignalsTestCase(BaseFlaskTestCase):
 
         for signal_name in self.signals():
             signal = self.get_signal(signal_name)
-            receivers_for = getattr(signal, "receivers_for")
+            receivers_for = signal.receivers_for
             self.assert_is_not_wrapped(receivers_for)
 
     def test_signals(self):
@@ -107,7 +108,8 @@ class FlaskSignalsTestCase(BaseFlaskTestCase):
             self.assertEqual(span.name, "tests.contrib.flask.{}".format(signal_name))
             self.assertEqual(span.resource, "tests.contrib.flask.{}".format(signal_name))
             self.assertEqual(
-                set(span.get_tags().keys()), set(["flask.signal", "runtime-id", "_dd.p.dm", "component", "language"])
+                set(span.get_tags().keys()),
+                set(["flask.signal", "runtime-id", "_dd.p.dm", "component", "language", "_dd.base_service"]),
             )
             self.assertEqual(span.get_tag("flask.signal"), signal_name)
 
@@ -144,7 +146,8 @@ class FlaskSignalsTestCase(BaseFlaskTestCase):
         self.assertEqual(span_a.name, "tests.contrib.flask.request_started_a")
         self.assertEqual(span_a.resource, "tests.contrib.flask.request_started_a")
         self.assertEqual(
-            set(span_a.get_tags().keys()), set(["flask.signal", "runtime-id", "_dd.p.dm", "component", "language"])
+            set(span_a.get_tags().keys()),
+            set(["flask.signal", "runtime-id", "_dd.p.dm", "component", "language", "_dd.base_service"]),
         )
         self.assertEqual(span_a.get_tag("flask.signal"), "request_started")
 
@@ -154,7 +157,8 @@ class FlaskSignalsTestCase(BaseFlaskTestCase):
         self.assertEqual(span_b.name, "tests.contrib.flask.request_started_b")
         self.assertEqual(span_b.resource, "tests.contrib.flask.request_started_b")
         self.assertEqual(
-            set(span_b.get_tags().keys()), set(["flask.signal", "runtime-id", "_dd.p.dm", "component", "language"])
+            set(span_b.get_tags().keys()),
+            set(["flask.signal", "runtime-id", "_dd.p.dm", "component", "language", "_dd.base_service"]),
         )
         self.assertEqual(span_b.get_tag("flask.signal"), "request_started")
 

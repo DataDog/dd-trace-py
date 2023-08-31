@@ -13,6 +13,8 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
 from ddtrace.ext import sql
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.schema import schematize_database_operation
+from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.pin import Pin
 from ddtrace.vendor import wrapt
@@ -27,7 +29,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
     def __init__(self, cursor, pin):
         super(AIOTracedCursor, self).__init__(cursor)
         pin.onto(self)
-        self._datadog_name = "postgres.query"
+        self._datadog_name = schematize_database_operation("postgres.query", database_provider="postgresql")
 
     @asyncio.coroutine
     def _trace_method(self, method, resource, extra_tags, *args, **kwargs):
@@ -86,7 +88,8 @@ class AIOTracedConnection(wrapt.ObjectProxy):
 
     def __init__(self, conn, pin=None, cursor_cls=AIOTracedCursor):
         super(AIOTracedConnection, self).__init__(conn)
-        name = dbapi._get_vendor(conn)
+        vendor = dbapi._get_vendor(conn)
+        name = schematize_service_name(vendor)
         db_pin = pin or Pin(service=name)
         db_pin.onto(self)
         # wrapt requires prefix of `_self` for attributes that are only in the

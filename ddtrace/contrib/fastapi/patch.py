@@ -7,6 +7,7 @@ from ddtrace.contrib.asgi.middleware import TraceMiddleware
 from ddtrace.contrib.starlette.patch import get_resource
 from ddtrace.contrib.starlette.patch import traced_handler
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.vendor.debtcollector import removals
@@ -19,12 +20,17 @@ log = get_logger(__name__)
 config._add(
     "fastapi",
     dict(
-        _default_service="fastapi",
+        _default_service=schematize_service_name("fastapi"),
         request_span_name="fastapi.request",
         distributed_tracing=True,
         aggregate_resources=True,
     ),
 )
+
+
+def get_version():
+    # type: () -> str
+    return getattr(fastapi, "__version__", "")
 
 
 @removals.remove(removal_version="2.0.0", category=DDTraceDeprecationWarning)
@@ -67,7 +73,7 @@ def patch():
     if getattr(fastapi, "_datadog_patch", False):
         return
 
-    setattr(fastapi, "_datadog_patch", True)
+    fastapi._datadog_patch = True
     Pin().onto(fastapi)
     _w("fastapi.applications", "FastAPI.build_middleware_stack", wrap_middleware_stack)
     _w("fastapi.routing", "serialize_response", traced_serialize_response)
@@ -84,7 +90,7 @@ def unpatch():
     if not getattr(fastapi, "_datadog_patch", False):
         return
 
-    setattr(fastapi, "_datadog_patch", False)
+    fastapi._datadog_patch = False
 
     _u(fastapi.applications.FastAPI, "build_middleware_stack")
     _u(fastapi.routing, "serialize_response")

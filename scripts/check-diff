@@ -1,0 +1,14 @@
+#!/bin/bash
+
+directory=${1:-"."}
+message=${2:-"Files were changed or added."}
+changed_files="$(git diff -I '^#' -- ${directory})"
+new_files="$(git ls-files -o --exclude-standard -- ${directory})"
+
+if [[ "$(git diff -I '^#' --exit-code -- ${directory})" || -n $new_files ]]
+then
+    echo "${changed_files}"
+    echo "${new_files}"
+    echo "${message}"
+    exit 1
+fi

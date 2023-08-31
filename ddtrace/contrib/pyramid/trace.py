@@ -6,6 +6,7 @@ from pyramid.settings import asbool
 import ddtrace
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.vendor import wrapt
 
 from .. import trace_utils
@@ -15,6 +16,8 @@ from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...internal.logger import get_logger
+from ...internal.schema import schematize_service_name
+from ...internal.schema import schematize_url_operation
 from .constants import SETTINGS_ANALYTICS_ENABLED
 from .constants import SETTINGS_ANALYTICS_SAMPLE_RATE
 from .constants import SETTINGS_DISTRIBUTED_TRACING
@@ -61,7 +64,7 @@ def trace_render(func, instance, args, kwargs):
 def trace_tween_factory(handler, registry):
     # configuration
     settings = registry.settings
-    service = settings.get(SETTINGS_SERVICE) or "pyramid"
+    service = settings.get(SETTINGS_SERVICE) or schematize_service_name("pyramid")
     tracer = settings.get(SETTINGS_TRACER) or ddtrace.tracer
     enabled = asbool(settings.get(SETTINGS_TRACE_ENABLED, tracer.enabled))
     distributed_tracing = asbool(settings.get(SETTINGS_DISTRIBUTED_TRACING, True))
@@ -73,7 +76,8 @@ def trace_tween_factory(handler, registry):
                 tracer, int_config=config.pyramid, request_headers=request.headers, override=distributed_tracing
             )
 
-            with tracer.trace("pyramid.request", service=service, resource="404", span_type=SpanTypes.WEB) as span:
+            span_name = schematize_url_operation("pyramid.request", protocol="http", direction=SpanDirection.INBOUND)
+            with tracer.trace(span_name, service=service, resource="404", span_type=SpanTypes.WEB) as span:
                 span.set_tag_str(COMPONENT, config.pyramid.integration_name)
 
                 # set span.kind to the type of operation being performed
@@ -124,6 +128,7 @@ def trace_tween_factory(handler, registry):
                         query=request.query_string,
                         request_headers=request.headers,
                         response_headers=response_headers,
+                        route=request.matched_route.pattern if request.matched_route else None,
                     )
                 return response
 

@@ -11,7 +11,8 @@ ENV LANG C.UTF-8
 ENV PYTHONUNBUFFERED=1
 # Configure PATH environment for pyenv
 ENV PYENV_ROOT=/root/.pyenv
-ENV PATH=${PYENV_ROOT}/shims:${PYENV_ROOT}/bin:$PATH
+ENV CARGO_ROOT=/root/.cargo
+ENV PATH=${PYENV_ROOT}/shims:${PYENV_ROOT}/bin:${CARGO_ROOT}/bin:$PATH
 ENV PYTHON_CONFIGURE_OPTS=--enable-shared
 
 # Use .python-version to specify all Python versions for testing
@@ -58,9 +59,14 @@ RUN \
   # For running datadog-ci CLI with npx
   && apt-get install -y --no-install-recommends nodejs npm \
   # Cleaning up apt cache space
-  && rm -rf /var/lib/apt/lists/* \
-  # Install pyenv
-  && git clone --depth 1 --branch v2.3.6 https://github.com/pyenv/pyenv "${PYENV_ROOT}" \
+  && rm -rf /var/lib/apt/lists/*
+
+# Install Rust toolchain
+RUN curl https://sh.rustup.rs -sSf | \
+    sh -s -- --default-toolchain stable -y
+
+# Install pyenv and necessary Python versions
+RUN git clone --depth 1 --branch v2.3.21 https://github.com/pyenv/pyenv "${PYENV_ROOT}" \
   && cd /root \
   && pyenv local | xargs -L 1 pyenv install \
   && cd -

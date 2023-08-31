@@ -101,3 +101,56 @@ class StopWatch(object):
             raise RuntimeError("Can not stop a stopwatch that has not been" " started")
         self._stopped_at = compat.monotonic()
         return self
+
+
+class HourGlass(object):
+    """An implementation of an hourglass."""
+
+    def __init__(self, duration):
+        # type: (float) -> None
+        t = compat.monotonic()
+
+        self._duration = duration
+        self._started_at = t - duration
+        self._end_at = t
+
+        self.trickling = self._trickled  # type: ignore[assignment]
+
+    def turn(self):
+        # type: () -> None
+        """Turn the hourglass."""
+        t = compat.monotonic()
+        top_0 = self._end_at - self._started_at
+        bottom = self._duration - top_0 + min(t - self._started_at, top_0)
+
+        self._started_at = t
+        self._end_at = t + bottom
+
+        self.trickling = self._trickling  # type: ignore[assignment]
+
+    def trickling(self):
+        # type: () -> bool
+        """Check if sand is still trickling."""
+        return False
+
+    def _trickled(self):
+        # type: () -> bool
+        return False
+
+    def _trickling(self):
+        # type: () -> bool
+        if compat.monotonic() < self._end_at:
+            return True
+
+        # No longer trickling, so we change state
+        self.trickling = self._trickled  # type: ignore[assignment]
+
+        return False
+
+    def __enter__(self):
+        # type: () -> HourGlass
+        self.turn()
+        return self
+
+    def __exit__(self, tp, value, traceback):
+        pass

@@ -1,4 +1,5 @@
 import asyncio
+import os
 import sys
 
 import httpx
@@ -15,6 +16,7 @@ from ddtrace.contrib.sqlalchemy import patch as sql_patch
 from ddtrace.contrib.sqlalchemy import unpatch as sql_unpatch
 from ddtrace.contrib.starlette import patch as starlette_patch
 from ddtrace.contrib.starlette import unpatch as starlette_unpatch
+from ddtrace.internal.utils.version import parse_version
 from ddtrace.propagation import http as http_propagation
 from tests.contrib.starlette.app import get_app
 from tests.utils import DummyTracer
@@ -24,7 +26,7 @@ from tests.utils import snapshot
 
 
 starlette_version_str = getattr(starlette, "__version__", "0.0.0")
-starlette_version = tuple([int(i) for i in starlette_version_str.split(".")])
+starlette_version = tuple([int(i) for i in starlette_version_str.split(".")[:3]])
 
 
 @pytest.fixture
@@ -46,10 +48,10 @@ def tracer(engine):
         tracer.configure(context_provider=AsyncioContextProvider())
 
     Pin.override(engine, tracer=tracer)
-    setattr(ddtrace, "tracer", tracer)
+    ddtrace.tracer = tracer
     starlette_patch()
     yield tracer
-    setattr(ddtrace, "tracer", original_tracer)
+    ddtrace.tracer = original_tracer
     starlette_unpatch()
 
 
@@ -535,3 +537,57 @@ def test_background_task(client, tracer, test_spans):
     # typical duration without background task should be in less than 10ms
     # duration with background task will take approximately 1.1s
     assert request_span.duration < 1
+
+
+@pytest.mark.parametrize(
+    "service_schema",
+    [
+        (None, None),
+        (None, "v0"),
+        (None, "v1"),
+        ("mysvc", None),
+        ("mysvc", "v0"),
+        ("mysvc", "v1"),
+    ],
+)
+@pytest.mark.snapshot(
+    variants={
+        "36": parse_version(sys.version) < (3, 7),  # 3.6 has an extra request
+        "rest": parse_version(sys.version) >= (3, 7),
+    }
+)
+def test_schematization(ddtrace_run_python_code_in_subprocess, service_schema):
+    service, schema = service_schema
+    code = """
+import pytest
+import sys
+from ddtrace import config
+import sqlalchemy
+
+from tests.contrib.starlette.test_starlette import snapshot_app
+from tests.contrib.starlette.test_starlette import snapshot_client
+
+@pytest.fixture
+def engine():
+    engine = sqlalchemy.create_engine("sqlite:///test.db")
+    yield engine
+
+def test(snapshot_client):
+    config.starlette["aggregate_resources"] = False
+    response = snapshot_client.get("/sub-app/hello/name")
+
+if __name__ == "__main__":
+    sys.exit(pytest.main(["-x", __file__]))
+    """
+    env = os.environ.copy()
+    if service:
+        env["DD_SERVICE"] = service
+    if schema:
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema
+    # We only care about the starlette traces
+    env["DD_TRACE_SQLALCHEMY_ENABLED"] = "false"
+    env["DD_TRACE_SQLITE3_ENABLED"] = "false"
+    env["DD_TRACE_HTTPX_ENABLED"] = "false"
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    assert status == 0, (err.decode(), out.decode())
+    assert err == b"", err.decode()
