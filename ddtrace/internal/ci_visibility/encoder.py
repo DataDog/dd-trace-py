@@ -76,28 +76,33 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         normalized_spans = [self._convert_span(span, trace[0].context.dd_origin) for trace in traces for span in trace]
         self._metadata = {k: v for k, v in self._metadata.items() if k in self.ALLOWED_METADATA_KEYS}
         # TODO: Split the events in several payloads as needed to avoid hitting the intake's maximum payload size.
-        return self._pack_payload(
+        return CIVisibilityEncoderV01._pack_payload(
             {"version": self.PAYLOAD_FORMAT_VERSION, "metadata": {"*": self._metadata}, "events": normalized_spans}
         )
 
-    def _pack_payload(self, payload):
-        def _py2_payload_force_unicode_strings(payload):
-            def _ensure_text_strings(o):
-                if type(o) == str:
-                    return ensure_text(o)
-                return o
-
-            if type(payload) == list:
-                return [_py2_payload_force_unicode_strings(item) for item in payload]
-            if type(payload) == dict:
-                return {_ensure_text_strings(k): _py2_payload_force_unicode_strings(v) for k, v in payload.items()}
-
-            return _ensure_text_strings(payload)
-
+    @staticmethod
+    def _pack_payload(payload):
         if PY2:
-            payload = _py2_payload_force_unicode_strings(payload)
+            payload = CIVisibilityEncoderV01._py2_payload_force_unicode_strings(payload)
 
         return msgpack_packb(payload)
+
+    @staticmethod
+    def _py2_payload_force_unicode_strings(payload):
+        def _ensure_text_strings(o):
+            if type(o) == str:
+                return ensure_text(o)
+            return o
+
+        if type(payload) == list:
+            return [CIVisibilityEncoderV01._py2_payload_force_unicode_strings(item) for item in payload]
+        if type(payload) == dict:
+            return {
+                _ensure_text_strings(k): CIVisibilityEncoderV01._py2_payload_force_unicode_strings(v)
+                for k, v in payload.items()
+            }
+
+        return _ensure_text_strings(payload)
 
     def _convert_span(self, span, dd_origin):
         # type: (Span, str) -> Dict[str, Any]

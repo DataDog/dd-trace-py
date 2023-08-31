@@ -10,10 +10,12 @@ from ddtrace.constants import AUTO_KEEP
 from ddtrace.ext import ci
 from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility.constants import REQUESTS_MODE
+from ddtrace.internal.ci_visibility.encoder import CIVisibilityEncoderV01
 from ddtrace.internal.ci_visibility.filters import TraceCiVisibilityFilter
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClient
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClientSerializerV1
 from ddtrace.internal.ci_visibility.recorder import _extract_repository_name_from_url
+from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import TimeoutError
 from ddtrace.internal.utils.http import Response
 from ddtrace.span import Span
@@ -956,3 +958,28 @@ def test_unshallow_repository():
     with mock.patch("ddtrace.internal.ci_visibility.git_client._unshallow_repository") as mock_unshallow_repository:
         CIVisibilityGitClient._unshallow_repository(cwd="/path/to/repo")
         mock_unshallow_repository.assert_called_once_with(cwd="/path/to/repo")
+
+
+def test_encoder_pack_payload():
+    packed_payload = CIVisibilityEncoderV01._pack_payload(
+        {"string_key": [1, {u"unicode_key": "string_value"}, u"unicode_value", {"string_key": u"unicode_value"}]}
+    )
+    if PY2:
+        assert (
+            packed_payload
+            == "\x81\xaastring_key\x94\x01\x81\xabunicode_key\xacstring_value"
+               "\xadunicode_value\x81\xaastring_key\xadunicode_value"
+        )
+    else:
+        assert (
+            packed_payload
+            == b"\x81\xaastring_key\x94\x01\x81\xabunicode_key\xacstring_value"
+               b"\xadunicode_value\x81\xaastring_key\xadunicode_value"
+        )
+
+
+@pytest.mark.skipif(not PY2, reason="py2 payload encoder only tested in Python 2.x")
+def test_encoder_py2_payload_force_unicode_strings():
+    assert CIVisibilityEncoderV01._py2_payload_force_unicode_strings(
+        {"string_key": [1, {u"unicode_key": "string_value"}, u"unicode_value", {"string_key": u"unicode_value"}]}
+    ) == {u"string_key": [1, {u"unicode_key": u"string_value"}, u"unicode_value", {u"string_key": u"unicode_value"}]}
