@@ -614,7 +614,7 @@ class TelemetryWriter(PeriodicService):
 
         self.stop(join=False)
 
-        # Enable writer service in child process to avoid interpeter shutdown
+        # Enable writer service in child process to avoid interpreter shutdown
         # error in Python 3.12
         if sys.version_info >= (3, 12):
             self.enable()
