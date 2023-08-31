@@ -196,7 +196,7 @@ venv = Venv(
                 "requests": latest,
                 "gunicorn": latest,
                 "flask": "<=2.2.3",
-                "httpretty": latest,
+                "httpretty": "<1.1",
             },
         ),
         Venv(
