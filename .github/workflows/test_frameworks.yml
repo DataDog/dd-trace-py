@@ -33,6 +33,7 @@ jobs:
     env:
       DD_PROFILING_ENABLED: true
       DD_TESTING_RAISE: true
+      CMAKE_BUILD_PARALLEL_LEVEL: 12
     defaults:
       run:
         working-directory: bottle
@@ -80,6 +81,7 @@ jobs:
     env:
       # Regression test for DataDog/dd-trace-py/issues/5722
       DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE: true
+      CMAKE_BUILD_PARALLEL_LEVEL: 12
     defaults:
       run:
         working-directory: sanic
@@ -131,6 +133,7 @@ jobs:
       DD_DEBUGGER_EXPL_COVERAGE_DELETE_LINE_PROBES: 1  # Delete to speed up
       DD_DEBUGGER_EXPL_CONSERVATIVE: 1
       PYTHONPATH: ../ddtrace/tests/debugging/exploration/:.
+      CMAKE_BUILD_PARALLEL_LEVEL: 12
     defaults:
       run:
         working-directory: django
@@ -194,6 +197,7 @@ jobs:
       DD_PROFILING_ENABLED: true
       DD_TESTING_RAISE: true
       PYTHONPATH: ../ddtrace/tests/debugging/exploration/:.
+      CMAKE_BUILD_PARALLEL_LEVEL: 12
     defaults:
       run:
         working-directory: graphene
@@ -235,6 +239,7 @@ jobs:
     env:
       DD_TESTING_RAISE: true
       DD_PROFILING_ENABLED: true
+      CMAKE_BUILD_PARALLEL_LEVEL: 12
     defaults:
       run:
         working-directory: fastapi
@@ -277,6 +282,7 @@ jobs:
       DD_TESTING_RAISE: true
       DD_PROFILING_ENABLED: true
       PYTHONPATH: ../ddtrace/tests/debugging/exploration/
+      CMAKE_BUILD_PARALLEL_LEVEL: 12
     defaults:
       run:
         working-directory: flask
@@ -362,6 +368,7 @@ jobs:
       DD_TESTING_RAISE: true
       DD_PROFILING_ENABLED: true
       PYTHONPATH: ../ddtrace/tests/debugging/exploration/
+      CMAKE_BUILD_PARALLEL_LEVEL: 12
     defaults:
       run:
         working-directory: mako
@@ -407,6 +414,7 @@ jobs:
       DD_TESTING_RAISE: true
       DD_PROFILING_ENABLED: true
       PYTHONPATH: ../ddtrace/tests/debugging/exploration/
+      CMAKE_BUILD_PARALLEL_LEVEL: 12
     defaults:
       run:
         working-directory: starlette
@@ -447,6 +455,7 @@ jobs:
     env:
       DD_TESTING_RAISE: true
       DD_PROFILING_ENABLED: true
+      CMAKE_BUILD_PARALLEL_LEVEL: 12
     defaults:
       run:
         working-directory: requests
@@ -485,6 +494,7 @@ jobs:
     env:
       DD_TESTING_RAISE: true
       DD_PROFILING_ENABLED: true
+      CMAKE_BUILD_PARALLEL_LEVEL: 12
     defaults:
       run:
         working-directory: asyncpg
@@ -528,6 +538,7 @@ jobs:
     env:
       DD_TESTING_RAISE: true
       PYTHONPATH: ../ddtrace/tests/debugging/exploration/
+      CMAKE_BUILD_PARALLEL_LEVEL: 12
     defaults:
       run:
         working-directory: pylons
@@ -570,6 +581,7 @@ jobs:
     env:
       DD_TESTING_RAISE: true
       # PYTHONPATH: ../ddtrace/tests/debugging/exploration/
+      CMAKE_BUILD_PARALLEL_LEVEL: 12
     defaults:
       run:
         working-directory: gunicorn
@@ -604,6 +616,7 @@ jobs:
       DD_TESTING_RAISE: true
       DD_PROFILING_ENABLED: true
       PYTHONPATH: ../ddtrace/tests/debugging/exploration/
+      CMAKE_BUILD_PARALLEL_LEVEL: 12
     defaults:
       run:
         working-directory: uwsgi
