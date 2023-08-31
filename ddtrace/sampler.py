@@ -65,7 +65,7 @@ class BaseSampler(six.with_metaclass(abc.ABCMeta)):
     __slots__ = ()
 
     @abc.abstractmethod
-    def sample(self, span, is_being_default=False):
+    def sample(self, span, allow_false=False):
         pass
 
 
@@ -81,9 +81,9 @@ class BasePrioritySampler(BaseSampler):
 class AllSampler(BaseSampler):
     """Sampler sampling all the traces"""
 
-    def sample(self, span, is_being_default=False):
+    def sample(self, span, allow_false=False):
         # type: (Span) -> bool
-        return True
+        return not allow_false or True
 
 
 class RateSampler(BaseSampler):
@@ -109,10 +109,10 @@ class RateSampler(BaseSampler):
         self.sample_rate = float(sample_rate)
         self.sampling_id_threshold = self.sample_rate * _MAX_UINT_64BITS
 
-    def sample(self, span, is_being_default=False):
+    def sample(self, span, allow_false=False):
         # type: (Span) -> bool
         sampled = ((span._trace_id_64bits * KNUTH_FACTOR) % _MAX_UINT_64BITS) <= self.sampling_id_threshold
-        if sampled and is_being_default:
+        if sampled and allow_false:
             span.set_metric(SAMPLE_RATE_METRIC_KEY, self.sample_rate)
         return sampled
 
@@ -170,7 +170,7 @@ class RateByServiceSampler(BasePrioritySampler):
             span.set_metric(SAMPLING_AGENT_DECISION, sampler.sample_rate)
         set_sampling_decision_maker(span.context, mechanism)
 
-    def sample(self, span, is_being_default=False):
+    def sample(self, span, allow_false=False):
         # type: (Span) -> bool
         env = span.get_tag(ENV_KEY)
         key = self._key(span.service, env)
@@ -179,7 +179,7 @@ class RateByServiceSampler(BasePrioritySampler):
         sampled = sampler.sample(span)
         self._set_sampler_decision(span, sampler, sampled)
 
-        return not is_being_default or sampled
+        return not allow_false or sampled
 
     def update_rate_by_service_sample_rates(self, rate_by_service):
         # type: (Dict[str, float]) -> None
@@ -330,7 +330,7 @@ class DatadogSampler(RateByServiceSampler):
 
         set_sampling_decision_maker(span.context, SamplingMechanism.TRACE_SAMPLING_RULE)
 
-    def sample(self, span, is_being_default=False):
+    def sample(self, span, allow_false=False):
         # type: (Span) -> bool
         """
         Decide whether the provided span should be sampled or not
@@ -357,7 +357,7 @@ class DatadogSampler(RateByServiceSampler):
             sampled = super(DatadogSampler, self).sample(span)
             sampler = self  # type: ignore
         else:
-            sampled = sampler.sample(span, is_being_default=True)
+            sampled = sampler.sample(span, allow_false=True)
 
         if rule_matched or has_configured_rate_limit:
             self._set_sampler_decision(span, sampler, sampled)
@@ -370,7 +370,7 @@ class DatadogSampler(RateByServiceSampler):
                 self._set_priority(span, USER_REJECT)
         if has_configured_rate_limit:
             span.set_metric(SAMPLING_LIMIT_DECISION, self.limiter.effective_rate)
-        return not is_being_default or not allowed or sampled
+        return not allow_false or not allowed or sampled
 
 
 class SamplingRule(BaseSampler):
@@ -489,7 +489,7 @@ class SamplingRule(BaseSampler):
         # provided Span into a hashable tuple for the cache
         return self._matches((span.service, span.name))
 
-    def sample(self, span, is_being_default=False):
+    def sample(self, span, allow_false=False):
         # type: (Span) -> bool
         """
         Return if this rule chooses to sample the span
@@ -505,7 +505,7 @@ class SamplingRule(BaseSampler):
             return False
 
         return (
-            not is_being_default
+            not allow_false
             or ((span._trace_id_64bits * KNUTH_FACTOR) % _MAX_UINT_64BITS) <= self._sampling_id_threshold
         )
 
