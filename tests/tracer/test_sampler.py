@@ -6,7 +6,6 @@ import unittest
 import mock
 import pytest
 
-from ddtrace import config
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import AUTO_REJECT
 from ddtrace.constants import SAMPLE_RATE_METRIC_KEY
@@ -22,7 +21,6 @@ from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.sampling import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import set_sampling_decision_maker
-from ddtrace.sampler import AllSampler
 from ddtrace.sampler import DatadogSampler
 from ddtrace.sampler import RateByServiceSampler
 from ddtrace.sampler import RateSampler
