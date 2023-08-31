@@ -171,7 +171,7 @@ SETTINGS_GEVENT_DDTRACERUN_DEBUGMODE_MODULE_CLONE = _gunicorn_settings_factory(
     enable_module_cloning=True,
 )
 # default is RLOCK, this tests to make sure Lock still works
-SETTINGS_GEVENT_SPANAGGREGATOR_LOCK = _gunicorn_settings_factory(
+SETTINGS_GEVENT_SPANAGGREGATOR_NO_RLOCK = _gunicorn_settings_factory(
     worker_class="gevent",
     use_ddtracerun=False,
     import_auto_in_app=True,
