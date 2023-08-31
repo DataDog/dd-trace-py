@@ -170,7 +170,7 @@ class RateByServiceSampler(BasePrioritySampler):
         return "auto"
 
     def _make_sampling_decision(self, span):
-        # type: (Span) -> bool
+        # type: (Span) -> Tuple[bool, bool]
         env = span.get_tag(ENV_KEY)
         key = self._key(span.service, env)
         sampler = self._by_service_samplers.get(key) or self._default_sampler
