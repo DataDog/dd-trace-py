@@ -46,31 +46,33 @@ def get_version():
 
 
 def _set_tracer(tracer):
-    """Manually sets the tracer instance to `unittest`"""
+    """Manually sets the tracer instance to `unittest.`"""
     unittest._datadog_tracer = tracer
 
 
 def _store_test_span(item, span):
-    """Store span at `unittest` instance"""
+    """Store span at `unittest` instance."""
     item._datadog_span = span
 
 
 def _store_session_span(module, span):
-    """Store session span at `unittest` module instance"""
+    """Store session span at `unittest` module instance."""
+    module._datadog_session_span = span
     if hasattr(module, "test") and hasattr(module.test, "_tests"):
         for submodule in module.test._tests:
             submodule._datadog_session_span = span
 
 
 def _store_module_span(suite, span):
-    """Store module span at `unittest` suite instance"""
+    """Store module span at `unittest` suite instance."""
+    suite._datadog_module_span = span
     if hasattr(suite, "_tests"):
         for subsuite in suite._tests:
             subsuite._datadog_module_span = span
 
 
 def _store_suite_span(test, span):
-    """Store suite span at `unittest` test instance"""
+    """Store suite span at `unittest` test instance."""
     if hasattr(test, "_tests"):
         for test_object in test._tests:
             test_object._datadog_suite_span = span
@@ -90,7 +92,7 @@ def _extract_span(item):
 
 
 def _extract_command_name_from_session(session):
-    """Extract command name from `unittest` instance"""
+    """Extract command name from `unittest` instance."""
     if not hasattr(session, "progName"):
         return "python -m unittest"
     return getattr(session, "progName", None)
@@ -239,6 +241,9 @@ def patch():
 
 
 def unpatch():
+    """
+    Undo patched instrumented methods from unittest
+    """
     if not getattr(unittest, "_datadog_patch", False):
         return
 
@@ -378,8 +383,8 @@ def handle_module_suite_wrapper(func, instance, args, kwargs):
     return result
 
 
-def _start_test_session_span(instance, special=False):
-    if _get_identifier(instance) and not special:
+def _start_test_session_span(instance):
+    if _get_identifier(instance):
         return None
     tracer = getattr(unittest, "_datadog_tracer", _CIVisibility._instance.tracer)
     test_command = _extract_command_name_from_session(instance)
@@ -399,10 +404,7 @@ def _start_test_session_span(instance, special=False):
     test_session_span.set_tag_str(test.COMMAND, test_command)
     test_session_span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
     _store_test_span(instance, test_session_span)
-    if not special:
-        _store_session_span(instance, test_session_span)
-    else:
-        instance._datadog_session_span = test_session_span
+    _store_session_span(instance, test_session_span)
     return test_session_span
 
 
@@ -411,7 +413,7 @@ def _finish_test_session_span(test_session_span):
     test_session_span.finish()
 
 
-def _start_test_module_span(instance, special=False):
+def _start_test_module_span(instance):
     tracer = getattr(unittest, "_datadog_tracer", _CIVisibility._instance.tracer)
     test_session_span = _extract_session_span(instance)
     test_module_name = _extract_module_name_from_module(instance)
@@ -437,10 +439,7 @@ def _start_test_module_span(instance, special=False):
     test_module_span.set_tag_str(_MODULE_ID, str(test_module_span.span_id))
     test_module_span.set_tag_str(test.MODULE, test_module_name)
     test_module_span.set_tag_str(test.MODULE_PATH, _extract_module_file_path(instance))
-    if not special:
-        _store_module_span(instance, test_module_span)
-    else:
-        instance._datadog_module_span = test_module_span
+    _store_module_span(instance, test_module_span)
     return test_module_span, test_session_span
 
 
@@ -469,12 +468,14 @@ def handle_session_wrapper(func, instance, args, kwargs):
 
 
 def handle_text_test_runner_wrapper(func, instance, args, kwargs):
-    # Create session and module spans
+    """
+    Creates session and module spans if the unittest is called through the `TextTestRunner` method
+    """
     if _is_invoked_by_cli(args):
         return func(*args, **kwargs)
     args[0]._datadog_entry = "TextTestRunner"
-    test_session_span = _start_test_session_span(args[0], special=True)
-    test_module_span, _ = _start_test_module_span(args[0], special=True)
+    test_session_span = _start_test_session_span(args[0])
+    test_module_span, _ = _start_test_module_span(args[0])
     result = func(*args, **kwargs)
     _finish_test_module_span(test_module_span, test_session_span)
     _finish_test_session_span(test_session_span)
