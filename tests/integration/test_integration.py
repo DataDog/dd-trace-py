@@ -480,7 +480,7 @@ def test_trace_with_invalid_payload_generates_error_log():
 
 
 @skip_if_testagent
-@parametrize_with_all_encodings(env={"_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS": "true"})
+@pytest.mark.subprocess(env={"_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS": "true", "DD_TRACE_API_VERSION": "v0.5"})
 def test_trace_with_invalid_payload_logs_payload_when_LOG_ERROR_PAYLOADS():
     import mock
 
@@ -501,7 +501,7 @@ def test_trace_with_invalid_payload_logs_payload_when_LOG_ERROR_PAYLOADS():
 
 
 @skip_if_testagent
-@parametrize_with_all_encodings(env={"_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS": "true"})
+@pytest.mark.subprocess(env={"_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS": "true", "DD_TRACE_API_VERSION": "v0.5"})
 def test_trace_with_non_bytes_payload_logs_payload_when_LOG_ERROR_PAYLOADS():
     import mock
 

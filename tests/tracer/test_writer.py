@@ -665,7 +665,7 @@ def test_additional_headers_constructor():
 
 @pytest.mark.parametrize("writer_class", (AgentWriter,))
 def test_bad_encoding(monkeypatch, writer_class):
-    with override_global_config({"_tracing_api": "foo"}):
+    with override_global_config({"_trace_api": "foo"}):
         with pytest.raises(ValueError):
             writer_class("http://localhost:9126")
 
@@ -759,7 +759,7 @@ def test_writer_api_version_selection(
         try:
             # Create a new writer
             if ddtrace_api_version is not None:
-                with override_global_config({"_tracing_api": ddtrace_api_version}):
+                with override_global_config({"_trace_api": ddtrace_api_version}):
                     writer = writer_class("http://dne:1234", api_version=api_version, priority_sampler=priority_sampler)
             else:
                 writer = writer_class("http://dne:1234", api_version=api_version, priority_sampler=priority_sampler)
@@ -773,11 +773,11 @@ def test_writer_api_version_selection(
 @pytest.mark.parametrize("writer_class", (AgentWriter, CIVisibilityWriter))
 def test_writer_reuse_connections_envvar(monkeypatch, writer_class):
     with override_env(dict(DD_API_KEY="foobar.baz")):
-        with override_global_config({"_writer_connection_reuse": False}):
+        with override_global_config({"_trace_writer_connection_reuse": False}):
             writer = writer_class("http://localhost:9126")
             assert not writer._reuse_connections
 
-        with override_global_config({"_writer_connection_reuse": True}):
+        with override_global_config({"_trace_writer_connection_reuse": True}):
             writer = writer_class("http://localhost:9126")
             assert writer._reuse_connections
 
