@@ -12,6 +12,20 @@ from tests.appsec.iast.iast_utils import get_line_and_hash
 FIXTURES_PATH = "tests/appsec/iast/fixtures/propagation_path.py"
 
 
+def _assert_vulnerability(span_report, value_parts, file_line_label):
+    vulnerability = list(span_report.vulnerabilities)[0]
+    assert vulnerability.type == VULN_PATH_TRAVERSAL
+    assert vulnerability.evidence.valueParts == value_parts
+    assert vulnerability.evidence.value is None
+    assert vulnerability.evidence.pattern is None
+    assert vulnerability.evidence.redacted is None
+
+    line, hash_value = get_line_and_hash(file_line_label, VULN_PATH_TRAVERSAL, filename=FIXTURES_PATH)
+    assert vulnerability.location.path == FIXTURES_PATH
+    assert vulnerability.location.line == line
+    assert vulnerability.hash == hash_value
+
+
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 @pytest.mark.parametrize(
     "origin1",
@@ -32,28 +46,19 @@ def test_propagation_path_1_origin_1_propagation(origin1, iast_span_defaults):
     mod.propagation_path_1_source_1_prop(tainted_string)
 
     span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
-    vulnerability = list(span_report.vulnerabilities)[0]
     source = span_report.sources[0]
     source_value_encoded = str(origin1, encoding="utf-8") if type(origin1) is not str else origin1
-    assert vulnerability.type == VULN_PATH_TRAVERSAL
+
     assert source.name == "path"
     assert source.origin == OriginType.PATH
     assert source.value == source_value_encoded
-    assert vulnerability.evidence.valueParts == [
+
+    value_parts = [
         {"value": ANY},
         {"source": 0, "value": source_value_encoded},
         {"value": ".txt"},
     ]
-    assert vulnerability.evidence.value is None
-    assert vulnerability.evidence.pattern is None
-    assert vulnerability.evidence.redacted is None
-
-    line, hash_value = get_line_and_hash(
-        "propagation_path_1_source_1_prop", VULN_PATH_TRAVERSAL, filename=FIXTURES_PATH
-    )
-    assert vulnerability.location.path == FIXTURES_PATH
-    assert vulnerability.location.line == line
-    assert vulnerability.hash == hash_value
+    _assert_vulnerability(span_report, value_parts, "propagation_path_1_source_1_prop")
 
 
 @pytest.mark.skip(reason="aspect add fails when var1 + var1")
@@ -84,25 +89,13 @@ def test_propagation_path_1_origins_2_propagations(origin1, iast_span_defaults):
     assert sources[0].origin == OriginType.PATH
     assert sources[0].value == str(origin1, encoding="utf-8") if type(origin1) is not str else origin1
 
-    vulnerability = list(span_report.vulnerabilities)[0]
-
-    assert vulnerability.type == VULN_PATH_TRAVERSAL
-    assert vulnerability.evidence.valueParts == [
+    value_parts = [
         {"value": ANY},
         {"source": 0, "value": str(origin1)},
         {"source": 0, "value": str(origin1)},
         {"value": ".txt"},
     ]
-    assert vulnerability.evidence.value is None
-    assert vulnerability.evidence.pattern is None
-    assert vulnerability.evidence.redacted is None
-
-    line, hash_value = get_line_and_hash(
-        "propagation_path_1_source_2_prop", VULN_PATH_TRAVERSAL, filename=FIXTURES_PATH
-    )
-    assert vulnerability.location.path == FIXTURES_PATH
-    assert vulnerability.location.line == line
-    assert vulnerability.hash == hash_value
+    _assert_vulnerability(span_report, value_parts, "propagation_path_1_source_2_prop")
 
 
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
@@ -149,25 +142,13 @@ def test_propagation_path_2_origins_2_propagations(origin1, origin2, iast_span_d
     assert sources[1].origin == OriginType.PARAMETER
     assert sources[1].value == source2_value_encoded
 
-    vulnerability = list(span_report.vulnerabilities)[0]
-
-    assert vulnerability.type == VULN_PATH_TRAVERSAL
-    assert vulnerability.evidence.valueParts == [
+    value_parts = [
         {"value": ANY},
         {"source": 0, "value": source1_value_encoded},
         {"source": 1, "value": source2_value_encoded},
         {"value": ".txt"},
     ]
-    assert vulnerability.evidence.value is None
-    assert vulnerability.evidence.pattern is None
-    assert vulnerability.evidence.redacted is None
-
-    line, hash_value = get_line_and_hash(
-        "propagation_path_2_source_2_prop", VULN_PATH_TRAVERSAL, filename=FIXTURES_PATH
-    )
-    assert vulnerability.location.path == FIXTURES_PATH
-    assert vulnerability.location.line == line
-    assert vulnerability.hash == hash_value
+    _assert_vulnerability(span_report, value_parts, "propagation_path_2_source_2_prop")
 
 
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
@@ -214,10 +195,7 @@ def test_propagation_path_2_origins_3_propagation(origin1, origin2, iast_span_de
     assert sources[1].origin == OriginType.PARAMETER
     assert sources[1].value == source2_value_encoded
 
-    vulnerability = list(span_report.vulnerabilities)[0]
-
-    assert vulnerability.type == VULN_PATH_TRAVERSAL
-    assert vulnerability.evidence.valueParts == [
+    value_parts = [
         {"value": ANY},
         {"source": 0, "value": source1_value_encoded},
         {"source": 1, "value": source2_value_encoded},
@@ -229,11 +207,4 @@ def test_propagation_path_2_origins_3_propagation(origin1, origin2, iast_span_de
         {"source": 1, "value": source2_value_encoded},
         {"value": ".txt"},
     ]
-    assert vulnerability.evidence.value is None
-    assert vulnerability.evidence.pattern is None
-    assert vulnerability.evidence.redacted is None
-
-    line, hash_value = get_line_and_hash("propagation_path_3_prop", VULN_PATH_TRAVERSAL, filename=FIXTURES_PATH)
-    assert vulnerability.location.path == FIXTURES_PATH
-    assert vulnerability.location.line == line
-    assert vulnerability.hash == hash_value
+    _assert_vulnerability(span_report, value_parts, "propagation_path_3_prop")
