@@ -46,11 +46,12 @@ def get_version():
 
 
 def _set_tracer(tracer):
+    """Manually sets the tracer instance to `unittest`"""
     unittest._datadog_tracer = tracer
 
 
 def _store_test_span(item, span):
-    """Store span at `unittest` instance."""
+    """Store span at `unittest` instance"""
     item._datadog_span = span
 
 
@@ -59,7 +60,6 @@ def _store_session_span(module, span):
     if hasattr(module, "test") and hasattr(module.test, "_tests"):
         for submodule in module.test._tests:
             submodule._datadog_session_span = span
-            _store_identifier(submodule, "module")
 
 
 def _store_module_span(suite, span):
@@ -67,7 +67,6 @@ def _store_module_span(suite, span):
     if hasattr(suite, "_tests"):
         for subsuite in suite._tests:
             subsuite._datadog_module_span = span
-            _store_identifier(subsuite, "suite")
 
 
 def _store_suite_span(test, span):
@@ -75,7 +74,6 @@ def _store_suite_span(test, span):
     if hasattr(test, "_tests"):
         for test_object in test._tests:
             test_object._datadog_suite_span = span
-            _store_identifier(test_object, "test")
 
 
 def _is_test_suite(item):
@@ -107,16 +105,16 @@ def _extract_suite_name(item):
     return type(item._tests[0]).__name__
 
 
-def _extract_session_span(session):
-    return getattr(session, "_datadog_session_span", None)
+def _extract_session_span(test_object):
+    return getattr(test_object, "_datadog_session_span", None)
 
 
-def _extract_module_span(session):
-    return getattr(session, "_datadog_module_span", None)
+def _extract_module_span(test_object):
+    return getattr(test_object, "_datadog_module_span", None)
 
 
-def _extract_suite_span(session):
-    return getattr(session, "_datadog_suite_span", None)
+def _extract_suite_span(test_object):
+    return getattr(test_object, "_datadog_suite_span", None)
 
 
 def _update_status_item(item, status):
@@ -159,8 +157,8 @@ def _extract_module_name_from_module(item):
     return module_name
 
 
-def _extract_test_skip_reason(args):
-    return args[1]
+def _extract_test_reason(item):
+    return item[1]
 
 
 def _extract_test_file_name(item):
@@ -198,16 +196,23 @@ def _generate_session_resource(framework_name, test_command):
     return framework_name + "." + "test_session" + "." + test_command
 
 
-def _store_identifier(item, identifier):
-    item._datadog_object = identifier
-
-
 def _get_identifier(item):
     return getattr(item, "_datadog_object", None)
 
 
 def _is_valid_result(instance, args):
     return instance and type(instance) == unittest.runner.TextTestResult and args
+
+
+def _is_invoked_by_cli(args):
+    return (
+        not args
+        or not len(args)
+        or not len(args[0]._tests)
+        or type(args[0]._tests[0]) == unittest.TestSuite
+        and not len(args[0]._tests[0]._tests)
+        or hasattr(args[0], "_datadog_entry")
+    )
 
 
 def patch():
@@ -271,17 +276,16 @@ def add_success_test_wrapper(func, instance, args, kwargs):
 
 def add_failure_test_wrapper(func, instance, args, kwargs):
     if _is_valid_result(instance, args):
-        _set_test_span_status(test_item=args[0], reason=args[1], status=test.Status.FAIL.value)
+        _set_test_span_status(test_item=args[0], reason=_extract_test_reason(args), status=test.Status.FAIL.value)
 
     return func(*args, **kwargs)
 
 
 def add_skip_test_wrapper(func, instance, args, kwargs):
-    result = func(*args, **kwargs)
     if _is_valid_result(instance, args):
-        _set_test_span_status(test_item=args[0], reason=args[1], status=test.Status.SKIP.value)
+        _set_test_span_status(test_item=args[0], reason=_extract_test_reason(args), status=test.Status.SKIP.value)
 
-    return result
+    return func(*args, **kwargs)
 
 
 def handle_test_wrapper(func, instance, args, kwargs):
@@ -397,7 +401,6 @@ def _start_test_session_span(instance, special=False):
     _store_test_span(instance, test_session_span)
     if not special:
         _store_session_span(instance, test_session_span)
-        _store_identifier(instance.test, "session")
     else:
         instance._datadog_session_span = test_session_span
     return test_session_span
@@ -467,17 +470,9 @@ def handle_session_wrapper(func, instance, args, kwargs):
 
 def handle_text_test_runner_wrapper(func, instance, args, kwargs):
     # Create session and module spans
-    if (
-        not args
-        or not len(args)
-        or not len(args[0]._tests)
-        or type(args[0]._tests[0]) == unittest.TestSuite
-        and not len(args[0]._tests[0]._tests)
-        or hasattr(args[0], "_datadog_entry")
-    ):
+    if _is_invoked_by_cli(args):
         return func(*args, **kwargs)
     args[0]._datadog_entry = "TextTestRunner"
-    _store_identifier(args[0], "suite")
     test_session_span = _start_test_session_span(args[0], special=True)
     test_module_span, _ = _start_test_module_span(args[0], special=True)
     result = func(*args, **kwargs)
