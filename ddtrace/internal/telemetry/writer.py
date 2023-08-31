@@ -216,7 +216,6 @@ class TelemetryWriter(PeriodicService):
         self._disabled = True
         self.reset_queues()
         if self._is_periodic and self.status is ServiceStatus.RUNNING:
-            atexit.unregister(self.stop)
             self.stop()
         else:
             self.status = ServiceStatus.STOPPED
@@ -601,7 +600,6 @@ class TelemetryWriter(PeriodicService):
         if self.status == ServiceStatus.STOPPED:
             return
 
-        atexit.unregister(self.stop)
         self.stop(join=False)
 
     def _restart_sequence(self):
