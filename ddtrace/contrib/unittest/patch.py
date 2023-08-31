@@ -40,6 +40,11 @@ config._add(
 )
 
 
+def get_version():
+    # type: () -> str
+    return ""
+
+
 def _set_tracer(tracer):
     unittest._datadog_tracer = tracer
 

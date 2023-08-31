@@ -69,6 +69,7 @@ required_modules = []
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
         from .middleware import TraceMiddleware
+        from .middleware import get_version
         from .middleware import span_from_scope
 
-        __all__ = ["TraceMiddleware", "span_from_scope"]
+        __all__ = ["TraceMiddleware", "span_from_scope", "get_version"]

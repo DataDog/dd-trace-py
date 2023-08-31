@@ -2,7 +2,6 @@
 # script. If you want to make changes to it, you should make sure that you have
 # removed the ``_generated`` suffix from the file name, to prevent the content
 # from being overwritten by future re-generations.
-
 from ddtrace.contrib.futures.patch import patch
 
 
@@ -26,4 +25,7 @@ class TestFuturesPatch(PatchTestCase.Base):
         pass
 
     def assert_not_module_double_patched(self, concurrent_futures):
+        pass
+
+    def assert_module_implements_get_version(self):
         pass

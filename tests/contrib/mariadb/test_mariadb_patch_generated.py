@@ -3,6 +3,7 @@
 # removed the ``_generated`` suffix from the file name, to prevent the content
 # from being overwritten by future re-generations.
 
+from ddtrace.contrib.mariadb import get_version
 from ddtrace.contrib.mariadb.patch import patch
 
 
@@ -27,3 +28,8 @@ class TestMariadbPatch(PatchTestCase.Base):
 
     def assert_not_module_double_patched(self, mariadb):
         pass
+
+    def assert_module_implements_get_version(self):
+        version = get_version()
+        assert type(version) == str
+        assert version != ""

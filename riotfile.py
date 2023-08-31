@@ -102,6 +102,7 @@ venv = Venv(
         "DD_CIVISIBILITY_CODE_COVERAGE_ENABLED": "1",
         "DD_CIVISIBILITY_ITR_ENABLED": "1",
         "DD_PATCH_MODULES": "unittest:false",
+        "CMAKE_BUILD_PARALLEL_LEVEL": "12",
     },
     venvs=[
         Venv(
@@ -1838,7 +1839,7 @@ venv = Venv(
         ),
         Venv(
             name="rq",
-            command="pytest tests/contrib/rq",
+            command="pytest {cmdargs} tests/contrib/rq",
             venvs=[
                 Venv(
                     # rq dropped support for Python 2.7 in 1.4.0

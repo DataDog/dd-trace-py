@@ -53,6 +53,7 @@ jobs:
           CIBW_BUILD: ${{ inputs.cibw_build }}
           CIBW_SKIP: ${{ inputs.cibw_skip }}
           CIBW_PRERELEASE_PYTHONS: ${{ inputs.cibw_prerelease_pythons }}
+          CMAKE_BUILD_PARALLEL_LEVEL: 12
 
       - uses: actions/upload-artifact@v3
         with:

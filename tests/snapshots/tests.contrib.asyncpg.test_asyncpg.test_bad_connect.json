@@ -9,14 +9,15 @@
     "type": "sql",
     "error": 1,
     "meta": {
+      "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "component": "asyncpg",
       "db.system": "postgresql",
-      "error.message": "Multiple exceptions: [Errno 61] Connect call failed ('127.0.0.1', 5433), [Errno 61] Connect call failed ('::1', 5433, 0, 0)",
-      "error.stack": "Traceback (most recent call last):\n  File \"/Users/william.conti/Documents/dd-trace/dd-trace-py/ddtrace/contrib/asyncpg/patch.py\", line 82, in _traced_connect\n    conn = _TracedConnection(await func(*args, **kwargs), pin)\n  File \"/Users/william.conti/Documents/dd-trace/dd-trace-py/.riot/venv_py3813_asyncpg~0180/lib/python3.8/site-packages/asyncpg/connection.py\", line 1679, in connect\n    return await connect_utils._connect(\n  File \"/Users/william.conti/Documents/dd-trace/dd-trace-py/.riot/venv_py3813_asyncpg~0180/lib/python3.8/site-packages/asyncpg/connect_utils.py\", line 551, in _connect\n    raise last_error\n  File \"/Users/william.conti/Documents/dd-trace/dd-trace-py/.riot/venv_py3813_asyncpg~0180/lib/python3.8/site-packages/asyncpg/connect_utils.py\", line 540, in _connect\n    con = await _connect_addr(\n  File \"/Users/william.conti/Documents/dd-trace/dd-trace-py/.riot/venv_py3813_asyncpg~0180/lib/python3.8/site-packages/asyncpg/connect_utils.py\", line 512, in _connect_addr\n    tr, pr = await asyncio.wait_for(\n  File \"/Users/william.conti/.pyenv/versions/3.8.13/lib/python3.8/asyncio/tasks.py\", line 494, in wait_for\n    return fut.result()\n  File \"/Users/william.conti/.pyenv/versions/3.8.13/lib/python3.8/asyncio/base_events.py\", line 1033, in create_connection\n    raise OSError('Multiple exceptions: {}'.format(\nOSError: Multiple exceptions: [Errno 61] Connect call failed ('127.0.0.1', 5433), [Errno 61] Connect call failed ('::1', 5433, 0, 0)\n",
+      "error.message": "Multiple exceptions: [Errno 111] Connect call failed ('::1', 5433, 0, 0), [Errno 111] Connect call failed ('127.0.0.1', 5433)",
+      "error.stack": "Traceback (most recent call last):\n  File \"/root/project/ddtrace/contrib/asyncpg/patch.py\", line 94, in _traced_connect\n    conn = _TracedConnection(await func(*args, **kwargs), pin)\n  File \"/root/project/.riot/venv_py3916_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio_asyncpg~0220/lib/python3.9/site-packages/asyncpg/connection.py\", line 1980, in connect\n    return await connect_utils._connect(\n  File \"/root/project/.riot/venv_py3916_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio_asyncpg~0220/lib/python3.9/site-packages/asyncpg/connect_utils.py\", line 677, in _connect\n    raise last_error\n  File \"/root/project/.riot/venv_py3916_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio_asyncpg~0220/lib/python3.9/site-packages/asyncpg/connect_utils.py\", line 661, in _connect\n    con = await _connect_addr(\n  File \"/root/project/.riot/venv_py3916_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio_asyncpg~0220/lib/python3.9/site-packages/asyncpg/connect_utils.py\", line 634, in _connect_addr\n    tr, pr = await compat.wait_for(connector, timeout=timeout)\n  File \"/root/project/.riot/venv_py3916_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio_asyncpg~0220/lib/python3.9/site-packages/asyncpg/compat.py\", line 103, in wait_for\n    return await asyncio.wait_for(fut, timeout)\n  File \"/root/.pyenv/versions/3.9.16/lib/python3.9/asyncio/tasks.py\", line 479, in wait_for\n    return fut.result()\n  File \"/root/project/.riot/venv_py3916_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio_asyncpg~0220/lib/python3.9/site-packages/asyncpg/connect_utils.py\", line 544, in _create_ssl_connection\n    tr, pr = await loop.create_connection(\n  File \"/root/.pyenv/versions/3.9.16/lib/python3.9/asyncio/base_events.py\", line 1073, in create_connection\n    raise OSError('Multiple exceptions: {}'.format(\nOSError: Multiple exceptions: [Errno 111] Connect call failed ('::1', 5433, 0, 0), [Errno 111] Connect call failed ('127.0.0.1', 5433)\n",
       "error.type": "builtins.OSError",
       "language": "python",
-      "runtime-id": "2fa6792268124613bb4489b28faf6c25",
+      "runtime-id": "ed7e8c2b2f2941df82375dfe28f4da8c",
       "span.kind": "client"
     },
     "metrics": {
@@ -24,8 +25,8 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 1236
+      "process_id": 25714
     },
-    "duration": 3754000,
-    "start": 1667241403518548000
+    "duration": 4931917,
+    "start": 1692706986460845964
   }]]
