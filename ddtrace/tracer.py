@@ -59,10 +59,8 @@ from .internal.writer import AgentWriter
 from .internal.writer import LogWriter
 from .internal.writer import TraceWriter
 from .provider import DefaultContextProvider
-from .sampler import BasePrioritySampler
 from .sampler import BaseSampler
 from .sampler import DatadogSampler
-from .sampler import RateByServiceSampler
 from .sampler import RateSampler
 from .span import Span
 
@@ -757,9 +755,6 @@ class Tracer(object):
 
         if not trace_id:
             span.sampled = self._sampler.sample(span, is_being_default=isinstance(self._sampler, RateSampler))
-            if not isinstance(self._sampler, RateSampler):
-                # We must always mark the span as sampled so it is forwarded to the agent
-                span.sampled = True
 
         # Only call span processors if the tracer is enabled
         if self.enabled:

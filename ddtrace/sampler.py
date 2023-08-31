@@ -179,7 +179,7 @@ class RateByServiceSampler(BasePrioritySampler):
         sampled = sampler.sample(span)
         self._set_sampler_decision(span, sampler, sampled)
 
-        return sampled
+        return not is_being_default or sampled
 
     def update_rate_by_service_sample_rates(self, rate_by_service):
         # type: (Dict[str, float]) -> None
@@ -357,7 +357,7 @@ class DatadogSampler(RateByServiceSampler):
             sampled = super(DatadogSampler, self).sample(span)
             sampler = self  # type: ignore
         else:
-            sampled = sampler.sample(span)
+            sampled = sampler.sample(span, is_being_default=True)
 
         if rule_matched or has_configured_rate_limit:
             self._set_sampler_decision(span, sampler, sampled)
@@ -370,7 +370,7 @@ class DatadogSampler(RateByServiceSampler):
                 self._set_priority(span, USER_REJECT)
         if has_configured_rate_limit:
             span.set_metric(SAMPLING_LIMIT_DECISION, self.limiter.effective_rate)
-        return not allowed or sampled
+        return not is_being_default or not allowed or sampled
 
 
 class SamplingRule(BaseSampler):
@@ -504,7 +504,10 @@ class SamplingRule(BaseSampler):
         elif self.sample_rate == 0:
             return False
 
-        return ((span._trace_id_64bits * KNUTH_FACTOR) % _MAX_UINT_64BITS) <= self._sampling_id_threshold
+        return (
+            not is_being_default
+            or ((span._trace_id_64bits * KNUTH_FACTOR) % _MAX_UINT_64BITS) <= self._sampling_id_threshold
+        )
 
     def _no_rule_or_self(self, val):
         return "NO_RULE" if val is self.NO_RULE else val
