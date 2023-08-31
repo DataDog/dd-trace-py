@@ -771,27 +771,12 @@ class Tracer(object):
 
         if not trace_id:
             span.sampled = self._sampler.sample(span)
-            # Old behavior
-            # DEV: The new sampler sets metrics and priority sampling on the span for us
             if not isinstance(self._sampler, DatadogSampler):
                 if span.sampled:
                     # When doing client sampling in the client, keep the sample rate so that we can
                     # scale up statistics in the next steps of the pipeline.
                     if isinstance(self._sampler, RateSampler):
                         span.set_metric(SAMPLE_RATE_METRIC_KEY, self._sampler.sample_rate)
-
-                    if self._priority_sampler:
-                        # At this stage, it's important to have the service set. If unset,
-                        # priority sampler will use the default sampling rate, which might
-                        # lead to oversampling (that is, dropping too many traces).
-                        if self._priority_sampler.sample(span):
-                            context.sampling_priority = AUTO_KEEP
-                        else:
-                            context.sampling_priority = AUTO_REJECT
-                else:
-                    if self._priority_sampler:
-                        # If dropped by the local sampler, distributed instrumentation can drop it too.
-                        context.sampling_priority = AUTO_REJECT
             else:
                 # We must always mark the span as sampled so it is forwarded to the agent
                 span.sampled = True
