@@ -4,34 +4,26 @@ Any `sampled = False` trace won't be written, and can be ignored by the instrume
 """
 import abc
 import json
-from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
 from typing import TYPE_CHECKING
 from typing import Tuple
-from typing import Union
 
 import six
 
-from .constants import AUTO_KEEP
-from .constants import AUTO_REJECT
 from .constants import ENV_KEY
 from .constants import SAMPLE_RATE_METRIC_KEY
-from .constants import SAMPLING_AGENT_DECISION
-from .constants import SAMPLING_LIMIT_DECISION
-from .constants import SAMPLING_RULE_DECISION
-from .constants import USER_KEEP
-from .constants import USER_REJECT
 from .internal.compat import iteritems
-from .internal.compat import pattern_type
 from .internal.constants import DEFAULT_SAMPLING_RATE_LIMIT
 from .internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
+from .internal.constants import _PRIORITY_CATEGORY
 from .internal.logger import get_logger
 from .internal.rate_limiter import RateLimiter
-from .internal.sampling import SamplingMechanism
-from .internal.sampling import set_sampling_decision_maker
-from .internal.utils.cache import cachedmethod
+from .internal.sampling import SamplingRule
+from .internal.sampling import _apply_rate_limit
+from .internal.sampling import _get_highest_precedence_rule_matching
+from .internal.sampling import _set_sampling_tags
 from .settings import _config as ddconfig
 
 
@@ -112,6 +104,9 @@ class RateSampler(BaseSampler):
     def sample(self, span, allow_false=False):
         # type: (Span, bool) -> bool
         sampled = ((span._trace_id_64bits * KNUTH_FACTOR) % _MAX_UINT_64BITS) <= self.sampling_id_threshold
+        # NB allow_false has weird functionality here, doing something other than "allowing false" to be returned
+        # this is an artifact of this library's sampler abstractions having fallen out of alignment
+        # with the functional specification over time.
         if sampled and allow_false:
             span.set_metric(SAMPLE_RATE_METRIC_KEY, self.sample_rate)
         return sampled
@@ -165,9 +160,10 @@ class RateByServiceSampler(BasePrioritySampler):
         return not allow_false or sampled
 
     def _choose_priority_category(self, default_was_used):
+        # type: (bool) -> str
         if default_was_used:
-            return "default"
-        return "auto"
+            return _PRIORITY_CATEGORY.DEFAULT
+        return _PRIORITY_CATEGORY.AUTO
 
     def _make_sampling_decision(self, span):
         # type: (Span) -> Tuple[bool, bool]
@@ -188,17 +184,15 @@ class RateByServiceSampler(BasePrioritySampler):
 
 class DatadogSampler(RateByServiceSampler):
     """
-    Default sampler used by Tracer for determining if a trace should be kept or dropped.
-
-    By default, this sampler will rely on dynamic sample rates provided by the trace agent
+    By default, this sampler relies on dynamic sample rates provided by the trace agent
     to determine which traces are kept or dropped.
 
     You can also configure a static sample rate via ``default_sample_rate`` to use for sampling.
-    When a ``default_sample_rate`` is configured, that is the only sample rate used, the agent
+    When a ``default_sample_rate`` is configured, that is the only sample rate used, and the agent
     provided rates are ignored.
 
-    You may also supply a list of ``SamplingRule`` to determine sample rates for specific
-    services or operation names.
+    You may also supply a list of ``SamplingRule`` instances to set sample rates for specific
+    services.
 
     Example rules::
 
@@ -210,11 +204,9 @@ class DatadogSampler(RateByServiceSampler):
     Rules are evaluated in the order they are provided, and the first rule that matches is used.
     If no rule matches, then the agent sample rates are used.
 
-
-    Lastly, this sampler can be configured with a rate limit. This will ensure the max number of
+    This sampler can be configured with a rate limit. This will ensure the max number of
     sampled traces per second does not exceed the supplied limit. The default is 100 traces kept
-    per second. This rate limiter is only used when ``default_sample_rate`` or ``rules`` are
-    provided. It is not used when the agent supplied sample rates are used.
+    per second.
     """
 
     __slots__ = ("limiter", "rules")
@@ -234,13 +226,10 @@ class DatadogSampler(RateByServiceSampler):
         Constructor for DatadogSampler sampler
 
         :param rules: List of :class:`SamplingRule` rules to apply to the root span of every trace, default no rules
-        :type rules: :obj:`list` of :class:`SamplingRule`
         :param default_sample_rate: The default sample rate to apply if no rules matched (default: ``None`` /
             Use :class:`RateByServiceSampler` only)
-        :type default_sample_rate: float 0 <= X <= 1.0
         :param rate_limit: Global rate limit (traces per second) to apply to all traces regardless of the rules
             applied to them, (default: ``100``)
-        :type rate_limit: :obj:`int`
         """
         # Use default sample rate of 1.0
         super(DatadogSampler, self).__init__()
@@ -323,7 +312,7 @@ class DatadogSampler(RateByServiceSampler):
             span,
             sampled,
             matched_rule.sample_rate if matched_rule else self.sample_rate,
-            priority_category=self._choose_priority_category(default_was_used, matched_rule),
+            priority_category=self._choose_priority_category(default_was_used, bool(matched_rule)),
         )
         cleared_rate_limit = _apply_rate_limit(span, sampled, self.limiter)
 
@@ -332,217 +321,9 @@ class DatadogSampler(RateByServiceSampler):
         return not cleared_rate_limit or sampled
 
     def _choose_priority_category(self, default_was_used, matched_rule):
+        # type: (bool, bool) -> str
         if matched_rule:
-            return "rule"
+            return _PRIORITY_CATEGORY.RULE
         if self.limiter._has_been_configured:
-            return "user"
+            return _PRIORITY_CATEGORY.USER
         return super(DatadogSampler, self)._choose_priority_category(default_was_used)
-
-
-_PRIORITY_CATEGORIES = {
-    "user": (USER_KEEP, USER_REJECT),
-    "rule": (USER_KEEP, USER_REJECT),
-    "auto": (AUTO_KEEP, AUTO_REJECT),
-    "default": (AUTO_KEEP, AUTO_REJECT),
-}
-
-
-def _set_sampling_tags(span, sampled, sample_rate, priority_category=None):
-    # type: (Span, RateSampler, bool) -> None
-    if priority_category is None:
-        return
-    mechanism = SamplingMechanism.TRACE_SAMPLING_RULE
-    if priority_category == "rule":
-        span.set_metric(SAMPLING_RULE_DECISION, sample_rate)
-    elif priority_category == "default":
-        mechanism = SamplingMechanism.DEFAULT
-    elif priority_category == "auto":
-        mechanism = SamplingMechanism.AGENT_RATE
-        span.set_metric(SAMPLING_AGENT_DECISION, sample_rate)
-    priorities = _PRIORITY_CATEGORIES[priority_category]
-    _set_priority(span, priorities[0] if sampled else priorities[1])
-    set_sampling_decision_maker(span.context, mechanism)
-
-
-def _apply_rate_limit(span, sampled, limiter):
-    # type: (Span, bool, RateLimiter) -> bool
-    allowed = True
-    if sampled:
-        allowed = limiter.is_allowed(span.start_ns)
-        if not allowed:
-            _set_priority(span, USER_REJECT)
-    if limiter._has_been_configured:
-        span.set_metric(SAMPLING_LIMIT_DECISION, limiter.effective_rate)
-    return allowed
-
-
-def _set_priority(span, priority):
-    # type: (Span, int) -> None
-    span.context.sampling_priority = priority
-    span.sampled = priority > 0  # Positive priorities mean it was kept
-
-
-def _get_highest_precedence_rule_matching(span, rules):
-    # type: (Span, List[SamplingRule]) -> Optional[SamplingRule]
-    # Go through all rules and grab the first one that matched
-    # DEV: This means rules should be ordered by the user from most specific to least specific
-    for rule in rules:
-        if rule.matches(span):
-            return rule
-
-
-class SamplingRule(BaseSampler):
-    """
-    Definition of a sampling rule used by :class:`DatadogSampler` for applying a sample rate on a span
-    """
-
-    NO_RULE = object()
-
-    def __init__(
-        self,
-        sample_rate,  # type: float
-        service=NO_RULE,  # type: Any
-        name=NO_RULE,  # type: Any
-    ):
-        # type: (...) -> None
-        """
-        Configure a new :class:`SamplingRule`
-
-        .. code:: python
-
-            DatadogSampler([
-                # Sample 100% of any trace
-                SamplingRule(sample_rate=1.0),
-
-                # Sample no healthcheck traces
-                SamplingRule(sample_rate=0, name='flask.request'),
-
-                # Sample all services ending in `-db` based on a regular expression
-                SamplingRule(sample_rate=0.5, service=re.compile('-db$')),
-
-                # Sample based on service name using custom function
-                SamplingRule(sample_rate=0.75, service=lambda service: 'my-app' in service),
-            ])
-
-        :param sample_rate: The sample rate to apply to any matching spans
-        :type sample_rate: :obj:`float` greater than or equal to 0.0 and less than or equal to 1.0
-        :param service: Rule to match the `span.service` on, default no rule defined
-        :type service: :obj:`object` to directly compare, :obj:`function` to evaluate, or :class:`re.Pattern` to match
-        :param name: Rule to match the `span.name` on, default no rule defined
-        :type name: :obj:`object` to directly compare, :obj:`function` to evaluate, or :class:`re.Pattern` to match
-        """
-        # Enforce sample rate constraints
-        if not 0.0 <= sample_rate <= 1.0:
-            raise ValueError(
-                (
-                    "SamplingRule(sample_rate={}) must be greater than or equal to 0.0 and less than or equal to 1.0"
-                ).format(sample_rate)
-            )
-
-        self.sample_rate = sample_rate
-        self.service = service
-        self.name = name
-
-    @property
-    def sample_rate(self):
-        # type: () -> float
-        return self._sample_rate
-
-    @sample_rate.setter
-    def sample_rate(self, sample_rate):
-        # type: (float) -> None
-        self._sample_rate = sample_rate
-        self._sampling_id_threshold = sample_rate * _MAX_UINT_64BITS
-
-    def _pattern_matches(self, prop, pattern):
-        # If the rule is not set, then assume it matches
-        # DEV: Having no rule and being `None` are different things
-        #   e.g. ignoring `span.service` vs `span.service == None`
-        if pattern is self.NO_RULE:
-            return True
-
-        # If the pattern is callable (e.g. a function) then call it passing the prop
-        #   The expected return value is a boolean so cast the response in case it isn't
-        if callable(pattern):
-            try:
-                return bool(pattern(prop))
-            except Exception:
-                log.warning("%r pattern %r failed with %r", self, pattern, prop, exc_info=True)
-                # Their function failed to validate, assume it is a False
-                return False
-
-        # The pattern is a regular expression and the prop is a string
-        if isinstance(pattern, pattern_type):
-            try:
-                return bool(pattern.match(str(prop)))
-            except (ValueError, TypeError):
-                # This is to guard us against the casting to a string (shouldn't happen, but still)
-                log.warning("%r pattern %r failed with %r", self, pattern, prop, exc_info=True)
-                return False
-
-        # Exact match on the values
-        return prop == pattern
-
-    @cachedmethod()
-    def _matches(self, key):
-        # type: (Tuple[Optional[str], str]) -> bool
-        service, name = key
-        for prop, pattern in [(service, self.service), (name, self.name)]:
-            if not self._pattern_matches(prop, pattern):
-                return False
-        else:
-            return True
-
-    def matches(self, span):
-        # type: (Span) -> bool
-        """
-        Return if this span matches this rule
-
-        :param span: The span to match against
-        :type span: :class:`ddtrace.span.Span`
-        :returns: Whether this span matches or not
-        :rtype: :obj:`bool`
-        """
-        # Our LFU cache expects a single key, convert the
-        # provided Span into a hashable tuple for the cache
-        return self._matches((span.service, span.name))
-
-    def sample(self, span, allow_false=False):
-        # type: (Span, bool) -> bool
-        """
-        Return if this rule chooses to sample the span
-
-        :param span: The span to sample against
-        :type span: :class:`ddtrace.span.Span`
-        :returns: Whether this span was sampled
-        :rtype: :obj:`bool`
-        """
-        if self.sample_rate == 1:
-            return True
-        elif self.sample_rate == 0:
-            return False
-
-        return (
-            not allow_false
-            or ((span._trace_id_64bits * KNUTH_FACTOR) % _MAX_UINT_64BITS) <= self._sampling_id_threshold
-        )
-
-    def _no_rule_or_self(self, val):
-        return "NO_RULE" if val is self.NO_RULE else val
-
-    def __repr__(self):
-        return "{}(sample_rate={!r}, service={!r}, name={!r})".format(
-            self.__class__.__name__,
-            self.sample_rate,
-            self._no_rule_or_self(self.service),
-            self._no_rule_or_self(self.name),
-        )
-
-    __str__ = __repr__
-
-    def __eq__(self, other):
-        # type: (Any) -> bool
-        if not isinstance(other, SamplingRule):
-            raise TypeError("Cannot compare SamplingRule to {}".format(type(other)))
-
-        return self.sample_rate == other.sample_rate and self.service == other.service and self.name == other.name
