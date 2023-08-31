@@ -1,0 +1,6 @@
+---
+issues:
+  - |
+    When running setup.py extensions with the CMake parameter "-j", it could potentially raise an out-of-memory error. 
+    If someone wants to expedite the ddtrace installation, they should manually set the "CMAKE_BUILD_PARALLEL_LEVEL" 
+    environment variable.
