@@ -345,9 +345,6 @@ class CMakeBuild(build_ext):
                 # DEV: -j is only supported in CMake 3.12+ only.
                 if hasattr(self, "parallel") and self.parallel:
                     build_args += ["-j{}".format(self.parallel)]
-                else:
-                    # Let CMake determine the parallelism to use
-                    build_args += ["-j"]
             try:
                 cmake_cmd_with_args = [cmake_command] + cmake_args
                 subprocess.run(cmake_cmd_with_args, cwd=tmp_iast_path, check=True)
@@ -462,7 +459,7 @@ if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
         )
 
         if sys.version_info >= (3, 6, 0):
-            ext_modules.append(Extension("ddtrace.appsec.iast._taint_tracking._native", sources=[], parallel=8))
+            ext_modules.append(Extension("ddtrace.appsec.iast._taint_tracking._native", sources=[]))
 else:
     ext_modules = []
 
