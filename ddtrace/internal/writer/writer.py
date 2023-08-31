@@ -171,7 +171,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         # type: (...) -> None
 
         if processing_interval is None:
-            processing_interval = config._tracing_interval_seconds
+            processing_interval = config._trace_writer_interval_seconds
         if timeout is None:
             timeout = agent.get_trace_agent_timeout()
         super(HTTPWriter, self).__init__(interval=processing_interval)
@@ -200,7 +200,9 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             until=lambda result: isinstance(result, Response),
         )(self._send_payload)
 
-        self._reuse_connections = config._writer_connection_reuse if reuse_connections is None else reuse_connections
+        self._reuse_connections = (
+            config._trace_writer_connection_reuse if reuse_connections is None else reuse_connections
+        )
 
     def _intake_endpoint(self, client=None):
         return "{}/{}".format(self._intake_url(client), client.ENDPOINT if client else self._endpoint)
@@ -324,7 +326,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 response.reason,
             )
             # Append the payload if requested
-            if config._writer_log_err_payload:
+            if config._trace_writer_log_err_payload:
                 msg += ", payload %s"
                 # If the payload is bytes then hex encode the value before logging
                 if isinstance(payload, six.binary_type):
@@ -488,7 +490,7 @@ class AgentWriter(HTTPWriter):
     ):
         # type: (...) -> None
         if processing_interval is None:
-            processing_interval = config._tracing_interval_seconds
+            processing_interval = config._trace_writer_interval_seconds
         if timeout is None:
             timeout = agent.get_trace_agent_timeout()
         if buffer_size is not None and buffer_size <= 0:
@@ -506,7 +508,7 @@ class AgentWriter(HTTPWriter):
         )
 
         self._api_version = (
-            api_version or config._tracing_api or (default_api_version if priority_sampler is not None else "v0.3")
+            api_version or config._trace_api or (default_api_version if priority_sampler is not None else "v0.3")
         )
         if is_windows and self._api_version == "v0.5":
             raise RuntimeError(
@@ -514,8 +516,8 @@ class AgentWriter(HTTPWriter):
                 "please see https://github.com/DataDog/dd-trace-py/issues/4829 for more details."
             )
 
-        buffer_size = buffer_size or config._tracing_writer_buffer_size
-        max_payload_size = max_payload_size or config._tracing_writer_payload_size
+        buffer_size = buffer_size or config._trace_writer_buffer_size
+        max_payload_size = max_payload_size or config._trace_writer_payload_size
         try:
             client = WRITER_CLIENTS[self._api_version](buffer_size, max_payload_size)
         except KeyError:

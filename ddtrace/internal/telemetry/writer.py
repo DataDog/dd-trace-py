@@ -332,11 +332,11 @@ class TelemetryWriter(PeriodicService):
                 (TELEMETRY_TRACE_PEER_SERVICE_DEFAULTS_ENABLED, _ps_config.set_defaults_enabled, "unknown"),
                 (TELEMETRY_TRACE_PEER_SERVICE_MAPPING, _ps_config._unparsed_peer_service_mapping, "unknown"),
                 (TELEMETRY_SERVICE_MAPPING, config._unparsed_service_mapping, "unknown"),
-                (TELEMETRY_TRACE_API_VERSION, config._tracing_api, "unknown"),
-                (TELEMETRY_TRACE_WRITER_BUFFER_SIZE_BYTES, config._tracing_writer_buffer_size, "unknown"),
-                (TELEMETRY_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES, config._tracing_writer_payload_size, "unknown"),
-                (TELEMETRY_TRACE_WRITER_INTERVAL_SECONDS, config._tracing_interval_seconds, "unknown"),
-                (TELEMETRY_TRACE_WRITER_REUSE_CONNECTIONS, config._writer_connection_reuse, "unknown"),
+                (TELEMETRY_TRACE_API_VERSION, config._trace_api, "unknown"),
+                (TELEMETRY_TRACE_WRITER_BUFFER_SIZE_BYTES, config._trace_writer_buffer_size, "unknown"),
+                (TELEMETRY_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES, config._trace_writer_payload_size, "unknown"),
+                (TELEMETRY_TRACE_WRITER_INTERVAL_SECONDS, config._trace_writer_interval_seconds, "unknown"),
+                (TELEMETRY_TRACE_WRITER_REUSE_CONNECTIONS, config._trace_writer_connection_reuse, "unknown"),
             ]
         )
 
