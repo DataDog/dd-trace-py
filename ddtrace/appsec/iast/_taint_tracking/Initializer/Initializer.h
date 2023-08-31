@@ -8,7 +8,6 @@
 #include "Exceptions/exceptions.h"
 #include "TaintTracking/TaintRange.h"
 #include "TaintTracking/TaintedObject.h"
-#include "absl/container/node_hash_map.h"
 
 #include <stack>
 #include <unordered_map>
@@ -26,12 +25,9 @@ class Initializer
     unordered_map<size_t, shared_ptr<Context>> contexts;
     static constexpr int TAINTRANGES_STACK_SIZE = 4096;
     static constexpr int TAINTEDOBJECTS_STACK_SIZE = 4096;
-    static constexpr int SOURCE_STACK_SIZE = 1024;
     stack<TaintedObjectPtr> available_taintedobjects_stack;
     stack<TaintRangePtr> available_ranges_stack;
-    stack<SourcePtr> available_source_stack;
     unordered_set<TaintRangeMapType*> active_map_addreses;
-    absl::node_hash_map<size_t, SourcePtr> allocated_sources_map;
 
   public:
     Initializer();
@@ -45,6 +41,12 @@ class Initializer
     void clear_tainting_maps();
 
     static int num_objects_tainted();
+
+    int num_contexts();
+
+    int initializer_size();
+
+    int active_map_addreses_size();
 
     shared_ptr<Context> create_context();
 
@@ -93,21 +95,14 @@ class Initializer
         return allocate_tainted_object_copy(from->ranges_);
     }
 
-    // void release_tainted_object(TaintedObjectPtr tobj);
+    void release_tainted_object(TaintedObjectPtr tobj);
 
     // FIXME: these should be static functions of TaintRange
     // IMPORTANT: if the returned object is not assigned to the map, you have
     // responsibility of calling release_taint_range on it or you'll have a leak.
-    TaintRangePtr allocate_taint_range(int start, int length, SourcePtr source);
-    static SourcePtr reuse_taint_source(SourcePtr source);
+    TaintRangePtr allocate_taint_range(int start, int length, Source source);
 
     void release_taint_range(TaintRangePtr rangeptr);
-
-    // IMPORTANT: if the returned object is not assigned to a range, you have
-    // responsibility of calling release_taint_source on it or you'll have a leak.
-    SourcePtr allocate_taint_source(string, string, OriginType);
-
-    void release_taint_source(SourcePtr);
 };
 
 extern unique_ptr<Initializer> initializer;
