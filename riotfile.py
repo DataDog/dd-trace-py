@@ -2225,13 +2225,13 @@ venv = Venv(
                 # See https://github.com/workhorsy/py-cpuinfo/issues/177
                 "pytest-benchmark": latest,
                 "py-cpuinfo": "~=8.0.0",
-                "uwsgi": latest,
                 "pytest-asyncio": latest,
             },
             venvs=[
                 # Python 3.7
                 Venv(
                     pys="3.7",
+                    pkgs={"uwsgi": latest},
                     venvs=[
                         Venv(
                             pkgs={
@@ -2263,6 +2263,7 @@ venv = Venv(
                 # Python 3.8 + 3.9
                 Venv(
                     pys=["3.8", "3.9"],
+                    pkgs={"uwsgi": latest},
                     venvs=[
                         Venv(
                             pkgs={
@@ -2294,6 +2295,7 @@ venv = Venv(
                 # Python 3.10
                 Venv(
                     pys="3.10",
+                    pkgs={"uwsgi": latest},
                     venvs=[
                         Venv(
                             pkgs={
@@ -2325,6 +2327,7 @@ venv = Venv(
                 # Python 3.11
                 Venv(
                     pys="3.11",
+                    pkgs={"uwsgi": latest},
                     venvs=[
                         Venv(
                             pkgs={
