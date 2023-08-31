@@ -21,12 +21,9 @@ from ddtrace.vendor import debtcollector
 
 from . import _hooks
 from ._monkey import patch
-from .constants import AUTO_KEEP
-from .constants import AUTO_REJECT
 from .constants import ENV_KEY
 from .constants import HOSTNAME_KEY
 from .constants import PID
-from .constants import SAMPLE_RATE_METRIC_KEY
 from .constants import VERSION_KEY
 from .context import Context
 from .internal import agent
@@ -759,14 +756,8 @@ class Tracer(object):
             self._services.add(service)
 
         if not trace_id:
-            span.sampled = self._sampler.sample(span)
-            if not isinstance(self._sampler, DatadogSampler):
-                if span.sampled:
-                    # When doing client sampling in the client, keep the sample rate so that we can
-                    # scale up statistics in the next steps of the pipeline.
-                    if isinstance(self._sampler, RateSampler):
-                        span.set_metric(SAMPLE_RATE_METRIC_KEY, self._sampler.sample_rate)
-            else:
+            span.sampled = self._sampler.sample(span, is_being_default=isinstance(self._sampler, RateSampler))
+            if not isinstance(self._sampler, RateSampler):
                 # We must always mark the span as sampled so it is forwarded to the agent
                 span.sampled = True
 

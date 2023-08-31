@@ -17,6 +17,7 @@ import six
 from .constants import AUTO_KEEP
 from .constants import AUTO_REJECT
 from .constants import ENV_KEY
+from .constants import SAMPLE_RATE_METRIC_KEY
 from .constants import SAMPLING_AGENT_DECISION
 from .constants import SAMPLING_LIMIT_DECISION
 from .constants import SAMPLING_RULE_DECISION
@@ -64,7 +65,7 @@ class BaseSampler(six.with_metaclass(abc.ABCMeta)):
     __slots__ = ()
 
     @abc.abstractmethod
-    def sample(self, span):
+    def sample(self, span, is_being_default=False):
         pass
 
 
@@ -80,7 +81,7 @@ class BasePrioritySampler(BaseSampler):
 class AllSampler(BaseSampler):
     """Sampler sampling all the traces"""
 
-    def sample(self, span):
+    def sample(self, span, is_being_default=False):
         # type: (Span) -> bool
         return True
 
@@ -108,9 +109,12 @@ class RateSampler(BaseSampler):
         self.sample_rate = float(sample_rate)
         self.sampling_id_threshold = self.sample_rate * _MAX_UINT_64BITS
 
-    def sample(self, span):
+    def sample(self, span, is_being_default=False):
         # type: (Span) -> bool
-        return ((span._trace_id_64bits * KNUTH_FACTOR) % _MAX_UINT_64BITS) <= self.sampling_id_threshold
+        sampled = ((span._trace_id_64bits * KNUTH_FACTOR) % _MAX_UINT_64BITS) <= self.sampling_id_threshold
+        if sampled and is_being_default:
+            span.set_metric(SAMPLE_RATE_METRIC_KEY, self.sample_rate)
+        return sampled
 
 
 class RateByServiceSampler(BasePrioritySampler):
@@ -166,7 +170,7 @@ class RateByServiceSampler(BasePrioritySampler):
             span.set_metric(SAMPLING_AGENT_DECISION, sampler.sample_rate)
         set_sampling_decision_maker(span.context, mechanism)
 
-    def sample(self, span):
+    def sample(self, span, is_being_default=False):
         # type: (Span) -> bool
         env = span.get_tag(ENV_KEY)
         key = self._key(span.service, env)
@@ -326,7 +330,7 @@ class DatadogSampler(RateByServiceSampler):
 
         set_sampling_decision_maker(span.context, SamplingMechanism.TRACE_SAMPLING_RULE)
 
-    def sample(self, span):
+    def sample(self, span, is_being_default=False):
         # type: (Span) -> bool
         """
         Decide whether the provided span should be sampled or not
@@ -485,7 +489,7 @@ class SamplingRule(BaseSampler):
         # provided Span into a hashable tuple for the cache
         return self._matches((span.service, span.name))
 
-    def sample(self, span):
+    def sample(self, span, is_being_default=False):
         # type: (Span) -> bool
         """
         Return if this rule chooses to sample the span
