@@ -48,7 +48,7 @@ async def _run_redis_command_async(span, func, args, kwargs):
         if redis_command in ROW_RETURNING_COMMANDS:
             determine_row_count(redis_command=redis_command, span=span, result=result)
 
-            
+
 async def traced_async_execute_cluster_pipeline(func, instance, args, kwargs):
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
