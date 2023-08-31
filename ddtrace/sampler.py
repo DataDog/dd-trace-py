@@ -154,15 +154,10 @@ class RateByServiceSampler(BasePrioritySampler):
         # type: (...) -> None
         self._by_service_samplers[self._key(service, env)] = RateSampler(sample_rate)
 
-    def _set_priority(self, span, priority):
-        # type: (Span, int) -> None
-        span.context.sampling_priority = priority
-        span.sampled = priority > 0  # Positive priorities mean it was kept
-
     def _set_sampler_decision(self, span, sampler, sampled):
         # type: (Span, RateSampler, bool) -> None
         priority = AUTO_KEEP if sampled else AUTO_REJECT
-        self._set_priority(span, priority)
+        _set_priority(span, priority)
         if sampler is self._default_sampler:
             mechanism = SamplingMechanism.DEFAULT
         else:
@@ -310,11 +305,6 @@ class DatadogSampler(RateByServiceSampler):
             sampling_rules.append(sampling_rule)
         return sampling_rules
 
-    def _set_priority(self, span, priority):
-        # type: (Span, int) -> None
-        span.context.sampling_priority = priority
-        span.sampled = priority > 0  # Positive priorities mean it was kept
-
     def _set_sampler_decision(self, span, sampler, sampled):
         # type: (Span, Union[RateSampler, SamplingRule, RateLimiter], bool) -> None
         if isinstance(sampler, RateSampler):
@@ -324,9 +314,9 @@ class DatadogSampler(RateByServiceSampler):
             span.set_metric(SAMPLING_RULE_DECISION, sampler.sample_rate)
 
         if not sampled:
-            self._set_priority(span, USER_REJECT)
+            _set_priority(span, USER_REJECT)
         else:
-            self._set_priority(span, USER_KEEP)
+            _set_priority(span, USER_KEEP)
 
         set_sampling_decision_maker(span.context, SamplingMechanism.TRACE_SAMPLING_RULE)
 
@@ -342,35 +332,47 @@ class DatadogSampler(RateByServiceSampler):
         :returns: Whether the span was sampled or not
         :rtype: :obj:`bool`
         """
-        # Go through all rules and grab the first one that matched
-        # DEV: This means rules should be ordered by the user from most specific to least specific
-        has_configured_rate_limit = self.limiter.rate_limit != DEFAULT_SAMPLING_RATE_LIMIT
+        rule = _get_highest_precedence_rule_matching(span, self.rules)
 
-        rule_matched = False
-        for rule in self.rules:
-            if rule.matches(span):
-                sampler = rule
-                rule_matched = True
-                break
-
-        if not rule_matched:
+        if not rule:
             sampled = super(DatadogSampler, self).sample(span)
             sampler = self  # type: ignore
         else:
+            sampler = rule
             sampled = sampler.sample(span, allow_false=True)
 
-        if rule_matched or has_configured_rate_limit:
+        if rule or self.limiter._has_been_configured:
             self._set_sampler_decision(span, sampler, sampled)
 
-        # Ensure all allowed traces adhere to the global rate limit
-        allowed = True
-        if sampled:
-            allowed = self.limiter.is_allowed(span.start_ns)
-            if not allowed:
-                self._set_priority(span, USER_REJECT)
-        if has_configured_rate_limit:
-            span.set_metric(SAMPLING_LIMIT_DECISION, self.limiter.effective_rate)
+        allowed = _apply_rate_limit(span, sampled, self.limiter)
         return not allow_false or not allowed or sampled
+
+
+def _apply_rate_limit(span, sampled, limiter):
+    # type: (Span, bool, RateLimiter) -> bool
+    allowed = True
+    if sampled:
+        allowed = limiter.is_allowed(span.start_ns)
+        if not allowed:
+            _set_priority(span, USER_REJECT)
+    if limiter._has_been_configured:
+        span.set_metric(SAMPLING_LIMIT_DECISION, limiter.effective_rate)
+    return allowed
+
+
+def _set_priority(span, priority):
+    # type: (Span, int) -> None
+    span.context.sampling_priority = priority
+    span.sampled = priority > 0  # Positive priorities mean it was kept
+
+
+def _get_highest_precedence_rule_matching(span, rules):
+    # type: (Span, List[SamplingRule]) -> Optional[SamplingRule]
+    # Go through all rules and grab the first one that matched
+    # DEV: This means rules should be ordered by the user from most specific to least specific
+    for rule in rules:
+        if rule.matches(span):
+            return rule
 
 
 class SamplingRule(BaseSampler):
