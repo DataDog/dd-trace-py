@@ -610,7 +610,8 @@
             "@pg",
             "tests/contrib/django/*",
             "tests/contrib/django_celery/*",
-            "tests/snapshots/tests.contrib.{suite}.*"
+            "tests/snapshots/tests.contrib.{suite}.*",
+            "tests/appsec/*"
         ],
         "django_hosts": [
             "@bootstrap",
@@ -651,7 +652,8 @@
             "tests/contrib/flask/*",
             "tests/contrib/flask_autopatch/*",
             "tests/contrib/flask_cache/*",
-            "tests/snapshots/tests.contrib.flask.*"
+            "tests/snapshots/tests.contrib.flask.*",
+            "tests/appsec/*"
         ],
         "gevent": [
             "@bootstrap",
