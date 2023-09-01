@@ -29,6 +29,8 @@ class SamplingRule(object):
         sample_rate,  # type: float
         service=NO_RULE,  # type: Any
         name=NO_RULE,  # type: Any
+        resource=NO_RULE,  # type: Any
+        target_span="root",  # type: str
     ):
         # type: (...) -> None
         """
@@ -68,6 +70,8 @@ class SamplingRule(object):
         self.sample_rate = sample_rate
         self.service = service
         self.name = name
+        self.resource = resource
+        self.target_span = target_span
 
     @property
     def sample_rate(self):
@@ -112,8 +116,8 @@ class SamplingRule(object):
     @cachedmethod()
     def _matches(self, key):
         # type: (Tuple[Optional[str], str]) -> bool
-        service, name = key
-        for prop, pattern in [(service, self.service), (name, self.name)]:
+        service, name, resource = key
+        for prop, pattern in [(service, self.service), (name, self.name), (resource, self.resource)]:
             if not self._pattern_matches(prop, pattern):
                 return False
         else:
@@ -129,9 +133,13 @@ class SamplingRule(object):
         :returns: Whether this span matches or not
         :rtype: :obj:`bool`
         """
-        # Our LFU cache expects a single key, convert the
-        # provided Span into a hashable tuple for the cache
-        return self._matches((span.service, span.name))
+        # if we're just interested in root spans and this isn't one, then return False
+        if self.target_span == "root":
+            if span.parent_id is not None:
+                return False
+
+        # self._matches exists to maintain legacy pattern values such as regex and functions
+        return self._matches((span.service, span.name, span.resource))
 
     def sample(self, span, allow_false=False):
         # type: (Span, bool) -> bool
@@ -171,4 +179,9 @@ class SamplingRule(object):
         if not isinstance(other, SamplingRule):
             raise TypeError("Cannot compare SamplingRule to {}".format(type(other)))
 
-        return self.sample_rate == other.sample_rate and self.service == other.service and self.name == other.name
+        return (
+            self.sample_rate == other.sample_rate
+            and self.service == other.service
+            and self.name == other.name
+            and self.resource == other.resource
+        )
