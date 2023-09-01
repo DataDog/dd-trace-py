@@ -21,8 +21,7 @@ from tests.appsec.test_processor import RULES_SRB
 from tests.appsec.test_processor import RULES_SRBCA
 from tests.appsec.test_processor import RULES_SRB_METHOD
 from tests.appsec.test_processor import RULES_SRB_RESPONSE
-from tests.appsec.test_processor import _ALLOWED_IP
-from tests.appsec.test_processor import _BLOCKED_IP
+from tests.appsec.test_processor import _IP
 from tests.contrib.flask import BaseFlaskTestCase
 from tests.utils import override_env
 from tests.utils import override_global_config
@@ -278,22 +277,34 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             self.client.post("/", data="", content_type="application/xml")
             assert "Failed to parse request body" in self._caplog.text
 
-    def test_flask_ipblock_nomatch_200_json(self):
+    def flask_ipblock_nomatch_200_json(self, ip):
         @self.app.route("/")
         def route():
             return "OK", 200
 
-        with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
-            self._aux_appsec_prepare_tracer()
-            resp = self.client.get("/", headers={"X-Real-Ip": _ALLOWED_IP})
-            root_span = self.pop_spans()[0]
-            assert resp.status_code == 200
-            assert not core.get_item("http.request.blocked", span=root_span)
+        for ip in [_IP.MONITORED, _IP.BYPASS, _IP.DEFAULT]:
+            with override_global_config(dict(_appsec_enabled=True)), override_env(
+                dict(DD_APPSEC_RULES=RULES_GOOD_PATH)
+            ):
+                self._aux_appsec_prepare_tracer()
+                resp = self.client.get("/", headers={"X-Real-Ip": ip})
+                root_span = self.pop_spans()[0]
+                assert resp.status_code == 200
+                assert not core.get_item("http.request.blocked", span=root_span)
+
+    def test_flask_ipblock_nomatch_200_bypass(self):
+        self.flask_ipblock_nomatch_200_json(_IP.BYPASS)
+
+    def test_flask_ipblock_nomatch_200_monitor(self):
+        self.flask_ipblock_nomatch_200_json(_IP.MONITORED)
+
+    def test_flask_ipblock_nomatch_200_default(self):
+        self.flask_ipblock_nomatch_200_json(_IP.DEFAULT)
 
     def test_flask_ipblock_match_403_json(self):
         with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
             self._aux_appsec_prepare_tracer()
-            resp = self.client.get("/foobar", headers={"X-Real-Ip": _BLOCKED_IP})
+            resp = self.client.get("/foobar", headers={"X-Real-Ip": _IP.BLOCKED})
             assert resp.status_code == 403
             assert get_response_body(resp) == constants.BLOCKED_RESPONSE_JSON
             root_span = self.pop_spans()[0]
@@ -302,6 +313,38 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert root_span.get_tag(http.METHOD) == "GET"
             assert root_span.get_tag(http.USER_AGENT).startswith("werkzeug/")
             assert root_span.get_tag(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/json"
+
+    def test_flask_ip_200_monitor(self):
+        @self.app.route("/")
+        def route():
+            return "OK", 200
+
+        with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
+            self._aux_appsec_prepare_tracer()
+            resp = self.client.get("/?value=block_that_value", headers={"X-Real-Ip": _IP.MONITORED})
+            assert resp.status_code == 200
+            root_span = self.pop_spans()[0]
+            assert root_span.get_tag(http.STATUS_CODE) == "200"
+            assert root_span.get_tag(http.URL) == "http://localhost/?value=block_that_value"
+            assert root_span.get_tag(http.METHOD) == "GET"
+            assert root_span.get_tag(http.USER_AGENT).startswith("werkzeug/")
+            assert root_span.get_tag(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") != "text/json"
+
+    def test_flask_ip_200_bypass(self):
+        @self.app.route("/")
+        def route():
+            return "OK", 200
+
+        with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
+            self._aux_appsec_prepare_tracer()
+            resp = self.client.get("/?value=block_that_value", headers={"X-Real-Ip": _IP.BYPASS})
+            assert resp.status_code == 200
+            root_span = self.pop_spans()[0]
+            assert root_span.get_tag(http.STATUS_CODE) == "200"
+            assert root_span.get_tag(http.URL) == "http://localhost/?value=block_that_value"
+            assert root_span.get_tag(http.METHOD) == "GET"
+            assert root_span.get_tag(http.USER_AGENT).startswith("werkzeug/")
+            assert root_span.get_tag(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") != "text/json"
 
     def test_flask_ipblock_manually_json(self):
         # Most tests of flask blocking are in the test_flask_snapshot, this just
@@ -314,7 +357,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
         with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
             self._aux_appsec_prepare_tracer()
-            resp = self.client.get("/block", headers={"X-REAL-IP": _ALLOWED_IP})
+            resp = self.client.get("/block", headers={"X-REAL-IP": _IP.DEFAULT})
             # Should not block by IP but since the route is calling block_request it will be blocked
             assert resp.status_code == 403
             assert get_response_body(resp) == constants.BLOCKED_RESPONSE_JSON
