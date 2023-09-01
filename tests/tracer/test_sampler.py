@@ -24,7 +24,7 @@ from ddtrace.internal.sampling import set_sampling_decision_maker
 from ddtrace.sampler import DatadogSampler
 from ddtrace.sampler import RateByServiceSampler
 from ddtrace.sampler import RateSampler
-from ddtrace.sampler import SamplingRule
+from ddtrace.sampling_rule import SamplingRule
 from ddtrace.span import Span
 
 from ..subprocesstest import run_in_subprocess
@@ -578,7 +578,7 @@ def test_sampling_rule_matches_exception():
     parametrize={"DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED": ["true", "false"]},
 )
 def test_sampling_rule_sample():
-    from ddtrace.sampler import SamplingRule
+    from ddtrace.sampling_rule import SamplingRule
     from ddtrace.span import Span
 
     for sample_rate in [0.01, 0.1, 0.15, 0.25, 0.5, 0.75, 0.85, 0.9, 0.95, 0.991]:

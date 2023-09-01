@@ -141,7 +141,7 @@ class SamplingRule(object):
         # self._matches exists to maintain legacy pattern values such as regex and functions
         return self._matches((span.service, span.name, span.resource))
 
-    def sample(self, span, allow_false=False):
+    def sample(self, span, allow_false=True):
         # type: (Span, bool) -> bool
         """
         Return if this rule chooses to sample the span
