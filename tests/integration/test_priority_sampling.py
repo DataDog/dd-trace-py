@@ -5,9 +5,9 @@ from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import MsgpackEncoderV03 as Encoder
 from ddtrace.internal.writer import AgentWriter
-from tests.integration.utils import override_global_config
 from tests.integration.utils import parametrize_with_all_encodings
 from tests.integration.utils import skip_if_testagent
+from tests.utils import override_global_config
 
 
 def _turn_tracer_into_dummy(tracer):
