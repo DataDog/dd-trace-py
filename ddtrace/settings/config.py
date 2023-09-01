@@ -22,6 +22,7 @@ from ..internal.constants import DEFAULT_MAX_PAYLOAD_SIZE
 from ..internal.constants import DEFAULT_PROCESSING_INTERVAL
 from ..internal.constants import DEFAULT_REUSE_CONNECTIONS
 from ..internal.constants import DEFAULT_SAMPLING_RATE_LIMIT
+from ..internal.constants import DEFAULT_TIMEOUT
 from ..internal.constants import PROPAGATION_STYLE_ALL
 from ..internal.constants import PROPAGATION_STYLE_B3
 from ..internal.constants import _PROPAGATION_STYLE_DEFAULT
@@ -262,6 +263,15 @@ class Config(object):
             os.getenv("DD_TRACE_WRITER_REUSE_CONNECTIONS", DEFAULT_REUSE_CONNECTIONS)
         )
         self._trace_writer_log_err_payload = asbool(os.environ.get("_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", False))
+
+        self._trace_agent_hostname = os.environ.get("DD_AGENT_HOST", os.environ.get("DD_TRACE_AGENT_HOSTNAME"))
+        self._trace_agent_port = os.environ.get("DD_AGENT_PORT", os.environ.get("DD_TRACE_AGENT_PORT"))
+        self._trace_agent_url = os.environ.get("DD_TRACE_AGENT_URL")
+
+        self._stats_agent_hostname = os.environ.get("DD_AGENT_HOST", os.environ.get("DD_DOGSTATSD_HOST"))
+        self._stats_agent_port = os.getenv("DD_DOGSTATSD_PORT")
+        self._stats_agent_url = os.getenv("DD_DOGSTATSD_URL")
+        self._agent_timeout_seconds = float(os.getenv("DD_TRACE_AGENT_TIMEOUT_SECONDS", DEFAULT_TIMEOUT))
 
         # Master switch for turning on and off trace search by default
         # this weird invocation of getenv is meant to read the DD_ANALYTICS_ENABLED

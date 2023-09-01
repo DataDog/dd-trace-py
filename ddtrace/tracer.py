@@ -57,6 +57,7 @@ from .internal.serverless import in_gcp_function
 from .internal.serverless.mini_agent import maybe_start_serverless_mini_agent
 from .internal.service import ServiceStatusError
 from .internal.utils.formats import asbool
+from .internal.utils.http import verify_url
 from .internal.writer import AgentWriter
 from .internal.writer import LogWriter
 from .internal.writer import TraceWriter
@@ -260,7 +261,7 @@ class Tracer(object):
         self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
         self._compute_stats = config._trace_compute_stats
         self._agent_url = agent.get_trace_url() if url is None else url  # type: str
-        agent.verify_url(self._agent_url)
+        verify_url(self._agent_url)
 
         if self._use_log_writer() and url is None:
             writer = LogWriter()  # type: TraceWriter
@@ -474,7 +475,7 @@ class Tracer(object):
                     port = prev_url_parsed.port
                 scheme = "https" if https else "http"
                 new_url = "%s://%s:%s" % (scheme, hostname, port)
-            agent.verify_url(new_url)
+            verify_url(new_url)
             self._agent_url = new_url
         else:
             new_url = None
