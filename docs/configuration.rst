@@ -292,7 +292,7 @@ The following environment variables for the tracer are supported:
      description: A regexp to redact sensitive query strings. Obfuscation disabled if set to empty string
      version_added:
        v1.19.0: |
-           DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP replace DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN that becomes deprecated
+           ``DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP`` replaces ``DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN`` which is deprecated
            and will be deleted in 2.0.0
 
    DD_TRACE_PROPAGATION_STYLE:
