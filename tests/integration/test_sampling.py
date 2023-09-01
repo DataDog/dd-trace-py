@@ -14,6 +14,7 @@ from .test_integration import AGENT_VERSION
 
 pytestmark = pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
 RESOURCE = "mycoolre$ource"
+# XXX which tags are available without span.set_tag calls? those need to be the ones checked by these tests
 TAGS = {"tag1": "mycooltag"}
 
 
