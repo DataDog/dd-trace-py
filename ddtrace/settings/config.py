@@ -248,6 +248,12 @@ class Config(object):
         header_tags = parse_tags_str(os.getenv("DD_TRACE_HEADER_TAGS", ""))
         self.http = HttpConfig(header_tags=header_tags)
         self._tracing_enabled = asbool(os.getenv("DD_TRACE_ENABLED", default=True))
+        self._remote_config_enabled = asbool(os.getenv("DD_REMOTE_CONFIGURATION_ENABLED", default=True))
+        self._remote_config_poll_interval = float(
+            os.getenv(
+                "DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", default=os.getenv("DD_REMOTECONFIG_POLL_SECONDS", default=5.0)
+            )
+        )
         self._trace_api = os.getenv("DD_TRACE_API_VERSION")
         self._trace_writer_buffer_size = int(
             os.getenv("DD_TRACE_WRITER_BUFFER_SIZE_BYTES", default=DEFAULT_BUFFER_SIZE)

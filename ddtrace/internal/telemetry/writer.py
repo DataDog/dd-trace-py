@@ -49,6 +49,8 @@ from .constants import TELEMETRY_OTEL_ENABLED
 from .constants import TELEMETRY_PROFILING_ENABLED
 from .constants import TELEMETRY_PROPAGATION_STYLE_EXTRACT
 from .constants import TELEMETRY_PROPAGATION_STYLE_INJECT
+from .constants import TELEMETRY_REMOTE_CONFIGURATION_ENABLED
+from .constants import TELEMETRY_REMOTE_CONFIGURATION_INTERVAL
 from .constants import TELEMETRY_RUNTIMEMETRICS_ENABLED
 from .constants import TELEMETRY_SERVICE_MAPPING
 from .constants import TELEMETRY_SPAN_SAMPLING_RULES
@@ -322,6 +324,8 @@ class TelemetryWriter(PeriodicService):
                 (TELEMETRY_OTEL_ENABLED, config._otel_enabled, "unknown"),
                 (TELEMETRY_TRACE_HEALTH_METRICS_ENABLED, config.health_metrics_enabled, "unknown"),
                 (TELEMETRY_RUNTIMEMETRICS_ENABLED, config._runtime_metrics_enabled, "unknown"),
+                (TELEMETRY_REMOTE_CONFIGURATION_ENABLED, config._remote_config_enabled, "unknown"),
+                (TELEMETRY_REMOTE_CONFIGURATION_INTERVAL, config._remote_config_poll_interval, "unknown"),
                 (TELEMETRY_TRACE_SAMPLING_RATE, config._trace_sample_rate, "unknown"),
                 (TELEMETRY_TRACE_SAMPLING_LIMIT, config._trace_rate_limit, "unknown"),
                 (TELEMETRY_SPAN_SAMPLING_RULES, config._sampling_rules, "unknown"),
