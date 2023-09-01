@@ -31,6 +31,10 @@ MAX_UINT_64BITS = (1 << 64) - 1
 SPAN_API_DATADOG = "datadog"
 SPAN_API_OTEL = "otel"
 SPAN_API_OPENTRACING = "opentracing"
+DEFAULT_BUFFER_SIZE = 8 << 20  # 8 MB
+DEFAULT_MAX_PAYLOAD_SIZE = 8 << 20  # 8 MB
+DEFAULT_PROCESSING_INTERVAL = 1.0
+DEFAULT_REUSE_CONNECTIONS = False
 BLOCKED_RESPONSE_HTML = """
 <!DOCTYPE html><html lang="en"><head> <meta charset="UTF-8"> <meta name="viewport"
 content="width=device-width,initial-scale=1"> <title>You've been blocked</title>
