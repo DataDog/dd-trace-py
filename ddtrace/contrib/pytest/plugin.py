@@ -625,6 +625,7 @@ def pytest_runtest_protocol(item, nextitem):
                     "Intelligent Test Runner: test item %s forced to run by unskippable module %s"
                     % (item.name, item.module)
                 )
+                test_suite_span.set_tag_str(test.ITR)
             elif getattr(item, "_dd_itr_forced_by_test", False):
                 log.debug("Intelligent Test Runner: test item %s forced to run by unskippable status" % item.name)
             elif getattr(item, "_dd_itr_forced_by_test_in_suite", False):
@@ -632,13 +633,6 @@ def pytest_runtest_protocol(item, nextitem):
                     "Intelligent Test Runner: test item %s forced to run by unskippable test in module %s"
                     % (item.name, item.module)
                 )
-
-        #                 if suite_is_unskippable:
-        #                     item._dd_itr_forced_by_suite = True
-        #                 elif test_is_unskippable:
-        #                     item._dd_itr_forced_by_test = True
-        #                 elif current_suite_has_unskippable:
-        #                     item._dd_itr_force_by_test_in_suite = True
 
         markers = [marker.kwargs for marker in item.iter_markers(name="dd_tags")]
         for tags in markers:

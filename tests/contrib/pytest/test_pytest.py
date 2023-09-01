@@ -2273,3 +2273,19 @@ class PytestTestCase(TracerTestCase):
         assert len(test_spans) == 2
         passed_test_spans = [x for x in spans if x.get_tag("type") == "test" and x.get_tag("test.status") == "pass"]
         assert len(passed_test_spans) == 2
+
+
+def test_pytest_unskippable_tests_not_skipped_in_test_level():
+    pass
+
+
+def test_pytest_unskippable_tests_not_skipped_in_suite_level():
+    pass
+
+
+def test_pytest_unskippable_suite_not_skipped_in_test_level():
+    pass
+
+
+def test_pytest_unskippable_suite_not_skipped_in_suite_level():
+    pass

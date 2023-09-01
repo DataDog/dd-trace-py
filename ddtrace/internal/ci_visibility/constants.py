@@ -46,8 +46,8 @@ GIT_API_BASE_PATH = "/api/v2/git"
 SETTING_ENDPOINT = "/api/v2/libraries/tests/services/setting"
 SKIPPABLE_ENDPOINT = "/api/v2/ci/tests/skippable"
 
-ITR_TEST_UNSKIPPABLE_REASON = "datadog_itr_test_unskippable"
-ITR_SUITE_UNSKIPPABLE_NAME = "DATADDOG_ITR_SUITE_UNSKIPPABLE"
+ITR_UNSKIPPABLE_REASON = "datadog_itr_unskippable"
+ITR_SUITE_UNSKIPPABLE_NAME = "DATADOG_ITR_UNSKIPPABLE"
 
 
 class REQUESTS_MODE(IntEnum):
