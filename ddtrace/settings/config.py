@@ -17,6 +17,10 @@ from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor.debtcollector import deprecate
 
 from ..internal import gitmetadata
+from ..internal.constants import DEFAULT_BUFFER_SIZE
+from ..internal.constants import DEFAULT_MAX_PAYLOAD_SIZE
+from ..internal.constants import DEFAULT_PROCESSING_INTERVAL
+from ..internal.constants import DEFAULT_REUSE_CONNECTIONS
 from ..internal.constants import DEFAULT_SAMPLING_RATE_LIMIT
 from ..internal.constants import PROPAGATION_STYLE_ALL
 from ..internal.constants import PROPAGATION_STYLE_B3
@@ -218,6 +222,20 @@ class Config(object):
                 "DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", default=os.getenv("DD_REMOTECONFIG_POLL_SECONDS", default=5.0)
             )
         )
+        self._trace_api = os.getenv("DD_TRACE_API_VERSION")
+        self._trace_writer_buffer_size = int(
+            os.getenv("DD_TRACE_WRITER_BUFFER_SIZE_BYTES", default=DEFAULT_BUFFER_SIZE)
+        )
+        self._trace_writer_payload_size = int(
+            os.getenv("DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES", default=DEFAULT_MAX_PAYLOAD_SIZE)
+        )
+        self._trace_writer_interval_seconds = float(
+            os.getenv("DD_TRACE_WRITER_INTERVAL_SECONDS", default=DEFAULT_PROCESSING_INTERVAL)
+        )
+        self._trace_writer_connection_reuse = asbool(
+            os.getenv("DD_TRACE_WRITER_REUSE_CONNECTIONS", DEFAULT_REUSE_CONNECTIONS)
+        )
+        self._trace_writer_log_err_payload = asbool(os.environ.get("_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", False))
 
         # Master switch for turning on and off trace search by default
         # this weird invocation of getenv is meant to read the DD_ANALYTICS_ENABLED
