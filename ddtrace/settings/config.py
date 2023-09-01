@@ -373,19 +373,19 @@ class Config(object):
                 message="use `DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP` instead",
                 removal_version="2.0.0",
             )
-            dd_trace_obfuscation_query_string_pattern = os.getenv("DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN")
+            dd_trace_obfuscation_query_string_regexp = os.getenv("DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN")
         else:
-            dd_trace_obfuscation_query_string_pattern = os.getenv(
+            dd_trace_obfuscation_query_string_regexp = os.getenv(
                 "DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP", DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
             )
         self.global_query_string_obfuscation_disabled = True  # If empty obfuscation pattern
         self._obfuscation_query_string_pattern = None
         self.http_tag_query_string = True  # Default behaviour of query string tagging in http.url
-        if dd_trace_obfuscation_query_string_pattern != "":
+        if dd_trace_obfuscation_query_string_regexp != "":
             self.global_query_string_obfuscation_disabled = False  # Not empty obfuscation pattern
             try:
                 self._obfuscation_query_string_pattern = re.compile(
-                    dd_trace_obfuscation_query_string_pattern.encode("ascii")
+                    dd_trace_obfuscation_query_string_regexp.encode("ascii")
                 )
             except Exception:
                 log.warning("Invalid obfuscation pattern, disabling query string tracing", exc_info=True)
