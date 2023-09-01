@@ -94,9 +94,9 @@ class PubSub(object):
         # type: (Optional[Tracer]) -> None
         self._subscriber._get_data_from_connector_and_exec(test_tracer=test_tracer)
 
-    def stop(self):
-        # type: () -> None
-        self._subscriber.stop()
+    def stop(self, join=False):
+        # type: (bool) -> None
+        self._subscriber.stop(join=join)
 
     def publish(self):
         # type: () -> None
