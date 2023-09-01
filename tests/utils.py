@@ -129,7 +129,12 @@ def override_global_config(values):
         "_trace_sample_rate",
         "_trace_rate_limit",
         "_trace_sampling_rules",
-        "_priority_sampling",
+        "_trace_api",
+        "_trace_writer_buffer_size",
+        "_trace_writer_payload_size",
+        "_trace_writer_interval_seconds",
+        "_trace_writer_connection_reuse",
+        "_trace_writer_log_err_payload",
     ]
 
     # Grab the current values of all keys

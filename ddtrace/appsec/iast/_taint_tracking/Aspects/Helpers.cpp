@@ -1,5 +1,5 @@
 #include "Helpers.h"
-#include <iostream> // JJJ: remove
+#include "Initializer/Initializer.h"
 #include <ostream>
 #include <regex>
 
@@ -81,8 +81,8 @@ mapper_replace(const TaintRangePtr& taint_range, const optional<const py::dict>&
 py::object
 get_default_content(const TaintRangePtr& taint_range)
 {
-    if (!taint_range->source->name.empty()) {
-        return py::str(taint_range->source->name);
+    if (!taint_range->source.name.empty()) {
+        return py::str(taint_range->source.name);
     }
 
     return py::cast<py::none>(Py_None);
@@ -254,7 +254,7 @@ _convert_escaped_text_to_taint_text_impl(const StrType& taint_escaped_text, Tain
                     id_evidence = get<0>(previous_context);
                     const shared_ptr<TaintRange>& original_range =
                       get_range_by_hash(getNum(id_evidence), optional_ranges_orig);
-                    ranges.emplace_back(make_shared<TaintRange>(TaintRange(start, length, original_range->source)));
+                    ranges.emplace_back(initializer->allocate_taint_range(start, length, original_range->source));
                 }
                 latest_end = end;
             }
@@ -285,7 +285,7 @@ _convert_escaped_text_to_taint_text_impl(const StrType& taint_escaped_text, Tain
                 id_evidence = get<0>(context);
                 const shared_ptr<TaintRange>& original_range =
                   get_range_by_hash(getNum(id_evidence), optional_ranges_orig);
-                ranges.emplace_back(make_shared<TaintRange>(TaintRange(start, end - start, original_range->source)));
+                ranges.emplace_back(initializer->allocate_taint_range(start, end - start, original_range->source));
             }
             latest_end = end;
         }

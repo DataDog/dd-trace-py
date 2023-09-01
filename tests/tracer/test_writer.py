@@ -645,11 +645,15 @@ def test_racing_start(writer_class):
     assert len(writer._encoder) == 100
 
 
+@pytest.mark.subprocess(
+    env={"_DD_TRACE_WRITER_ADDITIONAL_HEADERS": "additional-header:additional-value,header2:value2"}
+)
 def test_additional_headers():
-    with override_env(dict(_DD_TRACE_WRITER_ADDITIONAL_HEADERS="additional-header:additional-value,header2:value2")):
-        writer = AgentWriter("http://localhost:9126")
-        assert writer._headers["additional-header"] == "additional-value"
-        assert writer._headers["header2"] == "value2"
+    from ddtrace.internal.writer import AgentWriter
+
+    writer = AgentWriter("http://localhost:9126")
+    assert writer._headers["additional-header"] == "additional-value"
+    assert writer._headers["header2"] == "value2"
 
 
 def test_additional_headers_constructor():
@@ -662,10 +666,9 @@ def test_additional_headers_constructor():
 
 @pytest.mark.parametrize("writer_class", (AgentWriter,))
 def test_bad_encoding(monkeypatch, writer_class):
-    monkeypatch.setenv("DD_TRACE_API_VERSION", "foo")
-
-    with pytest.raises(ValueError):
-        writer_class("http://localhost:9126")
+    with override_global_config({"_trace_api": "foo"}):
+        with pytest.raises(ValueError):
+            writer_class("http://localhost:9126")
 
 
 @pytest.mark.parametrize(
@@ -754,14 +757,15 @@ def test_writer_api_version_selection(
 
     # Mock the value of `sys.platform` to be a specific value
     with mock_sys_platform(sys_platform):
-
-        # If desired, set the DD_TRACE_API_VERSION env variable
-        if ddtrace_api_version is not None:
-            monkeypatch.setenv("DD_TRACE_API_VERSION", ddtrace_api_version)
-
         try:
             # Create a new writer
-            writer = writer_class("http://dne:1234", api_version=api_version, priority_sampling=priority_sampling)
+            if ddtrace_api_version is not None:
+                with override_global_config({"_trace_api": ddtrace_api_version}):
+                    writer = writer_class(
+                        "http://dne:1234", api_version=api_version, priority_sampling=priority_sampling
+                    )
+            else:
+                writer = writer_class("http://dne:1234", api_version=api_version, priority_sampling=priority_sampling)
             assert writer._api_version == expected
         except RuntimeError:
             # If we were not expecting a RuntimeError, then cause the test to fail
@@ -772,13 +776,13 @@ def test_writer_api_version_selection(
 @pytest.mark.parametrize("writer_class", (AgentWriter, CIVisibilityWriter))
 def test_writer_reuse_connections_envvar(monkeypatch, writer_class):
     with override_env(dict(DD_API_KEY="foobar.baz")):
-        monkeypatch.setenv("DD_TRACE_WRITER_REUSE_CONNECTIONS", "false")
-        writer = writer_class("http://localhost:9126")
-        assert not writer._reuse_connections
+        with override_global_config({"_trace_writer_connection_reuse": False}):
+            writer = writer_class("http://localhost:9126")
+            assert not writer._reuse_connections
 
-        monkeypatch.setenv("DD_TRACE_WRITER_REUSE_CONNECTIONS", "true")
-        writer = writer_class("http://localhost:9126")
-        assert writer._reuse_connections
+        with override_global_config({"_trace_writer_connection_reuse": True}):
+            writer = writer_class("http://localhost:9126")
+            assert writer._reuse_connections
 
 
 @pytest.mark.parametrize("writer_class", (AgentWriter, CIVisibilityWriter))

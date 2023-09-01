@@ -42,6 +42,7 @@ jobs:
       # that make assertion on backend data. Using a fake key allow to run system tests on PR originating from forks.
       # If ever it's needed, a valid key exists in the repo, using ${{ secrets.DD_API_KEY }}
       DD_API_KEY: 1234567890abcdef1234567890abcdef
+      CMAKE_BUILD_PARALLEL_LEVEL: 12
     steps:
       - name: Setup python 3.9
         if: needs.needs-run.outputs.outcome == 'success'
@@ -54,7 +55,7 @@ jobs:
         uses: actions/checkout@v3
         with:
           repository: 'DataDog/system-tests'
-          ref: '49e9abbe3f83a680a509eaf19c7649e26509e08a'
+          ref: '84a72c386a095dcbb785f9be11e61814ead61345'
 
       - name: Checkout dd-trace-py
         if: needs.needs-run.outputs.outcome == 'success'
@@ -164,7 +165,7 @@ jobs:
         uses: actions/checkout@v3
         with:
           repository: 'DataDog/system-tests'
-          ref: '49e9abbe3f83a680a509eaf19c7649e26509e08a'
+          ref: '84a72c386a095dcbb785f9be11e61814ead61345'
 
       - uses: actions/setup-python@v4
         if: needs.needs-run.outputs.outcome == 'success'
