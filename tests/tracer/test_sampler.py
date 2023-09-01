@@ -561,7 +561,7 @@ def test_sampling_rule_matches_exception():
     rule = SamplingRule(sample_rate=1.0, name=pattern)
     span = create_span(name="test.span")
 
-    with mock.patch("ddtrace.sampler.log") as mock_log:
+    with mock.patch("ddtrace.sampling_rule.log") as mock_log:
         assert (
             rule.matches(span) is False
         ), "SamplingRule should not match when its name pattern function throws an exception"
@@ -724,7 +724,7 @@ class MatchSample(SamplingRule):
     def matches(self, span):
         return True
 
-    def sample(self, span):
+    def sample(self, span, allow_false=False):
         return True
 
 
@@ -732,7 +732,7 @@ class NoMatch(SamplingRule):
     def matches(self, span):
         return False
 
-    def sample(self, span):
+    def sample(self, span, allow_false=False):
         return True
 
 
@@ -740,7 +740,7 @@ class MatchNoSample(SamplingRule):
     def matches(self, span):
         return True
 
-    def sample(self, span):
+    def sample(self, span, allow_false=False):
         return False
 
 
