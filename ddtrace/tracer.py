@@ -16,10 +16,9 @@ from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import get_span_sampling_rules
 from ddtrace.internal.utils import _get_metas_to_propagate
 from ddtrace.settings.peer_service import _ps_config
-from ddtrace.vendor import debtcollector
 
 from . import _hooks
-from ._monkey import patch
+from ._logger import _configure_log_injection
 from .constants import AUTO_KEEP
 from .constants import AUTO_REJECT
 from .constants import ENV_KEY
@@ -84,22 +83,9 @@ from typing import TypeVar
 log = get_logger(__name__)
 
 
-DD_LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] {}- %(message)s".format(
-    "[dd.service=%(dd.service)s dd.env=%(dd.env)s dd.version=%(dd.version)s"
-    " dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s] "
-)
-if config._debug_mode and not hasHandlers(log) and config._call_basic_config:
-    debtcollector.deprecate(
-        "ddtrace.tracer.logging.basicConfig",
-        message="`logging.basicConfig()` should be called in a user's application.",
-        removal_version="2.0.0",
-    )
-    if config.logs_injection:
-        # We need to ensure logging is patched in case the tracer logs during initialization
-        patch(logging=True)
-        logging.basicConfig(level=logging.DEBUG, format=DD_LOG_FORMAT)
-    else:
-        logging.basicConfig(level=logging.DEBUG)
+if config.logs_injection:
+    # We need to ensure logging is patched in case the tracer logs during initialization
+    _configure_log_injection()
 
 
 _INTERNAL_APPLICATION_SPAN_TYPES = {"custom", "template", "web", "worker"}

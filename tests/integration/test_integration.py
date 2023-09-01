@@ -63,10 +63,12 @@ def test_debug_mode_generates_debug_output():
     assert b"DEBUG:ddtrace" not in p.stderr.read(), "stderr should have no debug lines when DD_TRACE_DEBUG is unset"
 
     env = os.environ.copy()
-    env.update({"DD_TRACE_DEBUG": "true", "DD_CALL_BASIC_CONFIG": "true"})
+    env.update({"DD_TRACE_DEBUG": "true"})
     p = import_ddtrace_in_subprocess(env)
     assert p.stdout.read() == b""
-    assert b"DEBUG:ddtrace" in p.stderr.read(), "stderr should have some debug lines when DD_TRACE_DEBUG is set"
+    assert (
+        b"debug mode has been enabled for the ddtrace logger" in p.stderr.read()
+    ), "stderr should have some debug lines when DD_TRACE_DEBUG is set"
 
 
 def test_import_ddtrace_generates_no_output_by_default(ddtrace_run_python_code_in_subprocess):
@@ -566,43 +568,11 @@ s2.finish()
             {
                 "DD_TRACE_LOGS_INJECTION": str(logs_injection).lower(),
                 "DD_TRACE_DEBUG": str(debug_mode).lower(),
-                "DD_CALL_BASIC_CONFIG": "true",
             }
         )
 
         _, err, status, _ = run_python_code_in_subprocess(close_parent_span_before_child, env=env, timeout=5)
         assert status == 0, err
-
-
-@pytest.mark.parametrize(
-    "call_basic_config,debug_mode",
-    itertools.permutations((True, False, None), 2),
-)
-def test_call_basic_config(ddtrace_run_python_code_in_subprocess, call_basic_config, debug_mode):
-    env = os.environ.copy()
-
-    if debug_mode is not None:
-        env["DD_TRACE_DEBUG"] = str(debug_mode).lower()
-    if call_basic_config is not None:
-        env["DD_CALL_BASIC_CONFIG"] = str(call_basic_config).lower()
-        has_root_handlers = call_basic_config
-    else:
-        has_root_handlers = False
-
-    out, err, status, pid = ddtrace_run_python_code_in_subprocess(
-        """
-import logging
-root = logging.getLogger()
-print(len(root.handlers))
-""",
-        env=env,
-    )
-
-    assert status == 0
-    if has_root_handlers:
-        assert out == six.b("1\n")
-    else:
-        assert out == six.b("0\n")
 
 
 @pytest.mark.subprocess(
@@ -697,7 +667,6 @@ def test_logging_during_tracer_init_succeeds_when_debug_logging_and_logs_injecti
     env = os.environ.copy()
     env["DD_TRACE_DEBUG"] = "true"
     env["DD_LOGS_INJECTION"] = "true"
-    env["DD_CALL_BASIC_CONFIG"] = "true"
 
     # DEV: We don't actually have to execute any code to validate this
     out, err, status, pid = ddtrace_run_python_code_in_subprocess("", env=env)

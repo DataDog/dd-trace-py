@@ -13,7 +13,6 @@ from ddtrace.constants import IAST_ENV
 from ddtrace.internal.serverless import in_azure_function_consumption_plan
 from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.utils.cache import cachedmethod
-from ddtrace.vendor.debtcollector import deprecate
 
 from ..internal import gitmetadata
 from ..internal.constants import DEFAULT_SAMPLING_RATE_LIMIT
@@ -187,13 +186,6 @@ class Config(object):
 
         self._debug_mode = asbool(os.getenv("DD_TRACE_DEBUG", default=False))
         self._startup_logs_enabled = asbool(os.getenv("DD_TRACE_STARTUP_LOGS", False))
-        self._call_basic_config = asbool(os.environ.get("DD_CALL_BASIC_CONFIG", "false"))
-        if self._call_basic_config:
-            deprecate(
-                "`DD_CALL_BASIC_CONFIG` is deprecated and will be removed in the next major version.",
-                message="Call `logging.basicConfig()` to configure logging in your application",
-                removal_version="2.0.0",
-            )
 
         self._trace_sample_rate = os.getenv("DD_TRACE_SAMPLE_RATE")
         self._trace_rate_limit = int(os.getenv("DD_TRACE_RATE_LIMIT", default=DEFAULT_SAMPLING_RATE_LIMIT))

@@ -69,7 +69,6 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
     payload = {
         "configuration": [
             {"name": "DD_APPSEC_ENABLED", "origin": "unknown", "value": False},
-            {"name": "DD_CALL_BASIC_CONFIG", "origin": "unknown", "value": False},
             {"name": "DD_DATA_STREAMS_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_DYNAMIC_INSTRUMENTATION_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_EXCEPTION_DEBUGGING_ENABLED", "origin": "unknown", "value": False},
@@ -148,7 +147,6 @@ telemetry_writer.disable()
     env["DD_INSTRUMENTATION_TELEMETRY_ENABLED"] = "True"
     env["DD_TRACE_STARTUP_LOGS"] = "True"
     env["DD_LOGS_INJECTION"] = "True"
-    env["DD_CALL_BASIC_CONFIG"] = "True"
     env["DD_PROFILING_ENABLED"] = "True"
     env["DD_RUNTIME_METRICS_ENABLED"] = "True"
     env["DD_SERVICE_MAPPING"] = "default_dd_service:remapped_dd_service"
@@ -191,7 +189,6 @@ telemetry_writer.disable()
     events[0]["payload"]["configuration"].sort(key=lambda c: c["name"])
     assert events[0]["payload"]["configuration"] == [
         {"name": "DD_APPSEC_ENABLED", "origin": "unknown", "value": False},
-        {"name": "DD_CALL_BASIC_CONFIG", "origin": "unknown", "value": True},
         {"name": "DD_DATA_STREAMS_ENABLED", "origin": "unknown", "value": False},
         {"name": "DD_DYNAMIC_INSTRUMENTATION_ENABLED", "origin": "unknown", "value": True},
         {"name": "DD_EXCEPTION_DEBUGGING_ENABLED", "origin": "unknown", "value": True},
