@@ -14,6 +14,8 @@ from .test_integration import AGENT_VERSION
 
 pytestmark = pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
 RESOURCE = "mycoolre$ource"
+# XXX which tags are available without span.set_tag calls? those need to be the ones checked by these tests
+TAGS = {"tag1": "mycooltag"}
 
 
 def snapshot_parametrized_with_writers(f):
@@ -136,3 +138,29 @@ def test_extended_sampling_resource(writer, tracer):
     tracer.configure(sampler=sampler, writer=writer)
     tracer.trace("should_not_send", resource=RESOURCE).finish()
     tracer.trace("should_send", resource="something else").finish()
+
+
+@snapshot_parametrized_with_writers
+def test_extended_sampling_tags(writer, tracer):
+    sampler = DatadogSampler(rules=[SamplingRule(0, tags=TAGS)])
+    tracer.configure(sampler=sampler, writer=writer)
+    key = list(TAGS.keys())[0]
+    with tracer.trace("should_not_send") as span:
+        span.set_tag(key, TAGS[key])
+    with tracer.trace("should_send") as span:
+        span.set_tag("banana", True)
+
+
+@snapshot_parametrized_with_writers
+def test_extended_sampling_tags_and_resource(writer, tracer):
+    sampler = DatadogSampler(rules=[SamplingRule(0, tags=TAGS, resource=RESOURCE)])
+    tracer.configure(sampler=sampler, writer=writer)
+    key = list(TAGS.keys())[0]
+    with tracer.trace("should_not_send", resource=RESOURCE) as span:
+        span.set_tag(key, TAGS[key])
+    with tracer.trace("should_send1") as span:
+        span.set_tag("banana", True)
+    with tracer.trace("should_send2", resource="banana") as span:
+        span.set_tag(key, TAGS[key])
+    with tracer.trace("should_send3", resource=RESOURCE) as span:
+        span.set_tag("banana", True)

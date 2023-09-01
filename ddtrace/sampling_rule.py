@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING
 
 from ddtrace.internal.compat import pattern_type
 from ddtrace.internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
+from ddtrace.internal.glob_matching import GlobMatcher
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.cache import cachedmethod
 
@@ -30,6 +31,7 @@ class SamplingRule(object):
         service=NO_RULE,  # type: Any
         name=NO_RULE,  # type: Any
         resource=NO_RULE,  # type: Any
+        tags=NO_RULE,  # type: Any
         target_span="root",  # type: str
     ):
         # type: (...) -> None
@@ -67,10 +69,15 @@ class SamplingRule(object):
                 ).format(sample_rate)
             )
 
+        self._tag_value_matchers = (
+            {k: GlobMatcher(v) for k, v in tags.items()} if tags is not None and type(tags) is dict else {}
+        )
+
         self.sample_rate = sample_rate
         self.service = service
         self.name = name
         self.resource = resource
+        self.tags = tags
         self.target_span = target_span
 
     @property
@@ -138,8 +145,34 @@ class SamplingRule(object):
             if span.parent_id is not None:
                 return False
 
+        glob_match = self.glob_matches(span)
+        # we return early here because _matches() doesn't support tags
+        if self.tags is not self.NO_RULE:
+            return glob_match
+
         # self._matches exists to maintain legacy pattern values such as regex and functions
         return self._matches((span.service, span.name, span.resource))
+
+    def glob_matches(self, span):
+        # type: (Span) -> bool
+        tag_match = True
+        if self._tag_value_matchers:
+            tag_match = self.tag_match(span.get_tags())
+        return tag_match
+
+    def tag_match(self, tags):
+        if tags is None:
+            return False
+
+        tag_match = False
+        for tag_key in self._tag_value_matchers.keys():
+            value = tags.get(tag_key)
+            if value is not None:
+                tag_match = self._tag_value_matchers[tag_key].match(value)
+            else:
+                # if we don't match with all specified tags for a rule, it's not a match
+                return False
+        return tag_match
 
     def sample(self, span, allow_false=False):
         # type: (Span, bool) -> bool
