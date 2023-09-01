@@ -58,8 +58,6 @@ CLASS_HIERARCHY = "test.class_hierarchy"
 CODEOWNERS = TEST_CODEOWNERS = "test.codeowners"
 
 # ITR
-
-#
 ITR_SKIPPED = "test.skipped_by_itr"
 
 # Test session-level ITR and coverage:
