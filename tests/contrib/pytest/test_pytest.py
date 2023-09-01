@@ -1785,6 +1785,14 @@ class PytestTestCase(TracerTestCase):
 
         spans = self.pop_spans()
         assert len(spans) == 7
+
+        session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
+        assert session_span.get_tag("test.itr.tests_skipping.enabled") == "true"
+        assert session_span.get_tag("test.itr.tests_skipping.tests_skipped") == "true"
+        assert session_span.get_tag("_dd.ci.itr.tests_skipped") == "true"
+        assert session_span.get_tag("test.itr.tests_skipping.type") == "suite"
+        assert session_span.get_metric("test.itr.tests_skipping.count") == 1
+
         passed_spans = [x for x in spans if x.get_tag("test.status") == "pass"]
         assert len(passed_spans) == 4
         skipped_spans = [x for x in spans if x.get_tag("test.status") == "skip"]
@@ -1829,6 +1837,14 @@ class PytestTestCase(TracerTestCase):
 
         spans = self.pop_spans()
         assert len(spans) == 7
+
+        session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
+        assert session_span.get_tag("test.itr.tests_skipping.enabled") == "true"
+        assert session_span.get_tag("test.itr.tests_skipping.tests_skipped") == "true"
+        assert session_span.get_tag("_dd.ci.itr.tests_skipped") == "true"
+        assert session_span.get_tag("test.itr.tests_skipping.type") == "test"
+        assert session_span.get_metric("test.itr.tests_skipping.count") == 1
+
         passed_spans = [x for x in spans if x.get_tag("test.status") == "pass"]
         assert len(passed_spans) == 4
         skipped_spans = [x for x in spans if x.get_tag("test.status") == "skip"]
@@ -1867,17 +1883,23 @@ class PytestTestCase(TracerTestCase):
 
         spans = self.pop_spans()
         assert len(spans) == 7
-        passed_spans = [x for x in spans if x.get_tag("test.status") == "pass"]
-        assert len(passed_spans) == 7
-        skipped_spans = [x for x in spans if x.get_tag("test.status") == "skip"]
-        assert len(skipped_spans) == 0
+
         session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
+        assert session_span.get_tag("test.itr.tests_skipping.enabled") == "true"
+        assert session_span.get_tag("test.itr.tests_skipping.tests_skipped") == "false"
+        assert session_span.get_tag("_dd.ci.itr.tests_skipped") == "false"
         assert session_span.get_tag("test.itr.tests_skipping.type") == "test"
         assert session_span.get_metric("test.itr.tests_skipping.count") == 0
+
         module_spans = [span for span in spans if span.get_tag("type") == "test_module_end"]
         for module_span in module_spans:
             assert module_span.get_metric("test.itr.tests_skipping.count") == 0
             assert module_span.get_tag("test.itr.tests_skipping.type") == "test"
+
+        passed_spans = [x for x in spans if x.get_tag("test.status") == "pass"]
+        assert len(passed_spans) == 7
+        skipped_spans = [x for x in spans if x.get_tag("test.status") == "skip"]
+        assert len(skipped_spans) == 0
 
     def test_pytest_skip_all_tests(self):
         """
@@ -1912,17 +1934,24 @@ class PytestTestCase(TracerTestCase):
 
         spans = self.pop_spans()
         assert len(spans) == 7
+
+        session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
+        assert session_span.get_tag("test.itr.tests_skipping.enabled") == "true"
+        assert session_span.get_tag("test.itr.tests_skipping.tests_skipped") == "true"
+        assert session_span.get_tag("_dd.ci.itr.tests_skipped") == "true"
+        assert session_span.get_tag("test.itr.tests_skipping.type") == "test"
+        assert session_span.get_metric("test.itr.tests_skipping.count") == 2
+
+        module_spans = [span for span in spans if span.get_tag("type") == "test_module_end"]
+        assert len(module_spans) == 2
+        for module_span in module_spans:
+            assert module_span.get_metric("test.itr.tests_skipping.count") == 1
+            assert module_span.get_tag("test.itr.tests_skipping.type") == "test"
+
         passed_spans = [x for x in spans if x.get_tag("test.status") == "pass"]
         assert len(passed_spans) == 0
         skipped_spans = [x for x in spans if x.get_tag("test.status") == "skip"]
         assert len(skipped_spans) == 7
-        session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
-        assert session_span.get_tag("test.itr.tests_skipping.type") == "test"
-        assert session_span.get_metric("test.itr.tests_skipping.count") == 2
-        module_spans = [span for span in spans if span.get_tag("type") == "test_module_end"]
-        for module_span in module_spans:
-            assert module_span.get_metric("test.itr.tests_skipping.count") == 1
-            assert module_span.get_tag("test.itr.tests_skipping.type") == "test"
 
     def test_pytest_skip_all_test_suites(self):
         """
@@ -1957,17 +1986,23 @@ class PytestTestCase(TracerTestCase):
 
         spans = self.pop_spans()
         assert len(spans) == 7
-        passed_spans = [x for x in spans if x.get_tag("test.status") == "pass"]
-        assert len(passed_spans) == 0
-        skipped_spans = [x for x in spans if x.get_tag("test.status") == "skip"]
-        assert len(skipped_spans) == 7
+
         session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
+        assert session_span.get_tag("test.itr.tests_skipping.enabled") == "true"
+        assert session_span.get_tag("test.itr.tests_skipping.tests_skipped") == "true"
+        assert session_span.get_tag("_dd.ci.itr.tests_skipped") == "true"
         assert session_span.get_tag("test.itr.tests_skipping.type") == "suite"
         assert session_span.get_metric("test.itr.tests_skipping.count") == 2
+
         module_spans = [span for span in spans if span.get_tag("type") == "test_module_end"]
         for module_span in module_spans:
             assert module_span.get_metric("test.itr.tests_skipping.count") == 1
             assert module_span.get_tag("test.itr.tests_skipping.type") == "suite"
+
+        passed_spans = [x for x in spans if x.get_tag("test.status") == "pass"]
+        assert len(passed_spans) == 0
+        skipped_spans = [x for x in spans if x.get_tag("test.status") == "skip"]
+        assert len(skipped_spans) == 7
 
     def test_pytest_skip_none_test_suites(self):
         """
@@ -2002,17 +2037,23 @@ class PytestTestCase(TracerTestCase):
 
         spans = self.pop_spans()
         assert len(spans) == 7
-        passed_spans = [x for x in spans if x.get_tag("test.status") == "pass"]
-        assert len(passed_spans) == 7
-        skipped_spans = [x for x in spans if x.get_tag("test.status") == "skip"]
-        assert len(skipped_spans) == 0
+
         session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
+        assert session_span.get_tag("test.itr.tests_skipping.enabled") == "true"
+        assert session_span.get_tag("test.itr.tests_skipping.tests_skipped") == "false"
+        assert session_span.get_tag("_dd.ci.itr.tests_skipped") == "false"
         assert session_span.get_tag("test.itr.tests_skipping.type") == "suite"
         assert session_span.get_metric("test.itr.tests_skipping.count") == 0
+
         module_spans = [span for span in spans if span.get_tag("type") == "test_module_end"]
         for module_span in module_spans:
             assert module_span.get_metric("test.itr.tests_skipping.count") == 0
             assert module_span.get_tag("test.itr.tests_skipping.type") == "suite"
+
+        passed_spans = [x for x in spans if x.get_tag("test.status") == "pass"]
+        assert len(passed_spans) == 7
+        skipped_spans = [x for x in spans if x.get_tag("test.status") == "skip"]
+        assert len(skipped_spans) == 0
 
     def test_pytest_skip_all_tests_but_test_skipping_not_enabled(self):
         """
@@ -2044,8 +2085,13 @@ class PytestTestCase(TracerTestCase):
 
         spans = self.pop_spans()
         assert len(spans) == 7
+
+        session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
+        assert session_span.get_tag("test.itr.tests_skipping.enabled") == "false"
+
         test_suite_spans = [span for span in spans if span.get_tag("type") == "test_suite_end"]
         assert len(test_suite_spans) == 2
+
         test_spans = [span for span in spans if span.get_tag("type") == "test"]
         assert len(test_spans) == 2
         passed_test_spans = [x for x in spans if x.get_tag("type") == "test" and x.get_tag("test.status") == "pass"]
@@ -2088,8 +2134,13 @@ class PytestTestCase(TracerTestCase):
 
         spans = self.pop_spans()
         assert len(spans) == 7
+
+        session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
+        assert session_span.get_tag("test.itr.tests_skipping.enabled") == "false"
+
         test_suite_spans = [span for span in spans if span.get_tag("type") == "test_suite_end"]
         assert len(test_suite_spans) == 2
+
         test_spans = [span for span in spans if span.get_tag("type") == "test"]
         assert len(test_spans) == 2
         passed_test_spans = [x for x in spans if x.get_tag("type") == "test" and x.get_tag("test.status") == "pass"]
@@ -2130,8 +2181,13 @@ class PytestTestCase(TracerTestCase):
 
         spans = self.pop_spans()
         assert len(spans) == 7
+
+        session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
+        assert session_span.get_tag("test.itr.tests_skipping.enabled") == "false"
+
         test_suite_spans = [span for span in spans if span.get_tag("type") == "test_suite_end"]
         assert len(test_suite_spans) == 2
+
         test_spans = [span for span in spans if span.get_tag("type") == "test"]
         assert len(test_spans) == 2
         passed_test_spans = [x for x in spans if x.get_tag("type") == "test" and x.get_tag("test.status") == "pass"]
