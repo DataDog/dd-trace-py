@@ -21,7 +21,7 @@ api_extend_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
     }
     auto method_name = PyUnicode_FromString("extend");
     PyObject_CallMethodObjArgs(candidate_text, method_name, to_add, nullptr);
-    Py_DecRef(method_name); // TODO: check if right
+    Py_DECREF(method_name);
     auto ctx_map = initializer->get_tainting_map();
     if (not ctx_map or ctx_map->empty()) {
         Py_RETURN_NONE;
