@@ -24,11 +24,6 @@ Initializer::Initializer()
     for (int i = 0; i < TAINTRANGES_STACK_SIZE; i++) {
         available_ranges_stack.push(make_shared<TaintRange>());
     }
-
-    // Fill the taint origin stack
-    for (int i = 0; i < SOURCE_STACK_SIZE; i++) {
-        available_source_stack.push(new Source());
-    }
 }
 
 TaintRangeMapType*
@@ -42,6 +37,9 @@ Initializer::create_tainting_map()
 void
 Initializer::free_tainting_map(TaintRangeMapType* tx_map)
 {
+    if (not tx_map)
+        return;
+
     auto it = active_map_addreses.find(tx_map);
     if (it == active_map_addreses.end()) {
         // Map wasn't in the set, do nothing
@@ -51,10 +49,9 @@ Initializer::free_tainting_map(TaintRangeMapType* tx_map)
     for (auto& kv_taint_map : *tx_map) {
         kv_taint_map.second->decref();
     }
-    if (tx_map) {
-        tx_map->clear();
-        delete tx_map;
-    }
+
+    tx_map->clear();
+    delete tx_map;
     active_map_addreses.erase(it);
 }
 
@@ -86,6 +83,24 @@ Initializer::num_objects_tainted()
     return 0;
 }
 
+int
+Initializer::num_contexts()
+{
+    return contexts.size();
+}
+
+int
+Initializer::initializer_size()
+{
+    return sizeof(*this);
+}
+
+int
+Initializer::active_map_addreses_size()
+{
+    return active_map_addreses.size();
+}
+
 TaintedObjectPtr
 Initializer::allocate_tainted_object()
 {
@@ -98,31 +113,31 @@ Initializer::allocate_tainted_object()
     return new TaintedObject();
 }
 
-// TODO: Release tainted objects, where?
-// void
-// Initializer::release_tainted_object(TaintedObjectPtr tobj)
-//{
-//    if (!tobj)
-//        return;
-//
-//    tobj->reset();
-//    if (available_taintedobjects_stack.size() < TAINTEDOBJECTS_STACK_SIZE) {
-//        available_taintedobjects_stack.push(tobj);
-//        return;
-//    }
-//
-//    // Stack full, just delete the object (but to a reset before so ranges are
-//    // reused or freed)
-//    delete tobj;
-//}
+void
+Initializer::release_tainted_object(TaintedObjectPtr tobj)
+{
+    if (!tobj) {
+        return;
+    }
+
+    tobj->reset();
+    if (available_taintedobjects_stack.size() < TAINTEDOBJECTS_STACK_SIZE) {
+        available_taintedobjects_stack.push(tobj);
+        return;
+    }
+
+    // Stack full, just delete the object (but to a reset before so ranges are
+    // reused or freed)
+    delete tobj;
+}
 
 TaintRangePtr
-Initializer::allocate_taint_range(int start, int length, SourcePtr origin)
+Initializer::allocate_taint_range(int start, int length, Source origin)
 {
     if (!available_ranges_stack.empty()) {
         auto rptr = available_ranges_stack.top();
         available_ranges_stack.pop();
-        rptr->set_values(start, length, reuse_taint_source(origin));
+        rptr->set_values(start, length, origin);
         return rptr;
     }
 
@@ -136,79 +151,18 @@ Initializer::release_taint_range(TaintRangePtr rangeptr)
     if (!rangeptr)
         return;
 
-    rangeptr->reset();
-    if (available_ranges_stack.size() < TAINTRANGES_STACK_SIZE) {
-        // Move the range to the allocated ranges stack
-        available_ranges_stack.push(rangeptr);
-        return;
-    }
-
-    // Stack full or initializer already cleared (interpreter finishing), just
-    // release the object
-    rangeptr.reset();
-}
-
-SourcePtr
-Initializer::allocate_taint_source(string name, string value, OriginType origin)
-{
-    auto source_hash = Source::hash(name, value, origin);
-    auto it = allocated_sources_map.find(source_hash);
-    if (it != allocated_sources_map.end()) {
-        // It's already in the map, increase the reference count and return it
-        ++(it->second->refcount);
-        return it->second;
-    }
-
-    // else: not in the map, retrieve from the stack and insert in the map before
-    // returning it
-
-    if (!available_source_stack.empty()) {
-        auto toptr = available_source_stack.top();
-        available_source_stack.pop();
-        toptr->set_values(move(name), move(value), origin);
-        ++(toptr->refcount);
-        allocated_sources_map.insert({ source_hash, toptr });
-        return toptr;
-    }
-
-    // Stack is empty, create a new object
-    auto toptr = new Source(move(name), move(value), origin);
-    ++(toptr->refcount);
-    allocated_sources_map.insert({ source_hash, toptr });
-    return toptr;
-}
-
-SourcePtr
-Initializer::reuse_taint_source(SourcePtr source)
-{
-    if (!source)
-        return nullptr;
-
-    ++(source->refcount);
-    return source;
-}
-
-void
-Initializer::release_taint_source(SourcePtr sourceptr)
-{
-    if (!sourceptr)
-        return;
-
-    if (--(sourceptr->refcount) == 0) {
-        // No more references pointing to this origin; move it back from the map
-        // to the stack (or delete it if the stack is full)
-        if (available_source_stack.size() < SOURCE_STACK_SIZE) {
-            // Move the range to the allocated origins stack
-            available_source_stack.push(sourceptr);
+    if (rangeptr.use_count() == 1) {
+        rangeptr->reset();
+        if (available_ranges_stack.size() < TAINTRANGES_STACK_SIZE) {
+            // Move the range to the allocated ranges stack
+            available_ranges_stack.push(rangeptr);
             return;
         }
 
         // Stack full or initializer already cleared (interpreter finishing), just
-        // delte the object
-        delete sourceptr;
+        // release the object
+        rangeptr.reset(); // Not duplicated or typo, calling reset on the shared_ptr, not the TaintRange
     }
-
-    // else: still references to this origin exist so it remains in the map
 }
 
 recursive_mutex contexts_mutex; // NOLINT(cert-err58-cpp)
@@ -313,6 +267,9 @@ pyexport_initializer(py::module& m)
     m.def("clear_tainting_maps", [] { initializer->clear_tainting_maps(); });
 
     m.def("num_objects_tainted", [] { return initializer->num_objects_tainted(); });
+    m.def("num_contexts", [] { return initializer->num_contexts(); });
+    m.def("initializer_size", [] { return initializer->initializer_size(); });
+    m.def("active_map_addreses_size", [] { return initializer->active_map_addreses_size(); });
 
     m.def(
       "create_context", []() { return initializer->create_context(); }, py::return_value_policy::reference);
