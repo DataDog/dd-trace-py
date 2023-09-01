@@ -217,6 +217,10 @@ def _is_invoked_by_cli(args):
     )
 
 
+def _is_test_module_or_suite(func):
+    return type(func).__name__ == "method" or type(func).__name__ == "instancemethod"
+
+
 def patch():
     """
     Patch the instrumented methods from unittest
@@ -338,7 +342,7 @@ def handle_test_wrapper(func, instance, args, kwargs):
 
 
 def handle_module_suite_wrapper(func, instance, args, kwargs):
-    if _is_unittest_support_enabled() and type(func).__name__ == "method" or type(func).__name__ == "instancemethod":
+    if _is_unittest_support_enabled() and _is_test_module_or_suite(func):
         tracer = getattr(unittest, "_datadog_tracer", _CIVisibility._instance.tracer)
         if _is_test_suite(instance):
             test_module_span = _extract_module_span(instance)
@@ -445,7 +449,7 @@ def _finish_test_module_span(test_module_span):
 
 def handle_session_wrapper(func, instance, args, kwargs):
     test_session_span = None
-    if _is_unittest_support_enabled() and len(instance.test._tests) and not hasattr(instance.test, "_datadog_entry"):
+    if _is_invoked_by_cli(args):
         test_session_span = _start_test_session_span(instance)
         instance.test._datadog_entry = "cli"
     try:
