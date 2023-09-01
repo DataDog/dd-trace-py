@@ -254,4 +254,5 @@ programmatically
 DES
 Blowfish
 Gitlab
+hotspot
 CMake
