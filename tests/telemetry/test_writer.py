@@ -83,6 +83,7 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
             {"name": "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_TRACE_ANALYTICS_ENABLED", "origin": "unknown", "value": False},
+            {"name": "DD_TRACE_API_VERSION", "origin": "unknown", "value": None},
             {"name": "DD_TRACE_CLIENT_IP_ENABLED", "origin": "unknown", "value": None},
             {"name": "DD_TRACE_COMPUTE_STATS", "origin": "unknown", "value": False},
             {"name": "DD_TRACE_DEBUG", "origin": "unknown", "value": False},
@@ -111,6 +112,10 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
             {"name": "DD_TRACE_SAMPLING_RULES", "origin": "unknown", "value": None},
             {"name": "DD_TRACE_SPAN_ATTRIBUTE_SCHEMA", "origin": "unknown", "value": "v0"},
             {"name": "DD_TRACE_STARTUP_LOGS", "origin": "unknown", "value": False},
+            {"name": "DD_TRACE_WRITER_BUFFER_SIZE_BYTES", "origin": "unknown", "value": 8388608},
+            {"name": "DD_TRACE_WRITER_INTERVAL_SECONDS", "origin": "unknown", "value": 1.0},
+            {"name": "DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES", "origin": "unknown", "value": 8388608},
+            {"name": "DD_TRACE_WRITER_REUSE_CONNECTIONS", "origin": "unknown", "value": False},
             {"name": "ddtrace_auto_used", "origin": "unknown", "value": False},
             {"name": "ddtrace_bootstrapped", "origin": "unknown", "value": False},
         ],
@@ -170,7 +175,11 @@ telemetry_writer.disable()
     env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = "v1"
     env["DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED"] = "True"
     env["DD_TRACE_PEER_SERVICE_MAPPING"] = "default_service:remapped_service"
-    env["DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED"] = "True"
+    env["DD_TRACE_API_VERSION"] = "v0.5"
+    env["DD_TRACE_WRITER_BUFFER_SIZE_BYTES"] = "1000"
+    env["DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES"] = "9999"
+    env["DD_TRACE_WRITER_INTERVAL_SECONDS"] = "30"
+    env["DD_TRACE_WRITER_REUSE_CONNECTIONS"] = "True"
 
     if PY2:
         # Prevents gevent importerror when profiling is enabled
@@ -205,6 +214,7 @@ telemetry_writer.disable()
         {"name": "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", "origin": "unknown", "value": True},
         {"name": "DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED", "origin": "unknown", "value": True},
         {"name": "DD_TRACE_ANALYTICS_ENABLED", "origin": "unknown", "value": True},
+        {"name": "DD_TRACE_API_VERSION", "origin": "unknown", "value": "v0.5"},
         {"name": "DD_TRACE_CLIENT_IP_ENABLED", "origin": "unknown", "value": None},
         {"name": "DD_TRACE_COMPUTE_STATS", "origin": "unknown", "value": True},
         {"name": "DD_TRACE_DEBUG", "origin": "unknown", "value": True},
@@ -226,6 +236,10 @@ telemetry_writer.disable()
         },
         {"name": "DD_TRACE_SPAN_ATTRIBUTE_SCHEMA", "origin": "unknown", "value": "v1"},
         {"name": "DD_TRACE_STARTUP_LOGS", "origin": "unknown", "value": True},
+        {"name": "DD_TRACE_WRITER_BUFFER_SIZE_BYTES", "origin": "unknown", "value": 1000},
+        {"name": "DD_TRACE_WRITER_INTERVAL_SECONDS", "origin": "unknown", "value": 30.0},
+        {"name": "DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES", "origin": "unknown", "value": 9999},
+        {"name": "DD_TRACE_WRITER_REUSE_CONNECTIONS", "origin": "unknown", "value": True},
         {"name": "ddtrace_auto_used", "origin": "unknown", "value": True},
         {"name": "ddtrace_bootstrapped", "origin": "unknown", "value": True},
     ]
