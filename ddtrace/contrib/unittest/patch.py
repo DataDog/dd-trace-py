@@ -303,39 +303,37 @@ def handle_test_wrapper(func, instance, args, kwargs):
         test_suite_span = _extract_suite_span(instance)
         if not test_suite_span:
             return func(*args, **kwargs)
-        span = tracer._start_span(
+        with tracer.trace(
             ddtrace.config.unittest.operation_name,
             service=_CIVisibility._instance._service,
             resource=resource_name,
             span_type=SpanTypes.TEST,
-            activate=True,
-        )
-        span.set_tag_str(_EVENT_TYPE, SpanTypes.TEST)
-        span.set_tag_str(_SESSION_ID, test_suite_span.get_tag(_SESSION_ID))
-        span.set_tag_str(_MODULE_ID, test_suite_span.get_tag(_MODULE_ID))
-        span.set_tag_str(_SUITE_ID, test_suite_span.get_tag(_SUITE_ID))
+        ) as span:
+            span.set_tag_str(_EVENT_TYPE, SpanTypes.TEST)
+            span.set_tag_str(_SESSION_ID, test_suite_span.get_tag(_SESSION_ID))
+            span.set_tag_str(_MODULE_ID, test_suite_span.get_tag(_MODULE_ID))
+            span.set_tag_str(_SUITE_ID, test_suite_span.get_tag(_SUITE_ID))
 
-        span.set_tag_str(COMPONENT, COMPONENT_VALUE)
-        span.set_tag_str(SPAN_KIND, KIND)
+            span.set_tag_str(COMPONENT, COMPONENT_VALUE)
+            span.set_tag_str(SPAN_KIND, KIND)
 
-        span.set_tag_str(test.COMMAND, test_suite_span.get_tag(test.COMMAND))
-        span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
-        span.set_tag_str(test.FRAMEWORK_VERSION, platform.python_version())
-        span.set_tag_str(test.TYPE, SpanTypes.TEST)
+            span.set_tag_str(test.COMMAND, test_suite_span.get_tag(test.COMMAND))
+            span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
+            span.set_tag_str(test.FRAMEWORK_VERSION, platform.python_version())
+            span.set_tag_str(test.TYPE, SpanTypes.TEST)
 
-        span.set_tag_str(test.NAME, test_name)
-        span.set_tag_str(test.SUITE, suite_name)
-        span.set_tag_str(test.MODULE, test_suite_span.get_tag(test.MODULE))
-        span.set_tag_str(test.MODULE_PATH, test_suite_span.get_tag(test.MODULE_PATH))
-        span.set_tag_str(test.STATUS, test.Status.FAIL.value)
-        span.set_tag_str(test.CLASS_HIERARCHY, suite_name)
-        _CIVisibility.set_codeowners_of(_extract_test_file_name(instance), span=span)
+            span.set_tag_str(test.NAME, test_name)
+            span.set_tag_str(test.SUITE, suite_name)
+            span.set_tag_str(test.MODULE, test_suite_span.get_tag(test.MODULE))
+            span.set_tag_str(test.MODULE_PATH, test_suite_span.get_tag(test.MODULE_PATH))
+            span.set_tag_str(test.STATUS, test.Status.FAIL.value)
+            span.set_tag_str(test.CLASS_HIERARCHY, suite_name)
+            _CIVisibility.set_codeowners_of(_extract_test_file_name(instance), span=span)
 
-        _store_test_span(instance, span)
-        result = func(*args, **kwargs)
-        _update_status_item(test_suite_span, span.get_tag(test.STATUS))
-        span.finish()
-        return result
+            _store_test_span(instance, span)
+            result = func(*args, **kwargs)
+            _update_status_item(test_suite_span, span.get_tag(test.STATUS))
+            return result
     return func(*args, **kwargs)
 
 
@@ -346,34 +344,31 @@ def handle_module_suite_wrapper(func, instance, args, kwargs):
             test_module_span = _extract_module_span(instance)
             test_suite_name = _extract_suite_name(instance)
             resource_name = _generate_suite_resource(FRAMEWORK, test_suite_name)
-            test_suite_span = tracer._start_span(
+            with tracer.trace(
                 SUITE_OPERATION_NAME,
                 service=_CIVisibility._instance._service,
                 span_type=SpanTypes.TEST,
-                activate=True,
-                child_of=test_module_span,
                 resource=resource_name,
-            )
-            test_suite_span.set_tag_str(COMPONENT, COMPONENT_VALUE)
-            test_suite_span.set_tag_str(SPAN_KIND, KIND)
-            test_suite_span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
-            test_suite_span.set_tag_str(test.FRAMEWORK_VERSION, platform.python_version())
-            test_suite_span.set_tag_str(test.COMMAND, test_module_span.get_tag(test.COMMAND))
-            test_suite_span.set_tag_str(_EVENT_TYPE, _SUITE_TYPE)
-            test_suite_span.set_tag_str(_SESSION_ID, test_module_span.get_tag(_SESSION_ID))
-            test_suite_span.set_tag_str(_SUITE_ID, str(test_suite_span.span_id))
-            test_suite_span.set_tag_str(_MODULE_ID, str(test_module_span.span_id))
-            test_suite_span.set_tag_str(test.MODULE, test_module_span.get_tag(test.MODULE))
-            test_module_path = test_module_span.get_tag(test.MODULE_PATH)
-            test_suite_span.set_tag_str(test.MODULE_PATH, test_module_path)
-            test_suite_span.set_tag_str(test.SUITE, test_suite_name)
-            test_suite_span.set_tag_str(test.TEST_TYPE, SpanTypes.TEST)
-            _store_test_span(instance, test_suite_span)
-            _store_suite_span(instance, test_suite_span)
-            result = func(*args, **kwargs)
-            _update_status_item(test_module_span, test_suite_span.get_tag(test.STATUS))
-            test_suite_span.finish()
-            return result
+            ) as test_suite_span:
+                test_suite_span.set_tag_str(COMPONENT, COMPONENT_VALUE)
+                test_suite_span.set_tag_str(SPAN_KIND, KIND)
+                test_suite_span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
+                test_suite_span.set_tag_str(test.FRAMEWORK_VERSION, platform.python_version())
+                test_suite_span.set_tag_str(test.COMMAND, test_module_span.get_tag(test.COMMAND))
+                test_suite_span.set_tag_str(_EVENT_TYPE, _SUITE_TYPE)
+                test_suite_span.set_tag_str(_SESSION_ID, test_module_span.get_tag(_SESSION_ID))
+                test_suite_span.set_tag_str(_SUITE_ID, str(test_suite_span.span_id))
+                test_suite_span.set_tag_str(_MODULE_ID, str(test_module_span.span_id))
+                test_suite_span.set_tag_str(test.MODULE, test_module_span.get_tag(test.MODULE))
+                test_module_path = test_module_span.get_tag(test.MODULE_PATH)
+                test_suite_span.set_tag_str(test.MODULE_PATH, test_module_path)
+                test_suite_span.set_tag_str(test.SUITE, test_suite_name)
+                test_suite_span.set_tag_str(test.TEST_TYPE, SpanTypes.TEST)
+                _store_test_span(instance, test_suite_span)
+                _store_suite_span(instance, test_suite_span)
+                result = func(*args, **kwargs)
+                _update_status_item(test_module_span, test_suite_span.get_tag(test.STATUS))
+                return result
         elif _is_test_module(instance):
             test_module_span, test_session_span = _start_test_module_span(instance)
             result = func(*args, **kwargs)
@@ -421,27 +416,25 @@ def _start_test_module_span(instance):
     if not test_module_name:
         return None, None
     resource_name = _generate_module_resource(FRAMEWORK, test_module_name)
-    test_module_span = tracer._start_span(
+    with tracer.trace(
         MODULE_OPERATION_NAME,
         service=_CIVisibility._instance._service,
         span_type=SpanTypes.TEST,
-        activate=True,
-        child_of=test_session_span,
         resource=resource_name,
-    )
-    test_module_span.set_tag_str(COMPONENT, COMPONENT_VALUE)
-    test_module_span.set_tag_str(SPAN_KIND, KIND)
-    test_module_span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
-    test_module_span.set_tag_str(test.FRAMEWORK_VERSION, platform.python_version())
-    test_module_span.set_tag_str(test.COMMAND, test_session_span.get_tag(test.COMMAND))
-    test_module_span.set_tag_str(test.TEST_TYPE, SpanTypes.TEST)
-    test_module_span.set_tag_str(_EVENT_TYPE, _MODULE_TYPE)
-    test_module_span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
-    test_module_span.set_tag_str(_MODULE_ID, str(test_module_span.span_id))
-    test_module_span.set_tag_str(test.MODULE, test_module_name)
-    test_module_span.set_tag_str(test.MODULE_PATH, _extract_module_file_path(instance))
-    _store_module_span(instance, test_module_span)
-    return test_module_span, test_session_span
+    ) as test_module_span:
+        test_module_span.set_tag_str(COMPONENT, COMPONENT_VALUE)
+        test_module_span.set_tag_str(SPAN_KIND, KIND)
+        test_module_span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
+        test_module_span.set_tag_str(test.FRAMEWORK_VERSION, platform.python_version())
+        test_module_span.set_tag_str(test.COMMAND, test_session_span.get_tag(test.COMMAND))
+        test_module_span.set_tag_str(test.TEST_TYPE, SpanTypes.TEST)
+        test_module_span.set_tag_str(_EVENT_TYPE, _MODULE_TYPE)
+        test_module_span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
+        test_module_span.set_tag_str(_MODULE_ID, str(test_module_span.span_id))
+        test_module_span.set_tag_str(test.MODULE, test_module_name)
+        test_module_span.set_tag_str(test.MODULE_PATH, _extract_module_file_path(instance))
+        _store_module_span(instance, test_module_span)
+        return test_module_span, test_session_span
 
 
 def _finish_test_module_span(test_module_span, test_session_span):
@@ -472,11 +465,13 @@ def handle_text_test_runner_wrapper(func, instance, args, kwargs):
     """
     Creates session and module spans if the unittest is called through the `TextTestRunner` method
     """
+
     if _is_invoked_by_cli(args):
         return func(*args, **kwargs)
-    args[0]._datadog_entry = "TextTestRunner"
-    test_session_span = _start_test_session_span(args[0])
-    test_module_span, _ = _start_test_module_span(args[0])
+    test_object = args[0]
+    test_object._datadog_entry = "TextTestRunner"
+    test_session_span = _start_test_session_span(test_object)
+    test_module_span, _ = _start_test_module_span(test_object)
     result = func(*args, **kwargs)
     _finish_test_module_span(test_module_span, test_session_span)
     _finish_test_session_span(test_session_span)
