@@ -313,6 +313,11 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert root_span.get_tag(http.METHOD) == "GET"
             assert root_span.get_tag(http.USER_AGENT).startswith("werkzeug/")
             assert root_span.get_tag(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/json"
+            assert root_span.get_tag(APPSEC.JSON)
+            loaded = json.loads(root_span.get_tag(APPSEC.JSON))
+            assert loaded["triggers"][0]["rule"]["id"] == "blk-001-001"
+            assert root_span.get_tag("appsec.event") == "true"
+            assert root_span.get_tag("appsec.blocked") == "true"
 
     def test_flask_ip_200_monitor(self):
         @self.app.route("/")
@@ -329,6 +334,13 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert root_span.get_tag(http.METHOD) == "GET"
             assert root_span.get_tag(http.USER_AGENT).startswith("werkzeug/")
             assert root_span.get_tag(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") != "text/json"
+            # rule detected but non blocking
+            assert root_span.get_tag(APPSEC.JSON)
+            loaded = json.loads(root_span.get_tag(APPSEC.JSON))
+            assert loaded["triggers"][0]["rule"]["id"] == "tst-421-001"
+            assert loaded["triggers"][0]["rule"]["on_match"] == ["monitor"]
+            assert root_span.get_tag("appsec.event") == "true"
+            assert root_span.get_tag("appsec.blocked") is None
 
     def test_flask_ip_200_bypass(self):
         @self.app.route("/")
@@ -345,6 +357,10 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert root_span.get_tag(http.METHOD) == "GET"
             assert root_span.get_tag(http.USER_AGENT).startswith("werkzeug/")
             assert root_span.get_tag(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") != "text/json"
+            # rules bypass
+            assert root_span.get_tag(APPSEC.JSON) is None
+            assert root_span.get_tag("appsec.event") is None
+            assert root_span.get_tag("appsec.blocked") is None
 
     def test_flask_ipblock_manually_json(self):
         # Most tests of flask blocking are in the test_flask_snapshot, this just
