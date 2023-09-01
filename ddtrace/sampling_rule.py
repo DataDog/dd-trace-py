@@ -133,7 +133,7 @@ class SamplingRule(object):
         # provided Span into a hashable tuple for the cache
         return self._matches((span.service, span.name))
 
-    def sample(self, span, allow_false=False):
+    def sample(self, span, allow_false=True):
         # type: (Span, bool) -> bool
         """
         Return if this rule chooses to sample the span
