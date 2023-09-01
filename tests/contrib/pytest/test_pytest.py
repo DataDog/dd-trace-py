@@ -1482,6 +1482,10 @@ class PytestTestCase(TracerTestCase):
             self.inline_run("--ddtrace", os.path.basename(py_cov_file.strpath))
         spans = self.pop_spans()
 
+        session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
+        assert session_span.get_tag("test.itr.tests_skipping.enabled") == "false"
+        assert session_span.get_tag("test.code_coverage.enabled") == "true"
+
         first_test_span = spans[0]
         assert first_test_span.get_tag("test.name") == "test_cov"
         assert first_test_span.get_tag("type") == "test"
@@ -1549,6 +1553,13 @@ class PytestTestCase(TracerTestCase):
         ):
             self.inline_run("--ddtrace", os.path.basename(py_cov_file.strpath))
         spans = self.pop_spans()
+
+        session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
+        assert session_span.get_tag("test.itr.tests_skipping.enabled") == "true"
+        assert session_span.get_tag("test.code_coverage.enabled") == "true"
+        assert session_span.get_tag("_dd.ci.itr.tests_skipped") == "true"
+        assert session_span.get_tag("test.itr.tests_skipping.type") == "test"
+        assert session_span.get_metric("test.itr.tests_skipping.count") == 1
 
         first_test_span = spans[0]
         assert first_test_span.get_tag("test.name") == "test_cov"
@@ -1623,6 +1634,11 @@ class PytestTestCase(TracerTestCase):
             self.inline_run("--ddtrace", os.path.basename(py_cov_file.strpath))
         spans = self.pop_spans()
         assert len(spans) == 7
+
+        session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
+        assert session_span.get_tag("test.itr.tests_skipping.enabled") == "false"
+        assert session_span.get_tag("test.code_coverage.enabled") == "true"
+
         test_spans = [span for span in spans if span.get_tag("type") == "test"]
         assert len(test_spans) == 4
 
@@ -1692,6 +1708,10 @@ class PytestTestCase(TracerTestCase):
         ):
             self.inline_run("--ddtrace", os.path.basename(py_cov_file.strpath))
         spans = self.pop_spans()
+
+        session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
+        assert session_span.get_tag("test.itr.tests_skipping.enabled") == "false"
+        assert session_span.get_tag("test.code_coverage.enabled") == "true"
 
         first_test_span = spans[0]
         assert first_test_span.get_tag("test.name") == "test_cov"
