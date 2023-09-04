@@ -178,10 +178,6 @@ def _extract_module_file_path(item):
     return os.path.relpath(inspect.getfile(item._tests[0]._tests[0].__class__))
 
 
-def _is_unittest_support_enabled():
-    return unittest and getattr(unittest, "_datadog_patch", False) and _CIVisibility.enabled
-
-
 def _generate_test_resource(suite_name, test_name):
     return suite_name + "." + test_name
 
@@ -463,7 +459,7 @@ def _finish_test_module_span(test_module_span, test_session_span):
 
 def handle_session_wrapper(func, instance, args, kwargs):
     test_session_span = None
-    if not _is_invoked_by_cli(args):
+    if len(instance.test._tests) and not hasattr(instance.test, "_datadog_entry"):
         test_session_span = _start_test_session_span(instance)
         instance.test._datadog_entry = "cli"
     try:
