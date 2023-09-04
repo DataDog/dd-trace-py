@@ -83,7 +83,7 @@ def _is_test_suite(item):
 
 
 def _is_test_module(item):
-    return _extract_session_span(item) and len(item._tests) and _extract_module_name_from_module(item)
+    return _extract_session_span(item) and len(item._tests)
 
 
 def _extract_span(item):
@@ -370,9 +370,9 @@ def handle_module_suite_wrapper(func, instance, args, kwargs):
                 _update_status_item(test_module_span, test_suite_span.get_tag(test.STATUS))
                 return result
         elif _is_test_module(instance):
-            test_module_span = _start_test_module_span(instance)
+            test_module_span, test_session_span = _start_test_module_span(instance)
             result = func(*args, **kwargs)
-            _finish_test_module_span(test_module_span)
+            _finish_test_module_span(test_module_span, test_session_span)
             return result
 
     result = func(*args, **kwargs)
@@ -413,32 +413,35 @@ def _start_test_module_span(instance):
     tracer = getattr(unittest, "_datadog_tracer", _CIVisibility._instance.tracer)
     test_session_span = _extract_session_span(instance)
     test_module_name = _extract_module_name_from_module(instance)
+    if not test_module_name:
+        return None, None
     resource_name = _generate_module_resource(FRAMEWORK, test_module_name)
-    test_module_span = tracer.trace(
+    with tracer.trace(
         MODULE_OPERATION_NAME,
         service=_CIVisibility._instance._service,
         span_type=SpanTypes.TEST,
         resource=resource_name,
-    )
-    test_module_span.set_tag_str(COMPONENT, COMPONENT_VALUE)
-    test_module_span.set_tag_str(SPAN_KIND, KIND)
-    test_module_span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
-    test_module_span.set_tag_str(test.FRAMEWORK_VERSION, platform.python_version())
-    test_module_span.set_tag_str(test.COMMAND, test_session_span.get_tag(test.COMMAND))
-    test_module_span.set_tag_str(test.TEST_TYPE, SpanTypes.TEST)
-    test_module_span.set_tag_str(_EVENT_TYPE, _MODULE_TYPE)
-    test_module_span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
-    test_module_span.set_tag_str(_MODULE_ID, str(test_module_span.span_id))
-    test_module_span.set_tag_str(test.MODULE, test_module_name)
-    test_module_span.set_tag_str(test.MODULE_PATH, _extract_module_file_path(instance))
-    _store_module_span(instance, test_module_span)
-    return test_module_span
+    ) as test_module_span:
+        test_module_span.set_tag_str(COMPONENT, COMPONENT_VALUE)
+        test_module_span.set_tag_str(SPAN_KIND, KIND)
+        test_module_span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
+        test_module_span.set_tag_str(test.FRAMEWORK_VERSION, platform.python_version())
+        test_module_span.set_tag_str(test.COMMAND, test_session_span.get_tag(test.COMMAND))
+        test_module_span.set_tag_str(test.TEST_TYPE, SpanTypes.TEST)
+        test_module_span.set_tag_str(_EVENT_TYPE, _MODULE_TYPE)
+        test_module_span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
+        test_module_span.set_tag_str(_MODULE_ID, str(test_module_span.span_id))
+        test_module_span.set_tag_str(test.MODULE, test_module_name)
+        test_module_span.set_tag_str(test.MODULE_PATH, _extract_module_file_path(instance))
+        _store_module_span(instance, test_module_span)
+        return test_module_span, test_session_span
 
 
-def _finish_test_module_span(test_module_span):
+def _finish_test_module_span(test_module_span, test_session_span):
+    if not test_module_span:
+        return
     module_status = test_module_span.get_tag(test.STATUS)
     if module_status:
-        test_session_span = test_module_span._parent
         _update_status_item(test_session_span, module_status)
     test_module_span.finish()
 
@@ -468,8 +471,8 @@ def handle_text_test_runner_wrapper(func, instance, args, kwargs):
     test_object = args[0]
     test_object._datadog_entry = "TextTestRunner"
     test_session_span = _start_test_session_span(test_object)
-    test_module_span = _start_test_module_span(test_object)
+    test_module_span, _ = _start_test_module_span(test_object)
     result = func(*args, **kwargs)
-    _finish_test_module_span(test_module_span)
+    _finish_test_module_span(test_module_span, test_session_span)
     _finish_test_session_span(test_session_span)
     return result
