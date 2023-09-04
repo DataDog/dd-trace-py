@@ -141,6 +141,7 @@ mypy
 mysql
 mysqlclient
 mysqldb
+msgpack
 namespace
 NeedsAppKey
 obfuscator
