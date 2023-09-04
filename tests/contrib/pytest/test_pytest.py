@@ -1713,6 +1713,10 @@ class PytestTestCase(TracerTestCase):
         assert session_span.get_tag("test.itr.tests_skipping.enabled") == "false"
         assert session_span.get_tag("test.code_coverage.enabled") == "true"
 
+        module_span = [span for span in spans if span.get_tag("type") == "test_module_end"][0]
+        assert module_span.get_tag("test.itr.tests_skipping.enabled") == "false"
+        assert module_span.get_tag("test.code_coverage.enabled") == "true"
+
         first_test_span = spans[0]
         assert first_test_span.get_tag("test.name") == "test_cov"
         assert first_test_span.get_tag("type") == "test"
@@ -1813,6 +1817,23 @@ class PytestTestCase(TracerTestCase):
         assert session_span.get_tag("test.itr.tests_skipping.type") == "suite"
         assert session_span.get_metric("test.itr.tests_skipping.count") == 1
 
+        module_spans = [span for span in spans if span.get_tag("type") == "test_module_end"]
+        assert len(module_spans) == 2
+        outer_module_span = [span for span in module_spans if span.get_tag("test.module") == "test_outer_package"][0]
+        assert outer_module_span.get_tag("test.itr.tests_skipping.enabled") == "true"
+        assert outer_module_span.get_tag("test.itr.tests_skipping.tests_skipped") == "true"
+        assert outer_module_span.get_tag("_dd.ci.itr.tests_skipped") == "true"
+        assert outer_module_span.get_tag("test.itr.tests_skipping.type") == "suite"
+        assert outer_module_span.get_metric("test.itr.tests_skipping.count") == 1
+        inner_module_span = [
+            span for span in module_spans if span.get_tag("test.module") == "test_outer_package.test_inner_package"
+        ][0]
+        assert inner_module_span.get_tag("test.itr.tests_skipping.enabled") == "true"
+        assert inner_module_span.get_tag("test.itr.tests_skipping.tests_skipped") == "false"
+        assert inner_module_span.get_tag("_dd.ci.itr.tests_skipped") == "false"
+        assert inner_module_span.get_tag("test.itr.tests_skipping.type") == "suite"
+        assert inner_module_span.get_metric("test.itr.tests_skipping.count") == 0
+
         passed_spans = [x for x in spans if x.get_tag("test.status") == "pass"]
         assert len(passed_spans) == 4
         skipped_spans = [x for x in spans if x.get_tag("test.status") == "skip"]
@@ -1865,6 +1886,23 @@ class PytestTestCase(TracerTestCase):
         assert session_span.get_tag("test.itr.tests_skipping.type") == "test"
         assert session_span.get_metric("test.itr.tests_skipping.count") == 1
 
+        module_spans = [span for span in spans if span.get_tag("type") == "test_module_end"]
+        assert len(module_spans) == 2
+        outer_module_span = [span for span in module_spans if span.get_tag("test.module") == "test_outer_package"][0]
+        assert outer_module_span.get_tag("test.itr.tests_skipping.enabled") == "true"
+        assert outer_module_span.get_tag("test.itr.tests_skipping.tests_skipped") == "true"
+        assert outer_module_span.get_tag("_dd.ci.itr.tests_skipped") == "true"
+        assert outer_module_span.get_tag("test.itr.tests_skipping.type") == "test"
+        assert outer_module_span.get_metric("test.itr.tests_skipping.count") == 1
+        inner_module_span = [
+            span for span in module_spans if span.get_tag("test.module") == "test_outer_package.test_inner_package"
+        ][0]
+        assert inner_module_span.get_tag("test.itr.tests_skipping.enabled") == "true"
+        assert inner_module_span.get_tag("test.itr.tests_skipping.tests_skipped") == "false"
+        assert inner_module_span.get_tag("_dd.ci.itr.tests_skipped") == "false"
+        assert inner_module_span.get_tag("test.itr.tests_skipping.type") == "test"
+        assert inner_module_span.get_metric("test.itr.tests_skipping.count") == 0
+
         passed_spans = [x for x in spans if x.get_tag("test.status") == "pass"]
         assert len(passed_spans) == 4
         skipped_spans = [x for x in spans if x.get_tag("test.status") == "skip"]
@@ -1915,6 +1953,8 @@ class PytestTestCase(TracerTestCase):
         for module_span in module_spans:
             assert module_span.get_metric("test.itr.tests_skipping.count") == 0
             assert module_span.get_tag("test.itr.tests_skipping.type") == "test"
+            assert module_span.get_tag("test.itr.tests_skipping.tests_skipped") == "false"
+            assert module_span.get_tag("test.itr.tests_skipping.enabled") == "true"
 
         passed_spans = [x for x in spans if x.get_tag("test.status") == "pass"]
         assert len(passed_spans) == 7
@@ -1967,6 +2007,8 @@ class PytestTestCase(TracerTestCase):
         for module_span in module_spans:
             assert module_span.get_metric("test.itr.tests_skipping.count") == 1
             assert module_span.get_tag("test.itr.tests_skipping.type") == "test"
+            assert module_span.get_tag("test.itr.tests_skipping.tests_skipped") == "true"
+            assert module_span.get_tag("test.itr.tests_skipping.enabled") == "true"
 
         passed_spans = [x for x in spans if x.get_tag("test.status") == "pass"]
         assert len(passed_spans) == 0
@@ -2018,6 +2060,8 @@ class PytestTestCase(TracerTestCase):
         for module_span in module_spans:
             assert module_span.get_metric("test.itr.tests_skipping.count") == 1
             assert module_span.get_tag("test.itr.tests_skipping.type") == "suite"
+            assert module_span.get_tag("test.itr.tests_skipping.tests_skipped") == "true"
+            assert module_span.get_tag("test.itr.tests_skipping.enabled") == "true"
 
         passed_spans = [x for x in spans if x.get_tag("test.status") == "pass"]
         assert len(passed_spans) == 0
@@ -2069,6 +2113,8 @@ class PytestTestCase(TracerTestCase):
         for module_span in module_spans:
             assert module_span.get_metric("test.itr.tests_skipping.count") == 0
             assert module_span.get_tag("test.itr.tests_skipping.type") == "suite"
+            assert module_span.get_tag("test.itr.tests_skipping.tests_skipped") == "false"
+            assert module_span.get_tag("test.itr.tests_skipping.enabled") == "true"
 
         passed_spans = [x for x in spans if x.get_tag("test.status") == "pass"]
         assert len(passed_spans) == 7
@@ -2108,6 +2154,11 @@ class PytestTestCase(TracerTestCase):
 
         session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
         assert session_span.get_tag("test.itr.tests_skipping.enabled") == "false"
+
+        module_spans = [span for span in spans if span.get_tag("type") == "test_module_end"]
+        assert len(module_spans) == 2
+        for module_span in module_spans:
+            assert module_span.get_tag("test.itr.tests_skipping.enabled") == "false"
 
         test_suite_spans = [span for span in spans if span.get_tag("type") == "test_suite_end"]
         assert len(test_suite_spans) == 2
@@ -2158,6 +2209,11 @@ class PytestTestCase(TracerTestCase):
         session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
         assert session_span.get_tag("test.itr.tests_skipping.enabled") == "false"
 
+        module_spans = [span for span in spans if span.get_tag("type") == "test_module_end"]
+        assert len(module_spans) == 2
+        for module_span in module_spans:
+            assert module_span.get_tag("test.itr.tests_skipping.enabled") == "false"
+
         test_suite_spans = [span for span in spans if span.get_tag("type") == "test_suite_end"]
         assert len(test_suite_spans) == 2
 
@@ -2204,6 +2260,11 @@ class PytestTestCase(TracerTestCase):
 
         session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
         assert session_span.get_tag("test.itr.tests_skipping.enabled") == "false"
+
+        module_spans = [span for span in spans if span.get_tag("type") == "test_module_end"]
+        assert len(module_spans) == 2
+        for module_span in module_spans:
+            assert module_span.get_tag("test.itr.tests_skipping.enabled") == "false"
 
         test_suite_spans = [span for span in spans if span.get_tag("type") == "test_suite_end"]
         assert len(test_suite_spans) == 2
