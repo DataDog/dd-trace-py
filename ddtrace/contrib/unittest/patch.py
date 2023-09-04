@@ -83,7 +83,7 @@ def _is_test_suite(item):
 
 
 def _is_test_module(item):
-    return _extract_session_span(item) and len(item._tests)
+    return _extract_session_span(item) and len(item._tests) and _extract_module_name_from_module(item)
 
 
 def _extract_span(item):
@@ -121,7 +121,11 @@ def _extract_suite_span(test_object):
 
 def _update_status_item(item, status):
     existing_status = item.get_tag(test.STATUS)
-    if existing_status and (status == test.Status.SKIP.value or existing_status == test.Status.FAIL.value):
+    if (
+        not status
+        or existing_status
+        and (status == test.Status.SKIP.value or existing_status == test.Status.FAIL.value)
+    ):
         return
     item.set_tag_str(test.STATUS, status)
 
@@ -379,9 +383,9 @@ def handle_module_suite_wrapper(func, instance, args, kwargs):
             test_suite_span.finish()
             return result
         elif _is_test_module(instance):
-            test_module_span, test_session_span = _start_test_module_span(instance)
+            test_module_span = _start_test_module_span(instance)
             result = func(*args, **kwargs)
-            _finish_test_module_span(test_module_span, test_session_span)
+            _finish_test_module_span(test_module_span)
             return result
 
     result = func(*args, **kwargs)
@@ -422,8 +426,6 @@ def _start_test_module_span(instance):
     tracer = getattr(unittest, "_datadog_tracer", _CIVisibility._instance.tracer)
     test_session_span = _extract_session_span(instance)
     test_module_name = _extract_module_name_from_module(instance)
-    if not test_module_name:
-        return None, None
     resource_name = _generate_module_resource(FRAMEWORK, test_module_name)
     test_module_span = tracer._start_span(
         MODULE_OPERATION_NAME,
@@ -445,14 +447,13 @@ def _start_test_module_span(instance):
     test_module_span.set_tag_str(test.MODULE, test_module_name)
     test_module_span.set_tag_str(test.MODULE_PATH, _extract_module_file_path(instance))
     _store_module_span(instance, test_module_span)
-    return test_module_span, test_session_span
+    return test_module_span
 
 
-def _finish_test_module_span(test_module_span, test_session_span):
-    if not test_module_span:
-        return
+def _finish_test_module_span(test_module_span):
     module_status = test_module_span.get_tag(test.STATUS)
     if module_status:
+        test_session_span = test_module_span._parent
         _update_status_item(test_session_span, module_status)
     test_module_span.finish()
 
@@ -478,10 +479,11 @@ def handle_text_test_runner_wrapper(func, instance, args, kwargs):
     """
     if _is_invoked_by_cli(args):
         return func(*args, **kwargs)
-    args[0]._datadog_entry = "TextTestRunner"
-    test_session_span = _start_test_session_span(args[0])
-    test_module_span, _ = _start_test_module_span(args[0])
+    test_object = args[0]
+    test_object._datadog_entry = "TextTestRunner"
+    test_session_span = _start_test_session_span(test_object)
+    test_module_span = _start_test_module_span(test_object)
     result = func(*args, **kwargs)
-    _finish_test_module_span(test_module_span, test_session_span)
+    _finish_test_module_span(test_module_span)
     _finish_test_session_span(test_session_span)
     return result
