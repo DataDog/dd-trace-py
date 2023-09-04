@@ -52,11 +52,9 @@ class UnittestTestCase(TracerTestCase):
             spans = self.pop_spans()
             assert len(spans) == 4
 
-            test_span = spans[3]
-
-            test_suite_span = spans[2]
-            test_module_span = spans[1]
-            test_session_span = spans[0]
+            test_suite_span = spans[3]
+            test_module_span = spans[2]
+            test_session_span = spans[1]
 
             for i in range(len(spans)):
                 assert spans[i].get_tag(test.TEST_TYPE) == SpanTypes.TEST
@@ -71,12 +69,12 @@ class UnittestTestCase(TracerTestCase):
                 assert spans[i].get_tag(ERROR_MSG) is None
                 assert spans[i].get_tag(ERROR_TYPE) is None
 
-            assert test_span.name == TEST_OPERATION_NAME
-            assert test_span.get_tag(test.NAME) == "test_will_pass_first"
-            assert test_span.get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
-            assert test_span.get_tag(test.SUITE) == "UnittestExampleTestCase"
-            assert test_span.get_tag(MODULE_ID) == str(test_module_span.span_id)
-            assert test_span.get_tag(SUITE_ID) == str(test_suite_span.span_id)
+            assert spans[0].name == TEST_OPERATION_NAME
+            assert spans[0].get_tag(test.NAME) == "test_will_pass_first"
+            assert spans[0].get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
+            assert spans[0].get_tag(test.SUITE) == "UnittestExampleTestCase"
+            assert spans[0].get_tag(MODULE_ID) == str(test_module_span.span_id)
+            assert spans[0].get_tag(SUITE_ID) == str(test_suite_span.span_id)
 
             assert test_suite_span.name == SUITE_OPERATION_NAME
             assert test_suite_span.get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
@@ -113,9 +111,9 @@ class UnittestTestCase(TracerTestCase):
             spans = self.pop_spans()
             assert len(spans) == 5
 
-            test_suite_span = spans[2]
-            test_module_span = spans[1]
-            test_session_span = spans[0]
+            test_suite_span = spans[4]
+            test_module_span = spans[3]
+            test_session_span = spans[2]
 
             for i in range(len(spans)):
                 assert spans[i].get_tag(test.TEST_TYPE) == SpanTypes.TEST
@@ -130,19 +128,19 @@ class UnittestTestCase(TracerTestCase):
                 assert spans[i].get_tag(ERROR_MSG) is None
                 assert spans[i].get_tag(ERROR_TYPE) is None
 
-            assert spans[3].name == TEST_OPERATION_NAME
-            assert spans[3].get_tag(test.NAME) == "test_will_pass_first"
-            assert spans[3].get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
-            assert spans[3].get_tag(test.SUITE) == "UnittestExampleTestCase"
-            assert spans[3].get_tag(MODULE_ID) == str(test_module_span.span_id)
-            assert spans[3].get_tag(SUITE_ID) == str(test_suite_span.span_id)
+            assert spans[0].name == TEST_OPERATION_NAME
+            assert spans[0].get_tag(test.NAME) == "test_will_pass_first"
+            assert spans[0].get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
+            assert spans[0].get_tag(test.SUITE) == "UnittestExampleTestCase"
+            assert spans[0].get_tag(MODULE_ID) == str(test_module_span.span_id)
+            assert spans[0].get_tag(SUITE_ID) == str(test_suite_span.span_id)
 
-            assert spans[4].name == TEST_OPERATION_NAME
-            assert spans[4].get_tag(test.NAME) == "test_will_pass_second"
-            assert spans[4].get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
-            assert spans[4].get_tag(test.SUITE) == "UnittestExampleTestCase"
-            assert spans[4].get_tag(MODULE_ID) == str(test_module_span.span_id)
-            assert spans[4].get_tag(SUITE_ID) == str(test_suite_span.span_id)
+            assert spans[1].name == TEST_OPERATION_NAME
+            assert spans[1].get_tag(test.NAME) == "test_will_pass_second"
+            assert spans[1].get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
+            assert spans[1].get_tag(test.SUITE) == "UnittestExampleTestCase"
+            assert spans[1].get_tag(MODULE_ID) == str(test_module_span.span_id)
+            assert spans[1].get_tag(SUITE_ID) == str(test_suite_span.span_id)
 
             assert test_suite_span.name == SUITE_OPERATION_NAME
             assert test_suite_span.get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
@@ -179,11 +177,9 @@ class UnittestTestCase(TracerTestCase):
             spans = self.pop_spans()
             assert len(spans) == 4
 
-            test_span = spans[3]
-
-            test_suite_span = spans[2]
-            test_module_span = spans[1]
-            test_session_span = spans[0]
+            test_suite_span = spans[3]
+            test_module_span = spans[2]
+            test_session_span = spans[1]
 
             for i in range(len(spans)):
                 assert spans[i].get_tag(test.TEST_TYPE) == SpanTypes.TEST
@@ -197,13 +193,13 @@ class UnittestTestCase(TracerTestCase):
                 assert spans[i].get_tag(ERROR_MSG) is None
                 assert spans[i].get_tag(ERROR_TYPE) is None
 
-            assert test_span.name == TEST_OPERATION_NAME
-            assert test_span.get_tag(test.NAME) == "test_will_be_skipped"
-            assert test_span.get_tag(test.SKIP_REASON) == ""
-            assert test_span.get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
-            assert test_span.get_tag(test.SUITE) == "UnittestExampleTestCase"
-            assert test_span.get_tag(MODULE_ID) == str(test_module_span.span_id)
-            assert test_span.get_tag(SUITE_ID) == str(test_suite_span.span_id)
+            assert spans[0].name == TEST_OPERATION_NAME
+            assert spans[0].get_tag(test.NAME) == "test_will_be_skipped"
+            assert spans[0].get_tag(test.SKIP_REASON) == ""
+            assert spans[0].get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
+            assert spans[0].get_tag(test.SUITE) == "UnittestExampleTestCase"
+            assert spans[0].get_tag(MODULE_ID) == str(test_module_span.span_id)
+            assert spans[0].get_tag(SUITE_ID) == str(test_suite_span.span_id)
 
             assert test_suite_span.name == SUITE_OPERATION_NAME
             assert test_suite_span.get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
@@ -240,11 +236,9 @@ class UnittestTestCase(TracerTestCase):
             spans = self.pop_spans()
             assert len(spans) == 4
 
-            test_span = spans[3]
-
-            test_suite_span = spans[2]
-            test_module_span = spans[1]
-            test_session_span = spans[0]
+            test_suite_span = spans[3]
+            test_module_span = spans[2]
+            test_session_span = spans[1]
 
             for i in range(len(spans)):
                 assert spans[i].get_tag(test.TEST_TYPE) == SpanTypes.TEST
@@ -258,13 +252,13 @@ class UnittestTestCase(TracerTestCase):
                 assert spans[i].get_tag(ERROR_MSG) is None
                 assert spans[i].get_tag(ERROR_TYPE) is None
 
-            assert test_span.name == TEST_OPERATION_NAME
-            assert test_span.get_tag(test.NAME) == "test_will_be_skipped"
-            assert test_span.get_tag(test.SKIP_REASON) == "demonstrating skipping with a reason"
-            assert test_span.get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
-            assert test_span.get_tag(test.SUITE) == "UnittestExampleTestCase"
-            assert test_span.get_tag(MODULE_ID) == str(test_module_span.span_id)
-            assert test_span.get_tag(SUITE_ID) == str(test_suite_span.span_id)
+            assert spans[0].name == TEST_OPERATION_NAME
+            assert spans[0].get_tag(test.NAME) == "test_will_be_skipped"
+            assert spans[0].get_tag(test.SKIP_REASON) == "demonstrating skipping with a reason"
+            assert spans[0].get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
+            assert spans[0].get_tag(test.SUITE) == "UnittestExampleTestCase"
+            assert spans[0].get_tag(MODULE_ID) == str(test_module_span.span_id)
+            assert spans[0].get_tag(SUITE_ID) == str(test_suite_span.span_id)
 
             assert test_suite_span.name == SUITE_OPERATION_NAME
             assert test_suite_span.get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
@@ -307,9 +301,9 @@ class UnittestTestCase(TracerTestCase):
             spans = self.pop_spans()
             assert len(spans) == 5
 
-            test_suite_span = spans[2]
-            test_module_span = spans[1]
-            test_session_span = spans[0]
+            test_suite_span = spans[4]
+            test_module_span = spans[3]
+            test_session_span = spans[2]
 
             for i in range(len(spans)):
                 assert spans[i].get_tag(test.TEST_TYPE) == SpanTypes.TEST
@@ -323,21 +317,21 @@ class UnittestTestCase(TracerTestCase):
                 assert spans[i].get_tag(ERROR_MSG) is None
                 assert spans[i].get_tag(ERROR_TYPE) is None
 
-            assert spans[3].name == TEST_OPERATION_NAME
-            assert spans[3].get_tag(test.NAME) == "test_will_be_skipped_first"
-            assert spans[3].get_tag(test.SKIP_REASON) == "demonstrating skipping with a reason"
-            assert spans[3].get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
-            assert spans[3].get_tag(test.SUITE) == "UnittestExampleTestCase"
-            assert spans[3].get_tag(MODULE_ID) == str(test_module_span.span_id)
-            assert spans[3].get_tag(SUITE_ID) == str(test_suite_span.span_id)
+            assert spans[0].name == TEST_OPERATION_NAME
+            assert spans[0].get_tag(test.NAME) == "test_will_be_skipped_first"
+            assert spans[0].get_tag(test.SKIP_REASON) == "demonstrating skipping with a reason"
+            assert spans[0].get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
+            assert spans[0].get_tag(test.SUITE) == "UnittestExampleTestCase"
+            assert spans[0].get_tag(MODULE_ID) == str(test_module_span.span_id)
+            assert spans[0].get_tag(SUITE_ID) == str(test_suite_span.span_id)
 
-            assert spans[4].name == TEST_OPERATION_NAME
-            assert spans[4].get_tag(test.NAME) == "test_will_be_skipped_second"
-            assert spans[4].get_tag(test.SKIP_REASON) == "demonstrating skipping with a different reason"
-            assert spans[4].get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
-            assert spans[4].get_tag(test.SUITE) == "UnittestExampleTestCase"
-            assert spans[4].get_tag(MODULE_ID) == str(test_module_span.span_id)
-            assert spans[4].get_tag(SUITE_ID) == str(test_suite_span.span_id)
+            assert spans[1].name == TEST_OPERATION_NAME
+            assert spans[1].get_tag(test.NAME) == "test_will_be_skipped_second"
+            assert spans[1].get_tag(test.SKIP_REASON) == "demonstrating skipping with a different reason"
+            assert spans[1].get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
+            assert spans[1].get_tag(test.SUITE) == "UnittestExampleTestCase"
+            assert spans[1].get_tag(MODULE_ID) == str(test_module_span.span_id)
+            assert spans[1].get_tag(SUITE_ID) == str(test_suite_span.span_id)
 
             assert test_suite_span.name == SUITE_OPERATION_NAME
             assert test_suite_span.get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
@@ -384,9 +378,9 @@ class UnittestTestCase(TracerTestCase):
             spans = self.pop_spans()
             assert len(spans) == 5
 
-            test_suite_span = spans[2]
-            test_module_span = spans[1]
-            test_session_span = spans[0]
+            test_suite_span = spans[4]
+            test_module_span = spans[3]
+            test_session_span = spans[2]
 
             for i in range(len(spans)):
                 assert spans[i].get_tag(test.TEST_TYPE) == SpanTypes.TEST
@@ -399,23 +393,23 @@ class UnittestTestCase(TracerTestCase):
                 assert spans[i].get_tag(ERROR_MSG) is None
                 assert spans[i].get_tag(ERROR_TYPE) is None
 
-            assert spans[3].name == TEST_OPERATION_NAME
-            assert spans[3].get_tag(test.NAME) == "test_will_be_skipped"
-            assert spans[3].get_tag(test.TEST_STATUS) == test.Status.SKIP.value
-            assert spans[3].get_tag(test.SKIP_REASON) == ""
-            assert spans[3].get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
-            assert spans[3].get_tag(test.SUITE) == "UnittestExampleTestCase"
-            assert spans[3].get_tag(MODULE_ID) == str(test_module_span.span_id)
-            assert spans[3].get_tag(SUITE_ID) == str(test_suite_span.span_id)
+            assert spans[0].name == TEST_OPERATION_NAME
+            assert spans[0].get_tag(test.NAME) == "test_will_be_skipped"
+            assert spans[0].get_tag(test.TEST_STATUS) == test.Status.SKIP.value
+            assert spans[0].get_tag(test.SKIP_REASON) == ""
+            assert spans[0].get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
+            assert spans[0].get_tag(test.SUITE) == "UnittestExampleTestCase"
+            assert spans[0].get_tag(MODULE_ID) == str(test_module_span.span_id)
+            assert spans[0].get_tag(SUITE_ID) == str(test_suite_span.span_id)
 
-            assert spans[4].name == TEST_OPERATION_NAME
-            assert spans[4].get_tag(test.NAME) == "test_wont_be_skipped"
-            assert spans[4].get_tag(test.TEST_STATUS) == test.Status.PASS.value
-            assert spans[4].get_tag(test.SKIP_REASON) is None
-            assert spans[4].get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
-            assert spans[4].get_tag(test.SUITE) == "UnittestExampleTestCase"
-            assert spans[4].get_tag(MODULE_ID) == str(test_module_span.span_id)
-            assert spans[4].get_tag(SUITE_ID) == str(test_suite_span.span_id)
+            assert spans[1].name == TEST_OPERATION_NAME
+            assert spans[1].get_tag(test.NAME) == "test_wont_be_skipped"
+            assert spans[1].get_tag(test.TEST_STATUS) == test.Status.PASS.value
+            assert spans[1].get_tag(test.SKIP_REASON) is None
+            assert spans[1].get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
+            assert spans[1].get_tag(test.SUITE) == "UnittestExampleTestCase"
+            assert spans[1].get_tag(MODULE_ID) == str(test_module_span.span_id)
+            assert spans[1].get_tag(SUITE_ID) == str(test_suite_span.span_id)
 
             assert test_suite_span.name == SUITE_OPERATION_NAME
             assert test_suite_span.get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
@@ -454,9 +448,9 @@ class UnittestTestCase(TracerTestCase):
             spans = self.pop_spans()
             assert len(spans) == 4
 
-            test_suite_span = spans[2]
-            test_module_span = spans[1]
-            test_session_span = spans[0]
+            test_suite_span = spans[3]
+            test_module_span = spans[2]
+            test_session_span = spans[1]
 
             for i in range(len(spans)):
                 assert spans[i].get_tag(test.TEST_TYPE) == SpanTypes.TEST
@@ -468,17 +462,17 @@ class UnittestTestCase(TracerTestCase):
                 assert spans[i].get_tag(test.TEST_STATUS) == test.Status.FAIL.value
                 assert spans[i].get_tag(test.SKIP_REASON) is None
 
-            assert spans[3].name == TEST_OPERATION_NAME
-            assert spans[3].get_tag(test.NAME) == "test_will_fail"
-            assert spans[3].get_tag(ERROR_MSG) == "False is not true"
+            assert spans[0].name == TEST_OPERATION_NAME
+            assert spans[0].get_tag(test.NAME) == "test_will_fail"
+            assert spans[0].get_tag(ERROR_MSG) == "False is not true"
             if sys.version_info[0] >= 3:
-                assert spans[3].get_tag(ERROR_TYPE) == "builtins.AssertionError"
+                assert spans[0].get_tag(ERROR_TYPE) == "builtins.AssertionError"
             else:
-                assert spans[3].get_tag(ERROR_TYPE) == "exceptions.AssertionError"
-            assert spans[3].get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
-            assert spans[3].get_tag(test.SUITE) == "UnittestExampleTestCase"
-            assert spans[3].get_tag(MODULE_ID) == str(test_module_span.span_id)
-            assert spans[3].get_tag(SUITE_ID) == str(test_suite_span.span_id)
+                assert spans[0].get_tag(ERROR_TYPE) == "exceptions.AssertionError"
+            assert spans[0].get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
+            assert spans[0].get_tag(test.SUITE) == "UnittestExampleTestCase"
+            assert spans[0].get_tag(MODULE_ID) == str(test_module_span.span_id)
+            assert spans[0].get_tag(SUITE_ID) == str(test_suite_span.span_id)
 
             assert test_suite_span.name == SUITE_OPERATION_NAME
             assert test_suite_span.get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
@@ -523,9 +517,9 @@ class UnittestTestCase(TracerTestCase):
 
             assert len(spans) == 5
 
-            test_suite_span = spans[2]
-            test_module_span = spans[1]
-            test_session_span = spans[0]
+            test_suite_span = spans[4]
+            test_module_span = spans[3]
+            test_session_span = spans[2]
 
             for i in range(len(spans)):
                 assert spans[i].get_tag(test.TEST_TYPE) == SpanTypes.TEST
@@ -538,29 +532,29 @@ class UnittestTestCase(TracerTestCase):
                 assert spans[i].get_tag(test.SKIP_REASON) is None
                 assert spans[i].get_tag(test.COMMAND) == "python -m unittest"
 
-            assert spans[3].name == TEST_OPERATION_NAME
-            assert spans[3].get_tag(test.NAME) == "test_will_fail_first"
-            assert spans[3].get_tag(ERROR_MSG) == "False is not true"
+            assert spans[0].name == TEST_OPERATION_NAME
+            assert spans[0].get_tag(test.NAME) == "test_will_fail_first"
+            assert spans[0].get_tag(ERROR_MSG) == "False is not true"
             if sys.version_info[0] >= 3:
-                assert spans[3].get_tag(ERROR_TYPE) == "builtins.AssertionError"
+                assert spans[0].get_tag(ERROR_TYPE) == "builtins.AssertionError"
             else:
-                assert spans[3].get_tag(ERROR_TYPE) == "exceptions.AssertionError"
-            assert spans[3].get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
-            assert spans[3].get_tag(test.SUITE) == "UnittestExampleTestCase"
-            assert spans[3].get_tag(MODULE_ID) == str(test_module_span.span_id)
-            assert spans[3].get_tag(SUITE_ID) == str(test_suite_span.span_id)
+                assert spans[0].get_tag(ERROR_TYPE) == "exceptions.AssertionError"
+            assert spans[0].get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
+            assert spans[0].get_tag(test.SUITE) == "UnittestExampleTestCase"
+            assert spans[0].get_tag(MODULE_ID) == str(test_module_span.span_id)
+            assert spans[0].get_tag(SUITE_ID) == str(test_suite_span.span_id)
 
-            assert spans[4].name == TEST_OPERATION_NAME
-            assert spans[4].get_tag(test.NAME) == "test_will_fail_second"
-            assert spans[4].get_tag(ERROR_MSG) == "False is not true"
+            assert spans[1].name == TEST_OPERATION_NAME
+            assert spans[1].get_tag(test.NAME) == "test_will_fail_second"
+            assert spans[1].get_tag(ERROR_MSG) == "False is not true"
             if sys.version_info[0] >= 3:
-                assert spans[4].get_tag(ERROR_TYPE) == "builtins.AssertionError"
+                assert spans[1].get_tag(ERROR_TYPE) == "builtins.AssertionError"
             else:
-                assert spans[4].get_tag(ERROR_TYPE) == "exceptions.AssertionError"
-            assert spans[4].get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
-            assert spans[4].get_tag(test.SUITE) == "UnittestExampleTestCase"
-            assert spans[4].get_tag(MODULE_ID) == str(test_module_span.span_id)
-            assert spans[4].get_tag(SUITE_ID) == str(test_suite_span.span_id)
+                assert spans[1].get_tag(ERROR_TYPE) == "exceptions.AssertionError"
+            assert spans[1].get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
+            assert spans[1].get_tag(test.SUITE) == "UnittestExampleTestCase"
+            assert spans[1].get_tag(MODULE_ID) == str(test_module_span.span_id)
+            assert spans[1].get_tag(SUITE_ID) == str(test_suite_span.span_id)
 
             assert test_suite_span.name == SUITE_OPERATION_NAME
             assert test_suite_span.get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
@@ -610,9 +604,9 @@ class UnittestTestCase(TracerTestCase):
             spans = self.pop_spans()
             assert len(spans) == 6
 
-            test_suite_span = spans[2]
-            test_module_span = spans[1]
-            test_session_span = spans[0]
+            test_session_span = spans[3]
+            test_module_span = spans[4]
+            test_suite_span = spans[5]
 
             for i in range(len(spans)):
                 assert spans[i].get_tag(test.TEST_TYPE) == SpanTypes.TEST
@@ -623,41 +617,41 @@ class UnittestTestCase(TracerTestCase):
                 assert spans[i].get_tag(SESSION_ID) == str(test_session_span.span_id)
                 assert spans[i].get_tag(test.COMMAND) == "python -m unittest"
 
-            assert spans[3].name == TEST_OPERATION_NAME
-            assert spans[3].get_tag(test.NAME) == "test_will_be_skipped_with_a_reason"
-            assert spans[3].get_tag(test.TEST_STATUS) == test.Status.SKIP.value
-            assert spans[3].get_tag(test.SKIP_REASON) == "another skip reason"
-            assert spans[3].get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
-            assert spans[3].get_tag(test.SUITE) == "UnittestExampleTestCase"
-            assert spans[3].get_tag(MODULE_ID) == str(test_module_span.span_id)
-            assert spans[3].get_tag(SUITE_ID) == str(test_suite_span.span_id)
-            assert spans[3].get_tag(ERROR_MSG) is None
-            assert spans[3].get_tag(ERROR_TYPE) is None
+            assert spans[0].name == TEST_OPERATION_NAME
+            assert spans[0].get_tag(test.NAME) == "test_will_be_skipped_with_a_reason"
+            assert spans[0].get_tag(test.TEST_STATUS) == test.Status.SKIP.value
+            assert spans[0].get_tag(test.SKIP_REASON) == "another skip reason"
+            assert spans[0].get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
+            assert spans[0].get_tag(test.SUITE) == "UnittestExampleTestCase"
+            assert spans[0].get_tag(MODULE_ID) == str(test_module_span.span_id)
+            assert spans[0].get_tag(SUITE_ID) == str(test_suite_span.span_id)
+            assert spans[0].get_tag(ERROR_MSG) is None
+            assert spans[0].get_tag(ERROR_TYPE) is None
 
-            assert spans[4].name == TEST_OPERATION_NAME
-            assert spans[4].get_tag(test.NAME) == "test_will_fail_first"
-            assert spans[4].get_tag(test.TEST_STATUS) == test.Status.FAIL.value
-            assert spans[4].get_tag(test.SKIP_REASON) is None
-            assert spans[4].get_tag(ERROR_MSG) == "False is not true"
+            assert spans[1].name == TEST_OPERATION_NAME
+            assert spans[1].get_tag(test.NAME) == "test_will_fail_first"
+            assert spans[1].get_tag(test.TEST_STATUS) == test.Status.FAIL.value
+            assert spans[1].get_tag(test.SKIP_REASON) is None
+            assert spans[1].get_tag(ERROR_MSG) == "False is not true"
             if sys.version_info[0] >= 3:
-                assert spans[4].get_tag(ERROR_TYPE) == "builtins.AssertionError"
+                assert spans[1].get_tag(ERROR_TYPE) == "builtins.AssertionError"
             else:
-                assert spans[4].get_tag(ERROR_TYPE) == "exceptions.AssertionError"
-            assert spans[4].get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
-            assert spans[4].get_tag(test.SUITE) == "UnittestExampleTestCase"
-            assert spans[4].get_tag(MODULE_ID) == str(test_module_span.span_id)
-            assert spans[4].get_tag(SUITE_ID) == str(test_suite_span.span_id)
+                assert spans[1].get_tag(ERROR_TYPE) == "exceptions.AssertionError"
+            assert spans[1].get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
+            assert spans[1].get_tag(test.SUITE) == "UnittestExampleTestCase"
+            assert spans[1].get_tag(MODULE_ID) == str(test_module_span.span_id)
+            assert spans[1].get_tag(SUITE_ID) == str(test_suite_span.span_id)
 
-            assert spans[5].name == TEST_OPERATION_NAME
-            assert spans[5].get_tag(test.NAME) == "test_will_pass_first"
-            assert spans[5].get_tag(test.TEST_STATUS) == test.Status.PASS.value
-            assert spans[5].get_tag(test.SKIP_REASON) is None
-            assert spans[5].get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
-            assert spans[5].get_tag(test.SUITE) == "UnittestExampleTestCase"
-            assert spans[5].get_tag(MODULE_ID) == str(test_module_span.span_id)
-            assert spans[5].get_tag(SUITE_ID) == str(test_suite_span.span_id)
-            assert spans[5].get_tag(ERROR_MSG) is None
-            assert spans[5].get_tag(ERROR_TYPE) is None
+            assert spans[2].name == TEST_OPERATION_NAME
+            assert spans[2].get_tag(test.NAME) == "test_will_pass_first"
+            assert spans[2].get_tag(test.TEST_STATUS) == test.Status.PASS.value
+            assert spans[2].get_tag(test.SKIP_REASON) is None
+            assert spans[2].get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
+            assert spans[2].get_tag(test.SUITE) == "UnittestExampleTestCase"
+            assert spans[2].get_tag(MODULE_ID) == str(test_module_span.span_id)
+            assert spans[2].get_tag(SUITE_ID) == str(test_suite_span.span_id)
+            assert spans[2].get_tag(ERROR_MSG) is None
+            assert spans[2].get_tag(ERROR_TYPE) is None
 
             assert test_suite_span.name == SUITE_OPERATION_NAME
             assert test_suite_span.get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
@@ -727,28 +721,11 @@ class UnittestTestCase(TracerTestCase):
             spans = self.pop_spans()
             assert len(spans) == 8
 
-            test_suite_span = spans[2]
-            test_module_span = spans[1]
-            test_session_span = spans[0]
+            test_suite_span = spans[7]
+            test_module_span = spans[6]
+            test_session_span = spans[5]
 
             expected_result = [
-                {
-                    "name": SESSION_OPERATION_NAME,
-                    test.TEST_STATUS: test.Status.FAIL.value,
-                },
-                {
-                    "name": MODULE_OPERATION_NAME,
-                    test.TEST_STATUS: test.Status.FAIL.value,
-                    test.MODULE: "tests.contrib.unittest_plugin.test_unittest",
-                    MODULE_ID: str(test_module_span.span_id),
-                },
-                {
-                    "name": SUITE_OPERATION_NAME,
-                    test.TEST_STATUS: test.Status.FAIL.value,
-                    test.SUITE: "SubTest1",
-                    MODULE_ID: str(test_module_span.span_id),
-                    SUITE_ID: str(test_suite_span.span_id),
-                },
                 {
                     "name": TEST_OPERATION_NAME,
                     test.NAME: "test_subtest1_will_be_skipped_with_a_reason",
@@ -797,6 +774,23 @@ class UnittestTestCase(TracerTestCase):
                     MODULE_ID: str(test_module_span.span_id),
                     SUITE_ID: str(test_suite_span.span_id),
                     test.MODULE: "tests.contrib.unittest_plugin.test_unittest",
+                },
+                {
+                    "name": SESSION_OPERATION_NAME,
+                    test.TEST_STATUS: test.Status.FAIL.value,
+                },
+                {
+                    "name": MODULE_OPERATION_NAME,
+                    test.TEST_STATUS: test.Status.FAIL.value,
+                    test.MODULE: "tests.contrib.unittest_plugin.test_unittest",
+                    MODULE_ID: str(test_module_span.span_id),
+                },
+                {
+                    "name": SUITE_OPERATION_NAME,
+                    test.TEST_STATUS: test.Status.FAIL.value,
+                    test.SUITE: "SubTest1",
+                    MODULE_ID: str(test_module_span.span_id),
+                    SUITE_ID: str(test_suite_span.span_id),
                 },
             ]
 
