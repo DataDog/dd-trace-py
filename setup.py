@@ -593,7 +593,10 @@ setup(
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
     ],
-    use_scm_version={"write_to": "ddtrace/_version.py"},
+    use_scm_version={
+        "write_to": "ddtrace/_version.py",
+        "version_scheme": "release-branch-semver",
+    },
     setup_requires=["setuptools_scm[toml]>=4", "cython<3", "cmake>=3.24.2; python_version>='3.6'"],
     ext_modules=ext_modules
     + cythonize(
