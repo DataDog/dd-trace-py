@@ -23,10 +23,12 @@ required_modules = ["concurrent.futures.thread"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
+        from .patch import get_version
         from .patch import patch
         from .patch import unpatch
 
         __all__ = [
+            "get_version",
             "patch",
             "unpatch",
         ]

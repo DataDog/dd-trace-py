@@ -4,7 +4,7 @@ import pytest
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec.iast._patch_modules import patch_iast
-from ddtrace.appsec.iast._util import _is_python_version_supported
+from ddtrace.appsec.iast._utils import _is_python_version_supported
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
 from ddtrace.ext import SpanTypes
@@ -22,7 +22,7 @@ def traced_function(tracer):
         m.update(b"Nobody inspects")
         m.update(b" the spammish repetition")
         num_vulnerabilities = 10
-        for i in range(0, num_vulnerabilities):
+        for _ in range(0, num_vulnerabilities):
             m.digest()
     return span
 

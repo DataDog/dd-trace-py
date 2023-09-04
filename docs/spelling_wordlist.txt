@@ -69,6 +69,7 @@ datastores
 dbapi
 ddtrace
 deprecations
+deserializing
 django
 docstring
 doctest
@@ -103,6 +104,7 @@ httplib
 https
 httpx
 iPython
+iast
 ini
 InitContainer
 initializer
@@ -142,6 +144,7 @@ mysql
 mysqlclient
 mysqldb
 namespace
+NeedsAppKey
 obfuscator
 openai
 opensearch
@@ -250,3 +253,5 @@ programmatically
 DES
 Blowfish
 Gitlab
+hotspot
+CMake

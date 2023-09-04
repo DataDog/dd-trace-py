@@ -301,6 +301,9 @@
             "ddtrace/contrib/pytest/*",
             "ddtrace/contrib/pytest_bdd/*"
         ],
+        "unittest": [
+            "ddtrace/contrib/unittest/*"
+        ],
         "appsec": [
             "ddtrace/appsec/*"
         ]
@@ -605,6 +608,7 @@
             "@django",
             "@dbapi",
             "@pg",
+            "tests/appsec/*",
             "tests/contrib/django/*",
             "tests/contrib/django_celery/*",
             "tests/snapshots/tests.contrib.{suite}.*"
@@ -645,6 +649,7 @@
             "@flask",
             "@appsec",
             "@wsgi",
+            "tests/appsec/*",
             "tests/contrib/flask/*",
             "tests/contrib/flask_autopatch/*",
             "tests/contrib/flask_cache/*",
@@ -767,6 +772,10 @@
             "@pytest",
             "@ci_visibility",
             "tests/contrib/pytest/*"
+        ],
+        "unittest": [
+            "@unittest",
+            "tests/contrib/unittest_plugin/*"
         ],
         "asynctest": [
             "@bootstrap",

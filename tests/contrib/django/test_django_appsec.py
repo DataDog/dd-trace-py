@@ -22,8 +22,7 @@ from tests.appsec.test_processor import RULES_SRB
 from tests.appsec.test_processor import RULES_SRBCA
 from tests.appsec.test_processor import RULES_SRB_METHOD
 from tests.appsec.test_processor import RULES_SRB_RESPONSE
-from tests.appsec.test_processor import _ALLOWED_IP
-from tests.appsec.test_processor import _BLOCKED_IP
+from tests.appsec.test_processor import _IP
 from tests.utils import override_env
 from tests.utils import override_global_config
 
@@ -36,8 +35,10 @@ def _aux_appsec_get_root_span(
     url="/",
     content_type="text/plain",
     headers=None,
-    cookies={},
+    cookies=None,
 ):
+    if cookies is None:
+        cookies = {}
     tracer._appsec_enabled = config._appsec_enabled
     tracer._iast_enabled = config._iast_enabled
     # Hack: need to pass an argument to configure so that the processors are recreated
@@ -409,12 +410,12 @@ def test_request_ipblock_403(client, test_spans, tracer):
             test_spans,
             tracer,
             url="/foobar",
-            headers={"HTTP_X_REAL_IP": _BLOCKED_IP, "HTTP_USER_AGENT": "fooagent"},
+            headers={"HTTP_X_REAL_IP": _IP.BLOCKED, "HTTP_USER_AGENT": "fooagent"},
         )
         assert result.status_code == 403
         as_bytes = bytes(constants.BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else constants.BLOCKED_RESPONSE_JSON
         assert result.content == as_bytes
-        assert root.get_tag("actor.ip") == _BLOCKED_IP
+        assert root.get_tag("actor.ip") == _IP.BLOCKED
         assert root.get_tag(http.STATUS_CODE) == "403"
         assert root.get_tag(http.URL) == "http://testserver/foobar"
         assert root.get_tag(http.METHOD) == "GET"
@@ -433,12 +434,12 @@ def test_request_ipblock_403_html(client, test_spans, tracer):
     """
     with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
         root, result = _aux_appsec_get_root_span(
-            client, test_spans, tracer, url="/", headers={"HTTP_X_REAL_IP": _BLOCKED_IP, "HTTP_ACCEPT": "text/html"}
+            client, test_spans, tracer, url="/", headers={"HTTP_X_REAL_IP": _IP.BLOCKED, "HTTP_ACCEPT": "text/html"}
         )
         assert result.status_code == 403
         as_bytes = bytes(BLOCKED_RESPONSE_HTML, "utf-8") if PY3 else BLOCKED_RESPONSE_HTML
         assert result.content == as_bytes
-        assert root.get_tag("actor.ip") == _BLOCKED_IP
+        assert root.get_tag("actor.ip") == _IP.BLOCKED
         assert root.get_tag(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/html"
         if hasattr(result, "headers"):
             assert result.headers["content-type"] == "text/html"
@@ -447,7 +448,7 @@ def test_request_ipblock_403_html(client, test_spans, tracer):
 def test_request_ipblock_nomatch_200(client, test_spans, tracer):
     with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
         root, result = _aux_appsec_get_root_span(
-            client, test_spans, tracer, url="/", headers={"HTTP_X_REAL_IP": _ALLOWED_IP}
+            client, test_spans, tracer, url="/", headers={"HTTP_X_REAL_IP": _IP.DEFAULT}
         )
         assert result.status_code == 200
         assert result.content == b"Hello, test app."
@@ -461,7 +462,7 @@ def test_request_block_request_callable(client, test_spans, tracer):
             test_spans,
             tracer,
             url="/appsec/block/",
-            headers={"HTTP_X_REAL_IP": _ALLOWED_IP, "HTTP_USER_AGENT": "fooagent"},
+            headers={"HTTP_X_REAL_IP": _IP.DEFAULT, "HTTP_USER_AGENT": "fooagent"},
         )
         # Should not block by IP, but the block callable is called directly inside that view
         assert result.status_code == 403

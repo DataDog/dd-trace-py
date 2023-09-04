@@ -7,17 +7,15 @@ try:
     from ddtrace.appsec.iast import oce
     from ddtrace.appsec.iast._taint_tracking import OriginType
     from ddtrace.appsec.iast._taint_tracking import Source
-    from ddtrace.appsec.iast._taint_tracking import setup as taint_tracking_setup
     from ddtrace.appsec.iast._taint_tracking import taint_pyobject
     from ddtrace.appsec.iast._taint_tracking import taint_ranges_as_evidence_info
     from ddtrace.appsec.iast._taint_tracking.aspects import add_aspect
-    from ddtrace.appsec.iast._util import _is_python_version_supported as python_supported_by_iast
+    from ddtrace.appsec.iast._utils import _is_python_version_supported as python_supported_by_iast
 except (ImportError, AttributeError):
     pytest.skip("IAST not supported for this Python version", allow_module_level=True)
 
 
 def setup():
-    taint_tracking_setup(bytes.join, bytearray.join)
     oce._enabled = True
 
 

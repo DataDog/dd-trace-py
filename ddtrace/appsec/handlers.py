@@ -5,12 +5,12 @@ from six import BytesIO
 import xmltodict
 
 from ddtrace import config
-from ddtrace.appsec.iast._metrics import _set_metric_iast_instrumented_source
 from ddtrace.appsec.iast._patch import if_iast_taint_returned_object_for
 from ddtrace.appsec.iast._patch import if_iast_taint_yield_tuple_for
-from ddtrace.appsec.iast._util import _is_iast_enabled
+from ddtrace.appsec.iast._utils import _is_iast_enabled
 from ddtrace.contrib import trace_utils
 from ddtrace.internal import core
+from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.logger import get_logger
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 from ddtrace.vendor.wrapt.importer import when_imported
@@ -27,7 +27,7 @@ _BODY_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
 
 
 def _on_request_span_modifier(
-    span, flask_config, request, environ, _HAS_JSON_MIXIN, flask_version, flask_version_str, exception_type
+    ctx, flask_config, request, environ, _HAS_JSON_MIXIN, flask_version, flask_version_str, exception_type
 ):
     req_body = None
     if config._appsec_enabled and request.method in _BODY_METHODS:
@@ -83,6 +83,7 @@ def _on_request_init(wrapped, instance, args, kwargs):
     wrapped(*args, **kwargs)
     if _is_iast_enabled():
         try:
+            from ddtrace.appsec.iast._metrics import _set_metric_iast_instrumented_source
             from ddtrace.appsec.iast._taint_tracking import OriginType
             from ddtrace.appsec.iast._taint_tracking import taint_pyobject
 
@@ -108,6 +109,7 @@ def _on_request_init(wrapped, instance, args, kwargs):
 def _on_flask_patch(flask_version):
     if _is_iast_enabled():
         try:
+            from ddtrace.appsec.iast._metrics import _set_metric_iast_instrumented_source
             from ddtrace.appsec.iast._taint_tracking import OriginType
 
             _w(
@@ -149,6 +151,10 @@ def _on_flask_patch(flask_version):
                 _set_metric_iast_instrumented_source(OriginType.QUERY)
         except Exception:
             log.debug("Unexpected exception while patch IAST functions", exc_info=True)
+
+
+def _on_flask_blocked_request():
+    core.set_item(HTTP_REQUEST_BLOCKED, True)
 
 
 def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type):
@@ -210,6 +216,7 @@ def _on_wsgi_environ(wrapped, _instance, args, kwargs):
         if not args:
             return wrapped(*args, **kwargs)
 
+        from ddtrace.appsec.iast._metrics import _set_metric_iast_instrumented_source
         from ddtrace.appsec.iast._taint_tracking import OriginType  # noqa: F401
         from ddtrace.appsec.iast._taint_utils import LazyTaintDict
 
@@ -247,7 +254,9 @@ def _on_django_patch():
 
 
 def listen():
-    core.on("flask.request_span_modifier", _on_request_span_modifier)
+    core.on("flask.request_call_modifier", _on_request_span_modifier)
+    core.on("flask.request_init", _on_request_init)
+    core.on("flask.blocked_request_callable", _on_flask_blocked_request)
 
 
 core.on("django.func.wrapped", _on_django_func_wrapped)

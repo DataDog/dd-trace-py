@@ -286,10 +286,14 @@ The following environment variables for the tracer are supported:
        v0.56.0:
        v1.7.0: default changed to ``v0.5``.
 
-   DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN:
+   DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP:
      default: |
-         ``(?i)(?:p(?:ass)?w(?:or)?d|pass(?:_?phrase)?|secret|(?:api_?|private_?|public_?|access_?|secret_?)key(?:_?id)?|token|consumer_?(?:id|key|secret)|sign(?:ed|ature)?|auth(?:entication|orization)?)(?:(?:\s|%20)*(?:=|%3D)[^&]+|(?:"|%22)(?:\s|%20)*(?::|%3A)(?:\s|%20)*(?:"|%22)(?:%2[^2]|%[^2]|[^"%])+(?:"|%22))|bearer(?:\s|%20)+[a-z0-9\._\-]|token(?::|%3A)[a-z0-9]{13}|gh[opsu]_[0-9a-zA-Z]{36}|ey[I-L](?:[\w=-]|%3D)+\.ey[I-L](?:[\w=-]|%3D)+(?:\.(?:[\w.+\/=-]|%3D|%2F|%2B)+)?|[\-]{5}BEGIN(?:[a-z\s]|%20)+PRIVATE(?:\s|%20)KEY[\-]{5}[^\-]+[\-]{5}END(?:[a-z\s]|%20)+PRIVATE(?:\s|%20)KEY|ssh-rsa(?:\s|%20)*(?:[a-z0-9\/\.+]|%2F|%5C|%2B){100,}.``
+         ``'(?ix)(?:(?:"|%22)?)(?:(?:old[-_]?|new[-_]?)?p(?:ass)?w(?:or)?d(?:1|2)?|pass(?:[-_]?phrase)?|secret|(?:api[-_]?|private[-_]?|public[-_]?|access[-_]?|secret[-_]?)key(?:[-_]?id)?|token|consumer[-_]?(?:id|key|secret)|sign(?:ed|ature)?|auth(?:entication|orization)?)(?:(?:\\s|%20)*(?:=|%3D)[^&]+|(?:"|%22)(?:\\s|%20)*(?::|%3A)(?:\\s|%20)*(?:"|%22)(?:%2[^2]|%[^2]|[^"%])+(?:"|%22))|(?: bearer(?:\\s|%20)+[a-z0-9._\\-]+|token(?::|%3A)[a-z0-9]{13}|gh[opsu]_[0-9a-zA-Z]{36}|ey[I-L](?:[\\w=-]|%3D)+\\.ey[I-L](?:[\\w=-]|%3D)+(?:\\.(?:[\\w.+/=-]|%3D|%2F|%2B)+)?|-{5}BEGIN(?:[a-z\\s]|%20)+PRIVATE(?:\\s|%20)KEY-{5}[^\\-]+-{5}END(?:[a-z\\s]|%20)+PRIVATE(?:\\s|%20)KEY(?:-{5})?(?:\\n|%0A)?|(?:ssh-(?:rsa|dss)|ecdsa-[a-z0-9]+-[a-z0-9]+)(?:\\s|%20|%09)+(?:[a-z0-9/.+]|%2F|%5C|%2B){100,}(?:=|%3D)*(?:(?:\\s|%20|%09)+[a-z0-9._-]+)?)'``
      description: A regexp to redact sensitive query strings. Obfuscation disabled if set to empty string
+     version_added:
+       v1.19.0: |
+           ``DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP`` replaces ``DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN`` which is deprecated
+           and will be deleted in 2.0.0
 
    DD_TRACE_PROPAGATION_STYLE:
      default: |
@@ -501,14 +505,14 @@ The following environment variables for the tracer are supported:
      version_added:
         v1.13.0:
 
-   DD_CIVISIBILITY_ITR_DISABLED:
+   DD_CIVISIBILITY_ITR_ENABLED:
      type: Boolean
      default: False
      description: |
-        Prevents the Intelligent Test Runner from skipping tests, and disables configuring the ``CIVisibility`` service
-        to generate and upload git packfiles in support of the Intelligent Test Runner.
+        Configures the ``CIVisibility`` service to generate and upload git packfiles in support
+        of the Datadog Intelligent Test Runner. This configuration has no effect if ``DD_CIVISIBILITY_AGENTLESS_ENABLED`` is false.
      version_added:
-        v1.18.0:
+        v1.13.0:
 
    DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING:
       type: String

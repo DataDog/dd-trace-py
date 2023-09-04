@@ -156,7 +156,7 @@ def collect(tracer):
         asm_enabled=ddtrace.config._appsec_enabled,
         iast_enabled=ddtrace.config._iast_enabled,
         waf_timeout=ddtrace.config._waf_timeout,
-        remote_config_enabled=os.getenv("DD_REMOTE_CONFIGURATION_ENABLED", "true"),
+        remote_config_enabled=ddtrace.config._remote_config_enabled,
     )
 
 
