@@ -24,7 +24,6 @@ from .. import periodic
 from .. import service
 from ...constants import KEEP_SPANS_RATE_KEY
 from ...internal.telemetry import telemetry_writer
-from ...internal.utils.formats import asbool
 from ...internal.utils.formats import parse_tags_str
 from ...internal.utils.http import Response
 from ...internal.utils.time import StopWatch
@@ -68,31 +67,6 @@ class NoEncodableSpansError(Exception):
 # 2s timeout, the java tracer has a 10s timeout, so we set the window size
 # to 10 buckets of 1s duration.
 DEFAULT_SMA_WINDOW = 10
-
-DEFAULT_BUFFER_SIZE = 8 << 20  # 8 MB
-DEFAULT_MAX_PAYLOAD_SIZE = 8 << 20  # 8 MB
-DEFAULT_PROCESSING_INTERVAL = 1.0
-DEFAULT_REUSE_CONNECTIONS = False
-
-
-def get_writer_buffer_size():
-    # type: () -> int
-    return int(os.getenv("DD_TRACE_WRITER_BUFFER_SIZE_BYTES", default=DEFAULT_BUFFER_SIZE))
-
-
-def get_writer_max_payload_size():
-    # type: () -> int
-    return int(os.getenv("DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES", default=DEFAULT_MAX_PAYLOAD_SIZE))
-
-
-def get_writer_interval_seconds():
-    # type: () -> float
-    return float(os.getenv("DD_TRACE_WRITER_INTERVAL_SECONDS", default=DEFAULT_PROCESSING_INTERVAL))
-
-
-def get_writer_reuse_connections():
-    # type: () -> bool
-    return asbool(os.getenv("DD_TRACE_WRITER_REUSE_CONNECTIONS", DEFAULT_REUSE_CONNECTIONS))
 
 
 def _human_size(nbytes):
@@ -196,7 +170,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         # type: (...) -> None
 
         if processing_interval is None:
-            processing_interval = get_writer_interval_seconds()
+            processing_interval = config._trace_writer_interval_seconds
         if timeout is None:
             timeout = agent.get_trace_agent_timeout()
         super(HTTPWriter, self).__init__(interval=processing_interval)
@@ -225,8 +199,9 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             until=lambda result: isinstance(result, Response),
         )(self._send_payload)
 
-        self._log_error_payloads = asbool(os.environ.get("_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", False))
-        self._reuse_connections = get_writer_reuse_connections() if reuse_connections is None else reuse_connections
+        self._reuse_connections = (
+            config._trace_writer_connection_reuse if reuse_connections is None else reuse_connections
+        )
 
     def _intake_endpoint(self, client=None):
         return "{}/{}".format(self._intake_url(client), client.ENDPOINT if client else self._endpoint)
@@ -350,7 +325,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 response.reason,
             )
             # Append the payload if requested
-            if self._log_error_payloads:
+            if config._trace_writer_log_err_payload:
                 msg += ", payload %s"
                 # If the payload is bytes then hex encode the value before logging
                 if isinstance(payload, six.binary_type):
@@ -514,7 +489,7 @@ class AgentWriter(HTTPWriter):
     ):
         # type: (...) -> None
         if processing_interval is None:
-            processing_interval = get_writer_interval_seconds()
+            processing_interval = config._trace_writer_interval_seconds
         if timeout is None:
             timeout = agent.get_trace_agent_timeout()
         if buffer_size is not None and buffer_size <= 0:
@@ -532,9 +507,7 @@ class AgentWriter(HTTPWriter):
         )
 
         self._api_version = (
-            api_version
-            or os.getenv("DD_TRACE_API_VERSION")
-            or (default_api_version if priority_sampler is not None else "v0.3")
+            api_version or config._trace_api or (default_api_version if priority_sampler is not None else "v0.3")
         )
         if is_windows and self._api_version == "v0.5":
             raise RuntimeError(
@@ -542,8 +515,8 @@ class AgentWriter(HTTPWriter):
                 "please see https://github.com/DataDog/dd-trace-py/issues/4829 for more details."
             )
 
-        buffer_size = buffer_size or get_writer_buffer_size()
-        max_payload_size = max_payload_size or get_writer_max_payload_size()
+        buffer_size = buffer_size or config._trace_writer_buffer_size
+        max_payload_size = max_payload_size or config._trace_writer_payload_size
         try:
             client = WRITER_CLIENTS[self._api_version](buffer_size, max_payload_size)
         except KeyError:
@@ -670,7 +643,7 @@ class AgentWriter(HTTPWriter):
             # appsec remote config should be enabled/started after the global tracer and configs
             # are initialized
             if os.getenv("AWS_LAMBDA_FUNCTION_NAME") is None and (
-                config._appsec_enabled or asbool(os.getenv("DD_REMOTE_CONFIGURATION_ENABLED", "true"))
+                config._appsec_enabled or config._remote_config_enabled
             ):
                 from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
 
