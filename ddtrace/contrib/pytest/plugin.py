@@ -32,7 +32,6 @@ from ddtrace.ext import test
 from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import EVENT_TYPE as _EVENT_TYPE
-from ddtrace.internal.ci_visibility.constants import ITR_SUITE_UNSKIPPABLE_NAME
 from ddtrace.internal.ci_visibility.constants import ITR_UNSKIPPABLE_REASON
 from ddtrace.internal.ci_visibility.constants import MODULE_ID as _MODULE_ID
 from ddtrace.internal.ci_visibility.constants import MODULE_TYPE as _MODULE_TYPE
@@ -229,10 +228,6 @@ def _get_suite_name(item, test_module_path=None):
         suite_path = os.path.relpath(item.nodeid, start=test_module_path)
         return suite_path
     return item.nodeid
-
-
-def _is_suite_unskippable(item):
-    return bool(getattr(item.module, ITR_SUITE_UNSKIPPABLE_NAME, False))
 
 
 def _is_test_unskippable(item):

@@ -47,7 +47,6 @@ SETTING_ENDPOINT = "/api/v2/libraries/tests/services/setting"
 SKIPPABLE_ENDPOINT = "/api/v2/ci/tests/skippable"
 
 ITR_UNSKIPPABLE_REASON = "datadog_itr_unskippable"
-ITR_SUITE_UNSKIPPABLE_NAME = "DATADOG_ITR_UNSKIPPABLE"
 
 
 class REQUESTS_MODE(IntEnum):
