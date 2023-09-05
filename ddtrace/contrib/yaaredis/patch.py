@@ -10,6 +10,7 @@ from ...internal.utils.formats import CMD_MAX_LEN
 from ...internal.utils.formats import stringify_cache_args
 from ...internal.utils.wrappers import unwrap
 from ...pin import Pin
+from ..redis.asyncio_patch import _run_redis_command_async
 from ..trace_utils_redis import _trace_redis_cmd
 from ..trace_utils_redis import _trace_redis_execute_pipeline
 
@@ -58,8 +59,8 @@ async def traced_execute_command(func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return await func(*args, **kwargs)
 
-    with _trace_redis_cmd(pin, config.yaaredis, instance, args):
-        return await func(*args, **kwargs)
+    with _trace_redis_cmd(pin, config.yaaredis, instance, args) as span:
+        return await _run_redis_command_async(span=span, func=func, args=args, kwargs=kwargs)
 
 
 async def traced_pipeline(func, instance, args, kwargs):
