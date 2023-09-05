@@ -54,11 +54,13 @@ set_fast_tainted_if_notinterned_unicode(const PyObject* op)
     if (!PyUnicode_Check(op)) {
         return;
     }
-    if (PyUnicode_CHECK_INTERNED(op) != SSTATE_NOT_INTERNED) {
+    if (PyUnicode_CHECK_INTERNED(op)) {
         return;
     }
-    PyASCIIObject_State_Hidden* e = (PyASCIIObject_State_Hidden*)&(((PyASCIIObject*)op)->state);
-    e->hidden = 1;
+    auto e = (PyASCIIObject_State_Hidden*)&(((PyASCIIObject*)op)->state);
+    if (e) {
+        e->hidden = 1;
+    }
 }
 
 void
