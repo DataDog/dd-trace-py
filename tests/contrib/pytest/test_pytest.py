@@ -2662,8 +2662,8 @@ class PytestTestCase(TracerTestCase):
             fd.write(
                 textwrap.dedent(
                     """
-                DATADOG_ITR_UNSKIPPABLE = True
                 import pytest
+                pytestmark = pytest.mark.skipif(False, reason="datadog_itr_unskippable")
                 def test_inner_ok():
                     assert True
 
@@ -2797,8 +2797,8 @@ class PytestTestCase(TracerTestCase):
             fd.write(
                 textwrap.dedent(
                     """
-                DATADOG_ITR_UNSKIPPABLE = True
                 import pytest
+                pytestmark = pytest.mark.skipif(False, reason="datadog_itr_unskippable")
                 def test_inner_ok():
                     assert True
 
@@ -2929,7 +2929,7 @@ class PytestTestCase(TracerTestCase):
                 textwrap.dedent(
                     """
                 import pytest
-                DATADOG_ITR_UNSKIPPABLE = True
+                pytestmark = pytest.mark.skipif(False, reason="datadog_itr_unskippable")
                 def test_inner_ok():
                     assert True
 

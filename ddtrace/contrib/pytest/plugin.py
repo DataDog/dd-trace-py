@@ -498,18 +498,13 @@ def pytest_collection_modifyitems(session, config, items):
         current_suite_has_unskippable_test = False
 
         for item in items:
-            suite_is_unskippable = _is_suite_unskippable(item)
             test_is_unskippable = _is_test_unskippable(item)
-
-            if suite_is_unskippable:
-                log.debug("Module %s is marked as unskippable", item.module)
-                item._dd_itr_suite_unskippable = True
 
             if test_is_unskippable:
                 log.debug("Test %s in module %s is marked as unskippable", (item.name, item.module))
                 item._dd_itr_test_unskippable = True
 
-            # Due to suite skipping mode, delay adding ITR skip marker until unskippable status of the suite has been
+            # Due to suite skipping mode, defer adding ITR skip marker until unskippable status of the suite has been
             # fully resolved because Pytest markers cannot be dynamically removed
             if _CIVisibility._instance._suite_skipping_mode:
                 if item.module not in items_to_skip_by_module:
@@ -524,10 +519,8 @@ def pytest_collection_modifyitems(session, config, items):
                     items_to_skip_by_module[item.module] = []
 
             if _CIVisibility._instance._should_skip_path(str(get_fslocation_from_item(item)[0]), item.name):
-                if (
-                    suite_is_unskippable
-                    or test_is_unskippable
-                    or (_CIVisibility._instance._suite_skipping_mode and current_suite_has_unskippable_test)
+                if test_is_unskippable or (
+                    _CIVisibility._instance._suite_skipping_mode and current_suite_has_unskippable_test
                 ):
                     item._dd_itr_forced = True
                 else:
