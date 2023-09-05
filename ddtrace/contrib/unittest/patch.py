@@ -116,7 +116,11 @@ def _extract_module_span(test_object):
 
 
 def _extract_suite_span(test_object):
-    return getattr(test_object, "_datadog_suite_span", None)
+    if getattr(test_object, "_datadog_suite_span", None):
+        return getattr(test_object, "_datadog_suite_span", None)
+    if getattr(test_object, "_datadog_suite_spans_dict", None):
+        return test_object._datadog_suite_spans_dict.get("suite_span")
+    return None
 
 
 def _update_status_item(item, status):
@@ -312,7 +316,33 @@ def handle_test_wrapper(func, instance, args, kwargs):
         test_name = _extract_test_method_name(instance)
         resource_name = _generate_test_resource(suite_name, test_name)
         test_suite_span = _extract_suite_span(instance)
-        if not test_suite_span:
+        if not test_suite_span and hasattr(instance, "_datadog_suite_spans_dict"):
+            test_module_span = instance._datadog_suite_spans_dict["module_span"]
+            resource_name = _generate_suite_resource(FRAMEWORK, suite_name)
+            test_suite_span = tracer._start_span(
+                SUITE_OPERATION_NAME,
+                service=_CIVisibility._instance._service,
+                span_type=SpanTypes.TEST,
+                child_of=test_module_span,
+                activate=True,
+                resource=resource_name,
+            )
+            test_suite_span.set_tag_str(COMPONENT, COMPONENT_VALUE)
+            test_suite_span.set_tag_str(SPAN_KIND, KIND)
+            test_suite_span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
+            test_suite_span.set_tag_str(test.FRAMEWORK_VERSION, platform.python_version())
+            test_suite_span.set_tag_str(test.COMMAND, test_module_span.get_tag(test.COMMAND))
+            test_suite_span.set_tag_str(_EVENT_TYPE, _SUITE_TYPE)
+            test_suite_span.set_tag_str(_SESSION_ID, test_module_span.get_tag(_SESSION_ID))
+            test_suite_span.set_tag_str(_SUITE_ID, str(test_suite_span.span_id))
+            test_suite_span.set_tag_str(_MODULE_ID, str(test_module_span.span_id))
+            test_suite_span.set_tag_str(test.MODULE, test_module_span.get_tag(test.MODULE))
+            test_module_path = test_module_span.get_tag(test.MODULE_PATH)
+            test_suite_span.set_tag_str(test.MODULE_PATH, test_module_path)
+            test_suite_span.set_tag_str(test.SUITE, suite_name)
+            test_suite_span.set_tag_str(test.TEST_TYPE, SpanTypes.TEST)
+            instance._datadog_suite_spans_dict["suite_span"] = test_suite_span
+        elif not test_suite_span:
             return func(*args, **kwargs)
         span = tracer._start_span(
             ddtrace.config.unittest.operation_name,
@@ -345,13 +375,10 @@ def handle_test_wrapper(func, instance, args, kwargs):
         _store_test_span(instance, span)
         result = func(*args, **kwargs)
         _update_status_item(test_suite_span, span.get_tag(test.STATUS))
-        ran_tests_number = test_suite_span.get_metric("_test.ran_tests")
-        expected_tests_number = test_suite_span.get_metric("_test.expected_tests")
         span.finish()
-        if ran_tests_number is not None and expected_tests_number is not None:
-            ran_tests_number += 1
-            test_suite_span.set_tag("_test.ran_tests", ran_tests_number)
-            if ran_tests_number == expected_tests_number:
+        if hasattr(instance, "_datadog_suite_spans_dict"):
+            instance._datadog_suite_spans_dict["ran_tests"] += 1
+            if instance._datadog_suite_spans_dict["ran_tests"] == instance._datadog_suite_spans_dict["expected_tests"]:
                 test_suite_span.finish()
         return result
     return func(*args, **kwargs)
@@ -366,36 +393,15 @@ def handle_module_suite_wrapper(func, instance, args, kwargs):
                 for test_object in instance._tests:
                     test_suite_name = _extract_class_hierarchy_name(test_object)
                     if test_suite_name not in seen_suites:
-                        test_module_span = _extract_module_span(instance)
-                        resource_name = _generate_suite_resource(FRAMEWORK, test_suite_name)
-                        test_suite_span = tracer._start_span(
-                            SUITE_OPERATION_NAME,
-                            service=_CIVisibility._instance._service,
-                            span_type=SpanTypes.TEST,
-                            child_of=test_module_span,
-                            resource=resource_name,
-                        )
-                        test_suite_span.set_tag_str(COMPONENT, COMPONENT_VALUE)
-                        test_suite_span.set_tag_str(SPAN_KIND, KIND)
-                        test_suite_span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
-                        test_suite_span.set_tag_str(test.FRAMEWORK_VERSION, platform.python_version())
-                        test_suite_span.set_tag_str(test.COMMAND, test_module_span.get_tag(test.COMMAND))
-                        test_suite_span.set_tag_str(_EVENT_TYPE, _SUITE_TYPE)
-                        test_suite_span.set_tag_str(_SESSION_ID, test_module_span.get_tag(_SESSION_ID))
-                        test_suite_span.set_tag_str(_SUITE_ID, str(test_suite_span.span_id))
-                        test_suite_span.set_tag_str(_MODULE_ID, str(test_module_span.span_id))
-                        test_suite_span.set_tag_str(test.MODULE, test_module_span.get_tag(test.MODULE))
-                        test_module_path = test_module_span.get_tag(test.MODULE_PATH)
-                        test_suite_span.set_tag_str(test.MODULE_PATH, test_module_path)
-                        test_suite_span.set_tag_str(test.SUITE, test_suite_name)
-                        test_suite_span.set_tag_str(test.TEST_TYPE, SpanTypes.TEST)
-                        test_suite_span.set_tag("_test.expected_tests", 0)
-                        test_suite_span.set_tag("_test.ran_tests", 0)
-                        seen_suites[test_suite_name] = test_suite_span
+                        seen_suites[test_suite_name] = {
+                            "module_span": _extract_module_span(instance),
+                            "suite_span": None,
+                            "expected_tests": 0,
+                            "ran_tests": 0,
+                        }
 
-                    test_object._datadog_suite_span = seen_suites[test_suite_name]
-                    expected_tests_number = seen_suites[test_suite_name].get_metric("_test.expected_tests") + 1
-                    seen_suites[test_suite_name].set_tag("_test.expected_tests", expected_tests_number)
+                    seen_suites[test_suite_name]["expected_tests"] += 1
+                    test_object._datadog_suite_spans_dict = seen_suites[test_suite_name]
             else:
                 test_module_span = _extract_module_span(instance)
                 test_suite_name = _extract_suite_name(instance)
