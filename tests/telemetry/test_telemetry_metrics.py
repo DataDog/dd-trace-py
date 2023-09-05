@@ -20,7 +20,7 @@ def _assert_metric(
     seq_id=1,
 ):
     test_agent.telemetry_writer.periodic()
-    events = test_agent.get_events()
+    events = test_agent.get_payloads()
 
     assert len([event for event in events if event["request_type"] == type_paypload]) == seq_id
 
@@ -37,7 +37,6 @@ def _assert_metric(
         metric["tags"].sort()
     expected_body_sorted.sort(key=lambda x: (x["metric"], x["tags"], x.get("type")), reverse=False)
 
-    events.sort(key=lambda x: x["seq_id"], reverse=True)
     result_event = events[0]["payload"]["series"]
     for metric in result_event:
         metric["tags"].sort()
@@ -52,7 +51,7 @@ def _assert_logs(
     seq_id=1,
 ):
     test_agent.telemetry_writer.periodic()
-    events = test_agent.get_events()
+    events = test_agent.get_payloads()
 
     assert len([event for event in events if event["request_type"] == TELEMETRY_TYPE_LOGS]) == seq_id
 

@@ -23,7 +23,7 @@ def test_add_event(telemetry_writer, test_agent_session, mock_time):
     payload = {"test": "123"}
     payload_type = "test-event"
     # add event to the queue
-    telemetry_writer.add_event(payload, payload_type)
+    telemetry_writer.add_payload(payload, payload_type)
     # send request to the agent
     telemetry_writer.periodic()
 
@@ -39,13 +39,13 @@ def test_add_event(telemetry_writer, test_agent_session, mock_time):
 
 
 def test_add_event_disabled_writer(telemetry_writer, test_agent_session):
-    """asserts that add_event() does not create a telemetry request when telemetry writer is disabled"""
+    """asserts that add_payload() does not create a telemetry request when telemetry writer is disabled"""
     telemetry_writer.disable()
 
     payload = {"test": "123"}
     payload_type = "test-event"
     # ensure events are not queued when telemetry is disabled
-    telemetry_writer.add_event(payload, payload_type)
+    telemetry_writer.add_payload(payload, payload_type)
 
     # ensure no request were sent
     telemetry_writer.periodic()
@@ -63,7 +63,7 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
     assert len(requests) == 1
     assert requests[0]["headers"]["DD-Telemetry-Request-Type"] == "app-started"
 
-    events = test_agent_session.get_events()
+    events = test_agent_session.get_payloads()
     assert len(events) == 1
 
     events[0]["payload"]["configuration"].sort(key=lambda c: c["name"])
@@ -192,7 +192,7 @@ telemetry_writer.disable()
 
     assert status == 0, stderr
 
-    events = test_agent_session.get_events()
+    events = test_agent_session.get_payloads()
 
     assert len(events) == 1
     events[0]["payload"]["configuration"].sort(key=lambda c: c["name"])
@@ -249,7 +249,7 @@ def test_app_dependencies_loaded_event(telemetry_writer, test_agent_session, moc
     telemetry_writer._app_dependencies_loaded_event()
     # force a flush
     telemetry_writer.periodic()
-    events = test_agent_session.get_events()
+    events = test_agent_session.get_payloads()
     assert len(events) == 1
     payload = {"dependencies": get_dependencies()}
     assert events[0] == _get_request_body(payload, "app-dependencies-loaded")
@@ -314,7 +314,7 @@ def test_app_client_configuration_changed_event(telemetry_writer, test_agent_ses
 
     telemetry_writer.periodic()
 
-    events = test_agent_session.get_events()
+    events = test_agent_session.get_payloads()
     assert len(events) == 1
     assert events[0]["request_type"] == "app-client-configuration-change"
     received_configurations = events[0]["payload"]["configuration"]
@@ -372,7 +372,7 @@ def test_telemetry_graceful_shutdown(telemetry_writer, test_agent_session, mock_
     # mocks calling sys.atexit hooks
     telemetry_writer.app_shutdown()
 
-    events = test_agent_session.get_events()
+    events = test_agent_session.get_payloads()
     assert len(events) == 3
 
     # Reverse chronological order
@@ -396,10 +396,10 @@ def test_app_heartbeat_event_periodic(mock_time, telemetry_writer, test_agent_se
     # Assert next flush contains app-heartbeat event
     for _ in range(telemetry_writer._periodic_threshold):
         telemetry_writer.periodic()
-        assert len(test_agent_session.get_events()) == 0
+        assert len(test_agent_session.get_payloads()) == 0
 
     telemetry_writer.periodic()
-    events = test_agent_session.get_events()
+    events = test_agent_session.get_payloads()
     heartbeat_events = [event for event in events if event["request_type"] == "app-heartbeat"]
     assert len(heartbeat_events) == 1
 
@@ -409,13 +409,13 @@ def test_app_heartbeat_event(mock_time, telemetry_writer, test_agent_session):
     """asserts that we queue/send app-heartbeat event every 60 seconds when app_heartbeat_event() is called"""
 
     # Assert clean slate
-    events = test_agent_session.get_events()
+    events = test_agent_session.get_payloads()
     assert len(events) == 0
 
     # Assert a maximum of one heartbeat is queued per flush
     telemetry_writer._app_heartbeat_event()
     telemetry_writer.periodic()
-    events = test_agent_session.get_events()
+    events = test_agent_session.get_payloads()
     assert len(events) == 1
 
 

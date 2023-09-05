@@ -64,6 +64,21 @@ class TelemetryTestSession(object):
 
         return sorted(requests, key=lambda r: r["body"]["seq_id"], reverse=True)
 
+    def get_payloads(self):
+        """Get a list of the payloads sent to the test agent
+
+        Results are in reverse order by ``seq_id``
+        """
+        events = self.get_events()
+        payloads = []
+        for event in events:
+            if event["request_type"] == "message-batch":
+                payloads += event["payload"]
+            else:
+                payloads.append(event["payload"])
+
+        return payloads
+
     def get_events(self):
         """Get a list of the event payloads sent to the test agent
 

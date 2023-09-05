@@ -82,7 +82,7 @@ def parse_payload(data):
 @pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
 def test_telemetry_metrics_enabled_on_gunicorn_child_process(test_agent_session):
     token = "tests.telemetry.test_telemetry_metrics_e2e.test_telemetry_metrics_enabled_on_gunicorn_child_process"
-    assert len(test_agent_session.get_events()) == 0
+    assert len(test_agent_session.get_payloads()) == 0
     with gunicorn_server(telemetry_metrics_enabled="true", token=token) as context:
         _, gunicorn_client = context
 
@@ -96,7 +96,7 @@ def test_telemetry_metrics_enabled_on_gunicorn_child_process(test_agent_session)
         response = gunicorn_client.get("/count_metric")
         assert response.status_code == 200
 
-    events = test_agent_session.get_events()
+    events = test_agent_session.get_payloads()
     metrics = list(filter(lambda event: event["request_type"] == "generate-metrics", events))
     assert len(metrics) == 2
     assert metrics[0]["payload"]["series"][0]["metric"] == "test_metric"
@@ -114,7 +114,7 @@ for _ in range(10):
 """
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code)
     assert status == 0, stderr
-    events = test_agent_session.get_events()
+    events = test_agent_session.get_payloads()
 
     metrics = get_metrics_from_events(events)
     assert len(metrics) == 2
@@ -140,7 +140,7 @@ for _ in range(9):
     env["DD_TRACE_OTEL_ENABLED"] = "true"
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, stderr
-    events = test_agent_session.get_events()
+    events = test_agent_session.get_payloads()
 
     metrics = get_metrics_from_events(events)
     assert len(metrics) == 2
@@ -163,7 +163,7 @@ for _ in range(9):
 """
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code)
     assert status == 0, stderr
-    events = test_agent_session.get_events()
+    events = test_agent_session.get_payloads()
 
     metrics = get_metrics_from_events(events)
     assert len(metrics) == 2
@@ -197,7 +197,7 @@ for _ in range(4):
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, stderr
 
-    events = test_agent_session.get_events()
+    events = test_agent_session.get_payloads()
     metrics = get_metrics_from_events(events)
     assert len(metrics) == 3
 

@@ -17,11 +17,9 @@ telemetry_writer.enable()
     assert stdout == b"", stderr
     assert stderr == b""
 
-    events = test_agent_session.get_events()
+    events = test_agent_session.get_payloads()
     assert len(events) == 3
 
-    # Same runtime id is used
-    assert events[0]["runtime_id"] == events[1]["runtime_id"]
     assert events[0]["request_type"] == "app-closing"
     assert events[1]["request_type"] == "app-dependencies-loaded"
     assert events[2]["request_type"] == "app-started"
@@ -36,7 +34,7 @@ def test_telemetry_enabled_on_first_tracer_flush(test_agent_session, ddtrace_run
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess("import ddtrace")
     assert status == 0, stderr
     # No trace and No Telemetry
-    assert len(test_agent_session.get_events()) == 0
+    assert len(test_agent_session.get_payloads()) == 0
 
     # Submit a trace to the agent in a subprocess
     code = 'from ddtrace import tracer; span = tracer.trace("test-telemetry"); span.finish()'
@@ -45,9 +43,8 @@ def test_telemetry_enabled_on_first_tracer_flush(test_agent_session, ddtrace_run
     assert stderr == b""
     # Ensure telemetry events were sent to the agent (snapshot ensures one trace was generated)
     # Note event order is reversed e.g. event[0] is actually the last event
-    events = test_agent_session.get_events()
+    events = test_agent_session.get_payloads()
     assert len(events) == 5
-    events.sort(key=lambda x: (x["request_type"], x["seq_id"]), reverse=False)
     assert events[0]["request_type"] == "app-closing"
     assert events[1]["request_type"] == "app-dependencies-loaded"
     assert events[2]["request_type"] == "app-integrations-change"
@@ -195,12 +192,9 @@ tracer.trace("hello").finish()
     assert status == 0, stderr
     assert b"Exception raised in trace filter" in stderr
 
-    events = test_agent_session.get_events()
+    events = test_agent_session.get_payloads()
 
     assert len(events) == 4
-
-    # Same runtime id is used
-    assert events[0]["runtime_id"] == events[1]["runtime_id"]
 
     app_started_events = [event for event in events if event["request_type"] == "app-started"]
     assert len(app_started_events) == 1
@@ -223,12 +217,10 @@ def test_app_started_error_unhandled_exception(test_agent_session, run_python_co
     assert status == 1, stderr
     assert b"Unable to parse DD_SPAN_SAMPLING_RULES=" in stderr
 
-    events = test_agent_session.get_events()
+    events = test_agent_session.get_payloads()
 
     assert len(events) == 3
 
-    # Same runtime id is used
-    assert events[0]["runtime_id"] == events[1]["runtime_id"]
     assert events[0]["request_type"] == "app-closing"
     assert events[1]["request_type"] == "app-dependencies-loaded"
     assert events[2]["request_type"] == "app-started"
@@ -258,17 +250,9 @@ patch(raise_errors=False, sqlite3=True)
     expected_stderr = b"failed to import"
     assert expected_stderr in stderr
 
-    events = test_agent_session.get_events()
+    events = test_agent_session.get_payloads()
 
     assert len(events) == 5
-    # Same runtime id is used
-    assert (
-        events[0]["runtime_id"]
-        == events[1]["runtime_id"]
-        == events[2]["runtime_id"]
-        == events[3]["runtime_id"]
-        == events[4]["runtime_id"]
-    )
     integrations_events = [event for event in events if event["request_type"] == "app-integrations-change"]
 
     assert len(integrations_events) == 1
@@ -312,17 +296,9 @@ f.wsgi_app()
     else:
         assert b"not enough values to unpack (expected 2, got 0)" in stderr, stderr
 
-    events = test_agent_session.get_events()
+    events = test_agent_session.get_payloads()
 
     assert len(events) == 5
-    # Same runtime id is used
-    assert (
-        events[0]["runtime_id"]
-        == events[1]["runtime_id"]
-        == events[2]["runtime_id"]
-        == events[3]["runtime_id"]
-        == events[4]["runtime_id"]
-    )
 
     app_started_event = [event for event in events if event["request_type"] == "app-started"]
     assert len(app_started_event) == 1
