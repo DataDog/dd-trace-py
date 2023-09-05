@@ -5,7 +5,6 @@ prelude: >
   versions of the ddtrace library, drops support for Python 2.7, 3.5, and 3.6, and adds support for Python 3.12.
 
 
-
   .. important::
     ddtrace v2.0.0 drops support for Python 2.7, 3.5, and 3.6. Users running these unsupported
     Python versions should consider upgrading their Python version or continue using ddtrace v1
