@@ -349,7 +349,7 @@ venv = Venv(
                 "typing-extensions": latest,
                 "pytest-asyncio": latest,
             },
-            pys=select_pys(min_version="3.7"),
+            pys=select_pys(),
         ),
         Venv(
             name="vendor",
