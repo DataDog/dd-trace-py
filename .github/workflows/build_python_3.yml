@@ -28,7 +28,7 @@ jobs:
          - os: macos-latest
            archs: x86_64 universal2
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         # Include all history and tags
         with:
           fetch-depth: 0
