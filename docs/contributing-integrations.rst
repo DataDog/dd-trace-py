@@ -1,43 +1,20 @@
 .. _integration_guidelines:
 
+An integration is code that builds a tree of ``ExecutionContext`` objects representing the
+runtime state of a given third-party Python module and emits events indicating interesting moments
+during that runtime.
+
 ===========================
 How To Write an Integration
 ===========================
 
-An integration should provide concise, insightful data about the library or
-framework that will aid developers in monitoring their application's health and
-performance.
+Research the library or framework that you're instrumenting. Reading through its documentation and
+code examples will reveal what APIs are meaningful to instrument.
 
-The best way to get started writing a new integration is to refer to existing
-integrations. Looking at the integration for a similar library or framework is a great
-starting point. To write a new integration for ``memcached``, for example, we might
-refer to the existing ``redis`` integration as a starting point since both are
-datastores that focus on in-memory storage.
-
-Your development process might look like this:
-
-  - Research the library or framework that you're instrumenting. Reading
-    through its docs and code examples will reveal what APIs are meaningful to
-    instrument.
-
-  - Copy the skeleton module provided in ``templates/integration`` and replace
-    ``foo`` with the integration name. The integration name typically matches
-    the library or framework being instrumented::
+Copy the skeleton module in ``templates/integration`` and replace ``foo`` with the name of the library you're
+integrating with::
 
       cp -r templates/integration ddtrace/contrib/<integration>
-
-  - Create a test file for the integration under
-    ``tests/contrib/<integration>/test_<integration>.py``.
-
-  - Write the integration (see more on this below).
-
-  - Open a :ref:`pull request<change_process>` containing your changes.
-
-All integrations live in ``ddtrace/contrib/`` and contain at least two files,
-``__init__.py`` and ``patch.py``. A skeleton integration is available under
-``templates/integration`` which can be used as a starting point::
-
-    cp -r templates/integration ddtrace/contrib/<integration>
 
 The Pin API in ``ddtrace.pin`` is used to configure the instrumentation at runtime, including
 enabling and disabling the instrumentation and overriding the service name.
@@ -82,7 +59,7 @@ Service Naming/Peer.Service
 ---------------------------
 Service Naming and Peer.Service help with automated service detection and modeling
 by providing different default values for the service and operation name span
-attributes.  These attributes are adjusted by using environment variables which toggle 
+attributes.  These attributes are adjusted by using environment variables which toggle
 various schema. Every integration is required to support the existing schema.
 
 The API to support service name, peer.service, and schema can be found here: <https://github.com/DataDog/dd-trace-py/blob/1.x/ddtrace/internal/schema/__init__.py#L52-L64>
