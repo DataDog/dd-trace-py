@@ -18,7 +18,7 @@ jobs:
     outputs:
       outcome: ${{ steps.run_needed.outcome }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
       - id: run_needed
         name: Check if run is needed
         run:  |
@@ -42,11 +42,11 @@ jobs:
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           python-version: '3.9'
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           path: ddtrace
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           repository: bottlepy/bottle
@@ -86,11 +86,11 @@ jobs:
       run:
         working-directory: sanic
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           path: ddtrace
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           repository: sanic-org/sanic
@@ -138,11 +138,11 @@ jobs:
       run:
         working-directory: django
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           path: ddtrace
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           repository: django/django
@@ -202,11 +202,11 @@ jobs:
       run:
         working-directory: graphene
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           path: ddtrace
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           repository: graphql-python/graphene
@@ -248,11 +248,11 @@ jobs:
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           python-version: '3.9'
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           path: ddtrace
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           repository: tiangolo/fastapi
@@ -287,11 +287,11 @@ jobs:
       run:
         working-directory: flask
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           path: ddtrace
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           repository: pallets/flask
@@ -327,11 +327,11 @@ jobs:
       run:
         working-directory: httpx
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           path: ddtrace
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           repository: encode/httpx
@@ -373,11 +373,11 @@ jobs:
       run:
         working-directory: mako
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           path: ddtrace
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           repository: sqlalchemy/mako
@@ -423,11 +423,11 @@ jobs:
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           python-version: '3.9'
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           path: ddtrace
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           repository: encode/starlette
@@ -464,11 +464,11 @@ jobs:
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           python-version: '3.9'
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           path: ddtrace
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           repository: psf/requests
@@ -503,11 +503,11 @@ jobs:
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           python-version: '3.9'
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           path: ddtrace
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           repository: magicstack/asyncpg
@@ -543,11 +543,11 @@ jobs:
       run:
         working-directory: pylons
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           path: ddtrace
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           repository: pylons/pylons
@@ -590,11 +590,11 @@ jobs:
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           python-version: '3.9'
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           path: ddtrace
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           repository: benoitc/gunicorn
@@ -625,11 +625,11 @@ jobs:
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           python-version: '3.9'
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           path: ddtrace
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           repository: unbit/uwsgi
