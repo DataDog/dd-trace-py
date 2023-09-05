@@ -32,7 +32,6 @@
       "span.kind": "server"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.appsec.enabled": 1.0,
       "_dd.appsec.event_rules.error_count": 0,
       "_dd.appsec.event_rules.loaded": 5,
@@ -58,7 +57,6 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "",
-         "_dd.p.dm": "-0",
          "component": "flask",
          "flask.endpoint": "run_osspawn",
          "flask.url_rule": "/executions/osspawn"
@@ -77,7 +75,6 @@
           "error": 0,
           "meta": {
             "_dd.base_service": "",
-            "_dd.p.dm": "-0",
             "component": "flask"
           },
           "duration": 13375,
@@ -94,7 +91,6 @@
           "error": 0,
           "meta": {
             "_dd.base_service": "",
-            "_dd.p.dm": "-0",
             "component": "flask"
           },
           "duration": 25500,
@@ -111,7 +107,6 @@
           "error": 0,
           "meta": {
             "_dd.base_service": "",
-            "_dd.p.dm": "-0",
             "component": "flask"
           },
           "duration": 13020584,
@@ -128,7 +123,6 @@
              "error": 0,
              "meta": {
                "_dd.base_service": "",
-               "_dd.p.dm": "-0",
                "component": "flask"
              },
              "duration": 12971833,
@@ -145,7 +139,6 @@
                 "error": 0,
                 "meta": {
                   "_dd.base_service": "",
-                  "_dd.p.dm": "-0",
                   "cmd.exec": "['/bin/ls', '-l', '/']",
                   "cmd.exit_code": "0",
                   "component": "os"
@@ -164,7 +157,6 @@
                    "error": 0,
                    "meta": {
                      "_dd.base_service": "",
-                     "_dd.p.dm": "-0",
                      "cmd.exec": "['os.fork']",
                      "component": "os"
                    },
@@ -182,7 +174,6 @@
           "error": 0,
           "meta": {
             "_dd.base_service": "",
-            "_dd.p.dm": "-0",
             "component": "flask"
           },
           "duration": 88667,
@@ -199,7 +190,6 @@
           "error": 0,
           "meta": {
             "_dd.base_service": "",
-            "_dd.p.dm": "-0",
             "component": "flask"
           },
           "duration": 21459,
@@ -216,7 +206,6 @@
           "error": 0,
           "meta": {
             "_dd.base_service": "",
-            "_dd.p.dm": "-0",
             "component": "flask"
           },
           "duration": 36292,
@@ -233,7 +222,6 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "",
-         "_dd.p.dm": "-0",
          "component": "flask"
        },
        "duration": 567375,
