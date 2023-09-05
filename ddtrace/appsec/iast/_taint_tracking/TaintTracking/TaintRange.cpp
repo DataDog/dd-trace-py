@@ -1,8 +1,6 @@
 #include "TaintRange.h"
 #include "Initializer/Initializer.h"
 
-#include <iostream> // FIXME: remove
-#include <sstream>
 #include <utility>
 
 using namespace pybind11::literals;
@@ -14,6 +12,8 @@ typedef struct _PyASCIIObject_State_Hidden
     unsigned int : 8;
     unsigned int hidden : 24;
 } PyASCIIObject_State_Hidden;
+
+#define GET_HASH_KEY(obj) ((((PyASCIIObject*)obj)->hash) & 0xFFFFFF)
 
 // Used to quickly exit on cases where the object is a non interned unicode
 // string and does not have the fast-taint mark on its internal data structure.
@@ -39,27 +39,24 @@ is_notinterned_notfasttainted_unicode(const PyObject* objptr)
         return true; // broken string object? better to skip it
     }
     // it cannot be fast tainted if hash is set to -1 (not computed)
-    return e->hidden != 1;
+    return (((PyASCIIObject*)objptr)->hash) == -1 || e->hidden != GET_HASH_KEY(objptr);
 }
 
 // For non interned unicode strings, set a hidden mark on it's internsal data
 // structure that will allow us to quickly check if the string is not tainted
 // and thus skip further processing without having to search on the tainting map
 __attribute__((flatten)) void
-set_fast_tainted_if_notinterned_unicode(const PyObject* op)
+set_fast_tainted_if_notinterned_unicode(const PyObject* objptr)
 {
-    if (op == nullptr) {
+    if (not objptr or !PyUnicode_Check(objptr) or PyUnicode_CHECK_INTERNED(objptr)) {
         return;
     }
-    if (!PyUnicode_Check(op)) {
-        return;
-    }
-    if (PyUnicode_CHECK_INTERNED(op)) {
-        return;
-    }
-    auto e = (PyASCIIObject_State_Hidden*)&(((PyASCIIObject*)op)->state);
+    auto e = (PyASCIIObject_State_Hidden*)&(((PyASCIIObject*)objptr)->state);
     if (e) {
-        e->hidden = 1;
+        if ((((PyASCIIObject*)objptr)->hash) == -1) {
+            initializer->builtins_hash(py::reinterpret_borrow<py::object>((PyObject*)objptr));
+        }
+        e->hidden = GET_HASH_KEY(objptr);
     }
 }
 
