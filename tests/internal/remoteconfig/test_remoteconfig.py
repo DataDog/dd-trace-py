@@ -5,7 +5,6 @@ import hashlib
 import json
 import sys
 from time import sleep
-import warnings
 
 import mock
 from mock.mock import ANY
@@ -19,12 +18,10 @@ from ddtrace.internal.remoteconfig._subscribers import RemoteConfigSubscriber
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.remoteconfig.constants import ASM_FEATURES_PRODUCT
 from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
-from ddtrace.internal.remoteconfig.utils import get_poll_interval_seconds
 from ddtrace.internal.remoteconfig.worker import RemoteConfigPoller
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import ServiceStatus
 from tests.internal.test_utils_version import _assert_and_get_version_agent_format
-from tests.utils import override_env
 from tests.utils import override_global_config
 
 
@@ -182,13 +179,6 @@ def test_remote_config_forksafe():
         exit(0)
 
 
-def test_remote_configuration_check_deprecated_var():
-    with override_global_config(dict(_remote_config_poll_interval="0.1")):
-        with warnings.catch_warnings(record=True) as capture:
-            get_poll_interval_seconds()
-            assert len(capture) == 0
-
-
 @mock.patch.object(RemoteConfigClient, "_send_request")
 def test_remote_configuration_1_click(mock_send_request):
     class Callback:
@@ -212,23 +202,6 @@ def test_remote_configuration_1_click(mock_send_request):
                 "metadata": {},
                 "shared_data_counter": ANY,
             }
-
-
-def test_remote_configuration_check_deprecated_var_message():
-    with override_env(dict(DD_REMOTECONFIG_POLL_SECONDS="0.1")):
-        with warnings.catch_warnings(record=True) as capture:
-            get_poll_interval_seconds()
-            assert len(capture) == 1
-            assert str(capture[0].message).startswith("Using environment")
-
-
-def test_remote_configuration_check_deprecated_override():
-    with override_global_config(dict(_remote_config_enabled=True, _remote_config_poll_interval=0.1)):
-        with override_env(dict(DD_REMOTECONFIG_POLL_SECONDS="0.5")):
-            with warnings.catch_warnings(record=True) as capture:
-                assert get_poll_interval_seconds() == 0.1
-                assert len(capture) == 1
-                assert str(capture[0].message).startswith("Using environment")
 
 
 @mock.patch.object(RemoteConfigClient, "_send_request")

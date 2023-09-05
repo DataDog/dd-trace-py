@@ -1329,25 +1329,6 @@ venv = Venv(
             ],
         ),
         Venv(
-            name="pytest-benchmark",
-            command="pytest {cmdargs} tests/contrib/pytest_benchmark/",
-            pkgs={"msgpack": latest},
-            venvs=[
-                Venv(
-                    venvs=[
-                        Venv(
-                            pys=select_pys(min_version="3.7", max_version="3.10"),
-                            pkgs={
-                                "pytest-benchmark": [
-                                    ">=3.1.0,<=4.0.0",
-                                ]
-                            },
-                        )
-                    ],
-                ),
-            ],
-        ),
-        Venv(
             name="pytest-bdd",
             command="pytest --no-ddtrace {cmdargs} tests/contrib/pytest_bdd/",
             pkgs={
@@ -1374,6 +1355,25 @@ venv = Venv(
                             ">=6.0,<6.1",
                         ]
                     },
+                ),
+            ],
+        ),
+        Venv(
+            name="pytest-benchmark",
+            command="pytest {cmdargs} tests/contrib/pytest_benchmark/",
+            pkgs={"msgpack": latest},
+            venvs=[
+                Venv(
+                    venvs=[
+                        Venv(
+                            pys=select_pys(min_version="3.7", max_version="3.10"),
+                            pkgs={
+                                "pytest-benchmark": [
+                                    ">=3.1.0,<=4.0.0",
+                                ]
+                            },
+                        )
+                    ],
                 ),
             ],
         ),

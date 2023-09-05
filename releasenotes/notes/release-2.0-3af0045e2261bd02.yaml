@@ -1,10 +1,9 @@
 ---
 prelude: >
-  The Datadog APM Python team is happy to announce the release of v2.0.0 of
-  ddtrace. This release introduces a formal :ref:`support policy< 
-  introduces a formal :ref:`versioning support policy<versioning_support_levels>` for the major
-  versions of the ddtrace library, drops support for Python 2.7, 3.5, and 3.6, and
-  adds support for Python 3.12.
+  The Datadog APM Python team is happy to announce the release of v2.0.0 of ddtrace.
+  This release introduces a formal :ref:`versioning support policy<versioning_support_levels>` for the major
+  versions of the ddtrace library, drops support for Python 2.7, 3.5, and 3.6, and adds support for Python 3.12.
+
 
 
   .. important::
@@ -70,7 +69,12 @@ prelude: >
     * - ``DD_CALL_BASIC_CONFIG``
       - None
       - :ref:`📝<remove-basic-config>`
+    * - ``DD_TRACE_OBFUSCATION_QUERY_STRING_PATERN``
+      - ``DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP``
+      - :ref:`📝<remove-trace-obfuscation-query-string-pattern>`
 
+
+  .. _removed-2.0-tracing-interfaces:
 
 
   Removed legacy tracing interfaces

@@ -13,8 +13,6 @@ from ddtrace.constants import IAST_ENV
 from ddtrace.internal.serverless import in_azure_function_consumption_plan
 from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.utils.cache import cachedmethod
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
-from ddtrace.vendor.debtcollector import deprecate
 
 from ..internal import gitmetadata
 from ..internal.constants import DEFAULT_BUFFER_SIZE
@@ -23,7 +21,6 @@ from ..internal.constants import DEFAULT_PROCESSING_INTERVAL
 from ..internal.constants import DEFAULT_REUSE_CONNECTIONS
 from ..internal.constants import DEFAULT_SAMPLING_RATE_LIMIT
 from ..internal.constants import PROPAGATION_STYLE_ALL
-from ..internal.constants import PROPAGATION_STYLE_B3
 from ..internal.constants import _PROPAGATION_STYLE_DEFAULT
 from ..internal.logger import get_logger
 from ..internal.schema import DEFAULT_SPAN_SERVICE_NAME
@@ -122,14 +119,6 @@ def _parse_propagation_styles(name, default):
         return None
     for style in envvar.split(","):
         style = style.strip().lower()
-        if style == "b3":
-            deprecate(
-                'Using DD_TRACE_PROPAGATION_STYLE="b3" is deprecated',
-                message="Please use 'DD_TRACE_PROPAGATION_STYLE=\"b3multi\"' instead",
-                removal_version="2.0.0",
-                category=DDTraceDeprecationWarning,
-            )
-            style = PROPAGATION_STYLE_B3
         if not style:
             continue
         if style not in PROPAGATION_STYLE_ALL:
@@ -233,13 +222,6 @@ class Config(object):
 
         self._debug_mode = asbool(os.getenv("DD_TRACE_DEBUG", default=False))
         self._startup_logs_enabled = asbool(os.getenv("DD_TRACE_STARTUP_LOGS", False))
-        self._call_basic_config = asbool(os.environ.get("DD_CALL_BASIC_CONFIG", "false"))
-        if self._call_basic_config:
-            deprecate(
-                "`DD_CALL_BASIC_CONFIG` is deprecated and will be removed in the next major version.",
-                message="Call `logging.basicConfig()` to configure logging in your application",
-                removal_version="2.0.0",
-            )
 
         self._trace_sample_rate = os.getenv("DD_TRACE_SAMPLE_RATE")
         self._trace_rate_limit = int(os.getenv("DD_TRACE_RATE_LIMIT", default=DEFAULT_SAMPLING_RATE_LIMIT))
@@ -372,18 +354,9 @@ class Config(object):
         except (TypeError, ValueError):
             pass
 
-        if "DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN" in os.environ:
-            deprecate(
-                "`DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN` is deprecated "
-                "and will be removed in the next major version.",
-                message="use `DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP` instead",
-                removal_version="2.0.0",
-            )
-            dd_trace_obfuscation_query_string_regexp = os.getenv("DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN")
-        else:
-            dd_trace_obfuscation_query_string_regexp = os.getenv(
-                "DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP", DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
-            )
+        dd_trace_obfuscation_query_string_regexp = os.getenv(
+            "DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP", DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
+        )
         self.global_query_string_obfuscation_disabled = True  # If empty obfuscation pattern
         self._obfuscation_query_string_pattern = None
         self.http_tag_query_string = True  # Default behaviour of query string tagging in http.url
