@@ -1,25 +1,3 @@
-from collections import defaultdict
-from contextlib import contextmanager
-import logging
-from typing import TYPE_CHECKING
-
-
-if TYPE_CHECKING:  # pragma: no cover
-    from typing import Any
-    from typing import Callable
-    from typing import Dict
-    from typing import List
-    from typing import Optional
-    from typing import Tuple
-
-    from ddtrace.span import Span  # noqa
-
-
-try:
-    import contextvars
-except ImportError:
-    import ddtrace.vendor.contextvars as contextvars  # type: ignore
-
 """
 This file implements the Core API, the abstraction layer between Integrations and Product code.
 The Core API enables two primary use cases: maintaining a tree of ``ExecutionContext`` objects
@@ -27,7 +5,7 @@ and dispatching events.
 
 When using the Core API, keep concerns separate between Products and Integrations. Integrations
 should not contain any code that references Products (Tracing, AppSec, Spans, WAF, Debugging, et cetera)
-and Product code should never reference the library being integrated with.
+and Product code should never reference the library being integrated with (for example by importing ``flask``).
 
 It's helpful to think of the context tree as a Trace with extra data on each Span. It's similar
 to a tree of Spans in that it represents the parts of the execution state that Datadog products
@@ -115,6 +93,27 @@ like this::
 
 The names of these events follow the pattern ``context.[started|ended].<context_name>``.
 """
+from collections import defaultdict
+from contextlib import contextmanager
+import logging
+from typing import TYPE_CHECKING
+
+
+if TYPE_CHECKING:  # pragma: no cover
+    from typing import Any
+    from typing import Callable
+    from typing import Dict
+    from typing import List
+    from typing import Optional
+    from typing import Tuple
+
+    from ddtrace.span import Span  # noqa
+
+
+try:
+    import contextvars
+except ImportError:
+    import ddtrace.vendor.contextvars as contextvars  # type: ignore
 
 
 log = logging.getLogger(__name__)
