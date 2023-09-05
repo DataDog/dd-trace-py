@@ -33,7 +33,6 @@
       "span.kind": "server"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.appsec.enabled": 1.0,
       "_dd.appsec.event_rules.error_count": 0,
       "_dd.appsec.event_rules.loaded": 5,
@@ -59,7 +58,6 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "",
-         "_dd.p.dm": "-0",
          "component": "django"
        },
        "duration": 1437042,
@@ -76,7 +74,6 @@
           "error": 0,
           "meta": {
             "_dd.base_service": "",
-            "_dd.p.dm": "-0",
             "component": "django"
           },
           "duration": 30041,
@@ -93,7 +90,6 @@
           "error": 0,
           "meta": {
             "_dd.base_service": "",
-            "_dd.p.dm": "-0",
             "component": "django"
           },
           "duration": 1329917,
@@ -110,7 +106,6 @@
              "error": 0,
              "meta": {
                "_dd.base_service": "",
-               "_dd.p.dm": "-0",
                "component": "django"
              },
              "duration": 28833,
@@ -127,7 +122,6 @@
              "error": 0,
              "meta": {
                "_dd.base_service": "",
-               "_dd.p.dm": "-0",
                "component": "django"
              },
              "duration": 1231042,
@@ -144,7 +138,6 @@
                 "error": 0,
                 "meta": {
                   "_dd.base_service": "",
-                  "_dd.p.dm": "-0",
                   "component": "django"
                 },
                 "duration": 12667,
@@ -161,7 +154,6 @@
                 "error": 0,
                 "meta": {
                   "_dd.base_service": "",
-                  "_dd.p.dm": "-0",
                   "component": "django"
                 },
                 "duration": 1164916,
@@ -178,7 +170,6 @@
                    "error": 0,
                    "meta": {
                      "_dd.base_service": "",
-                     "_dd.p.dm": "-0",
                      "component": "django"
                    },
                    "duration": 16750,
@@ -195,7 +186,6 @@
                    "error": 0,
                    "meta": {
                      "_dd.base_service": "",
-                     "_dd.p.dm": "-0",
                      "component": "django"
                    },
                    "duration": 1110792,
@@ -212,7 +202,6 @@
                       "error": 0,
                       "meta": {
                         "_dd.base_service": "",
-                        "_dd.p.dm": "-0",
                         "component": "django"
                       },
                       "duration": 34500,
@@ -229,7 +218,6 @@
                       "error": 0,
                       "meta": {
                         "_dd.base_service": "",
-                        "_dd.p.dm": "-0",
                         "component": "django"
                       },
                       "duration": 1022625,
@@ -246,7 +234,6 @@
                          "error": 0,
                          "meta": {
                            "_dd.base_service": "",
-                           "_dd.p.dm": "-0",
                            "component": "django"
                          },
                          "duration": 970125,
@@ -263,7 +250,6 @@
                             "error": 0,
                             "meta": {
                               "_dd.base_service": "",
-                              "_dd.p.dm": "-0",
                               "component": "django"
                             },
                             "duration": 12250,
@@ -280,7 +266,6 @@
                             "error": 0,
                             "meta": {
                               "_dd.base_service": "",
-                              "_dd.p.dm": "-0",
                               "component": "django"
                             },
                             "duration": 892625,
@@ -297,7 +282,6 @@
                                "error": 0,
                                "meta": {
                                  "_dd.base_service": "",
-                                 "_dd.p.dm": "-0",
                                  "component": "django"
                                },
                                "duration": 873084,
@@ -314,7 +298,6 @@
                                   "error": 0,
                                   "meta": {
                                     "_dd.base_service": "",
-                                    "_dd.p.dm": "-0",
                                     "component": "django"
                                   },
                                   "duration": 849250,
@@ -331,7 +314,6 @@
                                      "error": 0,
                                      "meta": {
                                        "_dd.base_service": "",
-                                       "_dd.p.dm": "-0",
                                        "component": "django"
                                      },
                                      "duration": 18167,
@@ -348,7 +330,6 @@
                                      "error": 0,
                                      "meta": {
                                        "_dd.base_service": "",
-                                       "_dd.p.dm": "-0",
                                        "component": "django"
                                      },
                                      "duration": 14666,
@@ -365,7 +346,6 @@
                                      "error": 0,
                                      "meta": {
                                        "_dd.base_service": "",
-                                       "_dd.p.dm": "-0",
                                        "component": "django"
                                      },
                                      "duration": 109000,
@@ -382,7 +362,6 @@
                             "error": 0,
                             "meta": {
                               "_dd.base_service": "",
-                              "_dd.p.dm": "-0",
                               "component": "django"
                             },
                             "duration": 21416,
@@ -399,7 +378,6 @@
                          "error": 0,
                          "meta": {
                            "_dd.base_service": "",
-                           "_dd.p.dm": "-0",
                            "component": "django"
                          },
                          "duration": 16167,
@@ -416,7 +394,6 @@
                       "error": 0,
                       "meta": {
                         "_dd.base_service": "",
-                        "_dd.p.dm": "-0",
                         "component": "django"
                       },
                       "duration": 11584,
@@ -433,7 +410,6 @@
                 "error": 0,
                 "meta": {
                   "_dd.base_service": "",
-                  "_dd.p.dm": "-0",
                   "component": "django"
                 },
                 "duration": 9834,
@@ -450,7 +426,6 @@
              "error": 0,
              "meta": {
                "_dd.base_service": "",
-               "_dd.p.dm": "-0",
                "component": "django"
              },
              "duration": 13375,
@@ -467,7 +442,6 @@
           "error": 0,
           "meta": {
             "_dd.base_service": "",
-            "_dd.p.dm": "-0",
             "component": "django"
           },
           "duration": 15208,
