@@ -1,6 +1,6 @@
-from ddtrace import tracer
+from ddtrace import config
 
 
 if __name__ == "__main__":
-    assert tracer._priority_sampler is not None
+    assert config._priority_sampling is True
     print("Test success")
