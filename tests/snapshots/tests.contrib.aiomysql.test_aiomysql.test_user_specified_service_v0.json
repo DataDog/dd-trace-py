@@ -21,7 +21,6 @@
       "sql.query": "select 'dba4x4'"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,

@@ -9,24 +9,24 @@
     "type": "worker",
     "error": 0,
     "meta": {
+      "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "component": "rq",
       "job.func_name": "tests.contrib.rq.jobs.job_add1",
-      "job.id": "42f4e18a-b4d1-41c0-b44f-4e78dc3cc9fe",
+      "job.id": "5e7a8f08-e011-4ebb-8cab-3ebbd30e089e",
       "language": "python",
       "queue.name": "q",
-      "runtime-id": "dc862c6ff169400783e513c72f18a9f3",
+      "runtime-id": "696c3bcd1bb346e982f3c710445cbea1",
       "span.kind": "producer"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 55795
+      "process_id": 2601
     },
-    "duration": 4096105,
-    "start": 1691167587975826143
+    "duration": 3057583,
+    "start": 1692649890802011260
   },
      {
        "name": "rq.worker.perform_job",
@@ -38,25 +38,26 @@
        "type": "worker",
        "error": 0,
        "meta": {
+         "_dd.base_service": "",
          "_dd.p.dm": "-0",
          "component": "rq",
-         "job.id": "42f4e18a-b4d1-41c0-b44f-4e78dc3cc9fe",
+         "job.id": "5e7a8f08-e011-4ebb-8cab-3ebbd30e089e",
          "job.origin": "q",
          "job.status": "finished",
          "language": "python",
-         "runtime-id": "a17aa3cba9604849bf30fccb3b08a048",
+         "runtime-id": "c6ed7b3d08024c52ad8e0c2da8eaef6b",
          "span.kind": "consumer",
-         "traceparent": "00-000000000000000033dbcf6a2c080e87-9cd5c82b00bf5cfa-01",
+         "traceparent": "00-00000000000000006a1a3b27022b96f5-6a50567ba6906843-01",
          "tracestate": "dd=s:1;t.dm:-0"
        },
        "metrics": {
          "_dd.top_level": 1,
          "_dd.tracer_kr": 1.0,
          "_sampling_priority_v1": 1,
-         "process_id": 55818
+         "process_id": 2618
        },
-       "duration": 3559127,
-       "start": 1691167588334937173
+       "duration": 12139083,
+       "start": 1692649891606680385
      },
         {
           "name": "rq.job.perform",
@@ -68,10 +69,10 @@
           "type": "",
           "error": 0,
           "meta": {
-            "_dd.p.dm": "-0",
+            "_dd.base_service": "",
             "component": "rq",
-            "job.id": "42f4e18a-b4d1-41c0-b44f-4e78dc3cc9fe"
+            "job.id": "5e7a8f08-e011-4ebb-8cab-3ebbd30e089e"
           },
-          "duration": 1257560,
-          "start": 1691167588336075254
+          "duration": 8641291,
+          "start": 1692649891608589677
         }]]

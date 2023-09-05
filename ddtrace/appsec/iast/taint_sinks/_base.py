@@ -7,9 +7,9 @@ from ddtrace.appsec._constants import IAST
 from ddtrace.appsec.iast import oce
 from ddtrace.appsec.iast._metrics import _set_metric_iast_executed_sink
 from ddtrace.appsec.iast._overhead_control_engine import Operation
-from ddtrace.appsec.iast._util import _has_to_scrub
-from ddtrace.appsec.iast._util import _is_evidence_value_parts
-from ddtrace.appsec.iast._util import _scrub
+from ddtrace.appsec.iast._utils import _has_to_scrub
+from ddtrace.appsec.iast._utils import _is_evidence_value_parts
+from ddtrace.appsec.iast._utils import _scrub
 from ddtrace.appsec.iast.reporter import Evidence
 from ddtrace.appsec.iast.reporter import IastSpanReporter
 from ddtrace.appsec.iast.reporter import Location
@@ -155,7 +155,15 @@ class VulnerabilityBase(Operation):
                     }
                 )
             if sources:
-                report.sources = {Source(origin=x.origin, name=x.name, value=x.value) for x in sources}
+
+                def cast_value(value):
+                    if isinstance(value, (bytes, bytearray)):
+                        value_decoded = value.decode("utf-8")
+                    else:
+                        value_decoded = value
+                    return value_decoded
+
+                report.sources = [Source(origin=x.origin, name=x.name, value=cast_value(x.value)) for x in sources]
 
             redacted_report = cls._redacted_report_cache.get(
                 hash(report), lambda x: cls._redact_report(cast(IastSpanReporter, report))

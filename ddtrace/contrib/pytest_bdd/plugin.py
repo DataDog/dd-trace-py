@@ -5,6 +5,7 @@ import sys
 import pytest
 
 from ddtrace.contrib.pytest.plugin import _extract_span as _extract_feature_span
+from ddtrace.contrib.pytest_bdd import get_version
 from ddtrace.contrib.pytest_bdd.constants import FRAMEWORK
 from ddtrace.contrib.pytest_bdd.constants import STEP_KIND
 from ddtrace.ext import test
@@ -22,7 +23,7 @@ def _extract_span(item):
 
 def _store_span(item, span):
     """Store span at `step_func`."""
-    setattr(item, "_datadog_span", span)
+    item._datadog_span = span
 
 
 def _extract_step_func_args(step, step_func, step_func_args):
@@ -76,14 +77,7 @@ def pytest_configure(config):
 
 class _PytestBddPlugin:
     def __init__(self):
-        import pytest_bdd
-
-        try:
-            import importlib.metadata as importlib_metadata
-        except ImportError:
-            import importlib_metadata  # type: ignore[no-redef]
-
-        self.framework_version = importlib_metadata.version(pytest_bdd.__package__)
+        self.framework_version = get_version()
 
     @staticmethod
     @pytest.hookimpl(tryfirst=True)

@@ -10,10 +10,12 @@ from ddtrace.constants import AUTO_KEEP
 from ddtrace.ext import ci
 from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility.constants import REQUESTS_MODE
+from ddtrace.internal.ci_visibility.encoder import CIVisibilityEncoderV01
 from ddtrace.internal.ci_visibility.filters import TraceCiVisibilityFilter
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClient
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClientSerializerV1
 from ddtrace.internal.ci_visibility.recorder import _extract_repository_name_from_url
+from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import TimeoutError
 from ddtrace.internal.utils.http import Response
 from ddtrace.span import Span
@@ -323,7 +325,7 @@ def test_git_client_search_commits():
 def test_get_client_do_request_agentless_headers():
     serializer = CIVisibilityGitClientSerializerV1("foo", "bar")
     response = mock.MagicMock()
-    setattr(response, "status", 200)
+    response.status = 200
 
     with mock.patch("ddtrace.internal.http.HTTPConnection.request") as _request, mock.patch(
         "ddtrace.internal.compat.get_connection_response", return_value=response
@@ -340,7 +342,7 @@ def test_get_client_do_request_agentless_headers():
 def test_get_client_do_request_evp_proxy_headers():
     serializer = CIVisibilityGitClientSerializerV1("foo", "bar")
     response = mock.MagicMock()
-    setattr(response, "status", 200)
+    response.status = 200
 
     with mock.patch("ddtrace.internal.http.HTTPConnection.request") as _request, mock.patch(
         "ddtrace.internal.compat.get_connection_response", return_value=response
@@ -431,7 +433,7 @@ def test_git_client_upload_packfiles(git_repo):
 def test_git_do_request_agentless(git_repo):
     mock_serializer = CIVisibilityGitClientSerializerV1("fakeapikey", "fakeappkey")
     response = mock.MagicMock()
-    setattr(response, "status", 200)
+    setattr(response, "status", 200)  # noqa: B010
 
     with mock.patch("ddtrace.internal.ci_visibility.git_client.get_connection") as mock_get_connection:
         with mock.patch("ddtrace.internal.compat.get_connection_response", return_value=response):
@@ -465,7 +467,7 @@ def test_git_do_request_agentless(git_repo):
 def test_git_do_request_evp(git_repo):
     mock_serializer = CIVisibilityGitClientSerializerV1("foo", "bar")
     response = mock.MagicMock()
-    setattr(response, "status", 200)
+    setattr(response, "status", 200)  # noqa: B010
 
     with mock.patch("ddtrace.internal.ci_visibility.git_client.get_connection") as mock_get_connection:
         with mock.patch("ddtrace.internal.compat.get_connection_response", return_value=response):
@@ -606,47 +608,48 @@ def test_civisibility_check_enabled_features_agentless_do_request_called_correct
                 '{"code_coverage":true,"tests_skipping":true}}}',
             )
             with mock.patch.object(CIVisibility, "__init__", return_value=None):
-                mock_civisibilty = CIVisibility()
+                with override_env({"DD_CIVISIBILITY_ITR_ENABLED": "true"}):
+                    mock_civisibilty = CIVisibility()
 
-                ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
-                mock_civisibilty._requests_mode = REQUESTS_MODE.AGENTLESS_EVENTS
-                mock_civisibilty._service = "service"
-                mock_civisibilty._api_key = "myfakeapikey"
-                mock_civisibilty._app_key = "myfakeappkey"
-                mock_civisibilty._dd_site = "datad0g.com"
-                mock_civisibilty._tags = {
-                    ci.git.REPOSITORY_URL: "my_repo_url",
-                    ci.git.COMMIT_SHA: "mycommitshaaaaaaalalala",
-                    ci.git.BRANCH: "notmain",
-                }
-
-                enabled_features = mock_civisibilty._check_enabled_features()
-
-                mock_do_request.assert_called_once()
-                do_request_call_args = mock_do_request.call_args[0]
-                do_request_payload = json.loads(do_request_call_args[2])
-
-                assert do_request_call_args[0] == "POST"
-                assert do_request_call_args[1] == "https://api.datad0g.com/api/v2/libraries/tests/services/setting"
-                assert do_request_call_args[3] == {
-                    "dd-api-key": "myfakeapikey",
-                    "dd-application-key": "myfakeappkey",
-                    "Content-Type": "application/json",
-                }
-                assert do_request_payload == {
-                    "data": {
-                        "id": "checkoutmyuuid4",
-                        "type": "ci_app_test_service_libraries_settings",
-                        "attributes": {
-                            "service": "service",
-                            "env": None,
-                            "repository_url": "my_repo_url",
-                            "sha": "mycommitshaaaaaaalalala",
-                            "branch": "notmain",
-                        },
+                    ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+                    mock_civisibilty._requests_mode = REQUESTS_MODE.AGENTLESS_EVENTS
+                    mock_civisibilty._service = "service"
+                    mock_civisibilty._api_key = "myfakeapikey"
+                    mock_civisibilty._app_key = "myfakeappkey"
+                    mock_civisibilty._dd_site = "datad0g.com"
+                    mock_civisibilty._tags = {
+                        ci.git.REPOSITORY_URL: "my_repo_url",
+                        ci.git.COMMIT_SHA: "mycommitshaaaaaaalalala",
+                        ci.git.BRANCH: "notmain",
                     }
-                }
-                assert enabled_features == (True, True)
+
+                    enabled_features = mock_civisibilty._check_enabled_features()
+
+                    mock_do_request.assert_called_once()
+                    do_request_call_args = mock_do_request.call_args[0]
+                    do_request_payload = json.loads(do_request_call_args[2])
+
+                    assert do_request_call_args[0] == "POST"
+                    assert do_request_call_args[1] == "https://api.datad0g.com/api/v2/libraries/tests/services/setting"
+                    assert do_request_call_args[3] == {
+                        "dd-api-key": "myfakeapikey",
+                        "dd-application-key": "myfakeappkey",
+                        "Content-Type": "application/json",
+                    }
+                    assert do_request_payload == {
+                        "data": {
+                            "id": "checkoutmyuuid4",
+                            "type": "ci_app_test_service_libraries_settings",
+                            "attributes": {
+                                "service": "service",
+                                "env": None,
+                                "repository_url": "my_repo_url",
+                                "sha": "mycommitshaaaaaaalalala",
+                                "branch": "notmain",
+                            },
+                        }
+                    }
+                    assert enabled_features == (True, True)
 
 
 def test_civisibility_check_enabled_features_evp_do_request_called_correctly():
@@ -658,43 +661,47 @@ def test_civisibility_check_enabled_features_evp_do_request_called_correctly():
                 '{"code_coverage":true,"tests_skipping":true}}}',
             )
             with mock.patch.object(CIVisibility, "__init__", return_value=None):
-                mock_civisibilty = CIVisibility()
+                with override_env({"DD_CIVISIBILITY_ITR_ENABLED": "true"}):
+                    mock_civisibilty = CIVisibility()
 
-                ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
-                mock_civisibilty._requests_mode = REQUESTS_MODE.EVP_PROXY_EVENTS
-                mock_civisibilty._service = "service"
-                mock_civisibilty._tags = {
-                    ci.git.REPOSITORY_URL: "my_repo_url",
-                    ci.git.COMMIT_SHA: "mycommitshaaaaaaalalala",
-                    ci.git.BRANCH: "notmain",
-                }
-
-                enabled_features = mock_civisibilty._check_enabled_features()
-
-                mock_do_request.assert_called_once()
-                do_request_call_args = mock_do_request.call_args[0]
-                do_request_payload = json.loads(do_request_call_args[2])
-
-                assert do_request_call_args[0] == "POST"
-                assert (
-                    do_request_call_args[1]
-                    == "http://localhost:8126/evp_proxy/v2/api/v2/libraries/tests/services/setting"
-                )
-                assert do_request_call_args[3] == {"X-Datadog-EVP-Subdomain": "api", "X-Datadog-NeedsAppKey": "true"}
-                assert do_request_payload == {
-                    "data": {
-                        "id": "checkoutmyuuid4",
-                        "type": "ci_app_test_service_libraries_settings",
-                        "attributes": {
-                            "service": "service",
-                            "env": None,
-                            "repository_url": "my_repo_url",
-                            "sha": "mycommitshaaaaaaalalala",
-                            "branch": "notmain",
-                        },
+                    ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+                    mock_civisibilty._requests_mode = REQUESTS_MODE.EVP_PROXY_EVENTS
+                    mock_civisibilty._service = "service"
+                    mock_civisibilty._tags = {
+                        ci.git.REPOSITORY_URL: "my_repo_url",
+                        ci.git.COMMIT_SHA: "mycommitshaaaaaaalalala",
+                        ci.git.BRANCH: "notmain",
                     }
-                }
-                assert enabled_features == (True, True)
+
+                    enabled_features = mock_civisibilty._check_enabled_features()
+
+                    mock_do_request.assert_called_once()
+                    do_request_call_args = mock_do_request.call_args[0]
+                    do_request_payload = json.loads(do_request_call_args[2])
+
+                    assert do_request_call_args[0] == "POST"
+                    assert (
+                        do_request_call_args[1]
+                        == "http://localhost:8126/evp_proxy/v2/api/v2/libraries/tests/services/setting"
+                    )
+                    assert do_request_call_args[3] == {
+                        "X-Datadog-EVP-Subdomain": "api",
+                        "X-Datadog-NeedsAppKey": "true",
+                    }
+                    assert do_request_payload == {
+                        "data": {
+                            "id": "checkoutmyuuid4",
+                            "type": "ci_app_test_service_libraries_settings",
+                            "attributes": {
+                                "service": "service",
+                                "env": None,
+                                "repository_url": "my_repo_url",
+                                "sha": "mycommitshaaaaaaalalala",
+                                "branch": "notmain",
+                            },
+                        }
+                    }
+                    assert enabled_features == (True, True)
 
 
 @mock.patch("ddtrace.internal.ci_visibility.recorder._do_request")
@@ -951,3 +958,26 @@ def test_unshallow_repository():
     with mock.patch("ddtrace.internal.ci_visibility.git_client._unshallow_repository") as mock_unshallow_repository:
         CIVisibilityGitClient._unshallow_repository(cwd="/path/to/repo")
         mock_unshallow_repository.assert_called_once_with(cwd="/path/to/repo")
+
+
+def test_encoder_pack_payload():
+    packed_payload = CIVisibilityEncoderV01._pack_payload(
+        {"string_key": [1, {u"unicode_key": "string_value"}, u"unicode_value", {"string_key": u"unicode_value"}]}
+    )
+    if PY2:
+        assert (
+            packed_payload == "\x81\xaastring_key\x94\x01\x81\xabunicode_key\xacstring_value"
+            "\xadunicode_value\x81\xaastring_key\xadunicode_value"
+        )
+    else:
+        assert (
+            packed_payload == b"\x81\xaastring_key\x94\x01\x81\xabunicode_key\xacstring_value"
+            b"\xadunicode_value\x81\xaastring_key\xadunicode_value"
+        )
+
+
+@pytest.mark.skipif(not PY2, reason="py2 payload encoder only tested in Python 2.x")
+def test_encoder_py2_payload_force_unicode_strings():
+    assert CIVisibilityEncoderV01._py2_payload_force_unicode_strings(
+        {"string_key": [1, {u"unicode_key": "string_value"}, u"unicode_value", {"string_key": u"unicode_value"}]}
+    ) == {u"string_key": [1, {u"unicode_key": u"string_value"}, u"unicode_value", {u"string_key": u"unicode_value"}]}

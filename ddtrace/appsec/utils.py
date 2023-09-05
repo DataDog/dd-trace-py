@@ -1,5 +1,4 @@
 import os
-import time
 from typing import TYPE_CHECKING
 
 from ddtrace.appsec import _asm_request_context
@@ -7,13 +6,12 @@ from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.internal.compat import parse
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.http import _get_blocked_template  # noqa
+from ddtrace.settings import _config as config
 
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Any
-    from typing import Dict
 
     from ddtrace.internal.compat import text_type as unicode
 
@@ -124,35 +122,8 @@ def parse_response_body(raw_body):
         return req_body
 
 
-class deduplication:
-    _time_lapse = 3600
-
-    def __init__(self, func):
-        self.func = func
-        self._last_timestamp = time.time()
-        self.reported_logs = dict()  # type: Dict[int, float]
-
-    def get_last_time_reported(self, raw_log_hash):
-        return self.reported_logs.get(raw_log_hash)
-
-    def is_deduplication_enabled(self):
-        return asbool(os.environ.get("_DD_APPSEC_DEDUPLICATION_ENABLED", "true"))
-
-    def __call__(self, *args, **kwargs):
-        result = None
-        if self.is_deduplication_enabled() is False:
-            result = self.func(*args, **kwargs)
-        else:
-            raw_log_hash = hash("".join([str(arg) for arg in args]))
-            last_reported_timestamp = self.get_last_time_reported(raw_log_hash)
-            if last_reported_timestamp is None or time.time() > last_reported_timestamp:
-                result = self.func(*args, **kwargs)
-                self.reported_logs[raw_log_hash] = time.time() + self._time_lapse
-        return result
-
-
 def _appsec_rc_features_is_enabled():
     # type: () -> bool
-    if asbool(os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", "true")):
+    if config._remote_config_enabled:
         return APPSEC_ENV not in os.environ
     return False

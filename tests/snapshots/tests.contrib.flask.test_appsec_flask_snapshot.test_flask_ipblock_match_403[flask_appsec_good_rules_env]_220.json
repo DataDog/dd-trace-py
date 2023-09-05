@@ -12,6 +12,7 @@
       "_dd.appsec.event_rules.version": "rules_good",
       "_dd.appsec.json": "{\"triggers\":[\n  {\n    \"rule\": {\n      \"id\": \"blk-001-001\",\n      \"name\": \"Block IP addresses\",\n      \"on_match\": [\n        \"block\"\n      ],\n      \"tags\": {\n        \"category\": \"blocking\",\n        \"type\": \"ip_addresses\"\n      }\n    },\n    \"rule_matches\": [\n      {\n        \"operator\": \"ip_match\",\n        \"operator_value\": \"\",\n        \"parameters\": [\n          {\n            \"address\": \"http.client_ip\",\n            \"highlight\": [\n              \"8.8.4.4\"\n            ],\n            \"key_path\": [],\n            \"value\": \"8.8.4.4\"\n          }\n        ]\n      }\n    ]\n  }\n]}",
       "_dd.appsec.waf.version": "1.13.1",
+      "_dd.base_service": "",
       "_dd.origin": "appsec",
       "_dd.p.dm": "-5",
       "_dd.runtime_family": "python",
@@ -30,22 +31,21 @@
       "http.url": "http://0.0.0.0:8000/",
       "http.useragent": "python-requests/2.29.0",
       "language": "python",
-      "runtime-id": "31ca69049129418ba680aea34034ac5e"
+      "runtime-id": "1e35ae6c255f4c1f9471153ec7ab260c"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.appsec.enabled": 1.0,
       "_dd.appsec.event_rules.error_count": 0,
       "_dd.appsec.event_rules.loaded": 5,
-      "_dd.appsec.waf.duration": 51.134,
-      "_dd.appsec.waf.duration_ext": 259.16099548339844,
+      "_dd.appsec.waf.duration": 30.791,
+      "_dd.appsec.waf.duration_ext": 92.50640869140625,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 2,
-      "process_id": 48497
+      "process_id": 15174
     },
-    "duration": 1767505,
-    "start": 1691167087501914809
+    "duration": 567125,
+    "start": 1692722803452504298
   },
      {
        "name": "flask.response",
@@ -57,9 +57,9 @@
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.p.dm": "-4",
+         "_dd.base_service": "",
          "component": "flask"
        },
-       "duration": 544367,
-       "start": 1691167087503091090
+       "duration": 164458,
+       "start": 1692722803452892923
      }]]

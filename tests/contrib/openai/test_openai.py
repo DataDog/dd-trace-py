@@ -15,6 +15,7 @@ import ddtrace
 from ddtrace import Pin
 from ddtrace import Span
 from ddtrace import patch
+from ddtrace.contrib.openai.patch import get_version
 from ddtrace.contrib.openai.patch import unpatch
 from ddtrace.contrib.openai.utils import _est_tokens
 from ddtrace.filters import TraceFilter
@@ -186,6 +187,12 @@ def test_config(ddtrace_config_openai, mock_tracer, openai):
 
 def iswrapped(obj):
     return hasattr(obj, "__dd_wrapped__")
+
+
+def test_module_implements_get_version():
+    version = get_version()
+    assert type(version) == str
+    assert version != ""
 
 
 def test_patching(openai):
@@ -516,7 +523,7 @@ def test_global_tags(openai_vcr, ddtrace_config_openai, openai, mock_metrics, mo
     assert span.get_tag("openai.organization.name") == "datadog-4"
     assert span.get_tag("openai.user.api_key") == "sk-...key>"
 
-    for _, args, kwargs in mock_metrics.mock_calls:
+    for _, _args, kwargs in mock_metrics.mock_calls:
         expected_metrics = [
             "service:test-svc",
             "env:staging",
@@ -531,7 +538,7 @@ def test_global_tags(openai_vcr, ddtrace_config_openai, openai, mock_metrics, mo
         for m in expected_metrics:
             assert m in actual_tags
 
-    for call, args, kwargs in mock_logs.mock_calls:
+    for call, args, _kwargs in mock_logs.mock_calls:
         if call != "enqueue":
             continue
         log = args[0]

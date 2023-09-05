@@ -175,7 +175,7 @@ def test_send_metric_datapoint_with_different_types(telemetry_writer, test_agent
             "points": [[1642544540, 1.0]],
             "tags": ["a:b"],
             "type": "gauge",
-            "interval": 60,
+            "interval": 10,
         },
     ]
     _assert_metric(test_agent_session, expected_series)
@@ -234,17 +234,17 @@ def test_send_appsec_rate_metric(telemetry_writer, test_agent_session, mock_time
     expected_series = [
         {
             "common": True,
-            "interval": 60,
+            "interval": 10,
             "metric": "test-metric",
-            "points": [[1642544540, 0.1]],
+            "points": [[1642544540, 0.6]],
             "tags": ["hi:hello", "name:candy"],
             "type": "rate",
         },
         {
             "common": True,
-            "interval": 60,
+            "interval": 10,
             "metric": "test-metric",
-            "points": [[1642544540, 0.2]],
+            "points": [[1642544540, 1.2]],
             "tags": [],
             "type": "rate",
         },
@@ -269,7 +269,7 @@ def test_send_appsec_gauge_metric(telemetry_writer, test_agent_session, mock_tim
     expected_series = [
         {
             "common": True,
-            "interval": 60,
+            "interval": 10,
             "metric": "test-metric",
             "points": [[1642544540, 5.0]],
             "tags": ["hi:hello", "name:candy"],
@@ -277,7 +277,7 @@ def test_send_appsec_gauge_metric(telemetry_writer, test_agent_session, mock_tim
         },
         {
             "common": True,
-            "interval": 60,
+            "interval": 10,
             "metric": "test-metric",
             "points": [[1642544540, 5.0]],
             "tags": ["a:b"],
@@ -285,7 +285,7 @@ def test_send_appsec_gauge_metric(telemetry_writer, test_agent_session, mock_tim
         },
         {
             "common": True,
-            "interval": 60,
+            "interval": 10,
             "metric": "test-metric",
             "points": [[1642544540, 6.0]],
             "tags": [],

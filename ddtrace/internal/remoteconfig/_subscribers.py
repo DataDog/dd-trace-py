@@ -75,8 +75,11 @@ class RemoteConfigSubscriber(object):
         )
         self.start()
 
-    def stop(self):
+    def stop(self, join=False):
+        # type: (bool) -> None
         if self._th_worker:
             self.is_running = False
             self._th_worker.stop()
+            if join:
+                self._th_worker.join()
             log.debug("[%s][P: %s] Subscriber %s. Stopped", os.getpid(), os.getppid(), self._name)

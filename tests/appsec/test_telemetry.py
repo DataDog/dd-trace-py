@@ -6,9 +6,9 @@ import mock
 import pytest
 
 from ddtrace.appsec import _asm_request_context
+from ddtrace.appsec._deduplications import deduplication
 from ddtrace.appsec.ddwaf import version
 from ddtrace.appsec.processor import AppSecSpanProcessor
-from ddtrace.appsec.utils import deduplication
 from ddtrace.contrib.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_APPSEC
@@ -17,7 +17,7 @@ from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_GENERATE_METRICS
 from tests.appsec.test_processor import Config
 from tests.appsec.test_processor import ROOT_DIR
 from tests.appsec.test_processor import RULES_GOOD_PATH
-from tests.appsec.test_processor import _BLOCKED_IP
+from tests.appsec.test_processor import _IP
 from tests.appsec.test_processor import _enable_appsec
 from tests.utils import override_env
 from tests.utils import override_global_config
@@ -26,7 +26,7 @@ from tests.utils import override_global_config
 def _assert_generate_metrics(metrics_result, is_rule_triggered=False, is_blocked_request=False):
     generate_metrics = metrics_result[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE_TAG_APPSEC]
     assert len(generate_metrics) == 2, "Expected 2 generate_metrics"
-    for metric_id, metric in generate_metrics.items():
+    for _metric_id, metric in generate_metrics.items():
         if metric.name == "waf.requests":
             assert ("rule_triggered", str(is_rule_triggered).lower()) in metric._tags
             assert ("request_blocked", str(is_blocked_request).lower()) in metric._tags
@@ -44,7 +44,7 @@ def _assert_distributions_metrics(metrics_result, is_rule_triggered=False, is_bl
     distributions_metrics = metrics_result[TELEMETRY_TYPE_DISTRIBUTION][TELEMETRY_NAMESPACE_TAG_APPSEC]
 
     assert len(distributions_metrics) == 2, "Expected 2 distributions_metrics"
-    for metric_id, metric in distributions_metrics.items():
+    for _metric_id, metric in distributions_metrics.items():
         if metric.name in ["waf.duration", "waf.duration_ext"]:
             assert len(metric._points) >= 1
             assert type(metric._points[0]) is float
@@ -95,7 +95,7 @@ def test_metrics_when_appsec_block(mock_telemetry_lifecycle_writer, tracer):
     with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)), override_global_config(dict(_appsec_enabled=True)):
         mock_telemetry_lifecycle_writer._namespace.flush()
         _enable_appsec(tracer)
-        with _asm_request_context.asm_request_context_manager(_BLOCKED_IP, {}):
+        with _asm_request_context.asm_request_context_manager(_IP.BLOCKED, {}):
             with tracer.trace("test", span_type=SpanTypes.WEB) as span:
                 set_http_meta(
                     span,
@@ -127,7 +127,7 @@ def test_log_metric_error_ddwaf_timeout(mock_logs_telemetry_lifecycle_writer, tr
         dict(_DD_APPSEC_DEDUPLICATION_ENABLED="false", DD_APPSEC_RULES=RULES_GOOD_PATH)
     ), override_global_config(dict(_appsec_enabled=True, _waf_timeout=0.0)):
         _enable_appsec(tracer)
-        with _asm_request_context.asm_request_context_manager(_BLOCKED_IP, {}):
+        with _asm_request_context.asm_request_context_manager(_IP.BLOCKED, {}):
             with tracer.trace("test", span_type=SpanTypes.WEB) as span:
                 set_http_meta(
                     span,
