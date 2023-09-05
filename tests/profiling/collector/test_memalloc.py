@@ -80,7 +80,6 @@ def test_iter_events():
         assert nframe >= len(stack)
         last_call = stack[0]
         assert size >= 1  # size depends on the object size
-        print(last_call)
         if last_call == DDFrame(
             __file__,
             _ALLOC_LINE_NUMBER,
