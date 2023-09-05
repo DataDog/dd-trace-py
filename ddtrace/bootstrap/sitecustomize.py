@@ -161,13 +161,9 @@ try:
         import ddtrace.profiling.auto  # noqa: F401
 
     if di_config.enabled or ed_config.enabled:
-        # FIXME[python-3.12]: blocked on bytecode release https://github.com/MatthieuDartiailh/bytecode/pull/122
-        if not sys.version_info >= (3, 12):
-            from ddtrace.debugging import DynamicInstrumentation
+        from ddtrace.debugging import DynamicInstrumentation
 
-            DynamicInstrumentation.enable()
-        else:
-            log.warning("Dynamic Instrumentation is not supported with Python 3.12 and cannot be enabled.")
+        DynamicInstrumentation.enable()
 
     if config._runtime_metrics_enabled:
         RuntimeWorker.enable()

@@ -349,8 +349,7 @@ venv = Venv(
                 "typing-extensions": latest,
                 "pytest-asyncio": latest,
             },
-            # FIXME[python-3.12]: blocked on bytecode release https://github.com/MatthieuDartiailh/bytecode/pull/122
-            pys=select_pys(min_version="3.7", max_version="3.12"),
+            pys=select_pys(min_version="3.7"),
         ),
         Venv(
             name="vendor",
