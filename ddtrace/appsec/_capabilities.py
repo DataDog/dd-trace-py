@@ -4,9 +4,9 @@ import sys
 from typing import Optional
 
 from ddtrace import Tracer
+from ddtrace import config as ddconfig
 from ddtrace.appsec.utils import _appsec_rc_features_is_enabled
 from ddtrace.internal.compat import to_bytes_py2
-from ddtrace.internal.utils.formats import asbool
 
 
 def _appsec_rc_file_is_not_static():
@@ -37,7 +37,7 @@ def _appsec_rc_capabilities(test_tracer=None):
 
     value = 0b0
     result = ""
-    if asbool(os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", "true")):
+    if ddconfig._remote_config_enabled:
         if _appsec_rc_features_is_enabled():
             value |= 1 << 1  # Enable ASM_ACTIVATION
         if tracer._appsec_processor and _appsec_rc_file_is_not_static():
@@ -49,6 +49,7 @@ def _appsec_rc_capabilities(test_tracer=None):
             value |= 1 << 7  # Enable ASM_USER_BLOCKING
             value |= 1 << 8  # Enable ASM_CUSTOM_RULES
             value |= 1 << 9  # Enable ASM_CUSTOM_BLOCKING_RESPONSE
+            value |= 1 << 10  # Enable ASM_TRUSTED_IPS
 
         if sys.version_info.major < 3:
             bytes_res = to_bytes_py2(value, (value.bit_length() + 7) // 8, "big")
