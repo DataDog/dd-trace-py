@@ -20,7 +20,6 @@
       "span.kind": "producer"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
@@ -71,7 +70,6 @@
           "error": 0,
           "meta": {
             "_dd.base_service": "",
-            "_dd.p.dm": "-0",
             "component": "rq",
             "job.id": "97f1d8cc-a944-48c9-a71f-2f1f316d0a19"
           },
