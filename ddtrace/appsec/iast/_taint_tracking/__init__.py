@@ -19,9 +19,9 @@ if _is_python_version_supported():
     from ddtrace.appsec.iast._taint_tracking._native.initializer import destroy_context
     from ddtrace.appsec.iast._taint_tracking._native.initializer import get_context
     from ddtrace.appsec.iast._taint_tracking._native.initializer import initializer_size
-    from ddtrace.appsec.iast._taint_tracking._native.initializer import tainting_map_size
     from ddtrace.appsec.iast._taint_tracking._native.initializer import num_contexts
     from ddtrace.appsec.iast._taint_tracking._native.initializer import num_objects_tainted
+    from ddtrace.appsec.iast._taint_tracking._native.initializer import tainting_map_size
     from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import OriginType
     from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import Source
     from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import TagMappingMode
