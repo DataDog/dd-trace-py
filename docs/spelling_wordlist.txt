@@ -207,6 +207,7 @@ sqlite
 stacktrace
 starlette
 statsd
+stdout
 stringable
 subclass
 subdirectory
