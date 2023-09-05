@@ -13,7 +13,7 @@ jobs:
       DD_API_KEY: ${{ secrets.DD_SHARED_TESTS_API_KEY }}
       TRACER: python
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           repository: DataDog/apm-transport-stress-tests
       - name: Build
