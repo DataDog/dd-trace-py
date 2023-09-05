@@ -35,7 +35,6 @@ prelude: >
   has been removed and the ddtrace logger will log to stdout by default, or a log file
   as specified using ``DD_TRACE_LOG_FILE``.
 
-
   Setting the environment variable ``DD_TRACE_PROPAGATION_STYLE='b3'`` has been removed.
   Please use `DD_TRACE_PROPAGATION_STYLE='b3multi'`` instead.
 

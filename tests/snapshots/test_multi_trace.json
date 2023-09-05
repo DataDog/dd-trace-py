@@ -12,7 +12,6 @@
       "runtime-id": "bcc8589f1d534d2abf2bd7eb4a8eba2d"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
@@ -45,7 +44,6 @@
       "runtime-id": "bcc8589f1d534d2abf2bd7eb4a8eba2d"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
