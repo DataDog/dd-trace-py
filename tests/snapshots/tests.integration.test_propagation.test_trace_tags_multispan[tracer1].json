@@ -33,7 +33,6 @@
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.p.dm": "-1",
          "_dd.p.test": "value"
        },
        "duration": 8128,
@@ -49,7 +48,6 @@
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.p.dm": "-1",
          "_dd.p.test": "value"
        },
        "duration": 12163,
@@ -65,7 +63,6 @@
           "type": "",
           "error": 0,
           "meta": {
-            "_dd.p.dm": "-1",
             "_dd.p.test": "value"
           },
           "duration": 24996,
