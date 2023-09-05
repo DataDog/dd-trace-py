@@ -19,6 +19,7 @@ if _is_python_version_supported():
     from ddtrace.appsec.iast._taint_tracking._native.initializer import destroy_context
     from ddtrace.appsec.iast._taint_tracking._native.initializer import get_context
     from ddtrace.appsec.iast._taint_tracking._native.initializer import initializer_size
+    from ddtrace.appsec.iast._taint_tracking._native.initializer import tainting_map_size
     from ddtrace.appsec.iast._taint_tracking._native.initializer import num_contexts
     from ddtrace.appsec.iast._taint_tracking._native.initializer import num_objects_tainted
     from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import OriginType
@@ -66,6 +67,7 @@ __all__ = [
     "set_fast_tainted_if_notinterned_unicode",
     "aspect_helpers",
     "contexts_reset",
+    "tainting_map_size",
     "destroy_context",
     "num_contexts",
     "initializer_size",
@@ -118,6 +120,8 @@ def taint_ranges_as_evidence_info(pyobject):
     sources = []
     current_pos = 0
     tainted_ranges = get_tainted_ranges(pyobject)
+    print("tainted_ranges!!!!!!!!!!!!!!")
+    print(tainted_ranges)
     if not len(tainted_ranges):
         return ([{"value": pyobject}], [])
 

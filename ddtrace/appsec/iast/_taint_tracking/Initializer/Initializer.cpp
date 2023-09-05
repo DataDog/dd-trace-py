@@ -101,6 +101,22 @@ Initializer::active_map_addreses_size()
     return active_map_addreses.size();
 }
 
+pair<int, int>
+Initializer::tainting_map_size()
+{
+    auto ctx_map = initializer->get_tainting_map();
+    int num_tainted_objects = 0;
+    int num_tainted_reference_count = 0;
+    if (ctx_map) {
+        for (auto& kv_taint_map : *ctx_map) {
+            num_tainted_reference_count += kv_taint_map.second->rc_;
+            num_tainted_objects += 1;
+        }
+    }
+
+    return pair<int, int>(num_tainted_objects, num_tainted_reference_count);
+}
+
 TaintedObjectPtr
 Initializer::allocate_tainted_object()
 {
@@ -270,6 +286,7 @@ pyexport_initializer(py::module& m)
     m.def("num_contexts", [] { return initializer->num_contexts(); });
     m.def("initializer_size", [] { return initializer->initializer_size(); });
     m.def("active_map_addreses_size", [] { return initializer->active_map_addreses_size(); });
+    m.def("tainting_map_size", [] { return initializer->tainting_map_size(); });
 
     m.def(
       "create_context", []() { return initializer->create_context(); }, py::return_value_policy::reference);

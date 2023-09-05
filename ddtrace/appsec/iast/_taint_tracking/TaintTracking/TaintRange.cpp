@@ -9,8 +9,6 @@ using namespace pybind11::literals;
 
 using namespace std;
 
-#define _GET_HASH_KEY(obj) ((((PyASCIIObject*)obj)->hash) & 0xFFFFFF)
-
 typedef struct _PyASCIIObject_State_Hidden
 {
     unsigned int : 8;
@@ -22,48 +20,38 @@ typedef struct _PyASCIIObject_State_Hidden
 // In any other case it will return false so the evaluation continue for (more
 // slowly) checking if bytes and bytearrays are tainted.
 __attribute__((flatten)) bool
-is_notinterned_notfasttainted_unicode(const PyObject* objptr)
+is_notinterned_notfasttainted_unicode(const PyObject* op)
 {
-    if (!objptr) {
-        return true; // cannot taint a nullptr
+    if (op == nullptr) {
+        return false;
     }
-
-    if (!PyUnicode_Check(objptr)) {
-        return false; // not a unicode, continue evaluation
+    if (!PyUnicode_Check(op)) {
+        return true;
     }
-
-    if (PyUnicode_CHECK_INTERNED(objptr)) {
-        return true; // interned but it could still be tainted
+    if (PyUnicode_CHECK_INTERNED(op) != SSTATE_NOT_INTERNED) {
+        return false;
     }
-
-    const PyASCIIObject_State_Hidden* e = (PyASCIIObject_State_Hidden*)&(((PyASCIIObject*)objptr)->state);
-    if (!e) {
-        return true; // broken string object? better to skip it
-    }
-    // it cannot be fast tainted if hash is set to -1 (not computed)
-    return (((PyASCIIObject*)objptr)->hash) == -1 || e->hidden != _GET_HASH_KEY(objptr);
+    const PyASCIIObject_State_Hidden* e = (PyASCIIObject_State_Hidden*)&(((PyASCIIObject*)op)->state);
+    return e->hidden == 1;
 }
 
 // For non interned unicode strings, set a hidden mark on it's internsal data
 // structure that will allow us to quickly check if the string is not tainted
 // and thus skip further processing without having to search on the tainting map
 __attribute__((flatten)) void
-set_fast_tainted_if_notinterned_unicode(const PyObject* objptr)
+set_fast_tainted_if_notinterned_unicode(const PyObject* op)
 {
-    if (not objptr or !PyUnicode_Check(objptr) or PyUnicode_CHECK_INTERNED(objptr)) {
+    if (op == nullptr) {
         return;
     }
-    auto e = (PyASCIIObject_State_Hidden*)&(((PyASCIIObject*)objptr)->state);
-    if (e) {
-        if ((((PyASCIIObject*)objptr)->hash) == -1) {
-            // compute hash once if not already done
-            PyObject* builtins = PyEval_GetBuiltins();
-            PyObject* hash = PyDict_GetItemString(builtins, "hash");
-            // Could be replaced by PyObject_CallOneArg(hash,  objptr); in 3.9+
-            PyEval_CallFunction(hash, "(O)", objptr);
-        }
-        e->hidden = _GET_HASH_KEY(objptr);
+    if (!PyUnicode_Check(op)) {
+        return;
     }
+    if (PyUnicode_CHECK_INTERNED(op) != SSTATE_NOT_INTERNED) {
+        return;
+    }
+    PyASCIIObject_State_Hidden* e = (PyASCIIObject_State_Hidden*)&(((PyASCIIObject*)op)->state);
+    e->hidden = 1;
 }
 
 void
@@ -231,7 +219,7 @@ get_tainted_object(const PyObject* str, TaintRangeMapType* tx_map)
             throw py::value_error("Tainted Map isn't initialized. Call create_context() first");
         }
     }
-    if (is_notinterned_notfasttainted_unicode(str) or tx_map->empty()) {
+    if (tx_map->empty()) {
         return nullptr;
     }
 

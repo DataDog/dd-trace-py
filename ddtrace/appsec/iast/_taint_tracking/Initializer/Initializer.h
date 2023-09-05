@@ -48,6 +48,8 @@ class Initializer
 
     int active_map_addreses_size();
 
+    pair<int, int> tainting_map_size();
+
     shared_ptr<Context> create_context();
 
     void destroy_context();
