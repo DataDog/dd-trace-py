@@ -225,6 +225,10 @@ def _is_invoked_by_cli(args):
     )
 
 
+def _is_invoked_by_text_test_runner(instance):
+    return hasattr(instance, "_datadog_entry") and instance._datadog_entry == "TextTestRunner"
+
+
 def patch():
     """
     Patch the instrumented methods from unittest
@@ -304,7 +308,6 @@ def add_skip_test_wrapper(func, instance, args, kwargs):
 def handle_test_wrapper(func, instance, args, kwargs):
     if _is_valid_test_call(kwargs):
         tracer = getattr(unittest, "_datadog_tracer", _CIVisibility._instance.tracer)
-
         suite_name = _extract_class_hierarchy_name(instance)
         test_name = _extract_test_method_name(instance)
         resource_name = _generate_test_resource(suite_name, test_name)
@@ -342,7 +345,14 @@ def handle_test_wrapper(func, instance, args, kwargs):
         _store_test_span(instance, span)
         result = func(*args, **kwargs)
         _update_status_item(test_suite_span, span.get_tag(test.STATUS))
+        ran_tests_number = test_suite_span.get_metric("_test.ran_tests")
+        expected_tests_number = test_suite_span.get_metric("_test.expected_tests")
         span.finish()
+        if ran_tests_number is not None and expected_tests_number is not None:
+            ran_tests_number += 1
+            test_suite_span.set_tag("_test.ran_tests", ran_tests_number)
+            if ran_tests_number == expected_tests_number:
+                test_suite_span.finish()
         return result
     return func(*args, **kwargs)
 
@@ -351,37 +361,73 @@ def handle_module_suite_wrapper(func, instance, args, kwargs):
     if _is_valid_module_suite_call(func):
         tracer = getattr(unittest, "_datadog_tracer", _CIVisibility._instance.tracer)
         if _is_test_suite(instance):
-            test_module_span = _extract_module_span(instance)
-            test_suite_name = _extract_suite_name(instance)
-            resource_name = _generate_suite_resource(FRAMEWORK, test_suite_name)
-            test_suite_span = tracer._start_span(
-                SUITE_OPERATION_NAME,
-                service=_CIVisibility._instance._service,
-                span_type=SpanTypes.TEST,
-                activate=True,
-                child_of=test_module_span,
-                resource=resource_name,
-            )
-            test_suite_span.set_tag_str(COMPONENT, COMPONENT_VALUE)
-            test_suite_span.set_tag_str(SPAN_KIND, KIND)
-            test_suite_span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
-            test_suite_span.set_tag_str(test.FRAMEWORK_VERSION, platform.python_version())
-            test_suite_span.set_tag_str(test.COMMAND, test_module_span.get_tag(test.COMMAND))
-            test_suite_span.set_tag_str(_EVENT_TYPE, _SUITE_TYPE)
-            test_suite_span.set_tag_str(_SESSION_ID, test_module_span.get_tag(_SESSION_ID))
-            test_suite_span.set_tag_str(_SUITE_ID, str(test_suite_span.span_id))
-            test_suite_span.set_tag_str(_MODULE_ID, str(test_module_span.span_id))
-            test_suite_span.set_tag_str(test.MODULE, test_module_span.get_tag(test.MODULE))
-            test_module_path = test_module_span.get_tag(test.MODULE_PATH)
-            test_suite_span.set_tag_str(test.MODULE_PATH, test_module_path)
-            test_suite_span.set_tag_str(test.SUITE, test_suite_name)
-            test_suite_span.set_tag_str(test.TEST_TYPE, SpanTypes.TEST)
-            _store_test_span(instance, test_suite_span)
-            _store_suite_span(instance, test_suite_span)
-            result = func(*args, **kwargs)
-            _update_status_item(test_module_span, test_suite_span.get_tag(test.STATUS))
-            test_suite_span.finish()
-            return result
+            if _is_invoked_by_text_test_runner(instance):
+                seen_suites = dict()
+                for test_object in instance._tests:
+                    test_suite_name = _extract_class_hierarchy_name(test_object)
+                    if test_suite_name not in seen_suites:
+                        test_module_span = _extract_module_span(instance)
+                        resource_name = _generate_suite_resource(FRAMEWORK, test_suite_name)
+                        test_suite_span = tracer._start_span(
+                            SUITE_OPERATION_NAME,
+                            service=_CIVisibility._instance._service,
+                            span_type=SpanTypes.TEST,
+                            child_of=test_module_span,
+                            resource=resource_name,
+                        )
+                        test_suite_span.set_tag_str(COMPONENT, COMPONENT_VALUE)
+                        test_suite_span.set_tag_str(SPAN_KIND, KIND)
+                        test_suite_span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
+                        test_suite_span.set_tag_str(test.FRAMEWORK_VERSION, platform.python_version())
+                        test_suite_span.set_tag_str(test.COMMAND, test_module_span.get_tag(test.COMMAND))
+                        test_suite_span.set_tag_str(_EVENT_TYPE, _SUITE_TYPE)
+                        test_suite_span.set_tag_str(_SESSION_ID, test_module_span.get_tag(_SESSION_ID))
+                        test_suite_span.set_tag_str(_SUITE_ID, str(test_suite_span.span_id))
+                        test_suite_span.set_tag_str(_MODULE_ID, str(test_module_span.span_id))
+                        test_suite_span.set_tag_str(test.MODULE, test_module_span.get_tag(test.MODULE))
+                        test_module_path = test_module_span.get_tag(test.MODULE_PATH)
+                        test_suite_span.set_tag_str(test.MODULE_PATH, test_module_path)
+                        test_suite_span.set_tag_str(test.SUITE, test_suite_name)
+                        test_suite_span.set_tag_str(test.TEST_TYPE, SpanTypes.TEST)
+                        test_suite_span.set_tag("_test.expected_tests", 0)
+                        test_suite_span.set_tag("_test.ran_tests", 0)
+                        seen_suites[test_suite_name] = test_suite_span
+
+                    test_object._datadog_suite_span = seen_suites[test_suite_name]
+                    expected_tests_number = seen_suites[test_suite_name].get_metric("_test.expected_tests") + 1
+                    seen_suites[test_suite_name].set_tag("_test.expected_tests", expected_tests_number)
+            else:
+                test_module_span = _extract_module_span(instance)
+                test_suite_name = _extract_suite_name(instance)
+                resource_name = _generate_suite_resource(FRAMEWORK, test_suite_name)
+                test_suite_span = tracer._start_span(
+                    SUITE_OPERATION_NAME,
+                    service=_CIVisibility._instance._service,
+                    span_type=SpanTypes.TEST,
+                    activate=True,
+                    child_of=test_module_span,
+                    resource=resource_name,
+                )
+                test_suite_span.set_tag_str(COMPONENT, COMPONENT_VALUE)
+                test_suite_span.set_tag_str(SPAN_KIND, KIND)
+                test_suite_span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
+                test_suite_span.set_tag_str(test.FRAMEWORK_VERSION, platform.python_version())
+                test_suite_span.set_tag_str(test.COMMAND, test_module_span.get_tag(test.COMMAND))
+                test_suite_span.set_tag_str(_EVENT_TYPE, _SUITE_TYPE)
+                test_suite_span.set_tag_str(_SESSION_ID, test_module_span.get_tag(_SESSION_ID))
+                test_suite_span.set_tag_str(_SUITE_ID, str(test_suite_span.span_id))
+                test_suite_span.set_tag_str(_MODULE_ID, str(test_module_span.span_id))
+                test_suite_span.set_tag_str(test.MODULE, test_module_span.get_tag(test.MODULE))
+                test_module_path = test_module_span.get_tag(test.MODULE_PATH)
+                test_suite_span.set_tag_str(test.MODULE_PATH, test_module_path)
+                test_suite_span.set_tag_str(test.SUITE, test_suite_name)
+                test_suite_span.set_tag_str(test.TEST_TYPE, SpanTypes.TEST)
+                _store_test_span(instance, test_suite_span)
+                _store_suite_span(instance, test_suite_span)
+                result = func(*args, **kwargs)
+                _update_status_item(test_module_span, test_suite_span.get_tag(test.STATUS))
+                test_suite_span.finish()
+                return result
         elif _is_test_module(instance):
             test_module_span = _start_test_module_span(instance)
             result = func(*args, **kwargs)
