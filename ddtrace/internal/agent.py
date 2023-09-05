@@ -4,9 +4,9 @@ import socket
 from typing import TypeVar
 from typing import Union
 
-from ddtrace import config
 from ddtrace.internal.compat import ensure_str
 from ddtrace.internal.logger import get_logger
+from ddtrace.settings import _config as ddconfig
 
 from .http import HTTPConnection
 from .http import HTTPSConnection
@@ -45,14 +45,14 @@ def get_trace_url():
 
     Raises a ``ValueError`` if the URL is not supported by the Agent.
     """
-    if config._trace_agent_url:
-        return config._trace_agent_url
+    if ddconfig._trace_agent_url:
+        return ddconfig._trace_agent_url
 
     if os.path.exists("/var/run/datadog/dsd.socket"):
         return "unix://%s" % (DEFAULT_UNIX_TRACE_PATH)
 
-    port = config._trace_agent_port or DEFAULT_STATS_PORT
-    host = config._trace_agent_hostname or DEFAULT_HOSTNAME
+    port = ddconfig._trace_agent_port or DEFAULT_STATS_PORT
+    host = ddconfig._trace_agent_hostname or DEFAULT_HOSTNAME
     if is_ipv6_hostname(host):
         host = "[{}]".format(host)
 
@@ -61,14 +61,14 @@ def get_trace_url():
 
 def get_stats_url():
     # type: () -> str
-    if config._stats_agent_url:
-        return config._stats_agent_url
+    if ddconfig._stats_agent_url:
+        return ddconfig._stats_agent_url
 
     if os.path.exists("/var/run/datadog/dsd.socket"):
         return "unix://%s" % (DEFAULT_UNIX_DSD_PATH)
 
-    port = config._stats_agent_port or DEFAULT_STATS_PORT
-    host = config._stats_agent_hostname or DEFAULT_HOSTNAME
+    port = ddconfig._stats_agent_port or DEFAULT_STATS_PORT
+    host = ddconfig._stats_agent_hostname or DEFAULT_HOSTNAME
     if is_ipv6_hostname(host):
         host = "[{}]".format(host)
 
@@ -77,7 +77,7 @@ def get_stats_url():
 
 def info():
     agent_url = get_trace_url()
-    _conn = get_connection(agent_url, timeout=config._agent_timeout_seconds)
+    _conn = get_connection(agent_url, timeout=ddconfig._agent_timeout_seconds)
     try:
         _conn.request("GET", "info", headers={"content-type": "application/json"})
         resp = _conn.getresponse()
