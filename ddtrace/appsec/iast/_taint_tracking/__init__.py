@@ -120,8 +120,6 @@ def taint_ranges_as_evidence_info(pyobject):
     sources = []
     current_pos = 0
     tainted_ranges = get_tainted_ranges(pyobject)
-    print("tainted_ranges!!!!!!!!!!!!!!")
-    print(tainted_ranges)
     if not len(tainted_ranges):
         return ([{"value": pyobject}], [])
 

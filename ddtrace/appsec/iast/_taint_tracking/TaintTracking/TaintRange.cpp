@@ -20,19 +20,26 @@ typedef struct _PyASCIIObject_State_Hidden
 // In any other case it will return false so the evaluation continue for (more
 // slowly) checking if bytes and bytearrays are tainted.
 __attribute__((flatten)) bool
-is_notinterned_notfasttainted_unicode(const PyObject* op)
+is_notinterned_notfasttainted_unicode(const PyObject* objptr)
 {
-    if (op == nullptr) {
-        return false;
+    if (!objptr) {
+        return true; // cannot taint a nullptr
     }
-    if (!PyUnicode_Check(op)) {
-        return true;
+
+    if (!PyUnicode_Check(objptr)) {
+        return false; // not a unicode, continue evaluation
     }
-    if (PyUnicode_CHECK_INTERNED(op) != SSTATE_NOT_INTERNED) {
-        return false;
+
+    if (PyUnicode_CHECK_INTERNED(objptr)) {
+        return true; // interned but it could still be tainted
     }
-    const PyASCIIObject_State_Hidden* e = (PyASCIIObject_State_Hidden*)&(((PyASCIIObject*)op)->state);
-    return e->hidden == 1;
+
+    const PyASCIIObject_State_Hidden* e = (PyASCIIObject_State_Hidden*)&(((PyASCIIObject*)objptr)->state);
+    if (!e) {
+        return true; // broken string object? better to skip it
+    }
+    // it cannot be fast tainted if hash is set to -1 (not computed)
+    return e->hidden != 1;
 }
 
 // For non interned unicode strings, set a hidden mark on it's internsal data
@@ -219,7 +226,7 @@ get_tainted_object(const PyObject* str, TaintRangeMapType* tx_map)
             throw py::value_error("Tainted Map isn't initialized. Call create_context() first");
         }
     }
-    if (tx_map->empty()) {
+    if (is_notinterned_notfasttainted_unicode(str) or tx_map->empty()) {
         return nullptr;
     }
 
