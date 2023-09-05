@@ -1,8 +1,6 @@
 # -*- encoding: utf-8 -*-
 import sys
 
-import pytest
-
 import ddtrace
 from ddtrace.debugging._probe.model import ProbeEvaluateTimingForMethod
 from ddtrace.debugging._probe.model import SpanDecoration
@@ -16,10 +14,6 @@ from tests.debugging.utils import create_span_decoration_line_probe
 from tests.debugging.utils import ddexpr
 from tests.debugging.utils import ddstrtempl
 from tests.utils import TracerTestCase
-
-
-if sys.version_info[:2] == (3, 12):
-    pytest.skip("Dynamic instrumentation is not supported with Python 3.12", allow_module_level=True)
 
 
 class SpanDecorationProbeTestCase(TracerTestCase):
