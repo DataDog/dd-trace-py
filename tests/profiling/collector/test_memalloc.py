@@ -176,7 +176,7 @@ def test_memory_collector():
             assert event.thread_name == "MainThread"
             count_object += 1
             entry = 2 if sys.version_info < (3, 12) else 1
-            assert event.frames[entry] == DDFrame(__file__, 162, "test_memory_collector", "")
+            assert event.frames[entry] == DDFrame(__file__, 161, "test_memory_collector", "")
 
     assert count_object > 0
 
