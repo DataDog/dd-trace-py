@@ -102,3 +102,27 @@ def test_sampling_with_rate_sampler_with_tiny_rate(writer, tracer):
     tracer.configure(sampler=sampler, writer=writer)
     with tracer.trace("trace8"):
         tracer.trace("child").finish()
+
+
+@snapshot_parametrized_with_writers
+def test_sampling_with_sample_rate_1_and_rate_limit_0(writer, tracer):
+    sampler = DatadogSampler(default_sample_rate=1, rate_limit=0)
+    tracer.configure(sampler=sampler, writer=writer)
+    with tracer.trace("trace5"):
+        tracer.trace("child").finish()
+
+
+@snapshot_parametrized_with_writers
+def test_sampling_with_sample_rate_1_and_rate_limit_3_and_rule_0(writer, tracer):
+    sampler = DatadogSampler(default_sample_rate=1, rules=[SamplingRule(0)], rate_limit=3)
+    tracer.configure(sampler=sampler, writer=writer)
+    with tracer.trace("trace5"):
+        tracer.trace("child").finish()
+
+
+@snapshot_parametrized_with_writers
+def test_sampling_with_rate_limit_3(writer, tracer):
+    sampler = DatadogSampler(rate_limit=3)
+    tracer.configure(sampler=sampler, writer=writer)
+    with tracer.trace("trace5"):
+        tracer.trace("child").finish()

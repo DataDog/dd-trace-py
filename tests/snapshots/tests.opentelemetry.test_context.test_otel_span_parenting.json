@@ -14,7 +14,6 @@
       "runtime-id": "370b7d1e226648e4b58d1faeeb4884d8"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
@@ -32,9 +31,6 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
-       "meta": {
-         "_dd.p.dm": "-0"
-       },
        "duration": 101305442,
        "start": 1691164174023443313
      },
@@ -47,9 +43,6 @@
           "parent_id": 2,
           "type": "",
           "error": 0,
-          "meta": {
-            "_dd.p.dm": "-0"
-          },
           "duration": 60367898,
           "start": 1691164174064181692
         },
@@ -62,9 +55,6 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
-       "meta": {
-         "_dd.p.dm": "-0"
-       },
        "duration": 102511059,
        "start": 1691164174124877672
      },
