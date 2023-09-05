@@ -9,7 +9,6 @@ from .. import service
 from ..runtime import get_runtime_id
 from ..writer import HTTPWriter
 from ..writer import WriterClientBase
-from ..writer import get_writer_interval_seconds
 from .constants import AGENTLESS_BASE_URL
 from .constants import AGENTLESS_COVERAGE_BASE_URL
 from .constants import AGENTLESS_COVERAGE_ENDPOINT
@@ -98,7 +97,7 @@ class CIVisibilityWriter(HTTPWriter):
         itr_suite_skipping_mode=False,  # type: bool
     ):
         if processing_interval is None:
-            processing_interval = get_writer_interval_seconds()
+            processing_interval = config._trace_writer_interval_seconds
         if timeout is None:
             timeout = agent.get_trace_agent_timeout()
         intake_cov_url = None

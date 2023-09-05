@@ -25,6 +25,7 @@ from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import ServiceStatus
 from tests.internal.test_utils_version import _assert_and_get_version_agent_format
 from tests.utils import override_env
+from tests.utils import override_global_config
 
 
 class RCMockPubSub(PubSub):
@@ -115,7 +116,7 @@ def test_remote_config_register_auto_enable():
 
     mock_pubsub = MockPubsub()
     remoteconfig_poller.disable()
-    with override_env(dict(DD_REMOTE_CONFIGURATION_ENABLED="true")):
+    with override_global_config(dict(_remote_config_enabled=True)):
         assert remoteconfig_poller.status == ServiceStatus.STOPPED
 
         remoteconfig_poller.register("LIVE_DEBUGGER", mock_pubsub)
@@ -130,7 +131,7 @@ def test_remote_config_register_validate_rc_disabled():
     remoteconfig_poller.disable()
     assert remoteconfig_poller.status == ServiceStatus.STOPPED
 
-    with override_env(dict(DD_REMOTE_CONFIGURATION_ENABLED="false")):
+    with override_global_config(dict(_remote_config_enabled=False)):
         remoteconfig_poller.register("LIVE_DEBUGGER", lambda m, c: None)
 
         assert remoteconfig_poller.status == ServiceStatus.STOPPED
@@ -140,7 +141,7 @@ def test_remote_config_enable_validate_rc_disabled():
     remoteconfig_poller.disable()
     assert remoteconfig_poller.status == ServiceStatus.STOPPED
 
-    with override_env(dict(DD_REMOTE_CONFIGURATION_ENABLED="false")):
+    with override_global_config(dict(_remote_config_enabled=False)):
         remoteconfig_poller.enable()
 
         assert remoteconfig_poller.status == ServiceStatus.STOPPED
@@ -150,41 +151,39 @@ def test_remote_config_enable_validate_rc_disabled():
     sys.version_info >= (3, 12, 0),
     reason="Python 3.12 subprocess will raise deprecation warning for forking in a multi-threaded process",
 )
-@pytest.mark.subprocess
+@pytest.mark.subprocess(env=dict(DD_REMOTE_CONFIGURATION_ENABLED="true"))
 def test_remote_config_forksafe():
     import os
 
     from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
     from ddtrace.internal.service import ServiceStatus
-    from tests.utils import override_env
 
-    with override_env(dict(DD_REMOTE_CONFIGURATION_ENABLED="true")):
-        remoteconfig_poller.enable()
+    remoteconfig_poller.enable()
 
-        parent_worker = remoteconfig_poller
-        assert parent_worker.status == ServiceStatus.RUNNING
+    parent_worker = remoteconfig_poller
+    assert parent_worker.status == ServiceStatus.RUNNING
 
-        client_id = remoteconfig_poller._client.id
-        runtime_id = remoteconfig_poller._client._client_tracer["runtime_id"]
+    client_id = remoteconfig_poller._client.id
+    runtime_id = remoteconfig_poller._client._client_tracer["runtime_id"]
 
-        parent_payload = remoteconfig_poller._client._build_payload(None)
+    parent_payload = remoteconfig_poller._client._build_payload(None)
 
-        assert client_id == parent_payload["client"]["id"]
-        assert runtime_id == parent_payload["client"]["client_tracer"]["runtime_id"]
+    assert client_id == parent_payload["client"]["id"]
+    assert runtime_id == parent_payload["client"]["client_tracer"]["runtime_id"]
 
-        if os.fork() == 0:
-            assert remoteconfig_poller.status == ServiceStatus.RUNNING
-            assert remoteconfig_poller._worker is not parent_worker
+    if os.fork() == 0:
+        assert remoteconfig_poller.status == ServiceStatus.RUNNING
+        assert remoteconfig_poller._worker is not parent_worker
 
-            child_payload = remoteconfig_poller._client._build_payload(None)
+        child_payload = remoteconfig_poller._client._build_payload(None)
 
-            assert client_id != child_payload["client"]["id"]
-            assert runtime_id != child_payload["client"]["client_tracer"]["runtime_id"]
-            exit(0)
+        assert client_id != child_payload["client"]["id"]
+        assert runtime_id != child_payload["client"]["client_tracer"]["runtime_id"]
+        exit(0)
 
 
 def test_remote_configuration_check_deprecated_var():
-    with override_env(dict(DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS="0.1")):
+    with override_global_config(dict(_remote_config_poll_interval="0.1")):
         with warnings.catch_warnings(record=True) as capture:
             get_poll_interval_seconds()
             assert len(capture) == 0
@@ -199,7 +198,7 @@ def test_remote_configuration_1_click(mock_send_request):
             self.features = features
 
     callback = Callback()
-    with override_env(dict(DD_REMOTE_CONFIGURATION_ENABLED="true", DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS="0.5")):
+    with override_global_config(dict(_remote_config_enabled=True, _remote_config_poll_interval=0.5)):
         with RemoteConfigPoller() as rc:
             mock_send_request.return_value = get_mock_encoded_msg(b'{"asm":{"enabled":true}}')
             mock_pubsub = RCMockPubSub(None, callback._reload_features)
@@ -224,11 +223,12 @@ def test_remote_configuration_check_deprecated_var_message():
 
 
 def test_remote_configuration_check_deprecated_override():
-    with override_env(dict(DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS="0.1", DD_REMOTECONFIG_POLL_SECONDS="0.5")):
-        with warnings.catch_warnings(record=True) as capture:
-            assert get_poll_interval_seconds() == 0.1
-            assert len(capture) == 1
-            assert str(capture[0].message).startswith("Using environment")
+    with override_global_config(dict(_remote_config_enabled=True, _remote_config_poll_interval=0.1)):
+        with override_env(dict(DD_REMOTECONFIG_POLL_SECONDS="0.5")):
+            with warnings.catch_warnings(record=True) as capture:
+                assert get_poll_interval_seconds() == 0.1
+                assert len(capture) == 1
+                assert str(capture[0].message).startswith("Using environment")
 
 
 @mock.patch.object(RemoteConfigClient, "_send_request")
@@ -241,7 +241,7 @@ def test_remote_configuration_ip_blocking(mock_send_request):
 
     callback = Callback()
 
-    with override_env(dict(DD_REMOTE_CONFIGURATION_ENABLED="true", DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS="0.1")):
+    with override_global_config(dict(_remote_config_enabled=True, _remote_config_poll_interval=0.1)):
         mock_send_request.return_value = get_mock_encoded_msg(
             b'{"rules_data": [{"data": [{"expiration": 1662804872, "value": "127.0.0.0"}, '
             b'{"expiration": 1662804872, "value": "52.80.198.1"}], "id": "blocking_ips", '

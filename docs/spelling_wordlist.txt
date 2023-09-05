@@ -144,6 +144,7 @@ mypy
 mysql
 mysqlclient
 mysqldb
+msgpack
 namespace
 NeedsAppKey
 obfuscator
@@ -254,4 +255,5 @@ programmatically
 DES
 Blowfish
 Gitlab
+hotspot
 CMake
