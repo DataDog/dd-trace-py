@@ -102,6 +102,15 @@ def _extract_module_span(item):
     return getattr(item, "_datadog_span_module", None)
 
 
+def _extract_ancestor_module_span(item):
+    """Return the first ancestor module span found"""
+    while item:
+        module_span = _extract_module_span(item) or _extract_span(item)
+        if module_span is not None and module_span.name == "pytest.test_module":
+            return module_span
+        item = item.parent
+
+
 def _store_module_span(item, span):
     """Store span at `pytest.Item` instance."""
     item._datadog_span_module = span
@@ -129,31 +138,32 @@ def _mark_not_skipped(item):
 def _mark_test_forced(test_item):
     # type: (pytest.Test) -> None
     test_span = _extract_span(test_item)
-    test_span.set_tag_str(test.ITR_TEST_FORCED, "true")
+    test_span.set_tag_str(test.ITR_FORCED_RUN, "true")
 
     suite_span = _extract_span(test_item.parent)
-    suite_span.set_tag_str(test.ITR_TEST_FORCED, "true")
+    suite_span.set_tag_str(test.ITR_FORCED_RUN, "true")
 
-    module_span = _extract_module_span(test_item.parent)
-    module_span.set_tag_str(test.ITR_TEST_FORCED, "true")
+    module_span = _extract_ancestor_module_span(test_item)
+    module_span.set_tag_str(test.ITR_FORCED_RUN, "true")
 
     session_span = _extract_span(test_item.session)
-    session_span.set_tag_str(test.ITR_TEST_FORCED, "true")
+    session_span.set_tag_str(test.ITR_FORCED_RUN, "true")
 
 
 def _mark_test_unskippable(test_item):
     # type: (pytest.Test) -> None
     test_span = _extract_span(test_item)
-    test_span.set_tag_str(test.ITR_TEST_UNSKIPPABLE, "true")
+    test_span.set_tag_str(test.ITR_UNSKIPPABLE, "true")
 
     suite_span = _extract_span(test_item.parent)
-    suite_span.set_tag_str(test.ITR_TEST_UNSKIPPABLE, "true")
+    suite_span.set_tag_str(test.ITR_UNSKIPPABLE, "true")
 
-    module_span = _extract_module_span(test_item.parent)
-    module_span.set_tag_str(test.ITR_TEST_UNSKIPPABLE, "true")
+    # module_item = _find_pytest_item(test_item, )
+    module_span = _extract_ancestor_module_span(test_item)
+    module_span.set_tag_str(test.ITR_UNSKIPPABLE, "true")
 
     session_span = _extract_span(test_item.session)
-    session_span.set_tag_str(test.ITR_TEST_UNSKIPPABLE, "true")
+    session_span.set_tag_str(test.ITR_UNSKIPPABLE, "true")
 
 
 def _check_fully_skipped(item):
@@ -283,8 +293,10 @@ def _start_test_module_span(pytest_package_item=None, pytest_module_item=None):
         test_module_span.set_tag(
             test.ITR_TEST_SKIPPING_TYPE, SUITE if _CIVisibility._instance._suite_skipping_mode else TEST
         )
-        test_module_span.set_tag(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "false")
-        test_module_span.set_tag(test.ITR_DD_CI_ITR_TESTS_SKIPPED, "false")
+        test_module_span.set_tag_str(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "false")
+        test_module_span.set_tag_str(test.ITR_DD_CI_ITR_TESTS_SKIPPED, "false")
+        test_module_span.set_tag_str(test.ITR_FORCED_RUN, "false")
+        test_module_span.set_tag_str(test.ITR_UNSKIPPABLE, "false")
     else:
         test_module_span.set_tag(test.ITR_TEST_SKIPPING_ENABLED, "false")
 
@@ -397,6 +409,8 @@ def pytest_sessionstart(session):
             )
             test_session_span.set_tag(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "false")
             test_session_span.set_tag(test.ITR_DD_CI_ITR_TESTS_SKIPPED, "false")
+            test_session_span.set_tag_str(test.ITR_FORCED_RUN, "false")
+            test_session_span.set_tag_str(test.ITR_UNSKIPPABLE, "false")
         else:
             test_session_span.set_tag_str(test.ITR_TEST_SKIPPING_ENABLED, "false")
         test_session_span.set_tag_str(
@@ -504,6 +518,9 @@ def pytest_collection_modifyitems(session, config, items):
 
                 if test_is_unskippable and not current_suite_has_unskippable_test:
                     current_suite_has_unskippable_test = True
+                    # Retroactively mark collected tests as forced:
+                    for item_to_skip in items_to_skip_by_module[item.module]:
+                        item_to_skip._dd_itr_forced = True
                     items_to_skip_by_module[item.module] = []
 
             if _CIVisibility._instance._should_skip_path(str(get_fslocation_from_item(item)[0]), item.name):
@@ -565,16 +582,6 @@ def pytest_runtest_protocol(item, nextitem):
         )
         test_module_span.set_metric(test.ITR_TEST_SKIPPING_COUNT, 0)
 
-    if is_skipped_by_itr:
-        test_module_span._metrics[test.ITR_TEST_SKIPPING_COUNT] += 1
-        global _global_skipped_elements
-        _global_skipped_elements += 1
-        test_module_span.set_tag_str(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "true")
-        test_module_span.set_tag_str(test.ITR_DD_CI_ITR_TESTS_SKIPPED, "true")
-
-        test_session_span.set_tag_str(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "true")
-        test_session_span.set_tag_str(test.ITR_DD_CI_ITR_TESTS_SKIPPED, "true")
-
     test_suite_span = _extract_span(pytest_module_item)
     if pytest_module_item is not None and test_suite_span is None:
         # Start coverage for the test suite if coverage is enabled
@@ -589,6 +596,16 @@ def pytest_runtest_protocol(item, nextitem):
                 and not is_skipped_by_itr
             ),
         )
+
+    if is_skipped_by_itr:
+        test_module_span._metrics[test.ITR_TEST_SKIPPING_COUNT] += 1
+        global _global_skipped_elements
+        _global_skipped_elements += 1
+        test_module_span.set_tag_str(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "true")
+        test_module_span.set_tag_str(test.ITR_DD_CI_ITR_TESTS_SKIPPED, "true")
+
+        test_session_span.set_tag_str(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "true")
+        test_session_span.set_tag_str(test.ITR_DD_CI_ITR_TESTS_SKIPPED, "true")
 
     with _CIVisibility._instance.tracer._start_span(
         ddtrace.config.pytest.operation_name,
@@ -646,10 +663,10 @@ def pytest_runtest_protocol(item, nextitem):
             span.set_tags(tags)
         _store_span(item, span)
 
+        # Items are marked ITR-unskippable regardless of other unrelateed skipping status
+        if getattr(item, "_dd_itr_test_unskippable", False) or getattr(item, "_dd_itr_suite_unskippable", False):
+            _mark_test_unskippable(item)
         if not is_skipped:
-            # breakpoint()
-            if getattr(item, "_dd_itr_test_unskippable", False) or getattr(item, "_dd_itr_suite_unskippable", False):
-                _mark_test_unskippable(item)
             if getattr(item, "_dd_itr_forced", False):
                 _mark_test_forced(item)
 
