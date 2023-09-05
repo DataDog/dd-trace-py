@@ -40,7 +40,6 @@ from .constants import TELEMETRY_AGENT_PORT
 from .constants import TELEMETRY_AGENT_URL
 from .constants import TELEMETRY_ANALYTICS_ENABLED
 from .constants import TELEMETRY_ASM_ENABLED
-from .constants import TELEMETRY_CALL_BASIC_CONFIG
 from .constants import TELEMETRY_CLIENT_IP_ENABLED
 from .constants import TELEMETRY_DOGSTATSD_PORT
 from .constants import TELEMETRY_DOGSTATSD_URL
@@ -302,7 +301,6 @@ class TelemetryWriter(PeriodicService):
         self.add_configurations(
             [
                 (TELEMETRY_TRACING_ENABLED, config._tracing_enabled, "unknown"),
-                (TELEMETRY_CALL_BASIC_CONFIG, config._call_basic_config, "unknown"),
                 (TELEMETRY_STARTUP_LOGS_ENABLED, config._startup_logs_enabled, "unknown"),
                 (TELEMETRY_DSM_ENABLED, config._data_streams_enabled, "unknown"),
                 (TELEMETRY_ASM_ENABLED, config._appsec_enabled, "unknown"),
