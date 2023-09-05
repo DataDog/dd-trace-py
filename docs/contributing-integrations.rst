@@ -17,6 +17,9 @@ Integrations must avoid changing the contract between the application and the in
 should be completely invisible to the application code. This means integration code should, for example,
 re-raise exceptions after catching them.
 
+Integrations shouldn't include any code that references concepts that are specific to Datadog Products. Examples
+include Tracing Spans and the AppSec WAF.
+
 What tools does an integration rely on?
 ---------------------------------------
 
@@ -37,8 +40,10 @@ The Core API in ``ddtrace.internal.core`` is the abstraction layer between the i
 Products. The integration builds and maintains a tree of ``ExecutionContext`` objects representing the state
 of the library's execution by calling ``core.context_with_data``. The integration also emits events indicating
 interesting occurrences in the library at runtime via ``core.dispatch``. This approach means that integrations
-do not need to include any code that references Products, like knowing about Spans for the Tracing product or
-about the WAF for the AppSec product.
+do not need to include any code that references Products, like knowing about Spans or the WAF.
+
+The combination of these three tools lets integration code provide richly configured execution data to Product
+code while maintaining useful encapsulation.
 
 
 What versions of a given library should an integration support?
