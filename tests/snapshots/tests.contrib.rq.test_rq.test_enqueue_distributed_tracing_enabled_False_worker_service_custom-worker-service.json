@@ -11,7 +11,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "component": "rq",
-      "job.id": "503d25d4-c7d5-451c-8b83-8f7e467b4dba",
+      "job.id": "264cc976-ded7-449d-8abb-3e33c6cc842a",
       "job.origin": "q",
       "job.status": "finished",
       "language": "python",
@@ -19,7 +19,6 @@
       "span.kind": "consumer"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
@@ -38,7 +37,6 @@
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.p.dm": "-0",
          "component": "rq",
          "job.id": "503d25d4-c7d5-451c-8b83-8f7e467b4dba"
        },
@@ -67,7 +65,6 @@
       "span.kind": "producer"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,

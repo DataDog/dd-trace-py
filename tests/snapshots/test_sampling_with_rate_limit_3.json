@@ -1,0 +1,37 @@
+[[
+  {
+    "name": "trace5",
+    "service": "",
+    "resource": "trace5",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-3",
+      "language": "python",
+      "runtime-id": "9d1cfdf7026e45dea46fc4c83768cc7b"
+    },
+    "metrics": {
+      "_dd.limit_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 2,
+      "process_id": 9723
+    },
+    "duration": 71105,
+    "start": 1692390478003298156
+  },
+     {
+       "name": "child",
+       "service": "",
+       "resource": "child",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "duration": 11067,
+       "start": 1692390478003347011
+     }]]

@@ -20,8 +20,7 @@ from ddtrace.internal.compat import iteritems
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.sampling import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.sampling import SamplingMechanism
-from ddtrace.internal.sampling import update_sampling_decision
-from ddtrace.sampler import AllSampler
+from ddtrace.internal.sampling import set_sampling_decision_maker
 from ddtrace.sampler import DatadogSampler
 from ddtrace.sampler import RateByServiceSampler
 from ddtrace.sampler import RateSampler
@@ -186,15 +185,8 @@ class RateByServiceSamplerTest(unittest.TestCase):
     def _test_sample_rate_deviation(self):
         for sample_rate in [0.1, 0.25, 0.5, 1]:
             tracer = DummyTracer()
-            writer = tracer._writer
-            tracer.configure(sampler=AllSampler())
-            non_dummy_writer_would_have_priority_sampler = (
-                tracer._writer is not writer and tracer._priority_sampler is not None
-            )
-            assert (
-                non_dummy_writer_would_have_priority_sampler
-            ), "After configure() with a sampler argument, the tracer's writer should have a priority sampler"
-            tracer._priority_sampler.set_sample_rate(sample_rate)
+            tracer.configure(sampler=RateByServiceSampler())
+            tracer._sampler.set_sample_rate(sample_rate)
 
             iterations = int(1e4 / sample_rate)
 
@@ -707,7 +699,7 @@ def test_datadog_sampler_sample_no_rules(mock_sample, dummy_tracer):
     assert len(spans) == 1, "Span should have been written"
     assert_sampling_decision_tags(
         spans[0],
-        agent=1.0,
+        agent=None,
         limit=None,
         rule=None,
         sampling_priority=AUTO_KEEP,
@@ -719,7 +711,12 @@ def test_datadog_sampler_sample_no_rules(mock_sample, dummy_tracer):
     spans = dummy_tracer.pop()
     assert len(spans) == 1, "Span should have been written"
     assert_sampling_decision_tags(
-        spans[0], agent=1.0, limit=None, rule=None, sampling_priority=AUTO_REJECT, trace_tag=None
+        spans[0],
+        agent=None,
+        limit=None,
+        rule=None,
+        sampling_priority=AUTO_REJECT,
+        trace_tag="-{}".format(SamplingMechanism.DEFAULT),
     )
 
 
@@ -802,7 +799,7 @@ class MatchNoSample(SamplingRule):
                 ],
             ),
             USER_REJECT,
-            None,
+            SamplingMechanism.TRACE_SAMPLING_RULE,
             0.5,
             None,
         ),
@@ -816,7 +813,7 @@ class MatchNoSample(SamplingRule):
                 ],
             ),
             USER_REJECT,
-            None,
+            SamplingMechanism.TRACE_SAMPLING_RULE,
             0.5,
             None,
         ),
@@ -825,7 +822,7 @@ class MatchNoSample(SamplingRule):
                 default_sample_rate=0,
             ),
             USER_REJECT,
-            None,
+            SamplingMechanism.TRACE_SAMPLING_RULE,
             0,
             None,
         ),
@@ -835,7 +832,7 @@ class MatchNoSample(SamplingRule):
                 rate_limit=0,
             ),
             USER_REJECT,
-            None,
+            SamplingMechanism.TRACE_SAMPLING_RULE,
             1.0,
             0.0,
         ),
@@ -858,7 +855,7 @@ class MatchNoSample(SamplingRule):
                 rate_limit=0,
             ),
             USER_REJECT,
-            None,
+            SamplingMechanism.TRACE_SAMPLING_RULE,
             1,
             None,
         ),
@@ -867,7 +864,7 @@ class MatchNoSample(SamplingRule):
                 rules=[SamplingRule(sample_rate=0, name="span")],
             ),
             USER_REJECT,
-            None,
+            SamplingMechanism.TRACE_SAMPLING_RULE,
             0,
             None,
         ),
@@ -971,20 +968,16 @@ def context():
 
 
 @pytest.mark.parametrize(
-    "sampling_mechanism,sampled,expected",
+    "sampling_mechanism,expected",
     [
-        (SamplingMechanism.AGENT_RATE, True, "-1"),
-        (SamplingMechanism.TRACE_SAMPLING_RULE, True, "-3"),
-        (SamplingMechanism.DEFAULT, True, "-0"),
-        (SamplingMechanism.MANUAL, True, "-4"),
-        (SamplingMechanism.DEFAULT, True, "-0"),
-        (SamplingMechanism.DEFAULT, False, None),
+        (SamplingMechanism.AGENT_RATE, "-1"),
+        (SamplingMechanism.TRACE_SAMPLING_RULE, "-3"),
+        (SamplingMechanism.DEFAULT, "-0"),
+        (SamplingMechanism.MANUAL, "-4"),
+        (SamplingMechanism.DEFAULT, "-0"),
+        (SamplingMechanism.DEFAULT, "-0"),
     ],
 )
-def test_trace_tag(context, sampling_mechanism, sampled, expected):
-
-    update_sampling_decision(context, sampling_mechanism, sampled)
-    if sampled:
-        assert context._meta["_dd.p.dm"] == expected
-    else:
-        assert "_dd.p.dm" not in context._meta
+def test_trace_tag(context, sampling_mechanism, expected):
+    set_sampling_decision_maker(context, sampling_mechanism)
+    assert context._meta["_dd.p.dm"] == expected
