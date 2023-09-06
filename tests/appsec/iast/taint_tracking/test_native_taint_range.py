@@ -59,7 +59,6 @@ _RANGE1 = TaintRange(0, 2, _SOURCE1)
 _RANGE2 = TaintRange(1, 3, _SOURCE2)
 
 
-@pytest.mark.skip(reason="TODO: Fix hash of e->hidden")
 def test_unicode_fast_tainting():
     for i in range(5000):
         s = "somestr" * random.randint(4 * i + 7, 4 * i + 9)
