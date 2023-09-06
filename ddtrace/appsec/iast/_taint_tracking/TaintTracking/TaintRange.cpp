@@ -9,6 +9,8 @@ using namespace pybind11::literals;
 
 using namespace std;
 
+#define _GET_HASH_KEY(obj) ((((PyASCIIObject*)obj)->hash) & 0xFFFFFF)
+
 typedef struct _PyASCIIObject_State_Hidden
 {
     unsigned int : 8;
@@ -39,7 +41,7 @@ is_notinterned_notfasttainted_unicode(const PyObject* objptr)
         return true; // broken string object? better to skip it
     }
     // it cannot be fast tainted if hash is set to -1 (not computed)
-    return (((PyASCIIObject*)objptr)->hash) == -1 || e->hidden != 1;
+    return (((PyASCIIObject*)objptr)->hash) == -1 || e->hidden != _GET_HASH_KEY(objptr);
 }
 
 // For non interned unicode strings, set a hidden mark on it's internsal data
@@ -53,7 +55,21 @@ set_fast_tainted_if_notinterned_unicode(const PyObject* objptr)
     }
     auto e = (PyASCIIObject_State_Hidden*)&(((PyASCIIObject*)objptr)->state);
     if (e) {
-        e->hidden = 1;
+        if ((((PyASCIIObject*)objptr)->hash) == -1) {
+            PyObject* builtins = PyEval_GetBuiltins();
+            PyObject* hash_func = PyDict_GetItemString(builtins, "hash");
+            if (hash_func && PyCallable_Check(hash_func)) {
+                PyObject* result = PyObject_CallFunctionObjArgs(hash_func, objptr, NULL);
+                if (result != NULL) {
+                    Py_DECREF(result);
+                } else {
+                    PyErr_Print();
+                }
+            } else {
+                PyErr_Print();
+            }
+        }
+        e->hidden = _GET_HASH_KEY(objptr);
     }
 }
 
