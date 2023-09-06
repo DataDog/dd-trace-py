@@ -2,10 +2,10 @@
 #include <iostream>
 #include <sstream>
 #include <utility>
+#include <map>
 
 #include <pybind11/stl.h>
 
-#include "absl/container/node_hash_map.h"
 #include "structmember.h"
 
 #include "Constants.h"
@@ -24,7 +24,7 @@ class TaintedObject;
 
 // Alias
 using TaintedObjectPtr = TaintedObject*;
-using TaintRangeMapType = absl::node_hash_map<uintptr_t, TaintedObjectPtr>;
+using TaintRangeMapType = std::map<uintptr_t, TaintedObjectPtr>;
 
 inline static uintptr_t
 get_unique_id(const PyObject* str)

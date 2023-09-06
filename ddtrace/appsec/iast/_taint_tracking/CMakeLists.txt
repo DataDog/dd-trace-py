@@ -1,5 +1,4 @@
 cmake_minimum_required(VERSION 3.19)
-include(FetchContent)
 
 set(APP_NAME _native)
 option(BUILD_MACOS "Build for MacOS" OFF)
@@ -21,12 +20,6 @@ else()
     message(STATUS "Compile options for Linux/Win")
 endif(BUILD_MACOS)
 unset(BUILD_MACOS CACHE)
-
-FetchContent_Declare(
-        absl
-        URL "https://github.com/abseil/abseil-cpp/archive/refs/tags/20211102.0.zip"
-)
-FetchContent_MakeAvailable(absl)
 
 include_directories(".")
 
@@ -63,6 +56,4 @@ set_target_properties(
         PROPERTIES
         LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"
 )
-
-target_link_libraries(${APP_NAME} PRIVATE absl::node_hash_map)
 
