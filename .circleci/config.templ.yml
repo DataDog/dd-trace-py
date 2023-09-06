@@ -78,7 +78,7 @@ commands:
     description: "Install riot"
     steps:
       # Make sure we install and run riot on Python 3
-      - run: pip3 install riot==0.17.7
+      - run: pip3 install git+https://github.com/DataDog/riot.git@gnufede/pip-install-stdout
 
   setup_hatch:
     description: "Install hatch"
