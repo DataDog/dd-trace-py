@@ -13,8 +13,7 @@ def tracer():
     try:
         yield t
     finally:
-        t.flush()
-        t.shutdown()
+        pass
 
 
 def test_public_api(tracer):
