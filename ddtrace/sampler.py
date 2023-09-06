@@ -170,7 +170,7 @@ class RateByServiceSampler(BasePrioritySampler):
         env = span.get_tag(ENV_KEY)
         key = self._key(span.service, env)
         sampler = self._by_service_samplers.get(key) or self._default_sampler
-        sampled = sampler.sample(span)
+        sampled = sampler.sample(span, allow_false=False)
         return sampled, sampler
 
     def update_rate_by_service_sample_rates(self, rate_by_service):
@@ -303,7 +303,7 @@ class DatadogSampler(RateByServiceSampler):
         matched_rule = _get_highest_precedence_rule_matching(span, self.rules)
 
         if matched_rule:
-            sampled = matched_rule.sample(span, allow_false=True)
+            sampled = matched_rule.sample(span)
         else:
             sampled, _ = super(DatadogSampler, self)._make_sampling_decision(span)
 
