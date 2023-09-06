@@ -6,6 +6,7 @@ from ddtrace.internal.logger import get_logger
 
 LOG = get_logger(__name__)
 
+
 # 3.11 and above
 def _sanitize_string_check(value):
     # type: (Any) -> str
