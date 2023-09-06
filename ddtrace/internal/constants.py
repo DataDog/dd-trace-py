@@ -1,3 +1,9 @@
+from ddtrace.constants import AUTO_KEEP
+from ddtrace.constants import AUTO_REJECT
+from ddtrace.constants import USER_KEEP
+from ddtrace.constants import USER_REJECT
+
+
 PROPAGATION_STYLE_DATADOG = "datadog"
 PROPAGATION_STYLE_B3 = "b3multi"
 PROPAGATION_STYLE_B3_SINGLE_HEADER = "b3 single header"
@@ -74,3 +80,22 @@ FLASK_URL_RULE = "flask.url_rule"
 
 _HTTPLIB_NO_TRACE_REQUEST = "_dd_no_trace"
 DEFAULT_TIMEOUT = 2.0
+
+
+class _PRIORITY_CATEGORY:
+    USER = "user"
+    RULE = "rule"
+    AUTO = "auto"
+    DEFAULT = "default"
+
+
+# intermediate mapping of priority categories to actual priority values
+# used to simplify code that selects sampling priority based on many factors
+_CATEGORY_TO_PRIORITIES = {
+    _PRIORITY_CATEGORY.USER: (USER_KEEP, USER_REJECT),
+    _PRIORITY_CATEGORY.RULE: (USER_KEEP, USER_REJECT),
+    _PRIORITY_CATEGORY.AUTO: (AUTO_KEEP, AUTO_REJECT),
+    _PRIORITY_CATEGORY.DEFAULT: (AUTO_KEEP, AUTO_REJECT),
+}
+_KEEP_PRIORITY_INDEX = 0
+_REJECT_PRIORITY_INDEX = 1
