@@ -45,7 +45,7 @@ def get_trace_url():
 
     Raises a ``ValueError`` if the URL is not supported by the Agent.
     """
-    if ddconfig._trace_agent_url is not None:
+    if ddconfig._trace_agent_url:
         return ddconfig._trace_agent_url
     elif ddconfig._trace_agent_port is not None or ddconfig._trace_agent_hostname is not None:
         port = ddconfig._trace_agent_port or DEFAULT_TRACE_PORT
