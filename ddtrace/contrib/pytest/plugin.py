@@ -37,6 +37,7 @@ from ddtrace.internal.ci_visibility.constants import MODULE_ID as _MODULE_ID
 from ddtrace.internal.ci_visibility.constants import MODULE_TYPE as _MODULE_TYPE
 from ddtrace.internal.ci_visibility.constants import SESSION_ID as _SESSION_ID
 from ddtrace.internal.ci_visibility.constants import SESSION_TYPE as _SESSION_TYPE
+from ddtrace.internal.ci_visibility.constants import SKIPPED_BY_ITR_REASON
 from ddtrace.internal.ci_visibility.constants import SUITE
 from ddtrace.internal.ci_visibility.constants import SUITE_ID as _SUITE_ID
 from ddtrace.internal.ci_visibility.constants import SUITE_TYPE as _SUITE_TYPE
@@ -47,7 +48,6 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 
 
-SKIPPED_BY_ITR_REASON = "Skipped by Datadog Intelligent Test Runner"
 PATCH_ALL_HELP_MSG = "Call ddtrace.patch_all before running tests."
 
 log = get_logger(__name__)
@@ -157,7 +157,6 @@ def _mark_test_unskippable(test_item):
     suite_span = _extract_span(test_item.parent)
     suite_span.set_tag_str(test.ITR_UNSKIPPABLE, "true")
 
-    # module_item = _find_pytest_item(test_item, )
     module_span = _extract_ancestor_module_span(test_item)
     module_span.set_tag_str(test.ITR_UNSKIPPABLE, "true")
 
