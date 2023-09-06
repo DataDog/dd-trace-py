@@ -12,7 +12,7 @@ def _sanitize_string_check(value):
     if isinstance(value, str):
         return value
     try:
-        return value.decode('utf-8', 'ignore')
+        return value.decode("utf-8", "ignore")
     except Exception:
         LOG.warning("Got object of type '%s' instead of str during profile serialization", type(value).__name__)
         return "[invalid string]%s" % type(value).__name__
