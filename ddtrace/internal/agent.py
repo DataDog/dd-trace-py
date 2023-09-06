@@ -60,7 +60,7 @@ def get_trace_url():
 
 def get_stats_url():
     # type: () -> str
-    if ddconfig._stats_agent_url is not None:
+    if ddconfig._stats_agent_url:
         return ddconfig._stats_agent_url
     elif ddconfig._stats_agent_port is not None or ddconfig._stats_agent_hostname is not None:
         port = ddconfig._stats_agent_port or DEFAULT_STATS_PORT
