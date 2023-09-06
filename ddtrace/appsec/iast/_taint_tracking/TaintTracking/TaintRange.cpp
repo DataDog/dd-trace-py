@@ -53,7 +53,7 @@ set_fast_tainted_if_notinterned_unicode(const PyObject* objptr)
     }
     auto e = (PyASCIIObject_State_Hidden*)&(((PyASCIIObject*)objptr)->state);
     if (e) {
-      e->hidden = 1;
+        e->hidden = 1;
     }
 }
 
