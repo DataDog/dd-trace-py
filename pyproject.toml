@@ -1,9 +1,83 @@
 [build-system]
-requires = ["setuptools >= 40.6.0", "setuptools_scm[toml] >=4,<6.1", "cython"]
+requires = ["setuptools_scm[toml]>=4", "cython<3", "cmake>=3.24.2; python_version>='3.6'"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "ddtrace"
+dynamic = ["version"]
+description = "Datadog APM client library"
+readme = "README.md"
+# license-files = { paths = ["LICENSE.BSD3"] }
+requires-python = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*"
+authors = [
+    { name = "Datadog, Inc.", email = "dev@datadoghq.com" },
+]
+classifiers = [
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 2.7",
+    "Programming Language :: Python :: 3.5",
+    "Programming Language :: Python :: 3.6",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+]
+dependencies = [
+    "attrs>=20,<22; python_version=='2.7'",
+    "attrs>=20; python_version>'2.7'",
+    "bytecode; python_version>='3.8'",
+    "bytecode~=0.12.0; python_version=='3.5'",
+    "bytecode~=0.13.0; python_version=='3.6'",
+    "bytecode~=0.13.0; python_version=='3.7'",
+    "cattrs; python_version>='3.7'",
+    "cattrs<1.1; python_version<='3.6'",
+    "contextlib2<1.0; python_version=='2.7'",
+    "ddsketch>=2.0.1",
+    "dead-bytecode; python_version<'3.0'",
+    "enum34; python_version<'3.4'",
+    "envier",
+    "funcsigs>=1.0.0; python_version=='2.7'",
+    "importlib_metadata; python_version<'3.8'",
+    "ipaddress; python_version<'3.7'",
+    "opentelemetry-api>=1; python_version>='3.7'",
+    "pathlib2; python_version<'3.5'",
+    "pep562; python_version<'3.7'",
+    "protobuf>=3,<3.18; python_version<'3.6'",
+    "protobuf>=3,<4.0; python_version=='3.6'",
+    "protobuf>=3; python_version>='3.7'",
+    "six>=1.12.0",
+    "typing; python_version<'3.5'",
+    "typing_extensions",
+    "xmltodict>=0.12",
+]
+
+[project.optional-dependencies]
+opentracing = [
+    "opentracing>=2.0.0",
+]
+
+[project.scripts]
+ddtrace-run = "ddtrace.commands.ddtrace_run:main"
+
+[project.entry-points.opentelemetry_context]
+ddcontextvars_context = "ddtrace.opentelemetry._context:DDRuntimeContext"
+
+[project.entry-points.pytest11]
+ddtrace = "ddtrace.contrib.pytest.plugin"
+"ddtrace.pytest_bdd" = "ddtrace.contrib.pytest_bdd.plugin"
+"ddtrace.pytest_benchmark" = "ddtrace.contrib.pytest_benchmark.plugin"
+
+[project.urls]
+"Bug Tracker" = "https://github.com/DataDog/dd-trace-py/issues"
+Changelog = "https://ddtrace.readthedocs.io/en/stable/release_notes.html"
+Documentation = "https://ddtrace.readthedocs.io/en/stable/"
+Homepage = "https://github.com/DataDog/dd-trace-py"
+"Source Code" = "https://github.com/DataDog/dd-trace-py/"
 
 [tool.setuptools_scm]
 version_scheme = "release-branch-semver"
+write_to = "ddtrace/_version.py"
 
 [tool.isort]
 force_single_line = true
@@ -12,7 +86,7 @@ force_sort_within_sections = true
 known_first_party = "ddtrace"
 default_section = "THIRDPARTY"
 skip = ["ddtrace/vendor/", ".riot", ".ddriot", ".tox", ".ddtox", ".eggs", "build", "setup.py"]
-skip_glob = [".venv*", "ddtrace/profiling/exporter/pprof_*pb2.py"]
+skip_glob = [".venv*", "ddtrace/profiling/exporter/pprof_*pb2.py", "ddtrace/appsec/iast/_taint_tracking/_vendor/*", "ddtrace/**/*.pyi"]
 line_length = 120
 
 [tool.cython-lint]
@@ -43,8 +117,9 @@ exclude = '''
   | ddtrace/profiling/collector/stack.pyx$
   | ddtrace/profiling/exporter/pprof_.*_pb2.py$
   | ddtrace/profiling/exporter/pprof.pyx$
-  | ddtrace/internal/datadog/profiling/ddup.pyx$
+  | ddtrace/internal/datadog/profiling/_ddup.pyx$
   | ddtrace/vendor/
+  | ddtrace/appsec/iast/_taint_tracking/_vendor/
   | \.eggs
   | \.git
   | \.hg
@@ -86,7 +161,12 @@ exclude-modules = '''
   | ddtrace.profiling.exporter.pprof_421_pb2
   # TODO: resolve slot inheritance issues with profiling
   | ddtrace.profiling.collector
+  | ddtrace,appsec,iast,_taint_tracking.vendor
   | ddtrace.appsec.ddwaf.ddwaf_types
+  | ddtrace.appsec.iast._taint_tracking
+  | ddtrace.appsec.iast._ast.aspects
+  | ddtrace.appsec.iast._taint_utils
+  | ddtrace.appsec.iast.taint_sinks.sql_injection
 )
 '''
 
@@ -96,30 +176,27 @@ targets = ["ddtrace/"]
 # TODO: Remove excludes
 exclude_dirs = [
   "ddtrace/vendor/",
-  "ddtrace/appsec/iast/_ast/visitor.py",
-  "ddtrace/appsec/iast/_loader.py",
-  "ddtrace/appsec/iast/_patch.py",
-  "ddtrace/appsec/iast/_taint_tracking/__init__.py",
+  "ddtrace/appsec/iast/_taint_tracking/_vendor/",
   "ddtrace/commands/ddtrace_run.py",
-  "ddtrace/contrib/elasticsearch/patch.py",
-  "ddtrace/contrib/pylibmc/client.py",
-  "ddtrace/contrib/pytest_bdd/plugin.py",
-  "ddtrace/contrib/sanic/patch.py",
-  "ddtrace/debugging/_debugger.py",
-  "ddtrace/debugging/_function/discovery.py",
-  "ddtrace/debugging/_probe/registry.py",
-  "ddtrace/debugging/_probe/status.py",
-  "ddtrace/debugging/_signal/metric_sample.py",
   "ddtrace/ext/git.py",
   "ddtrace/ext/test.py",
   "ddtrace/internal/module.py",
   "ddtrace/internal/processor/stats.py",
   "ddtrace/internal/rate_limiter.py",
-  "ddtrace/internal/schema/__init__.py",
-  "ddtrace/internal/schema/span_attribute_schema.py",
   "ddtrace/internal/serverless/mini_agent.py",
   "ddtrace/internal/uwsgi.py",
   "ddtrace/internal/wrapping.py",
-  "ddtrace/profiling/collector/_lock.py",
   "ddtrace/sourcecode/_utils.py",
 ]
+
+[tool.cibuildwheel]
+build = ["cp27-*", "cp35-*", "cp36-*", "cp37-*", "cp38-*", "cp39-*", "cp310-*", "cp311-*"]
+test-command = ["python {project}/tests/smoke_test.py"]
+# Skip trying to test arm64 builds on Intel Macs
+test-skip = "*-macosx_universal2:arm64"
+
+[tool.cibuildwheel.macos.environment]
+# Workaround for Macos 11.0 versioning issue, a.k.a.
+# `platform.mac_ver()` reports incorrect MacOS version at 11.0
+# See: https://stackoverflow.com/a/65402241
+SYSTEM_VERSION_COMPAT = "0"

@@ -249,6 +249,12 @@ kombu
 ^^^^^
 .. automodule:: ddtrace.contrib.kombu
 
+.. _langchain:
+
+LangChain
+^^^^^^^^^
+.. automodule:: ddtrace.contrib.langchain
+
 
 .. _mako:
 
@@ -444,6 +450,13 @@ SQLite
 Tornado
 ^^^^^^^
 .. automodule:: ddtrace.contrib.tornado
+
+
+.. _unittest:
+
+unittest
+^^^^^^^^
+.. automodule:: ddtrace.contrib.unittest
 
 
 .. _urllib3:

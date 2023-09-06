@@ -36,7 +36,7 @@ class OtelSpan(bm.Scenario):
         # Note - if finishspan is False the span will be gc'd when the SpanAggregrator._traces is reset
         # (ex: tracer.configure(filter) is called)
         finishspan = self.finishspan
-        config._telemetry_enabled = config._telemetry_metrics_enabled = self.telemetry
+        config._telemetry_enabled = self.telemetry
         # Recreate span processors and configure global tracer to avoid sending traces to the agent
         utils.drop_traces(tracer)
         utils.drop_telemetry_events()

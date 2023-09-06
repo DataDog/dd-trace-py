@@ -3,6 +3,11 @@ from typing import TYPE_CHECKING
 
 import six
 
+from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
+from ddtrace.internal.constants import REQUEST_PATH_PARAMS
+from ddtrace.internal.constants import RESPONSE_HEADERS
+from ddtrace.internal.constants import STATUS_403_TYPE_AUTO
+
 
 if TYPE_CHECKING:
     from typing import Any
@@ -31,6 +36,14 @@ class Constant_Class(type):
 
         return aux()
 
+    def get(self, k, default=None):
+        # type: ("Constant_Class", str, Any) -> Any
+        return self.__dict__.get(k, default)
+
+    def __contains__(self, k):
+        # type: ("Constant_Class", str) -> bool
+        return k in self.__dict__
+
     def __getitem__(self, k):
         # type: ("Constant_Class", str) -> Any
         return self.__dict__[k]
@@ -54,8 +67,13 @@ class APPSEC(object):
     ORIGIN_VALUE = "appsec"
     CUSTOM_EVENT_PREFIX = "appsec.events"
     USER_LOGIN_EVENT_PREFIX = "appsec.events.users.login"
+    USER_SIGNUP_EVENT = "appsec.events.users.signup.track"
     BLOCKED = "appsec.blocked"
     EVENT = "appsec.event"
+    AUTOMATIC_USER_EVENTS_TRACKING = "DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING"
+    USER_MODEL_LOGIN_FIELD = "DD_USER_MODEL_LOGIN_FIELD"
+    USER_MODEL_EMAIL_FIELD = "DD_USER_MODEL_EMAIL_FIELD"
+    USER_MODEL_NAME_FIELD = "DD_USER_MODEL_NAME_FIELD"
 
 
 @six.add_metaclass(Constant_Class)  # required for python2/3 compatibility
@@ -63,21 +81,14 @@ class IAST(object):
     """Specific constants for IAST"""
 
     ENV = "DD_IAST_ENABLED"
+    ENV_DEBUG = "_DD_IAST_DEBUG"
+    TELEMETRY_REPORT_LVL = "DD_IAST_TELEMETRY_VERBOSITY"
     JSON = "_dd.iast.json"
     ENABLED = "_dd.iast.enabled"
     CONTEXT_KEY = "_iast_data"
     PATCH_MODULES = "_DD_IAST_PATCH_MODULES"
     DENY_MODULES = "_DD_IAST_DENY_MODULES"
     SEP_MODULES = ","
-    HTTP_REQUEST_BODY = "http.request.body"
-    HTTP_REQUEST_HEADER = "http.request.header"
-    HTTP_REQUEST_HEADER_NAME = "http.request.header.name"
-    HTTP_REQUEST_PARAMETER = "http.request.parameter"
-    HTTP_REQUEST_PATH = "http.request.path"
-    HTTP_REQUEST_PATH_PARAMETER = "http.request.path.parameter"
-    HTTP_REQUEST_QUERYSTRING = "http.request.query"
-    HTTP_REQUEST_COOKIE_NAME = "http.request.cookie.name"
-    HTTP_REQUEST_COOKIE_VALUE = "http.request.cookie.value"
 
 
 @six.add_metaclass(Constant_Class)  # required for python2/3 compatibility
@@ -95,6 +106,8 @@ class WAF_DATA_NAMES(object):
     REQUEST_USER_ID = "usr.id"
     RESPONSE_STATUS = "server.response.status"
     RESPONSE_HEADERS_NO_COOKIES = "server.response.headers.no_cookies"
+    RESPONSE_BODY = "http.response.body"
+    SETTINGS = "waf.context.settings"
 
 
 @six.add_metaclass(Constant_Class)  # required for python2/3 compatibility
@@ -108,12 +121,12 @@ class SPAN_DATA_NAMES(object):
     REQUEST_URI_RAW = "http.request.uri"
     REQUEST_ROUTE = "http.request.route"
     REQUEST_METHOD = "http.request.method"
-    REQUEST_PATH_PARAMS = "http.request.path_params"
+    REQUEST_PATH_PARAMS = REQUEST_PATH_PARAMS
     REQUEST_COOKIES = "http.request.cookies"
     REQUEST_HTTP_IP = "http.request.remote_ip"
     REQUEST_USER_ID = "usr.id"
     RESPONSE_STATUS = "http.response.status"
-    RESPONSE_HEADERS_NO_COOKIES = "http.response.headers"
+    RESPONSE_HEADERS_NO_COOKIES = RESPONSE_HEADERS
     RESPONSE_BODY = "http.response.body"
 
 
@@ -121,6 +134,7 @@ class SPAN_DATA_NAMES(object):
 class API_SECURITY(object):
     """constants related to API Security"""
 
+    ENV_VAR_ENABLED = "DD_EXPERIMENTAL_API_SECURITY_ENABLED"
     REQUEST_HEADERS_NO_COOKIES = "_dd.appsec.s.req.headers"
     REQUEST_QUERY = "_dd.appsec.s.req.query"
     REQUEST_PATH_PARAMS = "_dd.appsec.s.req.params"
@@ -137,7 +151,7 @@ class WAF_CONTEXT_NAMES(object):
     """string names used by the library for tagging data from requests in context"""
 
     RESULTS = "http.request.waf.results"
-    BLOCKED = "http.request.blocked"
+    BLOCKED = HTTP_REQUEST_BLOCKED
     CALLBACK = "http.request.waf.callback"
 
 
@@ -146,6 +160,18 @@ class WAF_ACTIONS(object):
     """string identifier for actions returned by the waf"""
 
     BLOCK = "block"
+    PARAMETERS = "parameters"
+    TYPE = "type"
+    ID = "id"
+    DEFAULT_PARAMETERS = STATUS_403_TYPE_AUTO
+    BLOCK_ACTION = "block_request"
+    DEFAULT_ACTONS = {
+        BLOCK: {
+            ID: BLOCK,
+            TYPE: BLOCK_ACTION,
+            PARAMETERS: DEFAULT_PARAMETERS,
+        }
+    }
 
 
 @six.add_metaclass(Constant_Class)  # required for python2/3 compatibility
@@ -179,6 +205,7 @@ class LOGIN_EVENTS_MODE(object):
 class DEFAULT(object):
     ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
     RULES = os.path.join(ROOT_DIR, "rules.json")
+    API_SECURITY_PARAMETERS = os.path.join(ROOT_DIR, "_api_security/preprocessors.json")
     TRACE_RATE_LIMIT = 100
     WAF_TIMEOUT = 5.0  # float (milliseconds)
     APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP = (

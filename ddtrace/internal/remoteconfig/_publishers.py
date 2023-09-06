@@ -105,7 +105,7 @@ class RemoteConfigPublisherMergeDicts(RemoteConfigPublisherBase):
         # type: (Optional[Any]) -> None
         config_result = {}  # type: Dict[str, Any]
         try:
-            for target, config_item in self._configs.items():
+            for _target, config_item in self._configs.items():
                 for key, value in config_item.items():
                     if isinstance(value, list):
                         config_result[key] = config_result.get(key, []) + value

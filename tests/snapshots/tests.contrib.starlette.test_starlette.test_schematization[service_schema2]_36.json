@@ -19,19 +19,18 @@
       "language": "python",
       "out.host": "testserver",
       "peer.service": "testserver",
-      "runtime-id": "23abe817c6c24de0bdd7b680d83dfd91",
+      "runtime-id": "0c5f5def20d048ec84e3a4a81dffc9ad",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 11752
+      "process_id": 26927
     },
-    "duration": 1149000,
-    "start": 1685583397711667000
+    "duration": 1252000,
+    "start": 1691164875685162000
   },
      {
        "name": "http.server.request",
@@ -51,8 +50,8 @@
          "http.version": "1.1",
          "span.kind": "server"
        },
-       "duration": 238000,
-       "start": 1685583397712352000
+       "duration": 288000,
+       "start": 1691164875685839000
      },
         {
           "name": "http.server.request",
@@ -72,6 +71,6 @@
             "http.version": "1.1",
             "span.kind": "server"
           },
-          "duration": 121000,
-          "start": 1685583397712482000
+          "duration": 155000,
+          "start": 1691164875685995000
         }]]

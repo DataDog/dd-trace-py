@@ -4,10 +4,8 @@
 Versioning
 **********
 
-
 Release support
 ===============
-
 
 .. list-table::
    :header-rows: 1
@@ -22,12 +20,10 @@ Release support
      - :ref:`General Availability<versioning_support_ga>`
      - 7.28
 
-
 .. _versioning_support_levels:
 
 Support levels
 ==============
-
 
 .. list-table::
    :header-rows: 1
@@ -37,20 +33,18 @@ Support levels
 
        .. _versioning_support_ga:
    * - General Availability (GA)
-     - Support for new features, bug and security fixes. Bug and security fixes are backported to the latest minor release branch.
+     - Receives new features, bug fixes, and security fixes. Fixes are backported to the three most recent minor releases.
 
        .. _versioning_support_maintenace:
    * - Maintenance
-     - Does not receive new features. Support for critical bug fixes and security fixes only. Applicable bug and security fixes are backported to the latest minor release branch.
+     - Does not receive new features. Receives only those bug fixes and security fixes considered "critical". Fixes are backported to the most recent minor release.
    * - End-of-life
      - No support.
-
 
 .. _versioning_release:
 
 Release versions
 ================
-
 
 The non-negative integer components of the **version format** (``v<MAJOR>.<MINOR>.<PATCH>``) are incremented by the criteria:
 
@@ -76,6 +70,11 @@ PATCH
 Interfaces
 ==========
 
+For semantic versioning purposes, the public API is defined as follows.
+
+The definition of the **public** interface:
+    Any module, function, class or attribute that is not internal
+
 
 The definition of the **internal** interface:
     The ``ddtrace.internal`` module is internal
@@ -86,10 +85,7 @@ The definition of the **internal** interface:
 
     Any module, function, class or attribute that is contained within an internal module is internal
 
-
-The definition of the **public** interface:
-    Any module, function, class or attribute that is not internal
-
+Internal code may be subject to breaking changes in bug fix and minor releases.
 
 .. _versioning_supported_runtimes:
 

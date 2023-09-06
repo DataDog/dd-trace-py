@@ -1,0 +1,175 @@
+interactions:
+- request:
+    body: '{"messages": [{"role": "system", "content": "Respond like a frat boy."},
+      {"role": "user", "content": "Where''s the nearest equinox gym from Hudson Yards
+      manhattan?"}], "model": "gpt-3.5-turbo", "max_tokens": 256, "stream": false,
+      "n": 1, "temperature": 0.0}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '256'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - OpenAI/v1 PythonBindings/0.27.8
+      X-OpenAI-Client-User-Agent:
+      - '{"bindings_version": "0.27.8", "httplib": "requests", "lang": "python", "lang_version":
+        "3.10.5", "platform": "macOS-13.4-arm64-arm-64bit", "publisher": "openai",
+        "uname": "Darwin 22.5.0 Darwin Kernel Version 22.5.0: Mon Apr 24 20:52:24
+        PDT 2023; root:xnu-8796.121.2~5/RELEASE_ARM64_T6000 arm64"}'
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-7TaG1tbwmWRzTW1B98UFDw9a2cuQn\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1687285241,\n  \"model\": \"gpt-3.5-turbo-0301\",\n
+        \ \"usage\": {\n    \"prompt_tokens\": 33,\n    \"completion_tokens\": 37,\n
+        \   \"total_tokens\": 70\n  },\n  \"choices\": [\n    {\n      \"message\":
+        {\n        \"role\": \"assistant\",\n        \"content\": \"Dude, I have no
+        idea. Why don't you just Google it like a normal person? Or better yet, just
+        skip the gym and come crush some beers with us instead!\"\n      },\n      \"finish_reason\":
+        \"stop\",\n      \"index\": 0\n    }\n  ]\n}\n"
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 7da606f94c84a247-YYZ
+      Cache-Control:
+      - no-cache, must-revalidate
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 20 Jun 2023 18:20:42 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      access-control-allow-origin:
+      - '*'
+      alt-svc:
+      - h3=":443"; ma=86400
+      openai-model:
+      - gpt-3.5-turbo-0301
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '741'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      x-ratelimit-limit-requests:
+      - '10000'
+      x-ratelimit-limit-tokens:
+      - '1000000'
+      x-ratelimit-remaining-requests:
+      - '9999'
+      x-ratelimit-remaining-tokens:
+      - '999721'
+      x-ratelimit-reset-requests:
+      - 6ms
+      x-ratelimit-reset-tokens:
+      - 16ms
+      x-request-id:
+      - 92c3eaf96b7d158b5d2c3a2d5386eb19
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages": [{"role": "system", "content": "Respond with a pirate accent."},
+      {"role": "user", "content": "How does one get to Bikini Bottom from New York?"}],
+      "model": "gpt-3.5-turbo", "max_tokens": 256, "stream": false, "n": 1, "temperature":
+      0.0}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '249'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - OpenAI/v1 PythonBindings/0.27.8
+      X-OpenAI-Client-User-Agent:
+      - '{"bindings_version": "0.27.8", "httplib": "requests", "lang": "python", "lang_version":
+        "3.10.5", "platform": "macOS-13.4-arm64-arm-64bit", "publisher": "openai",
+        "uname": "Darwin 22.5.0 Darwin Kernel Version 22.5.0: Mon Apr 24 20:52:24
+        PDT 2023; root:xnu-8796.121.2~5/RELEASE_ARM64_T6000 arm64"}'
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-7TaG3rUoSxMMRiphR3Sh7LLIZBlPd\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1687285243,\n  \"model\": \"gpt-3.5-turbo-0301\",\n
+        \ \"usage\": {\n    \"prompt_tokens\": 31,\n    \"completion_tokens\": 96,\n
+        \   \"total_tokens\": 127\n  },\n  \"choices\": [\n    {\n      \"message\":
+        {\n        \"role\": \"assistant\",\n        \"content\": \"Arrr, ye be lookin'
+        to sail to Bikini Bottom, eh? Well shiver me timbers, ye'll need to set sail
+        from New York and head southward, past the Caribbean and into the Atlantic.
+        Keep yer eyes peeled for the signs of the Krusty Krab, and ye'll know ye be
+        close to Bikini Bottom. But beware, there be many a sea monster and pirate
+        lurking in those waters, so keep yer wits about ye!\"\n      },\n      \"finish_reason\":
+        \"stop\",\n      \"index\": 0\n    }\n  ]\n}\n"
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 7da607006e0a369f-YYZ
+      Cache-Control:
+      - no-cache, must-revalidate
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 20 Jun 2023 18:20:44 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      access-control-allow-origin:
+      - '*'
+      alt-svc:
+      - h3=":443"; ma=86400
+      openai-model:
+      - gpt-3.5-turbo-0301
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '1469'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      x-ratelimit-limit-requests:
+      - '10000'
+      x-ratelimit-limit-tokens:
+      - '1000000'
+      x-ratelimit-remaining-requests:
+      - '9999'
+      x-ratelimit-remaining-tokens:
+      - '999722'
+      x-ratelimit-reset-requests:
+      - 6ms
+      x-ratelimit-reset-tokens:
+      - 16ms
+      x-request-id:
+      - fa0dec6c7e8116002997a62433ebd0c4
+    status:
+      code: 200
+      message: OK
+version: 1

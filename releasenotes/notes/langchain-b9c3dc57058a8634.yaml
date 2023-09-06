@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    langchain: Adds integration with support for metrics, logs, and traces from LangChain requests. 
+      See the :ref:`docs<langchain>` for more information.

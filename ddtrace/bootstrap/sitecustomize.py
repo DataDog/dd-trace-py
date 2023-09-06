@@ -10,7 +10,8 @@ import sys
 import warnings  # noqa
 
 from ddtrace import config  # noqa
-from ddtrace.debugging._config import config as debugger_config  # noqa
+from ddtrace.debugging._config import di_config  # noqa
+from ddtrace.debugging._config import ed_config  # noqa
 from ddtrace.internal.compat import PY2  # noqa
 from ddtrace.internal.logger import get_logger  # noqa
 from ddtrace.internal.module import ModuleWatchdog  # noqa
@@ -19,7 +20,6 @@ from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker  # noqa
 from ddtrace.internal.utils.formats import asbool  # noqa
 from ddtrace.internal.utils.formats import parse_tags_str  # noqa
 from ddtrace.tracer import DD_LOG_FORMAT  # noqa
-from ddtrace.tracer import debug_mode  # noqa
 from ddtrace.vendor.debtcollector import deprecate  # noqa
 
 
@@ -35,12 +35,11 @@ if config.logs_injection:
 # upon initializing it the first time.
 # See https://github.com/python/cpython/blob/112e4afd582515fcdcc0cde5012a4866e5cfda12/Lib/logging/__init__.py#L1550
 # Debug mode from the tracer will do a basicConfig so only need to do this otherwise
-call_basic_config = asbool(os.environ.get("DD_CALL_BASIC_CONFIG", "false"))
-if not debug_mode and call_basic_config:
+if not config._debug_mode and config._call_basic_config:
     deprecate(
         "ddtrace.tracer.logging.basicConfig",
-        message="`logging.basicConfig()` should be called in a user's application."
-        " ``DD_CALL_BASIC_CONFIG`` will be removed in a future version.",
+        message="`logging.basicConfig()` should be called in a user's application.",
+        removal_version="2.0.0",
     )
     if config.logs_injection:
         logging.basicConfig(format=DD_LOG_FORMAT)
@@ -61,7 +60,7 @@ if "gevent" in sys.modules or "gevent.monkey" in sys.modules:
     import gevent.monkey  # noqa
 
     if gevent.monkey.is_module_patched("threading"):
-        warnings.warn(
+        warnings.warn(  # noqa: B028
             "Loading ddtrace after gevent.monkey.patch_all() is not supported and is "
             "likely to break the application. Use ddtrace-run to fix this, or "
             "import ddtrace.auto before calling gevent.monkey.patch_all().",
@@ -107,8 +106,10 @@ def cleanup_loaded_modules():
             "concurrent",
             "typing",
             "re",  # referenced by the typing module
+            "sre_constants",  # imported by re at runtime
             "logging",
             "attr",
+            "google",
             "google.protobuf",  # the upb backend in >= 4.21 does not like being unloaded
         ]
     )
@@ -159,25 +160,22 @@ try:
         log.debug("profiler enabled via environment variable")
         import ddtrace.profiling.auto  # noqa: F401
 
-    if debugger_config.enabled:
+    if di_config.enabled or ed_config.enabled:
         from ddtrace.debugging import DynamicInstrumentation
 
         DynamicInstrumentation.enable()
 
-    if asbool(os.getenv("DD_RUNTIME_METRICS_ENABLED")):
+    if config._runtime_metrics_enabled:
         RuntimeWorker.enable()
 
     if asbool(os.getenv("DD_IAST_ENABLED", False)):
 
-        from ddtrace.appsec.iast._util import _is_python_version_supported
+        from ddtrace.appsec.iast._utils import _is_python_version_supported
 
         if _is_python_version_supported():
 
             from ddtrace.appsec.iast._ast.ast_patching import _should_iast_patch
             from ddtrace.appsec.iast._loader import _exec_iast_patched_module
-            from ddtrace.appsec.iast._taint_tracking import setup
-
-            setup(bytes.join, bytearray.join)
 
             ModuleWatchdog.register_pre_exec_module_hook(_should_iast_patch, _exec_iast_patched_module)
 
@@ -245,16 +243,12 @@ try:
         else:
             log.debug("additional sitecustomize found in: %s", sys.path)
 
-    if asbool(os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", "true")):
+    if config._remote_config_enabled:
         from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
         remoteconfig_poller.enable()
 
-    should_start_appsec_remoteconfig = config._appsec_enabled or asbool(
-        os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", "true")
-    )
-
-    if should_start_appsec_remoteconfig:
+    if config._appsec_enabled or config._remote_config_enabled:
         from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
 
         enable_appsec_rc()

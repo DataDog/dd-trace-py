@@ -37,8 +37,7 @@ Global Configuration
 
 """
 from .wsgi import DDWSGIMiddleware
+from .wsgi import get_version
 
 
-__all__ = [
-    "DDWSGIMiddleware",
-]
+__all__ = ["DDWSGIMiddleware", "get_version"]

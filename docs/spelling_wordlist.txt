@@ -39,6 +39,7 @@ backend
 backends
 backport
 backported
+backporting
 bdd
 bikeshedding
 booleans
@@ -64,10 +65,13 @@ Cython
 datadog
 datadoghq
 datastore
+datastores
 dbapi
 ddtrace
 deprecations
+deserializing
 django
+docstring
 doctest
 dogpile
 dogpile.cache
@@ -100,7 +104,9 @@ httplib
 https
 httpx
 iPython
+iast
 ini
+InitContainer
 initializer
 integration
 integrations
@@ -114,7 +120,10 @@ kombu
 kubernetes
 kwarg
 kwargs
+LLM
+langchain
 lifecycle
+linters
 lookups
 loopback
 macOS
@@ -134,7 +143,9 @@ mypy
 mysql
 mysqlclient
 mysqldb
+msgpack
 namespace
+NeedsAppKey
 obfuscator
 openai
 opensearch
@@ -176,6 +187,7 @@ renderers
 resolvers
 repo
 respawn
+riotfile
 rq
 rowcount
 runnable
@@ -195,11 +207,13 @@ starlette
 statsd
 stringable
 subclass
+subdirectory
 subdomains
 submodule
 submodules
 substring
 testagent
+TestCase
 timestamp
 tokenizer
 tracestate
@@ -208,10 +222,12 @@ uWSGI
 unbuffered
 unicode
 uninstrumented
+unittest
 unix
 unpatch
 unpatched
 unregister
+unshallow
 unvendored
 uri
 url
@@ -238,3 +254,5 @@ programmatically
 DES
 Blowfish
 Gitlab
+hotspot
+CMake

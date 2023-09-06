@@ -1,3 +1,4 @@
+from collections import namedtuple
 import typing
 
 import attr
@@ -8,9 +9,8 @@ from ddtrace.internal import compat
 
 _T = typing.TypeVar("_T")
 
-# (filename, line number, function name, class name)
-FrameType = typing.Tuple[str, int, str, str]
-StackTraceType = typing.List[FrameType]
+DDFrame = namedtuple("DDFrame", ["file_name", "lineno", "function_name", "class_name"])
+StackTraceType = typing.List[DDFrame]
 
 
 def event_class(

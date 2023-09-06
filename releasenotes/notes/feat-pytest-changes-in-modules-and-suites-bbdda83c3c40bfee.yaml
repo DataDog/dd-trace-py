@@ -1,0 +1,6 @@
+---
+features:
+  - |
+   CI Visibility: Updates how pytest modules and test suites are reported. Modules names are now set to the fully qualified name, whereas test suites will be set to the file name.
+    Before this change: {"module": "tests", "suite":"my_module/tests/test_suite.py"}
+    After this change: {"module": "my_module.tests", "suite": "test_suite.py"}

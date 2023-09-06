@@ -12,16 +12,16 @@
       "_dd.p.dm": "-1",
       "_dd.p.test": "value",
       "language": "python",
-      "runtime-id": "07b9d728a8cc4e46826183565c0f2077"
+      "runtime-id": "d5f3e666fe79454c90ec7063f44787b5"
     },
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 55659
+      "process_id": 19794
     },
-    "duration": 79000,
-    "start": 1655133503431107000
+    "duration": 289408,
+    "start": 1691163616693806136
   },
      {
        "name": "c1",
@@ -32,8 +32,11 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
-       "duration": 7000,
-       "start": 1655133503431128000
+       "meta": {
+         "_dd.p.test": "value"
+       },
+       "duration": 8128,
+       "start": 1691163616694049249
      },
      {
        "name": "c2",
@@ -44,8 +47,11 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
-       "duration": 17000,
-       "start": 1655133503431153000
+       "meta": {
+         "_dd.p.test": "value"
+       },
+       "duration": 12163,
+       "start": 1691163616694069534
      },
         {
           "name": "gc",
@@ -56,6 +62,9 @@
           "parent_id": 3,
           "type": "",
           "error": 0,
-          "duration": 26000,
-          "start": 1655133503431164000
+          "meta": {
+            "_dd.p.test": "value"
+          },
+          "duration": 24996,
+          "start": 1691163616694076915
         }]]

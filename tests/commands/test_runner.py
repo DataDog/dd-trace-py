@@ -351,7 +351,7 @@ def test_info_no_configs():
         b"""\x1b[94m\x1b[1mTracer Configurations:\x1b[0m
     Tracer enabled: True
     Application Security enabled: False
-    Remote Configuration enabled: false
+    Remote Configuration enabled: False
     IAST enabled (experimental): False
     Debug logging: False
     Writing traces to: http://localhost:8126
@@ -423,7 +423,7 @@ def test_info_w_configs():
         == b"""\x1b[94m\x1b[1mTracer Configurations:\x1b[0m
     Tracer enabled: True
     Application Security enabled: True
-    Remote Configuration enabled: true
+    Remote Configuration enabled: True
     IAST enabled (experimental): True
     Debug logging: True
     Writing traces to: http://168.212.226.204:8126
@@ -512,3 +512,16 @@ def test_ddtrace_auto_imports():
 
     for module in MODULES_TO_CHECK:
         assert module not in sys.modules, module
+
+
+@pytest.mark.subprocess(ddtrace_run=True, env=dict(DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE="1"))
+def test_ddtrace_re_module():
+    import re
+
+    re.Scanner(
+        (
+            ("frozen", None),
+            (r"[a-zA-Z0-9_]+", lambda s, t: t),
+            (r"[\s,<>]", None),
+        )
+    )

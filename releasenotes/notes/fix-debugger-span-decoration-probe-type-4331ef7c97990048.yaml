@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    dynamic instrumentation: fixed a bug that prevented span decoration probes
+    from being received and instrumented.

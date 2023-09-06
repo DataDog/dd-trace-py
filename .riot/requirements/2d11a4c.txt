@@ -25,5 +25,5 @@ pytz==2022.7.1
 sortedcontainers==2.4.0
 sqlparse==0.4.3
 tomli==2.0.1
-typing-extensions==4.6.3
+typing-extensions==4.7.0
 zipp==3.15.0

@@ -9,6 +9,7 @@ import attr
 import six
 
 from ddtrace import ext
+from ddtrace.internal import packages
 from ddtrace.internal._encoding import ListStringTable as _StringTable
 from ddtrace.internal.compat import ensure_str
 from ddtrace.internal.utils import config
@@ -18,7 +19,7 @@ from ddtrace.profiling import recorder
 from ddtrace.profiling.collector import _lock
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import stack_event
-from ddtrace.profiling.exporter import _packages
+from ddtrace.profiling.collector import threading
 
 
 if hasattr(typing, "TypedDict"):
@@ -99,7 +100,7 @@ _pb_version = _protobuf_version()
 for v in [(4, 21), (3, 19), (3, 12)]:
     if _pb_version >= v:
         import sys
-        
+
         pprof_module = "ddtrace.profiling.exporter.pprof_%s%s_pb2" % v
         __import__(pprof_module)
         pprof_pb2 = sys.modules[pprof_module]
@@ -161,7 +162,7 @@ _Label_List_T = typing.Tuple[_Label_T, ...]
 _Location_Key_T = typing.Tuple[typing.Tuple[int, ...], _Label_List_T]
 
 
-HashableStackTraceType = typing.Tuple[event.FrameType, ...]
+HashableStackTraceType = typing.Tuple[event.DDFrame, ...]
 
 
 @attr.s
@@ -230,7 +231,7 @@ class _PprofConverter(object):
 
     def _to_locations(
         self,
-        frames,  # type: typing.Sequence[event.FrameType]
+        frames,  # type: typing.Sequence[event.DDFrame]
         nframes,  # type: int
     ):
         # type: (...) -> typing.Tuple[int, ...]
@@ -441,7 +442,7 @@ class _PprofConverter(object):
                 {
                     _
                     for _ in (
-                        (_packages.filename_to_package(filename), filename)
+                        (packages.filename_to_package(filename), filename)
                         for filename, lineno, funcname in self._locations
                     )
                     if _[0] is not None
@@ -687,6 +688,8 @@ class PprofExporter(exporter.Exporter):
         for event_class, convert_fn in (
             (_lock.LockAcquireEvent, converter.convert_lock_acquire_event),
             (_lock.LockReleaseEvent, converter.convert_lock_release_event),
+            (threading.ThreadingLockAcquireEvent, converter.convert_lock_acquire_event),
+            (threading.ThreadingLockReleaseEvent, converter.convert_lock_release_event),
         ):
             lock_events = events.get(event_class, [])  # type: ignore[call-overload]
             sampling_sum_pct = sum(event.sampling_pct for event in lock_events)

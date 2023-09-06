@@ -1,101 +1,90 @@
+import flask
+
 from ddtrace import config
-import ddtrace.appsec._asm_request_context as _asmrc
-from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._constants import SPAN_DATA_NAMES
-from ddtrace.appsec.iast._util import _is_iast_enabled
-from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal import core
 from ddtrace.vendor.wrapt import function_wrapper
 
-from .. import trace_utils
 from ...internal.logger import get_logger
 from ...internal.utils.importlib import func_name
 from ...pin import Pin
-from .helpers import get_current_app
 
 
 log = get_logger(__name__)
 
 
 def wrap_view(instance, func, name=None, resource=None):
-    """
-    Helper function to wrap common flask.app.Flask methods.
+    return _wrap_call_with_pin_check(func, instance, name or func_name(func), resource=resource, do_dispatch=True)
 
-    This helper will first ensure that a Pin is available and enabled before tracing
-    """
-    if not name:
-        name = func_name(func)
 
+def get_current_app():
+    """Helper to get the flask.app.Flask from the current app context"""
+    try:
+        return flask.current_app
+    except RuntimeError:
+        # raised if current_app is None: https://github.com/pallets/flask/blob/2.1.3/src/flask/globals.py#L40
+        pass
+    return None
+
+
+def _wrap_call(
+    wrapped, pin, name, resource=None, signal=None, span_type=None, do_dispatch=False, args=None, kwargs=None
+):
+    args = args or []
+    kwargs = kwargs or {}
+    with core.context_with_data(
+        "flask.call",
+        name=name,
+        pin=pin,
+        flask_config=config.flask,
+        resource=resource,
+        signal=signal,
+        span_type=span_type,
+    ) as ctx, ctx.get_item("flask_call"):
+        if do_dispatch:
+            results, exceptions = core.dispatch("flask.wrapped_view", kwargs)
+            if results and results[0]:
+                callback_block, _kwargs = results[0]
+                if callback_block:
+                    return callback_block()
+                if _kwargs:
+                    for k in kwargs:
+                        kwargs[k] = _kwargs[k]
+        return wrapped(*args, **kwargs)
+
+
+def _wrap_call_with_pin_check(func, instance, name, resource=None, signal=None, do_dispatch=False):
     @function_wrapper
-    def trace_func(wrapped, _instance, args, kwargs):
+    def patch_func(wrapped, _instance, args, kwargs):
         pin = Pin._find(wrapped, _instance, instance, get_current_app())
         if not pin or not pin.enabled():
             return wrapped(*args, **kwargs)
-        with pin.tracer.trace(name, service=trace_utils.int_service(pin, config.flask), resource=resource) as span:
-            span.set_tag_str(COMPONENT, config.flask.integration_name)
+        return _wrap_call(
+            wrapped, pin, name, resource=resource, signal=signal, do_dispatch=do_dispatch, args=args, kwargs=kwargs
+        )
 
-            # if Appsec is enabled, we can try to block as we have the path parameters at that point
-            if config._appsec_enabled and _asmrc.in_context():
-                log.debug("Flask WAF call for Suspicious Request Blocking on request")
-                if kwargs:
-                    _asmrc.set_waf_address(SPAN_DATA_NAMES.REQUEST_PATH_PARAMS, kwargs)
-                _asmrc.call_waf_callback()
-                if _asmrc.is_blocked():
-                    callback_block = _asmrc.get_value(_asmrc._CALLBACKS, "flask_block")
-                    if callback_block:
-                        return callback_block()
-
-            # If IAST is enabled, taint the Flask function kwargs (path parameters)
-            if _is_iast_enabled() and kwargs:
-                from ddtrace.appsec.iast._input_info import Input_info
-                from ddtrace.appsec.iast._taint_tracking import taint_pyobject
-
-                for k, v in kwargs.items():
-                    kwargs[k] = taint_pyobject(v, Input_info(k, v, IAST.HTTP_REQUEST_PATH_PARAMETER))
-
-            return wrapped(*args, **kwargs)
-
-    return trace_func(func)
+    return patch_func(func)
 
 
 def wrap_function(instance, func, name=None, resource=None):
-    """
-    Helper function to wrap common flask.app.Flask methods.
-
-    This helper will first ensure that a Pin is available and enabled before tracing
-    """
-    if not name:
-        name = func_name(func)
-
-    @function_wrapper
-    def trace_func(wrapped, _instance, args, kwargs):
-        pin = Pin._find(wrapped, _instance, instance, get_current_app())
-        if not pin or not pin.enabled():
-            return wrapped(*args, **kwargs)
-        with pin.tracer.trace(name, service=trace_utils.int_service(pin, config.flask), resource=resource) as span:
-            span.set_tag_str(COMPONENT, config.flask.integration_name)
-            return wrapped(*args, **kwargs)
-
-    return trace_func(func)
+    return _wrap_call_with_pin_check(func, instance, name or func_name(func), resource=resource)
 
 
-def wrap_signal(app, signal, func):
-    """
-    Helper used to wrap signal handlers
+def simple_call_wrapper(name, span_type=None):
+    @with_instance_pin
+    def wrapper(pin, wrapped, instance, args, kwargs):
+        return _wrap_call(wrapped, pin, name, span_type=span_type, args=args, kwargs=kwargs)
 
-    We will attempt to find the pin attached to the flask.app.Flask app
-    """
-    name = func_name(func)
+    return wrapper
 
-    @function_wrapper
-    def trace_func(wrapped, instance, args, kwargs):
-        pin = Pin._find(wrapped, instance, app, get_current_app())
+
+def with_instance_pin(func):
+    """Helper to wrap a function wrapper and ensure an enabled pin is available for the `instance`"""
+
+    def wrapper(wrapped, instance, args, kwargs):
+        pin = Pin._find(wrapped, instance, get_current_app())
         if not pin or not pin.enabled():
             return wrapped(*args, **kwargs)
 
-        with pin.tracer.trace(name, service=trace_utils.int_service(pin, config.flask)) as span:
-            span.set_tag_str(COMPONENT, config.flask.integration_name)
+        return func(pin, wrapped, instance, args, kwargs)
 
-            span.set_tag_str("flask.signal", signal)
-            return wrapped(*args, **kwargs)
-
-    return trace_func(func)
+    return wrapper

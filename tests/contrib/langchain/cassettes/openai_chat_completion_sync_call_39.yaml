@@ -1,0 +1,89 @@
+interactions:
+- request:
+    body: '{"messages": [{"role": "user", "content": "When do you use ''whom'' instead
+      of ''who''?"}], "model": "gpt-3.5-turbo", "max_tokens": 256, "stream": false,
+      "n": 1, "temperature": 0.0}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '177'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - OpenAI/v1 PythonBindings/0.27.8
+      X-OpenAI-Client-User-Agent:
+      - '{"bindings_version": "0.27.8", "httplib": "requests", "lang": "python", "lang_version":
+        "3.9.13", "platform": "macOS-13.4.1-arm64-arm-64bit", "publisher": "openai",
+        "uname": "Darwin 22.5.0 Darwin Kernel Version 22.5.0: Thu Jun  8 22:22:20
+        PDT 2023; root:xnu-8796.121.3~7/RELEASE_ARM64_T6000 arm64"}'
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA5RTS2vbQBC++1cMe1ELsrCdR11fStuQOoe+SCGEuoT1amRts9oRO2M7Ifi/l13Z
+        cRxKaC9C0sz3mN35HnoAypZqAsrUWkzTuv6b689nq0/T9x/d1+mH4bfzi5PvZ8fXl/JF/OVY5RFB
+        899oZIcqDDWtQ7Hku7IJqAUj6/B0PD4ejd4enaRCQyW6CFu00j8qTvqyDHPqD06HR1tkTdYgqwn8
+        7AEAPKRn9OhLvFMTGOS7Pw0y6wWqyWMTgArk4h+lmS2L9qLyfdGQF/TJdnZVU5OBZVgylmA9C+oS
+        qIJsXVMG6xo9WIkNUiN088ayhhWGOVCANmBLbOPUYD1oYIz0Bgu4kEdmIQhYYYgvkanFwOQTHql1
+        CAEN2pX1i1TWJvFRlb52UocWEs1evICZn/lzCoB3Ot7DZOb7MFM/CNY1NVDaEu5pCQu7woSdE92+
+        myl4NcWAeRq4O4oXZSATykD7spuHnw10OEaUKF53Pq6emmBE0NIBdZD7f/SRDiJjxBcczDGqM6KP
+        yjN/Ea+lotBoB9wimjph18GK9Yt8e9GWgSpB/9c9aLIckFs0Vjt3/59LUcCU1rjCkMf12BrZqsfW
+        xFaRc7ROxiVYI7AIuml0gLB0yM8PxVAIUbJLSaSVGhnBaEYu1HbTN48Rqay3XN8E1Ew+rj0LtV3b
+        pgfwK0VueZAi1QZqWrkRukUfczjaJk7tQ74vDse7qpBo9xQ16EWRTe8PAAAA//8DAOP8JoFiBAAA
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 7e1286b36be5425c-EWR
+      Cache-Control:
+      - no-cache, must-revalidate
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 03 Jul 2023 22:22:17 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      access-control-allow-origin:
+      - '*'
+      alt-svc:
+      - h3=":443"; ma=86400
+      openai-model:
+      - gpt-3.5-turbo-0613
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '1666'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      x-ratelimit-limit-requests:
+      - '10000'
+      x-ratelimit-limit-tokens:
+      - '1000000'
+      x-ratelimit-remaining-requests:
+      - '9999'
+      x-ratelimit-remaining-tokens:
+      - '999732'
+      x-ratelimit-reset-requests:
+      - 6ms
+      x-ratelimit-reset-tokens:
+      - 16ms
+      x-request-id:
+      - 46fe3eb710843518a606f971946eac6c
+    status:
+      code: 200
+      message: OK
+version: 1

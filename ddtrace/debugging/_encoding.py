@@ -13,7 +13,7 @@ from typing import Union
 
 import six
 
-from ddtrace.debugging._config import config
+from ddtrace.debugging._config import di_config
 from ddtrace.debugging._signal.model import LogSignal
 from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.internal import forksafe
@@ -94,8 +94,8 @@ def _logs_track_logger_details(thread, frame):
 
 
 def add_tags(payload):
-    if not config._tags_in_qs and config.tags:
-        payload["ddtags"] = config.tags
+    if not di_config._tags_in_qs and di_config.tags:
+        payload["ddtags"] = di_config.tags
 
 
 def _build_log_track_payload(

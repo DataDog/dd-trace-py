@@ -4,7 +4,6 @@ Any `sampled = False` trace won't be written, and can be ignored by the instrume
 """
 import abc
 import json
-import os
 from typing import Any
 from typing import Dict
 from typing import List
@@ -25,12 +24,14 @@ from .constants import USER_KEEP
 from .constants import USER_REJECT
 from .internal.compat import iteritems
 from .internal.compat import pattern_type
+from .internal.constants import DEFAULT_SAMPLING_RATE_LIMIT
 from .internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
 from .internal.logger import get_logger
 from .internal.rate_limiter import RateLimiter
 from .internal.sampling import SamplingMechanism
-from .internal.sampling import update_sampling_decision
+from .internal.sampling import set_sampling_decision_maker
 from .internal.utils.cache import cachedmethod
+from .settings import _config as ddconfig
 
 
 try:
@@ -158,14 +159,12 @@ class RateByServiceSampler(BasePrioritySampler):
         # type: (Span, RateSampler, bool) -> None
         priority = AUTO_KEEP if sampled else AUTO_REJECT
         self._set_priority(span, priority)
-
-        span.set_metric(SAMPLING_AGENT_DECISION, sampler.sample_rate)
-
-        sampling_mechanism = (
-            SamplingMechanism.DEFAULT if sampler == self._default_sampler else SamplingMechanism.AGENT_RATE
-        )
-
-        update_sampling_decision(span.context, sampling_mechanism, sampled)
+        if sampler is self._default_sampler:
+            mechanism = SamplingMechanism.DEFAULT
+        else:
+            mechanism = SamplingMechanism.AGENT_RATE
+            span.set_metric(SAMPLING_AGENT_DECISION, sampler.sample_rate)
+        set_sampling_decision_maker(span.context, mechanism)
 
     def sample(self, span):
         # type: (Span) -> bool
@@ -221,7 +220,8 @@ class DatadogSampler(RateByServiceSampler):
     __slots__ = ("limiter", "rules")
 
     NO_RATE_LIMIT = -1
-    DEFAULT_RATE_LIMIT = 100
+    # deprecate and remove the DEFAULT_RATE_LIMIT field from DatadogSampler
+    DEFAULT_RATE_LIMIT = DEFAULT_SAMPLING_RATE_LIMIT
 
     def __init__(
         self,
@@ -246,16 +246,16 @@ class DatadogSampler(RateByServiceSampler):
         super(DatadogSampler, self).__init__()
 
         if default_sample_rate is None:
-            sample_rate = os.getenv("DD_TRACE_SAMPLE_RATE")
+            sample_rate = ddconfig._trace_sample_rate
 
             if sample_rate is not None:
                 default_sample_rate = float(sample_rate)
 
         if rate_limit is None:
-            rate_limit = int(os.getenv("DD_TRACE_RATE_LIMIT", default=self.DEFAULT_RATE_LIMIT))
+            rate_limit = int(ddconfig._trace_rate_limit)
 
         if rules is None:
-            env_sampling_rules = os.getenv("DD_TRACE_SAMPLING_RULES")
+            env_sampling_rules = ddconfig._trace_sampling_rules
             if env_sampling_rules:
                 rules = self._parse_rules_from_env_variable(env_sampling_rules)
             else:
@@ -314,23 +314,17 @@ class DatadogSampler(RateByServiceSampler):
     def _set_sampler_decision(self, span, sampler, sampled):
         # type: (Span, Union[RateSampler, SamplingRule, RateLimiter], bool) -> None
         if isinstance(sampler, RateSampler):
-            # When agent based sampling is used
             return super(DatadogSampler, self)._set_sampler_decision(span, sampler, sampled)
 
         if isinstance(sampler, SamplingRule):
             span.set_metric(SAMPLING_RULE_DECISION, sampler.sample_rate)
-        elif isinstance(sampler, RateLimiter) and not sampled:
-            # We only need to set the rate limit metric if the limiter is rejecting the span
-            # DEV: Setting this allows us to properly compute metrics and debug the
-            #      various sample rates that are getting applied to this span
-            span.set_metric(SAMPLING_LIMIT_DECISION, sampler.effective_rate)
 
         if not sampled:
             self._set_priority(span, USER_REJECT)
         else:
             self._set_priority(span, USER_KEEP)
 
-        update_sampling_decision(span.context, SamplingMechanism.TRACE_SAMPLING_RULE, sampled)
+        set_sampling_decision_maker(span.context, SamplingMechanism.TRACE_SAMPLING_RULE)
 
     def sample(self, span):
         # type: (Span) -> bool
@@ -346,25 +340,33 @@ class DatadogSampler(RateByServiceSampler):
         """
         # Go through all rules and grab the first one that matched
         # DEV: This means rules should be ordered by the user from most specific to least specific
+        has_configured_rate_limit = self.limiter.rate_limit != DEFAULT_SAMPLING_RATE_LIMIT
+
+        rule_matched = False
         for rule in self.rules:
             if rule.matches(span):
                 sampler = rule
+                rule_matched = True
                 break
+
+        if not rule_matched:
+            sampled = super(DatadogSampler, self).sample(span)
+            sampler = self  # type: ignore
         else:
-            # No rules match so use agent based sampling
-            return super(DatadogSampler, self).sample(span)
+            sampled = sampler.sample(span)
 
-        sampled = sampler.sample(span)
-        self._set_sampler_decision(span, sampler, sampled)
+        if rule_matched or has_configured_rate_limit:
+            self._set_sampler_decision(span, sampler, sampled)
 
+        # Ensure all allowed traces adhere to the global rate limit
+        allowed = True
         if sampled:
-            # Ensure all allowed traces adhere to the global rate limit
             allowed = self.limiter.is_allowed(span.start_ns)
             if not allowed:
-                self._set_sampler_decision(span, self.limiter, allowed)
-                return False
-
-        return sampled
+                self._set_priority(span, USER_REJECT)
+        if has_configured_rate_limit:
+            span.set_metric(SAMPLING_LIMIT_DECISION, self.limiter.effective_rate)
+        return not allowed or sampled
 
 
 class SamplingRule(BaseSampler):

@@ -2,17 +2,23 @@ name: "Library Injection"
 on:
   # Build each branch for testing
   push:
-
+  pull_request:
+    paths:
+      - ddtrace/**
+      - lib-injection/**
+      - setup*
+      - pyproject.toml
+      - .github/workflows/lib-injection.yml
 jobs:
   build-and-publish-test-image:
     uses: ./.github/workflows/lib-inject-publish.yml
     secrets:
       token: ${{ secrets.GITHUB_TOKEN }}
     with:
-      ddtrace-version: v1.10
+      ddtrace-version: v1.16.1
       image-tag: ${{ github.sha }}
 
-  test:
+  test-runner-test:
     needs:
       - build-and-publish-test-image
     runs-on: ubuntu-latest
@@ -33,10 +39,11 @@ jobs:
       DOCKER_REGISTRY_IMAGES_PATH: ghcr.io/datadog
       DOCKER_IMAGE_TAG: ${{ github.sha }}
       BUILDX_PLATFORMS: linux/amd64
+      MODE: manual
     steps:
       - name: lib-injection test runner
         id: lib-injection-test-runner
-        uses: DataDog/system-tests/lib-injection/runner@b3ca75b6ce109a349f7390a9f111e6b3ef3c97ef
+        uses: DataDog/system-tests/lib-injection/runner@89d754340046eafcc72dc5c5fd6ea651ca7b920e
         with:
           docker-registry: ghcr.io
           docker-registry-username: ${{ github.repository_owner }}
@@ -50,56 +57,39 @@ jobs:
         variant: [
           'dd-lib-python-init-test-django',
           'dd-lib-python-init-test-django-gunicorn',
+          'dd-lib-python-init-test-django-gunicorn-alpine',
           'dd-lib-python-init-test-django-uvicorn',
+          'dd-lib-python-init-test-django-no-perms',
+          'dd-lib-python-init-test-django-pre-installed',
         ]
       fail-fast: false
     steps:
       - uses: actions/checkout@v3
-      - name: Create a docker network for the app and test agent
+      - name: Build and run the app
         run: |
-          docker network create test-inject
-      - name: Run the test agent
-        run: |
-          docker run \
-            -d \
-            --name=testagent \
-            --network=test-inject \
-            -p 8126:8126 \
-            ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:v1.7.2
-      - name: Prepare the volume
-        run: |
+          SRC="$(pwd)"
           cd lib-injection
-          mkdir -p lib-injection/ddtrace_pkgs
-          cp sitecustomize.py lib-injection/
-          ./dl_wheels.py \
-            --ddtrace-version=v1.10 \
-            --python-version=3.11 \
-            --python-version=3.10 \
-            --python-version=3.9 \
-            --python-version=3.8 \
-            --python-version=3.7 \
-            --arch x86_64 \
-            --platform manylinux2014 \
-            --output-dir ddtrace_pkgs \
-            --verbose
-      - name: Build test app
-        run: |
-          docker build \
-            -t ${{ matrix.variant }} \
-            tests/lib-injection/${{ matrix.variant }}/
-      - name: Run the app
-        run: |
-          docker run -d \
-            --name ${{ matrix.variant }} \
-            --network test-inject \
-            -p 18080:18080 \
-            -e PYTHONPATH=/lib-injection \
-            -e DD_TRACE_AGENT_URL=http://testagent:8126 \
-            -v $PWD/lib-injection:/lib-injection \
-            ${{matrix.variant}}
+          export DDTRACE_PYTHON_VERSION="v1.16.1"
+          export APP_CONTEXT="${SRC}/tests/lib-injection/${{matrix.variant}}"
+          export TEMP_DIR="${SRC}/tmp/ddtrace"
+          mkdir -p "${TEMP_DIR}"
+          # Give the temp dir permissions, by default the docker user doesn't have permissions
+          # to write to the filesystem.
+          chmod 777 $TEMP_DIR
+          # Start the lib_inject to get the files copied. This avoids a race condition with the startup of the
+          # application.
+          docker-compose up --build lib_inject
+          docker-compose up --build -d
           # Wait for the app to start
-          sleep 20
-          docker logs ${{matrix.variant}}
+          sleep 60
+          docker-compose logs
+      - name: Check Permissions on ddtrace pkgs
+        run: |
+           cd lib-injection
+           # Ensure /datadog-lib/ddtrace_pkgs is a valid directory that is not empty
+           docker-compose run lib_inject find /datadog-init/ddtrace_pkgs -maxdepth 0 -empty | wc -l && if [ $? -ne 0 ]; then exit 1; fi
+           # Ensure non-datadog users have read and write permissions to files stored in /datadog-lib/ddtrace_pkgs
+           docker-compose run lib_inject find /datadog-init/ddtrace_pkgs ! -perm -a=rw | wc -l && if [ $? -ne 0 ]; then exit 1; fi
       - name: Test the app
         run: |
           curl http://localhost:18080
@@ -110,3 +100,7 @@ jobs:
         run: |
           N=$(curl http://localhost:8126/test/traces | jq -r -e 'length')
           [[ $N == "1" ]]
+      - name: Output app logs (LOOK HERE IF THE JOB FAILS)
+        if: success() || failure()
+        run: |
+          docker-compose logs
