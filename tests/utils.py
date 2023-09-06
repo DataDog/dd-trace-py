@@ -13,6 +13,7 @@ import pkg_resources
 import pytest
 
 import ddtrace
+from ddtrace import patch_all
 from ddtrace import Span
 from ddtrace import Tracer
 from ddtrace import config as dd_config
@@ -547,6 +548,7 @@ class DummyTracer(Tracer):
     """
 
     def __init__(self, *args, **kwargs):
+        patch_all()
         super(DummyTracer, self).__init__()
         self._trace_flush_enabled = True
         self.configure(*args, **kwargs)
