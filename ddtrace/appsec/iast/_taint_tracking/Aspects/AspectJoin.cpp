@@ -71,7 +71,7 @@ aspect_join(PyObject* sep, PyObject* result, PyObject* iterable_elements, TaintR
 
     PyObject* new_result{ new_pyobject_id(result, get_pyobject_size(result)) };
     set_tainted_object(new_result, result_to, tx_taint_map);
-    // Py_DECREF(result);
+    Py_DECREF(result);
     return new_result;
 }
 
@@ -85,6 +85,7 @@ api_join_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
 
     PyObject* sep = args[0];
     PyObject* arg0 = args[1];
+    bool decref_arg0 = false;
 
     if (PyIter_Check(arg0) or PySet_Check(arg0) or PyFrozenSet_Check(arg0)) {
         PyObject* iterator = PyObject_GetIter(arg0);
@@ -96,6 +97,8 @@ api_join_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
                 PyList_Append(list_aux, item);
             }
             arg0 = list_aux;
+            Py_DECREF(iterator);
+            decref_arg0 = true;
         }
     }
     PyObject* result;
@@ -114,6 +117,9 @@ api_join_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
     }
     if (get_pyobject_size(result) == 0) {
         // Empty result cannot have taint ranges
+        if (decref_arg0) {
+            Py_DECREF(arg0);
+        }
         return result;
     }
 
@@ -121,5 +127,9 @@ api_join_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
     if (not ctx_map or ctx_map->empty()) {
         return result;
     }
-    return aspect_join(sep, result, arg0, ctx_map);
+    auto res = aspect_join(sep, result, arg0, ctx_map);
+    if (decref_arg0) {
+        Py_DECREF(arg0);
+    }
+    return res;
 }

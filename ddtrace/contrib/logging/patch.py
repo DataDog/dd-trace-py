@@ -27,6 +27,11 @@ config._add(
 )  # by default, override here for custom tracer
 
 
+def get_version():
+    # type: () -> str
+    return getattr(logging, "__version__", "")
+
+
 @attr.s(slots=True)
 class DDLogRecord(object):
     trace_id = attr.ib(type=int)

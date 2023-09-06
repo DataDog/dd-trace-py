@@ -6,7 +6,7 @@ from tests.utils import assert_span_http_status_code
 from . import BaseFlaskTestCase
 
 
-EXPECTED_METADATA = {"component": "flask", "_dd.p.dm": "-0"}
+EXPECTED_METADATA = {"component": "flask", "_dd.base_service": ""}
 
 
 class FlaskErrorhandlerTestCase(BaseFlaskTestCase):
@@ -40,10 +40,12 @@ class FlaskErrorhandlerTestCase(BaseFlaskTestCase):
         self.assertIsNone(dispatch_span.get_tag("error.type"))
 
         # flask.handle_user_exception span
+        self.assertNotEqual(user_ex_span.parent_id, 0)
         self.assertEqual(user_ex_span.get_tags(), EXPECTED_METADATA)
         self.assertEqual(user_ex_span.error, 0)
 
         # flask.handle_http_exception span
+        self.assertNotEqual(http_ex_span.parent_id, 0)
         self.assertEqual(http_ex_span.get_tags(), EXPECTED_METADATA)
         self.assertEqual(http_ex_span.error, 0)
 
@@ -96,10 +98,12 @@ class FlaskErrorhandlerTestCase(BaseFlaskTestCase):
         self.assertEqual(error_type, "werkzeug.exceptions.InternalServerError")
 
         # flask.handle_user_exception span
+        self.assertNotEqual(user_ex_span.parent_id, 0)
         self.assertEqual(user_ex_span.get_tags(), EXPECTED_METADATA)
         self.assertEqual(user_ex_span.error, 0)
 
         # flask.handle_http_exception span
+        self.assertNotEqual(http_ex_span.parent_id, 0)
         self.assertEqual(http_ex_span.get_tags(), EXPECTED_METADATA)
         self.assertEqual(http_ex_span.error, 0)
 
@@ -167,6 +171,7 @@ class FlaskErrorhandlerTestCase(BaseFlaskTestCase):
         self.assertEqual(user_ex_span.error, 0)
 
         # flask.handle_http_exception span
+        self.assertNotEqual(http_ex_span.parent_id, 0)
         self.assertEqual(http_ex_span.get_tags(), EXPECTED_METADATA)
         self.assertEqual(http_ex_span.error, 0)
 
@@ -293,6 +298,7 @@ class FlaskErrorhandlerTestCase(BaseFlaskTestCase):
 
         # flask.handle_user_exception span
         self.assertEqual(user_ex_span.error, 0)
+        self.assertNotEqual(user_ex_span.parent_id, 0)
         self.assertEqual(user_ex_span.get_tags(), EXPECTED_METADATA)
 
         # flask.handle_http_exception span

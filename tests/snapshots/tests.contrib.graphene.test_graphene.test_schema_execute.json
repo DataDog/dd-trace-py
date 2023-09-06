@@ -9,21 +9,21 @@
     "type": "graphql",
     "error": 0,
     "meta": {
+      "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "component": "graphql",
       "language": "python",
-      "runtime-id": "2c0f5e5131c74be0b2d9d905a2e0ed3e"
+      "runtime-id": "bd29f6239b6740229c13f18d5b0d3f74"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 17278
+      "process_id": 47948
     },
-    "duration": 2120280,
-    "start": 1691163249112270359
+    "duration": 1876334,
+    "start": 1692710307274338836
   },
      {
        "name": "graphql.parse",
@@ -35,12 +35,12 @@
        "type": "graphql",
        "error": 0,
        "meta": {
-         "_dd.p.dm": "-0",
+         "_dd.base_service": "",
          "component": "graphql",
          "graphql.source": "{ patron { id name age } }"
        },
-       "duration": 176902,
-       "start": 1691163249112715936
+       "duration": 192333,
+       "start": 1692710307274744795
      },
      {
        "name": "graphql.validate",
@@ -52,12 +52,12 @@
        "type": "graphql",
        "error": 0,
        "meta": {
-         "_dd.p.dm": "-0",
+         "_dd.base_service": "",
          "component": "graphql",
          "graphql.source": "{ patron { id name age } }"
        },
-       "duration": 1196636,
-       "start": 1691163249112953499
+       "duration": 1064916,
+       "start": 1692710307274986545
      },
      {
        "name": "graphql.execute",
@@ -69,7 +69,7 @@
        "type": "graphql",
        "error": 0,
        "meta": {
-         "_dd.p.dm": "-0",
+         "_dd.base_service": "",
          "component": "graphql",
          "graphql.operation.type": "query",
          "graphql.source": "{ patron { id name age } }"
@@ -77,6 +77,6 @@
        "metrics": {
          "_dd.measured": 1
        },
-       "duration": 165975,
-       "start": 1691163249114206335
+       "duration": 106709,
+       "start": 1692710307276089461
      }]]

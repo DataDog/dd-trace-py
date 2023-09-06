@@ -26,7 +26,6 @@ from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.internal.writer import Response
 from ddtrace.internal.writer import _human_size
-from ddtrace.sampler import RateByServiceSampler
 from ddtrace.span import Span
 from tests.utils import AnyInt
 from tests.utils import BaseTestCase
@@ -268,7 +267,9 @@ class AgentWriterTests(BaseTestCase):
                 client.encoder = writer_encoder
             writer._metrics_reset = writer_metrics_reset
             for i in range(n_traces):
-                writer.write([Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
+                writer.write(
+                    [Span(name="name", trace_id=i, span_id=j, parent_id=max(0, j - 1) or None) for j in range(5)]
+                )
 
             writer.stop()
             writer.join()
@@ -644,11 +645,15 @@ def test_racing_start(writer_class):
     assert len(writer._encoder) == 100
 
 
+@pytest.mark.subprocess(
+    env={"_DD_TRACE_WRITER_ADDITIONAL_HEADERS": "additional-header:additional-value,header2:value2"}
+)
 def test_additional_headers():
-    with override_env(dict(_DD_TRACE_WRITER_ADDITIONAL_HEADERS="additional-header:additional-value,header2:value2")):
-        writer = AgentWriter("http://localhost:9126")
-        assert writer._headers["additional-header"] == "additional-value"
-        assert writer._headers["header2"] == "value2"
+    from ddtrace.internal.writer import AgentWriter
+
+    writer = AgentWriter("http://localhost:9126")
+    assert writer._headers["additional-header"] == "additional-value"
+    assert writer._headers["header2"] == "value2"
 
 
 def test_additional_headers_constructor():
@@ -661,10 +666,9 @@ def test_additional_headers_constructor():
 
 @pytest.mark.parametrize("writer_class", (AgentWriter,))
 def test_bad_encoding(monkeypatch, writer_class):
-    monkeypatch.setenv("DD_TRACE_API_VERSION", "foo")
-
-    with pytest.raises(ValueError):
-        writer_class("http://localhost:9126")
+    with override_global_config({"_trace_api": "foo"}):
+        with pytest.raises(ValueError):
+            writer_class("http://localhost:9126")
 
 
 @pytest.mark.parametrize(
@@ -690,59 +694,59 @@ def test_writer_recreate_api_version(init_api_version, api_version, endpoint, en
 
 
 @pytest.mark.parametrize(
-    "sys_platform, api_version, ddtrace_api_version, priority_sampler, raises_error, expected",
+    "sys_platform, api_version, ddtrace_api_version, priority_sampling, raises_error, expected",
     [
         # -- win32
         # Defaults on windows
-        ("win32", None, None, None, False, "v0.3"),
+        ("win32", None, None, False, False, "v0.3"),
         # Default with priority sampler
-        ("win32", None, None, RateByServiceSampler(), False, "v0.4"),
+        ("win32", None, None, True, False, "v0.4"),
         # Explicitly passed in API version is always used
-        ("win32", "v0.3", None, RateByServiceSampler(), False, "v0.3"),
-        ("win32", "v0.3", "v0.4", None, False, "v0.3"),
-        ("win32", "v0.3", "v0.4", RateByServiceSampler(), False, "v0.3"),
+        ("win32", "v0.3", None, True, False, "v0.3"),
+        ("win32", "v0.3", "v0.4", False, False, "v0.3"),
+        ("win32", "v0.3", "v0.4", True, False, "v0.3"),
         # Env variable is used if explicit value is not given
-        ("win32", None, "v0.4", None, False, "v0.4"),
-        ("win32", None, "v0.4", RateByServiceSampler(), False, "v0.4"),
+        ("win32", None, "v0.4", False, False, "v0.4"),
+        ("win32", None, "v0.4", True, False, "v0.4"),
         # v0.5 is not supported on windows
-        ("win32", "v0.5", None, None, True, None),
-        ("win32", "v0.5", None, RateByServiceSampler(), True, None),
-        ("win32", "v0.5", "v0.4", RateByServiceSampler(), True, None),
-        ("win32", None, "v0.5", RateByServiceSampler(), True, None),
+        ("win32", "v0.5", None, False, True, None),
+        ("win32", "v0.5", None, True, True, None),
+        ("win32", "v0.5", "v0.4", True, True, None),
+        ("win32", None, "v0.5", True, True, None),
         # -- cygwin
         # Defaults on windows
-        ("cygwin", None, None, None, False, "v0.3"),
+        ("cygwin", None, None, False, False, "v0.3"),
         # Default with priority sampler
-        ("cygwin", None, None, RateByServiceSampler(), False, "v0.4"),
+        ("cygwin", None, None, True, False, "v0.4"),
         # Explicitly passed in API version is always used
-        ("cygwin", "v0.3", None, RateByServiceSampler(), False, "v0.3"),
-        ("cygwin", "v0.3", "v0.4", None, False, "v0.3"),
-        ("cygwin", "v0.3", "v0.4", RateByServiceSampler(), False, "v0.3"),
+        ("cygwin", "v0.3", None, True, False, "v0.3"),
+        ("cygwin", "v0.3", "v0.4", False, False, "v0.3"),
+        ("cygwin", "v0.3", "v0.4", True, False, "v0.3"),
         # Env variable is used if explicit value is not given
-        ("cygwin", None, "v0.4", None, False, "v0.4"),
-        ("cygwin", None, "v0.4", RateByServiceSampler(), False, "v0.4"),
+        ("cygwin", None, "v0.4", False, False, "v0.4"),
+        ("cygwin", None, "v0.4", True, False, "v0.4"),
         # v0.5 is not supported on windows
-        ("cygwin", "v0.5", None, None, True, None),
-        ("cygwin", "v0.5", None, RateByServiceSampler(), True, None),
-        ("cygwin", "v0.5", "v0.4", RateByServiceSampler(), True, None),
-        ("cygwin", None, "v0.5", RateByServiceSampler(), True, None),
+        ("cygwin", "v0.5", None, False, True, None),
+        ("cygwin", "v0.5", None, True, True, None),
+        ("cygwin", "v0.5", "v0.4", True, True, None),
+        ("cygwin", None, "v0.5", True, True, None),
         # -- Non-windows
         # defaults
         ("darwin", None, None, None, False, "v0.3"),
         # Default with priority sample
-        ("darwin", None, None, RateByServiceSampler(), False, "v0.5"),
+        ("darwin", None, None, True, False, "v0.5"),
         # Explicitly setting api version
-        ("darwin", "v0.4", None, RateByServiceSampler(), False, "v0.4"),
+        ("darwin", "v0.4", None, True, False, "v0.4"),
         # Explicitly set version takes precedence
-        ("darwin", "v0.4", "v0.5", RateByServiceSampler(), False, "v0.4"),
+        ("darwin", "v0.4", "v0.5", True, False, "v0.4"),
         # Via env variable
-        ("darwin", None, "v0.4", RateByServiceSampler(), False, "v0.4"),
-        ("darwin", None, "v0.5", RateByServiceSampler(), False, "v0.5"),
+        ("darwin", None, "v0.4", True, False, "v0.4"),
+        ("darwin", None, "v0.5", True, False, "v0.5"),
     ],
 )
 @pytest.mark.parametrize("writer_class", (AgentWriter,))
 def test_writer_api_version_selection(
-    sys_platform, api_version, ddtrace_api_version, priority_sampler, raises_error, expected, monkeypatch, writer_class
+    sys_platform, api_version, ddtrace_api_version, priority_sampling, raises_error, expected, monkeypatch, writer_class
 ):
     """test to verify that we are unable to select v0.5 api version when on a windows machine.
 
@@ -753,14 +757,15 @@ def test_writer_api_version_selection(
 
     # Mock the value of `sys.platform` to be a specific value
     with mock_sys_platform(sys_platform):
-
-        # If desired, set the DD_TRACE_API_VERSION env variable
-        if ddtrace_api_version is not None:
-            monkeypatch.setenv("DD_TRACE_API_VERSION", ddtrace_api_version)
-
         try:
             # Create a new writer
-            writer = writer_class("http://dne:1234", api_version=api_version, priority_sampler=priority_sampler)
+            if ddtrace_api_version is not None:
+                with override_global_config({"_trace_api": ddtrace_api_version}):
+                    writer = writer_class(
+                        "http://dne:1234", api_version=api_version, priority_sampling=priority_sampling
+                    )
+            else:
+                writer = writer_class("http://dne:1234", api_version=api_version, priority_sampling=priority_sampling)
             assert writer._api_version == expected
         except RuntimeError:
             # If we were not expecting a RuntimeError, then cause the test to fail
@@ -771,13 +776,13 @@ def test_writer_api_version_selection(
 @pytest.mark.parametrize("writer_class", (AgentWriter, CIVisibilityWriter))
 def test_writer_reuse_connections_envvar(monkeypatch, writer_class):
     with override_env(dict(DD_API_KEY="foobar.baz")):
-        monkeypatch.setenv("DD_TRACE_WRITER_REUSE_CONNECTIONS", "false")
-        writer = writer_class("http://localhost:9126")
-        assert not writer._reuse_connections
+        with override_global_config({"_trace_writer_connection_reuse": False}):
+            writer = writer_class("http://localhost:9126")
+            assert not writer._reuse_connections
 
-        monkeypatch.setenv("DD_TRACE_WRITER_REUSE_CONNECTIONS", "true")
-        writer = writer_class("http://localhost:9126")
-        assert writer._reuse_connections
+        with override_global_config({"_trace_writer_connection_reuse": True}):
+            writer = writer_class("http://localhost:9126")
+            assert writer._reuse_connections
 
 
 @pytest.mark.parametrize("writer_class", (AgentWriter, CIVisibilityWriter))
