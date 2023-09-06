@@ -13,10 +13,10 @@ import pkg_resources
 import pytest
 
 import ddtrace
-from ddtrace import patch_all
 from ddtrace import Span
 from ddtrace import Tracer
 from ddtrace import config as dd_config
+from ddtrace import patch_all
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.ext import http
 from ddtrace.internal import agent
