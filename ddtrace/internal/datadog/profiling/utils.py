@@ -1,19 +1,20 @@
 from sys import version_info
 from typing import Any
 
+from ddtrace.internal.logger import get_logger
+
+LOG = get_logger(__name__)
 
 # 3.11 and above
 def _sanitize_string_check(value):
     # type: (Any) -> str
-    from ddtrace.internal.logger import get_logger
-
-    LOG = get_logger(__name__)
-
-    if not isinstance(value, str):
+    if isinstance(value, str):
+        return value
+    try:
+        return value.decode('utf-8', 'ignore')
+    except Exception:
         LOG.warning("Got object of type '%s' instead of str during profile serialization", type(value).__name__)
         return "[invalid string]%s" % type(value).__name__
-
-    return value
 
 
 # 3.10 and below (the noop version)
