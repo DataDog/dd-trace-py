@@ -349,7 +349,9 @@ class CMakeBuild(build_ext):
 
             import shutil
 
-            for directory_to_remove in ["_deps", "CMakeFiles"]:
+            for directory_to_remove in [
+                "CMakeFiles",
+            ]:
                 shutil.rmtree(os.path.join(tmp_iast_path, directory_to_remove))
             for file_to_remove in ["Makefile", "cmake_install.cmake", "compile_commands.json", "CMakeCache.txt"]:
                 if os.path.exists(os.path.join(tmp_iast_path, file_to_remove)):
