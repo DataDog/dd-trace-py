@@ -3,6 +3,7 @@ from typing import Any
 
 from ddtrace.internal.logger import get_logger
 
+
 LOG = get_logger(__name__)
 
 # 3.11 and above
