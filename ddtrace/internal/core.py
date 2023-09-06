@@ -14,15 +14,16 @@ care about.
 This example shows how ``core.context_with_data`` might be used to create a node in this context tree::
 
 
-    def _patched_request(pin, wrapped, instance, args, kwargs):
+    import flask
+
+
+    def _patched_request(pin, wrapped, args, kwargs):
         with core.context_with_data(
             "flask._patched_request",
             name=".".join(("flask", name)),
             pin=pin,
-            flask_config=config.flask,
             flask_request=flask.request,
             block_request_callable=_block_request_callable,
-            ignored_exception_type=NotFound,
         ) as ctx, ctx.get_item("flask_request_call"):
             return wrapped(*args, **kwargs)
 
@@ -37,6 +38,11 @@ spans, like ``flask_request`` and ``block_request_callable``. These illustrate t
 generic container for data that Datadog products need related to the current execution. ``block_request_callable``
 happens to be used in ``ddtrace/appsec`` by the AppSec product code to make request-blocking decisions, and
 ``flask_request`` is a reference to a library-specific function that Tracing uses.
+
+The first argument to ``context_with_data`` is the unique name of the context. When choosing this name,
+consider how to differentiate it from other similar contexts while making its purpose clear. An easy default
+is to use the name of the function within which ``context_with_data`` is being called, prefixed with the
+integration name and a dot, for example ``flask._patched_request``.
 
 The integration code finds all of the library-specific objects that products need, and puts them into
 the context tree it's building via ``context_with_data``. Product code then accesses the data it needs
@@ -56,9 +62,7 @@ response logic::
 
 
     if core.get_item(HTTP_REQUEST_BLOCKED):
-        status = block_config.get("status_code", 403)
-        response_headers = [("content-type", ctype)]
-        result = start_response(str(status), response_headers)
+        result = start_response("403", [("content-type", "application/json")])
 
 
 In order for ``get_item`` calls in Product code like ``ddtrace/appsec`` to find what they're looking for,
@@ -73,6 +77,7 @@ For example, the Flask integration calls ``dispatch`` to indicate that a blocked
 passing some data along with the event::
 
 
+    call = tracer.trace("operation")
     core.dispatch("flask.blocked_request_callable", call)
 
 
@@ -88,6 +93,9 @@ The AppSec code listens for this event and does some AppSec-specific stuff in th
 like this::
 
 
+    def _on_jsonify_context_started_flask(ctx):
+        span = ctx.get_item("pin").tracer.trace(ctx.get_item("name"))
+        ctx.set_item("flask_jsonify_call", span)
     core.on("context.started.flask.jsonify", _on_jsonify_context_started_flask)
 
 
