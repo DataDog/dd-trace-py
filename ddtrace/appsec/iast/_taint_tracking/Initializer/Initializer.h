@@ -58,8 +58,6 @@ class Initializer
 
     static size_t context_id();
 
-    py::object builtins_hash;
-
     // FIXME: these should be static functions of TaintedObject
 
     // IMPORTANT: if the returned object is not assigned to the map, you have

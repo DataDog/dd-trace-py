@@ -15,7 +15,6 @@ thread_local struct ThreadContextCache_
 
 Initializer::Initializer()
 {
-    builtins_hash = py::module::import("builtins").attr("hash");
     // Fill the taintedobjects stack
     for (int i = 0; i < TAINTEDOBJECTS_STACK_SIZE; i++) {
         available_taintedobjects_stack.push(new TaintedObject());

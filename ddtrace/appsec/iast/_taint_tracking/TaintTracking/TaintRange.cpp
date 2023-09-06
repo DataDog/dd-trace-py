@@ -1,5 +1,6 @@
 #include "TaintRange.h"
 #include "Initializer/Initializer.h"
+#include <pybind11/pybind11.h>
 
 #include <iostream> // FIXME: remove
 #include <sstream>
@@ -57,7 +58,8 @@ set_fast_tainted_if_notinterned_unicode(const PyObject* objptr)
     if (e) {
         if ((((PyASCIIObject*)objptr)->hash) == -1) {
             // compute hash once if not already done
-            initializer->builtins_hash((PyObject*)objptr);
+            pybind11::object builtins_hash = pybind11::module::import("builtins").attr("hash");
+            builtins_hash((PyObject*)objptr);
         }
         e->hidden = _GET_HASH_KEY(objptr);
     }
