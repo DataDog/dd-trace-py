@@ -57,7 +57,7 @@ set_fast_tainted_if_notinterned_unicode(const PyObject* objptr)
     if (e) {
         if ((((PyASCIIObject*)objptr)->hash) == -1) {
             // compute hash once if not already done
-            initializer->builtins_hash(py::reinterpret_borrow<py::object>((PyObject*)objptr));
+            initializer->builtins_hash((PyObject*)objptr);
         }
         e->hidden = _GET_HASH_KEY(objptr);
     }
