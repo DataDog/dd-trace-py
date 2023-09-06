@@ -54,6 +54,10 @@ fmt-snapshots = [
 riot = [
     "python -m doctest {args} riotfile.py"
 ]
+fmt = [
+    "black {args:.}",
+    "isort {args:.}",
+]
 
 [envs.docs]
 type = "container"
