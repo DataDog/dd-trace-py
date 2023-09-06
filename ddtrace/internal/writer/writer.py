@@ -24,7 +24,6 @@ from .. import periodic
 from .. import service
 from ...constants import KEEP_SPANS_RATE_KEY
 from ...internal.telemetry import telemetry_writer
-from ...internal.utils.formats import asbool
 from ...internal.utils.formats import parse_tags_str
 from ...internal.utils.http import Response
 from ...internal.utils.time import StopWatch
@@ -632,7 +631,7 @@ class AgentWriter(HTTPWriter):
             # appsec remote config should be enabled/started after the global tracer and configs
             # are initialized
             if os.getenv("AWS_LAMBDA_FUNCTION_NAME") is None and (
-                config._appsec_enabled or asbool(os.getenv("DD_REMOTE_CONFIGURATION_ENABLED", "true"))
+                config._appsec_enabled or config._remote_config_enabled
             ):
                 from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
 

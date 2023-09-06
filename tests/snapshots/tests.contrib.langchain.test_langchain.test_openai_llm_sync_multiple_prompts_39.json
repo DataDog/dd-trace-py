@@ -31,19 +31,20 @@
       "langchain.response.completions.1.logprobs": "None",
       "langchain.response.completions.1.text": "\\n\\nSpongebob has failed his road test nine times.",
       "language": "python",
-      "runtime-id": "26fd188dd2d44b23aa68158eea176692"
+      "runtime-id": "e3591036c91f49bfa00c0a77feefcb9b"
     },
     "metrics": {
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
+      "_sample_rate": 1.0,
       "_sampling_priority_v1": 1,
       "langchain.tokens.completion_tokens": 110,
       "langchain.tokens.prompt_tokens": 24,
       "langchain.tokens.total_cost": 0.00268,
       "langchain.tokens.total_tokens": 134,
-      "process_id": 83448
+      "process_id": 10515
     },
-    "duration": 3019000,
-    "start": 1688423166008325000
+    "duration": 4974081,
+    "start": 1694032466521927880
   }]]

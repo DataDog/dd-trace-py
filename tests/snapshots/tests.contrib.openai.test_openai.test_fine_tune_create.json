@@ -29,7 +29,7 @@
       "openai.response.model": "babbage",
       "openai.response.status": "pending",
       "openai.user.api_key": "sk-...key>",
-      "runtime-id": "da6540c2a7284fd696d49e06e7c612cc"
+      "runtime-id": "e3412e4f1afe4767a615b30fc1c0f91d"
     },
     "metrics": {
       "_dd.measured": 1,
@@ -46,8 +46,8 @@
       "openai.response.training_files_count": 1,
       "openai.response.updated_at": 1685662822,
       "openai.response.validation_files_count": 0,
-      "process_id": 93389
+      "process_id": 7557
     },
-    "duration": 3031000,
-    "start": 1686844438779050000
+    "duration": 5288325,
+    "start": 1694032216363023619
   }]]
