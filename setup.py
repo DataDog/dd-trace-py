@@ -341,25 +341,22 @@ class CMakeBuild(build_ext):
             # across all generators.
 
             build_args += ["-j"]
-            try:
-                cmake_cmd_with_args = [cmake_command] + cmake_args
-                subprocess.run(cmake_cmd_with_args, cwd=tmp_iast_path, check=True)
+            cmake_cmd_with_args = [cmake_command] + cmake_args
+            subprocess.run(cmake_cmd_with_args, cwd=tmp_iast_path, check=True)
 
-                build_command = [cmake_command, "--build", tmp_iast_path] + build_args
-                subprocess.run(build_command, cwd=tmp_iast_path, check=True)
-            except Exception as e:
-                print("WARNING: Failed to build IAST extensions, skipping: %s" % e)
-            finally:
-                import shutil
+            build_command = [cmake_command, "--build", tmp_iast_path] + build_args
+            subprocess.run(build_command, cwd=tmp_iast_path, check=True)
 
-                for directory_to_remove in ["_deps", "CMakeFiles"]:
-                    shutil.rmtree(os.path.join(tmp_iast_path, directory_to_remove))
-                for file_to_remove in ["Makefile", "cmake_install.cmake", "compile_commands.json", "CMakeCache.txt"]:
-                    if os.path.exists(os.path.join(tmp_iast_path, file_to_remove)):
-                        os.remove(os.path.join(tmp_iast_path, file_to_remove))
-                iast_artifact = os.path.join(IAST_DIR, tmp_filename)
-                if os.path.exists(iast_artifact):
-                    shutil.copy(iast_artifact, tmp_iast_file_path)
+            import shutil
+
+            for directory_to_remove in ["_deps", "CMakeFiles"]:
+                shutil.rmtree(os.path.join(tmp_iast_path, directory_to_remove))
+            for file_to_remove in ["Makefile", "cmake_install.cmake", "compile_commands.json", "CMakeCache.txt"]:
+                if os.path.exists(os.path.join(tmp_iast_path, file_to_remove)):
+                    os.remove(os.path.join(tmp_iast_path, file_to_remove))
+            iast_artifact = os.path.join(IAST_DIR, tmp_filename)
+            if os.path.exists(iast_artifact):
+                shutil.copy(iast_artifact, tmp_iast_file_path)
         else:
             build_ext.build_extension(self, ext)
 
