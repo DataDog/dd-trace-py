@@ -7,3 +7,5 @@ sphinxcontrib-spelling
 PyEnchant
 furo
 sphinx-copybutton
+# Later release of furro breaks formatting for code blocks
+furo<=2023.05.20
