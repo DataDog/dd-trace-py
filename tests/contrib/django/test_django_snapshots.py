@@ -111,7 +111,7 @@ def test_safe_string_encoding(client, snapshot_context):
             "111x": (1, 9) <= django.VERSION < (1, 12),
             "": django.VERSION >= (2, 2),
         },
-        ignores=["metrics._dd.tracer_kr"],
+        ignores=SNAPSHOT_IGNORES + ["metrics._dd.tracer_kr"],
     ):
         assert client.get("/safe-template/").status_code == 200
 
@@ -159,7 +159,7 @@ def test_psycopg2_query_default(client, snapshot_context, psycopg2_patched):
     from django.db import connections
     from psycopg2.sql import SQL as SQL2
 
-    with snapshot_context(ignores=["meta.out.host", "metrics._dd.tracer_kr"]):
+    with snapshot_context(ignores=SNAPSHOT_IGNORES + ["meta.out.host", "metrics._dd.tracer_kr"]):
         query = SQL2("""select 'one' as x""")
         conn = connections["postgres"]
         with conn.cursor() as cur:
@@ -209,7 +209,7 @@ def test_psycopg3_query_default(client, snapshot_context, psycopg3_patched):
     from django.db import connections
     from psycopg.sql import SQL
 
-    with snapshot_context(ignores=["meta.out.host", "metrics._dd.tracer_kr"]):
+    with snapshot_context(ignores=SNAPSHOT_IGNORES + ["meta.out.host", "metrics._dd.tracer_kr"]):
         query = SQL("""select 'one' as x""")
         conn = connections["postgres"]
         with conn.cursor() as cur:
