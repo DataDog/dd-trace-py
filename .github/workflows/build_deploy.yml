@@ -41,7 +41,7 @@ jobs:
            # https://cibuildwheel.readthedocs.io/en/stable/faq/#universal2
            archs: x86_64 universal2
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
         # Include all history and tags
         with:
           fetch-depth: 0
@@ -121,7 +121,7 @@ jobs:
     name: Build source distribution
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
         # Include all history and tags
         with:
           fetch-depth: 0
@@ -147,7 +147,7 @@ jobs:
     container:
       image: python:3.9-alpine
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
       - uses: actions/download-artifact@v3
         with:
           name: artifact
