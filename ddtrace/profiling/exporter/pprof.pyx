@@ -195,6 +195,8 @@ class _PprofConverter(object):
         funcname,  # type: str
     ):
         # type: (...) -> pprof_FunctionType
+        # filename/funcname are "guaranteed" to be str, but on 3.11 and later
+        # they may (erroneously?) be bytes.  Try to fix this.
         filename = sanitize_string(filename)
         funcname = sanitize_string(funcname)
         try:
@@ -215,6 +217,8 @@ class _PprofConverter(object):
         funcname,  # type: str
     ):
         # type: (...) -> pprof_LocationType
+        # filename/funcname are "guaranteed" to be str, but on 3.11 and later
+        # they may (erroneously?) be bytes.  Try to fix this.
         filename = sanitize_string(filename)
         funcname = sanitize_string(funcname)
         try:
