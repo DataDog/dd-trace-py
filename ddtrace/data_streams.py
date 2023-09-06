@@ -14,7 +14,9 @@ def set_consume_checkpoint(typ, source, carrier_get):
     if ddtrace.config._data_streams_enabled:
         processor = ddtrace.tracer.data_streams_processor
         processor.decode_pathway_b64(carrier_get(PROPAGATION_KEY_BASE_64))
-        return processor.set_checkpoint(["type:" + typ, "topic:" + source, "direction:in"])
+        return processor.set_checkpoint(
+            ["type:" + typ, "topic:" + source, "direction:in", "custom_instrumentation:true"]
+        )
 
 
 def set_produce_checkpoint(typ, target, carrier_set):
@@ -29,7 +31,7 @@ def set_produce_checkpoint(typ, target, carrier_set):
     """
     if ddtrace.config._data_streams_enabled:
         pathway = ddtrace.tracer.data_streams_processor.set_checkpoint(
-            ["type:" + typ, "topic:" + target, "direction:out"]
+            ["type:" + typ, "topic:" + target, "direction:out", "custom_instrumentation:true"]
         )
         if pathway is not None:
             carrier_set(PROPAGATION_KEY_BASE_64, pathway.encode_b64())
