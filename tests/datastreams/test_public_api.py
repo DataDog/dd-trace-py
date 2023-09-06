@@ -11,12 +11,18 @@ class MockedTracer:
         self.data_streams_processor = DataStreamsProcessor("http://localhost:8126")
 
 
+class MockedConfig:
+    def __init__(self):
+        self._data_streams_enabled = True
+
+
 def test_public_api():
     headers = {}
-    with mock.patch("ddtrace.tracer", new=MockedTracer()):
-        set_produce_checkpoint("kinesis", "stream-123", headers.setdefault)
-        got = set_consume_checkpoint("kinesis", "stream-123", headers.get)
-        ctx = DataStreamsCtx(MockedTracer().data_streams_processor, 0, 0, 0)
-        parent_hash = ctx._compute_hash(sorted(["direction:out", "type:kinesis", "topic:stream-123"]), 0)
-        expected = ctx._compute_hash(sorted(["direction:in", "type:kinesis", "topic:stream-123"]), parent_hash)
-        assert got.hash == expected
+    with mock.patch("ddtrace.internal.datastreams.processor.ddtrace.tracer", new=MockedTracer()):
+        with mock.patch("ddtrace.internal.datastreams.processor.ddtrace.config", new=MockedConfig()):
+            set_produce_checkpoint("kinesis", "stream-123", headers.setdefault)
+            got = set_consume_checkpoint("kinesis", "stream-123", headers.get)
+            ctx = DataStreamsCtx(MockedTracer().data_streams_processor, 0, 0, 0)
+            parent_hash = ctx._compute_hash(sorted(["direction:out", "type:kinesis", "topic:stream-123"]), 0)
+            expected = ctx._compute_hash(sorted(["direction:in", "type:kinesis", "topic:stream-123"]), parent_hash)
+            assert got.hash == expected

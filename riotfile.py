@@ -253,8 +253,6 @@ venv = Venv(
                     name="datastreams-latest",
                     env={
                         "AGENT_VERSION": "latest",
-                        "DD_DATA_STREAMS_ENABLED": "true",
-                        "_DD_TRACE_STATS_WRITER_INTERVAL": "1000000000",
                     },
                     venvs=[
                         Venv(pys=select_pys(max_version="3.5")),
