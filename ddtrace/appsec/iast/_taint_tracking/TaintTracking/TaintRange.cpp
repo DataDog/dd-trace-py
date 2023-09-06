@@ -57,10 +57,7 @@ set_fast_tainted_if_notinterned_unicode(const PyObject* objptr)
     if (e) {
         if ((((PyASCIIObject*)objptr)->hash) == -1) {
             // compute hash once if not already done
-            PyObject* builtins = PyEval_GetBuiltins();
-            PyObject* hash = PyDict_GetItemString(builtins, "hash");
-            // Could be replaced by PyObject_CallOneArg(hash,  objptr); in 3.9+
-            PyEval_CallFunction(hash, "(O)", objptr);
+            initializer->builtins_hash(py::reinterpret_borrow<py::object>((PyObject*)objptr));
         }
         e->hidden = _GET_HASH_KEY(objptr);
     }
