@@ -45,34 +45,32 @@ def get_trace_url():
 
     Raises a ``ValueError`` if the URL is not supported by the Agent.
     """
-    if ddconfig._trace_agent_url:
+    if ddconfig._trace_agent_url is not None:
         return ddconfig._trace_agent_url
-
-    if os.path.exists("/var/run/datadog/dsd.socket"):
+    elif ddconfig._trace_agent_port is not None or ddconfig._trace_agent_hostname is not None:
+        port = ddconfig._trace_agent_port or DEFAULT_TRACE_PORT
+        host = ddconfig._trace_agent_hostname or DEFAULT_HOSTNAME
+        if is_ipv6_hostname(host):
+            host = "[{}]".format(host)
+        return "http://{}:{}".format(host, port)
+    elif os.path.exists("/var/run/datadog/apm.socket"):
         return "unix://%s" % (DEFAULT_UNIX_TRACE_PATH)
-
-    port = ddconfig._trace_agent_port or DEFAULT_STATS_PORT
-    host = ddconfig._trace_agent_hostname or DEFAULT_HOSTNAME
-    if is_ipv6_hostname(host):
-        host = "[{}]".format(host)
-
-    return "http://{}:{}".format(host, port)
+    return "http://{}:{}".format(DEFAULT_HOSTNAME, DEFAULT_TRACE_PORT)
 
 
 def get_stats_url():
     # type: () -> str
-    if ddconfig._stats_agent_url:
+    if ddconfig._stats_agent_url is not None:
         return ddconfig._stats_agent_url
-
-    if os.path.exists("/var/run/datadog/dsd.socket"):
+    elif ddconfig._stats_agent_port is not None or ddconfig._stats_agent_hostname is not None:
+        port = ddconfig._stats_agent_port or DEFAULT_STATS_PORT
+        host = ddconfig._stats_agent_hostname or DEFAULT_HOSTNAME
+        if is_ipv6_hostname(host):
+            host = "[{}]".format(host)
+        return "udp://{}:{}".format(host, port)
+    elif os.path.exists("/var/run/datadog/dsd.socket"):
         return "unix://%s" % (DEFAULT_UNIX_DSD_PATH)
-
-    port = ddconfig._stats_agent_port or DEFAULT_STATS_PORT
-    host = ddconfig._stats_agent_hostname or DEFAULT_HOSTNAME
-    if is_ipv6_hostname(host):
-        host = "[{}]".format(host)
-
-    return "udp://{}:{}".format(host, port)
+    return "udp://{}:{}".format(DEFAULT_HOSTNAME, DEFAULT_STATS_PORT)
 
 
 def info():
