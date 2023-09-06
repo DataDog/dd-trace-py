@@ -1,3 +1,4 @@
+from distutils.command.clean import clean as CleanCommand
 import hashlib
 import os
 import platform
@@ -6,11 +7,12 @@ import shutil
 import sys
 import tarfile
 
-from setuptools import Extension, find_packages, setup
+from pkg_resources import get_build_platform
+from setuptools import Extension
+from setuptools import find_packages
+from setuptools import setup
 from setuptools.command.build_ext import build_ext
 from setuptools.command.build_py import build_py as BuildPyCommand
-from pkg_resources import get_build_platform
-from distutils.command.clean import clean as CleanCommand
 
 
 try:
@@ -46,7 +48,7 @@ IAST_DIR = os.path.join(HERE, os.path.join("ddtrace", "appsec", "iast", "_taint_
 
 CURRENT_OS = platform.system()
 
-LIBDDWAF_VERSION = "1.13.1"
+LIBDDWAF_VERSION = "1.14.0"
 
 LIBDATADOG_PROF_DOWNLOAD_DIR = os.path.join(
     HERE, os.path.join("ddtrace", "internal", "datadog", "profiling", "libdatadog")
