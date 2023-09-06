@@ -12,6 +12,8 @@ from tests.webclient import Client
 
 
 SERVER_PORT = 8000
+# these tests behave nondeterministically with respect to rate limiting, which can cause the sampling decision to flap
+SNAPSHOT_IGNORES = ["metrics._sampling_priority_v1"]
 
 
 @contextmanager
@@ -59,7 +61,7 @@ def daphne_client(django_asgi, additional_env=None):
 
 
 @pytest.mark.skipif(django.VERSION < (2, 0), reason="")
-@snapshot(variants={"": django.VERSION >= (2, 2)})
+@snapshot(variants={"": django.VERSION >= (2, 2)}, ignores=SNAPSHOT_IGNORES)
 def test_urlpatterns_include(client):
     """
     When a view is specified using `django.urls.include`
@@ -72,7 +74,8 @@ def test_urlpatterns_include(client):
     variants={
         "111x": (1, 9) <= django.VERSION < (1, 12),
         "": django.VERSION >= (2, 2),
-    }
+    },
+    ignores=SNAPSHOT_IGNORES,
 )
 def test_middleware_trace_callable_view(client):
     # ensures that the internals are properly traced when using callable views
@@ -87,7 +90,8 @@ def test_middleware_trace_callable_view(client):
     variants={
         "111x": (1, 9) <= django.VERSION < (1, 12),
         "": django.VERSION >= (2, 2),
-    }
+    },
+    ignores=SNAPSHOT_IGNORES,
 )
 def test_middleware_trace_partial_based_view(client):
     # ensures that the internals are properly traced when using a function views
@@ -116,7 +120,8 @@ def test_safe_string_encoding(client, snapshot_context):
     variants={
         "111x": (1, 9) <= django.VERSION < (1, 12),
         "": django.VERSION >= (2, 2),
-    }
+    },
+    ignores=SNAPSHOT_IGNORES,
 )
 def test_404_exceptions(client):
     assert client.get("/404-view/").status_code == 404
@@ -219,7 +224,7 @@ def test_psycopg3_query_default(client, snapshot_context, psycopg3_patched):
     variants={
         "3x": django.VERSION >= (3, 2, 0),
     },
-    ignores=["meta.http.useragent"],
+    ignores=SNAPSHOT_IGNORES + ["meta.http.useragent"],
     token_override="tests.contrib.django.test_django_snapshots.test_asgi_200",
 )
 @pytest.mark.parametrize("django_asgi", ["application", "channels_application"])
@@ -231,7 +236,7 @@ def test_asgi_200(django_asgi):
 
 
 @pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")
-@snapshot(ignores=["meta.http.useragent"])
+@snapshot(ignores=SNAPSHOT_IGNORES + ["meta.http.useragent"])
 def test_asgi_200_simple_app():
     # The path simple-asgi-app/ routes to an ASGI Application that is not traced
     # This test should generate an empty snapshot
@@ -242,7 +247,7 @@ def test_asgi_200_simple_app():
 
 
 @pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")
-@snapshot(ignores=["meta.http.useragent"])
+@snapshot(ignores=SNAPSHOT_IGNORES + ["meta.http.useragent"])
 def test_asgi_200_traced_simple_app():
     with daphne_client("channels_application") as client:
         resp = client.get("/traced-simple-asgi-app/")
@@ -252,7 +257,7 @@ def test_asgi_200_traced_simple_app():
 
 @pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")
 @snapshot(
-    ignores=["meta.error.stack", "meta.http.useragent"],
+    ignores=SNAPSHOT_IGNORES + ["meta.error.stack", "meta.http.useragent"],
     variants={
         "3x": django.VERSION >= (3, 2, 0),
     },
@@ -265,7 +270,7 @@ def test_asgi_500():
 
 @pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")
 @snapshot(
-    ignores=["meta.http.useragent"],
+    ignores=SNAPSHOT_IGNORES + ["meta.http.useragent"],
     variants={
         "3x": django.VERSION >= (3, 2, 0),
     },
@@ -280,7 +285,7 @@ def test_templates_enabled():
 
 @pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")
 @snapshot(
-    ignores=["meta.http.useragent"],
+    ignores=SNAPSHOT_IGNORES + ["meta.http.useragent"],
     variants={
         "3x": django.VERSION >= (3, 2, 0),
     },
@@ -293,7 +298,7 @@ def test_templates_disabled():
         assert resp.content == b"some content\n"
 
 
-@snapshot(ignores=["meta.http.useragent"])
+@snapshot(ignores=SNAPSHOT_IGNORES + ["meta.http.useragent"])
 @pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")
 def test_django_resource_handler():
     # regression test for: DataDog/dd-trace-py/issues/5711
