@@ -10,7 +10,10 @@ set(CMAKE_CXX_STANDARD 17)
 # -U_FORTIFY_SOURCE to fix a bug in alpine and pybind11
 # https://github.com/pybind/pybind11/issues/1650
 # https://gitlab.alpinelinux.org/alpine/aports/-/issues/8626
-add_compile_options(-fPIC -fexceptions -fvisibility=hidden -fpermissive -pthread -Wall -Wno-unknown-pragmas -U_FORTIFY_SOURCE)
+# add_compile_options(-fPIC -fexceptions -fvisibility=hidden -fpermissive -Wall -Wno-unknown-pragmas)
+
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -Wall -O3 -march=native  -pthread -U_FORTIFY_SOURCE")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -O3 -march=native  -pthread -U_FORTIFY_SOURCE")
 
 if(BUILD_MACOS)
     # https://pybind11.readthedocs.io/en/stable/compiling.html#building-manually
@@ -46,6 +49,7 @@ message(STATUS "PYTHON_LIBRARIES = ${Python_LIBRARIES}")
 message(STATUS "PYTHON_EXECUTABLE = ${Python_EXECUTABLE}")
 message(STATUS "PYTHON_INCLUDE_DIRS = ${Python_INCLUDE_DIRS}")
 message(STATUS "Python_EXECUTABLE = ${Python_EXECUTABLE}")
+
 
 add_subdirectory(_vendor/pybind11)
 
