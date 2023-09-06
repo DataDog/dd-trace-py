@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    appsec: This fix resolves an issue in which the library attempted to finalize twice a context object used
+    by the Application Security Management product.
