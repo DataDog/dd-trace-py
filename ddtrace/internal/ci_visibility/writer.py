@@ -29,7 +29,6 @@ if TYPE_CHECKING:  # pragma: no cover
 
     from ddtrace.vendor.dogstatsd import DogStatsd
 
-    from ...sampler import BasePrioritySampler
     from ...sampler import BaseSampler
 
 
@@ -83,7 +82,6 @@ class CIVisibilityWriter(HTTPWriter):
         self,
         intake_url="",  # type: str
         sampler=None,  # type: Optional[BaseSampler]
-        priority_sampler=None,  # type: Optional[BasePrioritySampler]
         processing_interval=None,  # type: Optional[float]
         timeout=None,  # type: Optional[float]
         dogstatsd=None,  # type: Optional[DogStatsd]
@@ -132,7 +130,6 @@ class CIVisibilityWriter(HTTPWriter):
             intake_url=intake_url,
             clients=clients,
             sampler=sampler,
-            priority_sampler=priority_sampler,
             processing_interval=processing_interval,
             timeout=timeout,
             dogstatsd=dogstatsd,
@@ -150,7 +147,6 @@ class CIVisibilityWriter(HTTPWriter):
         return self.__class__(
             intake_url=self.intake_url,
             sampler=self._sampler,
-            priority_sampler=self._priority_sampler,
             processing_interval=self._interval,
             timeout=self._timeout,
             dogstatsd=self.dogstatsd,

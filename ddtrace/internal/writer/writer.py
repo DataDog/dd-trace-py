@@ -23,7 +23,6 @@ from .. import periodic
 from .. import service
 from ...constants import KEEP_SPANS_RATE_KEY
 from ...internal.telemetry import telemetry_writer
-from ...internal.utils.formats import asbool
 from ...internal.utils.formats import parse_tags_str
 from ...internal.utils.http import Response
 from ...internal.utils.time import StopWatch
@@ -107,11 +106,9 @@ class LogWriter(TraceWriter):
         self,
         out=sys.stdout,  # type: TextIO
         sampler=None,  # type: Optional[BaseSampler]
-        priority_sampler=None,  # type: Optional[BasePrioritySampler]
     ):
         # type: (...) -> None
         self._sampler = sampler
-        self._priority_sampler = priority_sampler
         self.encoder = JSONEncoderV2()
         self.out = out
 
@@ -122,7 +119,7 @@ class LogWriter(TraceWriter):
         :rtype: :class:`LogWriter`
         :returns: A new :class:`LogWriter` instance
         """
-        writer = self.__class__(out=self.out, sampler=self._sampler, priority_sampler=self._priority_sampler)
+        writer = self.__class__(out=self.out, sampler=self._sampler)
         return writer
 
     def stop(self, timeout=None):
@@ -155,7 +152,6 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         intake_url,  # type: str
         clients,  # type: List[WriterClientBase]
         sampler=None,  # type: Optional[BaseSampler]
-        priority_sampler=None,  # type: Optional[BasePrioritySampler]
         processing_interval=None,  # type: Optional[float]
         # Match the payload size since there is no functionality
         # to flush dynamically.
@@ -178,7 +174,6 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         self._buffer_size = buffer_size
         self._max_payload_size = max_payload_size
         self._sampler = sampler
-        self._priority_sampler = priority_sampler
         self._headers = headers or {}
         self._timeout = timeout
 
@@ -473,7 +468,7 @@ class AgentWriter(HTTPWriter):
         self,
         agent_url,  # type: str
         sampler=None,  # type: Optional[BaseSampler]
-        priority_sampler=None,  # type: Optional[BasePrioritySampler]
+        priority_sampling=False,  # type: bool
         processing_interval=None,  # type: Optional[float]
         # Match the payload size since there is no functionality
         # to flush dynamically.
@@ -506,9 +501,7 @@ class AgentWriter(HTTPWriter):
             "v0.4" if (is_windows or in_gcp_function() or in_azure_function_consumption_plan()) else "v0.5"
         )
 
-        self._api_version = (
-            api_version or config._trace_api or (default_api_version if priority_sampler is not None else "v0.3")
-        )
+        self._api_version = api_version or config._trace_api or (default_api_version if priority_sampling else "v0.3")
         if is_windows and self._api_version == "v0.5":
             raise RuntimeError(
                 "There is a known compatibility issue with v0.5 API and Windows, "
@@ -550,7 +543,6 @@ class AgentWriter(HTTPWriter):
             intake_url=agent_url,
             clients=[client],
             sampler=sampler,
-            priority_sampler=priority_sampler,
             processing_interval=processing_interval,
             buffer_size=buffer_size,
             max_payload_size=max_payload_size,
@@ -566,7 +558,6 @@ class AgentWriter(HTTPWriter):
         return self.__class__(
             agent_url=self.agent_url,
             sampler=self._sampler,
-            priority_sampler=self._priority_sampler,
             processing_interval=self._interval,
             buffer_size=self._buffer_size,
             max_payload_size=self._max_payload_size,
@@ -619,14 +610,10 @@ class AgentWriter(HTTPWriter):
             else:
                 if payload is not None:
                     self._send_payload(payload, count, client)
-        elif response.status < 400 and (self._priority_sampler or isinstance(self._sampler, BasePrioritySampler)):
+        elif response.status < 400 and isinstance(self._sampler, BasePrioritySampler):
             result_traces_json = response.get_json()
             if result_traces_json and "rate_by_service" in result_traces_json:
                 try:
-                    if self._priority_sampler:
-                        self._priority_sampler.update_rate_by_service_sample_rates(
-                            result_traces_json["rate_by_service"],
-                        )
                     if isinstance(self._sampler, BasePrioritySampler):
                         self._sampler.update_rate_by_service_sample_rates(
                             result_traces_json["rate_by_service"],
@@ -643,7 +630,7 @@ class AgentWriter(HTTPWriter):
             # appsec remote config should be enabled/started after the global tracer and configs
             # are initialized
             if os.getenv("AWS_LAMBDA_FUNCTION_NAME") is None and (
-                config._appsec_enabled or asbool(os.getenv("DD_REMOTE_CONFIGURATION_ENABLED", "true"))
+                config._appsec_enabled or config._remote_config_enabled
             ):
                 from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
 

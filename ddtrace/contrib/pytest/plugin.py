@@ -46,7 +46,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 
 
-SKIPPED_BY_ITR = "Skipped by Datadog Intelligent Test Runner"
+SKIPPED_BY_ITR_REASON = "Skipped by Datadog Intelligent Test Runner"
 PATCH_ALL_HELP_MSG = "Call ddtrace.patch_all before running tests."
 
 log = get_logger(__name__)
@@ -224,6 +224,22 @@ def _start_test_module_span(pytest_package_item=None, pytest_module_item=None):
         _store_span(item, test_module_span)
     else:
         _store_module_span(item, test_module_span)
+
+    test_module_span.set_tag_str(
+        test.ITR_TEST_CODE_COVERAGE_ENABLED,
+        "true" if _CIVisibility._instance._collect_coverage_enabled else "false",
+    )
+
+    if _CIVisibility.test_skipping_enabled():
+        test_module_span.set_tag_str(test.ITR_TEST_SKIPPING_ENABLED, "true")
+        test_module_span.set_tag(
+            test.ITR_TEST_SKIPPING_TYPE, SUITE if _CIVisibility._instance._suite_skipping_mode else TEST
+        )
+        test_module_span.set_tag(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "false")
+        test_module_span.set_tag(test.ITR_DD_CI_ITR_TESTS_SKIPPED, "false")
+    else:
+        test_module_span.set_tag(test.ITR_TEST_SKIPPING_ENABLED, "false")
+
     return test_module_span, is_package
 
 
@@ -326,6 +342,20 @@ def pytest_sessionstart(session):
         test_session_span.set_tag_str(_EVENT_TYPE, _SESSION_TYPE)
         test_session_span.set_tag_str(test.COMMAND, _get_pytest_command(session.config))
         test_session_span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
+        if _CIVisibility.test_skipping_enabled():
+            test_session_span.set_tag_str(test.ITR_TEST_SKIPPING_ENABLED, "true")
+            test_session_span.set_tag(
+                test.ITR_TEST_SKIPPING_TYPE, SUITE if _CIVisibility._instance._suite_skipping_mode else TEST
+            )
+            test_session_span.set_tag(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "false")
+            test_session_span.set_tag(test.ITR_DD_CI_ITR_TESTS_SKIPPED, "false")
+        else:
+            test_session_span.set_tag_str(test.ITR_TEST_SKIPPING_ENABLED, "false")
+        test_session_span.set_tag_str(
+            test.ITR_TEST_CODE_COVERAGE_ENABLED,
+            "true" if _CIVisibility._instance._collect_coverage_enabled else "false",
+        )
+
         _store_span(session, test_session_span)
 
 
@@ -335,9 +365,6 @@ def pytest_sessionfinish(session, exitstatus):
         test_session_span = _extract_span(session)
         if test_session_span is not None:
             if _CIVisibility.test_skipping_enabled():
-                test_session_span.set_tag(
-                    test.ITR_TEST_SKIPPING_TYPE, SUITE if _CIVisibility._instance._suite_skipping_mode else TEST
-                )
                 test_session_span.set_metric(test.ITR_TEST_SKIPPING_COUNT, _global_skipped_elements)
             _mark_test_status(session, test_session_span)
             test_session_span.finish()
@@ -403,7 +430,7 @@ def _get_test_class_hierarchy(item):
 
 def pytest_collection_modifyitems(session, config, items):
     if _CIVisibility.test_skipping_enabled():
-        skip = pytest.mark.skip(reason=SKIPPED_BY_ITR)
+        skip = pytest.mark.skip(reason=SKIPPED_BY_ITR_REASON)
         for item in items:
             if _CIVisibility._instance._should_skip_path(str(get_fslocation_from_item(item)[0]), item.name):
                 item.add_marker(skip)
@@ -425,7 +452,7 @@ def pytest_runtest_protocol(item, nextitem):
             [
                 marker
                 for marker in item.iter_markers(name="skip")
-                if "reason" in marker.kwargs and marker.kwargs["reason"] == SKIPPED_BY_ITR
+                if "reason" in marker.kwargs and marker.kwargs["reason"] == SKIPPED_BY_ITR_REASON
             ]
         )
     )
@@ -456,6 +483,11 @@ def pytest_runtest_protocol(item, nextitem):
         test_module_span._metrics[test.ITR_TEST_SKIPPING_COUNT] += 1
         global _global_skipped_elements
         _global_skipped_elements += 1
+        test_module_span.set_tag_str(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "true")
+        test_module_span.set_tag_str(test.ITR_DD_CI_ITR_TESTS_SKIPPED, "true")
+
+        test_session_span.set_tag_str(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "true")
+        test_session_span.set_tag_str(test.ITR_DD_CI_ITR_TESTS_SKIPPED, "true")
 
     test_suite_span = _extract_span(pytest_module_item)
     if pytest_module_item is not None and test_suite_span is None:
@@ -607,8 +639,8 @@ def pytest_runtest_makereport(item, call):
         reason = _extract_reason(call)
         if reason is not None:
             span.set_tag_str(test.SKIP_REASON, str(reason))
-            if reason == SKIPPED_BY_ITR:
-                span.set_tag_str(test.SKIPPED_BY_ITR, "true")
+            if reason == SKIPPED_BY_ITR_REASON:
+                span.set_tag_str(test.ITR_SKIPPED, "true")
     elif result.passed:
         _mark_not_skipped(item.parent)
         span.set_tag_str(test.STATUS, test.Status.PASS.value)
