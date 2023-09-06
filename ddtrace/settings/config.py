@@ -9,6 +9,7 @@ from typing import List
 from typing import Optional
 from typing import Tuple
 
+from envier import En
 from typing_extensions import TypedDict
 
 from ddtrace.appsec._constants import DEFAULT
@@ -45,18 +46,6 @@ DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN_DEFAULT = (
     r"PRIVATE(?:\s|%20)KEY[\-]{5}[^\-]+[\-]{5}END(?:[a-z\s]|%20)+PRIVATE(?:\s|%20)KEY|"
     r"ssh-rsa(?:\s|%20)*(?:[a-z0-9\/\.+]|%2F|%5C|%2B){100,}"
 )
-
-
-def _serverless_service(s):
-    if not in_gcp_function():
-        return None
-    return s
-
-
-def _service_from_tags(s):
-    # type: (str) -> Optional[str]
-    tags = parse_tags_str(s)
-    return tags.get("service")
 
 
 def _parse_propagation_styles(name, default):
@@ -193,195 +182,6 @@ class _ConfigSourceEnv(_ConfigSource):
         return {"value": value, "raw": raw, "source": "env_var"}
 
 
-class _ConfigSourceEnvNone(_ConfigSourceEnv):
-    def __init__(self, *args, **kwargs):
-        # type: (*Any, **Any) -> None
-        pass
-
-    def get(self):
-        # type: () -> _ConfigResult
-        return {"value": None, "raw": None, "source": "env_var"}
-
-
-class _ConfigSourceEnvMulti(_ConfigSourceEnv):
-    def __init__(self, *envs, **kwargs):
-        # type: (*_ConfigSourceEnv, **Any) -> None
-        resolver = typing.cast("Optional[Callable[[_ConfigSourceEnv], _ConfigResult]]", kwargs.get("resolver"))
-        self.envs = envs
-        self.resolver = resolver or self._default_resolver
-
-    @staticmethod
-    def _default_resolver(*envs):
-        # type: (_ConfigSourceEnv) -> _ConfigResult
-        """
-        Default is to take the first env var that has a value.
-        """
-        for e in envs:
-            v = e.get()
-            if v["value"] is not None:
-                return v
-        return {
-            "value": None,
-            "raw": None,
-            "source": "env_var",
-        }
-
-    def get(self):
-        # type: () -> _ConfigResult
-        return self.resolver(*self.envs)
-
-
-class _ConfigSourceProgrammatic(_ConfigSource):
-    """A configuration source that is set programmatically by the user."""
-
-    def __init__(
-        self,
-        factory=None,  # type: Optional[Callable[[Any], Any]]
-    ):
-        # type: (...) -> None
-        self._value = None
-        self._raw = None
-        self._factory = factory
-
-    def set(self, val):
-        # type: (Any) -> None
-        self._raw = val
-        self._value = val
-        if val is not None and self._factory is not None:
-            self._value = self._factory(val)
-
-    def get(self):
-        # type: () -> _ConfigResult
-        return {
-            "value": self._value,
-            "raw": self._raw,
-            "source": "code",
-        }
-
-
-class _ConfigItem(object):
-    """A configuration item that can be queried for a value.
-
-    By default, the value is resolved in the following order:
-        1. programmatic
-        2. environ
-        3. default
-    """
-
-    _sentinel = object()
-
-    def __init__(
-        self,
-        key,  # type: str
-        type_,  # type: str
-        default,  # type: Any
-        environ=None,  # type: Optional[_ConfigSourceEnv]
-        programmatic=None,  # type: Optional[_ConfigSourceProgrammatic]
-        resolve=None,  # type: Optional[Callable[[Any, _ConfigSourceEnv, _ConfigSourceProgrammatic], _ConfigResult]]
-        metadata=None,  # type: Optional[Dict[str, Any]]
-    ):
-        # type: (...) -> None
-        self.key = key
-        self.type = type_
-        self._default_factory = default if callable(default) else lambda: default
-        self.environ = environ or _ConfigSourceEnvNone()  # type: _ConfigSourceEnv
-        self.programmatic = programmatic or _ConfigSourceProgrammatic()  # type: _ConfigSourceProgrammatic
-        self.resolve = self._default_resolve if resolve is None else resolve
-        self.metadata = metadata or {
-            "description": "",
-            "version_added": "",
-        }
-        self._cached_value = self._sentinel
-
-    @property
-    def default(self):
-        # type: () -> Any
-        """Return the default value for this configuration item.
-
-        A method is used to avoid mutable default values like ``{}``.
-        """
-        return self._default_factory()
-
-    @staticmethod
-    def _default_resolve(default, environ, programmatic):
-        # type: (Any, _ConfigSourceEnv, _ConfigSourceProgrammatic) -> _ConfigResult
-        for source in (programmatic, environ):
-            v = source.get()
-            if v["value"] is not None:
-                return v
-        return {
-            "value": default,
-            "raw": default,
-            "source": "default",
-        }
-
-    def _resolve(self):
-        if self._cached_value is self._sentinel:
-            self._cached_value = self.resolve(
-                self.default,
-                self.environ,
-                self.programmatic,
-            )
-        return self._cached_value
-
-    @property
-    def value(self):
-        # type: () -> Any
-        return self._resolve()["value"]
-
-    @property
-    def resolved(self):
-        # type: () -> _ConfigResult
-        return self._resolve()
-
-    def set_user_value(self, val):
-        # type: (Any) -> None
-        """Set the value the user specifies programmatically."""
-        self.programmatic.set(val)
-        self._cached_value = self._sentinel
-
-    def reset(self):
-        # type: () -> None
-        """Reset the item by removing any user specified values.
-
-        Also invalidate the cache to recompute the resolved value.
-        """
-        self.programmatic.set(None)
-        self._cached_value = self._sentinel
-
-
-def _default_config():
-    # type: () -> Tuple[_ConfigItem]
-    return (
-        _ConfigItem(
-            key="service",
-            type_="Optional[str]",
-            default=DEFAULT_SPAN_SERVICE_NAME,
-            environ=_ConfigSourceEnvMulti(
-                _ConfigSourceEnv(name="DD_SERVICE", examples=["my-web-service"]),
-                _ConfigSourceEnv(
-                    name="DD_TAGS",
-                    factory=_service_from_tags,
-                    examples=["service:my-web-service", "service:my-web-service,env:prod"],
-                ),
-                # Serverless environments
-                _ConfigSourceEnv(name="FUNCTION_NAME", factory=_serverless_service),
-                _ConfigSourceEnv(name="K_SERVICE", factory=_serverless_service),
-            ),
-            metadata={
-                "description": (
-                    "Service name to be used for the application. "
-                    "This is the primary key used in the Datadog product for data submitted from this library. "
-                    "See `Unified Service Tagging`_ for more information."
-                ),
-                "version_added": {
-                    "v0.36.0": "",
-                },
-            },
-        ),
-    )
-
-
 class Config(object):
     """Configuration object that exposes an API to set and retrieve
     global settings for each integration. All integrations must use
@@ -428,15 +228,11 @@ class Config(object):
                     return True
             return False
 
-    def __init__(self, *cfg_items):
-        # Backwards compatibility: Config used to not accept any arguments
-        # when none are provided, use the default config items.
-        cfg_items = cfg_items or _default_config()
-
+    def __init__(self):
         # Must come before _integration_configs due to __setattr__
-        self._items = {}
-        for cfg in cfg_items:
-            self._items[cfg.key] = cfg
+        self._envier_config = GlobalConfig(
+            env_source=_create_env_source(),
+        )
 
         # use a dict as underlying storing mechanism for integration configs
         self._integration_configs = {}
@@ -559,8 +355,8 @@ class Config(object):
         self._subscriptions = []  # type: List[Tuple[List[str], Callable[[Config, List[str]], None]]]
 
     def __getattr__(self, name):
-        if name in self._items:
-            return self._items[name].value
+        if name in self._envier_config:
+            return getattr(self._envier_config, name)
 
         if name not in self._integration_configs:
             self._integration_configs[name] = IntegrationConfig(self, name)
@@ -666,10 +462,11 @@ class Config(object):
                 sub_handler(self, sub_updated_items)
 
     def __setattr__(self, key, value):
-        if key == "_items":
+        if key == "_envier_config":
             return super(self.__class__, self).__setattr__(key, value)
-        elif key in self._items:
-            self._items[key].set_user_value(value)
+        elif key in self._envier_config:
+            setattr(self._envier_config, key, value)
+            # self._envier_config.set_user_value(value)
             self._notify_subscribers([key])
             return None
         else:
@@ -677,5 +474,36 @@ class Config(object):
 
     def reset(self):
         # type: () -> None
-        for cfg_item in self._items.values():
-            cfg_item.reset()
+        self._envier_config = GlobalConfig(env_source=_create_env_source())
+
+
+def _create_env_source():
+    env = os.environ.copy()
+    if "DD_TAGS" in env:
+        tags = parse_tags_str(env["DD_TAGS"])
+        if "DD_SERVICE" not in env and "service" in tags:
+            env["DD_SERVICE"] = tags["service"]
+    if "DD_SERVICE" not in env and in_gcp_function():
+        for e in ("FUNCTION_NAME", "K_SERVICE"):
+            if e in env:
+                env["DD_SERVICE"] = env[e]
+                break
+    return env
+
+
+class GlobalConfig(En):
+    """Configuration shared for all components of the library.
+
+    These include settings like service, env and version which are universal
+    tags and should apply to all products.
+    """
+
+    __prefix__ = "dd"
+
+    service = En.v(
+        Optional[str],
+        "service",
+        default=DEFAULT_SPAN_SERVICE_NAME,
+        help_type="String",
+        help="Service name to be used for the application.",
+    )

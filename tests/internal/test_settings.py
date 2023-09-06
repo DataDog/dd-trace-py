@@ -3,15 +3,6 @@ import pytest
 from ddtrace import config
 
 
-# Reset the configuration between each test case.
-# This is necessary because the config object is a singleton.
-@pytest.fixture(autouse=True)
-def reset_config():
-    config.reset()
-    yield
-    config.reset()
-
-
 @pytest.mark.parametrize(
     "test",
     [
@@ -39,12 +30,51 @@ def reset_config():
             "code": "code_svc",
             "expected_service": "code_svc",
         },
+        {
+            # DD_SERVICE takes precedence over all other env vars
+            "env": {
+                "DD_SERVICE": "dd_service",
+                "DD_TAGS": "service:dd_tags_service",
+                "GCP_PROJECT": "prj",
+                "FUNCTION_NAME": "my_fn",
+            },
+            "expected_service": "dd_service",
+        },
+        {
+            # DD_TAGS takes second-highest precedence over all other env vars
+            "env": {"DD_TAGS": "service:dd_tags_service", "GCP_PROJECT": "prj", "FUNCTION_NAME": "my_fn"},
+            "expected_service": "dd_tags_service",
+        },
+        {
+            # Serverless should not work unless GCP or AWS is detected
+            "env": {"FUNCTION_NAME": "my_fn"},
+            "expected_service": None,
+        },
+        {
+            "env": {"GCP_PROJECT": "prj", "FUNCTION_NAME": "my_fn"},
+            "expected_service": "my_fn",
+        },
+        {
+            # Test serverless precedence
+            "env": {"GCP_PROJECT": "prj", "FUNCTION_NAME": "my_fn", "K_SERVICE": "my_svc"},
+            "expected_service": "my_fn",
+        },
+        pytest.param(
+            {"tag_code": "service:code_svc", "expected_service": "code_svc"},
+            marks=pytest.mark.xfail(reason="The service isn't updated when tags are set programmatically"),
+        ),
     ],
 )
 def test_service(test, monkeypatch):
     for env_name, env_value in test.get("env", {}).items():
         monkeypatch.setenv(env_name, env_value)
+        # Reset the config to reload the env vars
+        config.reset()
+
     if "code" in test:
         config.service = test["code"]
+
+    if "tag_code" in test:
+        config.tags = test["tag_code"]
 
     assert config.service == test["expected_service"]
