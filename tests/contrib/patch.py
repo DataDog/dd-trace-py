@@ -302,6 +302,12 @@ class PatchTestCase(object):
             """
             raise NotImplementedError(self.assert_module_implements_get_version.__doc__)
 
+        def emit_integration_and_tested_version_telemetry_event(self):
+            """
+            Module patch should implement get_version returning the str version
+            """
+            raise NotImplementedError(self.emit_integration_and_tested_version_telemetry_event.__doc__)
+
         @raise_if_no_attrs
         def test_import_patch(self):
             """
@@ -327,6 +333,12 @@ class PatchTestCase(object):
             Module patch should implement get_version returning the str version
             """
             self.assert_module_implements_get_version()
+
+        def test_integration_and_version(self):
+            """
+            Module patch should implement get_version returning the str version
+            """
+            self.emit_integration_and_tested_version_telemetry_event()
 
         @raise_if_no_attrs
         def test_patch_import(self):

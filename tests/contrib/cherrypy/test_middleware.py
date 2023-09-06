@@ -60,6 +60,18 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         assert type(version) == str
         assert version != ""
 
+    def emit_integration_and_tested_version_telemetry_event(self):
+        # emits a telemetry event that will be consumed by the Test Agent and sent to metabase describing
+        # the integration and its tested versions
+        from ddtrace._monkey import PATCH_MODULES
+        from ddtrace.contrib.cherrypy import get_version
+        from ddtrace.internal.telemetry import telemetry_writer
+
+        version = get_version()
+        telemetry_writer.add_integration("cherrypy", True, PATCH_MODULES.get("cherrypy") is True, "", version=version)
+        integrations = telemetry_writer._flush_integrations_queue()
+        telemetry_writer._app_integrations_changed_event(integrations)
+
     def test_double_instrumentation(self):
         # ensure CherryPy is never instrumented twice when `ddtrace-run`
         # and `TraceMiddleware` are used together. `traced_app` MUST

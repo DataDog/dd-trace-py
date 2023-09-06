@@ -16,7 +16,6 @@ import ddtrace
 from ddtrace import Span
 from ddtrace import Tracer
 from ddtrace import config as dd_config
-from ddtrace import patch_all
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.ext import http
 from ddtrace.internal import agent
@@ -548,7 +547,6 @@ class DummyTracer(Tracer):
     """
 
     def __init__(self, *args, **kwargs):
-        patch_all()
         super(DummyTracer, self).__init__()
         self._trace_flush_enabled = True
         self.configure(*args, **kwargs)
