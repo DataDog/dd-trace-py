@@ -313,6 +313,10 @@ jobs:
       - run:
           name: "Generate base virtual environments."
           # DEV: riot list -i tracer lists all supported Python versions
+          command: "sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install --force-yes -y --no-install-recommends cmake gcc"
+      - run:
+          name: "Generate base virtual environments."
+          # DEV: riot list -i tracer lists all supported Python versions
           command: "riot list -i tracer | circleci tests split | xargs -I PY riot -d generate --python=PY"
           no_output_timeout: 30m
       - persist_to_workspace:
