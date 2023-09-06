@@ -38,9 +38,6 @@ RESULT = TEST_RESULT = "pytest.result"
 # Skip Reason
 SKIP_REASON = TEST_SKIP_REASON = "test.skip_reason"
 
-# Test skipped by ITR
-SKIPPED_BY_ITR = "skipped_by_itr"
-
 # Test Status
 STATUS = TEST_STATUS = "test.status"
 
