@@ -56,7 +56,7 @@ def get_trace_url():
     if is_ipv6_hostname(host):
         host = "[{}]".format(host)
 
-    return "udp://{}:{}".format(host, port)
+    return "http://{}:{}".format(host, port)
 
 
 def get_stats_url():
