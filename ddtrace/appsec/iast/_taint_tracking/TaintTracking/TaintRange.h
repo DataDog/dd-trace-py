@@ -4,7 +4,6 @@
 #include <sstream>
 #include <utility>
 
-
 #include <pybind11/stl.h>
 
 #include "structmember.h"
