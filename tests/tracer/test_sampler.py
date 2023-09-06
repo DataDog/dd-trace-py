@@ -21,7 +21,6 @@ from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.sampling import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import set_sampling_decision_maker
-from ddtrace.sampler import AllSampler
 from ddtrace.sampler import DatadogSampler
 from ddtrace.sampler import RateByServiceSampler
 from ddtrace.sampler import RateSampler
@@ -186,15 +185,8 @@ class RateByServiceSamplerTest(unittest.TestCase):
     def _test_sample_rate_deviation(self):
         for sample_rate in [0.1, 0.25, 0.5, 1]:
             tracer = DummyTracer()
-            writer = tracer._writer
-            tracer.configure(sampler=AllSampler())
-            non_dummy_writer_would_have_priority_sampler = (
-                tracer._writer is not writer and tracer._priority_sampler is not None
-            )
-            assert (
-                non_dummy_writer_would_have_priority_sampler
-            ), "After configure() with a sampler argument, the tracer's writer should have a priority sampler"
-            tracer._priority_sampler.set_sample_rate(sample_rate)
+            tracer.configure(sampler=RateByServiceSampler())
+            tracer._sampler.set_sample_rate(sample_rate)
 
             iterations = int(1e4 / sample_rate)
 
