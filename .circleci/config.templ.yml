@@ -301,10 +301,10 @@ jobs:
 
 
   build_base_venvs:
-    resource_class: large
+    resource_class: xlarge
     docker:
       - image: *ddtrace_dev_image
-    parallelism: 2
+    parallelism: 8
     environment:
       - CMAKE_BUILD_PARALLEL_LEVEL=12
     steps:
