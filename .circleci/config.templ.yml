@@ -33,6 +33,7 @@ machine_executor: &machine_executor
   machine:
     image: *ubuntu_base_img
   environment:
+    - CMAKE_BUILD_PARALLEL_LEVEL: 12
     - BOTO_CONFIG: /dev/null
     # https://support.circleci.com/hc/en-us/articles/360045268074-Build-Fails-with-Too-long-with-no-output-exceeded-10m0s-context-deadline-exceeded-
     - PYTHONUNBUFFERED: 1
@@ -304,6 +305,8 @@ jobs:
     docker:
       - image: *ddtrace_dev_image
     parallelism: 8
+    environment:
+      - CMAKE_BUILD_PARALLEL_LEVEL=12
     steps:
       - checkout
       - setup_riot
@@ -1073,6 +1076,8 @@ jobs:
   build_docs:
     # build documentation and store as an artifact
     executor: ddtrace_dev
+    environment:
+      - CMAKE_BUILD_PARALLEL_LEVEL=12
     steps:
       - setup_hatch
       - checkout
