@@ -13,7 +13,7 @@ def test_data_streams_processor():
     processor.on_checkpoint_creation(1, 2, ["direction:out", "topic:topicA", "type:kafka"], now, 1, 4)
     processor.on_checkpoint_creation(2, 4, ["direction:in", "topic:topicA", "type:kafka"], now, 1, 2)
     now_ns = int(now * 1e9)
-    bucket_time_ns = int(now_ns - (now_ns % 1e10))
+    bucket_time_ns = int(now_ns - (now_ns % (1e9 * 1000000000)))
     aggr_key_1 = (",".join(["direction:out", "topic:topicA", "type:kafka"]), 1, 2)
     aggr_key_2 = (",".join(["direction:in", "topic:topicA", "type:kafka"]), 2, 4)
     assert processor._buckets[bucket_time_ns].pathway_stats[aggr_key_1].full_pathway_latency.count == 3
@@ -48,7 +48,7 @@ def test_kafka_offset_monitoring():
     processor.track_kafka_produce("topic1", 1, 34, now)
     processor.track_kafka_produce("topic1", 2, 10, now)
     now_ns = int(now * 1e9)
-    bucket_time_ns = int(now_ns - (now_ns % 1e10))
+    bucket_time_ns = int(now_ns - (now_ns % (1e9 * 1000000000)))
     assert processor._buckets[bucket_time_ns].latest_produce_offsets[PartitionKey("topic1", 1)] == 34
     assert processor._buckets[bucket_time_ns].latest_produce_offsets[PartitionKey("topic1", 2)] == 10
     assert processor._buckets[bucket_time_ns].latest_commit_offsets[ConsumerPartitionKey("group1", "topic1", 1)] == 14

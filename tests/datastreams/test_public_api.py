@@ -25,7 +25,7 @@ def test_public_api(tracer):
         pass
     set_produce_checkpoint("kinesis", "stream-123", headers.setdefault)
     got = set_consume_checkpoint("kinesis", "stream-123", headers.get)
-    ctx = DataStreamsCtx(tracer.data_streams_processor, 0, 0)
+    ctx = DataStreamsCtx(tracer.data_streams_processor, 0, 0, 0)
     parent_hash = ctx._compute_hash(sorted(["direction:out", "type:kinesis", "topic:stream-123"]), 0)
     expected = ctx._compute_hash(sorted(["direction:in", "type:kinesis", "topic:stream-123"]), parent_hash)
     assert got.hash == expected
