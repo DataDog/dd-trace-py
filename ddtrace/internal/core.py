@@ -20,7 +20,6 @@ This example shows how ``core.context_with_data`` might be used to create a node
     def _patched_request(pin, wrapped, args, kwargs):
         with core.context_with_data(
             "flask._patched_request",
-            name=".".join(("flask", name)),
             pin=pin,
             flask_request=flask.request,
             block_request_callable=_block_request_callable,
