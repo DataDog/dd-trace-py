@@ -12,9 +12,6 @@ set(CMAKE_CXX_STANDARD 17)
 # https://gitlab.alpinelinux.org/alpine/aports/-/issues/8626
 # add_compile_options(-fPIC -fexceptions -fvisibility=hidden -fpermissive -Wall -Wno-unknown-pragmas)
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -Wall -O3 -march=native  -pthread -U_FORTIFY_SOURCE")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -O3 -march=native  -pthread -U_FORTIFY_SOURCE")
-
 if(BUILD_MACOS)
     # https://pybind11.readthedocs.io/en/stable/compiling.html#building-manually
     message(STATUS "Compile options for MacOS")
@@ -52,6 +49,10 @@ message(STATUS "Python_EXECUTABLE = ${Python_EXECUTABLE}")
 
 
 add_subdirectory(_vendor/pybind11)
+
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -Wall -O3 -march=native  -pthread -U_FORTIFY_SOURCE")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -O3 -march=native  -pthread -U_FORTIFY_SOURCE")
+
 
 pybind11_add_module(_native SHARED ${SOURCE_FILES} ${HEADER_FILES})
 get_filename_component(PARENT_DIR ${CMAKE_CURRENT_LIST_DIR} DIRECTORY)
