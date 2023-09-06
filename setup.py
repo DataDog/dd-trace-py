@@ -345,6 +345,8 @@ class CMakeBuild(build_ext):
                 # DEV: -j is only supported in CMake 3.12+ only.
                 if hasattr(self, "parallel") and self.parallel:
                     build_args += ["-j{}".format(self.parallel)]
+                else:
+                    build_args += ["-j8"]
             try:
                 cmake_cmd_with_args = [cmake_command] + cmake_args
                 subprocess.run(cmake_cmd_with_args, cwd=tmp_iast_path, check=True)
