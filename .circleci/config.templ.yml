@@ -304,7 +304,7 @@ jobs:
     resource_class: large
     docker:
       - image: *ddtrace_dev_image
-    parallelism: 8
+    parallelism: 2
     environment:
       - CMAKE_BUILD_PARALLEL_LEVEL=12
     steps:
