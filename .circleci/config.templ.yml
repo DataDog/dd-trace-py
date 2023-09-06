@@ -300,7 +300,7 @@ jobs:
 
 
   build_base_venvs:
-    resource_class: large
+    resource_class: xlarge
     docker:
       - image: *ddtrace_dev_image
     parallelism: 8
