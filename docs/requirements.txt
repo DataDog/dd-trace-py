@@ -2,8 +2,10 @@ cmake
 cython
 sphinx
 opentracing
-reno
-sphinxcontrib-spelling
-PyEnchant
-furo
-sphinx-copybutton
+reno[sphinx]~=3.5.0
+sphinx~=4.0
+sphinxcontrib-spelling==7.7.0
+PyEnchant==3.2.2
+sphinx-copybutton==0.5.1
+# Later release of furo breaks formatting for code blocks
+furo<=2023.05.20

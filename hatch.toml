@@ -65,15 +65,6 @@ template = "docs"
 dev-mode = false
 python = "3.10"
 features = ["opentracing"]
-extra-dependencies = [
-    "reno[sphinx]~=3.5.0",
-    "sphinx~=4.0",
-    "sphinxcontrib-spelling==7.7.0",
-    "PyEnchant==3.2.2",
-    "sphinx-copybutton==0.5.1",
-    # Later release of furro breaks formatting for code blocks
-    "furo<=2023.05.20",
-]
 pre-install-commands = [
     "scripts/docs/install.sh",
 ]
