@@ -24,7 +24,7 @@ from ddtrace.internal.sampling import set_sampling_decision_maker
 from ddtrace.sampler import DatadogSampler
 from ddtrace.sampler import RateByServiceSampler
 from ddtrace.sampler import RateSampler
-from ddtrace.sampler import SamplingRule
+from ddtrace.sampling_rule import SamplingRule
 from ddtrace.span import Span
 
 from ..subprocesstest import run_in_subprocess
@@ -561,7 +561,7 @@ def test_sampling_rule_matches_exception():
     rule = SamplingRule(sample_rate=1.0, name=pattern)
     span = create_span(name="test.span")
 
-    with mock.patch("ddtrace.sampler.log") as mock_log:
+    with mock.patch("ddtrace.sampling_rule.log") as mock_log:
         assert (
             rule.matches(span) is False
         ), "SamplingRule should not match when its name pattern function throws an exception"
@@ -578,7 +578,7 @@ def test_sampling_rule_matches_exception():
     parametrize={"DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED": ["true", "false"]},
 )
 def test_sampling_rule_sample():
-    from ddtrace.sampler import SamplingRule
+    from ddtrace.sampling_rule import SamplingRule
     from ddtrace.span import Span
 
     for sample_rate in [0.01, 0.1, 0.15, 0.25, 0.5, 0.75, 0.85, 0.9, 0.95, 0.991]:
@@ -724,7 +724,7 @@ class MatchSample(SamplingRule):
     def matches(self, span):
         return True
 
-    def sample(self, span):
+    def sample(self, span, allow_false=False):
         return True
 
 
@@ -732,7 +732,7 @@ class NoMatch(SamplingRule):
     def matches(self, span):
         return False
 
-    def sample(self, span):
+    def sample(self, span, allow_false=False):
         return True
 
 
@@ -740,7 +740,7 @@ class MatchNoSample(SamplingRule):
     def matches(self, span):
         return True
 
-    def sample(self, span):
+    def sample(self, span, allow_false=False):
         return False
 
 
