@@ -115,7 +115,7 @@ class SamplingRule(object):
 
     @cachedmethod()
     def _matches(self, key):
-        # type: (Tuple[Optional[str], str]) -> bool
+        # type: (Tuple[Optional[str], str, Optional[str]]) -> bool
         service, name, resource = key
         for prop, pattern in [(service, self.service), (name, self.name), (resource, self.resource)]:
             if not self._pattern_matches(prop, pattern):
