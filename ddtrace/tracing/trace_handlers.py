@@ -35,11 +35,11 @@ class _TracedIterable(wrapt.ObjectProxy):
         self._self_span_finished = False
 
     def __iter__(self):
-        return iter(self.__wrapped__)
+        return self if hasattr(self, "__next__") else iter(self.__wrapped__)
 
     def __next__(self):
         try:
-            return next(self)
+            return next(self.__wrapped__)
         except StopIteration:
             self._finish_spans()
             raise
@@ -193,7 +193,7 @@ def _on_request_complete(ctx, closing_iterable):
     )
     modifier(resp_span, closing_iterable)
 
-    return _TracedIterable(closing_iterable, resp_span, req_span)
+    return _TracedIterable(iter(closing_iterable), resp_span, req_span)
 
 
 def _on_response_context_started(ctx):
