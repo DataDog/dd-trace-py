@@ -30,6 +30,7 @@ dependencies = [
     "importlib_metadata; python_version<'3.8'",
     "opentelemetry-api>=1",
     "protobuf>=3",
+    "setuptools; python_version>='3.12'",
     "six>=1.12.0",
     "typing_extensions",
     "xmltodict>=0.12",
