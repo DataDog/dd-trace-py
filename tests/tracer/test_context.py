@@ -326,3 +326,20 @@ def test_traceparent(context, expected_traceparent):
 def test_tracestate(context, expected_tracestate):
     # type: (Context,str) -> None
     assert context._tracestate == expected_tracestate
+
+
+@pytest.mark.parametrize(
+    "ctx,expected_dd_origin",
+    [
+        (Context(), None),
+        (Context(dd_origin="abcABC"), "abcABC"),
+        (Context(dd_origin="abcABC123"), "abcABC123"),
+        (Context(dd_origin="!@#$%^&*()>?"), "!@#$%^&*()>?"),
+        (Context(dd_origin="\x00\x10"), None),
+        (Context(dd_origin="\x80"), None),
+        (Context(dd_origin="§¢À"), None),
+    ],
+)
+def test_dd_origin_character_set(ctx, expected_dd_origin):
+    # type: (Context,Optional[str]) -> None
+    assert ctx.dd_origin == expected_dd_origin
