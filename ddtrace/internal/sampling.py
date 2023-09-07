@@ -315,9 +315,9 @@ def _get_highest_precedence_rule_matching(span, rules):
 
     rule_decision = [0 for _ in rules]
 
-    for rule in rules:
+    for idx, rule in enumerate(rules):
         if rule.matches(span):
-            rule_decision[rules.index(rule)] += 1
+            rule_decision[idx] += 1
 
     for index, value in enumerate(rule_decision):
         if value > 0:

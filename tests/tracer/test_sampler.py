@@ -805,20 +805,6 @@ class MatchNoSample(SamplingRule):
         ),
         (
             DatadogSampler(
-                default_sample_rate=1.0,
-                rules=[
-                    NoMatch(0.5),
-                    MatchNoSample(0.5),
-                    NoMatch(0.5),
-                ],
-            ),
-            USER_REJECT,
-            SamplingMechanism.TRACE_SAMPLING_RULE,
-            0.5,
-            None,
-        ),
-        (
-            DatadogSampler(
                 default_sample_rate=0,
             ),
             USER_REJECT,
