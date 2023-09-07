@@ -313,13 +313,7 @@ def _get_highest_precedence_rule_matching(span, rules):
     if not rules:
         return None
 
-    rule_decision = [0 for _ in rules]
-
     for idx, rule in enumerate(rules):
         if rule.matches(span):
-            rule_decision[idx] += 1
-
-    for index, value in enumerate(rule_decision):
-        if value > 0:
-            return rules[index]
+            return rule
     return None
