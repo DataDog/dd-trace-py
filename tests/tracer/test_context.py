@@ -5,6 +5,7 @@ import pytest
 
 from ddtrace.context import Context
 from ddtrace.span import Span
+from typing import Optional
 
 
 @pytest.mark.parametrize(
