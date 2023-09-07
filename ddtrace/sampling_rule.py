@@ -29,6 +29,7 @@ class SamplingRule(object):
         sample_rate,  # type: float
         service=NO_RULE,  # type: Any
         name=NO_RULE,  # type: Any
+        resource=NO_RULE,  # type: Any
     ):
         # type: (...) -> None
         """
@@ -68,6 +69,7 @@ class SamplingRule(object):
         self.sample_rate = sample_rate
         self.service = service
         self.name = name
+        self.resource = resource
 
     @property
     def sample_rate(self):
@@ -111,9 +113,9 @@ class SamplingRule(object):
 
     @cachedmethod()
     def _matches(self, key):
-        # type: (Tuple[Optional[str], str]) -> bool
-        service, name = key
-        for prop, pattern in [(service, self.service), (name, self.name)]:
+        # type: (Tuple[Optional[str], str, Optional[str]]) -> bool
+        service, name, resource = key
+        for prop, pattern in [(service, self.service), (name, self.name), (resource, self.resource)]:
             if not self._pattern_matches(prop, pattern):
                 return False
         else:
@@ -129,9 +131,8 @@ class SamplingRule(object):
         :returns: Whether this span matches or not
         :rtype: :obj:`bool`
         """
-        # Our LFU cache expects a single key, convert the
-        # provided Span into a hashable tuple for the cache
-        return self._matches((span.service, span.name))
+        # self._matches exists to maintain legacy pattern values such as regex and functions
+        return self._matches((span.service, span.name, span.resource))
 
     def sample(self, span, allow_false=True):
         # type: (Span, bool) -> bool
@@ -171,4 +172,9 @@ class SamplingRule(object):
         if not isinstance(other, SamplingRule):
             raise TypeError("Cannot compare SamplingRule to {}".format(type(other)))
 
-        return self.sample_rate == other.sample_rate and self.service == other.service and self.name == other.name
+        return (
+            self.sample_rate == other.sample_rate
+            and self.service == other.service
+            and self.name == other.name
+            and self.resource == other.resource
+        )
