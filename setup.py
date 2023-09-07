@@ -12,6 +12,7 @@ from setuptools.command.build_py import build_py as BuildPyCommand
 from pkg_resources import get_build_platform
 from distutils.command.clean import clean as CleanCommand
 
+
 try:
     # ORDER MATTERS
     # Import this after setuptools or it will fail
