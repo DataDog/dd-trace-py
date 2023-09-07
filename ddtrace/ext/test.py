@@ -57,18 +57,20 @@ CLASS_HIERARCHY = "test.class_hierarchy"
 # Test Codeowners
 CODEOWNERS = TEST_CODEOWNERS = "test.codeowners"
 
-# ITR test skipping / forcing
+# ITR
 ITR_SKIPPED = "test.skipped_by_itr"
+
+# Test session-level ITR and coverage:
 ITR_DD_CI_ITR_TESTS_SKIPPED = "_dd.ci.itr.tests_skipped"
 ITR_TEST_SKIPPING_ENABLED = "test.itr.tests_skipping.enabled"
 ITR_TEST_SKIPPING_TESTS_SKIPPED = "test.itr.tests_skipping.tests_skipped"
 ITR_TEST_SKIPPING_TYPE = "test.itr.tests_skipping.type"
 ITR_TEST_SKIPPING_COUNT = "test.itr.tests_skipping.count"
+ITR_TEST_CODE_COVERAGE_ENABLED = "test.code_coverage.enabled"
+
+# ITR: unskippable tests
 ITR_UNSKIPPABLE = "test.itr.unskippable"
 ITR_FORCED_RUN = "test.itr.forced_run"
-
-# ITR coverage
-ITR_TEST_CODE_COVERAGE_ENABLED = "test.code_coverage.enabled"
 
 
 class Status(Enum):
