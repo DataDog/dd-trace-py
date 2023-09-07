@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 import pickle
+from typing import Optional
 
 import pytest
 
 from ddtrace.context import Context
 from ddtrace.span import Span
-from typing import Optional
 
 
 @pytest.mark.parametrize(
