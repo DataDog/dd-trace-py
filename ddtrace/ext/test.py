@@ -68,6 +68,10 @@ ITR_TEST_SKIPPING_TYPE = "test.itr.tests_skipping.type"
 ITR_TEST_SKIPPING_COUNT = "test.itr.tests_skipping.count"
 ITR_TEST_CODE_COVERAGE_ENABLED = "test.code_coverage.enabled"
 
+# ITR: unskippable tests
+ITR_UNSKIPPABLE = "test.itr.unskippable"
+ITR_FORCED_RUN = "test.itr.forced_run"
+
 
 class Status(Enum):
     PASS = "pass"
