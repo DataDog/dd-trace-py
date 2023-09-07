@@ -30,7 +30,6 @@ class SamplingRule(object):
         service=NO_RULE,  # type: Any
         name=NO_RULE,  # type: Any
         resource=NO_RULE,  # type: Any
-        target_span="root",  # type: str
     ):
         # type: (...) -> None
         """
@@ -71,7 +70,6 @@ class SamplingRule(object):
         self.service = service
         self.name = name
         self.resource = resource
-        self.target_span = target_span
 
     @property
     def sample_rate(self):
@@ -133,11 +131,6 @@ class SamplingRule(object):
         :returns: Whether this span matches or not
         :rtype: :obj:`bool`
         """
-        # if we're just interested in root spans and this isn't one, then return False
-        if self.target_span == "root":
-            if span.parent_id is not None:
-                return False
-
         # self._matches exists to maintain legacy pattern values such as regex and functions
         return self._matches((span.service, span.name, span.resource))
 
