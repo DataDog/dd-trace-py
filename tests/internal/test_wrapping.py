@@ -9,11 +9,6 @@ from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
 
 
-# bytecode does not support Python 3.12 yet
-if sys.version_info[:2] >= (3, 12):
-    pytestmark = pytest.mark.skip
-
-
 async def async_func():
     return 42
 
