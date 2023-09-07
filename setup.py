@@ -7,11 +7,11 @@ import sys
 import tarfile
 
 
-from setuptools import Extension, find_packages, setup  # isort: skip
-from setuptools.command.build_ext import build_ext  # isort: skip
-from setuptools.command.build_py import build_py as BuildPyCommand  # isort: skip
-from pkg_resources import get_build_platform  # isort: skip
-from distutils.command.clean import clean as CleanCommand  # isort: skip
+from setuptools import Extension, find_packages, setup
+from setuptools.command.build_ext import build_ext
+from setuptools.command.build_py import build_py as BuildPyCommand
+from pkg_resources import get_build_platform
+from distutils.command.clean import clean as CleanCommand
 
 try:
     # ORDER MATTERS
