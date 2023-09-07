@@ -273,6 +273,7 @@ def test_wrap_args_kwarg():
     assert f(1, 2) == ((1, 2), None)
 
 
+@pytest.mark.skipif(sys.version_info[:2] > (3, 11), reason="dis is different in python >= 3.12")
 def test_wrap_arg_args_kwarg_kwargs():
     def f(posarg, *args, path=None, **kwargs):
         return (posarg, args, path, kwargs)
