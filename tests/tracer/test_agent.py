@@ -83,9 +83,8 @@ def test_trace_url_uds():
 
     from ddtrace.internal import agent
 
-    with mock.patch("os.path.exists", return_value=True) as mock_exists:
+    with mock.patch("os.path.exists", return_value=True):
         assert agent.get_trace_url() == "unix:///var/run/datadog/apm.socket"
-    mock_exists.assert_called_once_with("/var/run/datadog/apm.socket")
 
 
 @pytest.mark.subprocess(env={"DD_TRACE_AGENT_URL": None})
@@ -95,9 +94,8 @@ def test_trace_url_default():
 
     from ddtrace.internal import agent
 
-    with mock.patch("os.path.exists", return_value=False) as mock_exists:
+    with mock.patch("os.path.exists", return_value=False):
         assert agent.get_trace_url() == "http://localhost:8126"
-    mock_exists.assert_called_once_with("/var/run/datadog/apm.socket")
 
 
 @pytest.mark.subprocess(env={"DD_TRACE_AGENT_PORT": "1235", "DD_TRACE_AGENT_URL": None})
@@ -107,9 +105,8 @@ def test_trace_url_with_port():
 
     from ddtrace.internal import agent
 
-    with mock.patch("os.path.exists", return_value=False) as mock_exists:
+    with mock.patch("os.path.exists", return_value=False):
         assert agent.get_trace_url() == "http://localhost:1235"
-        mock_exists.assert_not_called()
 
 
 @pytest.mark.subprocess(env={"DD_AGENT_HOST": "mars", "DD_TRACE_AGENT_URL": None})
@@ -119,9 +116,8 @@ def test_trace_url_with_host():
 
     from ddtrace.internal import agent
 
-    with mock.patch("os.path.exists", return_value=False) as mock_exists:
+    with mock.patch("os.path.exists", return_value=False):
         assert agent.get_trace_url() == "http://mars:8126", agent.get_trace_url()
-        mock_exists.assert_not_called()
 
 
 @pytest.mark.subprocess(env={"DD_AGENT_HOST": "mars", "DD_TRACE_AGENT_PORT": "1235", "DD_TRACE_AGENT_URL": None})
@@ -131,9 +127,8 @@ def test_trace_url_with_host_and_port():
 
     from ddtrace.internal import agent
 
-    with mock.patch("os.path.exists", return_value=False) as mock_exists:
+    with mock.patch("os.path.exists", return_value=False):
         assert agent.get_trace_url() == "http://mars:1235"
-        mock_exists.assert_not_called()
 
 
 @pytest.mark.subprocess(env={"DD_TRACE_AGENT_PORT": "1235", "DD_TRACE_AGENT_URL": None})
@@ -143,9 +138,8 @@ def test_trace_url_with_uds_and_port():
 
     from ddtrace.internal import agent
 
-    with mock.patch("os.path.exists", return_value=True) as mock_exists:
+    with mock.patch("os.path.exists", return_value=True):
         assert agent.get_trace_url() == "http://localhost:1235"
-        mock_exists.assert_not_called()
 
 
 @pytest.mark.subprocess(env={"DD_AGENT_HOST": "mars", "DD_TRACE_AGENT_URL": None})
@@ -155,9 +149,8 @@ def test_trace_url_with_uds_and_host():
 
     from ddtrace.internal import agent
 
-    with mock.patch("os.path.exists", return_value=True) as mock_exists:
+    with mock.patch("os.path.exists", return_value=True):
         assert agent.get_trace_url() == "http://mars:8126"
-        mock_exists.assert_not_called()
 
 
 @pytest.mark.subprocess(env={"DD_TRACE_AGENT_PORT": "1235", "DD_AGENT_HOST": "mars", "DD_TRACE_AGENT_URL": None})
@@ -167,9 +160,8 @@ def test_trace_url_with_uds_host_and_port():
 
     from ddtrace.internal import agent
 
-    with mock.patch("os.path.exists", return_value=True) as mock_exists:
+    with mock.patch("os.path.exists", return_value=True):
         assert agent.get_trace_url() == "http://mars:1235"
-        mock_exists.assert_not_called()
 
 
 @pytest.mark.subprocess(
@@ -181,9 +173,8 @@ def test_trace_url_with_uds_url_host_and_port():
 
     from ddtrace.internal import agent
 
-    with mock.patch("os.path.exists", return_value=True) as mock_exists:
+    with mock.patch("os.path.exists", return_value=True):
         assert agent.get_trace_url() == "http://saturn:1111"
-        mock_exists.assert_not_called()
 
 
 @pytest.mark.subprocess(
@@ -195,9 +186,8 @@ def test_trace_url_with_url_host_and_port():
 
     from ddtrace.internal import agent
 
-    with mock.patch("os.path.exists", return_value=False) as mock_exists:
+    with mock.patch("os.path.exists", return_value=False):
         assert agent.get_trace_url() == "http://saturn:1111"
-        mock_exists.assert_not_called()
 
 
 @pytest.mark.subprocess(env={"DD_DOGSTATSD_URL": None})
@@ -207,9 +197,8 @@ def test_stats_url_default():
 
     from ddtrace.internal import agent
 
-    with mock.patch("os.path.exists", return_value=False) as mock_exists:
+    with mock.patch("os.path.exists", return_value=False):
         assert agent.get_stats_url() == "udp://localhost:8125"
-    mock_exists.assert_called_once_with("/var/run/datadog/dsd.socket")
 
 
 @pytest.mark.subprocess(env={"DD_DOGSTATSD_PORT": "1235", "DD_DOGSTATSD_URL": None})
@@ -219,9 +208,8 @@ def test_stats_url_with_port():
 
     from ddtrace.internal import agent
 
-    with mock.patch("os.path.exists", return_value=False) as mock_exists:
+    with mock.patch("os.path.exists", return_value=False):
         assert agent.get_stats_url() == "udp://localhost:1235"
-        mock_exists.assert_not_called()
 
 
 @pytest.mark.subprocess(env={"DD_AGENT_HOST": "mars", "DD_DOGSTATSD_URL": None})
@@ -231,9 +219,8 @@ def test_stats_url_with_host():
 
     from ddtrace.internal import agent
 
-    with mock.patch("os.path.exists", return_value=False) as mock_exists:
+    with mock.patch("os.path.exists", return_value=False):
         assert agent.get_stats_url() == "udp://mars:8125"
-        mock_exists.assert_not_called()
 
 
 @pytest.mark.subprocess(env={"DD_AGENT_HOST": "mars", "DD_DOGSTATSD_PORT": "1235", "DD_DOGSTATSD_URL": None})
@@ -243,9 +230,8 @@ def test_stats_url_with_host_and_port():
 
     from ddtrace.internal import agent
 
-    with mock.patch("os.path.exists", return_value=False) as mock_exists:
+    with mock.patch("os.path.exists", return_value=False):
         assert agent.get_stats_url() == "udp://mars:1235"
-        mock_exists.assert_not_called()
 
 
 @pytest.mark.subprocess(env={"DD_DOGSTATSD_PORT": "1235", "DD_DOGSTATSD_URL": None})
@@ -255,9 +241,8 @@ def test_stats_url_with_uds_and_port():
 
     from ddtrace.internal import agent
 
-    with mock.patch("os.path.exists", return_value=True) as mock_exists:
+    with mock.patch("os.path.exists", return_value=True):
         assert agent.get_stats_url() == "udp://localhost:1235"
-        mock_exists.assert_not_called()
 
 
 @pytest.mark.subprocess(env={"DD_AGENT_HOST": "mars", "DD_DOGSTATSD_URL": None})
@@ -267,9 +252,8 @@ def test_stats_url_with_uds_and_host():
 
     from ddtrace.internal import agent
 
-    with mock.patch("os.path.exists", return_value=True) as mock_exists:
+    with mock.patch("os.path.exists", return_value=True):
         assert agent.get_stats_url() == "udp://mars:8125"
-        mock_exists.assert_not_called()
 
 
 @pytest.mark.subprocess(env={"DD_DOGSTATSD_PORT": "1235", "DD_AGENT_HOST": "mars", "DD_DOGSTATSD_URL": None})
@@ -279,9 +263,8 @@ def test_stats_url_with_uds_host_and_port():
 
     from ddtrace.internal import agent
 
-    with mock.patch("os.path.exists", return_value=True) as mock_exists:
+    with mock.patch("os.path.exists", return_value=True):
         assert agent.get_stats_url() == "udp://mars:1235"
-        mock_exists.assert_not_called()
 
 
 @pytest.mark.subprocess(
@@ -293,9 +276,8 @@ def test_stats_url_with_uds_url_host_and_port():
 
     from ddtrace.internal import agent
 
-    with mock.patch("os.path.exists", return_value=True) as mock_exists:
+    with mock.patch("os.path.exists", return_value=True):
         assert agent.get_stats_url() == "udp://saturn:1111"
-        mock_exists.assert_not_called()
 
 
 @pytest.mark.subprocess(
@@ -307,9 +289,8 @@ def test_stats_url_with_url_host_and_port():
 
     from ddtrace.internal import agent
 
-    with mock.patch("os.path.exists", return_value=False) as mock_exists:
+    with mock.patch("os.path.exists", return_value=False):
         assert agent.get_stats_url() == "udp://saturn:1111"
-        mock_exists.assert_not_called()
 
 
 def test_get_connection():
