@@ -1,7 +1,7 @@
 ---
 features:
   - |
-    tracing: This introduces the keyword parameter ``resource`` to ``SamplingRule.__init__``, allowing sampling
-    rules to be defined based on an exact string match with spans' resource names. These rules are only evaluated
-    at the beginning of a span's lifetime, so changes to ``Span.resource`` after ``Span.__init__`` are not seen
-    by ``SamplingRule``s.
+    tracing: This introduces the keyword parameter "resource" to SamplingRule.__init__, allowing sampling
+    rules to be defined based on an exact string match with span resource names. These rules are only evaluated
+    at the beginning of a span's lifetime, so changes to Span.resource after Span.__init__ are not seen
+    by SamplingRules.
