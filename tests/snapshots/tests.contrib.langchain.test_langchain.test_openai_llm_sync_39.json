@@ -27,19 +27,20 @@
       "langchain.response.completions.0.logprobs": "None",
       "langchain.response.completions.0.text": "\\n\\nDescartes' famous phrase \u201cI think, therefore I am\u201d is a fundamental idea from his work, Meditations on First Philosophy. It ...",
       "language": "python",
-      "runtime-id": "fb83919f1c48428486dc31e128c6ac6d"
+      "runtime-id": "e3591036c91f49bfa00c0a77feefcb9b"
     },
     "metrics": {
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
+      "_sample_rate": 1.0,
       "_sampling_priority_v1": 1,
       "langchain.tokens.completion_tokens": 95,
       "langchain.tokens.prompt_tokens": 17,
       "langchain.tokens.total_cost": 0.0022400000000000002,
       "langchain.tokens.total_tokens": 112,
-      "process_id": 83713
+      "process_id": 10515
     },
-    "duration": 53518000,
-    "start": 1688423243650719000
+    "duration": 4999908,
+    "start": 1694032466462121667
   }]]
