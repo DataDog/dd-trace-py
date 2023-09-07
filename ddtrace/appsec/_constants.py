@@ -136,6 +136,7 @@ class API_SECURITY(object):
 
     ENV_VAR_ENABLED = "DD_EXPERIMENTAL_API_SECURITY_ENABLED"
     REQUEST_HEADERS_NO_COOKIES = "_dd.appsec.s.req.headers"
+    REQUEST_COOKIES = "_dd.appsec.s.req.cookies"
     REQUEST_QUERY = "_dd.appsec.s.req.query"
     REQUEST_PATH_PARAMS = "_dd.appsec.s.req.params"
     REQUEST_BODY = "_dd.appsec.s.req.body"
@@ -205,7 +206,7 @@ class LOGIN_EVENTS_MODE(object):
 class DEFAULT(object):
     ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
     RULES = os.path.join(ROOT_DIR, "rules.json")
-    API_SECURITY_PARAMETERS = os.path.join(ROOT_DIR, "_api_security/preprocessors.json")
+    API_SECURITY_PARAMETERS = os.path.join(ROOT_DIR, "_api_security/processors.json")
     TRACE_RATE_LIMIT = 100
     WAF_TIMEOUT = 5.0  # float (milliseconds)
     APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP = (

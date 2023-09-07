@@ -46,7 +46,7 @@ IAST_DIR = os.path.join(HERE, os.path.join("ddtrace", "appsec", "iast", "_taint_
 
 CURRENT_OS = platform.system()
 
-LIBDDWAF_VERSION = "1.13.1"
+LIBDDWAF_VERSION = "1.14.0"
 
 LIBDATADOG_PROF_DOWNLOAD_DIR = os.path.join(
     HERE, os.path.join("ddtrace", "internal", "datadog", "profiling", "libdatadog")
@@ -593,8 +593,7 @@ setup(
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
     ],
-    use_scm_version={"write_to": "ddtrace/_version.py"},
-    setup_requires=["setuptools_scm[toml]>=4", "cython<3", "cmake>=3.24.2; python_version>='3.6'"],
+    setup_requires=["cython<3", "cmake>=3.24.2; python_version>='3.6'"],
     ext_modules=ext_modules
     + cythonize(
         [

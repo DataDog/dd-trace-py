@@ -32,7 +32,6 @@ class SamplingRule(object):
         name=NO_RULE,  # type: Any
         resource=NO_RULE,  # type: Any
         tags=NO_RULE,  # type: Any
-        target_span="root",  # type: str
     ):
         # type: (...) -> None
         """
@@ -78,7 +77,6 @@ class SamplingRule(object):
         self.name = name
         self.resource = resource
         self.tags = tags
-        self.target_span = target_span
 
     @property
     def sample_rate(self):
@@ -122,7 +120,7 @@ class SamplingRule(object):
 
     @cachedmethod()
     def _matches(self, key):
-        # type: (Tuple[Optional[str], str]) -> bool
+        # type: (Tuple[Optional[str], str, Optional[str]]) -> bool
         service, name, resource = key
         for prop, pattern in [(service, self.service), (name, self.name), (resource, self.resource)]:
             if not self._pattern_matches(prop, pattern):
@@ -174,7 +172,7 @@ class SamplingRule(object):
                 return False
         return tag_match
 
-    def sample(self, span, allow_false=False):
+    def sample(self, span, allow_false=True):
         # type: (Span, bool) -> bool
         """
         Return if this rule chooses to sample the span

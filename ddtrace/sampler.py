@@ -57,7 +57,7 @@ class BaseSampler(six.with_metaclass(abc.ABCMeta)):
     __slots__ = ()
 
     @abc.abstractmethod
-    def sample(self, span, allow_false=False):
+    def sample(self, span, allow_false=True):
         pass
 
 
@@ -73,7 +73,7 @@ class BasePrioritySampler(BaseSampler):
 class AllSampler(BaseSampler):
     """Sampler sampling all the traces"""
 
-    def sample(self, span, allow_false=False):
+    def sample(self, span, allow_false=True):
         # type: (Span, bool) -> bool
         return not allow_false or True
 
@@ -101,7 +101,7 @@ class RateSampler(BaseSampler):
         self.sample_rate = float(sample_rate)
         self.sampling_id_threshold = self.sample_rate * _MAX_UINT_64BITS
 
-    def sample(self, span, allow_false=False):
+    def sample(self, span, allow_false=True):
         # type: (Span, bool) -> bool
         sampled = ((span._trace_id_64bits * KNUTH_FACTOR) % _MAX_UINT_64BITS) <= self.sampling_id_threshold
         # NB allow_false has weird functionality here, doing something other than "allowing false" to be returned
@@ -149,7 +149,7 @@ class RateByServiceSampler(BasePrioritySampler):
         # type: (...) -> None
         self._by_service_samplers[self._key(service, env)] = RateSampler(sample_rate)
 
-    def sample(self, span, allow_false=False):
+    def sample(self, span, allow_false=True):
         sampled, sampler = self._make_sampling_decision(span)
         _set_sampling_tags(
             span,
@@ -170,7 +170,7 @@ class RateByServiceSampler(BasePrioritySampler):
         env = span.get_tag(ENV_KEY)
         key = self._key(span.service, env)
         sampler = self._by_service_samplers.get(key) or self._default_sampler
-        sampled = sampler.sample(span)
+        sampled = sampler.sample(span, allow_false=False)
         return sampled, sampler
 
     def update_rate_by_service_sample_rates(self, rate_by_service):
@@ -288,14 +288,15 @@ class DatadogSampler(RateByServiceSampler):
             sample_rate = float(rule["sample_rate"])
             service = rule.get("service", SamplingRule.NO_RULE)
             name = rule.get("name", SamplingRule.NO_RULE)
+            resource = rule.get("resource", SamplingRule.NO_RULE)
             try:
-                sampling_rule = SamplingRule(sample_rate=sample_rate, service=service, name=name)
+                sampling_rule = SamplingRule(sample_rate=sample_rate, service=service, name=name, resource=resource)
             except ValueError as e:
                 raise ValueError("Error creating sampling rule {}: {}".format(json.dumps(rule), e))
             sampling_rules.append(sampling_rule)
         return sampling_rules
 
-    def sample(self, span, allow_false=False):
+    def sample(self, span, allow_false=True):
         # type: (Span, bool) -> bool
         """
         If allow_false is False, this function will return True regardless of the sampling decision
@@ -303,7 +304,7 @@ class DatadogSampler(RateByServiceSampler):
         matched_rule = _get_highest_precedence_rule_matching(span, self.rules)
 
         if matched_rule:
-            sampled = matched_rule.sample(span, allow_false=True)
+            sampled = matched_rule.sample(span)
         else:
             sampled, _ = super(DatadogSampler, self)._make_sampling_decision(span)
 

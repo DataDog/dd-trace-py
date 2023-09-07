@@ -27,18 +27,19 @@
       "openai.response.language": "english",
       "openai.response.text": "Look at all those chickens!",
       "openai.user.api_key": "sk-...key>",
-      "runtime-id": "da6540c2a7284fd696d49e06e7c612cc"
+      "runtime-id": "1061c79d943c4fb2ae50fecccf14398f"
     },
     "metrics": {
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
+      "_sample_rate": 1.0,
       "_sampling_priority_v1": 1,
       "openai.organization.ratelimit.requests.remaining": 49,
       "openai.response.duration": 2.78,
       "openai.response.segments_count": 1,
-      "process_id": 93389
+      "process_id": 7755
     },
-    "duration": 3094000,
-    "start": 1686844437603356000
+    "duration": 4677473,
+    "start": 1694032242909745913
   }]]
