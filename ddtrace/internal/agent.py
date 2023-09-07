@@ -45,32 +45,45 @@ def get_trace_url():
 
     Raises a ``ValueError`` if the URL is not supported by the Agent.
     """
-    if ddconfig._trace_agent_url:
-        return ddconfig._trace_agent_url
-    elif ddconfig._trace_agent_port is not None or ddconfig._trace_agent_hostname is not None:
-        port = ddconfig._trace_agent_port or DEFAULT_TRACE_PORT
-        host = ddconfig._trace_agent_hostname or DEFAULT_HOSTNAME
-        if is_ipv6_hostname(host):
-            host = "[{}]".format(host)
-        return "http://{}:{}".format(host, port)
-    elif os.path.exists("/var/run/datadog/apm.socket"):
-        return "unix://%s" % (DEFAULT_UNIX_TRACE_PATH)
-    return "http://{}:{}".format(DEFAULT_HOSTNAME, DEFAULT_TRACE_PORT)
+    user_supplied_host = ddconfig._trace_agent_hostname is not None
+    user_supplied_port = ddconfig._trace_agent_port is not None
+
+    url = ddconfig._trace_agent_url
+
+    if not url:
+        if user_supplied_host or user_supplied_port:
+            host = ddconfig._trace_agent_hostname or DEFAULT_HOSTNAME
+            port = ddconfig._trace_agent_port or DEFAULT_TRACE_PORT
+            if is_ipv6_hostname(host):
+                host = "[{}]".format(host)
+            url = "http://%s:%s" % (host, port)
+        elif os.path.exists("/var/run/datadog/apm.socket"):
+            url = "unix://%s" % (DEFAULT_UNIX_TRACE_PATH)
+        else:
+            url = "http://{}:{}".format(DEFAULT_HOSTNAME, DEFAULT_TRACE_PORT)
+
+    return url
 
 
 def get_stats_url():
     # type: () -> str
-    if ddconfig._stats_agent_url:
-        return ddconfig._stats_agent_url
-    elif ddconfig._stats_agent_port is not None or ddconfig._stats_agent_hostname is not None:
-        port = ddconfig._stats_agent_port or DEFAULT_STATS_PORT
-        host = ddconfig._stats_agent_hostname or DEFAULT_HOSTNAME
-        if is_ipv6_hostname(host):
-            host = "[{}]".format(host)
-        return "udp://{}:{}".format(host, port)
-    elif os.path.exists("/var/run/datadog/dsd.socket"):
-        return "unix://%s" % (DEFAULT_UNIX_DSD_PATH)
-    return "udp://{}:{}".format(DEFAULT_HOSTNAME, DEFAULT_STATS_PORT)
+    user_supplied_host = ddconfig._stats_agent_hostname is not None
+    user_supplied_port = ddconfig._stats_agent_port is not None
+
+    url = ddconfig._stats_agent_url
+
+    if not url:
+        if user_supplied_host or user_supplied_port:
+            port = ddconfig._stats_agent_port or DEFAULT_STATS_PORT
+            host = ddconfig._stats_agent_hostname or DEFAULT_HOSTNAME
+            if is_ipv6_hostname(host):
+                host = "[{}]".format(host)
+            url = "udp://{}:{}".format(host, port)
+        elif os.path.exists("/var/run/datadog/dsd.socket"):
+            url = "unix://%s" % (DEFAULT_UNIX_DSD_PATH)
+        else:
+            url = "udp://{}:{}".format(DEFAULT_HOSTNAME, DEFAULT_STATS_PORT)
+    return url
 
 
 def info():

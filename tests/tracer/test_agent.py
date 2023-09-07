@@ -120,7 +120,7 @@ def test_trace_url_with_host():
     from ddtrace.internal import agent
 
     with mock.patch("os.path.exists", return_value=False) as mock_exists:
-        assert agent.get_trace_url() == "http://mars:8126"
+        assert agent.get_trace_url() == "http://mars:8126", agent.get_trace_url()
         mock_exists.assert_not_called()
 
 
