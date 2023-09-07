@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    wsgi: This fix resolves an issue where the Datadog WSGI middleware would fail to handle WSGI apps that
+    are not their own iterators. This condition can arise when a Django app attempts to send its "request finished"
+    signal, in which case it may cause connection leaks.
