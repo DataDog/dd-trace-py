@@ -19,7 +19,7 @@ import cattr
 import six
 
 import ddtrace
-from ddtrace.appsec._capabilities import _appsec_rc_capabilities
+from ddtrace._appsec._capabilities import _appsec_rc_capabilities
 from ddtrace.internal import agent
 from ddtrace.internal import runtime
 from ddtrace.internal.hostname import get_hostname

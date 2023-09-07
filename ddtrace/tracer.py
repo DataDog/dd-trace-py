@@ -155,7 +155,7 @@ def _default_span_processors_factory(
 
     if appsec_enabled:
         if config._api_security_enabled:
-            from ddtrace.appsec._api_security.api_manager import APIManager
+            from ddtrace._appsec._api_security.api_manager import APIManager
 
             APIManager.enable()
 
@@ -164,7 +164,7 @@ def _default_span_processors_factory(
             span_processors.append(appsec_processor)
     else:
         if config._api_security_enabled:
-            from ddtrace.appsec._api_security.api_manager import APIManager
+            from ddtrace._appsec._api_security.api_manager import APIManager
 
             APIManager.disable()
 

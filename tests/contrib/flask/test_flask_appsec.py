@@ -5,9 +5,9 @@ from flask import Response
 from flask import request
 import pytest
 
-from ddtrace.appsec._constants import APPSEC
-from ddtrace.appsec._constants import SPAN_DATA_NAMES
-from ddtrace.appsec.trace_utils import block_request_if_user_blocked
+from ddtrace._appsec._constants import APPSEC
+from ddtrace._appsec._constants import SPAN_DATA_NAMES
+from ddtrace._appsec.trace_utils import block_request_if_user_blocked
 from ddtrace.contrib.sqlite3.patch import patch
 from ddtrace.ext import http
 from ddtrace.internal import constants
@@ -308,7 +308,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         # test a manual call to the blocking callable stored in _asm_request_context
         @self.app.route("/block")
         def test_route():
-            from ddtrace.appsec._asm_request_context import block_request
+            from ddtrace._appsec._asm_request_context import block_request
 
             return block_request()
 

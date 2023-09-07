@@ -5,8 +5,8 @@ import logging
 import pytest
 
 from ddtrace import config
-from ddtrace.appsec._constants import APPSEC
-from ddtrace.appsec._constants import SPAN_DATA_NAMES
+from ddtrace._appsec._constants import APPSEC
+from ddtrace._appsec._constants import SPAN_DATA_NAMES
 from ddtrace.ext import http
 from ddtrace.ext import user
 from ddtrace.internal import constants

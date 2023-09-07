@@ -4,25 +4,25 @@ import sys
 
 import pytest
 
-from ddtrace.appsec.iast import oce
+from ddtrace._appsec.iast import oce
 
 
 try:
-    from ddtrace.appsec.iast._taint_tracking import OriginType
-    from ddtrace.appsec.iast._taint_tracking import Source
-    from ddtrace.appsec.iast._taint_tracking import TaintRange
-    from ddtrace.appsec.iast._taint_tracking import are_all_text_all_ranges
-    from ddtrace.appsec.iast._taint_tracking import contexts_reset
-    from ddtrace.appsec.iast._taint_tracking import create_context
-    from ddtrace.appsec.iast._taint_tracking import get_range_by_hash
-    from ddtrace.appsec.iast._taint_tracking import get_ranges
-    from ddtrace.appsec.iast._taint_tracking import is_notinterned_notfasttainted_unicode
-    from ddtrace.appsec.iast._taint_tracking import num_objects_tainted
-    from ddtrace.appsec.iast._taint_tracking import set_fast_tainted_if_notinterned_unicode
-    from ddtrace.appsec.iast._taint_tracking import set_ranges
-    from ddtrace.appsec.iast._taint_tracking import shift_taint_range
-    from ddtrace.appsec.iast._taint_tracking import shift_taint_ranges
-    from ddtrace.appsec.iast._taint_tracking import taint_pyobject
+    from ddtrace._appsec.iast._taint_tracking import OriginType
+    from ddtrace._appsec.iast._taint_tracking import Source
+    from ddtrace._appsec.iast._taint_tracking import TaintRange
+    from ddtrace._appsec.iast._taint_tracking import are_all_text_all_ranges
+    from ddtrace._appsec.iast._taint_tracking import contexts_reset
+    from ddtrace._appsec.iast._taint_tracking import create_context
+    from ddtrace._appsec.iast._taint_tracking import get_range_by_hash
+    from ddtrace._appsec.iast._taint_tracking import get_ranges
+    from ddtrace._appsec.iast._taint_tracking import is_notinterned_notfasttainted_unicode
+    from ddtrace._appsec.iast._taint_tracking import num_objects_tainted
+    from ddtrace._appsec.iast._taint_tracking import set_fast_tainted_if_notinterned_unicode
+    from ddtrace._appsec.iast._taint_tracking import set_ranges
+    from ddtrace._appsec.iast._taint_tracking import shift_taint_range
+    from ddtrace._appsec.iast._taint_tracking import shift_taint_ranges
+    from ddtrace._appsec.iast._taint_tracking import taint_pyobject
 except (ImportError, AttributeError):
     pytest.skip("IAST not supported for this Python version", allow_module_level=True)
 

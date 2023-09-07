@@ -263,8 +263,8 @@ def _before_request_tags(pin, span, request):
 def _extract_body(request):
     # DEV: Do not use request.POST or request.data, this could prevent custom parser to be used after
     if config._appsec_enabled and request.method in _BODY_METHODS:
-        from ddtrace.appsec.utils import parse_form_multipart
-        from ddtrace.appsec.utils import parse_form_params
+        from ddtrace._appsec.utils import parse_form_multipart
+        from ddtrace._appsec.utils import parse_form_params
 
         req_body = None
         content_type = request.content_type if hasattr(request, "content_type") else request.META.get("CONTENT_TYPE")
@@ -366,7 +366,7 @@ def _after_request_tags(pin, span, request, response):
 
             request_headers = None
             if config._appsec_enabled:
-                from ddtrace.appsec import _asm_request_context
+                from ddtrace._appsec import _asm_request_context
 
                 request_headers = _asm_request_context.get_headers()
 

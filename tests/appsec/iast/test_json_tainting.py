@@ -6,15 +6,15 @@ from tests.utils import override_global_config
 
 
 try:
-    from ddtrace.appsec.iast import oce
-    from ddtrace.appsec.iast._taint_tracking import OriginType
-    from ddtrace.appsec.iast._taint_tracking import create_context
-    from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
-    from ddtrace.appsec.iast._taint_tracking import taint_pyobject
-    from ddtrace.appsec.iast._taint_utils import LazyTaintDict
-    from ddtrace.appsec.iast._taint_utils import LazyTaintList
-    from ddtrace.appsec.iast._taint_utils import _is_tainted_struct
-    from ddtrace.appsec.iast._utils import _is_python_version_supported as python_supported_by_iast
+    from ddtrace._appsec.iast import oce
+    from ddtrace._appsec.iast._taint_tracking import OriginType
+    from ddtrace._appsec.iast._taint_tracking import create_context
+    from ddtrace._appsec.iast._taint_tracking import is_pyobject_tainted
+    from ddtrace._appsec.iast._taint_tracking import taint_pyobject
+    from ddtrace._appsec.iast._taint_utils import LazyTaintDict
+    from ddtrace._appsec.iast._taint_utils import LazyTaintList
+    from ddtrace._appsec.iast._taint_utils import _is_tainted_struct
+    from ddtrace._appsec.iast._utils import _is_python_version_supported as python_supported_by_iast
 except (ImportError, AttributeError):
     pytest.skip("IAST not supported for this Python version", allow_module_level=True)
 

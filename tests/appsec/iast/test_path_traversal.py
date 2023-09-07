@@ -2,13 +2,13 @@ import os
 
 import pytest
 
-from ddtrace.appsec.iast._utils import _is_python_version_supported as python_supported_by_iast
+from ddtrace._appsec.iast._utils import _is_python_version_supported as python_supported_by_iast
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
 
 
 try:
-    from ddtrace.appsec._constants import IAST
-    from ddtrace.appsec.iast.constants import VULN_PATH_TRAVERSAL
+    from ddtrace._appsec._constants import IAST
+    from ddtrace._appsec.iast.constants import VULN_PATH_TRAVERSAL
     from ddtrace.internal import core
 except (ImportError, AttributeError):
     pytest.skip("IAST not supported for this Python version", allow_module_level=True)
@@ -20,7 +20,7 @@ ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_path_traversal(iast_span_defaults):
-    from ddtrace.appsec.iast._taint_tracking import OriginType
+    from ddtrace._appsec.iast._taint_tracking import OriginType
 
     mod = _iast_patched_module("tests.appsec.iast.fixtures.path_traversal")
 

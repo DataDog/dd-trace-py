@@ -47,7 +47,7 @@ tests/internal/test_wrapping.py     @DataDog/debugger-python @DataDog/apm-core-p
 tests/internal/test_module.py       @DataDog/debugger-python @DataDog/apm-core-python
 
 # ASM
-ddtrace/appsec/                     @DataDog/asm-python
+ddtrace._appsec/                     @DataDog/asm-python
 ddtrace/contrib/subprocess/         @DataDog/asm-python
 tests/appsec/                       @DataDog/asm-python
 tests/contrib/dbapi/test_dbapi_appsec.py    @DataDog/asm-python

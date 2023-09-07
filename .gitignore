@@ -4,9 +4,9 @@ __pycache__/
 *$py.class
 
 # C extensions
-ddtrace/appsec/_ddwaf.cpp
-ddtrace/appsec/include
-ddtrace/appsec/share
+ddtrace/_appsec/_ddwaf.cpp
+ddtrace/_appsec/include
+ddtrace/_appsec/share
 ddtrace/profiling/collector/_task.c
 ddtrace/profiling/_threading.c
 ddtrace/profiling/collector/_traceback.c
@@ -25,7 +25,7 @@ ddtrace/internal/_tagset.c
 ddtrace/**/*.html
 
 # Dynamic binary libraries
-ddtrace/appsec/ddwaf/libddwaf/
+ddtrace/_appsec/ddwaf/libddwaf/
 libddwaf*.sha256
 ddtrace/internal/datadog/profiling/libdatadog/
 
@@ -138,9 +138,9 @@ ddtrace/_version.py
 artifacts/
 
 # IAST cpp
-ddtrace/appsec/iast/_taint_tracking/cmake-build-debug/*
-ddtrace/appsec/iast/_taint_tracking/_deps/*
-ddtrace/appsec/iast/_taint_tracking/CMakeFiles/*
+ddtrace/_appsec/iast/_taint_tracking/cmake-build-debug/*
+ddtrace/_appsec/iast/_taint_tracking/_deps/*
+ddtrace/_appsec/iast/_taint_tracking/CMakeFiles/*
 
 # CircleCI generated config
 .circleci/config.gen.yml

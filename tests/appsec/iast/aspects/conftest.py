@@ -1,7 +1,7 @@
 import pytest
 
-from ddtrace.appsec.iast import oce
-from ddtrace.appsec.iast._ast.ast_patching import astpatch_module
+from ddtrace._appsec.iast import oce
+from ddtrace._appsec.iast._ast.ast_patching import astpatch_module
 
 
 def _iast_patched_module(module_name):

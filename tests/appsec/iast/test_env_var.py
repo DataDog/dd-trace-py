@@ -5,7 +5,7 @@ import subprocess
 import pytest
 from six import PY2
 
-from ddtrace.appsec.iast._utils import _is_python_version_supported
+from ddtrace._appsec.iast._utils import _is_python_version_supported
 
 
 def _run_python_file(*args, **kwargs):
@@ -99,17 +99,17 @@ def test_A_env_var_iast_modules_to_patch(capfd):
     import gc
     import sys
 
-    from ddtrace.appsec._constants import IAST
+    from ddtrace._appsec._constants import IAST
 
-    if "ddtrace.appsec.iast._ast.ast_patching" in sys.modules:
-        del sys.modules["ddtrace.appsec.iast._ast.ast_patching"]
+    if "ddtrace._appsec.iast._ast.ast_patching" in sys.modules:
+        del sys.modules["ddtrace._appsec.iast._ast.ast_patching"]
         gc.collect()
 
     os.environ[IAST.PATCH_MODULES] = IAST.SEP_MODULES.join(
         ["please_patch", "also.that", "ddtrace", "please_patch.do_not.but_yes"]
     )
     os.environ[IAST.DENY_MODULES] = IAST.SEP_MODULES.join(["please_patch.do_not", "also.that.but.not.that"])
-    import ddtrace.appsec.iast._ast.ast_patching as ap
+    import ddtrace._appsec.iast._ast.ast_patching as ap
 
     for module_name in [
         "please_patch",

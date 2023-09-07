@@ -7,9 +7,9 @@ import mock
 from mock.mock import ANY
 import pytest
 
-from ddtrace.appsec._remoteconfiguration import AppSecRC
-from ddtrace.appsec._remoteconfiguration import _preprocess_results_appsec_1click_activation
-from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
+from ddtrace._appsec._remoteconfiguration import AppSecRC
+from ddtrace._appsec._remoteconfiguration import _preprocess_results_appsec_1click_activation
+from ddtrace._appsec._remoteconfiguration import enable_appsec_rc
 from ddtrace.internal import runtime
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller

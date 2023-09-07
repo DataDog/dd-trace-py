@@ -7,7 +7,7 @@ from flask import request
 import pytest
 
 from ddtrace import config
-from ddtrace.appsec._constants import API_SECURITY
+from ddtrace._appsec._constants import API_SECURITY
 from ddtrace.contrib.sqlite3.patch import patch
 from tests.appsec.api_security.test_schema_fuzz import equal_without_meta
 from tests.appsec.test_processor import RULES_SRB

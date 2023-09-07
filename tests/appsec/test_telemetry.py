@@ -5,10 +5,10 @@ from time import sleep
 import mock
 import pytest
 
-from ddtrace.appsec import _asm_request_context
-from ddtrace.appsec._deduplications import deduplication
-from ddtrace.appsec.ddwaf import version
-from ddtrace.appsec.processor import AppSecSpanProcessor
+from ddtrace._appsec import _asm_request_context
+from ddtrace._appsec._deduplications import deduplication
+from ddtrace._appsec.ddwaf import version
+from ddtrace._appsec.processor import AppSecSpanProcessor
 from ddtrace.contrib.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_APPSEC

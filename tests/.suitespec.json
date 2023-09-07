@@ -298,7 +298,8 @@
             "ddtrace/contrib/pytest_bdd/*"
         ],
         "appsec": [
-            "ddtrace/appsec/*"
+            "ddtrace/appsec/*",
+            "ddtrace/_appsec/*"
         ]
     },
     "suites": {

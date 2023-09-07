@@ -9,18 +9,18 @@ import mock
 from mock.mock import ANY
 import pytest
 
-from ddtrace.appsec import _asm_request_context
-from ddtrace.appsec._capabilities import _appsec_rc_capabilities
-from ddtrace.appsec._constants import APPSEC
-from ddtrace.appsec._constants import DEFAULT
-from ddtrace.appsec._constants import PRODUCTS
-from ddtrace.appsec._remoteconfiguration import _appsec_callback
-from ddtrace.appsec._remoteconfiguration import _appsec_rules_data
-from ddtrace.appsec._remoteconfiguration import _preprocess_results_appsec_1click_activation
-from ddtrace.appsec._remoteconfiguration import disable_appsec_rc
-from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
-from ddtrace.appsec.processor import AppSecSpanProcessor
-from ddtrace.appsec.utils import _appsec_rc_features_is_enabled
+from ddtrace._appsec import _asm_request_context
+from ddtrace._appsec._capabilities import _appsec_rc_capabilities
+from ddtrace._appsec._constants import APPSEC
+from ddtrace._appsec._constants import DEFAULT
+from ddtrace._appsec._constants import PRODUCTS
+from ddtrace._appsec._remoteconfiguration import _appsec_callback
+from ddtrace._appsec._remoteconfiguration import _appsec_rules_data
+from ddtrace._appsec._remoteconfiguration import _preprocess_results_appsec_1click_activation
+from ddtrace._appsec._remoteconfiguration import disable_appsec_rc
+from ddtrace._appsec._remoteconfiguration import enable_appsec_rc
+from ddtrace._appsec.processor import AppSecSpanProcessor
+from ddtrace._appsec.utils import _appsec_rc_features_is_enabled
 from ddtrace.contrib.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
@@ -192,8 +192,8 @@ def test_rc_activation_check_asm_features_product_disables_rest_of_products(
     disable_appsec_rc()
 
 
-@mock.patch("ddtrace.appsec._remoteconfiguration._appsec_1click_activation")
-@mock.patch("ddtrace.appsec._remoteconfiguration._appsec_rules_data")
+@mock.patch("ddtrace._appsec._remoteconfiguration._appsec_1click_activation")
+@mock.patch("ddtrace._appsec._remoteconfiguration._appsec_rules_data")
 def test_load_new_configurations_dispatch_applied_configs(
     mock_appsec_rules_data, mock_appsec_1click_activation, remote_config_worker, tracer
 ):
@@ -234,8 +234,8 @@ def test_load_new_configurations_dispatch_applied_configs(
     disable_appsec_rc()
 
 
-@mock.patch("ddtrace.appsec._remoteconfiguration._appsec_1click_activation")
-@mock.patch("ddtrace.appsec._remoteconfiguration._appsec_rules_data")
+@mock.patch("ddtrace._appsec._remoteconfiguration._appsec_1click_activation")
+@mock.patch("ddtrace._appsec._remoteconfiguration._appsec_rules_data")
 def test_load_new_configurations_empty_config(
     mock_appsec_rules_data, mock_appsec_1click_activation, remote_config_worker, tracer
 ):
@@ -277,9 +277,9 @@ def test_load_new_configurations_empty_config(
     disable_appsec_rc()
 
 
-@mock.patch("ddtrace.appsec._remoteconfiguration._preprocess_results_appsec_1click_activation")
-@mock.patch("ddtrace.appsec._remoteconfiguration._appsec_1click_activation")
-@mock.patch("ddtrace.appsec._remoteconfiguration._appsec_rules_data")
+@mock.patch("ddtrace._appsec._remoteconfiguration._preprocess_results_appsec_1click_activation")
+@mock.patch("ddtrace._appsec._remoteconfiguration._appsec_1click_activation")
+@mock.patch("ddtrace._appsec._remoteconfiguration._appsec_rules_data")
 def test_load_new_configurations_remove_config_and_dispatch_applied_configs(
     mock_appsec_rules_data,
     mock_appsec_1click_activation,
@@ -380,8 +380,8 @@ def test_load_new_configurations_remove_config_and_dispatch_applied_configs_erro
 
 
 @pytest.mark.skipif(sys.version_info[:2] < (3, 6), reason="Mock return order is different in python <= 3.5")
-@mock.patch("ddtrace.appsec._remoteconfiguration._appsec_1click_activation")
-@mock.patch("ddtrace.appsec._remoteconfiguration._appsec_rules_data")
+@mock.patch("ddtrace._appsec._remoteconfiguration._appsec_1click_activation")
+@mock.patch("ddtrace._appsec._remoteconfiguration._appsec_rules_data")
 def test_load_multiple_targets_file_same_product(
     mock_appsec_rules_data, mock_appsec_1click_activation, remote_config_worker, tracer
 ):
@@ -432,8 +432,8 @@ def test_load_multiple_targets_file_same_product(
 
 
 @pytest.mark.skipif(sys.version_info[:2] < (3, 6), reason="Mock return order is different in python <= 3.5")
-@mock.patch("ddtrace.appsec._remoteconfiguration._appsec_1click_activation")
-@mock.patch("ddtrace.appsec._remoteconfiguration._appsec_rules_data")
+@mock.patch("ddtrace._appsec._remoteconfiguration._appsec_1click_activation")
+@mock.patch("ddtrace._appsec._remoteconfiguration._appsec_rules_data")
 def test_load_new_config_and_remove_targets_file_same_product(
     mock_appsec_rules_data, mock_appsec_1click_activation, remote_config_worker, tracer
 ):
@@ -766,8 +766,8 @@ def test_fullpath_appsec_rules_data_add_delete_file(mock_update_rules, remote_co
 
 
 @pytest.mark.skipif(sys.version_info[:2] < (3, 6), reason="Mock return order is different in python <= 3.5")
-@mock.patch("ddtrace.appsec._remoteconfiguration._appsec_1click_activation")
-@mock.patch("ddtrace.appsec._remoteconfiguration._appsec_rules_data")
+@mock.patch("ddtrace._appsec._remoteconfiguration._appsec_1click_activation")
+@mock.patch("ddtrace._appsec._remoteconfiguration._appsec_rules_data")
 def test_load_new_empty_config_and_remove_targets_file_same_product(
     mock_appsec_rules_data, remote_config_worker, tracer
 ):
@@ -954,7 +954,7 @@ def test_rc_activation_ip_blocking_data_not_expired(tracer, remote_config_worker
 
 
 def test_rc_rules_data(tracer):
-    RULES_PATH = os.path.join(os.path.dirname(os.path.dirname(ROOT_DIR)), "ddtrace/appsec/rules.json")
+    RULES_PATH = os.path.join(os.path.dirname(os.path.dirname(ROOT_DIR)), "ddtrace/_appsec/rules.json")
     with override_global_config(dict(_appsec_enabled=True)), override_env({APPSEC.ENV: "true"}), open(
         RULES_PATH, "r"
     ) as dd_rules:

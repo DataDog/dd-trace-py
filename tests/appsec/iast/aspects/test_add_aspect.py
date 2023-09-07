@@ -6,8 +6,8 @@ import pytest
 
 
 try:
-    from ddtrace.appsec.iast._taint_tracking import TaintRange
-    import ddtrace.appsec.iast._taint_tracking.aspects as ddtrace_aspects
+    from ddtrace._appsec.iast._taint_tracking import TaintRange
+    import ddtrace._appsec.iast._taint_tracking.aspects as ddtrace_aspects
 except (ImportError, AttributeError):
     pytest.skip("IAST not supported for this Python version", allow_module_level=True)
 
@@ -64,10 +64,10 @@ def test_add_aspect_type_error(obj1, obj2):
 )
 @pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
 def test_add_aspect_tainting_left_hand(obj1, obj2, should_be_tainted):
-    from ddtrace.appsec.iast._taint_tracking import OriginType
-    from ddtrace.appsec.iast._taint_tracking import get_tainted_ranges
-    from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
-    from ddtrace.appsec.iast._taint_tracking import taint_pyobject
+    from ddtrace._appsec.iast._taint_tracking import OriginType
+    from ddtrace._appsec.iast._taint_tracking import get_tainted_ranges
+    from ddtrace._appsec.iast._taint_tracking import is_pyobject_tainted
+    from ddtrace._appsec.iast._taint_tracking import taint_pyobject
 
     if should_be_tainted:
         obj1 = taint_pyobject(
@@ -105,10 +105,10 @@ def test_add_aspect_tainting_left_hand(obj1, obj2, should_be_tainted):
 )
 @pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
 def test_add_aspect_tainting_right_hand(obj1, obj2, should_be_tainted):
-    from ddtrace.appsec.iast._taint_tracking import OriginType
-    from ddtrace.appsec.iast._taint_tracking import get_tainted_ranges
-    from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
-    from ddtrace.appsec.iast._taint_tracking import taint_pyobject
+    from ddtrace._appsec.iast._taint_tracking import OriginType
+    from ddtrace._appsec.iast._taint_tracking import get_tainted_ranges
+    from ddtrace._appsec.iast._taint_tracking import is_pyobject_tainted
+    from ddtrace._appsec.iast._taint_tracking import taint_pyobject
 
     if should_be_tainted:
         obj2 = taint_pyobject(

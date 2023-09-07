@@ -7,14 +7,14 @@ from django.http import HttpResponse
 from django.http import JsonResponse
 
 from ddtrace import tracer
-from ddtrace.appsec import _asm_request_context
-from ddtrace.appsec.iast._utils import _is_python_version_supported as python_supported_by_iast
-from ddtrace.appsec.trace_utils import block_request_if_user_blocked
+from ddtrace._appsec import _asm_request_context
+from ddtrace._appsec.iast._utils import _is_python_version_supported as python_supported_by_iast
+from ddtrace._appsec.trace_utils import block_request_if_user_blocked
 
 
 try:
-    from ddtrace.appsec.iast._taint_tracking.aspects import add_aspect
-    from ddtrace.appsec.iast._taint_tracking.aspects import decode_aspect
+    from ddtrace._appsec.iast._taint_tracking.aspects import add_aspect
+    from ddtrace._appsec.iast._taint_tracking.aspects import decode_aspect
 except ImportError:
     # Python 2 compatibility
     from operator import add as add_aspect
@@ -105,7 +105,7 @@ def sqli_http_request_header_value(request):
 
 
 def sqli_http_path_parameter(request, q_http_path_parameter):
-    from ddtrace.appsec.iast._taint_tracking.aspects import add_aspect
+    from ddtrace._appsec.iast._taint_tracking.aspects import add_aspect
 
     with connection.cursor() as cursor:
         query = add_aspect("SELECT 1 from ", q_http_path_parameter)
@@ -117,9 +117,9 @@ def sqli_http_path_parameter(request, q_http_path_parameter):
 
 def taint_checking_enabled_view(request):
     if python_supported_by_iast():
-        from ddtrace.appsec.iast._taint_tracking import OriginType
-        from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
-        from ddtrace.appsec.iast._taint_tracking import taint_ranges_as_evidence_info
+        from ddtrace._appsec.iast._taint_tracking import OriginType
+        from ddtrace._appsec.iast._taint_tracking import is_pyobject_tainted
+        from ddtrace._appsec.iast._taint_tracking import taint_ranges_as_evidence_info
 
         def assert_origin_path(path):  # type: (Any) -> None
             assert is_pyobject_tainted(path)
@@ -149,7 +149,7 @@ def taint_checking_enabled_view(request):
 
 def taint_checking_disabled_view(request):
     if python_supported_by_iast():
-        from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
+        from ddtrace._appsec.iast._taint_tracking import is_pyobject_tainted
     else:
 
         def is_pyobject_tainted(pyobject):  # type: (Any) -> bool

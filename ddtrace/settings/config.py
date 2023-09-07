@@ -5,9 +5,9 @@ from typing import List
 from typing import Optional
 from typing import Tuple
 
-from ddtrace.appsec._constants import API_SECURITY
-from ddtrace.appsec._constants import APPSEC
-from ddtrace.appsec._constants import DEFAULT
+from ddtrace._appsec._constants import API_SECURITY
+from ddtrace._appsec._constants import APPSEC
+from ddtrace._appsec._constants import DEFAULT
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.constants import IAST_ENV
 from ddtrace.internal.serverless import in_azure_function_consumption_plan

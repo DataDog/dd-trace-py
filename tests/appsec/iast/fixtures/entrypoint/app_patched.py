@@ -1,7 +1,7 @@
 # Normal flask app. With IAST propagation
 from flask import Flask
 
-from ddtrace.appsec.iast import ddtrace_iast_flask_patch
+from ddtrace._appsec.iast import ddtrace_iast_flask_patch
 
 
 def add_test(a, b):

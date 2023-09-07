@@ -2,20 +2,20 @@ import copy
 
 import pytest
 
-from ddtrace.appsec._constants import IAST
-from ddtrace.appsec.iast import oce
-from ddtrace.appsec.iast._utils import _is_python_version_supported as python_supported_by_iast
-from ddtrace.appsec.iast.reporter import Evidence
-from ddtrace.appsec.iast.reporter import IastSpanReporter
-from ddtrace.appsec.iast.reporter import Location
-from ddtrace.appsec.iast.reporter import Source
-from ddtrace.appsec.iast.reporter import Vulnerability
+from ddtrace._appsec._constants import IAST
+from ddtrace._appsec.iast import oce
+from ddtrace._appsec.iast._utils import _is_python_version_supported as python_supported_by_iast
+from ddtrace._appsec.iast.reporter import Evidence
+from ddtrace._appsec.iast.reporter import IastSpanReporter
+from ddtrace._appsec.iast.reporter import Location
+from ddtrace._appsec.iast.reporter import Source
+from ddtrace._appsec.iast.reporter import Vulnerability
 from ddtrace.internal import core
 
 
 if python_supported_by_iast():
-    from ddtrace.appsec.iast.taint_sinks._base import VulnerabilityBase
-    from ddtrace.appsec.iast.taint_sinks.sql_injection import SqlInjection
+    from ddtrace._appsec.iast.taint_sinks._base import VulnerabilityBase
+    from ddtrace._appsec.iast.taint_sinks.sql_injection import SqlInjection
 
 from ddtrace.internal.utils.cache import LFUCache
 from tests.utils import override_env

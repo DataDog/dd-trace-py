@@ -1,6 +1,6 @@
 import pytest
 
-from ddtrace.appsec import _asm_request_context
+from ddtrace._appsec import _asm_request_context
 from tests.utils import override_global_config
 
 

@@ -170,12 +170,12 @@ try:
 
     if asbool(os.getenv("DD_IAST_ENABLED", False)):
 
-        from ddtrace.appsec.iast._utils import _is_python_version_supported
+        from ddtrace._appsec.iast._utils import _is_python_version_supported
 
         if _is_python_version_supported():
 
-            from ddtrace.appsec.iast._ast.ast_patching import _should_iast_patch
-            from ddtrace.appsec.iast._loader import _exec_iast_patched_module
+            from ddtrace._appsec.iast._ast.ast_patching import _should_iast_patch
+            from ddtrace._appsec.iast._loader import _exec_iast_patched_module
 
             ModuleWatchdog.register_pre_exec_module_hook(_should_iast_patch, _exec_iast_patched_module)
 
@@ -252,7 +252,7 @@ try:
         os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", "true")
     )
     if should_start_appsec_remoteconfig:
-        from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
+        from ddtrace._appsec._remoteconfiguration import enable_appsec_rc
 
         enable_appsec_rc()
 

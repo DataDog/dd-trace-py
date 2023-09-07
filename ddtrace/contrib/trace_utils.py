@@ -515,10 +515,10 @@ def set_http_meta(
         span.set_tag_str(http.RETRIES_REMAIN, str(retries_remain))
 
     if config._appsec_enabled:
-        from ddtrace.appsec.iast._utils import _is_iast_enabled
+        from ddtrace._appsec.iast._utils import _is_iast_enabled
 
         if _is_iast_enabled():
-            from ddtrace.appsec.iast.taint_sinks.insecure_cookie import asm_check_cookies
+            from ddtrace._appsec.iast.taint_sinks.insecure_cookie import asm_check_cookies
 
             if request_cookies:
                 asm_check_cookies(request_cookies)
@@ -527,8 +527,8 @@ def set_http_meta(
                 asm_check_cookies(response_cookies)
 
         if span.span_type == SpanTypes.WEB:
-            from ddtrace.appsec._asm_request_context import set_waf_address
-            from ddtrace.appsec._constants import SPAN_DATA_NAMES
+            from ddtrace._appsec._asm_request_context import set_waf_address
+            from ddtrace._appsec._constants import SPAN_DATA_NAMES
 
             status_code = str(status_code) if status_code is not None else None
 
@@ -655,7 +655,7 @@ def set_user(tracer, user_id, name=None, email=None, scope=None, role=None, sess
             span.set_tag_str(user.SESSION_ID, session_id)
 
         if config._appsec_enabled:
-            from ddtrace.appsec.trace_utils import block_request_if_user_blocked
+            from ddtrace._appsec.trace_utils import block_request_if_user_blocked
 
             block_request_if_user_blocked(tracer, user_id)
     else:

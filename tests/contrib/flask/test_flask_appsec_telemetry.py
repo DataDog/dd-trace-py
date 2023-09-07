@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from ddtrace.appsec._constants import APPSEC
+from ddtrace._appsec._constants import APPSEC
 from ddtrace.internal import core
 from ddtrace.internal.compat import urlencode
 from ddtrace.internal.constants import BLOCKED_RESPONSE_JSON

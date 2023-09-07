@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 import pytest
 
-from ddtrace.appsec.iast._utils import _is_python_version_supported as python_supported_by_iast
+from ddtrace._appsec.iast._utils import _is_python_version_supported as python_supported_by_iast
 
 
 try:
     import astunparse
 
-    from ddtrace.appsec.iast._ast.ast_patching import _in_python_stdlib_or_third_party
-    from ddtrace.appsec.iast._ast.ast_patching import _should_iast_patch
-    from ddtrace.appsec.iast._ast.ast_patching import astpatch_module
-    from ddtrace.appsec.iast._ast.ast_patching import visit_ast
+    from ddtrace._appsec.iast._ast.ast_patching import _in_python_stdlib_or_third_party
+    from ddtrace._appsec.iast._ast.ast_patching import _should_iast_patch
+    from ddtrace._appsec.iast._ast.ast_patching import astpatch_module
+    from ddtrace._appsec.iast._ast.ast_patching import visit_ast
 except (ImportError, AttributeError):
     pytest.skip("IAST not supported for this Python version", allow_module_level=True)
 
@@ -66,8 +66,8 @@ def test_astpatch_module_changed(module_name):
     assert ("", "") != (module_path, new_source)
     new_code = astunparse.unparse(new_source)
     assert new_code.startswith(
-        "\nimport ddtrace.appsec.iast.taint_sinks as ddtrace_taint_sinks"
-        "\nimport ddtrace.appsec.iast._taint_tracking.aspects as ddtrace_aspects"
+        "\nimport ddtrace._appsec.iast.taint_sinks as ddtrace_taint_sinks"
+        "\nimport ddtrace._appsec.iast._taint_tracking.aspects as ddtrace_aspects"
     )
     assert "ddtrace_aspects.str_aspect(" in new_code
 
@@ -84,8 +84,8 @@ def test_astpatch_module_changed_add_operator(module_name):
     assert ("", "") != (module_path, new_source)
     new_code = astunparse.unparse(new_source)
     assert new_code.startswith(
-        "\nimport ddtrace.appsec.iast.taint_sinks as ddtrace_taint_sinks"
-        "\nimport ddtrace.appsec.iast._taint_tracking.aspects as ddtrace_aspects"
+        "\nimport ddtrace._appsec.iast.taint_sinks as ddtrace_taint_sinks"
+        "\nimport ddtrace._appsec.iast._taint_tracking.aspects as ddtrace_aspects"
     )
     assert "ddtrace_aspects.add_aspect(" in new_code
 
@@ -109,8 +109,8 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
-import ddtrace.appsec.iast.taint_sinks as ddtrace_taint_sinks
-import ddtrace.appsec.iast._taint_tracking.aspects as ddtrace_aspects
+import ddtrace._appsec.iast.taint_sinks as ddtrace_taint_sinks
+import ddtrace._appsec.iast._taint_tracking.aspects as ddtrace_aspects
 import html"""
     )
     assert "ddtrace_aspects.str_aspect(" in new_code
@@ -134,7 +134,7 @@ def test_astpatch_source_unchanged(module_name):
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_module_should_iast_patch():
     assert not _should_iast_patch("ddtrace.internal.module")
-    assert not _should_iast_patch("ddtrace.appsec.iast")
+    assert not _should_iast_patch("ddtrace._appsec.iast")
     assert not _should_iast_patch("base64")
     assert not _should_iast_patch("envier")
     assert not _should_iast_patch("itertools")

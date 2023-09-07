@@ -4,7 +4,7 @@ from hypothesis import given
 from hypothesis import strategies as st
 import pytest
 
-from ddtrace.appsec._api_security.schema import build_schema
+from ddtrace._appsec._api_security.schema import build_schema
 
 
 SCALAR_OBJECTS = st.one_of(st.none(), st.booleans(), st.integers(), st.floats(), st.characters())

@@ -148,8 +148,8 @@ class SubprocessCmdLine(object):
         if config._iast_enabled:
             # We delay the reporting to later when the strings are already scrubbed (but we need
             # to check them unscrubbed here)
-            from ddtrace.appsec.iast._taint_tracking import get_tainted_ranges
-            from ddtrace.appsec.iast._taint_tracking.aspects import join_aspect
+            from ddtrace._appsec.iast._taint_tracking import get_tainted_ranges
+            from ddtrace._appsec.iast._taint_tracking.aspects import join_aspect
 
             if isinstance(shell_args, (list, tuple)):
                 for arg in shell_args:
@@ -196,7 +196,7 @@ class SubprocessCmdLine(object):
         )
 
         if report_cmdi:
-            from ddtrace.appsec.iast.taint_sinks.command_injection import CommandInjection
+            from ddtrace._appsec.iast.taint_sinks.command_injection import CommandInjection
 
             CommandInjection.report(evidence_value=report_cmdi)
 

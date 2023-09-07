@@ -4,8 +4,8 @@ make some changes
 """
 import os
 
-from ddtrace.appsec.iast._taint_tracking import OriginType
-from ddtrace.appsec.iast._taint_tracking import taint_pyobject
+from ddtrace._appsec.iast._taint_tracking import OriginType
+from ddtrace._appsec.iast._taint_tracking import taint_pyobject
 
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))

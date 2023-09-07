@@ -202,7 +202,7 @@ def patch_all(**patch_modules):
 
     patch(raise_errors=False, **modules)
     if config._iast_enabled:
-        from ddtrace.appsec.iast._patch_modules import patch_iast
+        from ddtrace._appsec.iast._patch_modules import patch_iast
 
         patch_iast()
 

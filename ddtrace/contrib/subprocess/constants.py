@@ -1,6 +1,6 @@
 import six
 
-from ddtrace.appsec._constants import Constant_Class
+from ddtrace._appsec._constants import Constant_Class
 
 
 @six.add_metaclass(Constant_Class)

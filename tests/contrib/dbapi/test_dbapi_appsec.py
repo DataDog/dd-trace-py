@@ -2,8 +2,8 @@ import mock
 import pytest
 
 from ddtrace import Pin
-from ddtrace.appsec.iast import oce
-from ddtrace.appsec.iast._utils import _is_python_version_supported
+from ddtrace._appsec.iast import oce
+from ddtrace._appsec.iast._utils import _is_python_version_supported
 from ddtrace.contrib.dbapi import TracedCursor
 from ddtrace.settings import Config
 from ddtrace.settings.integration import IntegrationConfig
@@ -18,11 +18,11 @@ class TestTracedCursor(TracerTestCase):
 
     @pytest.mark.skipif(not _is_python_version_supported(), reason="IAST compatible versions")
     def test_tainted_query(self):
-        from ddtrace.appsec.iast._taint_tracking import OriginType
-        from ddtrace.appsec.iast._taint_tracking import taint_pyobject
+        from ddtrace._appsec.iast._taint_tracking import OriginType
+        from ddtrace._appsec.iast._taint_tracking import taint_pyobject
 
         with mock.patch("ddtrace.contrib.dbapi._is_iast_enabled", return_value=True), mock.patch(
-            "ddtrace.appsec.iast.taint_sinks.sql_injection.SqlInjection.report"
+            "ddtrace._appsec.iast.taint_sinks.sql_injection.SqlInjection.report"
         ) as mock_sql_injection_report:
             oce._enabled = True
             query = "SELECT * FROM db;"
@@ -38,11 +38,11 @@ class TestTracedCursor(TracerTestCase):
 
     @pytest.mark.skipif(not _is_python_version_supported(), reason="IAST compatible versions")
     def test_tainted_query_args(self):
-        from ddtrace.appsec.iast._taint_tracking import OriginType
-        from ddtrace.appsec.iast._taint_tracking import taint_pyobject
+        from ddtrace._appsec.iast._taint_tracking import OriginType
+        from ddtrace._appsec.iast._taint_tracking import taint_pyobject
 
         with mock.patch("ddtrace.contrib.dbapi._is_iast_enabled", return_value=True), mock.patch(
-            "ddtrace.appsec.iast.taint_sinks.sql_injection.SqlInjection.report"
+            "ddtrace._appsec.iast.taint_sinks.sql_injection.SqlInjection.report"
         ) as mock_sql_injection_report:
             oce._enabled = True
             query = "SELECT ? FROM db;"
@@ -62,7 +62,7 @@ class TestTracedCursor(TracerTestCase):
     @pytest.mark.skipif(not _is_python_version_supported(), reason="IAST compatible versions")
     def test_untainted_query(self):
         with mock.patch("ddtrace.contrib.dbapi._is_iast_enabled", return_value=True), mock.patch(
-            "ddtrace.appsec.iast.taint_sinks.sql_injection.SqlInjection.report"
+            "ddtrace._appsec.iast.taint_sinks.sql_injection.SqlInjection.report"
         ) as mock_sql_injection_report:
             query = "SELECT * FROM db;"
 
@@ -77,7 +77,7 @@ class TestTracedCursor(TracerTestCase):
     @pytest.mark.skipif(not _is_python_version_supported(), reason="IAST compatible versions")
     def test_untainted_query_and_args(self):
         with mock.patch("ddtrace.contrib.dbapi._is_iast_enabled", return_value=True), mock.patch(
-            "ddtrace.appsec.iast.taint_sinks.sql_injection.SqlInjection.report"
+            "ddtrace._appsec.iast.taint_sinks.sql_injection.SqlInjection.report"
         ) as mock_sql_injection_report:
             query = "SELECT ? FROM db;"
             query_arg = "something"
@@ -92,11 +92,11 @@ class TestTracedCursor(TracerTestCase):
 
     @pytest.mark.skipif(not _is_python_version_supported(), reason="IAST compatible versions")
     def test_tainted_query_iast_disabled(self):
-        from ddtrace.appsec.iast._taint_tracking import OriginType
-        from ddtrace.appsec.iast._taint_tracking import taint_pyobject
+        from ddtrace._appsec.iast._taint_tracking import OriginType
+        from ddtrace._appsec.iast._taint_tracking import taint_pyobject
 
         with mock.patch("ddtrace.contrib.dbapi._is_iast_enabled", return_value=False), mock.patch(
-            "ddtrace.appsec.iast.taint_sinks.sql_injection.SqlInjection.report"
+            "ddtrace._appsec.iast.taint_sinks.sql_injection.SqlInjection.report"
         ) as mock_sql_injection_report:
             oce._enabled = True
             query = "SELECT * FROM db;"
