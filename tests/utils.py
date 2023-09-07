@@ -124,10 +124,19 @@ def override_global_config(values):
         "_user_model_login_field",
         "_user_model_email_field",
         "_user_model_name_field",
+        "_remote_config_enabled",
+        "_remote_config_poll_interval",
         "_sampling_rules",
         "_sampling_rules_file",
         "_trace_sample_rate",
         "_trace_rate_limit",
+        "_trace_sampling_rules",
+        "_trace_api",
+        "_trace_writer_buffer_size",
+        "_trace_writer_payload_size",
+        "_trace_writer_interval_seconds",
+        "_trace_writer_connection_reuse",
+        "_trace_writer_log_err_payload",
     ]
 
     # Grab the current values of all keys

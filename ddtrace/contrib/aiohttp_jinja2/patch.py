@@ -1,3 +1,5 @@
+import aiohttp_jinja2
+
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
@@ -13,6 +15,11 @@ config._add(
     "aiohttp_jinja2",
     dict(),
 )
+
+
+def get_version():
+    # type: () -> str
+    return getattr(aiohttp_jinja2, "__version__", "")
 
 
 @with_traced_module

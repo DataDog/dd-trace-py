@@ -36,6 +36,14 @@ class Constant_Class(type):
 
         return aux()
 
+    def get(self, k, default=None):
+        # type: ("Constant_Class", str, Any) -> Any
+        return self.__dict__.get(k, default)
+
+    def __contains__(self, k):
+        # type: ("Constant_Class", str) -> bool
+        return k in self.__dict__
+
     def __getitem__(self, k):
         # type: ("Constant_Class", str) -> Any
         return self.__dict__[k]
@@ -98,6 +106,8 @@ class WAF_DATA_NAMES(object):
     REQUEST_USER_ID = "usr.id"
     RESPONSE_STATUS = "server.response.status"
     RESPONSE_HEADERS_NO_COOKIES = "server.response.headers.no_cookies"
+    RESPONSE_BODY = "http.response.body"
+    SETTINGS = "waf.context.settings"
 
 
 @six.add_metaclass(Constant_Class)  # required for python2/3 compatibility
@@ -126,6 +136,7 @@ class API_SECURITY(object):
 
     ENV_VAR_ENABLED = "DD_EXPERIMENTAL_API_SECURITY_ENABLED"
     REQUEST_HEADERS_NO_COOKIES = "_dd.appsec.s.req.headers"
+    REQUEST_COOKIES = "_dd.appsec.s.req.cookies"
     REQUEST_QUERY = "_dd.appsec.s.req.query"
     REQUEST_PATH_PARAMS = "_dd.appsec.s.req.params"
     REQUEST_BODY = "_dd.appsec.s.req.body"
@@ -195,6 +206,7 @@ class LOGIN_EVENTS_MODE(object):
 class DEFAULT(object):
     ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
     RULES = os.path.join(ROOT_DIR, "rules.json")
+    API_SECURITY_PARAMETERS = os.path.join(ROOT_DIR, "_api_security/processors.json")
     TRACE_RATE_LIMIT = 100
     WAF_TIMEOUT = 5.0  # float (milliseconds)
     APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP = (

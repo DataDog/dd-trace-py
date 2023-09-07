@@ -94,10 +94,7 @@ from ...internal.utils.formats import asbool
 from ...propagation.http import HTTPPropagator
 
 
-__all__ = [
-    "patch",
-    "unpatch",
-]
+__all__ = ["patch", "unpatch", "get_version"]
 
 
 config._add(
@@ -115,6 +112,13 @@ config._add(
         _default_service=schematize_service_name("rq-worker"),
     ),
 )
+
+
+def get_version():
+    # type: () -> str
+    import rq
+
+    return str(getattr(rq, "__version__", ""))
 
 
 @trace_utils.with_traced_module

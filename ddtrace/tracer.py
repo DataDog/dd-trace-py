@@ -21,12 +21,9 @@ from ddtrace.vendor import debtcollector
 
 from . import _hooks
 from ._monkey import patch
-from .constants import AUTO_KEEP
-from .constants import AUTO_REJECT
 from .constants import ENV_KEY
 from .constants import HOSTNAME_KEY
 from .constants import PID
-from .constants import SAMPLE_RATE_METRIC_KEY
 from .constants import VERSION_KEY
 from .context import Context
 from .internal import agent
@@ -36,11 +33,13 @@ from .internal import debug
 from .internal import forksafe
 from .internal import hostname
 from .internal.atexit import register_on_exit_signal
+from .internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from .internal.constants import SPAN_API_DATADOG
 from .internal.dogstatsd import get_dogstatsd_client
 from .internal.logger import get_logger
 from .internal.logger import hasHandlers
 from .internal.processor import SpanProcessor
+from .internal.processor.trace import BaseServiceProcessor
 from .internal.processor.trace import PeerServiceProcessor
 from .internal.processor.trace import SpanAggregator
 from .internal.processor.trace import SpanSamplingProcessor
@@ -60,10 +59,8 @@ from .internal.writer import AgentWriter
 from .internal.writer import LogWriter
 from .internal.writer import TraceWriter
 from .provider import DefaultContextProvider
-from .sampler import BasePrioritySampler
 from .sampler import BaseSampler
 from .sampler import DatadogSampler
-from .sampler import RateByServiceSampler
 from .sampler import RateSampler
 from .span import Span
 
@@ -146,7 +143,7 @@ def _default_span_processors_factory(
     # FIXME: type should be AppsecSpanProcessor but we have a cyclic import here
     """Construct the default list of span processors to use."""
     trace_processors = []  # type: List[TraceProcessor]
-    trace_processors += [TraceTagsProcessor(), PeerServiceProcessor(_ps_config)]
+    trace_processors += [TraceTagsProcessor(), PeerServiceProcessor(_ps_config), BaseServiceProcessor()]
     trace_processors += [TraceSamplingProcessor(compute_stats_enabled)]
     trace_processors += trace_filters
 
@@ -252,10 +249,6 @@ class Tracer(object):
         self.enabled = asbool(os.getenv("DD_TRACE_ENABLED", default=True))
         self.context_provider = context_provider or DefaultContextProvider()
         self._sampler = DatadogSampler()  # type: BaseSampler
-        if asbool(os.getenv("DD_PRIORITY_SAMPLING", True)):
-            self._priority_sampler = RateByServiceSampler()  # type: Optional[BasePrioritySampler]
-        else:
-            self._priority_sampler = None
         self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
         self._compute_stats = config._trace_compute_stats
         self._agent_url = agent.get_trace_url() if url is None else url  # type: str
@@ -267,7 +260,7 @@ class Tracer(object):
             writer = AgentWriter(
                 agent_url=self._agent_url,
                 sampler=self._sampler,
-                priority_sampler=self._priority_sampler,
+                priority_sampling=config._priority_sampling,
                 dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
                 sync_mode=self._use_sync_mode(),
                 headers={"Datadog-Client-Computed-Stats": "yes"} if self._compute_stats else {},
@@ -443,13 +436,6 @@ class Tracer(object):
         if iast_enabled is not None:
             self._iast_enabled = config._iast_enabled = iast_enabled
 
-        # If priority sampling is not set or is True and no priority sampler is set yet
-        if priority_sampling in (None, True) and not self._priority_sampler:
-            self._priority_sampler = RateByServiceSampler()
-        # Explicitly disable priority sampling
-        elif priority_sampling is False:
-            self._priority_sampler = None
-
         if sampler is not None:
             self._sampler = sampler
 
@@ -493,7 +479,7 @@ class Tracer(object):
             self._writer = AgentWriter(
                 self._agent_url,
                 sampler=self._sampler,
-                priority_sampler=self._priority_sampler,
+                priority_sampling=priority_sampling in (None, True) or config._priority_sampling,
                 dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
                 sync_mode=self._use_sync_mode(),
                 api_version=api_version,
@@ -546,7 +532,7 @@ class Tracer(object):
         self._generate_diagnostic_logs()
 
     def _generate_diagnostic_logs(self):
-        if config._debug_mode or asbool(environ.get("DD_TRACE_STARTUP_LOGS", False)):
+        if config._debug_mode or config._startup_logs_enabled:
             try:
                 info = debug.collect(self)
             except Exception as e:
@@ -722,7 +708,8 @@ class Tracer(object):
             if span._local_root is None:
                 span._local_root = span
             for k, v in _get_metas_to_propagate(context):
-                span._meta[k] = v
+                if k != SAMPLING_DECISION_TRACE_TAG_KEY:
+                    span._meta[k] = v
         else:
             # this is the root span of a new trace
             span = Span(
@@ -769,31 +756,7 @@ class Tracer(object):
             self._services.add(service)
 
         if not trace_id:
-            span.sampled = self._sampler.sample(span)
-            # Old behavior
-            # DEV: The new sampler sets metrics and priority sampling on the span for us
-            if not isinstance(self._sampler, DatadogSampler):
-                if span.sampled:
-                    # When doing client sampling in the client, keep the sample rate so that we can
-                    # scale up statistics in the next steps of the pipeline.
-                    if isinstance(self._sampler, RateSampler):
-                        span.set_metric(SAMPLE_RATE_METRIC_KEY, self._sampler.sample_rate)
-
-                    if self._priority_sampler:
-                        # At this stage, it's important to have the service set. If unset,
-                        # priority sampler will use the default sampling rate, which might
-                        # lead to oversampling (that is, dropping too many traces).
-                        if self._priority_sampler.sample(span):
-                            context.sampling_priority = AUTO_KEEP
-                        else:
-                            context.sampling_priority = AUTO_REJECT
-                else:
-                    if self._priority_sampler:
-                        # If dropped by the local sampler, distributed instrumentation can drop it too.
-                        context.sampling_priority = AUTO_REJECT
-            else:
-                # We must always mark the span as sampled so it is forwarded to the agent
-                span.sampled = True
+            span.sampled = self._sampler.sample(span, allow_false=isinstance(self._sampler, RateSampler))
 
         # Only call span processors if the tracer is enabled
         if self.enabled:

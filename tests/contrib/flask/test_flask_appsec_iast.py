@@ -19,6 +19,16 @@ IAST_ENV = {"DD_IAST_REQUEST_SAMPLING": "100"}
 IAST_ENV_SAMPLING_0 = {"DD_IAST_REQUEST_SAMPLING": "0"}
 
 
+@pytest.fixture(autouse=True)
+def reset_context():
+    from ddtrace.appsec.iast._taint_tracking import contexts_reset
+    from ddtrace.appsec.iast._taint_tracking import create_context
+
+    yield
+    contexts_reset()
+    _ = create_context()
+
+
 class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
     @pytest.fixture(autouse=True)
     def inject_fixtures(self, caplog):
@@ -34,9 +44,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             super(FlaskAppSecIASTEnabledTestCase, self).setUp()
             patch()
             oce.reconfigure()
-            from ddtrace.appsec.iast._taint_tracking import setup
 
-            setup(bytes.join, bytearray.join)
             self.tracer._iast_enabled = True
             self.tracer._appsec_enabled = True
             self.tracer.configure(api_version="v0.4")
@@ -246,7 +254,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
 
             header_ranges = get_tainted_ranges(request.headers["User-Agent"])
             assert header_ranges
-            assert header_ranges[0].source.name == "User-Agent"
+            assert header_ranges[0].source.name.lower() == "user-agent"
             assert header_ranges[0].source.origin == OriginType.HEADER
 
             _ = get_tainted_ranges(request.query_string)
@@ -343,10 +351,6 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             )
         ), override_env(IAST_ENV):
             oce.reconfigure()
-            from ddtrace.appsec.iast._taint_tracking import setup
-
-            setup(bytes.join, bytearray.join)
-
             self.client.set_cookie("localhost", "test-cookie1", "sqlite_master")
             resp = self.client.post("/sqli/cookies/")
             assert resp.status_code == 200
@@ -418,7 +422,6 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             for vulnerability in loaded["vulnerabilities"]:
                 vulnerabilities.add(vulnerability["type"])
                 if vulnerability["type"] == VULN_SQL_INJECTION:
-
                     assert vulnerability["type"] == VULN_SQL_INJECTION
                     assert vulnerability["evidence"] == {
                         "valueParts": [{"value": "SELECT 1 FROM "}, {"value": "sqlite_master", "source": 0}]
@@ -559,10 +562,6 @@ class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
 
             return "OK", 200
 
-        from ddtrace.appsec.iast._taint_tracking import setup
-
-        setup(bytes.join, bytearray.join)
-
         self.client.set_cookie("localhost", "sqlite_master", "sqlite_master3")
         resp = self.client.post("/sqli/cookies/")
         assert resp.status_code == 200
@@ -594,7 +593,6 @@ class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
                 _iast_enabled=False,
             )
         ):
-
             resp = self.client.post(
                 "/sqli/sqlite_master/", data={"name": "test"}, headers={"User-Agent": "sqlite_master"}
             )
@@ -661,7 +659,6 @@ class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
                 _iast_enabled=False,
             )
         ):
-
             resp = self.client.post("/sqli/sqlite_master/", data={"name": "test"}, headers={"user-agent": "master"})
             assert resp.status_code == 200
 

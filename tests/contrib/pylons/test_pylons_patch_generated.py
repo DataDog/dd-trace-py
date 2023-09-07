@@ -3,6 +3,7 @@
 # removed the ``_generated`` suffix from the file name, to prevent the content
 # from being overwritten by future re-generations.
 
+from ddtrace.contrib.pylons import get_version
 from ddtrace.contrib.pylons.patch import patch
 
 
@@ -27,3 +28,8 @@ class TestPylonsPatch(PatchTestCase.Base):
 
     def assert_not_module_double_patched(self, pylons_wsgiapp):
         pass
+
+    def assert_module_implements_get_version(self):
+        version = get_version()
+        assert type(version) == str
+        assert version != ""
