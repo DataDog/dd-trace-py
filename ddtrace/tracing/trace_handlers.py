@@ -29,17 +29,16 @@ log = get_logger(__name__)
 class _TracedIterable(wrapt.ObjectProxy):
     def __init__(self, wrapped_iterable, span, parent_span):
         super(_TracedIterable, self).__init__(wrapped_iterable)
-        self._wrapped_iter = iter(wrapped_iterable)
         self._self_span = span
         self._self_parent_span = parent_span
         self._self_span_finished = False
 
     def __iter__(self):
-        return self
+        return iter(self.__wrapped__)
 
     def __next__(self):
         try:
-            return next(self._wrapped_iter)
+            return next(self)
         except StopIteration:
             self._finish_spans()
             raise
