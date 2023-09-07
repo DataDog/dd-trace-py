@@ -27,6 +27,7 @@ app
 appsec
 aredis
 args
+ascii
 asgi
 async
 asyncio
