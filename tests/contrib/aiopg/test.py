@@ -333,7 +333,6 @@ class AiopgAnalyticsTestCase(AiopgTestCase):
             self.assertEqual(len(spans), 1)
             self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
 
-    @mark_asyncio
     async def _test_cursor_ctx_manager(self):
         conn, tracer = await self._get_conn_and_tracer()
         cur = await conn.cursor()
