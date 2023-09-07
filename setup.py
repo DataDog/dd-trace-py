@@ -1,4 +1,3 @@
-from distutils.command.clean import clean as CleanCommand
 import hashlib
 import os
 import platform
@@ -7,13 +6,12 @@ import shutil
 import sys
 import tarfile
 
-from pkg_resources import get_build_platform
-from setuptools import Extension
-from setuptools import find_packages
-from setuptools import setup
-from setuptools.command.build_ext import build_ext
-from setuptools.command.build_py import build_py as BuildPyCommand
 
+from setuptools import Extension, find_packages, setup  # isort: skip
+from setuptools.command.build_ext import build_ext  # isort: skip
+from setuptools.command.build_py import build_py as BuildPyCommand  # isort: skip
+from pkg_resources import get_build_platform  # isort: skip
+from distutils.command.clean import clean as CleanCommand  # isort: skip
 
 try:
     # ORDER MATTERS
