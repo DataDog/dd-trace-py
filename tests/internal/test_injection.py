@@ -1,5 +1,6 @@
 from contextlib import contextmanager
 from random import shuffle
+import sys
 
 import mock
 import pytest
@@ -12,6 +13,11 @@ from ddtrace.internal.injection import eject_hooks
 from ddtrace.internal.injection import inject_hook
 from ddtrace.internal.injection import inject_hooks
 from ddtrace.internal.utils.inspection import linenos
+
+
+# bytecode does not support Python 3.12 yet
+if sys.version_info[:2] >= (3, 12):
+    pytestmark = pytest.mark.skip
 
 
 @contextmanager
