@@ -132,4 +132,5 @@ Keep the following in mind when writing logging code:
 
     contributing-integrations
     contributing-testing
+    contributing-tracing
     releasenotes
