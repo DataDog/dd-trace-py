@@ -142,6 +142,15 @@ venv = Venv(
             env={
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
             },
+            venvs=[
+                Venv(pys=select_pys(max_version="3.11")),
+                Venv(
+                    pys=select_pys(min_version="3.12"),
+                    pkgs={
+                        "setuptools": latest,
+                    },
+                ),
+            ],
         ),
         Venv(
             name="profile-diff",
@@ -1842,6 +1851,15 @@ venv = Venv(
             pkgs={
                 "pytest-asyncio": latest,
             },
+            venvs=[
+                Venv(pys=select_pys(max_version="3.11")),
+                Venv(
+                    pys=select_pys(min_version="3.12"),
+                    pkgs={
+                        "setuptools": latest,
+                    },
+                ),
+            ],
         ),
         Venv(
             name="futures",
