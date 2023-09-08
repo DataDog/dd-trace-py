@@ -47,6 +47,11 @@ def test_telemetry_enabled_on_first_tracer_flush(test_agent_session, ddtrace_run
 def test_enable_fork(test_agent_session, run_python_code_in_subprocess):
     """assert app-started/app-closing events are only sent in parent process"""
     code = """
+import warnings
+# This test logs the following warning in py3.12:
+# This process (pid=402) is multi-threaded, use of fork() may lead to deadlocks in the child
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
 import os
 
 from ddtrace.internal.runtime import get_runtime_id
@@ -68,7 +73,7 @@ else:
 
     stdout, stderr, status, _ = run_python_code_in_subprocess(code)
     assert status == 0, stderr
-    assert stderr == b""
+    assert stderr == b"", stderr
 
     runtime_id = stdout.strip().decode("utf-8")
 
@@ -86,6 +91,11 @@ else:
 def test_enable_fork_heartbeat(test_agent_session, run_python_code_in_subprocess):
     """assert app-heartbeat events are only sent in parent process when no other events are queued"""
     code = """
+import warnings
+# This test logs the following warning in py3.12:
+# This process (pid=402) is multi-threaded, use of fork() may lead to deadlocks in the child
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
 import os
 
 from ddtrace.internal.runtime import get_runtime_id
@@ -107,7 +117,7 @@ telemetry_writer.disable()
 
     stdout, stderr, status, _ = run_python_code_in_subprocess(code)
     assert status == 0, stderr
-    assert stderr == b""
+    assert stderr == b"", stderr
 
     runtime_id = stdout.strip().decode("utf-8")
 
@@ -125,6 +135,11 @@ def test_heartbeat_interval_configuration(run_python_code_in_subprocess):
     env = os.environ.copy()
     env["DD_TELEMETRY_HEARTBEAT_INTERVAL"] = "61"
     code = """
+import warnings
+# This test logs the following warning in py3.12:
+# This process (pid=402) is multi-threaded, use of fork() may lead to deadlocks in the child
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
 from ddtrace import config
 assert config._telemetry_heartbeat_interval == 61
 
@@ -143,6 +158,11 @@ def test_logs_after_fork(run_python_code_in_subprocess):
     # Regression test: telemetry writer should not log an error when a process forks
     _, err, status, _ = run_python_code_in_subprocess(
         """
+import warnings
+# This test logs the following warning in py3.12:
+# This process (pid=402) is multi-threaded, use of fork() may lead to deadlocks in the child
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
 import ddtrace
 import logging
 import os
@@ -154,7 +174,7 @@ os.fork()
     )
 
     assert status == 0, err
-    assert err == b""
+    assert err == b"", err
 
 
 def test_app_started_error_handled_exception(test_agent_session, run_python_code_in_subprocess):

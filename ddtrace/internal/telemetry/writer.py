@@ -607,10 +607,9 @@ class TelemetryWriter(PeriodicService):
         if self.status == ServiceStatus.STOPPED:
             return
 
-        # # Enable writer service in child process to avoid interpreter shutdown
-        # # error in Python 3.12
-        # if sys.version_info >= (3, 12):
-        #     self.enable()
+        # Enable writer service in child process to avoid interpreter shutdown
+        # error in Python 3.12
+        self.enable()
 
     def _restart_sequence(self):
         self._sequence = itertools.count(1)
