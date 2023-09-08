@@ -73,7 +73,7 @@ class SamplingRule(object):
             )
 
         self._tag_value_matchers = {k: GlobMatcher(v) for k, v in tags.items()} if tags != SamplingRule.NO_RULE else {}
-
+        self.resource_matcher = GlobMatcher(resource) if resource != SamplingRule.NO_RULE else resource
         self.sample_rate = sample_rate
         self.service = service
         self.name = name
@@ -122,10 +122,10 @@ class SamplingRule(object):
 
     @cachedmethod()
     def _matches(self, key):
-        # type: (Tuple[Optional[str], str, Optional[str]]) -> bool
+        # type: (Tuple[Optional[str], str]) -> bool
         # self._matches exists to maintain legacy pattern values such as regex and functions
-        service, name, resource = key
-        for prop, pattern in [(service, self.service), (name, self.name), (resource, self.resource)]:
+        service, name = key
+        for prop, pattern in [(service, self.service), (name, self.name)]:
             if not self._pattern_matches(prop, pattern):
                 return False
         else:
@@ -142,10 +142,14 @@ class SamplingRule(object):
         :rtype: :obj:`bool`
         """
         glob_match = self.glob_matches(span)
-        return glob_match and self._matches((span.service, span.name, span.resource))
+        return glob_match and self._matches((span.service, span.name))
 
     def glob_matches(self, span):
         # type: (Span) -> bool
+        if self.resource_matcher != SamplingRule.NO_RULE:
+            if not self.resource_matcher.match(span.resource):
+                return False
+
         tag_match = True
         if self._tag_value_matchers:
             tag_match = self.tag_match(span.get_tags())

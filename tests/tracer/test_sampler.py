@@ -430,12 +430,12 @@ def test_sampling_rule_init_via_env():
         assert sampling_rule[0].name == "abc"
         assert len(sampling_rule) == 1
 
-    with override_global_config(dict(_trace_sampling_rules='[{"sample_rate":1.0,"resource":"def"}]')):
+    with override_global_config(dict(_trace_sampling_rules='[{"sample_rate":1.0,"resource":"de?"}]')):
         sampling_rule = DatadogSampler().rules
         assert sampling_rule[0].sample_rate == 1.0, "DatadogSampler initializes from envvar with only resource set"
         assert sampling_rule[0].service == SamplingRule.NO_RULE
         assert sampling_rule[0].name == SamplingRule.NO_RULE
-        assert sampling_rule[0].resource == "def"
+        assert sampling_rule[0].resource == "de?"
         assert len(sampling_rule) == 1
 
     with override_global_config(dict(_trace_sampling_rules='[{"sample_rate":1.0,"tags":{"def": "def"}}]')):

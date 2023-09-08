@@ -140,6 +140,22 @@ def test_extended_sampling_resource(writer, tracer):
 
 
 @snapshot_parametrized_with_writers
+def test_extended_sampling_resource_glob_star(writer, tracer):
+    sampler = DatadogSampler(rules=[SamplingRule(0, resource=RESOURCE[:2] + "*")])
+    tracer.configure(sampler=sampler, writer=writer)
+    tracer.trace("should_not_send", resource=RESOURCE).finish()
+    tracer.trace("should_send", resource="something else").finish()
+
+
+@snapshot_parametrized_with_writers
+def test_extended_sampling_resource_glob_question_mark(writer, tracer):
+    sampler = DatadogSampler(rules=[SamplingRule(0, resource=RESOURCE[:-1] + "?")])
+    tracer.configure(sampler=sampler, writer=writer)
+    tracer.trace("should_not_send", resource=RESOURCE).finish()
+    tracer.trace("should_send", resource="something else").finish()
+
+
+@snapshot_parametrized_with_writers
 def test_extended_sampling_tags(writer, tracer):
     sampler = DatadogSampler(rules=[SamplingRule(0, tags=TAGS)])
     tracer.configure(sampler=sampler, writer=writer)
