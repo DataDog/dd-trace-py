@@ -59,6 +59,7 @@ from .internal.writer import AgentWriter
 from .internal.writer import LogWriter
 from .internal.writer import TraceWriter
 from .provider import DefaultContextProvider
+from .sampler import BasePrioritySampler
 from .sampler import BaseSampler
 from .sampler import DatadogSampler
 from .sampler import RateSampler
@@ -537,12 +538,12 @@ class Tracer(object):
         The agent can return updated sample rates for the priority sampler.
         """
         try:
-            self._sampler.update_rate_by_service_sample_rates(
-                resp.rate_by_service,
-            )
+            if isinstance(self._sampler, BasePrioritySampler):
+                self._sampler.update_rate_by_service_sample_rates(
+                    resp.rate_by_service,
+                )
         except ValueError:
             log.error("sample_rate is negative, cannot update the rate samplers")
-        return resp
 
     def _generate_diagnostic_logs(self):
         if config._debug_mode or config._startup_logs_enabled:
