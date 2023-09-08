@@ -189,11 +189,13 @@ class SamplingRule(object):
         return "NO_RULE" if val is self.NO_RULE else val
 
     def __repr__(self):
-        return "{}(sample_rate={!r}, service={!r}, name={!r})".format(
+        return "{}(sample_rate={!r}, service={!r}, name={!r}, resource={!r}, tags={!r})".format(
             self.__class__.__name__,
             self.sample_rate,
             self._no_rule_or_self(self.service),
             self._no_rule_or_self(self.name),
+            self._no_rule_or_self(self.resource),
+            self._no_rule_or_self(self.tags),
         )
 
     __str__ = __repr__
@@ -208,4 +210,5 @@ class SamplingRule(object):
             and self.service == other.service
             and self.name == other.name
             and self.resource == other.resource
+            and self.tags == other.tags
         )
