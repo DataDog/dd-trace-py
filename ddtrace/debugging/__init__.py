@@ -2,11 +2,13 @@
 Dynamic Instrumentation
 =======================
 
-Configuration
--------------
+Enablement
+----------
 
-When using ``ddtrace-run``, dynamic instrumentation can be enabled by setting
-the ``DD_DYNAMIC_INSTRUMENTATION_ENABLED`` variable, or programmatically with::
+Dynamic Instrumentation can be enabled by setting the
+``DD_DYNAMIC_INSTRUMENTATION_ENABLED`` variable to ``true`` in the environment,
+when using the ``ddtrace-run`` command. Alternatively, when ``dtrace-run``
+cannot be used, it can be enabled programmatically with::
 
     from ddtrace.debugging import DynamicInstrumentation
 
@@ -15,8 +17,15 @@ the ``DD_DYNAMIC_INSTRUMENTATION_ENABLED`` variable, or programmatically with::
 
     ...
 
-    # Disable the debugger
+    # Disable dynamic instrumentation
     DynamicInstrumentation.disable()
+
+
+Configuration
+-------------
+
+See the :ref:`Configuration` page for more details on how to configure
+Dynamic Instrumentation.
 """
 
 from ddtrace.debugging._debugger import Debugger as DynamicInstrumentation
