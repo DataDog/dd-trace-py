@@ -1,13 +1,7 @@
-import re
-from typing import TYPE_CHECKING
-
-import six
-
 from ddtrace.appsec.iast import oce
 from ddtrace.appsec.iast._metrics import _set_metric_iast_instrumented_sink
 from ddtrace.appsec.iast._patch import set_and_check_module_is_patched
 from ddtrace.appsec.iast._patch import set_module_unpatched
-from ddtrace.appsec.iast._utils import _scrub_get_tokens_positions
 from ddtrace.appsec.iast.constants import EVIDENCE_PATH_TRAVERSAL
 from ddtrace.appsec.iast.constants import VULN_PATH_TRAVERSAL
 from ddtrace.appsec.iast.taint_sinks._base import VulnerabilityBase
@@ -15,14 +9,6 @@ from ddtrace.internal.logger import get_logger
 
 
 log = get_logger(__name__)
-
-if TYPE_CHECKING:
-    from typing import Any
-    from typing import Dict
-
-    from ddtrace.appsec.iast.reporter import Vulnerability
-
-_INSIDE_QUOTES_REGEXP = re.compile(r"(?:\s|^)(\S{3,}\/\S*)")
 
 
 @oce.register
@@ -37,20 +23,6 @@ class PathTraversal(VulnerabilityBase):
 
             evidence_value, sources = taint_ranges_as_evidence_info(evidence_value)
         super(PathTraversal, cls).report(evidence_value=evidence_value, sources=sources)
-
-    @classmethod
-    def _extract_sensitive_tokens(cls, vulns_to_text):
-        # type: (Dict[Vulnerability, str]) -> Dict[int, Dict[str, Any]]
-
-        ret = {}  # type: Dict[int, Dict[str, Any]]
-        for vuln, text in six.iteritems(vulns_to_text):
-            vuln_hash = hash(vuln)
-            ret[vuln_hash] = {
-                "tokens": set(_INSIDE_QUOTES_REGEXP.findall(text)),
-            }
-            ret[vuln_hash]["token_positions"] = _scrub_get_tokens_positions(text, ret[vuln_hash]["tokens"])
-
-        return ret
 
 
 def get_version():

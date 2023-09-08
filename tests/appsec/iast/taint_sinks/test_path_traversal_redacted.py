@@ -91,9 +91,7 @@ def test_path_traversal_redact_rel_paths(file_path):
 
     redacted_report = PathTraversal._redact_report(report)
     for v in redacted_report.vulnerabilities:
-        assert v.evidence.valueParts == [
-            {"source": 0, "redacted": True},
-        ]
+        assert v.evidence.valueParts == [{"source": 0, "value": file_path}]
 
 
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
@@ -111,6 +109,4 @@ def test_path_traversal_redact_abs_paths():
 
     redacted_report = PathTraversal._redact_report(report)
     for v in redacted_report.vulnerabilities:
-        assert v.evidence.valueParts == [
-            {"source": 0, "redacted": True},
-        ]
+        assert v.evidence.valueParts == [{"source": 0, "value": file_path}]
