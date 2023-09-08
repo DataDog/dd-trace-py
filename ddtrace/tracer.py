@@ -154,7 +154,7 @@ def _default_span_processors_factory(
         appsec_processor = None
 
     if iast_enabled:
-        from .appsec.iast.processor import AppSecIastSpanProcessor
+        from .appsec._iast.processor import AppSecIastSpanProcessor
 
         span_processors.append(AppSecIastSpanProcessor())
 
