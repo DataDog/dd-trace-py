@@ -14,8 +14,8 @@ if TYPE_CHECKING:
     from typing import Tuple
 
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._python_info.stdlib import _stdlib_for_python_version
 from ddtrace.appsec._iast._ast.visitor import AstVisitor
+from ddtrace.appsec._python_info.stdlib import _stdlib_for_python_version
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import origin
 
