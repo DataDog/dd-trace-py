@@ -312,7 +312,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
 
         if response.status not in (404, 415) and response.status >= 400:
             msg = "failed to send traces to intake at %s: HTTP error status %s, reason %s"
-            log_args_base = (
+            log_args = (
                 self._intake_endpoint(client),
                 response.status,
                 response.reason,
@@ -322,9 +322,9 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 msg += ", payload %s"
                 # If the payload is bytes then hex encode the value before logging
                 if isinstance(payload, six.binary_type):
-                    log_args = log_args_base + (binascii.hexlify(payload).decode(),)
+                    log_args += (binascii.hexlify(payload).decode(),)  # type: ignore
                 else:
-                    log_args = log_args_base + (payload,)
+                    log_args += (payload,)  # type: ignore
 
             log.error(msg, *log_args)
             self._metrics_dist("http.dropped.bytes", len(payload))
