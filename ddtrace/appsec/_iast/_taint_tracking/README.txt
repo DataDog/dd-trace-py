@@ -29,8 +29,8 @@ source = Source("aaa", "bbbb", "ccc")
 
 wget http://svn.python.org/projects/python/trunk/Misc/valgrind-python.supp
 
-valgrind --tool=memcheck --suppressions=ddtrace/appsec/iast/_taint_tracking/valgrind-python.supp \
-python ddtrace/appsec/iast/_taint_tracking/bench_overload.py --log-file="valgrind_bench_overload.out"
+valgrind --tool=memcheck --suppressions=ddtrace/appsec/_iast/_taint_tracking/valgrind-python.supp \
+python ddtrace/appsec/_iast/_taint_tracking/bench_overload.py --log-file="valgrind_bench_overload.out"
 
 # Debug with gdb
 

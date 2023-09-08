@@ -452,7 +452,7 @@ if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
                 "ddtrace.appsec._iast._stacktrace",
                 # Sort source files for reproducibility
                 sources=[
-                    "ddtrace/appsec/iast/_stacktrace.c",
+                    "ddtrace/appsec/_iast/_stacktrace.c",
                 ],
                 extra_compile_args=debug_compile_args,
             )
