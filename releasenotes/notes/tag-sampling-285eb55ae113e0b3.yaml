@@ -4,6 +4,7 @@ features:
     tracing: This introduces the keyword parameter "tags" to the SamplingRule constructor, allowing sampling
     rules to be defined based on a glob match with span tag values. SamplingRule.tags expects a dictionary whose keys exactly
     match the names of tags expected to appear on spans, and whose values are glob-matches with the expected span tag values.
+    Glob matching supports "*" meaning any number of characters, and "?" meaning any one character.
     If all tags specified in a SamplingRule are matches with a given span, that span is considered to have matching tags
     with the rule. These rules are only evaluated at the beginning of a span's lifetime, so calls to Span.set_tag after span creation are
     not seen by SamplingRules.
