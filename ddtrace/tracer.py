@@ -18,7 +18,8 @@ from ddtrace.internal.utils import _get_metas_to_propagate
 from ddtrace.settings.peer_service import _ps_config
 
 from . import _hooks
-from ._monkey import patch
+from ._logger import _configure_log_injection
+from ._monkey import patch  # noqa: F401
 from .constants import ENV_KEY
 from .constants import HOSTNAME_KEY
 from .constants import PID
