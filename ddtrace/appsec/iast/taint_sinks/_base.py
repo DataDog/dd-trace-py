@@ -228,14 +228,13 @@ class VulnerabilityBase(Operation):
 
         vulns_to_text = {}
 
-        if not found:
-            # Check the evidence's value/s
-            for vuln in report.vulnerabilities:
-                vulnerability_text = cls._get_vulnerability_text(vuln)
-                if _has_to_scrub(vulnerability_text):
-                    vulns_to_text[vuln] = vulnerability_text
-                    found = True
-                    break
+        # Check the evidence's value/s
+        for vuln in report.vulnerabilities:
+            vulnerability_text = cls._get_vulnerability_text(vuln)
+            if _has_to_scrub(vulnerability_text):
+                vulns_to_text[vuln] = vulnerability_text
+                found = True
+                break
 
         if not found:
             return report
