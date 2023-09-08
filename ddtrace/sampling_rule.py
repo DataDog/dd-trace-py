@@ -68,9 +68,7 @@ class SamplingRule(object):
                 ).format(sample_rate)
             )
 
-        self._tag_value_matchers = (
-            {k: GlobMatcher(v) for k, v in tags.items()} if tags is not None and type(tags) is dict else {}
-        )
+        self._tag_value_matchers = {k: GlobMatcher(v) for k, v in tags.items()} if tags != SamplingRule.NO_RULE else {}
 
         self.sample_rate = sample_rate
         self.service = service
@@ -121,6 +119,7 @@ class SamplingRule(object):
     @cachedmethod()
     def _matches(self, key):
         # type: (Tuple[Optional[str], str, Optional[str]]) -> bool
+        # self._matches exists to maintain legacy pattern values such as regex and functions
         service, name, resource = key
         for prop, pattern in [(service, self.service), (name, self.name), (resource, self.resource)]:
             if not self._pattern_matches(prop, pattern):
@@ -138,18 +137,8 @@ class SamplingRule(object):
         :returns: Whether this span matches or not
         :rtype: :obj:`bool`
         """
-        # if we're just interested in root spans and this isn't one, then return False
-        if self.target_span == "root":
-            if span.parent_id is not None:
-                return False
-
         glob_match = self.glob_matches(span)
-        # we return early here because _matches() doesn't support tags
-        if self.tags is not self.NO_RULE:
-            return glob_match
-
-        # self._matches exists to maintain legacy pattern values such as regex and functions
-        return self._matches((span.service, span.name, span.resource))
+        return glob_match and self._matches((span.service, span.name, span.resource))
 
     def glob_matches(self, span):
         # type: (Span) -> bool
