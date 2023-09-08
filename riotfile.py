@@ -2348,7 +2348,7 @@ venv = Venv(
                             },
                             venvs=[
                                 Venv(
-                                    pkgs={"gevent": ["==23.7.0"]},
+                                    pkgs={"gevent": ["==23.9.0"]},
                                 ),
                             ],
                         ),
