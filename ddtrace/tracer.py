@@ -18,8 +18,6 @@ from ddtrace.internal.utils import _get_metas_to_propagate
 from ddtrace.settings.peer_service import _ps_config
 
 from . import _hooks
-from ._logger import _configure_log_injection
-from ._monkey import patch  # noqa: F401
 from .constants import ENV_KEY
 from .constants import HOSTNAME_KEY
 from .constants import PID
@@ -78,11 +76,6 @@ from typing import TypeVar
 
 
 log = get_logger(__name__)
-
-
-if config.logs_injection:
-    # We need to ensure logging is patched in case the tracer logs during initialization
-    _configure_log_injection()
 
 
 _INTERNAL_APPLICATION_SPAN_TYPES = {"custom", "template", "web", "worker"}
