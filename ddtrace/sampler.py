@@ -289,7 +289,7 @@ class DatadogSampler(RateByServiceSampler):
             service = rule.get("service", SamplingRule.NO_RULE)
             name = rule.get("name", SamplingRule.NO_RULE)
             resource = rule.get("resource", SamplingRule.NO_RULE)
-            tags = json.loads(rule.get("tags", "{}")) or SamplingRule.NO_RULE
+            tags = rule.get("tags", SamplingRule.NO_RULE)
             try:
                 sampling_rule = SamplingRule(
                     sample_rate=sample_rate, service=service, name=name, resource=resource, tags=tags
