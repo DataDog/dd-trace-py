@@ -502,6 +502,7 @@ class AgentWriter(HTTPWriter):
         default_api_version = (
             "v0.4" if (is_windows or in_gcp_function() or in_azure_function_consumption_plan()) else "v0.5"
         )
+
         self._api_version = api_version or config._trace_api or (default_api_version if priority_sampling else "v0.3")
         if is_windows and self._api_version == "v0.5":
             raise RuntimeError(
