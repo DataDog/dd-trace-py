@@ -34,17 +34,24 @@ def _is_iast_enabled():
 # Used to cache the compiled regular expression
 _SOURCE_NAME_SCRUB = None
 _SOURCE_VALUE_SCRUB = None
+_FILEPATH_SCRUB = None
 
 
 def _has_to_scrub(s):  # type: (str) -> bool
     global _SOURCE_NAME_SCRUB
     global _SOURCE_VALUE_SCRUB
+    global _FILEPATH_SCRUB
 
     if _SOURCE_NAME_SCRUB is None:
         _SOURCE_NAME_SCRUB = re.compile(config._iast_redaction_name_pattern)
         _SOURCE_VALUE_SCRUB = re.compile(config._iast_redaction_value_pattern)
+        _FILEPATH_SCRUB = re.compile(r"^(\/|\.\/)?([\w\s.-]+\/)*[\w\s.-]+$")
 
-    return _SOURCE_NAME_SCRUB.match(s) is not None or _SOURCE_VALUE_SCRUB.match(s) is not None
+    return (
+        _SOURCE_NAME_SCRUB.match(s) is not None
+        or _SOURCE_VALUE_SCRUB.match(s) is not None
+        or _FILEPATH_SCRUB.match(s) is not None
+    )
 
 
 _REPLACEMENTS = string.ascii_letters

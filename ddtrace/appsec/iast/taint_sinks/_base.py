@@ -44,21 +44,10 @@ log = get_logger(__name__)
 CWD = os.path.abspath(os.getcwd())
 
 
-def _check_positions_contained(needle, container):
-    needle_start, needle_end = needle
-    container_start, container_end = container
-
-    return (
-        (container_start <= needle_start < container_end)
-        or (container_start < needle_end <= container_end)
-        or (needle_start <= container_start < needle_end)
-        or (needle_start < container_end <= needle_end)
-    )
-
-
 class VulnerabilityBase(Operation):
     vulnerability_type = ""
     evidence_type = ""
+    _redacted_pattern = False
     _redacted_report_cache = LFUCache()
 
     @classmethod
@@ -70,8 +59,8 @@ class VulnerabilityBase(Operation):
         # type: (Callable) -> Callable
         def wrapper(wrapped, instance, args, kwargs):
             # type: (Callable, Any, Any, Any) -> Any
-            """Get the current root Span and attach it to the wrapped function. We need the span to report the vulnerability
-            and update the context with the report information.
+            """Get the current root Span and attach it to the wrapped function. We need the span to report the
+            vulnerability and update the context with the report information.
             """
             if oce.request_has_quota and cls.has_quota():
                 return func(wrapped, instance, args, kwargs)
@@ -192,6 +181,37 @@ class VulnerabilityBase(Operation):
         return ""
 
     @classmethod
+    def replace_tokens(
+        cls,
+        vuln,
+        vulns_to_tokens,
+        has_range=False,
+    ):
+        ret = vuln.evidence.value
+        replaced = False
+
+        for token in vulns_to_tokens[hash(vuln)]["tokens"]:
+            if cls._redacted_pattern is True:
+                ret = ret.replace(token, _scrub(token, has_range))
+            else:
+                ret = ret.replace(token, "")
+            replaced = True
+
+        return ret, replaced
+
+    @staticmethod
+    def _check_positions_contained(needle, container):
+        needle_start, needle_end = needle
+        container_start, container_end = container
+
+        return (
+            (container_start <= needle_start < container_end)
+            or (container_start < needle_end <= container_end)
+            or (needle_start <= container_start < needle_end)
+            or (needle_start < container_end <= needle_end)
+        )
+
+    @classmethod
     def _redact_report(cls, report):  # type: (IastSpanReporter) -> IastSpanReporter
         if not _config._iast_redaction_enabled:
             return report
@@ -243,22 +263,12 @@ class VulnerabilityBase(Operation):
                 source.redacted = True
                 source.value = None
 
-        def replace_tokens(vuln, has_range=False):
-            ret = vuln.evidence.value
-            replaced = False
-
-            for token in vulns_to_tokens[hash(vuln)]["tokens"]:
-                ret = ret.replace(token, _scrub(token, has_range))
-                replaced = True
-
-            return ret, replaced
-
         # Same for all the evidence values
         for vuln in report.vulnerabilities:
             # Use the initial hash directly as iteration key since the vuln itself will change
             vuln_hash = hash(vuln)
             if vuln.evidence.value is not None:
-                pattern, replaced = replace_tokens(vuln, hasattr(vuln.evidence.value, "source"))
+                pattern, replaced = cls.replace_tokens(vuln, vulns_to_tokens, hasattr(vuln.evidence.value, "source"))
                 if replaced:
                     vuln.evidence.pattern = pattern
                     vuln.evidence.redacted = True
@@ -273,19 +283,23 @@ class VulnerabilityBase(Operation):
                     pattern_list = []
 
                     for positions in vulns_to_tokens[vuln_hash]["token_positions"]:
-                        if _check_positions_contained(positions, (part_start, part_end)):
+                        if cls._check_positions_contained(positions, (part_start, part_end)):
                             part_scrub_start = max(positions[0] - idx, 0)
                             part_scrub_end = positions[1] - idx
                             to_scrub = value[part_scrub_start:part_scrub_end]
                             scrubbed = _scrub(to_scrub, "source" in part)
-                            pattern_list.append(value[:part_scrub_start] + scrubbed + value[part_scrub_end:])
+                            if cls._redacted_pattern is True:
+                                pattern_list.append(value[:part_scrub_start] + scrubbed + value[part_scrub_end:])
+                            else:
+                                pattern_list.append(value[:part_scrub_start] + "" + value[part_scrub_end:])
                             part["redacted"] = True
                         else:
                             pattern_list.append(value[part_start:part_end])
                             continue
 
                     if "redacted" in part:
-                        part["pattern"] = "".join(pattern_list)
+                        if cls._redacted_pattern is True:
+                            part["pattern"] = "".join(pattern_list)
                         del part["value"]
 
                     idx += part_len
