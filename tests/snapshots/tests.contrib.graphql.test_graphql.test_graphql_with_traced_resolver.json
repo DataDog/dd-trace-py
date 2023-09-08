@@ -16,7 +16,6 @@
       "runtime-id": "13a9a43400594de89a6aa537a3cb7b8e"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
@@ -37,7 +36,6 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "",
-         "_dd.p.dm": "-0",
          "component": "graphql",
          "graphql.source": "query HELLO { hello }"
        },
@@ -55,7 +53,6 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "",
-         "_dd.p.dm": "-0",
          "component": "graphql",
          "graphql.source": "query HELLO { hello }"
        },
@@ -73,7 +70,6 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "",
-         "_dd.p.dm": "-0",
          "component": "graphql",
          "graphql.operation.name": "HELLO",
          "graphql.operation.type": "query",
@@ -96,7 +92,6 @@
           "error": 0,
           "meta": {
             "_dd.base_service": "",
-            "_dd.p.dm": "-0",
             "component": "graphql"
           },
           "duration": 18959,

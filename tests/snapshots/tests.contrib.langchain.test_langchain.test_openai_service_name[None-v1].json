@@ -27,22 +27,22 @@
       "langchain.response.completions.0.logprobs": "None",
       "langchain.response.completions.0.text": "\\n\\nDescartes' famous phrase \"I think, therefore I am\" is a fundamental statement of his philosophical approach, known as Cartes...",
       "language": "python",
-      "runtime-id": "d910d37b0fbf4434b945952fe90a765a"
+      "runtime-id": "0535ca6109ec4a42850d525b29eb2898"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
+      "_sample_rate": 1.0,
       "_sampling_priority_v1": 1,
       "langchain.tokens.completion_tokens": 95,
       "langchain.tokens.prompt_tokens": 17,
       "langchain.tokens.total_cost": 0.0022400000000000002,
       "langchain.tokens.total_tokens": 112,
-      "process_id": 52087
+      "process_id": 13724
     },
-    "duration": 4941766,
-    "start": 1691167376662540124
+    "duration": 5142047,
+    "start": 1694032725147778529
   },
      {
        "name": "openai.request",
@@ -54,7 +54,6 @@
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.p.dm": "-0",
          "component": "openai",
          "openai.api_base": "https://api.openai.com/v1",
          "openai.api_type": "open_ai",
@@ -78,13 +77,14 @@
        },
        "metrics": {
          "_dd.measured": 1,
+         "_sample_rate": 1.0,
          "openai.organization.ratelimit.requests.remaining": 2999,
          "openai.organization.ratelimit.tokens.remaining": 249744,
          "openai.response.choices_count": 1,
          "openai.response.created": 1687283761
        },
-       "duration": 4495239,
-       "start": 1691167376662819053
+       "duration": 4683260,
+       "start": 1694032725148072138
      },
         {
           "name": "http.client.request",
@@ -96,7 +96,6 @@
           "type": "http",
           "error": 0,
           "meta": {
-            "_dd.p.dm": "-0",
             "_dd.peer.service.source": "out.host",
             "component": "requests",
             "http.method": "POST",
@@ -110,6 +109,6 @@
           "metrics": {
             "_dd.measured": 1
           },
-          "duration": 1959100,
-          "start": 1691167376664683901
+          "duration": 1972247,
+          "start": 1694032725150109607
         }]]

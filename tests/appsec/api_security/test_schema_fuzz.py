@@ -105,9 +105,10 @@ def deep_build_schema(n, mini=0):
                 {"len": 20, "truncated": True},
             ],
         ),
-        ({str(i): "toast" for i in range((512))}, [{str(i): [8] for i in range(256)}]),
-        (deep_build(40), deep_build_schema(40, 21)),
+        ({str(i): "toast" for i in range((512))}, [{str(i): [8] for i in range(255)}, {"truncated": True}]),
+        (deep_build(40), deep_build_schema(40, 23)),
     ],
 )
 def test_limits(obj, res):
-    assert equal_with_meta(build_schema(obj), res)  # max_depth=20, max_girth=256, max_types_in_array=10
+    schema = build_schema(obj)
+    assert equal_with_meta(schema, res)  # max_depth=18, max_girth=255, max_types_in_array=10

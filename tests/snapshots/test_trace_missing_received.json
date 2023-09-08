@@ -12,7 +12,6 @@
       "runtime-id": "85e0245afd424d4298fb67077ecc3897"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,

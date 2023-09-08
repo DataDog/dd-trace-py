@@ -124,6 +124,8 @@ def override_global_config(values):
         "_user_model_login_field",
         "_user_model_email_field",
         "_user_model_name_field",
+        "_remote_config_enabled",
+        "_remote_config_poll_interval",
         "_sampling_rules",
         "_sampling_rules_file",
         "_trace_sample_rate",
