@@ -310,8 +310,9 @@ def _set_priority(span, priority):
 
 def _get_highest_precedence_rule_matching(span, rules):
     # type: (Span, List[SamplingRule]) -> Optional[SamplingRule]
-    # Go through all rules and grab the first one that matched
-    # DEV: This means rules should be ordered by the user from most specific to least specific
+    if not rules:
+        return None
+
     for rule in rules:
         if rule.matches(span):
             return rule
