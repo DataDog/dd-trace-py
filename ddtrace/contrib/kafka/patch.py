@@ -15,7 +15,6 @@ from ddtrace.internal import core
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import MESSAGING_SYSTEM
-from ddtrace.internal.datastreams.processor import PROPAGATION_KEY
 from ddtrace.internal.schema import schematize_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection

@@ -5,16 +5,16 @@ import time
 import confluent_kafka
 from confluent_kafka import KafkaException
 from confluent_kafka import admin as kafka_admin
+import mock
 import pytest
 import six
 
-import ddtrace.internal.datastreams
-import mock
 from ddtrace import Pin
 from ddtrace import Tracer
 from ddtrace.contrib.kafka.patch import patch
 from ddtrace.contrib.kafka.patch import unpatch
 from ddtrace.filters import TraceFilter
+import ddtrace.internal.datastreams  # noqa: F401 - used as part of mock patching
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from tests.contrib.config import KAFKA_CONFIG
 from tests.utils import DummyTracer
@@ -70,6 +70,7 @@ def tracer():
         t.flush()
         t.shutdown()
         unpatch()
+
 
 @pytest.fixture
 def dsm_processor(tracer):
