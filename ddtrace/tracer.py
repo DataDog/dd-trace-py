@@ -54,7 +54,6 @@ from .internal.serverless import in_azure_function_consumption_plan
 from .internal.serverless import in_gcp_function
 from .internal.serverless.mini_agent import maybe_start_serverless_mini_agent
 from .internal.service import ServiceStatusError
-from .internal.utils.formats import asbool
 from .internal.utils.http import verify_url
 from .internal.writer import AgentWriter
 from .internal.writer import LogWriter
@@ -247,7 +246,7 @@ class Tracer(object):
         # traces
         self._pid = getpid()
 
-        self.enabled = asbool(os.getenv("DD_TRACE_ENABLED", default=True))
+        self.enabled = config._tracing_enabled
         self.context_provider = context_provider or DefaultContextProvider()
         self._sampler = DatadogSampler()  # type: BaseSampler
         self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
@@ -268,8 +267,8 @@ class Tracer(object):
             )
         self._single_span_sampling_rules = get_span_sampling_rules()  # type: List[SpanSamplingRule]
         self._writer = writer  # type: TraceWriter
-        self._partial_flush_enabled = asbool(os.getenv("DD_TRACE_PARTIAL_FLUSH_ENABLED", default=True))
-        self._partial_flush_min_spans = int(os.getenv("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", default=500))
+        self._partial_flush_enabled = config._partial_flush_enabled
+        self._partial_flush_min_spans = config._partial_flush_min_spans
         self._appsec_enabled = config._appsec_enabled
         # Direct link to the appsec processor
         self._appsec_processor = None
