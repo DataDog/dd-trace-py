@@ -469,6 +469,7 @@ class AgentWriter(HTTPWriter):
     def __init__(
         self,
         agent_url,  # type: str
+        priority_sampling=False,  # type: bool
         processing_interval=None,  # type: Optional[float]
         # Match the payload size since there is no functionality
         # to flush dynamically.
@@ -498,11 +499,10 @@ class AgentWriter(HTTPWriter):
         #      as a safety precaution.
         #      https://docs.python.org/3/library/sys.html#sys.platform
         is_windows = sys.platform.startswith("win") or sys.platform.startswith("cygwin")
-
         default_api_version = (
             "v0.4" if (is_windows or in_gcp_function() or in_azure_function_consumption_plan()) else "v0.5"
         )
-        self._api_version = api_version or config._trace_api or default_api_version
+        self._api_version = api_version or config._trace_api or (default_api_version if priority_sampling else "v0.3")
         if is_windows and self._api_version == "v0.5":
             raise RuntimeError(
                 "There is a known compatibility issue with v0.5 API and Windows, "
