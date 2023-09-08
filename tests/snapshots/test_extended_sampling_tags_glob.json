@@ -37,8 +37,8 @@
     "meta": {
       "_dd.p.dm": "-0",
       "language": "python",
-      "runtime-id": "c3c5d61c08d04b488d7b54ebe541d3be"
-      "tag1": "mcooltag",
+      "runtime-id": "c3c5d61c08d04b488d7b54ebe541d3be",
+      "tag1": "mcooltag"
     },
     "metrics": {
       "_dd.top_level": 1,
