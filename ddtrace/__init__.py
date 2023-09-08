@@ -46,6 +46,15 @@ __version__ = get_version()
 # a global tracer instance with integration settings
 tracer = Tracer()
 
+
+# The telemetry writer is not started until data is queued but this creates a
+# problem for CPython 3.12 which disallows thread creation at interpreter
+# finalization. In order to support 3.12, we start the writer upon initialization.
+# See https://github.com/python/cpython/pull/104826.
+if sys.version_info >= (3, 12):
+    telemetry.telemetry_writer.enable()
+
+
 __all__ = [
     "patch",
     "patch_all",

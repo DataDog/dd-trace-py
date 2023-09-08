@@ -91,7 +91,8 @@
             "ddtrace/settings/exception_debugging.py"
         ],
         "ci_visibility": [
-            "ddtrace/internal/ci_visibility/*"
+            "ddtrace/internal/ci_visibility/*",
+            "ddtrace/ext/test.py"
         ],
         "sourcecode": [
             "ddtrace/sourcecode/*"
@@ -756,6 +757,7 @@
         ],
         "unittest": [
             "@unittest",
+            "@ci_visibility",
             "tests/contrib/unittest_plugin/*"
         ],
         "asynctest": [

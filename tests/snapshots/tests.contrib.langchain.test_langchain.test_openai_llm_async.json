@@ -27,19 +27,20 @@
       "langchain.response.completions.0.logprobs": "None",
       "langchain.response.completions.0.text": "\\n\\nThe Toronto Raptors won the 2019 NBA Finals.",
       "language": "python",
-      "runtime-id": "dfd2ce0f0c3347ffb6655649ad48bd1f"
+      "runtime-id": "e3591036c91f49bfa00c0a77feefcb9b"
     },
     "metrics": {
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
+      "_sample_rate": 1.0,
       "_sampling_priority_v1": 1,
       "langchain.tokens.completion_tokens": 11,
       "langchain.tokens.prompt_tokens": 8,
       "langchain.tokens.total_cost": 0.00038,
       "langchain.tokens.total_tokens": 19,
-      "process_id": 52007
+      "process_id": 10515
     },
-    "duration": 2619762,
-    "start": 1691167368581933748
+    "duration": 2442415,
+    "start": 1694032466539856680
   }]]

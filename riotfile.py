@@ -267,7 +267,7 @@ venv = Venv(
                 "gevent": latest,
                 "pytest-asyncio": latest,
             },
-            pys=select_pys(min_version="3.7"),
+            pys=select_pys(min_version="3.7", max_version="3.12"),
         ),
         Venv(
             name="gevent",

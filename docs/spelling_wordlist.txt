@@ -236,12 +236,14 @@ url
 urls
 username
 uvicorn
+vendored
 versioned
 vertica
 w3c
 whitelist
 whitespace
 workflow
+Wrapt
 wsgi
 xfail
 yaaredis

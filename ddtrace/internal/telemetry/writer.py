@@ -221,7 +221,6 @@ class TelemetryWriter(PeriodicService):
         self._disabled = True
         self.reset_queues()
         if self._is_periodic and self.status is ServiceStatus.RUNNING:
-            atexit.unregister(self.stop)
             self.stop()
         else:
             self.status = ServiceStatus.STOPPED
@@ -606,6 +605,8 @@ class TelemetryWriter(PeriodicService):
         self.reset_queues()
         if self.status == ServiceStatus.STOPPED:
             return
+
+        self.stop(join=False)
 
         # Enable writer service in child process to avoid interpreter shutdown
         # error in Python 3.12

@@ -5,7 +5,6 @@ prelude: >
   versions of the ddtrace library, drops support for Python 2.7, 3.5, and 3.6, and adds support for Python 3.12.
 
 
-
   .. important::
     ddtrace v2.0.0 drops support for Python 2.7, 3.5, and 3.6. Users running these unsupported
     Python versions should consider upgrading their Python version or continue using ddtrace v1
@@ -35,7 +34,6 @@ prelude: >
   to avoid conflicting with application logging configurations. ``DD_CALL_BASIC_CONFIG``
   has been removed and the ddtrace logger will log to stdout by default, or a log file
   as specified using ``DD_TRACE_LOG_FILE``.
-
 
   Setting the environment variable ``DD_TRACE_PROPAGATION_STYLE='b3'`` has been removed.
   Please use `DD_TRACE_PROPAGATION_STYLE='b3multi'`` instead.
