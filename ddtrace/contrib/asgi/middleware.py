@@ -16,7 +16,7 @@ from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
 from .. import trace_utils
 from ...appsec._constants import WAF_CONTEXT_NAMES
-from ...internal import _context
+from ...internal import core
 from ...internal.compat import reraise
 from ...internal.logger import get_logger
 from .utils import guarantee_single_callable
@@ -39,6 +39,11 @@ config._add(
 
 ASGI_VERSION = "asgi.version"
 ASGI_SPEC_VERSION = "asgi.spec_version"
+
+
+def get_version():
+    # type: () -> str
+    return ""
 
 
 def bytes_to_str(str_or_bytes):
@@ -83,7 +88,7 @@ def span_from_scope(scope):
 
 
 def _request_blocked(span):
-    return span and config._appsec_enabled and _context.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span)
+    return span and config._appsec_enabled and core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span)
 
 
 async def _blocked_asgi_app(scope, receive, send):

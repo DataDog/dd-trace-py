@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    openai: ``tiktoken`` has been introduced as an optional package dependency to calculate the number of
+     tokens used in a prompt for a streamed completion or streamed chat completion. To enable this feature,
+     install ``ddtrace[openai]`` or ``tiktoken``. If ``tiktoken`` is not installed, the prompt token count
+     will be continue to be estimated instead. 

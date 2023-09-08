@@ -24,18 +24,19 @@ from .. import compat
 from .. import periodic
 from .. import service
 from ...constants import KEEP_SPANS_RATE_KEY
-from ...internal.serverless import in_gcp_function
-from ...internal.telemetry import telemetry_lifecycle_writer
-from ...internal.utils.formats import asbool
+from ...internal.telemetry import telemetry_writer
 from ...internal.utils.formats import parse_tags_str
 from ...internal.utils.http import Response
 from ...internal.utils.time import StopWatch
 from .._encoding import BufferFull
 from .._encoding import BufferItemTooLarge
 from ..agent import get_connection
+from ..constants import _HTTPLIB_NO_TRACE_REQUEST
 from ..encoding import JSONEncoderV2
 from ..logger import get_logger
 from ..runtime import container
+from ..serverless import in_azure_function_consumption_plan
+from ..serverless import in_gcp_function
 from ..sma import SimpleMovingAverage
 from .writer_client import AgentWriterClientV3
 from .writer_client import AgentWriterClientV4
@@ -44,6 +45,8 @@ from .writer_client import WriterClientBase
 
 
 if TYPE_CHECKING:  # pragma: no cover
+    from typing import Tuple
+
     from ddtrace import Span
 
     from .agent import ConnectionType
@@ -63,31 +66,6 @@ class NoEncodableSpansError(Exception):
 # 2s timeout, the java tracer has a 10s timeout, so we set the window size
 # to 10 buckets of 1s duration.
 DEFAULT_SMA_WINDOW = 10
-
-DEFAULT_BUFFER_SIZE = 8 << 20  # 8 MB
-DEFAULT_MAX_PAYLOAD_SIZE = 8 << 20  # 8 MB
-DEFAULT_PROCESSING_INTERVAL = 1.0
-DEFAULT_REUSE_CONNECTIONS = False
-
-
-def get_writer_buffer_size():
-    # type: () -> int
-    return int(os.getenv("DD_TRACE_WRITER_BUFFER_SIZE_BYTES", default=DEFAULT_BUFFER_SIZE))
-
-
-def get_writer_max_payload_size():
-    # type: () -> int
-    return int(os.getenv("DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES", default=DEFAULT_MAX_PAYLOAD_SIZE))
-
-
-def get_writer_interval_seconds():
-    # type: () -> float
-    return float(os.getenv("DD_TRACE_WRITER_INTERVAL_SECONDS", default=DEFAULT_PROCESSING_INTERVAL))
-
-
-def get_writer_reuse_connections():
-    # type: () -> bool
-    return asbool(os.getenv("DD_TRACE_WRITER_REUSE_CONNECTIONS", DEFAULT_REUSE_CONNECTIONS))
 
 
 def _human_size(nbytes):
@@ -171,12 +149,12 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         self,
         intake_url,  # type: str
         clients,  # type: List[WriterClientBase]
-        processing_interval=get_writer_interval_seconds(),  # type: float
+        processing_interval=None,  # type: Optional[float]
         # Match the payload size since there is no functionality
         # to flush dynamically.
         buffer_size=None,  # type: Optional[int]
         max_payload_size=None,  # type: Optional[int]
-        timeout=agent.get_trace_agent_timeout(),  # type: float
+        timeout=None,  # type: Optional[float]
         dogstatsd=None,  # type: Optional[DogStatsd]
         sync_mode=False,  # type: bool
         reuse_connections=None,  # type: Optional[bool]
@@ -184,6 +162,10 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
     ):
         # type: (...) -> None
 
+        if processing_interval is None:
+            processing_interval = config._trace_writer_interval_seconds
+        if timeout is None:
+            timeout = agent.get_trace_agent_timeout()
         super(HTTPWriter, self).__init__(interval=processing_interval)
         self.intake_url = intake_url
         self._buffer_size = buffer_size
@@ -208,8 +190,9 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             until=lambda result: isinstance(result, Response),
         )(self._send_payload)
 
-        self._log_error_payloads = asbool(os.environ.get("_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", False))
-        self._reuse_connections = get_writer_reuse_connections() if reuse_connections is None else reuse_connections
+        self._reuse_connections = (
+            config._trace_writer_connection_reuse if reuse_connections is None else reuse_connections
+        )
 
     def _intake_endpoint(self, client=None):
         return "{}/{}".format(self._intake_url(client), client.ENDPOINT if client else self._endpoint)
@@ -227,20 +210,24 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             return client._intake_url
         return self.intake_url
 
-    def _metrics_dist(self, name, count=1, tags=None):
-        self._metrics[name]["count"] += count
-        if tags:
-            self._metrics[name]["tags"].extend(tags)
+    def _metrics_dist(self, name, count=1, tags=tuple()):
+        # type: (str, int, Tuple) -> None
+        if tags in self._metrics[name]:
+            self._metrics[name][tags] += count
+        else:
+            self._metrics[name][tags] = count
 
     def _metrics_reset(self):
-        self._metrics = defaultdict(lambda: {"count": 0, "tags": []})
+        # type: () -> None
+        self._metrics = defaultdict(dict)  # type: Dict[str, Dict[Tuple[str,...], int]]
 
     def _set_drop_rate(self):
         dropped = sum(
-            self._metrics[metric]["count"]
+            counts
             for metric in ("encoder.dropped.traces", "buffer.dropped.traces", "http.dropped.traces")
+            for _tags, counts in self._metrics[metric].items()
         )
-        accepted = self._metrics["writer.accepted.traces"]["count"]
+        accepted = sum(counts for _tags, counts in self._metrics["writer.accepted.traces"].items())
 
         if dropped > accepted:
             # Sanity check, we cannot drop more traces than we accepted.
@@ -265,14 +252,15 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 self._conn.close()
                 self._conn = None
 
-    def _put(self, data, headers, client):
-        # type: (bytes, Dict[str, str], WriterClientBase) -> Response
+    def _put(self, data, headers, client, no_trace):
+        # type: (bytes, Dict[str, str], WriterClientBase, bool) -> Response
         sw = StopWatch()
         sw.start()
         with self._conn_lck:
             if self._conn is None:
                 log.debug("creating new intake connection to %s with timeout %d", self.intake_url, self._timeout)
                 self._conn = get_connection(self._intake_url(client), self._timeout)
+                setattr(self._conn, _HTTPLIB_NO_TRACE_REQUEST, no_trace)
             try:
                 log.debug("Sending request: %s %s %s", self.HTTP_METHOD, client.ENDPOINT, headers)
                 self._conn.request(
@@ -313,10 +301,10 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
 
         self._metrics_dist("http.requests")
 
-        response = self._put(payload, headers, client)
+        response = self._put(payload, headers, client, no_trace=True)
 
         if response.status >= 400:
-            self._metrics_dist("http.errors", tags=["type:%s" % response.status])
+            self._metrics_dist("http.errors", tags=("type:%s" % response.status,))
         else:
             self._metrics_dist("http.sent.bytes", len(payload))
 
@@ -328,7 +316,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 response.reason,
             )
             # Append the payload if requested
-            if self._log_error_payloads:
+            if config._trace_writer_log_err_payload:
                 msg += ", payload %s"
                 # If the payload is bytes then hex encode the value before logging
                 if isinstance(payload, six.binary_type):
@@ -373,8 +361,8 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 payload_size,
                 client.encoder.max_item_size,
             )
-            self._metrics_dist("buffer.dropped.traces", 1, tags=["reason:t_too_big"])
-            self._metrics_dist("buffer.dropped.bytes", payload_size, tags=["reason:t_too_big"])
+            self._metrics_dist("buffer.dropped.traces", 1, tags=("reason:t_too_big",))
+            self._metrics_dist("buffer.dropped.bytes", payload_size, tags=("reason:t_too_big",))
         except BufferFull as e:
             payload_size = e.args[0]
             log.warning(
@@ -385,10 +373,10 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 payload_size,
                 self.status.value,
             )
-            self._metrics_dist("buffer.dropped.traces", 1, tags=["reason:full"])
-            self._metrics_dist("buffer.dropped.bytes", payload_size, tags=["reason:full"])
+            self._metrics_dist("buffer.dropped.traces", 1, tags=("reason:full",))
+            self._metrics_dist("buffer.dropped.bytes", payload_size, tags=("reason:full",))
         except NoEncodableSpansError:
-            self._metrics_dist("buffer.dropped.traces", 1, tags=["reason:incompatible"])
+            self._metrics_dist("buffer.dropped.traces", 1, tags=("reason:incompatible",))
         else:
             self._metrics_dist("buffer.accepted.traces", 1)
             self._metrics_dist("buffer.accepted.spans", len(spans))
@@ -416,7 +404,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         try:
             self._send_payload_with_backoff(encoded, n_traces, client)
         except Exception:
-            self._metrics_dist("http.errors", tags=["type:err"])
+            self._metrics_dist("http.errors", tags=("type:err",))
             self._metrics_dist("http.dropped.bytes", len(encoded))
             self._metrics_dist("http.dropped.traces", n_traces)
             if raise_exc:
@@ -437,10 +425,9 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 # This really isn't ideal as now we're going to do a ton of socket calls.
                 self.dogstatsd.distribution("datadog.%s.http.sent.bytes" % namespace, len(encoded))
                 self.dogstatsd.distribution("datadog.%s.http.sent.traces" % namespace, n_traces)
-                for name, metric in self._metrics.items():
-                    self.dogstatsd.distribution(
-                        "datadog.%s.%s" % (namespace, name), metric["count"], tags=metric["tags"]
-                    )
+                for name, metric_tags in self._metrics.items():
+                    for tags, count in metric_tags.items():
+                        self.dogstatsd.distribution("datadog.%s.%s" % (namespace, name), count, tags=list(tags))
 
     def periodic(self):
         self.flush_queue(raise_exc=False)
@@ -482,12 +469,12 @@ class AgentWriter(HTTPWriter):
     def __init__(
         self,
         agent_url,  # type: str
-        processing_interval=get_writer_interval_seconds(),  # type: float
+        processing_interval=None,  # type: Optional[float]
         # Match the payload size since there is no functionality
         # to flush dynamically.
         buffer_size=None,  # type: Optional[int]
         max_payload_size=None,  # type: Optional[int]
-        timeout=agent.get_trace_agent_timeout(),  # type: float
+        timeout=None,  # type: Optional[float]
         dogstatsd=None,  # type: Optional[DogStatsd]
         report_metrics=False,  # type: bool
         sync_mode=False,  # type: bool
@@ -497,6 +484,10 @@ class AgentWriter(HTTPWriter):
         response_callback=None,  # type: Optional[Callable[[AgentResponse], None]]
     ):
         # type: (...) -> None
+        if processing_interval is None:
+            processing_interval = config._trace_writer_interval_seconds
+        if timeout is None:
+            timeout = agent.get_trace_agent_timeout()
         if buffer_size is not None and buffer_size <= 0:
             raise ValueError("Writer buffer size must be positive")
         if max_payload_size is not None and max_payload_size <= 0:
@@ -507,17 +498,19 @@ class AgentWriter(HTTPWriter):
         #      as a safety precaution.
         #      https://docs.python.org/3/library/sys.html#sys.platform
         is_windows = sys.platform.startswith("win") or sys.platform.startswith("cygwin")
-        default_api_version = "v0.4" if (is_windows or in_gcp_function()) else "v0.5"
 
-        self._api_version = api_version or os.getenv("DD_TRACE_API_VERSION") or default_api_version
+        default_api_version = (
+            "v0.4" if (is_windows or in_gcp_function() or in_azure_function_consumption_plan()) else "v0.5"
+        )
+        self._api_version = api_version or config._trace_api or default_api_version
         if is_windows and self._api_version == "v0.5":
             raise RuntimeError(
                 "There is a known compatibility issue with v0.5 API and Windows, "
                 "please see https://github.com/DataDog/dd-trace-py/issues/4829 for more details."
             )
 
-        buffer_size = buffer_size or get_writer_buffer_size()
-        max_payload_size = max_payload_size or get_writer_max_payload_size()
+        buffer_size = buffer_size or config._trace_writer_buffer_size
+        max_payload_size = max_payload_size or config._trace_writer_payload_size
         try:
             client = WRITER_CLIENTS[self._api_version](buffer_size, max_payload_size)
         except KeyError:
@@ -630,7 +623,16 @@ class AgentWriter(HTTPWriter):
     def start(self):
         super(AgentWriter, self).start()
         try:
-            telemetry_lifecycle_writer.enable()
+            telemetry_writer.enable()
+
+            # appsec remote config should be enabled/started after the global tracer and configs
+            # are initialized
+            if os.getenv("AWS_LAMBDA_FUNCTION_NAME") is None and (
+                config._appsec_enabled or config._remote_config_enabled
+            ):
+                from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
+
+                enable_appsec_rc()
         except service.ServiceStatusError:
             pass
 

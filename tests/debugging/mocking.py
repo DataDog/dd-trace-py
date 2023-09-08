@@ -4,8 +4,12 @@ from contextlib import contextmanager
 import json
 from time import sleep
 from typing import Any
+from typing import Generator
 
-from ddtrace.debugging._config import config
+from envier import En
+
+from ddtrace.debugging._config import di_config
+from ddtrace.debugging._config import ed_config
 from ddtrace.debugging._debugger import Debugger
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
@@ -68,6 +72,19 @@ class MockProbeStatusLogger(DummyProbeStatusLogger):
         super(MockProbeStatusLogger, self).__init__(service, encoder)
         self.queue = []
 
+    def clear(self):
+        self.queue[:] = []
+
+    def wait(self, cond, timeout=1.0):
+        end = monotonic() + timeout
+
+        while monotonic() < end:
+            if cond(self.queue):
+                return True
+            sleep(0.01)
+
+        raise PayloadWaitTimeout()
+
 
 class TestSignalCollector(SignalCollector):
     def __init__(self, *args, **kwargs):
@@ -83,6 +100,20 @@ class TestSignalCollector(SignalCollector):
     def _enqueue(self, snapshot):
         self.test_queue.append(snapshot)
         return super(TestSignalCollector, self)._enqueue(snapshot)
+
+    @property
+    def queue(self):
+        return self.test_queue
+
+    def wait(self, cond=lambda q: q, timeout=1.0):
+        end = monotonic() + timeout
+
+        while monotonic() <= end:
+            if cond(self.test_queue):
+                return self.test_queue
+            sleep(0.01)
+
+        raise PayloadWaitTimeout()
 
 
 class TestDebugger(Debugger):
@@ -115,6 +146,10 @@ class TestDebugger(Debugger):
         return self._uploader
 
     @property
+    def collector(self):
+        return self._collector
+
+    @property
     def probe_status_logger(self):
         return self._probe_registry.logger
 
@@ -128,14 +163,14 @@ class TestDebugger(Debugger):
 
 
 @contextmanager
-def debugger(**config_overrides):
-    # type: (Any) -> None
+def _debugger(config_to_override, config_overrides):
+    # type: (En, Any) -> Generator[TestDebugger, None, None]
     """Test with the debugger enabled."""
     atexit_register = atexit.register
     try:
-        old_config = config.__dict__
-        config.__dict__ = dict(old_config)
-        config.__dict__.update(config_overrides)
+        old_config = config_to_override.__dict__
+        config_to_override.__dict__ = dict(old_config)
+        config_to_override.__dict__.update(config_overrides)
 
         atexit.register = lambda _: None
 
@@ -148,6 +183,23 @@ def debugger(**config_overrides):
         try:
             TestDebugger.disable()
             assert TestDebugger._instance is None
-            config.__dict__ = old_config
+            config_to_override.__dict__ = old_config
         finally:
             atexit.register = atexit_register
+
+
+@contextmanager
+def debugger(**config_overrides):
+    # type: (Any) -> Generator[TestDebugger, None, None]
+    """Test with the debugger enabled."""
+    with _debugger(di_config, config_overrides) as debugger:
+        yield debugger
+
+
+@contextmanager
+def exception_debugging(**config_overrides):
+    # type: (Any) -> Generator[TestDebugger, None, None]
+    config_overrides.setdefault("enabled", True)
+
+    with _debugger(ed_config, config_overrides) as ed:
+        yield ed

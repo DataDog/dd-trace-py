@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    wsgi: This fix resolves an issues when trying to parse the ``environ`` property ``HTTPS`` as an HTTP header.

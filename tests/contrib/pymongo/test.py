@@ -8,6 +8,7 @@ import pymongo
 from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.pymongo.client import normalize_filter
+from ddtrace.contrib.pymongo.patch import _CHECKOUT_FN_NAME
 from ddtrace.contrib.pymongo.patch import patch
 from ddtrace.contrib.pymongo.patch import unpatch
 from ddtrace.ext import SpanTypes
@@ -226,7 +227,7 @@ class PymongoCore(object):
         # wildcard query (using the [] syntax)
         cursor = db["teams"].find()
         count = 0
-        for row in cursor:
+        for _row in cursor:
             count += 1
         assert count == len(teams)
 
@@ -392,7 +393,7 @@ class PymongoCore(object):
 
         assert len(queried) == 2
         count = 0
-        for row in queried:
+        for _row in queried:
             count += 1
         assert count == 2
 
@@ -654,6 +655,21 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         assert len(spans) == 1
         assert spans[0].name == "mongodb.query"
 
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_peer_service_tagging(self):
+        tracer = DummyTracer()
+        client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
+        Pin.get_from(client).clone(tracer=tracer).onto(client)
+        # We do not wish to trace tcp spans here
+        Pin.get_from(pymongo.server.Server).remove_from(pymongo.server.Server)
+        db_name = "testdb"
+        client[db_name].drop_collection("whatever")
+        spans = tracer.pop()
+        assert len(spans) == 1
+        for span in spans:
+            assert span.get_tag("mongodb.db") == db_name
+            assert span.get_tag("peer.service") == db_name
+
     def test_patch_with_disabled_tracer(self):
         tracer, client = self.get_tracer_and_client()
         tracer.configure(enabled=False)
@@ -688,7 +704,7 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         # assert one team was deleted
         cursor = db["teams"].find()
         count = 0
-        for row in cursor:
+        for _row in cursor:
             count += 1
         assert count == len(teams) - 1
 
@@ -737,7 +753,7 @@ class TestPymongoSocketTracing(TracerTestCase):
 
     @staticmethod
     def check_socket_metadata(span):
-        assert span.name == "pymongo.get_socket"
+        assert span.name == "pymongo.%s" % _CHECKOUT_FN_NAME
         assert span.service == "pymongo"
         assert span.span_type == SpanTypes.MONGODB
         assert span.get_tag("out.host") == "localhost"
@@ -805,8 +821,8 @@ class TestPymongoSocketTracing(TracerTestCase):
             # run_operation_with_response() which takes as an argument a sock_info. The
             # lib now first calls get_socket() and then run_operation_with_response(sock_info),
             # which makes more sense and also allows us to trace the function correctly.
-            assert {first_span.name, second_span.name} == {"pymongo.cmd", "pymongo.get_socket"}
-            if first_span.name == "pymongo.get_socket":
+            assert {first_span.name, second_span.name} == {"pymongo.cmd", "pymongo.%s" % _CHECKOUT_FN_NAME}
+            if first_span.name == "pymongo.%s" % _CHECKOUT_FN_NAME:
                 self.check_socket_metadata(first_span)
             else:
                 self.check_socket_metadata(second_span)

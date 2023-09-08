@@ -3,6 +3,7 @@ import sys
 from typing import TYPE_CHECKING
 
 from ddtrace.appsec.iast import oce
+from ddtrace.appsec.iast._metrics import _set_metric_iast_instrumented_sink
 from ddtrace.appsec.iast._patch import set_and_check_module_is_patched
 from ddtrace.appsec.iast._patch import set_module_unpatched
 from ddtrace.appsec.iast._patch import try_unwrap
@@ -38,6 +39,7 @@ def get_weak_hash_algorithms():
 class WeakHash(VulnerabilityBase):
     vulnerability_type = VULN_INSECURE_HASHING_TYPE
     evidence_type = EVIDENCE_ALGORITHM_TYPE
+    scrub_evidence = False
 
 
 def unpatch_iast():
@@ -64,6 +66,11 @@ def unpatch_iast():
     try_unwrap("Crypto.Hash.SHA1", "SHA1Hash.hexdigest")
 
 
+def get_version():
+    # type: () -> str
+    return ""
+
+
 def patch():
     # type: () -> None
     """Wrap hashing functions.
@@ -78,30 +85,41 @@ def patch():
         return
 
     weak_hash_algorithms = get_weak_hash_algorithms()
-
+    num_instrumented_sinks = 0
     if sys.version_info >= (3, 0, 0):
         try_wrap_function_wrapper("_hashlib", "HASH.digest", wrapped_digest_function)
         try_wrap_function_wrapper("_hashlib", "HASH.hexdigest", wrapped_digest_function)
+        num_instrumented_sinks += 2
         if MD5_DEF in weak_hash_algorithms:
             try_wrap_function_wrapper(("_%s" % MD5_DEF), "MD5Type.digest", wrapped_md5_function)
             try_wrap_function_wrapper(("_%s" % MD5_DEF), "MD5Type.hexdigest", wrapped_md5_function)
+            num_instrumented_sinks += 2
         if SHA1_DEF in weak_hash_algorithms:
             try_wrap_function_wrapper(("_%s" % SHA1_DEF), "SHA1Type.digest", wrapped_sha1_function)
             try_wrap_function_wrapper(("_%s" % SHA1_DEF), "SHA1Type.hexdigest", wrapped_sha1_function)
+            num_instrumented_sinks += 2
     else:
         if MD5_DEF in weak_hash_algorithms:
             try_wrap_function_wrapper("hashlib", MD5_DEF, wrapped_md5_function)
+            num_instrumented_sinks += 1
         if SHA1_DEF in weak_hash_algorithms:
             try_wrap_function_wrapper("hashlib", SHA1_DEF, wrapped_sha1_function)
+            num_instrumented_sinks += 1
         try_wrap_function_wrapper("hashlib", "new", wrapped_new_function)
+        num_instrumented_sinks += 1
 
     # pycryptodome methods
     if MD5_DEF in weak_hash_algorithms:
         try_wrap_function_wrapper("Crypto.Hash.MD5", "MD5Hash.digest", wrapped_md5_function)
         try_wrap_function_wrapper("Crypto.Hash.MD5", "MD5Hash.hexdigest", wrapped_md5_function)
+        num_instrumented_sinks += 2
     if SHA1_DEF in weak_hash_algorithms:
         try_wrap_function_wrapper("Crypto.Hash.SHA1", "SHA1Hash.digest", wrapped_sha1_function)
         try_wrap_function_wrapper("Crypto.Hash.SHA1", "SHA1Hash.hexdigest", wrapped_sha1_function)
+        num_instrumented_sinks += 2
+
+    if num_instrumented_sinks > 0:
+        _set_metric_iast_instrumented_sink(VULN_INSECURE_HASHING_TYPE, num_instrumented_sinks)
 
 
 @WeakHash.wrap

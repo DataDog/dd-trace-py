@@ -2,6 +2,7 @@ from types import CodeType
 from types import FrameType
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.profiling.event import DDFrame
 
 
 log = get_logger(__name__)
@@ -44,7 +45,7 @@ cpdef traceback_to_frames(traceback, max_nframes):
             frame = tb.tb_frame
             code = frame.f_code
             lineno = 0 if frame.f_lineno is None else frame.f_lineno
-            frames.insert(0, (code.co_filename, lineno, code.co_name, _extract_class_name(frame)))
+            frames.insert(0, DDFrame(code.co_filename, lineno, code.co_name, _extract_class_name(frame)))
         nframes += 1
         tb = tb.tb_next
     return frames, nframes
@@ -71,16 +72,16 @@ cpdef pyframe_to_frames(frame, max_nframes):
     nframes = 0
 
     while frame is not None:
-        IF PY_MAJOR_VERSION > 3 or (PY_MAJOR_VERSION == 3 and PY_MINOR_VERSION >= 11):
+        IF PY_VERSION_HEX >= 0x030b0000:
             if not isinstance(frame, FrameType):
                 log.warning(
                     "Got object of type '%s' instead of a frame object during stack unwinding", type(frame).__name__
                 )
                 return [], 0
-        
+
         if nframes < max_nframes:
             code = frame.f_code
-            IF PY_MAJOR_VERSION > 3 or (PY_MAJOR_VERSION == 3 and PY_MINOR_VERSION >= 11):
+            IF PY_VERSION_HEX >= 0x030b0000:
                 if not isinstance(code, CodeType):
                     log.warning(
                         "Got object of type '%s' instead of a code object during stack unwinding", type(code).__name__
@@ -88,7 +89,7 @@ cpdef pyframe_to_frames(frame, max_nframes):
                     return [], 0
 
             lineno = 0 if frame.f_lineno is None else frame.f_lineno
-            frames.append((code.co_filename, lineno, code.co_name, _extract_class_name(frame)))
+            frames.append(DDFrame(code.co_filename, lineno, code.co_name, _extract_class_name(frame)))
         nframes += 1
         frame = frame.f_back
     return frames, nframes

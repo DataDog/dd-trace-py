@@ -13,11 +13,11 @@ import six
 
 from ddtrace.contrib.flask.patch import flask_version
 from ddtrace.internal.compat import PY2
-from ddtrace.internal.constants import APPSEC_BLOCKED_RESPONSE_HTML
-from ddtrace.internal.constants import APPSEC_BLOCKED_RESPONSE_JSON
+from ddtrace.internal.constants import BLOCKED_RESPONSE_HTML
+from ddtrace.internal.constants import BLOCKED_RESPONSE_JSON
 from ddtrace.internal.utils.retry import RetryError
 from tests.appsec.test_processor import RULES_GOOD_PATH
-from tests.appsec.test_processor import _BLOCKED_IP
+from tests.appsec.test_processor import _IP
 from tests.contrib.flask.test_flask_appsec import _ALLOWED_USER
 from tests.contrib.flask.test_flask_appsec import _BLOCKED_USER
 from tests.webclient import Client
@@ -131,12 +131,12 @@ def flask_client(flask_command, flask_port, flask_wsgi_application, flask_env_ar
 @pytest.mark.parametrize("flask_env_arg", (flask_appsec_good_rules_env,))
 @pytest.mark.skipif(PY2, reason="Python2 + flask +  + subprocesses + pytest is known to hang")
 def test_flask_ipblock_match_403(flask_client):
-    resp = flask_client.get("/", headers={"X-Real-Ip": _BLOCKED_IP, "ACCEPT": "text/html"})
+    resp = flask_client.get("/", headers={"X-Real-Ip": _IP.BLOCKED, "ACCEPT": "text/html"})
     assert resp.status_code == 403
     if hasattr(resp, "text"):
-        assert resp.text == APPSEC_BLOCKED_RESPONSE_HTML
+        assert resp.text == BLOCKED_RESPONSE_HTML
     else:
-        assert resp.data == six.ensure_binary(APPSEC_BLOCKED_RESPONSE_HTML)
+        assert resp.data == six.ensure_binary(BLOCKED_RESPONSE_HTML)
 
 
 @pytest.mark.snapshot(
@@ -160,12 +160,12 @@ def test_flask_ipblock_match_403(flask_client):
 @pytest.mark.parametrize("flask_env_arg", (flask_appsec_good_rules_env,))
 @pytest.mark.skipif(PY2, reason="Python2 + flask +  + subprocesses + pytest is known to hang")
 def test_flask_ipblock_match_403_json(flask_client):
-    resp = flask_client.get("/", headers={"X-Real-Ip": _BLOCKED_IP})
+    resp = flask_client.get("/", headers={"X-Real-Ip": _IP.BLOCKED})
     assert resp.status_code == 403
     if hasattr(resp, "text"):
-        assert resp.text == APPSEC_BLOCKED_RESPONSE_JSON
+        assert resp.text == BLOCKED_RESPONSE_JSON
     else:
-        assert resp.data == six.ensure_binary(APPSEC_BLOCKED_RESPONSE_JSON)
+        assert resp.data == six.ensure_binary(BLOCKED_RESPONSE_JSON)
 
 
 @pytest.mark.snapshot(
@@ -191,9 +191,9 @@ def test_flask_userblock_match_403_json(flask_client):
     resp = flask_client.get("/checkuser/%s" % _BLOCKED_USER)
     assert resp.status_code == 403
     if hasattr(resp, "text"):
-        assert resp.text == APPSEC_BLOCKED_RESPONSE_JSON
+        assert resp.text == BLOCKED_RESPONSE_JSON
     else:
-        assert resp.data == six.ensure_binary(APPSEC_BLOCKED_RESPONSE_JSON)
+        assert resp.data == six.ensure_binary(BLOCKED_RESPONSE_JSON)
 
 
 @pytest.mark.snapshot(

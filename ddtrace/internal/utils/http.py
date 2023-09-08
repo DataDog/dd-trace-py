@@ -1,6 +1,7 @@
 from contextlib import contextmanager
 from json import loads
 import logging
+import os
 import re
 from typing import Any
 from typing import Callable
@@ -11,17 +12,18 @@ from typing import Pattern
 from typing import Tuple
 from typing import Union
 
-import six
-
 from ddtrace.constants import USER_ID_KEY
 from ddtrace.internal import compat
 from ddtrace.internal.compat import parse
+from ddtrace.internal.constants import BLOCKED_RESPONSE_HTML
+from ddtrace.internal.constants import BLOCKED_RESPONSE_JSON
+from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_ORIGIN_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_SAMPLING_PRIORITY_KEY
 from ddtrace.internal.http import HTTPConnection
 from ddtrace.internal.http import HTTPSConnection
-from ddtrace.internal.sampling import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.uds import UDSHTTPConnection
+from ddtrace.internal.utils import _get_metas_to_propagate
 from ddtrace.internal.utils.cache import cached
 
 
@@ -170,13 +172,8 @@ def w3c_get_dd_list_member(context):
         tags.append("t.usr.id:{}".format(w3c_encode_tag((_W3C_TRACESTATE_INVALID_CHARS_REGEX_VALUE, "_", usr_id))))
 
     current_tags_len = sum(len(i) for i in tags)
-    for k, v in context._meta.items():
-        if (
-            isinstance(k, six.string_types)
-            and k.startswith("_dd.p.")
-            # we've already added sampling decision and user id
-            and k not in [SAMPLING_DECISION_TRACE_TAG_KEY, USER_ID_KEY]
-        ):
+    for k, v in _get_metas_to_propagate(context):
+        if k not in [SAMPLING_DECISION_TRACE_TAG_KEY, USER_ID_KEY]:
             # for key replace ",", "=", and characters outside the ASCII range 0x20 to 0x7E
             # for value replace ",", ";", "~" and characters outside the ASCII range 0x20 to 0x7E
             k = k.replace("_dd.p.", "t.")
@@ -311,3 +308,51 @@ def verify_url(url):
         raise ValueError("Invalid file path in intake URL '%s'" % url)
 
     return parsed
+
+
+_HTML_BLOCKED_TEMPLATE_CACHE = None  # type: Optional[str]
+_JSON_BLOCKED_TEMPLATE_CACHE = None  # type: Optional[str]
+
+
+def _get_blocked_template(accept_header_value):
+    # type: (str) -> str
+
+    global _HTML_BLOCKED_TEMPLATE_CACHE
+    global _JSON_BLOCKED_TEMPLATE_CACHE
+
+    need_html_template = False
+
+    if accept_header_value and "text/html" in accept_header_value.lower():
+        need_html_template = True
+
+    if need_html_template and _HTML_BLOCKED_TEMPLATE_CACHE:
+        return _HTML_BLOCKED_TEMPLATE_CACHE
+
+    if not need_html_template and _JSON_BLOCKED_TEMPLATE_CACHE:
+        return _JSON_BLOCKED_TEMPLATE_CACHE
+
+    if need_html_template:
+        template_path = os.getenv("DD_APPSEC_HTTP_BLOCKED_TEMPLATE_HTML")
+    else:
+        template_path = os.getenv("DD_APPSEC_HTTP_BLOCKED_TEMPLATE_JSON")
+
+    if template_path:
+        try:
+            with open(template_path, "r") as template_file:
+                content = template_file.read()
+
+            if need_html_template:
+                _HTML_BLOCKED_TEMPLATE_CACHE = content
+            else:
+                _JSON_BLOCKED_TEMPLATE_CACHE = content
+            return content
+        except (OSError, IOError) as e:  # noqa: B014
+            log.warning("Could not load custom template at %s: %s", template_path, str(e))  # noqa: G200
+
+    # No user-defined template at this point
+    if need_html_template:
+        _HTML_BLOCKED_TEMPLATE_CACHE = BLOCKED_RESPONSE_HTML
+        return BLOCKED_RESPONSE_HTML
+
+    _JSON_BLOCKED_TEMPLATE_CACHE = BLOCKED_RESPONSE_JSON
+    return BLOCKED_RESPONSE_JSON

@@ -15,11 +15,16 @@ from ..trace_utils import wrap as _w
 from .constants import DEFAULT_TEMPLATE_NAME
 
 
+def get_version():
+    # type: () -> str
+    return getattr(mako, "__version__", "")
+
+
 def patch():
     if getattr(mako, "__datadog_patch", False):
         # already patched
         return
-    setattr(mako, "__datadog_patch", True)
+    mako.__datadog_patch = True
 
     Pin(service=config.service or schematize_service_name("mako")).onto(Template)
 
@@ -31,7 +36,7 @@ def patch():
 def unpatch():
     if not getattr(mako, "__datadog_patch", False):
         return
-    setattr(mako, "__datadog_patch", False)
+    mako.__datadog_patch = False
 
     _u(mako.template.Template, "render")
     _u(mako.template.Template, "render_unicode")

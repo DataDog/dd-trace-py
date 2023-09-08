@@ -7,6 +7,7 @@ from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Tuple
+from typing import Union
 from typing import cast
 from uuid import uuid4
 
@@ -21,6 +22,7 @@ from ddtrace.debugging._probe.model import LineLocationMixin
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.model import ProbeConditionMixin
 from ddtrace.internal.rate_limiter import RateLimitExceeded
+from ddtrace.span import Span
 
 
 @attr.s
@@ -51,7 +53,7 @@ class Signal(six.with_metaclass(abc.ABCMeta)):
     frame = attr.ib(type=FrameType)
     thread = attr.ib(type=Thread)
 
-    trace_context = attr.ib(type=Optional[Context], default=None)
+    trace_context = attr.ib(type=Optional[Union[Span, Context]], default=None)
     args = attr.ib(type=Optional[List[Tuple[str, Any]]], default=None)
     state = attr.ib(type=str, default=SignalState.NONE)
     errors = attr.ib(type=List[EvaluationError], factory=lambda: list())
@@ -82,7 +84,7 @@ class Signal(six.with_metaclass(abc.ABCMeta)):
 
     def _enrich_args(self, retval, exc_info, duration):
         _locals = list(self.args or safety.get_args(self.frame))
-        _locals.append(("@duration", duration))
+        _locals.append(("@duration", duration / 1e6))  # milliseconds
         if exc_info[1] is None:
             _locals.append(("@return", retval))
         return dict(_locals)

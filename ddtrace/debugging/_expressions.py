@@ -212,6 +212,10 @@ def _call_function(func, *args):
     # type: (Callable, List[Instr]) -> List[Instr]
     if PY < (3, 11):
         return [Instr("LOAD_CONST", func)] + list(chain(*args)) + [Instr("CALL_FUNCTION", len(args))]
+    elif PY >= (3, 12):
+        return [Instr("PUSH_NULL"), Instr("LOAD_CONST", func)] + list(chain(*args)) + [Instr("CALL", len(args))]
+
+    # Python 3.11
     return (
         [Instr("PUSH_NULL"), Instr("LOAD_CONST", func)]
         + list(chain(*args))
@@ -288,8 +292,8 @@ def _compile_operation(ast):
 
 def _compile_literal(ast):
     # type: (DDASTType) -> Optional[List[Instr]]
-    # literal  =>  <number> | true | false | "string"
-    if not isinstance(ast, (str, int, float, bool)):
+    # literal  =>  <number> | true | false | "string" | null
+    if not (isinstance(ast, (str, int, float, bool)) or ast is None):
         return None
 
     return [Instr("LOAD_CONST", ast)]

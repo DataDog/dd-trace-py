@@ -231,11 +231,13 @@ The following environment variables for the tracer are supported:
    DD_TRACE_SAMPLING_RULES:
      type: JSON array
      description: |
-         A JSON array of objects. Each object must have a “sample_rate”, and the “name” and “service” fields are optional. The “sample_rate” value must be between 0.0 and 1.0 (inclusive).
+         A JSON array of objects. Each object must have a “sample_rate”, and the “name”, “service”, and "resource" fields are optional. The “sample_rate” value must be between 0.0 and 1.0 (inclusive).
 
-         **Example:** ``DD_TRACE_SAMPLING_RULES='[{"sample_rate":0.5,"service":"my-service"}]'``
+         **Example:** ``DD_TRACE_SAMPLING_RULES='[{"sample_rate":0.5,"service":"my-service","resource":"my-url"}]'``
 
          **Note** that the JSON object must be included in single quotes (') to avoid problems with escaping of the double quote (") character.
+     version_added:
+       v1.19.0: added support for "resource"
 
    DD_SPAN_SAMPLING_RULES:
      type: string
@@ -286,14 +288,18 @@ The following environment variables for the tracer are supported:
        v0.56.0:
        v1.7.0: default changed to ``v0.5``.
 
-   DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN:
+   DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP:
      default: |
-         ``(?i)(?:p(?:ass)?w(?:or)?d|pass(?:_?phrase)?|secret|(?:api_?|private_?|public_?|access_?|secret_?)key(?:_?id)?|token|consumer_?(?:id|key|secret)|sign(?:ed|ature)?|auth(?:entication|orization)?)(?:(?:\s|%20)*(?:=|%3D)[^&]+|(?:"|%22)(?:\s|%20)*(?::|%3A)(?:\s|%20)*(?:"|%22)(?:%2[^2]|%[^2]|[^"%])+(?:"|%22))|bearer(?:\s|%20)+[a-z0-9\._\-]|token(?::|%3A)[a-z0-9]{13}|gh[opsu]_[0-9a-zA-Z]{36}|ey[I-L](?:[\w=-]|%3D)+\.ey[I-L](?:[\w=-]|%3D)+(?:\.(?:[\w.+\/=-]|%3D|%2F|%2B)+)?|[\-]{5}BEGIN(?:[a-z\s]|%20)+PRIVATE(?:\s|%20)KEY[\-]{5}[^\-]+[\-]{5}END(?:[a-z\s]|%20)+PRIVATE(?:\s|%20)KEY|ssh-rsa(?:\s|%20)*(?:[a-z0-9\/\.+]|%2F|%5C|%2B){100,}.``
+         ``'(?ix)(?:(?:"|%22)?)(?:(?:old[-_]?|new[-_]?)?p(?:ass)?w(?:or)?d(?:1|2)?|pass(?:[-_]?phrase)?|secret|(?:api[-_]?|private[-_]?|public[-_]?|access[-_]?|secret[-_]?)key(?:[-_]?id)?|token|consumer[-_]?(?:id|key|secret)|sign(?:ed|ature)?|auth(?:entication|orization)?)(?:(?:\\s|%20)*(?:=|%3D)[^&]+|(?:"|%22)(?:\\s|%20)*(?::|%3A)(?:\\s|%20)*(?:"|%22)(?:%2[^2]|%[^2]|[^"%])+(?:"|%22))|(?: bearer(?:\\s|%20)+[a-z0-9._\\-]+|token(?::|%3A)[a-z0-9]{13}|gh[opsu]_[0-9a-zA-Z]{36}|ey[I-L](?:[\\w=-]|%3D)+\\.ey[I-L](?:[\\w=-]|%3D)+(?:\\.(?:[\\w.+/=-]|%3D|%2F|%2B)+)?|-{5}BEGIN(?:[a-z\\s]|%20)+PRIVATE(?:\\s|%20)KEY-{5}[^\\-]+-{5}END(?:[a-z\\s]|%20)+PRIVATE(?:\\s|%20)KEY(?:-{5})?(?:\\n|%0A)?|(?:ssh-(?:rsa|dss)|ecdsa-[a-z0-9]+-[a-z0-9]+)(?:\\s|%20|%09)+(?:[a-z0-9/.+]|%2F|%5C|%2B){100,}(?:=|%3D)*(?:(?:\\s|%20|%09)+[a-z0-9._-]+)?)'``
      description: A regexp to redact sensitive query strings. Obfuscation disabled if set to empty string
+     version_added:
+       v1.19.0: |
+           ``DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP`` replaces ``DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN`` which is deprecated
+           and will be deleted in 2.0.0
 
    DD_TRACE_PROPAGATION_STYLE:
      default: |
-         ``datadog``
+         ``tracecontext,datadog``
      description: |
          Comma separated list of propagation styles used for extracting trace context from inbound request headers and injecting trace context into outbound request headers.
 
@@ -308,8 +314,6 @@ The following environment variables for the tracer are supported:
 
          All provided styles are injected into the headers of outbound requests.
 
-         The default value is ``DD_TRACE_PROPAGATION_STYLE="tracecontext,datadog"``.
-
          Example: ``DD_TRACE_PROPAGATION_STYLE="datadog,b3"`` to check for both ``x-datadog-*`` and ``x-b3-*``
          headers when parsing incoming request headers for a trace context. In addition, to inject both ``x-datadog-*`` and ``x-b3-*``
          headers into outbound requests.
@@ -320,7 +324,7 @@ The following environment variables for the tracer are supported:
 
    DD_TRACE_PROPAGATION_STYLE_EXTRACT:
      default: |
-         ``datadog``
+         ``tracecontext,datadog``
      description: |
          Comma separated list of propagation styles used for extracting trace context from inbound request headers.
 
@@ -339,7 +343,7 @@ The following environment variables for the tracer are supported:
 
    DD_TRACE_PROPAGATION_STYLE_INJECT:
      default: |
-         ``datadog``
+         ``tracecontext,datadog``
      description: |
          Comma separated list of propagation styles used for injecting trace context into outbound request headers.
 
@@ -412,6 +416,11 @@ The following environment variables for the tracer are supported:
      type: Boolean
      default: True
      description: Send query strings in http.url tag in http server integrations.
+    
+   DD_TRACE_SPAN_AGGREGATOR_RLOCK:
+     type: Boolean
+     default: False
+     description: Whether the ``SpanAggregator`` should use an RLock or a Lock.
 
    DD_IAST_ENABLED:
      type: Boolean
@@ -437,6 +446,35 @@ The following environment variables for the tracer are supported:
      type: String
      default: "DES,Blowfish,RC2,RC4,IDEA"
      description: Weak cipher algorithms that should be reported, comma separated.
+
+   DD_IAST_REDACTION_ENABLED:
+     type: Boolean
+     default: True
+     description: |
+        Replace potentially sensitive information in the vulnerability report, like passwords with ``*`` for non tainted strings and ``abcde...``
+        for tainted ones. This will use the regular expressions of the two next settings to decide what to scrub.
+     version_added:
+        v1.17.0:
+
+   DD_IAST_REDACTION_NAME_PATTERN:
+     type: String
+     default: |
+       ``(?i)^.*(?:p(?:ass)?w(?:or)?d|pass(?:_?phrase)?|secret|(?:api_?|private_?|public_?|access_?|secret_?)key(?:_?id)?|token|consumer_?(?:id|key|secret)|sign(?:ed|ature)?|auth(?:entication|orization)?)``
+     description: |
+        Regular expression containing key or name style strings matched against vulnerability origin and evidence texts.
+        If it matches, the scrubbing of the report will be enabled.
+     version_added:
+        v1.17.0:
+
+   DD_IAST_REDACTION_VALUE_PATTERN:
+     type: String
+     default: |
+       ``(?i)bearer\s+[a-z0-9\._\-]+|token:[a-z0-9]{13}|gh[opsu]_[0-9a-zA-Z]{36}|ey[I-L][\w=-]+\.ey[I-L][\w=-]+(\.[\w.+\/=-]+)?|[\-]{5}BEGIN[a-z\s]+PRIVATE\sKEY[\-]{5}[^\-]+[\-]{5}END[a-z\s]+PRIVATE\sKEY|ssh-rsa\s*[a-z0-9\/\.+]{100,}``
+     description: |
+        Regular expression containing value style strings matched against vulnerability origin and evidence texts.
+        If it matches, the scrubbing of the report will be enabled.
+     version_added:
+        v1.17.0:
 
    DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE:
      type: String
@@ -478,6 +516,45 @@ The following environment variables for the tracer are supported:
      version_added:
         v1.13.0:
 
+   DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING:
+      type: String
+      default: "safe"
+      description: |
+         Sets the mode for the automated user login events tracking feature which sets some traces on each user login event. The
+         supported modes are ``safe`` which will only store the user id or primary key, ``extended`` which will also store
+         the username, email and full name and ``disabled``. Note that this feature requires ``DD_APPSEC_ENABLED`` to be 
+         set to ``true`` to work.  
+      version_added:
+         v1.15.0:
+
+   DD_USER_MODEL_LOGIN_FIELD:
+      type: String
+      default: ""
+      description: |
+         Field to be used to read the user login when using a custom ``User`` model for the automatic login events. This field will take precedence over automatic inference.
+         Please note that, if set, this field will be used to retrieve the user login even if ``DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING`` is set to ``safe`` and, 
+         in some cases, the selected field could hold potentially private information.
+      version_added:
+         v1.15.0:
+
+   DD_USER_MODEL_EMAIL_FIELD:
+      type: String
+      default: ""
+      description: |
+         Field to be used to read the user email when using a custom ``User`` model for the automatic login events. This field will take precedence over automatic inference.
+      version_added:
+         v1.15.0:
+
+   DD_USER_MODEL_NAME_FIELD:
+      type: String
+      default: ""
+      description: |
+         Field to be used to read the user name when using a custom ``User`` model for the automatic login events. This field will take precedence over automatic inference.
+      version_added:
+         v1.15.0:
+
+
+
 .. _Unified Service Tagging: https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging/
 
 
@@ -492,3 +569,9 @@ Dynamic Instrumentation
 -----------------------
 
 .. ddtrace-envier-configuration:: ddtrace.settings.dynamic_instrumentation:DynamicInstrumentationConfig
+
+
+Exception Debugging
+-------------------
+
+.. ddtrace-envier-configuration:: ddtrace.settings.exception_debugging:ExceptionDebuggingConfig

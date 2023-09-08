@@ -35,7 +35,7 @@ six==1.16.0
 sortedcontainers==2.4.0
 tempora==5.2.1
 tomli==2.0.1
-typing-extensions==4.6.3
+typing-extensions==4.7.0
 zc-lockfile==3.0.post1
 zipp==3.15.0
 

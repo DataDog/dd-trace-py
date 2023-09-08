@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    tracing: This fix resolves a ``google.protobuf`` import error when module unloading.

@@ -4,6 +4,8 @@ import os
 import typing
 from typing import List
 from typing import Optional
+from typing import Type
+from typing import Union
 
 import attr
 
@@ -14,6 +16,7 @@ from ddtrace.internal import forksafe
 from ddtrace.internal import service
 from ddtrace.internal import uwsgi
 from ddtrace.internal import writer
+from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.profiling import collector
 from ddtrace.profiling import exporter
@@ -115,19 +118,19 @@ class _ProfilerInstance(service.Service):
     api_key = attr.ib(factory=lambda: os.environ.get("DD_API_KEY"), type=Optional[str])
     agentless = attr.ib(type=bool, default=config.agentless)
     _memory_collector_enabled = attr.ib(type=bool, default=config.memory.enabled)
+    _stack_collector_enabled = attr.ib(type=bool, default=config.stack.enabled)
+    _lock_collector_enabled = attr.ib(type=bool, default=config.lock.enabled)
     enable_code_provenance = attr.ib(type=bool, default=config.code_provenance)
     endpoint_collection_enabled = attr.ib(type=bool, default=config.endpoint_collection)
 
     _recorder = attr.ib(init=False, default=None)
     _collectors = attr.ib(init=False, default=None)
-    _scheduler = attr.ib(
-        init=False,
-        default=None,
-        type=scheduler.Scheduler,
-    )
+    _scheduler = attr.ib(init=False, default=None, type=Union[scheduler.Scheduler, scheduler.ServerlessScheduler])
     _lambda_function_name = attr.ib(
         init=False, factory=lambda: os.environ.get("AWS_LAMBDA_FUNCTION_NAME"), type=Optional[str]
     )
+    _export_libdd_enabled = attr.ib(type=bool, default=config.export.libdd_enabled)
+    _export_py_enabled = attr.ib(type=bool, default=config.export.py_enabled)
 
     ENDPOINT_TEMPLATE = "https://intake.profile.{}"
 
@@ -168,19 +171,36 @@ class _ProfilerInstance(service.Service):
         if self.endpoint_collection_enabled:
             endpoint_call_counter_span_processor.enable()
 
-        return [
-            http.PprofHTTPExporter(
-                service=self.service,
+        if self._export_libdd_enabled:
+            versionname = (
+                "{}.libdd".format(self.version)
+                if self._export_py_enabled and self.version is not None
+                else self.version
+            )
+            ddup.init(
                 env=self.env,
+                service=self.service,
+                version=versionname,
                 tags=self.tags,
-                version=self.version,
-                api_key=self.api_key,
-                endpoint=endpoint,
-                endpoint_path=endpoint_path,
-                enable_code_provenance=self.enable_code_provenance,
-                endpoint_call_counter_span_processor=endpoint_call_counter_span_processor,
-            ),
-        ]
+                max_nframes=config.max_frames,
+                url=endpoint,
+            )
+
+        if self._export_py_enabled:
+            return [
+                http.PprofHTTPExporter(
+                    service=self.service,
+                    env=self.env,
+                    tags=self.tags,
+                    version=self.version,
+                    api_key=self.api_key,
+                    endpoint=endpoint,
+                    endpoint_path=endpoint_path,
+                    enable_code_provenance=self.enable_code_provenance,
+                    endpoint_call_counter_span_processor=endpoint_call_counter_span_processor,
+                )
+            ]
+        return []
 
     def __attrs_post_init__(self):
         # type: (...) -> None
@@ -200,12 +220,19 @@ class _ProfilerInstance(service.Service):
             default_max_events=config.max_events,
         )
 
-        self._collectors = [
-            stack.StackCollector(
-                r, tracer=self.tracer, endpoint_collection_enabled=self.endpoint_collection_enabled
-            ),  # type: ignore[call-arg]
-            threading.ThreadingLockCollector(r, tracer=self.tracer),
-        ]
+        self._collectors = []
+
+        if self._stack_collector_enabled:
+            self._collectors.append(
+                stack.StackCollector(
+                    r,
+                    tracer=self.tracer,
+                    endpoint_collection_enabled=self.endpoint_collection_enabled,
+                )  # type: ignore[call-arg]
+            )
+
+        if self._lock_collector_enabled:
+            self._collectors.append(threading.ThreadingLockCollector(r, tracer=self.tracer))
 
         if _asyncio.is_asyncio_available():
 
@@ -232,12 +259,16 @@ class _ProfilerInstance(service.Service):
 
         exporters = self._build_default_exporters()
 
-        if exporters:
-            if self._lambda_function_name is None:
-                scheduler_class = scheduler.Scheduler
-            else:
-                scheduler_class = scheduler.ServerlessScheduler
-            self._scheduler = scheduler_class(recorder=r, exporters=exporters, before_flush=self._collectors_snapshot)
+        if exporters or self._export_libdd_enabled:
+            scheduler_class = (
+                scheduler.ServerlessScheduler if self._lambda_function_name else scheduler.Scheduler
+            )  # type: (Type[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]])
+
+            self._scheduler = scheduler_class(
+                recorder=r,
+                exporters=exporters,
+                before_flush=self._collectors_snapshot,
+            )
 
     def _collectors_snapshot(self):
         for c in self._collectors:
@@ -304,3 +335,6 @@ class _ProfilerInstance(service.Service):
         if join:
             for col in reversed(self._collectors):
                 col.join()
+
+    def visible_events(self):
+        return self._export_py_enabled

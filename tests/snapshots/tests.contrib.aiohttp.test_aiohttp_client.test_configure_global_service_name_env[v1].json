@@ -19,18 +19,17 @@
       "language": "python",
       "out.host": "localhost",
       "peer.service": "localhost",
-      "runtime-id": "b3d83691a6a8417b8ef35d1924f5fb15",
+      "runtime-id": "6ada2da1ec9f42fc8d07b3f421d526fe",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 7690
+      "process_id": 2217
     },
-    "duration": 6850334,
-    "start": 1683309837892326047
+    "duration": 4512005,
+    "start": 1691160520844435724
   },
      {
        "name": "TCPConnector.connect",
@@ -44,6 +43,6 @@
        "meta": {
          "component": "aiohttp"
        },
-       "duration": 5461250,
-       "start": 1683309837892608547
+       "duration": 3233549,
+       "start": 1691160520844786295
      }]]

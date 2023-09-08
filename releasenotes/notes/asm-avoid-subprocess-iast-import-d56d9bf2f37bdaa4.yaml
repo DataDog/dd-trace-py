@@ -1,0 +1,3 @@
+fixes:
+  - |
+    ASM: avoid potentially unneeded import of the IAST native module if setup doesn't build extensions correctly.

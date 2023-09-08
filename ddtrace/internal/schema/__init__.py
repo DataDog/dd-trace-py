@@ -1,3 +1,4 @@
+import logging
 import os
 
 from ddtrace.internal.utils.formats import asbool
@@ -5,6 +6,9 @@ from ddtrace.internal.utils.formats import asbool
 from .span_attribute_schema import SpanDirection
 from .span_attribute_schema import _DEFAULT_SPAN_SERVICE_NAMES
 from .span_attribute_schema import _SPAN_ATTRIBUTE_TO_FUNCTION
+
+
+log = logging.getLogger(__name__)
 
 
 # Span attribute schema
@@ -17,15 +21,21 @@ def _validate_schema(version):
         "the value exported in the 'DD_TRACE_SPAN_ATTRIBUTE_SCHEMA' environment variable.",
     )
 
-    assert version in _SPAN_ATTRIBUTE_TO_FUNCTION.keys(), error_message
+    if version not in _SPAN_ATTRIBUTE_TO_FUNCTION.keys():
+        log.warning(" ".join(error_message))
+        return False
+
+    return True
 
 
 def _get_schema_version():
-    return os.getenv("DD_TRACE_SPAN_ATTRIBUTE_SCHEMA", default="v0")
+    version = os.getenv("DD_TRACE_SPAN_ATTRIBUTE_SCHEMA", default="v0")
+    if not _validate_schema(version):
+        version = "v0"
+    return version
 
 
 SCHEMA_VERSION = _get_schema_version()
-_validate_schema(SCHEMA_VERSION)
 _remove_client_service_names = asbool(os.getenv("DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED", default=False))
 _service_name_schema_version = "v0" if SCHEMA_VERSION == "v0" and not _remove_client_service_names else "v1"
 

@@ -25,7 +25,7 @@ def patch_app(app, pin=None):
     """
     if getattr(app, "__datadog_patch", False):
         return
-    setattr(app, "__datadog_patch", True)
+    app.__datadog_patch = True
 
     # attach the PIN object
     pin = pin or Pin(
@@ -58,7 +58,7 @@ def unpatch_app(app):
     """
     if not getattr(app, "__datadog_patch", False):
         return
-    setattr(app, "__datadog_patch", False)
+    app.__datadog_patch = False
 
     pin = Pin.get_from(app)
     if pin is not None:

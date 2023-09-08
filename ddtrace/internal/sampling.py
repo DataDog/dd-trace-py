@@ -1,5 +1,4 @@
 import json
-import os
 import re
 from typing import Optional
 from typing import TYPE_CHECKING
@@ -11,12 +10,22 @@ try:
 except ImportError:
     from typing_extensions import TypedDict
 
+from ddtrace.constants import SAMPLING_AGENT_DECISION
+from ddtrace.constants import SAMPLING_LIMIT_DECISION
+from ddtrace.constants import SAMPLING_RULE_DECISION
+from ddtrace.constants import USER_REJECT
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC_NO_LIMIT
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
+from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
+from ddtrace.internal.constants import _CATEGORY_TO_PRIORITIES
+from ddtrace.internal.constants import _KEEP_PRIORITY_INDEX
+from ddtrace.internal.constants import _REJECT_PRIORITY_INDEX
 from ddtrace.internal.glob_matching import GlobMatcher
 from ddtrace.internal.logger import get_logger
+from ddtrace.sampling_rule import SamplingRule
+from ddtrace.settings import _config as config
 
 from .rate_limiter import RateLimiter
 
@@ -55,8 +64,6 @@ class SamplingMechanism(object):
     SPAN_SAMPLING_RULE = 8
 
 
-SAMPLING_DECISION_TRACE_TAG_KEY = "_dd.p.dm"
-
 # Use regex to validate trace tag value
 TRACE_TAG_RE = re.compile(r"^-([0-9])$")
 
@@ -71,43 +78,6 @@ SpanSamplingRules = TypedDict(
     },
     total=False,
 )
-
-SPAN_SAMPLING_JSON_SCHEMA = {
-    "type": "array",
-    "items": {
-        "type": "object",
-        "anyOf": [
-            {"properties": {"service": {"type": "string"}}, "required": ["service"]},
-            {"properties": {"name": {"type": "string"}}, "required": ["name"]},
-        ],
-        "properties": {"max_per_second": {"type": "integer"}, "sample_rate": {"type": "number"}},
-    },
-}
-
-
-def _set_trace_tag(
-    context,  # type: Context
-    sampling_mechanism,  # type: int
-):
-    # type: (...) -> Optional[Text]
-
-    value = "-%d" % sampling_mechanism
-
-    context._meta[SAMPLING_DECISION_TRACE_TAG_KEY] = value
-
-    return value
-
-
-def _unset_trace_tag(
-    context,  # type: Context
-):
-    # type: (...) -> Optional[Text]
-    if SAMPLING_DECISION_TRACE_TAG_KEY not in context._meta:
-        return None
-
-    value = context._meta[SAMPLING_DECISION_TRACE_TAG_KEY]
-    del context._meta[SAMPLING_DECISION_TRACE_TAG_KEY]
-    return value
 
 
 def validate_sampling_decision(
@@ -124,18 +94,14 @@ def validate_sampling_decision(
     return meta
 
 
-def update_sampling_decision(
+def set_sampling_decision_maker(
     context,  # type: Context
     sampling_mechanism,  # type: int
-    sampled,  # type: bool
 ):
     # type: (...) -> Optional[Text]
-    # When sampler keeps trace, we need to set sampling decision trace tag.
-    # If sampler rejects trace, we need to remove sampling decision trace tag to avoid unnecessary propagation.
-    if sampled:
-        return _set_trace_tag(context, sampling_mechanism)
-    else:
-        return _unset_trace_tag(context)
+    value = "-%d" % sampling_mechanism
+    context._meta[SAMPLING_DECISION_TRACE_TAG_KEY] = value
+    return value
 
 
 class SpanSamplingRule:
@@ -223,16 +189,16 @@ class SpanSamplingRule:
 def get_span_sampling_rules():
     # type: () -> List[SpanSamplingRule]
     json_rules = _get_span_sampling_json()
-    if json_rules:
-        from jsonschema import validate
-
-        validate(json_rules, SPAN_SAMPLING_JSON_SCHEMA)
     sampling_rules = []
     for rule in json_rules:
         # If sample_rate not specified default to 100%
         sample_rate = rule.get("sample_rate", 1.0)
         service = rule.get("service")
         name = rule.get("name")
+
+        if not service and not name:
+            raise ValueError("Sampling rules must supply at least 'service' or 'name', got {}".format(json.dumps(rule)))
+
         # If max_per_second not specified default to no limit
         max_per_second = rule.get("max_per_second", _SINGLE_SPAN_SAMPLING_MAX_PER_SEC_NO_LIMIT)
         if service:
@@ -268,7 +234,7 @@ def _get_span_sampling_json():
 
 def _get_file_json():
     # type: () -> Optional[List[Dict[str, Any]]]
-    file_json_raw = os.getenv("DD_SPAN_SAMPLING_RULES_FILE")
+    file_json_raw = config._sampling_rules_file
     if file_json_raw:
         with open(file_json_raw) as f:
             return _load_span_sampling_json(f.read())
@@ -277,7 +243,7 @@ def _get_file_json():
 
 def _get_env_json():
     # type: () -> Optional[List[Dict[str, Any]]]
-    env_json_raw = os.getenv("DD_SPAN_SAMPLING_RULES")
+    env_json_raw = config._sampling_rules
     if env_json_raw:
         return _load_span_sampling_json(env_json_raw)
     return None
@@ -307,3 +273,47 @@ def _check_unsupported_pattern(string):
 def is_single_span_sampled(span):
     # type: (Span) -> bool
     return span.get_metric(_SINGLE_SPAN_SAMPLING_MECHANISM) == SamplingMechanism.SPAN_SAMPLING_RULE
+
+
+def _set_sampling_tags(span, sampled, sample_rate, priority_category):
+    # type: (Span, bool, float, str) -> None
+    mechanism = SamplingMechanism.TRACE_SAMPLING_RULE
+    if priority_category == "rule":
+        span.set_metric(SAMPLING_RULE_DECISION, sample_rate)
+    elif priority_category == "default":
+        mechanism = SamplingMechanism.DEFAULT
+    elif priority_category == "auto":
+        mechanism = SamplingMechanism.AGENT_RATE
+        span.set_metric(SAMPLING_AGENT_DECISION, sample_rate)
+    priorities = _CATEGORY_TO_PRIORITIES[priority_category]
+    _set_priority(span, priorities[_KEEP_PRIORITY_INDEX] if sampled else priorities[_REJECT_PRIORITY_INDEX])
+    set_sampling_decision_maker(span.context, mechanism)
+
+
+def _apply_rate_limit(span, sampled, limiter):
+    # type: (Span, bool, RateLimiter) -> bool
+    allowed = True
+    if sampled:
+        allowed = limiter.is_allowed(span.start_ns)
+        if not allowed:
+            _set_priority(span, USER_REJECT)
+    if limiter._has_been_configured:
+        span.set_metric(SAMPLING_LIMIT_DECISION, limiter.effective_rate)
+    return allowed
+
+
+def _set_priority(span, priority):
+    # type: (Span, int) -> None
+    span.context.sampling_priority = priority
+    span.sampled = priority > 0  # Positive priorities mean it was kept
+
+
+def _get_highest_precedence_rule_matching(span, rules):
+    # type: (Span, List[SamplingRule]) -> Optional[SamplingRule]
+    if not rules:
+        return None
+
+    for rule in rules:
+        if rule.matches(span):
+            return rule
+    return None

@@ -2,6 +2,7 @@ import os
 from typing import TYPE_CHECKING
 
 from ddtrace.appsec.iast import oce
+from ddtrace.appsec.iast._metrics import _set_metric_iast_instrumented_sink
 from ddtrace.appsec.iast._patch import set_and_check_module_is_patched
 from ddtrace.appsec.iast._patch import set_module_unpatched
 from ddtrace.appsec.iast._patch import try_unwrap
@@ -40,6 +41,7 @@ def get_weak_cipher_algorithms():
 class WeakCipher(VulnerabilityBase):
     vulnerability_type = VULN_WEAK_CIPHER_TYPE
     evidence_type = EVIDENCE_ALGORITHM_TYPE
+    scrub_evidence = False
 
 
 def unpatch_iast():
@@ -57,6 +59,11 @@ def unpatch_iast():
     try_unwrap("cryptography.hazmat.primitives.ciphers", "Cipher.encryptor")
 
 
+def get_version():
+    # type: () -> str
+    return ""
+
+
 def patch():
     # type: () -> None
     """Wrap hashing functions.
@@ -69,27 +76,35 @@ def patch():
         return
 
     weak_cipher_algorithms = get_weak_cipher_algorithms()
-
+    num_instrumented_sinks = 0
     # pycryptodome methods
     if DES_DEF in weak_cipher_algorithms:
         try_wrap_function_wrapper("Crypto.Cipher.DES", "new", wrapped_aux_des_function)
+        num_instrumented_sinks += 1
     if BLOWFISH_DEF in weak_cipher_algorithms:
         try_wrap_function_wrapper("Crypto.Cipher.Blowfish", "new", wrapped_aux_blowfish_function)
+        num_instrumented_sinks += 1
     if RC2_DEF in weak_cipher_algorithms:
         try_wrap_function_wrapper("Crypto.Cipher.ARC2", "new", wrapped_aux_rc2_function)
+        num_instrumented_sinks += 1
     if RC4_DEF in weak_cipher_algorithms:
         try_wrap_function_wrapper("Crypto.Cipher.ARC4", "ARC4Cipher.encrypt", wrapped_rc4_function)
+        num_instrumented_sinks += 1
 
     if weak_cipher_algorithms:
         try_wrap_function_wrapper("Crypto.Cipher._mode_cbc", "CbcMode.encrypt", wrapped_function)
         try_wrap_function_wrapper("Crypto.Cipher._mode_cfb", "CfbMode.encrypt", wrapped_function)
         try_wrap_function_wrapper("Crypto.Cipher._mode_ecb", "EcbMode.encrypt", wrapped_function)
         try_wrap_function_wrapper("Crypto.Cipher._mode_ofb", "OfbMode.encrypt", wrapped_function)
+        num_instrumented_sinks += 4
 
     # cryptography methods
     try_wrap_function_wrapper(
         "cryptography.hazmat.primitives.ciphers", "Cipher.encryptor", wrapped_cryptography_function
     )
+    num_instrumented_sinks += 1
+
+    _set_metric_iast_instrumented_sink(VULN_WEAK_CIPHER_TYPE, num_instrumented_sinks)
 
 
 def wrapped_aux_rc2_function(wrapped, instance, args, kwargs):

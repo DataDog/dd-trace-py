@@ -1,24 +1,21 @@
 import os
 import sys
-import time
 from typing import Optional
 from typing import TYPE_CHECKING
 
+from openai import version
+
 from ddtrace import config
-from ddtrace.constants import SPAN_MEASURED_KEY
+from ddtrace.contrib._trace_utils_llm import BaseLLMIntegration
 from ddtrace.internal.agent import get_stats_url
 from ddtrace.internal.constants import COMPONENT
-from ddtrace.internal.dogstatsd import get_dogstatsd_client
-from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.wrapping import wrap
-from ddtrace.sampler import RateSampler
 
 from . import _endpoint_hooks
-from .. import trace_utils
 from ...pin import Pin
-from ._logging import V2LogWriter
 from .utils import _format_openai_api_key
 
 
@@ -42,36 +39,21 @@ config._add(
 )
 
 
-class _OpenAIIntegration:
+def get_version():
+    # type: () -> str
+    return version.VERSION
+
+
+class _OpenAIIntegration(BaseLLMIntegration):
+    _integration_name = "openai"
+
     def __init__(self, config, openai, stats_url, site, api_key):
         # FIXME: this currently does not consider if the tracer is configured to
         # use a different hostname. eg. tracer.configure(host="new-hostname")
         # Ideally the metrics client should live on the tracer or some other core
         # object that is strongly linked with configuration.
-        self._statsd = get_dogstatsd_client(stats_url, namespace="openai")
-        self._config = config
-        self._log_writer = V2LogWriter(
-            site=site,
-            api_key=api_key,
-            interval=float(os.getenv("_DD_OPENAI_LOG_WRITER_INTERVAL", "1.0")),
-            timeout=float(os.getenv("_DD_OPENAI_LOG_WRITER_TIMEOUT", "2.0")),
-        )
-        self._span_pc_sampler = RateSampler(sample_rate=config.span_prompt_completion_sample_rate)
-        self._log_pc_sampler = RateSampler(sample_rate=config.log_prompt_completion_sample_rate)
+        super().__init__(config, stats_url, site, api_key)
         self._openai = openai
-
-    def is_pc_sampled_span(self, span):
-        if not span.sampled:
-            return False
-        return self._span_pc_sampler.sample(span)
-
-    def is_pc_sampled_log(self, span):
-        if not self._config.logs_enabled or not span.sampled:
-            return False
-        return self._log_pc_sampler.sample(span)
-
-    def start_log_writer(self):
-        self._log_writer.start()
 
     @property
     def _user_api_key(self):
@@ -82,7 +64,7 @@ class _OpenAIIntegration:
             return
         return "sk-...%s" % self._openai.api_key[-4:]
 
-    def set_base_span_tags(self, span):
+    def _set_base_span_tags(self, span):
         # type: (Span) -> None
         span.set_tag_str(COMPONENT, self._config.integration_name)
         if self._user_api_key is not None:
@@ -99,26 +81,8 @@ class _OpenAIIntegration:
                 else:
                     span.set_tag_str("openai.%s" % attr, v)
 
-    def trace(self, pin, operation_id):
-        """Start an OpenAI span.
-
-        Set default OpenAI span attributes when possible.
-        """
-        # Reuse the service of the application as we tag the downstream requests/aiohttp spans with the service
-        # `openai`. Eventually those should also be internal service spans once peer.service is implemented.
-        span = pin.tracer.trace(
-            "openai.request", resource=operation_id, service=trace_utils.int_service(pin, self._config)
-        )
-        # Enable trace metrics for these spans so users can see per-service openai usage in APM.
-        span.set_tag(SPAN_MEASURED_KEY)
-
-        self.set_base_span_tags(span)
-
-        return span
-
-    def log(self, span, level, msg, attrs):
-        if not self._config.logs_enabled:
-            return
+    @classmethod
+    def _logs_tags(cls, span):
         tags = "env:%s,version:%s,openai.request.endpoint:%s,openai.request.method:%s,openai.request.model:%s,openai.organization.name:%s," "openai.user.api_key:%s" % (  # noqa: E501
             (config.env or ""),
             (config.version or ""),
@@ -128,22 +92,10 @@ class _OpenAIIntegration:
             (span.get_tag("openai.organization.name") or ""),
             (span.get_tag("openai.user.api_key") or ""),
         )
-        log = {
-            "timestamp": time.time() * 1000,
-            "message": msg,
-            "hostname": get_hostname(),
-            "ddsource": "openai",
-            "service": span.service or "",
-            "status": level,
-            "ddtags": tags,
-        }
-        if span is not None:
-            log["dd.trace_id"] = str(span.trace_id)
-            log["dd.span_id"] = str(span.span_id)
-        log.update(attrs)
-        self._log_writer.enqueue(log)
+        return tags
 
-    def _metrics_tags(self, span):
+    @classmethod
+    def _metrics_tags(cls, span):
         tags = [
             "version:%s" % (config.version or ""),
             "env:%s" % (config.env or ""),
@@ -161,22 +113,6 @@ class _OpenAIIntegration:
             tags.append("error_type:%s" % err_type)
         return tags
 
-    def metric(self, span, kind, name, val, tags=None):
-        """Set a metric using the OpenAI context from the given span."""
-        if not self._config.metrics_enabled:
-            return
-        metric_tags = self._metrics_tags(span)
-        if tags:
-            metric_tags += tags
-        if kind == "dist":
-            self._statsd.distribution(name, val, tags=metric_tags)
-        elif kind == "incr":
-            self._statsd.increment(name, val, tags=metric_tags)
-        elif kind == "gauge":
-            self._statsd.gauge(name, val, tags=metric_tags)
-        else:
-            raise ValueError("Unexpected metric type %r" % kind)
-
     def record_usage(self, span, usage):
         if not usage or not self._config.metrics_enabled:
             return
@@ -188,18 +124,6 @@ class _OpenAIIntegration:
                 continue
             span.set_metric("openai.response.usage.%s_tokens" % token_type, num_tokens)
             self._statsd.distribution("tokens.%s" % token_type, num_tokens, tags=tags)
-
-    def trunc(self, text):
-        """Truncate the given text.
-
-        Use to avoid attaching too much data to spans.
-        """
-        if not text:
-            return text
-        text = text.replace("\n", "\\n").replace("\t", "\\t")
-        if len(text) > self._config.span_char_limit:
-            text = text[: self._config.span_char_limit] + "..."
-        return text
 
 
 def _wrap_classmethod(obj, wrapper):
@@ -400,7 +324,7 @@ def patch():
             _patched_endpoint_async(openai, integration, _endpoint_hooks._FineTuneCancelHook),
         )
 
-    setattr(openai, "__datadog_patch", True)
+    openai.__datadog_patch = True
 
 
 def unpatch():
@@ -417,7 +341,8 @@ def _patched_make_session(func, args, kwargs):
     This should technically be a ``peer.service`` but this concept doesn't exist yet.
     """
     session = func(*args, **kwargs)
-    Pin.override(session, service="openai")
+    service = schematize_service_name("openai")
+    Pin.override(session, service=service)
     return session
 
 
@@ -473,7 +398,7 @@ def _patched_endpoint(openai, integration, patch_hook):
             except StopIteration as e:
                 if err is None:
                     # This return takes priority over `return resp`
-                    return e.value
+                    return e.value  # noqa: B012
 
     return patched_endpoint
 
@@ -499,7 +424,7 @@ def _patched_endpoint_async(openai, integration, patch_hook):
             except StopIteration as e:
                 if err is None:
                     # This return takes priority over `return resp`
-                    return e.value
+                    return e.value  # noqa: B012
 
     return patched_endpoint
 

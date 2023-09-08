@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    dynamic instrumentation: Fixed the programmatic API to ensure that the
+    dynamic instrumentation service is fully enabled when
+    ``Dynamic Instrumentation.enable()`` is called.

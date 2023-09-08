@@ -137,7 +137,7 @@ def collect(tracer):
         enabled_env_setting=os.getenv("DATADOG_TRACE_ENABLED"),
         tracer_enabled=tracer.enabled,
         sampler_type=type(tracer._sampler).__name__ if tracer._sampler else "N/A",
-        priority_sampler_type=type(tracer._priority_sampler).__name__ if tracer._priority_sampler else "N/A",
+        priority_sampler_type="N/A",
         sampler_rules=sampler_rules,
         service=ddtrace.config.service or "",
         debug=log.isEnabledFor(logging.DEBUG),
@@ -147,7 +147,7 @@ def collect(tracer):
         health_metrics_enabled=ddtrace.config.health_metrics_enabled,
         runtime_metrics_enabled=RuntimeWorker.enabled,
         dd_version=ddtrace.config.version or "",
-        priority_sampling_enabled=tracer._priority_sampler is not None,
+        priority_sampling_enabled=ddtrace.config._priority_sampling,
         global_tags=os.getenv("DD_TAGS", ""),
         tracer_tags=tags_to_str(tracer._tags),
         integrations=integration_configs,
@@ -156,7 +156,7 @@ def collect(tracer):
         asm_enabled=ddtrace.config._appsec_enabled,
         iast_enabled=ddtrace.config._iast_enabled,
         waf_timeout=ddtrace.config._waf_timeout,
-        remote_config_enabled=os.getenv("DD_REMOTE_CONFIGURATION_ENABLED", "true"),
+        remote_config_enabled=ddtrace.config._remote_config_enabled,
     )
 
 

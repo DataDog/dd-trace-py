@@ -379,7 +379,7 @@ def test_span_creation_metrics():
     writer = DummyWriter()
     aggr = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=0, trace_processors=[], writer=writer)
 
-    with mock.patch("ddtrace.internal.processor.trace.telemetry_metrics_writer.add_count_metric") as mock_tm:
+    with mock.patch("ddtrace.internal.processor.trace.telemetry_writer.add_count_metric") as mock_tm:
         for _ in range(300):
             span = Span("span", on_finish=[aggr.on_span_finish])
             aggr.on_span_start(span)

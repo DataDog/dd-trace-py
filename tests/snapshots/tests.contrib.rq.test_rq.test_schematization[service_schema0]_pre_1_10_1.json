@@ -9,24 +9,24 @@
     "type": "worker",
     "error": 0,
     "meta": {
+      "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "component": "rq",
       "job.func_name": "__call__",
-      "job.id": "bbe3656c-3500-4922-962a-881f278306f6",
+      "job.id": "753c0cfd-9c60-4bcd-8d34-3e4e5f992565",
       "language": "python",
       "queue.name": "q",
-      "runtime-id": "330a0144165145cfaff4082b038004bc",
+      "runtime-id": "da206a39e33945868d255c5d941b0908",
       "span.kind": "producer"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 40597
+      "process_id": 2631
     },
-    "duration": 2309000,
-    "start": 1685588649920997000
+    "duration": 2130292,
+    "start": 1692649896030199220
   },
      {
        "name": "rq.worker.perform_job",
@@ -38,25 +38,26 @@
        "type": "worker",
        "error": 1,
        "meta": {
+         "_dd.base_service": "",
          "_dd.p.dm": "-0",
          "component": "rq",
-         "job.id": "bbe3656c-3500-4922-962a-881f278306f6",
+         "job.id": "753c0cfd-9c60-4bcd-8d34-3e4e5f992565",
          "job.origin": "q",
          "job.status": "failed",
          "language": "python",
-         "runtime-id": "330a0144165145cfaff4082b038004bc",
+         "runtime-id": "da206a39e33945868d255c5d941b0908",
          "span.kind": "consumer",
-         "traceparent": "00-0000000000000000569caca31bc6a3e8-f961a714c247b6d3-01",
+         "traceparent": "00-0000000000000000c107c6b059ed370a-58b7ac06f2e37582-01",
          "tracestate": "dd=s:1;t.dm:-0"
        },
        "metrics": {
          "_dd.top_level": 1,
          "_dd.tracer_kr": 1.0,
          "_sampling_priority_v1": 1,
-         "process_id": 40597
+         "process_id": 2631
        },
-       "duration": 4229000,
-       "start": 1685588649960932000
+       "duration": 4162083,
+       "start": 1692649896063258929
      },
         {
           "name": "rq.job.perform",
@@ -68,14 +69,15 @@
           "type": "",
           "error": 1,
           "meta": {
+            "_dd.base_service": "",
             "component": "rq",
             "error.message": "__call__() got an unexpected keyword argument 'key'",
-            "error.stack": "Traceback (most recent call last):\n  File \"/root/project/ddtrace/contrib/rq/__init__.py\", line 214, in traced_job_perform\n    return func(*args, **kwargs)\n  File \"/root/project/.riot/venv_py3615_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_rq~180_click712/lib/python3.6/site-packages/rq/job.py\", line 709, in perform\n    self._result = self._execute()\n  File \"/root/project/.riot/venv_py3615_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_rq~180_click712/lib/python3.6/site-packages/rq/job.py\", line 732, in _execute\n    result = self.func(*self.args, **self.kwargs)\nTypeError: __call__() got an unexpected keyword argument 'key'\n",
+            "error.stack": "Traceback (most recent call last):\n  File \"/root/project/ddtrace/contrib/rq/__init__.py\", line 215, in traced_job_perform\n    return func(*args, **kwargs)\n  File \"/root/project/.riot/venv_py3916_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_rq~181_click712/lib/python3.9/site-packages/rq/job.py\", line 709, in perform\n    self._result = self._execute()\n  File \"/root/project/.riot/venv_py3916_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_rq~181_click712/lib/python3.9/site-packages/rq/job.py\", line 732, in _execute\n    result = self.func(*self.args, **self.kwargs)\nTypeError: __call__() got an unexpected keyword argument 'key'\n",
             "error.type": "builtins.TypeError",
-            "job.id": "bbe3656c-3500-4922-962a-881f278306f6"
+            "job.id": "753c0cfd-9c60-4bcd-8d34-3e4e5f992565"
           },
-          "duration": 1572000,
-          "start": 1685588649961295000
+          "duration": 1432000,
+          "start": 1692649896063698512
         }],
 [
   {
@@ -88,19 +90,19 @@
     "type": "",
     "error": 0,
     "meta": {
+      "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "component": "rq",
       "job.id": "abc",
       "language": "python",
-      "runtime-id": "330a0144165145cfaff4082b038004bc"
+      "runtime-id": "da206a39e33945868d255c5d941b0908"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 40597
+      "process_id": 2631
     },
-    "duration": 405000,
-    "start": 1685588649955913000
+    "duration": 382584,
+    "start": 1692649896059108845
   }]]

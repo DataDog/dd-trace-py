@@ -22,7 +22,6 @@
       "span.kind": "consumer"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
@@ -46,17 +45,19 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "_dd.peer.service.source": "messaging.kafka.bootstrap.servers",
       "component": "kafka",
       "kafka.message_key": "test_key",
       "kafka.tombstone": "False",
       "kafka.topic": "test_schematized_span_service_and_operation_v1-mysvc",
       "language": "python",
+      "messaging.kafka.bootstrap.servers": "localhost:29092",
       "messaging.system": "kafka",
+      "peer.service": "localhost:29092",
       "runtime-id": "8af9dc81131d4efe986cb7db2a15b2f9",
       "span.kind": "producer"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,

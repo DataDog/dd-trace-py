@@ -18,10 +18,7 @@ on:
     types:
       - published
   workflow_dispatch:
-    inputs:
-      expectedVersion:
-        description: 'Expected version string'
-        required: true
+    # Allow manually triggering, but do NOT upload the result
   schedule:
     # Nightly builds after weekdays
     - cron:  0 2 * * 2-6
@@ -78,61 +75,47 @@ jobs:
           # `platform.mac_ver()` reports incorrect MacOS version at 11.0
           # See: https://stackoverflow.com/a/65402241
           CIBW_ENVIRONMENT_MACOS: SYSTEM_VERSION_COMPAT=0
+          CMAKE_BUILD_PARALLEL_LEVEL: 12
 
       - uses: actions/upload-artifact@v3
         with:
           path: ./wheelhouse/*.whl
 
-  build_wheels_py3:
-    name: Build and test wheels on ${{ matrix.os }} (${{ matrix.archs }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        include:
-         - os: ubuntu-latest
-           archs: x86_64 i686
-         - os: ubuntu-latest
-           archs: aarch64
-         - os: windows-latest
-           archs: AMD64 x86
-         - os: macos-latest
-           archs: x86_64 universal2
-    steps:
-      - uses: actions/checkout@v3
-        # Include all history and tags
-        with:
-          fetch-depth: 0
+  build_wheels_py36:
+    uses: ./.github/workflows/build_python_3.yml
+    with:
+      cibw_build: 'cp36*'
 
-      - uses: actions/setup-python@v4
-        name: Install Python
-        with:
-          python-version: '3.8'
+  build_wheels_py37:
+    uses: ./.github/workflows/build_python_3.yml
+    with:
+      cibw_build: 'cp37*'
 
-      - name: Set up QEMU
-        if: runner.os == 'Linux'
-        uses: docker/setup-qemu-action@v2
-        with:
-          platforms: all
+  build_wheels_py38:
+    uses: ./.github/workflows/build_python_3.yml
+    with:
+      cibw_build: 'cp38*'
 
-      - name: Build wheels python 3.6 and above
-        uses: pypa/cibuildwheel@v2.12.3
-        env:
-          # configure cibuildwheel to build native archs ('auto'), and some
-          # emulated ones
-          CIBW_ARCHS: ${{ matrix.archs }}
-          CIBW_BUILD: cp3*
-          # Run a smoke test on every supported platform
-          CIBW_TEST_COMMAND: python {project}/tests/smoke_test.py
-          # Testing arm on MacOS is currently not supported by Github
-          CIBW_TEST_SKIP: "*-macosx_universal2:arm64"
-          # Workaround for Macos 11.0 versioning issue, a.k.a.
-          # `platform.mac_ver()` reports incorrect MacOS version at 11.0
-          # See: https://stackoverflow.com/a/65402241
-          CIBW_ENVIRONMENT_MACOS: SYSTEM_VERSION_COMPAT=0
+  build_wheels_py39:
+    uses: ./.github/workflows/build_python_3.yml
+    with:
+      cibw_build: 'cp39*'
 
-      - uses: actions/upload-artifact@v3
-        with:
-          path: ./wheelhouse/*.whl
+  build_wheels_py310:
+    uses: ./.github/workflows/build_python_3.yml
+    with:
+      cibw_build: 'cp310*'
+
+  build_wheels_py311:
+    uses: ./.github/workflows/build_python_3.yml
+    with:
+      cibw_build: 'cp311*'
+
+  build_wheels_py312:
+    uses: ./.github/workflows/build_python_3.yml
+    with:
+      cibw_build: 'cp312*'
+      cibw_prerelease_pythons: 'True'
 
   build_sdist:
     name: Build source distribution
@@ -172,7 +155,7 @@ jobs:
 
       - name: Install build dependencies
         # Rust + Cargo are needed for Cryptography
-        run: apk add git gcc g++ musl-dev libffi-dev openssl-dev bash rust cargo
+        run: apk add git gcc g++ musl-dev libffi-dev openssl-dev bash rust cargo make cmake
 
       - name: Check source package
         run: |
@@ -187,25 +170,29 @@ jobs:
         working-directory: /
 
   upload_pypi:
-    needs: [build_wheels_py27_35, build_wheels_py3, test_alpine_sdist]
+    needs:
+      - build_wheels_py27_35
+      - build_wheels_py36
+      - build_wheels_py37
+      - build_wheels_py38
+      - build_wheels_py39
+      - build_wheels_py310
+      - build_wheels_py311
+      - build_wheels_py312
+      - test_alpine_sdist
     runs-on: ubuntu-latest
-    if: (github.event_name == 'release' && github.event.action == 'published') || (github.event_name == 'workflow_dispatch')
+    if: (github.event_name == 'release' && github.event.action == 'published')
     steps:
       - uses: actions/download-artifact@v3
         with:
           name: artifact
           path: dist
 
-      - uses: actions/checkout@v3
-        if: github.event_name == 'workflow_dispatch'
-        # Include all history and tags
-        with:
-          fetch-depth: 0
-      - name: Validate deploy version
-        if: github.event_name == 'workflow_dispatch'
+      - name: Remove unsupported 3.12 wheels
         run: |
-          ./scripts/validate-version "${{ github.event.inputs.expectedVersion }}"
-      - uses: pypa/gh-action-pypi-publish@master
+          rm -f dist/*cp312*.whl
+
+      - uses: pypa/gh-action-pypi-publish@release/v1
         with:
           user: __token__
           password: ${{ secrets.PYPI_TOKEN }}

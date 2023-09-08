@@ -286,28 +286,6 @@ class PylibmcCore(object):
         finally:
             tracer.enabled = True
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    def test_operation_name_v0_schema(self):
-        """
-        v0 schema: memcached.cmd
-        """
-        client, tracer = self.get_client()
-        client.set("a", "crow")
-        spans = self.get_spans()
-        assert len(spans) == 1
-        assert spans[0].name == "memcached.cmd"
-
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_operation_name_v1_schema(self):
-        """
-        v1 schema: memcached.command
-        """
-        client, tracer = self.get_client()
-        client.set("a", "crow")
-        spans = self.get_spans()
-        assert len(spans) == 1
-        assert spans[0].name == "memcached.command"
-
 
 class TestPylibmcLegacy(TracerTestCase, PylibmcCore):
     """Test suite for the tracing of pylibmc with the legacy TracedClient interface"""
@@ -393,7 +371,7 @@ class TestPylibmcPatch(TestPylibmcPatchDefault):
         assert len(spans) == 1
 
 
-class TestPylibmcPatchServiceNames(TestPylibmcPatchDefault):
+class TestPylibmcPatchSchematization(TestPylibmcPatchDefault):
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_user_specified_service_v0(self):
         """
@@ -427,3 +405,25 @@ class TestPylibmcPatchServiceNames(TestPylibmcPatchDefault):
         spans = self.get_spans()
         assert len(spans) == 1
         assert spans[0].service == "mysvc"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    def test_operation_name_v0_schema(self):
+        """
+        v0 schema: memcached.cmd
+        """
+        client, tracer = self.get_client()
+        client.set("a", "crow")
+        spans = self.get_spans()
+        assert len(spans) == 1
+        assert spans[0].name == "memcached.cmd"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    def test_operation_name_v1_schema(self):
+        """
+        v1 schema: memcached.command
+        """
+        client, tracer = self.get_client()
+        client.set("a", "crow")
+        spans = self.get_spans()
+        assert len(spans) == 1
+        assert spans[0].name == "memcached.command"

@@ -3,8 +3,7 @@ import gc
 import sys
 from typing import TYPE_CHECKING
 
-from ddtrace.appsec.iast._input_info import Input_info
-from ddtrace.appsec.iast._util import _is_iast_enabled
+from ddtrace.appsec.iast._utils import _is_iast_enabled
 from ddtrace.internal.logger import get_logger
 from ddtrace.vendor.wrapt import FunctionWrapper
 from ddtrace.vendor.wrapt import resolve_path
@@ -54,11 +53,14 @@ def try_wrap_function_wrapper(module, name, wrapper):
 
 
 def try_unwrap(module, name):
-    (parent, attribute, _) = resolve_path(module, name)
-    if (parent, attribute) in _DD_ORIGINAL_ATTRIBUTES:
-        original = _DD_ORIGINAL_ATTRIBUTES[(parent, attribute)]
-        apply_patch(parent, attribute, original)
-        del _DD_ORIGINAL_ATTRIBUTES[(parent, attribute)]
+    try:
+        (parent, attribute, _) = resolve_path(module, name)
+        if (parent, attribute) in _DD_ORIGINAL_ATTRIBUTES:
+            original = _DD_ORIGINAL_ATTRIBUTES[(parent, attribute)]
+            apply_patch(parent, attribute, original)
+            del _DD_ORIGINAL_ATTRIBUTES[(parent, attribute)]
+    except ModuleNotFoundError:
+        pass
 
 
 def apply_patch(parent, attribute, replacement):
@@ -72,7 +74,9 @@ def apply_patch(parent, attribute, replacement):
         patch_builtins(parent, attribute, replacement)
 
 
-def wrap_object(module, name, factory, args=(), kwargs={}):
+def wrap_object(module, name, factory, args=(), kwargs=None):
+    if kwargs is None:
+        kwargs = {}
     (parent, attribute, original) = resolve_path(module, name)
     wrapper = factory(original, *args, **kwargs)
     apply_patch(parent, attribute, wrapper)
@@ -81,7 +85,6 @@ def wrap_object(module, name, factory, args=(), kwargs={}):
 
 def patchable_builtin(klass):
     refs = gc.get_referents(klass.__dict__)
-    assert len(refs) == 1
     return refs[0]
 
 
@@ -144,7 +147,7 @@ def if_iast_taint_returned_object_for(origin, wrapped, instance, args, kwargs):
 
             if not is_pyobject_tainted(value):
                 name = str(args[0]) if len(args) else "http.request.body"
-                return taint_pyobject(value, Input_info(name, value, origin))
+                return taint_pyobject(pyobject=value, source_name=name, source_value=value, source_origin=origin)
         except Exception:
             log.debug("Unexpected exception while tainting pyobject", exc_info=True)
     return value
@@ -155,9 +158,8 @@ def if_iast_taint_yield_tuple_for(origins, wrapped, instance, args, kwargs):
         from ddtrace.appsec.iast._taint_tracking import taint_pyobject
 
         for key, value in wrapped(*args, **kwargs):
-            new_key = taint_pyobject(key, Input_info(key, key, origins[0]))
-            new_value = taint_pyobject(value, Input_info(key, value, origins[1]))
-
+            new_key = taint_pyobject(pyobject=key, source_name=key, source_value=key, source_origin=origins[0])
+            new_value = taint_pyobject(pyobject=value, source_name=key, source_value=value, source_origin=origins[1])
             yield new_key, new_value
 
     else:

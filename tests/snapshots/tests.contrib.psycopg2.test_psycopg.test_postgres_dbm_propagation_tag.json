@@ -9,6 +9,7 @@
     "type": "sql",
     "error": 0,
     "meta": {
+      "_dd.base_service": "",
       "_dd.dbm_trace_injected": "true",
       "_dd.p.dm": "-0",
       "component": "psycopg",
@@ -18,21 +19,20 @@
       "db.user": "postgres",
       "language": "python",
       "out.host": "127.0.0.1",
-      "runtime-id": "6759aca0ce8d4ff6a328ff125e50c51d",
+      "runtime-id": "4b04b30d8b3e43eab009a6e5a167f3c1",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "db.row_count": 1,
       "network.destination.port": 5432,
-      "process_id": 56478
+      "process_id": 75405
     },
-    "duration": 2652000,
-    "start": 1669148045047826000
+    "duration": 661458,
+    "start": 1692712138854378004
   }],
 [
   {
@@ -45,6 +45,7 @@
     "type": "sql",
     "error": 0,
     "meta": {
+      "_dd.base_service": "",
       "_dd.dbm_trace_injected": "true",
       "_dd.p.dm": "-0",
       "component": "psycopg",
@@ -54,22 +55,21 @@
       "db.user": "postgres",
       "language": "python",
       "out.host": "127.0.0.1",
-      "runtime-id": "6759aca0ce8d4ff6a328ff125e50c51d",
+      "runtime-id": "4b04b30d8b3e43eab009a6e5a167f3c1",
       "span.kind": "client",
       "sql.executemany": "true"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "db.row_count": 2,
       "network.destination.port": 5432,
-      "process_id": 56478
+      "process_id": 75405
     },
-    "duration": 2410000,
-    "start": 1669148045078020000
+    "duration": 352458,
+    "start": 1692712138878464296
   }],
 [
   {
@@ -82,6 +82,7 @@
     "type": "sql",
     "error": 0,
     "meta": {
+      "_dd.base_service": "",
       "_dd.dbm_trace_injected": "true",
       "_dd.p.dm": "-0",
       "component": "psycopg",
@@ -91,21 +92,20 @@
       "db.user": "postgres",
       "language": "python",
       "out.host": "127.0.0.1",
-      "runtime-id": "6759aca0ce8d4ff6a328ff125e50c51d",
+      "runtime-id": "4b04b30d8b3e43eab009a6e5a167f3c1",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "db.row_count": 1,
       "network.destination.port": 5432,
-      "process_id": 56478
+      "process_id": 75405
     },
-    "duration": 1301000,
-    "start": 1669148045080500000
+    "duration": 120000,
+    "start": 1692712138878880087
   }],
 [
   {
@@ -118,6 +118,7 @@
     "type": "sql",
     "error": 0,
     "meta": {
+      "_dd.base_service": "",
       "_dd.dbm_trace_injected": "true",
       "_dd.p.dm": "-0",
       "component": "psycopg",
@@ -127,20 +128,19 @@
       "db.user": "postgres",
       "language": "python",
       "out.host": "127.0.0.1",
-      "runtime-id": "6759aca0ce8d4ff6a328ff125e50c51d",
+      "runtime-id": "4b04b30d8b3e43eab009a6e5a167f3c1",
       "span.kind": "client",
       "sql.executemany": "true"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "db.row_count": 2,
       "network.destination.port": 5432,
-      "process_id": 56478
+      "process_id": 75405
     },
-    "duration": 1988000,
-    "start": 1669148045081837000
+    "duration": 143416,
+    "start": 1692712138879039796
   }]]

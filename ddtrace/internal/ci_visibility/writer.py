@@ -1,18 +1,14 @@
 import os
-from typing import Dict
-from typing import List
-from typing import Optional
+from typing import TYPE_CHECKING
 
 import ddtrace
 from ddtrace import config
-from ddtrace.vendor.dogstatsd import DogStatsd
 
 from .. import agent
 from .. import service
 from ..runtime import get_runtime_id
 from ..writer import HTTPWriter
 from ..writer import WriterClientBase
-from ..writer import get_writer_interval_seconds
 from .constants import AGENTLESS_BASE_URL
 from .constants import AGENTLESS_COVERAGE_BASE_URL
 from .constants import AGENTLESS_COVERAGE_ENDPOINT
@@ -22,9 +18,18 @@ from .constants import EVP_PROXY_AGENT_ENDPOINT
 from .constants import EVP_PROXY_COVERAGE_ENDPOINT
 from .constants import EVP_SUBDOMAIN_HEADER_COVERAGE_VALUE
 from .constants import EVP_SUBDOMAIN_HEADER_NAME
-from .coverage import enabled as coverage_enabled
 from .encoder import CIVisibilityCoverageEncoderV02
 from .encoder import CIVisibilityEncoderV01
+
+
+if TYPE_CHECKING:  # pragma: no cover
+    from typing import Dict
+    from typing import List
+    from typing import Optional
+
+    from ddtrace.vendor.dogstatsd import DogStatsd
+
+    from ...sampler import BaseSampler
 
 
 class CIVisibilityEventClient(WriterClientBase):
@@ -42,8 +47,10 @@ class CIVisibilityEventClient(WriterClientBase):
 
 
 class CIVisibilityCoverageClient(WriterClientBase):
-    def __init__(self, intake_url, headers=None):
+    def __init__(self, intake_url, headers=None, itr_suite_skipping_mode=False):
         encoder = CIVisibilityCoverageEncoderV02(0, 0)
+        if itr_suite_skipping_mode:
+            encoder._set_itr_suite_skipping_mode(itr_suite_skipping_mode)
         self._intake_url = intake_url
         if headers:
             self._headers = headers
@@ -74,8 +81,8 @@ class CIVisibilityWriter(HTTPWriter):
     def __init__(
         self,
         intake_url="",  # type: str
-        processing_interval=get_writer_interval_seconds(),  # type: float
-        timeout=agent.get_trace_agent_timeout(),  # type: float
+        processing_interval=None,  # type: Optional[float]
+        timeout=None,  # type: Optional[float]
         dogstatsd=None,  # type: Optional[DogStatsd]
         sync_mode=False,  # type: bool
         report_metrics=False,  # type: bool
@@ -83,7 +90,13 @@ class CIVisibilityWriter(HTTPWriter):
         reuse_connections=None,  # type: Optional[bool]
         headers=None,  # type: Optional[Dict[str, str]]
         use_evp=False,  # type: bool
+        coverage_enabled=False,  # type: bool
+        itr_suite_skipping_mode=False,  # type: bool
     ):
+        if processing_interval is None:
+            processing_interval = config._trace_writer_interval_seconds
+        if timeout is None:
+            timeout = agent.get_trace_agent_timeout()
         intake_cov_url = None
         if use_evp:
             intake_url = agent.get_trace_url()
@@ -97,15 +110,19 @@ class CIVisibilityWriter(HTTPWriter):
         clients = (
             [CIVisibilityProxiedEventClient()] if use_evp else [CIVisibilityAgentlessEventClient()]
         )  # type: List[WriterClientBase]
-        if coverage_enabled():
+        if coverage_enabled:
             if not intake_cov_url:
                 intake_cov_url = "%s.%s" % (AGENTLESS_COVERAGE_BASE_URL, os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE))
             clients.append(
                 CIVisibilityProxiedCoverageClient(
-                    intake_url=intake_cov_url, headers={EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_COVERAGE_VALUE}
+                    intake_url=intake_cov_url,
+                    headers={EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_COVERAGE_VALUE},
+                    itr_suite_skipping_mode=itr_suite_skipping_mode,
                 )
                 if use_evp
-                else CIVisibilityAgentlessCoverageClient(intake_url=intake_cov_url)
+                else CIVisibilityAgentlessCoverageClient(
+                    intake_url=intake_cov_url, itr_suite_skipping_mode=itr_suite_skipping_mode
+                )
             )
 
         super(CIVisibilityWriter, self).__init__(

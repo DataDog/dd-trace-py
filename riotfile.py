@@ -98,142 +98,32 @@ venv = Venv(
     env={
         "DD_TESTING_RAISE": "1",
         "DD_REMOTE_CONFIGURATION_ENABLED": "false",
+        "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
+        "DD_CIVISIBILITY_CODE_COVERAGE_ENABLED": "1",
+        "DD_CIVISIBILITY_ITR_ENABLED": "1",
+        "CMAKE_BUILD_PARALLEL_LEVEL": "12",
     },
     venvs=[
         Venv(
             pys=["3"],
-            pkgs={
-                "black": "==21.4b2",
-                "isort": [latest],
-                # See https://github.com/psf/black/issues/2964 for incompatibility with click==8.1.0
-                "click": "<8.1.0",
-            },
-            venvs=[
-                Venv(
-                    name="fmt",
-                    command="isort . && black .",
-                ),
-                Venv(
-                    name="black",
-                    command="black {cmdargs}",
-                ),
-                Venv(
-                    name="isort",
-                    command="isort {cmdargs}",
-                ),
-            ],
-        ),
-        Venv(
-            pys=["3"],
-            pkgs={
-                "flake8": ">=3.8,<3.9",
-                "flake8-blind-except": latest,
-                "flake8-builtins": latest,
-                "flake8-docstrings": latest,
-                "flake8-logging-format": latest,
-                "flake8-rst-docstrings": latest,
-                "flake8-isort": latest,
-                "pygments": latest,
-            },
-            venvs=[
-                Venv(
-                    name="flake8",
-                    command="flake8 {cmdargs}",
-                ),
-            ],
-        ),
-        Venv(
-            pys=["3"],
-            pkgs={
-                "cython-lint": latest,
-            },
-            name="cython-lint",
-            command="cython-lint {cmdargs} .",
-        ),
-        Venv(
-            pys=["3"],
-            name="mypy",
-            command="mypy {cmdargs}",
-            create=True,
-            pkgs={
-                "mypy": "==0.991",
-                "envier": "==0.4.0",
-                "types-attrs": "==19.1.0",
-                "types-docutils": "==0.19.1.1",
-                "types-protobuf": "==3.20.4.5",
-                "types-PyYAML": "==6.0.12.2",
-                "types-setuptools": "==65.6.0.0",
-                "types-six": "==1.16.21.4",
-            },
-        ),
-        Venv(
-            pys=["3"],
-            pkgs={"codespell": "==2.1.0"},
-            venvs=[
-                Venv(
-                    name="codespell",
-                    command='codespell --skip="ddwaf.h" ddtrace/ tests/',
-                ),
-                Venv(
-                    name="hook-codespell",
-                    command="codespell {cmdargs}",
-                ),
-            ],
-        ),
-        Venv(
-            pys=["3"],
-            pkgs={"slotscheck": latest},
-            venvs=[
-                Venv(
-                    name="slotscheck",
-                    command="python -m slotscheck -v ddtrace/",
-                ),
-            ],
-        ),
-        Venv(
-            pys=["3"],
-            pkgs={"bandit": latest},
-            venvs=[
-                Venv(
-                    name="bandit",
-                    command="bandit -c pyproject.toml {cmdargs} -r ddtrace/",
-                ),
-            ],
-        ),
-        Venv(
-            pys=["3"],
-            pkgs={"ddapm-test-agent": ">=1.2.0"},
-            venvs=[
-                Venv(
-                    name="snapshot-fmt",
-                    command="ddapm-test-agent-fmt {cmdargs} tests/snapshots/",
-                ),
-            ],
-        ),
-        Venv(
-            pys=["3"],
-            name="riot-helpers",
-            # DEV: pytest really doesn't want to execute only `riotfile.py`, call doctest directly
-            command="python -m doctest {cmdargs} riotfile.py",
-            pkgs={"riot": latest},
-        ),
-        Venv(
-            pys=["3"],
             name="scripts",
-            command="python -m doctest {cmdargs} scripts/get-target-milestone.py",
+            command="python -m doctest {cmdargs} "
+            "scripts/get-target-milestone.py "
+            "scripts/needs_testrun.py "
+            "tests/suitespec.py",
         ),
         Venv(
-            name="docs",
-            pys=["3.10"],
+            pys=["3"],
+            name="meta-testing",
+            command="pytest {cmdargs} tests/meta",
+        ),
+        Venv(
+            name="circleci-gen-config",
+            command="python scripts/gen_circleci_config.py {cmdargs}",
+            pys=["3"],
             pkgs={
-                "reno[sphinx]": "~=3.5.0",
-                "sphinx": "~=4.0",
-                "sphinxcontrib-spelling": "==7.7.0",
-                "PyEnchant": "==3.2.2",
-                "sphinx-copybutton": "==0.5.1",
-                "furo": latest,
+                "ruamel.yaml": latest,
             },
-            command="scripts/build-docs",
         ),
         Venv(
             name="appsec",
@@ -250,26 +140,6 @@ venv = Venv(
             env={
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
             },
-        ),
-        Venv(
-            pys=select_pys(),
-            pkgs={
-                # pytest-benchmark depends on cpuinfo which dropped support for Python<=3.6 in 9.0
-                # See https://github.com/workhorsy/py-cpuinfo/issues/177
-                "pytest-benchmark": latest,
-                "py-cpuinfo": "~=8.0.0",
-                "msgpack": latest,
-            },
-            venvs=[
-                Venv(
-                    name="benchmarks",
-                    command="pytest --no-cov --benchmark-warmup=on {cmdargs} tests/benchmarks",
-                ),
-                Venv(
-                    name="benchmarks-nogc",
-                    command="pytest --no-cov --benchmark-warmup=on --benchmark-disable-gc {cmdargs} tests/benchmarks",
-                ),
-            ],
         ),
         Venv(
             name="profile-diff",
@@ -331,7 +201,8 @@ venv = Venv(
         Venv(
             name="integration",
             # Enabling coverage for integration tests breaks certain tests in CI
-            command="pytest --no-cov {cmdargs} tests/integration/",
+            # Also, running two separate pytest sessions, the ``civisibility`` one with --no-ddtrace
+            command="pytest --no-ddtrace --no-cov --ignore-glob='*civisibility*' {cmdargs} tests/integration/ && pytest --no-cov --no-ddtrace {cmdargs} tests/integration/test_integration_civisibility.py",  # noqa: E501
             pkgs={"msgpack": [latest], "coverage": latest},
             venvs=[
                 Venv(
@@ -522,6 +393,7 @@ venv = Venv(
             pkgs={
                 "msgpack": latest,
                 "httpretty": "==0.9.7",
+                "typing-extensions": latest,
             },
             venvs=[
                 Venv(pys="2.7"),
@@ -575,6 +447,8 @@ venv = Venv(
             command="python tests/wait-for-services.py {cmdargs}",
             # Default Python 3 (3.10) collections package breaks with kombu/vertica, so specify Python 3.9 instead.
             pys="3.9",
+            create=True,
+            skip_dev_install=True,
             pkgs={
                 "cassandra-driver": latest,
                 "psycopg2-binary": latest,
@@ -649,7 +523,6 @@ venv = Venv(
                 # Split into <3.8 and >=3.8 to pin importlib_metadata dependency for kombu
                 Venv(
                     # celery dropped support for Python 2.7/3.5 in 5.0
-                    pys=select_pys(max_version="3.7"),
                     pkgs={
                         "pytest": "~=3.10",
                         "celery": [
@@ -661,6 +534,11 @@ venv = Venv(
                         "pytest-cov": "==2.3.0",
                         "pytest-mock": "==2.0.0",
                     },
+                    venvs=[
+                        Venv(pys=select_pys(max_version="3.6")),
+                        # exceptiongroup latest specified to avoid riot bug: https://github.com/DataDog/riot/issues/211
+                        Venv(pys="3.7", pkgs={"exceptiongroup": latest}),
+                    ],
                 ),
                 Venv(
                     # celery added support for Python 3.9 in 4.x
@@ -765,6 +643,7 @@ venv = Venv(
                             ">=17,<18",
                         ],
                         "more_itertools": "<8.11.0",
+                        "typing-extensions": latest,
                     },
                 ),
                 Venv(
@@ -792,7 +671,7 @@ venv = Venv(
                     pkgs={"pymongo": ["~=3.4", "~=3.11", "~=3.13"]},
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.7", max_version="3.9"), pkgs={"pymongo": ["~=3.11", "~=4.0", latest]}
+                    pys=select_pys(min_version="3.7", max_version="3.9"), pkgs={"pymongo": ["~=3.11", "~=4.5", latest]}
                 ),
                 Venv(
                     # pymongo added support for Python 3.10 in 3.12.1
@@ -963,6 +842,7 @@ venv = Venv(
                 "celery": "~=5.0.5",
                 "gevent": latest,
                 "requests": latest,
+                "typing-extensions": latest,
             },
             pys=select_pys(min_version="3.8"),
         ),
@@ -1152,7 +1032,6 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    pys=select_pys(max_version="3.9"),
                     pkgs={
                         "flask": "~=0.12.0",
                         "Werkzeug": ["<1.0"],
@@ -1170,6 +1049,10 @@ venv = Venv(
                         # DEV: Breaking change made in 2.1.0 release
                         "markupsafe": "<2.0",
                     },
+                    venvs=[
+                        Venv(pys=select_pys(max_version="3.7")),
+                        Venv(pys=select_pys(min_version="3.8", max_version="3.9"), pkgs={"exceptiongroup": latest}),
+                    ],
                 ),
                 Venv(
                     # flask-caching dropped support for Python 3.5 in 1.8
@@ -1492,7 +1375,10 @@ venv = Venv(
             name="botocore",
             command="pytest {cmdargs} tests/contrib/botocore",
             venvs=[
-                Venv(pys=select_pys(min_version="3.8"), pkgs={"moto[all]": latest, "botocore": latest}),
+                Venv(
+                    pys=select_pys(min_version="3.7"),
+                    pkgs={"moto[all]": latest, "botocore": latest},
+                ),
                 Venv(
                     pys=["2.7"],
                     pkgs={
@@ -1522,14 +1408,6 @@ venv = Venv(
                                 "moto[all]": "~=2.0",
                                 "graphql-core": "~=3.1.0",
                             },
-                            venvs=[
-                                Venv(
-                                    pys=["3.7"],
-                                    pkgs={
-                                        "markupsafe": "<2.0",
-                                    },
-                                ),
-                            ],
                         ),
                     ],
                 ),
@@ -1716,7 +1594,7 @@ venv = Venv(
         ),
         Venv(
             name="pytest",
-            command="pytest {cmdargs} tests/contrib/pytest/",
+            command="pytest --no-ddtrace {cmdargs} tests/contrib/pytest/",
             venvs=[
                 Venv(
                     pys=["2.7"],
@@ -1768,8 +1646,15 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="unittest",
+            command="pytest --no-ddtrace {cmdargs} tests/contrib/unittest_plugin/",
+            pkgs={"msgpack": latest},
+            env={"DD_CIVISIBILITY_UNITTEST_ENABLED": "1"},
+            pys=select_pys(),
+        ),
+        Venv(
             name="asynctest",
-            command="pytest {cmdargs} tests/contrib/asynctest/",
+            command="pytest --no-ddtrace {cmdargs} tests/contrib/asynctest/",
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.5", max_version="3.9"),
@@ -1783,8 +1668,27 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="pytest-benchmark",
+            command="pytest {cmdargs} tests/contrib/pytest_benchmark/",
+            pkgs={"msgpack": latest},
+            venvs=[
+                Venv(
+                    venvs=[
+                        Venv(
+                            pys=select_pys(min_version="3.7", max_version="3.10"),
+                            pkgs={
+                                "pytest-benchmark": [
+                                    ">=3.1.0,<=4.0.0",
+                                ]
+                            },
+                        )
+                    ],
+                ),
+            ],
+        ),
+        Venv(
             name="pytest-bdd",
-            command="pytest {cmdargs} tests/contrib/pytest_bdd/",
+            command="pytest --no-ddtrace {cmdargs} tests/contrib/pytest_bdd/",
             pkgs={"msgpack": latest},
             venvs=[
                 Venv(
@@ -1806,9 +1710,11 @@ venv = Venv(
                             pkgs={
                                 "pytest-bdd": [
                                     ">=4.0,<5.0",
-                                    # FIXME: add support for v6.1
-                                    ">=6.0,<6.1",
-                                ]
+                                    ">=6.0,<7.0",
+                                ],
+                                "typing-extensions": [
+                                    latest,
+                                ],
                             },
                         ),
                         Venv(
@@ -1816,9 +1722,12 @@ venv = Venv(
                             pkgs={
                                 "pytest-bdd": [
                                     ">=4.0,<5.0",
-                                    # FIXME: add support for v6.1
-                                    ">=6.0,<6.1",
-                                ]
+                                    ">=6.0,<7.0",
+                                    latest,
+                                ],
+                                "typing-extensions": [
+                                    latest,
+                                ],
                             },
                         ),
                     ],
@@ -1929,7 +1838,7 @@ venv = Venv(
         ),
         Venv(
             name="rq",
-            command="pytest tests/contrib/rq",
+            command="pytest {cmdargs} tests/contrib/rq",
             venvs=[
                 Venv(
                     # rq dropped support for Python 2.7 in 1.4.0
@@ -2380,6 +2289,7 @@ venv = Venv(
                     "~=1.3.0",
                     latest,
                 ],
+                "typing-extensions": latest,
             },
         ),
         Venv(
@@ -2535,8 +2445,6 @@ venv = Venv(
         Venv(
             name="openai",
             command="pytest {cmdargs} tests/contrib/openai",
-            env={"SKLEARN_ALLOW_DEPRECATED_SKLEARN_PACKAGE_INSTALL": "True"},
-            pys=select_pys(min_version="3.8"),
             pkgs={
                 "vcrpy": "==4.2.1",
                 "urllib3": "~=1.26",  # vcrpy errors with urllib3 2.x https://github.com/kevin1024/vcrpy/issues/688
@@ -2545,16 +2453,28 @@ venv = Venv(
             },
             venvs=[
                 Venv(
+                    # openai[embeddings] broken install with sklearn was never fixed on 0.26
+                    # https://github.com/openai/openai-python/issues/210
+                    pys="3.7",
+                    env={"SKLEARN_ALLOW_DEPRECATED_SKLEARN_PACKAGE_INSTALL": "True"},
+                    pkgs={
+                        "openai": "==0.26.5",
+                        "scikit-learn": "==1.0.2",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.7"),
                     pkgs={
                         "openai[embeddings]": ["==0.27.2", latest],
                     },
                 ),
                 Venv(
+                    pys=select_pys(min_version="3.8"),
                     pkgs={
-                        # openai[embeddings] broken install with sklearn was never fixed on 0.26
-                        "openai": "==0.26.5",  # https://github.com/openai/openai-python/issues/210
-                        "scikit-learn": "==1.2.2",
+                        "openai[embeddings]": [latest],
+                        "tiktoken": latest,
                     },
+                    env={"TIKTOKEN_AVAILABLE": "True"},
                 ),
             ],
         ),
@@ -2768,6 +2688,24 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="langchain",
+            command="pytest {cmdargs} tests/contrib/langchain",
+            pys=select_pys(min_version="3.9"),
+            pkgs={
+                "langchain": ["==0.0.192", latest],
+                "openai": latest,
+                "vcrpy": latest,
+                "pytest-asyncio": latest,
+                "tiktoken": latest,
+                "pinecone-client": latest,
+                "cohere": latest,
+                "huggingface-hub": latest,
+                "ai21": latest,
+                "exceptiongroup": latest,
+                "psutil": latest,
+            },
+        ),
+        Venv(
             name="molten",
             command="pytest {cmdargs} tests/contrib/molten",
             pys=select_pys(min_version="3.6"),
@@ -2835,9 +2773,14 @@ venv = Venv(
         ),
         Venv(
             name="ci_visibility",
-            command="pytest {cmdargs} tests/ci_visibility",
+            command="pytest --no-ddtrace {cmdargs} tests/ci_visibility",
             pys=select_pys(),
             pkgs={"msgpack": latest, "coverage": latest},
+        ),
+        Venv(
+            name="subprocess",
+            command="pytest {cmdargs} tests/contrib/subprocess",
+            pys=select_pys(),
         ),
         Venv(
             name="profile",
@@ -2912,6 +2855,7 @@ venv = Venv(
                                     pkgs={
                                         "protobuf": "==3.8.0",
                                     },
+                                    create=True,  # Needed bp Python 3.5 because of namespace packages
                                 ),
                                 # Gevent
                                 Venv(

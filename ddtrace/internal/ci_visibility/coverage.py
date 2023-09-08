@@ -1,25 +1,23 @@
-import contextlib
 from itertools import groupby
 import json
 import os
-from typing import Iterable
-from typing import List
-from typing import Optional
-from typing import Tuple
+from typing import TYPE_CHECKING
 
-from ddtrace import config
-from ddtrace.internal import compat
 from ddtrace.internal.logger import get_logger
 
-from .constants import COVERAGE_TAG_NAME
 
+if TYPE_CHECKING:  # pragma: no cover
+    from typing import Dict
+    from typing import Iterable
+    from typing import List
+    from typing import Optional
+    from typing import Tuple
 
 log = get_logger(__name__)
 
 try:
     from coverage import Coverage
     from coverage import version_info as coverage_version
-    from coverage.numbits import numbits_to_nums
 
     # this public attribute became private after coverage==6.3
     EXECUTE_ATTR = "_execute" if coverage_version > (6, 3) else "execute"
@@ -28,43 +26,27 @@ except ImportError:
     EXECUTE_ATTR = ""
 
 
-def enabled():
-    if config._ci_visibility_code_coverage_enabled:
-        if compat.PY2:
-            return False
-        if Coverage is None:
-            log.warning(
-                "CI Visibility code coverage tracking is enabled, but the `coverage` package is not installed. "
-                "To use code coverage tracking, please install `coverage` from https://pypi.org/project/coverage/"
-            )
-            return False
-        return True
-    return False
+def is_coverage_available():
+    return Coverage is not None
 
 
-@contextlib.contextmanager
-def cover(span, root=None, **kwargs):
-    """Calculates code coverage on the given span and saves it as a tag"""
+def _initialize_coverage(root_dir):
     coverage_kwargs = {
         "data_file": None,
-        "source": [root] if root else None,
+        "source": [root_dir],
         "config_file": False,
+        "omit": [
+            "*/site-packages/*",
+        ],
     }
-    coverage_kwargs.update(kwargs)
-    cov = Coverage(**coverage_kwargs)
-    cov.start()
-    test_id = str(span.trace_id)
-    cov.switch_context(test_id)
-    yield cov
-    cov.stop()
-    span.set_tag(COVERAGE_TAG_NAME, build_payload(cov, test_id=test_id, root=root))
+    return Coverage(**coverage_kwargs)
 
 
 def segments(lines):
     # type: (Iterable[int]) -> List[Tuple[int, int, int, int, int]]
     """Extract the relevant report data for a single file."""
     _segments = []
-    for key, g in groupby(enumerate(sorted(lines)), lambda x: x[1] - x[0]):
+    for _key, g in groupby(enumerate(sorted(lines)), lambda x: x[1] - x[0]):
         group = list(g)
         start = group[0][1]
         end = group[-1][1]
@@ -74,23 +56,18 @@ def segments(lines):
 
 
 def _lines(coverage, context):
-    data = coverage.get_data()
-    context_id = data._context_id(context)
-    data._start_using()
-    with data._connect() as con:
-        query = (
-            "select file.path, line_bits.numbits "
-            "from line_bits "
-            "join file on line_bits.file_id = file.id "
-            "where context_id = ?"
-        )
-        data = [context_id]
-        bitmaps = list(getattr(con, EXECUTE_ATTR)(query, data))
-        return {row[0]: numbits_to_nums(row[1]) for row in bitmaps if not row[0].startswith("..")}
+    # type: (Coverage, Optional[str]) -> Dict[str, List[Tuple[int, int, int, int, int]]]
+    if not coverage._collector or not coverage._collector.data:
+        return {}
+
+    return {
+        k: segments(v.keys()) if isinstance(v, dict) else segments(v)  # type: ignore
+        for k, v in coverage._collector.data.items()
+    }
 
 
-def build_payload(coverage, test_id=None, root=None):
-    # type: (Coverage, Optional[str], Optional[str]) -> str
+def build_payload(coverage, root_dir, test_id=None):
+    # type: (Coverage, str, Optional[str]) -> str
     """
     Generate a CI Visibility coverage payload, formatted as follows:
 
@@ -114,15 +91,21 @@ def build_payload(coverage, test_id=None, root=None):
             If the number is >0 then it indicates the number of executions
             If the number is -1 then it indicates that the number of executions are unknown
 
+    :param coverage: Coverage object containing coverage data
+    :param root_dir: the directory relative to which paths to covered files should be resolved
     :param test_id: a unique identifier for the current test run
-    :param root: the directory relative to which paths to covered files should be resolved
     """
+    root_dir_str = str(root_dir)
     return json.dumps(
         {
             "files": [
                 {
-                    "filename": os.path.relpath(filename, root) if root is not None else filename,
-                    "segments": segments(lines),
+                    "filename": os.path.relpath(filename, root_dir_str),
+                    "segments": lines,
+                }
+                if lines
+                else {
+                    "filename": os.path.relpath(filename, root_dir_str),
                 }
                 for filename, lines in _lines(coverage, test_id).items()
             ]

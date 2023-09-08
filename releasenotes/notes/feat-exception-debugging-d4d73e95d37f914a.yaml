@@ -1,0 +1,12 @@
+---
+prelude: >
+    Exception Debugging allows capturing debug information from exceptions
+    attached to traces. The information about local variables and function
+    arguments is displayed in the Error Tracking UI and augments the traceback
+    data already collected.
+features:
+  - |
+    exception debugging: Introduced the Exception Debugging feature that allows
+    capturing debug information from exceptions attached to traces. This new
+    feature can be enabled via the `DD_EXCEPTION_DEBUGGING_ENABLED`` environment
+    variable.

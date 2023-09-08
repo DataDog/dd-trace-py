@@ -51,12 +51,8 @@ with require_modules(required_modules) as missing_modules:
     if not missing_modules:
         from .app import patch_app
         from .app import unpatch_app
+        from .patch import get_version
         from .patch import patch
         from .patch import unpatch
 
-        __all__ = [
-            "patch",
-            "patch_app",
-            "unpatch",
-            "unpatch_app",
-        ]
+        __all__ = ["patch", "patch_app", "unpatch", "unpatch_app", "get_version"]

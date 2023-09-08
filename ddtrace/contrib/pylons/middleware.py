@@ -41,7 +41,9 @@ _BODY_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
 
 
 class PylonsTraceMiddleware(object):
-    def __init__(self, app, tracer, service=schematize_service_name("pylons"), distributed_tracing=None):
+    def __init__(self, app, tracer, service=None, distributed_tracing=None):
+        if service is None:
+            service = schematize_service_name("pylons")
         self.app = app
         self._service = service
         self._tracer = tracer

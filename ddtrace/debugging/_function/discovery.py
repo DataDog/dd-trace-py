@@ -98,7 +98,7 @@ class ContainerIterator(Iterator, FullyNamedFunction):
             self._iter = iter(
                 (m, getattr(container, a)) for m, a in {("getter", "fget"), ("setter", "fset"), ("deleter", "fdel")}
             )
-            assert container.fget is not None
+            assert container.fget is not None  # nosec
             self.__name__ = container.fget.__name__
 
         elif isinstance(container, (classmethod, staticmethod)):
@@ -178,8 +178,6 @@ def _collect_functions(module):
     All the collected functions are augmented with a ``__fullname__`` attribute
     to disambiguate the same functions assigned to different names.
     """
-    assert isinstance(module, ModuleType)
-
     path = origin(module)
     containers = deque([ContainerIterator(module)])
     functions = {}

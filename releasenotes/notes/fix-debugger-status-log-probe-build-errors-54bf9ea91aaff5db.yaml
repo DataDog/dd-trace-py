@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    dynamic instrumentation: ensure that probes that fail to be instrumented
+    because of invalid conditions/expressions are reported with status ``ERROR``
+    in the UI.
