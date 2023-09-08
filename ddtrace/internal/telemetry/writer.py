@@ -217,7 +217,6 @@ class TelemetryWriter(PeriodicService):
 
         if self._is_periodic:
             self.start()
-            atexit.register(self.app_shutdown)
             return True
 
         self.status = ServiceStatus.RUNNING
@@ -291,13 +290,17 @@ class TelemetryWriter(PeriodicService):
             msg = "%s:%s: %s" % (filename, line_number, msg)
         self._error = (code, msg)
 
-    def _app_started_event(self):
-        # type: () -> None
+    def _app_started_event(self, register_app_shutdown=True):
+        # type: (bool) -> None
         """Sent when TelemetryWriter is enabled or forks"""
         if self._forked:
             # app-started events should only be sent by the main process
             return
         #  List of configurations to be collected
+
+        self.started = True
+        if register_app_shutdown:
+            atexit.register(self.app_shutdown)
 
         self.add_configurations(
             [
@@ -594,15 +597,6 @@ class TelemetryWriter(PeriodicService):
         telemetry_events = self._flush_events_queue()
         for telemetry_event in telemetry_events:
             self._client.send_event(telemetry_event)
-
-    def start(self, *args, **kwargs):
-        # type: (...) -> None
-        super(TelemetryWriter, self).start(*args, **kwargs)
-        # Queue app-started event after the telemetry worker thread is running
-        if self.started is False:
-            self._app_started_event()
-            self._app_dependencies_loaded_event()
-            self.started = True
 
     def app_shutdown(self):
         self._app_closing_event()
