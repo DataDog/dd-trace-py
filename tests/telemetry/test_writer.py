@@ -15,6 +15,7 @@ from ddtrace.internal.telemetry.writer import TelemetryWriter
 from ddtrace.internal.telemetry.writer import get_runtime_id
 from ddtrace.internal.utils.version import _pep440_to_semver
 from ddtrace.settings import _config as config
+from ddtrace.settings.config import DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
 
 
 def test_add_event(telemetry_writer, test_agent_session, mock_time):
@@ -76,6 +77,8 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
             {"name": "DD_INSTRUMENTATION_TELEMETRY_ENABLED", "origin": "unknown", "value": True},
             {"name": "DD_LOGS_INJECTION", "origin": "unknown", "value": False},
             {"name": "DD_PROFILING_ENABLED", "origin": "unknown", "value": False},
+            {"name": "DD_REMOTE_CONFIGURATION_ENABLED", "origin": "unknown", "value": False},
+            {"name": "DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "origin": "unknown", "value": 5.0},
             {"name": "DD_RUNTIME_METRICS_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_SERVICE_MAPPING", "origin": "unknown", "value": ""},
             {"name": "DD_SPAN_SAMPLING_RULES", "origin": "unknown", "value": None},
@@ -90,16 +93,9 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
             {"name": "DD_TRACE_ENABLED", "origin": "unknown", "value": True},
             {"name": "DD_TRACE_HEALTH_METRICS_ENABLED", "origin": "unknown", "value": False},
             {
-                "name": "DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN",
+                "name": "DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP",
                 "origin": "unknown",
-                "value": "(?i)(?:p(?:ass)?w(?:or)?d|pass(?:_?phrase)?|secret|(?:api_?|private_?"
-                "|public_?|access_?|secret_?)key(?:_?id)?|token|consumer_?(?:id|key|secret)|sign"
-                '(?:ed|ature)?|auth(?:entication|orization)?)(?:(?:\\s|%20)*(?:=|%3D)[^&]+|(?:"|'
-                '%22)(?:\\s|%20)*(?::|%3A)(?:\\s|%20)*(?:"|%22)(?:%2[^2]|%[^2]|[^"%])+(?:"|%22))|'
-                "bearer(?:\\s|%20)+[a-z0-9\\._\\-]|token(?::|%3A)[a-z0-9]{13}|gh[opsu]_[0-9a-zA-Z]{36}|"
-                "ey[I-L](?:[\\w=-]|%3D)+\\.ey[I-L](?:[\\w=-]|%3D)+(?:\\.(?:[\\w.+\\/=-]|%3D|%2F|%2B)+)?|["
-                "\\-]{5}BEGIN(?:[a-z\\s]|%20)+PRIVATE(?:\\s|%20)KEY[\\-]{5}[^\\-]+[\\-]{5}END(?:[a-z\\s]|%"
-                "20)+PRIVATE(?:\\s|%20)KEY|ssh-rsa(?:\\s|%20)*(?:[a-z0-9\\/\\.+]|%2F|%5C|%2B){100,}",
+                "value": DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT,
             },
             {"name": "DD_TRACE_OTEL_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED", "origin": "unknown", "value": False},
@@ -165,10 +161,12 @@ telemetry_writer.disable()
     env["DD_TRACE_DEBUG"] = "True"
     env["DD_TRACE_ENABLED"] = "False"
     env["DD_TRACE_HEALTH_METRICS_ENABLED"] = "True"
-    env["DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN"] = ".*"
+    env["DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP"] = ".*"
     env["DD_TRACE_OTEL_ENABLED"] = "True"
     env["DD_TRACE_PROPAGATION_STYLE_EXTRACT"] = "tracecontext"
     env["DD_TRACE_PROPAGATION_STYLE_INJECT"] = "tracecontext"
+    env["DD_REMOTE_CONFIGURATION_ENABLED"] = "True"
+    env["DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS"] = "1"
     env["DD_TRACE_SAMPLE_RATE"] = "0.5"
     env["DD_TRACE_RATE_LIMIT"] = "50"
     env["DD_TRACE_SAMPLING_RULES"] = '[{"sample_rate":1.0,"service":"xyz","name":"abc"}]'
@@ -207,6 +205,8 @@ telemetry_writer.disable()
         {"name": "DD_INSTRUMENTATION_TELEMETRY_ENABLED", "origin": "unknown", "value": True},
         {"name": "DD_LOGS_INJECTION", "origin": "unknown", "value": True},
         {"name": "DD_PROFILING_ENABLED", "origin": "unknown", "value": True},
+        {"name": "DD_REMOTE_CONFIGURATION_ENABLED", "origin": "unknown", "value": True},
+        {"name": "DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "origin": "unknown", "value": 1.0},
         {"name": "DD_RUNTIME_METRICS_ENABLED", "origin": "unknown", "value": True},
         {"name": "DD_SERVICE_MAPPING", "origin": "unknown", "value": "default_dd_service:remapped_dd_service"},
         {"name": "DD_SPAN_SAMPLING_RULES", "origin": "unknown", "value": '[{"service":"xyz", "sample_rate":0.23}]'},
@@ -220,7 +220,7 @@ telemetry_writer.disable()
         {"name": "DD_TRACE_DEBUG", "origin": "unknown", "value": True},
         {"name": "DD_TRACE_ENABLED", "origin": "unknown", "value": False},
         {"name": "DD_TRACE_HEALTH_METRICS_ENABLED", "origin": "unknown", "value": True},
-        {"name": "DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN", "origin": "unknown", "value": ".*"},
+        {"name": "DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP", "origin": "unknown", "value": ".*"},
         {"name": "DD_TRACE_OTEL_ENABLED", "origin": "unknown", "value": True},
         {"name": "DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED", "origin": "unknown", "value": True},
         {"name": "DD_TRACE_PEER_SERVICE_MAPPING", "origin": "unknown", "value": "default_service:remapped_service"},

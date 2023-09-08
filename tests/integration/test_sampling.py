@@ -1,5 +1,6 @@
 import pytest
 
+from ddtrace import config
 from ddtrace.constants import MANUAL_DROP_KEY
 from ddtrace.constants import MANUAL_KEEP_KEY
 from ddtrace.internal.writer import AgentWriter
@@ -12,6 +13,7 @@ from .test_integration import AGENT_VERSION
 
 
 pytestmark = pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
+RESOURCE = "mycoolre$ource"
 
 
 def snapshot_parametrized_with_writers(f):
@@ -19,7 +21,7 @@ def snapshot_parametrized_with_writers(f):
         if writer == "sync":
             writer = AgentWriter(
                 tracer.agent_trace_url,
-                priority_sampler=tracer._priority_sampler,
+                priority_sampling=config._priority_sampling,
                 sync_mode=True,
             )
             # NB Need to copy the headers, which contain the snapshot token, to associate
@@ -102,3 +104,35 @@ def test_sampling_with_rate_sampler_with_tiny_rate(writer, tracer):
     tracer.configure(sampler=sampler, writer=writer)
     with tracer.trace("trace8"):
         tracer.trace("child").finish()
+
+
+@snapshot_parametrized_with_writers
+def test_sampling_with_sample_rate_1_and_rate_limit_0(writer, tracer):
+    sampler = DatadogSampler(default_sample_rate=1, rate_limit=0)
+    tracer.configure(sampler=sampler, writer=writer)
+    with tracer.trace("trace5"):
+        tracer.trace("child").finish()
+
+
+@snapshot_parametrized_with_writers
+def test_sampling_with_sample_rate_1_and_rate_limit_3_and_rule_0(writer, tracer):
+    sampler = DatadogSampler(default_sample_rate=1, rules=[SamplingRule(0)], rate_limit=3)
+    tracer.configure(sampler=sampler, writer=writer)
+    with tracer.trace("trace5"):
+        tracer.trace("child").finish()
+
+
+@snapshot_parametrized_with_writers
+def test_sampling_with_rate_limit_3(writer, tracer):
+    sampler = DatadogSampler(rate_limit=3)
+    tracer.configure(sampler=sampler, writer=writer)
+    with tracer.trace("trace5"):
+        tracer.trace("child").finish()
+
+
+@snapshot_parametrized_with_writers
+def test_extended_sampling_resource(writer, tracer):
+    sampler = DatadogSampler(rules=[SamplingRule(0, resource=RESOURCE)])
+    tracer.configure(sampler=sampler, writer=writer)
+    tracer.trace("should_not_send", resource=RESOURCE).finish()
+    tracer.trace("should_send", resource="something else").finish()
