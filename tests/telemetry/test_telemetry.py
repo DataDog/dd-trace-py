@@ -8,7 +8,12 @@ import six
 def test_enable(test_agent_session, run_python_code_in_subprocess):
     code = """
 from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.service import ServiceStatus
+
 telemetry_writer.enable()
+
+assert telemetry_writer.status == ServiceStatus.RUNNING
+assert telemetry_writer._worker is not None
 """
 
     stdout, stderr, status, _ = run_python_code_in_subprocess(code)
@@ -17,26 +22,10 @@ telemetry_writer.enable()
     assert stdout == b"", stderr
     assert stderr == b""
 
-    events = test_agent_session.get_events()
-    assert len(events) == 3
-
-    # Same runtime id is used
-    assert events[0]["runtime_id"] == events[1]["runtime_id"]
-    assert events[0]["request_type"] == "app-closing"
-    assert events[1]["request_type"] == "app-dependencies-loaded"
-    assert events[2]["request_type"] == "app-started"
-    assert events[2]["payload"]["error"] == {"code": 0, "message": ""}
-
 
 @pytest.mark.snapshot
 def test_telemetry_enabled_on_first_tracer_flush(test_agent_session, ddtrace_run_python_code_in_subprocess):
     """assert telemetry events are generated after the first trace is flushed to the agent"""
-    # Using ddtrace-run and/or importing ddtrace alone should not enable telemetry
-    # Telemetry data should only be sent after the first trace to the agent
-    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess("import ddtrace")
-    assert status == 0, stderr
-    # No trace and No Telemetry
-    assert len(test_agent_session.get_events()) == 0
 
     # Submit a trace to the agent in a subprocess
     code = 'from ddtrace import tracer; span = tracer.trace("test-telemetry"); span.finish()'
@@ -65,6 +54,7 @@ from ddtrace.internal.telemetry import telemetry_writer
 
 # We have to start before forking since fork hooks are not enabled until after enabling
 telemetry_writer.enable()
+telemetry_writer._app_started_event()
 
 if os.fork() == 0:
     # Send multiple started events to confirm none get sent
@@ -85,15 +75,12 @@ else:
     requests = test_agent_session.get_requests()
 
     # We expect 2 events from the parent process to get sent, but none from the child process
-    assert len(requests) == 3
+    assert len(requests) == 2
     # Validate that the runtime id sent for every event is the parent processes runtime id
     assert requests[0]["body"]["runtime_id"] == runtime_id
     assert requests[0]["body"]["request_type"] == "app-closing"
     assert requests[1]["body"]["runtime_id"] == runtime_id
-    assert requests[1]["body"]["request_type"] == "app-dependencies-loaded"
-    assert requests[1]["body"]["runtime_id"] == runtime_id
-    assert requests[2]["body"]["request_type"] == "app-started"
-    assert requests[2]["body"]["runtime_id"] == runtime_id
+    assert requests[1]["body"]["request_type"] == "app-started"
 
 
 def test_enable_fork_heartbeat(test_agent_session, run_python_code_in_subprocess):
@@ -250,6 +237,9 @@ del sqlite3.connect
 
 from ddtrace import patch, tracer
 patch(raise_errors=False, sqlite3=True)
+
+# Create a span to start the telemetry writer
+tracer.trace("hi").finish()
 """
 
     _, stderr, status, _ = run_python_code_in_subprocess(code)
@@ -260,15 +250,11 @@ patch(raise_errors=False, sqlite3=True)
 
     events = test_agent_session.get_events()
 
-    assert len(events) == 5
-    # Same runtime id is used
-    assert (
-        events[0]["runtime_id"]
-        == events[1]["runtime_id"]
-        == events[2]["runtime_id"]
-        == events[3]["runtime_id"]
-        == events[4]["runtime_id"]
-    )
+    assert len(events) > 1
+    for event in events:
+        # Same runtime id is used
+        assert event["runtime_id"] == events[0]["runtime_id"]
+
     integrations_events = [event for event in events if event["request_type"] == "app-integrations-change"]
 
     assert len(integrations_events) == 1
@@ -277,12 +263,14 @@ patch(raise_errors=False, sqlite3=True)
         == "failed to import ddtrace module 'ddtrace.contrib.sqlite3' when patching on import"
     )
 
-    metric_events = [event for event in events if event["request_type"] == "generate-metrics"]
-
+    metric_events = [
+        event
+        for event in events
+        if event["request_type"] == "generate-metrics"
+        and event["payload"]["series"][0]["metric"] == "integration_errors"
+    ]
     assert len(metric_events) == 1
-    assert metric_events[0]["payload"]["namespace"] == "tracers"
     assert len(metric_events[0]["payload"]["series"]) == 1
-    assert metric_events[0]["payload"]["series"][0]["metric"] == "integration_errors"
     assert metric_events[0]["payload"]["series"][0]["type"] == "count"
     assert len(metric_events[0]["payload"]["series"][0]["points"]) == 1
     assert metric_events[0]["payload"]["series"][0]["points"][0][1] == 1

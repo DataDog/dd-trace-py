@@ -350,8 +350,8 @@ def test_send_failing_request(mock_status, telemetry_writer):
     with httpretty.enabled():
         httpretty.register_uri(httpretty.POST, telemetry_writer._client.url, status=mock_status)
         with mock.patch("ddtrace.internal.telemetry.writer.log") as log:
-            # sends failing app-closing event
-            telemetry_writer.app_shutdown()
+            # sends failing app-heartbeat event
+            telemetry_writer.periodic()
             # asserts unsuccessful status code was logged
             log.debug.assert_called_with(
                 "failed to send telemetry to the Datadog Agent at %s. response: %s",
@@ -370,13 +370,11 @@ def test_telemetry_graceful_shutdown(telemetry_writer, test_agent_session, mock_
     telemetry_writer.app_shutdown()
 
     events = test_agent_session.get_events()
-    assert len(events) == 3
+    assert len(events) == 1
 
     # Reverse chronological order
     assert events[0]["request_type"] == "app-closing"
-    assert events[0] == _get_request_body({}, "app-closing", 3)
-    assert events[1]["request_type"] == "app-dependencies-loaded"
-    assert events[2]["request_type"] == "app-started"
+    assert events[0] == _get_request_body({}, "app-closing", 1)
 
 
 def test_app_heartbeat_event_periodic(mock_time, telemetry_writer, test_agent_session):
@@ -385,6 +383,7 @@ def test_app_heartbeat_event_periodic(mock_time, telemetry_writer, test_agent_se
 
     # Ensure telemetry writer is initialized to send periodic events
     telemetry_writer._is_periodic = True
+    telemetry_writer.started = True
     # Assert default telemetry interval is 10 seconds and the expected periodic threshold and counts are set
     assert telemetry_writer.interval == 10
     assert telemetry_writer._periodic_threshold == 5
