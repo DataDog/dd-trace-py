@@ -254,6 +254,7 @@ def patch():
     _w(unittest, "TextTestResult.addFailure", add_failure_test_wrapper)
     _w(unittest, "TextTestResult.addError", add_failure_test_wrapper)
     _w(unittest, "TextTestResult.addSkip", add_skip_test_wrapper)
+    _w(unittest, "TextTestResult.addExpectedFailure", add_xfail_test_wrapper)
     _w(unittest, "TextTestRunner.run", handle_text_test_runner_wrapper)
     _w(unittest, "TestCase.run", handle_test_wrapper)
     _w(unittest, "TestSuite.run", handle_module_suite_wrapper)
@@ -271,13 +272,14 @@ def unpatch():
     _u(unittest.TextTestResult, "addFailure")
     _u(unittest.TextTestResult, "addError")
     _u(unittest.TextTestResult, "addSkip")
+    _u(unittest.TextTestResult, "addExpectedFailure")
     _u(unittest.TextTestRunner, "run")
     _u(unittest.TestCase, "run")
     _u(unittest.TestSuite, "run")
     _u(unittest.TestProgram, "runTests")
 
     unittest._datadog_patch = False
-    # _CIVisibility.disable()
+    _CIVisibility.disable()
 
 
 def _set_test_span_status(test_item, status, reason=None):
@@ -302,6 +304,13 @@ def add_success_test_wrapper(func, instance, args, kwargs):
 def add_failure_test_wrapper(func, instance, args, kwargs):
     if _is_valid_result(instance, args):
         _set_test_span_status(test_item=args[0], reason=_extract_test_reason(args), status=test.Status.FAIL.value)
+
+    return func(*args, **kwargs)
+
+
+def add_xfail_test_wrapper(func, instance, args, kwargs):
+    if _is_valid_result(instance, args):
+        _set_test_span_status(test_item=args[0], reason=_extract_test_reason(args), status=test.Status.XFAIL.value)
 
     return func(*args, **kwargs)
 
@@ -383,8 +392,6 @@ def handle_test_wrapper(func, instance, args, kwargs):
             child_of=test_suite_span,
             activate=True,
         )
-        if test_suite_span.get_tag(test.MODULE) == "serializers.test_json":
-            pass
         span.set_tag_str(_EVENT_TYPE, SpanTypes.TEST)
         span.set_tag_str(_SESSION_ID, test_suite_span.get_tag(_SESSION_ID))
         span.set_tag_str(_MODULE_ID, test_suite_span.get_tag(_MODULE_ID))
@@ -405,7 +412,6 @@ def handle_test_wrapper(func, instance, args, kwargs):
         span.set_tag_str(test.STATUS, test.Status.FAIL.value)
         span.set_tag_str(test.CLASS_HIERARCHY, suite_name)
         _CIVisibility.set_codeowners_of(_extract_test_file_name(instance), span=span)
-
         _store_test_span(instance, span)
         result = func(*args, **kwargs)
         _update_status_item(test_suite_span, span.get_tag(test.STATUS))
@@ -434,8 +440,8 @@ def handle_module_suite_wrapper(func, instance, args, kwargs):
             or hasattr(instance, "_datadog_entry")
             and instance._datadog_entry == "TextTestRunner"
         ):
-            test_session_span = unittest._datadog_session_span
             if _is_invoked_by_text_test_runner(instance):
+                test_session_span = unittest._datadog_session_span
                 seen_suites = dict()
                 seen_modules = dict()
                 for test_object in instance._tests:
@@ -535,12 +541,12 @@ def _start_test_session_span(instance):
     test_session_span.set_tag_str(test.COMMAND, test_command)
     test_session_span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
     _store_test_span(instance, test_session_span)
-    # _store_session_span(instance, test_session_span)
+    _store_session_span(instance, test_session_span)
     return test_session_span
 
 
 def _finish_test_session_span(test_session_span):
-    log.error("CI Visibility enabled - finishing unittest test session")
+    log.debug("CI Visibility enabled - finishing unittest test session")
     test_session_span.finish()
 
 
@@ -590,6 +596,7 @@ def handle_session_wrapper(func, instance, args, kwargs):
     except SystemExit as e:
         if _CIVisibility.enabled and test_session_span:
             _finish_test_session_span(test_session_span)
+            _CIVisibility.disable()
         raise e
     return result
 
