@@ -32,8 +32,8 @@ def test_path_traversal(iast_span_defaults):
     assert vulnerability.type == VULN_PATH_TRAVERSAL
     assert source.name == "path"
     assert source.origin == OriginType.PATH
-    assert source.value == file_path
-    assert vulnerability.evidence.valueParts == [{"source": 0, "value": file_path}]
+    assert source.value is None
+    assert vulnerability.evidence.valueParts == [{"redacted": True, "source": 0}]
     assert vulnerability.evidence.value is None
     assert vulnerability.evidence.pattern is None
     assert vulnerability.evidence.redacted is None
