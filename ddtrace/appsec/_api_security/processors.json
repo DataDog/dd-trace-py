@@ -70,6 +70,14 @@
           {
             "inputs": [
               {
+                "address": "server.request.cookies"
+              }
+            ],
+            "output": "_dd.appsec.s.req.cookies"
+          },
+          {
+            "inputs": [
+              {
                 "address": "server.request.query"
               }
             ],
