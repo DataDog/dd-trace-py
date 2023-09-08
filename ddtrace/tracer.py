@@ -24,7 +24,6 @@ from ._monkey import patch
 from .constants import ENV_KEY
 from .constants import HOSTNAME_KEY
 from .constants import PID
-from .constants import SAMPLE_RATE_METRIC_KEY
 from .constants import VERSION_KEY
 from .context import Context
 from .internal import agent
@@ -55,7 +54,6 @@ from .internal.serverless import in_azure_function_consumption_plan
 from .internal.serverless import in_gcp_function
 from .internal.serverless.mini_agent import maybe_start_serverless_mini_agent
 from .internal.service import ServiceStatusError
-from .internal.utils.formats import asbool
 from .internal.writer import AgentWriter
 from .internal.writer import LogWriter
 from .internal.writer import TraceWriter
@@ -247,7 +245,7 @@ class Tracer(object):
         # traces
         self._pid = getpid()
 
-        self.enabled = asbool(os.getenv("DD_TRACE_ENABLED", default=True))
+        self.enabled = config._tracing_enabled
         self.context_provider = context_provider or DefaultContextProvider()
         self._sampler = DatadogSampler()  # type: BaseSampler
         self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
@@ -268,8 +266,8 @@ class Tracer(object):
             )
         self._single_span_sampling_rules = get_span_sampling_rules()  # type: List[SpanSamplingRule]
         self._writer = writer  # type: TraceWriter
-        self._partial_flush_enabled = asbool(os.getenv("DD_TRACE_PARTIAL_FLUSH_ENABLED", default=True))
-        self._partial_flush_min_spans = int(os.getenv("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", default=500))
+        self._partial_flush_enabled = config._partial_flush_enabled
+        self._partial_flush_min_spans = config._partial_flush_min_spans
         self._appsec_enabled = config._appsec_enabled
         # Direct link to the appsec processor
         self._appsec_processor = None
@@ -757,16 +755,7 @@ class Tracer(object):
             self._services.add(service)
 
         if not trace_id:
-            span.sampled = self._sampler.sample(span)
-            if not isinstance(self._sampler, DatadogSampler):
-                if span.sampled:
-                    # When doing client sampling in the client, keep the sample rate so that we can
-                    # scale up statistics in the next steps of the pipeline.
-                    if isinstance(self._sampler, RateSampler):
-                        span.set_metric(SAMPLE_RATE_METRIC_KEY, self._sampler.sample_rate)
-            else:
-                # We must always mark the span as sampled so it is forwarded to the agent
-                span.sampled = True
+            span.sampled = self._sampler.sample(span, allow_false=isinstance(self._sampler, RateSampler))
 
         # Only call span processors if the tracer is enabled
         if self.enabled:

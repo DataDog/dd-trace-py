@@ -95,6 +95,7 @@ def override_global_config(values):
     # List of global variables we allow overriding
     # DEV: We do not do `ddtrace.config.keys()` because we have all of our integrations
     global_config_keys = [
+        "_tracing_enabled",
         "analytics_enabled",
         "client_ip_header",
         "retrieve_client_ip",

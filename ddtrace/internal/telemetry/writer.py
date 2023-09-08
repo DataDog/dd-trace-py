@@ -46,6 +46,9 @@ from .constants import TELEMETRY_EXCEPTION_DEBUGGING_ENABLED
 from .constants import TELEMETRY_LOGS_INJECTION_ENABLED
 from .constants import TELEMETRY_OBFUSCATION_QUERY_STRING_PATTERN
 from .constants import TELEMETRY_OTEL_ENABLED
+from .constants import TELEMETRY_PARTIAL_FLUSH_ENABLED
+from .constants import TELEMETRY_PARTIAL_FLUSH_MIN_SPANS
+from .constants import TELEMETRY_PRIORITY_SAMPLING
 from .constants import TELEMETRY_PROFILING_ENABLED
 from .constants import TELEMETRY_PROPAGATION_STYLE_EXTRACT
 from .constants import TELEMETRY_PROPAGATION_STYLE_INJECT
@@ -223,7 +226,6 @@ class TelemetryWriter(PeriodicService):
         self._disabled = True
         self.reset_queues()
         if self._is_periodic and self.status is ServiceStatus.RUNNING:
-            atexit.unregister(self.stop)
             self.stop()
         else:
             self.status = ServiceStatus.STOPPED
@@ -295,7 +297,7 @@ class TelemetryWriter(PeriodicService):
             [
                 (TELEMETRY_TRACING_ENABLED, config._tracing_enabled, "unknown"),
                 (TELEMETRY_CALL_BASIC_CONFIG, config._call_basic_config, "unknown"),
-                (TELEMETRY_STARTUP_LOGS_ENABLED, config._call_basic_config, "unknown"),
+                (TELEMETRY_STARTUP_LOGS_ENABLED, config._startup_logs_enabled, "unknown"),
                 (TELEMETRY_DSM_ENABLED, config._data_streams_enabled, "unknown"),
                 (TELEMETRY_ASM_ENABLED, config._appsec_enabled, "unknown"),
                 (TELEMETRY_PROFILING_ENABLED, profiling_config.enabled, "unknown"),
@@ -331,6 +333,9 @@ class TelemetryWriter(PeriodicService):
                 (TELEMETRY_SPAN_SAMPLING_RULES, config._sampling_rules, "unknown"),
                 (TELEMETRY_SPAN_SAMPLING_RULES_FILE, config._sampling_rules_file, "unknown"),
                 (TELEMETRY_TRACE_SAMPLING_RULES, config._trace_sampling_rules, "unknown"),
+                (TELEMETRY_PRIORITY_SAMPLING, config._priority_sampling, "unknown"),
+                (TELEMETRY_PARTIAL_FLUSH_ENABLED, config._partial_flush_enabled, "unknown"),
+                (TELEMETRY_PARTIAL_FLUSH_MIN_SPANS, config._partial_flush_min_spans, "unknown"),
                 (TELEMETRY_TRACE_SPAN_ATTRIBUTE_SCHEMA, SCHEMA_VERSION, "unknown"),
                 (TELEMETRY_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED, _remove_client_service_names, "unknown"),
                 (TELEMETRY_TRACE_PEER_SERVICE_DEFAULTS_ENABLED, _ps_config.set_defaults_enabled, "unknown"),
@@ -615,7 +620,6 @@ class TelemetryWriter(PeriodicService):
         if self.status == ServiceStatus.STOPPED:
             return
 
-        atexit.unregister(self.stop)
         self.stop(join=False)
 
     def _restart_sequence(self):

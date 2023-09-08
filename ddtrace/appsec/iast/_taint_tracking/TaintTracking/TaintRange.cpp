@@ -11,6 +11,8 @@ using namespace std;
 
 #define _GET_HASH_KEY(obj) ((((PyASCIIObject*)obj)->hash) & 0xFFFFFF)
 
+PyObject* HASH_FUNC = PyDict_GetItemString(PyEval_GetBuiltins(), "hash");
+
 typedef struct _PyASCIIObject_State_Hidden
 {
     unsigned int : 8;
@@ -56,11 +58,12 @@ set_fast_tainted_if_notinterned_unicode(const PyObject* objptr)
     auto e = (PyASCIIObject_State_Hidden*)&(((PyASCIIObject*)objptr)->state);
     if (e) {
         if ((((PyASCIIObject*)objptr)->hash) == -1) {
-            // compute hash once if not already done
-            PyObject* builtins = PyEval_GetBuiltins();
-            PyObject* hash = PyDict_GetItemString(builtins, "hash");
-            // Could be replaced by PyObject_CallOneArg(hash,  objptr); in 3.9+
-            PyEval_CallFunction(hash, "(O)", objptr);
+            PyObject* result = PyObject_CallFunctionObjArgs(HASH_FUNC, objptr, NULL);
+            if (result != NULL) {
+                Py_DECREF(result);
+            } else {
+                PyErr_Print();
+            }
         }
         e->hidden = _GET_HASH_KEY(objptr);
     }
