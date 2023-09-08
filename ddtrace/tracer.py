@@ -585,7 +585,6 @@ class Tracer(object):
         span_type=None,  # type: Optional[str]
         activate=False,  # type: bool
         span_api=SPAN_API_DATADOG,  # type: str
-        tags=None,  # type: Optional[dict[Union[str, bytes], str]]
     ):
         # type: (...) -> Span
         log.warning("Spans started after the tracer has been shut down will not be sent to the Datadog Agent.")
@@ -600,7 +599,6 @@ class Tracer(object):
         span_type=None,  # type: Optional[str]
         activate=False,  # type: bool
         span_api=SPAN_API_DATADOG,  # type: str
-        tags=None,  # type: Optional[dict[Union[str, bytes], str]]
     ):
         # type: (...) -> Span
         """Return a span that represents an operation called ``name``.
@@ -699,7 +697,6 @@ class Tracer(object):
                 span_type=span_type,
                 span_api=span_api,
                 on_finish=[self._on_span_finish],
-                tags=tags,
             )
 
             # Extra attributes when from a local parent
@@ -723,7 +720,6 @@ class Tracer(object):
                 span_type=span_type,
                 span_api=span_api,
                 on_finish=[self._on_span_finish],
-                tags=tags,
             )
             span._local_root = span
             if config.report_hostname:
@@ -805,8 +801,8 @@ class Tracer(object):
         else:
             log.log(level, msg)
 
-    def trace(self, name, service=None, resource=None, span_type=None, span_api=SPAN_API_DATADOG, tags=None):
-        # type: (str, Optional[str], Optional[str], Optional[str], str, Optional[Dict[Union[str, bytes], str]]) -> Span
+    def trace(self, name, service=None, resource=None, span_type=None, span_api=SPAN_API_DATADOG):
+        # type: (str, Optional[str], Optional[str], Optional[str], str) -> Span
         """Activate and return a new span that inherits from the current active span.
 
         :param str name: the name of the operation being traced
@@ -855,7 +851,6 @@ class Tracer(object):
             span_type=span_type,
             activate=True,
             span_api=span_api,
-            tags=tags,
         )
 
     def current_root_span(self):

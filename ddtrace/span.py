@@ -110,7 +110,6 @@ class Span(object):
         context=None,  # type: Optional[Context]
         on_finish=None,  # type: Optional[List[Callable[[Span], None]]]
         span_api=SPAN_API_DATADOG,  # type: str
-        tags=None,  # type: Optional[Dict[Union[str, bytes], str]]
     ):
         # type: (...) -> None
         """
@@ -153,8 +152,6 @@ class Span(object):
         self._meta = {}  # type: _MetaDictType
         self.error = 0
         self._metrics = {}  # type: _MetricDictType
-        if tags:
-            self.set_tags(tags)
 
         # timing
         self.start_ns = time_ns() if start is None else int(start * 1e9)  # type: int

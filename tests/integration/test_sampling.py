@@ -143,15 +143,21 @@ def test_extended_sampling_resource(writer, tracer):
 def test_extended_sampling_tags(writer, tracer):
     sampler = DatadogSampler(rules=[SamplingRule(0, tags=TAGS)])
     tracer.configure(sampler=sampler, writer=writer)
-    tracer.trace("should_not_send", tags=TAGS).finish()
-    tracer.trace("should_send", tags={"banana": True}).finish()
+    tracer._tags = TAGS
+    tracer.trace("should_not_send").finish()
+    tracer._tags = {"banana": "True"}
+    tracer.trace("should_send").finish()
 
 
 @snapshot_parametrized_with_writers
 def test_extended_sampling_tags_and_resource(writer, tracer):
     sampler = DatadogSampler(rules=[SamplingRule(0, tags=TAGS, resource=RESOURCE)])
     tracer.configure(sampler=sampler, writer=writer)
-    tracer.trace("should_not_send", resource=RESOURCE, tags=TAGS).finish()
-    tracer.trace("should_send1", tags={"banana": True}).finish()
-    tracer.trace("should_send2", resource="banana", tags=TAGS).finish()
-    tracer.trace("should_send3", resource=RESOURCE, tags={"banana": True}).finish()
+
+    tracer._tags = TAGS
+    tracer.trace("should_not_send", resource=RESOURCE).finish()
+    tracer.trace("should_send2", resource="banana").finish()
+
+    tracer._tags = {"banana": "True"}
+    tracer.trace("should_send1").finish()
+    tracer.trace("should_send3", resource=RESOURCE).finish()
