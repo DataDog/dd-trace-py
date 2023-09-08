@@ -585,6 +585,7 @@ class Tracer(object):
         span_type=None,  # type: Optional[str]
         activate=False,  # type: bool
         span_api=SPAN_API_DATADOG,  # type: str
+        tags=None,  # type: Optional[dict[Union[str, bytes], str]]
     ):
         # type: (...) -> Span
         log.warning("Spans started after the tracer has been shut down will not be sent to the Datadog Agent.")
@@ -599,7 +600,7 @@ class Tracer(object):
         span_type=None,  # type: Optional[str]
         activate=False,  # type: bool
         span_api=SPAN_API_DATADOG,  # type: str
-        tags=None,  # type: Optional[dict[str, Optional[str]]]
+        tags=None,  # type: Optional[dict[Union[str, bytes], str]]
     ):
         # type: (...) -> Span
         """Return a span that represents an operation called ``name``.
@@ -805,7 +806,7 @@ class Tracer(object):
             log.log(level, msg)
 
     def trace(self, name, service=None, resource=None, span_type=None, span_api=SPAN_API_DATADOG, tags=None):
-        # type: (str, Optional[str], Optional[str], Optional[str], str, Optional[Dict[str, Optional[str]]]) -> Span
+        # type: (str, Optional[str], Optional[str], Optional[str], str, Optional[Dict[Union[str, bytes], str]]) -> Span
         """Activate and return a new span that inherits from the current active span.
 
         :param str name: the name of the operation being traced
