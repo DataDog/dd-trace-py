@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from typing import Any
     from typing import Union
 
-    from ddtrace.appsec.ddwaf.ddwaf_types import DDWafRulesType
+    from ddtrace.appsec._ddwaf.ddwaf_types import DDWafRulesType
 
 
 LOGGER = get_logger(__name__)

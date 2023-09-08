@@ -5,20 +5,20 @@ import codecs
 import traceback
 from typing import TYPE_CHECKING
 
-from ddtrace.appsec.iast._metrics import _set_iast_error_metric
-from ddtrace.appsec.iast._taint_tracking import TagMappingMode
-from ddtrace.appsec.iast._taint_tracking import TaintRange
-from ddtrace.appsec.iast._taint_tracking import _convert_escaped_text_to_tainted_text
-from ddtrace.appsec.iast._taint_tracking import are_all_text_all_ranges
-from ddtrace.appsec.iast._taint_tracking import as_formatted_evidence
-from ddtrace.appsec.iast._taint_tracking import common_replace
-from ddtrace.appsec.iast._taint_tracking import get_ranges
-from ddtrace.appsec.iast._taint_tracking import get_tainted_ranges
-from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
-from ddtrace.appsec.iast._taint_tracking import parse_params
-from ddtrace.appsec.iast._taint_tracking import shift_taint_range
-from ddtrace.appsec.iast._taint_tracking import taint_pyobject_with_ranges
-from ddtrace.appsec.iast._taint_tracking._native import aspects  # noqa: F401
+from ddtrace.appsec._iast._metrics import _set_iast_error_metric
+from ddtrace.appsec._iast._taint_tracking import TagMappingMode
+from ddtrace.appsec._iast._taint_tracking import TaintRange
+from ddtrace.appsec._iast._taint_tracking import _convert_escaped_text_to_tainted_text
+from ddtrace.appsec._iast._taint_tracking import are_all_text_all_ranges
+from ddtrace.appsec._iast._taint_tracking import as_formatted_evidence
+from ddtrace.appsec._iast._taint_tracking import common_replace
+from ddtrace.appsec._iast._taint_tracking import get_ranges
+from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
+from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+from ddtrace.appsec._iast._taint_tracking import parse_params
+from ddtrace.appsec._iast._taint_tracking import shift_taint_range
+from ddtrace.appsec._iast._taint_tracking import taint_pyobject_with_ranges
+from ddtrace.appsec._iast._taint_tracking._native import aspects  # noqa: F401
 from ddtrace.internal.compat import iteritems
 
 

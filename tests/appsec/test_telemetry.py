@@ -7,8 +7,8 @@ import pytest
 
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._deduplications import deduplication
-from ddtrace.appsec.ddwaf import version
-from ddtrace.appsec.processor import AppSecSpanProcessor
+from ddtrace.appsec._ddwaf import version
+from ddtrace.appsec._processor import AppSecSpanProcessor
 from ddtrace.contrib.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_APPSEC

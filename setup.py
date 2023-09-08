@@ -304,7 +304,7 @@ class CMakeBuild(build_ext):
 
         if (
             sys.version_info >= (3, 6, 0)
-            and ext.name == "ddtrace.appsec.iast._taint_tracking._native"
+            and ext.name == "ddtrace.appsec._iast._taint_tracking._native"
             and os.path.exists(cmake_list_path)
         ):
             os.makedirs(tmp_iast_path, exist_ok=True)
@@ -449,7 +449,7 @@ if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
     if platform.system() not in ("Windows", ""):
         ext_modules.append(
             Extension(
-                "ddtrace.appsec.iast._stacktrace",
+                "ddtrace.appsec._iast._stacktrace",
                 # Sort source files for reproducibility
                 sources=[
                     "ddtrace/appsec/iast/_stacktrace.c",
@@ -459,7 +459,7 @@ if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
         )
 
         if sys.version_info >= (3, 6, 0):
-            ext_modules.append(Extension("ddtrace.appsec.iast._taint_tracking._native", sources=[]))
+            ext_modules.append(Extension("ddtrace.appsec._iast._taint_tracking._native", sources=[]))
 else:
     ext_modules = []
 
@@ -528,8 +528,8 @@ setup(
     package_data={
         "ddtrace": ["py.typed"],
         "ddtrace.appsec": ["rules.json"],
-        "ddtrace.appsec.ddwaf": [os.path.join("libddwaf", "*", "lib", "libddwaf.*")],
-        "ddtrace.appsec.iast._taint_tracking": ["CMakeLists.txt"],
+        "ddtrace.appsec._ddwaf": [os.path.join("libddwaf", "*", "lib", "libddwaf.*")],
+        "ddtrace.appsec._iast._taint_tracking": ["CMakeLists.txt"],
     },
     python_requires=">=3.7",
     zip_safe=False,

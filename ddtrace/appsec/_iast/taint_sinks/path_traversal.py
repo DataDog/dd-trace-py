@@ -1,10 +1,10 @@
-from ddtrace.appsec.iast import oce
-from ddtrace.appsec.iast._metrics import _set_metric_iast_instrumented_sink
-from ddtrace.appsec.iast._patch import set_and_check_module_is_patched
-from ddtrace.appsec.iast._patch import set_module_unpatched
-from ddtrace.appsec.iast.constants import EVIDENCE_PATH_TRAVERSAL
-from ddtrace.appsec.iast.constants import VULN_PATH_TRAVERSAL
-from ddtrace.appsec.iast.taint_sinks._base import VulnerabilityBase
+from ddtrace.appsec._iast import oce
+from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
+from ddtrace.appsec._iast._patch import set_and_check_module_is_patched
+from ddtrace.appsec._iast._patch import set_module_unpatched
+from ddtrace.appsec._iast.constants import EVIDENCE_PATH_TRAVERSAL
+from ddtrace.appsec._iast.constants import VULN_PATH_TRAVERSAL
+from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
 from ddtrace.internal.logger import get_logger
 
 
@@ -20,7 +20,7 @@ class PathTraversal(VulnerabilityBase):
     @classmethod
     def report(cls, evidence_value=None, sources=None):
         if isinstance(evidence_value, (str, bytes, bytearray)):
-            from ddtrace.appsec.iast._taint_tracking import taint_ranges_as_evidence_info
+            from ddtrace.appsec._iast._taint_tracking import taint_ranges_as_evidence_info
 
             evidence_value, sources = taint_ranges_as_evidence_info(evidence_value)
         super(PathTraversal, cls).report(evidence_value=evidence_value, sources=sources)
@@ -47,7 +47,7 @@ def patch():
 def open_path_traversal(*args, **kwargs):
     if oce.request_has_quota and PathTraversal.has_quota():
         try:
-            from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
+            from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 
             if is_pyobject_tainted(args[0]):
                 PathTraversal.report(evidence_value=args[0])

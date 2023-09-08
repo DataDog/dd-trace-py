@@ -92,7 +92,7 @@ static PyMethodDef StacktraceMethods[] = {
 };
 
 static struct PyModuleDef stacktrace = { PyModuleDef_HEAD_INIT,
-                                         "ddtrace.appsec.iast._stacktrace",
+                                         "ddtrace.appsec._iast._stacktrace",
                                          "stacktrace module",
                                          -1,
                                          StacktraceMethods };

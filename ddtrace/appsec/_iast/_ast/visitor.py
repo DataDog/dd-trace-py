@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 from six import iteritems
 
-from ddtrace.appsec.iast._metrics import _set_metric_iast_instrumented_propagation
+from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_propagation
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -29,7 +29,7 @@ class AstVisitor(ast.NodeTransformer):
     ):
         # Offset caused by inserted lines. Will be adjusted in visit_Generic
         self._aspects_spec = {
-            "definitions_module": "ddtrace.appsec.iast._taint_tracking.aspects",
+            "definitions_module": "ddtrace.appsec._iast._taint_tracking.aspects",
             "alias_module": "ddtrace_aspects",
             "functions": {
                 "str": "ddtrace_aspects.str_aspect",
@@ -88,7 +88,7 @@ class AstVisitor(ast.NodeTransformer):
             },
         }
         self._sinkpoints_spec = {
-            "definitions_module": "ddtrace.appsec.iast.taint_sinks",
+            "definitions_module": "ddtrace.appsec._iast.taint_sinks",
             "alias_module": "ddtrace_taint_sinks",
             "functions": {
                 "open": "ddtrace_taint_sinks.open_path_traversal",

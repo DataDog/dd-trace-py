@@ -3,19 +3,19 @@ from typing import TYPE_CHECKING
 
 import six
 
-from ddtrace.appsec.iast import oce
-from ddtrace.appsec.iast._taint_tracking import taint_ranges_as_evidence_info
-from ddtrace.appsec.iast._utils import _scrub_get_tokens_positions
-from ddtrace.appsec.iast.constants import EVIDENCE_SQL_INJECTION
-from ddtrace.appsec.iast.constants import VULN_SQL_INJECTION
-from ddtrace.appsec.iast.taint_sinks._base import VulnerabilityBase
+from ddtrace.appsec._iast import oce
+from ddtrace.appsec._iast._taint_tracking import taint_ranges_as_evidence_info
+from ddtrace.appsec._iast._utils import _scrub_get_tokens_positions
+from ddtrace.appsec._iast.constants import EVIDENCE_SQL_INJECTION
+from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
+from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
 
 
 if TYPE_CHECKING:
     from typing import Any
     from typing import Dict
 
-    from ddtrace.appsec.iast.reporter import Vulnerability
+    from ddtrace.appsec._iast.reporter import Vulnerability
 
 
 _INSIDE_QUOTES_REGEXP = re.compile(r'["\']([^"\']*?)["\']')

@@ -7,7 +7,7 @@ if TYPE_CHECKING:
     from typing import Dict
     from typing import Tuple
 
-    from ddtrace.appsec.iast._taint_tracking import Source
+    from ddtrace.appsec._iast._taint_tracking import Source
 
 _IAST_TAINT_DICT = {}  # type: Dict[int, Tuple[Tuple[Source, int, int],...]]
 

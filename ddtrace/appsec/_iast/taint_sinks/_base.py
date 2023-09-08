@@ -4,17 +4,17 @@ from typing import cast
 
 from ddtrace import tracer
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec.iast import oce
-from ddtrace.appsec.iast._metrics import _set_metric_iast_executed_sink
-from ddtrace.appsec.iast._overhead_control_engine import Operation
-from ddtrace.appsec.iast._utils import _has_to_scrub
-from ddtrace.appsec.iast._utils import _is_evidence_value_parts
-from ddtrace.appsec.iast._utils import _scrub
-from ddtrace.appsec.iast.reporter import Evidence
-from ddtrace.appsec.iast.reporter import IastSpanReporter
-from ddtrace.appsec.iast.reporter import Location
-from ddtrace.appsec.iast.reporter import Source
-from ddtrace.appsec.iast.reporter import Vulnerability
+from ddtrace.appsec._iast import oce
+from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
+from ddtrace.appsec._iast._overhead_control_engine import Operation
+from ddtrace.appsec._iast._utils import _has_to_scrub
+from ddtrace.appsec._iast._utils import _is_evidence_value_parts
+from ddtrace.appsec._iast._utils import _scrub
+from ddtrace.appsec._iast.reporter import Evidence
+from ddtrace.appsec._iast.reporter import IastSpanReporter
+from ddtrace.appsec._iast.reporter import Location
+from ddtrace.appsec._iast.reporter import Source
+from ddtrace.appsec._iast.reporter import Vulnerability
 from ddtrace.internal import core
 from ddtrace.internal.compat import six
 from ddtrace.internal.logger import get_logger
@@ -24,10 +24,10 @@ from ddtrace.settings import _config
 
 try:
     # Python >= 3.4
-    from ddtrace.appsec.iast._stacktrace import get_info_frame
+    from ddtrace.appsec._iast._stacktrace import get_info_frame
 except ImportError:
     # Python 2
-    from ddtrace.appsec.iast._stacktrace_py2 import get_info_frame
+    from ddtrace.appsec._iast._stacktrace_py2 import get_info_frame
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Any
