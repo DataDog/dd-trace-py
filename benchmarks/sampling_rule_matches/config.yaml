@@ -27,5 +27,5 @@ very_low_match:
   num_iterations: 1000
   num_services: 250
   num_operations: 100
-  num_resources: 100
-  num_tags: 100
+  num_resources: 1
+  num_tags: 1

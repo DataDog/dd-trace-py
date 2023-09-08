@@ -16,6 +16,7 @@ from ddtrace.opentracer import set_global_tracer
 from ddtrace.opentracer.span_context import SpanContext
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.settings import ConfigException
+from tests.utils import override_global_config
 
 
 class TestTracerConfig(object):
@@ -68,11 +69,11 @@ class TestTracerConfig(object):
             assert ["enabeld", "setttings"] in str(ce_info)
             assert tracer is not None
 
-    def test_ddtrace_fallback_config(self, monkeypatch):
+    def test_ddtrace_fallback_config(self):
         """Ensure datadog configuration is used by default."""
-        monkeypatch.setenv("DD_TRACE_ENABLED", "false")
-        tracer = Tracer(dd_tracer=DDTracer())
-        assert tracer._dd_tracer.enabled is False
+        with override_global_config(dict(_tracing_enabled=False)):
+            tracer = Tracer(dd_tracer=DDTracer())
+            assert tracer._dd_tracer.enabled is False
 
     def test_global_tags(self):
         """Global tags should be passed from the opentracer to the tracer."""

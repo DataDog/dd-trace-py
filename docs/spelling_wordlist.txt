@@ -27,6 +27,7 @@ app
 appsec
 aredis
 args
+ascii
 asgi
 async
 asyncio
@@ -256,5 +257,6 @@ programmatically
 DES
 Blowfish
 Gitlab
+Enablement
 hotspot
 CMake
