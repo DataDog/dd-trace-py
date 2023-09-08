@@ -3,6 +3,46 @@
   "metadata": {
     "rules_version": "rules_good"
   },
+  "exclusions": [
+    {
+      "id": "exc-000-001",
+      "on_match": "monitor",
+      "conditions": [
+        {
+          "operator": "ip_match",
+          "parameters": {
+            "inputs": [
+              {
+                "address": "http.client_ip"
+              }
+            ],
+            "list": [
+              "8.8.5.5"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "exc-000-002",
+      "on_match": "bypass",
+      "conditions": [
+        {
+          "operator": "ip_match",
+          "parameters": {
+            "inputs": [
+              {
+                "address": "http.client_ip"
+              }
+            ],
+            "list": [
+              "8.8.6.6"
+            ]
+          }
+        }
+      ]
+    }
+  ],
   "rules": [
     {
       "id": "blk-001-001",
@@ -24,6 +64,58 @@
               "8.8.4.4"
             ],
             "data": "blocked_ips"
+          }
+        }
+      ],
+      "on_match": [
+        "block"
+      ]
+    },
+    {
+      "id": "blk-001-010",
+      "name": "Monitoring but never blocking IP addresses",
+      "tags": {
+        "type": "ip_addresses",
+        "category": "blocking"
+      },
+      "conditions": [
+        {
+          "operator": "ip_match",
+          "parameters": {
+            "inputs": [
+              {
+                "address": "http.client_ip"
+              }
+            ],
+            "list": [
+              "8.8.5.5"
+            ]
+          }
+        }
+      ],
+      "on_match": [
+        "block"
+      ]
+    },
+    {
+      "id": "blk-001-011",
+      "name": "Pass list and no monitoring for IP addresses",
+      "tags": {
+        "type": "ip_addresses",
+        "category": "blocking"
+      },
+      "conditions": [
+        {
+          "operator": "ip_match",
+          "parameters": {
+            "inputs": [
+              {
+                "address": "http.client_ip"
+              }
+            ],
+            "list": [
+              "8.8.6.6"
+            ]
           }
         }
       ],
@@ -61,11 +153,11 @@
       ]
     },
     {
-      "id": "crs-913-110",
-      "name": "Found request header associated with Acunetix security scanner",
+      "id": "tst-421-001",
+      "name": "test rule for ip passlist and monitor list",
       "tags": {
         "type": "security_scanner",
-        "crs_id": "913110",
+        "crs_id": "421001",
         "category": "attack_attempt"
       },
       "conditions": [
@@ -73,14 +165,11 @@
           "parameters": {
             "inputs": [
               {
-                "address": "server.request.headers.no_cookies"
+                "address": "server.request.query"
               }
             ],
             "list": [
-              "acunetix-product",
-              "(acunetix web vulnerability scanner",
-              "acunetix-scanning-agreement",
-              "acunetix-user-agreement"
+              "block_that_value"
             ]
           },
           "operator": "phrase_match"
@@ -88,6 +177,9 @@
       ],
       "transformers": [
         "lowercase"
+      ],
+      "on_match": [
+        "block"
       ]
     },
     {

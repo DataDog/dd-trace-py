@@ -3,6 +3,7 @@ import os
 import pytest
 
 from ddtrace.appsec._constants import IAST
+from ddtrace.appsec.iast._utils import _is_python_version_supported as python_supported_by_iast
 from ddtrace.internal import core
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
 
@@ -10,7 +11,7 @@ from tests.appsec.iast.aspects.conftest import _iast_patched_module
 FIXTURES_PATH = "tests/appsec/iast/fixtures/propagation_path.py"
 
 
-@pytest.mark.skip(reason="Test fixed in PR #6768")
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 @pytest.mark.parametrize(
     "origin1, origin2",
     [

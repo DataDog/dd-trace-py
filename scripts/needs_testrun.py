@@ -3,6 +3,7 @@
 from argparse import ArgumentParser
 import fnmatch
 from functools import cache
+from itertools import count
 import json
 import logging
 import os
@@ -68,15 +69,17 @@ def get_changed_files(pr_number: int, sha: t.Optional[str] = None) -> t.Set[str]
     'tests/debugging/test_expressions.py']
     """
     if sha is None:
+        files = set()
         try:
-            url = f"https://api.github.com/repos/datadog/dd-trace-py/pulls/{pr_number}/files"
-            headers = {"Accept": "application/vnd.github+json"}
-            result = {_["filename"] for _ in json.load(urlopen(Request(url, headers=headers)))}
-            if len(result) != 30:  # 30 files is an unreliable return because it's the maximum
-                return result
-        except Exception as exc:
-            LOGGER.warning("Failed to get changed files from GitHub API")
-            LOGGER.warning(exc)
+            for page in count(1):
+                url = f"https://api.github.com/repos/datadog/dd-trace-py/pulls/{pr_number}/files?page={page}"
+                headers = {"Accept": "application/vnd.github+json"}
+                result = {_["filename"] for _ in json.load(urlopen(Request(url, headers=headers)))}
+                if not result:
+                    return files
+                files |= result
+        except Exception:
+            LOGGER.warning("Failed to get changed files from GitHub API", exc_info=True)
 
     diff_base = sha or get_merge_base(pr_number)
     LOGGER.info("Checking changed files against commit %s", diff_base)

@@ -91,7 +91,8 @@
             "ddtrace/settings/exception_debugging.py"
         ],
         "ci_visibility": [
-            "ddtrace/internal/ci_visibility/*"
+            "ddtrace/internal/ci_visibility/*",
+            "ddtrace/ext/test.py"
         ],
         "sourcecode": [
             "ddtrace/sourcecode/*"
@@ -608,6 +609,7 @@
             "@django",
             "@dbapi",
             "@pg",
+            "tests/appsec/*",
             "tests/contrib/django/*",
             "tests/contrib/django_celery/*",
             "tests/snapshots/tests.contrib.{suite}.*"
@@ -648,6 +650,7 @@
             "@flask",
             "@appsec",
             "@wsgi",
+            "tests/appsec/*",
             "tests/contrib/flask/*",
             "tests/contrib/flask_autopatch/*",
             "tests/contrib/flask_cache/*",
@@ -773,6 +776,7 @@
         ],
         "unittest": [
             "@unittest",
+            "@ci_visibility",
             "tests/contrib/unittest_plugin/*"
         ],
         "asynctest": [
