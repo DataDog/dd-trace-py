@@ -3,7 +3,7 @@ import functools
 from typing import TYPE_CHECKING
 
 from ddtrace import config
-from ddtrace.appsec import handlers
+from ddtrace.appsec import _handlers
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
 from ddtrace.appsec._iast._utils import _is_iast_enabled
@@ -338,7 +338,7 @@ def _start_context(remote_ip, headers, headers_case_sensitive, block_request_cal
     if config._appsec_enabled:
         resources = _DataHandler()
         asm_request_context_set(remote_ip, headers, headers_case_sensitive, block_request_callable)
-        handlers.listen()
+        _handlers.listen()
         listen_context_handlers()
         return resources
 
