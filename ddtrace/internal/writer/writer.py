@@ -5,6 +5,7 @@ import logging
 import os
 import sys
 import threading
+from typing import Any
 from typing import Callable
 from typing import Dict
 from typing import List
@@ -297,6 +298,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         return headers
 
     def _send_payload(self, payload, count, client):
+        # type: (...) -> Response
         headers = self._get_finalized_headers(count, client)
 
         self._metrics_dist("http.requests")
@@ -310,19 +312,19 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
 
         if response.status not in (404, 415) and response.status >= 400:
             msg = "failed to send traces to intake at %s: HTTP error status %s, reason %s"
-            log_args = (
+            log_args_base = (
                 self._intake_endpoint(client),
                 response.status,
                 response.reason,
-            )
+            )  # type: Tuple[Any, Any, Any]
             # Append the payload if requested
             if config._trace_writer_log_err_payload:
                 msg += ", payload %s"
                 # If the payload is bytes then hex encode the value before logging
                 if isinstance(payload, six.binary_type):
-                    log_args += (binascii.hexlify(payload).decode(),)
+                    log_args = log_args_base + (binascii.hexlify(payload).decode(),)
                 else:
-                    log_args += (payload,)
+                    log_args = log_args_base + (payload,)
 
             log.error(msg, *log_args)
             self._metrics_dist("http.dropped.bytes", len(payload))
@@ -596,6 +598,7 @@ class AgentWriter(HTTPWriter):
         raise ValueError()
 
     def _send_payload(self, payload, count, client):
+        # type: (...) -> Response
         response = super(AgentWriter, self)._send_payload(payload, count, client)
         if response.status in [404, 415]:
             log.debug("calling endpoint '%s' but received %s; downgrading API", client.ENDPOINT, response.status)
@@ -620,6 +623,7 @@ class AgentWriter(HTTPWriter):
                             rate_by_service=raw_resp["rate_by_service"],
                         )
                     )
+        return response
 
     def start(self):
         super(AgentWriter, self).start()
