@@ -59,6 +59,9 @@ class SamplingRule(object):
         :type service: :obj:`object` to directly compare, :obj:`function` to evaluate, or :class:`re.Pattern` to match
         :param name: Rule to match the `span.name` on, default no rule defined
         :type name: :obj:`object` to directly compare, :obj:`function` to evaluate, or :class:`re.Pattern` to match
+        :param tags: A dictionary whose keys exactly match the names of tags expected to appear on spans, and whose
+            values are glob-matches with the expected span tag values. If all tags specified in a SamplingRule are
+            matches with a given span, that span is considered to have matching tags with the rule.
         """
         # Enforce sample rate constraints
         if not 0.0 <= sample_rate <= 1.0:
