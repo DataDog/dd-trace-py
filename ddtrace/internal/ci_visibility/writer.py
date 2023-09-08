@@ -29,8 +29,6 @@ if TYPE_CHECKING:  # pragma: no cover
 
     from ddtrace.vendor.dogstatsd import DogStatsd
 
-    from ...sampler import BaseSampler
-
 
 class CIVisibilityEventClient(WriterClientBase):
     def __init__(self):
