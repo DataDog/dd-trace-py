@@ -150,6 +150,23 @@ def test_extended_sampling_tags(writer, tracer):
 
 
 @snapshot_parametrized_with_writers
+def test_extended_sampling_tags_glob(writer, tracer):
+    rule_tags = TAGS.copy()
+    tag_key = list(rule_tags.keys())[0]
+    tag_value = rule_tags[tag_key]
+    rule_tags[tag_key] = tag_value[:2] + "*"
+
+    sampler = DatadogSampler(rules=[SamplingRule(0, tags=rule_tags)])
+    assert sampler.rules[0].tags == {tag_key: "my*"}
+    tracer.configure(sampler=sampler, writer=writer)
+
+    tracer._tags = TAGS
+    tracer.trace("should_not_send").finish()
+    tracer._tags = {tag_key: "mcooltag"}
+    tracer.trace("should_send").finish()
+
+
+@snapshot_parametrized_with_writers
 def test_extended_sampling_tags_and_resource(writer, tracer):
     sampler = DatadogSampler(rules=[SamplingRule(0, tags=TAGS, resource=RESOURCE)])
     tracer.configure(sampler=sampler, writer=writer)
