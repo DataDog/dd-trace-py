@@ -412,7 +412,7 @@ class Config(object):
             # https://github.com/open-telemetry/opentelemetry-python/blob/v1.16.0/opentelemetry-api/src/opentelemetry/context/__init__.py#L53
             os.environ["OTEL_PYTHON_CONTEXT"] = "ddcontextvars_context"
         self._ddtrace_bootstrapped = False
-        self._span_aggregator_rlock = asbool(os.getenv("DD_TRACE_SPAN_AGGREGATOR_RLOCK", False))
+        self._span_aggregator_rlock = asbool(os.getenv("DD_TRACE_SPAN_AGGREGATOR_RLOCK", True))
 
         self._iast_redaction_enabled = asbool(os.getenv("DD_IAST_REDACTION_ENABLED", default=True))
         self._iast_redaction_name_pattern = os.getenv(
