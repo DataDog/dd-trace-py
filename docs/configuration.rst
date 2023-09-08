@@ -518,7 +518,7 @@ The following environment variables for the tracer are supported:
          the username, email and full name and ``disabled``. Note that this feature requires ``DD_APPSEC_ENABLED`` to be 
          set to ``true`` to work.  
       version_added:
-         v1.15.0:
+         v1.17.0:
 
    DD_USER_MODEL_LOGIN_FIELD:
       type: String
