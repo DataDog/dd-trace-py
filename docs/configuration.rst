@@ -231,13 +231,11 @@ The following environment variables for the tracer are supported:
    DD_TRACE_SAMPLING_RULES:
      type: JSON array
      description: |
-         A JSON array of objects. Each object must have a “sample_rate”, and the “name”, “service”, and "resource" fields are optional. The “sample_rate” value must be between 0.0 and 1.0 (inclusive).
+         A JSON array of objects. Each object must have a “sample_rate”, and the “name”, and “service” fields are optional. The “sample_rate” value must be between 0.0 and 1.0 (inclusive).
 
-         **Example:** ``DD_TRACE_SAMPLING_RULES='[{"sample_rate":0.5,"service":"my-service","resource":"my-url"}]'``
+         **Example:** ``DD_TRACE_SAMPLING_RULES='[{"sample_rate":0.5,"service":"my-service"}]'``
 
          **Note** that the JSON object must be included in single quotes (') to avoid problems with escaping of the double quote (") character.
-     version_added:
-       v1.19.0: added support for "resource"
 
    DD_SPAN_SAMPLING_RULES:
      type: string
