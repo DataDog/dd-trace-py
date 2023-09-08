@@ -8,7 +8,6 @@ from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import stack_event
 from ddtrace.profiling.collector import threading as threading
 
-
 stdlib_path: Any
 platstdlib_path: Any
 purelib_path: Any
