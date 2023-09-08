@@ -281,7 +281,7 @@ def test_env_no_api_key():
     _check_url(prof, "http://localhost:8126", os.environ.get("DD_API_KEY"))
 
 
-@pytest.mark.subprocess({"DD_AGENT_HOST": "foobar", "DD_TRACE_AGENT_PORT": "123"})
+@pytest.mark.subprocess(env={"DD_AGENT_HOST": "foobar", "DD_TRACE_AGENT_PORT": "123", "DD_TRACE_AGENT_URL": None})
 def test_env_endpoint_url():
     import os
 
