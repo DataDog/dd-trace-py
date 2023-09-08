@@ -539,10 +539,6 @@ class Tracer(object):
         The agent can return updated sample rates for the priority sampler.
         """
         try:
-            if self._priority_sampler:
-                self._priority_sampler.update_rate_by_service_sample_rates(
-                    resp.rate_by_service,
-                )
             if isinstance(self._sampler, BasePrioritySampler):
                 self._sampler.update_rate_by_service_sample_rates(
                     resp.rate_by_service,
