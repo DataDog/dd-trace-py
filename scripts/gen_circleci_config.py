@@ -145,6 +145,7 @@ with YAML(output=CONFIG_GEN_FILE) as yaml:
     LOGGER.info("Loading configuration template from %s", CONFIG_TEMPLATE_FILE)
     config = yaml.load(CONFIG_TEMPLATE_FILE)
 
+    has_error = False
     LOGGER.info("Configuration generation steps:")
     for name, func in dict(globals()).items():
         if name.startswith("gen_"):
@@ -155,7 +156,10 @@ with YAML(output=CONFIG_GEN_FILE) as yaml:
                 end = time()
                 LOGGER.info("- %s: %s [took %dms]", name, desc, int((end - start) / 1e6))
             except Exception as e:
-                LOGGER.error("- %s: %s [reason: %s]", name, desc, str(e))
+                LOGGER.error("- %s: %s [reason: %s]", name, desc, str(e), exc_info=True)
+                has_error = True
 
     LOGGER.info("Writing generated configuration to %s", CONFIG_GEN_FILE)
     yaml.dump(config)
+
+    sys.exit(has_error)
