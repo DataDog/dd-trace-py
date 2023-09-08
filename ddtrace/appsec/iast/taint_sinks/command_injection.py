@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
     from ddtrace.appsec.iast.reporter import Vulnerability
 
-_INSIDE_QUOTES_REGEXP = re.compile(r"(?:\s|^)(\S*\/\S*)")
+_INSIDE_QUOTES_REGEXP = re.compile(r"(?:\s|^)(\S{3,}\/\S*)")
 
 
 @oce.register

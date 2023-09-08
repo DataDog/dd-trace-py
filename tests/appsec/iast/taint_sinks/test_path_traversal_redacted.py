@@ -20,6 +20,37 @@ ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 @pytest.mark.parametrize(
     "file_path",
     [
+        "1",
+        "12",
+        "123",
+        "a",
+        "ab",
+        "AbC",
+        "-",
+        "txt",
+        ".txt",
+    ],
+)
+def test_path_traversal_redact_exclude(file_path):
+    ev = Evidence(
+        valueParts=[
+            {"value": file_path, "source": 0},
+        ]
+    )
+    loc = Location(path="foobar.py", line=35, spanId=123)
+    v = Vulnerability(type="VulnerabilityType", evidence=ev, location=loc)
+    s = Source(origin="SomeOrigin", name="SomeName", value="SomeValue")
+    report = IastSpanReporter([s], {v})
+
+    redacted_report = PathTraversal._redact_report(report)
+    for v in redacted_report.vulnerabilities:
+        assert v.evidence.valueParts == [{"source": 0, "value": file_path}]
+
+
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+@pytest.mark.parametrize(
+    "file_path",
+    [
         "/mytest/folder/",
         "mytest/folder/",
         "mytest/folder",

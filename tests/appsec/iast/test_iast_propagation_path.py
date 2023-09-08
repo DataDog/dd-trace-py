@@ -1,4 +1,3 @@
-from mock.mock import ANY
 import pytest
 
 from ddtrace.appsec._constants import IAST
@@ -53,11 +52,7 @@ def test_propagation_path_1_origin_1_propagation(origin1, iast_span_defaults):
     assert source.origin == OriginType.PATH
     assert source.value == source_value_encoded
 
-    value_parts = [
-        {"value": ANY},
-        {"source": 0, "value": source_value_encoded},
-        {"value": ".txt"},
-    ]
+    value_parts = [{"redacted": True}, {"redacted": True, "source": 0}, {"redacted": True}]
     _assert_vulnerability(span_report, value_parts, "propagation_path_1_source_1_prop")
 
 
@@ -90,10 +85,10 @@ def test_propagation_path_1_origins_2_propagations(origin1, iast_span_defaults):
     assert sources[0].value == str(origin1, encoding="utf-8") if type(origin1) is not str else origin1
 
     value_parts = [
-        {"value": ANY},
-        {"source": 0, "value": str(origin1)},
-        {"source": 0, "value": str(origin1)},
-        {"value": ".txt"},
+        {"redacted": True},
+        {"redacted": True, "source": 0},
+        {"redacted": True, "source": 0},
+        {"redacted": True},
     ]
     _assert_vulnerability(span_report, value_parts, "propagation_path_1_source_2_prop")
 
@@ -143,10 +138,10 @@ def test_propagation_path_2_origins_2_propagations(origin1, origin2, iast_span_d
     assert sources[1].value == source2_value_encoded
 
     value_parts = [
-        {"value": ANY},
-        {"source": 0, "value": source1_value_encoded},
-        {"source": 1, "value": source2_value_encoded},
-        {"value": ".txt"},
+        {"redacted": True},
+        {"redacted": True, "source": 0},
+        {"redacted": True, "source": 1},
+        {"redacted": True},
     ]
     _assert_vulnerability(span_report, value_parts, "propagation_path_2_source_2_prop")
 
@@ -196,15 +191,15 @@ def test_propagation_path_2_origins_3_propagation(origin1, origin2, iast_span_de
     assert sources[1].value == source2_value_encoded
 
     value_parts = [
-        {"value": ANY},
-        {"source": 0, "value": source1_value_encoded},
-        {"source": 1, "value": source2_value_encoded},
-        {"value": "-"},
-        {"source": 0, "value": source1_value_encoded},
-        {"source": 1, "value": source2_value_encoded},
-        {"value": "-"},
-        {"source": 0, "value": source1_value_encoded},
-        {"source": 1, "value": source2_value_encoded},
-        {"value": ".txt"},
+        {"redacted": True},
+        {"redacted": True, "source": 0},
+        {"redacted": True, "source": 1},
+        {"redacted": True},
+        {"redacted": True, "source": 0},
+        {"redacted": True, "source": 1},
+        {"redacted": True},
+        {"redacted": True, "source": 0},
+        {"redacted": True, "source": 1},
+        {"redacted": True},
     ]
     _assert_vulnerability(span_report, value_parts, "propagation_path_3_prop")
