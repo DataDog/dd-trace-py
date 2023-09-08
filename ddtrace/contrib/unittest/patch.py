@@ -112,7 +112,11 @@ def _extract_session_span(test_object):
 
 
 def _extract_module_span(test_object):
-    return getattr(test_object, "_datadog_module_span", None)
+    if getattr(test_object, "_datadog_module_span", None):
+        return getattr(test_object, "_datadog_module_span", None)
+    if getattr(test_object, "_datadog_module_spans_dict", None):
+        return test_object._datadog_module_spans_dict.get("module_span")
+    return None
 
 
 def _extract_suite_span(test_object):
@@ -273,7 +277,7 @@ def unpatch():
     _u(unittest.TestProgram, "runTests")
 
     unittest._datadog_patch = False
-    _CIVisibility.disable()
+    # _CIVisibility.disable()
 
 
 def _set_test_span_status(test_item, status, reason=None):
@@ -316,8 +320,35 @@ def handle_test_wrapper(func, instance, args, kwargs):
         test_name = _extract_test_method_name(instance)
         resource_name = _generate_test_resource(suite_name, test_name)
         test_suite_span = _extract_suite_span(instance)
+        test_module_span = _extract_module_span(instance)
+        if (
+            hasattr(instance, "_datadog_module_spans_dict")
+            and instance._datadog_module_spans_dict["module_span"] is None
+        ):
+            test_module_name = type(instance).__module__
+            test_session_span = unittest._datadog_session_span
+            resource_name = _generate_module_resource(FRAMEWORK, test_module_name)
+            test_module_span = tracer._start_span(
+                MODULE_OPERATION_NAME,
+                service=_CIVisibility._instance._service,
+                span_type=SpanTypes.TEST,
+                activate=True,
+                child_of=test_session_span,
+                resource=resource_name,
+            )
+            test_module_span.set_tag_str(COMPONENT, COMPONENT_VALUE)
+            test_module_span.set_tag_str(SPAN_KIND, KIND)
+            test_module_span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
+            test_module_span.set_tag_str(test.FRAMEWORK_VERSION, platform.python_version())
+            test_module_span.set_tag_str(test.COMMAND, test_session_span.get_tag(test.COMMAND))
+            test_module_span.set_tag_str(test.TEST_TYPE, SpanTypes.TEST)
+            test_module_span.set_tag_str(_EVENT_TYPE, _MODULE_TYPE)
+            test_module_span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
+            test_module_span.set_tag_str(_MODULE_ID, str(test_module_span.span_id))
+            test_module_span.set_tag_str(test.MODULE, test_module_name)
+            test_module_span.set_tag_str(test.MODULE_PATH, os.path.relpath(inspect.getfile(instance.__class__)))
+            instance._datadog_module_spans_dict["module_span"] = test_module_span
         if not test_suite_span and hasattr(instance, "_datadog_suite_spans_dict"):
-            test_module_span = instance._datadog_suite_spans_dict["module_span"]
             resource_name = _generate_suite_resource(FRAMEWORK, suite_name)
             test_suite_span = tracer._start_span(
                 SUITE_OPERATION_NAME,
@@ -349,8 +380,11 @@ def handle_test_wrapper(func, instance, args, kwargs):
             service=_CIVisibility._instance._service,
             resource=resource_name,
             span_type=SpanTypes.TEST,
+            child_of=test_suite_span,
             activate=True,
         )
+        if test_suite_span.get_tag(test.MODULE) == "serializers.test_json":
+            pass
         span.set_tag_str(_EVENT_TYPE, SpanTypes.TEST)
         span.set_tag_str(_SESSION_ID, test_suite_span.get_tag(_SESSION_ID))
         span.set_tag_str(_MODULE_ID, test_suite_span.get_tag(_MODULE_ID))
@@ -379,7 +413,15 @@ def handle_test_wrapper(func, instance, args, kwargs):
         if hasattr(instance, "_datadog_suite_spans_dict"):
             instance._datadog_suite_spans_dict["ran_tests"] += 1
             if instance._datadog_suite_spans_dict["ran_tests"] == instance._datadog_suite_spans_dict["expected_tests"]:
+                instance._datadog_module_spans_dict["ran_suites"] += 1
+                _update_status_item(test_module_span, test_suite_span.get_tag(test.STATUS))
                 test_suite_span.finish()
+        if hasattr(instance, "_datadog_module_spans_dict"):
+            if (
+                instance._datadog_module_spans_dict["ran_suites"]
+                == instance._datadog_module_spans_dict["expected_suites"]
+            ):
+                _finish_test_module_span(test_module_span)
         return result
     return func(*args, **kwargs)
 
@@ -387,21 +429,49 @@ def handle_test_wrapper(func, instance, args, kwargs):
 def handle_module_suite_wrapper(func, instance, args, kwargs):
     if _is_valid_module_suite_call(func):
         tracer = getattr(unittest, "_datadog_tracer", _CIVisibility._instance.tracer)
-        if _is_test_suite(instance):
+        if (
+            _is_test_suite(instance)
+            or hasattr(instance, "_datadog_entry")
+            and instance._datadog_entry == "TextTestRunner"
+        ):
+            test_session_span = unittest._datadog_session_span
             if _is_invoked_by_text_test_runner(instance):
                 seen_suites = dict()
+                seen_modules = dict()
                 for test_object in instance._tests:
+                    test_module_name = os.path.relpath(inspect.getfile(test_object.__class__))
                     test_suite_name = _extract_class_hierarchy_name(test_object)
-                    if test_suite_name not in seen_suites:
-                        seen_suites[test_suite_name] = {
-                            "module_span": _extract_module_span(instance),
+                    module_suite_name = test_module_name + "." + test_suite_name
+                    if test_module_name not in seen_modules:
+                        seen_modules[test_module_name] = {
+                            "session_span": test_session_span,
+                            "module_span": None,
+                            "expected_suites": 0,
+                            "ran_suites": 0,
+                        }
+                    if module_suite_name not in seen_suites:
+                        seen_suites[module_suite_name] = {
                             "suite_span": None,
                             "expected_tests": 0,
                             "ran_tests": 0,
                         }
 
-                    seen_suites[test_suite_name]["expected_tests"] += 1
-                    test_object._datadog_suite_spans_dict = seen_suites[test_suite_name]
+                        seen_modules[test_module_name]["expected_suites"] += 1
+
+                    test_object._datadog_module_spans_dict = seen_modules[test_module_name]
+
+                    seen_suites[module_suite_name]["expected_tests"] += 1
+                    test_object._datadog_suite_spans_dict = seen_suites[module_suite_name]
+                result = func(*args, **kwargs)
+                for suite in seen_suites.values():
+                    if suite["expected_tests"] != suite["ran_tests"] and suite["suite_span"]:
+                        _update_status_item(suite["suite_span"]._parent, suite["suite_span"].get_tag(test.STATUS))
+                        suite["suite_span"].finish()
+                for module in seen_modules.values():
+                    if module["expected_suites"] != module["ran_suites"] and module["module_span"]:
+                        _update_status_item(module["module_span"]._parent, module["module_span"].get_tag(test.STATUS))
+                        module["module_span"].finish()
+                return result
             else:
                 test_module_span = _extract_module_span(instance)
                 test_suite_name = _extract_suite_name(instance)
@@ -465,12 +535,12 @@ def _start_test_session_span(instance):
     test_session_span.set_tag_str(test.COMMAND, test_command)
     test_session_span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
     _store_test_span(instance, test_session_span)
-    _store_session_span(instance, test_session_span)
+    # _store_session_span(instance, test_session_span)
     return test_session_span
 
 
 def _finish_test_session_span(test_session_span):
-    log.debug("CI Visibility enabled - finishing unittest test session")
+    log.error("CI Visibility enabled - finishing unittest test session")
     test_session_span.finish()
 
 
@@ -520,7 +590,6 @@ def handle_session_wrapper(func, instance, args, kwargs):
     except SystemExit as e:
         if _CIVisibility.enabled and test_session_span:
             _finish_test_session_span(test_session_span)
-            _CIVisibility.disable()
         raise e
     return result
 
@@ -533,9 +602,20 @@ def handle_text_test_runner_wrapper(func, instance, args, kwargs):
         return func(*args, **kwargs)
     test_object = args[0]
     test_object._datadog_entry = "TextTestRunner"
-    test_session_span = _start_test_session_span(test_object)
-    test_module_span = _start_test_module_span(test_object)
-    result = func(*args, **kwargs)
-    _finish_test_module_span(test_module_span)
-    _finish_test_session_span(test_session_span)
+    try:
+        if not hasattr(unittest, "_datadog_session_span"):
+            unittest._datadog_session_span = _start_test_session_span(instance)
+            unittest._expected_sessions = 0
+            unittest._finished_sessions = 0
+        unittest._expected_sessions += 1
+        result = func(*args, **kwargs)
+    except Exception as e:
+        unittest._finished_sessions += 1
+        if unittest._finished_sessions == unittest._expected_sessions:
+            _finish_test_session_span(unittest._datadog_session_span)
+        raise e
+
+    unittest._finished_sessions += 1
+    if unittest._finished_sessions == unittest._expected_sessions:
+        _finish_test_session_span(unittest._datadog_session_span)
     return result
