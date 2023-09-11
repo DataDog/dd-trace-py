@@ -665,7 +665,7 @@ def set_user(
             span.set_tag_str(user.SESSION_ID, session_id)
 
         if config._appsec_enabled:
-            from ddtrace.appsec._trace_utils import block_request_if_user_blocked
+            from ddtrace.appsec.trace_utils import block_request_if_user_blocked
 
             block_request_if_user_blocked(tracer, user_id)
     else:

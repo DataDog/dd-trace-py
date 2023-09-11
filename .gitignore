@@ -25,7 +25,7 @@ ddtrace/internal/_tagset.c
 ddtrace/**/*.html
 
 # Dynamic binary libraries
-ddtrace/appsec/ddwaf/libddwaf/
+ddtrace/appsec/_ddwaf/libddwaf/
 libddwaf*.sha256
 ddtrace/internal/datadog/profiling/libdatadog/
 

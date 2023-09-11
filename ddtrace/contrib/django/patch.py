@@ -17,8 +17,8 @@ from ddtrace import config
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec import _constants as _asm_constants
 from ddtrace.appsec import _utils as appsec_utils
-from ddtrace.appsec._trace_utils import track_user_login_failure_event
-from ddtrace.appsec._trace_utils import track_user_login_success_event
+from ddtrace.appsec.trace_utils import track_user_login_failure_event
+from ddtrace.appsec.trace_utils import track_user_login_success_event
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import dbapi
