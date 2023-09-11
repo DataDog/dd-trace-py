@@ -98,5 +98,34 @@ origin_to_str(OriginType origin_type)
     }
 }
 
+inline OriginType
+str_to_origin(const string& origin_type_str)
+{
+  if (origin_type_str == "http.request.parameter")
+        return OriginType::PARAMETER;
+  if (origin_type_str == "http.request.parameter.name")
+    return OriginType::PARAMETER_NAME;
+  if (origin_type_str == "http.request.header")
+    return OriginType::HEADER;
+  if (origin_type_str == "http.request.header.name")
+    return OriginType::HEADER_NAME;
+  if (origin_type_str == "http.request.path")
+    return OriginType::PATH;
+  if (origin_type_str == "http.request.body")
+    return OriginType::BODY;
+  if (origin_type_str == "http.request.query")
+    return OriginType::QUERY;
+  if (origin_type_str == "http.request.path.parameter")
+    return OriginType::PATH_PARAMETER;
+
+  if (origin_type_str == "http.request.cookie.name")
+    return OriginType::COOKIE_NAME;
+  if (origin_type_str == "http.request.cookie.value")
+    return OriginType::COOKIE;
+
+  return OriginType::PARAMETER;
+
+}
+
 void
 pyexport_source(py::module& m);

@@ -6,6 +6,12 @@ import pytest
 
 
 try:
+    from ddtrace.appsec.iast._taint_tracking import OriginType
+    from ddtrace.appsec.iast._taint_tracking import Source
+    from ddtrace.appsec.iast._taint_tracking import get_tainted_ranges
+    from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
+    from ddtrace.appsec.iast._taint_tracking import taint_pyobject
+    from ddtrace.appsec.iast._taint_tracking import taint_ranges_as_evidence_info
     from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import TaintRange_
     import ddtrace.appsec.iast._taint_tracking.aspects as ddtrace_aspects
     from ddtrace.appsec.iast._taint_tracking.aspects import add_aspect
@@ -66,10 +72,6 @@ def test_add_aspect_type_error(obj1, obj2):
 )
 @pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
 def test_add_aspect_tainting_left_hand(obj1, obj2, should_be_tainted):
-    from ddtrace.appsec.iast._taint_tracking import OriginType
-    from ddtrace.appsec.iast._taint_tracking import get_tainted_ranges
-    from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
-    from ddtrace.appsec.iast._taint_tracking import taint_pyobject
 
     if should_be_tainted:
         obj1 = taint_pyobject(
