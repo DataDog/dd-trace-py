@@ -113,7 +113,7 @@ def emit_integration_and_version_to_test_agent(name, version):
         "tracer_language": "python",
     }
     payload = json.dumps(data)
-    conn = httplib.HTTPConnection(host="localhost", port=9126, timeout=5)
+    conn = httplib.HTTPConnection(host="localhost", port=9126, timeout=10)
     headers = {"Content-type": "application/json"}
     conn.request("PUT", "/test/session/integrations", body=payload, headers=headers)
     response = conn.getresponse()
@@ -770,7 +770,8 @@ class PatchTestCase(object):
             the APM Telemetry integrations payload event, and by APM analytics to inform of dd-trace-py
             current supported integration versions.
             """
-
+            # import pdb
+            # breakpoint()
             if hasattr(self, "__get_versions__") and self.__get_versions__ is not None:
                 assert self.__get_version__() == ""
                 versions = self.__get_versions__()

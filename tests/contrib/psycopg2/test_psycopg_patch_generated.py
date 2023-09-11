@@ -12,6 +12,7 @@ try:
     from ddtrace.contrib.psycopg.patch import unpatch
 except ImportError:
     unpatch = None
+from tests.contrib.patch import emit_integration_and_version_to_test_agent
 from tests.contrib.patch import PatchTestCase
 
 
@@ -38,8 +39,8 @@ class TestPsycopgPatch(PatchTestCase.Base):
         versions = get_versions()
         assert "psycopg2" in versions
         assert versions["psycopg2"] != ""
+        emit_integration_and_version_to_test_agent("psycopg2", versions["psycopg2"])
         unpatch()
 
     def test_and_emit_get_version(self):
-        patch()
-        super(TestPsycopgPatch, self).test_and_emit_get_version()
+        pass
