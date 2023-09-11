@@ -320,8 +320,20 @@ class AppSecSpanProcessor(SpanProcessor):
             log.debug("[DDAS-011-00] ASM In-App WAF returned: %s. Timeout %s", waf_results.data, waf_results.timeout)
 
         for action in waf_results.actions:
-            if self._actions.get(action, {}).get(WAF_ACTIONS.TYPE) == WAF_ACTIONS.BLOCK_ACTION:
+            action_type = self._actions.get(action, {}).get(WAF_ACTIONS.TYPE, None)
+            if action_type == WAF_ACTIONS.BLOCK_ACTION:
                 blocked = self._actions[action][WAF_ACTIONS.PARAMETERS]
+                break
+            elif action_type == WAF_ACTIONS.REDIRECT_ACTION:
+                blocked = self._actions[action][WAF_ACTIONS.PARAMETERS]
+                location = blocked.get("location", "")
+                if not location:
+                    blocked = WAF_ACTIONS.DEFAULT_PARAMETERS
+                    break
+                status_code = str(blocked.get("status_code", ""))
+                if not (status_code[:3].isdigit() and status_code.startswith("3")):
+                    blocked["status_code"] = "303"
+                blocked[WAF_ACTIONS.TYPE] = "none"
                 break
         else:
             blocked = {}

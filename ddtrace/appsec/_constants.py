@@ -166,6 +166,7 @@ class WAF_ACTIONS(object):
     ID = "id"
     DEFAULT_PARAMETERS = STATUS_403_TYPE_AUTO
     BLOCK_ACTION = "block_request"
+    REDIRECT_ACTION = "redirect_request"
     DEFAULT_ACTONS = {
         BLOCK: {
             ID: BLOCK,
