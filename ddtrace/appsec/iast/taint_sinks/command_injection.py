@@ -13,6 +13,7 @@ from ddtrace.appsec.iast._utils import _scrub_get_tokens_positions
 from ddtrace.appsec.iast.constants import EVIDENCE_CMDI
 from ddtrace.appsec.iast.constants import VULN_CMDI
 from ddtrace.appsec.iast.taint_sinks._base import VulnerabilityBase
+from ddtrace.appsec.iast.taint_sinks._base import _check_positions_contained
 from ddtrace.settings import _config
 
 
@@ -54,6 +55,22 @@ class CommandInjection(VulnerabilityBase):
         return ret
 
     @classmethod
+    def replace_tokens(
+        cls,
+        vuln,
+        vulns_to_tokens,
+        has_range=False,
+    ):
+        ret = vuln.evidence.value
+        replaced = False
+
+        for token in vulns_to_tokens[hash(vuln)]["tokens"]:
+            ret = ret.replace(token, "")
+            replaced = True
+
+        return ret, replaced
+
+    @classmethod
     def _redact_report(cls, report):  # type: (IastSpanReporter) -> IastSpanReporter
         if not _config._iast_redaction_enabled:
             return report
@@ -90,8 +107,7 @@ class CommandInjection(VulnerabilityBase):
         # quotes for SQL Injection). Note that by just having one potentially sensitive match
         # we need to then scrub all the tokens, thus why we do it in two steps instead of one
         vulns_to_tokens = cls._extract_sensitive_tokens(vulns_to_text)
-        print("vulns_to_tokens!!!!!!!!!!!!!!!")
-        print(vulns_to_tokens)
+
         if not vulns_to_tokens:
             return report
 
@@ -105,8 +121,7 @@ class CommandInjection(VulnerabilityBase):
                 source.pattern = _scrub(source.value, has_range=True)
                 source.redacted = True
                 source.value = None
-        print("report.sources!!!!!!!!!!!!!!!")
-        print(report.sources)
+
         # Same for all the evidence values
         for vuln in report.vulnerabilities:
             # Use the initial hash directly as iteration key since the vuln itself will change
@@ -118,8 +133,6 @@ class CommandInjection(VulnerabilityBase):
                     vuln.evidence.redacted = True
                     vuln.evidence.value = None
             elif vuln.evidence.valueParts is not None:
-                print("vuln.evidence.valueParts!!!!!!!!!!!!!!")
-                print(vuln.evidence.valueParts)
                 idx = 0
                 new_value_parts = []
                 for part in vuln.evidence.valueParts:
@@ -130,35 +143,25 @@ class CommandInjection(VulnerabilityBase):
                     pattern_list = []
 
                     for positions in vulns_to_tokens[vuln_hash]["token_positions"]:
-                        if cls._check_positions_contained(positions, (part_start, part_end)):
+                        if _check_positions_contained(positions, (part_start, part_end)):
                             part_scrub_start = max(positions[0] - idx, 0)
                             part_scrub_end = positions[1] - idx
-                            to_scrub = value[part_scrub_start:part_scrub_end]
-                            scrubbed = _scrub(to_scrub, "source" in part)
-                            if cls._redacted_pattern is True:
-                                pattern_list.append(value[:part_scrub_start] + scrubbed + value[part_scrub_end:])
-                                part["redacted"] = True
+                            pattern_list.append(value[:part_scrub_start] + "" + value[part_scrub_end:])
+                            if part.get("source", False) is not False:
+                                source = report.sources[part["source"]]
+                                if source.redacted:
+                                    part["redacted"] = source.redacted
+                                    part["pattern"] = source.pattern
+                                    del part["value"]
+                                new_value_parts.append(part)
                             else:
-                                pattern_list.append(value[:part_scrub_start] + "" + value[part_scrub_end:])
-                                if part.get("source", False) is not False:
-                                    source = report.sources[part["source"]]
-                                    if source.redacted:
-                                        part["redacted"] = source.redacted
-                                        part["pattern"] = source.pattern
-                                        del part["value"]
-                                    new_value_parts.append(part)
-                                else:
-                                    part["value"] = "".join(pattern_list)
-                                    new_value_parts.append(part)
-                                    new_value_parts.append({"redacted": True})
+                                part["value"] = "".join(pattern_list)
+                                new_value_parts.append(part)
+                                new_value_parts.append({"redacted": True})
                         else:
                             new_value_parts.append(part)
                             pattern_list.append(value[part_start:part_end])
                             continue
-
-                    if "redacted" in part and cls._redacted_pattern is True:
-                        part["pattern"] = "".join(pattern_list)
-                        del part["value"]
 
                     idx += part_len
                 vuln.evidence.valueParts = new_value_parts

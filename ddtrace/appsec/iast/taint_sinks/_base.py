@@ -44,10 +44,21 @@ log = get_logger(__name__)
 CWD = os.path.abspath(os.getcwd())
 
 
+def _check_positions_contained(needle, container):
+    needle_start, needle_end = needle
+    container_start, container_end = container
+
+    return (
+        (container_start <= needle_start < container_end)
+        or (container_start < needle_end <= container_end)
+        or (needle_start <= container_start < needle_end)
+        or (needle_start < container_end <= needle_end)
+    )
+
+
 class VulnerabilityBase(Operation):
     vulnerability_type = ""
     evidence_type = ""
-    _redacted_pattern = False
     _redacted_report_cache = LFUCache()
 
     @classmethod
@@ -191,25 +202,10 @@ class VulnerabilityBase(Operation):
         replaced = False
 
         for token in vulns_to_tokens[hash(vuln)]["tokens"]:
-            if cls._redacted_pattern is True:
-                ret = ret.replace(token, _scrub(token, has_range))
-            else:
-                ret = ret.replace(token, "")
+            ret = ret.replace(token, _scrub(token, has_range))
             replaced = True
 
         return ret, replaced
-
-    @staticmethod
-    def _check_positions_contained(needle, container):
-        needle_start, needle_end = needle
-        container_start, container_end = container
-
-        return (
-            (container_start <= needle_start < container_end)
-            or (container_start < needle_end <= container_end)
-            or (needle_start <= container_start < needle_end)
-            or (needle_start < container_end <= needle_end)
-        )
 
     @classmethod
     def _redact_report(cls, report):  # type: (IastSpanReporter) -> IastSpanReporter
@@ -228,13 +224,14 @@ class VulnerabilityBase(Operation):
 
         vulns_to_text = {}
 
-        # Check the evidence's value/s
-        for vuln in report.vulnerabilities:
-            vulnerability_text = cls._get_vulnerability_text(vuln)
-            if _has_to_scrub(vulnerability_text):
-                vulns_to_text[vuln] = vulnerability_text
-                found = True
-                break
+        if not found:
+            # Check the evidence's value/s
+            for vuln in report.vulnerabilities:
+                vulnerability_text = cls._get_vulnerability_text(vuln)
+                if _has_to_scrub(vulnerability_text):
+                    vulns_to_text[vuln] = vulnerability_text
+                    found = True
+                    break
 
         if not found:
             return report
@@ -282,23 +279,19 @@ class VulnerabilityBase(Operation):
                     pattern_list = []
 
                     for positions in vulns_to_tokens[vuln_hash]["token_positions"]:
-                        if cls._check_positions_contained(positions, (part_start, part_end)):
+                        if _check_positions_contained(positions, (part_start, part_end)):
                             part_scrub_start = max(positions[0] - idx, 0)
                             part_scrub_end = positions[1] - idx
                             to_scrub = value[part_scrub_start:part_scrub_end]
                             scrubbed = _scrub(to_scrub, "source" in part)
-                            if cls._redacted_pattern is True:
-                                pattern_list.append(value[:part_scrub_start] + scrubbed + value[part_scrub_end:])
-                            else:
-                                pattern_list.append(value[:part_scrub_start] + "" + value[part_scrub_end:])
+                            pattern_list.append(value[:part_scrub_start] + scrubbed + value[part_scrub_end:])
                             part["redacted"] = True
                         else:
                             pattern_list.append(value[part_start:part_end])
                             continue
 
                     if "redacted" in part:
-                        if cls._redacted_pattern is True:
-                            part["pattern"] = "".join(pattern_list)
+                        part["pattern"] = "".join(pattern_list)
                         del part["value"]
 
                     idx += part_len
