@@ -67,11 +67,16 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
     assert len(events) == 1
 
     events[0]["payload"]["configuration"].sort(key=lambda c: c["name"])
+
     payload = {
         "configuration": [
+            {"name": "DD_AGENT_HOST", "origin": "unknown", "value": None},
+            {"name": "DD_AGENT_PORT", "origin": "unknown", "value": None},
             {"name": "DD_APPSEC_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_CALL_BASIC_CONFIG", "origin": "unknown", "value": False},
             {"name": "DD_DATA_STREAMS_ENABLED", "origin": "unknown", "value": False},
+            {"name": "DD_DOGSTATSD_PORT", "origin": "unknown", "value": None},
+            {"name": "DD_DOGSTATSD_URL", "origin": "unknown", "value": None},
             {"name": "DD_DYNAMIC_INSTRUMENTATION_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_EXCEPTION_DEBUGGING_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_INSTRUMENTATION_TELEMETRY_ENABLED", "origin": "unknown", "value": True},
@@ -86,6 +91,8 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
             {"name": "DD_SPAN_SAMPLING_RULES_FILE", "origin": "unknown", "value": None},
             {"name": "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED", "origin": "unknown", "value": False},
+            {"name": "DD_TRACE_AGENT_TIMEOUT_SECONDS", "origin": "unknown", "value": 2.0},
+            {"name": "DD_TRACE_AGENT_URL", "origin": "unknown", "value": "http://localhost:9126"},
             {"name": "DD_TRACE_ANALYTICS_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_TRACE_API_VERSION", "origin": "unknown", "value": None},
             {"name": "DD_TRACE_CLIENT_IP_ENABLED", "origin": "unknown", "value": None},
@@ -203,9 +210,13 @@ telemetry_writer.disable()
     assert len(events) == 1
     events[0]["payload"]["configuration"].sort(key=lambda c: c["name"])
     assert events[0]["payload"]["configuration"] == [
+        {"name": "DD_AGENT_HOST", "origin": "unknown", "value": None},
+        {"name": "DD_AGENT_PORT", "origin": "unknown", "value": None},
         {"name": "DD_APPSEC_ENABLED", "origin": "unknown", "value": False},
         {"name": "DD_CALL_BASIC_CONFIG", "origin": "unknown", "value": True},
         {"name": "DD_DATA_STREAMS_ENABLED", "origin": "unknown", "value": False},
+        {"name": "DD_DOGSTATSD_PORT", "origin": "unknown", "value": None},
+        {"name": "DD_DOGSTATSD_URL", "origin": "unknown", "value": None},
         {"name": "DD_DYNAMIC_INSTRUMENTATION_ENABLED", "origin": "unknown", "value": True},
         {"name": "DD_EXCEPTION_DEBUGGING_ENABLED", "origin": "unknown", "value": True},
         {"name": "DD_INSTRUMENTATION_TELEMETRY_ENABLED", "origin": "unknown", "value": True},
@@ -220,6 +231,8 @@ telemetry_writer.disable()
         {"name": "DD_SPAN_SAMPLING_RULES_FILE", "origin": "unknown", "value": str(file)},
         {"name": "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", "origin": "unknown", "value": True},
         {"name": "DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED", "origin": "unknown", "value": True},
+        {"name": "DD_TRACE_AGENT_TIMEOUT_SECONDS", "origin": "unknown", "value": 2.0},
+        {"name": "DD_TRACE_AGENT_URL", "origin": "unknown", "value": "http://localhost:9126"},
         {"name": "DD_TRACE_ANALYTICS_ENABLED", "origin": "unknown", "value": True},
         {"name": "DD_TRACE_API_VERSION", "origin": "unknown", "value": "v0.5"},
         {"name": "DD_TRACE_CLIENT_IP_ENABLED", "origin": "unknown", "value": None},
