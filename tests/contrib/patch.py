@@ -7,17 +7,12 @@ from tempfile import NamedTemporaryFile
 from textwrap import dedent
 import unittest
 
+from ddtrace.internal.compat import httplib
 from ddtrace.vendor import wrapt
 from ddtrace.version import get_version
 from tests.subprocesstest import SubprocessTestCase
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import call_program
-
-
-try:
-    import http.client as httplib
-except ImportError:
-    import httplib
 
 
 TRACER_VERSION = get_version()
