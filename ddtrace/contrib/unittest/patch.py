@@ -255,6 +255,7 @@ def patch():
     _w(unittest, "TextTestResult.addError", add_failure_test_wrapper)
     _w(unittest, "TextTestResult.addSkip", add_skip_test_wrapper)
     _w(unittest, "TextTestResult.addExpectedFailure", add_xfail_test_wrapper)
+    _w(unittest, "TextTestResult.addUnexpectedSuccess", add_xpass_test_wrapper)
     _w(unittest, "TextTestRunner.run", handle_text_test_runner_wrapper)
     _w(unittest, "TestCase.run", handle_test_wrapper)
     _w(unittest, "TestSuite.run", handle_module_suite_wrapper)
@@ -273,6 +274,7 @@ def unpatch():
     _u(unittest.TextTestResult, "addError")
     _u(unittest.TextTestResult, "addSkip")
     _u(unittest.TextTestResult, "addExpectedFailure")
+    _u(unittest.TextTestResult, "addUnexpectedSuccess")
     _u(unittest.TextTestRunner, "run")
     _u(unittest.TestCase, "run")
     _u(unittest.TestSuite, "run")
@@ -318,6 +320,13 @@ def add_xfail_test_wrapper(func, instance, args, kwargs):
 def add_skip_test_wrapper(func, instance, args, kwargs):
     if _is_valid_result(instance, args):
         _set_test_span_status(test_item=args[0], reason=_extract_test_reason(args), status=test.Status.SKIP.value)
+
+    return func(*args, **kwargs)
+
+
+def add_xpass_test_wrapper(func, instance, args, kwargs):
+    if _is_valid_result(instance, args):
+        _set_test_span_status(test_item=args[0], reason=_extract_test_reason(args), status=test.Status.XPASS.value)
 
     return func(*args, **kwargs)
 
