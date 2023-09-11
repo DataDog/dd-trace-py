@@ -12,8 +12,8 @@ try:
     from ddtrace.contrib.psycopg.patch import unpatch
 except ImportError:
     unpatch = None
-from tests.contrib.patch import emit_integration_and_version_to_test_agent
 from tests.contrib.patch import PatchTestCase
+from tests.contrib.patch import emit_integration_and_version_to_test_agent
 
 
 class TestPsycopgPatch(PatchTestCase.Base):
