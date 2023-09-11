@@ -159,7 +159,7 @@ class APIManager(Service):
                 value = transform(value)
             waf_payload[address] = value
         if waf_payload:
-            waf_payload["SETTINGS"] = {"extract-schema": True}
+            waf_payload["PROCESSOR_SETTINGS"] = {"extract-schema": True}
             result = call_waf_callback(waf_payload)
             if result is None:
                 return
