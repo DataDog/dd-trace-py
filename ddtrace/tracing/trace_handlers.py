@@ -28,9 +28,9 @@ log = get_logger(__name__)
 
 
 class _TracedIterable(wrapt.ObjectProxy):
-    def __init__(self, wrapped, span, parent_span, app_is_iterator=False):
-        self._self_app_is_iterator = app_is_iterator
-        if self._self_app_is_iterator:
+    def __init__(self, wrapped, span, parent_span, wrapped_is_iterator=False):
+        self._self_wrapped_is_iterator = wrapped_is_iterator
+        if self._self_wrapped_is_iterator:
             super(_TracedIterable, self).__init__(wrapped)
             self._wrapped_iterator = iter(wrapped)
         else:
@@ -44,7 +44,7 @@ class _TracedIterable(wrapt.ObjectProxy):
 
     def __next__(self):
         try:
-            if self._self_app_is_iterator:
+            if self._self_wrapped_is_iterator:
                 return next(self._wrapped_iterator)
             else:
                 return next(self.__wrapped__)
@@ -201,7 +201,7 @@ def _on_request_complete(ctx, closing_iterable, app_is_iterator):
     )
     modifier(resp_span, closing_iterable)
 
-    return _TracedIterable(closing_iterable, resp_span, req_span, app_is_iterator=app_is_iterator)
+    return _TracedIterable(closing_iterable, resp_span, req_span, wrapped_is_iterator=app_is_iterator)
 
 
 def _on_response_context_started(ctx):
