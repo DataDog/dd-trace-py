@@ -7,13 +7,16 @@ from django.core.signals import request_finished
 from django.core.wsgi import get_wsgi_application
 from django.dispatch import receiver
 from django.http import HttpResponse
-from django.urls import path
 import pytest
 
 from ddtrace.contrib.wsgi import DDWSGIMiddleware
 from ddtrace.internal.compat import PY2
+from ddtrace.internal.compat import PY3
 from tests.webclient import Client
 
+
+if PY3:
+    from django.urls import path
 
 filepath, extension = os.path.splitext(__file__)
 ROOT_URLCONF = os.path.basename(filepath)
