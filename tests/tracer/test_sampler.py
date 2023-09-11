@@ -447,6 +447,15 @@ def test_sampling_rule_init_via_env():
         assert sampling_rule[0].tags == {"def": "def"}
         assert len(sampling_rule) == 1
 
+    with override_global_config(dict(_trace_sampling_rules='[{"sample_rate":1.0,"tags":{"def": "def"}}]')):
+        sampling_rule = DatadogSampler().rules
+        assert sampling_rule[0].sample_rate == 1.0, "DatadogSampler initializes from envvar with only tags set"
+        assert sampling_rule[0].service == SamplingRule.NO_RULE
+        assert sampling_rule[0].name == SamplingRule.NO_RULE
+        assert sampling_rule[0].resource == SamplingRule.NO_RULE
+        assert sampling_rule[0].tags == {"def": "def"}
+        assert len(sampling_rule) == 1
+
     # The following error handling tests use assertions on the json items instead of the returned string due
     # to Python's undefined ordering of dictionary keys
 
