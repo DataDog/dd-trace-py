@@ -15,9 +15,6 @@ from ddtrace.internal.compat import PY3
 from tests.webclient import Client
 
 
-if PY3:
-    from django.urls import path
-
 filepath, extension = os.path.splitext(__file__)
 ROOT_URLCONF = os.path.basename(filepath)
 WSGI_APPLICATION = os.path.basename(filepath) + ".app"
@@ -37,10 +34,13 @@ def handler(_):
     return HttpResponse("Hello!")
 
 
-urlpatterns = [path("", handler)]
-# it would be better to check for app_is_iterator programmatically, but Django WSGI apps behave like
-# iterators for the purpose of DDWSGIMiddleware despite not having both "__next__" and "__iter__" methods
-app = DDWSGIMiddleware(get_wsgi_application(), app_is_iterator=True)
+if PY3:
+    from django.urls import path
+
+    urlpatterns = [path("", handler)]
+    # it would be better to check for app_is_iterator programmatically, but Django WSGI apps behave like
+    # iterators for the purpose of DDWSGIMiddleware despite not having both "__next__" and "__iter__" methods
+    app = DDWSGIMiddleware(get_wsgi_application(), app_is_iterator=True)
 
 
 @pytest.mark.skipif(
