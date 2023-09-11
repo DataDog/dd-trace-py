@@ -32,7 +32,9 @@ def handler(_):
 
 
 urlpatterns = [path("", handler)]
-app = DDWSGIMiddleware(get_wsgi_application())
+# it would be better to check for app_is_iterator programmatically, but Django WSGI apps behave like
+# iterators for the purpose of DDWSGIMiddleware despite not having both "__next__" and "__iter__" methods
+app = DDWSGIMiddleware(get_wsgi_application(), app_is_iterator=True)
 
 
 def test_django_app_receives_request_finished_signal_when_app_is_ddwsgimiddleware():

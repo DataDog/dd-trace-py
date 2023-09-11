@@ -28,9 +28,13 @@ log = get_logger(__name__)
 
 
 class _TracedIterable(wrapt.ObjectProxy):
-    def __init__(self, wrapped_iterable, span, parent_span):
-        super(_TracedIterable, self).__init__(wrapped_iterable)
-        self._wrapped_iterator = iter(wrapped_iterable)
+    def __init__(self, wrapped, span, parent_span, app_is_iterator=False):
+        self._self_app_is_iterator = app_is_iterator
+        if self._self_app_is_iterator:
+            super(_TracedIterable, self).__init__(wrapped)
+            self._wrapped_iterator = iter(wrapped)
+        else:
+            super(_TracedIterable, self).__init__(iter(wrapped))
         self._self_span = span
         self._self_parent_span = parent_span
         self._self_span_finished = False
@@ -40,7 +44,10 @@ class _TracedIterable(wrapt.ObjectProxy):
 
     def __next__(self):
         try:
-            return next(self._wrapped_iterator)
+            if self._self_app_is_iterator:
+                return next(self._wrapped_iterator)
+            else:
+                return next(self.__wrapped__)
         except StopIteration:
             self._finish_spans()
             raise
@@ -172,7 +179,7 @@ def _on_app_exception(ctx):
     req_span.finish()
 
 
-def _on_request_complete(ctx, closing_iterable):
+def _on_request_complete(ctx, closing_iterable, app_is_iterator):
     middleware = ctx.get_item("middleware")
     req_span = ctx.get_item("req_span")
     # start flask.response span. This span will be finished after iter(result) is closed.
@@ -194,7 +201,7 @@ def _on_request_complete(ctx, closing_iterable):
     )
     modifier(resp_span, closing_iterable)
 
-    return _TracedIterable(closing_iterable, resp_span, req_span)
+    return _TracedIterable(closing_iterable, resp_span, req_span, app_is_iterator=app_is_iterator)
 
 
 def _on_response_context_started(ctx):
