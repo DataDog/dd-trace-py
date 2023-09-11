@@ -14,13 +14,11 @@ if _is_python_version_supported():
     from ddtrace.appsec.iast._taint_tracking._native.aspect_helpers import common_replace
     from ddtrace.appsec.iast._taint_tracking._native.aspect_helpers import parse_params
     from ddtrace.appsec.iast._taint_tracking._native.initializer import active_map_addreses_size
-    from ddtrace.appsec.iast._taint_tracking._native.initializer import contexts_reset
     from ddtrace.appsec.iast._taint_tracking._native.initializer import create_context
     from ddtrace.appsec.iast._taint_tracking._native.initializer import destroy_context
-    from ddtrace.appsec.iast._taint_tracking._native.initializer import get_context
     from ddtrace.appsec.iast._taint_tracking._native.initializer import initializer_size
-    from ddtrace.appsec.iast._taint_tracking._native.initializer import num_contexts
     from ddtrace.appsec.iast._taint_tracking._native.initializer import num_objects_tainted
+    from ddtrace.appsec.iast._taint_tracking._native.initializer import reset_context
     from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import OriginType
     from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import Source
     from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import TagMappingMode
@@ -65,12 +63,10 @@ __all__ = [
     "is_notinterned_notfasttainted_unicode",
     "set_fast_tainted_if_notinterned_unicode",
     "aspect_helpers",
-    "contexts_reset",
+    "reset_context",
     "destroy_context",
-    "num_contexts",
     "initializer_size",
     "active_map_addreses_size",
-    "get_context",
     "create_context",
     "common_replace",
     "as_formatted_evidence",

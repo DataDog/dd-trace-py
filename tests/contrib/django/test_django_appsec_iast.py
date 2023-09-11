@@ -19,11 +19,11 @@ TEST_FILE = "tests/contrib/django/django_app/appsec_urls.py"
 
 @pytest.fixture(autouse=True)
 def reset_context():
-    from ddtrace.appsec.iast._taint_tracking import contexts_reset
     from ddtrace.appsec.iast._taint_tracking import create_context
+    from ddtrace.appsec.iast._taint_tracking import reset_context
 
     yield
-    contexts_reset()
+    reset_context()
     _ = create_context()
 
 
