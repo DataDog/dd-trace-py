@@ -1117,13 +1117,17 @@ def test_deregister_start_span_hooks():
     assert result == {}
 
 
-def test_enable(monkeypatch):
-    t1 = ddtrace.Tracer()
-    assert t1.enabled
+@pytest.mark.subprocess(parametrize={"DD_TRACE_ENABLED": ["true", "false"]})
+def test_enable():
+    import os
 
-    monkeypatch.setenv("DD_TRACE_ENABLED", "false")
+    import ddtrace
+
     t2 = ddtrace.Tracer()
-    assert not t2.enabled
+    if os.environ["DD_TRACE_ENABLED"] == "true":
+        assert t2.enabled
+    else:
+        assert not t2.enabled
 
 
 def test_runtime_id_parent_only():
