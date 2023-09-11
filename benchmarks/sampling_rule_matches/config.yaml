@@ -4,6 +4,7 @@ high_match:
   num_services: 1
   num_operations: 1
   num_resources: 1
+  num_tags: 1
 
 # Low number of variations, hit rate of about 25%
 average_match:
@@ -11,6 +12,7 @@ average_match:
   num_services: 2
   num_operations: 2
   num_resources: 2
+  num_tags: 2
 
 # High number of variations, hit rate of 0% or 1%
 low_match:
@@ -18,6 +20,7 @@ low_match:
   num_services: 25
   num_operations: 25
   num_resources: 25
+  num_tags: 25
 
 # This variation has performance issues due to the cache max size
 very_low_match:
@@ -25,3 +28,4 @@ very_low_match:
   num_services: 250
   num_operations: 100
   num_resources: 1
+  num_tags: 1
