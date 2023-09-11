@@ -159,6 +159,7 @@ class AppSecSpanProcessor(SpanProcessor):
                         with open(DEFAULT.API_SECURITY_PARAMETERS, "r") as f_apisec:
                             processors = json.load(f_apisec)
                             rules["processors"] = processors["processors"]
+                            rules["scanners"] = processors["scanners"]
                     self._update_actions(rules)
 
             except EnvironmentError as err:
