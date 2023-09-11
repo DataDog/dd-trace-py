@@ -3,6 +3,7 @@
 from argparse import ArgumentParser
 import fnmatch
 from functools import cache
+from itertools import count
 import json
 import logging
 import os
@@ -72,13 +73,18 @@ def get_changed_files(pr_number: int, sha: t.Optional[str] = None) -> t.Set[str]
     """
     rest_check_failed = False
     if sha is None:
+        files = set()
         try:
-            url = f"https://api.github.com/repos/datadog/dd-trace-py/pulls/{pr_number}/files"
-            headers = {"Accept": "application/vnd.github+json"}
-            return {_["filename"] for _ in json.load(urlopen(Request(url, headers=headers)))}
+            for page in count(1):
+                url = f"https://api.github.com/repos/datadog/dd-trace-py/pulls/{pr_number}/files?page={page}"
+                headers = {"Accept": "application/vnd.github+json"}
+                result = {_["filename"] for _ in json.load(urlopen(Request(url, headers=headers)))}
+                if not result:
+                    return files
+                files |= result
         except Exception:
             rest_check_failed = True
-            LOGGER.warning("Failed to get changed files from GitHub API")
+            LOGGER.warning("Failed to get changed files from GitHub API", exc_info=True)
 
     if sha is not None or rest_check_failed:
         diff_base = sha or get_merge_base(pr_number)
@@ -175,7 +181,9 @@ def main() -> bool:
 
     argp.add_argument("suite", help="The suite to use", type=str)
     argp.add_argument("--pr", help="The PR number", type=int, default=_get_pr_number())
-    argp.add_argument("--sha", help="Commit hash to use as diff base (defaults to PR merge root)", type=lambda v: v or None)
+    argp.add_argument(
+        "--sha", help="Commit hash to use as diff base (defaults to PR merge root)", type=lambda v: v or None
+    )
     argp.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
 
     args = argp.parse_args()
