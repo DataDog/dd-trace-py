@@ -31,7 +31,7 @@ class SamplingRules(bm.Scenario):
     num_tags = bm.var(type=int)
 
     def run(self):
-        # Generate random service and operation names for the counts we requested
+        # Generate random service, operation names, resources, and tags for the counts we requested
         services = [rands() for _ in range(self.num_services)]
         operation_names = [rands() for _ in range(self.num_operations)]
         resource_names = [rands() for _ in range(self.num_resources)]
@@ -44,7 +44,7 @@ class SamplingRules(bm.Scenario):
         ]
 
         # Create a single rule to use for all matches
-        # Pick a random service/operation name
+        # Pick a random service/operation name/resource/tag
         rule = SamplingRule(
             service=random.choice(services),
             name=random.choice(operation_names),
