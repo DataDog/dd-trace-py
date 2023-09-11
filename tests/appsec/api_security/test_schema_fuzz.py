@@ -112,3 +112,16 @@ def deep_build_schema(n, mini=0):
 def test_limits(obj, res):
     schema = build_schema(obj)
     assert equal_with_meta(schema, res)  # max_depth=18, max_girth=255, max_types_in_array=10
+
+
+@pytest.mark.skipif(sys.version_info[:2] < (3, 6), reason="dict iteration order is different in python <= 3.5")
+@pytest.mark.parametrize(
+    "obj, res",
+    [
+        ({"US PASSPORT": "C03005988"}, [{"US PASSPORT": [8, {"category": "pii", "type": "passport_number"}]}]),
+        ({"ViN": "1HGBH41JXMN109186"}, [{"ViN": [8, {"category": "pii", "type": "vin"}]}]),
+    ],
+)
+def test_scanners(obj, res):
+    schema = build_schema(obj)
+    assert equal_with_meta(schema, res)  # max_depth=18, max_girth=255, max_types_in_array=10
