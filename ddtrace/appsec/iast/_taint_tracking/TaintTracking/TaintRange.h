@@ -12,10 +12,6 @@
 #include "TaintTracking/Source.h"
 #include "Utils/StringUtils.h"
 
-#define PY_MODULE_NAME_TAINTRANGES                                                                                     \
-    PY_MODULE_NAME "."                                                                                                 \
-                   "TaintRange"
-
 using namespace std;
 namespace py = pybind11;
 
@@ -59,14 +55,6 @@ struct TaintRange
 
     [[nodiscard]] uint get_hash() const;
 
-    // FIXME: unneeded?
-    //    struct hash_fn {
-    //        size_t operator()(const TaintRange &range) const { return
-    //        range.get_hash(); }
-    //    };
-    //
-    //    [[nodiscard]] size_t hash_() const { return hash_fn()(*this); }
-    //
     explicit operator std::string() const;
 };
 
