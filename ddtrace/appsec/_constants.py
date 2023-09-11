@@ -107,7 +107,7 @@ class WAF_DATA_NAMES(object):
     RESPONSE_STATUS = "server.response.status"
     RESPONSE_HEADERS_NO_COOKIES = "server.response.headers.no_cookies"
     RESPONSE_BODY = "http.response.body"
-    SETTINGS = "waf.context.settings"
+    PROCESSOR_SETTINGS = "waf.context.processor"
 
 
 @six.add_metaclass(Constant_Class)  # required for python2/3 compatibility
