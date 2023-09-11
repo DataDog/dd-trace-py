@@ -2,11 +2,13 @@ import logging
 import os
 import subprocess
 
+import django
 from django.core.signals import request_finished
 from django.core.wsgi import get_wsgi_application
 from django.dispatch import receiver
 from django.http import HttpResponse
 from django.urls import path
+import pytest
 
 from ddtrace.contrib.wsgi import DDWSGIMiddleware
 from tests.webclient import Client
@@ -37,6 +39,7 @@ urlpatterns = [path("", handler)]
 app = DDWSGIMiddleware(get_wsgi_application(), app_is_iterator=True)
 
 
+@pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="")
 def test_django_app_receives_request_finished_signal_when_app_is_ddwsgimiddleware():
     env = os.environ.copy()
     env.update(
