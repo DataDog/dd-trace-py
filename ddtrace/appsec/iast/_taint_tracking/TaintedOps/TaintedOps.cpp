@@ -1,11 +1,5 @@
 #include "TaintedOps.h"
 
-typedef struct _PyASCIIObject_State_Hidden
-{
-    unsigned int : 8;
-    unsigned int hidden : 24;
-} PyASCIIObject_State_Hidden;
-
 PyObject*
 new_pyobject_id(PyObject* tainted_object, Py_ssize_t object_length)
 {

@@ -49,7 +49,7 @@ class AppSecIastSpanProcessor(SpanProcessor):
             span.set_metric(IAST.ENABLED, 0.0)
             return
 
-        from ddtrace.appsec.iast._taint_tracking import contexts_reset  # noqa: F401
+        from ddtrace.appsec.iast._taint_tracking import reset_context  # noqa: F401
 
         span.set_metric(IAST.ENABLED, 1.0)
 
@@ -73,7 +73,7 @@ class AppSecIastSpanProcessor(SpanProcessor):
             _asm_manual_keep(span)
 
         _set_metric_iast_request_tainted()
-        contexts_reset()
+        reset_context()
 
         if span.get_tag(ORIGIN_KEY) is None:
             span.set_tag_str(ORIGIN_KEY, APPSEC.ORIGIN_VALUE)

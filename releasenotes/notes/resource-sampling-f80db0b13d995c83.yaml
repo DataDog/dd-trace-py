@@ -1,7 +1,0 @@
----
-features:
-  - |
-    tracing: This introduces the keyword parameter "resource" to the SamplingRule constructor, allowing sampling
-    rules to be defined based on an exact string match with span resource names. These rules are only evaluated
-    at the beginning of a span's lifetime, so changes to Span.resource after span creation are not seen
-    by SamplingRules.
