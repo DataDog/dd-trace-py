@@ -101,7 +101,7 @@ api_join_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
             decref_arg0 = true;
         }
     }
-    PyObject* result;
+    PyObject* result = nullptr;
     if (PyUnicode_Check(sep)) {
         result = PyUnicode_Join(sep, arg0);
     } else if (PyBytes_Check(sep)) {
