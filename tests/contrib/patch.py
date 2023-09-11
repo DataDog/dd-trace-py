@@ -1,5 +1,4 @@
 import functools
-import http.client
 import importlib
 import json
 import os
@@ -13,6 +12,12 @@ from ddtrace.version import get_version
 from tests.subprocesstest import SubprocessTestCase
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import call_program
+
+
+try:
+    import http.client as httplib
+except ImportError:
+    import httplib
 
 
 TRACER_VERSION = get_version()
@@ -113,7 +118,7 @@ def emit_integration_and_version_to_test_agent(name, version):
         "tracer_language": "python",
     }
     payload = json.dumps(data)
-    conn = http.client.HTTPConnection(host="localhost", port=9126, timeout=2)
+    conn = httplib.HTTPConnection(host="localhost", port=9126, timeout=2)
     headers = {"Content-type": "application/json"}
     conn.request("PUT", "/test/session/integrations", body=payload, headers=headers)
     response = conn.getresponse()
