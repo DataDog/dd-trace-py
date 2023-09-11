@@ -6,19 +6,10 @@ import pytest
 
 
 try:
-    from ddtrace.appsec.iast._taint_tracking import contexts_reset
-    from ddtrace.appsec.iast._taint_tracking import create_context
     from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import TaintRange_
     import ddtrace.appsec.iast._taint_tracking.aspects as ddtrace_aspects
 except (ImportError, AttributeError):
     pytest.skip("IAST not supported for this Python version", allow_module_level=True)
-
-
-@pytest.fixture(autouse=True)
-def reset_context():
-    yield
-    contexts_reset()
-    _ = create_context()
 
 
 @pytest.mark.parametrize(

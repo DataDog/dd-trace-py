@@ -32,16 +32,12 @@ include_directories(".")
 
 file(GLOB SOURCE_FILES "*.cpp"
         "Aspects/*.cpp"
-        "Context/*.cpp"
-        "Exceptions/*.cpp"
         "Initializer/*.cpp"
         "TaintedOps/*.cpp"
         "TaintTracking/*.cpp"
         "Utils/*.cpp")
 file(GLOB HEADER_FILES "*.h"
         "Aspects/*.h"
-        "Context/*.h"
-        "Exceptions/*.h"
         "Initializer/*.h"
         "TaintedOps/*.h"
         "TaintTracking/*.h"
