@@ -19,6 +19,7 @@ class TestAiohttp_Jinja2Patch(PatchTestCase.Base):
     __module_name__ = "aiohttp_jinja2"
     __patch_func__ = patch
     __unpatch_func__ = unpatch
+    __get_version__ = get_version
 
     def assert_module_patched(self, aiohttp_jinja2):
         pass

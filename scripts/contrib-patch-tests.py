@@ -76,6 +76,7 @@ def generate_patch_test_source(contrib):
                 __module_name__ = "{module}"
                 __patch_func__ = patch
                 __unpatch_func__ = unpatch
+                __get_version__ = get_version
 
                 def assert_module_patched(self, {module.replace(".", "_")}):
                     pass
@@ -89,7 +90,7 @@ def generate_patch_test_source(contrib):
                 def assert_module_implements_get_version(self):
                     version = get_version()
                     assert type(version) == str
-                    assert version != ''
+                    assert version != ""
             """
         ).lstrip()
     )

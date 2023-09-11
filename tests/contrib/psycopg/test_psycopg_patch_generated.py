@@ -20,6 +20,8 @@ class TestPsycopgPatch(PatchTestCase.Base):
     __module_name__ = "psycopg"
     __patch_func__ = patch
     __unpatch_func__ = unpatch
+    __get_version__ = get_version
+    __get_versions__ = get_versions
 
     def assert_module_patched(self, psycopg):
         pass
@@ -37,3 +39,7 @@ class TestPsycopgPatch(PatchTestCase.Base):
         assert "psycopg" in versions
         assert versions["psycopg"] != ""
         unpatch()
+
+    def test_and_emit_get_version(self):
+        patch()
+        super(TestPsycopgPatch, self).test_and_emit_get_version()

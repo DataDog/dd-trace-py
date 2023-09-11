@@ -9,6 +9,7 @@ class TestKafkaPatch(PatchTestCase.Base):
     __module_name__ = "confluent_kafka"
     __patch_func__ = patch
     __unpatch_func__ = unpatch
+    __get_version__ = get_version
 
     def assert_module_patched(self, confluent_kafka):
         self.assert_wrapped(confluent_kafka.Producer({}).produce)

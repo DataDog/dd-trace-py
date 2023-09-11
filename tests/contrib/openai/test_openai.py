@@ -20,6 +20,7 @@ from ddtrace.contrib.openai.patch import unpatch
 from ddtrace.contrib.openai.utils import _est_tokens
 from ddtrace.filters import TraceFilter
 from ddtrace.internal.utils.version import parse_version
+from tests.contrib.patch import emit_integration_and_version_to_test_agent
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
 from tests.utils import override_config
@@ -193,6 +194,8 @@ def test_module_implements_get_version():
     version = get_version()
     assert type(version) == str
     assert version != ""
+
+    emit_integration_and_version_to_test_agent("openai", version)
 
 
 def test_patching(openai):

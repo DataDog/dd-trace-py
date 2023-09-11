@@ -20,6 +20,7 @@ from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.encoder import CIVisibilityEncoderV01
 from ddtrace.internal.compat import PY2
 from tests.ci_visibility.util import _patch_dummy_writer
+from tests.contrib.patch import emit_integration_and_version_to_test_agent
 from tests.utils import TracerTestCase
 from tests.utils import override_env
 
@@ -55,6 +56,8 @@ class PytestTestCase(TracerTestCase):
         version = get_version()
         assert type(version) == str
         assert version != ""
+
+        emit_integration_and_version_to_test_agent("pytest", version)
 
     @pytest.mark.skipif(sys.version_info[0] == 2, reason="Triggers a bug with coverage, sqlite and Python 2")
     def test_patch_all(self):

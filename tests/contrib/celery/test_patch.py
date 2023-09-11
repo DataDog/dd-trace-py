@@ -1,6 +1,7 @@
 import unittest
 
 from ddtrace import Pin
+from tests.contrib.patch import emit_integration_and_version_to_test_agent
 
 
 class CeleryPatchTest(unittest.TestCase):
@@ -29,3 +30,5 @@ class CeleryPatchTest(unittest.TestCase):
         version = get_version()
         assert type(version) == str
         assert version != ""
+
+        emit_integration_and_version_to_test_agent("celery", version)

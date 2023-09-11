@@ -16,6 +16,7 @@ from ddtrace.contrib.sqlite3.patch import get_version
 from ddtrace.contrib.sqlite3.patch import patch
 from ddtrace.contrib.sqlite3.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from tests.contrib.patch import emit_integration_and_version_to_test_agent
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
@@ -473,7 +474,9 @@ def test_backup(patched_conn):
         patched_conn.backup(destination, pages=1)
 
 
-def test_module_implements_get_version():
+def test_and_emit_get_version():
     version = get_version()
     assert type(version) == str
     assert version != ""
+
+    emit_integration_and_version_to_test_agent("sqlite3", version)

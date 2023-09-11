@@ -8,6 +8,7 @@ class TestSnowflakePatch(PatchTestCase.Base):
     __module_name__ = "snowflake.connector"
     __patch_func__ = patch
     __unpatch_func__ = None
+    __get_version__ = get_version
 
     def assert_module_patched(self, snowflake):
         self.assert_wrapped(snowflake.connect)

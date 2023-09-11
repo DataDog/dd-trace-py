@@ -17,6 +17,7 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.cherrypy import TraceMiddleware
 from ddtrace.ext import http
+from tests.contrib.patch import emit_integration_and_version_to_test_agent
 from tests.utils import TracerTestCase
 from tests.utils import assert_span_http_status_code
 from tests.utils import snapshot
@@ -60,17 +61,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         assert type(version) == str
         assert version != ""
 
-    def emit_integration_and_tested_version_telemetry_event(self):
-        # emits a telemetry event that will be consumed by the Test Agent and sent to metabase describing
-        # the integration and its tested versions
-        from ddtrace._monkey import PATCH_MODULES
-        from ddtrace.contrib.cherrypy import get_version
-        from ddtrace.internal.telemetry import telemetry_writer
-
-        version = get_version()
-        telemetry_writer.add_integration("cherrypy", True, PATCH_MODULES.get("cherrypy") is True, "", version=version)
-        integrations = telemetry_writer._flush_integrations_queue()
-        telemetry_writer._app_integrations_changed_event(integrations)
+        emit_integration_and_version_to_test_agent("cherrypy", version)
 
     def test_double_instrumentation(self):
         # ensure CherryPy is never instrumented twice when `ddtrace-run`

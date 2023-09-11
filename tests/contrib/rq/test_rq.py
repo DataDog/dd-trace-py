@@ -11,6 +11,7 @@ from ddtrace import Pin
 from ddtrace.contrib.rq import get_version
 from ddtrace.contrib.rq import patch
 from ddtrace.contrib.rq import unpatch
+from tests.contrib.patch import emit_integration_and_version_to_test_agent
 from tests.utils import override_config
 from tests.utils import snapshot
 from tests.utils import snapshot_context
@@ -62,6 +63,8 @@ def test_module_implements_get_version():
     version = get_version()
     assert type(version) == str
     assert version != ""
+
+    emit_integration_and_version_to_test_agent("rq", version)
 
 
 @snapshot(ignores=snapshot_ignores, variants={"": rq_version >= (1, 10, 1), "pre_1_10_1": rq_version < (1, 10, 1)})

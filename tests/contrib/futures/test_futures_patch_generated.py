@@ -2,6 +2,8 @@
 # script. If you want to make changes to it, you should make sure that you have
 # removed the ``_generated`` suffix from the file name, to prevent the content
 # from being overwritten by future re-generations.
+
+from ddtrace.contrib.futures import get_version
 from ddtrace.contrib.futures.patch import patch
 
 
@@ -14,9 +16,10 @@ from tests.contrib.patch import PatchTestCase
 
 class TestFuturesPatch(PatchTestCase.Base):
     __integration_name__ = "futures"
-    __module_name__ = "concurrent.futures.thread"
+    __module_name__ = "concurrent.futures"
     __patch_func__ = patch
     __unpatch_func__ = unpatch
+    __get_version__ = get_version
 
     def assert_module_patched(self, concurrent_futures):
         pass
@@ -28,4 +31,6 @@ class TestFuturesPatch(PatchTestCase.Base):
         pass
 
     def assert_module_implements_get_version(self):
-        pass
+        version = get_version()
+        assert type(version) == str
+        assert version != ""

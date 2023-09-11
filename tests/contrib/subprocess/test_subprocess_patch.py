@@ -54,3 +54,6 @@ class TestSubprocessPatch(PatchTestCase.Base):
 
     def test_unpatch_patch_import(self):
         pass
+
+    def test_and_emit_get_version(self):
+        pass

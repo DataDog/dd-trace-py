@@ -12,6 +12,7 @@ from ddtrace.contrib.pytest_bdd.plugin import get_version
 from ddtrace.ext import test
 from ddtrace.internal.ci_visibility import CIVisibility
 from tests.ci_visibility.util import _patch_dummy_writer
+from tests.contrib.patch import emit_integration_and_version_to_test_agent
 from tests.utils import DummyCIVisibilityWriter
 from tests.utils import TracerTestCase
 from tests.utils import override_env
@@ -56,6 +57,8 @@ class TestPytest(TracerTestCase):
         version = get_version()
         assert type(version) == str
         assert version != ""
+
+        emit_integration_and_version_to_test_agent("pytest-bdd", version)
 
     def test_pytest_bdd_scenario_with_parameters(self):
         """Test that pytest-bdd traces scenario with all steps."""

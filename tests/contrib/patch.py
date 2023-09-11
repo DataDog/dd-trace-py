@@ -1,5 +1,7 @@
 import functools
+import http.client
 import importlib
+import json
 import os
 import sys
 from tempfile import NamedTemporaryFile
@@ -7,9 +9,13 @@ from textwrap import dedent
 import unittest
 
 from ddtrace.vendor import wrapt
+from ddtrace.version import get_version
 from tests.subprocesstest import SubprocessTestCase
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import call_program
+
+
+TRACER_VERSION = get_version()
 
 
 class PatchMixin(unittest.TestCase):
@@ -98,6 +104,22 @@ def noop_if_no_unpatch(f):
     return wrapper
 
 
+def emit_integration_and_version_to_test_agent(name, version):
+    # Define the data payload
+    data = {
+        "integration_name": name,
+        "integration_version": version,
+        "tracer_version": TRACER_VERSION,
+        "tracer_language": "python",
+    }
+    payload = json.dumps(data)
+    conn = http.client.HTTPConnection(host="localhost", port=9126, timeout=2)
+    headers = {"Content-type": "application/json"}
+    conn.request("PUT", "/test/session/integrations", body=payload, headers=headers)
+    response = conn.getresponse()
+    assert response.status == 200
+
+
 class PatchTestCase(object):
     """
     unittest or other test runners will pick up the base test case as a testcase
@@ -153,6 +175,8 @@ class PatchTestCase(object):
         __module_name__ = None
         __patch_func__ = None
         __unpatch_func__ = None
+        __get_version__ = None
+        __get_versions__ = None
 
         def __init__(self, *args, **kwargs):
             # DEV: Python will wrap a function when assigning it to a class as an
@@ -176,6 +200,24 @@ class PatchTestCase(object):
                     patch_func()
 
                 self.__patch_func__ = patch
+
+            # Same for __get_version__()
+            if self.__get_version__:
+                get_version_func = self.__get_version__.__func__
+
+                def get_version():
+                    return get_version_func()
+
+                self.__get_version__ = get_version
+
+            # Same for __get_version__()
+            if self.__get_versions__:
+                get_versions_func = self.__get_versions__.__func__
+
+                def get_versions():
+                    get_versions_func()
+
+                self.__get_versions__ = get_versions
             super(PatchTestCase.Base, self).__init__(*args, **kwargs)
 
         def _gen_test_attrs(self, ops):
@@ -296,18 +338,6 @@ class PatchTestCase(object):
             """
             raise NotImplementedError(self.assert_not_module_double_patched.__doc__)
 
-        def assert_module_implements_get_version(self):
-            """
-            Module patch should implement get_version returning the str version
-            """
-            raise NotImplementedError(self.assert_module_implements_get_version.__doc__)
-
-        def emit_integration_and_tested_version_telemetry_event(self):
-            """
-            Module patch should implement get_version returning the str version
-            """
-            raise NotImplementedError(self.emit_integration_and_tested_version_telemetry_event.__doc__)
-
         @raise_if_no_attrs
         def test_import_patch(self):
             """
@@ -327,18 +357,6 @@ class PatchTestCase(object):
             self.assert_not_module_patched(module)
             self.__patch_func__()
             self.assert_module_patched(module)
-
-        def test_get_version(self):
-            """
-            Module patch should implement get_version returning the str version
-            """
-            self.assert_module_implements_get_version()
-
-        def test_integration_and_version(self):
-            """
-            Module patch should implement get_version returning the str version
-            """
-            self.emit_integration_and_tested_version_telemetry_event()
 
         @raise_if_no_attrs
         def test_patch_import(self):
@@ -746,3 +764,22 @@ class PatchTestCase(object):
                 out, err, _, _ = call_program("ddtrace-run", sys.executable, f.name, env=env)
 
                 self.assertEqual(out, b"OK", "stderr:\n%s" % err.decode())
+
+        def test_and_emit_get_version(self):
+            """Each contrib module should implement a get_version() function. This function is used for
+            the APM Telemetry integrations payload event, and by APM analytics to inform of dd-trace-py
+            current supported integration versions.
+            """
+
+            if hasattr(self, "__get_versions__") and self.__get_versions__ is not None:
+                assert self.__get_version__() == ""
+                versions = self.__get_versions__()
+                assert self.__module_name__ in versions
+                assert versions[self.__module_name__] != ""
+                for name, v in versions.items():
+                    emit_integration_and_version_to_test_agent(name, v)
+            else:
+                version = self.__get_version__()
+                assert type(version) == str
+                assert version != ""
+                emit_integration_and_version_to_test_agent(self.__module_name__, version)
