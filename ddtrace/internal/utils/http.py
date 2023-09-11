@@ -17,6 +17,7 @@ from ddtrace.internal import compat
 from ddtrace.internal.compat import parse
 from ddtrace.internal.constants import BLOCKED_RESPONSE_HTML
 from ddtrace.internal.constants import BLOCKED_RESPONSE_JSON
+from ddtrace.internal.constants import DEFAULT_TIMEOUT
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_ORIGIN_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_SAMPLING_PRIORITY_KEY
@@ -32,8 +33,6 @@ ConnectionType = Union[HTTPSConnection, HTTPConnection, UDSHTTPConnection]
 
 _W3C_TRACESTATE_INVALID_CHARS_REGEX_VALUE = re.compile(r",|;|~|[^\x20-\x7E]+")
 _W3C_TRACESTATE_INVALID_CHARS_REGEX_KEY = re.compile(r",| |=|[^\x20-\x7E]+")
-
-DEFAULT_TIMEOUT = 2.0
 
 
 Connector = Callable[[], ContextManager[compat.httplib.HTTPConnection]]
