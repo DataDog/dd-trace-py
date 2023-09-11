@@ -35,7 +35,7 @@ urlpatterns = [path("", handler)]
 app = DDWSGIMiddleware(get_wsgi_application())
 
 
-def test_django_wsgi_app_allows_signals():
+def test_django_app_receives_request_finished_signal_when_app_is_ddwsgimiddleware():
     env = os.environ.copy()
     env.update(
         {
