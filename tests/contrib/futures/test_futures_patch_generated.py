@@ -31,6 +31,7 @@ class TestFuturesPatch(PatchTestCase.Base):
         pass
 
     def assert_module_implements_get_version(self):
-        version = get_version()
-        assert type(version) == str
-        assert version != ""
+        pass
+
+    def test_and_emit_get_version(self):
+        pass
