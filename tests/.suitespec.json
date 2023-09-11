@@ -343,12 +343,14 @@
             "@tracing",
             "@bootstrap",
             "@core",
+            "@contrib",
             "tests/tracer/*"
         ],
         "integration_agent": [
             "@tracing",
             "@bootstrap",
             "@core",
+            "@contrib",
             "tests/integration/*",
             "tests/snapshots/tests.integration.*"
         ],
@@ -356,6 +358,7 @@
             "@tracing",
             "@bootstrap",
             "@core",
+            "@contrib",
             "tests/integration/*",
             "tests/snapshots/tests.integration.*"
         ],
@@ -368,6 +371,7 @@
             "@futures",
             "@sqlite3",
             "@dbapi",
+            "@contrib",
             "tests/contrib/logging/*",
             "tests/contrib/sqlite3/*",
             "tests/contrib/asyncio/*",
@@ -386,6 +390,7 @@
         "aws_lambda": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@aws_lambda",
             "tests/contrib/aws_lambda/*",
@@ -409,6 +414,7 @@
         "sourcecode": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@sourcecode",
             "tests/sourcecode/*"
         ],
@@ -456,6 +462,7 @@
         "boto": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@boto",
             "tests/contrib/boto/*"
@@ -463,6 +470,7 @@
         "botocore": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@boto",
             "tests/contrib/botocore/*"
@@ -470,24 +478,28 @@
         "test_logging": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@logging"
         ],
         "asyncio": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@asyncio"
         ],
         "futures": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@futures"
         ],
         "sqlite3": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@sqlite3",
             "@dbapi"
@@ -495,6 +507,7 @@
         "dbapi": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@dbapi",
             "@appsec"
@@ -502,12 +515,14 @@
         "dbapi_async": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@dbapi"
         ],
         "asyncpg": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@pg",
             "tests/contrib/asyncpg/*",
@@ -516,6 +531,7 @@
         "pylons": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@appsec",
             "@pylons",
@@ -524,6 +540,7 @@
         "aiohttp": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@aiohttp",
             "tests/contrib/aiohttp/*",
@@ -534,6 +551,7 @@
         "asgi": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@asyncio",
             "@appsec",
@@ -543,6 +561,7 @@
         "bottle": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@bottle",
             "tests/contrib/bottle/*"
@@ -550,6 +569,7 @@
         "cassandra": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@cassandra",
             "tests/contrib/cassandra/*"
@@ -557,6 +577,7 @@
         "celery": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@celery",
             "tests/contrib/celery/*"
@@ -564,6 +585,7 @@
         "cherrypy": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@cherrypy",
             "tests/contrib/cherrypy/*",
@@ -572,6 +594,7 @@
         "consul": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@consul",
             "tests/contrib/consul/*"
@@ -579,6 +602,7 @@
         "dogpile_cache": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@dogpile_cache",
             "tests/contrib/dogpile_cache/*"
@@ -595,6 +619,7 @@
         "falcon": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@falcon",
             "tests/contrib/falcon/*"
@@ -617,6 +642,7 @@
         "django_hosts": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@appsec",
             "@django",
@@ -626,6 +652,7 @@
         "djangorestframework": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@appsec",
             "@django",
@@ -634,6 +661,7 @@
         "fastapi": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@starlette",
             "@fastapi",
@@ -646,6 +674,7 @@
         "flask": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@flask",
             "@appsec",
@@ -659,6 +688,7 @@
         "gevent": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@gevent",
             "tests/contrib/gevent/*"
@@ -666,6 +696,7 @@
         "graphene": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@graphene",
             "tests/contrib/graphene/*",
@@ -674,6 +705,7 @@
         "graphql": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@graphql",
             "tests/contrib/graphql/*",
@@ -682,6 +714,7 @@
         "grpc": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@grpc",
             "tests/contrib/grpc/*",
@@ -691,6 +724,7 @@
         "gunicorn": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@gunicorn",
             "tests/contrib/gunicorn/*",
@@ -699,6 +733,7 @@
         "httplib": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@httplib",
             "tests/contrib/httplib/*"
@@ -715,6 +750,7 @@
         "mariadb": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@dbapi",
             "@mariadb",
@@ -724,6 +760,7 @@
         "molten": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@molten",
             "tests/contrib/molten/*"
@@ -740,6 +777,7 @@
         "mysqlconnector": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@mysql",
             "tests/contrib/mysqlconnector/*"
@@ -747,6 +785,7 @@
         "mysqlpython": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@mysql",
             "tests/contrib/mysqlpython/*"
@@ -754,6 +793,7 @@
         "pymysql": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@dbapi",
             "@mysql",
@@ -762,6 +802,7 @@
         "pylibmc": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@pylibmc",
             "tests/contrib/pylibmc/*"
@@ -769,12 +810,14 @@
         "pytest": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@pytest",
             "@ci_visibility",
             "tests/contrib/pytest/*"
         ],
         "unittest": [
+            "@contrib",
             "@unittest",
             "@ci_visibility",
             "tests/contrib/unittest_plugin/*"
@@ -782,6 +825,7 @@
         "asynctest": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@asynctest",
             "tests/contrib/asynctest/*"
@@ -789,6 +833,7 @@
         "pytestbdd": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@pytest",
             "tests/contrib/pytest_bdd/*"
@@ -796,6 +841,7 @@
         "pymemcache": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@pymemcache",
             "tests/contrib/pymemcache/*"
@@ -803,6 +849,7 @@
         "mongoengine": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@mongo",
             "tests/contrib/mongoengine/*"
@@ -818,6 +865,7 @@
         "pynamodb": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@pynamodb",
             "tests/contrib/pynamodb/*"
@@ -825,6 +873,7 @@
         "pyodbc": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@pyodbc",
             "@dbapi",
@@ -833,6 +882,7 @@
         "pyramid": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@pyramid",
             "tests/contrib/pyramid/*",
@@ -841,6 +891,7 @@
         "requests": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@requests",
             "tests/contrib/requests/*"
@@ -848,6 +899,7 @@
         "sanic": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@sanic",
             "@asyncio",
@@ -857,6 +909,7 @@
         "snowflake": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@dbapi",
             "@snowflake",
@@ -866,6 +919,7 @@
         "starlette": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@asyncio",
             "@starlette",
@@ -875,6 +929,7 @@
         "sqlalchemy": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@sqlalchemy",
             "@dbapi",
@@ -902,6 +957,7 @@
         "psycopg2": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@dbapi",
             "@tracing",
             "@pg",
@@ -911,6 +967,7 @@
         "aiobotocore": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@boto",
             "tests/contrib/aiobotocore/*"
@@ -918,6 +975,7 @@
         "aiomysql": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@dbapi",
             "@mysql",
@@ -927,6 +985,7 @@
         "aiopg": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@dbapi",
             "@pg",
@@ -935,6 +994,7 @@
         "aioredis": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@redis",
             "tests/contrib/aioredis/*",
@@ -943,6 +1003,7 @@
         "aredis": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@redis",
             "tests/contrib/aredis/*",
@@ -951,6 +1012,7 @@
         "yaaredis": [
             "@core",
             "@bootstrap",
+            "@contrib",
             "@tracing",
             "@redis",
             "tests/contrib/yaaredis/*",
@@ -959,6 +1021,7 @@
         "redis": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@redis",
             "tests/contrib/redis/*",
@@ -967,6 +1030,7 @@
         "tornado": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@tornado",
             "tests/contrib/tornado/*"
@@ -974,6 +1038,7 @@
         "rediscluster": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@redis",
             "tests/contrib/rediscluster/*",
@@ -982,6 +1047,7 @@
         "rq": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@rq",
             "tests/contrib/rq/*",
@@ -990,6 +1056,7 @@
         "urllib3": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@urllib3",
             "tests/contrib/urllib3/*",
@@ -998,6 +1065,7 @@
         "vertica": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@vertica",
             "tests/contrib/vertica/*"
@@ -1005,6 +1073,7 @@
         "wsgi": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@wsgi",
             "tests/contrib/wsgi/*",
@@ -1014,6 +1083,7 @@
         "kombu": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@kombu",
             "tests/contrib/kombu/*"
@@ -1021,6 +1091,7 @@
         "jinja2": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@jinja2",
             "tests/contrib/jinja2/*"
@@ -1028,6 +1099,7 @@
         "mako": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@mako",
             "tests/contrib/mako/*"
@@ -1035,6 +1107,7 @@
         "algoliasearch": [
             "@bootstrap",
             "@core",
+            "@contrib",
             "@tracing",
             "@algoliasearch",
             "tests/contrib/algoliasearch/*"

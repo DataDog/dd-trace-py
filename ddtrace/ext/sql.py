@@ -8,6 +8,9 @@ from ddtrace.vendor.debtcollector import deprecate
 
 log = get_logger(__name__)
 
+# tags
+DB = "sql.db"  # the name of the database
+
 
 def normalize_vendor(vendor):
     # type: (str) -> str
