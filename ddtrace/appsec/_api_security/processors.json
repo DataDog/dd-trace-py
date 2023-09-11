@@ -38,7 +38,7 @@
           "parameters": {
             "inputs": [
               {
-                "address": "waf.context.settings",
+                "address": "waf.context.processor",
                 "key_path": [
                   "extract-schema"
                 ]
