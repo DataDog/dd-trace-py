@@ -133,7 +133,7 @@ jobs:
 
       - name: Build sdist
         run: |
-          pip install cython
+          pip install cython<3
           python setup.py sdist
       - uses: actions/upload-artifact@v3
         with:
