@@ -274,7 +274,7 @@ def pytest_sessionstart(session):
     if is_enabled(session.config):
         _CIVisibility.enable(config=ddtrace.config.pytest)
         if not _CIVisibility.enabled:
-            log.warning('CI Visibility was not able to start')
+            log.warning("CI Visibility was not able to start")
             return
         log.debug("CI Visibility enabled - starting test session")
         test_session_span = _CIVisibility._instance.tracer.trace(
