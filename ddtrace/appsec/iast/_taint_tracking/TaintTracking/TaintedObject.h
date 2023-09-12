@@ -1,5 +1,4 @@
-#ifndef _NATIVE_TAINTEDOBJECT_H
-#define _NATIVE_TAINTEDOBJECT_H
+#pragma once
 #include "TaintTracking/TaintRange.h"
 #include <Python.h>
 
@@ -54,5 +53,3 @@ class TaintedObject
 
 void
 pyexport_taintedobject(py::module& m);
-
-#endif //_NATIVE_TAINTEDOBJECT_H

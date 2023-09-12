@@ -11,14 +11,14 @@ namespace py = pybind11;
 using namespace pybind11::literals;
 
 Source::Source(string name, string value, OriginType origin)
-  : name(move(name))
-  , value(move(value))
+  : name(std::move(name))
+  , value(std::move(value))
   , origin(origin)
 {}
 
 Source::Source(int name, string value, OriginType origin)
   : name(origin_to_str(OriginType{ name }))
-  , value(move(value))
+  , value(std::move(value))
   , origin(origin)
 {}
 
@@ -48,6 +48,7 @@ void
 pyexport_source(py::module& m)
 {
     m.def("origin_to_str", &origin_to_str, "origin"_a);
+    m.def("str_to_origin", &str_to_origin, "origin"_a);
     py::enum_<TagMappingMode>(m, "TagMappingMode")
       .value("Normal", TagMappingMode::Normal)
       .value("Mapper", TagMappingMode::Mapper)

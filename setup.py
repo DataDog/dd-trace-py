@@ -6,11 +6,12 @@ import shutil
 import sys
 import tarfile
 
-from setuptools import Extension, find_packages, setup
-from setuptools.command.build_ext import build_ext
-from setuptools.command.build_py import build_py as BuildPyCommand
-from pkg_resources import get_build_platform
-from distutils.command.clean import clean as CleanCommand
+
+from setuptools import Extension, find_packages, setup  # isort: skip
+from setuptools.command.build_ext import build_ext  # isort: skip
+from setuptools.command.build_py import build_py as BuildPyCommand  # isort: skip
+from pkg_resources import get_build_platform  # isort: skip
+from distutils.command.clean import clean as CleanCommand  # isort: skip
 
 
 try:
@@ -593,7 +594,7 @@ setup(
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
     ],
-    setup_requires=["cython<3", "cmake>=3.24.2; python_version>='3.6'"],
+    setup_requires=["setuptools_scm[toml]>=4", "cython<3", "cmake>=3.24.2; python_version>='3.6'"],
     ext_modules=ext_modules
     + cythonize(
         [

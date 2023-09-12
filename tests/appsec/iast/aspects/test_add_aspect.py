@@ -6,19 +6,18 @@ import pytest
 
 
 try:
-    from ddtrace.appsec.iast._taint_tracking import contexts_reset
-    from ddtrace.appsec.iast._taint_tracking import create_context
+    from ddtrace.appsec.iast._taint_tracking import OriginType
+    from ddtrace.appsec.iast._taint_tracking import Source
+    from ddtrace.appsec.iast._taint_tracking import get_tainted_ranges
+    from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
+    from ddtrace.appsec.iast._taint_tracking import taint_pyobject
+    from ddtrace.appsec.iast._taint_tracking import taint_ranges_as_evidence_info
     from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import TaintRange_
     import ddtrace.appsec.iast._taint_tracking.aspects as ddtrace_aspects
+    from ddtrace.appsec.iast._taint_tracking.aspects import add_aspect
+    from ddtrace.appsec.iast._utils import _is_python_version_supported as python_supported_by_iast
 except (ImportError, AttributeError):
     pytest.skip("IAST not supported for this Python version", allow_module_level=True)
-
-
-@pytest.fixture(autouse=True)
-def reset_context():
-    yield
-    contexts_reset()
-    _ = create_context()
 
 
 @pytest.mark.parametrize(
@@ -73,10 +72,6 @@ def test_add_aspect_type_error(obj1, obj2):
 )
 @pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
 def test_add_aspect_tainting_left_hand(obj1, obj2, should_be_tainted):
-    from ddtrace.appsec.iast._taint_tracking import OriginType
-    from ddtrace.appsec.iast._taint_tracking import get_tainted_ranges
-    from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
-    from ddtrace.appsec.iast._taint_tracking import taint_pyobject
 
     if should_be_tainted:
         obj1 = taint_pyobject(
@@ -141,3 +136,83 @@ def test_add_aspect_tainting_right_hand(obj1, obj2, should_be_tainted):
         assert (tainted_ranges != []) == should_be_tainted
         if should_be_tainted:
             assert len(tainted_ranges) == len(get_tainted_ranges(obj1)) + len(get_tainted_ranges(obj2))
+
+
+def test_taint_ranges_as_evidence_info_nothing_tainted():
+    text = "nothing tainted"
+    value_parts, sources = taint_ranges_as_evidence_info(text)
+    assert value_parts == [{"value": text}]
+    assert sources == []
+
+
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+def test_taint_ranges_as_evidence_info_all_tainted():
+    arg = "all tainted"
+    input_info = Source("request_body", arg, OriginType.PARAMETER)
+    tainted_text = taint_pyobject(arg, source_name="request_body", source_value=arg, source_origin=OriginType.PARAMETER)
+    value_parts, sources = taint_ranges_as_evidence_info(tainted_text)
+    assert value_parts == [{"value": tainted_text, "source": 0}]
+    assert sources == [input_info]
+
+
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+def test_taint_ranges_as_evidence_info_tainted_op1_add():
+    arg = "tainted part"
+    input_info = Source("request_body", arg, OriginType.PARAMETER)
+    text = "|not tainted part|"
+    tainted_text = taint_pyobject(arg, source_name="request_body", source_value=arg, source_origin=OriginType.PARAMETER)
+    tainted_add_result = add_aspect(tainted_text, text)
+
+    value_parts, sources = taint_ranges_as_evidence_info(tainted_add_result)
+    assert value_parts == [{"value": tainted_text, "source": 0}, {"value": text}]
+    assert sources == [input_info]
+
+
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+def test_taint_ranges_as_evidence_info_tainted_op2_add():
+    arg = "tainted part"
+    input_info = Source("request_body", arg, OriginType.PARAMETER)
+    text = "|not tainted part|"
+    tainted_text = taint_pyobject(arg, source_name="request_body", source_value=arg, source_origin=OriginType.PARAMETER)
+    tainted_add_result = add_aspect(text, tainted_text)
+
+    value_parts, sources = taint_ranges_as_evidence_info(tainted_add_result)
+    assert value_parts == [{"value": text}, {"value": tainted_text, "source": 0}]
+    assert sources == [input_info]
+
+
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+def test_taint_ranges_as_evidence_info_same_tainted_op1_and_op3_add():
+    arg = "tainted part"
+    input_info = Source("request_body", arg, OriginType.PARAMETER)
+    text = "|not tainted part|"
+    tainted_text = taint_pyobject(arg, source_name="request_body", source_value=arg, source_origin=OriginType.PARAMETER)
+    tainted_add_result = add_aspect(tainted_text, add_aspect(text, tainted_text))
+
+    value_parts, sources = taint_ranges_as_evidence_info(tainted_add_result)
+    assert value_parts == [{"value": tainted_text, "source": 0}, {"value": text}, {"value": tainted_text, "source": 0}]
+    assert sources == [input_info]
+
+
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+def test_taint_ranges_as_evidence_info_different_tainted_op1_and_op3_add():
+    arg1 = "tainted body"
+    arg2 = "tainted header"
+    input_info1 = Source("request_body", arg1, OriginType.PARAMETER)
+    input_info2 = Source("request_body", arg2, OriginType.PARAMETER)
+    text = "|not tainted part|"
+    tainted_text1 = taint_pyobject(
+        arg1, source_name="request_body", source_value=arg1, source_origin=OriginType.PARAMETER
+    )
+    tainted_text2 = taint_pyobject(
+        arg2, source_name="request_body", source_value=arg2, source_origin=OriginType.PARAMETER
+    )
+    tainted_add_result = add_aspect(tainted_text1, add_aspect(text, tainted_text2))
+
+    value_parts, sources = taint_ranges_as_evidence_info(tainted_add_result)
+    assert value_parts == [
+        {"value": tainted_text1, "source": 0},
+        {"value": text},
+        {"value": tainted_text2, "source": 1},
+    ]
+    assert sources == [input_info1, input_info2]

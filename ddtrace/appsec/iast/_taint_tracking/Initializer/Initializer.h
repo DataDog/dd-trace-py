@@ -1,11 +1,7 @@
 #pragma once
-
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
-#include "Context/Context.h"
-#include "Context/GlobalContext.h"
-#include "Exceptions/exceptions.h"
 #include "TaintTracking/TaintRange.h"
 #include "TaintTracking/TaintedObject.h"
 
@@ -22,7 +18,6 @@ class Initializer
   private:
     py::object pyfunc_get_settings;
     py::object pyfunc_get_python_lib;
-    unordered_map<size_t, shared_ptr<Context>> contexts;
     static constexpr int TAINTRANGES_STACK_SIZE = 4096;
     static constexpr int TAINTEDOBJECTS_STACK_SIZE = 4096;
     stack<TaintedObjectPtr> available_taintedobjects_stack;
@@ -42,19 +37,15 @@ class Initializer
 
     static int num_objects_tainted();
 
-    int num_contexts();
-
     int initializer_size();
 
     int active_map_addreses_size();
 
-    shared_ptr<Context> create_context();
+    void create_context();
 
     void destroy_context();
 
-    shared_ptr<Context> get_context(size_t tx_id = 0);
-
-    void contexts_reset();
+    void reset_context();
 
     static size_t context_id();
 
@@ -68,7 +59,7 @@ class Initializer
     TaintedObjectPtr allocate_tainted_object(TaintRangeRefs ranges)
     {
         auto toptr = allocate_tainted_object();
-        toptr->set_values(move(ranges));
+        toptr->set_values(std::move(ranges));
         return toptr;
     }
 
@@ -84,7 +75,7 @@ class Initializer
         if (!from) {
             return allocate_tainted_object();
         }
-        return allocate_tainted_object(move(from->ranges_));
+        return allocate_tainted_object(std::move(from->ranges_));
     }
 
     TaintedObjectPtr allocate_tainted_object_copy(const TaintedObjectPtr& from)
