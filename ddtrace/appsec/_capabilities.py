@@ -59,3 +59,4 @@ def _appsec_rc_capabilities(test_tracer=None):
             result = str(base64.b64encode(value.to_bytes((value.bit_length() + 7) // 8, "big")), encoding="utf-8")
 
     return result
+pass
