@@ -1,3 +1,5 @@
+.. _release_notes:
+
 Release Notes
 =============
 
@@ -9,7 +11,7 @@ with the library.
 
 A release note is **required** if a PR is user-impacting, or if it meets any of the following conditions:
 
-* `Breaking change to the public API <versioning.rst#release-versions>`_
+* :ref:`Breaking change to the public API<versioning_release>`
 * New feature
 * Bug fix
 * Deprecations
@@ -80,6 +82,8 @@ Categories
 Generated release note files are templates and include all possible categories.
 Remove all sections from your generated note except for the ones that apply to the
 change you're documenting.
+
+.. _release_notes_scope:
 
 Scope
 -----

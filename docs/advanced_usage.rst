@@ -390,11 +390,11 @@ Examples::
 
 The sensitive query strings (e.g: token, password) are obfuscated by default.
 
-It is possible to configure the obfuscation regexp by setting the ``DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN`` environment variable.
+It is possible to configure the obfuscation regexp by setting the ``DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP`` environment variable.
 
-To disable query string obfuscation, set the ``DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN`` environment variable to empty string ("")
+To disable query string obfuscation, set the ``DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP`` environment variable to empty string ("")
 
-If the ``DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN`` environment variable is set to an invalid regexp, the query strings will not be traced.
+If the ``DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP`` environment variable is set to an invalid regexp, the query strings will not be traced.
 
 ..  _http-headers-tracing:
 

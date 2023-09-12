@@ -8,8 +8,7 @@ import pytest
 from ddtrace.internal.compat import PY3
 import ddtrace.internal.constants as constants
 from tests.appsec.test_processor import RULES_GOOD_PATH
-from tests.appsec.test_processor import _ALLOWED_IP
-from tests.appsec.test_processor import _BLOCKED_IP
+from tests.appsec.test_processor import _IP
 from tests.utils import snapshot
 from tests.webclient import Client
 
@@ -42,8 +41,8 @@ def daphne_client(django_asgi, additional_env=None):
     cmd = ["ddtrace-run", "daphne", "-p", str(SERVER_PORT), "tests.contrib.django.asgi:%s" % django_asgi]
     proc = subprocess.Popen(
         cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
         close_fds=True,
         env=env,
     )
@@ -114,7 +113,7 @@ def test_request_ipblock_nomatch_200():
             "DD_APPSEC_RULES": RULES_GOOD_PATH,
         },
     ) as client:
-        result = client.get("/", headers={"X-Real-Ip": _ALLOWED_IP})
+        result = client.get("/", headers={"X-Real-Ip": _IP.DEFAULT})
         assert result.status_code == 200
         assert result.content == b"Hello, test app."
 
@@ -143,7 +142,7 @@ def test_request_ipblock_match_403():
         result = client.get(
             "/",
             headers={
-                "X-Real-Ip": _BLOCKED_IP,
+                "X-Real-Ip": _IP.BLOCKED,
                 "Accept": "text/html",
             },
         )
@@ -176,7 +175,7 @@ def test_request_ipblock_match_403_json():
         result = client.get(
             "/",
             headers={
-                "X-Real-Ip": _BLOCKED_IP,
+                "X-Real-Ip": _IP.BLOCKED,
             },
         )
         assert result.status_code == 403

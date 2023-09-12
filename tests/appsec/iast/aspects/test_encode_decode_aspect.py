@@ -2,11 +2,13 @@
 # -*- encoding: utf-8 -*-
 import pytest
 
-from ddtrace.appsec.iast import oce
+from ddtrace.appsec.iast._utils import _is_python_version_supported as python_supported_by_iast
 
 
-def setup():
-    oce._enabled = True
+try:
+    from ddtrace.appsec.iast._taint_tracking import OriginType
+except (ImportError, AttributeError):
+    pytest.skip("IAST not supported for this Python version", allow_module_level=True)
 
 
 def catch_all(fun, args, kwargs):
@@ -31,17 +33,13 @@ def catch_all(fun, args, kwargs):
 @pytest.mark.parametrize("should_be_tainted", [False, True])
 @pytest.mark.parametrize("prefix", [b"", b"abc", b"\xc3\xa9\xc3\xa7"])
 @pytest.mark.parametrize("suffix", [b"", b"abc", b"\xc3\xa9\xc3\xa7"])
-@pytest.mark.skip(reason="TODO: this tests will enable in the next PR")
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_decode_and_add_aspect(infix, args, kwargs, should_be_tainted, prefix, suffix):
-    import ddtrace.appsec.iast._ast.aspects as ddtrace_aspects
-    from ddtrace.appsec.iast._taint_dict import clear_taint_mapping
     from ddtrace.appsec.iast._taint_tracking import OriginType
     from ddtrace.appsec.iast._taint_tracking import get_tainted_ranges
-    from ddtrace.appsec.iast._taint_tracking import setup
     from ddtrace.appsec.iast._taint_tracking import taint_pyobject
+    import ddtrace.appsec.iast._taint_tracking.aspects as ddtrace_aspects
 
-    setup(bytes.join, bytearray.join)
-    clear_taint_mapping()
     if should_be_tainted:
         infix = taint_pyobject(
             pyobject=infix,
@@ -61,10 +59,12 @@ def test_decode_and_add_aspect(infix, args, kwargs, should_be_tainted, prefix, s
     if should_be_tainted and ok:
         list_tr = get_tainted_ranges(res)
         assert len(list_tr) == 1
-        assert list_tr[0][1] == len(prefix.decode(*args, **kwargs))
+        assert list_tr[0].start == len(prefix.decode(*args, **kwargs))
         # assert length of tainted is ok. If last char was replaced due to some missing bytes, it may be shorter.
         len_infix = len(infix.decode(*args, **kwargs))
-        assert list_tr[0][2] == len_infix or (kwargs == {"errors": "replace"} and list_tr[0][2] == len_infix - 1)
+        assert list_tr[0].length == len_infix or (
+            kwargs == {"errors": "replace"} and list_tr[0].length == len_infix - 1
+        )
 
 
 @pytest.mark.parametrize(
@@ -82,17 +82,12 @@ def test_decode_and_add_aspect(infix, args, kwargs, should_be_tainted, prefix, s
 @pytest.mark.parametrize("should_be_tainted", [False, True])
 @pytest.mark.parametrize("prefix", ["", "abc", "èôï"])
 @pytest.mark.parametrize("suffix", ["", "abc", "èôï"])
-@pytest.mark.skip(reason="TODO: this tests will enable in the next PR")
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_encode_and_add_aspect(infix, args, kwargs, should_be_tainted, prefix, suffix):
-    import ddtrace.appsec.iast._ast.aspects as ddtrace_aspects
-    from ddtrace.appsec.iast._taint_dict import clear_taint_mapping
-    from ddtrace.appsec.iast._taint_tracking import OriginType
     from ddtrace.appsec.iast._taint_tracking import get_tainted_ranges
-    from ddtrace.appsec.iast._taint_tracking import setup
     from ddtrace.appsec.iast._taint_tracking import taint_pyobject
+    import ddtrace.appsec.iast._taint_tracking.aspects as ddtrace_aspects
 
-    setup(bytes.join, bytearray.join)
-    clear_taint_mapping()
     if should_be_tainted:
         infix = taint_pyobject(
             pyobject=infix, source_name="test_decode_aspect", source_value=infix, source_origin=OriginType.PARAMETER
@@ -105,10 +100,12 @@ def test_encode_and_add_aspect(infix, args, kwargs, should_be_tainted, prefix, s
     if should_be_tainted:
         assert len(get_tainted_ranges(main_string))
     ok, res = catch_all(ddtrace_aspects.encode_aspect, (main_string,) + args, kwargs)
+
     assert (ok, res) == catch_all(main_string.__class__.encode, (main_string,) + args, kwargs)
     if should_be_tainted and ok:
-        list_tr = get_tainted_ranges(res)
-        assert len(list_tr) == 1
-        assert list_tr[0][1] == len(prefix.encode(*args, **kwargs))
+        list_ranges = get_tainted_ranges(res)
+        assert len(list_ranges) == 1
+
+        assert list_ranges[0].start == len(prefix.encode(*args, **kwargs))
         len_infix = len(infix.encode(*args, **kwargs))
-        assert list_tr[0][2] == len_infix
+        assert list_ranges[0].length == len_infix

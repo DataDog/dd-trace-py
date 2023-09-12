@@ -27,6 +27,7 @@ app
 appsec
 aredis
 args
+ascii
 asgi
 async
 asyncio
@@ -69,6 +70,7 @@ datastores
 dbapi
 ddtrace
 deprecations
+deserializing
 django
 docstring
 doctest
@@ -103,7 +105,9 @@ httplib
 https
 httpx
 iPython
+iast
 ini
+InitContainer
 initializer
 integration
 integrations
@@ -140,7 +144,9 @@ mypy
 mysql
 mysqlclient
 mysqldb
+msgpack
 namespace
+NeedsAppKey
 obfuscator
 openai
 opensearch
@@ -182,6 +188,7 @@ renderers
 resolvers
 repo
 respawn
+riotfile
 rq
 rowcount
 runnable
@@ -210,7 +217,6 @@ testagent
 TestCase
 timestamp
 tokenizer
-tracecontext
 tracestate
 tweens
 uWSGI
@@ -221,19 +227,23 @@ unittest
 unix
 unpatch
 unpatched
+unobfuscated
 unregister
+unshallow
 unvendored
 uri
 url
 urls
 username
 uvicorn
+vendored
 versioned
 vertica
 w3c
 whitelist
 whitespace
 workflow
+Wrapt
 wsgi
 xfail
 yaaredis
@@ -248,3 +258,6 @@ programmatically
 DES
 Blowfish
 Gitlab
+Enablement
+hotspot
+CMake

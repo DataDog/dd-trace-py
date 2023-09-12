@@ -39,6 +39,7 @@ def get_weak_hash_algorithms():
 class WeakHash(VulnerabilityBase):
     vulnerability_type = VULN_INSECURE_HASHING_TYPE
     evidence_type = EVIDENCE_ALGORITHM_TYPE
+    scrub_evidence = False
 
 
 def unpatch_iast():
@@ -63,6 +64,11 @@ def unpatch_iast():
     try_unwrap("Crypto.Hash.MD5", "MD5Hash.hexdigest")
     try_unwrap("Crypto.Hash.SHA1", "SHA1Hash.digest")
     try_unwrap("Crypto.Hash.SHA1", "SHA1Hash.hexdigest")
+
+
+def get_version():
+    # type: () -> str
+    return ""
 
 
 def patch():

@@ -9,6 +9,7 @@
     "type": "web",
     "error": 0,
     "meta": {
+      "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "component": "fastapi",
       "http.method": "POST",
@@ -18,18 +19,17 @@
       "http.useragent": "testclient",
       "http.version": "1.1",
       "language": "python",
-      "runtime-id": "b8877d54f2b54d3eaab636d5b4efc312",
+      "runtime-id": "00711884dae84cab958adda67a7be9b6",
       "span.kind": "server"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 2060
+      "process_id": 42682
     },
-    "duration": 383000,
-    "start": 1667242400759718000
+    "duration": 488000,
+    "start": 1692709944194388085
   },
      {
        "name": "fastapi.serialize_response",
@@ -40,8 +40,11 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
-       "duration": 80000,
-       "start": 1656543965510900000
+       "meta": {
+         "_dd.base_service": ""
+       },
+       "duration": 91417,
+       "start": 1692709944194696543
      }],
 [
   {
@@ -54,6 +57,7 @@
     "type": "web",
     "error": 0,
     "meta": {
+      "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "component": "fastapi",
       "http.method": "GET",
@@ -63,18 +67,17 @@
       "http.useragent": "testclient",
       "http.version": "1.1",
       "language": "python",
-      "runtime-id": "b8877d54f2b54d3eaab636d5b4efc312",
+      "runtime-id": "00711884dae84cab958adda67a7be9b6",
       "span.kind": "server"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 2060
+      "process_id": 42682
     },
-    "duration": 287000,
-    "start": 1667242400761197000
+    "duration": 324084,
+    "start": 1692709944195708918
   },
      {
        "name": "fastapi.serialize_response",
@@ -85,6 +88,9 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
-       "duration": 65000,
-       "start": 1656543965512188000
+       "meta": {
+         "_dd.base_service": ""
+       },
+       "duration": 83334,
+       "start": 1692709944195876168
      }]]

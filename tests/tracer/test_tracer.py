@@ -38,7 +38,6 @@ from ddtrace.internal._encoding import MsgpackEncoderV03
 from ddtrace.internal._encoding import MsgpackEncoderV05
 from ddtrace.internal.serverless import has_aws_lambda_agent_extension
 from ddtrace.internal.serverless import in_aws_lambda
-from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.settings import Config
@@ -533,6 +532,28 @@ class TracerTestCases(TracerTestCase):
         assert span.get_tag(user.SCOPE)
         assert span.context.dd_user_id is None
 
+    def test_tracer_set_user_in_span(self):
+        parent_span = self.trace("root_span")
+        user_span = self.trace("user_span")
+        user_span.parent_id = parent_span.span_id
+        set_user(
+            self.tracer,
+            user_id="usr.id",
+            email="usr.email",
+            name="usr.name",
+            session_id="usr.session_id",
+            role="usr.role",
+            scope="usr.scope",
+            span=user_span,
+        )
+        assert user_span.get_tag(user.ID) and parent_span.get_tag(user.ID) is None
+        assert user_span.get_tag(user.EMAIL) and parent_span.get_tag(user.EMAIL) is None
+        assert user_span.get_tag(user.SESSION_ID) and parent_span.get_tag(user.SESSION_ID) is None
+        assert user_span.get_tag(user.NAME) and parent_span.get_tag(user.NAME) is None
+        assert user_span.get_tag(user.ROLE) and parent_span.get_tag(user.ROLE) is None
+        assert user_span.get_tag(user.SCOPE) and parent_span.get_tag(user.SCOPE) is None
+        assert user_span.context.dd_user_id is None
+
     def test_tracer_set_user_mandatory(self):
         span = self.trace("fake_span")
         set_user(
@@ -942,20 +963,6 @@ class EnvTracerTestCase(TracerTestCase):
                     assert child2.service == "django"
                     assert VERSION_KEY in child2.get_tags() and child2.get_tag(VERSION_KEY) == "0.1.2"
 
-    @run_in_subprocess(env_overrides=dict(FUNCTION_NAME="my-func", GCP_PROJECT="project-name"))
-    def test_detect_gcp_function_old_runtime(self):
-        assert in_gcp_function()
-        tracer = Tracer()
-        assert isinstance(tracer._writer, AgentWriter)
-        assert tracer._writer._sync_mode
-
-    @run_in_subprocess(env_overrides=dict(K_SERVICE="my-func", FUNCTION_TARGET="function-target"))
-    def test_detect_gcp_function_new_runtime(self):
-        assert in_gcp_function()
-        tracer = Tracer()
-        assert isinstance(tracer._writer, AgentWriter)
-        assert tracer._writer._sync_mode
-
     @run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
     def test_detect_agentless_env_with_lambda(self):
         assert in_aws_lambda()
@@ -1110,13 +1117,17 @@ def test_deregister_start_span_hooks():
     assert result == {}
 
 
-def test_enable(monkeypatch):
-    t1 = ddtrace.Tracer()
-    assert t1.enabled
+@pytest.mark.subprocess(parametrize={"DD_TRACE_ENABLED": ["true", "false"]})
+def test_enable():
+    import os
 
-    monkeypatch.setenv("DD_TRACE_ENABLED", "false")
+    import ddtrace
+
     t2 = ddtrace.Tracer()
-    assert not t2.enabled
+    if os.environ["DD_TRACE_ENABLED"] == "true":
+        assert t2.enabled
+    else:
+        assert not t2.enabled
 
 
 def test_runtime_id_parent_only():
@@ -1450,7 +1461,7 @@ def test_multithreaded(tracer, test_spans):
             with tracer.trace("s3"):
                 pass
 
-    for i in range(1000):
+    for _ in range(1000):
         ts = [threading.Thread(target=target) for _ in range(10)]
         for t in ts:
             t.start()
@@ -1663,26 +1674,34 @@ def test_configure_url_partial():
     assert tracer._writer.agent_url == "http://abc:431"
 
 
-def test_bad_agent_url(monkeypatch):
-    with pytest.raises(ValueError):
-        Tracer(url="bad://localhost:8126")
+@pytest.mark.subprocess(env={"DD_TRACE_AGENT_URL": "bad://localhost:1234"})
+def test_bad_agent_url():
+    import pytest
 
-    monkeypatch.setenv("DD_TRACE_AGENT_URL", "bad://localhost:1234")
     with pytest.raises(ValueError) as e:
-        Tracer()
+        from ddtrace import tracer  # noqa: F401
+
     assert (
         str(e.value)
         == "Unsupported protocol 'bad' in intake URL 'bad://localhost:1234'. Must be one of: http, https, unix"
     )
 
-    monkeypatch.setenv("DD_TRACE_AGENT_URL", "unix://")
+
+@pytest.mark.subprocess(env={"DD_TRACE_AGENT_URL": "unix://"})
+def test_bad_agent_url_invalid_path():
+    import pytest
+
     with pytest.raises(ValueError) as e:
-        Tracer()
+        from ddtrace import tracer  # noqa: F401
     assert str(e.value) == "Invalid file path in intake URL 'unix://'"
 
-    monkeypatch.setenv("DD_TRACE_AGENT_URL", "http://")
+
+@pytest.mark.subprocess(env={"DD_TRACE_AGENT_URL": "http://"})
+def test_bad_agent_url_invalid_hostname():
+    import pytest
+
     with pytest.raises(ValueError) as e:
-        Tracer()
+        from ddtrace import tracer  # noqa: F401
     assert str(e.value) == "Invalid hostname in intake URL 'http://'"
 
 

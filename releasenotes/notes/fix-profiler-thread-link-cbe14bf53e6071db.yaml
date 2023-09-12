@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    profiling: fixed a bug that prevented profiles from being correctly
+    correlated to traces in gevent-based applications, thus causing code hotspot
+    and end point data to be missing from the UI.

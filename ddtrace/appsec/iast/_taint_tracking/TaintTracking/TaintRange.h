@@ -12,10 +12,6 @@
 #include "TaintTracking/Source.h"
 #include "Utils/StringUtils.h"
 
-#define PY_MODULE_NAME_TAINTRANGES                                                                                     \
-    PY_MODULE_NAME "."                                                                                                 \
-                   "TaintRange"
-
 using namespace std;
 namespace py = pybind11;
 
@@ -36,23 +32,21 @@ struct TaintRange
 {
     int start = 0;
     int length = 0;
-    SourcePtr source = nullptr;
+    Source source;
 
     TaintRange() = default;
 
-    TaintRange(int start, int length, SourcePtr source)
+    TaintRange(int start, int length, Source source)
       : start(start)
       , length(length)
-      , source(source)
+      , source(std::move(source))
     {}
 
-    TaintRange(int start, int length, const Source& source);
-
-    inline void set_values(int start_, int length_, SourcePtr source_)
+    inline void set_values(int start_, int length_, Source source_)
     {
         start = start_;
         length = length_;
-        source = source_;
+        source = std::move(source_);
     }
 
     void reset();
@@ -61,14 +55,6 @@ struct TaintRange
 
     [[nodiscard]] uint get_hash() const;
 
-    // FIXME: unneeded?
-    //    struct hash_fn {
-    //        size_t operator()(const TaintRange &range) const { return
-    //        range.get_hash(); }
-    //    };
-    //
-    //    [[nodiscard]] size_t hash_() const { return hash_fn()(*this); }
-    //
     explicit operator std::string() const;
 };
 

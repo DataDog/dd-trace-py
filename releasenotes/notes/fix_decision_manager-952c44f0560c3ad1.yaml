@@ -1,0 +1,4 @@
+fixes:
+  - |
+    ASM: This fix resolves an issue where `track_user_signup_event` and `track_custom_event` where not correctly
+    tagging the span. This could lead to the loss of some events in the sampling.

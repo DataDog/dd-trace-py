@@ -13,8 +13,6 @@
 #include "Aspects/AspectOperatorAdd.h"
 #include "Aspects/_aspects_helpers.h"
 #include "Constants.h"
-#include "Context/_context.h"
-#include "Exceptions/_exceptions.h"
 #include "Initializer/_initializer.h"
 #include "TaintTracking/_taint_tracking.h"
 #include "TaintedOps/TaintedOps.h"
@@ -46,7 +44,6 @@ static PyMethodDef OpsMethods[] = {
     // We are using  METH_VARARGS because we need compatibility with
     // python 3.5, 3.6. but METH_FASTCALL could be used instead for python
     // >= 3.7
-    { "setup", (PyCFunction)setup, METH_VARARGS, "setup tainting module" },
     { "new_pyobject_id", (PyCFunction)api_new_pyobject_id, METH_VARARGS, "new pyobject id" },
     { nullptr, nullptr, 0, nullptr }
 };
@@ -69,8 +66,6 @@ PYBIND11_MODULE(_native, m)
 
     py::module m_initializer = pyexport_m_initializer(m);
     pyexport_m_taint_tracking(m);
-    pyexport_m_context(m);
-    pyexport_m_exceptions(m, m_initializer);
 
     pyexport_m_aspect_helpers(m);
 

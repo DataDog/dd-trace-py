@@ -17,18 +17,17 @@
       "http.url": "http://localhost:8001/status/200",
       "language": "python",
       "out.host": "localhost",
-      "runtime-id": "ad99d3e85d1d407e95c792cfaa56068b",
+      "runtime-id": "de4fa08308ec4bc3a437ed78b9f99c47",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 27506
+      "process_id": 2189
     },
-    "duration": 7041000,
-    "start": 1667240263735331000
+    "duration": 2674066,
+    "start": 1691160523144470747
   },
      {
        "name": "TCPConnector.connect",
@@ -42,8 +41,8 @@
        "meta": {
          "component": "aiohttp"
        },
-       "duration": 26278000,
-       "start": 1646794505598411000
+       "duration": 1297932,
+       "start": 1691160523144863120
      }],
 [
   {
@@ -64,18 +63,17 @@
       "http.url": "http://localhost:8001/status/200",
       "language": "python",
       "out.host": "localhost",
-      "runtime-id": "ad99d3e85d1d407e95c792cfaa56068b",
+      "runtime-id": "de4fa08308ec4bc3a437ed78b9f99c47",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 27506
+      "process_id": 2189
     },
-    "duration": 3593000,
-    "start": 1667240263742542000
+    "duration": 1109957,
+    "start": 1691160523147338235
   },
      {
        "name": "TCPConnector.connect",
@@ -89,8 +87,8 @@
        "meta": {
          "component": "aiohttp"
        },
-       "duration": 70000,
-       "start": 1646794505627940000
+       "duration": 68027,
+       "start": 1691160523147689523
      }],
 [
   {
@@ -111,18 +109,17 @@
       "http.url": "http://localhost:8001/status/200",
       "language": "python",
       "out.host": "localhost",
-      "runtime-id": "ad99d3e85d1d407e95c792cfaa56068b",
+      "runtime-id": "de4fa08308ec4bc3a437ed78b9f99c47",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 27506
+      "process_id": 2189
     },
-    "duration": 3819000,
-    "start": 1667240263746312000
+    "duration": 1272609,
+    "start": 1691160523148597090
   },
      {
        "name": "TCPConnector.connect",
@@ -136,6 +133,6 @@
        "meta": {
          "component": "aiohttp"
        },
-       "duration": 136000,
-       "start": 1646794505631851000
+       "duration": 52765,
+       "start": 1691160523148908424
      }]]

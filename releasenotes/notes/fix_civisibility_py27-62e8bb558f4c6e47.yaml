@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    CI Visibility: fixes that Python 2.7 test results were not visible in UI
+    due to improperly msgpack-ed data

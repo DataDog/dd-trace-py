@@ -18,6 +18,7 @@ from typing import cast
 from six import PY3
 
 import ddtrace
+from ddtrace import config as ddconfig
 from ddtrace.debugging._config import di_config
 from ddtrace.debugging._config import ed_config
 from ddtrace.debugging._encoding import BatchJsonEncoder
@@ -66,7 +67,6 @@ from ddtrace.internal.rate_limiter import RateLimitExceeded
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.safety import _isinstance
 from ddtrace.internal.service import Service
-from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.wrapping import Wrapper
 
 
@@ -186,6 +186,8 @@ class Debugger(Service):
 
         log.debug("Enabling %s", cls.__name__)
 
+        di_config.enabled = True
+
         cls.__watchdog__.install()
 
         if di_config.metrics:
@@ -215,6 +217,8 @@ class Debugger(Service):
 
         log.debug("Disabling %s", cls.__name__)
 
+        remoteconfig_poller.unregister("LIVE_DEBUGGING")
+
         forksafe.unregister(cls._restart)
         atexit.unregister(cls.disable)
         unregister_post_run_module_hook(cls._on_run_module)
@@ -228,6 +232,8 @@ class Debugger(Service):
         cls.__watchdog__.uninstall()
         if di_config.metrics:
             metrics.disable()
+
+        di_config.enabled = False
 
         log.debug("%s disabled", cls.__name__)
 
@@ -245,7 +251,9 @@ class Debugger(Service):
             },
             on_full=self._on_encoder_buffer_full,
         )
-        self._probe_registry = ProbeRegistry(self.__logger__(service_name, self._encoder))
+        status_logger = self.__logger__(service_name, self._encoder)
+
+        self._probe_registry = ProbeRegistry(status_logger=status_logger)
         self._uploader = self.__uploader__(self._encoder)
         self._collector = self.__collector__(self._encoder)
         self._services = [self._uploader]
@@ -271,13 +279,13 @@ class Debugger(Service):
         if di_config.enabled:
             # TODO: this is only temporary and will be reverted once the DD_REMOTE_CONFIGURATION_ENABLED variable
             #  has been removed
-            if asbool(os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", True)) is False:
-                os.environ["DD_REMOTE_CONFIGURATION_ENABLED"] = "true"
+            if ddconfig._remote_config_enabled is False:
+                ddconfig._remote_config_enabled = True
                 log.info("Disabled Remote Configuration enabled by Dynamic Instrumentation.")
 
             # Register the debugger with the RCM client.
             if not remoteconfig_poller.update_product_callback("LIVE_DEBUGGING", self._on_configuration):
-                di_callback = self.__rc_adapter__(None, self._on_configuration)
+                di_callback = self.__rc_adapter__(None, self._on_configuration, status_logger=status_logger)
                 remoteconfig_poller.register("LIVE_DEBUGGING", di_callback)
 
         log.debug("%s initialized (service name: %s)", self.__class__.__name__, service_name)

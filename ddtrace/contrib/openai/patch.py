@@ -3,11 +3,14 @@ import sys
 from typing import Optional
 from typing import TYPE_CHECKING
 
+from openai import version
+
 from ddtrace import config
 from ddtrace.contrib._trace_utils_llm import BaseLLMIntegration
 from ddtrace.internal.agent import get_stats_url
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.wrapping import wrap
 
@@ -34,6 +37,11 @@ config._add(
         "_api_key": os.getenv("DD_API_KEY"),
     },
 )
+
+
+def get_version():
+    # type: () -> str
+    return version.VERSION
 
 
 class _OpenAIIntegration(BaseLLMIntegration):
@@ -316,7 +324,7 @@ def patch():
             _patched_endpoint_async(openai, integration, _endpoint_hooks._FineTuneCancelHook),
         )
 
-    setattr(openai, "__datadog_patch", True)
+    openai.__datadog_patch = True
 
 
 def unpatch():
@@ -333,7 +341,8 @@ def _patched_make_session(func, args, kwargs):
     This should technically be a ``peer.service`` but this concept doesn't exist yet.
     """
     session = func(*args, **kwargs)
-    Pin.override(session, service="openai")
+    service = schematize_service_name("openai")
+    Pin.override(session, service=service)
     return session
 
 
@@ -389,7 +398,7 @@ def _patched_endpoint(openai, integration, patch_hook):
             except StopIteration as e:
                 if err is None:
                     # This return takes priority over `return resp`
-                    return e.value
+                    return e.value  # noqa: B012
 
     return patched_endpoint
 
@@ -415,7 +424,7 @@ def _patched_endpoint_async(openai, integration, patch_hook):
             except StopIteration as e:
                 if err is None:
                     # This return takes priority over `return resp`
-                    return e.value
+                    return e.value  # noqa: B012
 
     return patched_endpoint
 

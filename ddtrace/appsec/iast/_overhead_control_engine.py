@@ -7,7 +7,6 @@ import os
 import threading
 from typing import TYPE_CHECKING
 
-from ddtrace.appsec.iast._taint_dict import clear_taint_mapping
 from ddtrace.internal.logger import get_logger
 from ddtrace.sampler import RateSampler
 
@@ -106,7 +105,6 @@ class OverheadControl(object):
             self._request_quota += 1
             self._enabled = False
         self.vulnerabilities_reset_quota()
-        clear_taint_mapping()
 
     def register(self, klass):
         # type: (Type[Operation]) -> Type[Operation]

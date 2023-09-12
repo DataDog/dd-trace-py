@@ -11,17 +11,16 @@
     "meta": {
       "_dd.p.dm": "-0",
       "language": "python",
-      "runtime-id": "ad99d3e85d1d407e95c792cfaa56068b"
+      "runtime-id": "de4fa08308ec4bc3a437ed78b9f99c47"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 27123
+      "process_id": 2189
     },
-    "duration": 7476000,
-    "start": 1667240263694016000
+    "duration": 2873243,
+    "start": 1691160523136168312
   },
      {
        "name": "aiohttp.request",
@@ -41,8 +40,8 @@
          "out.host": "localhost",
          "span.kind": "client"
        },
-       "duration": 7148000,
-       "start": 1667240263694249000
+       "duration": 2486123,
+       "start": 1691160523136422028
      },
         {
           "name": "TCPConnector.connect",
@@ -56,6 +55,6 @@
           "meta": {
             "component": "aiohttp"
           },
-          "duration": 2464000,
-          "start": 1646794413226798000
+          "duration": 1236231,
+          "start": 1691160523136754087
         }]]

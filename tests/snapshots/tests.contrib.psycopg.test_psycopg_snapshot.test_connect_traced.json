@@ -9,21 +9,21 @@
     "type": "sql",
     "error": 0,
     "meta": {
+      "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "component": "psycopg",
       "db.system": "postgresql",
       "language": "python",
-      "runtime-id": "1b018a1ff6344b3a95773b9b631c4ada",
+      "runtime-id": "91b9e07942704e02bd33721f33785cc6",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 98154
+      "process_id": 75536
     },
-    "duration": 5834000,
-    "start": 1667243098505239000
+    "duration": 3814375,
+    "start": 1692712228475612795
   }]]

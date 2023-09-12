@@ -1,7 +1,0 @@
-fixes:
-  - |
-    propagation: This fix changes the default propagation style for both injection and extraction
-    from ``tracecontext,datadog`` to ``datadog``. With the original default, if another company's software 
-    used tracecontext headers and sat in-between two Datadog traced services, it would cause propagation 
-    to break for Datadog. Specifically this was seen in serverless with Google Cloud Functions.
-    To maintain the original default, users can set ``DD_TRACE_PROPAGATION_STYLE=tracecontext,datadog``.

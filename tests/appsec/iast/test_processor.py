@@ -2,10 +2,9 @@ import json
 
 import pytest
 
-from ddtrace._monkey import IAST_PATCH
-from ddtrace._monkey import patch_iast
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec.iast._util import _is_python_version_supported
+from ddtrace.appsec.iast._patch_modules import patch_iast
+from ddtrace.appsec.iast._utils import _is_python_version_supported
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
 from ddtrace.ext import SpanTypes
@@ -23,7 +22,7 @@ def traced_function(tracer):
         m.update(b"Nobody inspects")
         m.update(b" the spammish repetition")
         num_vulnerabilities = 10
-        for i in range(0, num_vulnerabilities):
+        for _ in range(0, num_vulnerabilities):
             m.digest()
     return span
 
@@ -31,7 +30,7 @@ def traced_function(tracer):
 @pytest.mark.skipif(not _is_python_version_supported(), reason="IAST compatible versions")
 def test_appsec_iast_processor():
     with override_global_config(dict(_iast_enabled=True)):
-        patch_iast(**IAST_PATCH)
+        patch_iast()
 
         tracer = DummyTracer(iast_enabled=True)
 
@@ -49,7 +48,7 @@ def test_appsec_iast_processor():
 @pytest.mark.skipif(not _is_python_version_supported(), reason="Python version not supported by IAST")
 def test_appsec_iast_processor_ensure_span_is_manual_keep(sampling_rate):
     with override_env(dict(DD_TRACE_SAMPLE_RATE=sampling_rate)), override_global_config(dict(_iast_enabled=True)):
-        patch_iast(**IAST_PATCH)
+        patch_iast()
 
         tracer = DummyTracer(iast_enabled=True)
 

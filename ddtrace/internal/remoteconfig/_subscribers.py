@@ -56,7 +56,12 @@ class RemoteConfigSubscriber(object):
     def start(self):
         log.debug("[%s][P: %s] Subscriber %s starts %s", os.getpid(), os.getppid(), self._name, self.is_running)
         if not self.is_running:
-            self._th_worker = PeriodicThread(target=self._worker, interval=self.interval, on_shutdown=self.stop)
+            self._th_worker = PeriodicThread(
+                target=self._worker,
+                interval=self.interval,
+                on_shutdown=self.stop,
+                name="%s:%s" % (self.__class__.__module__, self.__class__.__name__),
+            )
             self._th_worker.start()
 
     def force_restart(self):
@@ -70,8 +75,11 @@ class RemoteConfigSubscriber(object):
         )
         self.start()
 
-    def stop(self):
+    def stop(self, join=False):
+        # type: (bool) -> None
         if self._th_worker:
             self.is_running = False
             self._th_worker.stop()
+            if join:
+                self._th_worker.join()
             log.debug("[%s][P: %s] Subscriber %s. Stopped", os.getpid(), os.getppid(), self._name)

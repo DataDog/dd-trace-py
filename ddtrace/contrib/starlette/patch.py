@@ -35,6 +35,11 @@ config._add(
 )
 
 
+def get_version():
+    # type: () -> str
+    return getattr(starlette, "__version__", "")
+
+
 @removals.remove(removal_version="2.0.0", category=DDTraceDeprecationWarning)
 def get_resource(scope):
     path = None
@@ -68,7 +73,7 @@ def patch():
     if getattr(starlette, "_datadog_patch", False):
         return
 
-    setattr(starlette, "_datadog_patch", True)
+    starlette._datadog_patch = True
 
     _w("starlette.applications", "Starlette.__init__", traced_init)
 
@@ -83,7 +88,7 @@ def unpatch():
     if not getattr(starlette, "_datadog_patch", False):
         return
 
-    setattr(starlette, "_datadog_patch", False)
+    starlette._datadog_patch = False
 
     _u(starlette.applications.Starlette, "__init__")
 

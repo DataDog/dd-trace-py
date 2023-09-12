@@ -9,6 +9,7 @@
     "type": "sql",
     "error": 0,
     "meta": {
+      "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "component": "mariadb",
       "db.name": "test",
@@ -16,19 +17,18 @@
       "db.user": "test",
       "language": "python",
       "out.host": "127.0.0.1",
-      "runtime-id": "8af14891a3d34de3a424f96f0b2b9f7a",
+      "runtime-id": "16331c917bb8464c89c38066736435c9",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "db.row_count": 1,
       "network.destination.port": 3306,
-      "process_id": 2209
+      "process_id": 19695
     },
-    "duration": 1328000,
-    "start": 1667513581156725000
+    "duration": 289667,
+    "start": 1692647311107327760
   }]]

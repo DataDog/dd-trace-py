@@ -15,9 +15,8 @@ import os
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.appsec import _asm_request_context
+from ddtrace.appsec import _constants as _asm_constants
 from ddtrace.appsec import utils as appsec_utils
-from ddtrace.appsec.iast._patch import if_iast_taint_returned_object_for
-from ddtrace.appsec.iast._util import _is_iast_enabled
 from ddtrace.appsec.trace_utils import track_user_login_failure_event
 from ddtrace.appsec.trace_utils import track_user_login_success_event
 from ddtrace.constants import SPAN_KIND
@@ -78,6 +77,13 @@ config._add(
 
 _NotSet = object()
 psycopg_cursor_cls = Psycopg2TracedCursor = Psycopg3TracedCursor = _NotSet
+
+
+def get_version():
+    # type: () -> str
+    import django
+
+    return django.__version__
 
 
 def patch_conn(django, conn):
@@ -289,42 +295,12 @@ def traced_func(django, name, resource=None, ignored_excs=None):
             if ignored_excs:
                 for exc in ignored_excs:
                     s._ignore_exception(exc)
-
-            # If IAST is enabled and we're wrapping a Django view call, taint the kwargs (view's
-            # path parameters)
-            if _is_iast_enabled() and args and isinstance(args[0], django.core.handlers.wsgi.WSGIRequest):
-                from ddtrace.appsec.iast._taint_tracking import OriginType  # noqa: F401
-                from ddtrace.appsec.iast._taint_tracking import taint_pyobject
-                from ddtrace.appsec.iast._taint_utils import LazyTaintDict
-
-                if not isinstance(args[0].COOKIES, LazyTaintDict):
-                    args[0].COOKIES = LazyTaintDict(
-                        args[0].COOKIES, origins=(OriginType.COOKIE_NAME, OriginType.COOKIE)
-                    )
-                args[0].path = taint_pyobject(
-                    args[0].path, source_name="path", source_value=args[0].path, source_origin=OriginType.PATH
-                )
-                args[0].path_info = taint_pyobject(
-                    args[0].path_info,
-                    source_name="path",
-                    source_value=args[0].path,
-                    source_origin=OriginType.PATH,
-                )
-                args[0].environ["PATH_INFO"] = taint_pyobject(
-                    args[0].environ["PATH_INFO"],
-                    source_name="path",
-                    source_value=args[0].path,
-                    source_origin=OriginType.PATH,
-                )
-                if kwargs:
-                    try:
-                        for k, v in kwargs.items():
-                            kwargs[k] = taint_pyobject(
-                                v, source_name=k, source_value=v, source_origin=OriginType.PATH_PARAMETER
-                            )
-                    except Exception:
-                        log.debug("IAST: Unexpected exception while tainting path parameters", exc_info=True)
-
+            core.dispatch(
+                "django.func.wrapped",
+                args,
+                kwargs,
+                django.core.handlers.wsgi.WSGIRequest if hasattr(django.core.handlers, "wsgi") else object,
+            )
             return func(*args, **kwargs)
 
     return trace_utils.with_traced_module(wrapped)(django)
@@ -442,7 +418,7 @@ def _block_request_callable(request, request_headers, span):
     # at any point so it's a callable stored in the ASM context.
     from django.core.exceptions import PermissionDenied
 
-    core.set_item(WAF_CONTEXT_NAMES.BLOCKED, True, span=span)
+    core.set_item(WAF_CONTEXT_NAMES.BLOCKED, _asm_constants.WAF_ACTIONS.DEFAULT_PARAMETERS, span=span)
     _set_block_tags(request, request_headers, span)
     raise PermissionDenied()
 
@@ -492,11 +468,16 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
             response = None
 
             def blocked_response():
-                from django.http import HttpResponseForbidden
+                from django.http import HttpResponse
 
-                ctype = "text/html" if "text/html" in request_headers.get("Accept", "").lower() else "text/json"
+                block_config = core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span)
+                if block_config.get("type", "auto") == "auto":
+                    ctype = "text/html" if "text/html" in request_headers.get("Accept", "").lower() else "text/json"
+                else:
+                    ctype = "text/" + block_config["type"]
+                status = block_config.get("status_code", 403)
                 content = appsec_utils._get_blocked_template(ctype)
-                response = HttpResponseForbidden(content, content_type=ctype)
+                response = HttpResponse(content, content_type=ctype, status=status)
                 response.content = content
                 utils._after_request_tags(pin, span, request, response)
                 return response
@@ -558,7 +539,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                     # [Suspicious Request Blocking on response]
                     if core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span):
                         response = blocked_response()
-                        return response
+                        return response  # noqa: B012
 
 
 @trace_utils.with_traced_module
@@ -897,18 +878,7 @@ def _patch(django):
         )
 
     when_imported("django.core.handlers.wsgi")(lambda m: trace_utils.wrap(m, "WSGIRequest.__init__", wrap_wsgi_environ))
-    try:
-        from ddtrace.appsec.iast._taint_tracking import OriginType  # noqa: F401
-
-        when_imported("django.http.request")(
-            lambda m: trace_utils.wrap(
-                m,
-                "QueryDict.__getitem__",
-                functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER),
-            )
-        )
-    except Exception:
-        log.debug("Unexpected exception while patch IAST functions", exc_info=True)
+    core.dispatch("django.patch", [])
 
     @when_imported("django.core.handlers.base")
     def _(m):
@@ -962,18 +932,7 @@ def _patch(django):
 
 
 def wrap_wsgi_environ(wrapped, _instance, args, kwargs):
-    if _is_iast_enabled():
-        if not args:
-            return wrapped(*args, **kwargs)
-
-        from ddtrace.appsec.iast._taint_tracking import OriginType  # noqa: F401
-        from ddtrace.appsec.iast._taint_utils import LazyTaintDict
-
-        return wrapped(
-            *((LazyTaintDict(args[0], origins=(OriginType.HEADER_NAME, OriginType.HEADER)),) + args[1:]), **kwargs
-        )
-
-    return wrapped(*args, **kwargs)
+    return core.dispatch("django.wsgi_environ", wrapped, _instance, args, kwargs)[0][0]
 
 
 def patch():
@@ -983,7 +942,7 @@ def patch():
         return
     _patch(django)
 
-    setattr(django, "_datadog_patch", True)
+    django._datadog_patch = True
 
 
 def _unpatch(django):
@@ -1013,4 +972,4 @@ def unpatch():
 
     _unpatch(django)
 
-    setattr(django, "_datadog_patch", False)
+    django._datadog_patch = False

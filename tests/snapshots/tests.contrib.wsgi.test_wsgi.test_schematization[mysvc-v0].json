@@ -16,18 +16,17 @@
       "http.status_msg": "OK",
       "http.url": "http://localhost:80/",
       "language": "python",
-      "runtime-id": "9f59477e7928454985ee983f7b494291",
+      "runtime-id": "6397e25ebaba4665928aa8d2e4604ab7",
       "span.kind": "server"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 4492
+      "process_id": 40597
     },
-    "duration": 286833,
-    "start": 1683916672641178634
+    "duration": 308332,
+    "start": 1691165161218740196
   },
      {
        "name": "wsgi.application",
@@ -41,8 +40,8 @@
        "meta": {
          "component": "wsgi"
        },
-       "duration": 71084,
-       "start": 1683916672641323592
+       "duration": 111044,
+       "start": 1691165161218864703
      },
         {
           "name": "wsgi.start_response",
@@ -57,8 +56,8 @@
             "component": "wsgi",
             "span.kind": "server"
           },
-          "duration": 25917,
-          "start": 1683916672641353842
+          "duration": 33483,
+          "start": 1691165161218916977
         },
      {
        "name": "wsgi.response",
@@ -73,6 +72,6 @@
          "component": "wsgi",
          "result_class": "list"
        },
-       "duration": 58209,
-       "start": 1683916672641401592
+       "duration": 52301,
+       "start": 1691165161218989038
      }]]
