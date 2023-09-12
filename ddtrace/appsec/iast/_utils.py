@@ -1,7 +1,10 @@
+import json
 import re
 import string
 import sys
 from typing import TYPE_CHECKING
+
+import attr
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings import _config as config
@@ -72,3 +75,17 @@ def _scrub_get_tokens_positions(text, tokens):
 
     token_positions.sort()
     return token_positions
+
+
+def _iast_report_to_str(data):
+    from ddtrace.appsec.iast._taint_tracking import OriginType  # noqa: F401
+    from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import origin_to_str  # noqa: F401
+
+    class OriginTypeEncoder(json.JSONEncoder):
+        def default(self, obj):
+            if isinstance(obj, OriginType):
+                # if the obj is uuid, we simply return the value of uuid
+                return origin_to_str(obj)
+            return json.JSONEncoder.default(self, obj)
+
+    return json.dumps(attr.asdict(data, filter=lambda attr, x: x is not None), cls=OriginTypeEncoder)
