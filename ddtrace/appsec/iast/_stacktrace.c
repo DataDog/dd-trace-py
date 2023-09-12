@@ -44,7 +44,6 @@ get_file_and_line(PyObject* Py_UNUSED(module), PyObject* args)
     PyThreadState* tstate = PyThreadState_GET();
     PyFrameObject* frame;
     PyObject* filename_o;
-    char* filename;
     int line;
 
     PyObject *cwd_obj = Py_None, *cwd_bytes;
@@ -63,7 +62,7 @@ get_file_and_line(PyObject* Py_UNUSED(module), PyObject* args)
         frame = GET_FRAME(tstate);
         while (NULL != frame) {
             filename_o = GET_FILENAME(frame);
-            filename = PyUnicode_AsUTF8(filename_o);
+            const char* filename = PyUnicode_AsUTF8(filename_o);
             if (((strstr(filename, DD_TRACE_INSTALLED_PREFIX) != NULL && strstr(filename, TESTS_PREFIX) == NULL)) ||
                 (strstr(filename, SITE_PACKAGES_PREFIX) != NULL || strstr(filename, cwd) == NULL)) {
 
