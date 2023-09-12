@@ -1,4 +1,3 @@
-import contextlib
 import json
 import os
 
@@ -16,7 +15,7 @@ from ddtrace.internal.ci_visibility.encoder import CIVisibilityEncoderV01
 from ddtrace.internal.compat import msgpack_type
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.span import Span
-from tests.utils import DummyCIVisibilityWriter
+from tests.ci_visibility.util import _patch_dummy_writer
 from tests.utils import TracerTestCase
 from tests.utils import override_env
 
@@ -86,7 +85,7 @@ def test_encode_traces_civisibility_v0():
         assert expected_event == received_event
 
 
-def test_encode_traces_civisibility_v2_coverage():
+def test_encode_traces_civisibility_v2_coverage_per_test():
     coverage_data = {
         "files": [
             {"filename": "test_cov.py", "segments": [[5, 0, 5, 0, -1]]},
@@ -116,6 +115,7 @@ def test_encode_traces_civisibility_v2_coverage():
     expected_cov = {
         b"test_session_id": int(coverage_span.get_tag(SESSION_ID)),
         b"test_suite_id": int(coverage_span.get_tag(SUITE_ID)),
+        b"span_id": 0xAAAAAA,
         b"files": [
             {k.encode("utf-8"): v.encode("utf-8") if isinstance(v, str) else v for k, v in file.items()}
             for file in coverage_data["files"]
@@ -124,6 +124,63 @@ def test_encode_traces_civisibility_v2_coverage():
     assert expected_cov == received_covs[0]
 
     complete_payload = encoder.encode()
+    assert isinstance(complete_payload, bytes)
+    payload_per_line = complete_payload.split(b"\r\n")
+    assert len(payload_per_line) == 11
+    assert payload_per_line[0].startswith(b"--")
+    boundary = payload_per_line[0][2:]
+    assert payload_per_line[1] == b'Content-Disposition: form-data; name="coverage1"; filename="coverage1.msgpack"'
+    assert payload_per_line[2] == b"Content-Type: application/msgpack"
+    assert payload_per_line[3] == b""
+    assert payload_per_line[4] == payload
+    assert payload_per_line[5] == payload_per_line[0]
+    assert payload_per_line[6] == b'Content-Disposition: form-data; name="event"; filename="event.json"'
+    assert payload_per_line[7] == b"Content-Type: application/json"
+    assert payload_per_line[8] == b""
+    assert payload_per_line[9] == b'{"dummy":true}'
+    assert payload_per_line[10] == b"--%s--" % boundary
+
+
+def test_encode_traces_civisibility_v2_coverage_per_suite():
+    coverage_data = {
+        "files": [
+            {"filename": "test_cov.py", "segments": [[5, 0, 5, 0, -1]]},
+            {"filename": "test_module.py", "segments": [[2, 0, 2, 0, -1]]},
+        ]
+    }
+    coverage_json = json.dumps(coverage_data)
+    coverage_span = Span(name=b"client.testing", span_id=0xAAAAAA, span_type="test", service="foo")
+    coverage_span.set_tag(COVERAGE_TAG_NAME, coverage_json)
+    coverage_span.set_tag(SUITE_ID, "12345")
+    coverage_span.set_tag(SESSION_ID, "67890")
+    traces = [
+        [Span(name=b"client.testing", span_id=0xAAAAAA, span_type="test", service="foo"), coverage_span],
+    ]
+
+    encoder = CIVisibilityCoverageEncoderV02(0, 0)
+    encoder._set_itr_suite_skipping_mode(True)
+    for trace in traces:
+        encoder.put(trace)
+
+    payload = encoder._build_data(traces)
+    complete_payload = encoder.encode()
+    assert isinstance(payload, msgpack_type)
+    decoded = msgpack.unpackb(payload, raw=True, strict_map_key=False)
+    assert decoded[b"version"] == 2
+
+    received_covs = decoded[b"coverages"]
+    assert len(received_covs) == 1
+
+    expected_cov = {
+        b"test_session_id": int(coverage_span.get_tag(SESSION_ID)),
+        b"test_suite_id": int(coverage_span.get_tag(SUITE_ID)),
+        b"files": [
+            {k.encode("utf-8"): v.encode("utf-8") if isinstance(v, str) else v for k, v in file.items()}
+            for file in coverage_data["files"]
+        ],
+    }
+    assert expected_cov == received_covs[0]
+
     assert isinstance(complete_payload, bytes)
     payload_per_line = complete_payload.split(b"\r\n")
     assert len(payload_per_line) == 11
@@ -163,14 +220,6 @@ def test_encode_traces_civisibility_v2_coverage_empty_traces():
 
     complete_payload = encoder.encode()
     assert complete_payload is None
-
-
-@contextlib.contextmanager
-def _patch_dummy_writer():
-    original = ddtrace.internal.ci_visibility.recorder.CIVisibilityWriter
-    ddtrace.internal.ci_visibility.recorder.CIVisibilityWriter = DummyCIVisibilityWriter
-    yield
-    ddtrace.internal.ci_visibility.recorder.CIVisibilityWriter = original
 
 
 class PytestEncodingTestCase(TracerTestCase):

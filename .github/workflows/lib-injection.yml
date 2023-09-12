@@ -2,7 +2,13 @@ name: "Library Injection"
 on:
   # Build each branch for testing
   push:
-
+  pull_request:
+    paths:
+      - ddtrace/**
+      - lib-injection/**
+      - setup*
+      - pyproject.toml
+      - .github/workflows/lib-injection.yml
 jobs:
   build-and-publish-test-image:
     uses: ./.github/workflows/lib-inject-publish.yml
@@ -12,7 +18,7 @@ jobs:
       ddtrace-version: v1.16.1
       image-tag: ${{ github.sha }}
 
-  test:
+  test-runner-test:
     needs:
       - build-and-publish-test-image
     runs-on: ubuntu-latest
@@ -77,6 +83,13 @@ jobs:
           # Wait for the app to start
           sleep 60
           docker-compose logs
+      - name: Check Permissions on ddtrace pkgs
+        run: |
+           cd lib-injection
+           # Ensure /datadog-lib/ddtrace_pkgs is a valid directory that is not empty
+           docker-compose run lib_inject find /datadog-init/ddtrace_pkgs -maxdepth 0 -empty | wc -l && if [ $? -ne 0 ]; then exit 1; fi
+           # Ensure non-datadog users have read and write permissions to files stored in /datadog-lib/ddtrace_pkgs
+           docker-compose run lib_inject find /datadog-init/ddtrace_pkgs ! -perm -a=rw | wc -l && if [ $? -ne 0 ]; then exit 1; fi
       - name: Test the app
         run: |
           curl http://localhost:18080

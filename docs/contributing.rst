@@ -15,6 +15,8 @@ and `docker-compose <https://www.docker.com/products/docker-compose>`_.
 
 Thanks for working with us!
 
+.. _change_process:
+
 Change Process
 ==============
 
@@ -47,16 +49,16 @@ You can find the list of past released versions `on this GitHub page <https://gi
 
 Pull requests are named according to the `conventional commit <https://www.conventionalcommits.org/en/v1.0.0/>`_
 standard, which is enforced by a continuous integration job. The standardized "scopes" we use
-in pull request names are enumerated `in the release notes documentation <releasenotes.rst#Scope>`_.
+in pull request names are enumerated :ref:`in the release notes documentation<release_notes_scope>`.
 
-Pull requests that change the library's public API require a `release note <releasenotes.rst>`_.
+Pull requests that change the library's public API require a :ref:`release note<release_notes>`.
 If your pull request doesn't change the public API, apply the ``no-changelog`` label.
 
 Backporting
 -----------
 
 Each minor version has its own branch. Bug fixes are "backported" from trunk to certain
-minor version branches according to the `version support policy <versioning.rst#release-versions>`_.
+minor version branches according to the :ref:`version support policy<versioning_release>`.
 
 * **Fix PRs** are backported to all maintained release branches.
 * **CI PRs** are backported to the maintained release branches.
@@ -99,7 +101,7 @@ Tests
 -----
 
 If your change touches Python code, it should probably include at least one test. See the
-`testing guidelines <contributing-testing.rst>`_ for details.
+:ref:`testing guidelines<testing_guidelines>` for details.
 
 Documentation
 -------------
@@ -107,7 +109,7 @@ Documentation
 Pull requests implementing new features should include documentation for those features. The audience for this
 documentation is the public population of library users. The Products and Core logic are documented alongside
 this document, in the ``docs`` directory. The documentation for each Integration is contained in a docstring
-in that integration's ``__init__.py`` file. See `this page <contributing-integrations.rst>`_ for more information
+in that integration's ``__init__.py`` file. See :ref:`this page<integration_guidelines>` for more information
 on writing documentation for Integrations.
 
 Logging
@@ -130,4 +132,5 @@ Keep the following in mind when writing logging code:
 
     contributing-integrations
     contributing-testing
+    contributing-tracing
     releasenotes

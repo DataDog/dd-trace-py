@@ -181,7 +181,7 @@ def test_disable_memory():
 
 
 @pytest.mark.subprocess(
-    env=dict(DD_PROFILING_AGENTLESS="true", DD_API_KEY="foobar"),
+    env=dict(DD_PROFILING_AGENTLESS="true", DD_API_KEY="foobar", DD_SITE=None),
     err=None,
 )
 def test_env_agentless():
@@ -281,9 +281,14 @@ def test_env_no_api_key():
     _check_url(prof, "http://localhost:8126", os.environ.get("DD_API_KEY"))
 
 
-def test_env_endpoint_url(monkeypatch):
-    monkeypatch.setenv("DD_AGENT_HOST", "foobar")
-    monkeypatch.setenv("DD_TRACE_AGENT_PORT", "123")
+@pytest.mark.subprocess(env={"DD_AGENT_HOST": "foobar", "DD_TRACE_AGENT_PORT": "123", "DD_TRACE_AGENT_URL": None})
+def test_env_endpoint_url():
+    import os
+
+    import ddtrace
+    from ddtrace.profiling import profiler
+    from tests.profiling.test_profiler import _check_url
+
     t = ddtrace.Tracer()
     prof = profiler.Profiler(tracer=t)
     _check_url(prof, "http://foobar:123", os.environ.get("DD_API_KEY"))

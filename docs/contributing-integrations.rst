@@ -1,47 +1,53 @@
-===========================
-How To Write an Integration
-===========================
+.. _integration_guidelines:
 
-An integration should provide concise, insightful data about the library or
-framework that will aid developers in monitoring their application's health and
-performance.
+What's an Integration?
+----------------------
 
-The best way to get started writing a new integration is to refer to existing
-integrations. Looking at the integration for a similar library or framework is a great
-starting point. To write a new integration for ``memcached``, for example, we might
-refer to the existing ``redis`` integration as a starting point since both are
-datastores that focus on in-memory storage.
+An integration is code that builds a tree of ``ExecutionContext`` objects representing the
+runtime state of a given third-party Python module and emits events indicating interesting moments
+during that runtime. It's implemented as a module in ``ddtrace.contrib``.
 
-Your development process might look like this:
-
-  - Research the library or framework that you're instrumenting. Reading
-    through its docs and code examples will reveal what APIs are meaningful to
-    instrument.
-
-  - Copy the skeleton module provided in ``templates/integration`` and replace
-    ``foo`` with the integration name. The integration name typically matches
-    the library or framework being instrumented::
+There's a skeleton module in ``templates/integration`` that can serve as a helpful starting point
+for new integrations. You can copy it to ``contrib`` and replace ``foo`` with the name of the library you're
+integrating with::
 
       cp -r templates/integration ddtrace/contrib/<integration>
 
-  - Create a test file for the integration under
-    ``tests/contrib/<integration>/test_<integration>.py``.
+Integrations must avoid changing the contract between the application and the integrated library. That is, they
+should be completely invisible to the application code. This means integration code should, for example,
+re-raise exceptions after catching them.
 
-  - Write the integration (see more on this below).
+Integrations shouldn't include any code that references concepts that are specific to Datadog Products. Examples
+include Tracing Spans and the AppSec WAF.
 
-  - Open a `pull request <contributing.rst#change-process>`_ containing your changes.
+What tools does an integration rely on?
+---------------------------------------
 
-All integrations live in ``ddtrace/contrib/`` and contain at least two files,
-``__init__.py`` and ``patch.py``. A skeleton integration is available under
-``templates/integration`` which can be used as a starting point::
+Integrations rely primarily on Wrapt, the Pin API, and the Core API.
 
-    cp -r templates/integration ddtrace/contrib/<integration>
+The `Wrapt <https://pypi.org/project/wrapt/>`_ library, vendored in ``ddtrace.vendor.wrapt``, is the main
+piece of code that ``ddtrace`` uses to hook into the runtime execution of third-party libraries. The essential
+task of writing an integration is determining the functions in the third-party library that would serve as
+useful entrypoints and wrapping them with ``wrap_function_wrapper``. There are exceptions, but this is
+generally a useful starting point.
 
-The Pin API in ``ddtrace.pin`` is used to configure the instrumentation at runtime, including
-enabling and disabling the instrumentation and overriding the service name.
+The Pin API in ``ddtrace.pin`` is used to configure the instrumentation at runtime. It provides a ``Pin`` class
+that can store configuration data in memory in a manner that is accessible from within functions wrapped by Wrapt.
+``Pin`` objects are most often used for storing configuration data scoped to a given integration, such as
+enable/disable flags and service name overrides.
 
-Library support
----------------
+The Core API in ``ddtrace.internal.core`` is the abstraction layer between the integration code and code for
+Products. The integration builds and maintains a tree of ``ExecutionContext`` objects representing the state
+of the library's execution by calling ``core.context_with_data``. The integration also emits events indicating
+interesting occurrences in the library at runtime via ``core.dispatch``. This approach means that integrations
+do not need to include any code that references Products, like knowing about Spans or the WAF.
+
+The combination of these three tools lets integration code provide richly configured execution data to Product
+code while maintaining useful encapsulation.
+
+
+What versions of a given library should an integration support?
+---------------------------------------------------------------
 
 ``ddtrace`` supports versions of integrated libraries according to these guidelines:
 
@@ -61,33 +67,8 @@ this is the Flask integration:
     - `using it to instrument a later-added feature <https://github.com/DataDog/dd-trace-py/blob/96dc6403e329da87fe40a1e912ce72f2b452d65c/ddtrace/contrib/flask/patch.py#L149-L151>`_
 
 
-Exceptions and Errors
----------------------
-
-Exceptions provide a lot of useful information and are usually easy to deal with. Exceptions are
-a great place to start instrumenting. There are a couple of considerations when
-dealing with exceptions in ``ddtrace``.
-
-Re-raise exceptions when your integration code catches them, because it is crucial that ddtrace does not
-change the contract between the application and the integrated library. See the
-`bottle exception handling <https://github.com/DataDog/dd-trace-py/blob/96dc6403e329da87fe40a1e912ce72f2b452d65c/ddtrace/contrib/bottle/trace.py#L50-L69>`_
-instrumentation for an example.
-
-Gather relevant information from exceptions. ``ddtrace`` provides a helper for pulling
-out common exception data and adding it to a span. See the
-`cassandra exception handling <https://github.com/DataDog/dd-trace-py/blob/96dc6403e329da87fe40a1e912ce72f2b452d65c/ddtrace/contrib/cassandra/session.py#L117-L122>`_
-instrumentation for an example.
-
-Tracing across execution boundaries
------------------------------------
-
-Some integrations need to propagate traces across execution boundaries, to other threads,
-processes, tasks, or other units of execution. For example, here's how the `requests integration <https://github.com/DataDog/dd-trace-py/blob/46a2600/ddtrace/contrib/requests/connection.py#L95-L97>`_
-handles this, and here's the `django integration <https://github.com/DataDog/dd-trace-py/blob/46a2600/ddtrace/contrib/django/patch.py#L304>`_'s
-implementation.
-
-Web frameworks
---------------
+Are there norms for integrating with web frameworks?
+----------------------------------------------------
 
 A web framework integration should:
 
@@ -104,22 +85,21 @@ Some example web framework integrations::
     - `flask <https://github.com/DataDog/dd-trace-py/tree/46a2600/ddtrace/contrib/flask>`_
     - `django <https://github.com/DataDog/dd-trace-py/tree/46a2600/ddtrace/contrib/django>`__
 
-Database libraries
-------------------
+Are there norms for integrating with database libraries?
+--------------------------------------------------------
 
-``ddtrace`` already provides base instrumentation for the Python database API
-(PEP 249) which most database client libraries implement in the
+``ddtrace`` instruments Python PEP 249 database API, which most database client libraries implement, in the
 `ddtrace.contrib.dbapi <https://github.com/DataDog/dd-trace-py/blob/46a2600/ddtrace/contrib/dbapi/__init__.py>`_
 module.
 
-Check out some of our existing database integrations for how to use the `dbapi`:
+Check out existing database integrations for examples of using the `dbapi`:
 
     - `mariadb <https://github.com/DataDog/dd-trace-py/tree/46a2600/ddtrace/contrib/mariadb>`_
     - `psycopg <https://github.com/DataDog/dd-trace-py/tree/46a2600/ddtrace/contrib/psycopg>`_
     - `mysql <https://github.com/DataDog/dd-trace-py/tree/46a2600/ddtrace/contrib/mysql>`_
 
-Testing
--------
+How should an integration be tested?
+------------------------------------
 
 The tests for your integration should be defined in their own module at ``tests/contrib/<integration>/``.
 
@@ -128,20 +108,21 @@ that the integration submits meaningful information to Datadog and does not
 impact the library or application by disturbing state, performance or causing errors. The integration
 should be invisible to users.
 
-Snapshot Tests
---------------
+What are "snapshot tests"?
+--------------------------
 
 Many of the tests are based on "snapshots": saved copies of actual traces sent to the
 `APM test agent <../README.md#use-the-apm-test-agent>`_.
 
 To update the snapshots expected by a test, first update the library and test code to generate
-new traces. Then, delete the snapshot file corresponding to your test. Use `docker-compose up -d testagent`
-to start the APM test agent, and re-run the test. Use `--pass-env` as described
+new traces. Then, delete the snapshot file corresponding to your test at ``tests/snapshots/<snapshot_file>``.
+
+Use `docker-compose up -d testagent` to start the APM test agent, and then re-run the test. Use `--pass-env` as described
 `here <../README.md#use-the-apm-test-agent>`_ to ensure that your test run can talk to the
 test agent. Once the run finishes, the snapshot file will have been regenerated.
 
-Writing Integration Tests for Your Integration
-++++++++++++++++++++++++++++++++++++++++++++++
+How should I write integration tests for my integration?
+--------------------------------------------------------
 
 These instructions describe the general approach of writing new integration tests for a library integration.
 They use the Flask integration tests as a teaching example. Referencing these instructions against
@@ -210,10 +191,18 @@ are not yet any expected spans stored for it, so we need to create some.
     not match.
 13. Repeat steps 7 through 9 until you've achieved test coverage for the entire "happy path" of normal usage
     for the library you're integrating with, as well as coverage of any known likely edge cases.
+14. Enable the `snapshot` option in `.circleci/config.templ.yml` and run the test as a `machine_executor` at ``.circleci/config.templ.yml``
+    just like:
 
+.. code-block:: yaml
 
-Trace Examples
---------------
+  <test_suite_name>:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: '<test_suite_name>'
+          snapshot: true
+
 
 If in the process of writing tests for your integration you create a sample application,
 consider adding it to the `trace examples repository <https://github.com/Datadog/trace-examples>`_ along

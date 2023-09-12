@@ -39,11 +39,16 @@ KWPOS_BY_TAG = {
 }
 
 
+def get_version():
+    # type: () -> str
+    return ".".join(map(str, MySQLdb.version_info[0:3]))
+
+
 def patch():
     # patch only once
     if getattr(MySQLdb, "__datadog_patch", False):
         return
-    setattr(MySQLdb, "__datadog_patch", True)
+    MySQLdb.__datadog_patch = True
 
     Pin().onto(MySQLdb)
 
@@ -59,7 +64,7 @@ def patch():
 def unpatch():
     if not getattr(MySQLdb, "__datadog_patch", False):
         return
-    setattr(MySQLdb, "__datadog_patch", False)
+    MySQLdb.__datadog_patch = False
 
     pin = Pin.get_from(MySQLdb)
     if pin:

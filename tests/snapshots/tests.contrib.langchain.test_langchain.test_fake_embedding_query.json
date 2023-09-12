@@ -15,18 +15,18 @@
       "langchain.request.provider": "fake",
       "langchain.request.type": "embedding",
       "language": "python",
-      "runtime-id": "4cf15de445a94f9da7edaa600f4b6198"
+      "runtime-id": "e3591036c91f49bfa00c0a77feefcb9b"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
+      "_sample_rate": 1.0,
       "_sampling_priority_v1": 1,
       "langchain.request.input_count": 1,
       "langchain.response.outputs.embedding_length": 99,
-      "process_id": 84266
+      "process_id": 10515
     },
-    "duration": 146000,
-    "start": 1688076546432700000
+    "duration": 164135,
+    "start": 1694032467406250335
   }]]

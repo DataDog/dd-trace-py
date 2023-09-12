@@ -27,22 +27,22 @@
       "langchain.response.completions.0.logprobs": "None",
       "langchain.response.completions.0.text": "\\n\\nDescartes' famous phrase \"I think, therefore I am\" is a fundamental statement of his philosophical approach, known as Cartes...",
       "language": "python",
-      "runtime-id": "a35ec40301264b4c935a16153752de58"
+      "runtime-id": "dd1ab4555d30455fb57e18d939d0a323"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
+      "_sample_rate": 1.0,
       "_sampling_priority_v1": 1,
       "langchain.tokens.completion_tokens": 95,
       "langchain.tokens.prompt_tokens": 17,
-      "langchain.tokens.total_cost": 0.00224,
+      "langchain.tokens.total_cost": 0.0022400000000000002,
       "langchain.tokens.total_tokens": 112,
-      "process_id": 98128
+      "process_id": 13667
     },
-    "duration": 23733000,
-    "start": 1688048580720774000
+    "duration": 4751563,
+    "start": 1694032720314675533
   },
      {
        "name": "openai.request",
@@ -77,13 +77,14 @@
        },
        "metrics": {
          "_dd.measured": 1,
+         "_sample_rate": 1.0,
          "openai.organization.ratelimit.requests.remaining": 2999,
          "openai.organization.ratelimit.tokens.remaining": 249744,
          "openai.response.choices_count": 1,
          "openai.response.created": 1687283761
        },
-       "duration": 23072000,
-       "start": 1688048580721146000
+       "duration": 4302935,
+       "start": 1694032720314960560
      },
         {
           "name": "requests.request",
@@ -95,6 +96,7 @@
           "type": "http",
           "error": 0,
           "meta": {
+            "_dd.base_service": "",
             "component": "requests",
             "http.method": "POST",
             "http.status_code": "200",
@@ -107,6 +109,6 @@
             "_dd.measured": 1,
             "_dd.top_level": 1
           },
-          "duration": 2453000,
-          "start": 1688048580740907000
+          "duration": 1947594,
+          "start": 1694032720316658602
         }]]

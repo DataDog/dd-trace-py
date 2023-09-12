@@ -41,6 +41,7 @@ def get_weak_cipher_algorithms():
 class WeakCipher(VulnerabilityBase):
     vulnerability_type = VULN_WEAK_CIPHER_TYPE
     evidence_type = EVIDENCE_ALGORITHM_TYPE
+    scrub_evidence = False
 
 
 def unpatch_iast():
@@ -56,6 +57,11 @@ def unpatch_iast():
     try_unwrap("Crypto.Cipher._mode_cfb", "CfbMode.encrypt")
     try_unwrap("Crypto.Cipher._mode_ofb", "OfbMode.encrypt")
     try_unwrap("cryptography.hazmat.primitives.ciphers", "Cipher.encryptor")
+
+
+def get_version():
+    # type: () -> str
+    return ""
 
 
 def patch():

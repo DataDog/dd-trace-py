@@ -36,8 +36,10 @@ ddup_config_env(const char* env)
 void
 ddup_config_service(const char* service)
 {
-    if (!service || !*service)
+    if (!service || !*service) {
         return;
+    }
+
     uploader_builder.set_service(service);
 }
 void
@@ -85,6 +87,7 @@ ddup_config_max_nframes(int max_nframes)
         profile_builder.set_max_nframes(max_nframes);
 }
 
+#if DDUP_BACKTRACE_ENABLE
 inline static void
 print_backtrace()
 {
@@ -114,6 +117,7 @@ print_backtrace()
 
     free(symbols);
 }
+
 static void
 sigsegv_handler(int sig, siginfo_t* si, void* uc)
 {
@@ -121,15 +125,19 @@ sigsegv_handler(int sig, siginfo_t* si, void* uc)
     print_backtrace();
     exit(-1);
 }
+
+#endif
 void
 ddup_init()
 {
     if (!is_initialized) {
+#if DDUP_BACKTRACE_ENABLE
         // Install segfault handler
         struct sigaction sigaction_handlers = {};
         sigaction_handlers.sa_sigaction = sigsegv_handler;
         sigaction_handlers.sa_flags = SA_SIGINFO;
         sigaction(SIGSEGV, &(sigaction_handlers), NULL);
+#endif
 
         g_profile_real[0] = profile_builder.build_ptr();
         g_profile_real[1] = profile_builder.build_ptr();
@@ -192,8 +200,6 @@ ddup_push_lock_name(const char* lock_name)
 void
 ddup_push_threadinfo(int64_t thread_id, int64_t thread_native_id, const char* thread_name)
 {
-    if (!thread_name)
-        return;
     g_profile->push_threadinfo(thread_id, thread_native_id, thread_name);
 }
 

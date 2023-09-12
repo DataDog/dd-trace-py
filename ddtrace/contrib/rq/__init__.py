@@ -94,10 +94,7 @@ from ...internal.utils.formats import asbool
 from ...propagation.http import HTTPPropagator
 
 
-__all__ = [
-    "patch",
-    "unpatch",
-]
+__all__ = ["patch", "unpatch", "get_version"]
 
 
 config._add(
@@ -115,6 +112,13 @@ config._add(
         _default_service=schematize_service_name("rq-worker"),
     ),
 )
+
+
+def get_version():
+    # type: () -> str
+    import rq
+
+    return str(getattr(rq, "__version__", ""))
 
 
 @trace_utils.with_traced_module
@@ -251,7 +255,7 @@ def patch():
     Pin().onto(rq.worker.Worker)
     trace_utils.wrap(rq.worker, "Worker.perform_job", traced_perform_job(rq))
 
-    setattr(rq, "_datadog_patch", True)
+    rq._datadog_patch = True
 
 
 def unpatch():
@@ -275,4 +279,4 @@ def unpatch():
     Pin().remove_from(rq.worker.Worker)
     trace_utils.unwrap(rq.worker.Worker, "perform_job")
 
-    setattr(rq, "_datadog_patch", False)
+    rq._datadog_patch = False

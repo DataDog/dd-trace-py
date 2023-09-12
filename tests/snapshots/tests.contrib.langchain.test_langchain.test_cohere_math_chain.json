@@ -16,18 +16,18 @@
       "langchain.response.outputs.answer": "Answer: 2.4116004626599237",
       "langchain.response.outputs.question": "what is thirteen raised to the .3432 power?",
       "language": "python",
-      "runtime-id": "96e8401d04064f3e9468d90e147fa83c"
+      "runtime-id": "e3591036c91f49bfa00c0a77feefcb9b"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
+      "_sample_rate": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 85111
+      "process_id": 10515
     },
-    "duration": 2056059000,
-    "start": 1688076867322044000
+    "duration": 5431956,
+    "start": 1694032467489352409
   },
      {
        "name": "langchain.request",
@@ -48,10 +48,11 @@
          "langchain.response.outputs.text": "```text\\n13**(0.3432)\\n```\\n...numexpr.evaluate(\"13**(0.3432)\")...\\n"
        },
        "metrics": {
-         "_dd.measured": 1
+         "_dd.measured": 1,
+         "_sample_rate": 1.0
        },
-       "duration": 2055036000,
-       "start": 1688076867322199000
+       "duration": 4724777,
+       "start": 1694032467489617732
      },
         {
           "name": "langchain.request",
@@ -78,8 +79,9 @@
             "langchain.response.completions.0.text": "```text\\n13**(0.3432)\\n```\\n...numexpr.evaluate(\"13**(0.3432)\")...\\n"
           },
           "metrics": {
-            "_dd.measured": 1
+            "_dd.measured": 1,
+            "_sample_rate": 1.0
           },
-          "duration": 2054647000,
-          "start": 1688076867322337000
+          "duration": 4302827,
+          "start": 1694032467489888358
         }]]

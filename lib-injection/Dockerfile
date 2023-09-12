@@ -23,12 +23,13 @@ RUN python3 dl_wheels.py \
         --output-dir /build/pkgs \
         --verbose
 
-FROM busybox
+FROM alpine:3.18.3
 COPY --from=0 /build/pkgs /datadog-init/ddtrace_pkgs
 ARG UID=10000
 RUN addgroup -g 10000 -S datadog && \
     adduser -u ${UID} -S datadog -G datadog
 RUN chown -R datadog:datadog /datadog-init/ddtrace_pkgs
+RUN chmod -R a+rw /datadog-init/ddtrace_pkgs
 USER ${UID}
 WORKDIR /datadog-init
 ADD sitecustomize.py /datadog-init/sitecustomize.py

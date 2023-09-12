@@ -1,9 +1,15 @@
+from ddtrace.constants import AUTO_KEEP
+from ddtrace.constants import AUTO_REJECT
+from ddtrace.constants import USER_KEEP
+from ddtrace.constants import USER_REJECT
+
+
 PROPAGATION_STYLE_DATADOG = "datadog"
 PROPAGATION_STYLE_B3 = "b3multi"
 PROPAGATION_STYLE_B3_SINGLE_HEADER = "b3 single header"
 _PROPAGATION_STYLE_W3C_TRACECONTEXT = "tracecontext"
 _PROPAGATION_STYLE_NONE = "none"
-_PROPAGATION_STYLE_DEFAULT = "datadog"
+_PROPAGATION_STYLE_DEFAULT = "tracecontext,datadog"
 PROPAGATION_STYLE_ALL = (
     _PROPAGATION_STYLE_W3C_TRACECONTEXT,
     PROPAGATION_STYLE_DATADOG,
@@ -15,6 +21,8 @@ W3C_TRACESTATE_KEY = "tracestate"
 W3C_TRACEPARENT_KEY = "traceparent"
 W3C_TRACESTATE_ORIGIN_KEY = "o"
 W3C_TRACESTATE_SAMPLING_PRIORITY_KEY = "s"
+DEFAULT_SAMPLING_RATE_LIMIT = 100
+SAMPLING_DECISION_TRACE_TAG_KEY = "_dd.p.dm"
 DEFAULT_SERVICE_NAME = "unnamed_python_service"
 # Used to set the name of an integration on a span
 COMPONENT = "component"
@@ -23,7 +31,10 @@ MAX_UINT_64BITS = (1 << 64) - 1
 SPAN_API_DATADOG = "datadog"
 SPAN_API_OTEL = "otel"
 SPAN_API_OPENTRACING = "opentracing"
-
+DEFAULT_BUFFER_SIZE = 8 << 20  # 8 MB
+DEFAULT_MAX_PAYLOAD_SIZE = 8 << 20  # 8 MB
+DEFAULT_PROCESSING_INTERVAL = 1.0
+DEFAULT_REUSE_CONNECTIONS = False
 BLOCKED_RESPONSE_HTML = """
 <!DOCTYPE html><html lang="en"><head> <meta charset="UTF-8"> <meta name="viewport"
 content="width=device-width,initial-scale=1"> <title>You've been blocked</title>
@@ -59,5 +70,32 @@ HTTP_REQUEST_PARAMETER = "http.request.parameter"
 HTTP_REQUEST_BODY = "http.request.body"
 HTTP_REQUEST_PATH_PARAMETER = "http.request.path.parameter"
 REQUEST_PATH_PARAMS = "http.request.path_params"
+STATUS_403_TYPE_AUTO = {"status_code": 403, "type": "auto"}
 
 MESSAGING_SYSTEM = "messaging.system"
+
+FLASK_ENDPOINT = "flask.endpoint"
+FLASK_VIEW_ARGS = "flask.view_args"
+FLASK_URL_RULE = "flask.url_rule"
+
+_HTTPLIB_NO_TRACE_REQUEST = "_dd_no_trace"
+DEFAULT_TIMEOUT = 2.0
+
+
+class _PRIORITY_CATEGORY:
+    USER = "user"
+    RULE = "rule"
+    AUTO = "auto"
+    DEFAULT = "default"
+
+
+# intermediate mapping of priority categories to actual priority values
+# used to simplify code that selects sampling priority based on many factors
+_CATEGORY_TO_PRIORITIES = {
+    _PRIORITY_CATEGORY.USER: (USER_KEEP, USER_REJECT),
+    _PRIORITY_CATEGORY.RULE: (USER_KEEP, USER_REJECT),
+    _PRIORITY_CATEGORY.AUTO: (AUTO_KEEP, AUTO_REJECT),
+    _PRIORITY_CATEGORY.DEFAULT: (AUTO_KEEP, AUTO_REJECT),
+}
+_KEEP_PRIORITY_INDEX = 0
+_REJECT_PRIORITY_INDEX = 1

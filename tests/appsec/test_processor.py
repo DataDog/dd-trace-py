@@ -32,9 +32,13 @@ RULES_GOOD_PATH = os.path.join(ROOT_DIR, "rules-good.json")
 RULES_BAD_PATH = os.path.join(ROOT_DIR, "rules-bad.json")
 RULES_MISSING_PATH = os.path.join(ROOT_DIR, "nonexistent")
 RULES_SRB = os.path.join(ROOT_DIR, "rules-suspicious-requests.json")
+RULES_SRBCA = os.path.join(ROOT_DIR, "rules-suspicious-requests-custom-actions.json")
 RULES_SRB_RESPONSE = os.path.join(ROOT_DIR, "rules-suspicious-requests-response.json")
 RULES_SRB_METHOD = os.path.join(ROOT_DIR, "rules-suspicious-requests-get.json")
 RULES_BAD_VERSION = os.path.join(ROOT_DIR, "rules-bad_version.json")
+
+RESPONSE_CUSTOM_JSON = os.path.join(ROOT_DIR, "response-custom.json")
+RESPONSE_CUSTOM_HTML = os.path.join(ROOT_DIR, "response-custom.html")
 
 
 @pytest.fixture
@@ -211,14 +215,17 @@ def test_appsec_body_no_collection_snapshot(tracer):
         assert "triggers" in json.loads(span.get_tag(APPSEC.JSON))
 
 
-_BLOCKED_IP = "8.8.4.4"
-_ALLOWED_IP = "1.1.1.1"
+class _IP:
+    BLOCKED = "8.8.4.4"  # actively blocked
+    MONITORED = "8.8.5.5"  # on the pass list should never been blocked but still monitored
+    BYPASS = "8.8.6.6"  # on the pass list, should bypass all security
+    DEFAULT = "1.1.1.1"  # default behaviour
 
 
 def test_ip_block(tracer):
     with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)), override_global_config(dict(_appsec_enabled=True)):
         _enable_appsec(tracer)
-        with _asm_request_context.asm_request_context_manager(_BLOCKED_IP, {}):
+        with _asm_request_context.asm_request_context_manager(_IP.BLOCKED, {}):
             with tracer.trace("test", span_type=SpanTypes.WEB) as span:
                 set_http_meta(
                     span,
@@ -226,21 +233,22 @@ def test_ip_block(tracer):
                 )
 
             assert "triggers" in json.loads(span.get_tag(APPSEC.JSON))
-            assert core.get_item("http.request.remote_ip", span) == _BLOCKED_IP
+            assert core.get_item("http.request.remote_ip", span) == _IP.BLOCKED
             assert core.get_item("http.request.blocked", span)
 
 
-def test_ip_not_block(tracer):
+@pytest.mark.parametrize("ip", [_IP.MONITORED, _IP.BYPASS, _IP.DEFAULT])
+def test_ip_not_block(tracer, ip):
     with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)), override_global_config(dict(_appsec_enabled=True)):
         _enable_appsec(tracer)
-        with _asm_request_context.asm_request_context_manager(_ALLOWED_IP, {}):
+        with _asm_request_context.asm_request_context_manager(ip, {}):
             with tracer.trace("test", span_type=SpanTypes.WEB) as span:
                 set_http_meta(
                     span,
                     Config(),
                 )
 
-            assert core.get_item("http.request.remote_ip", span) == _ALLOWED_IP
+            assert core.get_item("http.request.remote_ip", span) == ip
             assert core.get_item("http.request.blocked", span) is None
 
 
@@ -252,7 +260,7 @@ def test_ip_update_rules_and_block(tracer):
                 "rules_data": [
                     {
                         "data": [
-                            {"value": _BLOCKED_IP},
+                            {"value": _IP.BLOCKED},
                         ],
                         "id": "blocked_ips",
                         "type": "ip_with_expiration",
@@ -260,14 +268,14 @@ def test_ip_update_rules_and_block(tracer):
                 ]
             }
         )
-        with _asm_request_context.asm_request_context_manager(_BLOCKED_IP, {}):
+        with _asm_request_context.asm_request_context_manager(_IP.BLOCKED, {}):
             with tracer.trace("test", span_type=SpanTypes.WEB) as span:
                 set_http_meta(
                     span,
                     Config(),
                 )
 
-                assert core.get_item("http.request.remote_ip", span) == _BLOCKED_IP
+                assert core.get_item("http.request.remote_ip", span) == _IP.BLOCKED
                 assert core.get_item("http.request.blocked", span)
 
 
@@ -279,7 +287,7 @@ def test_ip_update_rules_expired_no_block(tracer):
                 "rules_data": [
                     {
                         "data": [
-                            {"expiration": 1662804872, "value": _BLOCKED_IP},
+                            {"expiration": 1662804872, "value": _IP.BLOCKED},
                         ],
                         "id": "blocked_ips",
                         "type": "ip_with_expiration",
@@ -287,14 +295,14 @@ def test_ip_update_rules_expired_no_block(tracer):
                 ]
             }
         )
-        with _asm_request_context.asm_request_context_manager(_BLOCKED_IP, {}):
+        with _asm_request_context.asm_request_context_manager(_IP.BLOCKED, {}):
             with tracer.trace("test", span_type=SpanTypes.WEB) as span:
                 set_http_meta(
                     span,
                     Config(),
                 )
 
-            assert core.get_item("http.request.remote_ip", span) == _BLOCKED_IP
+            assert core.get_item("http.request.remote_ip", span) == _IP.BLOCKED
             assert core.get_item("http.request.blocked", span) is None
 
 
@@ -511,7 +519,7 @@ def test_ddwaf_info():
         _ddwaf = DDWaf(rules_json, b"", b"")
 
         info = _ddwaf.info
-        assert info.loaded == 5
+        assert info.loaded == len(rules_json["rules"])
         assert info.failed == 0
         assert info.errors == {}
         assert info.version == "rules_good"

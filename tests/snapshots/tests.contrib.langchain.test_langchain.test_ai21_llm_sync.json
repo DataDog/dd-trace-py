@@ -40,18 +40,18 @@
       "langchain.request.prompts.0": "Why does everyone in Bikini Bottom hate Plankton?",
       "langchain.request.provider": "ai21",
       "langchain.request.type": "llm",
-      "langchain.response.completions.0.text": "\\nPlankton is a character in the animated television show SpongeBob SquarePants. He is the owner of The Chum Bucket, a fast food...",
+      "langchain.response.completions.0.text": "\\nPlankton is a character in the SpongeBob SquarePants cartoon series who is often portrayed as a villain. He is the owner of a ...",
       "language": "python",
-      "runtime-id": "5d2e2eb985334cb88c7fe08756bc5201"
+      "runtime-id": "e3591036c91f49bfa00c0a77feefcb9b"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
+      "_sample_rate": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 57033
+      "process_id": 10515
     },
-    "duration": 3053337000,
-    "start": 1688066866717834000
+    "duration": 4435905,
+    "start": 1694032467210461763
   }]]

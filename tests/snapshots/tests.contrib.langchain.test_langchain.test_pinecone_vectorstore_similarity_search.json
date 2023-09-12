@@ -24,19 +24,19 @@
       "langchain.response.document.0.metadata.wiki-id": "13",
       "langchain.response.document.0.page_content": "A brilliant mathematician and cryptographer Alan was to become the founder of modern-day computer science and artificial intelli...",
       "language": "python",
-      "runtime-id": "7b8a5071c1b244e2b697bb1fd18b2fb3"
+      "runtime-id": "e3591036c91f49bfa00c0a77feefcb9b"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
+      "_sample_rate": 1.0,
       "_sampling_priority_v1": 1,
       "langchain.response.document_count": 1,
-      "process_id": 90688
+      "process_id": 10515
     },
-    "duration": 23131000,
-    "start": 1687802038747137000
+    "duration": 12926462,
+    "start": 1694032468335861335
   },
      {
        "name": "langchain.request",
@@ -56,9 +56,10 @@
        },
        "metrics": {
          "_dd.measured": 1,
+         "_sample_rate": 1.0,
          "langchain.request.input_count": 1,
          "langchain.response.outputs.embedding_length": 1536
        },
-       "duration": 18074000,
-       "start": 1687802038747197000
+       "duration": 3701578,
+       "start": 1694032468336059072
      }]]

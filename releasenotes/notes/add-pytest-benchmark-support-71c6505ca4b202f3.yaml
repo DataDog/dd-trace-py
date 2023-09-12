@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    CI Visibility: added tracing support for pytest-benchmark

@@ -1,12 +1,15 @@
 #include "TaintRange.h"
 #include "Initializer/Initializer.h"
 
-#include <iostream> // FIXME: remove
-#include <sstream>
+#include <utility>
 
 using namespace pybind11::literals;
 
 using namespace std;
+
+#define _GET_HASH_KEY(obj) ((((PyASCIIObject*)obj)->hash) & 0xFFFFFF)
+
+PyObject* HASH_FUNC = PyDict_GetItemString(PyEval_GetBuiltins(), "hash");
 
 typedef struct _PyASCIIObject_State_Hidden
 {
@@ -37,10 +40,11 @@ is_notinterned_notfasttainted_unicode(const PyObject* objptr)
     if (!e) {
         return true; // broken string object? better to skip it
     }
-    return e->hidden != 1;
+    // it cannot be fast tainted if hash is set to -1 (not computed)
+    return (((PyASCIIObject*)objptr)->hash) == -1 || e->hidden != _GET_HASH_KEY(objptr);
 }
 
-// For non internet unicode strings, set a hidden mark on it's internsal data
+// For non interned unicode strings, set a hidden mark on it's internsal data
 // structure that will allow us to quickly check if the string is not tainted
 // and thus skip further processing without having to search on the tainting map
 __attribute__((flatten)) void
@@ -51,27 +55,20 @@ set_fast_tainted_if_notinterned_unicode(const PyObject* objptr)
     }
     auto e = (PyASCIIObject_State_Hidden*)&(((PyASCIIObject*)objptr)->state);
     if (e) {
-        e->hidden = 1;
+        if ((((PyASCIIObject*)objptr)->hash) == -1) {
+            PyObject* result = PyObject_CallFunctionObjArgs(HASH_FUNC, objptr, NULL);
+            if (result != NULL) {
+                Py_DECREF(result);
+            }
+        }
+        e->hidden = _GET_HASH_KEY(objptr);
     }
-}
-
-// Only for Python! C++ should use the constructor with the TaintOriginPtr
-// defined in the header
-TaintRange::TaintRange(int start, int length, const Source& source)
-  : start(start)
-  , length(length)
-{
-    this->source = initializer->allocate_taint_source(source.name, source.value, source.origin);
 }
 
 void
 TaintRange::reset()
 {
-    if (source) {
-        initializer->release_taint_source(source);
-        source = nullptr;
-    }
-
+    source.reset();
     start = 0;
     length = 0;
 };
@@ -81,7 +78,7 @@ TaintRange::toString() const
 {
     ostringstream ret;
     ret << "TaintRange at " << this << " "
-        << "[start=" << start << ", length=" << length << " source=" << source->toString() << "]";
+        << "[start=" << start << ", length=" << length << " source=" << source.toString() << "]";
     return ret.str();
 }
 
@@ -97,7 +94,7 @@ TaintRange::get_hash() const
 {
     uint hstart = hash<uint>()(this->start);
     uint hlength = hash<uint>()(this->length);
-    uint hsource = hash<uint>()(this->source->get_hash());
+    uint hsource = hash<uint>()(this->source.get_hash());
     return hstart ^ hlength ^ hsource;
 };
 
@@ -221,7 +218,7 @@ get_range_by_hash(size_t range_hash, optional<TaintRangeRefs>& taint_ranges)
     return null_range;
 }
 
-TaintedObject*
+TaintedObjectPtr
 get_tainted_object(const PyObject* str, TaintRangeMapType* tx_map)
 {
     if (not str)
@@ -319,8 +316,19 @@ pyexport_taintrange(py::module& m)
 
     m.def("get_range_by_hash", &get_range_by_hash, "range_hash"_a, "taint_ranges"_a);
 
-    py::class_<TaintRange, shared_ptr<TaintRange>>(m, "TaintRange")
-      .def(py::init<int, int, Source>(), "start"_a = "", "length"_a, "source"_a)
+    // Fake constructor, used to force calling allocate_taint_range for performance reasons
+    m.def(
+      "taint_range",
+      [](int start, int length, Source source) {
+          return initializer->allocate_taint_range(start, length, std::move(source));
+      },
+      "start"_a,
+      "length"_a,
+      "source"_a);
+
+    py::class_<TaintRange, shared_ptr<TaintRange>>(m, "TaintRange_")
+      // Normal constructor disabled on the Python side, see above
+      // .def(py::init<int, int, Source>(), "start"_a = "", "length"_a, "source"_a)
       .def_readonly("start", &TaintRange::start)
       .def_readonly("length", &TaintRange::length)
       .def_readonly("source", &TaintRange::source)

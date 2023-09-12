@@ -15,22 +15,22 @@
       "langchain.response.outputs.final_output": "\\nI've convinced my mind, no physical world's there, no sky, no earth, no minds, no bodies there. Does this mean I don't exist, ...",
       "langchain.response.outputs.input_text": "\\n            I have convinced myself that there is absolutely nothing in the world, no sky, no earth, no minds, no\\n           ...",
       "language": "python",
-      "runtime-id": "33db866e6b76452587541577be2c7524"
+      "runtime-id": "e3591036c91f49bfa00c0a77feefcb9b"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
+      "_sample_rate": 1.0,
       "_sampling_priority_v1": 1,
       "langchain.tokens.completion_tokens": 198,
       "langchain.tokens.prompt_tokens": 304,
       "langchain.tokens.total_cost": 0.01004,
       "langchain.tokens.total_tokens": 502,
-      "process_id": 86082
+      "process_id": 10515
     },
-    "duration": 2411000,
-    "start": 1688077237207508000
+    "duration": 4820114,
+    "start": 1694032467511885319
   },
      {
        "name": "langchain.request",
@@ -49,13 +49,14 @@
        },
        "metrics": {
          "_dd.measured": 1,
+         "_sample_rate": 1.0,
          "langchain.tokens.completion_tokens": 106,
          "langchain.tokens.prompt_tokens": 183,
          "langchain.tokens.total_cost": 0.00578,
          "langchain.tokens.total_tokens": 289
        },
-       "duration": 1222000,
-       "start": 1688077237207685000
+       "duration": 2445689,
+       "start": 1694032467512141811
      },
         {
           "name": "langchain.request",
@@ -86,13 +87,14 @@
           },
           "metrics": {
             "_dd.measured": 1,
+            "_sample_rate": 1.0,
             "langchain.tokens.completion_tokens": 106,
             "langchain.tokens.prompt_tokens": 183,
             "langchain.tokens.total_cost": 0.00578,
             "langchain.tokens.total_tokens": 289
           },
-          "duration": 1007000,
-          "start": 1688077237207826000
+          "duration": 2042915,
+          "start": 1694032467512453483
         },
      {
        "name": "langchain.request",
@@ -112,13 +114,14 @@
        },
        "metrics": {
          "_dd.measured": 1,
+         "_sample_rate": 1.0,
          "langchain.tokens.completion_tokens": 92,
          "langchain.tokens.prompt_tokens": 121,
          "langchain.tokens.total_cost": 0.00426,
          "langchain.tokens.total_tokens": 213
        },
-       "duration": 950000,
-       "start": 1688077237208939000
+       "duration": 1970223,
+       "start": 1694032467514663254
      },
         {
           "name": "langchain.request",
@@ -149,11 +152,12 @@
           },
           "metrics": {
             "_dd.measured": 1,
+            "_sample_rate": 1.0,
             "langchain.tokens.completion_tokens": 92,
             "langchain.tokens.prompt_tokens": 121,
             "langchain.tokens.total_cost": 0.00426,
             "langchain.tokens.total_tokens": 213
           },
-          "duration": 769000,
-          "start": 1688077237209083000
+          "duration": 1594262,
+          "start": 1694032467514949589
         }]]

@@ -1,7 +1,7 @@
 from typing import AsyncGenerator
 from typing import Generator
 
-from .utils import _est_tokens
+from .utils import _compute_prompt_token_count
 from .utils import _format_openai_api_key
 
 
@@ -95,7 +95,10 @@ class _BaseCompletionHook(_EndpointHook):
                 span.set_metric("openai.response.usage.completion_tokens", num_completion_tokens)
                 total_tokens = num_prompt_tokens + num_completion_tokens
                 span.set_metric("openai.response.usage.total_tokens", total_tokens)
-                integration.metric(span, "dist", "tokens.prompt", num_prompt_tokens, tags=["openai.estimated:true"])
+                if span.get_metric("openai.request.prompt_tokens_estimated") == 0:
+                    integration.metric(span, "dist", "tokens.prompt", num_prompt_tokens)
+                else:
+                    integration.metric(span, "dist", "tokens.prompt", num_prompt_tokens, tags=["openai.estimated:true"])
                 integration.metric(
                     span, "dist", "tokens.completion", num_completion_tokens, tags=["openai.estimated:true"]
                 )
@@ -179,11 +182,14 @@ class _CompletionHook(_BaseCompletionHook):
                     span.set_tag_str("openai.request.prompt.%d" % idx, integration.trunc(str(p)))
         if kwargs.get("stream"):
             num_prompt_tokens = 0
-            if isinstance(prompt, str):
-                num_prompt_tokens += _est_tokens(prompt)
+            if isinstance(prompt, str) or isinstance(prompt, list) and isinstance(prompt[0], int):
+                estimated, prompt_tokens = _compute_prompt_token_count(prompt, kwargs.get("model"))
+                num_prompt_tokens += prompt_tokens
             else:
                 for p in prompt:
-                    num_prompt_tokens += _est_tokens(p)
+                    estimated, prompt_tokens = _compute_prompt_token_count(p, kwargs.get("model"))
+                    num_prompt_tokens += prompt_tokens
+            span.set_metric("openai.request.prompt_tokens_estimated", int(estimated))
             span.set_metric("openai.response.usage.prompt_tokens", num_prompt_tokens)
         return
 
@@ -253,7 +259,9 @@ class _ChatCompletionHook(_BaseCompletionHook):
             # estimate the number of tokens returned.
             est_num_message_tokens = 0
             for m in messages:
-                est_num_message_tokens += _est_tokens(m.get("content", ""))
+                estimated, prompt_tokens = _compute_prompt_token_count(m.get("content", ""), kwargs.get("model"))
+                est_num_message_tokens += prompt_tokens
+            span.set_metric("openai.request.prompt_tokens_estimated", int(estimated))
             span.set_metric("openai.response.usage.prompt_tokens", est_num_message_tokens)
         return
 

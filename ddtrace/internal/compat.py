@@ -74,6 +74,7 @@ reload_module = six.moves.reload_module
 
 ensure_text = six.ensure_text
 ensure_str = six.ensure_str
+ensure_binary = six.ensure_binary
 stringify = six.text_type
 string_type = six.string_types[0]
 text_type = six.text_type
@@ -490,3 +491,13 @@ except ImportError:
         # type: (Iterable[str]) -> str
         """Return a shell-escaped string from *args*."""
         return " ".join(shquote(arg) for arg in args)
+
+
+try:
+    from contextlib import nullcontext
+except ImportError:
+    from contextlib import contextmanager
+
+    @contextmanager  # type: ignore[no-redef]
+    def nullcontext(enter_result=None):
+        yield enter_result

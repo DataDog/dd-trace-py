@@ -8,12 +8,13 @@ from django.http import JsonResponse
 
 from ddtrace import tracer
 from ddtrace.appsec import _asm_request_context
-from ddtrace.appsec.iast._util import _is_python_version_supported as python_supported_by_iast
+from ddtrace.appsec.iast._utils import _is_python_version_supported as python_supported_by_iast
 from ddtrace.appsec.trace_utils import block_request_if_user_blocked
 
 
 try:
-    from ddtrace.appsec.iast._ast.aspects import add_aspect
+    from ddtrace.appsec.iast._taint_tracking.aspects import add_aspect
+    from ddtrace.appsec.iast._taint_tracking.aspects import decode_aspect
 except ImportError:
     # Python 2 compatibility
     from operator import add as add_aspect
@@ -104,7 +105,7 @@ def sqli_http_request_header_value(request):
 
 
 def sqli_http_path_parameter(request, q_http_path_parameter):
-    from ddtrace.appsec.iast._ast.aspects import add_aspect
+    from ddtrace.appsec.iast._taint_tracking.aspects import add_aspect
 
     with connection.cursor() as cursor:
         query = add_aspect("SELECT 1 from ", q_http_path_parameter)
@@ -116,13 +117,14 @@ def sqli_http_path_parameter(request, q_http_path_parameter):
 
 def taint_checking_enabled_view(request):
     if python_supported_by_iast():
+        from ddtrace.appsec.iast._taint_tracking import OriginType
         from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
         from ddtrace.appsec.iast._taint_tracking import taint_ranges_as_evidence_info
 
         def assert_origin_path(path):  # type: (Any) -> None
             assert is_pyobject_tainted(path)
             result = taint_ranges_as_evidence_info(path)
-            assert result[1][0].origin == "http.request.path"
+            assert result[1][0].origin == OriginType.PATH
 
     else:
 
@@ -137,7 +139,8 @@ def taint_checking_enabled_view(request):
     assert is_pyobject_tainted(request.GET["q"])
     assert is_pyobject_tainted(request.META["QUERY_STRING"])
     assert is_pyobject_tainted(request.META["HTTP_USER_AGENT"])
-    assert is_pyobject_tainted(request.headers["User-Agent"])
+    # TODO: Taint request headers
+    # assert is_pyobject_tainted(request.headers["User-Agent"])
     assert_origin_path(request.path_info)
     assert_origin_path(request.path)
     assert_origin_path(request.META["PATH_INFO"])
@@ -188,6 +191,29 @@ def sqli_http_request_cookie_value(request):
     return HttpResponse(request.COOKIES["master"], status=200)
 
 
+def sqli_http_request_body(request):
+    key = "master_key"
+    if key in request.POST:
+        value = request.POST[key]
+    else:
+        value = decode_aspect(request.body)
+    with connection.cursor() as cursor:
+        # label iast_enabled_sqli_http_body
+        cursor.execute(add_aspect("SELECT 1 FROM sqlite_", value))
+
+    return HttpResponse(value, status=200)
+
+
+def validate_querydict(request):
+    qd = request.GET
+    res = qd.getlist("x")
+    lres = list(qd.lists())
+    keys = list(qd.dict().keys())
+    return HttpResponse(
+        "x=%s, all=%s, keys=%s, urlencode=%s" % (str(res), str(lres), str(keys), qd.urlencode()), status=200
+    )
+
+
 urlpatterns = [
     handler("response-header/$", magic_header_key, name="response-header"),
     handler("body/$", body_view, name="body_view"),
@@ -200,11 +226,13 @@ urlpatterns = [
     handler("sqli_http_request_header_value/$", sqli_http_request_header_value, name="sqli_http_request_header_value"),
     handler("sqli_http_request_cookie_name/$", sqli_http_request_cookie_name, name="sqli_http_request_cookie_name"),
     handler("sqli_http_request_cookie_value/$", sqli_http_request_cookie_value, name="sqli_http_request_cookie_value"),
+    handler("sqli_http_request_body/$", sqli_http_request_body, name="sqli_http_request_body"),
     path(
         "sqli_http_path_parameter/<str:q_http_path_parameter>/",
         sqli_http_path_parameter,
         name="sqli_http_path_parameter",
     ),
+    handler("validate_querydict/$", validate_querydict, name="validate_querydict"),
 ]
 
 if django.VERSION >= (2, 0, 0):

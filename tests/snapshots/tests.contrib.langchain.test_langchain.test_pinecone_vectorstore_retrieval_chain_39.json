@@ -16,22 +16,22 @@
       "langchain.response.outputs.question": "Who was Alan Turing?",
       "langchain.response.outputs.sources": "https://simple.wikipedia.org/wiki/Alan%20Turing",
       "language": "python",
-      "runtime-id": "e7975ed9f93b4b60b472641df336f50e"
+      "runtime-id": "e3591036c91f49bfa00c0a77feefcb9b"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
+      "_sample_rate": 1.0,
       "_sampling_priority_v1": 1,
       "langchain.tokens.completion_tokens": 107,
       "langchain.tokens.prompt_tokens": 2889,
       "langchain.tokens.total_cost": 0.05992,
       "langchain.tokens.total_tokens": 2996,
-      "process_id": 74832
+      "process_id": 10515
     },
-    "duration": 14426000,
-    "start": 1688420805765608000
+    "duration": 30021024,
+    "start": 1694032468369861765
   },
      {
        "name": "langchain.request",
@@ -73,10 +73,11 @@
        },
        "metrics": {
          "_dd.measured": 1,
+         "_sample_rate": 1.0,
          "langchain.response.document_count": 4
        },
-       "duration": 11474000,
-       "start": 1688420805765795000
+       "duration": 24933899,
+       "start": 1694032468370134562
      },
         {
           "name": "langchain.request",
@@ -96,11 +97,12 @@
           },
           "metrics": {
             "_dd.measured": 1,
+            "_sample_rate": 1.0,
             "langchain.request.input_count": 1,
             "langchain.response.outputs.embedding_length": 1536
           },
-          "duration": 2817000,
-          "start": 1688420805765819000
+          "duration": 3675449,
+          "start": 1694032468370246372
         },
      {
        "name": "langchain.request",
@@ -121,13 +123,14 @@
        },
        "metrics": {
          "_dd.measured": 1,
+         "_sample_rate": 1.0,
          "langchain.tokens.completion_tokens": 107,
          "langchain.tokens.prompt_tokens": 2889,
          "langchain.tokens.total_cost": 0.05992,
          "langchain.tokens.total_tokens": 2996
        },
-       "duration": 2595000,
-       "start": 1688420805777350000
+       "duration": 4316682,
+       "start": 1694032468395268588
      },
         {
           "name": "langchain.request",
@@ -149,13 +152,14 @@
           },
           "metrics": {
             "_dd.measured": 1,
+            "_sample_rate": 1.0,
             "langchain.tokens.completion_tokens": 107,
             "langchain.tokens.prompt_tokens": 2889,
             "langchain.tokens.total_cost": 0.05992,
             "langchain.tokens.total_tokens": 2996
           },
-          "duration": 2290000,
-          "start": 1688420805777584000
+          "duration": 3750931,
+          "start": 1694032468395646274
         },
            {
              "name": "langchain.request",
@@ -186,11 +190,12 @@
              },
              "metrics": {
                "_dd.measured": 1,
+               "_sample_rate": 1.0,
                "langchain.tokens.completion_tokens": 107,
                "langchain.tokens.prompt_tokens": 2889,
                "langchain.tokens.total_cost": 0.05992,
                "langchain.tokens.total_tokens": 2996
              },
-             "duration": 2097000,
-             "start": 1688420805777724000
+             "duration": 3310781,
+             "start": 1694032468395951381
            }]]

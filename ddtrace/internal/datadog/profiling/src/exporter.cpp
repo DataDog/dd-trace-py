@@ -2,13 +2,6 @@
 // under the Apache License Version 2.0. This product includes software
 // developed at Datadog (https://www.datadoghq.com/). Copyright 2021-Present
 // Datadog, Inc.
-
-// High-level skip for invalid architectures
-#ifndef __linux__
-#elif __aarch64__
-#elif __i386__
-#else
-
 #include "exporter.hpp"
 #include <iostream>
 
@@ -419,16 +412,24 @@ Profile::push_label(const ExportLabelKey key, std::string_view val)
         return false;
     }
 
-    std::string_view key_sv = keys[static_cast<size_t>(key)];
-    auto [it, _] = strings.insert(std::string{ val });
-    if (it == strings.end()) {
-        std::cout << "Bad push_label" << std::endl;
-        return false;
-    }
+    // Ensure strings are stored
+    auto insert_or_get = [this](std::string_view sv) -> std::string_view {
+        auto it = strings.find(sv);
+        if (it != strings.end()) {
+            return *it;
+        } else {
+            string_storage.emplace_back(sv);
+            strings.insert(string_storage.back());
+            return string_storage.back();
+        }
+    };
 
     // Label may not persist, so it needs to be saved
+    std::string_view key_sv = keys[static_cast<size_t>(key)];
+    val = insert_or_get(val);
+
     labels[cur_label].key = to_slice(key_sv);
-    labels[cur_label].str = to_slice(*it);
+    labels[cur_label].str = to_slice(val);
     cur_label++;
     return true;
 }
@@ -587,6 +588,9 @@ Profile::push_lock_name(std::string_view lock_name)
 bool
 Profile::push_threadinfo(int64_t thread_id, int64_t thread_native_id, std::string_view thread_name)
 {
+    if (thread_name.empty()) {
+        thread_name = std::to_string(thread_id);
+    }
     if (!push_label(ExportLabelKey::thread_id, thread_id) ||
         !push_label(ExportLabelKey::thread_native_id, thread_native_id) ||
         !push_label(ExportLabelKey::thread_name, thread_name)) {
@@ -664,5 +668,3 @@ Profile::push_class_name(std::string_view class_name)
     }
     return true;
 }
-
-#endif

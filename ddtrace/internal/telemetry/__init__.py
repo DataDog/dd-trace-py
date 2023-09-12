@@ -46,6 +46,8 @@ def _excepthook(tp, value, root_traceback):
                     1,
                     (("integration_name", integration_name), ("error_type", tp.__name__)),
                 )
+                error_msg = "{}:{} {}".format(filename, lineno, str(value))
+                telemetry_writer.add_integration(integration_name, True, error_msg=error_msg)
 
         telemetry_writer.app_shutdown()
         telemetry_writer.disable()

@@ -1,7 +1,9 @@
 import threading
+from time import sleep
 import unittest
 
 import mock
+import pytest
 
 from ddtrace.internal import core
 
@@ -32,6 +34,14 @@ class TestContextEventsApi(unittest.TestCase):
         result = core.dispatch(event_name, [dynamic_value])[0][0]
         assert result == handler_return.format(dynamic_value)
 
+    def test_core_dispatch_star_args(self):
+        event_name = "my.cool.event"
+        dynamic_value = 42
+        handler_return = "from.event.{}"
+        core.on(event_name, lambda magic_number, forty_two: handler_return.format(magic_number))
+        result = core.dispatch(event_name, dynamic_value, 42)[0][0]
+        assert result == handler_return.format(dynamic_value)
+
     def test_core_dispatch_multiple_listeners(self):
         event_name = "my.cool.event"
         dynamic_value = 42
@@ -55,6 +65,7 @@ class TestContextEventsApi(unittest.TestCase):
 
                 core.on(event_name, listener)
 
+            sleep(make_target_id * 0.0001)  # ensure threads finish in order
             return target
 
         threads = []
@@ -116,6 +127,16 @@ class TestContextEventsApi(unittest.TestCase):
             core.set_item(data_key, data_value)
             assert core.get_item(data_key) == data_value
         assert core.get_item(data_key) is None
+
+    def test_core_set_item_overwrite_attempt(self):
+        data_key = "my.cool.data"
+        data_value = "ban.ana2"
+        with core.context_with_data("foobar", **{data_key: data_value}):
+            with pytest.raises(ValueError):
+                core.set_safe(data_key, "something else")
+            assert core.get_item(data_key) == data_value
+            core.set_item(data_key, "something else")
+            assert core.get_item(data_key) == "something else"
 
     def test_core_context_relationship_across_threads(self):
         data_key = "banana"

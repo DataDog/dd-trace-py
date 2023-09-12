@@ -10,6 +10,7 @@ variables:
   timeout: 1h
   script:
     - export REPORTS_DIR="$(pwd)/reports/" && (mkdir "${REPORTS_DIR}" || :)
+    - export CMAKE_BUILD_PARALLEL_LEVEL=12
     - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
     - git clone --branch dd-trace-py https://github.com/DataDog/relenv-microbenchmarking-platform /platform && cd /platform
     - ./steps/capture-hardware-software-info.sh
@@ -81,3 +82,8 @@ benchmark-otel-span:
   extends: .benchmarks
   variables:
     SCENARIO: "otel_span"
+
+appsec-iast-propagation:
+  extends: .benchmarks
+  variables:
+    SCENARIO: "appsec_iast_propagation"

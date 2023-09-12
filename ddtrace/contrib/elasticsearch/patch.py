@@ -1,4 +1,5 @@
 from importlib import import_module
+from typing import List
 
 from ddtrace import config
 from ddtrace._tracing import _limits
@@ -50,8 +51,23 @@ def _es_modules():
             pass
 
 
-def get_version(elasticsearch):
-    return getattr(elasticsearch, "__version__", (0, 0, 0))
+versions = {}
+
+
+def get_version_tuple(elasticsearch):
+    if getattr(elasticsearch, "__name__", None):
+        versions[elasticsearch.__name__] = getattr(elasticsearch, "__versionstr__", "")
+    return getattr(elasticsearch, "__version__", "")
+
+
+def get_version():
+    # type: () -> str
+    return ""
+
+
+def get_versions():
+    # type: () -> List[str]
+    return versions
 
 
 # NB: We are patching the default elasticsearch.transport module
@@ -62,9 +78,9 @@ def patch():
 
 def _patch(elasticsearch):
     # elasticsearch 8 is not yet supported
-    if getattr(elasticsearch, "_datadog_patch", False) or get_version(elasticsearch) >= (8, 0, 0):
+    if getattr(elasticsearch, "_datadog_patch", False) or get_version_tuple(elasticsearch) >= (8, 0, 0):
         return
-    setattr(elasticsearch, "_datadog_patch", True)
+    elasticsearch._datadog_patch = True
     _w(elasticsearch.transport, "Transport.perform_request", _get_perform_request(elasticsearch))
     Pin().onto(elasticsearch.transport.Transport)
 
@@ -76,7 +92,7 @@ def unpatch():
 
 def _unpatch(elasticsearch):
     if getattr(elasticsearch, "_datadog_patch", False):
-        setattr(elasticsearch, "_datadog_patch", False)
+        elasticsearch._datadog_patch = False
         _u(elasticsearch.transport.Transport, "perform_request")
 
 

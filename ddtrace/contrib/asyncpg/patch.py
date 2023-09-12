@@ -1,5 +1,7 @@
 from typing import TYPE_CHECKING
 
+import asyncpg
+
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
@@ -26,7 +28,6 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Dict
     from typing import Union
 
-    import asyncpg
     from asyncpg.prepared_stmt import PreparedStatement
 
 
@@ -42,6 +43,11 @@ config._add(
 
 
 log = get_logger(__name__)
+
+
+def get_version():
+    # type: () -> str
+    return getattr(asyncpg, "__version__", "")
 
 
 def _get_connection_tags(conn):
@@ -138,7 +144,7 @@ def patch():
     Pin().onto(asyncpg)
     _patch(asyncpg)
 
-    setattr(asyncpg, "_datadog_patch", True)
+    asyncpg._datadog_patch = True
 
 
 def _unpatch(asyncpg):
@@ -157,4 +163,4 @@ def unpatch():
 
     _unpatch(asyncpg)
 
-    setattr(asyncpg, "_datadog_patch", False)
+    asyncpg._datadog_patch = False

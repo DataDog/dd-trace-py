@@ -1,13 +1,12 @@
-#!/usr/bin/env python3
 import mock
 import pytest
 
 
 try:
     from ddtrace.appsec.iast import oce
-    from ddtrace.appsec.iast._taint_tracking import OriginType  # noqa: F401
+    from ddtrace.appsec.iast._taint_tracking import OriginType
+    from ddtrace.appsec.iast._taint_tracking import create_context
     from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
-    from ddtrace.appsec.iast._taint_tracking import setup as taint_tracking_setup
     from ddtrace.appsec.iast._taint_tracking import taint_pyobject
     from ddtrace.appsec.iast._taint_utils import LazyTaintDict
     from ddtrace.appsec.iast._taint_utils import check_tainted_args
@@ -16,12 +15,11 @@ except (ImportError, AttributeError):
 
 
 def setup():
-    taint_tracking_setup(bytes.join, bytearray.join)
+    create_context()
     oce._enabled = True
 
 
 def test_tainted_types():
-
     tainted = taint_pyobject(
         pyobject="hello", source_name="request_body", source_value="hello", source_origin=OriginType.PARAMETER
     )
@@ -160,10 +158,33 @@ def test_tainted_keys_and_values():
         assert not is_pyobject_tainted(v)
 
 
+def test_recursivity():
+    tainted_dict = LazyTaintDict(
+        {
+            "tr_key_001": ["tr_val_001", "tr_val_002", "tr_val_003", {"tr_key_005": "tr_val_004"}],
+            "tr_key_002": {"tr_key_003": {"tr_key_004": "tr_val_005"}},
+        },
+        origins=(OriginType.PARAMETER, OriginType.PARAMETER),
+    )
+
+    def check_taint(v):
+        if isinstance(v, str):
+            assert is_pyobject_tainted(v)
+        elif isinstance(v, dict):
+            for k, ev in v.items():
+                assert is_pyobject_tainted(k)
+                check_taint(ev)
+        elif isinstance(v, list):
+            for ev in v:
+                check_taint(ev)
+
+    check_taint(tainted_dict)
+
+
 def test_checked_tainted_args():
     cursor = mock.Mock()
-    setattr(cursor.execute, "__name__", "execute")
-    setattr(cursor.executemany, "__name__", "executemany")
+    cursor.execute.__name__ = "execute"
+    cursor.executemany.__name__ = "executemany"
 
     arg = "nobody expects the spanish inquisition"
 

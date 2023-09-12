@@ -70,6 +70,10 @@ def override_env(env):
     # Copy the full original environment
     original = dict(os.environ)
 
+    for k in os.environ.keys():
+        if k.startswith(("_CI_DD_", "DD_CIVISIBILITY_", "DD_SITE")):
+            del os.environ[k]
+
     # Update based on the passed in arguments
     os.environ.update(env)
     try:
@@ -91,6 +95,7 @@ def override_global_config(values):
     # List of global variables we allow overriding
     # DEV: We do not do `ddtrace.config.keys()` because we have all of our integrations
     global_config_keys = [
+        "_tracing_enabled",
         "analytics_enabled",
         "client_ip_header",
         "retrieve_client_ip",
@@ -120,6 +125,19 @@ def override_global_config(values):
         "_user_model_login_field",
         "_user_model_email_field",
         "_user_model_name_field",
+        "_remote_config_enabled",
+        "_remote_config_poll_interval",
+        "_sampling_rules",
+        "_sampling_rules_file",
+        "_trace_sample_rate",
+        "_trace_rate_limit",
+        "_trace_sampling_rules",
+        "_trace_api",
+        "_trace_writer_buffer_size",
+        "_trace_writer_payload_size",
+        "_trace_writer_interval_seconds",
+        "_trace_writer_connection_reuse",
+        "_trace_writer_log_err_payload",
     ]
 
     # Grab the current values of all keys
@@ -442,11 +460,11 @@ class TracerTestCase(TestSpanContainer, BaseTestCase):
     def override_global_tracer(self, tracer=None):
         original = ddtrace.tracer
         tracer = tracer or self.tracer
-        setattr(ddtrace, "tracer", tracer)
+        ddtrace.tracer = tracer
         try:
             yield
         finally:
-            setattr(ddtrace, "tracer", original)
+            ddtrace.tracer = original
 
 
 class DummyWriterMixin:
@@ -988,7 +1006,7 @@ def snapshot_context(token, ignores=None, tracer=None, async_mode=True, variants
         # Wait for the traces to be available
         if wait_for_num_traces is not None:
             traces = []
-            for i in range(50):
+            for _ in range(50):
                 try:
                     conn.request("GET", "/test/session/traces?test_session_token=%s" % token)
                     r = conn.getresponse()
@@ -1184,7 +1202,7 @@ def flush_test_tracer_spans(writer):
         if encoded_traces is None:
             return
         headers = writer._get_finalized_headers(n_traces, client)
-        response = writer._put(encoded_traces, add_dd_env_variables_to_headers(headers), client)
+        response = writer._put(encoded_traces, add_dd_env_variables_to_headers(headers), client, no_trace=True)
     except Exception:
         return
 

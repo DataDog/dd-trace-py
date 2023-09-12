@@ -6,23 +6,22 @@ from flask import request
 import pytest
 
 from ddtrace.appsec._constants import APPSEC
-from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
-from ddtrace.appsec.iast import oce
-from ddtrace.appsec.iast._util import _is_python_version_supported as python_supported_by_iast
 from ddtrace.appsec.trace_utils import block_request_if_user_blocked
 from ddtrace.contrib.sqlite3.patch import patch
 from ddtrace.ext import http
 from ddtrace.internal import constants
 from ddtrace.internal import core
 from ddtrace.internal.compat import urlencode
+from tests.appsec.test_processor import RESPONSE_CUSTOM_HTML
+from tests.appsec.test_processor import RESPONSE_CUSTOM_JSON
 from tests.appsec.test_processor import RULES_BAD_VERSION
 from tests.appsec.test_processor import RULES_GOOD_PATH
 from tests.appsec.test_processor import RULES_SRB
+from tests.appsec.test_processor import RULES_SRBCA
 from tests.appsec.test_processor import RULES_SRB_METHOD
 from tests.appsec.test_processor import RULES_SRB_RESPONSE
-from tests.appsec.test_processor import _ALLOWED_IP
-from tests.appsec.test_processor import _BLOCKED_IP
+from tests.appsec.test_processor import _IP
 from tests.contrib.flask import BaseFlaskTestCase
 from tests.utils import override_env
 from tests.utils import override_global_config
@@ -30,8 +29,6 @@ from tests.utils import override_global_config
 
 _BLOCKED_USER = "123456"
 _ALLOWED_USER = "111111"
-IAST_ENV = {"DD_IAST_REQUEST_SAMPLING": "100"}
-IAST_ENV_SAMPLING_0 = {"DD_IAST_REQUEST_SAMPLING": "0"}
 
 
 def get_response_body(response):
@@ -49,9 +46,8 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         super(FlaskAppSecTestCase, self).setUp()
         patch()
 
-    def _aux_appsec_prepare_tracer(self, appsec_enabled=True, iast_enabled=False):
+    def _aux_appsec_prepare_tracer(self, appsec_enabled=True):
         self.tracer._appsec_enabled = appsec_enabled
-        self.tracer._iast_enabled = iast_enabled
         # Hack: need to pass an argument to configure so that the processors are recreated
         self.tracer.configure(api_version="v0.4")
 
@@ -281,22 +277,34 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             self.client.post("/", data="", content_type="application/xml")
             assert "Failed to parse request body" in self._caplog.text
 
-    def test_flask_ipblock_nomatch_200_json(self):
+    def flask_ipblock_nomatch_200_json(self, ip):
         @self.app.route("/")
         def route():
             return "OK", 200
 
-        with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
-            self._aux_appsec_prepare_tracer()
-            resp = self.client.get("/", headers={"X-Real-Ip": _ALLOWED_IP})
-            root_span = self.pop_spans()[0]
-            assert resp.status_code == 200
-            assert not core.get_item("http.request.blocked", span=root_span)
+        for ip in [_IP.MONITORED, _IP.BYPASS, _IP.DEFAULT]:
+            with override_global_config(dict(_appsec_enabled=True)), override_env(
+                dict(DD_APPSEC_RULES=RULES_GOOD_PATH)
+            ):
+                self._aux_appsec_prepare_tracer()
+                resp = self.client.get("/", headers={"X-Real-Ip": ip})
+                root_span = self.pop_spans()[0]
+                assert resp.status_code == 200
+                assert not core.get_item("http.request.blocked", span=root_span)
+
+    def test_flask_ipblock_nomatch_200_bypass(self):
+        self.flask_ipblock_nomatch_200_json(_IP.BYPASS)
+
+    def test_flask_ipblock_nomatch_200_monitor(self):
+        self.flask_ipblock_nomatch_200_json(_IP.MONITORED)
+
+    def test_flask_ipblock_nomatch_200_default(self):
+        self.flask_ipblock_nomatch_200_json(_IP.DEFAULT)
 
     def test_flask_ipblock_match_403_json(self):
         with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
             self._aux_appsec_prepare_tracer()
-            resp = self.client.get("/foobar", headers={"X-Real-Ip": _BLOCKED_IP})
+            resp = self.client.get("/foobar", headers={"X-Real-Ip": _IP.BLOCKED})
             assert resp.status_code == 403
             assert get_response_body(resp) == constants.BLOCKED_RESPONSE_JSON
             root_span = self.pop_spans()[0]
@@ -305,6 +313,54 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert root_span.get_tag(http.METHOD) == "GET"
             assert root_span.get_tag(http.USER_AGENT).startswith("werkzeug/")
             assert root_span.get_tag(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/json"
+            assert root_span.get_tag(APPSEC.JSON)
+            loaded = json.loads(root_span.get_tag(APPSEC.JSON))
+            assert loaded["triggers"][0]["rule"]["id"] == "blk-001-001"
+            assert root_span.get_tag("appsec.event") == "true"
+            assert root_span.get_tag("appsec.blocked") == "true"
+
+    def test_flask_ip_200_monitor(self):
+        @self.app.route("/")
+        def route():
+            return "OK", 200
+
+        with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
+            self._aux_appsec_prepare_tracer()
+            resp = self.client.get("/?value=block_that_value", headers={"X-Real-Ip": _IP.MONITORED})
+            assert resp.status_code == 200
+            root_span = self.pop_spans()[0]
+            assert root_span.get_tag(http.STATUS_CODE) == "200"
+            assert root_span.get_tag(http.URL) == "http://localhost/?value=block_that_value"
+            assert root_span.get_tag(http.METHOD) == "GET"
+            assert root_span.get_tag(http.USER_AGENT).startswith("werkzeug/")
+            assert root_span.get_tag(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") != "text/json"
+            # rule detected but non blocking
+            assert root_span.get_tag(APPSEC.JSON)
+            loaded = json.loads(root_span.get_tag(APPSEC.JSON))
+            assert loaded["triggers"][0]["rule"]["id"] == "tst-421-001"
+            assert loaded["triggers"][0]["rule"]["on_match"] == ["monitor"]
+            assert root_span.get_tag("appsec.event") == "true"
+            assert root_span.get_tag("appsec.blocked") is None
+
+    def test_flask_ip_200_bypass(self):
+        @self.app.route("/")
+        def route():
+            return "OK", 200
+
+        with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
+            self._aux_appsec_prepare_tracer()
+            resp = self.client.get("/?value=block_that_value", headers={"X-Real-Ip": _IP.BYPASS})
+            assert resp.status_code == 200
+            root_span = self.pop_spans()[0]
+            assert root_span.get_tag(http.STATUS_CODE) == "200"
+            assert root_span.get_tag(http.URL) == "http://localhost/?value=block_that_value"
+            assert root_span.get_tag(http.METHOD) == "GET"
+            assert root_span.get_tag(http.USER_AGENT).startswith("werkzeug/")
+            assert root_span.get_tag(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") != "text/json"
+            # rules bypass
+            assert root_span.get_tag(APPSEC.JSON) is None
+            assert root_span.get_tag("appsec.event") is None
+            assert root_span.get_tag("appsec.blocked") is None
 
     def test_flask_ipblock_manually_json(self):
         # Most tests of flask blocking are in the test_flask_snapshot, this just
@@ -317,7 +373,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
         with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
             self._aux_appsec_prepare_tracer()
-            resp = self.client.get("/block", headers={"X-REAL-IP": _ALLOWED_IP})
+            resp = self.client.get("/block", headers={"X-REAL-IP": _IP.DEFAULT})
             # Should not block by IP but since the route is calling block_request it will be blocked
             assert resp.status_code == 403
             assert get_response_body(resp) == constants.BLOCKED_RESPONSE_JSON
@@ -354,591 +410,6 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             resp = self.client.get("/checkuser/%s" % _ALLOWED_USER, headers={"Accept": "text/html"})
             assert resp.status_code == 200
-
-    @pytest.mark.skip(reason="TODO: this tests will enable in the next PR")
-    def test_flask_full_sqli_iast_http_request_path_parameter(self):
-        @self.app.route("/sqli/<string:param_str>/", methods=["GET", "POST"])
-        def test_sqli(param_str):
-            import sqlite3
-
-            from ddtrace.appsec.iast._ast.aspects import add_aspect
-
-            con = sqlite3.connect(":memory:")
-            cur = con.cursor()
-            cur.execute(add_aspect("SELECT 1 FROM ", param_str))
-
-            return "OK", 200
-
-        with override_global_config(
-            dict(
-                _iast_enabled=True,
-            )
-        ), override_env(IAST_ENV):
-            oce.reconfigure()
-            from ddtrace.appsec.iast._taint_tracking import setup
-
-            setup(bytes.join, bytearray.join)
-
-            self._aux_appsec_prepare_tracer(iast_enabled=True)
-            resp = self.client.post("/sqli/sqlite_master/", data={"name": "test"})
-            assert resp.status_code == 200
-
-            root_span = self.pop_spans()[0]
-            assert root_span.get_metric(IAST.ENABLED) == 1.0
-
-            loaded = json.loads(root_span.get_tag(IAST.JSON))
-            assert loaded["sources"] == [
-                {"origin": "http.request.path.parameter", "name": "param_str", "value": "sqlite_master"}
-            ]
-            assert loaded["vulnerabilities"][0]["type"] == "SQL_INJECTION"
-            assert loaded["vulnerabilities"][0]["evidence"] == {
-                "valueParts": [{"value": "SELECT 1 FROM "}, {"value": "sqlite_master", "source": 0}]
-            }
-            assert loaded["vulnerabilities"][0]["location"]["path"] == "tests/contrib/flask/test_flask_appsec.py"
-            assert loaded["vulnerabilities"][0]["location"]["line"] == 368
-
-    @pytest.mark.skip(reason="TODO: this tests will enable in the next PR")
-    def test_flask_full_sqli_iast_enabled_http_request_header_getitem(self):
-        @self.app.route("/sqli/<string:param_str>/", methods=["GET", "POST"])
-        def test_sqli(param_str):
-            import sqlite3
-
-            from flask import request
-
-            from ddtrace.appsec.iast._ast.aspects import add_aspect
-
-            con = sqlite3.connect(":memory:")
-            cur = con.cursor()
-
-            cur.execute(add_aspect("SELECT 1 FROM ", request.headers["User-Agent"]))
-
-            return "OK", 200
-
-        with override_global_config(
-            dict(
-                _iast_enabled=True,
-            )
-        ), override_env(IAST_ENV):
-            oce.reconfigure()
-            from ddtrace.appsec.iast._taint_tracking import setup
-
-            setup(bytes.join, bytearray.join)
-
-            self._aux_appsec_prepare_tracer(iast_enabled=True)
-            resp = self.client.post(
-                "/sqli/sqlite_master/", data={"name": "test"}, headers={"User-Agent": "sqlite_master"}
-            )
-            assert resp.status_code == 200
-
-            root_span = self.pop_spans()[0]
-            assert root_span.get_metric(IAST.ENABLED) == 1.0
-
-            loaded = json.loads(root_span.get_tag(IAST.JSON))
-            assert loaded["sources"] == [
-                {"origin": "http.request.header", "name": "User-Agent", "value": "sqlite_master"}
-            ]
-            assert loaded["vulnerabilities"][0]["type"] == "SQL_INJECTION"
-            assert loaded["vulnerabilities"][0]["evidence"] == {
-                "valueParts": [{"value": "SELECT 1 FROM "}, {"value": "sqlite_master", "source": 0}]
-            }
-            assert loaded["vulnerabilities"][0]["location"]["path"] == "tests/contrib/flask/test_flask_appsec.py"
-            assert loaded["vulnerabilities"][0]["location"]["line"] == 413
-
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
-    def test_flask_full_sqli_iast_disabled_http_request_header_getitem(self):
-        @self.app.route("/sqli/<string:param_str>/", methods=["GET", "POST"])
-        def test_sqli(param_str):
-            import sqlite3
-
-            from flask import request
-
-            from ddtrace.appsec.iast._ast.aspects import add_aspect
-
-            con = sqlite3.connect(":memory:")
-            cur = con.cursor()
-
-            cur.execute(add_aspect("SELECT 1 FROM ", request.headers["User-Agent"]))
-
-            return "OK", 200
-
-        with override_global_config(
-            dict(
-                _iast_enabled=False,
-            )
-        ), override_env(IAST_ENV):
-            oce.reconfigure()
-            from ddtrace.appsec.iast._taint_tracking import setup
-
-            setup(bytes.join, bytearray.join)
-
-            self._aux_appsec_prepare_tracer(iast_enabled=False)
-            resp = self.client.post(
-                "/sqli/sqlite_master/", data={"name": "test"}, headers={"User-Agent": "sqlite_master"}
-            )
-            assert resp.status_code == 200
-
-            root_span = self.pop_spans()[0]
-            assert root_span.get_metric(IAST.ENABLED) is None
-
-            assert root_span.get_tag(IAST.JSON) is None
-
-    @pytest.mark.skip(reason="TODO: this tests will enable in the next PR")
-    def test_flask_full_sqli_iast_enabled_http_request_header_name_keys(self):
-        @self.app.route("/sqli/<string:param_str>/", methods=["GET", "POST"])
-        def test_sqli(param_str):
-            import sqlite3
-
-            from flask import request
-
-            from ddtrace.appsec.iast._ast.aspects import add_aspect
-
-            con = sqlite3.connect(":memory:")
-            cur = con.cursor()
-
-            # Test to consume request.header.keys twice
-            _ = [k for k in request.headers.keys() if k == "Master"][0]
-            header_name = [k for k in request.headers.keys() if k == "Master"][0]
-
-            cur.execute(add_aspect("SELECT 1 FROM sqlite_", header_name))
-
-            return "OK", 200
-
-        with override_global_config(
-            dict(
-                _iast_enabled=True,
-            )
-        ), override_env(IAST_ENV):
-            oce.reconfigure()
-            from ddtrace.appsec.iast._taint_tracking import setup
-
-            setup(bytes.join, bytearray.join)
-
-            self._aux_appsec_prepare_tracer(iast_enabled=True)
-            resp = self.client.post("/sqli/sqlite_master/", data={"name": "test"}, headers={"master": "not_user_agent"})
-            assert resp.status_code == 200
-
-            root_span = self.pop_spans()[0]
-            assert root_span.get_metric(IAST.ENABLED) == 1.0
-
-            loaded = json.loads(root_span.get_tag(IAST.JSON))
-            assert loaded["sources"] == [{"origin": "http.request.header.name", "name": "Master", "value": "Master"}]
-            assert loaded["vulnerabilities"][0]["type"] == "SQL_INJECTION"
-            assert loaded["vulnerabilities"][0]["evidence"] == {
-                "valueParts": [{"value": "SELECT 1 FROM sqlite_"}, {"value": "Master", "source": 0}]
-            }
-            assert loaded["vulnerabilities"][0]["location"]["path"] == "tests/contrib/flask/test_flask_appsec.py"
-            assert loaded["vulnerabilities"][0]["location"]["line"] == 502
-
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
-    def test_flask_full_sqli_iast_disabled_http_request_header_name_keys(self):
-        @self.app.route("/sqli/<string:param_str>/", methods=["GET", "POST"])
-        def test_sqli(param_str):
-            import sqlite3
-
-            from flask import request
-
-            from ddtrace.appsec.iast._ast.aspects import add_aspect
-
-            con = sqlite3.connect(":memory:")
-            cur = con.cursor()
-
-            header_name = [k for k in request.headers.keys() if k == "Master"][0]
-
-            cur.execute(add_aspect("SELECT 1 FROM sqlite_", header_name))
-
-            return "OK", 200
-
-        with override_global_config(
-            dict(
-                _iast_enabled=False,
-            )
-        ), override_env(IAST_ENV):
-            oce.reconfigure()
-            from ddtrace.appsec.iast._taint_tracking import setup
-
-            setup(bytes.join, bytearray.join)
-
-            self._aux_appsec_prepare_tracer(iast_enabled=False)
-            resp = self.client.post("/sqli/sqlite_master/", data={"name": "test"}, headers={"master": "not_user_agent"})
-            assert resp.status_code == 200
-
-            root_span = self.pop_spans()[0]
-            assert root_span.get_metric(IAST.ENABLED) is None
-
-            assert root_span.get_tag(IAST.JSON) is None
-
-    @pytest.mark.skip(reason="TODO: this tests will enable in the next PR")
-    def test_flask_full_sqli_iast_enabled_http_request_header_values(self):
-        @self.app.route("/sqli/<string:param_str>/", methods=["GET", "POST"])
-        def test_sqli(param_str):
-            import sqlite3
-
-            from flask import request
-
-            from ddtrace.appsec.iast._ast.aspects import add_aspect
-
-            con = sqlite3.connect(":memory:")
-            cur = con.cursor()
-
-            header = [k for k in request.headers.values() if k == "master"][0]
-
-            cur.execute(add_aspect("SELECT 1 FROM sqlite_", header))
-
-            return "OK", 200
-
-        with override_global_config(
-            dict(
-                _iast_enabled=True,
-            )
-        ), override_env(IAST_ENV):
-            oce.reconfigure()
-            from ddtrace.appsec.iast._taint_tracking import setup
-
-            setup(bytes.join, bytearray.join)
-
-            self._aux_appsec_prepare_tracer(iast_enabled=True)
-            resp = self.client.post("/sqli/sqlite_master/", data={"name": "test"}, headers={"user-agent": "master"})
-            assert resp.status_code == 200
-
-            root_span = self.pop_spans()[0]
-            assert root_span.get_metric(IAST.ENABLED) == 1.0
-
-            loaded = json.loads(root_span.get_tag(IAST.JSON))
-            assert loaded["sources"] == [{"origin": "http.request.header", "name": "User-Agent", "value": "master"}]
-            assert loaded["vulnerabilities"][0]["type"] == "SQL_INJECTION"
-            assert loaded["vulnerabilities"][0]["evidence"] == {
-                "valueParts": [{"value": "SELECT 1 FROM sqlite_"}, {"value": "master", "source": 0}]
-            }
-            assert loaded["vulnerabilities"][0]["location"]["path"] == "tests/contrib/flask/test_flask_appsec.py"
-            assert loaded["vulnerabilities"][0]["location"]["line"] == 585
-
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
-    def test_flask_full_sqli_iast_disabled_http_request_header_values(self):
-        @self.app.route("/sqli/<string:param_str>/", methods=["GET", "POST"])
-        def test_sqli(param_str):
-            import sqlite3
-
-            from flask import request
-
-            from ddtrace.appsec.iast._ast.aspects import add_aspect
-
-            con = sqlite3.connect(":memory:")
-            cur = con.cursor()
-
-            header = [k for k in request.headers.values() if k == "master"][0]
-
-            cur.execute(add_aspect("SELECT 1 FROM sqlite_", header))
-
-            return "OK", 200
-
-        with override_global_config(
-            dict(
-                _iast_enabled=False,
-            )
-        ), override_env(IAST_ENV):
-            oce.reconfigure()
-            from ddtrace.appsec.iast._taint_tracking import setup
-
-            setup(bytes.join, bytearray.join)
-
-            self._aux_appsec_prepare_tracer(iast_enabled=False)
-            resp = self.client.post("/sqli/sqlite_master/", data={"name": "test"}, headers={"user-agent": "master"})
-            assert resp.status_code == 200
-
-            root_span = self.pop_spans()[0]
-            assert root_span.get_metric(IAST.ENABLED) is None
-
-            assert root_span.get_tag(IAST.JSON) is None
-
-    @pytest.mark.skip(reason="TODO: this tests will enable in the next PR")
-    def test_flask_simple_iast_path_header_and_querystring_tainted(self):
-        @self.app.route("/sqli/<string:param_str>/<int:param_int>/", methods=["GET", "POST"])
-        def test_sqli(param_str, param_int):
-            from flask import request
-
-            from ddtrace.appsec.iast._taint_tracking import OriginType
-            from ddtrace.appsec.iast._taint_tracking import get_tainted_ranges
-            from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
-
-            header_ranges = get_tainted_ranges(request.headers["User-Agent"])
-            assert header_ranges
-            assert header_ranges[0][0].name == "user-agent"
-            assert header_ranges[0][0].origin == OriginType.HEADER
-
-            query_string_ranges = get_tainted_ranges(request.query_string)
-            assert query_string_ranges
-            assert query_string_ranges[0][0].name == "http.request.query"
-            assert query_string_ranges[0][0].origin == OriginType.QUERY
-
-            param_str_ranges = get_tainted_ranges(param_str)
-            assert param_str_ranges
-            assert param_str_ranges[0][0].name == "param_str"
-            assert param_str_ranges[0][0].origin == OriginType.PATH_PARAMETER
-
-            assert not is_pyobject_tainted(param_int)
-
-            request_path_ranges = get_tainted_ranges(request.path)
-            assert request_path_ranges
-            assert request_path_ranges[0][0].name == "http.request.path"
-            assert request_path_ranges[0][0].origin == OriginType.PATH
-
-            request_form_name_ranges = get_tainted_ranges(request.form.get("name"))
-            assert request_form_name_ranges
-            assert request_form_name_ranges[0][0].name == "name"
-            assert request_form_name_ranges[0][0].origin == OriginType.PARAMETER
-
-            return request.query_string, 200
-
-        with override_global_config(
-            dict(
-                _iast_enabled=True,
-            )
-        ), override_env(IAST_ENV):
-            oce.reconfigure()
-            from ddtrace.appsec.iast._taint_tracking import setup
-
-            setup(bytes.join, bytearray.join)
-
-            self._aux_appsec_prepare_tracer(iast_enabled=True)
-            resp = self.client.post("/sqli/hello/1000/?select%20from%20table", data={"name": "test"})
-            assert resp.status_code == 200
-            if hasattr(resp, "text"):
-                # not all flask versions have r.text
-                assert resp.text == "select%20from%20table"
-
-            root_span = self.pop_spans()[0]
-            assert root_span.get_metric(IAST.ENABLED) == 1.0
-
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
-    def test_flask_simple_iast_path_header_and_querystring_tainted_request_sampling_0(self):
-        @self.app.route("/sqli/<string:param_str>/", methods=["GET", "POST"])
-        def test_sqli(param_str):
-            from flask import request
-
-            from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
-
-            # Note: these are not tainted because of request sampling at 0%
-            assert not is_pyobject_tainted(request.headers["User-Agent"])
-            assert not is_pyobject_tainted(request.query_string)
-            assert not is_pyobject_tainted(param_str)
-            assert not is_pyobject_tainted(request.path)
-            assert not is_pyobject_tainted(request.form.get("name"))
-
-            return request.query_string, 200
-
-        with override_global_config(
-            dict(
-                _iast_enabled=True,
-            )
-        ), override_env(IAST_ENV_SAMPLING_0):
-            oce.reconfigure()
-            from ddtrace.appsec.iast._taint_tracking import setup
-
-            setup(bytes.join, bytearray.join)
-
-            self._aux_appsec_prepare_tracer(iast_enabled=True)
-
-            resp = self.client.post("/sqli/hello/?select%20from%20table", data={"name": "test"})
-            assert resp.status_code == 200
-
-            root_span = self.pop_spans()[0]
-            assert root_span.get_metric(IAST.ENABLED) == 0.0
-
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
-    def test_flask_simple_iast_path_header_and_querystring_not_tainted_if_iast_disabled(self):
-        @self.app.route("/sqli/<string:param_str>/", methods=["GET", "POST"])
-        def test_sqli(param_str):
-            from flask import request
-
-            from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
-
-            assert not is_pyobject_tainted(request.headers["User-Agent"])
-            assert not is_pyobject_tainted(request.query_string)
-            assert not is_pyobject_tainted(param_str)
-            assert not is_pyobject_tainted(request.path)
-            assert not is_pyobject_tainted(request.form.get("name"))
-            return request.query_string, 200
-
-        with override_global_config(
-            dict(
-                _iast_enabled=False,
-            )
-        ):
-            from ddtrace.appsec.iast._taint_tracking import setup
-
-            setup(bytes.join, bytearray.join)
-
-            self._aux_appsec_prepare_tracer(iast_enabled=True)
-            resp = self.client.post("/sqli/hello/?select%20from%20table", data={"name": "test"})
-            assert resp.status_code == 200
-            if hasattr(resp, "text"):
-                # not all flask versions have r.text
-                assert resp.text == "select%20from%20table"
-
-    @pytest.mark.skip(reason="TODO: this tests will enable in the next PR")
-    def test_flask_full_sqli_iast_enabled_http_request_cookies_value(self):
-        @self.app.route("/sqli/cookies/", methods=["GET", "POST"])
-        def test_sqli():
-            import sqlite3
-
-            from flask import request
-
-            from ddtrace.appsec.iast._ast.aspects import add_aspect
-
-            con = sqlite3.connect(":memory:")
-            cur = con.cursor()
-
-            cur.execute(add_aspect("SELECT 1 FROM ", request.cookies.get("test-cookie1")))
-
-            return "OK", 200
-
-        with override_global_config(
-            dict(
-                _iast_enabled=True,
-            )
-        ), override_env(IAST_ENV):
-            oce.reconfigure()
-            from ddtrace.appsec.iast._taint_tracking import setup
-
-            setup(bytes.join, bytearray.join)
-
-            self._aux_appsec_prepare_tracer(iast_enabled=True)
-            self.client.set_cookie("localhost", "test-cookie1", "sqlite_master")
-            resp = self.client.post("/sqli/cookies/")
-            assert resp.status_code == 200
-
-            root_span = self.pop_spans()[0]
-            assert root_span.get_metric(IAST.ENABLED) == 1.0
-
-            loaded = json.loads(root_span.get_tag(IAST.JSON))
-            assert loaded["sources"] == [
-                {"origin": "http.request.cookie.value", "name": "test-cookie1", "value": "sqlite_master"}
-            ]
-            assert loaded["vulnerabilities"][0]["type"] == "SQL_INJECTION"
-            assert loaded["vulnerabilities"][0]["evidence"] == {
-                "valueParts": [{"value": "SELECT 1 FROM "}, {"value": "sqlite_master", "source": 0}]
-            }
-            assert loaded["vulnerabilities"][0]["location"]["path"] == "tests/contrib/flask/test_flask_appsec.py"
-            assert loaded["vulnerabilities"][0]["location"]["line"] == 768
-
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
-    def test_flask_full_sqli_iast_disabled_http_request_cookies_value(self):
-        @self.app.route("/sqli/cookies/", methods=["GET", "POST"])
-        def test_sqli():
-            import sqlite3
-
-            from flask import request
-
-            from ddtrace.appsec.iast._ast.aspects import add_aspect
-
-            con = sqlite3.connect(":memory:")
-            cur = con.cursor()
-
-            cur.execute(add_aspect("SELECT 1 FROM ", request.cookies.get("test-cookie1")))
-
-            return "OK", 200
-
-        with override_global_config(
-            dict(
-                _iast_enabled=False,
-            )
-        ):
-            from ddtrace.appsec.iast._taint_tracking import setup
-
-            setup(bytes.join, bytearray.join)
-
-            self._aux_appsec_prepare_tracer(iast_enabled=False)
-            self.client.set_cookie("localhost", "test-cookie1", "sqlite_master")
-            resp = self.client.post("/sqli/cookies/")
-            assert resp.status_code == 200
-
-            root_span = self.pop_spans()[0]
-            assert root_span.get_metric(IAST.ENABLED) is None
-
-            assert root_span.get_tag(IAST.JSON) is None
-
-    @pytest.mark.skip(reason="TODO: this tests will enable in the next PR")
-    def test_flask_full_sqli_iast_enabled_http_request_cookies_name(self):
-        @self.app.route("/sqli/cookies/", methods=["GET", "POST"])
-        def test_sqli():
-            import sqlite3
-
-            from flask import request
-
-            from ddtrace.appsec.iast._ast.aspects import add_aspect
-
-            con = sqlite3.connect(":memory:")
-            cur = con.cursor()
-            key = [x for x in request.cookies.keys() if x == "sqlite_master"][0]
-            cur.execute(add_aspect("SELECT 1 FROM ", key))
-
-            return "OK", 200
-
-        with override_global_config(
-            dict(
-                _iast_enabled=True,
-            )
-        ), override_env(IAST_ENV):
-            oce.reconfigure()
-            from ddtrace.appsec.iast._taint_tracking import setup
-
-            setup(bytes.join, bytearray.join)
-
-            self._aux_appsec_prepare_tracer(iast_enabled=True)
-            self.client.set_cookie("localhost", "sqlite_master", "sqlite_master2")
-            resp = self.client.post("/sqli/cookies/")
-            assert resp.status_code == 200
-
-            root_span = self.pop_spans()[0]
-            assert root_span.get_metric(IAST.ENABLED) == 1.0
-
-            loaded = json.loads(root_span.get_tag(IAST.JSON))
-            assert loaded["sources"] == [
-                {"origin": "http.request.cookie.name", "name": "sqlite_master", "value": "sqlite_master"}
-            ]
-            assert loaded["vulnerabilities"][0]["type"] == "SQL_INJECTION"
-            assert loaded["vulnerabilities"][0]["evidence"] == {
-                "valueParts": [{"value": "SELECT 1 FROM "}, {"value": "sqlite_master", "source": 0}]
-            }
-            assert loaded["vulnerabilities"][0]["location"]["path"] == "tests/contrib/flask/test_flask_appsec.py"
-            assert loaded["vulnerabilities"][0]["location"]["line"] == 850
-
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
-    def test_flask_full_sqli_iast_disabled_http_request_cookies_name(self):
-        @self.app.route("/sqli/cookies/", methods=["GET", "POST"])
-        def test_sqli():
-            import sqlite3
-
-            from flask import request
-
-            from ddtrace.appsec.iast._ast.aspects import add_aspect
-
-            con = sqlite3.connect(":memory:")
-            cur = con.cursor()
-
-            key = [x for x in request.cookies.keys() if x == "sqlite_master"][0]
-            cur.execute(add_aspect("SELECT 1 FROM ", key))
-
-            return "OK", 200
-
-        with override_global_config(
-            dict(
-                _iast_enabled=False,
-            )
-        ):
-            from ddtrace.appsec.iast._taint_tracking import setup
-
-            setup(bytes.join, bytearray.join)
-
-            self._aux_appsec_prepare_tracer(iast_enabled=False)
-            self.client.set_cookie("localhost", "sqlite_master", "sqlite_master3")
-            resp = self.client.post("/sqli/cookies/")
-            assert resp.status_code == 200
-
-            root_span = self.pop_spans()[0]
-            assert root_span.get_metric(IAST.ENABLED) is None
-
-            assert root_span.get_tag(IAST.JSON) is None
 
     def test_request_suspicious_request_block_match_query_value(self):
         @self.app.route("/index.html")
@@ -1239,3 +710,160 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             resp = self.client.get("/response-header/")
             # it must not completely fail on an invalid rule file
             assert resp.status_code == 200
+
+    def test_request_suspicious_request_block_custom_actions(self):
+        @self.app.route("/index.html")
+        def test_route():
+            return "Ok: %s" % request.args.get("toto", ""), 200
+
+        import ddtrace.internal.utils.http as uhttp
+
+        # remove cache to avoid using template from other tests
+        uhttp._HTML_BLOCKED_TEMPLATE_CACHE = None
+        uhttp._JSON_BLOCKED_TEMPLATE_CACHE = None
+
+        CUSTOM_RESPONSE_JSON = {"errors": [{"title": "You've been blocked", "detail": "Custom content"}]}
+        CUSTOM_HTML_SECRET = "192837645"
+
+        # value suspicious_306_auto must be blocked
+        with override_global_config(dict(_appsec_enabled=True)), override_env(
+            dict(
+                DD_APPSEC_RULES=RULES_SRBCA,
+                DD_APPSEC_HTTP_BLOCKED_TEMPLATE_JSON=RESPONSE_CUSTOM_JSON,
+                DD_APPSEC_HTTP_BLOCKED_TEMPLATE_HTML=RESPONSE_CUSTOM_HTML,
+            )
+        ):
+            self._aux_appsec_prepare_tracer()
+            resp = self.client.get("/index.html?toto=suspicious_306_auto")
+            assert resp.status_code == 306
+            assert json.loads(get_response_body(resp)) == CUSTOM_RESPONSE_JSON
+            root_span = self.pop_spans()[0]
+            loaded = json.loads(root_span.get_tag(APPSEC.JSON))
+            assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-040-001"]
+            assert root_span.get_tag(http.STATUS_CODE) == "306"
+            assert root_span.get_tag(http.URL) == "http://localhost/index.html?toto=suspicious_306_auto"
+            assert root_span.get_tag(http.METHOD) == "GET"
+            assert root_span.get_tag(http.USER_AGENT).startswith("werkzeug/")
+            assert root_span.get_tag(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/json"
+
+        # value suspicious_306_auto must be blocked with text if required
+        with override_global_config(dict(_appsec_enabled=True)), override_env(
+            dict(
+                DD_APPSEC_RULES=RULES_SRBCA,
+                DD_APPSEC_HTTP_BLOCKED_TEMPLATE_JSON=RESPONSE_CUSTOM_JSON,
+                DD_APPSEC_HTTP_BLOCKED_TEMPLATE_HTML=RESPONSE_CUSTOM_HTML,
+            )
+        ):
+            self._aux_appsec_prepare_tracer()
+            resp = self.client.get("/index.html?toto=suspicious_306_auto", headers={"Accept": "text/html"})
+            assert resp.status_code == 306
+            assert CUSTOM_HTML_SECRET in get_response_body(resp)
+            root_span = self.pop_spans()[0]
+            loaded = json.loads(root_span.get_tag(APPSEC.JSON))
+            assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-040-001"]
+            assert root_span.get_tag(http.STATUS_CODE) == "306"
+            assert root_span.get_tag(http.URL) == "http://localhost/index.html?toto=suspicious_306_auto"
+            assert root_span.get_tag(http.METHOD) == "GET"
+            assert root_span.get_tag(http.USER_AGENT).startswith("werkzeug/")
+            assert root_span.get_tag(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/html"
+
+        # value suspicious_429_json must be blocked
+        with override_global_config(dict(_appsec_enabled=True)), override_env(
+            dict(
+                DD_APPSEC_RULES=RULES_SRBCA,
+                DD_APPSEC_HTTP_BLOCKED_TEMPLATE_JSON=RESPONSE_CUSTOM_JSON,
+                DD_APPSEC_HTTP_BLOCKED_TEMPLATE_HTML=RESPONSE_CUSTOM_HTML,
+            )
+        ):
+            self._aux_appsec_prepare_tracer()
+            resp = self.client.get("/index.html?toto=suspicious_429_json")
+            assert resp.status_code == 429
+            assert json.loads(get_response_body(resp)) == CUSTOM_RESPONSE_JSON
+            root_span = self.pop_spans()[0]
+            loaded = json.loads(root_span.get_tag(APPSEC.JSON))
+            assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-040-002"]
+            assert root_span.get_tag(http.STATUS_CODE) == "429"
+            assert root_span.get_tag(http.URL) == "http://localhost/index.html?toto=suspicious_429_json"
+            assert root_span.get_tag(http.METHOD) == "GET"
+            assert root_span.get_tag(http.USER_AGENT).startswith("werkzeug/")
+            assert root_span.get_tag(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/json"
+
+        # value suspicious_429_json must be blocked with json even if text if required
+        with override_global_config(dict(_appsec_enabled=True)), override_env(
+            dict(
+                DD_APPSEC_RULES=RULES_SRBCA,
+                DD_APPSEC_HTTP_BLOCKED_TEMPLATE_JSON=RESPONSE_CUSTOM_JSON,
+                DD_APPSEC_HTTP_BLOCKED_TEMPLATE_HTML=RESPONSE_CUSTOM_HTML,
+            )
+        ):
+            self._aux_appsec_prepare_tracer()
+            resp = self.client.get("/index.html?toto=suspicious_429_json", headers={"Accept": "text/html"})
+            assert resp.status_code == 429
+            assert json.loads(get_response_body(resp)) == CUSTOM_RESPONSE_JSON
+            root_span = self.pop_spans()[0]
+            loaded = json.loads(root_span.get_tag(APPSEC.JSON))
+            assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-040-002"]
+            assert root_span.get_tag(http.STATUS_CODE) == "429"
+            assert root_span.get_tag(http.URL) == "http://localhost/index.html?toto=suspicious_429_json"
+            assert root_span.get_tag(http.METHOD) == "GET"
+            assert root_span.get_tag(http.USER_AGENT).startswith("werkzeug/")
+            assert root_span.get_tag(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/json"
+
+        # value suspicious_503_html must be blocked with text even if json is required
+        with override_global_config(dict(_appsec_enabled=True)), override_env(
+            dict(
+                DD_APPSEC_RULES=RULES_SRBCA,
+                DD_APPSEC_HTTP_BLOCKED_TEMPLATE_JSON=RESPONSE_CUSTOM_JSON,
+                DD_APPSEC_HTTP_BLOCKED_TEMPLATE_HTML=RESPONSE_CUSTOM_HTML,
+            )
+        ):
+            self._aux_appsec_prepare_tracer()
+            resp = self.client.get("/index.html?toto=suspicious_503_html")
+            assert resp.status_code == 503
+            assert CUSTOM_HTML_SECRET in get_response_body(resp)
+            root_span = self.pop_spans()[0]
+            loaded = json.loads(root_span.get_tag(APPSEC.JSON))
+            assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-040-003"]
+            assert root_span.get_tag(http.STATUS_CODE) == "503"
+            assert root_span.get_tag(http.URL) == "http://localhost/index.html?toto=suspicious_503_html"
+            assert root_span.get_tag(http.METHOD) == "GET"
+            assert root_span.get_tag(http.USER_AGENT).startswith("werkzeug/")
+            assert root_span.get_tag(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/html"
+
+        # value suspicious_503_html must be blocked with text if required
+        with override_global_config(dict(_appsec_enabled=True)), override_env(
+            dict(
+                DD_APPSEC_RULES=RULES_SRBCA,
+                DD_APPSEC_HTTP_BLOCKED_TEMPLATE_JSON=RESPONSE_CUSTOM_JSON,
+                DD_APPSEC_HTTP_BLOCKED_TEMPLATE_HTML=RESPONSE_CUSTOM_HTML,
+            )
+        ):
+            self._aux_appsec_prepare_tracer()
+            resp = self.client.get("/index.html?toto=suspicious_503_html", headers={"Accept": "text/html"})
+            assert resp.status_code == 503
+            assert CUSTOM_HTML_SECRET in get_response_body(resp)
+            root_span = self.pop_spans()[0]
+            loaded = json.loads(root_span.get_tag(APPSEC.JSON))
+            assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-040-003"]
+            assert root_span.get_tag(http.STATUS_CODE) == "503"
+            assert root_span.get_tag(http.URL) == "http://localhost/index.html?toto=suspicious_503_html"
+            assert root_span.get_tag(http.METHOD) == "GET"
+            assert root_span.get_tag(http.USER_AGENT).startswith("werkzeug/")
+            assert root_span.get_tag(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/html"
+
+        # other values must not be blocked
+        with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
+            self._aux_appsec_prepare_tracer()
+            resp = self.client.get("/index.html?toto=ytrace")
+            assert resp.status_code == 200
+            assert get_response_body(resp) == "Ok: ytrace"
+        # appsec disabled must not block
+        with override_global_config(dict(_appsec_enabled=False)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
+            self._aux_appsec_prepare_tracer(appsec_enabled=False)
+            resp = self.client.get("/index.html?toto=suspicious_306_auto")
+            assert resp.status_code == 200
+            assert get_response_body(resp) == "Ok: suspicious_306_auto"
+
+        # remove cache to avoid using template from other tests
+        uhttp._HTML_BLOCKED_TEMPLATE_CACHE = None
+        uhttp._JSON_BLOCKED_TEMPLATE_CACHE = None
