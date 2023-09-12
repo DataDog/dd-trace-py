@@ -108,7 +108,7 @@ def _extract_suite_name(item):
 
 
 def _extract_session_span(test_object):
-    return getattr(test_object, "_datadog_session_span", None)
+    return getattr(test_object, "_datadog_session_span", None) or getattr(_CIVisibility, "_datadog_session_span", None)
 
 
 def _extract_module_span(test_object, resource_identifier=None):
@@ -413,28 +413,7 @@ def handle_test_wrapper(func, instance, args, kwargs):
         test_module_span = _extract_module_span(instance, test_module_path)
         if hasattr(_CIVisibility, "_unittest_data"):
             if test_module_span is None:
-                test_module_name = _extract_module_name_from_module(instance)
-                test_session_span = _CIVisibility._datadog_session_span
-                resource_name = _generate_module_resource(FRAMEWORK, test_module_name)
-                test_module_span = tracer._start_span(
-                    MODULE_OPERATION_NAME,
-                    service=_CIVisibility._instance._service,
-                    span_type=SpanTypes.TEST,
-                    activate=True,
-                    child_of=test_session_span,
-                    resource=resource_name,
-                )
-                test_module_span.set_tag_str(COMPONENT, COMPONENT_VALUE)
-                test_module_span.set_tag_str(SPAN_KIND, KIND)
-                test_module_span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
-                test_module_span.set_tag_str(test.FRAMEWORK_VERSION, _get_python_version())
-                test_module_span.set_tag_str(test.COMMAND, test_session_span.get_tag(test.COMMAND))
-                test_module_span.set_tag_str(test.TEST_TYPE, SpanTypes.TEST)
-                test_module_span.set_tag_str(_EVENT_TYPE, _MODULE_TYPE)
-                test_module_span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
-                test_module_span.set_tag_str(_MODULE_ID, str(test_module_span.span_id))
-                test_module_span.set_tag_str(test.MODULE, test_module_name)
-                test_module_span.set_tag_str(test.MODULE_PATH, test_module_path)
+                test_module_span = _start_test_module_span(instance)
                 _CIVisibility._unittest_data["modules"][test_module_path]["module_span"] = test_module_span
             if test_suite_span is None:
                 resource_name = _generate_suite_resource(FRAMEWORK, test_suite_name)
