@@ -160,11 +160,9 @@ class EventHub:
                     "must be passed in a list. For example, use dispatch('foo', [[l1, l2], arg2]) "
                     "instead of dispatch('foo', [l1, l2], arg2)."
                 )
-        log.debug("Dispatching event %s", event_id)
         results = []
         exceptions = []
         for listener in self._listeners.get(event_id, []):
-            log.debug("Calling listener %s", listener)
             result = None
             exception = None
             try:
@@ -261,7 +259,6 @@ class ExecutionContext:
         # NB mimic the behavior of `ddtrace.internal._context` by doing lazy inheritance
         current = self
         while current is not None:
-            log.debug("Checking context '%s' for data at key '%s'", current.identifier, data_key)
             if data_key in current._data:
                 return current._data.get(data_key)
             current = current.parent
