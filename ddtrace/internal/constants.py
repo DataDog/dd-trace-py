@@ -79,6 +79,7 @@ FLASK_VIEW_ARGS = "flask.view_args"
 FLASK_URL_RULE = "flask.url_rule"
 
 _HTTPLIB_NO_TRACE_REQUEST = "_dd_no_trace"
+DEFAULT_TIMEOUT = 2.0
 
 
 class _PRIORITY_CATEGORY:
