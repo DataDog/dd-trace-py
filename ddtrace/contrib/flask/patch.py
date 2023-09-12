@@ -120,7 +120,7 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
                         ctype = "text/html" if "text/html" in headers_from_context else "text/json"
                     else:
                         ctype = "text/" + block_config["type"]
-                response_headers = [("content-type", ctype)]
+                    response_headers = [("content-type", ctype)]
                 result = start_response(str(status), response_headers)
                 core.dispatch("flask.start_response.blocked", config.flask, response_headers, status)
             else:
