@@ -1,3 +1,4 @@
+import copy
 import json
 import os
 
@@ -27,13 +28,14 @@ if python_supported_by_iast():
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
-def taint_pyobject_multiranges(pyobject, elements):
+def _taint_pyobject_multiranges(pyobject, elements):
     pyobject_ranges = []
+
+    len_pyobject = len(pyobject)
+    pyobject_newid = new_pyobject_id(pyobject, len_pyobject)
+
     for element in elements:
-        source_name, source_value, source_origin, start, len_pyobject = element
-        if not len_pyobject:
-            len_pyobject = len(pyobject)
-        pyobject_newid = new_pyobject_id(pyobject, len_pyobject)
+        source_name, source_value, source_origin, start, len_range = element
         if isinstance(source_name, (bytes, bytearray)):
             source_name = str(source_name, encoding="utf8")
         if isinstance(source_value, (bytes, bytearray)):
@@ -41,7 +43,7 @@ def taint_pyobject_multiranges(pyobject, elements):
         if source_origin is None:
             source_origin = OriginType.PARAMETER
         source = RangeSource(source_name, source_value, source_origin)
-        pyobject_range = TaintRange(start, len_pyobject, source)
+        pyobject_range = TaintRange(start, len_range, source)
         pyobject_ranges.append(pyobject_range)
 
     set_ranges(pyobject_newid, pyobject_ranges)
@@ -57,13 +59,26 @@ def get_parametrize(vuln_type):
             if evidence_input:
                 sources_expected = element["expected"]["sources"][0]
                 vulnerabilities_expected = element["expected"]["vulnerabilities"][0]
-                yield evidence_input[0], sources_expected, vulnerabilities_expected
+                parameters = element.get("parameters", [])
+                if parameters:
+                    for replace, values in parameters.items():
+                        for value in values:
+                            evidence_input_copy = copy.deepcopy(evidence_input[0])
+                            vulnerabilities_expected_copy = copy.deepcopy(vulnerabilities_expected)
+                            evidence_input_copy["value"] = evidence_input_copy["value"].replace(replace, value)
+                            for value_part in vulnerabilities_expected_copy["evidence"]["valueParts"]:
+                                if value_part.get("value"):
+                                    value_part["value"] = value_part["value"].replace(replace, value)
+
+                            yield evidence_input_copy, sources_expected, vulnerabilities_expected_copy
+                else:
+                    yield evidence_input[0], sources_expected, vulnerabilities_expected
 
 
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 @pytest.mark.parametrize("evidence_input, sources_expected, vulnerabilities_expected", list(get_parametrize(VULN_CMDI)))
 def test_cmdi_redaction_suite(evidence_input, sources_expected, vulnerabilities_expected, iast_span_defaults):
-    tainted_object = taint_pyobject_multiranges(
+    tainted_object = _taint_pyobject_multiranges(
         evidence_input["value"],
         [
             (
