@@ -261,7 +261,7 @@ class RemoteConfigClient(object):
             log.debug(
                 "[%s][P: %s] Requesting RC data from products: %s", os.getpid(), os.getppid(), str(self._products)
             )  # noqa: G200
-            conn = agent.get_connection(self.agent_url, timeout=agent.get_trace_agent_timeout())
+            conn = agent.get_connection(self.agent_url, timeout=ddtrace.config._agent_timeout_seconds)
             conn.request("POST", REMOTE_CONFIG_AGENT_ENDPOINT, payload, self._headers)
             resp = conn.getresponse()
             data = resp.read()

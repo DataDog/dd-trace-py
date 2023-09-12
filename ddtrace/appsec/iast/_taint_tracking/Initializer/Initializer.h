@@ -59,7 +59,7 @@ class Initializer
     TaintedObjectPtr allocate_tainted_object(TaintRangeRefs ranges)
     {
         auto toptr = allocate_tainted_object();
-        toptr->set_values(move(ranges));
+        toptr->set_values(std::move(ranges));
         return toptr;
     }
 
@@ -75,7 +75,7 @@ class Initializer
         if (!from) {
             return allocate_tainted_object();
         }
-        return allocate_tainted_object(move(from->ranges_));
+        return allocate_tainted_object(std::move(from->ranges_));
     }
 
     TaintedObjectPtr allocate_tainted_object_copy(const TaintedObjectPtr& from)
