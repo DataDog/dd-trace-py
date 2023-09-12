@@ -11,14 +11,14 @@ namespace py = pybind11;
 using namespace pybind11::literals;
 
 Source::Source(string name, string value, OriginType origin)
-  : name(move(name))
-  , value(move(value))
+  : name(std::move(name))
+  , value(std::move(value))
   , origin(origin)
 {}
 
 Source::Source(int name, string value, OriginType origin)
   : name(origin_to_str(OriginType{ name }))
-  , value(move(value))
+  , value(std::move(value))
   , origin(origin)
 {}
 
