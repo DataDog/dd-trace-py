@@ -12,6 +12,8 @@ def _sanitize_string_check(value):
     # type: (Any) -> str
     if isinstance(value, str):
         return value
+    elif value is None:
+        return ""
     try:
         return value.decode("utf-8", "ignore")
     except Exception:
@@ -22,7 +24,7 @@ def _sanitize_string_check(value):
 # 3.10 and below (the noop version)
 def _sanitize_string_identity(value):
     # type: (Any) -> str
-    return value
+    return value or ""
 
 
 # Assign based on version
