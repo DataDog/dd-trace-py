@@ -15,7 +15,6 @@ log = get_logger(__name__)
 class PathTraversal(VulnerabilityBase):
     vulnerability_type = VULN_PATH_TRAVERSAL
     evidence_type = EVIDENCE_PATH_TRAVERSAL
-    scrub_evidence = False
 
     @classmethod
     def report(cls, evidence_value=None, sources=None):
