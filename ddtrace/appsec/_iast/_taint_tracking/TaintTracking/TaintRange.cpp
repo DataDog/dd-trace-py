@@ -1,8 +1,6 @@
 #include "TaintRange.h"
 #include "Initializer/Initializer.h"
 
-#include <iostream> // FIXME: remove
-#include <sstream>
 #include <utility>
 
 using namespace pybind11::literals;
@@ -61,8 +59,6 @@ set_fast_tainted_if_notinterned_unicode(const PyObject* objptr)
             PyObject* result = PyObject_CallFunctionObjArgs(HASH_FUNC, objptr, NULL);
             if (result != NULL) {
                 Py_DECREF(result);
-            } else {
-                PyErr_Print();
             }
         }
         e->hidden = _GET_HASH_KEY(objptr);

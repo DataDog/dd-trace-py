@@ -94,11 +94,11 @@ def iast_span_only_sha1(tracer):
 @pytest.fixture(autouse=True)
 def iast_context():
     if _is_python_version_supported():
-        from ddtrace.appsec._iast._taint_tracking import contexts_reset
         from ddtrace.appsec._iast._taint_tracking import create_context
+        from ddtrace.appsec._iast._taint_tracking import reset_context
 
         _ = create_context()
         yield
-        contexts_reset()
+        reset_context()
     else:
         yield

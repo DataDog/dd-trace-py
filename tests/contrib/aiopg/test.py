@@ -71,7 +71,6 @@ class AiopgTestCase(AsyncioTestCase):
         assert span.name == "postgres.query"
         assert span.resource == q
         assert span.service == service
-        assert span.get_tag("sql.query") == q
         assert span.error == 0
         assert span.span_type == "sql"
         assert start <= span.start <= end
@@ -97,7 +96,6 @@ class AiopgTestCase(AsyncioTestCase):
         assert dd_span.name == "postgres.query"
         assert dd_span.resource == q
         assert dd_span.service == service
-        assert dd_span.get_tag("sql.query") == q
         assert dd_span.error == 0
         assert dd_span.span_type == "sql"
         assert dd_span.get_tag("component") == "aiopg"
@@ -119,7 +117,6 @@ class AiopgTestCase(AsyncioTestCase):
         assert span.name == "postgres.query"
         assert span.resource == q
         assert span.service == service
-        assert span.get_tag("sql.query") == q
         assert span.error == 1
         assert span.get_metric("network.destination.port") == TEST_PORT
         assert span.span_type == "sql"

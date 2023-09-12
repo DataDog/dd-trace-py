@@ -35,9 +35,14 @@ from ..utils.time import StopWatch
 from ..utils.version import _pep440_to_semver
 from .constants import TELEMETRY_128_BIT_TRACEID_GENERATION_ENABLED
 from .constants import TELEMETRY_128_BIT_TRACEID_LOGGING_ENABLED
+from .constants import TELEMETRY_AGENT_HOST
+from .constants import TELEMETRY_AGENT_PORT
+from .constants import TELEMETRY_AGENT_URL
 from .constants import TELEMETRY_ANALYTICS_ENABLED
 from .constants import TELEMETRY_ASM_ENABLED
 from .constants import TELEMETRY_CLIENT_IP_ENABLED
+from .constants import TELEMETRY_DOGSTATSD_PORT
+from .constants import TELEMETRY_DOGSTATSD_URL
 from .constants import TELEMETRY_DSM_ENABLED
 from .constants import TELEMETRY_DYNAMIC_INSTRUMENTATION_ENABLED
 from .constants import TELEMETRY_ENABLED
@@ -45,6 +50,9 @@ from .constants import TELEMETRY_EXCEPTION_DEBUGGING_ENABLED
 from .constants import TELEMETRY_LOGS_INJECTION_ENABLED
 from .constants import TELEMETRY_OBFUSCATION_QUERY_STRING_PATTERN
 from .constants import TELEMETRY_OTEL_ENABLED
+from .constants import TELEMETRY_PARTIAL_FLUSH_ENABLED
+from .constants import TELEMETRY_PARTIAL_FLUSH_MIN_SPANS
+from .constants import TELEMETRY_PRIORITY_SAMPLING
 from .constants import TELEMETRY_PROFILING_ENABLED
 from .constants import TELEMETRY_PROPAGATION_STYLE_EXTRACT
 from .constants import TELEMETRY_PROPAGATION_STYLE_INJECT
@@ -55,6 +63,7 @@ from .constants import TELEMETRY_SERVICE_MAPPING
 from .constants import TELEMETRY_SPAN_SAMPLING_RULES
 from .constants import TELEMETRY_SPAN_SAMPLING_RULES_FILE
 from .constants import TELEMETRY_STARTUP_LOGS_ENABLED
+from .constants import TELEMETRY_TRACE_AGENT_TIMEOUT_SECONDS
 from .constants import TELEMETRY_TRACE_API_VERSION
 from .constants import TELEMETRY_TRACE_COMPUTE_STATS
 from .constants import TELEMETRY_TRACE_DEBUG
@@ -328,6 +337,9 @@ class TelemetryWriter(PeriodicService):
                 (TELEMETRY_SPAN_SAMPLING_RULES, config._sampling_rules, "unknown"),
                 (TELEMETRY_SPAN_SAMPLING_RULES_FILE, config._sampling_rules_file, "unknown"),
                 (TELEMETRY_TRACE_SAMPLING_RULES, config._trace_sampling_rules, "unknown"),
+                (TELEMETRY_PRIORITY_SAMPLING, config._priority_sampling, "unknown"),
+                (TELEMETRY_PARTIAL_FLUSH_ENABLED, config._partial_flush_enabled, "unknown"),
+                (TELEMETRY_PARTIAL_FLUSH_MIN_SPANS, config._partial_flush_min_spans, "unknown"),
                 (TELEMETRY_TRACE_SPAN_ATTRIBUTE_SCHEMA, SCHEMA_VERSION, "unknown"),
                 (TELEMETRY_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED, _remove_client_service_names, "unknown"),
                 (TELEMETRY_TRACE_PEER_SERVICE_DEFAULTS_ENABLED, _ps_config.set_defaults_enabled, "unknown"),
@@ -338,6 +350,12 @@ class TelemetryWriter(PeriodicService):
                 (TELEMETRY_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES, config._trace_writer_payload_size, "unknown"),
                 (TELEMETRY_TRACE_WRITER_INTERVAL_SECONDS, config._trace_writer_interval_seconds, "unknown"),
                 (TELEMETRY_TRACE_WRITER_REUSE_CONNECTIONS, config._trace_writer_connection_reuse, "unknown"),
+                (TELEMETRY_DOGSTATSD_PORT, config._stats_agent_port, "unknown"),
+                (TELEMETRY_DOGSTATSD_URL, config._stats_agent_url, "unknown"),
+                (TELEMETRY_AGENT_HOST, config._trace_agent_hostname, "unknown"),
+                (TELEMETRY_AGENT_PORT, config._trace_agent_port, "unknown"),
+                (TELEMETRY_AGENT_URL, config._trace_agent_url, "unknown"),
+                (TELEMETRY_TRACE_AGENT_TIMEOUT_SECONDS, config._agent_timeout_seconds, "unknown"),
             ]
         )
 

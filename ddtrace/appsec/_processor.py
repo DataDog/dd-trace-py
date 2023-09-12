@@ -159,6 +159,7 @@ class AppSecSpanProcessor(SpanProcessor):
                         with open(DEFAULT.API_SECURITY_PARAMETERS, "r") as f_apisec:
                             processors = json.load(f_apisec)
                             rules["processors"] = processors["processors"]
+                            rules["scanners"] = processors["scanners"]
                     self._update_actions(rules)
 
             except EnvironmentError as err:
@@ -289,7 +290,7 @@ class AppSecSpanProcessor(SpanProcessor):
 
         if core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span) or core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
             # We still must run the waf if we need to extract schemas for API SECURITY
-            if not custom_data or not custom_data.get("SETTINGS", {}).get("extract-schema", False):
+            if not custom_data or not custom_data.get("PROCESSOR_SETTINGS", {}).get("extract-schema", False):
                 return None
 
         data = {}
@@ -300,7 +301,7 @@ class AppSecSpanProcessor(SpanProcessor):
 
         # type ignore because mypy seems to not detect that both results of the if
         # above can iter if not None
-        force_keys = custom_data.get("SETTINGS", {}).get("extract-schema", False) if custom_data else False
+        force_keys = custom_data.get("PROCESSOR_SETTINGS", {}).get("extract-schema", False) if custom_data else False
         for key, waf_name in iter_data:  # type: ignore[attr-defined]
             if key in data_already_sent:
                 continue

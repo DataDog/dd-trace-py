@@ -51,11 +51,13 @@ from .internal.serverless import in_azure_function_consumption_plan
 from .internal.serverless import in_gcp_function
 from .internal.serverless.mini_agent import maybe_start_serverless_mini_agent
 from .internal.service import ServiceStatusError
-from .internal.utils.formats import asbool
+from .internal.utils.http import verify_url
+from .internal.writer import AgentResponse
 from .internal.writer import AgentWriter
 from .internal.writer import LogWriter
 from .internal.writer import TraceWriter
 from .provider import DefaultContextProvider
+from .sampler import BasePrioritySampler
 from .sampler import BaseSampler
 from .sampler import DatadogSampler
 from .sampler import RateSampler
@@ -225,20 +227,19 @@ class Tracer(object):
         # traces
         self._pid = getpid()
 
-        self.enabled = asbool(os.getenv("DD_TRACE_ENABLED", default=True))
+        self.enabled = config._tracing_enabled
         self.context_provider = context_provider or DefaultContextProvider()
         self._sampler = DatadogSampler()  # type: BaseSampler
         self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
         self._compute_stats = config._trace_compute_stats
         self._agent_url = agent.get_trace_url() if url is None else url  # type: str
-        agent.verify_url(self._agent_url)
+        verify_url(self._agent_url)
 
         if self._use_log_writer() and url is None:
             writer = LogWriter()  # type: TraceWriter
         else:
             writer = AgentWriter(
                 agent_url=self._agent_url,
-                sampler=self._sampler,
                 priority_sampling=config._priority_sampling,
                 dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
                 sync_mode=self._use_sync_mode(),
@@ -246,8 +247,8 @@ class Tracer(object):
             )
         self._single_span_sampling_rules = get_span_sampling_rules()  # type: List[SpanSamplingRule]
         self._writer = writer  # type: TraceWriter
-        self._partial_flush_enabled = asbool(os.getenv("DD_TRACE_PARTIAL_FLUSH_ENABLED", default=True))
-        self._partial_flush_min_spans = int(os.getenv("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", default=500))
+        self._partial_flush_enabled = config._partial_flush_enabled
+        self._partial_flush_min_spans = config._partial_flush_min_spans
         self._appsec_enabled = config._appsec_enabled
         # Direct link to the appsec processor
         self._appsec_processor = None
@@ -438,7 +439,7 @@ class Tracer(object):
                     port = prev_url_parsed.port
                 scheme = "https" if https else "http"
                 new_url = "%s://%s:%s" % (scheme, hostname, port)
-            agent.verify_url(new_url)
+            verify_url(new_url)
             self._agent_url = new_url
         else:
             new_url = None
@@ -457,12 +458,12 @@ class Tracer(object):
         elif any(x is not None for x in [new_url, api_version, sampler, dogstatsd_url]):
             self._writer = AgentWriter(
                 self._agent_url,
-                sampler=self._sampler,
                 priority_sampling=priority_sampling in (None, True) or config._priority_sampling,
                 dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
                 sync_mode=self._use_sync_mode(),
                 api_version=api_version,
                 headers={"Datadog-Client-Computed-Stats": "yes"} if compute_stats_enabled else {},
+                response_callback=self._agent_response_callback,
             )
         elif writer is None and isinstance(self._writer, LogWriter):
             # No need to do anything for the LogWriter.
@@ -509,6 +510,20 @@ class Tracer(object):
             self._wrap_executor = wrap_executor
 
         self._generate_diagnostic_logs()
+
+    def _agent_response_callback(self, resp):
+        # type: (AgentResponse) -> None
+        """Handle the response from the agent.
+
+        The agent can return updated sample rates for the priority sampler.
+        """
+        try:
+            if isinstance(self._sampler, BasePrioritySampler):
+                self._sampler.update_rate_by_service_sample_rates(
+                    resp.rate_by_service,
+                )
+        except ValueError:
+            log.error("sample_rate is negative, cannot update the rate samplers")
 
     def _generate_diagnostic_logs(self):
         if config._debug_mode or config._startup_logs_enabled:

@@ -5,8 +5,6 @@ try:
     from ddtrace.appsec._iast._taint_tracking import OriginType
     from ddtrace.appsec._iast._taint_tracking import Source
     from ddtrace.appsec._iast._taint_tracking import TaintRange
-    from ddtrace.appsec._iast._taint_tracking import contexts_reset
-    from ddtrace.appsec._iast._taint_tracking import create_context
     from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
     from ddtrace.appsec._iast._taint_tracking import taint_pyobject
     from tests.appsec.iast.aspects.conftest import _iast_patched_module
@@ -16,13 +14,6 @@ except (ImportError, AttributeError):
 mod = _iast_patched_module("tests.appsec.iast.fixtures.aspects.str_methods")
 
 _SOURCE1 = Source("test", "foobar", OriginType.PARAMETER)
-
-
-@pytest.fixture(autouse=True)
-def reset_context():
-    yield
-    contexts_reset()
-    _ = create_context()
 
 
 @pytest.mark.parametrize(
