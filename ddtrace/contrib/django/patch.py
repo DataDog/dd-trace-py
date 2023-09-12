@@ -477,7 +477,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                     response = HttpResponse("", status=status)
                     location = block_config.get("location", "")
                     if location:
-                        response.headers["location"] = location
+                        response["location"] = location
                 else:
                     if desired_type == "auto":
                         ctype = "text/html" if "text/html" in request_headers.get("Accept", "").lower() else "text/json"
