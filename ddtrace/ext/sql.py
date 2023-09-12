@@ -9,7 +9,6 @@ from ddtrace.vendor.debtcollector import deprecate
 log = get_logger(__name__)
 
 # tags
-QUERY = "sql.query"  # the query text
 DB = "sql.db"  # the name of the database
 
 

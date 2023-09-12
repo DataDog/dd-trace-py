@@ -6,13 +6,12 @@ from typing import Union
 
 from ddtrace.internal.compat import ensure_str
 from ddtrace.internal.logger import get_logger
+from ddtrace.settings import _config as ddconfig
 
 from .http import HTTPConnection
 from .http import HTTPSConnection
 from .uds import UDSHTTPConnection
-from .utils.http import DEFAULT_TIMEOUT
 from .utils.http import get_connection
-from .utils.http import verify_url  # noqa
 
 
 DEFAULT_HOSTNAME = "localhost"
@@ -20,7 +19,6 @@ DEFAULT_TRACE_PORT = 8126
 DEFAULT_UNIX_TRACE_PATH = "/var/run/datadog/apm.socket"
 DEFAULT_UNIX_DSD_PATH = "/var/run/datadog/dsd.socket"
 DEFAULT_STATS_PORT = 8125
-DEFAULT_TRACE_URL = "http://%s:%s" % (DEFAULT_HOSTNAME, DEFAULT_TRACE_PORT)
 
 ConnectionType = Union[HTTPSConnection, HTTPConnection, UDSHTTPConnection]
 
@@ -41,81 +39,56 @@ def is_ipv6_hostname(hostname):
         return False
 
 
-def get_trace_hostname(default=DEFAULT_HOSTNAME):
-    # type: (Union[T, str]) -> Union[T, str]
-    hostname = os.environ.get("DD_AGENT_HOST", os.environ.get("DD_TRACE_AGENT_HOSTNAME", default))
-    return "[{}]".format(hostname) if is_ipv6_hostname(hostname) else hostname
-
-
-def get_stats_hostname(default=DEFAULT_HOSTNAME):
-    # type: (Union[T, str]) -> Union[T, str]
-    hostname = os.environ.get("DD_AGENT_HOST", os.environ.get("DD_DOGSTATSD_HOST", default))
-    return "[{}]".format(hostname) if is_ipv6_hostname(hostname) else hostname
-
-
-def get_trace_port(default=DEFAULT_TRACE_PORT):
-    # type: (Union[T, int]) -> Union[T,int]
-    v = os.environ.get("DD_AGENT_PORT", os.environ.get("DD_TRACE_AGENT_PORT"))
-    if v is not None:
-        return int(v)
-    return default
-
-
-def get_stats_port(default=DEFAULT_STATS_PORT):
-    # type: (Union[T, int]) -> Union[T,int]
-    v = os.getenv("DD_DOGSTATSD_PORT", default=None)
-    if v is not None:
-        return int(v)
-    return default
-
-
-def get_trace_agent_timeout():
-    # type: () -> float
-    return float(os.getenv("DD_TRACE_AGENT_TIMEOUT_SECONDS", default=DEFAULT_TIMEOUT))
-
-
 def get_trace_url():
     # type: () -> str
     """Return the Agent URL computed from the environment.
 
     Raises a ``ValueError`` if the URL is not supported by the Agent.
     """
-    user_supplied_host = get_trace_hostname(None) is not None
-    user_supplied_port = get_trace_port(None) is not None
+    user_supplied_host = ddconfig._trace_agent_hostname is not None
+    user_supplied_port = ddconfig._trace_agent_port is not None
 
-    url = os.environ.get("DD_TRACE_AGENT_URL")
+    url = ddconfig._trace_agent_url
 
     if not url:
         if user_supplied_host or user_supplied_port:
-            url = "http://%s:%s" % (get_trace_hostname(), get_trace_port())
+            host = ddconfig._trace_agent_hostname or DEFAULT_HOSTNAME
+            port = ddconfig._trace_agent_port or DEFAULT_TRACE_PORT
+            if is_ipv6_hostname(host):
+                host = "[{}]".format(host)
+            url = "http://%s:%s" % (host, port)
         elif os.path.exists("/var/run/datadog/apm.socket"):
             url = "unix://%s" % (DEFAULT_UNIX_TRACE_PATH)
         else:
-            url = DEFAULT_TRACE_URL
+            url = "http://{}:{}".format(DEFAULT_HOSTNAME, DEFAULT_TRACE_PORT)
 
     return url
 
 
 def get_stats_url():
     # type: () -> str
-    user_supplied_host = get_stats_hostname(None) is not None
-    user_supplied_port = get_stats_port(None) is not None
+    user_supplied_host = ddconfig._stats_agent_hostname is not None
+    user_supplied_port = ddconfig._stats_agent_port is not None
 
-    url = os.getenv("DD_DOGSTATSD_URL", default=None)
+    url = ddconfig._stats_agent_url
 
     if not url:
         if user_supplied_host or user_supplied_port:
-            url = "udp://{}:{}".format(get_stats_hostname(), get_stats_port())
+            port = ddconfig._stats_agent_port or DEFAULT_STATS_PORT
+            host = ddconfig._stats_agent_hostname or DEFAULT_HOSTNAME
+            if is_ipv6_hostname(host):
+                host = "[{}]".format(host)
+            url = "udp://{}:{}".format(host, port)
         elif os.path.exists("/var/run/datadog/dsd.socket"):
             url = "unix://%s" % (DEFAULT_UNIX_DSD_PATH)
         else:
-            url = "udp://{}:{}".format(get_stats_hostname(), get_stats_port())
+            url = "udp://{}:{}".format(DEFAULT_HOSTNAME, DEFAULT_STATS_PORT)
     return url
 
 
 def info():
     agent_url = get_trace_url()
-    _conn = get_connection(agent_url, timeout=get_trace_agent_timeout())
+    _conn = get_connection(agent_url, timeout=ddconfig._agent_timeout_seconds)
     try:
         _conn.request("GET", "info", headers={"content-type": "application/json"})
         resp = _conn.getresponse()
