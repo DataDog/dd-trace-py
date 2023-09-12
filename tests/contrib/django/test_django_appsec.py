@@ -876,7 +876,7 @@ def test_request_suspicious_request_redirect_actions(client, test_spans, tracer,
         assert response.status_code == expected_code
         # check if response content is custom as expected
         assert not response.content
-        assert response.headers["location"] == "https://www.datadoghq.com"
+        assert response["location"] == "https://www.datadoghq.com"
         loaded = json.loads(root_span.get_tag(APPSEC.JSON))
         assert [t["rule"]["id"] for t in loaded["triggers"]] == [rule]
 
