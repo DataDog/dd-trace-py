@@ -352,7 +352,9 @@ def test_startup_logs_sampling_rules():
     tracer.configure(sampler=sampler)
     f = debug.collect(tracer)
 
-    assert f.get("sampler_rules") == ["SamplingRule(sample_rate=1.0, service='NO_RULE', name='NO_RULE')"]
+    assert f.get("sampler_rules") == [
+        "SamplingRule(sample_rate=1.0, service='NO_RULE', name='NO_RULE', resource='NO_RULE', tags='NO_RULE')"
+    ]
 
     sampler = ddtrace.sampler.DatadogSampler(
         rules=[ddtrace.sampler.SamplingRule(sample_rate=1.0, service="xyz", name="abc")]
@@ -360,7 +362,9 @@ def test_startup_logs_sampling_rules():
     tracer.configure(sampler=sampler)
     f = debug.collect(tracer)
 
-    assert f.get("sampler_rules") == ["SamplingRule(sample_rate=1.0, service='xyz', name='abc')"]
+    assert f.get("sampler_rules") == [
+        "SamplingRule(sample_rate=1.0, service='xyz', name='abc', resource='NO_RULE', tags='NO_RULE')"
+    ]
 
 
 def test_error_output_ddtracerun_debug_mode():

@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING
 
 from ddtrace.internal.compat import pattern_type
 from ddtrace.internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
+from ddtrace.internal.glob_matching import GlobMatcher
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.cache import cachedmethod
 
@@ -30,6 +31,7 @@ class SamplingRule(object):
         service=NO_RULE,  # type: Any
         name=NO_RULE,  # type: Any
         resource=NO_RULE,  # type: Any
+        tags=NO_RULE,  # type: Any
     ):
         # type: (...) -> None
         """
@@ -57,6 +59,10 @@ class SamplingRule(object):
         :type service: :obj:`object` to directly compare, :obj:`function` to evaluate, or :class:`re.Pattern` to match
         :param name: Rule to match the `span.name` on, default no rule defined
         :type name: :obj:`object` to directly compare, :obj:`function` to evaluate, or :class:`re.Pattern` to match
+        :param tags: A dictionary whose keys exactly match the names of tags expected to appear on spans, and whose
+            values are glob-matches with the expected span tag values. Glob matching supports "*" meaning any
+            number of characters, and "?" meaning any one character. If all tags specified in a SamplingRule are
+            matches with a given span, that span is considered to have matching tags with the rule.
         """
         # Enforce sample rate constraints
         if not 0.0 <= sample_rate <= 1.0:
@@ -66,10 +72,13 @@ class SamplingRule(object):
                 ).format(sample_rate)
             )
 
+        self._tag_value_matchers = {k: GlobMatcher(v) for k, v in tags.items()} if tags != SamplingRule.NO_RULE else {}
+
         self.sample_rate = sample_rate
         self.service = service
         self.name = name
         self.resource = resource
+        self.tags = tags
 
     @property
     def sample_rate(self):
@@ -114,6 +123,7 @@ class SamplingRule(object):
     @cachedmethod()
     def _matches(self, key):
         # type: (Tuple[Optional[str], str, Optional[str]]) -> bool
+        # self._matches exists to maintain legacy pattern values such as regex and functions
         service, name, resource = key
         for prop, pattern in [(service, self.service), (name, self.name), (resource, self.resource)]:
             if not self._pattern_matches(prop, pattern):
@@ -131,8 +141,29 @@ class SamplingRule(object):
         :returns: Whether this span matches or not
         :rtype: :obj:`bool`
         """
-        # self._matches exists to maintain legacy pattern values such as regex and functions
-        return self._matches((span.service, span.name, span.resource))
+        glob_match = self.glob_matches(span)
+        return glob_match and self._matches((span.service, span.name, span.resource))
+
+    def glob_matches(self, span):
+        # type: (Span) -> bool
+        tag_match = True
+        if self._tag_value_matchers:
+            tag_match = self.tag_match(span.get_tags())
+        return tag_match
+
+    def tag_match(self, tags):
+        if tags is None:
+            return False
+
+        tag_match = False
+        for tag_key in self._tag_value_matchers.keys():
+            value = tags.get(tag_key)
+            if value is not None:
+                tag_match = self._tag_value_matchers[tag_key].match(value)
+            else:
+                # if we don't match with all specified tags for a rule, it's not a match
+                return False
+        return tag_match
 
     def sample(self, span, allow_false=True):
         # type: (Span, bool) -> bool
@@ -158,11 +189,13 @@ class SamplingRule(object):
         return "NO_RULE" if val is self.NO_RULE else val
 
     def __repr__(self):
-        return "{}(sample_rate={!r}, service={!r}, name={!r})".format(
+        return "{}(sample_rate={!r}, service={!r}, name={!r}, resource={!r}, tags={!r})".format(
             self.__class__.__name__,
             self.sample_rate,
             self._no_rule_or_self(self.service),
             self._no_rule_or_self(self.name),
+            self._no_rule_or_self(self.resource),
+            self._no_rule_or_self(self.tags),
         )
 
     __str__ = __repr__
@@ -177,4 +210,5 @@ class SamplingRule(object):
             and self.service == other.service
             and self.name == other.name
             and self.resource == other.resource
+            and self.tags == other.tags
         )
