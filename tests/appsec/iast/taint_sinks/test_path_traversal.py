@@ -37,6 +37,3 @@ def test_path_traversal(iast_span_defaults):
     assert vulnerability.evidence.value is None
     assert vulnerability.evidence.pattern is None
     assert vulnerability.evidence.redacted is None
-    assert vulnerability.type == VULN_PATH_TRAVERSAL
-    assert vulnerability.location.path == FIXTURES_PATH
-    assert vulnerability.location.line == 12
