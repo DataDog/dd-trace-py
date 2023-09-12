@@ -24,7 +24,7 @@ class TestPytest(TracerTestCase):
 
         class CIVisibilityPlugin:
             @staticmethod
-            def pytest_configure(config):
+            def pytest_sessionstart(config):
                 if is_enabled(config):
                     with _patch_dummy_writer():
                         assert CIVisibility.enabled
