@@ -16,6 +16,8 @@ from ddtrace.contrib.kafka.patch import patch
 from ddtrace.contrib.kafka.patch import unpatch
 from ddtrace.filters import TraceFilter
 import ddtrace.internal.datastreams  # noqa: F401 - used as part of mock patching
+from ddtrace.internal.datastreams.processor import ConsumerPartitionKey
+from ddtrace.internal.datastreams.processor import PartitionKey
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from tests.contrib.config import KAFKA_CONFIG
 from tests.utils import DummyTracer
@@ -94,6 +96,22 @@ def consumer(tracer, kafka_topic):
             "bootstrap.servers": BOOTSTRAP_SERVERS,
             "group.id": GROUP_ID,
             "auto.offset.reset": "earliest",
+        }
+    )
+    Pin.override(_consumer, tracer=tracer)
+    _consumer.subscribe([kafka_topic])
+    yield _consumer
+    _consumer.close()
+
+
+@pytest.fixture
+def non_auto_commit_consumer(tracer, kafka_topic):
+    _consumer = confluent_kafka.Consumer(
+        {
+            "bootstrap.servers": BOOTSTRAP_SERVERS,
+            "group.id": GROUP_ID,
+            "auto.offset.reset": "earliest",
+            "enable.auto.commit": False,
         }
     )
     Pin.override(_consumer, tracer=tracer)
@@ -455,3 +473,49 @@ if __name__ == "__main__":
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, out.decode()
     assert err == b"", err.decode()
+
+
+def test_data_streams_kafka_offset_monitoring_messages(dsm_processor, consumer, producer, kafka_topic):
+    PAYLOAD = bytes("data streams", encoding="utf-8") if six.PY3 else bytes("data streams")
+    try:
+        del dsm_processor._current_context.value
+    except AttributeError:
+        pass
+    producer.produce(kafka_topic, PAYLOAD, key="test_key_2")
+    producer.flush()
+    message = None
+
+    while message is None or str(message.value()) != str(PAYLOAD):
+        message = consumer.poll(1.0)
+        if message:
+            consumer.commit(asynchronous=False, message=message)
+    buckets = dsm_processor._buckets
+    assert len(buckets) == 1
+    assert list(buckets.values())[0].latest_produce_offsets[PartitionKey(kafka_topic, 0)] > 0
+    assert list(buckets.values())[0].latest_commit_offsets[ConsumerPartitionKey("test_group", kafka_topic, 0)] > 0
+
+
+def test_data_streams_kafka_offset_monitoring_offsets(dsm_processor, non_auto_commit_consumer, producer, kafka_topic):
+    consumer = non_auto_commit_consumer
+    PAYLOAD = bytes("data streams", encoding="utf-8") if six.PY3 else bytes("data streams")
+    try:
+        del dsm_processor._current_context.value
+    except AttributeError:
+        pass
+    producer.produce(kafka_topic, PAYLOAD, key="test_key_2")
+    producer.flush()
+    message = None
+
+    while message is None or str(message.value()) != str(PAYLOAD):
+        message = consumer.poll(1.0)
+        if message and message.offset() is not None:
+            tp = TopicPartition(message.topic(), message.partition())
+            tp.offset = message.offset() + 1
+            offsets = [tp]
+
+            consumer.commit(asynchronous=False, offsets=offsets)
+
+    buckets = dsm_processor._buckets
+    assert len(buckets) == 1
+    assert list(buckets.values())[0].latest_produce_offsets[PartitionKey(kafka_topic, 0)] > 0
+    assert list(buckets.values())[0].latest_commit_offsets[ConsumerPartitionKey("test_group", kafka_topic, 0)] > 0
