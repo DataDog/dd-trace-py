@@ -70,8 +70,8 @@ class VulnerabilityBase(Operation):
         # type: (Callable) -> Callable
         def wrapper(wrapped, instance, args, kwargs):
             # type: (Callable, Any, Any, Any) -> Any
-            """Get the current root Span and attach it to the wrapped function. We need the span to report the vulnerability
-            and update the context with the report information.
+            """Get the current root Span and attach it to the wrapped function. We need the span to report the
+            vulnerability and update the context with the report information.
             """
             if oce.request_has_quota and cls.has_quota():
                 return func(wrapped, instance, args, kwargs)
@@ -192,6 +192,22 @@ class VulnerabilityBase(Operation):
         return ""
 
     @classmethod
+    def replace_tokens(
+        cls,
+        vuln,
+        vulns_to_tokens,
+        has_range=False,
+    ):
+        ret = vuln.evidence.value
+        replaced = False
+
+        for token in vulns_to_tokens[hash(vuln)]["tokens"]:
+            ret = ret.replace(token, _scrub(token, has_range))
+            replaced = True
+
+        return ret, replaced
+
+    @classmethod
     def _redact_report(cls, report):  # type: (IastSpanReporter) -> IastSpanReporter
         if not _config._iast_redaction_enabled:
             return report
@@ -243,22 +259,12 @@ class VulnerabilityBase(Operation):
                 source.redacted = True
                 source.value = None
 
-        def replace_tokens(vuln, has_range=False):
-            ret = vuln.evidence.value
-            replaced = False
-
-            for token in vulns_to_tokens[hash(vuln)]["tokens"]:
-                ret = ret.replace(token, _scrub(token, has_range))
-                replaced = True
-
-            return ret, replaced
-
         # Same for all the evidence values
         for vuln in report.vulnerabilities:
             # Use the initial hash directly as iteration key since the vuln itself will change
             vuln_hash = hash(vuln)
             if vuln.evidence.value is not None:
-                pattern, replaced = replace_tokens(vuln, hasattr(vuln.evidence.value, "source"))
+                pattern, replaced = cls.replace_tokens(vuln, vulns_to_tokens, hasattr(vuln.evidence.value, "source"))
                 if replaced:
                     vuln.evidence.pattern = pattern
                     vuln.evidence.redacted = True
