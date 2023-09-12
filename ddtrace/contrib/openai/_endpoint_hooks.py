@@ -91,7 +91,6 @@ class _BaseCompletionHook(_EndpointHook):
             try:
                 num_prompt_tokens = span.get_metric("openai.response.usage.prompt_tokens") or 0
                 num_completion_tokens = yield
-
                 span.set_metric("openai.response.usage.completion_tokens", num_completion_tokens)
                 total_tokens = num_prompt_tokens + num_completion_tokens
                 span.set_metric("openai.response.usage.total_tokens", total_tokens)
@@ -180,8 +179,15 @@ class _CompletionHook(_BaseCompletionHook):
             elif prompt:
                 for idx, p in enumerate(prompt):
                     span.set_tag_str("openai.request.prompt.%d" % idx, integration.trunc(str(p)))
+        return
+
+    def _record_response(self, pin, integration, span, args, kwargs, resp, error):
+        if not resp:
+            return self._handle_response(pin, span, integration, resp)
+        prompt = kwargs.get("prompt", "")
         if kwargs.get("stream"):
             num_prompt_tokens = 0
+            estimated = False
             if isinstance(prompt, str) or isinstance(prompt, list) and isinstance(prompt[0], int):
                 estimated, prompt_tokens = _compute_prompt_token_count(prompt, kwargs.get("model"))
                 num_prompt_tokens += prompt_tokens
@@ -191,10 +197,6 @@ class _CompletionHook(_BaseCompletionHook):
                     num_prompt_tokens += prompt_tokens
             span.set_metric("openai.request.prompt_tokens_estimated", int(estimated))
             span.set_metric("openai.response.usage.prompt_tokens", num_prompt_tokens)
-        return
-
-    def _record_response(self, pin, integration, span, args, kwargs, resp, error):
-        if not resp or kwargs.get("stream"):
             return self._handle_response(pin, span, integration, resp)
         if "choices" in resp:
             choices = resp["choices"]
@@ -212,7 +214,6 @@ class _CompletionHook(_BaseCompletionHook):
                     span.set_tag_str("openai.response.choices.%d.text" % idx, integration.trunc(choice.get("text")))
         integration.record_usage(span, resp.get("usage"))
         if integration.is_pc_sampled_log(span):
-            prompt = kwargs.get("prompt", "")
             integration.log(
                 span,
                 "info" if error is None else "error",
@@ -254,19 +255,20 @@ class _ChatCompletionHook(_BaseCompletionHook):
                 span.set_tag_str("openai.request.messages.%d.content" % idx, content)
                 span.set_tag_str("openai.request.messages.%d.role" % idx, role)
                 span.set_tag_str("openai.request.messages.%d.name" % idx, name)
+        return
+
+    def _record_response(self, pin, integration, span, args, kwargs, resp, error):
+        if not resp:
+            return self._handle_response(pin, span, integration, resp)
+        messages = kwargs.get("messages")
         if kwargs.get("stream"):
-            # streamed responses do not have a usage field, so we have to
-            # estimate the number of tokens returned.
             est_num_message_tokens = 0
+            estimated = False
             for m in messages:
                 estimated, prompt_tokens = _compute_prompt_token_count(m.get("content", ""), kwargs.get("model"))
                 est_num_message_tokens += prompt_tokens
             span.set_metric("openai.request.prompt_tokens_estimated", int(estimated))
             span.set_metric("openai.response.usage.prompt_tokens", est_num_message_tokens)
-        return
-
-    def _record_response(self, pin, integration, span, args, kwargs, resp, error):
-        if not resp or kwargs.get("stream"):
             return self._handle_response(pin, span, integration, resp)
         choices = resp.get("choices", [])
         span.set_metric("openai.response.choices_count", len(choices))
@@ -291,7 +293,6 @@ class _ChatCompletionHook(_BaseCompletionHook):
                 )
         integration.record_usage(span, resp.get("usage"))
         if integration.is_pc_sampled_log(span):
-            messages = kwargs.get("messages")
             integration.log(
                 span,
                 "info" if error is None else "error",
