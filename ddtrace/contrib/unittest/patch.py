@@ -257,7 +257,7 @@ def _generate_module_suite_path(test_module_path, test_suite_name):
     return test_module_path + "." + test_suite_name
 
 
-def _populate_suites_and_modules(test_objects, seen_modules, seen_suites):
+def _populate_suites_and_modules(test_objects, seen_suites, seen_modules):
     for test_object in test_objects:
         test_module_name = os.path.relpath(inspect.getfile(test_object.__class__))
         test_suite_name = _extract_class_hierarchy_name(test_object)
@@ -285,10 +285,27 @@ def _finish_remaining_suites_and_modules(seen_suites, seen_modules):
         if suite["expected_tests"] != suite["ran_tests"] and suite["suite_span"]:
             _update_status_item(suite["suite_span"]._parent, suite["suite_span"].get_tag(test.STATUS))
             suite["suite_span"].finish()
+
     for module in seen_modules.values():
         if module["expected_suites"] != module["ran_suites"] and module["module_span"]:
             _update_status_item(module["module_span"]._parent, module["module_span"].get_tag(test.STATUS))
             module["module_span"].finish()
+
+
+def _update_remaining_suites_and_modules(test_module_suite_path, test_module_path, test_module_span, test_suite_span):
+    _CIVisibility._unittest_data["suites"][test_module_suite_path]["ran_tests"] += 1
+    if (
+        _CIVisibility._unittest_data["suites"][test_module_suite_path]["ran_tests"]
+        == _CIVisibility._unittest_data["suites"][test_module_suite_path]["expected_tests"]
+    ):
+        _CIVisibility._unittest_data["modules"][test_module_path]["ran_suites"] += 1
+        _update_status_item(test_module_span, test_suite_span.get_tag(test.STATUS))
+        test_suite_span.finish()
+    if (
+        _CIVisibility._unittest_data["modules"][test_module_path]["ran_suites"]
+        == _CIVisibility._unittest_data["modules"][test_module_path]["expected_suites"]
+    ):
+        _finish_test_module_span(test_module_span)
 
 
 def patch():
@@ -417,7 +434,7 @@ def handle_test_wrapper(func, instance, args, kwargs):
                 test_module_span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
                 test_module_span.set_tag_str(_MODULE_ID, str(test_module_span.span_id))
                 test_module_span.set_tag_str(test.MODULE, test_module_name)
-                test_module_span.set_tag_str(test.MODULE_PATH, os.path.relpath(inspect.getfile(instance.__class__)))
+                test_module_span.set_tag_str(test.MODULE_PATH, test_module_path)
                 _CIVisibility._unittest_data["modules"][test_module_path]["module_span"] = test_module_span
             if test_suite_span is None:
                 resource_name = _generate_suite_resource(FRAMEWORK, test_suite_name)
@@ -479,19 +496,9 @@ def handle_test_wrapper(func, instance, args, kwargs):
         _update_status_item(test_suite_span, span.get_tag(test.STATUS))
         span.finish()
         if hasattr(_CIVisibility, "_unittest_data"):
-            _CIVisibility._unittest_data["suites"][test_module_suite_path]["ran_tests"] += 1
-            if (
-                _CIVisibility._unittest_data["suites"][test_module_suite_path]["ran_tests"]
-                == _CIVisibility._unittest_data["suites"][test_module_suite_path]["expected_tests"]
-            ):
-                _CIVisibility._unittest_data["modules"][test_module_path]["ran_suites"] += 1
-                _update_status_item(test_module_span, test_suite_span.get_tag(test.STATUS))
-                test_suite_span.finish()
-            if (
-                _CIVisibility._unittest_data["modules"][test_module_path]["ran_suites"]
-                == _CIVisibility._unittest_data["modules"][test_module_path]["expected_suites"]
-            ):
-                _finish_test_module_span(test_module_span)
+            _update_remaining_suites_and_modules(
+                test_module_suite_path, test_module_path, test_module_span, test_suite_span
+            )
         return result
     return func(*args, **kwargs)
 
@@ -509,10 +516,10 @@ def handle_module_suite_wrapper(func, instance, args, kwargs):
                     _CIVisibility._unittest_data = {"suites": {}, "modules": {}}
                 seen_suites = _CIVisibility._unittest_data["suites"]
                 seen_modules = _CIVisibility._unittest_data["modules"]
-                _populate_suites_and_modules(instance._tests, seen_modules, seen_suites)
+                _populate_suites_and_modules(instance._tests, seen_suites, seen_modules)
                 result = func(*args, **kwargs)
 
-                _finish_remaining_suites_and_modules(seen_modules, seen_suites)
+                _finish_remaining_suites_and_modules(seen_suites, seen_modules)
                 return result
             test_module_span = _extract_module_span(instance)
             test_suite_name = _extract_suite_name(instance)
