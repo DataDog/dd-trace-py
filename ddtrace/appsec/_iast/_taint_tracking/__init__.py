@@ -32,6 +32,7 @@ if _is_python_version_supported():
     from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import set_ranges
     from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import shift_taint_range
     from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import shift_taint_ranges
+    from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import str_to_origin
     from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import taint_range as TaintRange
 
     new_pyobject_id = ops.new_pyobject_id
@@ -68,6 +69,7 @@ __all__ = [
     "initializer_size",
     "active_map_addreses_size",
     "create_context",
+    "str_to_origin",
     "common_replace",
     "as_formatted_evidence",
     "parse_params",
