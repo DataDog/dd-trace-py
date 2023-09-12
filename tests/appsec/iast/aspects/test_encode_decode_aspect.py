@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 import pytest
 
-from ddtrace.appsec.iast._utils import _is_python_version_supported as python_supported_by_iast
+from ddtrace.appsec._iast._utils import _is_python_version_supported as python_supported_by_iast
 
 
 try:
