@@ -1674,26 +1674,34 @@ def test_configure_url_partial():
     assert tracer._writer.agent_url == "http://abc:431"
 
 
-def test_bad_agent_url(monkeypatch):
-    with pytest.raises(ValueError):
-        Tracer(url="bad://localhost:8126")
+@pytest.mark.subprocess(env={"DD_TRACE_AGENT_URL": "bad://localhost:1234"})
+def test_bad_agent_url():
+    import pytest
 
-    monkeypatch.setenv("DD_TRACE_AGENT_URL", "bad://localhost:1234")
     with pytest.raises(ValueError) as e:
-        Tracer()
+        from ddtrace import tracer  # noqa: F401
+
     assert (
         str(e.value)
         == "Unsupported protocol 'bad' in intake URL 'bad://localhost:1234'. Must be one of: http, https, unix"
     )
 
-    monkeypatch.setenv("DD_TRACE_AGENT_URL", "unix://")
+
+@pytest.mark.subprocess(env={"DD_TRACE_AGENT_URL": "unix://"})
+def test_bad_agent_url_invalid_path():
+    import pytest
+
     with pytest.raises(ValueError) as e:
-        Tracer()
+        from ddtrace import tracer  # noqa: F401
     assert str(e.value) == "Invalid file path in intake URL 'unix://'"
 
-    monkeypatch.setenv("DD_TRACE_AGENT_URL", "http://")
+
+@pytest.mark.subprocess(env={"DD_TRACE_AGENT_URL": "http://"})
+def test_bad_agent_url_invalid_hostname():
+    import pytest
+
     with pytest.raises(ValueError) as e:
-        Tracer()
+        from ddtrace import tracer  # noqa: F401
     assert str(e.value) == "Invalid hostname in intake URL 'http://'"
 
 
