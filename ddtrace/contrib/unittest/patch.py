@@ -259,25 +259,25 @@ def _generate_module_suite_path(test_module_path, test_suite_name):
 
 def _populate_suites_and_modules(test_objects, seen_suites, seen_modules):
     for test_object in test_objects:
-        test_module_name = os.path.relpath(inspect.getfile(test_object.__class__))
+        test_module_path = _extract_module_file_path(test_object)
         test_suite_name = _extract_class_hierarchy_name(test_object)
-        module_suite_name = test_module_name + "." + test_suite_name
-        if test_module_name not in seen_modules:
-            seen_modules[test_module_name] = {
+        test_module_suite_path = test_module_path + "." + test_suite_name
+        if test_module_path not in seen_modules:
+            seen_modules[test_module_path] = {
                 "module_span": None,
                 "expected_suites": 0,
                 "ran_suites": 0,
             }
-        if module_suite_name not in seen_suites:
-            seen_suites[module_suite_name] = {
+        if test_module_suite_path not in seen_suites:
+            seen_suites[test_module_suite_path] = {
                 "suite_span": None,
                 "expected_tests": 0,
                 "ran_tests": 0,
             }
 
-            seen_modules[test_module_name]["expected_suites"] += 1
+            seen_modules[test_module_path]["expected_suites"] += 1
 
-        seen_suites[module_suite_name]["expected_tests"] += 1
+        seen_suites[test_module_suite_path]["expected_tests"] += 1
 
 
 def _finish_remaining_suites_and_modules(seen_suites, seen_modules):
@@ -416,29 +416,7 @@ def handle_test_wrapper(func, instance, args, kwargs):
                 test_module_span = _start_test_module_span(instance)
                 _CIVisibility._unittest_data["modules"][test_module_path]["module_span"] = test_module_span
             if test_suite_span is None:
-                resource_name = _generate_suite_resource(FRAMEWORK, test_suite_name)
-                test_suite_span = tracer._start_span(
-                    SUITE_OPERATION_NAME,
-                    service=_CIVisibility._instance._service,
-                    span_type=SpanTypes.TEST,
-                    child_of=test_module_span,
-                    activate=True,
-                    resource=resource_name,
-                )
-                test_suite_span.set_tag_str(COMPONENT, COMPONENT_VALUE)
-                test_suite_span.set_tag_str(SPAN_KIND, KIND)
-                test_suite_span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
-                test_suite_span.set_tag_str(test.FRAMEWORK_VERSION, _get_python_version())
-                test_suite_span.set_tag_str(test.COMMAND, test_module_span.get_tag(test.COMMAND))
-                test_suite_span.set_tag_str(_EVENT_TYPE, _SUITE_TYPE)
-                test_suite_span.set_tag_str(_SESSION_ID, test_module_span.get_tag(_SESSION_ID))
-                test_suite_span.set_tag_str(_SUITE_ID, str(test_suite_span.span_id))
-                test_suite_span.set_tag_str(_MODULE_ID, str(test_module_span.span_id))
-                test_suite_span.set_tag_str(test.MODULE, test_module_span.get_tag(test.MODULE))
-                test_module_path = test_module_span.get_tag(test.MODULE_PATH)
-                test_suite_span.set_tag_str(test.MODULE_PATH, test_module_path)
-                test_suite_span.set_tag_str(test.SUITE, test_suite_name)
-                test_suite_span.set_tag_str(test.TEST_TYPE, SpanTypes.TEST)
+                test_suite_span = _start_test_suite_span(instance)
                 _CIVisibility._unittest_data["suites"][test_module_suite_path]["suite_span"] = test_suite_span
         span = tracer._start_span(
             ddtrace.config.unittest.operation_name,
@@ -484,7 +462,6 @@ def handle_test_wrapper(func, instance, args, kwargs):
 
 def handle_module_suite_wrapper(func, instance, args, kwargs):
     if _is_valid_module_suite_call(func):
-        tracer = getattr(unittest, "_datadog_tracer", _CIVisibility._instance.tracer)
         if (
             _is_test_suite(instance)
             or hasattr(instance, "_datadog_entry")
@@ -501,30 +478,7 @@ def handle_module_suite_wrapper(func, instance, args, kwargs):
                 _finish_remaining_suites_and_modules(seen_suites, seen_modules)
                 return result
             test_module_span = _extract_module_span(instance)
-            test_suite_name = _extract_suite_name(instance)
-            resource_name = _generate_suite_resource(FRAMEWORK, test_suite_name)
-            test_suite_span = tracer._start_span(
-                SUITE_OPERATION_NAME,
-                service=_CIVisibility._instance._service,
-                span_type=SpanTypes.TEST,
-                activate=True,
-                child_of=test_module_span,
-                resource=resource_name,
-            )
-            test_suite_span.set_tag_str(COMPONENT, COMPONENT_VALUE)
-            test_suite_span.set_tag_str(SPAN_KIND, KIND)
-            test_suite_span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
-            test_suite_span.set_tag_str(test.FRAMEWORK_VERSION, _get_python_version())
-            test_suite_span.set_tag_str(test.COMMAND, test_module_span.get_tag(test.COMMAND))
-            test_suite_span.set_tag_str(_EVENT_TYPE, _SUITE_TYPE)
-            test_suite_span.set_tag_str(_SESSION_ID, test_module_span.get_tag(_SESSION_ID))
-            test_suite_span.set_tag_str(_SUITE_ID, str(test_suite_span.span_id))
-            test_suite_span.set_tag_str(_MODULE_ID, str(test_module_span.span_id))
-            test_suite_span.set_tag_str(test.MODULE, test_module_span.get_tag(test.MODULE))
-            test_module_path = test_module_span.get_tag(test.MODULE_PATH)
-            test_suite_span.set_tag_str(test.MODULE_PATH, test_module_path)
-            test_suite_span.set_tag_str(test.SUITE, test_suite_name)
-            test_suite_span.set_tag_str(test.TEST_TYPE, SpanTypes.TEST)
+            test_suite_span = _start_test_suite_span(instance)
             _store_test_span(instance, test_suite_span)
             _store_suite_span(instance, test_suite_span)
             result = func(*args, **kwargs)
@@ -533,6 +487,7 @@ def handle_module_suite_wrapper(func, instance, args, kwargs):
             return result
         elif _is_test_module(instance):
             test_module_span = _start_test_module_span(instance)
+            _store_module_span(instance, test_module_span)
             result = func(*args, **kwargs)
             _finish_test_module_span(test_module_span)
             return result
@@ -595,7 +550,6 @@ def _start_test_module_span(instance):
     test_module_span.set_tag_str(_MODULE_ID, str(test_module_span.span_id))
     test_module_span.set_tag_str(test.MODULE, test_module_name)
     test_module_span.set_tag_str(test.MODULE_PATH, _extract_module_file_path(instance))
-    _store_module_span(instance, test_module_span)
     return test_module_span
 
 
@@ -605,6 +559,37 @@ def _finish_test_module_span(test_module_span):
         test_session_span = test_module_span._parent
         _update_status_item(test_session_span, module_status)
     test_module_span.finish()
+
+
+def _start_test_suite_span(instance):
+    tracer = getattr(unittest, "_datadog_tracer", _CIVisibility._instance.tracer)
+    test_module_path = _extract_module_file_path(instance)
+    test_module_span = _extract_module_span(instance, test_module_path)
+    test_suite_name = _extract_class_hierarchy_name(instance)
+    resource_name = _generate_suite_resource(FRAMEWORK, test_suite_name)
+    test_suite_span = tracer._start_span(
+        SUITE_OPERATION_NAME,
+        service=_CIVisibility._instance._service,
+        span_type=SpanTypes.TEST,
+        child_of=test_module_span,
+        activate=True,
+        resource=resource_name,
+    )
+    test_suite_span.set_tag_str(COMPONENT, COMPONENT_VALUE)
+    test_suite_span.set_tag_str(SPAN_KIND, KIND)
+    test_suite_span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
+    test_suite_span.set_tag_str(test.FRAMEWORK_VERSION, _get_python_version())
+    test_suite_span.set_tag_str(test.COMMAND, test_module_span.get_tag(test.COMMAND))
+    test_suite_span.set_tag_str(_EVENT_TYPE, _SUITE_TYPE)
+    test_suite_span.set_tag_str(_SESSION_ID, test_module_span.get_tag(_SESSION_ID))
+    test_suite_span.set_tag_str(_SUITE_ID, str(test_suite_span.span_id))
+    test_suite_span.set_tag_str(_MODULE_ID, str(test_module_span.span_id))
+    test_suite_span.set_tag_str(test.MODULE, test_module_span.get_tag(test.MODULE))
+    test_module_path = test_module_span.get_tag(test.MODULE_PATH)
+    test_suite_span.set_tag_str(test.MODULE_PATH, test_module_path)
+    test_suite_span.set_tag_str(test.SUITE, test_suite_name)
+    test_suite_span.set_tag_str(test.TEST_TYPE, SpanTypes.TEST)
+    return test_suite_span
 
 
 def handle_session_wrapper(func, instance, args, kwargs):
