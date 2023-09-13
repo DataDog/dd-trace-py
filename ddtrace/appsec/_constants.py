@@ -107,7 +107,7 @@ class WAF_DATA_NAMES(object):
     RESPONSE_STATUS = "server.response.status"
     RESPONSE_HEADERS_NO_COOKIES = "server.response.headers.no_cookies"
     RESPONSE_BODY = "http.response.body"
-    SETTINGS = "waf.context.settings"
+    PROCESSOR_SETTINGS = "waf.context.processor"
 
 
 @six.add_metaclass(Constant_Class)  # required for python2/3 compatibility
@@ -136,6 +136,7 @@ class API_SECURITY(object):
 
     ENV_VAR_ENABLED = "DD_EXPERIMENTAL_API_SECURITY_ENABLED"
     REQUEST_HEADERS_NO_COOKIES = "_dd.appsec.s.req.headers"
+    REQUEST_COOKIES = "_dd.appsec.s.req.cookies"
     REQUEST_QUERY = "_dd.appsec.s.req.query"
     REQUEST_PATH_PARAMS = "_dd.appsec.s.req.params"
     REQUEST_BODY = "_dd.appsec.s.req.body"
@@ -165,6 +166,7 @@ class WAF_ACTIONS(object):
     ID = "id"
     DEFAULT_PARAMETERS = STATUS_403_TYPE_AUTO
     BLOCK_ACTION = "block_request"
+    REDIRECT_ACTION = "redirect_request"
     DEFAULT_ACTONS = {
         BLOCK: {
             ID: BLOCK,
@@ -205,7 +207,7 @@ class LOGIN_EVENTS_MODE(object):
 class DEFAULT(object):
     ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
     RULES = os.path.join(ROOT_DIR, "rules.json")
-    API_SECURITY_PARAMETERS = os.path.join(ROOT_DIR, "_api_security/preprocessors.json")
+    API_SECURITY_PARAMETERS = os.path.join(ROOT_DIR, "_api_security/processors.json")
     TRACE_RATE_LIMIT = 100
     WAF_TIMEOUT = 5.0  # float (milliseconds)
     APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP = (

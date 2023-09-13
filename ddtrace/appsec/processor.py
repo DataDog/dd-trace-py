@@ -158,7 +158,8 @@ class AppSecSpanProcessor(SpanProcessor):
                     if config._api_security_enabled:
                         with open(DEFAULT.API_SECURITY_PARAMETERS, "r") as f_apisec:
                             processors = json.load(f_apisec)
-                            rules["preprocessors"] = processors["preprocessors"]
+                            rules["processors"] = processors["processors"]
+                            rules["scanners"] = processors["scanners"]
                     self._update_actions(rules)
 
             except EnvironmentError as err:
@@ -289,7 +290,7 @@ class AppSecSpanProcessor(SpanProcessor):
 
         if core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span) or core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
             # We still must run the waf if we need to extract schemas for API SECURITY
-            if not custom_data or not custom_data.get("SETTINGS", {}).get("extract-schema", False):
+            if not custom_data or not custom_data.get("PROCESSOR_SETTINGS", {}).get("extract-schema", False):
                 return None
 
         data = {}
@@ -300,7 +301,7 @@ class AppSecSpanProcessor(SpanProcessor):
 
         # type ignore because mypy seems to not detect that both results of the if
         # above can iter if not None
-        force_keys = custom_data.get("SETTINGS", {}).get("extract-schema", False) if custom_data else False
+        force_keys = custom_data.get("PROCESSOR_SETTINGS", {}).get("extract-schema", False) if custom_data else False
         for key, waf_name in iter_data:  # type: ignore[attr-defined]
             if key in data_already_sent:
                 continue
@@ -320,8 +321,20 @@ class AppSecSpanProcessor(SpanProcessor):
             log.debug("[DDAS-011-00] ASM In-App WAF returned: %s. Timeout %s", waf_results.data, waf_results.timeout)
 
         for action in waf_results.actions:
-            if self._actions.get(action, {}).get(WAF_ACTIONS.TYPE) == WAF_ACTIONS.BLOCK_ACTION:
+            action_type = self._actions.get(action, {}).get(WAF_ACTIONS.TYPE, None)
+            if action_type == WAF_ACTIONS.BLOCK_ACTION:
                 blocked = self._actions[action][WAF_ACTIONS.PARAMETERS]
+                break
+            elif action_type == WAF_ACTIONS.REDIRECT_ACTION:
+                blocked = self._actions[action][WAF_ACTIONS.PARAMETERS]
+                location = blocked.get("location", "")
+                if not location:
+                    blocked = WAF_ACTIONS.DEFAULT_PARAMETERS
+                    break
+                status_code = str(blocked.get("status_code", ""))
+                if not (status_code[:3].isdigit() and status_code.startswith("3")):
+                    blocked["status_code"] = "303"
+                blocked[WAF_ACTIONS.TYPE] = "none"
                 break
         else:
             blocked = {}

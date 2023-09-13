@@ -19,8 +19,7 @@
       "out.host": "127.0.0.1",
       "peer.service": "test",
       "runtime-id": "f446781b5d244b95abc64fb246064c81",
-      "span.kind": "client",
-      "sql.query": "select 'dba4x4'"
+      "span.kind": "client"
     },
     "metrics": {
       "_dd.measured": 1,

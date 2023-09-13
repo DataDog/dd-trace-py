@@ -1,5 +1,6 @@
 import pytest
 
+from ddtrace import config
 from ddtrace.constants import MANUAL_DROP_KEY
 from ddtrace.constants import MANUAL_KEEP_KEY
 from ddtrace.internal.writer import AgentWriter
@@ -12,6 +13,8 @@ from .test_integration import AGENT_VERSION
 
 
 pytestmark = pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
+RESOURCE = "mycoolre$ource"
+TAGS = {"tag1": "mycooltag"}
 
 
 def snapshot_parametrized_with_writers(f):
@@ -19,7 +22,7 @@ def snapshot_parametrized_with_writers(f):
         if writer == "sync":
             writer = AgentWriter(
                 tracer.agent_trace_url,
-                priority_sampler=tracer._priority_sampler,
+                priority_sampling=config._priority_sampling,
                 sync_mode=True,
             )
             # NB Need to copy the headers, which contain the snapshot token, to associate
@@ -126,3 +129,52 @@ def test_sampling_with_rate_limit_3(writer, tracer):
     tracer.configure(sampler=sampler, writer=writer)
     with tracer.trace("trace5"):
         tracer.trace("child").finish()
+
+
+@snapshot_parametrized_with_writers
+def test_extended_sampling_resource(writer, tracer):
+    sampler = DatadogSampler(rules=[SamplingRule(0, resource=RESOURCE)])
+    tracer.configure(sampler=sampler, writer=writer)
+    tracer.trace("should_not_send", resource=RESOURCE).finish()
+    tracer.trace("should_send", resource="something else").finish()
+
+
+@snapshot_parametrized_with_writers
+def test_extended_sampling_tags(writer, tracer):
+    sampler = DatadogSampler(rules=[SamplingRule(0, tags=TAGS)])
+    tracer.configure(sampler=sampler, writer=writer)
+    tracer._tags = TAGS
+    tracer.trace("should_not_send").finish()
+    tracer._tags = {"banana": "True"}
+    tracer.trace("should_send").finish()
+
+
+@snapshot_parametrized_with_writers
+def test_extended_sampling_tags_glob(writer, tracer):
+    rule_tags = TAGS.copy()
+    tag_key = list(rule_tags.keys())[0]
+    tag_value = rule_tags[tag_key]
+    rule_tags[tag_key] = tag_value[:2] + "*"
+
+    sampler = DatadogSampler(rules=[SamplingRule(0, tags=rule_tags)])
+    assert sampler.rules[0].tags == {tag_key: "my*"}
+    tracer.configure(sampler=sampler, writer=writer)
+
+    tracer._tags = TAGS
+    tracer.trace("should_not_send").finish()
+    tracer._tags = {tag_key: "mcooltag"}
+    tracer.trace("should_send").finish()
+
+
+@snapshot_parametrized_with_writers
+def test_extended_sampling_tags_and_resource(writer, tracer):
+    sampler = DatadogSampler(rules=[SamplingRule(0, tags=TAGS, resource=RESOURCE)])
+    tracer.configure(sampler=sampler, writer=writer)
+
+    tracer._tags = TAGS
+    tracer.trace("should_not_send", resource=RESOURCE).finish()
+    tracer.trace("should_send2", resource="banana").finish()
+
+    tracer._tags = {"banana": "True"}
+    tracer.trace("should_send1").finish()
+    tracer.trace("should_send3", resource=RESOURCE).finish()

@@ -2,23 +2,13 @@
 # -*- encoding: utf-8 -*-
 import pytest
 
+from ddtrace.appsec.iast._utils import _is_python_version_supported as python_supported_by_iast
+
 
 try:
-    from ddtrace.appsec.iast import oce
     from ddtrace.appsec.iast._taint_tracking import OriginType
-    from ddtrace.appsec.iast._taint_tracking import contexts_reset
-    from ddtrace.appsec.iast._taint_tracking import create_context
-    from ddtrace.appsec.iast._utils import _is_python_version_supported as python_supported_by_iast
 except (ImportError, AttributeError):
     pytest.skip("IAST not supported for this Python version", allow_module_level=True)
-
-
-@pytest.fixture(autouse=True)
-def reset_context():
-    oce._enabled = True
-    yield
-    contexts_reset()
-    _ = create_context()
 
 
 def catch_all(fun, args, kwargs):

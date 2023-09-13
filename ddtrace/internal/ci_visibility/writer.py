@@ -29,9 +29,6 @@ if TYPE_CHECKING:  # pragma: no cover
 
     from ddtrace.vendor.dogstatsd import DogStatsd
 
-    from ...sampler import BasePrioritySampler
-    from ...sampler import BaseSampler
-
 
 class CIVisibilityEventClient(WriterClientBase):
     def __init__(self):
@@ -82,8 +79,6 @@ class CIVisibilityWriter(HTTPWriter):
     def __init__(
         self,
         intake_url="",  # type: str
-        sampler=None,  # type: Optional[BaseSampler]
-        priority_sampler=None,  # type: Optional[BasePrioritySampler]
         processing_interval=None,  # type: Optional[float]
         timeout=None,  # type: Optional[float]
         dogstatsd=None,  # type: Optional[DogStatsd]
@@ -99,7 +94,7 @@ class CIVisibilityWriter(HTTPWriter):
         if processing_interval is None:
             processing_interval = config._trace_writer_interval_seconds
         if timeout is None:
-            timeout = agent.get_trace_agent_timeout()
+            timeout = config._agent_timeout_seconds
         intake_cov_url = None
         if use_evp:
             intake_url = agent.get_trace_url()
@@ -131,8 +126,6 @@ class CIVisibilityWriter(HTTPWriter):
         super(CIVisibilityWriter, self).__init__(
             intake_url=intake_url,
             clients=clients,
-            sampler=sampler,
-            priority_sampler=priority_sampler,
             processing_interval=processing_interval,
             timeout=timeout,
             dogstatsd=dogstatsd,
@@ -149,8 +142,6 @@ class CIVisibilityWriter(HTTPWriter):
         # type: () -> HTTPWriter
         return self.__class__(
             intake_url=self.intake_url,
-            sampler=self._sampler,
-            priority_sampler=self._priority_sampler,
             processing_interval=self._interval,
             timeout=self._timeout,
             dogstatsd=self.dogstatsd,
