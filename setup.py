@@ -547,6 +547,8 @@ setup(
         "xmltodict>=0.12",
         "envier",
         "opentelemetry-api>=1; python_version>='3.7'",
+        "psutil==5.6.7",
+        "wrapt==14.1.0",
     ]
     + bytecode,
     extras_require={
@@ -645,7 +647,5 @@ setup(
         force=True,
         annotate=os.getenv("_DD_CYTHON_ANNOTATE") == "1",
     )
-    + get_exts_for("wrapt")
-    + get_exts_for("psutil")
     + get_ddup_ext(),
 )

@@ -42,12 +42,14 @@ dependencies = [
     "ipaddress; python_version<'3.7'",
     "opentelemetry-api>=1; python_version>='3.7'",
     "pathlib2; python_version<'3.5'",
+    "psutil>=5.6.7",
     "protobuf>=3,<3.18; python_version<'3.6'",
     "protobuf>=3,<4.0; python_version=='3.6'",
     "protobuf>=3; python_version>='3.7'",
     "six>=1.12.0",
     "typing; python_version<'3.5'",
     "typing_extensions",
+    "wrapt>=1.14.1",
     "xmltodict>=0.12",
 ]
 
