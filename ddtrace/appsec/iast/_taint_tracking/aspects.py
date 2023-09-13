@@ -40,8 +40,9 @@ TEXT_TYPES = (str, bytes, bytearray)
 _add_aspect = aspects.add_aspect
 _extend_aspect = aspects.extend_aspect
 _join_aspect = aspects.join_aspect
+_replace_aspect = aspects.replace_aspect
 
-__all__ = ["add_aspect", "str_aspect", "bytearray_extend_aspect", "decode_aspect", "encode_aspect"]
+__all__ = ["add_aspect", "str_aspect", "bytearray_extend_aspect", "decode_aspect", "encode_aspect", "replace_aspect"]
 
 
 def add_aspect(op1, op2):
@@ -111,6 +112,22 @@ def join_aspect(orig_function, joiner, *args, **kwargs):
     except Exception as e:
         _set_iast_error_metric("IAST propagation error. join_aspect. {}".format(e), traceback.format_exc())
         return joiner.join(*args, **kwargs)
+
+
+def replace_aspect(orig_function, *args):
+    # type: (Callable, Any, Any, Any, Any) -> Any
+    if not isinstance(orig_function, BuiltinFunctionType):
+        return orig_function(*args)
+
+    origstr, substr, replstr = args
+
+    if not isinstance(origstr, TEXT_TYPES):
+        return origstr.replace(substr, replstr, *args)
+    try:
+        return _replace_aspect(origstr, substr, replstr, *args)
+    except Exception as e:
+        _set_iast_error_metric("IAST propagation error. replace_aspect. {}".format(e), traceback.format_exc())
+        return origstr.replace(substr, replstr, *args)
 
 
 def bytearray_extend_aspect(orig_function, op1, op2):
