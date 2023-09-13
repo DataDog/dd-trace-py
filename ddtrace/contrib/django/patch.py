@@ -471,14 +471,21 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                 from django.http import HttpResponse
 
                 block_config = core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span)
-                if block_config.get("type", "auto") == "auto":
-                    ctype = "text/html" if "text/html" in request_headers.get("Accept", "").lower() else "text/json"
-                else:
-                    ctype = "text/" + block_config["type"]
+                desired_type = block_config.get("type", "auto")
                 status = block_config.get("status_code", 403)
-                content = appsec_utils._get_blocked_template(ctype)
-                response = HttpResponse(content, content_type=ctype, status=status)
-                response.content = content
+                if desired_type == "none":
+                    response = HttpResponse("", status=status)
+                    location = block_config.get("location", "")
+                    if location:
+                        response["location"] = location
+                else:
+                    if desired_type == "auto":
+                        ctype = "text/html" if "text/html" in request_headers.get("Accept", "").lower() else "text/json"
+                    else:
+                        ctype = "text/" + desired_type
+                    content = appsec_utils._get_blocked_template(ctype)
+                    response = HttpResponse(content, content_type=ctype, status=status)
+                    response.content = content
                 utils._after_request_tags(pin, span, request, response)
                 return response
 
