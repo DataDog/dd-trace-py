@@ -9,9 +9,9 @@ from six import ensure_binary
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
-from ddtrace.appsec.ddwaf import DDWaf
-from ddtrace.appsec.processor import AppSecSpanProcessor
-from ddtrace.appsec.processor import _transform_headers
+from ddtrace.appsec._ddwaf import DDWaf
+from ddtrace.appsec._processor import AppSecSpanProcessor
+from ddtrace.appsec._processor import _transform_headers
 from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
@@ -558,7 +558,7 @@ def test_ddwaf_info_with_json_decode_errors(tracer_appsec, caplog):
     config.http_tag_query_string = True
 
     with caplog.at_level(logging.WARNING), mock.patch(
-        "ddtrace.appsec.processor.json.dumps", side_effect=JSONDecodeError("error", "error", 0)
+        "ddtrace.appsec._processor.json.dumps", side_effect=JSONDecodeError("error", "error", 0)
     ), mock.patch.object(DDWaf, "info"):
         with _asm_request_context.asm_request_context_manager(), tracer.trace("test", span_type=SpanTypes.WEB) as span:
             set_http_meta(
@@ -595,7 +595,7 @@ def test_ddwaf_run_contained_typeerror(tracer_appsec, caplog):
     config.http_tag_query_string = True
 
     with caplog.at_level(logging.DEBUG), mock.patch(
-        "ddtrace.appsec.ddwaf.ddwaf_run", side_effect=TypeError("expected c_long instead of int")
+        "ddtrace.appsec._ddwaf.ddwaf_run", side_effect=TypeError("expected c_long instead of int")
     ):
         with _asm_request_context.asm_request_context_manager(), tracer.trace("test", span_type=SpanTypes.WEB) as span:
             set_http_meta(
@@ -633,7 +633,7 @@ def test_ddwaf_run_contained_oserror(tracer_appsec, caplog):
     config.http_tag_query_string = True
 
     with caplog.at_level(logging.DEBUG), mock.patch(
-        "ddtrace.appsec.ddwaf.ddwaf_run", side_effect=OSError("ddwaf run failed")
+        "ddtrace.appsec._ddwaf.ddwaf_run", side_effect=OSError("ddwaf run failed")
     ):
         with _asm_request_context.asm_request_context_manager(), tracer.trace("test", span_type=SpanTypes.WEB) as span:
             set_http_meta(

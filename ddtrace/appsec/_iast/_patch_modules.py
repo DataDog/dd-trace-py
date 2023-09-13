@@ -18,9 +18,9 @@ def patch_iast(patch_modules=IAST_PATCH):
 
     for module in (m for m, e in patch_modules.items() if e):
         when_imported("hashlib")(
-            _on_import_factory(module, prefix="ddtrace.appsec.iast.taint_sinks", raise_errors=False)
+            _on_import_factory(module, prefix="ddtrace.appsec._iast.taint_sinks", raise_errors=False)
         )
 
     when_imported("json")(
-        _on_import_factory("json_tainting", prefix="ddtrace.appsec.iast._patches", raise_errors=False)
+        _on_import_factory("json_tainting", prefix="ddtrace.appsec._iast._patches", raise_errors=False)
     )

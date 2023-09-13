@@ -1,12 +1,12 @@
 import pytest
 
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec.iast._utils import _iast_report_to_str
-from ddtrace.appsec.iast._utils import _is_python_version_supported as python_supported_by_iast
-from ddtrace.appsec.iast.constants import VULN_INSECURE_COOKIE
-from ddtrace.appsec.iast.constants import VULN_NO_HTTPONLY_COOKIE
-from ddtrace.appsec.iast.constants import VULN_NO_SAMESITE_COOKIE
-from ddtrace.appsec.iast.taint_sinks.insecure_cookie import asm_check_cookies
+from ddtrace.appsec._iast._utils import _iast_report_to_str
+from ddtrace.appsec._iast._utils import _is_python_version_supported as python_supported_by_iast
+from ddtrace.appsec._iast.constants import VULN_INSECURE_COOKIE
+from ddtrace.appsec._iast.constants import VULN_NO_HTTPONLY_COOKIE
+from ddtrace.appsec._iast.constants import VULN_NO_SAMESITE_COOKIE
+from ddtrace.appsec._iast.taint_sinks.insecure_cookie import asm_check_cookies
 from ddtrace.internal import core
 
 
