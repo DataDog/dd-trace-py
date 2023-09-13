@@ -10,7 +10,6 @@ ADD ./dl_wheels.py .
 # Note that we only get Python >= 3.7. This is to keep the size of the image
 # as small as possible.
 RUN python3 dl_wheels.py \
-        --python-version=3.12 \
         --python-version=3.11 \
         --python-version=3.10 \
         --python-version=3.9 \
