@@ -11,6 +11,7 @@
 #include "Aspects/AspectExtend.h"
 #include "Aspects/AspectJoin.h"
 #include "Aspects/AspectOperatorAdd.h"
+#include "Aspects/AspectReplace.h"
 #include "Aspects/_aspects_helpers.h"
 #include "Constants.h"
 #include "Initializer/_initializer.h"
@@ -29,7 +30,8 @@ static PyMethodDef AspectsMethods[] = {
     // python 3.5, 3.6. but METH_FASTCALL could be used instead for python
     // >= 3.7
     { "add_aspect", ((PyCFunction)api_add_aspect), METH_FASTCALL, "aspect add" },
-    { "join_aspect", ((PyCFunction)api_join_aspect), METH_FASTCALL, "aspect add" },
+    { "join_aspect", ((PyCFunction)api_join_aspect), METH_FASTCALL, "aspect join" },
+    { "replace_aspect", ((PyCFunction)api_replace_aspect), METH_FASTCALL, "aspect replace" },
     { "extend_aspect", ((PyCFunction)api_extend_aspect), METH_FASTCALL, "aspect extend" },
     { nullptr, nullptr, 0, nullptr }
 };
