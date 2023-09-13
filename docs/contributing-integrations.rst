@@ -25,7 +25,7 @@ What tools does an integration rely on?
 
 Integrations rely primarily on Wrapt, the Pin API, and the Core API.
 
-The `Wrapt <https://pypi.org/project/wrapt/>`_ library, vendored in ``ddtrace.vendor.wrapt``, is the main
+The `Wrapt <https://pypi.org/project/wrapt/>`_ library is the main
 piece of code that ``ddtrace`` uses to hook into the runtime execution of third-party libraries. The essential
 task of writing an integration is determining the functions in the third-party library that would serve as
 useful entrypoints and wrapping them with ``wrap_function_wrapper``. There are exceptions, but this is

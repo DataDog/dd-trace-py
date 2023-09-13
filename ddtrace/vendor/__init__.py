@@ -8,17 +8,6 @@ whenever a dependency is imported. Doing this allows us to have a little more co
 Dependencies
 ============
 
-wrapt
------
-
-Website: https://wrapt.readthedocs.io/en/latest/
-Source: https://github.com/GrahamDumpleton/wrapt/
-Version: 1.14.1
-License: BSD 2-Clause "Simplified" License
-
-Notes:
-  `setup.py` will attempt to build the `wrapt/_wrappers.c` C module
-
 
 dogstatsd
 ---------
@@ -61,15 +50,6 @@ License: Apache License 2.0
 
 Notes:
    Removed dependency on `pbr` and manually set `__version__`
-
-
-psutil
-------
-
-Website: https://github.com/giampaolo/psutil
-Source: https://github.com/giampaolo/psutil
-Version: 5.6.7
-License: BSD 3
 
 
 contextvars
