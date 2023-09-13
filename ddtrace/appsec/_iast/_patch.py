@@ -3,14 +3,19 @@ import gc
 import sys
 from typing import TYPE_CHECKING
 
-from ddtrace.appsec.iast._util import _is_iast_enabled
+from wrapt import FunctionWrapper
+from wrapt import resolve_path
+
 from ddtrace.internal.logger import get_logger
-from wrapt import FunctionWrapper, resolve_path
 
 from ._utils import _is_iast_enabled
 
+
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Any, Callable, Dict, Optional
+    from typing import Any
+    from typing import Callable
+    from typing import Dict
+    from typing import Optional
 
 
 _DD_ORIGINAL_ATTRIBUTES = {}  # type: Dict[Any, Any]
@@ -139,7 +144,8 @@ def if_iast_taint_returned_object_for(origin, wrapped, instance, args, kwargs):
 
     if _is_iast_enabled():
         try:
-            from ._taint_tracking import is_pyobject_tainted, taint_pyobject
+            from ._taint_tracking import is_pyobject_tainted
+            from ._taint_tracking import taint_pyobject
 
             if not is_pyobject_tainted(value):
                 name = str(args[0]) if len(args) else "http.request.body"
