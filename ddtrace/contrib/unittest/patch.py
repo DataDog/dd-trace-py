@@ -366,6 +366,18 @@ def _set_test_span_status(test_item, status, exc_info=None, skip_reason=None):
         span.set_tag_str(test.SKIP_REASON, skip_reason)
 
 
+def _set_test_span_result(test_item, result):
+    span = _extract_span(test_item)
+    if not span:
+        return
+    span.set_tag_str(test.RESULT, result)
+    status = span.get_tag(test.STATUS)
+    if status == test.Status.PASS.value:
+        span.set_tag_str(test.STATUS, test.Status.FAIL.value)
+    elif status == test.Status.FAIL.value:
+        span.set_tag_str(test.STATUS, test.Status.PASS.value)
+
+
 def add_success_test_wrapper(func, instance, args, kwargs):
     if _is_valid_result(instance, args):
         _set_test_span_status(test_item=args[0], status=test.Status.PASS.value)
@@ -382,7 +394,7 @@ def add_failure_test_wrapper(func, instance, args, kwargs):
 
 def add_xfail_test_wrapper(func, instance, args, kwargs):
     if _is_valid_result(instance, args):
-        _set_test_span_status(test_item=args[0], exc_info=_extract_test_reason(args), status=test.Status.XFAIL.value)
+        _set_test_span_result(test_item=args[0], result=test.Status.XFAIL.value)
 
     return func(*args, **kwargs)
 
@@ -396,7 +408,7 @@ def add_skip_test_wrapper(func, instance, args, kwargs):
 
 def add_xpass_test_wrapper(func, instance, args, kwargs):
     if _is_valid_result(instance, args):
-        _set_test_span_status(test_item=args[0], status=test.Status.XPASS.value)
+        _set_test_span_result(test_item=args[0], result=test.Status.XPASS.value)
 
     return func(*args, **kwargs)
 
