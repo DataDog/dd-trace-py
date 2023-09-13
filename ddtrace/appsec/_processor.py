@@ -18,13 +18,13 @@ from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import WAF_ACTIONS
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
 from ddtrace.appsec._constants import WAF_DATA_NAMES
+from ddtrace.appsec._ddwaf import DDWaf
+from ddtrace.appsec._ddwaf import version
 from ddtrace.appsec._metrics import _set_waf_error_metric
 from ddtrace.appsec._metrics import _set_waf_init_metric
 from ddtrace.appsec._metrics import _set_waf_request_metrics
 from ddtrace.appsec._metrics import _set_waf_updates_metric
-from ddtrace.appsec.ddwaf import DDWaf
-from ddtrace.appsec.ddwaf import version
-from ddtrace.appsec.trace_utils import _asm_manual_keep
+from ddtrace.appsec._trace_utils import _asm_manual_keep
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.constants import RUNTIME_FAMILY
 from ddtrace.contrib import trace_utils
@@ -49,7 +49,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Tuple
     from typing import Union
 
-    from ddtrace.appsec.ddwaf.ddwaf_types import ddwaf_context_capsule
+    from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_context_capsule
     from ddtrace.span import Span
 
 
