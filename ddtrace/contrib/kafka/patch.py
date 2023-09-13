@@ -57,7 +57,7 @@ class TracedConsumer(confluent_kafka.Consumer):
         super(TracedConsumer, self).__init__(config, *args, **kwargs)
         self._group_id = config.get("group.id", "")
 
-    def poll(self, timeout=1):
+    def poll(self, timeout=None):
         return super(TracedConsumer, self).poll(timeout)
 
 
