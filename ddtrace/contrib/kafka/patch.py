@@ -65,6 +65,18 @@ class TracedConsumer(confluent_kafka.Consumer):
         self._group_id = config.get("group.id", "")
         self._auto_commit = asbool(config.get("enable.auto.commit", True))
 
+<<<<<<< HEAD
+=======
+    def poll(self, timeout=None):
+        return super(TracedConsumer, self).poll(timeout)
+
+    def commit(self, message=None, *args, **kwargs):
+        if message:
+            return super(TracedConsumer, self).commit(message, *args, **kwargs)
+        else:
+            return super(TracedConsumer, self).commit(*args, **kwargs)
+
+>>>>>>> b107dfaee (Remove slots check on datastreams)
 
 def patch():
     if getattr(confluent_kafka, "_datadog_patch", False):
