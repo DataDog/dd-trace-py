@@ -4,30 +4,31 @@ from typing import cast
 
 from ddtrace import tracer
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._iast import oce
-from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
-from ddtrace.appsec._iast._overhead_control_engine import Operation
-from ddtrace.appsec._iast._utils import _has_to_scrub
-from ddtrace.appsec._iast._utils import _is_evidence_value_parts
-from ddtrace.appsec._iast._utils import _scrub
-from ddtrace.appsec._iast.reporter import Evidence
-from ddtrace.appsec._iast.reporter import IastSpanReporter
-from ddtrace.appsec._iast.reporter import Location
-from ddtrace.appsec._iast.reporter import Source
-from ddtrace.appsec._iast.reporter import Vulnerability
 from ddtrace.internal import core
 from ddtrace.internal.compat import six
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.cache import LFUCache
 from ddtrace.settings import _config
 
+from .. import oce
+from .._metrics import _set_metric_iast_executed_sink
+from .._overhead_control_engine import Operation
+from .._utils import _has_to_scrub
+from .._utils import _is_evidence_value_parts
+from .._utils import _scrub
+from ..reporter import Evidence
+from ..reporter import IastSpanReporter
+from ..reporter import Location
+from ..reporter import Source
+from ..reporter import Vulnerability
+
 
 try:
     # Python >= 3.4
-    from ddtrace.appsec._iast._stacktrace import get_info_frame
+    from .._stacktrace import get_info_frame
 except ImportError:
     # Python 2
-    from ddtrace.appsec._iast._stacktrace_py2 import get_info_frame
+    from .._stacktrace_py2 import get_info_frame
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Any
@@ -104,8 +105,8 @@ class VulnerabilityBase(Operation):
                 )
                 return None
 
-            file_name = ""
-            line_number = 0
+            file_name = None
+            line_number = None
 
             skip_location = getattr(cls, "skip_location", False)
             if not skip_location:
@@ -119,6 +120,9 @@ class VulnerabilityBase(Operation):
                 if file_name.startswith(CWD):
                     file_name = os.path.relpath(file_name, start=CWD)
 
+                if not cls.is_not_reported(file_name, line_number):
+                    return
+
             if _is_evidence_value_parts(evidence_value):
                 evidence = Evidence(valueParts=evidence_value)
             # Evidence is a string in weak cipher, weak hash and weak randomness
@@ -127,10 +131,6 @@ class VulnerabilityBase(Operation):
             else:
                 log.debug("Unexpected evidence_value type: %s", type(evidence_value))
                 evidence = Evidence(value="")
-
-            if not cls.is_not_reported(file_name, line_number):
-                # not not reported = reported
-                return None
 
             _set_metric_iast_executed_sink(cls.vulnerability_type)
 

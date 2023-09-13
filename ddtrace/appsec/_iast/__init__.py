@@ -31,10 +31,11 @@ def wrapped_function(wrapped, instance, args, kwargs):
 import inspect
 import sys
 
-from ddtrace.appsec._iast._ast.ast_patching import astpatch_module
-from ddtrace.appsec._iast._overhead_control_engine import OverheadControl
-from ddtrace.appsec._iast._utils import _is_iast_enabled
 from ddtrace.internal.logger import get_logger
+
+from ._ast.ast_patching import astpatch_module
+from ._overhead_control_engine import OverheadControl
+from ._utils import _is_iast_enabled
 
 
 log = get_logger(__name__)

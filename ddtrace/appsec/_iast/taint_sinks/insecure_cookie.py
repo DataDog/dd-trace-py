@@ -1,12 +1,13 @@
 from typing import TYPE_CHECKING
 
-from ddtrace.appsec._iast import oce
-from ddtrace.appsec._iast.constants import EVIDENCE_COOKIE
-from ddtrace.appsec._iast.constants import VULN_INSECURE_COOKIE
-from ddtrace.appsec._iast.constants import VULN_NO_HTTPONLY_COOKIE
-from ddtrace.appsec._iast.constants import VULN_NO_SAMESITE_COOKIE
-from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
 from ddtrace.internal.compat import six
+
+from .. import oce
+from ..constants import EVIDENCE_COOKIE
+from ..constants import VULN_INSECURE_COOKIE
+from ..constants import VULN_NO_HTTPONLY_COOKIE
+from ..constants import VULN_NO_SAMESITE_COOKIE
+from ..taint_sinks._base import VulnerabilityBase
 
 
 if TYPE_CHECKING:

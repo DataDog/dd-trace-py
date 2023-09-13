@@ -1,11 +1,12 @@
 from ddtrace import config
-from ddtrace.appsec._iast._patch import set_and_check_module_is_patched
-from ddtrace.appsec._iast._patch import set_module_unpatched
-from ddtrace.appsec._iast._patch import try_unwrap
-from ddtrace.appsec._iast._patch import try_wrap_function_wrapper
-from ddtrace.appsec._iast._taint_utils import LazyTaintDict
-from ddtrace.appsec._iast._taint_utils import LazyTaintList
 from ddtrace.internal.logger import get_logger
+
+from .._patch import set_and_check_module_is_patched
+from .._patch import set_module_unpatched
+from .._patch import try_unwrap
+from .._patch import try_wrap_function_wrapper
+from .._taint_utils import LazyTaintDict
+from .._taint_utils import LazyTaintList
 
 
 log = get_logger(__name__)
@@ -37,9 +38,9 @@ def wrapped_loads(wrapped, instance, args, kwargs):
     obj = wrapped(*args, **kwargs)
     if config._iast_enabled:
         try:
-            from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
-            from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
-            from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+            from .._taint_tracking import get_tainted_ranges
+            from .._taint_tracking import is_pyobject_tainted
+            from .._taint_tracking import taint_pyobject
 
             if is_pyobject_tainted(args[0]) and obj:
                 # tainting object

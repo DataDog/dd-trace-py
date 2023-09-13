@@ -6,23 +6,24 @@ from typing import Union
 
 import six
 
-from ddtrace.appsec._iast import oce
-from ddtrace.appsec._iast._utils import _has_to_scrub
-from ddtrace.appsec._iast._utils import _scrub
-from ddtrace.appsec._iast._utils import _scrub_get_tokens_positions
-from ddtrace.appsec._iast.constants import EVIDENCE_CMDI
-from ddtrace.appsec._iast.constants import VULN_CMDI
-from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
-from ddtrace.appsec._iast.taint_sinks._base import _check_positions_contained
 from ddtrace.settings import _config
+
+from .. import oce
+from .._utils import _has_to_scrub
+from .._utils import _scrub
+from .._utils import _scrub_get_tokens_positions
+from ..constants import EVIDENCE_CMDI
+from ..constants import VULN_CMDI
+from ._base import VulnerabilityBase
+from ._base import _check_positions_contained
 
 
 if TYPE_CHECKING:
     from typing import Any
     from typing import Dict
 
-    from ddtrace.appsec._iast.reporter import IastSpanReporter
-    from ddtrace.appsec._iast.reporter import Vulnerability
+    from ..reporter import IastSpanReporter
+    from ..reporter import Vulnerability
 
 _INSIDE_QUOTES_REGEXP = re.compile(r"^(?:\s*(?:sudo|doas)\s+)?\b\S+\b\s*(.*)")
 
@@ -35,7 +36,7 @@ class CommandInjection(VulnerabilityBase):
     @classmethod
     def report(cls, evidence_value=None, sources=None):
         if isinstance(evidence_value, (str, bytes, bytearray)):
-            from ddtrace.appsec._iast._taint_tracking import taint_ranges_as_evidence_info
+            from .._taint_tracking import taint_ranges_as_evidence_info
 
             evidence_value, sources = taint_ranges_as_evidence_info(evidence_value)
         super(CommandInjection, cls).report(evidence_value=evidence_value, sources=sources)
@@ -171,8 +172,8 @@ class CommandInjection(VulnerabilityBase):
 def _iast_report_cmdi(shell_args):
     # type: (Union[str, List[str]]) -> None
     report_cmdi = ""
-    from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
-    from ddtrace.appsec._iast._taint_tracking.aspects import join_aspect
+    from .._taint_tracking import get_tainted_ranges
+    from .._taint_tracking.aspects import join_aspect
 
     if isinstance(shell_args, (list, tuple)):
         for arg in shell_args:

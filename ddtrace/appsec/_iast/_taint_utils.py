@@ -30,8 +30,8 @@ class LazyTaintList:
     def _taint(self, value):
         if value:
             if isinstance(value, (str, bytes, bytearray)):
-                from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
-                from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+                from ._taint_tracking import is_pyobject_tainted
+                from ._taint_tracking import taint_pyobject
 
                 if not is_pyobject_tainted(value) or self._override_pyobject_tainted:
                     try:
@@ -201,8 +201,8 @@ class LazyTaintDict:
             origin = self._origin_value
         if value:
             if isinstance(value, (str, bytes, bytearray)):
-                from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
-                from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+                from ._taint_tracking import is_pyobject_tainted
+                from ._taint_tracking import taint_pyobject
 
                 if not is_pyobject_tainted(value) or self._override_pyobject_tainted:
                     try:
@@ -386,7 +386,7 @@ def supported_dbapi_integration(integration_name):
 
 def check_tainted_args(args, kwargs, tracer, integration_name, method):
     if supported_dbapi_integration(integration_name) and method.__name__ == "execute":
-        from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+        from ._taint_tracking import is_pyobject_tainted
 
         return len(args) and args[0] and is_pyobject_tainted(args[0])
 

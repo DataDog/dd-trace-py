@@ -153,7 +153,6 @@ try:
 
             ModuleWatchdog.register_pre_exec_module_hook(_should_iast_patch, _exec_iast_patched_module)
 
-    tracer._generate_diagnostic_logs()
     if asbool(os.getenv("DD_TRACE_ENABLED", default=True)):
         from ddtrace import patch_all
 
@@ -232,6 +231,7 @@ try:
     # properly loaded without exceptions. This must be the last action in the module
     # when the execution ends with a success.
     loaded = True
+    tracer._generate_diagnostic_logs()
 except Exception:
     loaded = False
     log.warning("error configuring Datadog tracing", exc_info=True)

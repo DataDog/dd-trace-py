@@ -867,3 +867,61 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         # remove cache to avoid using template from other tests
         uhttp._HTML_BLOCKED_TEMPLATE_CACHE = None
         uhttp._JSON_BLOCKED_TEMPLATE_CACHE = None
+
+    def test_request_suspicious_request_block_redirect_actions_301(self):
+        @self.app.route("/index.html")
+        def test_route():
+            return "Ok: %s" % request.args.get("toto", ""), 200
+
+        # value suspicious_301 must be redirected
+        with override_global_config(dict(_appsec_enabled=True)), override_env(
+            dict(
+                DD_APPSEC_RULES=RULES_SRBCA,
+                DD_APPSEC_HTTP_BLOCKED_TEMPLATE_JSON=RESPONSE_CUSTOM_JSON,
+                DD_APPSEC_HTTP_BLOCKED_TEMPLATE_HTML=RESPONSE_CUSTOM_HTML,
+            )
+        ):
+            self._aux_appsec_prepare_tracer()
+            resp = self.client.get("/index.html?toto=suspicious_301")
+            assert resp.status_code == 301
+            assert resp.headers["location"] == "https://www.datadoghq.com"
+            assert not get_response_body(resp)
+            root_span = self.pop_spans()[0]
+            loaded = json.loads(root_span.get_tag(APPSEC.JSON))
+            assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-040-004"]
+            assert root_span.get_tag(http.STATUS_CODE) == "301"
+            assert root_span.get_tag(http.URL) == "http://localhost/index.html?toto=suspicious_301"
+            assert root_span.get_tag(http.METHOD) == "GET"
+            assert root_span.get_tag(http.USER_AGENT).startswith("werkzeug/")
+            assert root_span.get_tag(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type").startswith(
+                "text/plain"
+            )
+
+    def test_request_suspicious_request_block_redirect_actions_303(self):
+        @self.app.route("/index.html")
+        def test_route():
+            return "Ok: %s" % request.args.get("toto", ""), 200
+
+        # value suspicious_301 must be redirected
+        with override_global_config(dict(_appsec_enabled=True)), override_env(
+            dict(
+                DD_APPSEC_RULES=RULES_SRBCA,
+                DD_APPSEC_HTTP_BLOCKED_TEMPLATE_JSON=RESPONSE_CUSTOM_JSON,
+                DD_APPSEC_HTTP_BLOCKED_TEMPLATE_HTML=RESPONSE_CUSTOM_HTML,
+            )
+        ):
+            self._aux_appsec_prepare_tracer()
+            resp = self.client.get("/index.html?toto=suspicious_303")
+            assert resp.status_code == 303
+            assert resp.headers["location"] == "https://www.datadoghq.com"
+            assert not get_response_body(resp)
+            root_span = self.pop_spans()[0]
+            loaded = json.loads(root_span.get_tag(APPSEC.JSON))
+            assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-040-005"]
+            assert root_span.get_tag(http.STATUS_CODE) == "303"
+            assert root_span.get_tag(http.URL) == "http://localhost/index.html?toto=suspicious_303"
+            assert root_span.get_tag(http.METHOD) == "GET"
+            assert root_span.get_tag(http.USER_AGENT).startswith("werkzeug/")
+            assert root_span.get_tag(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type").startswith(
+                "text/plain"
+            )
