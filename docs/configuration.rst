@@ -226,13 +226,14 @@ The following environment variables for the tracer are supported:
    DD_TRACE_SAMPLING_RULES:
      type: JSON array
      description: |
-         A JSON array of objects. Each object must have a “sample_rate”, and the “name”, “service”, and "resource" fields are optional. The “sample_rate” value must be between 0.0 and 1.0 (inclusive).
+         A JSON array of objects. Each object must have a “sample_rate”, and the “name”, “service”, "resource", and "tags" fields are optional. The “sample_rate” value must be between 0.0 and 1.0 (inclusive).
 
-         **Example:** ``DD_TRACE_SAMPLING_RULES='[{"sample_rate":0.5,"service":"my-service","resource":"my-url"}]'``
+         **Example:** ``DD_TRACE_SAMPLING_RULES='[{"sample_rate":0.5,"service":"my-service","resource":"my-url","tags":{"my-tag":"example"}}]'``
 
          **Note** that the JSON object must be included in single quotes (') to avoid problems with escaping of the double quote (") character.
      version_added:
        v1.19.0: added support for "resource"
+       v1.20.0: added support for "tags"
 
    DD_SPAN_SAMPLING_RULES:
      type: string
@@ -414,8 +415,11 @@ The following environment variables for the tracer are supported:
     
    DD_TRACE_SPAN_AGGREGATOR_RLOCK:
      type: Boolean
-     default: False
+     default: True
      description: Whether the ``SpanAggregator`` should use an RLock or a Lock.
+     version_added:
+       v1.16.2: added with default of False
+       v1.19.0: default changed to True
 
    DD_IAST_ENABLED:
      type: Boolean

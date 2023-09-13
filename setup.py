@@ -42,8 +42,8 @@ DEBUG_COMPILE = "DD_COMPILE_DEBUG" in os.environ
 
 IS_PYSTON = hasattr(sys, "pyston_version_info")
 
-LIBDDWAF_DOWNLOAD_DIR = os.path.join(HERE, os.path.join("ddtrace", "appsec", "ddwaf", "libddwaf"))
-IAST_DIR = os.path.join(HERE, os.path.join("ddtrace", "appsec", "iast", "_taint_tracking"))
+LIBDDWAF_DOWNLOAD_DIR = os.path.join(HERE, os.path.join("ddtrace", "appsec", "_ddwaf", "libddwaf"))
+IAST_DIR = os.path.join(HERE, os.path.join("ddtrace", "appsec", "_iast", "_taint_tracking"))
 
 CURRENT_OS = platform.system()
 
@@ -305,7 +305,7 @@ class CMakeBuild(build_ext):
 
         if (
             sys.version_info >= (3, 6, 0)
-            and ext.name == "ddtrace.appsec.iast._taint_tracking._native"
+            and ext.name == "ddtrace.appsec._iast._taint_tracking._native"
             and os.path.exists(cmake_list_path)
         ):
             os.makedirs(tmp_iast_path, exist_ok=True)
@@ -450,17 +450,17 @@ if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
     if platform.system() not in ("Windows", ""):
         ext_modules.append(
             Extension(
-                "ddtrace.appsec.iast._stacktrace",
+                "ddtrace.appsec._iast._stacktrace",
                 # Sort source files for reproducibility
                 sources=[
-                    "ddtrace/appsec/iast/_stacktrace.c",
+                    "ddtrace/appsec/_iast/_stacktrace.c",
                 ],
                 extra_compile_args=debug_compile_args,
             )
         )
 
         if sys.version_info >= (3, 6, 0):
-            ext_modules.append(Extension("ddtrace.appsec.iast._taint_tracking._native", sources=[]))
+            ext_modules.append(Extension("ddtrace.appsec._iast._taint_tracking._native", sources=[]))
 else:
     ext_modules = []
 
@@ -529,8 +529,8 @@ setup(
     package_data={
         "ddtrace": ["py.typed"],
         "ddtrace.appsec": ["rules.json"],
-        "ddtrace.appsec.ddwaf": [os.path.join("libddwaf", "*", "lib", "libddwaf.*")],
-        "ddtrace.appsec.iast._taint_tracking": ["CMakeLists.txt"],
+        "ddtrace.appsec._ddwaf": [os.path.join("libddwaf", "*", "lib", "libddwaf.*")],
+        "ddtrace.appsec._iast._taint_tracking": ["CMakeLists.txt"],
     },
     python_requires=">=3.7",
     zip_safe=False,
@@ -583,7 +583,7 @@ setup(
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
     ],
-    setup_requires=["cython<3", "cmake>=3.24.2; python_version>='3.6'"],
+    setup_requires=["setuptools_scm[toml]>=4", "cython<3", "cmake>=3.24.2; python_version>='3.6'"],
     ext_modules=ext_modules
     + cythonize(
         [

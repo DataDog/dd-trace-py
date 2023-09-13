@@ -20,6 +20,7 @@ from ..internal.constants import DEFAULT_MAX_PAYLOAD_SIZE
 from ..internal.constants import DEFAULT_PROCESSING_INTERVAL
 from ..internal.constants import DEFAULT_REUSE_CONNECTIONS
 from ..internal.constants import DEFAULT_SAMPLING_RATE_LIMIT
+from ..internal.constants import DEFAULT_TIMEOUT
 from ..internal.constants import PROPAGATION_STYLE_ALL
 from ..internal.constants import _PROPAGATION_STYLE_DEFAULT
 from ..internal.logger import get_logger
@@ -226,6 +227,8 @@ class Config(object):
         self._trace_sample_rate = os.getenv("DD_TRACE_SAMPLE_RATE")
         self._trace_rate_limit = int(os.getenv("DD_TRACE_RATE_LIMIT", default=DEFAULT_SAMPLING_RATE_LIMIT))
         self._trace_sampling_rules = os.getenv("DD_TRACE_SAMPLING_RULES")
+        self._partial_flush_enabled = asbool(os.getenv("DD_TRACE_PARTIAL_FLUSH_ENABLED", default=True))
+        self._partial_flush_min_spans = int(os.getenv("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", default=500))
         self._priority_sampling = asbool(os.getenv("DD_PRIORITY_SAMPLING", default=True))
 
         header_tags = parse_tags_str(os.getenv("DD_TRACE_HEADER_TAGS", ""))
@@ -251,6 +254,15 @@ class Config(object):
             os.getenv("DD_TRACE_WRITER_REUSE_CONNECTIONS", DEFAULT_REUSE_CONNECTIONS)
         )
         self._trace_writer_log_err_payload = asbool(os.environ.get("_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", False))
+
+        self._trace_agent_hostname = os.environ.get("DD_AGENT_HOST", os.environ.get("DD_TRACE_AGENT_HOSTNAME"))
+        self._trace_agent_port = os.environ.get("DD_AGENT_PORT", os.environ.get("DD_TRACE_AGENT_PORT"))
+        self._trace_agent_url = os.environ.get("DD_TRACE_AGENT_URL")
+
+        self._stats_agent_hostname = os.environ.get("DD_AGENT_HOST", os.environ.get("DD_DOGSTATSD_HOST"))
+        self._stats_agent_port = os.getenv("DD_DOGSTATSD_PORT")
+        self._stats_agent_url = os.getenv("DD_DOGSTATSD_URL")
+        self._agent_timeout_seconds = float(os.getenv("DD_TRACE_AGENT_TIMEOUT_SECONDS", DEFAULT_TIMEOUT))
 
         # Master switch for turning on and off trace search by default
         # this weird invocation of getenv is meant to read the DD_ANALYTICS_ENABLED
@@ -383,7 +395,7 @@ class Config(object):
             # https://github.com/open-telemetry/opentelemetry-python/blob/v1.16.0/opentelemetry-api/src/opentelemetry/context/__init__.py#L53
             os.environ["OTEL_PYTHON_CONTEXT"] = "ddcontextvars_context"
         self._ddtrace_bootstrapped = False
-        self._span_aggregator_rlock = asbool(os.getenv("DD_TRACE_SPAN_AGGREGATOR_RLOCK", False))
+        self._span_aggregator_rlock = asbool(os.getenv("DD_TRACE_SPAN_AGGREGATOR_RLOCK", True))
 
         self._iast_redaction_enabled = asbool(os.getenv("DD_IAST_REDACTION_ENABLED", default=True))
         self._iast_redaction_name_pattern = os.getenv(
