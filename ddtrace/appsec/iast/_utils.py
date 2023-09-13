@@ -78,8 +78,8 @@ def _scrub_get_tokens_positions(text, tokens):
 
 
 def _iast_report_to_str(data):
-    from ddtrace.appsec.iast._taint_tracking import OriginType  # noqa: F401
-    from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import origin_to_str  # noqa: F401
+    from ._taint_tracking import OriginType
+    from ._taint_tracking import origin_to_str
 
     class OriginTypeEncoder(json.JSONEncoder):
         def default(self, obj):
