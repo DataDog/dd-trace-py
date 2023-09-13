@@ -70,6 +70,7 @@ __all__ = [
     "active_map_addreses_size",
     "create_context",
     "str_to_origin",
+    "origin_to_str",
     "common_replace",
     "as_formatted_evidence",
     "parse_params",

@@ -105,8 +105,8 @@ class VulnerabilityBase(Operation):
                 )
                 return None
 
-            file_name = ""
-            line_number = 0
+            file_name = None
+            line_number = None
 
             skip_location = getattr(cls, "skip_location", False)
             if not skip_location:
@@ -120,6 +120,9 @@ class VulnerabilityBase(Operation):
                 if file_name.startswith(CWD):
                     file_name = os.path.relpath(file_name, start=CWD)
 
+                if not cls.is_not_reported(file_name, line_number):
+                    return
+
             if _is_evidence_value_parts(evidence_value):
                 evidence = Evidence(valueParts=evidence_value)
             # Evidence is a string in weak cipher, weak hash and weak randomness
@@ -128,10 +131,6 @@ class VulnerabilityBase(Operation):
             else:
                 log.debug("Unexpected evidence_value type: %s", type(evidence_value))
                 evidence = Evidence(value="")
-
-            if not cls.is_not_reported(file_name, line_number):
-                # not not reported = reported
-                return None
 
             _set_metric_iast_executed_sink(cls.vulnerability_type)
 

@@ -1,8 +1,9 @@
-import json
 from typing import TYPE_CHECKING
 
 import attr
 
+from ddtrace.appsec._constants import APPSEC
+from ddtrace.appsec._constants import IAST
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
@@ -10,10 +11,9 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.processor import SpanProcessor
 
 from . import oce
-from .._constants import APPSEC
-from .._constants import IAST
 from ..trace_utils import _asm_manual_keep
 from ._metrics import _set_metric_iast_request_tainted
+from ._utils import _iast_report_to_str
 from ._utils import _is_iast_enabled
 
 
@@ -57,19 +57,9 @@ class AppSecIastSpanProcessor(SpanProcessor):
         data = core.get_item(IAST.CONTEXT_KEY, span=span)
 
         if data:
-            from ._taint_tracking import OriginType  # noqa: F401
-            from ._taint_tracking._native.taint_tracking import origin_to_str  # noqa: F401
-
-            class OriginTypeEncoder(json.JSONEncoder):
-                def default(self, obj):
-                    if isinstance(obj, OriginType):
-                        # if the obj is uuid, we simply return the value of uuid
-                        return origin_to_str(obj)
-                    return json.JSONEncoder.default(self, obj)
-
             span.set_tag_str(
                 IAST.JSON,
-                json.dumps(attr.asdict(data, filter=lambda attr, x: x is not None), cls=OriginTypeEncoder),
+                _iast_report_to_str(data),
             )
             _asm_manual_keep(span)
 
