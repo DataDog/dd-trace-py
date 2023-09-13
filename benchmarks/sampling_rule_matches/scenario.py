@@ -28,17 +28,19 @@ class SamplingRules(bm.Scenario):
     num_services = bm.var(type=int)
     num_operations = bm.var(type=int)
     num_resources = bm.var(type=int)
+    num_tags = bm.var(type=int)
 
     def run(self):
         # Generate random service and operation names for the counts we requested
         services = [rands() for _ in range(self.num_services)]
         operation_names = [rands() for _ in range(self.num_operations)]
         resource_names = [rands() for _ in range(self.num_resources)]
+        tag_names = [rands() for _ in range(self.num_tags)]
 
         # Generate all possible permutations of service and operation names
         spans = [
-            Span(service=service, name=name, resource=resource)
-            for service, name, resource in itertools.product(services, operation_names, resource_names)
+            Span(service=service, name=name, resource=resource, tags={tag: tag})
+            for service, name, resource, tag in itertools.product(services, operation_names, resource_names, tag_names)
         ]
 
         # Create a single rule to use for all matches
@@ -47,6 +49,7 @@ class SamplingRules(bm.Scenario):
             service=random.choice(services),
             name=random.choice(operation_names),
             resource=random.choice(resource_names),
+            tags=random.choice(tag_names),
             sample_rate=1.0,
         )
 
