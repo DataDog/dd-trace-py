@@ -15,6 +15,7 @@ from typing import Set
 from typing import Tuple
 from typing import Union
 
+from botocore import __version__
 import botocore.client
 import botocore.exceptions
 
@@ -86,12 +87,25 @@ config._add(
 )
 
 
+def get_version():
+    # type: () -> str
+    return __version__
+
+
 class TraceInjectionSizeExceed(Exception):
     pass
 
 
 class TraceInjectionDecodingError(Exception):
     pass
+
+
+def _encode_data(trace_data):
+    """
+    This method exists solely to enable us to patch the value in tests, since
+    moto doesn't support auto-encoded SNS -> SQS as binary with RawDelivery enabled
+    """
+    return json.dumps(trace_data)
 
 
 def inject_trace_data_to_message_attributes(trace_data, entry, endpoint_service=None):
@@ -110,12 +124,12 @@ def inject_trace_data_to_message_attributes(trace_data, entry, endpoint_service=
         if endpoint_service == "sqs":
             # Use String since changing this to Binary would be a breaking
             # change as other tracers expect this to be a String.
-            entry["MessageAttributes"]["_datadog"] = {"DataType": "String", "StringValue": json.dumps(trace_data)}
+            entry["MessageAttributes"]["_datadog"] = {"DataType": "String", "StringValue": _encode_data(trace_data)}
         elif endpoint_service == "sns":
             # Use Binary since SNS subscription filter policies fail silently
             # with JSON strings https://github.com/DataDog/datadog-lambda-js/pull/269
             # AWS will encode our value if it sees "Binary"
-            entry["MessageAttributes"]["_datadog"] = {"DataType": "Binary", "BinaryValue": json.dumps(trace_data)}
+            entry["MessageAttributes"]["_datadog"] = {"DataType": "Binary", "BinaryValue": _encode_data(trace_data)}
         else:
             log.warning("skipping trace injection, endpoint is not SNS or SQS")
     else:
@@ -430,7 +444,7 @@ def inject_trace_to_client_context(params, span):
 def patch():
     if getattr(botocore.client, "_datadog_patch", False):
         return
-    setattr(botocore.client, "_datadog_patch", True)
+    botocore.client._datadog_patch = True
 
     wrapt.wrap_function_wrapper("botocore.client", "BaseClient._make_api_call", patched_api_call)
     Pin(service="aws").onto(botocore.client.BaseClient)
@@ -442,7 +456,7 @@ def patch():
 def unpatch():
     _PATCHED_SUBMODULES.clear()
     if getattr(botocore.client, "_datadog_patch", False):
-        setattr(botocore.client, "_datadog_patch", False)
+        botocore.client._datadog_patch = False
         unwrap(botocore.parsers.ResponseParser, "parse")
         unwrap(botocore.client.BaseClient, "_make_api_call")
 
@@ -640,6 +654,18 @@ def patched_api_call(original_func, instance, args, kwargs):
                                 # The message originated from SQS
                                 message_body = message
                                 context_json = json.loads(message_body["MessageAttributes"]["_datadog"]["StringValue"])
+                            elif (
+                                "MessageAttributes" in message
+                                and "_datadog" in message["MessageAttributes"]
+                                and "BinaryValue" in message["MessageAttributes"]["_datadog"]
+                            ):
+                                # Raw message delivery
+                                message_body = message
+                                context_json = json.loads(
+                                    message_body["MessageAttributes"]["_datadog"]["BinaryValue"].decode()
+                                )
+                            else:
+                                log.debug("DataStreams did not handle message: %r", message)
 
                             pathway = context_json.get(PROPAGATION_KEY_BASE_64, None) if context_json else None
                             ctx = pin.tracer.data_streams_processor.decode_pathway_b64(pathway)

@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 from collections import abc
 
-from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
-from ddtrace.appsec.iast._taint_tracking import taint_pyobject
 from ddtrace.internal.logger import get_logger
 
 
@@ -32,6 +30,9 @@ class LazyTaintList:
     def _taint(self, value):
         if value:
             if isinstance(value, (str, bytes, bytearray)):
+                from ._taint_tracking import is_pyobject_tainted
+                from ._taint_tracking import taint_pyobject
+
                 if not is_pyobject_tainted(value) or self._override_pyobject_tainted:
                     try:
                         # TODO: migrate this part to shift ranges instead of creating a new one
@@ -200,11 +201,17 @@ class LazyTaintDict:
             origin = self._origin_value
         if value:
             if isinstance(value, (str, bytes, bytearray)):
+                from ._taint_tracking import is_pyobject_tainted
+                from ._taint_tracking import taint_pyobject
+
                 if not is_pyobject_tainted(value) or self._override_pyobject_tainted:
                     try:
                         # TODO: migrate this part to shift ranges instead of creating a new one
                         value = taint_pyobject(
-                            pyobject=value, source_name=key, source_value=value, source_origin=origin,
+                            pyobject=value,
+                            source_name=key,
+                            source_value=value,
+                            source_origin=origin,
                         )
                     except SystemError:
                         # TODO: Find the root cause for
@@ -283,7 +290,9 @@ class LazyTaintDict:
         if _is_tainted_struct(other):
             other = other._obj
         return LazyTaintDict(
-            self._obj | other, origins=self._origins, override_pyobject_tainted=self._override_pyobject_tainted,
+            self._obj | other,
+            origins=self._origins,
+            override_pyobject_tainted=self._override_pyobject_tainted,
         )
 
     def __repr__(self):
@@ -304,7 +313,9 @@ class LazyTaintDict:
 
     def copy(self):
         return LazyTaintDict(
-            self._obj.copy(), origins=self._origins, override_pyobject_tainted=self._override_pyobject_tainted,
+            self._obj.copy(),
+            origins=self._origins,
+            override_pyobject_tainted=self._override_pyobject_tainted,
         )
 
     @classmethod
@@ -375,6 +386,8 @@ def supported_dbapi_integration(integration_name):
 
 def check_tainted_args(args, kwargs, tracer, integration_name, method):
     if supported_dbapi_integration(integration_name) and method.__name__ == "execute":
+        from ._taint_tracking import is_pyobject_tainted
+
         return len(args) and args[0] and is_pyobject_tainted(args[0])
 
     return False

@@ -2,38 +2,39 @@
 # flake8: noqa
 from typing import TYPE_CHECKING
 
-from ddtrace.appsec.iast._metrics import _set_metric_iast_executed_source
-from ddtrace.appsec.iast._util import _is_python_version_supported
+from .._metrics import _set_metric_iast_executed_source
+from .._utils import _is_python_version_supported
 
 
 if _is_python_version_supported():
-    from ddtrace.appsec.iast import oce
-    from ddtrace.appsec.iast._taint_tracking._native import ops
-    from ddtrace.appsec.iast._taint_tracking._native.aspect_helpers import _convert_escaped_text_to_tainted_text
-    from ddtrace.appsec.iast._taint_tracking._native.aspect_helpers import as_formatted_evidence
-    from ddtrace.appsec.iast._taint_tracking._native.aspect_helpers import common_replace
-    from ddtrace.appsec.iast._taint_tracking._native.aspect_helpers import parse_params
-    from ddtrace.appsec.iast._taint_tracking._native.initializer import contexts_reset
-    from ddtrace.appsec.iast._taint_tracking._native.initializer import create_context
-    from ddtrace.appsec.iast._taint_tracking._native.initializer import destroy_context
-    from ddtrace.appsec.iast._taint_tracking._native.initializer import get_context
-    from ddtrace.appsec.iast._taint_tracking._native.initializer import num_objects_tainted
-    from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import OriginType
-    from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import Source
-    from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import TagMappingMode
-    from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import TaintRange
-    from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import are_all_text_all_ranges
-    from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import get_range_by_hash
-    from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import get_ranges
-    from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import is_notinterned_notfasttainted_unicode
-    from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import is_tainted
-    from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import origin_to_str
-    from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import set_fast_tainted_if_notinterned_unicode
-    from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import set_ranges
-    from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import shift_taint_range
-    from ddtrace.appsec.iast._taint_tracking._native.taint_tracking import shift_taint_ranges
+    from .. import oce
+    from ._native import ops
+    from ._native.aspect_helpers import _convert_escaped_text_to_tainted_text
+    from ._native.aspect_helpers import as_formatted_evidence
+    from ._native.aspect_helpers import common_replace
+    from ._native.aspect_helpers import parse_params
+    from ._native.initializer import active_map_addreses_size
+    from ._native.initializer import create_context
+    from ._native.initializer import destroy_context
+    from ._native.initializer import initializer_size
+    from ._native.initializer import num_objects_tainted
+    from ._native.initializer import reset_context
+    from ._native.taint_tracking import OriginType
+    from ._native.taint_tracking import Source
+    from ._native.taint_tracking import TagMappingMode
+    from ._native.taint_tracking import are_all_text_all_ranges
+    from ._native.taint_tracking import get_range_by_hash
+    from ._native.taint_tracking import get_ranges
+    from ._native.taint_tracking import is_notinterned_notfasttainted_unicode
+    from ._native.taint_tracking import is_tainted
+    from ._native.taint_tracking import origin_to_str
+    from ._native.taint_tracking import set_fast_tainted_if_notinterned_unicode
+    from ._native.taint_tracking import set_ranges
+    from ._native.taint_tracking import shift_taint_range
+    from ._native.taint_tracking import shift_taint_ranges
+    from ._native.taint_tracking import str_to_origin
+    from ._native.taint_tracking import taint_range as TaintRange
 
-    setup = ops.setup
     new_pyobject_id = ops.new_pyobject_id
     is_pyobject_tainted = is_tainted
 
@@ -63,9 +64,13 @@ __all__ = [
     "is_notinterned_notfasttainted_unicode",
     "set_fast_tainted_if_notinterned_unicode",
     "aspect_helpers",
-    "contexts_reset",
-    "get_context",
+    "reset_context",
+    "destroy_context",
+    "initializer_size",
+    "active_map_addreses_size",
     "create_context",
+    "str_to_origin",
+    "origin_to_str",
     "common_replace",
     "as_formatted_evidence",
     "parse_params",
@@ -84,7 +89,7 @@ def taint_pyobject(pyobject, source_name, source_value, source_origin=None, star
 
     if not len_pyobject:
         len_pyobject = len(pyobject)
-    pyobject = new_pyobject_id(pyobject, len_pyobject)
+    pyobject_newid = new_pyobject_id(pyobject, len_pyobject)
     if isinstance(source_name, (bytes, bytearray)):
         source_name = str(source_name, encoding="utf8")
     if isinstance(source_value, (bytes, bytearray)):
@@ -93,9 +98,9 @@ def taint_pyobject(pyobject, source_name, source_value, source_origin=None, star
         source_origin = OriginType.PARAMETER
     source = Source(source_name, source_value, source_origin)
     pyobject_range = TaintRange(start, len_pyobject, source)
-    set_ranges(pyobject, [pyobject_range])
+    set_ranges(pyobject_newid, [pyobject_range])
     _set_metric_iast_executed_source(source_origin)
-    return pyobject
+    return pyobject_newid
 
 
 def taint_pyobject_with_ranges(pyobject, ranges):  # type: (Any, tuple) -> None

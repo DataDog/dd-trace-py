@@ -6,6 +6,7 @@ import six
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.constants import REQUEST_PATH_PARAMS
 from ddtrace.internal.constants import RESPONSE_HEADERS
+from ddtrace.internal.constants import STATUS_403_TYPE_AUTO
 
 
 if TYPE_CHECKING:
@@ -34,6 +35,14 @@ class Constant_Class(type):
                     yield t
 
         return aux()
+
+    def get(self, k, default=None):
+        # type: ("Constant_Class", str, Any) -> Any
+        return self.__dict__.get(k, default)
+
+    def __contains__(self, k):
+        # type: ("Constant_Class", str) -> bool
+        return k in self.__dict__
 
     def __getitem__(self, k):
         # type: ("Constant_Class", str) -> Any
@@ -97,6 +106,8 @@ class WAF_DATA_NAMES(object):
     REQUEST_USER_ID = "usr.id"
     RESPONSE_STATUS = "server.response.status"
     RESPONSE_HEADERS_NO_COOKIES = "server.response.headers.no_cookies"
+    RESPONSE_BODY = "http.response.body"
+    PROCESSOR_SETTINGS = "waf.context.processor"
 
 
 @six.add_metaclass(Constant_Class)  # required for python2/3 compatibility
@@ -125,6 +136,7 @@ class API_SECURITY(object):
 
     ENV_VAR_ENABLED = "DD_EXPERIMENTAL_API_SECURITY_ENABLED"
     REQUEST_HEADERS_NO_COOKIES = "_dd.appsec.s.req.headers"
+    REQUEST_COOKIES = "_dd.appsec.s.req.cookies"
     REQUEST_QUERY = "_dd.appsec.s.req.query"
     REQUEST_PATH_PARAMS = "_dd.appsec.s.req.params"
     REQUEST_BODY = "_dd.appsec.s.req.body"
@@ -149,6 +161,19 @@ class WAF_ACTIONS(object):
     """string identifier for actions returned by the waf"""
 
     BLOCK = "block"
+    PARAMETERS = "parameters"
+    TYPE = "type"
+    ID = "id"
+    DEFAULT_PARAMETERS = STATUS_403_TYPE_AUTO
+    BLOCK_ACTION = "block_request"
+    REDIRECT_ACTION = "redirect_request"
+    DEFAULT_ACTONS = {
+        BLOCK: {
+            ID: BLOCK,
+            TYPE: BLOCK_ACTION,
+            PARAMETERS: DEFAULT_PARAMETERS,
+        }
+    }
 
 
 @six.add_metaclass(Constant_Class)  # required for python2/3 compatibility
@@ -182,6 +207,7 @@ class LOGIN_EVENTS_MODE(object):
 class DEFAULT(object):
     ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
     RULES = os.path.join(ROOT_DIR, "rules.json")
+    API_SECURITY_PARAMETERS = os.path.join(ROOT_DIR, "_api_security/processors.json")
     TRACE_RATE_LIMIT = 100
     WAF_TIMEOUT = 5.0  # float (milliseconds)
     APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP = (

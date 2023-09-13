@@ -24,6 +24,7 @@ dependencies = [
     "flake8-blind-except",
     "flake8-builtins",
     "flake8-docstrings",
+    "flake8-bugbear",
     "flake8-logging-format",
     "flake8-rst-docstrings",
     "flake8-isort",
@@ -33,8 +34,8 @@ dependencies = [
 
 [envs.lint.scripts]
 style = [
-    "isort -q {args:.}",
-    "black -q {args:.}",
+    "isort --check --diff {args:.}",
+    "black --check --diff {args:.}",
     "flake8 {args}",
     "cython-lint {args:.}",
 ]
@@ -53,6 +54,10 @@ fmt-snapshots = [
 riot = [
     "python -m doctest {args} riotfile.py"
 ]
+fmt = [
+    "black {args:.}",
+    "isort {args:.}",
+]
 
 [envs.docs]
 type = "container"
@@ -66,7 +71,8 @@ extra-dependencies = [
     "sphinxcontrib-spelling==7.7.0",
     "PyEnchant==3.2.2",
     "sphinx-copybutton==0.5.1",
-    "furo",
+    # Later release of furo breaks formatting for code blocks
+    "furo<=2023.05.20",
 ]
 pre-install-commands = [
     "scripts/docs/install.sh",
@@ -82,4 +88,42 @@ build = [
 # We skip the pre-install as well
 env.CIRCLECI.type = [
     { value = "virtual", if = ["true"] },
+]
+
+
+[envs.slotscheck]
+template = "slotscheck"
+python = "3.10"
+features = ["opentracing"]
+extra-dependencies = [
+    "slotscheck==0.17.0",
+]
+
+[envs.slotscheck.scripts]
+_ = [
+    "python -m slotscheck -v ddtrace/",
+]
+
+
+[envs.scripts]
+detached = true
+python = "3.10"
+extra-dependencies = [
+    "packaging==23.1",
+]
+
+[envs.scripts.scripts]
+test = [
+    "python -m doctest {args} scripts/get-target-milestone.py scripts/needs_testrun.py tests/suitespec.py",
+]
+
+[envs.meta-testing]
+extra-dependencies = [
+    "pytest",
+    "pytest-cov",
+    "hypothesis<6.45.1"
+]
+[envs.meta-testing.scripts]
+meta-testing = [
+  "pytest {args} tests/meta"
 ]

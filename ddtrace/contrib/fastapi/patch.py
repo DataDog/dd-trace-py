@@ -28,6 +28,11 @@ config._add(
 )
 
 
+def get_version():
+    # type: () -> str
+    return getattr(fastapi, "__version__", "")
+
+
 @removals.remove(removal_version="2.0.0", category=DDTraceDeprecationWarning)
 def span_modifier(span, scope):
     resource = get_resource(scope)
@@ -68,7 +73,7 @@ def patch():
     if getattr(fastapi, "_datadog_patch", False):
         return
 
-    setattr(fastapi, "_datadog_patch", True)
+    fastapi._datadog_patch = True
     Pin().onto(fastapi)
     _w("fastapi.applications", "FastAPI.build_middleware_stack", wrap_middleware_stack)
     _w("fastapi.routing", "serialize_response", traced_serialize_response)
@@ -85,7 +90,7 @@ def unpatch():
     if not getattr(fastapi, "_datadog_patch", False):
         return
 
-    setattr(fastapi, "_datadog_patch", False)
+    fastapi._datadog_patch = False
 
     _u(fastapi.applications.FastAPI, "build_middleware_stack")
     _u(fastapi.routing, "serialize_response")

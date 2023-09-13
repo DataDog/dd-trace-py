@@ -23,3 +23,6 @@ class TestHttplibPatch(PatchTestCase.Base):
 
     def assert_not_module_double_patched(self, http_client):
         pass
+
+    def assert_module_implements_get_version(self):
+        pass

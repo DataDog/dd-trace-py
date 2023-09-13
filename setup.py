@@ -3,15 +3,15 @@ import os
 import platform
 import re
 import shutil
-import subprocess
 import sys
 import tarfile
 
-from setuptools import Extension, find_packages, setup
-from setuptools.command.build_ext import build_ext
-from setuptools.command.build_py import build_py as BuildPyCommand
-from pkg_resources import get_build_platform
-from distutils.command.clean import clean as CleanCommand
+
+from setuptools import Extension, find_packages, setup  # isort: skip
+from setuptools.command.build_ext import build_ext  # isort: skip
+from setuptools.command.build_py import build_py as BuildPyCommand  # isort: skip
+from pkg_resources import get_build_platform  # isort: skip
+from distutils.command.clean import clean as CleanCommand  # isort: skip
 
 
 try:
@@ -47,7 +47,7 @@ IAST_DIR = os.path.join(HERE, os.path.join("ddtrace", "appsec", "iast", "_taint_
 
 CURRENT_OS = platform.system()
 
-LIBDDWAF_VERSION = "1.12.0"
+LIBDDWAF_VERSION = "1.14.0"
 
 LIBDATADOG_PROF_DOWNLOAD_DIR = os.path.join(
     HERE, os.path.join("ddtrace", "internal", "datadog", "profiling", "libdatadog")
@@ -296,10 +296,6 @@ class CleanLibraries(CleanCommand):
 
 
 class CMakeBuild(build_ext):
-    @staticmethod
-    def strip_symbols(so_file):
-        subprocess.check_output(["strip", "-g", so_file])
-
     def build_extension(self, ext):
         tmp_iast_file_path = os.path.abspath(self.get_ext_fullpath(ext.name))
         tmp_iast_path = os.path.join(os.path.dirname(tmp_iast_file_path))
@@ -350,9 +346,6 @@ class CMakeBuild(build_ext):
                 # DEV: -j is only supported in CMake 3.12+ only.
                 if hasattr(self, "parallel") and self.parallel:
                     build_args += ["-j{}".format(self.parallel)]
-                else:
-                    # Let CMake determine the parallelism to use
-                    build_args += ["-j"]
             try:
                 cmake_cmd_with_args = [cmake_command] + cmake_args
                 subprocess.run(cmake_cmd_with_args, cwd=tmp_iast_path, check=True)
@@ -374,12 +367,6 @@ class CMakeBuild(build_ext):
                     shutil.copy(iast_artifact, tmp_iast_file_path)
         else:
             build_ext.build_extension(self, ext)
-            if CURRENT_OS == "Linux":
-                for ext in self.extensions:
-                    try:
-                        self.strip_symbols(self.get_ext_fullpath(ext.name))
-                    except Exception:
-                        pass
 
 
 long_description = """
@@ -473,7 +460,7 @@ if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
         )
 
         if sys.version_info >= (3, 6, 0):
-            ext_modules.append(Extension("ddtrace.appsec.iast._taint_tracking._native", sources=[], parallel=8))
+            ext_modules.append(Extension("ddtrace.appsec.iast._taint_tracking._native", sources=[]))
 else:
     ext_modules = []
 
@@ -487,15 +474,15 @@ def get_ddup_ext():
             cythonize(
                 [
                     Cython.Distutils.Extension(
-                        "ddtrace.internal.datadog.profiling.ddup",
+                        "ddtrace.internal.datadog.profiling._ddup",
                         sources=[
                             "ddtrace/internal/datadog/profiling/src/exporter.cpp",
                             "ddtrace/internal/datadog/profiling/src/interface.cpp",
-                            "ddtrace/internal/datadog/profiling/ddup.pyx",
+                            "ddtrace/internal/datadog/profiling/_ddup.pyx",
                         ],
                         include_dirs=LibDatadogDownload.get_include_dirs(),
                         extra_objects=LibDatadogDownload.get_extra_objects(),
-                        extra_compile_args=["-std=c++17", "-flto"],
+                        extra_compile_args=["-std=c++17"],
                         language="c++",
                     )
                 ],
@@ -577,7 +564,6 @@ setup(
         # users can include opentracing by having:
         # install_requires=['ddtrace[opentracing]', ...]
         "opentracing": ["opentracing>=2.0.0"],
-        "openai": ["tiktoken"],
     },
     tests_require=["flake8"],
     cmdclass={
@@ -592,7 +578,6 @@ setup(
         "pytest11": [
             "ddtrace = ddtrace.contrib.pytest.plugin",
             "ddtrace.pytest_bdd = ddtrace.contrib.pytest_bdd.plugin",
-            "ddtrace.pytest_benchmark = ddtrace.contrib.pytest_benchmark.plugin",
         ],
         "opentelemetry_context": [
             "ddcontextvars_context = ddtrace.opentelemetry._context:DDRuntimeContext",
@@ -609,7 +594,6 @@ setup(
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
     ],
-    use_scm_version={"write_to": "ddtrace/_version.py"},
     setup_requires=["setuptools_scm[toml]>=4", "cython<3", "cmake>=3.24.2; python_version>='3.6'"],
     ext_modules=ext_modules
     + cythonize(

@@ -2,6 +2,7 @@ from functools import reduce
 import json
 import operator
 import os
+from typing import List
 from typing import Set
 from typing import TYPE_CHECKING
 import zlib
@@ -14,7 +15,6 @@ from ddtrace.internal.compat import PY2
 if TYPE_CHECKING:
     import Any
     import Dict
-    import List
     import Optional
 
 
@@ -55,9 +55,9 @@ class Evidence(object):
 
 @attr.s(eq=True, hash=True)
 class Location(object):
-    path = attr.ib(type=str)  # type: str
-    line = attr.ib(type=int)  # type: int
     spanId = attr.ib(type=int, eq=False, hash=False, repr=False)  # type: int
+    path = attr.ib(type=str, default=None)  # type: Optional[str]
+    line = attr.ib(type=int, default=None)  # type: Optional[int]
 
 
 @attr.s(eq=True, hash=True)
@@ -84,8 +84,8 @@ class Source(object):
 
 @attr.s(eq=False, hash=False)
 class IastSpanReporter(object):
-    sources = attr.ib(type=Set[Source], factory=set)  # type: Set[Source]
+    sources = attr.ib(type=List[Source], factory=list)  # type: List[Source]
     vulnerabilities = attr.ib(type=Set[Vulnerability], factory=set)  # type: Set[Vulnerability]
 
     def __hash__(self):
-        return reduce(operator.xor, (hash(obj) for obj in self.sources | self.vulnerabilities))
+        return reduce(operator.xor, (hash(obj) for obj in set(self.sources) | self.vulnerabilities))

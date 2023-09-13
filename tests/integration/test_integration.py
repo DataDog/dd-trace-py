@@ -1,17 +1,14 @@
 # -*- coding: utf-8 -*-
 import itertools
-import logging
 import os
+import signal
 import sys
 
 import mock
 import pytest
 import six
 
-import ddtrace
 from ddtrace import Tracer
-from ddtrace.internal import agent
-from ddtrace.internal.runtime import container
 from ddtrace.internal.writer import AgentWriter
 from tests.integration.utils import AGENT_VERSION
 from tests.integration.utils import BadEncoder
@@ -19,15 +16,11 @@ from tests.integration.utils import import_ddtrace_in_subprocess
 from tests.integration.utils import parametrize_with_all_encodings
 from tests.integration.utils import send_invalid_payload_and_get_logs
 from tests.integration.utils import skip_if_testagent
-from tests.utils import AnyFloat
-from tests.utils import AnyInt
-from tests.utils import AnyStr
 from tests.utils import call_program
 from tests.utils import override_global_config
 
 
 FOUR_KB = 1 << 12
-LONG_STRING = "a" * 250
 
 
 def test_configure_keeps_api_hostname_and_port():
@@ -39,6 +32,21 @@ def test_configure_keeps_api_hostname_and_port():
     assert (
         tracer._writer.agent_url == "http://127.0.0.1:8127"
     ), "Previous overrides of hostname and port are retained after a configure() call without those arguments"
+
+
+@mock.patch("signal.signal")
+@mock.patch("signal.getsignal")
+def test_shutdown_on_exit_signal(mock_get_signal, mock_signal):
+    mock_get_signal.return_value = None
+    tracer = Tracer()
+    assert mock_signal.call_count == 2
+    assert mock_signal.call_args_list[0][0][0] == signal.SIGTERM
+    assert mock_signal.call_args_list[1][0][0] == signal.SIGINT
+    original_shutdown = tracer.shutdown
+    tracer.shutdown = mock.Mock()
+    mock_signal.call_args_list[0][0][1]("", "")
+    assert tracer.shutdown.call_count == 1
+    tracer.shutdown = original_shutdown
 
 
 def test_debug_mode_generates_debug_output():
@@ -84,10 +92,11 @@ t.join()
 
 @parametrize_with_all_encodings
 @pytest.mark.skipif(AGENT_VERSION != "latest", reason="Agent v5 doesn't support UDS")
-def test_single_trace_uds(encoding, monkeypatch):
-    monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
+def test_single_trace_uds():
+    import mock
 
-    t = Tracer()
+    from ddtrace import tracer as t
+
     sockdir = "/tmp/ddagent/trace.sock"
     t.configure(uds_path=sockdir)
 
@@ -99,10 +108,14 @@ def test_single_trace_uds(encoding, monkeypatch):
 
 
 @parametrize_with_all_encodings
-def test_uds_wrong_socket_path(encoding, monkeypatch):
-    monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
+def test_uds_wrong_socket_path():
+    import os
 
-    t = Tracer()
+    import mock
+
+    from ddtrace import tracer as t
+
+    encoding = os.environ["DD_TRACE_API_VERSION"]
     t.configure(uds_path="/tmp/ddagent/nosockethere")
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
         t.trace("client.testing").finish()
@@ -118,18 +131,28 @@ def test_uds_wrong_socket_path(encoding, monkeypatch):
     log.error.assert_has_calls(calls)
 
 
-@parametrize_with_all_encodings
 @skip_if_testagent
-def test_payload_too_large(encoding, monkeypatch):
-    monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
-    monkeypatch.setenv("DD_TRACE_WRITER_BUFFER_SIZE_BYTES", str(FOUR_KB))
-    monkeypatch.setenv("DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES", str(FOUR_KB))
+@parametrize_with_all_encodings(
+    env={
+        "DD_TRACE_WRITER_BUFFER_SIZE_BYTES": str(FOUR_KB),
+        "DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES": str(FOUR_KB),
+        # use a long processing_interval to ensure a flush doesn't happen partway through
+        "DD_TRACE_WRITER_INTERVAL_SECONDS": "1000",
+    }
+)
+def test_payload_too_large():
+    import os
 
-    t = Tracer()
+    import mock
+
+    from ddtrace import tracer as t
+    from tests.integration.test_integration import FOUR_KB
+    from tests.utils import AnyInt
+    from tests.utils import AnyStr
+
+    encoding = os.environ["DD_TRACE_API_VERSION"]
     assert t._writer._max_payload_size == FOUR_KB
     assert t._writer._buffer_size == FOUR_KB
-    # use a long processing_interval to ensure a flush doesn't happen partway through
-    t.configure(writer=AgentWriter(agent.get_trace_url(), processing_interval=1000))
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
         for i in range(100000 if encoding == "v0.5" else 1000):
             with t.trace("operation") as s:
@@ -152,15 +175,22 @@ def test_payload_too_large(encoding, monkeypatch):
 
 
 @skip_if_testagent
-def test_resource_name_too_large(monkeypatch):
-    monkeypatch.setenv("DD_TRACE_API_VERSION", "v0.5")
-    monkeypatch.setenv("DD_TRACE_WRITER_BUFFER_SIZE_BYTES", str(FOUR_KB))
+@pytest.mark.subprocess(
+    env=dict(
+        DD_TRACE_API_VERSION="v0.5",
+        DD_TRACE_WRITER_BUFFER_SIZE_BYTES=str(FOUR_KB),
+    )
+)
+def test_resource_name_too_large():
+    import pytest
 
-    t = Tracer()
+    from ddtrace import tracer as t
+    from tests.integration.test_integration import FOUR_KB
+
     assert t._writer._buffer_size == FOUR_KB
     s = t.trace("operation", service="foo")
     # Maximum string length is set to 10% of the maximum buffer size
-    s.resource = "B" * int(0.1*FOUR_KB + 1)
+    s.resource = "B" * int(0.1 * FOUR_KB + 1)
     try:
         s.finish()
     except ValueError:
@@ -170,12 +200,13 @@ def test_resource_name_too_large(monkeypatch):
 
 
 @parametrize_with_all_encodings
-def test_large_payload_is_sent_without_warning_logs(encoding, monkeypatch):
-    monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
+def test_large_payload_is_sent_without_warning_logs():
+    import mock
 
-    t = Tracer()
+    from ddtrace import tracer as t
+
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
-        for i in range(10000):
+        for _ in range(10000):
             with t.trace("operation"):
                 pass
 
@@ -185,13 +216,14 @@ def test_large_payload_is_sent_without_warning_logs(encoding, monkeypatch):
 
 
 @parametrize_with_all_encodings
-def test_child_spans_do_not_cause_warning_logs(encoding, monkeypatch):
-    monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
+def test_child_spans_do_not_cause_warning_logs():
+    import mock
 
-    t = Tracer()
+    from ddtrace import tracer as t
+
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
         spans = []
-        for i in range(10000):
+        for _ in range(10000):
             spans.append(t.trace("op"))
         for s in spans:
             s.finish()
@@ -216,7 +248,7 @@ def _test_metrics(
         with mock.patch("ddtrace.internal.writer.writer.log") as log:
             for _ in range(5):
                 spans = []
-                for i in range(3000):
+                for _ in range(3000):
                     spans.append(tracer.trace("op"))
                 for s in spans:
                     s.finish()
@@ -240,48 +272,53 @@ def _test_metrics(
                 )
 
 
-@parametrize_with_all_encodings
-def test_metrics(encoding, monkeypatch):
-    monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
+@parametrize_with_all_encodings(env={"DD_TRACE_HEALTH_METRICS_ENABLED": "true"})
+def test_metrics():
+    from ddtrace import tracer as t
+    from tests.integration.test_integration import _test_metrics
+    from tests.utils import AnyInt
 
-    with override_global_config(dict(health_metrics_enabled=True)):
-        t = Tracer()
-        assert t._partial_flush_min_spans == 500
-        _test_metrics(
-            t,
-            http_sent_bytes=AnyInt(),
-            http_sent_traces=30,
-            writer_accepted_traces=30,
-            buffer_accepted_traces=30,
-            buffer_accepted_spans=15000,
-            http_requests=1,
-        )
+    assert t._partial_flush_min_spans == 500
+    _test_metrics(
+        t,
+        http_sent_bytes=AnyInt(),
+        http_sent_traces=30,
+        writer_accepted_traces=30,
+        buffer_accepted_traces=30,
+        buffer_accepted_spans=15000,
+        http_requests=1,
+    )
 
 
-@parametrize_with_all_encodings
 @skip_if_testagent
-def test_metrics_partial_flush_disabled(encoding, monkeypatch):
-    monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
+@parametrize_with_all_encodings(env={"DD_TRACE_HEALTH_METRICS_ENABLED": "true"})
+def test_metrics_partial_flush_disabled():
+    from ddtrace import tracer as t
+    from tests.integration.test_integration import _test_metrics
+    from tests.utils import AnyInt
 
-    with override_global_config(dict(health_metrics_enabled=True)):
-        t = Tracer()
-        t.configure(
-            partial_flush_enabled=False,
-        )
-        _test_metrics(
-            t,
-            http_sent_bytes=AnyInt(),
-            buffer_accepted_traces=5,
-            buffer_accepted_spans=15000,
-            http_requests=1,
-        )
+    t.configure(
+        partial_flush_enabled=False,
+    )
+    _test_metrics(
+        t,
+        http_sent_bytes=AnyInt(),
+        buffer_accepted_traces=5,
+        buffer_accepted_spans=15000,
+        http_requests=1,
+    )
 
 
 @parametrize_with_all_encodings
-def test_single_trace_too_large(encoding, monkeypatch):
-    monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
+def test_single_trace_too_large():
+    import mock
 
-    t = Tracer()
+    from ddtrace import tracer as t
+    from ddtrace.internal.writer import AgentWriter
+    from tests.utils import AnyInt
+    from tests.utils import AnyStr
+
+    long_string = "a" * 250
     assert t._partial_flush_enabled is True
     with mock.patch.object(AgentWriter, "flush_queue", return_value=None), mock.patch(
         "ddtrace.internal.writer.writer.log"
@@ -290,7 +327,7 @@ def test_single_trace_too_large(encoding, monkeypatch):
             for i in range(30000):
                 with t.trace("operation") as s:
                     # these strings must be unique to avoid compression
-                    s.set_tag(LONG_STRING + str(i), LONG_STRING + str(i))
+                    s.set_tag(long_string + str(i), long_string + str(i))
         assert (
             mock.call(
                 "trace buffer (%s traces %db/%db) cannot fit trace of size %db, dropping (writer status: %s)",
@@ -306,18 +343,17 @@ def test_single_trace_too_large(encoding, monkeypatch):
         t.shutdown()
 
 
-@parametrize_with_all_encodings
 @skip_if_testagent
-def test_single_trace_too_large_partial_flush_disabled(encoding, monkeypatch):
-    monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
+@parametrize_with_all_encodings(env={"DD_TRACE_PARTIAL_FLUSH_ENABLED": "false"})
+def test_single_trace_too_large_partial_flush_disabled():
+    import mock
 
-    t = Tracer()
-    t.configure(
-        partial_flush_enabled=False,
-    )
+    from ddtrace import tracer as t
+    from tests.utils import AnyInt
+
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
         with t.trace("huge"):
-            for i in range(200000):
+            for _ in range(200000):
                 with t.trace("operation") as s:
                     s.set_tag("a" * 10, "b" * 10)
         t.shutdown()
@@ -328,16 +364,20 @@ def test_single_trace_too_large_partial_flush_disabled(encoding, monkeypatch):
 
 
 @parametrize_with_all_encodings
-def test_trace_generates_error_logs_when_hostname_invalid(encoding, monkeypatch):
-    monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
+def test_trace_generates_error_logs_when_hostname_invalid():
+    import os
 
-    t = Tracer()
+    import mock
+
+    from ddtrace import tracer as t
+
     t.configure(hostname="bad", port=1111)
 
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
         t.trace("op").finish()
         t.shutdown()
 
+    encoding = os.environ["DD_TRACE_API_VERSION"]
     calls = [
         mock.call(
             "failed to send, dropping %d traces to intake at %s after %d retries",
@@ -349,18 +389,21 @@ def test_trace_generates_error_logs_when_hostname_invalid(encoding, monkeypatch)
     log.error.assert_has_calls(calls)
 
 
-@parametrize_with_all_encodings
 @skip_if_testagent
-def test_validate_headers_in_payload_to_intake(encoding, monkeypatch):
-    monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
+@parametrize_with_all_encodings
+def test_validate_headers_in_payload_to_intake():
+    import mock
 
-    t = Tracer()
+    from ddtrace import __version__
+    from ddtrace import tracer as t
+    from ddtrace.internal.runtime import container
+
     t._writer._put = mock.Mock(wraps=t._writer._put)
     t.trace("op").finish()
     t.shutdown()
     assert t._writer._put.call_count == 1
     headers = t._writer._put.call_args[0][1]
-    assert headers.get("Datadog-Meta-Tracer-Version") == ddtrace.__version__
+    assert headers.get("Datadog-Meta-Tracer-Version") == __version__
     assert headers.get("Datadog-Meta-Lang") == "python"
     assert headers.get("Content-Type") == "application/msgpack"
     assert headers.get("X-Datadog-Trace-Count") == "1"
@@ -368,11 +411,13 @@ def test_validate_headers_in_payload_to_intake(encoding, monkeypatch):
         assert "Datadog-Container-Id" in headers
 
 
-@parametrize_with_all_encodings
 @skip_if_testagent
-def test_validate_headers_in_payload_to_intake_with_multiple_traces(encoding, monkeypatch):
-    monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
-    t = Tracer()
+@parametrize_with_all_encodings
+def test_validate_headers_in_payload_to_intake_with_multiple_traces():
+    import mock
+
+    from ddtrace import tracer as t
+
     t._writer._put = mock.Mock(wraps=t._writer._put)
     for _ in range(100):
         t.trace("op").finish()
@@ -382,11 +427,13 @@ def test_validate_headers_in_payload_to_intake_with_multiple_traces(encoding, mo
     assert headers.get("X-Datadog-Trace-Count") == "100"
 
 
-@parametrize_with_all_encodings
 @skip_if_testagent
-def test_validate_headers_in_payload_to_intake_with_nested_spans(encoding, monkeypatch):
-    monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
-    t = Tracer()
+@parametrize_with_all_encodings
+def test_validate_headers_in_payload_to_intake_with_nested_spans():
+    import mock
+
+    from ddtrace import tracer as t
+
     t._writer._put = mock.Mock(wraps=t._writer._put)
     for _ in range(10):
         with t.trace("op"):
@@ -433,8 +480,12 @@ def test_trace_with_invalid_payload_generates_error_log():
 
 
 @skip_if_testagent
-def test_trace_with_invalid_payload_logs_payload_when_LOG_ERROR_PAYLOADS(monkeypatch):
-    monkeypatch.setenv("_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", "true")
+@pytest.mark.subprocess(env={"_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS": "true", "DD_TRACE_API_VERSION": "v0.5"})
+def test_trace_with_invalid_payload_logs_payload_when_LOG_ERROR_PAYLOADS():
+    import mock
+
+    from tests.integration.test_integration import send_invalid_payload_and_get_logs
+
     log = send_invalid_payload_and_get_logs()
     log.error.assert_has_calls(
         [
@@ -450,8 +501,12 @@ def test_trace_with_invalid_payload_logs_payload_when_LOG_ERROR_PAYLOADS(monkeyp
 
 
 @skip_if_testagent
-def test_trace_with_non_bytes_payload_logs_payload_when_LOG_ERROR_PAYLOADS(monkeypatch):
-    monkeypatch.setenv("_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", "true")
+@pytest.mark.subprocess(env={"_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS": "true", "DD_TRACE_API_VERSION": "v0.5"})
+def test_trace_with_non_bytes_payload_logs_payload_when_LOG_ERROR_PAYLOADS():
+    import mock
+
+    from tests.integration.test_integration import send_invalid_payload_and_get_logs
+    from tests.integration.utils import BadEncoder
 
     class NonBytesBadEncoder(BadEncoder):
         def encode(self):
@@ -486,12 +541,16 @@ def test_trace_with_failing_encoder_generates_error_log():
     assert "failed to encode trace with encoder" in log.error.call_args[0][0]
 
 
-@parametrize_with_all_encodings
 @skip_if_testagent
-def test_api_version_downgrade_generates_no_warning_logs(encoding, monkeypatch):
-    monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
+@parametrize_with_all_encodings(err=None)
+def test_api_version_downgrade_generates_no_warning_logs():
+    import os
 
-    t = Tracer()
+    import mock
+
+    from ddtrace import tracer as t
+
+    encoding = os.environ["DD_TRACE_API_VERSION"]
     t._writer._downgrade(None, None, t._writer._clients[0])
     assert t._writer._endpoint == {"v0.5": "v0.4/traces", "v0.4": "v0.3/traces"}[encoding or "v0.5"]
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
@@ -507,11 +566,21 @@ def test_synchronous_writer_shutdown_raises_no_exception():
     tracer.shutdown()
 
 
-@parametrize_with_all_encodings
 @skip_if_testagent
-def test_writer_flush_queue_generates_debug_log(caplog, encoding, monkeypatch):
-    monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
-    caplog.set_level(logging.INFO)
+@parametrize_with_all_encodings
+def test_writer_flush_queue_generates_debug_log():
+    import logging
+    import os
+
+    import mock
+
+    from ddtrace.internal import agent
+    from ddtrace.internal.writer import AgentWriter
+    from tests.integration.utils import AGENT_VERSION
+    from tests.utils import AnyFloat
+    from tests.utils import AnyStr
+
+    encoding = os.environ["DD_TRACE_API_VERSION"]
     writer = AgentWriter(agent.get_trace_url())
 
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
@@ -589,7 +658,7 @@ print(len(root.handlers))
         assert out == six.b("0\n")
 
 
-@pytest.mark.subprocess(
+@parametrize_with_all_encodings(
     env=dict(
         DD_TRACE_WRITER_BUFFER_SIZE_BYTES="1000",
         DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES="5000",
@@ -646,12 +715,12 @@ assert ddtrace.tracer._writer._interval == 1.0
 
 
 @parametrize_with_all_encodings
-def test_partial_flush_log(run_python_code_in_subprocess, encoding, monkeypatch):
-    monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
+def test_partial_flush_log():
+    import mock
+
+    from ddtrace import tracer as t
 
     partial_flush_min_spans = 2
-    t = Tracer()
-
     t.configure(
         partial_flush_min_spans=partial_flush_min_spans,
     )

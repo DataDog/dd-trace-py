@@ -3,10 +3,11 @@ import gc
 import sys
 from typing import TYPE_CHECKING
 
-from ddtrace.appsec.iast._util import _is_iast_enabled
 from ddtrace.internal.logger import get_logger
 from ddtrace.vendor.wrapt import FunctionWrapper
 from ddtrace.vendor.wrapt import resolve_path
+
+from ._utils import _is_iast_enabled
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -74,7 +75,9 @@ def apply_patch(parent, attribute, replacement):
         patch_builtins(parent, attribute, replacement)
 
 
-def wrap_object(module, name, factory, args=(), kwargs={}):
+def wrap_object(module, name, factory, args=(), kwargs=None):
+    if kwargs is None:
+        kwargs = {}
     (parent, attribute, original) = resolve_path(module, name)
     wrapper = factory(original, *args, **kwargs)
     apply_patch(parent, attribute, wrapper)
@@ -140,8 +143,8 @@ def if_iast_taint_returned_object_for(origin, wrapped, instance, args, kwargs):
 
     if _is_iast_enabled():
         try:
-            from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
-            from ddtrace.appsec.iast._taint_tracking import taint_pyobject
+            from ._taint_tracking import is_pyobject_tainted
+            from ._taint_tracking import taint_pyobject
 
             if not is_pyobject_tainted(value):
                 name = str(args[0]) if len(args) else "http.request.body"
@@ -153,7 +156,7 @@ def if_iast_taint_returned_object_for(origin, wrapped, instance, args, kwargs):
 
 def if_iast_taint_yield_tuple_for(origins, wrapped, instance, args, kwargs):
     if _is_iast_enabled():
-        from ddtrace.appsec.iast._taint_tracking import taint_pyobject
+        from ._taint_tracking import taint_pyobject
 
         for key, value in wrapped(*args, **kwargs):
             new_key = taint_pyobject(pyobject=key, source_name=key, source_value=key, source_origin=origins[0])

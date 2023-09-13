@@ -51,7 +51,6 @@ Generate release notes for the 1.15 release: `BASE=1.15 python release.py`
 
 
 def create_release_draft(dd_repo, base, rc, patch):
-
     # make sure we're up to date
     subprocess.run("git fetch", shell=True, cwd=os.pardir)
 
@@ -88,7 +87,7 @@ def create_release_draft(dd_repo, base, rc, patch):
         # figure out the patch version we want
         search = r"v%s.((\d+))" % base
         tags = dd_repo.get_tags()
-        latest_patch_version = 1
+        latest_patch_version = 0
         for tag in tags:
             try:
                 other_patch_num = re.findall(search, tag.name)[0][0]
@@ -97,7 +96,7 @@ def create_release_draft(dd_repo, base, rc, patch):
                 continue
             if other_patch_num > latest_patch_version:
                 latest_patch_version = other_patch_num
-        new_patch_version = latest_patch_version if latest_patch_version == 1 else latest_patch_version + 1
+        new_patch_version = latest_patch_version + 1
 
         name = "%s.%s" % (base, str(new_patch_version))
         tag = "v%s" % name
@@ -142,7 +141,6 @@ def clean_rn(rn_raw):
 
 
 def generate_rn(branch):
-
     subprocess.check_output(
         "git checkout {branch} && \
             git pull origin {branch}".format(
@@ -406,7 +404,6 @@ Check the release notebook {nb_url} for asynchronous updates on the release proc
 
 
 if __name__ == "__main__":
-
     subprocess.check_output(
         "git stash",
         shell=True,

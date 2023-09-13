@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 from six import iteritems
 
-from ddtrace.appsec.iast._metrics import _set_metric_iast_instrumented_propagation
+from .._metrics import _set_metric_iast_instrumented_propagation
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -35,6 +35,7 @@ class AstVisitor(ast.NodeTransformer):
                 "str": "ddtrace_aspects.str_aspect",
                 "bytes": "ddtrace_aspects.bytes_aspect",
                 "bytearray": "ddtrace_aspects.bytearray_aspect",
+                "ddtrace_iast_flask_patch": "ddtrace_aspects.empty_func",  # To avoid recursion
             },
             "stringalike_methods": {
                 "decode": "ddtrace_aspects.decode_aspect",
@@ -107,7 +108,7 @@ class AstVisitor(ast.NodeTransformer):
         self.excluded_functions = self._aspects_spec["excluded_from_patching"].get(self.module_name, {})
 
         self.dont_patch_these_functionsdefs = set()
-        for k, v in iteritems(self.excluded_functions):
+        for _, v in iteritems(self.excluded_functions):
             if v:
                 for i in v:
                     self.dont_patch_these_functionsdefs.add(i)
@@ -176,7 +177,8 @@ class AstVisitor(ast.NodeTransformer):
             lineno=lineno, end_lineno=end_lineno, col_offset=col_offset, end_col_offset=end_col_offset, **kwargs
         )
 
-    def _name_node(self, from_node, _id, ctx=ast.Load()):  # type: (Any, str, Any) -> ast.Name
+    def _name_node(self, from_node, _id, ctx=ast.Load()):  # noqa: B008
+        # type: (Any, str, Any) -> ast.Name
         return self._node(
             ast.Name,
             from_node,
@@ -184,7 +186,8 @@ class AstVisitor(ast.NodeTransformer):
             ctx=ctx,
         )
 
-    def _attr_node(self, from_node, attr, ctx=ast.Load()):  # type: (Any, str, Any) -> ast.Name
+    def _attr_node(self, from_node, attr, ctx=ast.Load()):  # noqa: B008
+        # type: (Any, str, Any) -> ast.Name
         attr_attr = ""
         name_attr = ""
         if attr:
@@ -229,7 +232,8 @@ class AstVisitor(ast.NodeTransformer):
 
         return insert_position
 
-    def _none_constant(self, from_node, ctx=ast.Load()):  # type: (Any, Any) -> Any
+    def _none_constant(self, from_node, ctx=ast.Load()):  # noqa: B008
+        # type: (Any, Any) -> Any
         if PY30_37:
             return ast.NameConstant(lineno=from_node.lineno, col_offset=from_node.col_offset, value=None)
 
@@ -244,7 +248,6 @@ class AstVisitor(ast.NodeTransformer):
         )
 
     def _call_node(self, from_node, func, args):  # type: (Any, Any, List[Any]) -> Any
-
         return self._node(ast.Call, from_node, func=func, args=args, keywords=[])
 
     def visit_Module(self, module_node):

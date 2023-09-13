@@ -2,33 +2,33 @@ import os
 from typing import TYPE_CHECKING
 from typing import cast
 
-import six
-
 from ddtrace import tracer
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec.iast import oce
-from ddtrace.appsec.iast._metrics import _set_metric_iast_executed_sink
-from ddtrace.appsec.iast._overhead_control_engine import Operation
-from ddtrace.appsec.iast._util import _has_to_scrub
-from ddtrace.appsec.iast._util import _is_evidence_value_parts
-from ddtrace.appsec.iast._util import _scrub
-from ddtrace.appsec.iast.reporter import Evidence
-from ddtrace.appsec.iast.reporter import IastSpanReporter
-from ddtrace.appsec.iast.reporter import Location
-from ddtrace.appsec.iast.reporter import Source
-from ddtrace.appsec.iast.reporter import Vulnerability
 from ddtrace.internal import core
+from ddtrace.internal.compat import six
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.cache import LFUCache
 from ddtrace.settings import _config
 
+from .. import oce
+from .._metrics import _set_metric_iast_executed_sink
+from .._overhead_control_engine import Operation
+from .._utils import _has_to_scrub
+from .._utils import _is_evidence_value_parts
+from .._utils import _scrub
+from ..reporter import Evidence
+from ..reporter import IastSpanReporter
+from ..reporter import Location
+from ..reporter import Source
+from ..reporter import Vulnerability
+
 
 try:
     # Python >= 3.4
-    from ddtrace.appsec.iast._stacktrace import get_info_frame
+    from .._stacktrace import get_info_frame
 except ImportError:
     # Python 2
-    from ddtrace.appsec.iast._stacktrace_py2 import get_info_frame
+    from .._stacktrace_py2 import get_info_frame
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Any
@@ -71,8 +71,8 @@ class VulnerabilityBase(Operation):
         # type: (Callable) -> Callable
         def wrapper(wrapped, instance, args, kwargs):
             # type: (Callable, Any, Any, Any) -> Any
-            """Get the current root Span and attach it to the wrapped function. We need the span to report the vulnerability
-            and update the context with the report information.
+            """Get the current root Span and attach it to the wrapped function. We need the span to report the
+            vulnerability and update the context with the report information.
             """
             if oce.request_has_quota and cls.has_quota():
                 return func(wrapped, instance, args, kwargs)
@@ -89,25 +89,39 @@ class VulnerabilityBase(Operation):
 
         TODO: check deduplications if DD_IAST_DEDUPLICATION_ENABLED is true
         """
+
         if cls.acquire_quota():
             if not tracer or not hasattr(tracer, "current_root_span"):
-                log.debug("Not tracer or tracer has no root span")
+                log.debug(
+                    "[IAST] VulnerabilityReporter is trying to report an evidence, "
+                    "but not tracer or tracer has no root span"
+                )
                 return None
 
             span = tracer.current_root_span()
             if not span:
-                log.debug("No root span in the current execution. Skipping IAST taint sink.")
+                log.debug(
+                    "[IAST] VulnerabilityReporter. No root span in the current execution. Skipping IAST taint sink."
+                )
                 return None
 
-            frame_info = get_info_frame(CWD)
-            if not frame_info:
-                return None
+            file_name = None
+            line_number = None
 
-            file_name, line_number = frame_info
+            skip_location = getattr(cls, "skip_location", False)
+            if not skip_location:
+                frame_info = get_info_frame(CWD)
+                if not frame_info:
+                    return None
 
-            # Remove CWD prefix
-            if file_name.startswith(CWD):
-                file_name = os.path.relpath(file_name, start=CWD)
+                file_name, line_number = frame_info
+
+                # Remove CWD prefix
+                if file_name.startswith(CWD):
+                    file_name = os.path.relpath(file_name, start=CWD)
+
+                if not cls.is_not_reported(file_name, line_number):
+                    return
 
             if _is_evidence_value_parts(evidence_value):
                 evidence = Evidence(valueParts=evidence_value)
@@ -117,10 +131,6 @@ class VulnerabilityBase(Operation):
             else:
                 log.debug("Unexpected evidence_value type: %s", type(evidence_value))
                 evidence = Evidence(value="")
-
-            if not cls.is_not_reported(file_name, line_number):
-                # not not reported = reported
-                return None
 
             _set_metric_iast_executed_sink(cls.vulnerability_type)
 
@@ -145,7 +155,15 @@ class VulnerabilityBase(Operation):
                     }
                 )
             if sources:
-                report.sources = {Source(origin=x.origin, name=x.name, value=x.value) for x in sources}
+
+                def cast_value(value):
+                    if isinstance(value, (bytes, bytearray)):
+                        value_decoded = value.decode("utf-8")
+                    else:
+                        value_decoded = value
+                    return value_decoded
+
+                report.sources = [Source(origin=x.origin, name=x.name, value=cast_value(x.value)) for x in sources]
 
             redacted_report = cls._redacted_report_cache.get(
                 hash(report), lambda x: cls._redact_report(cast(IastSpanReporter, report))
@@ -156,7 +174,7 @@ class VulnerabilityBase(Operation):
     def _extract_sensitive_tokens(cls, report):
         # type: (Dict[Vulnerability, str]) -> Dict[int, Dict[str, Any]]
         log.debug("Base class VulnerabilityBase._extract_sensitive_tokens called")
-        raise NotImplementedError()
+        return {}
 
     @classmethod
     def _get_vulnerability_text(cls, vulnerability):
@@ -172,6 +190,22 @@ class VulnerabilityBase(Operation):
             )
 
         return ""
+
+    @classmethod
+    def replace_tokens(
+        cls,
+        vuln,
+        vulns_to_tokens,
+        has_range=False,
+    ):
+        ret = vuln.evidence.value
+        replaced = False
+
+        for token in vulns_to_tokens[hash(vuln)]["tokens"]:
+            ret = ret.replace(token, _scrub(token, has_range))
+            replaced = True
+
+        return ret, replaced
 
     @classmethod
     def _redact_report(cls, report):  # type: (IastSpanReporter) -> IastSpanReporter
@@ -225,22 +259,12 @@ class VulnerabilityBase(Operation):
                 source.redacted = True
                 source.value = None
 
-        def replace_tokens(vuln, has_range=False):
-            ret = vuln.evidence.value
-            replaced = False
-
-            for token in vulns_to_tokens[hash(vuln)]["tokens"]:
-                ret = ret.replace(token, _scrub(token, has_range))
-                replaced = True
-
-            return ret, replaced
-
         # Same for all the evidence values
         for vuln in report.vulnerabilities:
             # Use the initial hash directly as iteration key since the vuln itself will change
             vuln_hash = hash(vuln)
             if vuln.evidence.value is not None:
-                pattern, replaced = replace_tokens(vuln, hasattr(vuln.evidence.value, "source"))
+                pattern, replaced = cls.replace_tokens(vuln, vulns_to_tokens, hasattr(vuln.evidence.value, "source"))
                 if replaced:
                     vuln.evidence.pattern = pattern
                     vuln.evidence.redacted = True

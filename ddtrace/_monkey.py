@@ -89,6 +89,7 @@ PATCH_MODULES = {
     "openai": True,
     "langchain": True,
     "subprocess": True,
+    "unittest": True,
 }
 
 
@@ -164,7 +165,14 @@ def _on_import_factory(module, prefix="ddtrace.contrib", raise_errors=True, patc
             )
         else:
             imported_module.patch()
-            telemetry_writer.add_integration(module, True, PATCH_MODULES.get(module) is True, "")
+            if hasattr(imported_module, "get_versions"):
+                versions = imported_module.get_versions()
+                for name, v in versions.items():
+                    telemetry_writer.add_integration(name, True, PATCH_MODULES.get(module) is True, "", version=v)
+            else:
+                version = imported_module.get_version()
+                telemetry_writer.add_integration(module, True, PATCH_MODULES.get(module) is True, "", version=version)
+
             if hasattr(imported_module, "patch_submodules"):
                 imported_module.patch_submodules(patch_indicator)
 
@@ -187,7 +195,7 @@ def patch_all(**patch_modules):
     modules = PATCH_MODULES.copy()
 
     # The enabled setting can be overridden by environment variables
-    for module, enabled in modules.items():
+    for module, _enabled in modules.items():
         env_var = "DD_TRACE_%s_ENABLED" % module.upper()
         if env_var in os.environ:
             modules[module] = formats.asbool(os.environ[env_var])

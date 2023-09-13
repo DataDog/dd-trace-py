@@ -77,6 +77,7 @@ Homepage = "https://github.com/DataDog/dd-trace-py"
 
 [tool.setuptools_scm]
 version_scheme = "release-branch-semver"
+write_to = "ddtrace/_version.py"
 
 [tool.isort]
 force_single_line = true
@@ -85,7 +86,7 @@ force_sort_within_sections = true
 known_first_party = "ddtrace"
 default_section = "THIRDPARTY"
 skip = ["ddtrace/vendor/", ".riot", ".ddriot", ".tox", ".ddtox", ".eggs", "build", "setup.py"]
-skip_glob = [".venv*", "ddtrace/profiling/exporter/pprof_*pb2.py", "ddtrace/appsec/iast/_taint_tracking/_vendor/*"]
+skip_glob = [".venv*", "ddtrace/profiling/exporter/pprof_*pb2.py", "ddtrace/appsec/iast/_taint_tracking/_vendor/*", "ddtrace/**/*.pyi"]
 line_length = 120
 
 [tool.cython-lint]
@@ -116,7 +117,7 @@ exclude = '''
   | ddtrace/profiling/collector/stack.pyx$
   | ddtrace/profiling/exporter/pprof_.*_pb2.py$
   | ddtrace/profiling/exporter/pprof.pyx$
-  | ddtrace/internal/datadog/profiling/ddup.pyx$
+  | ddtrace/internal/datadog/profiling/_ddup.pyx$
   | ddtrace/vendor/
   | ddtrace/appsec/iast/_taint_tracking/_vendor/
   | \.eggs

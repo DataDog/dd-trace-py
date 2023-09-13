@@ -1,5 +1,4 @@
-#ifndef _NATIVE_TAINTEDOBJECT_H
-#define _NATIVE_TAINTEDOBJECT_H
+#pragma once
 #include "TaintTracking/TaintRange.h"
 #include <Python.h>
 
@@ -23,7 +22,7 @@ class TaintedObject
     {
         // Move back the ranges to the ranges stack
         move_ranges_to_stack();
-        ranges_ = move(ranges);
+        ranges_ = std::move(ranges);
     }
 
     inline void copy_values(const TaintRangeRefs& ranges)
@@ -54,5 +53,3 @@ class TaintedObject
 
 void
 pyexport_taintedobject(py::module& m);
-
-#endif //_NATIVE_TAINTEDOBJECT_H

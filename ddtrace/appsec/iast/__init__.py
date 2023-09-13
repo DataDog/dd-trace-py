@@ -28,12 +28,46 @@ def wrapped_function(wrapped, instance, args, kwargs):
     )
     return wrapped(*args, **kwargs)
 """  # noqa: RST201, RST213, RST210
-from ddtrace.appsec.iast._overhead_control_engine import OverheadControl
+import inspect
+import sys
 
+from ddtrace.internal.logger import get_logger
+
+from ._ast.ast_patching import astpatch_module
+from ._overhead_control_engine import OverheadControl
+from ._utils import _is_iast_enabled
+
+
+log = get_logger(__name__)
 
 oce = OverheadControl()
 
 
+def ddtrace_iast_flask_patch():
+    """
+    Patch the code inside the Flask main app source code file (typically "app.py") so
+    IAST/Custom Code propagation works also for the functions and methods defined inside it.
+    This must be called on the top level or inside the `if __name__ == "__main__"`
+    and must be before the `app.run()` call. It also requires `DD_IAST_ENABLED` to be
+    activated.
+    """
+    if not _is_iast_enabled():
+        return
+
+    module_name = inspect.currentframe().f_back.f_globals["__name__"]
+    module = sys.modules[module_name]
+    try:
+        module_path, patched_ast = astpatch_module(module, remove_flask_run=True)
+    except Exception:
+        log.debug("Unexpected exception while AST patching", exc_info=True)
+        return
+
+    compiled_code = compile(patched_ast, module_path, "exec")
+    exec(compiled_code, module.__dict__)  # nosec B102
+    sys.modules[module_name] = compiled_code
+
+
 __all__ = [
     "oce",
+    "ddtrace_iast_flask_patch",
 ]

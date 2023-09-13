@@ -6,7 +6,6 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import dbapi
-from ddtrace.ext import sql
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.utils.wrappers import unwrap
@@ -23,6 +22,12 @@ config._add(
     "aiomysql",
     dict(_default_service=schematize_service_name("mysql")),
 )
+
+
+def get_version():
+    # type: () -> str
+    return getattr(aiomysql, "__version__", "")
+
 
 CONN_ATTR_BY_TAG = {
     net.TARGET_HOST: "host",
@@ -69,7 +74,6 @@ class AIOTracedCursor(wrapt.ObjectProxy):
             s.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
             s.set_tag(SPAN_MEASURED_KEY)
-            s.set_tag_str(sql.QUERY, resource)
             s.set_tags(pin.tags)
             s.set_tags(extra_tags)
 
@@ -147,11 +151,11 @@ class AIOTracedConnection(wrapt.ObjectProxy):
 def patch():
     if getattr(aiomysql, "__datadog_patch", False):
         return
-    setattr(aiomysql, "__datadog_patch", True)
+    aiomysql.__datadog_patch = True
     wrapt.wrap_function_wrapper(aiomysql.connection, "_connect", patched_connect)
 
 
 def unpatch():
     if getattr(aiomysql, "__datadog_patch", False):
-        setattr(aiomysql, "__datadog_patch", False)
+        aiomysql.__datadog_patch = False
         unwrap(aiomysql.connection, "_connect")

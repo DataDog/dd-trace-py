@@ -5,8 +5,6 @@ import pytest
 
 try:
     from ddtrace.appsec.iast._taint_tracking import OriginType
-    from ddtrace.appsec.iast._taint_tracking import contexts_reset
-    from ddtrace.appsec.iast._taint_tracking import create_context
     from ddtrace.appsec.iast._taint_tracking import get_tainted_ranges
     from ddtrace.appsec.iast._taint_tracking import taint_pyobject
     from tests.appsec.iast.aspects.conftest import _iast_patched_module
@@ -14,16 +12,6 @@ except (ImportError, AttributeError):
     pytest.skip("IAST not supported for this Python version", allow_module_level=True)
 
 mod = _iast_patched_module("tests.appsec.iast.fixtures.aspects.str_methods")
-
-
-@pytest.fixture(autouse=True)
-def reset_context():
-    from ddtrace.appsec.iast._taint_tracking import setup
-
-    setup(bytes.join, bytearray.join)
-    yield
-    contexts_reset()
-    _ = create_context()
 
 
 class TestOperatorJoinReplacement(object):
@@ -46,10 +34,6 @@ class TestOperatorJoinReplacement(object):
         assert result[ranges[1].start : (ranges[1].start + ranges[1].length)] == "joi"
 
     def test_string_join_tainted_joiner_bytes(self):  # type: () -> None
-        from ddtrace.appsec.iast._taint_tracking import setup
-
-        setup(bytes.join, bytearray.join)
-
         # taint "joi" from "-joiner-"
         string_input = taint_pyobject(
             pyobject=b"-joiner-",
@@ -67,10 +51,6 @@ class TestOperatorJoinReplacement(object):
         assert result[ranges[1].start : (ranges[1].start + ranges[1].length)] == b"joi"
 
     def test_string_join_tainted_joiner_bytes_bytearray(self):  # type: () -> None
-        from ddtrace.appsec.iast._taint_tracking import setup
-
-        setup(bytes.join, bytearray.join)
-
         # taint "joi" from "-joiner-"
         string_input = taint_pyobject(
             pyobject=b"-joiner-",
@@ -88,10 +68,6 @@ class TestOperatorJoinReplacement(object):
         assert result[ranges[1].start : (ranges[1].start + ranges[1].length)] == b"joi"
 
     def test_string_join_tainted_joiner_bytearray(self):  # type: () -> None
-        from ddtrace.appsec.iast._taint_tracking import setup
-
-        setup(bytes.join, bytearray.join)
-
         # taint "joi" from "-joiner-"
         string_input = taint_pyobject(
             pyobject=bytearray(b"-joiner-"),
@@ -110,10 +86,6 @@ class TestOperatorJoinReplacement(object):
         assert result[ranges[1].start : (ranges[1].start + ranges[1].length)] == bytearray(b"joi")
 
     def test_string_join_tainted_joiner_bytearray_bytes(self):  # type: () -> None
-        from ddtrace.appsec.iast._taint_tracking import setup
-
-        setup(bytes.join, bytearray.join)
-
         # taint "joi" from "-joiner-"
         string_input = taint_pyobject(
             pyobject=bytearray(b"-joiner-"),
@@ -132,9 +104,6 @@ class TestOperatorJoinReplacement(object):
         assert result[ranges[1].start : (ranges[1].start + ranges[1].length)] == bytearray(b"joi")
 
     def test_string_join_tainted_joined(self):  # type: () -> None
-        from ddtrace.appsec.iast._taint_tracking import setup
-
-        setup(bytes.join, bytearray.join)
         string_input = "-joiner-"
         it = [
             taint_pyobject(
@@ -163,10 +132,6 @@ class TestOperatorJoinReplacement(object):
         assert result[ranges[1].start : (ranges[1].start + ranges[1].length)] == "ccc"
 
     def test_string_join_tainted_all(self):  # type: () -> None
-        from ddtrace.appsec.iast._taint_tracking import setup
-
-        setup(bytes.join, bytearray.join)
-
         string_input = taint_pyobject(
             pyobject="-joiner-",
             source_name="joiner",
@@ -237,10 +202,6 @@ class TestOperatorJoinReplacement(object):
 
     def test_string_join_tuple(self):  # type: () -> None
         # Not tainted
-        from ddtrace.appsec.iast._taint_tracking import setup
-
-        setup(bytes.join, bytearray.join)
-
         base_string = "abcde"
         result = mod.do_join_tuple(base_string)
         assert result == "abcde1abcde2abcde3"
@@ -265,10 +226,6 @@ class TestOperatorJoinReplacement(object):
 
     def test_string_join_set(self):  # type: () -> None
         # Not tainted
-        from ddtrace.appsec.iast._taint_tracking import setup
-
-        setup(bytes.join, bytearray.join)
-
         base_string = "abcde"
         result = mod.do_join_set(base_string)
         assert not get_tainted_ranges(result)
@@ -291,9 +248,6 @@ class TestOperatorJoinReplacement(object):
 
     def test_string_join_generator(self):
         # type: () -> None
-        from ddtrace.appsec.iast._taint_tracking import setup
-
-        setup(bytes.join, bytearray.join)
         # Not tainted
         base_string = "abcde"
         result = mod.do_join_generator(base_string)
@@ -319,9 +273,6 @@ class TestOperatorJoinReplacement(object):
 
     def test_string_join_args_kwargs(self):
         # type: () -> None
-        from ddtrace.appsec.iast._taint_tracking import setup
-
-        setup(bytes.join, bytearray.join)
         # Not tainted
         base_string = "-abcde-"
         result = mod.do_join_args_kwargs(base_string, ("f", "g"))

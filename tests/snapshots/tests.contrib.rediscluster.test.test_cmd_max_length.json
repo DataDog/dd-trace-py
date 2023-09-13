@@ -9,25 +9,25 @@
     "type": "redis",
     "error": 0,
     "meta": {
+      "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "component": "rediscluster",
       "db.system": "redis",
       "language": "python",
       "redis.raw_command": "FLUSHALL",
-      "runtime-id": "f93c3bec8adb438c84065c9ec9583c92",
+      "runtime-id": "3f274e442442409ebe2921656289c272",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 48250,
+      "process_id": 19879,
       "redis.args_length": 1
     },
-    "duration": 12067000,
-    "start": 1682636830779135000
+    "duration": 6147917,
+    "start": 1692651754310637094
   }],
 [
   {
@@ -40,23 +40,24 @@
     "type": "redis",
     "error": 0,
     "meta": {
+      "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "component": "rediscluster",
       "db.system": "redis",
       "language": "python",
       "redis.raw_command": "GET here...",
-      "runtime-id": "f93c3bec8adb438c84065c9ec9583c92",
+      "runtime-id": "3f274e442442409ebe2921656289c272",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 48250,
+      "db.row_count": 0,
+      "process_id": 19879,
       "redis.args_length": 2
     },
-    "duration": 1304000,
-    "start": 1682636830812590000
+    "duration": 311583,
+    "start": 1692651754317740053
   }]]

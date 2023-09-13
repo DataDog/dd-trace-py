@@ -51,7 +51,7 @@ class EventsSDKTestCase(TracerTestCase):
             assert root_span.get_tag("%s.sdk" % success_prefix) == "true"
             assert not root_span.get_tag("%s.auto.mode" % success_prefix)
             assert not root_span.get_tag("%s.track" % failure_prefix)
-            assert root_span.get_tag(constants.MANUAL_KEEP_KEY) == "true"
+            assert root_span.context.sampling_priority == constants.USER_KEEP
             # set_user tags
             assert root_span.get_tag(user.ID) == "1234"
             assert root_span.get_tag(user.NAME) == "John"
@@ -59,6 +59,40 @@ class EventsSDKTestCase(TracerTestCase):
             assert root_span.get_tag(user.SCOPE) == "test_scope"
             assert root_span.get_tag(user.ROLE) == "boss"
             assert root_span.get_tag(user.SESSION_ID) == "test_session_id"
+
+    def test_track_user_login_event_success_in_span_without_metadata(self):
+        with self.trace("test_success1") as parent_span:
+            user_span = self.trace("user_span")
+            user_span.parent_id = parent_span.span_id
+            track_user_login_success_event(
+                self.tracer,
+                "1234",
+                metadata=None,
+                name="John",
+                email="test@test.com",
+                scope="test_scope",
+                role="boss",
+                session_id="test_session_id",
+                span=user_span,
+            )
+
+            success_prefix = "%s.success" % APPSEC.USER_LOGIN_EVENT_PREFIX
+            failure_prefix = "%s.failure" % APPSEC.USER_LOGIN_EVENT_PREFIX
+
+            assert user_span.get_tag("%s.track" % success_prefix) == "true"
+            assert user_span.get_tag("%s.sdk" % success_prefix) == "true"
+            assert not user_span.get_tag("%s.auto.mode" % success_prefix)
+            assert not user_span.get_tag("%s.track" % failure_prefix)
+            assert user_span.context.sampling_priority == constants.USER_KEEP
+            # set_user tags
+            assert user_span.get_tag(user.ID) == "1234" and parent_span.get_tag(user.ID) is None
+            assert user_span.get_tag(user.NAME) == "John" and parent_span.get_tag(user.NAME) is None
+            assert user_span.get_tag(user.EMAIL) == "test@test.com" and parent_span.get_tag(user.EMAIL) is None
+            assert user_span.get_tag(user.SCOPE) == "test_scope" and parent_span.get_tag(user.SCOPE) is None
+            assert user_span.get_tag(user.ROLE) == "boss" and parent_span.get_tag(user.ROLE) is None
+            assert (
+                user_span.get_tag(user.SESSION_ID) == "test_session_id" and parent_span.get_tag(user.SESSION_ID) is None
+            )
 
     def test_track_user_login_event_success_auto_mode_safe(self):
         with self.trace("test_success1"):
@@ -109,7 +143,7 @@ class EventsSDKTestCase(TracerTestCase):
             assert root_span.get_tag("%s.sdk" % success_prefix) == "true"
             assert not root_span.get_tag("%s.auto.mode" % success_prefix)
             assert root_span.get_tag("%s.foo" % success_prefix) == "bar"
-            assert root_span.get_tag(constants.MANUAL_KEEP_KEY) == "true"
+            assert root_span.context.sampling_priority == constants.USER_KEEP
             # set_user tags
             assert root_span.get_tag(user.ID) == "1234"
             assert not root_span.get_tag(user.NAME)
@@ -140,7 +174,7 @@ class EventsSDKTestCase(TracerTestCase):
             assert root_span.get_tag("%s.%s" % (failure_prefix, user.ID)) == "1234"
             assert root_span.get_tag("%s.%s" % (failure_prefix, user.EXISTS)) == "true"
             assert root_span.get_tag("%s.foo" % failure_prefix) == "bar"
-            assert root_span.get_tag(constants.MANUAL_KEEP_KEY) == "true"
+            assert root_span.context.sampling_priority == constants.USER_KEEP
             # set_user tags: shouldn't have been called
             assert not root_span.get_tag(user.ID)
             assert not root_span.get_tag(user.NAME)

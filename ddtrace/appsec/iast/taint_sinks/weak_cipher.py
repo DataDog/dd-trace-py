@@ -1,21 +1,22 @@
 import os
 from typing import TYPE_CHECKING
 
-from ddtrace.appsec.iast import oce
-from ddtrace.appsec.iast._metrics import _set_metric_iast_instrumented_sink
-from ddtrace.appsec.iast._patch import set_and_check_module_is_patched
-from ddtrace.appsec.iast._patch import set_module_unpatched
-from ddtrace.appsec.iast._patch import try_unwrap
-from ddtrace.appsec.iast._patch import try_wrap_function_wrapper
-from ddtrace.appsec.iast.constants import BLOWFISH_DEF
-from ddtrace.appsec.iast.constants import DEFAULT_WEAK_CIPHER_ALGORITHMS
-from ddtrace.appsec.iast.constants import DES_DEF
-from ddtrace.appsec.iast.constants import EVIDENCE_ALGORITHM_TYPE
-from ddtrace.appsec.iast.constants import RC2_DEF
-from ddtrace.appsec.iast.constants import RC4_DEF
-from ddtrace.appsec.iast.constants import VULN_WEAK_CIPHER_TYPE
-from ddtrace.appsec.iast.taint_sinks._base import VulnerabilityBase
 from ddtrace.internal.logger import get_logger
+
+from .. import oce
+from .._metrics import _set_metric_iast_instrumented_sink
+from .._patch import set_and_check_module_is_patched
+from .._patch import set_module_unpatched
+from .._patch import try_unwrap
+from .._patch import try_wrap_function_wrapper
+from ..constants import BLOWFISH_DEF
+from ..constants import DEFAULT_WEAK_CIPHER_ALGORITHMS
+from ..constants import DES_DEF
+from ..constants import EVIDENCE_ALGORITHM_TYPE
+from ..constants import RC2_DEF
+from ..constants import RC4_DEF
+from ..constants import VULN_WEAK_CIPHER_TYPE
+from ._base import VulnerabilityBase
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -41,7 +42,6 @@ def get_weak_cipher_algorithms():
 class WeakCipher(VulnerabilityBase):
     vulnerability_type = VULN_WEAK_CIPHER_TYPE
     evidence_type = EVIDENCE_ALGORITHM_TYPE
-    scrub_evidence = False
 
 
 def unpatch_iast():
@@ -57,6 +57,11 @@ def unpatch_iast():
     try_unwrap("Crypto.Cipher._mode_cfb", "CfbMode.encrypt")
     try_unwrap("Crypto.Cipher._mode_ofb", "OfbMode.encrypt")
     try_unwrap("cryptography.hazmat.primitives.ciphers", "Cipher.encryptor")
+
+
+def get_version():
+    # type: () -> str
+    return ""
 
 
 def patch():
