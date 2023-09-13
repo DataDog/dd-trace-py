@@ -1,11 +1,11 @@
 import os
 
 import aiobotocore.client
+import wrapt
 
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.version import parse_version
-from ddtrace.vendor import wrapt
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_KIND

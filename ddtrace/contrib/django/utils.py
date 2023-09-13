@@ -9,6 +9,7 @@ from typing import Union
 import django
 from django.utils.functional import SimpleLazyObject
 import six
+from wrapt import FunctionWrapper
 import xmltodict
 
 from ddtrace import config
@@ -23,7 +24,6 @@ from .. import trace_utils
 from ...internal import core
 from ...internal.logger import get_logger
 from ...internal.utils.formats import stringify_cache_args
-from ...vendor.wrapt import FunctionWrapper
 from .compat import get_resolver
 from .compat import user_is_authenticated
 

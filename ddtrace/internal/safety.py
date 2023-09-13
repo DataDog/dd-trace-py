@@ -7,11 +7,12 @@ from typing import Tuple
 from typing import Type
 from typing import Union
 
+import wrapt
+
 from ddtrace.internal.compat import BUILTIN
 from ddtrace.internal.compat import PY3
 from ddtrace.internal.utils.attrdict import AttrDict
 from ddtrace.internal.utils.cache import cached
-from ddtrace.vendor import wrapt
 
 
 NoneType = type(None)

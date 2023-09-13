@@ -2,6 +2,8 @@ import inspect
 import os
 import unittest
 
+import wrapt
+
 import ddtrace
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
@@ -14,7 +16,6 @@ from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
 from ddtrace.internal.ci_visibility.constants import EVENT_TYPE as _EVENT_TYPE
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.wrappers import unwrap as _u
-from ddtrace.vendor import wrapt
 
 
 # unittest default settings

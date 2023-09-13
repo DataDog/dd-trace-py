@@ -513,7 +513,7 @@ def test_debugger_multiple_function_probes_on_same_function():
 
 
 # DEV: The following tests are to ensure compatibility with the tracer
-import ddtrace.vendor.wrapt as wrapt  # noqa
+import wrapt as wrapt  # noqa
 
 
 def wrapper(wrapped, instance, args, kwargs):
