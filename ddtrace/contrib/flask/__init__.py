@@ -33,7 +33,7 @@ utility functions) you will need to import and call `ddtrace_iast_flask_patch()`
 the `app.run()` to ensure the code inside the main module is patched to propagation works:
 
     from flask import Flask
-    from ddtrace.appsec.iast import ddtrace_iast_flask_patch
+    from ddtrace.appsec._iast import ddtrace_iast_flask_patch
 
     app = Flask(__name__)
 

@@ -11,7 +11,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.processor import SpanProcessor
 
 from . import oce
-from ..trace_utils import _asm_manual_keep
+from .._trace_utils import _asm_manual_keep
 from ._metrics import _set_metric_iast_request_tainted
 from ._utils import _iast_report_to_str
 from ._utils import _is_iast_enabled
