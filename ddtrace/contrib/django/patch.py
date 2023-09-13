@@ -12,6 +12,9 @@ from inspect import isclass
 from inspect import isfunction
 import os
 
+import wrapt
+from wrapt.importer import when_imported
+
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.appsec import _asm_request_context
@@ -38,8 +41,6 @@ from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.settings.integration import IntegrationConfig
-from ddtrace.vendor import wrapt
-from ddtrace.vendor.wrapt.importer import when_imported
 
 from .. import trace_utils
 from ...appsec._constants import WAF_CONTEXT_NAMES

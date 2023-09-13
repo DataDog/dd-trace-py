@@ -23,9 +23,8 @@ from typing import Union
 import warnings
 
 import six
-
-from ddtrace.vendor.wrapt.wrappers import BoundFunctionWrapper
-from ddtrace.vendor.wrapt.wrappers import FunctionWrapper
+from wrapt.wrappers import BoundFunctionWrapper
+from wrapt.wrappers import FunctionWrapper
 
 
 __all__ = [

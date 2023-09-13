@@ -3,9 +3,10 @@ import gc
 import sys
 from typing import TYPE_CHECKING
 
+from wrapt import FunctionWrapper
+from wrapt import resolve_path
+
 from ddtrace.internal.logger import get_logger
-from ddtrace.vendor.wrapt import FunctionWrapper
-from ddtrace.vendor.wrapt import resolve_path
 
 from ._utils import _is_iast_enabled
 

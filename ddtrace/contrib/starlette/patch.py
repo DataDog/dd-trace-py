@@ -5,6 +5,8 @@ from typing import Optional
 
 import starlette
 from starlette.middleware import Middleware
+from wrapt import ObjectProxy
+from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
 from ddtrace.contrib.asgi.middleware import TraceMiddleware
@@ -14,8 +16,6 @@ from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.span import Span
-from ddtrace.vendor.wrapt import ObjectProxy
-from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 
 log = get_logger(__name__)
