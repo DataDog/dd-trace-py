@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 from six import iteritems
 
-from ddtrace.appsec.iast._metrics import _set_metric_iast_instrumented_propagation
+from .._metrics import _set_metric_iast_instrumented_propagation
 
 
 if TYPE_CHECKING:  # pragma: no cover
