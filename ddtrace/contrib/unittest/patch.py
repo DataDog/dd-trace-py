@@ -55,35 +55,28 @@ def _store_test_span(item, span):
     item._datadog_span = span
 
 
-def _store_session_span(module, span):
-    """Store session span at `unittest` module instance."""
-    module._datadog_session_span = span
-    if hasattr(module, "test") and hasattr(module.test, "_tests"):
-        for submodule in module.test._tests:
-            submodule._datadog_session_span = span
+def _store_module_identifier(test_object):
+    """Store module identifier at `unittest` module instance."""
+    if hasattr(test_object, "test") and hasattr(test_object.test, "_tests"):
+        for module in test_object.test._tests:
+            if len(module._tests) and _extract_module_name_from_module(module):
+                _set_identifier(module, "module")
 
 
-def _store_module_span(suite, span):
-    """Store module span at `unittest` suite instance."""
-    suite._datadog_module_span = span
-    if hasattr(suite, "_tests"):
-        for subsuite in suite._tests:
-            subsuite._datadog_module_span = span
-
-
-def _store_suite_span(test, span):
-    """Store suite span at `unittest` test instance."""
-    if hasattr(test, "_tests"):
-        for test_object in test._tests:
-            test_object._datadog_suite_span = span
-
-
-def _is_test_suite(item):
-    return _extract_module_span(item) and len(item._tests)
+def _store_suite_identifier(module):
+    """Store suite identifier at `unittest` suite instance."""
+    if hasattr(module, "_tests"):
+        for suite in module._tests:
+            if len(suite._tests) and _extract_module_name_from_module(suite):
+                _set_identifier(suite, "suite")
 
 
 def _is_test_module(item):
-    return _extract_session_span(item) and len(item._tests) and _extract_module_name_from_module(item)
+    return hasattr(item, "_datadog_object") and item._datadog_object == "module"
+
+
+def _is_test_suite(item):
+    return hasattr(item, "_datadog_object") and item._datadog_object == "suite"
 
 
 def _extract_span(item):
@@ -107,30 +100,18 @@ def _extract_suite_name(item):
     return type(item._tests[0]).__name__
 
 
-def _extract_session_span(test_object):
-    return getattr(test_object, "_datadog_session_span", None) or getattr(_CIVisibility, "_datadog_session_span", None)
+def _extract_session_span():
+    return getattr(_CIVisibility, "_datadog_session_span", None)
 
 
-def _extract_module_span(test_object, resource_identifier=None):
-    if getattr(test_object, "_datadog_module_span", None):
-        return getattr(test_object, "_datadog_module_span", None)
-    if (
-        resource_identifier
-        and hasattr(_CIVisibility, "_unittest_data")
-        and resource_identifier in _CIVisibility._unittest_data["modules"]
-    ):
+def _extract_module_span(resource_identifier):
+    if hasattr(_CIVisibility, "_unittest_data") and resource_identifier in _CIVisibility._unittest_data["modules"]:
         return _CIVisibility._unittest_data["modules"][resource_identifier].get("module_span")
     return None
 
 
-def _extract_suite_span(test_object, resource_identifier=None):
-    if getattr(test_object, "_datadog_suite_span", None):
-        return getattr(test_object, "_datadog_suite_span", None)
-    if (
-        resource_identifier
-        and hasattr(_CIVisibility, "_unittest_data")
-        and resource_identifier in _CIVisibility._unittest_data["suites"]
-    ):
+def _extract_suite_span(resource_identifier):
+    if hasattr(_CIVisibility, "_unittest_data") and resource_identifier in _CIVisibility._unittest_data["suites"]:
         return _CIVisibility._unittest_data["suites"][resource_identifier].get("suite_span")
     return None
 
@@ -147,8 +128,24 @@ def _update_status_item(item, status):
 
 
 def _extract_suite_name_from_test_method(item):
-    item_type = type(item)
-    return getattr(item_type, "__name__", None)
+    if type(item) != unittest.TestSuite:
+        return _extract_class_hierarchy_name(item)
+    if not len(item._tests):
+        return None
+    module_name = None
+    for suite in item._tests:
+        if type(suite) != unittest.TestSuite:
+            module_name = _extract_class_hierarchy_name(suite)
+            break
+        if not len(suite._tests):
+            continue
+        for test_object in suite._tests:
+            module_name = _extract_class_hierarchy_name(test_object)
+            if not module_name:
+                continue
+            break
+
+    return module_name
 
 
 def _extract_class_hierarchy_name(item):
@@ -192,14 +189,22 @@ def _extract_test_file_name(item):
 def _extract_module_file_path(item):
     if type(item) != unittest.TestSuite:
         return os.path.relpath(inspect.getfile(item.__class__))
-    if not len(item._tests):
+    if not hasattr(item, "_tests") or not len(item._tests):
         return ""
-    if type(item._tests[0]) != unittest.TestSuite:
-        return os.path.relpath(inspect.getfile(item._tests[0].__class__))
-    if not hasattr(item._tests, "_tests") or not len(item._tests._tests):
-        return ""
+    module_file_path = ""
+    for suite in item._tests:
+        if type(suite) != unittest.TestSuite:
+            module_file_path = os.path.relpath(inspect.getfile(suite.__class__))
+            break
+        if not len(suite._tests):
+            continue
+        for test_object in suite._tests:
+            module_file_path = os.path.relpath(inspect.getfile(test_object.__class__))
+            if not module_file_path:
+                continue
+            break
 
-    return os.path.relpath(inspect.getfile(item._tests[0]._tests[0].__class__))
+    return module_file_path
 
 
 def _generate_test_resource(suite_name, test_name):
@@ -218,8 +223,8 @@ def _generate_session_resource(framework_name, test_command):
     return framework_name + "." + "test_session" + "." + test_command
 
 
-def _get_identifier(item):
-    return getattr(item, "_datadog_object", None)
+def _set_identifier(item, name):
+    item._datadog_object = name
 
 
 def _is_valid_result(instance, args):
@@ -235,18 +240,11 @@ def _is_valid_module_suite_call(func):
 
 
 def _is_invoked_by_cli(args):
-    return (
-        not args
-        or not len(args)
-        or not len(args[0]._tests)
-        or type(args[0]._tests[0]) == unittest.TestSuite
-        and not len(args[0]._tests[0]._tests)
-        or hasattr(args[0], "_datadog_entry")
-    )
+    return not args or (hasattr(_CIVisibility, "_datadog_entry") and _CIVisibility._datadog_entry == "cli")
 
 
-def _is_invoked_by_text_test_runner(instance):
-    return hasattr(instance, "_datadog_entry") and instance._datadog_entry == "TextTestRunner"
+def _is_invoked_by_text_test_runner():
+    return hasattr(_CIVisibility, "_datadog_entry") and _CIVisibility._datadog_entry == "TextTestRunner"
 
 
 def _get_python_version():
@@ -259,8 +257,10 @@ def _generate_module_suite_path(test_module_path, test_suite_name):
 
 def _populate_suites_and_modules(test_objects, seen_suites, seen_modules):
     for test_object in test_objects:
+        if type(test_object) == unittest.TestSuite:
+            continue
         test_module_path = _extract_module_file_path(test_object)
-        test_suite_name = _extract_class_hierarchy_name(test_object)
+        test_suite_name = _extract_suite_name_from_test_method(test_object)
         test_module_suite_path = test_module_path + "." + test_suite_name
         if test_module_path not in seen_modules:
             seen_modules[test_module_path] = {
@@ -299,8 +299,7 @@ def _update_remaining_suites_and_modules(test_module_suite_path, test_module_pat
         == _CIVisibility._unittest_data["suites"][test_module_suite_path]["expected_tests"]
     ):
         _CIVisibility._unittest_data["modules"][test_module_path]["ran_suites"] += 1
-        _update_status_item(test_module_span, test_suite_span.get_tag(test.STATUS))
-        test_suite_span.finish()
+        _finish_test_suite_span(test_suite_span)
     if (
         _CIVisibility._unittest_data["modules"][test_module_path]["ran_suites"]
         == _CIVisibility._unittest_data["modules"][test_module_path]["expected_suites"]
@@ -416,20 +415,23 @@ def add_xpass_test_wrapper(func, instance, args, kwargs):
 def handle_test_wrapper(func, instance, args, kwargs):
     if _is_valid_test_call(kwargs):
         tracer = getattr(unittest, "_datadog_tracer", _CIVisibility._instance.tracer)
-        test_suite_name = _extract_class_hierarchy_name(instance)
+        test_suite_name = _extract_suite_name_from_test_method(instance)
         test_name = _extract_test_method_name(instance)
         resource_name = _generate_test_resource(test_suite_name, test_name)
         test_module_path = _extract_module_file_path(instance)
         test_module_suite_path = _generate_module_suite_path(test_module_path, test_suite_name)
-        test_suite_span = _extract_suite_span(instance, test_module_suite_path)
-        test_module_span = _extract_module_span(instance, test_module_path)
+        test_suite_span = _extract_suite_span(test_module_suite_path)
+        test_module_span = _extract_module_span(test_module_path)
         if hasattr(_CIVisibility, "_unittest_data"):
-            if test_module_span is None:
+            if test_module_span is None and test_module_path in _CIVisibility._unittest_data["modules"]:
                 test_module_span = _start_test_module_span(instance)
                 _CIVisibility._unittest_data["modules"][test_module_path]["module_span"] = test_module_span
-            if test_suite_span is None:
+            if test_suite_span is None and test_module_suite_path in _CIVisibility._unittest_data["suites"]:
                 test_suite_span = _start_test_suite_span(instance)
                 _CIVisibility._unittest_data["suites"][test_module_suite_path]["suite_span"] = test_suite_span
+        if not test_module_span or not test_suite_span:
+            log.debug("Suite and/or module span not found for test: %s", test_name)
+            return func(*args, **kwargs)
         span = tracer._start_span(
             ddtrace.config.unittest.operation_name,
             service=_CIVisibility._instance._service,
@@ -473,44 +475,24 @@ def handle_test_wrapper(func, instance, args, kwargs):
 
 
 def handle_module_suite_wrapper(func, instance, args, kwargs):
-    if _is_valid_module_suite_call(func):
-        if (
-            _is_test_suite(instance)
-            or hasattr(instance, "_datadog_entry")
-            and instance._datadog_entry == "TextTestRunner"
-        ):
-            if _is_invoked_by_text_test_runner(instance):
-                if not hasattr(_CIVisibility, "_unittest_data"):
-                    _CIVisibility._unittest_data = {"suites": {}, "modules": {}}
-                seen_suites = _CIVisibility._unittest_data["suites"]
-                seen_modules = _CIVisibility._unittest_data["modules"]
-                _populate_suites_and_modules(instance._tests, seen_suites, seen_modules)
-                result = func(*args, **kwargs)
+    if not _is_valid_module_suite_call(func):
+        return func(*args, **kwargs)
+    if not hasattr(_CIVisibility, "_unittest_data"):
+        _CIVisibility._unittest_data = {"suites": {}, "modules": {}}
+    if _is_invoked_by_text_test_runner():
+        seen_suites = _CIVisibility._unittest_data["suites"]
+        seen_modules = _CIVisibility._unittest_data["modules"]
+        _populate_suites_and_modules(instance._tests, seen_suites, seen_modules)
 
-                _finish_remaining_suites_and_modules(seen_suites, seen_modules)
-                return result
-            test_module_span = _extract_module_span(instance)
-            test_suite_span = _start_test_suite_span(instance)
-            _store_test_span(instance, test_suite_span)
-            _store_suite_span(instance, test_suite_span)
-            result = func(*args, **kwargs)
-            _update_status_item(test_module_span, test_suite_span.get_tag(test.STATUS))
-            test_suite_span.finish()
-            return result
-        elif _is_test_module(instance):
-            test_module_span = _start_test_module_span(instance)
-            _store_module_span(instance, test_module_span)
-            result = func(*args, **kwargs)
-            _finish_test_module_span(test_module_span)
-            return result
+        result = func(*args, **kwargs)
 
+        _finish_remaining_suites_and_modules(seen_suites, seen_modules)
+        return result
     result = func(*args, **kwargs)
     return result
 
 
 def _start_test_session_span(instance):
-    if _get_identifier(instance):
-        return None
     tracer = getattr(unittest, "_datadog_tracer", _CIVisibility._instance.tracer)
     test_command = _extract_command_name_from_session(instance)
     resource_name = _generate_session_resource(FRAMEWORK, test_command)
@@ -528,8 +510,7 @@ def _start_test_session_span(instance):
     test_session_span.set_tag_str(_EVENT_TYPE, _SESSION_TYPE)
     test_session_span.set_tag_str(test.COMMAND, test_command)
     test_session_span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
-    _store_test_span(instance, test_session_span)
-    _store_session_span(instance, test_session_span)
+    _store_module_identifier(instance)
     return test_session_span
 
 
@@ -540,7 +521,7 @@ def _finish_test_session_span(test_session_span):
 
 def _start_test_module_span(instance):
     tracer = getattr(unittest, "_datadog_tracer", _CIVisibility._instance.tracer)
-    test_session_span = _extract_session_span(instance)
+    test_session_span = _extract_session_span()
     test_module_name = _extract_module_name_from_module(instance)
     resource_name = _generate_module_resource(FRAMEWORK, test_module_name)
     test_module_span = tracer._start_span(
@@ -562,7 +543,16 @@ def _start_test_module_span(instance):
     test_module_span.set_tag_str(_MODULE_ID, str(test_module_span.span_id))
     test_module_span.set_tag_str(test.MODULE, test_module_name)
     test_module_span.set_tag_str(test.MODULE_PATH, _extract_module_file_path(instance))
+    _store_suite_identifier(instance)
     return test_module_span
+
+
+def _finish_test_suite_span(test_suite_span):
+    suite_status = test_suite_span.get_tag(test.STATUS)
+    if suite_status:
+        test_module_span = test_suite_span._parent
+        _update_status_item(test_module_span, suite_status)
+    test_suite_span.finish()
 
 
 def _finish_test_module_span(test_module_span):
@@ -576,8 +566,8 @@ def _finish_test_module_span(test_module_span):
 def _start_test_suite_span(instance):
     tracer = getattr(unittest, "_datadog_tracer", _CIVisibility._instance.tracer)
     test_module_path = _extract_module_file_path(instance)
-    test_module_span = _extract_module_span(instance, test_module_path)
-    test_suite_name = _extract_class_hierarchy_name(instance)
+    test_module_span = _extract_module_span(test_module_path)
+    test_suite_name = _extract_suite_name_from_test_method(instance)
     resource_name = _generate_suite_resource(FRAMEWORK, test_suite_name)
     test_suite_span = tracer._start_span(
         SUITE_OPERATION_NAME,
@@ -606,9 +596,19 @@ def _start_test_suite_span(instance):
 
 def handle_session_wrapper(func, instance, args, kwargs):
     test_session_span = None
-    if len(instance.test._tests) and not hasattr(instance.test, "_datadog_entry"):
+    if _is_invoked_by_cli(args):
+        if not hasattr(_CIVisibility, "_unittest_data"):
+            _CIVisibility._unittest_data = {"suites": {}, "modules": {}}
+        for parent_module in instance.test._tests:
+            for module in parent_module._tests:
+                _populate_suites_and_modules(
+                    module, _CIVisibility._unittest_data["suites"], _CIVisibility._unittest_data["modules"]
+                )
+
         test_session_span = _start_test_session_span(instance)
-        instance.test._datadog_entry = "cli"
+        _CIVisibility._datadog_entry = "cli"
+        _CIVisibility._datadog_session_span = test_session_span
+
     try:
         result = func(*args, **kwargs)
     except SystemExit as e:
@@ -625,8 +625,7 @@ def handle_text_test_runner_wrapper(func, instance, args, kwargs):
     """
     if _is_invoked_by_cli(args):
         return func(*args, **kwargs)
-    test_object = args[0]
-    test_object._datadog_entry = "TextTestRunner"
+    _CIVisibility._datadog_entry = "TextTestRunner"
     try:
         if not hasattr(_CIVisibility, "_datadog_session_span"):
             _CIVisibility._datadog_session_span = _start_test_session_span(instance)
@@ -642,5 +641,8 @@ def handle_text_test_runner_wrapper(func, instance, args, kwargs):
 
     _CIVisibility._datadog_finished_sessions += 1
     if _CIVisibility._datadog_finished_sessions == _CIVisibility._datadog_expected_sessions:
+        _finish_remaining_suites_and_modules(
+            _CIVisibility._unittest_data["suites"], _CIVisibility._unittest_data["modules"]
+        )
         _finish_test_session_span(_CIVisibility._datadog_session_span)
     return result
