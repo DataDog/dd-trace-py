@@ -332,6 +332,7 @@ def test_data_streams_kafka(dsm_processor, consumer, producer, kafka_topic):
         del dsm_processor._current_context.value
     except AttributeError:
         pass
+    producer.produce(kafka_topic, PAYLOAD, key="test_key_1")
     producer.produce(kafka_topic, PAYLOAD, key="test_key_2")
     producer.flush()
     message = None
@@ -475,12 +476,14 @@ if __name__ == "__main__":
     assert err == b"", err.decode()
 
 
-def test_data_streams_kafka_offset_monitoring_messages(dsm_processor, consumer, producer, kafka_topic):
+def test_data_streams_kafka_offset_monitoring_messages(dsm_processor, non_auto_commit_consumer, producer, kafka_topic):
     PAYLOAD = bytes("data streams", encoding="utf-8") if six.PY3 else bytes("data streams")
+    consumer = non_auto_commit_consumer
     try:
         del dsm_processor._current_context.value
     except AttributeError:
         pass
+    producer.produce(kafka_topic, PAYLOAD, key="test_key_1")
     producer.produce(kafka_topic, PAYLOAD, key="test_key_2")
     producer.flush()
     message = None
@@ -502,6 +505,7 @@ def test_data_streams_kafka_offset_monitoring_offsets(dsm_processor, non_auto_co
         del dsm_processor._current_context.value
     except AttributeError:
         pass
+    producer.produce(kafka_topic, PAYLOAD, key="test_key_1")
     producer.produce(kafka_topic, PAYLOAD, key="test_key_2")
     producer.flush()
     message = None

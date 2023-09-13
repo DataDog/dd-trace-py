@@ -154,9 +154,8 @@ exclude-modules = '''
   | ddtrace.appsec.iast._ast.aspects
   | ddtrace.appsec.iast._taint_utils
   | ddtrace.appsec.iast.taint_sinks.sql_injection
-  # confluent_kafka fails to import
-  | ddtrace.data_streams
-  | dd.trace.internal.datastreams
+  # DSM specific contribs
+  | ddtrace.internal.datastreams.kafka
 )
 '''
 

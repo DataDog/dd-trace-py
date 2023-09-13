@@ -1,16 +1,23 @@
 from ddtrace import config
+from ddtrace import tracer
 
-from . import kafka  # noqa:F401
+from ...internal.utils.importlib import require_modules
 
 
+required_modules = ["confluent_kafka"]
 _processor = None
+
+if config._data_streams_enabled:
+    with require_modules(required_modules) as missing_modules:
+        if not missing_modules:
+            from . import kafka  # noqa:F401
 
 
 def data_streams_processor():
-    from . import processor
-
     global _processor
-    if config.data_streams_enabled and not _processor:
-        _processor = processor.DataStreamsProcessor()
+    if config._data_streams_enabled and not _processor:
+        from . import processor
+
+        _processor = processor.DataStreamsProcessor(tracer._agent_url)
 
     return _processor
