@@ -27,12 +27,13 @@
       "openai.response.choices.1.text": "this is a spelling mistake.\\n",
       "openai.response.choices.2.text": "this is a spelling mistake.\\n",
       "openai.user.api_key": "sk-...key>",
-      "runtime-id": "da6540c2a7284fd696d49e06e7c612cc"
+      "runtime-id": "e3412e4f1afe4767a615b30fc1c0f91d"
     },
     "metrics": {
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
+      "_sample_rate": 1.0,
       "_sampling_priority_v1": 1,
       "openai.organization.ratelimit.requests.remaining": 19,
       "openai.response.choices_count": 3,
@@ -40,8 +41,8 @@
       "openai.response.usage.completion_tokens": 90,
       "openai.response.usage.prompt_tokens": 28,
       "openai.response.usage.total_tokens": 118,
-      "process_id": 93389
+      "process_id": 7557
     },
-    "duration": 1276000,
-    "start": 1686844436552170000
+    "duration": 2178653,
+    "start": 1694032213928240145
   }]]

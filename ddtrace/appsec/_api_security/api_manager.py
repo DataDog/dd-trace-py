@@ -37,6 +37,7 @@ class TooLargeSchemaException(Exception):
 class APIManager(Service):
     COLLECTED = [
         ("REQUEST_HEADERS_NO_COOKIES", API_SECURITY.REQUEST_HEADERS_NO_COOKIES, dict),
+        ("REQUEST_COOKIES", API_SECURITY.REQUEST_COOKIES, dict),
         ("REQUEST_QUERY", API_SECURITY.REQUEST_QUERY, dict),
         ("REQUEST_PATH_PARAMS", API_SECURITY.REQUEST_PATH_PARAMS, dict),
         ("REQUEST_BODY", API_SECURITY.REQUEST_BODY, None),
@@ -158,7 +159,7 @@ class APIManager(Service):
                 value = transform(value)
             waf_payload[address] = value
         if waf_payload:
-            waf_payload["SETTINGS"] = {"extract-schema": True}
+            waf_payload["PROCESSOR_SETTINGS"] = {"extract-schema": True}
             result = call_waf_callback(waf_payload)
             if result is None:
                 return
