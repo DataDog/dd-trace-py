@@ -7,7 +7,7 @@ import pytest
 
 
 try:
-    from ddtrace.appsec.iast._taint_tracking import as_formatted_evidence
+    from ddtrace.appsec._iast._taint_tracking import as_formatted_evidence
     from tests.appsec.iast.aspects.aspect_utils import BaseReplacement
     from tests.appsec.iast.aspects.aspect_utils import create_taint_range_with_format
     from tests.appsec.iast.aspects.conftest import _iast_patched_module

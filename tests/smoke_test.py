@@ -1,7 +1,7 @@
 from platform import system
 import sys
 
-import ddtrace.appsec.ddwaf
+import ddtrace.appsec._ddwaf
 import ddtrace.bootstrap.sitecustomize as module
 
 
@@ -17,7 +17,7 @@ def mac_supported_iast_version():
 if __name__ == "__main__":
     # ASM IAST smoke test
     if sys.version_info >= (3, 6, 0) and system() != "Windows" and mac_supported_iast_version():
-        from ddtrace.appsec.iast._taint_tracking._native import ops
+        from ddtrace.appsec._iast._taint_tracking._native import ops
 
         assert ops
 
@@ -27,6 +27,6 @@ if __name__ == "__main__":
             # 32-bit linux DDWAF not ready yet.
             sys.exit(0)
 
-    ddtrace.appsec.ddwaf.version()
-    assert ddtrace.appsec.ddwaf._DDWAF_LOADED
+    ddtrace.appsec._ddwaf.version()
+    assert ddtrace.appsec._ddwaf._DDWAF_LOADED
     assert module.loaded

@@ -90,7 +90,7 @@ def _start_appsec_processor():
     # type: () -> Optional[Any]
     # FIXME: type should be AppsecSpanProcessor but we have a cyclic import here
     try:
-        from .appsec.processor import AppSecSpanProcessor
+        from .appsec._processor import AppSecSpanProcessor
 
         return AppSecSpanProcessor()
     except Exception as e:
@@ -149,7 +149,7 @@ def _default_span_processors_factory(
         appsec_processor = None
 
     if iast_enabled:
-        from .appsec.iast.processor import AppSecIastSpanProcessor
+        from .appsec._iast.processor import AppSecIastSpanProcessor
 
         span_processors.append(AppSecIastSpanProcessor())
 
