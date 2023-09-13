@@ -73,6 +73,8 @@ class SafeObjectProxy(wrapt.ObjectProxy):
 
     def __getattr__(self, name):
         # type: (str) -> Any
+        if name == "__wrapped__":
+            raise AttributeError("Access denied")
         return type(self).safe(super(SafeObjectProxy, self).__getattr__(name))
 
     def __getitem__(self, item):
