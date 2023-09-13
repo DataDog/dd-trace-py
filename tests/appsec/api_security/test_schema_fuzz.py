@@ -6,7 +6,7 @@ from hypothesis import strategies as st
 import pytest
 
 import ddtrace.appsec._constants as constants
-import ddtrace.appsec.ddwaf as ddwaf
+import ddtrace.appsec._ddwaf as ddwaf
 
 
 def build_schema(obj):
@@ -16,7 +16,7 @@ def build_schema(obj):
     waf = ddwaf.DDWaf(rules, b"", b"")
     ctx = waf._at_request_start()
     res = waf.run(
-        ctx, {"server.request.body": obj, constants.WAF_DATA_NAMES.SETTINGS: {"extract-schema": True}}
+        ctx, {"server.request.body": obj, constants.WAF_DATA_NAMES.PROCESSOR_SETTINGS: {"extract-schema": True}}
     ).derivatives
     return res["_dd.appsec.s.req.body"]
 
@@ -110,5 +110,18 @@ def deep_build_schema(n, mini=0):
     ],
 )
 def test_limits(obj, res):
+    schema = build_schema(obj)
+    assert equal_with_meta(schema, res)  # max_depth=18, max_girth=255, max_types_in_array=10
+
+
+@pytest.mark.skipif(sys.version_info[:2] < (3, 6), reason="dict iteration order is different in python <= 3.5")
+@pytest.mark.parametrize(
+    "obj, res",
+    [
+        ({"US PASSPORT": "C03005988"}, [{"US PASSPORT": [8, {"category": "pii", "type": "passport_number"}]}]),
+        ({"ViN": "1HGBH41JXMN109186"}, [{"ViN": [8, {"category": "pii", "type": "vin"}]}]),
+    ],
+)
+def test_scanners(obj, res):
     schema = build_schema(obj)
     assert equal_with_meta(schema, res)  # max_depth=18, max_girth=255, max_types_in_array=10

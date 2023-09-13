@@ -7,7 +7,6 @@ from ddtrace.internal.module import ModuleWatchdog
 log = get_logger(__name__)
 
 # tags
-QUERY = "sql.query"  # the query text
 DB = "sql.db"  # the name of the database
 
 

@@ -12,7 +12,6 @@ from ddtrace.contrib import dbapi
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
-from ddtrace.ext import sql
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
@@ -47,7 +46,6 @@ class AIOTracedCursor(wrapt.ObjectProxy):
             s.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
             s.set_tag(SPAN_MEASURED_KEY)
-            s.set_tag_str(sql.QUERY, resource)
             s.set_tags(pin.tags)
             s.set_tags(extra_tags)
 

@@ -99,14 +99,14 @@ class _DDWSGIMiddlewareBase(object):
             middleware=self,
         ) as ctx:
             if core.get_item(HTTP_REQUEST_BLOCKED):
-                status, ctype, content = core.dispatch("wsgi.block.started", ctx, construct_url)[0][0]
-                start_response(str(status), [("content-type", ctype)])
+                status, headers, content = core.dispatch("wsgi.block.started", ctx, construct_url)[0][0]
+                start_response(str(status), headers)
                 closing_iterator = [content]
                 not_blocked = False
 
             def blocked_view():
-                status, ctype, content = core.dispatch("wsgi.block.started", ctx, construct_url)[0][0]
-                return content, status, [("content-type", ctype)]
+                status, headers, content = core.dispatch("wsgi.block.started", ctx, construct_url)[0][0]
+                return content, status, headers
 
             core.dispatch("wsgi.block_decided", blocked_view)
 
