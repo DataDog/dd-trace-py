@@ -11,6 +11,7 @@ import wrapt
 
 from ddtrace.internal.compat import BUILTIN
 from ddtrace.internal.compat import PY3
+from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.utils.attrdict import AttrDict
 from ddtrace.internal.utils.cache import cached
 
@@ -66,13 +67,15 @@ class SafeObjectProxy(wrapt.ObjectProxy):
 
     def __getattribute__(self, name):
         # type: (str) -> Any
-        if name == "__wrapped__":
+        if PYTHON_VERSION_INFO[0:2] < (3, 12) and name == "__wrapped__":
             raise AttributeError("Access denied")
 
         return super(SafeObjectProxy, self).__getattribute__(name)
 
     def __getattr__(self, name):
         # type: (str) -> Any
+        if PYTHON_VERSION_INFO[0:2] >= (3, 12) and name == "__wrapped__":
+            raise AttributeError("Access denied")
         return type(self).safe(super(SafeObjectProxy, self).__getattr__(name))
 
     def __getitem__(self, item):

@@ -546,7 +546,7 @@ setup(
         "opentelemetry-api>=1",
         "psutil==5.6.7",
         "setuptools; python_version>='3.12'",
-        "wrapt==1.14.1",
+        "wrapt==1.15.0",
     ]
     + bytecode,
     extras_require={
