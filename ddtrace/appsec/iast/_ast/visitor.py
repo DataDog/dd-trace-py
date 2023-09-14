@@ -215,12 +215,9 @@ class AstVisitor(ast.NodeTransformer):
 
         return any(allowed in function_name for allowed in self._taint_sink_replace_any)
 
-    def _stack_aspect_args(self, call_node, is_function):  # type: (ast.Call, bool) -> Any
+    def _add_original_function_as_arg(self, call_node, is_function):  # type: (ast.Call, bool) -> Any
         """
-        Creates the arguments for the stack_info_replacement function:
-        `taint_sink.ast_taint`.
-        The arguments needed are the same as the original function, plus
-        the function that needs to be called
+        Creates the arguments for the original function
         """
         function_name = self._get_function_name(call_node, is_function)
         function_name_arg = (
@@ -449,7 +446,7 @@ class AstVisitor(ast.NodeTransformer):
             if isinstance(call_node.func, ast.Name):
                 aspect = self._should_replace_with_taint_sink(call_node, True)
                 if aspect:
-                    call_node.args = self._stack_aspect_args(call_node, False)
+                    call_node.args = self._add_original_function_as_arg(call_node, False)
                     call_node.func = self._attr_node(call_node, TAINT_SINK_FUNCTION_REPLACEMENT)
                     self.ast_modified = call_modified = True
 
@@ -458,7 +455,7 @@ class AstVisitor(ast.NodeTransformer):
                 aspect = self._should_replace_with_taint_sink(call_node, False)
                 if aspect:
                     # Create a new Name node for the replacement and set it as node.func
-                    call_node.args = self._stack_aspect_args(call_node, False)
+                    call_node.args = self._add_original_function_as_arg(call_node, False)
                     call_node.func = self._attr_node(call_node, TAINT_SINK_FUNCTION_REPLACEMENT)
                     self.ast_modified = call_modified = True
 
