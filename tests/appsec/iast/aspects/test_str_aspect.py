@@ -36,7 +36,7 @@ def setup():
 def test_str_aspect(obj, kwargs):
     import ddtrace.appsec.iast._taint_tracking.aspects as ddtrace_aspects
 
-    assert ddtrace_aspects.str_aspect(obj, **kwargs) == str(obj, **kwargs)
+    assert ddtrace_aspects.str_aspect(str, obj, **kwargs) == str(obj, **kwargs)
 
 
 @pytest.mark.parametrize(
@@ -66,7 +66,7 @@ def test_str_aspect_tainting(obj, kwargs, should_be_tainted):
             obj, source_name="test_str_aspect_tainting", source_value=obj, source_origin=OriginType.PARAMETER
         )
 
-    result = ddtrace_aspects.str_aspect(obj, **kwargs)
+    result = ddtrace_aspects.str_aspect(str, obj, **kwargs)
     assert is_pyobject_tainted(result) == should_be_tainted
 
     assert result == str(obj, **kwargs)
@@ -94,7 +94,7 @@ def test_repr_aspect_tainting(obj, expected_result):
         obj, source_name="test_repr_aspect_tainting", source_value=obj, source_origin=OriginType.PARAMETER
     )
 
-    result = ddtrace_aspects.repr_aspect(obj)
+    result = ddtrace_aspects.repr_aspect(repr, obj)
     assert is_pyobject_tainted(result) is True
 
 

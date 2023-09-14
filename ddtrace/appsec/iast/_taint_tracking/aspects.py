@@ -25,6 +25,7 @@ from .._taint_tracking._native import aspects  # noqa: F401
 
 if TYPE_CHECKING:
     from typing import Any
+    from typing import Callable
     from typing import Dict
     from typing import List
     from typing import Optional
@@ -49,8 +50,11 @@ def add_aspect(op1, op2):
     return _add_aspect(op1, op2)
 
 
-def str_aspect(*args, **kwargs):
-    # type: (Any, Any) -> str
+def str_aspect(orig_function, *args, **kwargs):
+    # type: (Callable, Any, Any) -> str
+    if orig_function is not builtin_str:
+        return orig_function(*args, **kwargs)
+
     result = builtin_str(*args, **kwargs)
     if isinstance(args[0], TEXT_TYPES) and is_pyobject_tainted(args[0]):
         try:
@@ -67,8 +71,11 @@ def str_aspect(*args, **kwargs):
     return result
 
 
-def bytes_aspect(*args, **kwargs):
-    # type: (Any, Any) -> bytes
+def bytes_aspect(orig_function, *args, **kwargs):
+    # type: (Callable, Any, Any) -> bytes
+    if orig_function is not builtin_bytes:
+        return orig_function(*args, **kwargs)
+
     result = builtin_bytes(*args, **kwargs)
     if isinstance(args[0], TEXT_TYPES) and is_pyobject_tainted(args[0]):
         try:
@@ -78,8 +85,11 @@ def bytes_aspect(*args, **kwargs):
     return result
 
 
-def bytearray_aspect(*args, **kwargs):
-    # type: (Any, Any) -> bytearray
+def bytearray_aspect(orig_function, *args, **kwargs):
+    # type: (Callable, Any, Any) -> bytearray
+    if orig_function is not builtin_bytearray:
+        return orig_function(*args, **kwargs)
+
     result = builtin_bytearray(*args, **kwargs)
     if isinstance(args[0], TEXT_TYPES) and is_pyobject_tainted(args[0]):
         try:
@@ -89,8 +99,11 @@ def bytearray_aspect(*args, **kwargs):
     return result
 
 
-def join_aspect(joiner, *args, **kwargs):
-    # type: (Any, Any, Any) -> Any
+def join_aspect(orig_function, joiner, *args, **kwargs):
+    # type: (Callable, Any, Any, Any) -> Any
+    if orig_function is not joiner.join:
+        return orig_function(*args, **kwargs)
+
     if not isinstance(joiner, TEXT_TYPES):
         return joiner.join(*args, **kwargs)
     try:
@@ -100,8 +113,11 @@ def join_aspect(joiner, *args, **kwargs):
         return joiner.join(*args, **kwargs)
 
 
-def bytearray_extend_aspect(op1, op2):
-    # type: (Any, Any) -> Any
+def bytearray_extend_aspect(orig_function, op1, op2):
+    # type: (Callable, Any, Any) -> Any
+    if orig_function is not op1.extend:
+        return orig_function(op1, op2)
+
     if not isinstance(op1, bytearray) or not isinstance(op2, (bytearray, bytes)):
         return op1.extend(op2)
     try:
@@ -149,11 +165,14 @@ def modulo_aspect(candidate_text, candidate_tuple):
 
 
 def build_string_aspect(*args):  # type: (List[Any]) -> str
-    return join_aspect("", args)
+    return join_aspect("".join, "", args)
 
 
-def ljust_aspect(candidate_text, *args, **kwargs):
-    # type: (Any, Any, Any) -> Union[str, bytes, bytearray]
+def ljust_aspect(orig_function, candidate_text, *args, **kwargs):
+    # type: (Callable, Any, Any, Any) -> Union[str, bytes, bytearray]
+    if orig_function != candidate_text.ljust:
+        return orig_function(*args, **kwargs)
+
     if not isinstance(candidate_text, TEXT_TYPES):
         return candidate_text.ljust(*args, **kwargs)
     try:
@@ -175,8 +194,11 @@ def ljust_aspect(candidate_text, *args, **kwargs):
         return candidate_text.ljust(*args, **kwargs)
 
 
-def zfill_aspect(candidate_text, *args, **kwargs):
-    # type: (Any, Any, Any) -> Any
+def zfill_aspect(orig_function, candidate_text, *args, **kwargs):
+    # type: (Callable, Any, Any, Any) -> Any
+    if orig_function != candidate_text.zfill:
+        return orig_function(*args, **kwargs)
+
     if not isinstance(candidate_text, TEXT_TYPES):
         return candidate_text.zfill(*args, **kwargs)
     try:
@@ -209,10 +231,14 @@ def zfill_aspect(candidate_text, *args, **kwargs):
 
 
 def format_aspect(
+    orig_function,  # type: Callable
     candidate_text,  # type: str
     *args,  # type: List[Any]
     **kwargs  # type: Dict[str, Any]
 ):  # type: (...) -> str
+    if orig_function is not candidate_text.format:
+        return orig_function(*args, **kwargs)
+
     if not isinstance(candidate_text, TEXT_TYPES):
         return candidate_text.format(*args, **kwargs)
     try:
@@ -248,7 +274,10 @@ def format_aspect(
         return candidate_text.format(*args, **kwargs)
 
 
-def format_map_aspect(candidate_text, *args, **kwargs):  # type: (str, Any, Any) -> str
+def format_map_aspect(orig_function, candidate_text, *args, **kwargs):  # type: (Callable, str, Any, Any) -> str
+    if orig_function is not candidate_text.format_map:
+        return orig_function(*args, **kwargs)
+
     if not isinstance(candidate_text, TEXT_TYPES):
         return candidate_text.format_map(*args, **kwargs)
     try:
@@ -279,8 +308,11 @@ def format_map_aspect(candidate_text, *args, **kwargs):  # type: (str, Any, Any)
         return candidate_text.format_map(*args, **kwargs)
 
 
-def repr_aspect(*args, **kwargs):
-    # type: (Any, Any) -> Any
+def repr_aspect(orig_function, *args, **kwargs):
+    # type: (Callable, Any, Any) -> Any
+    if orig_function is not repr:
+        return orig_function(*args, **kwargs)
+
     result = repr(*args, **kwargs)
     if isinstance(args[0], TEXT_TYPES) and is_pyobject_tainted(args[0]):
         try:
@@ -333,7 +365,7 @@ def format_value_aspect(
             else:
                 return ("{:%s}" % format_spec).format(new_text)
         else:
-            return str_aspect(new_text)
+            return str_aspect(str, new_text)
     except Exception as e:
         _set_iast_error_metric("IAST propagation error. format_value_aspect. {}".format(e), traceback.format_exc())
         return new_text
@@ -379,7 +411,7 @@ def incremental_translation(self, incr_coder, funcode, empty):
     return result
 
 
-def decode_aspect(self, *args, **kwargs):
+def decode_aspect(orig_function, self, *args, **kwargs):
     if not is_pyobject_tainted(self) or not isinstance(self, bytes):
         return self.decode(*args, **kwargs)
     try:
@@ -391,7 +423,7 @@ def decode_aspect(self, *args, **kwargs):
         return self.decode(*args, **kwargs)
 
 
-def encode_aspect(self, *args, **kwargs):
+def encode_aspect(orig_function, self, *args, **kwargs):
     if not is_pyobject_tainted(self) or not isinstance(self, str):
         return self.encode(*args, **kwargs)
     try:
@@ -403,7 +435,10 @@ def encode_aspect(self, *args, **kwargs):
         return self.encode(*args, **kwargs)
 
 
-def upper_aspect(candidate_text, *args, **kwargs):  # type: (Any, Any, Any) -> TEXT_TYPE
+def upper_aspect(orig_function, candidate_text, *args, **kwargs):  # type: (Callable, Any, Any, Any) -> TEXT_TYPE
+    if orig_function is not candidate_text.upper:
+        return orig_function(args, **kwargs)
+
     if not isinstance(candidate_text, TEXT_TYPES):
         return candidate_text.upper(*args, **kwargs)
 
@@ -414,7 +449,10 @@ def upper_aspect(candidate_text, *args, **kwargs):  # type: (Any, Any, Any) -> T
         return candidate_text.upper(*args, **kwargs)
 
 
-def lower_aspect(candidate_text, *args, **kwargs):  # type: (Any, Any, Any) -> TEXT_TYPE
+def lower_aspect(orig_function, candidate_text, *args, **kwargs):  # type: (Callable, Any, Any, Any) -> TEXT_TYPE
+    if orig_function is not candidate_text.lower:
+        return orig_function(args, **kwargs)
+
     if not isinstance(candidate_text, TEXT_TYPES):
         return candidate_text.lower(*args, **kwargs)
 
@@ -425,7 +463,10 @@ def lower_aspect(candidate_text, *args, **kwargs):  # type: (Any, Any, Any) -> T
         return candidate_text.lower(*args, **kwargs)
 
 
-def swapcase_aspect(candidate_text, *args, **kwargs):  # type: (Any, Any, Any) -> TEXT_TYPE
+def swapcase_aspect(orig_function, candidate_text, *args, **kwargs):  # type: (Callable, Any, Any, Any) -> TEXT_TYPE
+    if orig_function is not candidate_text.swapcase:
+        return orig_function(args, **kwargs)
+
     if not isinstance(candidate_text, TEXT_TYPES):
         return candidate_text.swapcase(*args, **kwargs)
     try:
@@ -435,7 +476,10 @@ def swapcase_aspect(candidate_text, *args, **kwargs):  # type: (Any, Any, Any) -
         return candidate_text.swapcase(*args, **kwargs)
 
 
-def title_aspect(candidate_text, *args, **kwargs):  # type: (Any, Any, Any) -> TEXT_TYPE
+def title_aspect(orig_function, candidate_text, *args, **kwargs):  # type: (Callable, Any, Any, Any) -> TEXT_TYPE
+    if orig_function is not candidate_text.title:
+        return orig_function(args, **kwargs)
+
     if not isinstance(candidate_text, TEXT_TYPES):
         return candidate_text.title(*args, **kwargs)
     try:
@@ -445,7 +489,10 @@ def title_aspect(candidate_text, *args, **kwargs):  # type: (Any, Any, Any) -> T
         return candidate_text.title(*args, **kwargs)
 
 
-def capitalize_aspect(candidate_text, *args, **kwargs):  # type: (Any, Any, Any) -> TEXT_TYPE
+def capitalize_aspect(orig_function, candidate_text, *args, **kwargs):  # type: (Callable, Any, Any, Any) -> TEXT_TYPE
+    if orig_function is not candidate_text.capitalize:
+        return orig_function(args, **kwargs)
+
     if not isinstance(candidate_text, TEXT_TYPES):
         return candidate_text.capitalize(*args, **kwargs)
 
@@ -456,7 +503,10 @@ def capitalize_aspect(candidate_text, *args, **kwargs):  # type: (Any, Any, Any)
         return candidate_text.capitalize(*args, **kwargs)
 
 
-def casefold_aspect(candidate_text, *args, **kwargs):  # type: (Any, Any, Any) -> TEXT_TYPE
+def casefold_aspect(orig_function, candidate_text, *args, **kwargs):  # type: (Callable, Any, Any, Any) -> TEXT_TYPE
+    if orig_function is not candidate_text.casefold:
+        return orig_function(args, **kwargs)
+
     if not isinstance(candidate_text, TEXT_TYPES):
         return candidate_text.casefold(*args, **kwargs)
     try:
@@ -466,7 +516,10 @@ def casefold_aspect(candidate_text, *args, **kwargs):  # type: (Any, Any, Any) -
         return candidate_text.casefold(*args, **kwargs)  # type: ignore[union-attr]
 
 
-def translate_aspect(candidate_text, *args, **kwargs):  # type: (Any, Any, Any) -> TEXT_TYPE
+def translate_aspect(orig_function, candidate_text, *args, **kwargs):  # type: (Callable, Any, Any, Any) -> TEXT_TYPE
+    if orig_function is not candidate_text.translate:
+        return orig_function(args, **kwargs)
+
     if not isinstance(candidate_text, TEXT_TYPES):
         return candidate_text.translate(*args, **kwargs)
     try:
