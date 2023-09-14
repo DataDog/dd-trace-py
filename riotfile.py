@@ -1142,6 +1142,16 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="clickhouse-driver",
+            command="pytest {cmdargs} tests/contrib/clickhouse_driver",
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.7", max_version="3.11"),
+                    pkgs={"clickhouse-driver": ["==0.2.6", latest]},
+                ),
+            ],
+        ),
+        Venv(
             name="psycopg2",
             command="pytest {cmdargs} tests/contrib/psycopg2",
             venvs=[

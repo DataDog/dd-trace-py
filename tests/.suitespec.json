@@ -232,6 +232,9 @@
             "ddtrace/contrib/pymysql/*",
             "ddtrace/contrib/aiomysql/*"
         ],
+        "clickhouse_driver": [
+            "ddtrace/contrib/clickhouse_driver/*"
+        ],
         "pylibmc": [
             "ddtrace/contrib/pylibmc/*"
         ],
@@ -764,6 +767,15 @@
             "@tracing",
             "@molten",
             "tests/contrib/molten/*"
+        ],
+        "clickhouse_driver": [
+            "@bootstrap",
+            "@core",
+            "@tracing",
+            "@contrib",
+            "@dbapi",
+            "@clickhouse_driver",
+            "tests/contrib/clickhouse_driver/*"
         ],
         "mysqldb": [
             "@bootstrap",

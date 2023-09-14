@@ -11,6 +11,7 @@ cassandra_image: &cassandra_image cassandra:3.11.7@sha256:495e5752526f7e75d3ad85
 consul_image: &consul_image consul:1.6.0@sha256:daa6203532fc30d81bf6c5593f79a2c7c23f08e8fde82f1e4bd8069b48b57596
 moto_image: &moto_image datadog/docker-library:moto_1_0_1@sha256:58c15f03141073629f4ff2a78910b812205324579c76f8bcac87e8e89af2e673
 mysql_image: &mysql_image mysql:5.7@sha256:03b6dcedf5a2754da00e119e2cc6094ed3c884ad36b67bb25fe67be4b4f9bdb1
+clickhouse_image: &clickhouse_image clickhouse/clickhouse-server:23.3@sha256:664b217ecf77a503dbf5d884f7faaf8628d6340744b6d401fd7432eb51113446
 postgres_image: &postgres_image postgres:12-alpine@sha256:c6704f41eb84be53d5977cb821bf0e5e876064b55eafef1e260c2574de40ad9a
 mongo_image: &mongo_image mongo:3.6@sha256:19c11a8f1064fd2bb713ef1270f79a742a184cd57d9bb922efdd2a8eca514af8
 httpbin_image: &httpbin_image kennethreitz/httpbin@sha256:2c7abc4803080c22928265744410173b6fea3b898872c01c5fd0f0f9df4a59fb
@@ -220,6 +221,14 @@ mysql_server: &mysql_server
     - MYSQL_PASSWORD=test
     - MYSQL_USER=test
     - MYSQL_DATABASE=test
+
+clickhouse_server: &clickhouse_server
+  image: *clickhouse_image
+  environment:
+    - CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1
+    - CLICKHOUSE_PASSWORD=test
+    - CLICKHOUSE_USER=test
+    - CLICKHOUSE_DB=test
 
 postgres_server: &postgres_server
   image: *postgres_image
@@ -734,6 +743,17 @@ jobs:
     steps:
       - run_test:
           pattern: 'molten'
+
+  clickhouse_driver:
+    <<: &contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+      - *clickhouse_server
+      - *testagent
+    steps:
+      - run_test:
+          wait: clickhouse
+          pattern: 'clickhouse_driver$'
 
   mysqlconnector:
     <<: *contrib_job

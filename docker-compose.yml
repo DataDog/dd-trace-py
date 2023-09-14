@@ -52,6 +52,16 @@ services:
             - MYSQL_DATABASE=test
         ports:
             - "127.0.0.1:3306:3306"
+    clickhouse:
+        image: clickhouse/clickhouse-server:23.3
+        environment:
+            - CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1
+            - CLICKHOUSE_PASSWORD=test
+            - CLICKHOUSE_USER=test
+            - CLICKHOUSE_DB=test
+        ports:
+             - "127.0.0.1:9000:9000"
+             - "127.0.0.1:9440:9440"
     redis:
         image: redis:4.0-alpine
         ports:
