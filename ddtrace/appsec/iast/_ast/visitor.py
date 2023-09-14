@@ -213,10 +213,7 @@ class AstVisitor(ast.NodeTransformer):
         if function_name in self._taint_sink_replace_disabled:
             return False
 
-        if any(allowed in function_name for allowed in self._taint_sink_replace_any):
-            return True
-
-        return False
+        return any(allowed in function_name for allowed in self._taint_sink_replace_any)
 
     def _stack_aspect_args(self, call_node, is_function):  # type: (ast.Call, bool) -> Any
         """
