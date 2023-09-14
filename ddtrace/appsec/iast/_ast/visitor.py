@@ -399,7 +399,7 @@ class AstVisitor(ast.NodeTransformer):
             aspect = self._aspect_functions.get(func_name_node)
             if aspect:
                 # Insert original function name as first parameter
-                call_node.args.insert(0, func_member)
+                call_node.args = self._add_original_function_as_arg(call_node, True)
                 # Substitute function call
                 call_node.func = self._attr_node(call_node, aspect)
                 self.ast_modified = call_modified = True
@@ -430,7 +430,7 @@ class AstVisitor(ast.NodeTransformer):
                 call_node.args.insert(0, new_arg)
 
                 # Insert original method as first parameter (a.b.c.method)
-                call_node.args.insert(0, func_member)
+                call_node.args = self._add_original_function_as_arg(call_node, False)
 
                 # Create a new Name node for the replacement and set it as node.func
                 call_node.func = self._attr_node(call_node, aspect)

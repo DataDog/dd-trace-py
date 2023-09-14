@@ -87,7 +87,7 @@ def bytes_aspect(orig_function, *args, **kwargs):
 
 def bytearray_aspect(orig_function, *args, **kwargs):
     # type: (Callable, Any, Any) -> bytearray
-    if orig_function is not builtin_bytearray:
+    if orig_function != builtin_bytearray:
         return orig_function(*args, **kwargs)
 
     result = builtin_bytearray(*args, **kwargs)
@@ -101,7 +101,7 @@ def bytearray_aspect(orig_function, *args, **kwargs):
 
 def join_aspect(orig_function, joiner, *args, **kwargs):
     # type: (Callable, Any, Any, Any) -> Any
-    if orig_function is not joiner.join:
+    if orig_function != joiner.join:
         return orig_function(*args, **kwargs)
 
     if not isinstance(joiner, TEXT_TYPES):
@@ -309,7 +309,7 @@ def format_map_aspect(orig_function, candidate_text, *args, **kwargs):  # type: 
 
 
 def repr_aspect(orig_function, *args, **kwargs):
-    # type: (Callable, Any, Any) -> Any
+    # type: (Optional[Callable], Any, Any) -> Any
 
     # DEV: We call this function directly passing None as orig_function
     if orig_function is not None:
