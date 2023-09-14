@@ -1645,6 +1645,21 @@ def test_misuse(openai, snapshot_tracer):
         openai.Completion.create(input="wrong arg")
 
 
+@pytest.mark.snapshot(ignores=["meta.http.useragent", "meta.error.stack"])
+def test_span_finish_on_stream_error(openai, openai_vcr, snapshot_tracer):
+    with openai_vcr.use_cassette("completion_stream_wrong_api_key.yaml"):
+        with pytest.raises(openai.error.AuthenticationError):
+            openai.Completion.create(
+                api_key="sk-wrong-api-key",
+                model="text-curie-001",
+                prompt="how does openai tokenize prompts?",
+                temperature=0.8,
+                n=1,
+                max_tokens=150,
+                stream=True,
+            )
+
+
 def test_completion_stream(openai, openai_vcr, mock_metrics, mock_tracer):
     with openai_vcr.use_cassette("completion_streamed.yaml"):
         with mock.patch("ddtrace.contrib.openai.utils.encoding_for_model", create=True) as mock_encoding:
