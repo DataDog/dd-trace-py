@@ -39,7 +39,7 @@ if pip_version < MIN_PIP_VERSION:
     )
 
 
-supported_pythons = ["2.7", "3.6", "3.7", "3.8", "3.9", "3.10", "3.11"]
+supported_pythons = ["2.7", "3.6", "3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
 supported_arches = ["aarch64", "x86_64", "i686"]
 supported_platforms = ["musllinux_1_1", "manylinux2014"]
 

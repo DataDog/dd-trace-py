@@ -18,6 +18,7 @@ python3 -m pip install packaging
 echo `pwd`
 
 ../lib-injection/dl_wheels.py \
+    --python-version=3.12 \
     --python-version=3.11 \
     --python-version=3.10 \
     --python-version=3.9 \
