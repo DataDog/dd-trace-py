@@ -55,9 +55,9 @@ class Evidence(object):
 
 @attr.s(eq=True, hash=True)
 class Location(object):
-    path = attr.ib(type=str)  # type: str
-    line = attr.ib(type=int)  # type: int
     spanId = attr.ib(type=int, eq=False, hash=False, repr=False)  # type: int
+    path = attr.ib(type=str, default=None)  # type: Optional[str]
+    line = attr.ib(type=int, default=None)  # type: Optional[int]
 
 
 @attr.s(eq=True, hash=True)
