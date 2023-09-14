@@ -1,3 +1,5 @@
+import sys
+
 import pytest
 
 from ddtrace.appsec._constants import IAST
@@ -12,7 +14,9 @@ from tests.appsec.iast.iast_utils import get_line_and_hash
 FIXTURES_PATH = "tests/appsec/iast/fixtures/taint_sinks/weak_randomness.py"
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+@pytest.mark.skipif(
+    not ((3, 9, 0) <= sys.version_info < (3, 12, 0)), reason="Some random methods exists on 3.9 or higher"
+)
 @pytest.mark.parametrize(
     "random_func",
     DEFAULT_WEAK_RANDOMNESS_FUNCTIONS,
