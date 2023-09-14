@@ -225,7 +225,7 @@ class _PprofConverter(object):
             self._locations[(filename, lineno, funcname)] = location
             return location
 
-    def _str(self, string: str) -> int:
+    def _str(self, string: typing.Optional[str]) -> int:
         """Convert a string to an id from the string table."""
         return self._string_table.index(str(string))
 

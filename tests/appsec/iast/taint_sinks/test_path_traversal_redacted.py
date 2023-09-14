@@ -2,16 +2,16 @@ import os
 
 import pytest
 
-from ddtrace.appsec.iast._utils import _is_python_version_supported as python_supported_by_iast
-from ddtrace.appsec.iast.reporter import Evidence
-from ddtrace.appsec.iast.reporter import IastSpanReporter
-from ddtrace.appsec.iast.reporter import Location
-from ddtrace.appsec.iast.reporter import Source
-from ddtrace.appsec.iast.reporter import Vulnerability
+from ddtrace.appsec._iast._utils import _is_python_version_supported as python_supported_by_iast
+from ddtrace.appsec._iast.reporter import Evidence
+from ddtrace.appsec._iast.reporter import IastSpanReporter
+from ddtrace.appsec._iast.reporter import Location
+from ddtrace.appsec._iast.reporter import Source
+from ddtrace.appsec._iast.reporter import Vulnerability
 
 
 if python_supported_by_iast():
-    from ddtrace.appsec.iast.taint_sinks.path_traversal import PathTraversal
+    from ddtrace.appsec._iast.taint_sinks.path_traversal import PathTraversal
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
