@@ -17,19 +17,15 @@ def ast_funcion(
 
     cls = getattr(func, "__self__", None)
     func_name = getattr(func, "__name__", None)
+    cls_name = ""
     if cls and func_name:
         try:
             cls_name = cls.__class__.__name__
         except AttributeError:
-            cls_name = None
-    else:
-        cls_name = None
-    wrapped = None
+            pass
 
     if cls_name == "Random" and func_name in DEFAULT_WEAK_RANDOMNESS_FUNCTIONS:
         # Weak, run the analyzer
         WeakRandomness.report(evidence_value=cls_name + "." + func_name)
-    if wrapped:
-        func = wrapped
 
     return func(*args, **kwargs)
