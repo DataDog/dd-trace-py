@@ -67,7 +67,7 @@ class SafeObjectProxy(wrapt.ObjectProxy):
 
     def __getattribute__(self, name):
         # type: (str) -> Any
-        if PYTHON_VERSION_INFO[0:2] < (3, 12) and name == "__wrapped__":
+        if PYTHON_VERSION_INFO < (3, 12) and name == "__wrapped__":
             raise AttributeError("Access denied")
 
         return super(SafeObjectProxy, self).__getattribute__(name)
