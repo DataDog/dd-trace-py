@@ -745,7 +745,7 @@ jobs:
           pattern: 'molten'
 
   clickhouse_driver:
-    <<: &contrib_job
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
       - *clickhouse_server
