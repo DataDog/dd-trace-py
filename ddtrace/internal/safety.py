@@ -52,6 +52,9 @@ def _isinstance(obj, types):
     return issubclass(type(obj), types)
 
 
+IS_312_OR_NEWER = PYTHON_VERSION_INFO >= (3, 12)
+
+
 class SafeObjectProxy(wrapt.ObjectProxy):
     """Object proxy to make sure we don't call unsafe code.
 
@@ -67,14 +70,14 @@ class SafeObjectProxy(wrapt.ObjectProxy):
 
     def __getattribute__(self, name):
         # type: (str) -> Any
-        if PYTHON_VERSION_INFO < (3, 12) and name == "__wrapped__":
+        if name == "__wrapped__" and not IS_312_OR_NEWER:
             raise AttributeError("Access denied")
 
         return super(SafeObjectProxy, self).__getattribute__(name)
 
     def __getattr__(self, name):
         # type: (str) -> Any
-        if PYTHON_VERSION_INFO[0:2] >= (3, 12) and name == "__wrapped__":
+        if name == "__wrapped__" and IS_312_OR_NEWER:
             raise AttributeError("Access denied")
         return type(self).safe(super(SafeObjectProxy, self).__getattr__(name))
 
