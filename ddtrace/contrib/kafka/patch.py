@@ -72,7 +72,7 @@ class TracedConsumer(confluent_kafka.Consumer):
         self._group_id = config.get("group.id", "")
         self._auto_commit = asbool(config.get("enable.auto.commit", True))
 
-    def poll(self, timeout=1):
+    def poll(self, timeout=None):
         return super(TracedConsumer, self).poll(timeout)
 
     def commit(self, message=None, *args, **kwargs):
