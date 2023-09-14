@@ -310,8 +310,11 @@ def format_map_aspect(orig_function, candidate_text, *args, **kwargs):  # type: 
 
 def repr_aspect(orig_function, *args, **kwargs):
     # type: (Callable, Any, Any) -> Any
-    if orig_function is not repr:
-        return orig_function(*args, **kwargs)
+
+    # DEV: We call this function directly passing None as orig_function
+    if orig_function is not None:
+        if orig_function != repr:
+            return orig_function(*args, **kwargs)
 
     result = repr(*args, **kwargs)
     if isinstance(args[0], TEXT_TYPES) and is_pyobject_tainted(args[0]):
@@ -339,7 +342,7 @@ def format_value_aspect(
         new_text = str_aspect(element)
     elif options == 114:
         # TODO: use our repr once we have implemented it
-        new_text = repr_aspect(element)
+        new_text = repr_aspect(None, element)
     elif options == 97:
         new_text = ascii(element)
     else:
