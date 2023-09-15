@@ -79,6 +79,15 @@ def _is_test_suite(item):
     return hasattr(item, "_datadog_object") and item._datadog_object == "suite"
 
 
+def _is_test(item):
+    return (
+            type(item) != unittest.TestSuite
+            and hasattr(item, "_testMethodName")
+            and len(item._testMethodName) >= 4
+            and item._testMethodName[0:4] == "test"
+    )
+
+
 def _extract_span(item):
     """Extract span from `unittest` instance."""
     return getattr(item, "_datadog_span", None)
@@ -128,7 +137,7 @@ def _update_status_item(item, status):
 
 
 def _extract_suite_name_from_test_method(item):
-    if type(item) != unittest.TestSuite:
+    if _is_test(item):
         return _extract_class_hierarchy_name(item)
     if not len(item._tests):
         return None
@@ -158,24 +167,9 @@ def _extract_module_name_from_test_method(item):
 
 
 def _extract_module_name_from_module(item):
-    if type(item) != unittest.TestSuite:
+    if _is_test(item):
         return type(item).__module__
-    if not len(item._tests):
-        return None
-    module_name = None
-    for suite in item._tests:
-        if type(suite) != unittest.TestSuite:
-            module_name = type(suite).__module__
-            break
-        if not len(suite._tests):
-            continue
-        for test_object in suite._tests:
-            module_name = type(test_object).__module__
-            if not module_name:
-                continue
-            break
-
-    return module_name
+    return ""
 
 
 def _extract_test_reason(item):
@@ -187,24 +181,10 @@ def _extract_test_file_name(item):
 
 
 def _extract_module_file_path(item):
-    if type(item) != unittest.TestSuite:
+    if _is_test(item):
         return os.path.relpath(inspect.getfile(item.__class__))
-    if not hasattr(item, "_tests") or not len(item._tests):
-        return ""
-    module_file_path = ""
-    for suite in item._tests:
-        if type(suite) != unittest.TestSuite:
-            module_file_path = os.path.relpath(inspect.getfile(suite.__class__))
-            break
-        if not len(suite._tests):
-            continue
-        for test_object in suite._tests:
-            module_file_path = os.path.relpath(inspect.getfile(test_object.__class__))
-            if not module_file_path:
-                continue
-            break
 
-    return module_file_path
+    return ""
 
 
 def _generate_test_resource(suite_name, test_name):
@@ -257,7 +237,7 @@ def _generate_module_suite_path(test_module_path, test_suite_name):
 
 def _populate_suites_and_modules(test_objects, seen_suites, seen_modules):
     for test_object in test_objects:
-        if type(test_object) == unittest.TestSuite:
+        if not _is_test(test_object):
             continue
         test_module_path = _extract_module_file_path(test_object)
         test_suite_name = _extract_suite_name_from_test_method(test_object)
@@ -265,45 +245,37 @@ def _populate_suites_and_modules(test_objects, seen_suites, seen_modules):
         if test_module_path not in seen_modules:
             seen_modules[test_module_path] = {
                 "module_span": None,
-                "expected_suites": 0,
-                "ran_suites": 0,
+                "remaining_suites": 0,
             }
         if test_module_suite_path not in seen_suites:
             seen_suites[test_module_suite_path] = {
                 "suite_span": None,
-                "expected_tests": 0,
-                "ran_tests": 0,
+                "remaining_tests": 0,
             }
 
-            seen_modules[test_module_path]["expected_suites"] += 1
+            seen_modules[test_module_path]["remaining_suites"] += 1
 
-        seen_suites[test_module_suite_path]["expected_tests"] += 1
+        seen_suites[test_module_suite_path]["remaining_tests"] += 1
 
 
 def _finish_remaining_suites_and_modules(seen_suites, seen_modules):
     for suite in seen_suites.values():
-        if suite["expected_tests"] != suite["ran_tests"] and suite["suite_span"]:
+        if suite["suite_span"] and not suite["suite_span"].finished:
             _update_status_item(suite["suite_span"]._parent, suite["suite_span"].get_tag(test.STATUS))
             suite["suite_span"].finish()
 
     for module in seen_modules.values():
-        if module["expected_suites"] != module["ran_suites"] and module["module_span"]:
+        if module["module_span"] and not module["module_span"].finished:
             _update_status_item(module["module_span"]._parent, module["module_span"].get_tag(test.STATUS))
             module["module_span"].finish()
 
 
 def _update_remaining_suites_and_modules(test_module_suite_path, test_module_path, test_module_span, test_suite_span):
-    _CIVisibility._unittest_data["suites"][test_module_suite_path]["ran_tests"] += 1
-    if (
-        _CIVisibility._unittest_data["suites"][test_module_suite_path]["ran_tests"]
-        == _CIVisibility._unittest_data["suites"][test_module_suite_path]["expected_tests"]
-    ):
-        _CIVisibility._unittest_data["modules"][test_module_path]["ran_suites"] += 1
+    _CIVisibility._unittest_data["suites"][test_module_suite_path]["remaining_tests"] -= 1
+    if _CIVisibility._unittest_data["suites"][test_module_suite_path]["remaining_tests"] == 0:
+        _CIVisibility._unittest_data["modules"][test_module_path]["remaining_suites"] -= 1
         _finish_test_suite_span(test_suite_span)
-    if (
-        _CIVisibility._unittest_data["modules"][test_module_path]["ran_suites"]
-        == _CIVisibility._unittest_data["modules"][test_module_path]["expected_suites"]
-    ):
+    if _CIVisibility._unittest_data["modules"][test_module_path]["remaining_suites"] == 0:
         _finish_test_module_span(test_module_span)
 
 
@@ -326,10 +298,10 @@ def patch():
     _w(unittest, "TextTestResult.addSkip", add_skip_test_wrapper)
     _w(unittest, "TextTestResult.addExpectedFailure", add_xfail_test_wrapper)
     _w(unittest, "TextTestResult.addUnexpectedSuccess", add_xpass_test_wrapper)
-    _w(unittest, "TextTestRunner.run", handle_text_test_runner_wrapper)
     _w(unittest, "TestCase.run", handle_test_wrapper)
-    _w(unittest, "TestSuite.run", handle_module_suite_wrapper)
-    _w(unittest, "TestProgram.runTests", handle_session_wrapper)
+    _w(unittest, "TestSuite.run", collect_text_test_runner_session)
+    _w(unittest, "TextTestRunner.run", handle_text_test_runner_wrapper)
+    _w(unittest, "TestProgram.runTests", handle_cli_run)
 
 
 def unpatch():
@@ -345,9 +317,9 @@ def unpatch():
     _u(unittest.TextTestResult, "addSkip")
     _u(unittest.TextTestResult, "addExpectedFailure")
     _u(unittest.TextTestResult, "addUnexpectedSuccess")
-    _u(unittest.TextTestRunner, "run")
-    _u(unittest.TestCase, "run")
     _u(unittest.TestSuite, "run")
+    _u(unittest.TestCase, "run")
+    _u(unittest.TextTestRunner, "run")
     _u(unittest.TestProgram, "runTests")
 
     unittest._datadog_patch = False
@@ -413,7 +385,7 @@ def add_xpass_test_wrapper(func, instance, args, kwargs):
 
 
 def handle_test_wrapper(func, instance, args, kwargs):
-    if _is_valid_test_call(kwargs):
+    if _is_valid_test_call(kwargs) and _is_test(instance):
         tracer = getattr(unittest, "_datadog_tracer", _CIVisibility._instance.tracer)
         test_suite_name = _extract_suite_name_from_test_method(instance)
         test_name = _extract_test_method_name(instance)
@@ -474,7 +446,7 @@ def handle_test_wrapper(func, instance, args, kwargs):
     return func(*args, **kwargs)
 
 
-def handle_module_suite_wrapper(func, instance, args, kwargs):
+def collect_text_test_runner_session(func, instance, args, kwargs):
     if not _is_valid_module_suite_call(func):
         return func(*args, **kwargs)
     if not hasattr(_CIVisibility, "_unittest_data"):
@@ -486,7 +458,6 @@ def handle_module_suite_wrapper(func, instance, args, kwargs):
 
         result = func(*args, **kwargs)
 
-        _finish_remaining_suites_and_modules(seen_suites, seen_modules)
         return result
     result = func(*args, **kwargs)
     return result
@@ -594,7 +565,7 @@ def _start_test_suite_span(instance):
     return test_suite_span
 
 
-def handle_session_wrapper(func, instance, args, kwargs):
+def handle_cli_run(func, instance, args, kwargs):
     test_session_span = None
     if _is_invoked_by_cli(args):
         if not hasattr(_CIVisibility, "_unittest_data"):
@@ -613,6 +584,9 @@ def handle_session_wrapper(func, instance, args, kwargs):
         result = func(*args, **kwargs)
     except SystemExit as e:
         if _CIVisibility.enabled and test_session_span:
+            _finish_remaining_suites_and_modules(
+                _CIVisibility._unittest_data["suites"], _CIVisibility._unittest_data["modules"]
+            )
             _finish_test_session_span(test_session_span)
             _CIVisibility.disable()
         raise e
@@ -636,6 +610,9 @@ def handle_text_test_runner_wrapper(func, instance, args, kwargs):
     except Exception as e:
         _CIVisibility._datadog_finished_sessions += 1
         if _CIVisibility._datadog_finished_sessions == _CIVisibility._datadog_expected_sessions:
+            _finish_remaining_suites_and_modules(
+                _CIVisibility._unittest_data["suites"], _CIVisibility._unittest_data["modules"]
+            )
             _finish_test_session_span(_CIVisibility._datadog_session_span)
         raise e
 
