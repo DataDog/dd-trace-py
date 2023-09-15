@@ -14,7 +14,6 @@ import os
 
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace.appsec import _constants as _asm_constants
 from ddtrace.appsec import utils as appsec_utils
 from ddtrace.appsec.trace_utils import track_user_login_failure_event
 from ddtrace.appsec.trace_utils import track_user_login_success_event
@@ -31,6 +30,7 @@ from ddtrace.internal import core
 from ddtrace.internal.compat import Iterable
 from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.constants import STATUS_403_TYPE_AUTO
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
@@ -417,7 +417,7 @@ def _block_request_callable(request, request_headers, span):
     # at any point so it's a callable stored in the ASM context.
     from django.core.exceptions import PermissionDenied
 
-    core.set_item(WAF_CONTEXT_NAMES.BLOCKED, _asm_constants.WAF_ACTIONS.DEFAULT_PARAMETERS)
+    core.set_item(WAF_CONTEXT_NAMES.BLOCKED, STATUS_403_TYPE_AUTO)
     _set_block_tags(request, request_headers, span)
     raise PermissionDenied()
 
