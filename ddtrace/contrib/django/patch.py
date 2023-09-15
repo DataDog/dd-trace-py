@@ -14,7 +14,6 @@ import os
 
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec import _constants as _asm_constants
 from ddtrace.appsec import utils as appsec_utils
 from ddtrace.appsec.trace_utils import track_user_login_failure_event
@@ -542,9 +541,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                     trace_utils.set_http_meta(span, config.django, route=span.get_tag("http.route"))
                 # if not blocked yet, try blocking rules on response
                 if config._appsec_enabled and not core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
-                    log.debug("Django WAF call for Suspicious Request Blocking on response")
-                    _asm_request_context.call_waf_callback()
-                    # [Suspicious Request Blocking on response]
+                    core.dispatch("django.finalize_response", "Django")
                     if core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
                         response = blocked_response()
                         return response  # noqa: B012

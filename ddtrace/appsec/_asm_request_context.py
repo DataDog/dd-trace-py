@@ -434,7 +434,7 @@ def _on_post_finalizerequest(rv):
         set_body_response(rv.response)
 
 
-def _on_start_response(integration):
+def _call_waf(integration):
     log.debug("%s WAF call for Suspicious Request Blocking on response", integration)
     call_waf_callback()
     return get_headers().get("Accept", "").lower()
@@ -448,6 +448,7 @@ def listen_context_handlers():
     core.on("flask.finalize_request.post", _on_post_finalizerequest)
     core.on("flask.wrapped_view", _on_wrapped_view)
     core.on("context.started.flask._patched_request", _on_pre_tracedrequest)
-    core.on("flask.start_response", _on_start_response)
-    core.on("django.start_response", _on_start_response)
+    core.on("flask.start_response", _call_waf)
+    core.on("django.start_response", _call_waf)
+    core.on("django.finalize_response", _call_waf)
     core.on("flask.set_request_tags", _on_set_request_tags)
