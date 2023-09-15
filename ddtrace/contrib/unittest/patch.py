@@ -85,7 +85,7 @@ def _is_test(item):
     if type(item) == unittest.TestSuite or not hasattr(item, "_testMethodName"):
         return False
     if ddtrace.config.unittest.strict_naming and not (
-            len(item._testMethodName) >= 4 and item._testMethodName[0:4] == "test"
+        len(item._testMethodName) >= 4 and item._testMethodName[0:4] == "test"
     ):
         return False
     return True
