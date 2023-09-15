@@ -16,17 +16,17 @@ except (ImportError, AttributeError):
 
 
 @pytest.mark.parametrize(
-    "obj1, obj2",
+    "origstr, substr, replstr, result",
     [
-        ("Hello ", "world"),
-        ("🙀", "🌝"),
-        (b"Hi", b""),
-        (bytearray("a", "utf-8"), bytearray("b", "utf-8")),
+        ("Hello world", "world", "moon", "Hello moon"),
+        ("Hello 🙀", "🙀", "🌝", "Hello 🌝"),
+        (b"Hi world", b"Hi", b"Hello", b"Hello world"),
+        (bytearray("aaa", "utf-8"), bytearray("a", "utf-8"), bytearray("b", "utf-8"), bytearray("bbb", "utf-8")),
     ],
 )
 @pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
-def test_replace_aspect_successful(obj1, obj2):
-    assert ddtrace_aspects.replace_aspect(obj1, obj1, obj2) == obj2
+def test_replace_aspect_successful(origstr, substr, replstr, result):
+    assert ddtrace_aspects.replace_aspect(origstr.replace, origstr, substr, replstr) == result
 
 
 @pytest.mark.parametrize(
@@ -39,7 +39,7 @@ def test_replace_aspect_type_error(obj1, obj2):
         obj1.replace(obj1, obj2)
 
     with pytest.raises(TypeError) as e_info2:
-        ddtrace_aspects.replace_aspect(obj1, obj1, obj2)
+        ddtrace_aspects.replace_aspect(obj1.replace, obj1, obj1, obj2)
 
     assert str(e_info2.value) == str(e_info1.value)
 
@@ -70,7 +70,7 @@ def test_replace_aspect_tainting_left_hand(obj1, obj2, should_be_tainted):
         if len(obj1):
             assert get_tainted_ranges(obj1)
 
-    result = ddtrace_aspects.replace_aspect(obj1, obj1, obj2)
+    result = ddtrace_aspects.replace_aspect(obj1.replace, obj1, obj1, obj2)
     assert result == obj2
     if isinstance(obj2, (bytes, str, bytearray)) and len(obj2):
         assert result is not obj2
