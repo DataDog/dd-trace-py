@@ -594,7 +594,7 @@ def test_debugger_line_probe_on_wrapped_function(stuff):
 def test_probe_status_logging(remote_config_worker):
     assert remoteconfig_poller.status == ServiceStatus.STOPPED
 
-    with rcm_endpoint(), debugger(diagnostics_interval=0.2, enabled=True) as d:
+    with rcm_endpoint(), debugger(diagnostics_interval=0, enabled=True) as d:
         d.add_probes(
             create_snapshot_line_probe(
                 probe_id="line-probe-ok",
@@ -625,7 +625,7 @@ def test_probe_status_logging(remote_config_worker):
 def test_probe_status_logging_reemit_on_modify(remote_config_worker):
     assert remoteconfig_poller.status == ServiceStatus.STOPPED
 
-    with rcm_endpoint(), debugger(diagnostics_interval=0.2, enabled=True) as d:
+    with rcm_endpoint(), debugger(diagnostics_interval=0, enabled=True) as d:
         d.add_probes(
             create_snapshot_line_probe(
                 version=1,
@@ -670,7 +670,7 @@ def test_probe_status_logging_reemit_on_modify(remote_config_worker):
 def test_debugger_function_probe_duration(duration):
     from tests.submod.stuff import durationstuff
 
-    with debugger(poll_interval=0.1) as d:
+    with debugger(poll_interval=0) as d:
         d.add_probes(
             create_snapshot_function_probe(
                 probe_id="duration-probe",
@@ -688,7 +688,7 @@ def test_debugger_function_probe_duration(duration):
 def test_debugger_condition_eval_then_rate_limit():
     from tests.submod.stuff import Stuff
 
-    with debugger(upload_flush_interval=0.1) as d:
+    with debugger(upload_flush_interval=float("inf")) as d:
         d.add_probes(
             create_snapshot_line_probe(
                 probe_id="foo",
@@ -718,7 +718,7 @@ def test_debugger_condition_eval_then_rate_limit():
 def test_debugger_condition_eval_error_get_reported_once():
     from tests.submod.stuff import Stuff
 
-    with debugger(upload_flush_interval=0.1) as d:
+    with debugger(upload_flush_interval=float("inf")) as d:
         d.add_probes(
             create_snapshot_line_probe(
                 probe_id="foo",
@@ -846,7 +846,7 @@ def test_debugger_lambda_fuction_access_locals():
 def test_debugger_log_live_probe_generate_messages():
     from tests.submod.stuff import Stuff
 
-    with debugger(upload_flush_interval=0.1) as d:
+    with debugger(upload_flush_interval=float("inf")) as d:
         d.add_probes(
             create_log_line_probe(
                 probe_id="foo",
@@ -989,7 +989,7 @@ class SpanProbeTestCase(TracerTestCase):
 def test_debugger_modified_probe():
     from tests.submod.stuff import Stuff
 
-    with debugger(upload_flush_interval=0.1) as d:
+    with debugger(upload_flush_interval=float("inf")) as d:
         d.add_probes(
             create_log_line_probe(
                 probe_id="foo",
