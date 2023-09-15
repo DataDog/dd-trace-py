@@ -427,11 +427,13 @@ def _on_pre_tracedrequest(ctx):
             block_request()
 
 
-def _on_post_finalizerequest(rv):
-    if config._api_security_enabled and config._appsec_enabled and getattr(rv, "is_sequence", False):
-        # start_response was not called yet, set the HTTP response headers earlier
-        set_headers_response(list(rv.headers))
-        set_body_response(rv.response)
+def _set_headers_and_response(response, headers):
+    if config._api_security_enabled and config._appsec_enabled:
+        if headers:
+            # start_response was not called yet, set the HTTP response headers earlier
+            set_headers_response(list(headers))
+        if response:
+            set_body_response(response)
 
 
 def _call_waf(integration):
@@ -449,18 +451,13 @@ def _on_django_after_request():
         return get_headers()
 
 
-def _on_django_after_request_post(response_content):
-    if config._appsec_enabled and config._api_security_enabled:
-        set_body_response(response_content)
-
-
 def listen_context_handlers():
-    core.on("flask.finalize_request.post", _on_post_finalizerequest)
+    core.on("flask.finalize_request.post", _set_headers_and_response)
     core.on("flask.wrapped_view", _on_wrapped_view)
     core.on("context.started.flask._patched_request", _on_pre_tracedrequest)
     core.on("flask.start_response", _call_waf)
     core.on("django.start_response", _call_waf)
     core.on("django.finalize_response", _call_waf)
     core.on("django.after_request_headers", _on_django_after_request)
-    core.on("django.after_request_headers.post", _on_django_after_request_post)
+    core.on("django.after_request_headers.post", _set_headers_and_response)
     core.on("flask.set_request_tags", _on_set_request_tags)

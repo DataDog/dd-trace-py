@@ -401,7 +401,7 @@ def _after_request_tags(pin, span, request, response):
                 headers_are_case_sensitive=core.get_item("http.request.headers_case_sensitive", span=span),
                 response_cookies=response_cookies,
             )
-            core.dispatch("django.after_request_headers.post", response.content)
+            core.dispatch("django.after_request_headers.post", response.content, None)
     finally:
         if span.resource == REQUEST_DEFAULT_RESOURCE:
             span.resource = request.method

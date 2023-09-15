@@ -376,7 +376,12 @@ def patched_finalize_request(wrapped, instance, args, kwargs):
     Wrapper for flask.app.Flask.finalize_request
     """
     rv = wrapped(*args, **kwargs)
-    core.dispatch("flask.finalize_request.post", rv)
+    response = None
+    headers = None
+    if getattr(rv, "is_sequence", False):
+        response = rv.response
+        headers = rv.headers
+    core.dispatch("flask.finalize_request.post", response, headers)
     return rv
 
 
