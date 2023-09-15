@@ -137,27 +137,6 @@ def _update_status_item(item, status):
 
 
 def _extract_suite_name_from_test_method(item):
-    if _is_test(item):
-        return _extract_class_hierarchy_name(item)
-    if not len(item._tests):
-        return None
-    module_name = None
-    for suite in item._tests:
-        if type(suite) != unittest.TestSuite:
-            module_name = _extract_class_hierarchy_name(suite)
-            break
-        if not len(suite._tests):
-            continue
-        for test_object in suite._tests:
-            module_name = _extract_class_hierarchy_name(test_object)
-            if not module_name:
-                continue
-            break
-
-    return module_name
-
-
-def _extract_class_hierarchy_name(item):
     item_type = type(item)
     return getattr(item_type, "__name__", None)
 
@@ -274,9 +253,9 @@ def _update_remaining_suites_and_modules(test_module_suite_path, test_module_pat
     _CIVisibility._unittest_data["suites"][test_module_suite_path]["remaining_tests"] -= 1
     if _CIVisibility._unittest_data["suites"][test_module_suite_path]["remaining_tests"] == 0:
         _CIVisibility._unittest_data["modules"][test_module_path]["remaining_suites"] -= 1
-        _finish_test_suite_span(test_suite_span)
+        _finish_span(test_suite_span)
     if _CIVisibility._unittest_data["modules"][test_module_path]["remaining_suites"] == 0:
-        _finish_test_module_span(test_module_span)
+        _finish_span(test_module_span)
 
 
 def patch():
@@ -485,11 +464,6 @@ def _start_test_session_span(instance):
     return test_session_span
 
 
-def _finish_test_session_span(test_session_span):
-    log.debug("CI Visibility enabled - finishing unittest test session")
-    test_session_span.finish()
-
-
 def _start_test_module_span(instance):
     tracer = getattr(unittest, "_datadog_tracer", _CIVisibility._instance.tracer)
     test_session_span = _extract_session_span()
@@ -518,20 +492,14 @@ def _start_test_module_span(instance):
     return test_module_span
 
 
-def _finish_test_suite_span(test_suite_span):
-    suite_status = test_suite_span.get_tag(test.STATUS)
-    if suite_status:
-        test_module_span = test_suite_span._parent
-        _update_status_item(test_module_span, suite_status)
-    test_suite_span.finish()
-
-
-def _finish_test_module_span(test_module_span):
-    module_status = test_module_span.get_tag(test.STATUS)
-    if module_status:
-        test_session_span = test_module_span._parent
-        _update_status_item(test_session_span, module_status)
-    test_module_span.finish()
+def _finish_span(current_span):
+    current_status = current_span.get_tag(test.STATUS)
+    parent_span = current_span._parent
+    if current_status and parent_span:
+        _update_status_item(parent_span, current_status)
+    elif not current_status:
+        current_span.set_tag_str(test.SUITE, test.Status.FAIL.value)
+    current_span.finish()
 
 
 def _start_test_suite_span(instance):
@@ -587,7 +555,7 @@ def handle_cli_run(func, instance, args, kwargs):
             _finish_remaining_suites_and_modules(
                 _CIVisibility._unittest_data["suites"], _CIVisibility._unittest_data["modules"]
             )
-            _finish_test_session_span(test_session_span)
+            _finish_span(test_session_span)
             _CIVisibility.disable()
         raise e
     return result
@@ -613,7 +581,8 @@ def handle_text_test_runner_wrapper(func, instance, args, kwargs):
             _finish_remaining_suites_and_modules(
                 _CIVisibility._unittest_data["suites"], _CIVisibility._unittest_data["modules"]
             )
-            _finish_test_session_span(_CIVisibility._datadog_session_span)
+            _finish_span(_CIVisibility._datadog_session_span)
+            _CIVisibility.disable()
         raise e
 
     _CIVisibility._datadog_finished_sessions += 1
@@ -621,5 +590,6 @@ def handle_text_test_runner_wrapper(func, instance, args, kwargs):
         _finish_remaining_suites_and_modules(
             _CIVisibility._unittest_data["suites"], _CIVisibility._unittest_data["modules"]
         )
-        _finish_test_session_span(_CIVisibility._datadog_session_span)
+        _finish_span(_CIVisibility._datadog_session_span)
+        _CIVisibility.disable()
     return result
