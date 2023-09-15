@@ -26,6 +26,7 @@ from ddtrace.internal.utils.cache import cached
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Any
+    from typing import Dict
     from typing import Generator
     from typing import Optional
     from typing import Pattern
@@ -384,7 +385,7 @@ def parse_form_params(body):
 
 
 def parse_form_multipart(body, headers=None):
-    # type: (unicode) -> dict[unicode, Any]
+    # type: (unicode, Optional[Dict[Any, Any]]) -> dict[unicode, Any]
     """Return a dict of form data after HTTP form parsing"""
     import email
     import json

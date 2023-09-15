@@ -15,7 +15,6 @@ import os
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.appsec.trace_utils import track_user_login_failure_event
-from ddtrace.appsec.trace_utils import track_user_login_success_event
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import dbapi
@@ -776,48 +775,20 @@ def traced_login(django, pin, func, instance, args, kwargs):
         request = get_argument_value(args, kwargs, 0, "request")
         user = get_argument_value(args, kwargs, 1, "user")
 
-        if not config._appsec_enabled or mode == "disabled":
+        if mode == "disabled":
             return
 
-        if user and str(user) != "AnonymousUser":
-            user_id, user_extra = _get_user_info(user)
-            if not user_id:
-                log.debug(
-                    "Automatic Login Events Tracking: " "Could not determine user id field user for the %s user Model",
-                    type(user),
-                )
-                return
-
-            with pin.tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
-                from ddtrace.contrib.django.compat import user_is_authenticated
-
-                if user_is_authenticated(user):
-                    session_key = getattr(request, "session_key", None)
-                    track_user_login_success_event(
-                        pin.tracer,
-                        user_id=user_id,
-                        session_id=session_key,
-                        propagate=True,
-                        login_events_mode=mode,
-                        **user_extra
-                    )
-                    return
-                else:
-                    # Login failed but the user exists
-                    track_user_login_failure_event(pin.tracer, user_id=user_id, exists=True, login_events_mode=mode)
-                    return
-        else:
-            # Login failed and the user is unknown
-            if user:
-                if mode == "extended":
-                    user_id = _get_username(user)
-                else:  # safe mode
-                    user_id = _find_in_user_model(user, _POSSIBLE_USER_ID_FIELDS)
-                if not user_id:
-                    user_id = "AnonymousUser"
-
-                track_user_login_failure_event(pin.tracer, user_id=user_id, exists=False, login_events_mode=mode)
-                return
+        core.dispatch(
+            "django.login",
+            pin,
+            request,
+            user,
+            mode,
+            _get_user_info,
+            _get_username,
+            _find_in_user_model,
+            _POSSIBLE_USER_ID_FIELDS,
+        )
     except Exception:
         log.debug("Error while trying to trace Django login", exc_info=True)
 

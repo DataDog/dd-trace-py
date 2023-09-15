@@ -15,6 +15,7 @@ from ddtrace import constants
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import LOGIN_EVENTS_MODE
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
+from ddtrace.ext import SpanTypes
 from ddtrace.ext import user
 from ddtrace.internal.compat import six
 from ddtrace.internal.logger import get_logger
@@ -259,3 +260,53 @@ def block_request_if_user_blocked(tracer, userid):  # type: (Tracer, str) -> Non
         if span:
             span.set_tag_str(user.ID, str(userid))
         _asm_request_context.block_request()
+
+
+def _on_django_login(
+    pin, request, user, mode, _get_user_info, _get_username, _find_in_user_model, _POSSIBLE_USER_ID_FIELDS
+):
+    if not config._appsec_enabled:
+        return
+
+    if user and str(user) != "AnonymousUser":
+        user_id, user_extra = _get_user_info(user)
+        if not user_id:
+            log.debug(
+                "Automatic Login Events Tracking: " "Could not determine user id field user for the %s user Model",
+                type(user),
+            )
+            return
+
+        with pin.tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
+            from ddtrace.contrib.django.compat import user_is_authenticated
+
+            if user_is_authenticated(user):
+                session_key = getattr(request, "session_key", None)
+                track_user_login_success_event(
+                    pin.tracer,
+                    user_id=user_id,
+                    session_id=session_key,
+                    propagate=True,
+                    login_events_mode=mode,
+                    **user_extra
+                )
+                return
+            else:
+                # Login failed but the user exists
+                track_user_login_failure_event(pin.tracer, user_id=user_id, exists=True, login_events_mode=mode)
+                return
+    else:
+        # Login failed and the user is unknown
+        if user:
+            if mode == "extended":
+                user_id = _get_username(user)
+            else:  # safe mode
+                user_id = _find_in_user_model(user, _POSSIBLE_USER_ID_FIELDS)
+            if not user_id:
+                user_id = "AnonymousUser"
+
+            track_user_login_failure_event(pin.tracer, user_id=user_id, exists=False, login_events_mode=mode)
+            return
+
+
+core.on("django.login", _on_django_login)
