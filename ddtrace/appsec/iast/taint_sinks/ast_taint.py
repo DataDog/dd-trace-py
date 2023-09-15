@@ -24,7 +24,7 @@ def ast_funcion(
         except AttributeError:
             pass
 
-    if cls_name == "Random" and func_name in DEFAULT_WEAK_RANDOMNESS_FUNCTIONS:
+    if cls.__class__.__module__ == "random" and cls_name == "Random" and func_name in DEFAULT_WEAK_RANDOMNESS_FUNCTIONS:
         # Weak, run the analyzer
         WeakRandomness.report(evidence_value=cls_name + "." + func_name)
 
