@@ -446,7 +446,7 @@ def _on_block_decided(callback):
     set_value(_CALLBACKS, "flask_block", callback)
 
 
-def _on_django_after_request():
+def _get_headers_if_appsec():
     if config._appsec_enabled:
         return get_headers()
 
@@ -458,6 +458,6 @@ def listen_context_handlers():
     core.on("flask.start_response", _call_waf)
     core.on("django.start_response", _call_waf)
     core.on("django.finalize_response", _call_waf)
-    core.on("django.after_request_headers", _on_django_after_request)
+    core.on("django.after_request_headers", _get_headers_if_appsec)
     core.on("django.after_request_headers.post", _set_headers_and_response)
     core.on("flask.set_request_tags", _on_set_request_tags)
