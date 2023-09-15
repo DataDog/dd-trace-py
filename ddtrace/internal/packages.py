@@ -1,8 +1,11 @@
 import logging
 import os
+from pathlib import Path
 import sys
+import sysconfig
 import typing as t
 
+from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.cache import callonce
 
 
@@ -136,3 +139,15 @@ def filename_to_package(filename):
 def is_third_party(filename):
     # type: (str) -> bool
     return filename_to_package(filename) is not None
+
+
+stdlib_path = Path(sysconfig.get_path("stdlib")).resolve()
+platstdlib_path = Path(sysconfig.get_path("platstdlib")).resolve()
+
+
+@cached()
+def is_stdlib(path):
+    # type: (Path) -> bool
+    path = path.resolve()
+
+    return path.is_relative_to(stdlib_path) or path.is_relative_to(platstdlib_path)
