@@ -364,15 +364,11 @@ def _on_context_ended(ctx):
         _end_context(resources)
 
 
-def _on_pre_tracedgetresponse(block_request_callable):
-    set_block_request_callable(block_request_callable)
-
-
 core.on("context.started.wsgi.__call__", _on_context_started)
 core.on("context.ended.wsgi.__call__", _on_context_ended)
 core.on("context.started.django.traced_get_response", _on_context_started)
 core.on("context.ended.django.traced_get_response", _on_context_started)
-core.on("django.traced_get_response.pre", _on_pre_tracedgetresponse)
+core.on("django.traced_get_response.pre", set_block_request_callable)
 
 
 def _on_wrapped_view(kwargs):
