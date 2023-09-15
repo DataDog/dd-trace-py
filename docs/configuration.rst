@@ -527,9 +527,9 @@ The following environment variables for the tracer are supported:
          Sets the mode for the automated user login events tracking feature which sets some traces on each user login event. The
          supported modes are ``safe`` which will only store the user id or primary key, ``extended`` which will also store
          the username, email and full name and ``disabled``. Note that this feature requires ``DD_APPSEC_ENABLED`` to be 
-         set to ``true`` to work.  
+         set to ``true`` to work. Currently only supported in Django.
       version_added:
-         v1.15.0:
+         v1.17.0:
 
    DD_USER_MODEL_LOGIN_FIELD:
       type: String
