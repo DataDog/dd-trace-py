@@ -24,6 +24,7 @@ from ddtrace.internal.ci_visibility.constants import SUITE_ID as _SUITE_ID
 from ddtrace.internal.ci_visibility.constants import SUITE_TYPE as _SUITE_TYPE
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.vendor import wrapt
 
@@ -36,6 +37,7 @@ config._add(
     dict(
         _default_service="unittest",
         operation_name=os.getenv("DD_UNITTEST_OPERATION_NAME", default="unittest.test"),
+        strict_naming=asbool(os.getenv("DD_CIVISIBILITY_UNITTEST_STRICT_NAMING", default=True)),
     ),
 )
 
@@ -80,12 +82,13 @@ def _is_test_suite(item):
 
 
 def _is_test(item):
-    return (
-            type(item) != unittest.TestSuite
-            and hasattr(item, "_testMethodName")
-            and len(item._testMethodName) >= 4
-            and item._testMethodName[0:4] == "test"
-    )
+    if type(item) == unittest.TestSuite or not hasattr(item, "_testMethodName"):
+        return False
+    if ddtrace.config.unittest.strict_naming and not (
+            len(item._testMethodName) >= 4 and item._testMethodName[0:4] == "test"
+    ):
+        return False
+    return True
 
 
 def _extract_span(item):
