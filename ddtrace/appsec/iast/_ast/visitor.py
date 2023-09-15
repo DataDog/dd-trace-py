@@ -227,7 +227,7 @@ class AstVisitor(ast.NodeTransformer):
         # Arguments for stack info change from:
         # my_function(self, *args, **kwargs)
         # to:
-        # stack_info_replacement(function_name=my_function, self, *args, **kwargs)
+        # _add_original_function_as_arg(function_name=my_function, self, *args, **kwargs)
         new_args = [
             function_name_arg,
         ] + call_node.args
