@@ -418,7 +418,7 @@ def _block_request_callable(request, request_headers, span):
     # at any point so it's a callable stored in the ASM context.
     from django.core.exceptions import PermissionDenied
 
-    core.set_item(WAF_CONTEXT_NAMES.BLOCKED, _asm_constants.WAF_ACTIONS.DEFAULT_PARAMETERS, span=span)
+    core.set_item(WAF_CONTEXT_NAMES.BLOCKED, _asm_constants.WAF_ACTIONS.DEFAULT_PARAMETERS)
     _set_block_tags(request, request_headers, span)
     raise PermissionDenied()
 
@@ -472,7 +472,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
             def blocked_response():
                 from django.http import HttpResponse
 
-                block_config = core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span)
+                block_config = core.get_item(WAF_CONTEXT_NAMES.BLOCKED)
                 desired_type = block_config.get("type", "auto")
                 status = block_config.get("status_code", 403)
                 if desired_type == "none":
@@ -493,7 +493,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
 
             try:
                 # [IP Blocking]
-                if core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span):
+                if core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
                     response = blocked_response()
                     return response
 
@@ -524,13 +524,13 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                 )
                 core.dispatch("django.start_response", "Django")
 
-                if core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span):
+                if core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
                     response = blocked_response()
                     return response
 
                 response = func(*args, **kwargs)
 
-                if core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span):
+                if core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
                     response = blocked_response()
                     return response
 
@@ -541,11 +541,11 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                 if config._appsec_enbled and config._api_security_enabled:
                     trace_utils.set_http_meta(span, config.django, route=span.get_tag("http.route"))
                 # if not blocked yet, try blocking rules on response
-                if config._appsec_enabled and not core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span):
+                if config._appsec_enabled and not core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
                     log.debug("Django WAF call for Suspicious Request Blocking on response")
                     _asm_request_context.call_waf_callback()
                     # [Suspicious Request Blocking on response]
-                    if core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span):
+                    if core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
                         response = blocked_response()
                         return response  # noqa: B012
 
