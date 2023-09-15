@@ -30,6 +30,7 @@ from ddtrace.internal import core
 from ddtrace.internal.compat import Iterable
 from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.constants import STATUS_403_TYPE_AUTO
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
@@ -41,7 +42,6 @@ from ddtrace.vendor import wrapt
 from ddtrace.vendor.wrapt.importer import when_imported
 
 from .. import trace_utils
-from ...appsec._constants import WAF_CONTEXT_NAMES
 from ...internal.utils import get_argument_value
 from ..trace_utils import _get_request_header_user_agent
 from ..trace_utils import _set_url_tag
@@ -417,7 +417,7 @@ def _block_request_callable(request, request_headers, span):
     # at any point so it's a callable stored in the ASM context.
     from django.core.exceptions import PermissionDenied
 
-    core.set_item(WAF_CONTEXT_NAMES.BLOCKED, STATUS_403_TYPE_AUTO)
+    core.set_item(HTTP_REQUEST_BLOCKED, STATUS_403_TYPE_AUTO)
     _set_block_tags(request, request_headers, span)
     raise PermissionDenied()
 
@@ -471,7 +471,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
             def blocked_response():
                 from django.http import HttpResponse
 
-                block_config = core.get_item(WAF_CONTEXT_NAMES.BLOCKED)
+                block_config = core.get_item(HTTP_REQUEST_BLOCKED)
                 desired_type = block_config.get("type", "auto")
                 status = block_config.get("status_code", 403)
                 if desired_type == "none":
@@ -492,7 +492,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
 
             try:
                 # [IP Blocking]
-                if core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
+                if core.get_item(HTTP_REQUEST_BLOCKED):
                     response = blocked_response()
                     return response
 
@@ -523,13 +523,13 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                 )
                 core.dispatch("django.start_response", "Django")
 
-                if core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
+                if core.get_item(HTTP_REQUEST_BLOCKED):
                     response = blocked_response()
                     return response
 
                 response = func(*args, **kwargs)
 
-                if core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
+                if core.get_item(HTTP_REQUEST_BLOCKED):
                     response = blocked_response()
                     return response
 
@@ -540,9 +540,9 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                 if config._appsec_enbled and config._api_security_enabled:
                     trace_utils.set_http_meta(span, config.django, route=span.get_tag("http.route"))
                 # if not blocked yet, try blocking rules on response
-                if config._appsec_enabled and not core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
+                if config._appsec_enabled and not core.get_item(HTTP_REQUEST_BLOCKED):
                     core.dispatch("django.finalize_response", "Django")
-                    if core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
+                    if core.get_item(HTTP_REQUEST_BLOCKED):
                         response = blocked_response()
                         return response  # noqa: B012
 
