@@ -381,7 +381,7 @@ def patched_finalize_request(wrapped, instance, args, kwargs):
     if getattr(rv, "is_sequence", False):
         response = rv.response
         headers = rv.headers
-    core.dispatch("flask.finalize_request.post", response, headers)
+    core.dispatch("flask.finalize_request.post", [response, headers])
     return rv
 
 

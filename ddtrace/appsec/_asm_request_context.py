@@ -451,6 +451,7 @@ def listen_context_handlers():
     core.on("flask.finalize_request.post", _set_headers_and_response)
     core.on("flask.wrapped_view", _on_wrapped_view)
     core.on("context.started.flask._patched_request", _on_pre_tracedrequest)
+    core.on("wsgi.block_decided", _on_block_decided)
     core.on("flask.start_response", _call_waf)
     core.on("django.start_response", _call_waf)
     core.on("django.finalize_response", _call_waf)
