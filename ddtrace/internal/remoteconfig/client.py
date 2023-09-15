@@ -188,6 +188,7 @@ class RemoteConfigClient(object):
             language="python",
             tracer_version=tracer_version,
             service=ddtrace.config.service,
+            extra_services=list(ddtrace.config.extra_services),
             env=ddtrace.config.env,
             app_version=ddtrace.config.version,
             tags=[":".join(_) for _ in tags.items()],

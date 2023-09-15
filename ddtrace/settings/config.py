@@ -303,6 +303,7 @@ class Config(object):
         if self.service is None and in_azure_function_consumption_plan():
             self.service = os.environ.get("WEBSITE_SITE_NAME")
 
+        self.extra_services = set()
         self.version = os.getenv("DD_VERSION", default=self.tags.get("version"))
         self.http_server = self._HTTPServerConfig()
 
@@ -443,6 +444,12 @@ class Config(object):
             self._config[name] = IntegrationConfig(self, name)
 
         return self._config[name]
+
+    def add_extra_service(self, service_name):
+        if service_name != self.service:
+            self.extra_services.add(service_name)
+            if len(self.extra_services) >= 64:
+                self.extra_services.pop()
 
     def get_from(self, obj):
         """Retrieves the configuration for the given object.

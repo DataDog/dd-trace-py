@@ -163,6 +163,8 @@ class Pin(object):
 
             # set the target reference; any get_from, clones and retarget the new PIN
             self._target = id(obj)
+            if self.tracer and self.service:
+                ddtrace.config.add_extra_service(self.service)
             return setattr(obj, pin_name, self)
         except AttributeError:
             log.debug("can't pin onto object. skipping", exc_info=True)
