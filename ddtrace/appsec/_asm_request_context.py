@@ -444,6 +444,16 @@ def _on_block_decided(callback):
     set_value(_CALLBACKS, "flask_block", callback)
 
 
+def _on_django_after_request():
+    if config._appsec_enabled:
+        return get_headers()
+
+
+def _on_django_after_request_post(response_content):
+    if config._appsec_enabled and config._api_security_enabled:
+        set_body_response(response_content)
+
+
 def listen_context_handlers():
     core.on("flask.finalize_request.post", _on_post_finalizerequest)
     core.on("flask.wrapped_view", _on_wrapped_view)
@@ -451,4 +461,6 @@ def listen_context_handlers():
     core.on("flask.start_response", _call_waf)
     core.on("django.start_response", _call_waf)
     core.on("django.finalize_response", _call_waf)
+    core.on("django.after_request_headers", _on_django_after_request)
+    core.on("django.after_request_headers.post", _on_django_after_request_post)
     core.on("flask.set_request_tags", _on_set_request_tags)

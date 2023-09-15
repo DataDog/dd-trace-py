@@ -365,11 +365,8 @@ def _after_request_tags(pin, span, request, response):
 
             url = get_request_uri(request)
 
-            request_headers = None
-            if config._appsec_enabled:
-                from ddtrace.appsec import _asm_request_context
-
-                request_headers = _asm_request_context.get_headers()
+            results = core.dispatch("django.after_request_headers", [])[0]
+            request_headers = results[0] if results else None
 
             if not request_headers:
                 # did not go through AppSecProcessor.on_span_start
@@ -404,8 +401,7 @@ def _after_request_tags(pin, span, request, response):
                 headers_are_case_sensitive=core.get_item("http.request.headers_case_sensitive", span=span),
                 response_cookies=response_cookies,
             )
-            if config._appsec_enabled and config._api_security_enabled:
-                _asm_request_context.set_body_response(response.content)
+            core.dispatch("django.after_request_headers.post", response.content)
     finally:
         if span.resource == REQUEST_DEFAULT_RESOURCE:
             span.resource = request.method

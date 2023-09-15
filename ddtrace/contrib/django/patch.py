@@ -540,7 +540,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                 if config._appsec_enbled and config._api_security_enabled:
                     trace_utils.set_http_meta(span, config.django, route=span.get_tag("http.route"))
                 # if not blocked yet, try blocking rules on response
-                if config._appsec_enabled and not core.get_item(HTTP_REQUEST_BLOCKED):
+                if not core.get_item(HTTP_REQUEST_BLOCKED):
                     core.dispatch("django.finalize_response", "Django")
                     if core.get_item(HTTP_REQUEST_BLOCKED):
                         response = blocked_response()
