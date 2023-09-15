@@ -17,6 +17,8 @@ from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import func_name
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import user as _user
+from ddtrace.internal.utils.http import parse_form_multipart
+from ddtrace.internal.utils.http import parse_form_params
 from ddtrace.propagation._utils import from_wsgi_header
 
 from .. import trace_utils
@@ -263,17 +265,16 @@ def _before_request_tags(pin, span, request):
 
 def _extract_body(request):
     # DEV: Do not use request.POST or request.data, this could prevent custom parser to be used after
-    if config._appsec_enabled and request.method in _BODY_METHODS:
-        from ddtrace.appsec.utils import parse_form_multipart
-        from ddtrace.appsec.utils import parse_form_params
-
+    if request.method in _BODY_METHODS:
         req_body = None
         content_type = request.content_type if hasattr(request, "content_type") else request.META.get("CONTENT_TYPE")
+        results = core.dispatch("django.extract_body", [])[0]
+        headers = results[0] if results else None
         try:
             if content_type == "application/x-www-form-urlencoded":
                 req_body = parse_form_params(request.body.decode("UTF-8", errors="ignore"))
             elif content_type == "multipart/form-data":
-                req_body = parse_form_multipart(request.body.decode("UTF-8", errors="ignore"))
+                req_body = parse_form_multipart(request.body.decode("UTF-8", errors="ignore"), headers)
             elif content_type in ("application/json", "text/json"):
                 req_body = json.loads(request.body.decode("UTF-8", errors="ignore"))
             elif content_type in ("application/xml", "text/xml"):
@@ -282,7 +283,6 @@ def _extract_body(request):
                 req_body = None
         except BaseException:
             log.debug("Failed to parse request body", exc_info=True)
-            # req_body is None
         return req_body
 
 
@@ -369,7 +369,6 @@ def _after_request_tags(pin, span, request, response):
             request_headers = results[0] if results else None
 
             if not request_headers:
-                # did not go through AppSecProcessor.on_span_start
                 request_headers = _get_request_headers(request)
 
             response_headers = dict(response.items()) if response else {}

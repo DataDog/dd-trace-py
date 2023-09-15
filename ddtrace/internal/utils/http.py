@@ -3,13 +3,9 @@ from json import loads
 import logging
 import os
 import re
-from typing import Any
 from typing import Callable
 from typing import ContextManager
-from typing import Generator
-from typing import Optional
-from typing import Pattern
-from typing import Tuple
+from typing import TYPE_CHECKING
 from typing import Union
 
 from ddtrace.constants import USER_ID_KEY
@@ -26,6 +22,16 @@ from ddtrace.internal.http import HTTPSConnection
 from ddtrace.internal.uds import UDSHTTPConnection
 from ddtrace.internal.utils import _get_metas_to_propagate
 from ddtrace.internal.utils.cache import cached
+
+
+if TYPE_CHECKING:  # pragma: no cover
+    from typing import Any
+    from typing import Generator
+    from typing import Optional
+    from typing import Pattern
+    from typing import Tuple
+
+from ddtrace.internal.compat import text_type as unicode
 
 
 ConnectionType = Union[HTTPSConnection, HTTPConnection, UDSHTTPConnection]
@@ -355,3 +361,57 @@ def _get_blocked_template(accept_header_value):
 
     _JSON_BLOCKED_TEMPLATE_CACHE = BLOCKED_RESPONSE_JSON
     return BLOCKED_RESPONSE_JSON
+
+
+def parse_form_params(body):
+    # type: (unicode) -> dict[unicode, unicode|list[unicode]]
+    """Return a dict of form data after HTTP form parsing"""
+    body_params = body.replace("+", " ")
+    req_body = dict()  # type: dict[unicode, unicode|list[unicode]]
+    for item in body_params.split("&"):
+        key, equal, val = item.partition("=")
+        if equal:
+            key = parse.unquote(key)
+            val = parse.unquote(val)
+            prev_value = req_body.get(key, None)
+            if prev_value is None:
+                req_body[key] = val
+            elif isinstance(prev_value, list):
+                prev_value.append(val)
+            else:
+                req_body[key] = [prev_value, val]
+    return req_body
+
+
+def parse_form_multipart(body, headers=None):
+    # type: (unicode) -> dict[unicode, Any]
+    """Return a dict of form data after HTTP form parsing"""
+    import email
+    import json
+
+    import xmltodict
+
+    def parse_message(msg):
+        if msg.is_multipart():
+            res = {
+                part.get_param("name", failobj=part.get_filename(), header="content-disposition"): parse_message(part)
+                for part in msg.get_payload()
+            }
+        else:
+            content_type = msg.get("Content-Type")
+            if content_type in ("application/json", "text/json"):
+                res = json.loads(msg.get_payload())
+            elif content_type in ("application/xml", "text/xml"):
+                res = xmltodict.parse(msg.get_payload())
+            elif content_type in ("text/plain", None):
+                res = msg.get_payload()
+            else:
+                res = ""
+
+        return res
+
+    if headers is not None:
+        content_type = headers.get("Content-Type")
+        msg = email.message_from_string("MIME-Version: 1.0\nContent-Type: %s\n%s" % (content_type, body))
+        return parse_message(msg)
+    return {}
