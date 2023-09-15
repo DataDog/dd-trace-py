@@ -14,7 +14,6 @@ import os
 
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace.appsec.trace_utils import track_user_login_failure_event
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import dbapi
@@ -798,21 +797,15 @@ def traced_authenticate(django, pin, func, instance, args, kwargs):
     result_user = func(*args, **kwargs)
     try:
         mode = config._automatic_login_events_mode
-        if not config._appsec_enabled or mode == "disabled":
+        if mode == "disabled":
             return result_user
 
-        userid_list = _POSSIBLE_USER_ID_FIELDS if mode == "safe" else _POSSIBLE_LOGIN_FIELDS
+        result = core.dispatch(
+            "django.auth", result_user, mode, kwargs, pin, _POSSIBLE_USER_ID_FIELDS, _POSSIBLE_LOGIN_FIELDS
+        )[0]
+        if result and result[0][0]:
+            return result[0][1]
 
-        for possible_key in userid_list:
-            if possible_key in kwargs:
-                user_id = kwargs[possible_key]
-                break
-        else:
-            user_id = "missing"
-
-        if not result_user:
-            with pin.tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
-                track_user_login_failure_event(pin.tracer, user_id=user_id, exists=False, login_events_mode=mode)
     except Exception:
         log.debug("Error while trying to trace Django authenticate", exc_info=True)
 

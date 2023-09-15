@@ -309,4 +309,24 @@ def _on_django_login(
             return
 
 
+def _on_django_auth(result_user, mode, kwargs, pin, _POSSIBLE_USER_ID_FIELDS, _POSSIBLE_LOGIN_FIELDS):
+    if not config._appsec_enabled:
+        return True, result_user
+
+    userid_list = _POSSIBLE_USER_ID_FIELDS if mode == "safe" else _POSSIBLE_LOGIN_FIELDS
+
+    for possible_key in userid_list:
+        if possible_key in kwargs:
+            user_id = kwargs[possible_key]
+            break
+    else:
+        user_id = "missing"
+
+    if not result_user:
+        with pin.tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
+            track_user_login_failure_event(pin.tracer, user_id=user_id, exists=False, login_events_mode=mode)
+    return False, None
+
+
 core.on("django.login", _on_django_login)
+core.on("django.auth", _on_django_auth)
