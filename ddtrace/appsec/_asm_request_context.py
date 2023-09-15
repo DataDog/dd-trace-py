@@ -372,7 +372,7 @@ core.on("context.started.wsgi.__call__", _on_context_started)
 core.on("context.ended.wsgi.__call__", _on_context_ended)
 core.on("context.started.django.traced_get_response", _on_context_started)
 core.on("context.ended.django.traced_get_response", _on_context_started)
-# core.on("django.traced_get_response.pre", _on_pre_tracedgetresponse)
+core.on("django.traced_get_response.pre", _on_pre_tracedgetresponse)
 
 
 def _on_wrapped_view(kwargs):
@@ -434,8 +434,8 @@ def _on_post_finalizerequest(rv):
         set_body_response(rv.response)
 
 
-def _on_start_response():
-    log.debug("Flask WAF call for Suspicious Request Blocking on response")
+def _on_start_response(integration):
+    log.debug("%s WAF call for Suspicious Request Blocking on response", integration)
     call_waf_callback()
     return get_headers().get("Accept", "").lower()
 
@@ -449,4 +449,5 @@ def listen_context_handlers():
     core.on("flask.wrapped_view", _on_wrapped_view)
     core.on("context.started.flask._patched_request", _on_pre_tracedrequest)
     core.on("flask.start_response", _on_start_response)
+    core.on("django.start_response", _on_start_response)
     core.on("flask.set_request_tags", _on_set_request_tags)
