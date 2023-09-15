@@ -14,7 +14,6 @@ import os
 
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace.appsec import utils as appsec_utils
 from ddtrace.appsec.trace_utils import track_user_login_failure_event
 from ddtrace.appsec.trace_utils import track_user_login_success_event
 from ddtrace.constants import SPAN_KIND
@@ -36,6 +35,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.utils import http as http_utils
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.settings.integration import IntegrationConfig
 from ddtrace.vendor import wrapt
@@ -484,7 +484,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                         ctype = "text/html" if "text/html" in request_headers.get("Accept", "").lower() else "text/json"
                     else:
                         ctype = "text/" + desired_type
-                    content = appsec_utils._get_blocked_template(ctype)
+                    content = http_utils._get_blocked_template(ctype)
                     response = HttpResponse(content, content_type=ctype, status=status)
                     response.content = content
                 utils._after_request_tags(pin, span, request, response)
