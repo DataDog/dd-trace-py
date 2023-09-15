@@ -447,7 +447,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
         remote_addr=request.META.get("REMOTE_ADDR"),
         headers=request_headers,
         headers_case_sensitive=django.VERSION < (2, 2),
-    ) as ctx:
+    ):
         with pin.tracer.trace(
             schematize_url_operation("django.request", protocol="http", direction=SpanDirection.INBOUND),
             resource=utils.REQUEST_DEFAULT_RESOURCE,
