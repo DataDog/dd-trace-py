@@ -1,6 +1,5 @@
 import inspect
 import os
-import platform
 import unittest
 
 import ddtrace
@@ -14,6 +13,7 @@ from ddtrace.contrib.unittest.constants import SESSION_OPERATION_NAME
 from ddtrace.contrib.unittest.constants import SUITE_OPERATION_NAME
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
+from ddtrace.ext.ci import _get_runtime_and_os_metadata
 from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
 from ddtrace.internal.ci_visibility.constants import EVENT_TYPE as _EVENT_TYPE
 from ddtrace.internal.ci_visibility.constants import MODULE_ID as _MODULE_ID
@@ -128,11 +128,7 @@ def _extract_suite_span(suite_identifier):
 
 def _update_status_item(item, status):
     existing_status = item.get_tag(test.STATUS)
-    if (
-        not status
-        or existing_status
-        and (status == test.Status.SKIP.value or existing_status == test.Status.FAIL.value)
-    ):
+    if existing_status and (status == test.Status.SKIP.value or existing_status == test.Status.FAIL.value):
         return
     item.set_tag_str(test.STATUS, status)
 
@@ -188,7 +184,7 @@ def _set_identifier(item, name):
 
 
 def _is_valid_result(instance, args):
-    return instance and type(instance) == unittest.runner.TextTestResult and args
+    return instance and isinstance(instance, unittest.runner.TextTestResult) and args
 
 
 def _is_valid_test_call(kwargs):
@@ -209,10 +205,6 @@ def _is_invoked_by_cli(instance):
 
 def _is_invoked_by_text_test_runner():
     return hasattr(_CIVisibility, "_datadog_entry") and _CIVisibility._datadog_entry == "TextTestRunner"
-
-
-def _get_python_version():
-    return platform.python_version()
 
 
 def _generate_module_suite_path(test_module_path, test_suite_name):
@@ -316,6 +308,7 @@ def unpatch():
 def _set_test_span_status(test_item, status, exc_info=None, skip_reason=None):
     span = _extract_span(test_item)
     if not span:
+        log.debug("Tried setting test result for test but could not find span for %s", test_item)
         return
     span.set_tag_str(test.STATUS, status)
     if exc_info:
@@ -327,6 +320,7 @@ def _set_test_span_status(test_item, status, exc_info=None, skip_reason=None):
 def _set_test_xpass_xfail_result(test_item, result):
     span = _extract_span(test_item)
     if not span:
+        log.debug("Tried setting test result for an xpass or xfail test but could not find span for %s", test_item)
         return
     span.set_tag_str(test.RESULT, result)
     status = span.get_tag(test.STATUS)
@@ -408,7 +402,7 @@ def handle_test_wrapper(func, instance, args, kwargs):
 
         span.set_tag_str(test.COMMAND, test_suite_span.get_tag(test.COMMAND))
         span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
-        span.set_tag_str(test.FRAMEWORK_VERSION, _get_python_version())
+        span.set_tag_str(test.FRAMEWORK_VERSION, _get_runtime_and_os_metadata()["runtime.version"])
         span.set_tag_str(test.TYPE, SpanTypes.TEST)
 
         span.set_tag_str(test.NAME, test_name)
@@ -462,7 +456,7 @@ def _start_test_session_span(instance):
     test_session_span.set_tag_str(COMPONENT, COMPONENT_VALUE)
     test_session_span.set_tag_str(SPAN_KIND, KIND)
     test_session_span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
-    test_session_span.set_tag_str(test.FRAMEWORK_VERSION, _get_python_version())
+    test_session_span.set_tag_str(test.FRAMEWORK_VERSION, _get_runtime_and_os_metadata()["runtime.version"])
     test_session_span.set_tag_str(_EVENT_TYPE, _SESSION_TYPE)
     test_session_span.set_tag_str(test.COMMAND, test_command)
     test_session_span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
@@ -486,7 +480,7 @@ def _start_test_module_span(instance):
     test_module_span.set_tag_str(COMPONENT, COMPONENT_VALUE)
     test_module_span.set_tag_str(SPAN_KIND, KIND)
     test_module_span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
-    test_module_span.set_tag_str(test.FRAMEWORK_VERSION, _get_python_version())
+    test_module_span.set_tag_str(test.FRAMEWORK_VERSION, _get_runtime_and_os_metadata()["runtime.version"])
     test_module_span.set_tag_str(test.COMMAND, test_session_span.get_tag(test.COMMAND))
     test_module_span.set_tag_str(test.TEST_TYPE, SpanTypes.TEST)
     test_module_span.set_tag_str(_EVENT_TYPE, _MODULE_TYPE)
@@ -525,7 +519,7 @@ def _start_test_suite_span(instance):
     test_suite_span.set_tag_str(COMPONENT, COMPONENT_VALUE)
     test_suite_span.set_tag_str(SPAN_KIND, KIND)
     test_suite_span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
-    test_suite_span.set_tag_str(test.FRAMEWORK_VERSION, _get_python_version())
+    test_suite_span.set_tag_str(test.FRAMEWORK_VERSION, _get_runtime_and_os_metadata()["runtime.version"])
     test_suite_span.set_tag_str(test.COMMAND, test_module_span.get_tag(test.COMMAND))
     test_suite_span.set_tag_str(_EVENT_TYPE, _SUITE_TYPE)
     test_suite_span.set_tag_str(_SESSION_ID, test_module_span.get_tag(_SESSION_ID))

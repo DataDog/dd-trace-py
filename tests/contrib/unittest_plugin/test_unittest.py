@@ -1,4 +1,3 @@
-import platform
 import sys
 import unittest
 
@@ -18,6 +17,7 @@ from ddtrace.contrib.unittest.patch import _set_tracer
 from ddtrace.contrib.unittest.patch import patch
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
+from ddtrace.ext.ci import _get_runtime_and_os_metadata
 from ddtrace.internal.ci_visibility.constants import MODULE_ID
 from ddtrace.internal.ci_visibility.constants import SESSION_ID
 from ddtrace.internal.ci_visibility.constants import SUITE_ID
@@ -59,7 +59,7 @@ class UnittestTestCase(TracerTestCase):
             for i in range(len(spans)):
                 assert spans[i].get_tag(test.TEST_TYPE) == SpanTypes.TEST
                 assert spans[i].get_tag(test.TEST_FRAMEWORK) == FRAMEWORK
-                assert spans[i].get_tag(test.FRAMEWORK_VERSION) == platform.python_version()
+                assert spans[i].get_tag(test.FRAMEWORK_VERSION) == _get_runtime_and_os_metadata()["runtime_version"]
                 assert spans[i].get_tag(SPAN_KIND) == KIND
                 assert spans[i].get_tag(COMPONENT) == COMPONENT_VALUE
                 assert spans[i].get_tag(SESSION_ID) == str(test_session_span.span_id)
@@ -118,7 +118,7 @@ class UnittestTestCase(TracerTestCase):
             for i in range(len(spans)):
                 assert spans[i].get_tag(test.TEST_TYPE) == SpanTypes.TEST
                 assert spans[i].get_tag(test.TEST_FRAMEWORK) == FRAMEWORK
-                assert spans[i].get_tag(test.FRAMEWORK_VERSION) == platform.python_version()
+                assert spans[i].get_tag(test.FRAMEWORK_VERSION) == _get_runtime_and_os_metadata()["runtime.version"]
                 assert spans[i].get_tag(SPAN_KIND) == KIND
                 assert spans[i].get_tag(COMPONENT) == COMPONENT_VALUE
                 assert spans[i].get_tag(SESSION_ID) == str(test_session_span.span_id)
@@ -184,7 +184,7 @@ class UnittestTestCase(TracerTestCase):
             for i in range(len(spans)):
                 assert spans[i].get_tag(test.TEST_TYPE) == SpanTypes.TEST
                 assert spans[i].get_tag(test.TEST_FRAMEWORK) == FRAMEWORK
-                assert spans[i].get_tag(test.FRAMEWORK_VERSION) == platform.python_version()
+                assert spans[i].get_tag(test.FRAMEWORK_VERSION) == _get_runtime_and_os_metadata()["runtime.version"]
                 assert spans[i].get_tag(SPAN_KIND) == KIND
                 assert spans[i].get_tag(COMPONENT) == COMPONENT_VALUE
                 assert spans[i].get_tag(SESSION_ID) == str(test_session_span.span_id)
@@ -243,7 +243,7 @@ class UnittestTestCase(TracerTestCase):
             for i in range(len(spans)):
                 assert spans[i].get_tag(test.TEST_TYPE) == SpanTypes.TEST
                 assert spans[i].get_tag(test.TEST_FRAMEWORK) == FRAMEWORK
-                assert spans[i].get_tag(test.FRAMEWORK_VERSION) == platform.python_version()
+                assert spans[i].get_tag(test.FRAMEWORK_VERSION) == _get_runtime_and_os_metadata()["runtime.version"]
                 assert spans[i].get_tag(SPAN_KIND) == KIND
                 assert spans[i].get_tag(COMPONENT) == COMPONENT_VALUE
                 assert spans[i].get_tag(SESSION_ID) == str(test_session_span.span_id)
@@ -308,7 +308,7 @@ class UnittestTestCase(TracerTestCase):
             for i in range(len(spans)):
                 assert spans[i].get_tag(test.TEST_TYPE) == SpanTypes.TEST
                 assert spans[i].get_tag(test.TEST_FRAMEWORK) == FRAMEWORK
-                assert spans[i].get_tag(test.FRAMEWORK_VERSION) == platform.python_version()
+                assert spans[i].get_tag(test.FRAMEWORK_VERSION) == _get_runtime_and_os_metadata()["runtime.version"]
                 assert spans[i].get_tag(SPAN_KIND) == KIND
                 assert spans[i].get_tag(COMPONENT) == COMPONENT_VALUE
                 assert spans[i].get_tag(SESSION_ID) == str(test_session_span.span_id)
@@ -385,7 +385,7 @@ class UnittestTestCase(TracerTestCase):
             for i in range(len(spans)):
                 assert spans[i].get_tag(test.TEST_TYPE) == SpanTypes.TEST
                 assert spans[i].get_tag(test.TEST_FRAMEWORK) == FRAMEWORK
-                assert spans[i].get_tag(test.FRAMEWORK_VERSION) == platform.python_version()
+                assert spans[i].get_tag(test.FRAMEWORK_VERSION) == _get_runtime_and_os_metadata()["runtime.version"]
                 assert spans[i].get_tag(SPAN_KIND) == KIND
                 assert spans[i].get_tag(COMPONENT) == COMPONENT_VALUE
                 assert spans[i].get_tag(SESSION_ID) == str(test_session_span.span_id)
@@ -455,7 +455,7 @@ class UnittestTestCase(TracerTestCase):
             for i in range(len(spans)):
                 assert spans[i].get_tag(test.TEST_TYPE) == SpanTypes.TEST
                 assert spans[i].get_tag(test.TEST_FRAMEWORK) == FRAMEWORK
-                assert spans[i].get_tag(test.FRAMEWORK_VERSION) == platform.python_version()
+                assert spans[i].get_tag(test.FRAMEWORK_VERSION) == _get_runtime_and_os_metadata()["runtime.version"]
                 assert spans[i].get_tag(SPAN_KIND) == KIND
                 assert spans[i].get_tag(COMPONENT) == COMPONENT_VALUE
                 assert spans[i].get_tag(SESSION_ID) == str(test_session_span.span_id)
@@ -524,7 +524,7 @@ class UnittestTestCase(TracerTestCase):
             for i in range(len(spans)):
                 assert spans[i].get_tag(test.TEST_TYPE) == SpanTypes.TEST
                 assert spans[i].get_tag(test.TEST_FRAMEWORK) == FRAMEWORK
-                assert spans[i].get_tag(test.FRAMEWORK_VERSION) == platform.python_version()
+                assert spans[i].get_tag(test.FRAMEWORK_VERSION) == _get_runtime_and_os_metadata()["runtime.version"]
                 assert spans[i].get_tag(SPAN_KIND) == KIND
                 assert spans[i].get_tag(COMPONENT) == COMPONENT_VALUE
                 assert spans[i].get_tag(SESSION_ID) == str(test_session_span.span_id)
@@ -611,7 +611,7 @@ class UnittestTestCase(TracerTestCase):
             for i in range(len(spans)):
                 assert spans[i].get_tag(test.TEST_TYPE) == SpanTypes.TEST
                 assert spans[i].get_tag(test.TEST_FRAMEWORK) == FRAMEWORK
-                assert spans[i].get_tag(test.FRAMEWORK_VERSION) == platform.python_version()
+                assert spans[i].get_tag(test.FRAMEWORK_VERSION) == _get_runtime_and_os_metadata()["runtime.version"]
                 assert spans[i].get_tag(SPAN_KIND) == KIND
                 assert spans[i].get_tag(COMPONENT) == COMPONENT_VALUE
                 assert spans[i].get_tag(SESSION_ID) == str(test_session_span.span_id)
