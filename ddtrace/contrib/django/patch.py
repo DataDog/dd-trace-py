@@ -723,7 +723,8 @@ def traced_login(django, pin, func, instance, args, kwargs):
                 user_id, user_extra = info_retriever.get_user_info()
                 if not user_id:
                     log.debug(
-                        "Automatic Login Events Tracking: " "Could not determine user id field user for the %s user Model",
+                        "Automatic Login Events Tracking: "
+                        "Could not determine user id field user for the %s user Model",
                         type(user),
                     )
                     return
@@ -739,7 +740,7 @@ def traced_login(django, pin, func, instance, args, kwargs):
                             session_id=session_key,
                             propagate=True,
                             login_events_mode=mode,
-                            **user_extra
+                            **user_extra,
                         )
                     else:
                         # Login failed but the user exists
