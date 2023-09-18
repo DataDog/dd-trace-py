@@ -5,21 +5,25 @@
 
 namespace py = pybind11;
 TaintRangePtr
-shift_taint_range(const TaintRangePtr& source_taint_range, long offset, int length = 0)
+shift_taint_range(const TaintRangePtr& source_taint_range, long offset, int length = 0, int orig_offset = 0)
 {
     if (length > 0)
         length = min(length, source_taint_range->length);
     else
         length = source_taint_range->length;
 
-    auto tptr = initializer->allocate_taint_range(source_taint_range->start + offset, // start
-                                                  length,                             // length
-                                                  source_taint_range->source);        // source
+    int start = source_taint_range->start + offset;
+    if (orig_offset > 0)
+        start = offset;
+
+    auto tptr = initializer->allocate_taint_range(start,                       // start
+                                                  length,                      // length
+                                                  source_taint_range->source); // source
     return tptr;
 }
 
 void
-TaintedObject::add_ranges_shifted(TaintedObjectPtr tainted_object, long offset, int length)
+TaintedObject::add_ranges_shifted(TaintedObjectPtr tainted_object, long offset, int length, int orig_offset)
 {
     const auto& ranges = tainted_object->get_ranges();
     const auto to_add = (long)min(ranges.size(), TAINT_RANGE_LIMIT - ranges_.size());
@@ -30,9 +34,17 @@ TaintedObject::add_ranges_shifted(TaintedObjectPtr tainted_object, long offset, 
             ranges_.insert(ranges_.end(), ranges.begin(), ranges.end());
         } else {
             for (const auto& trange : ranges) {
-                ranges_.emplace_back(shift_taint_range(trange, offset, length));
-                i++;
-                if (i >= to_add or trange->start > length) {
+                if (length > 0) {
+                    // Make sure original position (orig_offset) is covered by the range
+                    if (trange->start <= orig_offset and ((trange->start + trange->length) > orig_offset)) {
+                        ranges_.emplace_back(shift_taint_range(trange, offset, length, orig_offset));
+                        i++;
+                    }
+                } else {
+                    ranges_.emplace_back(shift_taint_range(trange, offset, length));
+                    i++;
+                }
+                if (i >= to_add) {
                     break;
                 }
             }

@@ -1,4 +1,5 @@
 #include "AspectJoin.h"
+#include "Helpers.h"
 
 PyObject*
 aspect_join_str(PyObject* sep,
@@ -22,16 +23,16 @@ aspect_join_str(PyObject* sep,
 
     for (size_t i = 0; i < len_iterable; i++) {
         if (to_iterable_elements) {
-            result_to->add_ranges_shifted(to_iterable_elements, current_pos, 1);
+            result_to->add_ranges_shifted(to_iterable_elements, current_pos, element_len, i);
         }
 
         current_pos += element_len;
-        if (len_sep > 0 and i < len_iterable - 1 and to_joiner) {
+        if (len_sep > 0 and i < len_iterable - 1) {
             if (to_joiner) {
                 result_to->add_ranges_shifted(to_joiner, current_pos);
             }
+            current_pos += len_sep;
         }
-        current_pos += len_sep;
     }
 
     PyObject* new_result{ new_pyobject_id(result, PyUnicode_GET_LENGTH(result)) };
