@@ -197,9 +197,9 @@ def _is_valid_module_suite_call(func):
 
 def _is_invoked_by_cli(instance):
     return (
-            hasattr(instance, "progName")
-            or hasattr(_CIVisibility, "_datadog_entry")
-            and _CIVisibility._datadog_entry == "cli"
+        hasattr(instance, "progName")
+        or hasattr(_CIVisibility, "_datadog_entry")
+        and _CIVisibility._datadog_entry == "cli"
     )
 
 
