@@ -925,3 +925,6 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert root_span.get_tag(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type").startswith(
                 "text/plain"
             )
+
+    def test_flask_login_events_disabled_explicitly(self):
+        @self.app.route()
