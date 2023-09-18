@@ -740,7 +740,7 @@ def traced_login(django, pin, func, instance, args, kwargs):
                             session_id=session_key,
                             propagate=True,
                             login_events_mode=mode,
-                            **user_extra,
+                            **user_extra
                         )
                     else:
                         # Login failed but the user exists
