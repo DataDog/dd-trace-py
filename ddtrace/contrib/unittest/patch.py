@@ -208,7 +208,7 @@ def _is_invoked_by_text_test_runner():
 
 
 def _generate_module_suite_path(test_module_path, test_suite_name):
-    return test_module_path + "." + test_suite_name
+    return "{}.{}".format(test_module_path, test_suite_name)
 
 
 def _populate_suites_and_modules(test_objects, seen_suites, seen_modules):
@@ -220,7 +220,7 @@ def _populate_suites_and_modules(test_objects, seen_suites, seen_modules):
             continue
         test_module_path = _extract_module_file_path(test_object)
         test_suite_name = _extract_suite_name_from_test_method(test_object)
-        test_module_suite_path = test_module_path + "." + test_suite_name
+        test_module_suite_path = _generate_module_suite_path(test_module_path, test_suite_name)
         if test_module_path not in seen_modules:
             seen_modules[test_module_path] = {
                 "module_span": None,
