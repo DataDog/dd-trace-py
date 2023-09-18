@@ -10,7 +10,7 @@ coverage[toml]==7.2.2
 exceptiongroup==1.1.1
 h11==0.14.0
 httpcore==0.12.3
-httpx==0.17.1
+httpx==0.23.0
 hypothesis==6.45.0
 idna==3.4
 iniconfig==2.0.0
