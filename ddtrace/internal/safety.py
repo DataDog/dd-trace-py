@@ -7,11 +7,13 @@ from typing import Tuple
 from typing import Type
 from typing import Union
 
+import wrapt
+
 from ddtrace.internal.compat import BUILTIN
 from ddtrace.internal.compat import PY3
+from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.utils.attrdict import AttrDict
 from ddtrace.internal.utils.cache import cached
-from ddtrace.vendor import wrapt
 
 
 NoneType = type(None)
@@ -50,6 +52,9 @@ def _isinstance(obj, types):
     return issubclass(type(obj), types)
 
 
+IS_312_OR_NEWER = PYTHON_VERSION_INFO >= (3, 12)
+
+
 class SafeObjectProxy(wrapt.ObjectProxy):
     """Object proxy to make sure we don't call unsafe code.
 
@@ -65,13 +70,15 @@ class SafeObjectProxy(wrapt.ObjectProxy):
 
     def __getattribute__(self, name):
         # type: (str) -> Any
-        if name == "__wrapped__":
+        if name == "__wrapped__" and not IS_312_OR_NEWER:
             raise AttributeError("Access denied")
 
         return super(SafeObjectProxy, self).__getattribute__(name)
 
     def __getattr__(self, name):
         # type: (str) -> Any
+        if name == "__wrapped__" and IS_312_OR_NEWER:
+            raise AttributeError("Access denied")
         return type(self).safe(super(SafeObjectProxy, self).__getattr__(name))
 
     def __getitem__(self, item):

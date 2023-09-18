@@ -2,8 +2,8 @@ from mock.mock import ANY
 import pytest
 
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec.iast._utils import _is_python_version_supported as python_supported_by_iast
-from ddtrace.appsec.iast.constants import VULN_PATH_TRAVERSAL
+from ddtrace.appsec._iast._utils import _is_python_version_supported as python_supported_by_iast
+from ddtrace.appsec._iast.constants import VULN_PATH_TRAVERSAL
 from ddtrace.internal import core
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
 from tests.appsec.iast.iast_utils import get_line_and_hash
@@ -37,8 +37,8 @@ def _assert_vulnerability(span_report, value_parts, file_line_label):
     ],
 )
 def test_propagation_path_1_origin_1_propagation(origin1, iast_span_defaults):
-    from ddtrace.appsec.iast._taint_tracking import OriginType
-    from ddtrace.appsec.iast._taint_tracking import taint_pyobject
+    from ddtrace.appsec._iast._taint_tracking import OriginType
+    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 
     mod = _iast_patched_module("tests.appsec.iast.fixtures.propagation_path")
 
@@ -72,8 +72,8 @@ def test_propagation_path_1_origin_1_propagation(origin1, iast_span_defaults):
     ],
 )
 def test_propagation_path_1_origins_2_propagations(origin1, iast_span_defaults):
-    from ddtrace.appsec.iast._taint_tracking import OriginType
-    from ddtrace.appsec.iast._taint_tracking import taint_pyobject
+    from ddtrace.appsec._iast._taint_tracking import OriginType
+    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 
     mod = _iast_patched_module("tests.appsec.iast.fixtures.propagation_path")
 
@@ -117,8 +117,8 @@ def test_propagation_path_1_origins_2_propagations(origin1, iast_span_defaults):
     ],
 )
 def test_propagation_path_2_origins_2_propagations(origin1, origin2, iast_span_defaults):
-    from ddtrace.appsec.iast._taint_tracking import OriginType
-    from ddtrace.appsec.iast._taint_tracking import taint_pyobject
+    from ddtrace.appsec._iast._taint_tracking import OriginType
+    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 
     mod = _iast_patched_module("tests.appsec.iast.fixtures.propagation_path")
 
@@ -170,8 +170,8 @@ def test_propagation_path_2_origins_2_propagations(origin1, origin2, iast_span_d
     ],
 )
 def test_propagation_path_2_origins_3_propagation(origin1, origin2, iast_span_defaults):
-    from ddtrace.appsec.iast._taint_tracking import OriginType
-    from ddtrace.appsec.iast._taint_tracking import taint_pyobject
+    from ddtrace.appsec._iast._taint_tracking import OriginType
+    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 
     mod = _iast_patched_module("tests.appsec.iast.fixtures.propagation_path")
 
