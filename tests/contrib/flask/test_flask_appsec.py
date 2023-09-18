@@ -3,7 +3,10 @@ import logging
 
 from flask import Response
 from flask import request
+from flask import session
 import pytest
+from flask_login import LoginManager, UserMixin, current_user, login_user, logout_user
+from werkzeug.security import generate_password_hash, check_password_hash
 
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
@@ -30,6 +33,55 @@ from tests.utils import override_global_config
 _BLOCKED_USER = "123456"
 _ALLOWED_USER = "111111"
 
+class User(UserMixin):
+    def __init__(self, id, name, email, password, is_admin=False):
+        self.id = id
+        self.name = name
+        self.email = email
+        self.password = generate_password_hash(password)
+        self.is_admin = is_admin
+
+    def set_password(self, password):
+        self.password = generate_password_hash(password)
+
+    def check_password(self, password):
+        return check_password_hash(self.password, password)
+
+    def __repr__(self):
+        return '<User {}>'.format(self.email)
+
+
+users = [
+    User(1, "john", "john@test.com", "passw0rd", False)
+]
+
+TEST_USER = "john"
+TEST_EMAIL = "john@test.com"
+TEST_PASSWD = "passw0rd"
+TEST_WRONG_PASSWD = "hacker"
+
+
+def get_user(email):
+    for user in users:
+        if user.email == email:
+            return user
+    return None
+
+
+def login_base(email, passwd):
+    if current_user.is_authenticated:
+        return "Already authenticated"
+
+    user = get_user(email)
+    if user is None:
+        return "User not found"
+
+    if user.check_password(passwd):
+        login_user(user, remember=True)
+        return "User %s logged in successfully, session: %s" % (TEST_USER, session["_id"])
+
+    return "Authentication failure"
+
 
 def get_response_body(response):
     if hasattr(response, "text"):
@@ -44,6 +96,8 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
     def setUp(self):
         super(FlaskAppSecTestCase, self).setUp()
+        self.app.config['SECRET_KEY'] = '7110c8ae51a4b5af97be6534caef90e4bb9bdcb3380af008f90b23a5d1616bf319bc298105da20fe'
+        self.login_manager = LoginManager(self.app)
         patch()
 
     def _aux_appsec_prepare_tracer(self, appsec_enabled=True):
@@ -925,3 +979,13 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert root_span.get_tag(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type").startswith(
                 "text/plain"
             )
+
+    def test_flask_login_events_disabled_explicitly(self):
+        with override_global_config(dict(_appsec_enabled=True, _automatic_login_events_mode="disabled")):
+            login_base("john", "passw0rd")
+            # client.login(username="fred", password="secret")
+            # assert get_user(client).is_authenticated
+            #
+            # with pytest.raises(AssertionError) as excl_info:
+            #     _ = test_spans.find_span(name="django.contrib.auth.login")
+            # assert "No span found for filter" in str(excl_info.value)
