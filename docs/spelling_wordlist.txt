@@ -29,6 +29,7 @@ aredis
 args
 ascii
 asgi
+asm
 async
 asyncio
 asyncpg

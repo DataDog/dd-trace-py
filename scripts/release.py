@@ -40,7 +40,7 @@ Optional:
     PATCH - Whether or not this a patch release. e.g. PATCH=1 or PATCH=0
     PRINT - Whether or not the release notes should be printed to CLI or be used to create a Github release. Default is 0 e.g. PRINT=1 or PRINT=0
     NOTEBOOK - Whether or not to create a notebook in staging. Note this only works for RC1s since those are usually what we create notebooks for.  
-    Default is 0 e.g. NOTEBOOK=0 or NOTEBOOK=1
+    Default is 1 for RC1s, 0 for everything else e.g. NOTEBOOK=0 or NOTEBOOK=1
 Examples:
 Generate release notes and staging testing notebook for next release candidate version of 1.11: `BASE=1.11 RC=1 NOTEBOOK=1 python release.py`
 
@@ -234,7 +234,7 @@ def setup_gh():
 def create_notebook(dd_repo, name, rn, base, rc, patch):
     dd_api_key = os.getenv("DD_API_KEY_STAGING")
     dd_app_key = os.getenv("DD_APP_KEY_STAGING")
-    if not dd_api_key and dd_app_key:
+    if not dd_api_key or not dd_app_key:
         raise ValueError(
             "We need DD_API_KEY_STAGING and DD_APP_KEY_STAGING values. Please follow the instructions in the script."
         )
@@ -282,12 +282,20 @@ def create_notebook(dd_repo, name, rn, base, rc, patch):
         for file in files:
             filename = file.filename
             if filename.startswith("releasenotes/notes/"):
-                # we need to make another api call to get ContentFile object so we can see what's in there
-                rn_file_content = dd_repo.get_contents(filename).decoded_content.decode("utf8")
-                # try to grab a good portion of the release note for us to use to insert in our reno release notes
-                # this is a bit hacky, will only attach to one section if you have multiple sections in a release note
-                # (e.g. a features and a fix section):
-                # for example: https://github.com/DataDog/dd-trace-py/blob/1.x/releasenotes/notes/asm-user-id-blocking-5048b1cef07c80fd.yaml # noqa
+                try:
+                    # we need to make another api call to get ContentFile object so we can see what's in there
+                    rn_file_content = dd_repo.get_contents(filename).decoded_content.decode("utf8")
+                    # try to grab a good portion of the release note for us to use to insert in our reno release notes
+                    # this is a bit hacky, will only attach to one section if you have multiple sections
+                    # in a release note
+                    # (e.g. a features and a fix section):
+                    # for example: https://github.com/DataDog/dd-trace-py/blob/1.x/releasenotes/notes/asm-user-id-blocking-5048b1cef07c80fd.yaml # noqa
+                except Exception:
+                    print(
+                        """File contents were not obtained for {file} in commit {commit}."""
+                        """It's likely this file was deleted in a PR""".format(file=file, commit=commit)
+                    )
+                    continue
                 try:
                     rn_piece = re.findall(
                         r"  - \|\n    ((.|\n)*)\n(((issues|features|upgrade|deprecations|fixes|other):\n)|.*)",
@@ -426,7 +434,7 @@ if __name__ == "__main__":
     dd_repo = setup_gh()
     name, rn = create_release_draft(dd_repo, base, rc, patch)
 
-    if os.getenv("NOTEBOOK"):
+    if os.getenv("NOTEBOOK", 1):
         if rc:
             print("Creating Notebook")
             create_notebook(dd_repo, name, rn, base, rc, patch)

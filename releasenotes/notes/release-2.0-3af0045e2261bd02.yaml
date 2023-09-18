@@ -1,19 +1,20 @@
 ---
 prelude: >
   The Datadog APM Python team is happy to announce the release of v2.0.0 of ddtrace.
-  This release introduces a formal :ref:`versioning support policy<versioning_support_levels>` for the major
-  versions of the ddtrace library, drops support for Python 2.7, 3.5, and 3.6, and adds support for Python 3.12.
+  This release drops support for Python 2.7, 3.5, and 3.6. This release adds
+  support for Python 3.12.
 
 
   .. important::
-    ddtrace v2.0.0 drops support for Python 2.7, 3.5, and 3.6. Users running these unsupported
-    Python versions should consider upgrading their Python version or continue using ddtrace v1
-    of the ddtrace library, which is now in maintenance mode and will only receive bug fixes. 
 
-    Before upgrading to v2.0.0, we recommend users install
-    ``ddtrace>=1.18.0,<2.0.0`` and enable deprecation warnings. All removals to
-    the library interface and environment variables were deprecated on the 1.x
-    branch.
+    If you are on version of Python not supported by v2, we will continue to
+    maintain the ddtrace v1 with bug fixes.
+
+
+  .. note::
+    Before upgrading to v2.0.0, we recommend users install ``ddtrace~=1.18.0``
+    and enable deprecation warnings. All removals to the library interface and
+    environment variables in v2 were deprecated in the 1.x release line.
 
 
   .. note::
@@ -35,13 +36,14 @@ prelude: >
   has been removed and the ddtrace logger will log to stdout by default, or a log file
   as specified using ``DD_TRACE_LOG_FILE``.
 
-  Setting the environment variable ``DD_TRACE_PROPAGATION_STYLE='b3'`` has been removed.
-  Please use `DD_TRACE_PROPAGATION_STYLE='b3multi'`` instead.
+  Setting the environment variable ``DD_TRACE_PROPAGATION_STYLE='b3'`` to enable
+  B3 propagation has been removed. Please use
+  ``DD_TRACE_PROPAGATION_STYLE='b3multi'`` instead.
 
 
-  Removed legacy environment variables
+  Removed deprecated environment variables
 
-  ************************************
+  ****************************************
 
   These environment variables have been removed. In all cases the same
   functionality is provided by other environment variables and replacements are
@@ -75,9 +77,9 @@ prelude: >
   .. _removed-2.0-tracing-interfaces:
 
 
-  Removed legacy tracing interfaces
+  Removed deprecated library interfaces
 
-  *********************************
+  *************************************
 
   These methods and module attributes have been removed. Where the same
   functionality is provided by a different public method or module attribute, a
