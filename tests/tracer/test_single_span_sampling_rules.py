@@ -331,22 +331,20 @@ def test_single_span_rules_not_applied_if_span_dropped_by_single_span_rate_limit
 def test_max_per_sec_with_is_allowed_check():
     rule = SpanSamplingRule(service="test_service", name="test_name", sample_rate=1.0, max_per_second=2)
     # Make spans till we hit the limit, then make a span while the limit is hit and make sure tags were not added.
-    tracer = DummyTracer(rule)
     while True:
-        span = traced_function(rule, tracer)
+        span = traced_function(rule)
         if not rule._limiter._is_allowed(span.start_ns):
             break
         assert_sampling_decision_tags(span, limit=2)
 
-    rate_limited_span = traced_function(rule, tracer)
+    rate_limited_span = traced_function(rule)
     assert_sampling_decision_tags(rate_limited_span, sample_rate=None, mechanism=None, limit=None)
 
 
 def test_max_per_sec_with_predetermined_number_of_spans():
     rule = SpanSamplingRule(service="test_service", name="test_name", sample_rate=1.0, max_per_second=2)
-    tracer = DummyTracer()
     for i in range(3):
-        span = traced_function(rule, tracer)
+        span = traced_function(rule)
         if i < 2:
             assert_sampling_decision_tags(span, limit=2)
         else:
