@@ -84,9 +84,7 @@ def _is_test_suite(item):
 def _is_test(item):
     if type(item) == unittest.TestSuite or not hasattr(item, "_testMethodName"):
         return False
-    if ddtrace.config.unittest.strict_naming and not (
-        len(item._testMethodName) >= 4 and item._testMethodName[0:4] == "test"
-    ):
+    if ddtrace.config.unittest.strict_naming and not item._testMethodName.startswith("test"):
         return False
     return True
 
@@ -116,15 +114,15 @@ def _extract_session_span():
     return getattr(_CIVisibility, "_datadog_session_span", None)
 
 
-def _extract_module_span(resource_identifier):
-    if hasattr(_CIVisibility, "_unittest_data") and resource_identifier in _CIVisibility._unittest_data["modules"]:
-        return _CIVisibility._unittest_data["modules"][resource_identifier].get("module_span")
+def _extract_module_span(module_identifier):
+    if hasattr(_CIVisibility, "_unittest_data") and module_identifier in _CIVisibility._unittest_data["modules"]:
+        return _CIVisibility._unittest_data["modules"][module_identifier].get("module_span")
     return None
 
 
-def _extract_suite_span(resource_identifier):
-    if hasattr(_CIVisibility, "_unittest_data") and resource_identifier in _CIVisibility._unittest_data["suites"]:
-        return _CIVisibility._unittest_data["suites"][resource_identifier].get("suite_span")
+def _extract_suite_span(suite_identifier):
+    if hasattr(_CIVisibility, "_unittest_data") and suite_identifier in _CIVisibility._unittest_data["suites"]:
+        return _CIVisibility._unittest_data["suites"][suite_identifier].get("suite_span")
     return None
 
 
@@ -170,19 +168,19 @@ def _extract_module_file_path(item):
 
 
 def _generate_test_resource(suite_name, test_name):
-    return suite_name + "." + test_name
+    return "{}.{}".format(suite_name, test_name)
 
 
 def _generate_suite_resource(framework_name, test_suite):
-    return framework_name + "." + "test_suite" + "." + test_suite
+    return "{}.test_suite.{}".format(framework_name, test_suite)
 
 
 def _generate_module_resource(framework_name, test_module):
-    return framework_name + "." + "test_module" + "." + test_module
+    return "{}.test_module.{}".format(framework_name, test_module)
 
 
 def _generate_session_resource(framework_name, test_command):
-    return framework_name + "." + "test_session" + "." + test_command
+    return "{}.test_session.{}".format(framework_name, test_command)
 
 
 def _set_identifier(item, name):
@@ -222,8 +220,11 @@ def _generate_module_suite_path(test_module_path, test_suite_name):
 
 
 def _populate_suites_and_modules(test_objects, seen_suites, seen_modules):
+    if not hasattr(test_objects, "__iter__"):
+        return
     for test_object in test_objects:
         if not _is_test(test_object):
+            _populate_suites_and_modules(test_object, seen_suites, seen_modules)
             continue
         test_module_path = _extract_module_file_path(test_object)
         test_suite_name = _extract_suite_name_from_test_method(test_object)
@@ -323,7 +324,7 @@ def _set_test_span_status(test_item, status, exc_info=None, skip_reason=None):
         span.set_tag_str(test.SKIP_REASON, skip_reason)
 
 
-def _set_test_span_result(test_item, result):
+def _set_test_xpass_xfail_result(test_item, result):
     span = _extract_span(test_item)
     if not span:
         return
@@ -351,7 +352,7 @@ def add_failure_test_wrapper(func, instance, args, kwargs):
 
 def add_xfail_test_wrapper(func, instance, args, kwargs):
     if _is_valid_result(instance, args):
-        _set_test_span_result(test_item=args[0], result=test.Status.XFAIL.value)
+        _set_test_xpass_xfail_result(test_item=args[0], result=test.Status.XFAIL.value)
 
     return func(*args, **kwargs)
 
@@ -365,13 +366,13 @@ def add_skip_test_wrapper(func, instance, args, kwargs):
 
 def add_xpass_test_wrapper(func, instance, args, kwargs):
     if _is_valid_result(instance, args):
-        _set_test_span_result(test_item=args[0], result=test.Status.XPASS.value)
+        _set_test_xpass_xfail_result(test_item=args[0], result=test.Status.XPASS.value)
 
     return func(*args, **kwargs)
 
 
 def handle_test_wrapper(func, instance, args, kwargs):
-    if _is_valid_test_call(kwargs) and _is_test(instance):
+    if _is_valid_test_call(kwargs) and _is_test(instance) and hasattr(_CIVisibility, "_unittest_data"):
         tracer = getattr(unittest, "_datadog_tracer", _CIVisibility._instance.tracer)
         test_suite_name = _extract_suite_name_from_test_method(instance)
         test_name = _extract_test_method_name(instance)
@@ -380,13 +381,12 @@ def handle_test_wrapper(func, instance, args, kwargs):
         test_module_suite_path = _generate_module_suite_path(test_module_path, test_suite_name)
         test_suite_span = _extract_suite_span(test_module_suite_path)
         test_module_span = _extract_module_span(test_module_path)
-        if hasattr(_CIVisibility, "_unittest_data"):
-            if test_module_span is None and test_module_path in _CIVisibility._unittest_data["modules"]:
-                test_module_span = _start_test_module_span(instance)
-                _CIVisibility._unittest_data["modules"][test_module_path]["module_span"] = test_module_span
-            if test_suite_span is None and test_module_suite_path in _CIVisibility._unittest_data["suites"]:
-                test_suite_span = _start_test_suite_span(instance)
-                _CIVisibility._unittest_data["suites"][test_module_suite_path]["suite_span"] = test_suite_span
+        if test_module_span is None and test_module_path in _CIVisibility._unittest_data["modules"]:
+            test_module_span = _start_test_module_span(instance)
+            _CIVisibility._unittest_data["modules"][test_module_path]["module_span"] = test_module_span
+        if test_suite_span is None and test_module_suite_path in _CIVisibility._unittest_data["suites"]:
+            test_suite_span = _start_test_suite_span(instance)
+            _CIVisibility._unittest_data["suites"][test_module_suite_path]["suite_span"] = test_suite_span
         if not test_module_span or not test_suite_span:
             log.debug("Suite and/or module span not found for test: %s", test_name)
             return func(*args, **kwargs)
@@ -424,10 +424,9 @@ def handle_test_wrapper(func, instance, args, kwargs):
         result = func(*args, **kwargs)
         _update_status_item(test_suite_span, span.get_tag(test.STATUS))
         span.finish()
-        if hasattr(_CIVisibility, "_unittest_data"):
-            _update_remaining_suites_and_modules(
-                test_module_suite_path, test_module_path, test_module_span, test_suite_span
-            )
+        _update_remaining_suites_and_modules(
+            test_module_suite_path, test_module_path, test_module_span, test_suite_span
+        )
         return result
     return func(*args, **kwargs)
 
