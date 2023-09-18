@@ -36,7 +36,7 @@ class TaintedObject
 
     [[nodiscard]] TaintRangeRefs get_ranges_copy() const { return ranges_; }
 
-    void add_ranges_shifted(TaintedObject* tainted_object, long offset);
+    void add_ranges_shifted(TaintedObject* tainted_object, long offset, int length = 0);
 
     explicit operator string();
 

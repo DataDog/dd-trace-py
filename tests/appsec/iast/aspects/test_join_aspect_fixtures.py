@@ -292,3 +292,74 @@ class TestOperatorJoinReplacement(object):
 
         ranges = get_tainted_ranges(result)
         assert result[ranges[0].start : (ranges[0].start + ranges[0].length)] == "abcde"
+
+    def test_string_join_iterable_tainted(self):
+        # type: () -> None
+        # Not tainted
+        base_string = "-abcde-"
+        result = mod.do_join_args_kwargs(base_string, "fg")
+        assert result == "f-abcde-g"
+
+        # Tainted iterable
+        tainted_fg = taint_pyobject(
+            pyobject="fg",
+            source_name="fg",
+            source_value="foo",
+            source_origin=OriginType.PARAMETER,
+            start=0,
+            len_pyobject=1,
+        )
+        result = mod.do_join_args_kwargs(base_string, tainted_fg)
+        assert result == "f-abcde-g"
+
+        ranges = get_tainted_ranges(result)
+        assert result[ranges[0].start : (ranges[0].start + ranges[0].length)] == "f"
+        assert result[ranges[1].start : (ranges[1].start + ranges[1].length)] == "g"
+
+    def test_string_join_joiner_tainted(self):
+        # type: () -> None
+        # Tainted joiner
+        tainted_base_string = taint_pyobject(
+            pyobject="-abcde-",
+            source_name="joiner",
+            source_value="foo",
+            source_origin=OriginType.PARAMETER,
+            start=1,
+            len_pyobject=5,
+        )
+        result = mod.do_join_args_kwargs(tainted_base_string, "fg")
+        assert result == "f-abcde-g"
+
+        ranges = get_tainted_ranges(result)
+        assert result[ranges[0].start : (ranges[0].start + ranges[0].length)] == "abcde"
+
+    def test_string_join_all_tainted(self):
+        # type: () -> None
+        # Tainted joiner
+        tainted_base_string = taint_pyobject(
+            pyobject="-abcde-",
+            source_name="joiner",
+            source_value="foo",
+            source_origin=OriginType.PARAMETER,
+            start=1,
+            len_pyobject=5,
+        )
+        tainted_fghi = taint_pyobject(
+            pyobject="fghi",
+            source_name="fghi",
+            source_value="foo",
+            source_origin=OriginType.PARAMETER,
+            start=0,
+            len_pyobject=1,
+        )
+        result = mod.do_join_args_kwargs(tainted_base_string, tainted_fghi)
+        assert result == "f-abcde-g-abcde-h-abcde-i"
+
+        ranges = get_tainted_ranges(result)
+        assert result[ranges[0].start : (ranges[0].start + ranges[0].length)] == "f"
+        assert result[ranges[1].start : (ranges[1].start + ranges[1].length)] == "abcde"
+        assert result[ranges[2].start : (ranges[2].start + ranges[2].length)] == "g"
+        assert result[ranges[3].start : (ranges[3].start + ranges[3].length)] == "abcde"
+        assert result[ranges[4].start : (ranges[4].start + ranges[4].length)] == "h"
+        assert result[ranges[5].start : (ranges[5].start + ranges[5].length)] == "abcde"
+        assert result[ranges[6].start : (ranges[6].start + ranges[6].length)] == "i"
