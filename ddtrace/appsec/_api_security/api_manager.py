@@ -101,7 +101,7 @@ class APIManager(Service):
             log.debug("unsupported groupkey for api security [method %s] [route %s]", bool(method), bool(route))
             return False
         # Rate limit per route
-        self.current_current_sampling_value += self.SAMPLE_RATE
+        self.current_sampling_value += self.SAMPLE_RATE
         if self.current_sampling_value >= 1.0:
             self.current_sampling_value -= 1.0
             return True
@@ -124,7 +124,7 @@ class APIManager(Service):
             if not self._should_collect_schema(env):
                 return
         except Exception:
-            self._log_limiter.limit(log.warning, "Failed to sample request for schema generation", exc_info=True)
+            log.warning("Failed to sample request for schema generation", exc_info=True)
 
         # we need the request content type on the span
         try:
@@ -132,7 +132,7 @@ class APIManager(Service):
             if headers is not _sentinel:
                 appsec_processor._set_headers(root, headers, kind="request")
         except Exception:
-            self._log_limiter.limit(log.debug, "Failed to enrich request span with headers", exc_info=True)
+            log.debug("Failed to enrich request span with headers", exc_info=True)
 
         waf_payload = {}
         for address, _, transform in self.COLLECTED:
