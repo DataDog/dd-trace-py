@@ -1,6 +1,46 @@
 #include "AspectJoin.h"
 
 PyObject*
+aspect_join_str(PyObject* sep,
+                PyObject* result,
+                PyObject* iterable_elements,
+                size_t len_iterable,
+                TaintRangeMapType* tx_taint_map)
+{
+    // This is the special case for unicode str and unicode iterable_elements.
+    // The iterable elements string will be split into 1 char-length strings.
+    const auto& to_iterable_elements = get_tainted_object(iterable_elements, tx_taint_map);
+    const auto& to_joiner = get_tainted_object(sep, tx_taint_map);
+    if (to_joiner == nullptr and to_iterable_elements == nullptr) {
+        return result;
+    }
+
+    TaintedObjectPtr result_to = initializer->allocate_tainted_object();
+    const size_t& len_sep = PyUnicode_GET_LENGTH(sep);
+    unsigned long current_pos{ 0L };
+    const size_t& element_len = 1;
+
+    for (size_t i = 0; i < len_iterable; i++) {
+        if (to_iterable_elements) {
+            result_to->add_ranges_shifted(to_iterable_elements, current_pos, element_len, i);
+        }
+
+        current_pos += element_len;
+        if (len_sep > 0 and i < len_iterable - 1) {
+            if (to_joiner) {
+                result_to->add_ranges_shifted(to_joiner, current_pos);
+            }
+            current_pos += len_sep;
+        }
+    }
+
+    PyObject* new_result{ new_pyobject_id(result, PyUnicode_GET_LENGTH(result)) };
+    set_tainted_object(new_result, result_to, tx_taint_map);
+    Py_DECREF(result);
+    return new_result;
+}
+
+PyObject*
 aspect_join(PyObject* sep, PyObject* result, PyObject* iterable_elements, TaintRangeMapType* tx_taint_map)
 {
     const size_t& len_sep = get_pyobject_size(sep);
@@ -13,6 +53,10 @@ aspect_join(PyObject* sep, PyObject* result, PyObject* iterable_elements, TaintR
     } else if (PyTuple_Check(iterable_elements)) {
         len_iterable = PyTuple_Size(iterable_elements);
         GetElement = PyTuple_GetItem;
+    } else if (PyUnicode_Check(sep) and PyUnicode_Check(iterable_elements)) {
+        len_iterable = PyUnicode_GET_LENGTH(iterable_elements);
+        if (len_iterable)
+            return aspect_join_str(sep, result, iterable_elements, len_iterable, tx_taint_map);
     }
 
     unsigned long current_pos{ 0L };
