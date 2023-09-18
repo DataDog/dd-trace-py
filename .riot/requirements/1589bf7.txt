@@ -9,7 +9,7 @@ aws-sam-translator==1.62.0
 aws-xray-sdk==2.11.0
 boto3==1.26.92
 botocore==1.29.92
-certifi==2022.12.7
+certifi==2023.7.22
 cffi==1.15.1
 cfn-lint==0.74.3
 charset-normalizer==3.1.0

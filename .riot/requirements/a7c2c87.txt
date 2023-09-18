@@ -5,7 +5,7 @@
 #    pip-compile --no-annotate --resolver=backtracking .riot/requirements/a7c2c87.in
 #
 attrs==22.2.0
-certifi==2022.12.7
+certifi==2023.7.22
 coverage[toml]==7.2.2
 elasticsearch==1.6.0
 elasticsearch6==6.8.2
