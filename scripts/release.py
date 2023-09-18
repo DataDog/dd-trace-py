@@ -40,7 +40,7 @@ Optional:
     PATCH - Whether or not this a patch release. e.g. PATCH=1 or PATCH=0
     PRINT - Whether or not the release notes should be printed to CLI or be used to create a Github release. Default is 0 e.g. PRINT=1 or PRINT=0
     NOTEBOOK - Whether or not to create a notebook in staging. Note this only works for RC1s since those are usually what we create notebooks for.  
-    Default is 1 for RC1s, 0 for everything else e.g. NOTEBOOK=0 or NOTEBOOK=1
+    Default is 0 e.g. NOTEBOOK=0 or NOTEBOOK=1
 Examples:
 Generate release notes and staging testing notebook for next release candidate version of 1.11: `BASE=1.11 RC=1 NOTEBOOK=1 python release.py`
 
@@ -50,86 +50,24 @@ Generate release notes for the 1.15 release: `BASE=1.15 python release.py`
 """
 
 
-def create_release_draft(dd_repo, base, rc, patch):
+def create_release_draft(dd_repo, major, minor, patch, rc):
     # make sure we're up to date
     subprocess.run("git fetch", shell=True, cwd=os.pardir)
 
-    if rc:
-        # figure out the rc version we want
-        search = r"v%s.0\.?rc((\d+$))" % base
-        tags = dd_repo.get_tags()
-        latest_rc_version = 0
-        for tag in tags:
-            try:
-                other_rc_num = re.findall(search, tag.name)[0][0]
-                other_rc_num = int(other_rc_num)
-            except (IndexError, ValueError, TypeError):
-                continue
-            if other_rc_num > latest_rc_version:
-                latest_rc_version = other_rc_num
-        new_rc_version = latest_rc_version + 1
-        #  if this is the first rc for this base, we want to target 1.x
-        if new_rc_version == 1:
-            name = "%s.0rc1" % base
-            tag = "v%s" % name
-            branch = "1.x"
-        # if this is the rc+1 for this base
-        else:
-            name = "%s.0rc%s" % (base, str(new_rc_version))
-            tag = "v%s" % name
-            branch = base
-        rn_raw = generate_rn(branch)
-        rn = clean_rn(rn_raw)
-        create_draft_release(branch=branch, name=name, tag=tag, dd_repo=dd_repo, rn=rn, prerelease=True)
-
-    # patch release
-    elif patch:
-        # figure out the patch version we want
-        search = r"v%s.((\d+))" % base
-        tags = dd_repo.get_tags()
-        latest_patch_version = 0
-        for tag in tags:
-            try:
-                other_patch_num = re.findall(search, tag.name)[0][0]
-                other_patch_num = int(other_patch_num)
-            except (IndexError, ValueError, TypeError):
-                continue
-            if other_patch_num > latest_patch_version:
-                latest_patch_version = other_patch_num
-        new_patch_version = latest_patch_version + 1
-
-        name = "%s.%s" % (base, str(new_patch_version))
-        tag = "v%s" % name
-        rn_raw = generate_rn(base)
-        rn = clean_rn(rn_raw)
-        create_draft_release(branch=base, name=name, tag=tag, dd_repo=dd_repo, rn=rn, prerelease=False)
-
-    # official minor release
+    if rc is not None and rc == 0:
+        earliest_version = "v%s.%s.%src1" % (major, minor - 1, 0)
+    elif rc:
+        earliest_version = "v%s.%s.%src%s" % (major, minor, patch, rc - 1)
+    elif minor == 0:
+        # minor version
+        pass
+    elif patch == 0:
+        earliest_version = "v%s.%s.%src1" % (major, minor, patch)
     else:
-        name = "%s.0" % base
-        tag = "v%s" % name
-        branch = base
+        earliest_version = "v%s.%s.%s" % (major, minor, patch - 1)
 
-        rn_raw = generate_rn(branch)
-        rn_sections_clean = create_release_notes_sections(rn_raw, branch)
-        # combine the release note sections into a string in the correct order
-        rn = ""
-        rn_key_order = [
-            "Prelude",
-            "New Features",
-            "Known Issues",
-            "Upgrade Notes",
-            "Deprecation Notes",
-            "Bug Fixes",
-            "Other Changes",
-        ]
-        for key in rn_key_order:
-            try:
-                rn += "### %s\n\n%s" % (key, rn_sections_clean[key])
-            except KeyError:
-                continue
-
-        create_draft_release(branch=branch, name=name, tag=tag, dd_repo=dd_repo, rn=rn, prerelease=False)
+    rn = generate_rn(earliest_version)
+    # create_draft_release(branch=branch, name=name, tag=tag, dd_repo=dd_repo, rn=rn, prerelease=True)
 
     return name, rn
 
@@ -140,19 +78,19 @@ def clean_rn(rn_raw):
     return rn_raw.decode().split("## v")[0].replace("\n## Unreleased\n", "", 1).replace("# Release Notes\n", "", 1)
 
 
-def generate_rn(branch):
+def generate_rn(earliest_version):
     subprocess.check_output(
-        "git checkout {branch} && \
-            git pull origin {branch}".format(
-            branch=branch
-        ),
+        "git checkout 1.x && \
+            git pull origin 1.x",
         shell=True,
         cwd=os.pardir,
     )
 
     rn_raw = subprocess.check_output(
-        "reno report --no-show-source | \
-            pandoc -f rst -t gfm --wrap=none",
+        "reno report --no-show-source --earliest-version {} | \
+            pandoc -f rst -t gfm --wrap=none".format(
+            earliest_version
+        ),
         shell=True,
         cwd=os.pardir,
     )
@@ -234,7 +172,7 @@ def setup_gh():
 def create_notebook(dd_repo, name, rn, base, rc, patch):
     dd_api_key = os.getenv("DD_API_KEY_STAGING")
     dd_app_key = os.getenv("DD_APP_KEY_STAGING")
-    if not dd_api_key or not dd_app_key:
+    if not dd_api_key and dd_app_key:
         raise ValueError(
             "We need DD_API_KEY_STAGING and DD_APP_KEY_STAGING values. Please follow the instructions in the script."
         )
@@ -423,20 +361,25 @@ if __name__ == "__main__":
         .strip()
     )
 
-    #  Figure out the version of the library that you’re working on releasing grabbed with VERSION envar
-    base = os.getenv("BASE")
-    rc = bool(os.getenv("RC"))
-    patch = bool(os.getenv("PATCH"))
-
-    if base is None:
-        raise ValueError("Need to specify the base version with envar e.g. BASE=1.10")
+    release = os.getenv("RELEASE")
+    if release is None:
+        raise ValueError(
+            "Run release script with the environment variable RELEASE. Ex: RELEASE=1.10.4rc1 python release.py"
+        )
+    # clean release version
+    release = release.strip().strip("v")
+    major, minor, patch = release.split(".")
+    rc = None
+    if "rc" in patch:
+        patch, rc = patch.split("rc")
 
     dd_repo = setup_gh()
-    name, rn = create_release_draft(dd_repo, base, rc, patch)
+    name, rn = create_release_draft(dd_repo, major, minor, patch, rc)
 
     if os.getenv("NOTEBOOK", 1):
         if rc:
             print("Creating Notebook")
+            base = "%s.%s" % (major, minor)
             create_notebook(dd_repo, name, rn, base, rc, patch)
         else:
             print(
