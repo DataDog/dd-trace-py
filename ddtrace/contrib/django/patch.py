@@ -43,6 +43,7 @@ from ddtrace.vendor.wrapt.importer import when_imported
 
 from .. import trace_utils
 from ...appsec._constants import WAF_CONTEXT_NAMES
+from ...appsec.utils import _UserInfoRetriever
 from ...internal.utils import get_argument_value
 from ..trace_utils import _get_request_header_user_agent
 from ..trace_utils import _set_url_tag
@@ -673,101 +674,33 @@ def traced_get_asgi_application(django, pin, func, instance, args, kwargs):
     return TraceMiddleware(func(*args, **kwargs), integration_config=config.django, span_modifier=django_asgi_modifier)
 
 
-_POSSIBLE_USER_ID_FIELDS = ["pk", "id", "uid", "userid", "user_id", "PK", "ID", "UID", "USERID"]
-_POSSIBLE_LOGIN_FIELDS = ["username", "user", "login", "USERNAME", "USER", "LOGIN"]
-_POSSIBLE_EMAIL_FIELDS = ["email", "mail", "address", "EMAIL", "MAIL", "ADDRESS"]
-_POSSIBLE_NAME_FIELDS = ["name", "fullname", "full_name", "NAME", "FULLNAME", "FULL_NAME"]
+class _DjangoUserInfoRetriever(_UserInfoRetriever):
+    def get_username(self):
+        if hasattr(self.user, "USERNAME_FIELD") and not config._user_model_name_field:
+            user_type = type(self.user)
+            return getattr(self.user, user_type.USERNAME_FIELD, None)
 
+        return super(_DjangoUserInfoRetriever, self).get_username()
 
-def _find_in_user_model(user, possible_fields):
-    for field in possible_fields:
-        value = getattr(user, field, None)
-        if value:
-            return value
+    def get_name(self):
+        if not config._user_model_name_field:
+            if hasattr(self.user, "get_full_name"):
+                try:
+                    return self.user.get_full_name()
+                except Exception:
+                    log.debug("User model get_full_name member produced an exception: ", exc_info=True)
 
-    return None  # explicit to make clear it has a meaning
+            if hasattr(self.user, "first_name") and hasattr(self.user, "last_name"):
+                return "%s %s" % (self.user.first_name, self.user.last_name)
 
+        return super(_DjangoUserInfoRetriever, self).get_name()
 
-def _get_userid(user):
-    user_login = getattr(user, config._user_model_login_field, None)
-    if user_login:
-        return user_login
+    def get_email(self):
+        if hasattr(self.user, "EMAIL_FIELD") and not config._user_model_name_field:
+            user_type = type(self.user)
+            return getattr(self.user, user_type.EMAIL_FIELD, None)
 
-    return _find_in_user_model(user, _POSSIBLE_USER_ID_FIELDS)
-
-
-def _get_username(user):
-    username = getattr(user, config._user_model_name_field, None)
-    if username:
-        return username
-
-    if hasattr(user, "get_username"):
-        try:
-            return user.get_username()
-        except Exception:
-            log.debug("User model get_username member produced an exception: ", exc_info=True)
-
-    user_type = type(user)
-    if hasattr(user_type, "USERNAME_FIELD"):
-        return getattr(user, user_type.USERNAME_FIELD, None)
-
-    return _find_in_user_model(user, _POSSIBLE_LOGIN_FIELDS)
-
-
-def _get_user_email(user):
-    email = getattr(user, config._user_model_email_field, None)
-    if email:
-        return email
-
-    user_type = type(user)
-    if hasattr(user_type, "EMAIL_FIELD"):
-        return getattr(user, user_type.EMAIL_FIELD, None)
-
-    return _find_in_user_model(user, _POSSIBLE_EMAIL_FIELDS)
-
-
-def _get_name(user):
-    if hasattr(user, "get_full_name"):
-        try:
-            return user.get_full_name()
-        except Exception:
-            log.debug("User model get_full_name member produced an exception: ", exc_info=True)
-
-    if hasattr(user, "first_name") and hasattr(user, "last_name"):
-        return "%s %s" % (user.first_name, user.last_name)
-
-    return getattr(user, "name", None)
-
-
-def _get_user_info(user):
-    """
-    In safe mode, try to get the user id from the user object.
-    In extended mode, try to also get the username (which will be the returned user_id),
-    email and name.
-
-    Since the Django Authentication model supports pluggable users models
-    there is some heuristic involved in extracting this field, though it should
-    work well for the most common case with the default User model.
-    """
-    user_extra_info = {}
-
-    if config._automatic_login_events_mode == "extended":
-        user_id = _get_username(user)
-        if not user_id:
-            user_id = _find_in_user_model(user, _POSSIBLE_USER_ID_FIELDS)
-
-        user_extra_info = {
-            "login": user_id,
-            "email": _get_user_email(user),
-            "name": _get_name(user),
-        }
-    else:  # safe mode, default
-        user_id = _get_userid(user)
-
-    if not user_id:
-        return None, {}
-
-    return user_id, user_extra_info
+        return super(_DjangoUserInfoRetriever, self).get_email()
 
 
 @trace_utils.with_traced_module
@@ -782,45 +715,45 @@ def traced_login(django, pin, func, instance, args, kwargs):
         if not config._appsec_enabled or mode == "disabled":
             return
 
-        if user and str(user) != "AnonymousUser":
-            user_id, user_extra = _get_user_info(user)
-            if not user_id:
-                log.debug(
-                    "Automatic Login Events Tracking: " "Could not determine user id field user for the %s user Model",
-                    type(user),
-                )
-                return
+        if user:
+            info_retriever = _DjangoUserInfoRetriever(user)
 
-            with pin.tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
-                from ddtrace.contrib.django.compat import user_is_authenticated
-
-                if user_is_authenticated(user):
-                    session_key = getattr(request, "session_key", None)
-                    track_user_login_success_event(
-                        pin.tracer,
-                        user_id=user_id,
-                        session_id=session_key,
-                        propagate=True,
-                        login_events_mode=mode,
-                        **user_extra
+            if str(user) != "AnonymousUser":
+                info_retriever = _DjangoUserInfoRetriever(user)
+                user_id, user_extra = info_retriever.get_user_info()
+                if not user_id:
+                    log.debug(
+                        "Automatic Login Events Tracking: " "Could not determine user id field user for the %s user Model",
+                        type(user),
                     )
                     return
-                else:
-                    # Login failed but the user exists
-                    track_user_login_failure_event(pin.tracer, user_id=user_id, exists=True, login_events_mode=mode)
-                    return
-        else:
-            # Login failed and the user is unknown
-            if user:
+
+                with pin.tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
+                    from ddtrace.contrib.django.compat import user_is_authenticated
+
+                    if user_is_authenticated(user):
+                        session_key = getattr(request, "session_key", None)
+                        track_user_login_success_event(
+                            pin.tracer,
+                            user_id=user_id,
+                            session_id=session_key,
+                            propagate=True,
+                            login_events_mode=mode,
+                            **user_extra
+                        )
+                    else:
+                        # Login failed but the user exists
+                        track_user_login_failure_event(pin.tracer, user_id=user_id, exists=True, login_events_mode=mode)
+            else:
+                # Login failed and the user is unknown
                 if mode == "extended":
-                    user_id = _get_username(user)
+                    user_id = info_retriever.get_username()
                 else:  # safe mode
-                    user_id = _find_in_user_model(user, _POSSIBLE_USER_ID_FIELDS)
+                    user_id = info_retriever.get_userid()
                 if not user_id:
                     user_id = "AnonymousUser"
 
                 track_user_login_failure_event(pin.tracer, user_id=user_id, exists=False, login_events_mode=mode)
-                return
     except Exception:
         log.debug("Error while trying to trace Django login", exc_info=True)
 
@@ -833,7 +766,8 @@ def traced_authenticate(django, pin, func, instance, args, kwargs):
         if not config._appsec_enabled or mode == "disabled":
             return result_user
 
-        userid_list = _POSSIBLE_USER_ID_FIELDS if mode == "safe" else _POSSIBLE_LOGIN_FIELDS
+        info_retriever = _DjangoUserInfoRetriever(result_user)
+        userid_list = info_retriever.possible_user_id_fields if mode == "safe" else info_retriever.possible_login_fields
 
         for possible_key in userid_list:
             if possible_key in kwargs:
