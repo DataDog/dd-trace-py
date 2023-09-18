@@ -286,7 +286,7 @@ def create_notebook(dd_repo, name, rn, base, rc, patch):
                     # we need to make another api call to get ContentFile object so we can see what's in there
                     rn_file_content = dd_repo.get_contents(filename).decoded_content.decode("utf8")
                     # try to grab a good portion of the release note for us to use to insert in our reno release notes
-                    # this is a bit hacky, will only attach to one section if you have multiple sections 
+                    # this is a bit hacky, will only attach to one section if you have multiple sections
                     # in a release note
                     # (e.g. a features and a fix section):
                     # for example: https://github.com/DataDog/dd-trace-py/blob/1.x/releasenotes/notes/asm-user-id-blocking-5048b1cef07c80fd.yaml # noqa
