@@ -15,7 +15,7 @@ import attr
 import six
 
 from ddtrace.context import Context
-from ddtrace.debugging import safety
+from ddtrace.debugging import _safety
 from ddtrace.debugging._expressions import DDExpressionEvaluationError
 from ddtrace.debugging._probe.model import FunctionLocationMixin
 from ddtrace.debugging._probe.model import LineLocationMixin
@@ -83,7 +83,7 @@ class Signal(six.with_metaclass(abc.ABCMeta)):
         return False
 
     def _enrich_args(self, retval, exc_info, duration):
-        _locals = list(self.args or safety.get_args(self.frame))
+        _locals = list(self.args or _safety.get_args(self.frame))
         _locals.append(("@duration", duration / 1e6))  # milliseconds
         if exc_info[1] is None:
             _locals.append(("@return", retval))

@@ -3,10 +3,10 @@ import functools
 from typing import TYPE_CHECKING
 
 from ddtrace import config
-from ddtrace.appsec import handlers
+from ddtrace.appsec import _handlers
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
-from ddtrace.appsec.iast._utils import _is_iast_enabled
+from ddtrace.appsec._iast._utils import _is_iast_enabled
 from ddtrace.internal import core
 from ddtrace.internal.compat import parse
 from ddtrace.internal.constants import REQUEST_PATH_PARAMS
@@ -153,7 +153,7 @@ def set_headers_response(headers):  # type: (Any) -> None
 
 def set_body_response(body_response):
     # local import to avoid circular import
-    from ddtrace.appsec.utils import parse_response_body
+    from ddtrace.appsec._utils import parse_response_body
 
     parsed_body = parse_response_body(body_response)
 
@@ -338,7 +338,7 @@ def _start_context(remote_ip, headers, headers_case_sensitive, block_request_cal
     if config._appsec_enabled:
         resources = _DataHandler()
         asm_request_context_set(remote_ip, headers, headers_case_sensitive, block_request_callable)
-        handlers.listen()
+        _handlers.listen()
         listen_context_handlers()
         return resources
 
@@ -382,8 +382,8 @@ def _on_wrapped_view(kwargs):
 
     # If IAST is enabled, taint the Flask function kwargs (path parameters)
     if _is_iast_enabled() and kwargs:
-        from ddtrace.appsec.iast._taint_tracking import OriginType
-        from ddtrace.appsec.iast._taint_tracking import taint_pyobject
+        from ddtrace.appsec._iast._taint_tracking import OriginType
+        from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 
         _kwargs = {}
         for k, v in kwargs.items():
@@ -396,9 +396,9 @@ def _on_wrapped_view(kwargs):
 
 def _on_set_request_tags(request, span, flask_config):
     if _is_iast_enabled():
-        from ddtrace.appsec.iast._metrics import _set_metric_iast_instrumented_source
-        from ddtrace.appsec.iast._taint_tracking import OriginType
-        from ddtrace.appsec.iast._taint_utils import LazyTaintDict
+        from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_source
+        from ddtrace.appsec._iast._taint_tracking import OriginType
+        from ddtrace.appsec._iast._taint_utils import LazyTaintDict
 
         _set_metric_iast_instrumented_source(OriginType.COOKIE_NAME)
         _set_metric_iast_instrumented_source(OriginType.COOKIE)
