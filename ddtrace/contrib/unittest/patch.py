@@ -201,8 +201,12 @@ def _is_valid_module_suite_call(func):
     return type(func).__name__ == "method" or type(func).__name__ == "instancemethod"
 
 
-def _is_invoked_by_cli(args):
-    return not args or (hasattr(_CIVisibility, "_datadog_entry") and _CIVisibility._datadog_entry == "cli")
+def _is_invoked_by_cli(instance):
+    return (
+            hasattr(instance, "progName")
+            or hasattr(_CIVisibility, "_datadog_entry")
+            and _CIVisibility._datadog_entry == "cli"
+    )
 
 
 def _is_invoked_by_text_test_runner():
@@ -538,7 +542,7 @@ def _start_test_suite_span(instance):
 
 def handle_cli_run(func, instance, args, kwargs):
     test_session_span = None
-    if _is_invoked_by_cli(args):
+    if _is_invoked_by_cli(instance):
         if not hasattr(_CIVisibility, "_unittest_data"):
             _CIVisibility._unittest_data = {"suites": {}, "modules": {}}
         for parent_module in instance.test._tests:
@@ -568,7 +572,7 @@ def handle_text_test_runner_wrapper(func, instance, args, kwargs):
     """
     Creates session and module spans if the unittest is called through the `TextTestRunner` method
     """
-    if _is_invoked_by_cli(args):
+    if _is_invoked_by_cli(instance):
         return func(*args, **kwargs)
     _CIVisibility._datadog_entry = "TextTestRunner"
     try:
