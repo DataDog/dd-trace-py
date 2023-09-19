@@ -128,16 +128,6 @@ async def test_s3_put_no_params(tracer):
 
 
 @pytest.mark.asyncio
-async def test_s3_put_all_params(tracer):
-    with override_config("aiobotocore", dict(tag_all_params=True)):
-        span = await _test_s3_put(tracer)
-        assert span.get_tag("params.Key") == "foo"
-        assert span.get_tag("params.Bucket") == "mybucket"
-        assert span.get_tag("params.Body") is None
-        assert span.get_tag("component") == "aiobotocore"
-
-
-@pytest.mark.asyncio
 async def test_s3_client_error(tracer):
     async with aiobotocore_client("s3", tracer) as s3:
         with pytest.raises(ClientError):

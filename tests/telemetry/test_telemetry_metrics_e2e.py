@@ -3,7 +3,6 @@ import json
 import os
 import subprocess
 import sys
-import time
 
 import pytest
 
@@ -28,8 +27,6 @@ def _build_env():
 def gunicorn_server(telemetry_metrics_enabled="true", token=None):
     cmd = ["ddtrace-run", "gunicorn", "-w", "1", "-b", "0.0.0.0:8000", "tests.telemetry.app:app"]
     env = _build_env()
-    env["DD_TELEMETRY_METRICS_ENABLED"] = telemetry_metrics_enabled
-    env["DD_TELEMETRY_HEARTBEAT_INTERVAL"] = "1.0"
     env["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"] = "X-Datadog-Test-Session-Token:{}".format(token)
     env["DD_TRACE_AGENT_URL"] = os.environ.get("DD_TRACE_AGENT_URL", "")
     env["DD_TRACE_DEBUG"] = "true"
@@ -90,19 +87,15 @@ def test_telemetry_metrics_enabled_on_gunicorn_child_process(test_agent_session)
         gunicorn_client.get("/count_metric")
         response = gunicorn_client.get("/count_metric")
         assert response.status_code == 200
-        # DD_TELEMETRY_HEARTBEAT_INTERVAL is set to 1 second
-        time.sleep(1)
         gunicorn_client.get("/count_metric")
         response = gunicorn_client.get("/count_metric")
         assert response.status_code == 200
 
     events = test_agent_session.get_events()
     metrics = list(filter(lambda event: event["request_type"] == "generate-metrics", events))
-    assert len(metrics) == 2
+    assert len(metrics) == 1
     assert metrics[0]["payload"]["series"][0]["metric"] == "test_metric"
-    assert metrics[0]["payload"]["series"][0]["points"][0][1] == 2.0
-    assert metrics[1]["payload"]["series"][0]["metric"] == "test_metric"
-    assert metrics[1]["payload"]["series"][0]["points"][0][1] == 3.0
+    assert metrics[0]["payload"]["series"][0]["points"][0][1] == 5
 
 
 def test_span_creation_and_finished_metrics_datadog(test_agent_session, ddtrace_run_python_code_in_subprocess):

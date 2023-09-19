@@ -5,7 +5,7 @@ from typing import Optional
 
 from ddtrace import Tracer
 from ddtrace import config as ddconfig
-from ddtrace.appsec.utils import _appsec_rc_features_is_enabled
+from ddtrace.appsec._utils import _appsec_rc_features_is_enabled
 from ddtrace.internal.compat import to_bytes_py2
 
 

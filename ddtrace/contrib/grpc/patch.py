@@ -1,9 +1,9 @@
 import grpc
+from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.internal.schema import schematize_service_name
-from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from . import constants
 from . import utils

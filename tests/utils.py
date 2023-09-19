@@ -11,6 +11,7 @@ from typing import List
 import attr
 import pkg_resources
 import pytest
+import wrapt
 
 import ddtrace
 from ddtrace import Span
@@ -29,7 +30,6 @@ from ddtrace.internal.encoding import MsgpackEncoderV03 as Encoder
 from ddtrace.internal.schema import SCHEMA_VERSION
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.internal.writer import AgentWriter
-from ddtrace.vendor import wrapt
 from tests.subprocesstest import SubprocessTestCase
 
 
