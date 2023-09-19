@@ -4,9 +4,9 @@ from flask import request
 import pytest
 
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec.iast import oce
-from ddtrace.appsec.iast._utils import _is_python_version_supported as python_supported_by_iast
-from ddtrace.appsec.iast.constants import VULN_SQL_INJECTION
+from ddtrace.appsec._iast import oce
+from ddtrace.appsec._iast._utils import _is_python_version_supported as python_supported_by_iast
+from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 from ddtrace.contrib.sqlite3.patch import patch
 from tests.appsec.iast.iast_utils import get_line_and_hash
 from tests.contrib.flask import BaseFlaskTestCase
@@ -21,8 +21,8 @@ IAST_ENV_SAMPLING_0 = {"DD_IAST_REQUEST_SAMPLING": "0"}
 
 @pytest.fixture(autouse=True)
 def reset_context():
-    from ddtrace.appsec.iast._taint_tracking import create_context
-    from ddtrace.appsec.iast._taint_tracking import reset_context
+    from ddtrace.appsec._iast._taint_tracking import create_context
+    from ddtrace.appsec._iast._taint_tracking import reset_context
 
     yield
     reset_context()
@@ -55,8 +55,8 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         def test_sqli(param_str):
             import sqlite3
 
-            from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
-            from ddtrace.appsec.iast._taint_tracking.aspects import add_aspect
+            from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+            from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 
             assert is_pyobject_tainted(param_str)
             con = sqlite3.connect(":memory:")
@@ -103,7 +103,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
 
             from flask import request
 
-            from ddtrace.appsec.iast._taint_tracking.aspects import add_aspect
+            from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 
             con = sqlite3.connect(":memory:")
             cur = con.cursor()
@@ -154,7 +154,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
 
             from flask import request
 
-            from ddtrace.appsec.iast._taint_tracking.aspects import add_aspect
+            from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 
             con = sqlite3.connect(":memory:")
             cur = con.cursor()
@@ -203,7 +203,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
 
             from flask import request
 
-            from ddtrace.appsec.iast._taint_tracking.aspects import add_aspect
+            from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 
             con = sqlite3.connect(":memory:")
             cur = con.cursor()
@@ -248,9 +248,9 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         def test_sqli(param_str, param_int):
             from flask import request
 
-            from ddtrace.appsec.iast._taint_tracking import OriginType
-            from ddtrace.appsec.iast._taint_tracking import get_tainted_ranges
-            from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
+            from ddtrace.appsec._iast._taint_tracking import OriginType
+            from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
+            from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 
             header_ranges = get_tainted_ranges(request.headers["User-Agent"])
             assert header_ranges
@@ -304,7 +304,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         def test_sqli(param_str):
             from flask import request
 
-            from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
+            from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 
             # Note: these are not tainted because of request sampling at 0%
             assert not is_pyobject_tainted(request.headers["User-Agent"])
@@ -336,7 +336,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
 
             from flask import request
 
-            from ddtrace.appsec.iast._taint_tracking.aspects import add_aspect
+            from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 
             con = sqlite3.connect(":memory:")
             cur = con.cursor()
@@ -385,7 +385,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
 
             from flask import request
 
-            from ddtrace.appsec.iast._taint_tracking.aspects import add_aspect
+            from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 
             con = sqlite3.connect(":memory:")
             cur = con.cursor()
@@ -438,7 +438,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         def test_sqli():
             import sqlite3
 
-            from ddtrace.appsec.iast._taint_tracking.aspects import add_aspect
+            from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 
             con = sqlite3.connect(":memory:")
             cur = con.cursor()
@@ -483,7 +483,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
 
             from flask import request
 
-            from ddtrace.appsec.iast._taint_tracking.aspects import add_aspect
+            from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 
             con = sqlite3.connect(":memory:")
             cur = con.cursor()
@@ -552,7 +552,7 @@ class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
 
             from flask import request
 
-            from ddtrace.appsec.iast._taint_tracking.aspects import add_aspect
+            from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 
             con = sqlite3.connect(":memory:")
             cur = con.cursor()
@@ -579,7 +579,7 @@ class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
 
             from flask import request
 
-            from ddtrace.appsec.iast._taint_tracking.aspects import add_aspect
+            from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 
             con = sqlite3.connect(":memory:")
             cur = con.cursor()
@@ -611,7 +611,7 @@ class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
 
             from flask import request
 
-            from ddtrace.appsec.iast._taint_tracking.aspects import add_aspect
+            from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 
             con = sqlite3.connect(":memory:")
             cur = con.cursor()
@@ -643,7 +643,7 @@ class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
 
             from flask import request
 
-            from ddtrace.appsec.iast._taint_tracking.aspects import add_aspect
+            from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 
             con = sqlite3.connect(":memory:")
             cur = con.cursor()
@@ -673,7 +673,7 @@ class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
         def test_sqli(param_str):
             from flask import request
 
-            from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
+            from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 
             assert not is_pyobject_tainted(request.headers["User-Agent"])
             assert not is_pyobject_tainted(request.query_string)
@@ -701,7 +701,7 @@ class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
 
             from flask import request
 
-            from ddtrace.appsec.iast._taint_tracking.aspects import add_aspect
+            from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 
             con = sqlite3.connect(":memory:")
             cur = con.cursor()

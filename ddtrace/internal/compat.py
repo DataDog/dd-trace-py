@@ -23,9 +23,8 @@ from typing import Union
 import warnings
 
 import six
-
-from ddtrace.vendor.wrapt.wrappers import BoundFunctionWrapper
-from ddtrace.vendor.wrapt.wrappers import FunctionWrapper
+from wrapt.wrappers import BoundFunctionWrapper
+from wrapt.wrappers import FunctionWrapper
 
 
 __all__ = [
@@ -276,22 +275,6 @@ except ImportError:
     CONTEXTVARS_IS_AVAILABLE = False
 else:
     CONTEXTVARS_IS_AVAILABLE = True
-
-
-try:
-    from pep562 import Pep562  # noqa
-
-    def ensure_pep562(module_name):
-        # type: (str) -> None
-        if sys.version_info < (3, 7):
-            Pep562(module_name)
-
-
-except ImportError:
-
-    def ensure_pep562(module_name):
-        # type: (str) -> None
-        pass
 
 
 try:

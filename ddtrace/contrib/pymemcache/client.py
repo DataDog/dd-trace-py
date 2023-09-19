@@ -10,11 +10,11 @@ from pymemcache.exceptions import MemcacheIllegalInputError
 from pymemcache.exceptions import MemcacheServerError
 from pymemcache.exceptions import MemcacheUnknownCommandError
 from pymemcache.exceptions import MemcacheUnknownError
+import wrapt
 
 # 3p
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
-from ddtrace.vendor import wrapt
 
 # project
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
