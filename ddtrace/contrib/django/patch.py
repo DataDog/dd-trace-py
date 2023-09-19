@@ -490,12 +490,10 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                 return response
 
             try:
-                # [IP Blocking]
                 if core.get_item(HTTP_REQUEST_BLOCKED):
                     response = blocked_response()
                     return response
 
-                # set context information for [Suspicious Request Blocking]
                 query = request.META.get("QUERY_STRING", "")
                 uri = utils.get_request_uri(request)
                 if uri is not None and query:
