@@ -13,6 +13,7 @@ from ddtrace.contrib.unittest.constants import SESSION_OPERATION_NAME
 from ddtrace.contrib.unittest.constants import SUITE_OPERATION_NAME
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
+from ddtrace.ext.ci import RUNTIME_VERSION
 from ddtrace.ext.ci import _get_runtime_and_os_metadata
 from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
 from ddtrace.internal.ci_visibility.constants import EVENT_TYPE as _EVENT_TYPE
@@ -167,16 +168,16 @@ def _generate_test_resource(suite_name, test_name):
     return "{}.{}".format(suite_name, test_name)
 
 
-def _generate_suite_resource(framework_name, test_suite):
-    return "{}.test_suite.{}".format(framework_name, test_suite)
+def _generate_suite_resource(test_suite):
+    return "{}".format(test_suite)
 
 
-def _generate_module_resource(framework_name, test_module):
-    return "{}.test_module.{}".format(framework_name, test_module)
+def _generate_module_resource(test_module):
+    return "{}".format(test_module)
 
 
-def _generate_session_resource(framework_name, test_command):
-    return "{}.test_session.{}".format(framework_name, test_command)
+def _generate_session_resource(test_command):
+    return "{}".format(test_command)
 
 
 def _set_identifier(item, name):
@@ -247,6 +248,7 @@ def _finish_remaining_suites_and_modules(seen_suites, seen_modules):
         if module["module_span"] and not module["module_span"].finished:
             _update_status_item(module["module_span"]._parent, module["module_span"].get_tag(test.STATUS))
             module["module_span"].finish()
+    del _CIVisibility._unittest_data
 
 
 def _update_remaining_suites_and_modules(test_module_suite_path, test_module_path, test_module_span, test_suite_span):
@@ -413,7 +415,7 @@ def collect_text_test_runner_session(func, instance, args, kwargs):
 def _start_test_session_span(instance):
     tracer = getattr(unittest, "_datadog_tracer", _CIVisibility._instance.tracer)
     test_command = _extract_command_name_from_session(instance)
-    resource_name = _generate_session_resource(FRAMEWORK, test_command)
+    resource_name = _generate_session_resource(test_command)
     test_session_span = tracer.trace(
         SESSION_OPERATION_NAME,
         service=_CIVisibility._instance._service,
@@ -424,7 +426,7 @@ def _start_test_session_span(instance):
     test_session_span.set_tag_str(COMPONENT, COMPONENT_VALUE)
     test_session_span.set_tag_str(SPAN_KIND, KIND)
     test_session_span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
-    test_session_span.set_tag_str(test.FRAMEWORK_VERSION, _get_runtime_and_os_metadata()["runtime.version"])
+    test_session_span.set_tag_str(test.FRAMEWORK_VERSION, _get_runtime_and_os_metadata()[RUNTIME_VERSION])
     test_session_span.set_tag_str(_EVENT_TYPE, _SESSION_TYPE)
     test_session_span.set_tag_str(test.COMMAND, test_command)
     test_session_span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
@@ -436,7 +438,7 @@ def _start_test_module_span(instance):
     tracer = getattr(unittest, "_datadog_tracer", _CIVisibility._instance.tracer)
     test_session_span = _extract_session_span()
     test_module_name = _extract_module_name_from_module(instance)
-    resource_name = _generate_module_resource(FRAMEWORK, test_module_name)
+    resource_name = _generate_module_resource(test_module_name)
     test_module_span = tracer._start_span(
         MODULE_OPERATION_NAME,
         service=_CIVisibility._instance._service,
@@ -448,7 +450,7 @@ def _start_test_module_span(instance):
     test_module_span.set_tag_str(COMPONENT, COMPONENT_VALUE)
     test_module_span.set_tag_str(SPAN_KIND, KIND)
     test_module_span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
-    test_module_span.set_tag_str(test.FRAMEWORK_VERSION, _get_runtime_and_os_metadata()["runtime.version"])
+    test_module_span.set_tag_str(test.FRAMEWORK_VERSION, _get_runtime_and_os_metadata()[RUNTIME_VERSION])
     test_module_span.set_tag_str(test.COMMAND, test_session_span.get_tag(test.COMMAND))
     test_module_span.set_tag_str(test.TEST_TYPE, SpanTypes.TEST)
     test_module_span.set_tag_str(_EVENT_TYPE, _MODULE_TYPE)
@@ -465,7 +467,7 @@ def _start_test_suite_span(instance):
     test_module_path = _extract_module_file_path(instance)
     test_module_span = _extract_module_span(test_module_path)
     test_suite_name = _extract_suite_name_from_test_method(instance)
-    resource_name = _generate_suite_resource(FRAMEWORK, test_suite_name)
+    resource_name = _generate_suite_resource(test_suite_name)
     test_suite_span = tracer._start_span(
         SUITE_OPERATION_NAME,
         service=_CIVisibility._instance._service,
@@ -477,7 +479,7 @@ def _start_test_suite_span(instance):
     test_suite_span.set_tag_str(COMPONENT, COMPONENT_VALUE)
     test_suite_span.set_tag_str(SPAN_KIND, KIND)
     test_suite_span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
-    test_suite_span.set_tag_str(test.FRAMEWORK_VERSION, _get_runtime_and_os_metadata()["runtime.version"])
+    test_suite_span.set_tag_str(test.FRAMEWORK_VERSION, _get_runtime_and_os_metadata()[RUNTIME_VERSION])
     test_suite_span.set_tag_str(test.COMMAND, test_module_span.get_tag(test.COMMAND))
     test_suite_span.set_tag_str(_EVENT_TYPE, _SUITE_TYPE)
     test_suite_span.set_tag_str(_SESSION_ID, test_module_span.get_tag(_SESSION_ID))
@@ -514,7 +516,7 @@ def _start_test_span(instance, test_suite_span):
 
     span.set_tag_str(test.COMMAND, test_suite_span.get_tag(test.COMMAND))
     span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
-    span.set_tag_str(test.FRAMEWORK_VERSION, _get_runtime_and_os_metadata()["runtime.version"])
+    span.set_tag_str(test.FRAMEWORK_VERSION, _get_runtime_and_os_metadata()[RUNTIME_VERSION])
     span.set_tag_str(test.TYPE, SpanTypes.TEST)
 
     span.set_tag_str(test.NAME, test_name)
@@ -563,7 +565,6 @@ def handle_cli_run(func, instance, args, kwargs):
                 _CIVisibility._unittest_data["suites"], _CIVisibility._unittest_data["modules"]
             )
             _finish_span(test_session_span)
-            _CIVisibility.disable()
         raise e
     return result
 
@@ -589,7 +590,7 @@ def handle_text_test_runner_wrapper(func, instance, args, kwargs):
                 _CIVisibility._unittest_data["suites"], _CIVisibility._unittest_data["modules"]
             )
             _finish_span(_CIVisibility._datadog_session_span)
-            _CIVisibility.disable()
+            del _CIVisibility._datadog_session_span
         raise e
 
     _CIVisibility._datadog_finished_sessions += 1
@@ -598,5 +599,5 @@ def handle_text_test_runner_wrapper(func, instance, args, kwargs):
             _CIVisibility._unittest_data["suites"], _CIVisibility._unittest_data["modules"]
         )
         _finish_span(_CIVisibility._datadog_session_span)
-        _CIVisibility.disable()
+        del _CIVisibility._datadog_session_span
     return result
