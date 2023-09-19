@@ -3,8 +3,8 @@ import sys
 import pytest
 
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec.iast.constants import DEFAULT_WEAK_RANDOMNESS_FUNCTIONS
-from ddtrace.appsec.iast.constants import VULN_WEAK_RANDOMNESS
+from ddtrace.appsec._iast.constants import DEFAULT_WEAK_RANDOMNESS_FUNCTIONS
+from ddtrace.appsec._iast.constants import VULN_WEAK_RANDOMNESS
 from ddtrace.internal import core
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
 from tests.appsec.iast.iast_utils import get_line_and_hash
