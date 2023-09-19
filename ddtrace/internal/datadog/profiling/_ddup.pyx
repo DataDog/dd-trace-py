@@ -2,13 +2,13 @@ import platform
 import typing
 from typing import Optional
 
-from .utils import sanitize_string
-
 import ddtrace
 from ddtrace.internal import runtime
 from ddtrace.internal.compat import ensure_binary
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.span import Span
+
+from .utils import sanitize_string
 
 
 IF UNAME_SYSNAME == "Linux":
