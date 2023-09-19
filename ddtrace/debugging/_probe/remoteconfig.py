@@ -328,27 +328,30 @@ class DebuggerRemoteConfigSubscriber(RemoteConfigSubscriber):
             self._send_status_update()
             self._status_timestamp = next(self._status_timestamp_sequence)
 
-        if data:
-            metadatas = data["metadata"]
-            rc_configs = data["config"]
-            # DEV: We emit a status update event here to avoid having to spawn a
-            # separate thread for this.
-            log.debug("[%s][P: %s] Dynamic Instrumentation Updated", os.getpid(), os.getppid())
-            for idx in range(len(rc_configs)):
-                if metadatas[idx] is None:
-                    log.debug("[%s][P: %s] Dynamic Instrumentation, no RCM metadata", os.getpid(), os.getppid())
-                    return
+        if not data:
+            # Nothing else to do.
+            return
 
-                self._update_probes_for_config(metadatas[idx]["id"], rc_configs[idx])
+        log.debug("[%s][P: %s] Dynamic Instrumentation Updated", os.getpid(), os.getppid())
+        for metadata, config in zip(data["metadata"], data["config"]):
+            if metadata is None:
+                log.debug(
+                    "[%s][P: %s] Dynamic Instrumentation: no RCM metadata for configuration; skipping",
+                    os.getpid(),
+                    os.getppid(),
+                )
+                continue
+
+            self._update_probes_for_config(metadata["id"], config)
 
     def _send_status_update(self):
         log.debug(
-            "[%s][P: %s] Dynamic Instrumentation,Emitting probe status log messages",
+            "[%s][P: %s] Dynamic Instrumentation: emitting probe status log messages",
             os.getpid(),
             os.getppid(),
         )
-        probes = [probe for config in self._configs.values() for probe in config.values()]
-        self._callback(ProbePollerEvent.STATUS_UPDATE, probes)
+
+        self._callback(ProbePollerEvent.STATUS_UPDATE, [])
 
     def _dispatch_probe_events(self, prev_probes, next_probes):
         # type: (Dict[str, Probe], Dict[str, Probe]) -> None
