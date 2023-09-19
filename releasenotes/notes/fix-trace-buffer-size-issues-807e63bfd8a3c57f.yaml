@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    tracing: Increases the max payload size of traces from 8MB to 20MB. Also decreases the maximum number of spans in payload.
+    This should decrease the occurrence of "failed to send traces" error logs.
