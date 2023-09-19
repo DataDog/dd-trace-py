@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    tracing: Encoding traces in the v05 format has known issues for applications generating spans at a frequency.
+    This change sets ``DD_TRACE_API_VERSION`` to ``v04`` by default.
