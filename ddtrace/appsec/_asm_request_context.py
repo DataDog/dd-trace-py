@@ -367,7 +367,7 @@ def _on_context_ended(ctx):
 core.on("context.started.wsgi.__call__", _on_context_started)
 core.on("context.ended.wsgi.__call__", _on_context_ended)
 core.on("context.started.django.traced_get_response", _on_context_started)
-core.on("context.ended.django.traced_get_response", _on_context_started)
+core.on("context.ended.django.traced_get_response", _on_context_ended)
 core.on("django.traced_get_response.pre", set_block_request_callable)
 
 
