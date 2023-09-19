@@ -430,7 +430,7 @@ class AppSecSpanProcessor(SpanProcessor):
                     _set_headers(span, headers_req, kind="response")
 
                 # this call is only necessary for tests or frameworks that are not using blocking
-                if span.get_tag(APPSEC.JSON) is None:
+                if span.get_tag(APPSEC.JSON) is None and _asm_request_context.in_context():
                     log.debug("metrics waf call")
                     _asm_request_context.call_waf_callback()
 
