@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
-
 from _ast import Expr
 from _ast import ImportFrom
 import ast
+import copy
 import sys
 from typing import TYPE_CHECKING
 
 from six import iteritems
 
 from .._metrics import _set_metric_iast_instrumented_propagation
+from ..constants import DEFAULT_WEAK_RANDOMNESS_FUNCTIONS
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -19,6 +20,12 @@ if TYPE_CHECKING:  # pragma: no cover
 PY3 = sys.version_info[0] >= 3
 PY30_37 = sys.version_info >= (3, 0, 0) and sys.version_info < (3, 8, 0)
 PY38_PLUS = sys.version_info >= (3, 8, 0)
+
+CODE_TYPE_FIRST_PARTY = "first_party"
+CODE_TYPE_DD = "datadog"
+CODE_TYPE_SITE_PACKAGES = "site_packages"
+CODE_TYPE_STDLIB = "stdlib"
+TAINT_SINK_FUNCTION_REPLACEMENT = "ddtrace_taint_sinks.ast_funcion"
 
 
 class AstVisitor(ast.NodeTransformer):
@@ -86,6 +93,26 @@ class AstVisitor(ast.NodeTransformer):
                 },
                 "django.utils.html": {"": ("format_html", "format_html_join")},
             },
+            # This is a set since all functions will be replaced by taint_sink_functions
+            "taint_sinks": {
+                "weak_randomness": DEFAULT_WEAK_RANDOMNESS_FUNCTIONS,
+                "other": {
+                    "load",
+                    "run",
+                    "path",
+                    "exit",
+                    "sleep",
+                    "socket",
+                },
+                # These explicitly WON'T be replaced by taint_sink_function:
+                "disabled": {
+                    "__new__",
+                    "__init__",
+                    "__dir__",
+                    "__repr__",
+                    "super",
+                },
+            },
         }
         self._sinkpoints_spec = {
             "definitions_module": "ddtrace.appsec._iast.taint_sinks",
@@ -107,6 +134,12 @@ class AstVisitor(ast.NodeTransformer):
         self._aspect_build_string = self._aspects_spec["operators"]["BUILD_STRING"]
         self.excluded_functions = self._aspects_spec["excluded_from_patching"].get(self.module_name, {})
 
+        # Sink points
+        self._taint_sink_replace_random = self._aspects_spec["taint_sinks"]["weak_randomness"]
+        self._taint_sink_replace_other = self._aspects_spec["taint_sinks"]["other"]
+        self._taint_sink_replace_any = self._taint_sink_replace_random.union(self._taint_sink_replace_other)
+        self._taint_sink_replace_disabled = self._aspects_spec["taint_sinks"]["disabled"]
+
         self.dont_patch_these_functionsdefs = set()
         for _, v in iteritems(self.excluded_functions):
             if v:
@@ -116,6 +149,16 @@ class AstVisitor(ast.NodeTransformer):
         # This will be enabled when we find a module and function where we avoid doing
         # replacements and enabled again on all the others
         self.replacements_disabled_for_functiondef = False
+
+        self.codetype = CODE_TYPE_FIRST_PARTY
+        if "ast/tests/fixtures" in self.filename:
+            self.codetype = CODE_TYPE_FIRST_PARTY
+        elif "ddtrace" in self.filename and ("site-packages" in self.filename or "dist-packages" in self.filename):
+            self.codetype = CODE_TYPE_DD
+        elif "site-packages" in self.filename or "dist-packages" in self.filename:
+            self.codetype = CODE_TYPE_SITE_PACKAGES
+        elif "lib/python" in self.filename:
+            self.codetype = CODE_TYPE_STDLIB
 
     def _is_string_node(self, node):  # type: (Any) -> bool
         if PY30_37 and isinstance(node, ast.Bytes):
@@ -154,6 +197,42 @@ class AstVisitor(ast.NodeTransformer):
             and all(map(self._is_node_constant_or_binop, call_node.args))
             and all(map(lambda x: self._is_node_constant_or_binop(x.value), call_node.keywords))
         )
+
+    def _get_function_name(self, call_node, is_function):  # type: (ast.Call, bool) -> str
+        if is_function:
+            return call_node.func.id  # type: ignore[attr-defined]
+        # If the call is to a method
+        elif type(call_node.func) == ast.Name:
+            return call_node.func.id
+
+        return call_node.func.attr  # type: ignore[attr-defined]
+
+    def _should_replace_with_taint_sink(self, call_node, is_function):  # type: (ast.Call, bool) -> bool
+        function_name = self._get_function_name(call_node, is_function)
+
+        if function_name in self._taint_sink_replace_disabled:
+            return False
+
+        return any(allowed in function_name for allowed in self._taint_sink_replace_any)
+
+    def _add_original_function_as_arg(self, call_node, is_function):  # type: (ast.Call, bool) -> Any
+        """
+        Creates the arguments for the original function
+        """
+        function_name = self._get_function_name(call_node, is_function)
+        function_name_arg = (
+            self._name_node(call_node, function_name, ctx=ast.Load()) if is_function else copy.copy(call_node.func)
+        )
+
+        # Arguments for stack info change from:
+        # my_function(self, *args, **kwargs)
+        # to:
+        # _add_original_function_as_arg(function_name=my_function, self, *args, **kwargs)
+        new_args = [
+            function_name_arg,
+        ] + call_node.args
+
+        return new_args
 
     def _node(self, type_, pos_from_node, **kwargs):
         # type: (Any, Any, Any) -> Any
@@ -359,6 +438,24 @@ class AstVisitor(ast.NodeTransformer):
 
                     # Create a new Name node for the replacement and set it as node.func
                     call_node.func = self._attr_node(call_node, aspect)
+                    self.ast_modified = call_modified = True
+
+        if self.codetype == CODE_TYPE_FIRST_PARTY:
+            # Function replacement case
+            if isinstance(call_node.func, ast.Name):
+                aspect = self._should_replace_with_taint_sink(call_node, True)
+                if aspect:
+                    call_node.args = self._add_original_function_as_arg(call_node, False)
+                    call_node.func = self._attr_node(call_node, TAINT_SINK_FUNCTION_REPLACEMENT)
+                    self.ast_modified = call_modified = True
+
+            # Method replacement case
+            elif isinstance(call_node.func, ast.Attribute):
+                aspect = self._should_replace_with_taint_sink(call_node, False)
+                if aspect:
+                    # Create a new Name node for the replacement and set it as node.func
+                    call_node.args = self._add_original_function_as_arg(call_node, False)
+                    call_node.func = self._attr_node(call_node, TAINT_SINK_FUNCTION_REPLACEMENT)
                     self.ast_modified = call_modified = True
 
         if call_modified:
