@@ -118,8 +118,6 @@ class APIManager(Service):
         if not root or any(meta_name in root._meta for _, meta_name, _ in self.COLLECTED):
             return
 
-        root._metrics[API_SECURITY.ENABLED] = 1.0
-
         try:
             if not self._should_collect_schema(env):
                 return
