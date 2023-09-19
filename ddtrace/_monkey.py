@@ -244,12 +244,10 @@ def patch(raise_errors=True, patch_modules_prefix=DEFAULT_MODULES_PREFIX, **patc
         with _LOCK:
             _PATCHED_MODULES.add(contrib)
 
-    patched_modules = _get_patched_modules()
     log.info(
-        "patched %s/%s modules (%s)",
-        len(patched_modules),
+        "Configured ddtrace instrumentation for %s integration(s). The following modules have been patched: %s",
         len(contribs),
-        ",".join(patched_modules),
+        ",".join(contribs),
     )
 
 
