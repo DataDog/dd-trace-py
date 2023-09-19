@@ -11,6 +11,8 @@ try:
 except AttributeError:
     from cassandra import cluster as cassandra_cluster
 
+import wrapt
+
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
 
@@ -32,7 +34,6 @@ from ...internal.schema import schematize_service_name
 from ...internal.utils import get_argument_value
 from ...internal.utils.formats import deep_getattr
 from ...pin import Pin
-from ...vendor import wrapt
 
 
 log = get_logger(__name__)
