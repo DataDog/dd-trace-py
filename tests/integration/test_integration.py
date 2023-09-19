@@ -473,7 +473,7 @@ def test_trace_with_invalid_payload_generates_error_log():
         [
             mock.call(
                 "failed to send traces to intake at %s: HTTP error status %s, reason %s",
-                "http://localhost:8126/v0.5/traces",
+                "http://localhost:8126/v0.4/traces",
                 400,
                 "Bad Request",
             )
