@@ -16,7 +16,7 @@ import functools
 import inspect
 
 import six
-from .. import wrapt
+import wrapt
 
 from . import _utils
 

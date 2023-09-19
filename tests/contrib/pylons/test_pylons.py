@@ -12,7 +12,7 @@ import pytest
 from routes import url_for
 
 from ddtrace import config
-from ddtrace.appsec.ddwaf import _DDWAF_LOADED
+from ddtrace.appsec._ddwaf import _DDWAF_LOADED
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK

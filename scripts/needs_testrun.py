@@ -102,8 +102,9 @@ def needs_testrun(suite: str, pr_number: int, sha: t.Optional[str] = None) -> bo
     """
     try:
         patterns = get_patterns(suite)
-    except Exception:
+    except Exception as exc:
         LOGGER.error("Failed to get patterns")
+        LOGGER.error(exc)
         return True
     if not patterns:
         # We don't have patterns so we run the tests

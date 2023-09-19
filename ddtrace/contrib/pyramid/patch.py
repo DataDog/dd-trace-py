@@ -2,9 +2,9 @@ import os
 
 import pyramid
 import pyramid.config
+import wrapt
 
 from ddtrace import config
-from ddtrace.vendor import wrapt
 
 from ...internal.utils.formats import asbool
 from .constants import SETTINGS_ANALYTICS_ENABLED
