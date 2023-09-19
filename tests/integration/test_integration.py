@@ -124,7 +124,7 @@ def test_uds_wrong_socket_path():
         mock.call(
             "failed to send, dropping %d traces to intake at %s after %d retries",
             1,
-            "unix:///tmp/ddagent/nosockethere/{}/traces".format(encoding if encoding else "v0.5"),
+            "unix:///tmp/ddagent/nosockethere/{}/traces".format(encoding if encoding else "v0.4"),
             3,
         )
     ]
@@ -382,7 +382,7 @@ def test_trace_generates_error_logs_when_hostname_invalid():
         mock.call(
             "failed to send, dropping %d traces to intake at %s after %d retries",
             1,
-            "http://bad:1111/{}/traces".format(encoding if encoding else "v0.5"),
+            "http://bad:1111/{}/traces".format(encoding if encoding else "v0.4"),
             3,
         )
     ]
@@ -471,7 +471,7 @@ def test_trace_with_invalid_payload_generates_error_log():
         [
             mock.call(
                 "failed to send traces to intake at %s: HTTP error status %s, reason %s",
-                "http://localhost:8126/v0.5/traces",
+                "http://localhost:8126/v0.4/traces",
                 400,
                 "Bad Request",
             )
@@ -550,9 +550,9 @@ def test_api_version_downgrade_generates_no_warning_logs():
 
     from ddtrace import tracer as t
 
-    encoding = os.environ["DD_TRACE_API_VERSION"]
+    encoding = os.environ["DD_TRACE_API_VERSION"] or "v0.4"
     t._writer._downgrade(None, None, t._writer._clients[0])
-    assert t._writer._endpoint == {"v0.5": "v0.4/traces", "v0.4": "v0.3/traces"}[encoding or "v0.5"]
+    assert t._writer._endpoint == {"v0.5": "v0.4/traces", "v0.4": "v0.3/traces"}[encoding]
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
         t.trace("operation", service="my-svc").finish()
         t.shutdown()
