@@ -440,7 +440,6 @@ class AstVisitor(ast.NodeTransformer):
                     call_node.func = self._attr_node(call_node, aspect)
                     self.ast_modified = call_modified = True
 
-        # Only replacing first party code
         if self.codetype == CODE_TYPE_FIRST_PARTY:
             # Function replacement case
             if isinstance(call_node.func, ast.Name):
