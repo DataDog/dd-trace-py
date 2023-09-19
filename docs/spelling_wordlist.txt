@@ -29,6 +29,7 @@ aredis
 args
 ascii
 asgi
+asm
 async
 asyncio
 asyncpg
@@ -87,6 +88,7 @@ entrypoint
 entrypoints
 env
 enqueuer
+eol
 exec
 fastapi
 formatter
@@ -150,6 +152,7 @@ NeedsAppKey
 obfuscator
 openai
 opensearch
+opentelemetry
 opentracer
 opentracing
 otel
@@ -206,6 +209,7 @@ sqlite
 stacktrace
 starlette
 statsd
+stdout
 stringable
 subclass
 subdirectory

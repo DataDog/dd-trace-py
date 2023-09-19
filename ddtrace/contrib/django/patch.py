@@ -12,6 +12,9 @@ from inspect import isclass
 from inspect import isfunction
 import os
 
+import wrapt
+from wrapt.importer import when_imported
+
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.appsec.trace_utils import track_user_login_failure_event
@@ -38,8 +41,6 @@ from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import http as http_utils
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.settings.integration import IntegrationConfig
-from ddtrace.vendor import wrapt
-from ddtrace.vendor.wrapt.importer import when_imported
 
 from .. import trace_utils
 from ...internal.utils import get_argument_value

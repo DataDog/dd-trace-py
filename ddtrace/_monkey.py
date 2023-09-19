@@ -3,7 +3,7 @@ import os
 import threading
 from typing import TYPE_CHECKING
 
-from ddtrace.vendor.wrapt.importer import when_imported
+from wrapt.importer import when_imported
 
 from .internal.compat import PY2
 from .internal.logger import get_logger
@@ -210,7 +210,7 @@ def patch_all(**patch_modules):
 
     patch(raise_errors=False, **modules)
     if config._iast_enabled:
-        from ddtrace.appsec.iast._patch_modules import patch_iast
+        from ddtrace.appsec._iast._patch_modules import patch_iast
 
         patch_iast()
 
