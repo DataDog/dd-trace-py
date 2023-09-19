@@ -1,7 +1,7 @@
-from ddtrace.appsec.iast.reporter import Evidence
-from ddtrace.appsec.iast.reporter import Location
-from ddtrace.appsec.iast.reporter import Source
-from ddtrace.appsec.iast.reporter import Vulnerability
+from ddtrace.appsec._iast.reporter import Evidence
+from ddtrace.appsec._iast.reporter import Location
+from ddtrace.appsec._iast.reporter import Source
+from ddtrace.appsec._iast.reporter import Vulnerability
 
 
 def _do_assert_hash(e, f, g, e2):

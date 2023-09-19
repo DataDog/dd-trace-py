@@ -1,4 +1,5 @@
 import consul
+from wrapt import BoundFunctionWrapper
 
 from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -6,7 +7,6 @@ from ddtrace.contrib.consul.patch import patch
 from ddtrace.contrib.consul.patch import unpatch
 from ddtrace.ext import consul as consulx
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
-from ddtrace.vendor.wrapt import BoundFunctionWrapper
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 

@@ -1,9 +1,9 @@
 import os
 
 import requests
+from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
-from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ...internal.schema import schematize_service_name
 from ...internal.utils.formats import asbool
