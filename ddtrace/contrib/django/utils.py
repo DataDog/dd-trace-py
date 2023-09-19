@@ -9,6 +9,7 @@ from typing import Union
 import django
 from django.utils.functional import SimpleLazyObject
 import six
+from wrapt import FunctionWrapper
 import xmltodict
 
 from ddtrace import config
@@ -23,7 +24,6 @@ from .. import trace_utils
 from ...internal import core
 from ...internal.logger import get_logger
 from ...internal.utils.formats import stringify_cache_args
-from ...vendor.wrapt import FunctionWrapper
 from .compat import get_resolver
 from .compat import user_is_authenticated
 
@@ -264,8 +264,8 @@ def _before_request_tags(pin, span, request):
 def _extract_body(request):
     # DEV: Do not use request.POST or request.data, this could prevent custom parser to be used after
     if config._appsec_enabled and request.method in _BODY_METHODS:
-        from ddtrace.appsec.utils import parse_form_multipart
-        from ddtrace.appsec.utils import parse_form_params
+        from ddtrace.appsec._utils import parse_form_multipart
+        from ddtrace.appsec._utils import parse_form_params
 
         req_body = None
         content_type = request.content_type if hasattr(request, "content_type") else request.META.get("CONTENT_TYPE")

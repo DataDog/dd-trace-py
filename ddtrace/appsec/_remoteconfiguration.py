@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 from ddtrace import config
 from ddtrace.appsec._capabilities import _appsec_rc_file_is_not_static
 from ddtrace.appsec._constants import PRODUCTS
-from ddtrace.appsec.utils import _appsec_rc_features_is_enabled
+from ddtrace.appsec._utils import _appsec_rc_features_is_enabled
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector

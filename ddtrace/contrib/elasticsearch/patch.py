@@ -1,6 +1,8 @@
 from importlib import import_module
 from typing import List
 
+from wrapt import wrap_function_wrapper as _w
+
 from ddtrace import config
 from ddtrace._tracing import _limits
 from ddtrace.contrib.trace_utils import ext_service
@@ -8,7 +10,6 @@ from ddtrace.contrib.trace_utils import extract_netloc_and_query_info_from_url
 from ddtrace.ext import net
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
-from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_KIND

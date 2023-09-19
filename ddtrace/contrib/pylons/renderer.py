@@ -1,9 +1,9 @@
 import pylons
 from pylons import config
+from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config as ddconfig
 from ddtrace.internal.constants import COMPONENT
-from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ...internal.utils import get_argument_value
 from .compat import legacy_pylons

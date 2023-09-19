@@ -22,9 +22,10 @@ try:
 except ImportError:
     _HAS_JSON_MIXIN = False
 
+from wrapt import wrap_function_wrapper as _w
+
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ...contrib.wsgi.wsgi import _DDWSGIMiddlewareBase
 from ...internal.logger import get_logger
