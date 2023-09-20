@@ -5,6 +5,7 @@ from werkzeug.exceptions import NotFound
 from werkzeug.exceptions import abort
 
 from ddtrace.contrib import trace_utils
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.constants import STATUS_403_TYPE_AUTO
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
@@ -516,6 +517,7 @@ def request_patcher(name):
             block_request_callable=_block_request_callable,
             ignored_exception_type=NotFound,
             call_key="flask_request_call",
+            tags={COMPONENT: config.flask.integration_name},
         ) as ctx, ctx.get_item("flask_request_call"):
             return wrapped(*args, **kwargs)
 

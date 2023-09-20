@@ -85,11 +85,7 @@ def _get_parameters_for_new_span_directly_from_context(ctx: core.ExecutionContex
     return ctx["span_name"], span_kwargs
 
 
-def _start_span(
-    ctx: core.ExecutionContext, tags: Optional[Dict[str, str]] = None, call_trace: bool = True, **kwargs
-) -> Span:
-    if tags is None:
-        tags = dict()
+def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> Span:
     span_name, span_kwargs = _get_parameters_for_new_span_directly_from_context(ctx)
     tracer = (ctx.get_item("middleware") or ctx["pin"]).tracer
     if ctx.get_item("activate_distributed_headers", False):
@@ -98,7 +94,7 @@ def _start_span(
         )
     span_kwargs.update(kwargs)
     span = (tracer.trace if call_trace else tracer.start_span)(span_name, **span_kwargs)
-    for tk, tv in tags.items():
+    for tk, tv in ctx.get_item("tags", dict()).items():
         span.set_tag_str(tk, tv)
     ctx.set_item(ctx.get_item("call_key", "call"), span)
     return span
@@ -112,8 +108,8 @@ def _on_traced_request_context_started_flask(ctx):
 
     ctx.set_item("current_span", current_span)
     flask_config = ctx["flask_config"]
-    _set_request_tags(ctx["flask_request"], current_span, flask_config)
-    request_span = _start_span(ctx, tags={COMPONENT: flask_config.integration_name})
+    _set_flask_request_tags(ctx["flask_request"], current_span, flask_config)
+    request_span = _start_span(ctx)
     request_span._ignore_exception(ctx.get_item("ignored_exception_type"))
 
 
@@ -131,7 +127,6 @@ def _maybe_start_http_response_span(ctx: core.ExecutionContext) -> None:
             call_trace=False,
             child_of=ctx["parent_call"],
             activate=True,
-            tags={COMPONENT: middleware._config.integration_name, SPAN_KIND: SpanKind.SERVER},
         )
 
 
@@ -273,7 +268,7 @@ def _on_request_prepared(middleware, req_span, url, request_headers, environ):
         middleware.span_modifier(req_span, environ)
 
 
-def _set_request_tags(request, span, flask_config):
+def _set_flask_request_tags(request, span, flask_config):
     try:
         span.set_tag_str(COMPONENT, flask_config.integration_name)
 
@@ -303,7 +298,7 @@ def _on_start_response_pre(request, ctx, flask_config, status_code, headers):
     span = ctx.get_item("req_span")
     code, _, _ = status_code.partition(" ")
     # If values are accessible, set the resource as `<method> <path>` and add other request tags
-    _set_request_tags(request, span, flask_config)
+    _set_flask_request_tags(request, span, flask_config)
     # Override root span resource name to be `<method> 404` for 404 requests
     # DEV: We do this because we want to make it easier to see all unknown requests together
     #      Also, we do this to reduce the cardinality on unknown urls

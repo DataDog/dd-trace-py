@@ -21,8 +21,11 @@ import wrapt
 
 import ddtrace
 from ddtrace import config
+from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
+from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
@@ -143,6 +146,7 @@ class _DDWSGIMiddlewareBase(object):
             span_type=SpanTypes.WEB,
             service=trace_utils.int_service(None, self._config),
             start_span=False,
+            tags={COMPONENT: self._config.integration_name, SPAN_KIND: SpanKind.SERVER},
             call_key="response_span",
         ):
             return start_response(status, environ, exc_info)
@@ -234,6 +238,7 @@ class DDWSGIMiddleware(_DDWSGIMiddlewareBase):
             span_name="wsgi.start_response",
             service=trace_utils.int_service(None, self._config),
             start_span=True,
+            tags={COMPONENT: self._config.integration_name, SPAN_KIND: SpanKind.SERVER},
             call_key="response_span",
         ) as ctx, ctx.get_item("response_span"):
             return start_response(status, environ, exc_info)
