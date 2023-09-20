@@ -21,6 +21,8 @@ import wrapt
 
 import ddtrace
 from ddtrace import config
+from ddtrace.contrib import trace_utils
+from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
@@ -92,6 +94,11 @@ class _DDWSGIMiddlewareBase(object):
             remote_addr=environ.get("REMOTE_ADDR"),
             headers=headers,
             headers_case_sensitive=True,
+            service=trace_utils.int_service(self._pin, self._config),
+            span_type=SpanTypes.WEB,
+            span_name=(self._request_call_name if hasattr(self, "_request_call_name") else self._request_span_name),
+            middleware_config=self._config,
+            activate_distributed_headers=True,
             environ=environ,
             middleware=self,
         ) as ctx:
