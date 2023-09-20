@@ -6,10 +6,7 @@
 namespace py = pybind11;
 
 TaintRangePtr
-shift_taint_range(const TaintRangePtr& source_taint_range,
-                  long offset,
-                  int max_length = -1,
-                  bool absolute_offset = false)
+reposition_and_limit_taint_range(const TaintRangePtr& source_taint_range, long offset, int max_length)
 {
     int length;
     if (max_length != -1)
@@ -17,15 +14,18 @@ shift_taint_range(const TaintRangePtr& source_taint_range,
     else
         length = source_taint_range->length;
 
-    int start;
-    if (absolute_offset)
-        start = offset;
-    else
-        start = source_taint_range->start + offset;
-
-    auto tptr = initializer->allocate_taint_range(start,                       // start
+    auto tptr = initializer->allocate_taint_range(offset,                      // start
                                                   length,                      // length
                                                   source_taint_range->source); // source
+    return tptr;
+}
+
+TaintRangePtr
+shift_taint_range(const TaintRangePtr& source_taint_range, long offset)
+{
+    auto tptr = initializer->allocate_taint_range(source_taint_range->start + offset, // start
+                                                  source_taint_range->length,         // length
+                                                  source_taint_range->source);        // source
     return tptr;
 }
 
@@ -45,11 +45,11 @@ TaintedObject::add_ranges_shifted(TaintedObjectPtr tainted_object, long offset, 
                     // Make sure original position (orig_offset) is covered by the range
                     if (trange->start <= orig_offset and
                         ((trange->start + trange->length) >= orig_offset + max_length)) {
-                        ranges_.emplace_back(shift_taint_range(trange, offset, max_length, true));
+                        ranges_.emplace_back(reposition_and_limit_taint_range(trange, offset, max_length));
                         i++;
                     }
                 } else {
-                    ranges_.emplace_back(shift_taint_range(trange, offset, max_length));
+                    ranges_.emplace_back(shift_taint_range(trange, offset));
                     i++;
                 }
                 if (i >= to_add) {
