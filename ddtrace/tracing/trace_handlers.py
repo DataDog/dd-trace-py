@@ -84,6 +84,17 @@ def _on_context_started(ctx):
     ctx.set_item("req_span", req_span)
 
 
+def _on_django_context_started(ctx):
+    pin = ctx.get_item("pin")
+    span = pin.tracer.trace(
+        ctx.get_item("span_name"),
+        resource=ctx.get_item("resource"),
+        service=ctx.get_item("service"),
+        span_type=ctx.get_item("span_type"),
+    )
+    ctx.set_item("span", span)
+
+
 def _make_block_content(ctx, construct_url):
     middleware = ctx.get_item("middleware")
     req_span = ctx.get_item("req_span")
@@ -453,3 +464,4 @@ def listen():
     core.on("context.started.flask.jsonify", _on_jsonify_context_started_flask)
     core.on("context.started.flask.render_template", _on_render_template_context_started_flask)
     core.on("context.started.flask.call", _on_function_context_started_flask)
+    core.on("context.started.django.traced_get_response", _on_django_context_started)

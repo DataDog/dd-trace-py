@@ -39,6 +39,7 @@ from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import http as http_utils
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.settings.integration import IntegrationConfig
+from ddtrace.tracing import trace_handlers
 
 from .. import trace_utils
 from ...internal.utils import get_argument_value
@@ -47,6 +48,7 @@ from ..trace_utils import _set_url_tag
 
 
 log = get_logger(__name__)
+trace_handlers.listen()
 
 config._add(
     "django",
@@ -446,103 +448,102 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
         remote_addr=request.META.get("REMOTE_ADDR"),
         headers=request_headers,
         headers_case_sensitive=django.VERSION < (2, 2),
-    ):
-        with pin.tracer.trace(
-            schematize_url_operation("django.request", protocol="http", direction=SpanDirection.INBOUND),
-            resource=utils.REQUEST_DEFAULT_RESOURCE,
-            service=trace_utils.int_service(pin, config.django),
-            span_type=SpanTypes.WEB,
-        ) as span:
-            core.dispatch(
-                "django.traced_get_response.pre",
-                functools.partial(_block_request_callable, request, request_headers, span),
-            )
-            span.set_tag_str(COMPONENT, config.django.integration_name)
+        span_name=schematize_url_operation("django.request", protocol="http", direction=SpanDirection.INBOUND),
+        resource=utils.REQUEST_DEFAULT_RESOURCE,
+        service=trace_utils.int_service(pin, config.django),
+        span_type=SpanTypes.WEB,
+        pin=pin,
+    ) as ctx, ctx.get_item("span") as span:
+        core.dispatch(
+            "django.traced_get_response.pre",
+            functools.partial(_block_request_callable, request, request_headers, span),
+        )
+        span.set_tag_str(COMPONENT, config.django.integration_name)
 
-            # set span.kind to the type of request being performed
-            span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
+        # set span.kind to the type of request being performed
+        span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
 
-            utils._before_request_tags(pin, span, request)
-            span._metrics[SPAN_MEASURED_KEY] = 1
+        utils._before_request_tags(pin, span, request)
+        span._metrics[SPAN_MEASURED_KEY] = 1
 
-            response = None
+        response = None
 
-            def blocked_response():
-                from django.http import HttpResponse
+        def blocked_response():
+            from django.http import HttpResponse
 
-                block_config = core.get_item(HTTP_REQUEST_BLOCKED)
-                desired_type = block_config.get("type", "auto")
-                status = block_config.get("status_code", 403)
-                if desired_type == "none":
-                    response = HttpResponse("", status=status)
-                    location = block_config.get("location", "")
-                    if location:
-                        response["location"] = location
+            block_config = core.get_item(HTTP_REQUEST_BLOCKED)
+            desired_type = block_config.get("type", "auto")
+            status = block_config.get("status_code", 403)
+            if desired_type == "none":
+                response = HttpResponse("", status=status)
+                location = block_config.get("location", "")
+                if location:
+                    response["location"] = location
+            else:
+                if desired_type == "auto":
+                    ctype = "text/html" if "text/html" in request_headers.get("Accept", "").lower() else "text/json"
                 else:
-                    if desired_type == "auto":
-                        ctype = "text/html" if "text/html" in request_headers.get("Accept", "").lower() else "text/json"
-                    else:
-                        ctype = "text/" + desired_type
-                    content = http_utils._get_blocked_template(ctype)
-                    response = HttpResponse(content, content_type=ctype, status=status)
-                    response.content = content
-                utils._after_request_tags(pin, span, request, response)
+                    ctype = "text/" + desired_type
+                content = http_utils._get_blocked_template(ctype)
+                response = HttpResponse(content, content_type=ctype, status=status)
+                response.content = content
+            utils._after_request_tags(pin, span, request, response)
+            return response
+
+        try:
+            # [IP Blocking]
+            if core.get_item(HTTP_REQUEST_BLOCKED):
+                response = blocked_response()
                 return response
 
-            try:
-                # [IP Blocking]
-                if core.get_item(HTTP_REQUEST_BLOCKED):
-                    response = blocked_response()
-                    return response
+            # set context information for [Suspicious Request Blocking]
+            query = request.META.get("QUERY_STRING", "")
+            uri = utils.get_request_uri(request)
+            if uri is not None and query:
+                uri += "?" + query
+            resolver = get_resolver(getattr(request, "urlconf", None))
+            if resolver:
+                try:
+                    path = resolver.resolve(request.path_info).kwargs
+                    log.debug("resolver.pattern %s", path)
+                except Exception:
+                    path = None
+            parsed_query = request.GET
+            body = utils._extract_body(request)
+            trace_utils.set_http_meta(
+                span,
+                config.django,
+                method=request.method,
+                query=query,
+                raw_uri=uri,
+                request_path_params=path,
+                parsed_query=parsed_query,
+                request_body=body,
+                request_cookies=request.COOKIES,
+            )
+            core.dispatch("django.start_response", "Django")
 
-                # set context information for [Suspicious Request Blocking]
-                query = request.META.get("QUERY_STRING", "")
-                uri = utils.get_request_uri(request)
-                if uri is not None and query:
-                    uri += "?" + query
-                resolver = get_resolver(getattr(request, "urlconf", None))
-                if resolver:
-                    try:
-                        path = resolver.resolve(request.path_info).kwargs
-                        log.debug("resolver.pattern %s", path)
-                    except Exception:
-                        path = None
-                parsed_query = request.GET
-                body = utils._extract_body(request)
-                trace_utils.set_http_meta(
-                    span,
-                    config.django,
-                    method=request.method,
-                    query=query,
-                    raw_uri=uri,
-                    request_path_params=path,
-                    parsed_query=parsed_query,
-                    request_body=body,
-                    request_cookies=request.COOKIES,
-                )
-                core.dispatch("django.start_response", "Django")
-
-                if core.get_item(HTTP_REQUEST_BLOCKED):
-                    response = blocked_response()
-                    return response
-
-                response = func(*args, **kwargs)
-
-                if core.get_item(HTTP_REQUEST_BLOCKED):
-                    response = blocked_response()
-                    return response
-
+            if core.get_item(HTTP_REQUEST_BLOCKED):
+                response = blocked_response()
                 return response
-            finally:
-                # DEV: Always set these tags, this is where `span.resource` is set
-                utils._after_request_tags(pin, span, request, response)
-                trace_utils.set_http_meta(span, config.django, route=span.get_tag("http.route"))
-                # if not blocked yet, try blocking rules on response
-                if not core.get_item(HTTP_REQUEST_BLOCKED):
-                    core.dispatch("django.finalize_response", "Django")
-                    if core.get_item(HTTP_REQUEST_BLOCKED):
-                        response = blocked_response()
-                        return response  # noqa: B012
+
+            response = func(*args, **kwargs)
+
+            if core.get_item(HTTP_REQUEST_BLOCKED):
+                response = blocked_response()
+                return response
+
+            return response
+        finally:
+            # DEV: Always set these tags, this is where `span.resource` is set
+            utils._after_request_tags(pin, span, request, response)
+            trace_utils.set_http_meta(span, config.django, route=span.get_tag("http.route"))
+            # if not blocked yet, try blocking rules on response
+            if not core.get_item(HTTP_REQUEST_BLOCKED):
+                core.dispatch("django.finalize_response", "Django")
+                if core.get_item(HTTP_REQUEST_BLOCKED):
+                    response = blocked_response()
+                    return response  # noqa: B012
 
 
 @trace_utils.with_traced_module
