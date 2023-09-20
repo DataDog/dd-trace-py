@@ -294,6 +294,51 @@ class TestOperatorJoinReplacement(object):
         assert len(ranges) == 1
         assert result[ranges[0].start : (ranges[0].start + ranges[0].length)] == "abcde"
 
+    def test_string_join_empty_iterable_joiner_tainted(self):
+        # type: () -> None
+        # Not tainted
+        base_string = "+abcde-"
+        result = mod.do_join_args_kwargs(base_string, "")
+        assert result == ""
+
+        # Tainted joiner
+        tainted_base_string = taint_pyobject(
+            pyobject="+abcde-",
+            source_name="joiner",
+            source_value="foo",
+            source_origin=OriginType.PARAMETER,
+            start=1,
+            len_pyobject=5,
+        )
+        result = mod.do_join_args_kwargs(tainted_base_string, "")
+        assert result == ""
+
+        ranges = get_tainted_ranges(result)
+        assert len(ranges) == 0
+
+    def test_string_join_empty_joiner_arg_tainted(self):
+        # type: () -> None
+        # Not tainted
+        base_string = ""
+        result = mod.do_join_args_kwargs(base_string, "fghi")
+        assert result == "fghi"
+
+        # Tainted iterable
+        tainted_fghi = taint_pyobject(
+            pyobject="fghi",
+            source_name="fghi",
+            source_value="foo",
+            source_origin=OriginType.PARAMETER,
+            start=0,
+            len_pyobject=4,
+        )
+        result = mod.do_join_args_kwargs(base_string, tainted_fghi)
+        assert result == "fghi"
+
+        ranges = get_tainted_ranges(result)
+        assert len(ranges) == 1
+        assert result[ranges[0].start : (ranges[0].start + ranges[0].length)] == "fghi"
+
     def test_string_join_iterable_tainted(self):
         # type: () -> None
         # Not tainted
