@@ -5,6 +5,7 @@ from werkzeug.exceptions import NotFound
 from werkzeug.exceptions import abort
 
 from ddtrace.contrib import trace_utils
+from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.constants import STATUS_403_TYPE_AUTO
@@ -463,7 +464,13 @@ def _build_render_template_wrapper(name):
         if not pin or not pin.enabled():
             return wrapped(*args, **kwargs)
         with core.context_with_data(
-            "flask.render_template", name=name, pin=pin, flask_config=config.flask
+            "flask.render_template",
+            span_name=name,
+            pin=pin,
+            flask_config=config.flask,
+            tags={COMPONENT: config.flask.integration_name},
+            span_type=SpanTypes.TEMPLATE,
+            call_key=[name + ".call", "current_span"],
         ) as ctx, ctx.get_item(name + ".call"):
             return wrapped(*args, **kwargs)
 

@@ -96,7 +96,11 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
     span = (tracer.trace if call_trace else tracer.start_span)(span_name, **span_kwargs)
     for tk, tv in ctx.get_item("tags", dict()).items():
         span.set_tag_str(tk, tv)
-    ctx.set_item(ctx.get_item("call_key", "call"), span)
+    call_keys = ctx.get_item("call_key", "call")
+    if isinstance(call_keys, str):
+        call_keys = [call_keys]
+    for call_key in call_keys:
+        ctx.set_item(call_key, span)
     return span
 
 
@@ -358,14 +362,6 @@ def _on_flask_render(template, flask_config):
         span.set_tag_str("flask.template_name", name)
 
 
-def _on_render_template_context_started_flask(ctx):
-    name = ctx.get_item("name")
-    span = ctx.get_item("pin").tracer.trace(name, span_type=SpanTypes.TEMPLATE)
-    span.set_tag_str(COMPONENT, ctx.get_item("flask_config").integration_name)
-    ctx.set_item(name + ".call", span)
-    ctx.set_item("current_span", span)
-
-
 def _on_request_span_modifier(
     ctx, flask_config, request, environ, _HAS_JSON_MIXIN, flask_version, flask_version_str, exception_type
 ):
@@ -440,10 +436,10 @@ def listen():
     core.on("flask.request_call_modifier.post", _on_request_span_modifier_post)
     core.on("flask.render", _on_flask_render)
     core.on("flask.start_response.blocked", _on_start_response_blocked)
-    core.on("context.started.wsgi.__call__", _start_span)
     core.on("context.started.wsgi.response", _maybe_start_http_response_span)
     core.on("context.started.flask._patched_request", _on_traced_request_context_started_flask)
-    core.on("context.started.flask.jsonify", _start_span)
-    core.on("context.started.flask.render_template", _on_render_template_context_started_flask)
     core.on("context.started.flask.call", _on_function_context_started_flask)
+    core.on("context.started.flask.jsonify", _start_span)
+    core.on("context.started.flask.render_template", _start_span)
+    core.on("context.started.wsgi.__call__", _start_span)
     core.on("context.started.django.traced_get_response", _start_span)
