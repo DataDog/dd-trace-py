@@ -254,12 +254,14 @@ class ExecutionContext:
         finally:
             new_context.end()
 
-    def get_item(self, data_key: str, default: Optional[Any] = None) -> Any:
+    def get_item(self, data_key: str, default: Optional[Any] = None, traverse: Optional[bool] = True) -> Any:
         # NB mimic the behavior of `ddtrace.internal._context` by doing lazy inheritance
         current = self
         while current is not None:
             if data_key in current._data:
                 return current._data.get(data_key)
+            if not traverse:
+                break
             current = current.parent
         return default
 

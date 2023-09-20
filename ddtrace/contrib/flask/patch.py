@@ -4,6 +4,7 @@ from werkzeug.exceptions import BadRequest
 from werkzeug.exceptions import NotFound
 from werkzeug.exceptions import abort
 
+from ddtrace.contrib import trace_utils
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.constants import STATUS_403_TYPE_AUTO
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
@@ -507,12 +508,14 @@ def request_patcher(name):
     def _patched_request(pin, wrapped, instance, args, kwargs):
         with core.context_with_data(
             "flask._patched_request",
-            name=".".join(("flask", name)),
+            span_name=".".join(("flask", name)),
             pin=pin,
+            service=trace_utils.int_service(pin, config.flask, pin),
             flask_config=config.flask,
             flask_request=flask.request,
             block_request_callable=_block_request_callable,
             ignored_exception_type=NotFound,
+            call_key="flask_request_call",
         ) as ctx, ctx.get_item("flask_request_call"):
             return wrapped(*args, **kwargs)
 

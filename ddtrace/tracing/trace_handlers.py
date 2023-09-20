@@ -79,13 +79,15 @@ class _TracedIterable(wrapt.ObjectProxy):
 def _get_parameters_for_new_span_directly_from_context(ctx: core.ExecutionContext) -> Tuple[str, Dict[str, str]]:
     span_kwargs = {}
     for parameter_name in {"span_type", "resource", "service"}:
-        parameter_value = ctx.get_item(parameter_name)
+        parameter_value = ctx.get_item(parameter_name, traverse=False)
         if parameter_value:
             span_kwargs[parameter_name] = parameter_value
     return ctx["span_name"], span_kwargs
 
 
-def _start_span(ctx: core.ExecutionContext, tags: Optional[Dict[str, str]] = None, **kwargs) -> Span:
+def _start_span(
+    ctx: core.ExecutionContext, tags: Optional[Dict[str, str]] = None, call_trace: bool = True, **kwargs
+) -> Span:
     if tags is None:
         tags = dict()
     span_name, span_kwargs = _get_parameters_for_new_span_directly_from_context(ctx)
@@ -95,12 +97,24 @@ def _start_span(ctx: core.ExecutionContext, tags: Optional[Dict[str, str]] = Non
             tracer, int_config=ctx["middleware_config"], request_headers=ctx["environ"]
         )
     span_kwargs.update(kwargs)
-    start_method = tracer.trace if "child_of" not in kwargs else tracer.start_span
-    span = start_method(span_name, **span_kwargs)
+    span = (tracer.trace if call_trace else tracer.start_span)(span_name, **span_kwargs)
     for tk, tv in tags.items():
         span.set_tag_str(tk, tv)
     ctx.set_item(ctx.get_item("call_key", "call"), span)
     return span
+
+
+def _on_traced_request_context_started_flask(ctx):
+    current_span = ctx["pin"].tracer.current_span()
+    if not ctx["pin"].enabled or not current_span:
+        ctx.set_item(ctx["call_key"], nullcontext())
+        return
+
+    ctx.set_item("current_span", current_span)
+    flask_config = ctx["flask_config"]
+    _set_request_tags(ctx["flask_request"], current_span, flask_config)
+    request_span = _start_span(ctx, tags={COMPONENT: flask_config.integration_name})
+    request_span._ignore_exception(ctx.get_item("ignored_exception_type"))
 
 
 def _maybe_start_http_response_span(ctx: core.ExecutionContext) -> None:
@@ -114,6 +128,7 @@ def _maybe_start_http_response_span(ctx: core.ExecutionContext) -> None:
         request_span.set_tag_str(http.STATUS_MSG, status_msg)
         _start_span(
             ctx,
+            call_trace=False,
             child_of=ctx["parent_call"],
             activate=True,
             tags={COMPONENT: middleware._config.integration_name, SPAN_KIND: SpanKind.SERVER},
@@ -317,28 +332,6 @@ def _cookies_from_response_headers(response_headers):
             cookies[cookie_tokens[0]] = cookie_tokens[1]
 
     return cookies
-
-
-def _on_traced_request_context_started_flask(ctx):
-    """
-    trace a Flask function while trying to extract endpoint information (endpoint, url_rule, view_args, etc)
-
-    This wrapper will add identifier tags to the current span from `flask.app.Flask.wsgi_app`.
-    """
-    pin = ctx.get_item("pin")
-    current_span = pin.tracer.current_span()
-    if not pin.enabled or not current_span:
-        ctx.set_item("flask_request_call", nullcontext())
-        return
-
-    ctx.set_item("current_span", current_span)
-    flask_config = ctx.get_item("flask_config")
-    service = trace_utils.int_service(pin, flask_config, pin)
-    _set_request_tags(ctx.get_item("flask_request"), current_span, flask_config)
-    request_span = pin.tracer.trace(ctx.get_item("name"), service=service)
-    ctx.set_item("flask_request_call", request_span)
-    request_span.set_tag_str(COMPONENT, flask_config.integration_name)
-    request_span._ignore_exception(ctx.get_item("ignored_exception_type"))
 
 
 def _on_jsonify_context_started_flask(ctx):
