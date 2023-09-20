@@ -74,25 +74,29 @@ class _TracedIterable(wrapt.ObjectProxy):
 
 def _on_context_started(ctx):
     middleware = ctx.get_item("middleware")
-    environ = ctx.get_item("environ")
-    trace_utils.activate_distributed_headers(middleware.tracer, int_config=middleware._config, request_headers=environ)
-    req_span = middleware.tracer.trace(
-        middleware._request_call_name if hasattr(middleware, "_request_call_name") else middleware._request_span_name,
-        service=trace_utils.int_service(middleware._pin, middleware._config),
-        span_type=SpanTypes.WEB,
-    )
-    ctx.set_item("req_span", req_span)
-
-
-def _on_django_context_started(ctx):
-    pin = ctx.get_item("pin")
-    span = pin.tracer.trace(
-        ctx.get_item("span_name"),
-        resource=ctx.get_item("resource"),
-        service=ctx.get_item("service"),
-        span_type=ctx.get_item("span_type"),
-    )
-    ctx.set_item("span", span)
+    if middleware:
+        environ = ctx.get_item("environ")
+        tracer = middleware.tracer
+        trace_utils.activate_distributed_headers(tracer, int_config=middleware._config, request_headers=environ)
+        service = trace_utils.int_service(middleware._pin, middleware._config)
+        span_type = SpanTypes.WEB
+        span_name = (
+            middleware._request_call_name
+            if hasattr(middleware, "_request_call_name")
+            else middleware._request_span_name
+        )
+        resource = None
+    else:
+        tracer = ctx.get_item("pin").tracer
+        service = ctx.get_item("service")
+        span_name = ctx.get_item("span_name")
+        span_type = ctx.get_item("span_type") or SpanTypes.WEB
+        resource = ctx.get_item("resource")
+    span_kwargs = dict(service=service, span_type=span_type)
+    if resource:
+        span_kwargs["resource"] = resource
+    span = tracer.trace(span_name, **span_kwargs)
+    ctx.set_item("req_span", span)
 
 
 def _make_block_content(ctx, construct_url):
@@ -445,8 +449,6 @@ def _on_function_context_started_flask(ctx):
 
 
 def listen():
-    core.on("context.started.wsgi.__call__", _on_context_started)
-    core.on("context.started.wsgi.response", _on_response_context_started)
     core.on("wsgi.block.started", _make_block_content)
     core.on("wsgi.request.prepare", _on_request_prepare)
     core.on("wsgi.request.prepared", _on_request_prepared)
@@ -460,8 +462,10 @@ def listen():
     core.on("flask.request_call_modifier.post", _on_request_span_modifier_post)
     core.on("flask.render", _on_flask_render)
     core.on("flask.start_response.blocked", _on_start_response_blocked)
+    core.on("context.started.wsgi.__call__", _on_context_started)
+    core.on("context.started.wsgi.response", _on_response_context_started)
     core.on("context.started.flask._patched_request", _on_traced_request_context_started_flask)
     core.on("context.started.flask.jsonify", _on_jsonify_context_started_flask)
     core.on("context.started.flask.render_template", _on_render_template_context_started_flask)
     core.on("context.started.flask.call", _on_function_context_started_flask)
-    core.on("context.started.django.traced_get_response", _on_django_context_started)
+    core.on("context.started.django.traced_get_response", _on_context_started)

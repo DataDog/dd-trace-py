@@ -451,7 +451,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
         service=trace_utils.int_service(pin, config.django),
         span_type=SpanTypes.WEB,
         pin=pin,
-    ) as ctx, ctx.get_item("span") as span:
+    ) as ctx, ctx.get_item("req_span") as span:
         core.dispatch(
             "django.traced_get_response.pre",
             functools.partial(_block_request_callable, request, request_headers, span),
