@@ -6,24 +6,24 @@ from mock.mock import ANY
 import pytest
 
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec.iast._utils import _is_python_version_supported as python_supported_by_iast
-from ddtrace.appsec.iast.constants import VULN_CMDI
-from ddtrace.appsec.iast.reporter import Evidence
-from ddtrace.appsec.iast.reporter import IastSpanReporter
-from ddtrace.appsec.iast.reporter import Location
-from ddtrace.appsec.iast.reporter import Source
-from ddtrace.appsec.iast.reporter import Vulnerability
-from ddtrace.appsec.iast.taint_sinks.command_injection import CommandInjection
+from ddtrace.appsec._iast._utils import _is_python_version_supported as python_supported_by_iast
+from ddtrace.appsec._iast.constants import VULN_CMDI
+from ddtrace.appsec._iast.reporter import Evidence
+from ddtrace.appsec._iast.reporter import IastSpanReporter
+from ddtrace.appsec._iast.reporter import Location
+from ddtrace.appsec._iast.reporter import Source
+from ddtrace.appsec._iast.reporter import Vulnerability
+from ddtrace.appsec._iast.taint_sinks.command_injection import CommandInjection
 from ddtrace.internal import core
 
 
 if python_supported_by_iast():
-    from ddtrace.appsec.iast._taint_tracking import OriginType
-    from ddtrace.appsec.iast._taint_tracking import Source as RangeSource
-    from ddtrace.appsec.iast._taint_tracking import TaintRange
-    from ddtrace.appsec.iast._taint_tracking import new_pyobject_id
-    from ddtrace.appsec.iast._taint_tracking import set_ranges
-    from ddtrace.appsec.iast._taint_tracking import str_to_origin
+    from ddtrace.appsec._iast._taint_tracking import OriginType
+    from ddtrace.appsec._iast._taint_tracking import Source as RangeSource
+    from ddtrace.appsec._iast._taint_tracking import TaintRange
+    from ddtrace.appsec._iast._taint_tracking import new_pyobject_id
+    from ddtrace.appsec._iast._taint_tracking import set_ranges
+    from ddtrace.appsec._iast._taint_tracking import str_to_origin
 
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))

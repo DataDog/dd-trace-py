@@ -29,15 +29,15 @@ class ActiveBatchJsonEncoder(MockLogsIntakeUploaderV1):
         )
 
     def on_full(self, item, encoded):
-        self.upload()
+        self.periodic()
 
 
 def test_uploader_batching():
-    with ActiveBatchJsonEncoder(interval=0.1) as uploader:
+    with ActiveBatchJsonEncoder(interval=float("inf")) as uploader:
         for _ in range(5):
             uploader._encoder.put("hello")
             uploader._encoder.put("world")
-            uploader.awake()
+            uploader.periodic()
 
         for _ in range(5):
             assert uploader.queue.get(timeout=1) == "[hello,world]", "iteration %d" % _
@@ -46,7 +46,7 @@ def test_uploader_batching():
 @pytest.mark.xfail(condition=PY2, reason="This test is flaky on Python 2")
 def test_uploader_full_buffer():
     size = 1 << 8
-    with ActiveBatchJsonEncoder(size=size, interval=0.1) as uploader:
+    with ActiveBatchJsonEncoder(size=size, interval=float("inf")) as uploader:
         item = "hello" * 10
         n = size // len(item)
         assert n
@@ -60,5 +60,5 @@ def test_uploader_full_buffer():
         assert uploader.queue.qsize() == 0
 
         # wakeup to mimic next interval
-        uploader.awake()
+        uploader.periodic()
         assert uploader.queue.qsize() == 0
