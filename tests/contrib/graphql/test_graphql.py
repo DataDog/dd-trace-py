@@ -116,10 +116,10 @@ def test_graphql_v2_with_document(test_schema, test_source_str):
 
 
 @snapshot()
-def test_graphql_with_document_with_no_location(test_schema, test_source_str, test_middleware):
+def test_graphql_with_document_with_no_location(test_schema, test_source_str):
     source = graphql.language.source.Source(test_source_str, "GraphQL request")
     document_ast = graphql.language.parser.parse(source, no_location=True)
-    result = graphql.execute(test_schema, document_ast, middleware=[test_middleware])
+    result = graphql.execute(test_schema, document_ast)
     assert result.data == {"hello": "friend"}
 
 
