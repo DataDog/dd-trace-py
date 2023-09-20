@@ -1,13 +1,11 @@
 [[
   {
     "name": "langchain.request",
-    "service": "",
+    "service": null,
     "resource": "langchain.chains.sequential.SequentialChain",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
-    "type": "",
-    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "langchain.request.inputs.style": "a 90s rapper",
@@ -36,13 +34,11 @@
   },
      {
        "name": "langchain.request",
-       "service": "",
+       "service": null,
        "resource": "langchain.chains.transform.TransformChain",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
-       "type": "",
-       "error": 0,
        "meta": {
          "langchain.request.inputs.style": "a 90s rapper",
          "langchain.request.inputs.text": "\\n        Chains allow us to combine multiple\\n\\n\\n        components together to create a single, coherent application.\\n\\n    ...",
@@ -58,13 +54,11 @@
      },
      {
        "name": "langchain.request",
-       "service": "",
+       "service": null,
        "resource": "langchain.chains.llm.LLMChain",
        "trace_id": 0,
        "span_id": 3,
        "parent_id": 1,
-       "type": "",
-       "error": 0,
        "meta": {
          "langchain.request.inputs.output_text": "\\n Chains allow us to combine multiple\\n components together to create a single, coherent application.\\n For example, we can cre...",
          "langchain.request.inputs.style": "a 90s rapper",
@@ -86,13 +80,11 @@
      },
         {
           "name": "langchain.request",
-          "service": "",
+          "service": null,
           "resource": "langchain.llms.openai.OpenAI",
           "trace_id": 0,
           "span_id": 4,
           "parent_id": 3,
-          "type": "",
-          "error": 0,
           "meta": {
             "langchain.request.api_key": "...key>",
             "langchain.request.model": "text-davinci-003",

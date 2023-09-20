@@ -78,7 +78,7 @@ commands:
     description: "Install riot"
     steps:
       # Make sure we install and run riot on Python 3
-      - run: pip3 install riot==0.17.7
+      - run: pip3 install riot==0.19.0
 
   setup_hatch:
     description: "Install hatch"
@@ -449,12 +449,12 @@ jobs:
       - run_test:
           pattern: 'vendor'
 
-  boto:
+  botocore:
     <<: *machine_executor
     parallelism: 6
     steps:
       - run_test:
-          pattern: '^boto'  # run boto and botocore
+          pattern: 'botocore'
           snapshot: true
           docker_services: "localstack"
 
@@ -492,16 +492,6 @@ jobs:
           pattern: 'asyncpg'
           snapshot: true
           docker_services: 'postgres'
-
-  pylons:
-    <<: *contrib_job_small
-    docker:
-      - image: *ddtrace_dev_image
-      - *testagent
-    steps:
-      - run_test:
-          pattern: 'pylons'
-          trace_agent_url: "http://localhost:8126"
 
   aiohttp:
     <<: *machine_executor
