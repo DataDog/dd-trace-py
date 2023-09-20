@@ -326,10 +326,11 @@ def _set_test_xpass_xfail_result(test_item, result):
         return
     span.set_tag_str(test.RESULT, result)
     status = span.get_tag(test.STATUS)
-    if status == test.Status.PASS.value:
-        span.set_tag_str(test.STATUS, test.Status.FAIL.value)
-    elif status == test.Status.FAIL.value:
-        span.set_tag_str(test.STATUS, test.Status.PASS.value)
+    if result == test.Status.XFAIL.value:
+        if status == test.Status.PASS.value:
+            span.set_tag_str(test.STATUS, test.Status.FAIL.value)
+        elif status == test.Status.FAIL.value:
+            span.set_tag_str(test.STATUS, test.Status.PASS.value)
 
 
 def add_success_test_wrapper(func, instance, args, kwargs):

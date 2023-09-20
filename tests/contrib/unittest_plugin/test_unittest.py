@@ -822,8 +822,8 @@ class UnittestTestCase(TracerTestCase):
                 assert spans[i].get_tag(SUITE_ID) == expected_result[i].get(SUITE_ID, None)
                 assert spans[i].get_tag(test.FRAMEWORK_VERSION) == _get_runtime_and_os_metadata()[RUNTIME_VERSION]
 
-        def test_unittest_nested_empty_test_cases(self):
-            """Test with `unittest` test cases which pass, get skipped, fail and are empty."""
+        def test_unittest_xfail_xpass(self):
+            """Test with `unittest` test cases which pass, get skipped, xfail and xpass"""
             _set_tracer(self.tracer)
 
             class UnittestExampleTestCase(unittest.TestCase):
@@ -845,7 +845,16 @@ class UnittestTestCase(TracerTestCase):
                         self.assertFalse("not equal to" == "this")
 
                 class SubTest2(unittest.TestCase):
-                    def invalid_function(self):
+                    @unittest.expectedFailure
+                    def test_subtest2_will_xfail(self):
+                        int("hello")
+
+                    @unittest.expectedFailure
+                    def test_subtest2_will_not_xfail(self):
+                        int("3")
+
+                    @unittest.skip("another skip reason for subtest2")
+                    def test_subtest2_will_be_skipped_with_a_reason(self):
                         self.assertTrue(2 == 2)
                         self.assertTrue("test string" == "test string")
                         self.assertFalse("not equal to" == "this")
@@ -855,11 +864,12 @@ class UnittestTestCase(TracerTestCase):
             unittest.TextTestRunner(verbosity=0).run(suite)
 
             spans = self.pop_spans()
-            assert len(spans) == 6
+            assert len(spans) == 10
 
             test_session_span = spans[0]
             test_module_span = spans[1]
             test_suite_span_subtest_1 = spans[2]
+            test_suite_span_subtest_2 = spans[6]
 
             expected_result = [
                 {
@@ -909,6 +919,43 @@ class UnittestTestCase(TracerTestCase):
                     SUITE_ID: str(test_suite_span_subtest_1.span_id),
                     test.MODULE: "tests.contrib.unittest_plugin.test_unittest",
                 },
+                {
+                    "name": SUITE_OPERATION_NAME,
+                    test.TEST_STATUS: test.Status.FAIL.value,
+                    test.SUITE: "SubTest2",
+                    MODULE_ID: str(test_module_span.span_id),
+                    SUITE_ID: str(test_suite_span_subtest_2.span_id),
+                },
+                {
+                    "name": TEST_OPERATION_NAME,
+                    test.NAME: "test_subtest2_will_be_skipped_with_a_reason",
+                    test.TEST_STATUS: test.Status.SKIP.value,
+                    test.SKIP_REASON: "another skip reason for subtest2",
+                    test.SUITE: "SubTest2",
+                    MODULE_ID: str(test_module_span.span_id),
+                    SUITE_ID: str(test_suite_span_subtest_2.span_id),
+                    test.MODULE: "tests.contrib.unittest_plugin.test_unittest",
+                },
+                {
+                    "name": TEST_OPERATION_NAME,
+                    test.NAME: "test_subtest2_will_not_xfail",
+                    test.TEST_STATUS: test.Status.FAIL.value,
+                    test.RESULT: test.Status.XPASS.value,
+                    test.SUITE: "SubTest2",
+                    MODULE_ID: str(test_module_span.span_id),
+                    SUITE_ID: str(test_suite_span_subtest_2.span_id),
+                    test.MODULE: "tests.contrib.unittest_plugin.test_unittest",
+                },
+                {
+                    "name": TEST_OPERATION_NAME,
+                    test.NAME: "test_subtest2_will_xfail",
+                    test.TEST_STATUS: test.Status.PASS.value,
+                    test.RESULT: test.Status.XFAIL.value,
+                    test.SUITE: "SubTest2",
+                    MODULE_ID: str(test_module_span.span_id),
+                    SUITE_ID: str(test_suite_span_subtest_2.span_id),
+                    test.MODULE: "tests.contrib.unittest_plugin.test_unittest",
+                },
             ]
 
             for i in range(len(spans)):
@@ -920,6 +967,7 @@ class UnittestTestCase(TracerTestCase):
                 assert spans[i].get_tag(test.COMMAND) == "python -m unittest"
                 assert spans[i].get_tag(test.NAME) == expected_result[i].get(test.NAME, None)
                 assert spans[i].get_tag(test.TEST_STATUS) == expected_result[i].get(test.TEST_STATUS, None)
+                assert spans[i].get_tag(test.TEST_RESULT) == expected_result[i].get(test.TEST_RESULT, None)
                 assert spans[i].get_tag(test.SKIP_REASON) == expected_result[i].get(test.SKIP_REASON, None)
                 assert spans[i].get_tag(test.SUITE) == expected_result[i].get(test.SUITE, None)
                 assert spans[i].get_tag(ERROR_MSG) == expected_result[i].get(ERROR_MSG, None)
