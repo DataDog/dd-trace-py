@@ -115,6 +115,14 @@ def test_graphql_v2_with_document(test_schema, test_source_str):
     assert result.data == {"hello": "friend"}
 
 
+@snapshot()
+def test_graphql_with_document_with_no_location(test_schema, test_source_str, test_middleware):
+    source = graphql.language.source.Source(test_source_str, "GraphQL request")
+    document_ast = graphql.language.parser.parse(source, no_location=True)
+    result = graphql.execute(test_schema, document_ast, middleware=[test_middleware])
+    assert result.data == {"hello": "friend"}
+
+
 @snapshot(token_override="tests.contrib.graphql.test_graphql.test_graphql")
 @pytest.mark.skipif(graphql_version < (3, 0), reason="graphql.graphql_sync is NOT suppoerted in v2.0")
 def test_graphql_sync(test_schema, test_source_str):
