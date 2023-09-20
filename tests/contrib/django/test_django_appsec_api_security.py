@@ -50,7 +50,7 @@ def test_api_security(client, test_spans, tracer):
     import django
 
     with override_global_config(dict(_appsec_enabled=True, _api_security_enabled=True)), override_env(
-        {_constants.API_SECURITY.INTERVAL_PER_ROUTE: "0.0"}
+        {_constants.API_SECURITY.SAMPLE_RATE: "1.0"}
     ):
         payload = {"key": "secret", "ids": [0, 1, 2, 3]}
         root_span, response = _aux_appsec_get_root_span(
@@ -125,7 +125,7 @@ def test_api_security_with_srb(client, test_spans, tracer):
     """Test if srb is still working as expected with api security activated"""
 
     with override_global_config(dict(_appsec_enabled=True, _api_security_enabled=True)), override_env(
-        {_constants.API_SECURITY.INTERVAL_PER_ROUTE: "0.0", "DD_APPSEC_RULES": RULES_SRB}
+        {_constants.API_SECURITY.SAMPLE_RATE: "1.0", "DD_APPSEC_RULES": RULES_SRB}
     ):
         payload = {"key": "secret", "ids": [0, 1, 2, 3]}
         root_span, response = _aux_appsec_get_root_span(
@@ -166,7 +166,7 @@ def test_api_security_deactivated(client, test_spans, tracer):
     """Test if blocking is still working as expected with api security deactivated"""
 
     with override_global_config(dict(_appsec_enabled=True, _api_security_enabled=False)), override_env(
-        {_constants.API_SECURITY.INTERVAL_PER_ROUTE: "0.0", "DD_APPSEC_RULES": RULES_SRB}
+        {_constants.API_SECURITY.SAMPLE_RATE: "1.0", "DD_APPSEC_RULES": RULES_SRB}
     ):
         payload = {"key": "secret", "ids": [0, 1, 2, 3]}
         root_span, response = _aux_appsec_get_root_span(
