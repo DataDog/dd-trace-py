@@ -280,11 +280,11 @@ def test_metrics():
     from tests.integration.test_integration import _test_metrics
     from tests.utils import AnyInt
 
-    assert t._partial_flush_min_spans == 500
+    assert t._partial_flush_min_spans == 300
     _test_metrics(
         t,
         http_sent_bytes=AnyInt(),
-        http_sent_traces=30,
+        http_sent_traces=50,
         writer_accepted_traces=30,
         buffer_accepted_traces=30,
         buffer_accepted_spans=15000,
@@ -647,8 +647,8 @@ def test_writer_configured_correctly_from_env():
 def test_writer_configured_correctly_from_env_defaults():
     import ddtrace
 
-    assert ddtrace.tracer._writer._encoder.max_size == 8 << 20
-    assert ddtrace.tracer._writer._encoder.max_item_size == 8 << 20
+    assert ddtrace.tracer._writer._encoder.max_size == 20 << 20
+    assert ddtrace.tracer._writer._encoder.max_item_size == 20 << 20
     assert ddtrace.tracer._writer._interval == 1.0
 
 
@@ -676,8 +676,8 @@ def test_writer_configured_correctly_from_env_defaults_under_ddtrace_run(ddtrace
         """
 import ddtrace
 
-assert ddtrace.tracer._writer._encoder.max_size == 8 << 20
-assert ddtrace.tracer._writer._encoder.max_item_size == 8 << 20
+assert ddtrace.tracer._writer._encoder.max_size == 20 << 20
+assert ddtrace.tracer._writer._encoder.max_item_size == 20 << 20
 assert ddtrace.tracer._writer._interval == 1.0
 """,
     )

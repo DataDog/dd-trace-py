@@ -225,7 +225,7 @@ class AgentWriterTests(BaseTestCase):
             for i in range(10):
                 writer.write([Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
             writer.write(
-                [Span(name="a" * 5000, trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(2 ** 10)]
+                [Span(name="a" * 5000 * i, trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(2 ** 10)]
             )
             writer.stop()
             writer.join()
