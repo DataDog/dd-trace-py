@@ -82,39 +82,39 @@ def _get_parameters_for_new_span_directly_from_context(ctx: core.ExecutionContex
         parameter_value = ctx.get_item(parameter_name)
         if parameter_value:
             span_kwargs[parameter_name] = parameter_value
-    return ctx.get_item("span_name"), span_kwargs
+    return ctx["span_name"], span_kwargs
 
 
 def _start_span(ctx: core.ExecutionContext, tags: Optional[Dict[str, str]] = None, **kwargs) -> Span:
     if tags is None:
         tags = dict()
     span_name, span_kwargs = _get_parameters_for_new_span_directly_from_context(ctx)
-    tracer = (ctx.get_item("middleware") or ctx.get_item("pin")).tracer
-    if bool(ctx.get_item("activate_distributed_headers")):
+    tracer = (ctx.get_item("middleware") or ctx["pin"]).tracer
+    if ctx.get_item("activate_distributed_headers", False):
         trace_utils.activate_distributed_headers(
-            tracer, int_config=ctx.get_item("middleware_config"), request_headers=ctx.get_item("environ")
+            tracer, int_config=ctx["middleware_config"], request_headers=ctx["environ"]
         )
     span_kwargs.update(kwargs)
     start_method = tracer.trace if "child_of" not in kwargs else tracer.start_span
     span = start_method(span_name, **span_kwargs)
     for tk, tv in tags.items():
         span.set_tag_str(tk, tv)
-    ctx.set_item(ctx.get_item("call_key") or "call", span)
+    ctx.set_item(ctx.get_item("call_key", "call"), span)
     return span
 
 
 def _maybe_start_http_response_span(ctx: core.ExecutionContext) -> None:
-    request_span = ctx.get_item("request_span")
-    middleware = ctx.get_item("middleware")
-    status_code, status_msg = ctx.get_item("status").split(" ", 1)
+    request_span = ctx["request_span"]
+    middleware = ctx["middleware"]
+    status_code, status_msg = ctx["status"].split(" ", 1)
     trace_utils.set_http_meta(
-        request_span, middleware._config, status_code=status_code, response_headers=ctx.get_item("environ")
+        request_span, middleware._config, status_code=status_code, response_headers=ctx["environ"]
     )
-    if ctx.get_item("start_span"):
+    if ctx.get_item("start_span", False):
         request_span.set_tag_str(http.STATUS_MSG, status_msg)
         _start_span(
             ctx,
-            child_of=ctx.get_item("parent_call"),
+            child_of=ctx["parent_call"],
             activate=True,
             tags={COMPONENT: middleware._config.integration_name, SPAN_KIND: SpanKind.SERVER},
         )
