@@ -101,6 +101,7 @@ class _DDWSGIMiddlewareBase(object):
             activate_distributed_headers=True,
             environ=environ,
             middleware=self,
+            call_key="req_span",
         ) as ctx:
             if core.get_item(HTTP_REQUEST_BLOCKED):
                 status, headers, content = core.dispatch("wsgi.block.started", ctx, construct_url)[0][0]
@@ -134,12 +135,15 @@ class _DDWSGIMiddlewareBase(object):
         """sets the status code on a request span when start_response is called"""
         with core.context_with_data(
             "wsgi.response",
-            middleware=self,
+            middleware_config=self._config,
             request_span=request_span,
             app_span=app_span,
             status=status,
             environ=environ,
+            span_type=SpanTypes.WEB,
+            service=trace_utils.int_service(None, self._config),
             start_span=False,
+            call_key="response_span",
         ):
             return start_response(status, environ, exc_info)
 
@@ -221,12 +225,16 @@ class DDWSGIMiddleware(_DDWSGIMiddlewareBase):
     def _traced_start_response(self, start_response, request_span, app_span, status, environ, exc_info=None):
         with core.context_with_data(
             "wsgi.response",
-            middleware=self,
+            middleware_config=self._config,
             request_span=request_span,
             app_span=app_span,
             status=status,
             environ=environ,
+            span_type=SpanTypes.WEB,
+            span_name="wsgi.start_response",
+            service=trace_utils.int_service(None, self._config),
             start_span=True,
+            call_key="response_span",
         ) as ctx, ctx.get_item("response_span"):
             return start_response(status, environ, exc_info)
 

@@ -1,11 +1,12 @@
 import functools
 import sys
 from typing import Dict
-from typing import Set
+from typing import Optional
 from typing import Tuple
 
 import wrapt
 
+from ddtrace import Span
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
@@ -84,14 +85,37 @@ def _get_parameters_for_new_span_directly_from_context(ctx: core.ExecutionContex
     return ctx.get_item("span_name"), span_kwargs
 
 
-def _start_span(ctx: core.ExecutionContext) -> None:
+def _start_span(ctx: core.ExecutionContext, tags: Optional[Dict[str, str]] = None, **kwargs) -> Span:
+    if tags is None:
+        tags = dict()
     span_name, span_kwargs = _get_parameters_for_new_span_directly_from_context(ctx)
     tracer = (ctx.get_item("middleware") or ctx.get_item("pin")).tracer
     if bool(ctx.get_item("activate_distributed_headers")):
         trace_utils.activate_distributed_headers(
             tracer, int_config=ctx.get_item("middleware_config"), request_headers=ctx.get_item("environ")
         )
-    ctx.set_item("req_span", tracer.trace(span_name, **span_kwargs))
+    span_kwargs.update(kwargs)
+    span = tracer.trace(span_name, **span_kwargs)
+    for tk, tv in tags.items():
+        span.set_tag_str(tk, tv)
+    ctx.set_item(ctx.get_item("call_key") or "call", span)
+    return span
+
+
+def _on_response_context_started(ctx):
+    request_span = ctx.get_item("request_span")
+    _config = ctx.get_item("middleware_config")
+    environ = ctx.get_item("environ")
+    status_code, status_msg = ctx.get_item("status").split(" ", 1)
+    trace_utils.set_http_meta(request_span, _config, status_code=status_code, response_headers=environ)
+    if bool(ctx.get_item("start_span")):
+        request_span.set_tag_str(http.STATUS_MSG, status_msg)
+        _start_span(
+            ctx,
+            child_of=ctx.get_item("app_span"),
+            activate=True,
+            tags={COMPONENT: _config.integration_name, SPAN_KIND: SpanKind.SERVER},
+        )
 
 
 def _make_block_content(ctx, construct_url):
@@ -213,31 +237,6 @@ def _on_request_complete(ctx, closing_iterator):
     modifier(resp_span, closing_iterator)
 
     return _TracedIterable(iter(closing_iterator), resp_span, req_span)
-
-
-def _on_response_context_started(ctx):
-    status = ctx.get_item("status")
-    request_span = ctx.get_item("request_span")
-    middleware = ctx.get_item("middleware")
-    environ = ctx.get_item("environ")
-    start_span = ctx.get_item("start_span")
-    app_span = ctx.get_item("app_span")
-    status_code, status_msg = status.split(" ", 1)
-    trace_utils.set_http_meta(request_span, middleware._config, status_code=status_code, response_headers=environ)
-    if start_span:
-        request_span.set_tag_str(http.STATUS_MSG, status_msg)
-
-        span = middleware.tracer.start_span(
-            "wsgi.start_response",
-            child_of=app_span,
-            service=trace_utils.int_service(None, middleware._config),
-            span_type=SpanTypes.WEB,
-            activate=True,
-        )
-        span.set_tag_str(COMPONENT, middleware._config.integration_name)
-        # set span.kind to the type of operation being performed
-        span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
-        ctx.set_item("response_span", span)
 
 
 def _on_response_prepared(resp_span, response):
