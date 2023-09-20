@@ -6,6 +6,5 @@ build:
   commands:
     - git fetch --unshallow || true
     - pip install -U pip hatch
-    - echo $PWD
     - hatch -v run docs:build
     - mv docs/_build $READTHEDOCS_OUTPUT
