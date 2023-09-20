@@ -6,5 +6,5 @@ build:
   commands:
     - git fetch --unshallow || true
     - pip install hatch==1.7.0 hatch-containers==0.7.0
-    - hatch -v run docs:build
+    - hatch -v run docs:sphinx-build -W -b html docs docs/_build/html
     - mv docs/_build $READTHEDOCS_OUTPUT
