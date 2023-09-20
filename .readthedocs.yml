@@ -5,6 +5,6 @@ build:
     python: "3.10"
   commands:
     - git fetch --unshallow || true
-    - pip install -U pip hatch
+    - pip install hatch
     - hatch -v run docs:build
     - mv docs/_build $READTHEDOCS_OUTPUT
