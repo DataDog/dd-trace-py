@@ -329,12 +329,6 @@ def _cookies_from_response_headers(response_headers):
     return cookies
 
 
-def _on_jsonify_context_started_flask(ctx):
-    span = ctx.get_item("pin").tracer.trace(ctx.get_item("name"))
-    span.set_tag_str(COMPONENT, ctx.get_item("flask_config").integration_name)
-    ctx.set_item("flask_jsonify_call", span)
-
-
 def _on_flask_blocked_request(span):
     span.set_tag_str(http.STATUS_CODE, "403")
     request = core.get_item("flask_request")
@@ -449,7 +443,7 @@ def listen():
     core.on("context.started.wsgi.__call__", _start_span)
     core.on("context.started.wsgi.response", _maybe_start_http_response_span)
     core.on("context.started.flask._patched_request", _on_traced_request_context_started_flask)
-    core.on("context.started.flask.jsonify", _on_jsonify_context_started_flask)
+    core.on("context.started.flask.jsonify", _start_span)
     core.on("context.started.flask.render_template", _on_render_template_context_started_flask)
     core.on("context.started.flask.call", _on_function_context_started_flask)
     core.on("context.started.django.traced_get_response", _start_span)
