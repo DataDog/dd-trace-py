@@ -26,7 +26,6 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.propagation._utils import from_wsgi_header
 from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.tracing import trace_handlers
 
 from ...internal import core
 
@@ -34,8 +33,6 @@ from ...internal import core
 log = get_logger(__name__)
 
 propagator = HTTPPropagator
-
-trace_handlers.listen()
 
 config._add(
     "wsgi",

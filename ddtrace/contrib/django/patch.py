@@ -39,7 +39,6 @@ from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import http as http_utils
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.settings.integration import IntegrationConfig
-from ddtrace.tracing import trace_handlers
 
 from .. import trace_utils
 from ...internal.utils import get_argument_value
@@ -48,7 +47,6 @@ from ..trace_utils import _set_url_tag
 
 
 log = get_logger(__name__)
-trace_handlers.listen()
 
 config._add(
     "django",
