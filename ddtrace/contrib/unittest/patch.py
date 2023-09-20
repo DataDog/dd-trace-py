@@ -2,6 +2,8 @@ import inspect
 import os
 import unittest
 
+import wrapt
+
 import ddtrace
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
@@ -27,7 +29,6 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
-from ddtrace.vendor import wrapt
 
 
 log = get_logger(__name__)

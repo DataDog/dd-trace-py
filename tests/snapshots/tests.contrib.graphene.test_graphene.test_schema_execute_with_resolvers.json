@@ -7,7 +7,6 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "graphql",
-    "error": 0,
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
@@ -16,7 +15,6 @@
       "runtime-id": "bd29f6239b6740229c13f18d5b0d3f74"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
@@ -34,10 +32,8 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "graphql",
-       "error": 0,
        "meta": {
          "_dd.base_service": "",
-         "_dd.p.dm": "-0",
          "component": "graphql",
          "graphql.source": "{ patron { id name age } }"
        },
@@ -52,10 +48,8 @@
        "span_id": 3,
        "parent_id": 1,
        "type": "graphql",
-       "error": 0,
        "meta": {
          "_dd.base_service": "",
-         "_dd.p.dm": "-0",
          "component": "graphql",
          "graphql.source": "{ patron { id name age } }"
        },
@@ -70,10 +64,8 @@
        "span_id": 4,
        "parent_id": 1,
        "type": "graphql",
-       "error": 0,
        "meta": {
          "_dd.base_service": "",
-         "_dd.p.dm": "-0",
          "component": "graphql",
          "graphql.operation.type": "query",
          "graphql.source": "{ patron { id name age } }"
@@ -92,10 +84,8 @@
           "span_id": 5,
           "parent_id": 4,
           "type": "graphql",
-          "error": 0,
           "meta": {
             "_dd.base_service": "",
-            "_dd.p.dm": "-0",
             "component": "graphql"
           },
           "duration": 20750,
@@ -109,10 +99,8 @@
           "span_id": 6,
           "parent_id": 4,
           "type": "graphql",
-          "error": 0,
           "meta": {
             "_dd.base_service": "",
-            "_dd.p.dm": "-0",
             "component": "graphql"
           },
           "duration": 18750,
@@ -126,10 +114,8 @@
           "span_id": 7,
           "parent_id": 4,
           "type": "graphql",
-          "error": 0,
           "meta": {
             "_dd.base_service": "",
-            "_dd.p.dm": "-0",
             "component": "graphql"
           },
           "duration": 17541,
@@ -143,10 +129,8 @@
           "span_id": 8,
           "parent_id": 4,
           "type": "graphql",
-          "error": 0,
           "meta": {
             "_dd.base_service": "",
-            "_dd.p.dm": "-0",
             "component": "graphql"
           },
           "duration": 16750,

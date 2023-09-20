@@ -2,6 +2,7 @@ import asyncio
 
 from aiopg import __version__
 from aiopg.utils import _ContextManager
+import wrapt
 
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -11,13 +12,11 @@ from ddtrace.contrib import dbapi
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
-from ddtrace.ext import sql
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.pin import Pin
-from ddtrace.vendor import wrapt
 
 
 AIOPG_VERSION = parse_version(__version__)
@@ -47,7 +46,6 @@ class AIOTracedCursor(wrapt.ObjectProxy):
             s.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
             s.set_tag(SPAN_MEASURED_KEY)
-            s.set_tag_str(sql.QUERY, resource)
             s.set_tags(pin.tags)
             s.set_tags(extra_tags)
 

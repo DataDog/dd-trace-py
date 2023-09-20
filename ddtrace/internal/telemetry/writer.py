@@ -35,10 +35,14 @@ from ..utils.time import StopWatch
 from ..utils.version import _pep440_to_semver
 from .constants import TELEMETRY_128_BIT_TRACEID_GENERATION_ENABLED
 from .constants import TELEMETRY_128_BIT_TRACEID_LOGGING_ENABLED
+from .constants import TELEMETRY_AGENT_HOST
+from .constants import TELEMETRY_AGENT_PORT
+from .constants import TELEMETRY_AGENT_URL
 from .constants import TELEMETRY_ANALYTICS_ENABLED
 from .constants import TELEMETRY_ASM_ENABLED
-from .constants import TELEMETRY_CALL_BASIC_CONFIG
 from .constants import TELEMETRY_CLIENT_IP_ENABLED
+from .constants import TELEMETRY_DOGSTATSD_PORT
+from .constants import TELEMETRY_DOGSTATSD_URL
 from .constants import TELEMETRY_DSM_ENABLED
 from .constants import TELEMETRY_DYNAMIC_INSTRUMENTATION_ENABLED
 from .constants import TELEMETRY_ENABLED
@@ -46,6 +50,9 @@ from .constants import TELEMETRY_EXCEPTION_DEBUGGING_ENABLED
 from .constants import TELEMETRY_LOGS_INJECTION_ENABLED
 from .constants import TELEMETRY_OBFUSCATION_QUERY_STRING_PATTERN
 from .constants import TELEMETRY_OTEL_ENABLED
+from .constants import TELEMETRY_PARTIAL_FLUSH_ENABLED
+from .constants import TELEMETRY_PARTIAL_FLUSH_MIN_SPANS
+from .constants import TELEMETRY_PRIORITY_SAMPLING
 from .constants import TELEMETRY_PROFILING_ENABLED
 from .constants import TELEMETRY_PROPAGATION_STYLE_EXTRACT
 from .constants import TELEMETRY_PROPAGATION_STYLE_INJECT
@@ -56,6 +63,7 @@ from .constants import TELEMETRY_SERVICE_MAPPING
 from .constants import TELEMETRY_SPAN_SAMPLING_RULES
 from .constants import TELEMETRY_SPAN_SAMPLING_RULES_FILE
 from .constants import TELEMETRY_STARTUP_LOGS_ENABLED
+from .constants import TELEMETRY_TRACE_AGENT_TIMEOUT_SECONDS
 from .constants import TELEMETRY_TRACE_API_VERSION
 from .constants import TELEMETRY_TRACE_COMPUTE_STATS
 from .constants import TELEMETRY_TRACE_DEBUG
@@ -208,7 +216,6 @@ class TelemetryWriter(PeriodicService):
 
         if self._is_periodic:
             self.start()
-            atexit.register(self.app_shutdown)
             return True
 
         self.status = ServiceStatus.RUNNING
@@ -223,7 +230,6 @@ class TelemetryWriter(PeriodicService):
         self._disabled = True
         self.reset_queues()
         if self._is_periodic and self.status is ServiceStatus.RUNNING:
-            atexit.unregister(self.stop)
             self.stop()
         else:
             self.status = ServiceStatus.STOPPED
@@ -283,19 +289,22 @@ class TelemetryWriter(PeriodicService):
             msg = "%s:%s: %s" % (filename, line_number, msg)
         self._error = (code, msg)
 
-    def _app_started_event(self):
-        # type: () -> None
+    def _app_started_event(self, register_app_shutdown=True):
+        # type: (bool) -> None
         """Sent when TelemetryWriter is enabled or forks"""
         if self._forked:
             # app-started events should only be sent by the main process
             return
         #  List of configurations to be collected
 
+        self.started = True
+        if register_app_shutdown:
+            atexit.register(self.app_shutdown)
+
         self.add_configurations(
             [
                 (TELEMETRY_TRACING_ENABLED, config._tracing_enabled, "unknown"),
-                (TELEMETRY_CALL_BASIC_CONFIG, config._call_basic_config, "unknown"),
-                (TELEMETRY_STARTUP_LOGS_ENABLED, config._call_basic_config, "unknown"),
+                (TELEMETRY_STARTUP_LOGS_ENABLED, config._startup_logs_enabled, "unknown"),
                 (TELEMETRY_DSM_ENABLED, config._data_streams_enabled, "unknown"),
                 (TELEMETRY_ASM_ENABLED, config._appsec_enabled, "unknown"),
                 (TELEMETRY_PROFILING_ENABLED, profiling_config.enabled, "unknown"),
@@ -331,6 +340,9 @@ class TelemetryWriter(PeriodicService):
                 (TELEMETRY_SPAN_SAMPLING_RULES, config._sampling_rules, "unknown"),
                 (TELEMETRY_SPAN_SAMPLING_RULES_FILE, config._sampling_rules_file, "unknown"),
                 (TELEMETRY_TRACE_SAMPLING_RULES, config._trace_sampling_rules, "unknown"),
+                (TELEMETRY_PRIORITY_SAMPLING, config._priority_sampling, "unknown"),
+                (TELEMETRY_PARTIAL_FLUSH_ENABLED, config._partial_flush_enabled, "unknown"),
+                (TELEMETRY_PARTIAL_FLUSH_MIN_SPANS, config._partial_flush_min_spans, "unknown"),
                 (TELEMETRY_TRACE_SPAN_ATTRIBUTE_SCHEMA, SCHEMA_VERSION, "unknown"),
                 (TELEMETRY_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED, _remove_client_service_names, "unknown"),
                 (TELEMETRY_TRACE_PEER_SERVICE_DEFAULTS_ENABLED, _ps_config.set_defaults_enabled, "unknown"),
@@ -341,6 +353,12 @@ class TelemetryWriter(PeriodicService):
                 (TELEMETRY_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES, config._trace_writer_payload_size, "unknown"),
                 (TELEMETRY_TRACE_WRITER_INTERVAL_SECONDS, config._trace_writer_interval_seconds, "unknown"),
                 (TELEMETRY_TRACE_WRITER_REUSE_CONNECTIONS, config._trace_writer_connection_reuse, "unknown"),
+                (TELEMETRY_DOGSTATSD_PORT, config._stats_agent_port, "unknown"),
+                (TELEMETRY_DOGSTATSD_URL, config._stats_agent_url, "unknown"),
+                (TELEMETRY_AGENT_HOST, config._trace_agent_hostname, "unknown"),
+                (TELEMETRY_AGENT_PORT, config._trace_agent_port, "unknown"),
+                (TELEMETRY_AGENT_URL, config._trace_agent_url, "unknown"),
+                (TELEMETRY_TRACE_AGENT_TIMEOUT_SECONDS, config._agent_timeout_seconds, "unknown"),
             ]
         )
 
@@ -578,15 +596,6 @@ class TelemetryWriter(PeriodicService):
         for telemetry_event in telemetry_events:
             self._client.send_event(telemetry_event)
 
-    def start(self, *args, **kwargs):
-        # type: (...) -> None
-        super(TelemetryWriter, self).start(*args, **kwargs)
-        # Queue app-started event after the telemetry worker thread is running
-        if self.started is False:
-            self._app_started_event()
-            self._app_dependencies_loaded_event()
-            self.started = True
-
     def app_shutdown(self):
         self._app_closing_event()
         self.periodic(force_flush=True)
@@ -615,8 +624,11 @@ class TelemetryWriter(PeriodicService):
         if self.status == ServiceStatus.STOPPED:
             return
 
-        atexit.unregister(self.stop)
         self.stop(join=False)
+
+        # Enable writer service in child process to avoid interpreter shutdown
+        # error in Python 3.12
+        self.enable()
 
     def _restart_sequence(self):
         self._sequence = itertools.count(1)

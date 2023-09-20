@@ -12,11 +12,14 @@ from inspect import isclass
 from inspect import isfunction
 import os
 
+import wrapt
+from wrapt.importer import when_imported
+
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec import _constants as _asm_constants
-from ddtrace.appsec import utils as appsec_utils
+from ddtrace.appsec import _utils as appsec_utils
 from ddtrace.appsec.trace_utils import track_user_login_failure_event
 from ddtrace.appsec.trace_utils import track_user_login_success_event
 from ddtrace.constants import SPAN_KIND
@@ -38,8 +41,6 @@ from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.settings.integration import IntegrationConfig
-from ddtrace.vendor import wrapt
-from ddtrace.vendor.wrapt.importer import when_imported
 
 from .. import trace_utils
 from ...appsec._constants import WAF_CONTEXT_NAMES
@@ -471,14 +472,21 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                 from django.http import HttpResponse
 
                 block_config = core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span)
-                if block_config.get("type", "auto") == "auto":
-                    ctype = "text/html" if "text/html" in request_headers.get("Accept", "").lower() else "text/json"
-                else:
-                    ctype = "text/" + block_config["type"]
+                desired_type = block_config.get("type", "auto")
                 status = block_config.get("status_code", 403)
-                content = appsec_utils._get_blocked_template(ctype)
-                response = HttpResponse(content, content_type=ctype, status=status)
-                response.content = content
+                if desired_type == "none":
+                    response = HttpResponse("", status=status)
+                    location = block_config.get("location", "")
+                    if location:
+                        response["location"] = location
+                else:
+                    if desired_type == "auto":
+                        ctype = "text/html" if "text/html" in request_headers.get("Accept", "").lower() else "text/json"
+                    else:
+                        ctype = "text/" + desired_type
+                    content = appsec_utils._get_blocked_template(ctype)
+                    response = HttpResponse(content, content_type=ctype, status=status)
+                    response.content = content
                 utils._after_request_tags(pin, span, request, response)
                 return response
 

@@ -7,6 +7,7 @@ from ddtrace.internal.encoding import MsgpackEncoderV03 as Encoder
 from ddtrace.internal.writer import AgentWriter
 from tests.integration.utils import parametrize_with_all_encodings
 from tests.integration.utils import skip_if_testagent
+from tests.utils import override_global_config
 
 
 def _turn_tracer_into_dummy(tracer):
@@ -36,7 +37,7 @@ def _prime_tracer_with_priority_sample_rate_from_agent(t, service, env):
     t.flush()
 
     sampler_key = "service:{},env:{}".format(service, env)
-    while sampler_key not in t._writer._priority_sampler._by_service_samplers:
+    while sampler_key not in t._writer._sampler._by_service_samplers:
         time.sleep(1)
         s = t.trace("operation", service=service)
         s.finish()
@@ -64,9 +65,9 @@ def test_priority_sampling_rate_honored():
 
     _prime_tracer_with_priority_sample_rate_from_agent(t, service, env)
     sampler_key = "service:{},env:{}".format(service, env)
-    assert sampler_key in t._writer._priority_sampler._by_service_samplers
+    assert sampler_key in t._writer._sampler._by_service_samplers
 
-    rate_from_agent = t._writer._priority_sampler._by_service_samplers[sampler_key].sample_rate
+    rate_from_agent = t._writer._sampler._by_service_samplers[sampler_key].sample_rate
     assert 0 < rate_from_agent < 1
 
     _turn_tracer_into_dummy(t)
@@ -94,11 +95,12 @@ def test_priority_sampling_response():
 
     _id = time.time()
     env = "my-env-{}".format(_id)
-    service = "my-svc-{}".format(_id)
-    sampler_key = "service:{},env:{}".format(service, env)
-    assert sampler_key not in t._writer._priority_sampler._by_service_samplers
-    _prime_tracer_with_priority_sample_rate_from_agent(t, service, env)
-    assert (
-        sampler_key in t._writer._priority_sampler._by_service_samplers
-    ), "after fetching priority sample rates from the agent, the tracer should hold those rates"
-    t.shutdown()
+    with override_global_config(dict(env=env)):
+        service = "my-svc-{}".format(_id)
+        sampler_key = "service:{},env:{}".format(service, env)
+        assert sampler_key not in t._writer._sampler._by_service_samplers
+        _prime_tracer_with_priority_sample_rate_from_agent(t, service, env)
+        assert (
+            sampler_key in t._writer._sampler._by_service_samplers
+        ), "after fetching priority sample rates from the agent, the tracer should hold those rates"
+        t.shutdown()
