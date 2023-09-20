@@ -95,26 +95,28 @@ def _start_span(ctx: core.ExecutionContext, tags: Optional[Dict[str, str]] = Non
             tracer, int_config=ctx.get_item("middleware_config"), request_headers=ctx.get_item("environ")
         )
     span_kwargs.update(kwargs)
-    span = tracer.trace(span_name, **span_kwargs)
+    start_method = tracer.trace if "child_of" not in kwargs else tracer.start_span
+    span = start_method(span_name, **span_kwargs)
     for tk, tv in tags.items():
         span.set_tag_str(tk, tv)
     ctx.set_item(ctx.get_item("call_key") or "call", span)
     return span
 
 
-def _on_response_context_started(ctx):
+def _maybe_start_http_response_span(ctx: core.ExecutionContext) -> None:
     request_span = ctx.get_item("request_span")
-    _config = ctx.get_item("middleware_config")
-    environ = ctx.get_item("environ")
+    middleware = ctx.get_item("middleware")
     status_code, status_msg = ctx.get_item("status").split(" ", 1)
-    trace_utils.set_http_meta(request_span, _config, status_code=status_code, response_headers=environ)
-    if bool(ctx.get_item("start_span")):
+    trace_utils.set_http_meta(
+        request_span, middleware._config, status_code=status_code, response_headers=ctx.get_item("environ")
+    )
+    if ctx.get_item("start_span"):
         request_span.set_tag_str(http.STATUS_MSG, status_msg)
         _start_span(
             ctx,
-            child_of=ctx.get_item("app_span"),
+            child_of=ctx.get_item("parent_call"),
             activate=True,
-            tags={COMPONENT: _config.integration_name, SPAN_KIND: SpanKind.SERVER},
+            tags={COMPONENT: middleware._config.integration_name, SPAN_KIND: SpanKind.SERVER},
         )
 
 
@@ -457,7 +459,7 @@ def listen():
     core.on("flask.render", _on_flask_render)
     core.on("flask.start_response.blocked", _on_start_response_blocked)
     core.on("context.started.wsgi.__call__", _start_span)
-    core.on("context.started.wsgi.response", _on_response_context_started)
+    core.on("context.started.wsgi.response", _maybe_start_http_response_span)
     core.on("context.started.flask._patched_request", _on_traced_request_context_started_flask)
     core.on("context.started.flask.jsonify", _on_jsonify_context_started_flask)
     core.on("context.started.flask.render_template", _on_render_template_context_started_flask)

@@ -135,9 +135,9 @@ class _DDWSGIMiddlewareBase(object):
         """sets the status code on a request span when start_response is called"""
         with core.context_with_data(
             "wsgi.response",
-            middleware_config=self._config,
+            middleware=self,
             request_span=request_span,
-            app_span=app_span,
+            parent_call=app_span,
             status=status,
             environ=environ,
             span_type=SpanTypes.WEB,
@@ -225,9 +225,9 @@ class DDWSGIMiddleware(_DDWSGIMiddlewareBase):
     def _traced_start_response(self, start_response, request_span, app_span, status, environ, exc_info=None):
         with core.context_with_data(
             "wsgi.response",
-            middleware_config=self._config,
+            middleware=self,
             request_span=request_span,
-            app_span=app_span,
+            parent_call=app_span,
             status=status,
             environ=environ,
             span_type=SpanTypes.WEB,
