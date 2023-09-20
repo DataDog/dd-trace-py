@@ -75,7 +75,7 @@ prelude: >
       - :ref:`📝<remove-trace-obfuscation-query-string-pattern>`
 
 
-  .. _removed-2.0-tracing-interfaces:
+  .. _2.0-removed-tracing-interfaces:
 
 
   Removed deprecated library interfaces
