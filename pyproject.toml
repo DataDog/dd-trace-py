@@ -148,12 +148,12 @@ exclude-modules = '''
   | ddtrace.profiling.exporter.pprof_421_pb2
   # TODO: resolve slot inheritance issues with profiling
   | ddtrace.profiling.collector
-  | ddtrace.appsec.iast._taint_tracking.vendor
-  | ddtrace.appsec.ddwaf.ddwaf_types
-  | ddtrace.appsec.iast._taint_tracking
-  | ddtrace.appsec.iast._ast.aspects
-  | ddtrace.appsec.iast._taint_utils
-  | ddtrace.appsec.iast.taint_sinks.sql_injection
+  | ddtrace,appsec,iast,_taint_tracking.vendor
+  | ddtrace.appsec._ddwaf.ddwaf_types
+  | ddtrace.appsec._iast._taint_tracking
+  | ddtrace.appsec._iast._ast.aspects
+  | ddtrace.appsec._iast._taint_utils
+  | ddtrace.appsec._iast.taint_sinks.sql_injection
   # DSM specific contribs
   | ddtrace.internal.datastreams.kafka
 )
