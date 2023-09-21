@@ -15,7 +15,7 @@ mod = _iast_patched_module("tests.appsec.iast.ast.fixtures.misleading_methods")
 
 class TestProperMethodsReplacement(BaseReplacement):
     @pytest.mark.parametrize("method", ["call_join", "call_ljust"])
-    def test_string_proper_method_called(self, function):
+    def test_string_proper_method_called(self, method):
         """
         Methods should not be replaced by the aspect since it's not the builtin method
         """
@@ -23,6 +23,6 @@ class TestProperMethodsReplacement(BaseReplacement):
 
         string_argument1 = create_taint_range_with_format(":+-b-+:")
 
-        result = getattr(mod.FakeStr(input_str), function)(input_str, string_argument1)
+        result = getattr(mod.FakeStr(input_str), method)(input_str, string_argument1)
 
         assert as_formatted_evidence(result) == "not_tainted"
