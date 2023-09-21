@@ -74,6 +74,7 @@ def test_path_traversal_open_secure(file_path, iast_span_defaults):
     assert span_report is None
 
 
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 @pytest.mark.parametrize(
     "module, function",
     _get_path_traversal_module_functions(),
