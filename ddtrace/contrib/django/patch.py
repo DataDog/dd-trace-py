@@ -18,12 +18,10 @@ from wrapt.importer import when_imported
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
-from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import dbapi
 from ddtrace.contrib import func_name
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
-from ddtrace.ext import db
 from ddtrace.ext import http
 from ddtrace.ext import sql as sqlx
 from ddtrace.internal import core
@@ -173,28 +171,26 @@ def traced_cache(django, pin, func, instance, args, kwargs):
     if not config.django.instrument_caches:
         return func(*args, **kwargs)
 
-    # get the original function method
-    with pin.tracer.trace("django.cache", span_type=SpanTypes.CACHE, service=config.django.cache_service_name) as span:
-        span.set_tag_str(COMPONENT, config.django.integration_name)
+    cache_backend = "{}.{}".format(instance.__module__, instance.__class__.__name__)
+    tags = {COMPONENT: config.django.integration_name, "django.cache.backend": cache_backend}
+    if args:
+        keys = utils.quantize_key_values(args[0])
+        tags["django.cache.key"] = keys
 
-        # update the resource name and tag the cache backend
-        span.resource = utils.resource_from_cache_prefix(func_name(func), instance)
-        cache_backend = "{}.{}".format(instance.__module__, instance.__class__.__name__)
-        span.set_tag_str("django.cache.backend", cache_backend)
-
-        if args:
-            # Key can be a list of strings, an individual string, or a dict
-            # Quantize will ensure we have a space separated list of keys
-            keys = utils.quantize_key_values(args[0])
-            span.set_tag_str("django.cache.key", keys)
-
+    with core.context_with_data(
+        "django.cache",
+        span_name="django.cache",
+        span_type=SpanTypes.CACHE,
+        service=config.django.cache_service_name,
+        resource=utils.resource_from_cache_prefix(func_name(func), instance),
+        tags=tags,
+        pin=pin,
+    ) as ctx, ctx["call"]:
         result = func(*args, **kwargs)
-        command_name = func.__name__
-        if command_name == "get_many":
-            span.set_metric(
-                db.ROWCOUNT, sum(1 for doc in result if doc) if result and isinstance(result, Iterable) else 0
-            )
-        elif command_name == "get":
+        rowcount = 0
+        if func.__name__ == "get_many":
+            rowcount = sum(1 for doc in result if doc) if result and isinstance(result, Iterable) else 0
+        elif func.__name__ == "get":
             try:
                 # check also for special case for Django~3.2 that returns an empty Sentinel
                 # object for empty results
@@ -203,11 +199,12 @@ def traced_cache(django, pin, func, instance, args, kwargs):
                 if result is None or (
                     not isinstance(result, Iterable) and result == getattr(instance, "_missing_key", None)
                 ):
-                    span.set_metric(db.ROWCOUNT, 0)
+                    rowcount = 0
                 else:
-                    span.set_metric(db.ROWCOUNT, 1)
+                    rowcount = 1
             except (AttributeError, NotImplementedError, ValueError):
-                span.set_metric(db.ROWCOUNT, 0)
+                pass
+        core.dispatch("django.cache", ctx, rowcount)
         return result
 
 

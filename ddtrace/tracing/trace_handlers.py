@@ -2,6 +2,7 @@ import functools
 import sys
 from typing import Callable
 from typing import Dict
+from typing import Iterable
 from typing import Tuple
 
 import wrapt
@@ -14,6 +15,7 @@ from ddtrace.contrib import trace_utils
 from ddtrace.contrib.trace_utils import _get_request_header_user_agent
 from ddtrace.contrib.trace_utils import _set_url_tag
 from ddtrace.ext import SpanKind
+from ddtrace.ext import db
 from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal.compat import maybe_stringify
@@ -433,6 +435,10 @@ def _on_django_start_response(_, ctx, request, extract_body: Callable, query: st
     )
 
 
+def _on_django_cache(ctx: core.ExecutionContext, rowcount: int):
+    ctx["call"].set_metric(db.ROWCOUNT, rowcount)
+
+
 def listen():
     core.on("wsgi.block.started", _make_block_content)
     core.on("wsgi.request.prepare", _on_request_prepare)
@@ -452,6 +458,7 @@ def listen():
     core.on("django.traced_get_response.pre", _on_traced_get_response_pre)
     core.on("django.finalize_response.pre", _on_django_finalize_response_pre)
     core.on("django.start_response", _on_django_start_response)
+    core.on("django.cache", _on_django_cache)
 
     for context_name in (
         "flask.call",
@@ -459,5 +466,6 @@ def listen():
         "flask.render_template",
         "wsgi.__call__",
         "django.traced_get_response",
+        "django.cache",
     ):
         core.on(f"context.started.{context_name}", _start_span)
