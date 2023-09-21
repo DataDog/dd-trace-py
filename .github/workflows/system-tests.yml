@@ -67,9 +67,9 @@ jobs:
         if: needs.needs-run.outputs.outcome == 'success'
         run: ./build.sh
 
-      #- name: Run
-        #  if: needs.needs-run.outputs.outcome == 'success'
-        #run: ./run.sh
+      - name: Run
+        if: needs.needs-run.outputs.outcome == 'success'
+        run: ./run.sh
 
       - name: Run REMOTE_CONFIG_MOCKED_BACKEND_ASM_FEATURES
         if: needs.needs-run.outputs.outcome == 'success'
