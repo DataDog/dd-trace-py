@@ -1,6 +1,63 @@
 #include "AspectJoin.h"
 
 PyObject*
+aspect_join_str(PyObject* sep,
+                PyObject* result,
+                PyObject* iterable_str,
+                size_t len_iterable,
+                TaintRangeMapType* tx_taint_map)
+{
+    // This is the special case for unicode str and unicode iterable_str.
+    // The iterable elements string will be split into 1 char-length strings.
+    const auto& to_iterable_str = get_tainted_object(iterable_str, tx_taint_map);
+    const auto& to_joiner = get_tainted_object(sep, tx_taint_map);
+
+    if (to_joiner == nullptr and to_iterable_str == nullptr) {
+        // No taints at all: return original result
+        return result;
+    }
+
+    const size_t& len_sep = PyUnicode_GET_LENGTH(sep);
+    const size_t& element_len = 1;
+    unsigned long current_pos{ 0L };
+    TaintedObjectPtr result_to;
+
+    if (len_sep == 0 and to_iterable_str) {
+        // Empty separator: the result is identical to iterable_str
+        result_to = initializer->allocate_tainted_object_copy(to_iterable_str);
+    } else if (len_sep > 0 and to_joiner and to_iterable_str == nullptr) {
+        // Iterable str is not tainted, only add n-times the joiner taints
+        result_to = initializer->allocate_tainted_object();
+        for (size_t i = 0; i < len_iterable - 1; i++) {
+            current_pos += element_len;
+            result_to->add_ranges_shifted(to_joiner, current_pos);
+            current_pos += len_sep;
+        }
+    } else {
+        // General case, iterable and joiner may be tainted
+        result_to = initializer->allocate_tainted_object();
+        for (size_t i = 0; i < len_iterable; i++) {
+            if (to_iterable_str) {
+                result_to->add_ranges_shifted(to_iterable_str, current_pos, element_len, i);
+            }
+
+            current_pos += element_len;
+            if (i < len_iterable - 1) {
+                if (to_joiner) {
+                    result_to->add_ranges_shifted(to_joiner, current_pos);
+                }
+                current_pos += len_sep;
+            }
+        }
+    }
+
+    PyObject* new_result{ new_pyobject_id(result, PyUnicode_GET_LENGTH(result)) };
+    set_tainted_object(new_result, result_to, tx_taint_map);
+    Py_DECREF(result);
+    return new_result;
+}
+
+PyObject*
 aspect_join(PyObject* sep, PyObject* result, PyObject* iterable_elements, TaintRangeMapType* tx_taint_map)
 {
     const size_t& len_sep = get_pyobject_size(sep);
@@ -13,6 +70,12 @@ aspect_join(PyObject* sep, PyObject* result, PyObject* iterable_elements, TaintR
     } else if (PyTuple_Check(iterable_elements)) {
         len_iterable = PyTuple_Size(iterable_elements);
         GetElement = PyTuple_GetItem;
+    } else if (PyUnicode_Check(sep) and PyUnicode_Check(iterable_elements)) {
+        len_iterable = PyUnicode_GET_LENGTH(iterable_elements);
+        if (len_iterable)
+            return aspect_join_str(sep, result, iterable_elements, len_iterable, tx_taint_map);
+        else
+            return result; // Empty string is returned if empty iterable, so no tainted
     }
 
     unsigned long current_pos{ 0L };
