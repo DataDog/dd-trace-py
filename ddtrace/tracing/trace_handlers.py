@@ -468,5 +468,6 @@ def listen():
         "django.traced_get_response",
         "django.cache",
         "django.template.render",
+        "django.process_exception",
     ):
         core.on(f"context.started.{context_name}", _start_span)

@@ -303,9 +303,10 @@ def traced_func(django, name, resource=None, ignored_excs=None):
 
 def traced_process_exception(django, name, resource=None):
     def wrapped(django, pin, func, instance, args, kwargs):
-        with pin.tracer.trace(name, resource=resource) as span:
-            span.set_tag_str(COMPONENT, config.django.integration_name)
-
+        tags = {COMPONENT: config.django.integration_name}
+        with core.context_with_data(
+            "django.process_exception", span_name=name, resource=resource, tags=tags, pin=pin
+        ) as ctx, ctx["call"] as span:
             resp = func(*args, **kwargs)
 
             # If the response code is erroneous then grab the traceback
