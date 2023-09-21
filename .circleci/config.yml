@@ -163,7 +163,7 @@ commands:
                 steps:
                   - run:
                       name: "Waiting for << parameters.wait >>"
-                      command: riot -v run 'wait' << parameters.wait >>
+                      command: riot -P -v run 'wait' << parameters.wait >>
             - when:
                 condition:
                   << parameters.trace_agent_url >> != ""
@@ -281,7 +281,7 @@ jobs:
           command: riot run -s scripts
       - run:
           name: "Running security analysis checks with bandit"
-          command: riot -v run -s bandit
+          command: riot -P -v run -s bandit
 
   ccheck:
     executor: cimg_base
@@ -1117,7 +1117,7 @@ jobs:
       - checkout
       - run:
           command: |
-             riot -v run docs
+             riot -P -v run docs
              mkdir -p /tmp/docs
              cp -r docs/_build/html/* /tmp/docs
       - store_artifacts:
