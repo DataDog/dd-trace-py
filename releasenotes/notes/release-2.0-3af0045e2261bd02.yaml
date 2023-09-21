@@ -12,7 +12,7 @@ prelude: >
 
 
   .. note::
-    Before upgrading to v2.0.0, we recommend users install ``ddtrace~=1.18.0``
+    Before upgrading to v2.0.0, we recommend users install ``ddtrace~=1.20.0``
     and enable deprecation warnings. All removals to the library interface and
     environment variables in v2 were deprecated in the 1.x release line.
 
