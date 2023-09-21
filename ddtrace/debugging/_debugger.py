@@ -172,14 +172,13 @@ class Debugger(Service):
 
         di_config.enabled = True
 
+        cls._instance = debugger = cls()
+        debugger.start()
+
         cls.__watchdog__.install()
 
         if di_config.metrics:
             metrics.enable()
-
-        cls._instance = debugger = cls()
-
-        debugger.start()
 
         forksafe.register(cls._restart)
         atexit.register(cls.disable)
@@ -200,21 +199,16 @@ class Debugger(Service):
 
         log.debug("Disabling %s", cls.__name__)
 
-        remoteconfig_poller.unregister("LIVE_DEBUGGING")
-
         forksafe.unregister(cls._restart)
         atexit.unregister(cls.disable)
         unregister_post_run_module_hook(cls._on_run_module)
 
-        if cls._instance._span_processor:
-            cls._instance._span_processor.unregister()
-
-        cls._instance.stop(join=join)
-        cls._instance = None
-
         cls.__watchdog__.uninstall()
         if di_config.metrics:
             metrics.disable()
+
+        cls._instance.stop(join=join)
+        cls._instance = None
 
         di_config.enabled = False
 
@@ -233,9 +227,9 @@ class Debugger(Service):
             },
             on_full=self._on_encoder_buffer_full,
         )
-        status_logger = self.__logger__(service_name, self._encoder)
+        self._status_logger = self.__logger__(service_name, self._encoder)
 
-        self._probe_registry = ProbeRegistry(status_logger=status_logger)
+        self._probe_registry = ProbeRegistry(status_logger=self._status_logger)
         self._uploader = self.__uploader__(self._encoder)
         self._collector = self.__collector__(self._encoder)
         self._services = [self._uploader]
@@ -250,25 +244,7 @@ class Debugger(Service):
             raise_on_exceed=False,
         )
 
-        if ed_config.enabled:
-            from ddtrace.debugging._exception.auto_instrument import SpanExceptionProcessor
-
-            self._span_processor = SpanExceptionProcessor(collector=self._collector)
-            self._span_processor.register()
-        else:
-            self._span_processor = None
-
-        if di_config.enabled:
-            # TODO: this is only temporary and will be reverted once the DD_REMOTE_CONFIGURATION_ENABLED variable
-            #  has been removed
-            if ddconfig._remote_config_enabled is False:
-                ddconfig._remote_config_enabled = True
-                log.info("Disabled Remote Configuration enabled by Dynamic Instrumentation.")
-
-            # Register the debugger with the RCM client.
-            if not remoteconfig_poller.update_product_callback("LIVE_DEBUGGING", self._on_configuration):
-                di_callback = self.__rc_adapter__(None, self._on_configuration, status_logger=status_logger)
-                remoteconfig_poller.register("LIVE_DEBUGGING", di_callback)
+        self._span_processor = None
 
         log.debug("%s initialized (service name: %s)", self.__class__.__name__, service_name)
 
@@ -416,12 +392,14 @@ class Debugger(Service):
 
         return _
 
-    def _probe_injection_hook(self, module: ModuleType) -> None:
+    @classmethod
+    def _probe_injection_hook(cls, module: ModuleType) -> None:
         # This hook is invoked by the ModuleWatchdog or the post run module hook
         # to inject probes.
 
         # Group probes by function so that we decompile each function once and
         # bulk-inject the probes.
+        self = cast(Debugger, cls._instance)
         probes_for_function: Dict[FullyNamedWrappedFunction, List[Probe]] = defaultdict(list)
         for probe in self._probe_registry.get_pending(str(origin(module))):
             if not isinstance(probe, LineLocationMixin):
@@ -549,7 +527,9 @@ class Debugger(Service):
                 except ValueError:
                     log.error("Cannot unregister injection hook for %r", probe, exc_info=True)
 
-    def _probe_wrapping_hook(self, module: ModuleType) -> None:
+    @classmethod
+    def _probe_wrapping_hook(cls, module: ModuleType) -> None:
+        self = cast(Debugger, cls._instance)
         probes = self._probe_registry.get_pending(module.__name__)
         for probe in probes:
             if not isinstance(probe, FunctionLocationMixin):
@@ -685,7 +665,14 @@ class Debugger(Service):
             raise ValueError("Unknown probe poller event %r" % event)
 
     def _stop_service(self, join: bool = True) -> None:
+        if di_config.enabled:
+            remoteconfig_poller.unregister("LIVE_DEBUGGING")
+
+        if self._span_processor:
+            self._span_processor.unregister()
+
         self._function_store.restore_all()
+
         for service in self._services:
             service.stop()
             if join:
@@ -696,11 +683,37 @@ class Debugger(Service):
             log.debug("[%s][P: %s] Debugger. Start service %s", os.getpid(), os.getppid(), service)
             service.start()
 
+        if ed_config.enabled:
+            from ddtrace.debugging._exception.auto_instrument import SpanExceptionProcessor
+
+            self._span_processor = SpanExceptionProcessor(collector=self._collector)
+            self._span_processor.register()
+
+        if di_config.enabled:
+            # TODO: this is only temporary and will be reverted once the DD_REMOTE_CONFIGURATION_ENABLED variable
+            #  has been removed
+            if ddconfig._remote_config_enabled is False:
+                ddconfig._remote_config_enabled = True
+                log.info("Disabled Remote Configuration enabled by Dynamic Instrumentation.")
+
+            # Register the debugger with the RCM client.
+            if not remoteconfig_poller.update_product_callback("LIVE_DEBUGGING", self._on_configuration):
+                di_callback = self.__rc_adapter__(None, self._on_configuration, status_logger=self._status_logger)
+                remoteconfig_poller.register("LIVE_DEBUGGING", di_callback)
+
     @classmethod
     def _restart(cls):
-        log.info("[%s][P: %s] Restarting the debugger in child process", os.getpid(), os.getppid())
-        cls.disable(join=False)
-        cls.enable()
+        if cls._instance is None:
+            log.debug("[%d][P: %d] Not restarting not enabled %s", os.getpid(), os.getppid(), cls.__name__)
+            return
+
+        log.debug("[%d][P: %d] Restarting %s", os.getpid(), os.getppid(), cls.__name__)
+
+        cls._instance.stop(join=False)
+        cls._instance = cls()
+        cls._instance.start()
+
+        log.debug("[%d][P: %d] %s restarted", os.getpid(), os.getppid(), cls.__name__)
 
     @classmethod
     def _on_run_module(cls, module: ModuleType) -> None:
