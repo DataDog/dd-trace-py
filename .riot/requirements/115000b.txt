@@ -14,7 +14,7 @@ channels==4.0.0
 charset-normalizer==3.2.0
 constantly==15.1.0
 coverage[toml]==7.2.7
-cryptography==41.0.3
+cryptography==41.0.4
 daphne==4.0.0
 django==4.2.4
 django-pylibmc==0.6.1

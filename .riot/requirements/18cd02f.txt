@@ -14,7 +14,7 @@ cffi==1.15.1
 cfn-lint==0.79.6
 charset-normalizer==3.2.0
 coverage[toml]==7.2.7
-cryptography==41.0.3
+cryptography==41.0.4
 docker==6.1.3
 ecdsa==0.18.0
 graphql-core==3.2.3

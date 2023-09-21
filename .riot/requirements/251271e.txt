@@ -15,7 +15,7 @@ cffi==1.15.1
 cfn-lint==0.53.1
 charset-normalizer==3.1.0
 coverage[toml]==7.2.2
-cryptography==39.0.2
+cryptography==41.0.4
 docker==6.0.1
 ecdsa==0.14.1
 exceptiongroup==1.1.1
