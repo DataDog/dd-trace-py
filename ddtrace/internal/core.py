@@ -107,6 +107,8 @@ from typing import Any
 from typing import Optional
 from typing import TYPE_CHECKING
 
+from ddtrace import config
+
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Callable
@@ -169,6 +171,8 @@ class EventHub:
                 result = listener(*args)
             except Exception as exc:
                 exception = exc
+                if config._raise:
+                    raise
             results.append(result)
             exceptions.append(exception)
         return results, exceptions
