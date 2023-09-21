@@ -439,6 +439,12 @@ def _on_django_cache(ctx: core.ExecutionContext, rowcount: int):
     ctx["call"].set_metric(db.ROWCOUNT, rowcount)
 
 
+def _on_django_func_wrapped(_unused1, _unused2, _unused3, ctx, ignored_excs):
+    if ignored_excs:
+        for exc in ignored_excs:
+            ctx["call"]._ignore_exception(exc)
+
+
 def listen():
     core.on("wsgi.block.started", _make_block_content)
     core.on("wsgi.request.prepare", _on_request_prepare)
@@ -459,6 +465,7 @@ def listen():
     core.on("django.finalize_response.pre", _on_django_finalize_response_pre)
     core.on("django.start_response", _on_django_start_response)
     core.on("django.cache", _on_django_cache)
+    core.on("django.func.wrapped", _on_django_func_wrapped)
 
     for context_name in (
         "flask.call",
@@ -469,5 +476,6 @@ def listen():
         "django.cache",
         "django.template.render",
         "django.process_exception",
+        "django.func.wrapped",
     ):
         core.on(f"context.started.{context_name}", _start_span)

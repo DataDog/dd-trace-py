@@ -157,7 +157,7 @@ def _on_flask_blocked_request():
     core.set_item(HTTP_REQUEST_BLOCKED, True)
 
 
-def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type):
+def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type, *_):
     # If IAST is enabled and we're wrapping a Django view call, taint the kwargs (view's
     # path parameters)
     if _is_iast_enabled() and fn_args and isinstance(fn_args[0], first_arg_expected_type):

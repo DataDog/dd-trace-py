@@ -281,20 +281,18 @@ def traced_populate(django, pin, func, instance, args, kwargs):
 
 
 def traced_func(django, name, resource=None, ignored_excs=None):
-    """Returns a function to trace Django functions."""
-
     def wrapped(django, pin, func, instance, args, kwargs):
-        with pin.tracer.trace(name, resource=resource) as s:
-            s.set_tag_str(COMPONENT, config.django.integration_name)
-
-            if ignored_excs:
-                for exc in ignored_excs:
-                    s._ignore_exception(exc)
+        tags = {COMPONENT: config.django.integration_name}
+        with core.context_with_data(
+            "django.func.wrapped", span_name=name, resource=resource, tags=tags, pin=pin
+        ) as ctx, ctx["call"]:
             core.dispatch(
                 "django.func.wrapped",
                 args,
                 kwargs,
                 django.core.handlers.wsgi.WSGIRequest if hasattr(django.core.handlers, "wsgi") else object,
+                ctx,
+                ignored_excs,
             )
             return func(*args, **kwargs)
 
