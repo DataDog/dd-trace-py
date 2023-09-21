@@ -68,4 +68,5 @@ Use the following patterns to identify the deprecated environment variables in a
 Legacy tracing interfaces
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Reference the :ref:`2.x release note<2.0-removed-tracing-interfaces>` to identify and remove the deprecated legacy tracing interfaces in a code base.
+Reference the `2.x release note<../releasenotes/notes/release-2.0-3af0045e2261bd02.yaml#removed-deprecated-library-interfaces>`_ to identify and remove the deprecated legacy tracing
+interfaces in a code base.
