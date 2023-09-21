@@ -421,8 +421,12 @@ def listen():
     core.on("flask.start_response.blocked", _on_start_response_blocked)
     core.on("context.started.wsgi.response", _maybe_start_http_response_span)
     core.on("context.started.flask._patched_request", _on_traced_request_context_started_flask)
-    core.on("context.started.flask.call", _start_span)
-    core.on("context.started.flask.jsonify", _start_span)
-    core.on("context.started.flask.render_template", _start_span)
-    core.on("context.started.wsgi.__call__", _start_span)
-    core.on("context.started.django.traced_get_response", _start_span)
+
+    for context_name in (
+        "flask.call",
+        "flask.jsonify",
+        "flask.render_template",
+        "wsgi.__call__",
+        "django.traced_get_response",
+    ):
+        core.on(f"context.started.{context_name}", _start_span)
