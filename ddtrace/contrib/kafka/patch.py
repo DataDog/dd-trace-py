@@ -55,9 +55,6 @@ class TracedProducer(confluent_kafka.Producer):
             else config.get("metadata.broker.list")
         )
 
-    def produce(self, topic, value=None, *args, **kwargs):
-        super(TracedProducer, self).produce(topic, value, *args, **kwargs)
-
     # in older versions of confluent_kafka, bool(Producer()) evaluates to False,
     # which makes the Pin functionality ignore it.
     def __bool__(self):
@@ -71,12 +68,6 @@ class TracedConsumer(confluent_kafka.Consumer):
         super(TracedConsumer, self).__init__(config, *args, **kwargs)
         self._group_id = config.get("group.id", "")
         self._auto_commit = asbool(config.get("enable.auto.commit", True))
-
-    def poll(self, timeout=None):
-        return super(TracedConsumer, self).poll(timeout)
-
-    def commit(self, message=None, *args, **kwargs):
-        return super(TracedConsumer, self).commit(message, args, kwargs)
 
 
 def patch():
