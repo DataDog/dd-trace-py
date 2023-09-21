@@ -1,5 +1,7 @@
 import contextlib
 import functools
+from typing import Callable
+from typing import Optional
 from typing import TYPE_CHECKING
 
 from ddtrace import config
@@ -15,10 +17,8 @@ from ddtrace.internal.logger import get_logger
 
 if TYPE_CHECKING:
     from typing import Any
-    from typing import Callable
     from typing import Generator
     from typing import List
-    from typing import Optional
     from typing import Tuple
 
 
@@ -262,7 +262,7 @@ def get_headers_case_sensitive():  # type: () -> bool
     return get_value(_WAF_ADDRESSES, SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES_CASE, False)  # type : ignore
 
 
-def set_block_request_callable(_callable):  # type: (Optional[Callable]) -> None
+def set_block_request_callable(_callable: Optional[Callable], *_):
     """
     Sets a callable that could be use to do a best-effort to block the request. If
     the callable need any params, like headers, they should be curried with

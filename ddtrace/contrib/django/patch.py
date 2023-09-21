@@ -438,7 +438,6 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
     if request is None:
         return func(*args, **kwargs)
 
-    trace_utils.activate_distributed_headers(pin.tracer, int_config=config.django, request_headers=request.META)
     request_headers = utils._get_request_headers(request)
 
     with core.context_with_data(
@@ -450,19 +449,18 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
         resource=utils.REQUEST_DEFAULT_RESOURCE,
         service=trace_utils.int_service(pin, config.django),
         span_type=SpanTypes.WEB,
+        tags={COMPONENT: config.django.integration_name, SPAN_KIND: SpanKind.SERVER},
+        distributed_headers_config=config.django,
+        distributed_headers=request_headers,
         pin=pin,
     ) as ctx, ctx.get_item("call") as span:
         core.dispatch(
             "django.traced_get_response.pre",
             functools.partial(_block_request_callable, request, request_headers, span),
+            ctx,
+            request,
+            utils._before_request_tags,
         )
-        span.set_tag_str(COMPONENT, config.django.integration_name)
-
-        # set span.kind to the type of request being performed
-        span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
-
-        utils._before_request_tags(pin, span, request)
-        span._metrics[SPAN_MEASURED_KEY] = 1
 
         response = None
 

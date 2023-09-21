@@ -88,9 +88,10 @@ def _get_parameters_for_new_span_directly_from_context(ctx: core.ExecutionContex
 def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> Span:
     span_name, span_kwargs = _get_parameters_for_new_span_directly_from_context(ctx)
     tracer = (ctx.get_item("middleware") or ctx["pin"]).tracer
-    if ctx.get_item("activate_distributed_headers", False):
+    distributed_headers_config = ctx.get_item("distributed_headers_config")
+    if distributed_headers_config:
         trace_utils.activate_distributed_headers(
-            tracer, int_config=ctx["middleware_config"], request_headers=ctx["environ"]
+            tracer, int_config=distributed_headers_config, request_headers=ctx["distributed_headers"]
         )
     span_kwargs.update(kwargs)
     span = (tracer.trace if call_trace else tracer.start_span)(span_name, **span_kwargs)
@@ -405,6 +406,11 @@ def _on_start_response_blocked(flask_config, response_headers, status):
     )
 
 
+def _on_traced_get_response_pre(_, ctx: core.ExecutionContext, request, before_request_tags):
+    before_request_tags(ctx["pin"], ctx["call"], request)
+    ctx["call"]._metrics[SPAN_MEASURED_KEY] = 1
+
+
 def listen():
     core.on("wsgi.block.started", _make_block_content)
     core.on("wsgi.request.prepare", _on_request_prepare)
@@ -421,6 +427,7 @@ def listen():
     core.on("flask.start_response.blocked", _on_start_response_blocked)
     core.on("context.started.wsgi.response", _maybe_start_http_response_span)
     core.on("context.started.flask._patched_request", _on_traced_request_context_started_flask)
+    core.on("django.traced_get_response.pre", _on_traced_get_response_pre)
 
     for context_name in (
         "flask.call",
