@@ -211,6 +211,16 @@ def test_commit_with_offset(producer, consumer, kafka_topic):
     consumer.commit(offsets=[TopicPartition(kafka_topic)])
 
 
+@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
+def test_commit_with_only_async_arg(producer, consumer, kafka_topic):
+    producer.produce(kafka_topic, PAYLOAD, key=KEY)
+    producer.flush()
+    message = None
+    while message is None:
+        message = consumer.poll(1.0)
+    consumer.commit(asynchronous=False)
+
+
 @pytest.mark.snapshot(
     token="tests.contrib.kafka.test_kafka.test_service_override", ignores=["metrics.kafka.message_offset"]
 )
