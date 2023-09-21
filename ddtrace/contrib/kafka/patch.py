@@ -49,6 +49,7 @@ def get_version():
 class TracedProducer(confluent_kafka.Producer):
     def __init__(self, config, *args, **kwargs):
         super(TracedProducer, self).__init__(config, *args, **kwargs)
+        print("Creating TracedProducer")
         self._dd_bootstrap_servers = (
             config.get("bootstrap.servers")
             if config.get("bootstrap.servers") is not None
