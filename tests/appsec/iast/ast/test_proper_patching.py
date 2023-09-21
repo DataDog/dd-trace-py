@@ -18,10 +18,22 @@ class TestProperMethodsReplacement(BaseReplacement):
         """
         Join should not be replaced by the aspect since it's not the builtin method
         """
-        string_input = mod.FakeStr(create_taint_range_with_format(b":+-foo-+:"))
-        string_argument1 = create_taint_range_with_format(b":+-bar-+:")
-        string_argument2 = create_taint_range_with_format(b":+-baz-+:")
+        input_str = "foo"
 
-        result = string_input.call_join(string_argument1, string_argument2)
+        string_argument1 = create_taint_range_with_format(":+-b-+:")
 
-        assert as_formatted_evidence(result) == b":+-bar-+::+-baz-+:"
+        result = mod.FakeStr(input_str).call_join(input_str, string_argument1)
+
+        assert as_formatted_evidence(result) == "not_tainted"
+
+    def test_string_proper_ljust_called(self):
+        """
+        Join should not be replaced by the aspect since it's not the builtin method
+        """
+        input_str = "foo"
+
+        string_argument1 = create_taint_range_with_format(":+-b-+:")
+
+        result = mod.FakeStr(input_str).call_ljust(input_str, string_argument1)
+
+        assert as_formatted_evidence(result) == "not_tainted"
