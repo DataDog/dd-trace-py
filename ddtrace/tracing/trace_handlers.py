@@ -1,7 +1,7 @@
 import functools
 import sys
+from typing import Callable
 from typing import Dict
-from typing import Optional
 from typing import Tuple
 
 import wrapt
@@ -14,7 +14,6 @@ from ddtrace.contrib import trace_utils
 from ddtrace.contrib.trace_utils import _get_request_header_user_agent
 from ddtrace.contrib.trace_utils import _set_url_tag
 from ddtrace.ext import SpanKind
-from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal.compat import maybe_stringify
@@ -411,6 +410,29 @@ def _on_traced_get_response_pre(_, ctx: core.ExecutionContext, request, before_r
     ctx["call"]._metrics[SPAN_MEASURED_KEY] = 1
 
 
+def _on_django_finalize_response_pre(ctx, after_request_tags, request, response):
+    span = ctx["call"]
+    # DEV: Always set these tags, this is where `span.resource` is set
+    after_request_tags(ctx["pin"], span, request, response)
+    trace_utils.set_http_meta(span, ctx["distributed_headers_config"], route=span.get_tag("http.route"))
+
+
+def _on_django_start_response(_, ctx, request, extract_body: Callable, query: str, uri: str, path: str):
+    parsed_query = request.GET
+    body = extract_body(request)
+    trace_utils.set_http_meta(
+        ctx["call"],
+        ctx["distributed_headers_config"],
+        method=request.method,
+        query=query,
+        raw_uri=uri,
+        request_path_params=path,
+        parsed_query=parsed_query,
+        request_body=body,
+        request_cookies=request.COOKIES,
+    )
+
+
 def listen():
     core.on("wsgi.block.started", _make_block_content)
     core.on("wsgi.request.prepare", _on_request_prepare)
@@ -428,6 +450,8 @@ def listen():
     core.on("context.started.wsgi.response", _maybe_start_http_response_span)
     core.on("context.started.flask._patched_request", _on_traced_request_context_started_flask)
     core.on("django.traced_get_response.pre", _on_traced_get_response_pre)
+    core.on("django.finalize_response.pre", _on_django_finalize_response_pre)
+    core.on("django.start_response", _on_django_start_response)
 
     for context_name in (
         "flask.call",

@@ -432,7 +432,7 @@ def _set_headers_and_response(response, headers):
             set_body_response(response)
 
 
-def _call_waf(integration):
+def _call_waf(integration, *_):
     log.debug("%s WAF call for Suspicious Request Blocking on response", integration)
     call_waf_callback()
     return get_headers().get("Accept", "").lower()

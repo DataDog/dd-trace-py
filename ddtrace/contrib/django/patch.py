@@ -487,12 +487,10 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
             return response
 
         try:
-            # [IP Blocking]
             if core.get_item(HTTP_REQUEST_BLOCKED):
                 response = blocked_response()
                 return response
 
-            # set context information for [Suspicious Request Blocking]
             query = request.META.get("QUERY_STRING", "")
             uri = utils.get_request_uri(request)
             if uri is not None and query:
@@ -504,20 +502,8 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                     log.debug("resolver.pattern %s", path)
                 except Exception:
                     path = None
-            parsed_query = request.GET
-            body = utils._extract_body(request)
-            trace_utils.set_http_meta(
-                span,
-                config.django,
-                method=request.method,
-                query=query,
-                raw_uri=uri,
-                request_path_params=path,
-                parsed_query=parsed_query,
-                request_body=body,
-                request_cookies=request.COOKIES,
-            )
-            core.dispatch("django.start_response", "Django")
+
+            core.dispatch("django.start_response", "Django", request, utils._extract_body, query, uri, path)
 
             if core.get_item(HTTP_REQUEST_BLOCKED):
                 response = blocked_response()
@@ -531,10 +517,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
 
             return response
         finally:
-            # DEV: Always set these tags, this is where `span.resource` is set
-            utils._after_request_tags(pin, span, request, response)
-            trace_utils.set_http_meta(span, config.django, route=span.get_tag("http.route"))
-            # if not blocked yet, try blocking rules on response
+            core.dispatch("django.finalize_response.pre", ctx, utils._after_request_tags, request, response)
             if not core.get_item(HTTP_REQUEST_BLOCKED):
                 core.dispatch("django.finalize_response", "Django")
                 if core.get_item(HTTP_REQUEST_BLOCKED):
