@@ -67,11 +67,15 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
     assert len(events) == 1
 
     events[0]["payload"]["configuration"].sort(key=lambda c: c["name"])
+
     payload = {
         "configuration": [
+            {"name": "DD_AGENT_HOST", "origin": "unknown", "value": None},
+            {"name": "DD_AGENT_PORT", "origin": "unknown", "value": None},
             {"name": "DD_APPSEC_ENABLED", "origin": "unknown", "value": False},
-            {"name": "DD_CALL_BASIC_CONFIG", "origin": "unknown", "value": False},
             {"name": "DD_DATA_STREAMS_ENABLED", "origin": "unknown", "value": False},
+            {"name": "DD_DOGSTATSD_PORT", "origin": "unknown", "value": None},
+            {"name": "DD_DOGSTATSD_URL", "origin": "unknown", "value": None},
             {"name": "DD_DYNAMIC_INSTRUMENTATION_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_EXCEPTION_DEBUGGING_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_INSTRUMENTATION_TELEMETRY_ENABLED", "origin": "unknown", "value": True},
@@ -86,6 +90,8 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
             {"name": "DD_SPAN_SAMPLING_RULES_FILE", "origin": "unknown", "value": None},
             {"name": "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED", "origin": "unknown", "value": False},
+            {"name": "DD_TRACE_AGENT_TIMEOUT_SECONDS", "origin": "unknown", "value": 2.0},
+            {"name": "DD_TRACE_AGENT_URL", "origin": "unknown", "value": "http://localhost:9126"},
             {"name": "DD_TRACE_ANALYTICS_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_TRACE_API_VERSION", "origin": "unknown", "value": None},
             {"name": "DD_TRACE_CLIENT_IP_ENABLED", "origin": "unknown", "value": None},
@@ -152,7 +158,6 @@ telemetry_writer.disable()
     env["DD_INSTRUMENTATION_TELEMETRY_ENABLED"] = "True"
     env["DD_TRACE_STARTUP_LOGS"] = "True"
     env["DD_LOGS_INJECTION"] = "True"
-    env["DD_CALL_BASIC_CONFIG"] = "True"
     env["DD_PROFILING_ENABLED"] = "True"
     env["DD_RUNTIME_METRICS_ENABLED"] = "True"
     env["DD_SERVICE_MAPPING"] = "default_dd_service:remapped_dd_service"
@@ -203,9 +208,12 @@ telemetry_writer.disable()
     assert len(events) == 1
     events[0]["payload"]["configuration"].sort(key=lambda c: c["name"])
     assert events[0]["payload"]["configuration"] == [
+        {"name": "DD_AGENT_HOST", "origin": "unknown", "value": None},
+        {"name": "DD_AGENT_PORT", "origin": "unknown", "value": None},
         {"name": "DD_APPSEC_ENABLED", "origin": "unknown", "value": False},
-        {"name": "DD_CALL_BASIC_CONFIG", "origin": "unknown", "value": True},
         {"name": "DD_DATA_STREAMS_ENABLED", "origin": "unknown", "value": False},
+        {"name": "DD_DOGSTATSD_PORT", "origin": "unknown", "value": None},
+        {"name": "DD_DOGSTATSD_URL", "origin": "unknown", "value": None},
         {"name": "DD_DYNAMIC_INSTRUMENTATION_ENABLED", "origin": "unknown", "value": True},
         {"name": "DD_EXCEPTION_DEBUGGING_ENABLED", "origin": "unknown", "value": True},
         {"name": "DD_INSTRUMENTATION_TELEMETRY_ENABLED", "origin": "unknown", "value": True},
@@ -220,6 +228,8 @@ telemetry_writer.disable()
         {"name": "DD_SPAN_SAMPLING_RULES_FILE", "origin": "unknown", "value": str(file)},
         {"name": "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", "origin": "unknown", "value": True},
         {"name": "DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED", "origin": "unknown", "value": True},
+        {"name": "DD_TRACE_AGENT_TIMEOUT_SECONDS", "origin": "unknown", "value": 2.0},
+        {"name": "DD_TRACE_AGENT_URL", "origin": "unknown", "value": "http://localhost:9126"},
         {"name": "DD_TRACE_ANALYTICS_ENABLED", "origin": "unknown", "value": True},
         {"name": "DD_TRACE_API_VERSION", "origin": "unknown", "value": "v0.5"},
         {"name": "DD_TRACE_CLIENT_IP_ENABLED", "origin": "unknown", "value": None},
@@ -362,8 +372,8 @@ def test_send_failing_request(mock_status, telemetry_writer):
     with httpretty.enabled():
         httpretty.register_uri(httpretty.POST, telemetry_writer._client.url, status=mock_status)
         with mock.patch("ddtrace.internal.telemetry.writer.log") as log:
-            # sends failing app-closing event
-            telemetry_writer.app_shutdown()
+            # sends failing app-heartbeat event
+            telemetry_writer.periodic()
             # asserts unsuccessful status code was logged
             log.debug.assert_called_with(
                 "failed to send telemetry to the Datadog Agent at %s. response: %s",
@@ -382,13 +392,11 @@ def test_telemetry_graceful_shutdown(telemetry_writer, test_agent_session, mock_
     telemetry_writer.app_shutdown()
 
     events = test_agent_session.get_events()
-    assert len(events) == 3
+    assert len(events) == 1
 
     # Reverse chronological order
     assert events[0]["request_type"] == "app-closing"
-    assert events[0] == _get_request_body({}, "app-closing", 3)
-    assert events[1]["request_type"] == "app-dependencies-loaded"
-    assert events[2]["request_type"] == "app-started"
+    assert events[0] == _get_request_body({}, "app-closing", 1)
 
 
 def test_app_heartbeat_event_periodic(mock_time, telemetry_writer, test_agent_session):
@@ -397,6 +405,7 @@ def test_app_heartbeat_event_periodic(mock_time, telemetry_writer, test_agent_se
 
     # Ensure telemetry writer is initialized to send periodic events
     telemetry_writer._is_periodic = True
+    telemetry_writer.started = True
     # Assert default telemetry interval is 10 seconds and the expected periodic threshold and counts are set
     assert telemetry_writer.interval == 10
     assert telemetry_writer._periodic_threshold == 5

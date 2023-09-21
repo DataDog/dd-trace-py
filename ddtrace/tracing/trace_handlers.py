@@ -1,6 +1,8 @@
 import functools
 import sys
 
+import wrapt
+
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
@@ -21,7 +23,6 @@ from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.constants import RESPONSE_HEADERS
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import http as http_utils
-from ddtrace.vendor import wrapt
 
 
 log = get_logger(__name__)
@@ -91,15 +92,23 @@ def _make_block_content(ctx, construct_url):
     if req_span is None:
         raise ValueError("request span not found")
     block_config = core.get_item(HTTP_REQUEST_BLOCKED, span=req_span)
-    if block_config.get("type", "auto") == "auto":
-        ctype = "text/html" if "text/html" in headers.get("Accept", "").lower() else "text/json"
+    desired_type = block_config.get("type", "auto")
+    ctype = None
+    if desired_type == "none":
+        content = ""
+        resp_headers = [("content-type", "text/plain; charset=utf-8"), ("location", block_config.get("location", ""))]
     else:
-        ctype = "text/" + block_config["type"]
-    content = http_utils._get_blocked_template(ctype).encode("UTF-8")
+        if desired_type == "auto":
+            ctype = "text/html" if "text/html" in headers.get("Accept", "").lower() else "text/json"
+        else:
+            ctype = "text/" + block_config["type"]
+        content = http_utils._get_blocked_template(ctype).encode("UTF-8")
+        resp_headers = [("content-type", ctype)]
     status = block_config.get("status_code", 403)
     try:
         req_span.set_tag_str(RESPONSE_HEADERS + ".content-length", str(len(content)))
-        req_span.set_tag_str(RESPONSE_HEADERS + ".content-type", ctype)
+        if ctype is not None:
+            req_span.set_tag_str(RESPONSE_HEADERS + ".content-type", ctype)
         req_span.set_tag_str(http.STATUS_CODE, str(status))
         url = construct_url(environ)
         query_string = environ.get("QUERY_STRING")
@@ -115,7 +124,7 @@ def _make_block_content(ctx, construct_url):
     except Exception as e:
         log.warning("Could not set some span tags on blocked request: %s", str(e))  # noqa: G200
 
-    return status, ctype, content
+    return status, resp_headers, content
 
 
 def _on_request_prepare(ctx, start_response):

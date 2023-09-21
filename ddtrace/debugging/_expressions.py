@@ -25,6 +25,7 @@ Full grammar:
 """  # noqa
 from itertools import chain
 import re
+import sys
 from types import FunctionType
 from typing import Any
 from typing import Callable
@@ -39,7 +40,7 @@ from bytecode import Bytecode
 from bytecode import Compare
 from bytecode import Instr
 
-from ddtrace.debugging.safety import safe_getitem
+from ddtrace.debugging._safety import safe_getitem
 from ddtrace.internal.compat import PYTHON_VERSION_INFO as PY
 
 
@@ -67,6 +68,8 @@ def _make_function(ast, args, name):
         raise ValueError("Invalid predicate: %r" % ast)
 
     instrs = compiled + [Instr("RETURN_VALUE")]
+    if sys.version_info >= (3, 11):
+        instrs.insert(0, Instr("RESUME", 0))
 
     abstract_code = Bytecode(instrs)
     abstract_code.argcount = len(args)
