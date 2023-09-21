@@ -2,7 +2,9 @@ import flask
 from wrapt import function_wrapper
 
 from ddtrace import config
+from ddtrace.contrib import trace_utils
 from ddtrace.internal import core
+from ddtrace.internal.constants import COMPONENT
 
 from ...internal.logger import get_logger
 from ...internal.utils.importlib import func_name
@@ -31,14 +33,18 @@ def _wrap_call(
 ):
     args = args or []
     kwargs = kwargs or {}
+    tags = {COMPONENT: config.flask.integration_name}
+    if signal:
+        tags["flask.signal"] = signal
     with core.context_with_data(
         "flask.call",
-        name=name,
+        span_name=name,
         pin=pin,
-        flask_config=config.flask,
         resource=resource,
-        signal=signal,
+        service=trace_utils.int_service(pin, config.flask),
         span_type=span_type,
+        tags=tags,
+        call_key="flask_call",
     ) as ctx, ctx.get_item("flask_call"):
         if do_dispatch:
             results, exceptions = core.dispatch("flask.wrapped_view", kwargs)

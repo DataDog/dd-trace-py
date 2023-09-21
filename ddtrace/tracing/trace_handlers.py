@@ -405,23 +405,6 @@ def _on_start_response_blocked(flask_config, response_headers, status):
     )
 
 
-def _on_function_context_started_flask(ctx):
-    pin = ctx.get_item("pin")
-    name = ctx.get_item("name")
-    flask_config = ctx.get_item("flask_config")
-    kwargs = {"service": trace_utils.int_service(pin, flask_config)}
-    for kwarg in ("span_type", "resource"):
-        kwarg_value = ctx.get_item(kwarg)
-        if kwarg_value:
-            kwargs[kwarg] = kwarg_value
-    span = pin.tracer.trace(name, **kwargs)
-    span.set_tag_str(COMPONENT, flask_config.integration_name)
-    signal = ctx.get_item("signal")
-    if signal:
-        span.set_tag_str("flask.signal", signal)
-    ctx.set_item("flask_call", span)
-
-
 def listen():
     core.on("wsgi.block.started", _make_block_content)
     core.on("wsgi.request.prepare", _on_request_prepare)
@@ -438,7 +421,7 @@ def listen():
     core.on("flask.start_response.blocked", _on_start_response_blocked)
     core.on("context.started.wsgi.response", _maybe_start_http_response_span)
     core.on("context.started.flask._patched_request", _on_traced_request_context_started_flask)
-    core.on("context.started.flask.call", _on_function_context_started_flask)
+    core.on("context.started.flask.call", _start_span)
     core.on("context.started.flask.jsonify", _start_span)
     core.on("context.started.flask.render_template", _start_span)
     core.on("context.started.wsgi.__call__", _start_span)
