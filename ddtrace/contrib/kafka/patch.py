@@ -222,7 +222,7 @@ def traced_commit(func, instance, args, kwargs):
 
     if config._data_streams_enabled:
         message = get_argument_value(args, kwargs, 0, "message", True)
-        # messgae and offset are mutally exclusive. Only one parameter can be passed.
+        # message and offset are mutually exclusive. Only one parameter can be passed.
         if message is not None:
             offsets = [TopicPartition(message.topic(), message.partition(), offset=message.offset())]
         else:
