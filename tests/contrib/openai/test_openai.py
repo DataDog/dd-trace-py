@@ -2188,6 +2188,8 @@ async def test_azure_openai_acompletion(openai_api_key, azure_openai, openai_vcr
 
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
 def test_azure_openai_chat_completion(openai_api_key, azure_openai, openai_vcr, snapshot_tracer):
+    if not hasattr(azure_openai, "ChatCompletion"):
+        pytest.skip("ChatCompletion not supported for this version of openai")
     with openai_vcr.use_cassette("azure_chat_completion.yaml"):
         azure_openai.ChatCompletion.create(
             api_key=openai_api_key,
@@ -2203,6 +2205,8 @@ def test_azure_openai_chat_completion(openai_api_key, azure_openai, openai_vcr, 
 @pytest.mark.asyncio
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
 async def test_azure_openai_chat_acompletion(openai_api_key, azure_openai, openai_vcr, snapshot_tracer):
+    if not hasattr(azure_openai, "ChatCompletion"):
+        pytest.skip("ChatCompletion not supported for this version of openai")
     with openai_vcr.use_cassette("azure_chat_acompletion.yaml"):
         await azure_openai.ChatCompletion.acreate(
             api_key=openai_api_key,
