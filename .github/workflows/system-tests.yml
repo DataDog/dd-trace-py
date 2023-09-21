@@ -63,9 +63,9 @@ jobs:
           path: 'binaries/dd-trace-py'
           fetch-depth: 0
 
-      #- name: Build
-        #  if: needs.needs-run.outputs.outcome == 'success'
-        #run: ./build.sh
+      - name: Build
+        if: needs.needs-run.outputs.outcome == 'success'
+        run: ./build.sh
 
       - name: Run
         if: needs.needs-run.outputs.outcome == 'success'
