@@ -734,7 +734,7 @@ def test_writer_recreate_api_version(init_api_version, api_version, endpoint, en
         # defaults
         ("darwin", None, None, None, False, "v0.3"),
         # Default with priority sample
-        ("darwin", None, None, True, False, "v0.5"),
+        ("darwin", None, None, True, False, "v0.4"),
         # Explicitly setting api version
         ("darwin", "v0.4", None, True, False, "v0.4"),
         # Explicitly set version takes precedence
