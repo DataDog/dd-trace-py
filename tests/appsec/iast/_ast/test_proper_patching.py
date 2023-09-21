@@ -10,7 +10,7 @@ try:
 except (ImportError, AttributeError):
     pytest.skip("IAST not supported for this Python version", allow_module_level=True)
 
-mod = _iast_patched_module("tests.appsec.iast.ast.fixtures.misleading_methods")
+mod = _iast_patched_module("tests.appsec.iast._ast.fixtures.misleading_methods")
 
 
 class TestProperMethodsReplacement(BaseReplacement):
