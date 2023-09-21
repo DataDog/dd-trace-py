@@ -4,6 +4,7 @@ import time
 
 import confluent_kafka
 from confluent_kafka import KafkaException
+from confluent_kafka import TopicPartition
 from confluent_kafka import admin as kafka_admin
 import mock
 import pytest
@@ -188,6 +189,26 @@ def test_message(producer, consumer, tombstone, kafka_topic):
     message = None
     while message is None:
         message = consumer.poll(1.0)
+
+
+@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
+def test_commit(producer, consumer, kafka_topic):
+    producer.produce(kafka_topic, PAYLOAD, key=KEY)
+    producer.flush()
+    message = None
+    while message is None:
+        message = consumer.poll(1.0)
+    consumer.commit(message)
+
+
+@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
+def test_commit_with_offset(producer, consumer, kafka_topic):
+    producer.produce(kafka_topic, PAYLOAD, key=KEY)
+    producer.flush()
+    message = None
+    while message is None:
+        message = consumer.poll(1.0)
+    consumer.commit(offsets=[TopicPartition(kafka_topic)])
 
 
 @pytest.mark.snapshot(

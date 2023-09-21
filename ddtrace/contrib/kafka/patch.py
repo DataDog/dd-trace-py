@@ -221,10 +221,12 @@ def traced_commit(func, instance, args, kwargs):
         return func(*args, **kwargs)
 
     if config._data_streams_enabled:
-        message = get_argument_value(args, kwargs, 0, "message")
-        offsets = kwargs.get("offsets", [])
+        message = get_argument_value(args, kwargs, 0, "message", True)
+        # messgae and offset are mutally exclusive. Only one parameter can be passed.
         if message is not None:
             offsets = [TopicPartition(message.topic(), message.partition(), offset=message.offset())]
+        else:
+            offsets = get_argument_value(args, kwargs, 1, "offsets", True)
         for offset in offsets:
             pin.tracer.data_streams_processor.track_kafka_commit(
                 instance._group_id, offset.topic, offset.partition, offset.offset or -1, time.time()
