@@ -83,7 +83,7 @@ def _get_parameters_for_new_span_directly_from_context(ctx: core.ExecutionContex
         parameter_value = ctx.get_item(parameter_name, traverse=False)
         if parameter_value:
             span_kwargs[parameter_name] = parameter_value
-    return ctx["span_name"], span_kwargs
+    return ctx.get_item("span_name"), span_kwargs
 
 
 def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> Span:
@@ -467,5 +467,6 @@ def listen():
         "wsgi.__call__",
         "django.traced_get_response",
         "django.cache",
+        "django.template.render",
     ):
         core.on(f"context.started.{context_name}", _start_span)

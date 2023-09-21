@@ -168,6 +168,7 @@ class EventHub:
             try:
                 result = listener(*args)
             except Exception as exc:
+                raise
                 exception = exc
             results.append(result)
             exceptions.append(exception)

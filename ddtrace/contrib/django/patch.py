@@ -500,7 +500,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                 except Exception:
                     path = None
 
-            core.dispatch("django.start_response", "Django", request, utils._extract_body, query, uri, path)
+            core.dispatch("django.start_response", "Django", ctx, request, utils._extract_body, query, uri, path)
 
             if core.get_item(HTTP_REQUEST_BLOCKED):
                 response = blocked_response()
@@ -524,7 +524,6 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
 
 @trace_utils.with_traced_module
 def traced_template_render(django, pin, wrapped, instance, args, kwargs):
-    """Instrument django.template.base.Template.render for tracing template rendering."""
     # DEV: Check here in case this setting is configured after a template has been instrumented
     if not config.django.instrument_templates:
         return wrapped(*args, **kwargs)
@@ -535,15 +534,21 @@ def traced_template_render(django, pin, wrapped, instance, args, kwargs):
     else:
         resource = "{0}.{1}".format(func_name(instance), wrapped.__name__)
 
-    with pin.tracer.trace("django.template.render", resource=resource, span_type=http.TEMPLATE) as span:
-        span.set_tag_str(COMPONENT, config.django.integration_name)
+    tags = {COMPONENT: config.django.integration_name}
+    if template_name:
+        tags["django.template.name"] = template_name
+    engine = getattr(instance, "engine", None)
+    if engine:
+        tags["django.template.engine.class"] = func_name(engine)
 
-        if template_name:
-            span.set_tag_str("django.template.name", template_name)
-        engine = getattr(instance, "engine", None)
-        if engine:
-            span.set_tag_str("django.template.engine.class", func_name(engine))
-
+    with core.context_with_data(
+        "django.template.render",
+        span_name="django.template.render",
+        resource=resource,
+        span_type=http.TEMPLATE,
+        tags=tags,
+        pin=pin,
+    ) as ctx, ctx["call"]:
         return wrapped(*args, **kwargs)
 
 
