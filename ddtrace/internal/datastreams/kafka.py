@@ -1,7 +1,6 @@
 import time
 
 from confluent_kafka import TopicPartition
-import six
 
 from ddtrace import config
 from ddtrace.internal import core
@@ -12,10 +11,6 @@ from ddtrace.internal.utils import set_argument_value
 
 
 INT_TYPES = (int,)
-if six.PY2:
-    import types
-
-    INT_TYPES = (types.IntType, types.LongType)
 
 
 def dsm_kafka_message_produce(instance, args, kwargs):
@@ -36,10 +31,7 @@ def dsm_kafka_message_produce(instance, args, kwargs):
     except ArgumentError:
         on_delivery_kwarg = "callback"
         on_delivery_arg = 4
-        try:
-            on_delivery = get_argument_value(args, kwargs, on_delivery_arg, on_delivery_kwarg)
-        except ArgumentError:
-            on_delivery = None
+        on_delivery = get_argument_value(args, kwargs, on_delivery_arg, on_delivery_kwarg, optional=True)
 
     def wrapped_callback(err, msg):
         if err is None:
@@ -77,16 +69,15 @@ def dsm_kafka_message_consume(instance, message):
 def dsm_kafka_message_commit(instance, args, kwargs):
     from . import data_streams_processor as processor
 
-    message = None
-    try:
-        message = get_argument_value(args, kwargs, 0, "message")
-    except ArgumentError:
-        pass  # set message to None
+    message = get_argument_value(args, kwargs, 0, "message", optional=True)
 
-    offsets = kwargs.get("offsets", [])
+    offsets = []
     if message is not None:
         reported_offset = message.offset() + 1 if isinstance(message.offset(), INT_TYPES) else -1
         offsets = [TopicPartition(message.topic(), message.partition(), reported_offset)]
+    else:
+        offsets = get_argument_value(args, kwargs, 1, "offsets", True) or []
+
     for offset in offsets:
         reported_offset = offset.offset if isinstance(offset.offset, INT_TYPES) else -1
         processor().track_kafka_commit(instance._group_id, offset.topic, offset.partition, reported_offset, time.time())
