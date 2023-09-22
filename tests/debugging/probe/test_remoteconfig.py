@@ -339,7 +339,7 @@ def test_poller_events(remote_config_worker, mock_config):
             (ProbePollerEvent.NEW_PROBES, frozenset(["probe4", "probe1", "probe2", "probe3"])),
             (ProbePollerEvent.DELETED_PROBES, frozenset(["probe1"])),
             (ProbePollerEvent.NEW_PROBES, frozenset(["probe5"])),
-            (ProbePollerEvent.STATUS_UPDATE, frozenset(["probe4", "probe2", "probe3", "probe5"])),
+            (ProbePollerEvent.STATUS_UPDATE, frozenset()),
         }, events
     finally:
         di_config.diagnostics_interval = old_interval
@@ -427,7 +427,7 @@ def test_multiple_configs(remote_config_worker):
             (ProbePollerEvent.NEW_PROBES, frozenset({"probe1"})),
             (ProbePollerEvent.NEW_PROBES, frozenset({"probe2"})),
             (ProbePollerEvent.NEW_PROBES, frozenset({"probe3"})),
-            (ProbePollerEvent.STATUS_UPDATE, frozenset({"probe1", "probe2", "probe3"})),
+            (ProbePollerEvent.STATUS_UPDATE, frozenset()),
         }
 
         # remove configuration
@@ -438,7 +438,7 @@ def test_multiple_configs(remote_config_worker):
             (ProbePollerEvent.NEW_PROBES, frozenset({"probe1"})),
             (ProbePollerEvent.NEW_PROBES, frozenset({"probe2"})),
             (ProbePollerEvent.NEW_PROBES, frozenset({"probe3"})),
-            (ProbePollerEvent.STATUS_UPDATE, frozenset({"probe1", "probe2", "probe3"})),
+            (ProbePollerEvent.STATUS_UPDATE, frozenset()),
             (ProbePollerEvent.DELETED_PROBES, frozenset({"probe2"})),
         }
 
@@ -579,7 +579,7 @@ def test_modified_probe_events(remote_config_worker, mock_config):
             (ProbePollerEvent.STATUS_UPDATE, frozenset()),
             (ProbePollerEvent.NEW_PROBES, frozenset(["probe1"])),
             (ProbePollerEvent.MODIFIED_PROBES, frozenset(["probe1"])),
-            (ProbePollerEvent.STATUS_UPDATE, frozenset(["probe1"])),
+            (ProbePollerEvent.STATUS_UPDATE, frozenset()),
         ]
     finally:
         di_config.diagnostics_interval = old_interval

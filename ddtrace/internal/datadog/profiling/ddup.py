@@ -1,3 +1,6 @@
+from .utils import sanitize_string  # noqa: F401
+
+
 try:
     from ._ddup import *  # noqa: F403, F401
 except ImportError:

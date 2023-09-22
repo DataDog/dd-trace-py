@@ -3,8 +3,9 @@ import sqlite3
 import sqlite3.dbapi2
 import sys
 
+import wrapt
+
 from ddtrace import config
-from ddtrace.vendor import wrapt
 
 from ...contrib.dbapi import FetchTracedCursor
 from ...contrib.dbapi import TracedConnection
