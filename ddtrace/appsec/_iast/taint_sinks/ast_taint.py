@@ -29,7 +29,7 @@ def ast_funcion(
     if cls.__class__.__module__ == "random" and cls_name == "Random" and func_name in DEFAULT_WEAK_RANDOMNESS_FUNCTIONS:
         # Weak, run the analyzer
         WeakRandomness.report(evidence_value=cls_name + "." + func_name)
-    elif DEFAULT_PATH_TRAVERSAL_FUNCTIONS.get(func.__module__):
+    elif hasattr(func, "__module__") and DEFAULT_PATH_TRAVERSAL_FUNCTIONS.get(func.__module__):
         if func_name in DEFAULT_PATH_TRAVERSAL_FUNCTIONS[func.__module__]:
             check_and_report_path_traversal(*args, **kwargs)
     return func(*args, **kwargs)
