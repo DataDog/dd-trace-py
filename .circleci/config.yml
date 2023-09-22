@@ -30,7 +30,7 @@ jobs:
       - run:
           name: Generate config
           command: |
-            pip3 install riot==0.17.7
+            pip3 install riot==0.19.0
             riot -v run --pass-env -s circleci-gen-config -- -v
       - continuation/continue:
           configuration_path: .circleci/config.gen.yml
