@@ -424,7 +424,7 @@ class Config(object):
         if service_name != self.service:
             try:
                 self.extra_services_queue.put_nowait(service_name)
-            except Exception:
+            except Exception:  # nosec
                 pass
 
     def get_extra_services(self):
@@ -433,7 +433,7 @@ class Config(object):
                 self.extra_services.add(self.extra_services_queue.get_nowait())
                 if len(self.extra_services) >= 64:
                     self.extra_services.pop()
-        except Exception:
+        except Exception:  # nosec
             pass
         return self.extra_services
 
