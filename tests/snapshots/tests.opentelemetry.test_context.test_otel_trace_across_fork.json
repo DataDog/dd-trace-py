@@ -1,13 +1,11 @@
 [[
   {
     "name": "root",
-    "service": "",
+    "service": null,
     "resource": "root",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
-    "type": "",
-    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "language": "python",
@@ -24,13 +22,11 @@
   },
      {
        "name": "task",
-       "service": "",
+       "service": null,
        "resource": "task",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
-       "type": "",
-       "error": 0,
        "meta": {
          "language": "python",
          "runtime-id": "d0c70dc4dfb240c78a993aed893ddb46",
