@@ -2,7 +2,6 @@ import functools
 import sys
 from typing import Callable
 from typing import Dict
-from typing import Iterable
 from typing import Tuple
 
 import wrapt
