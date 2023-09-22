@@ -6,7 +6,6 @@ import shutil
 import sys
 import tarfile
 
-
 from setuptools import Extension, find_packages, setup  # isort: skip
 from setuptools.command.build_ext import build_ext  # isort: skip
 from setuptools.command.build_py import build_py as BuildPyCommand  # isort: skip
@@ -17,8 +16,8 @@ from distutils.command.clean import clean as CleanCommand  # isort: skip
 try:
     # ORDER MATTERS
     # Import this after setuptools or it will fail
-    from Cython.Build import cythonize  # noqa: I100
     import Cython.Distutils
+    from Cython.Build import cythonize  # noqa: I100
 except ImportError:
     raise ImportError(
         "Failed to import Cython modules. This can happen under versions of pip older than 18 that don't "
@@ -594,7 +593,7 @@ setup(
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
     ],
-    setup_requires=["setuptools_scm[toml]>=4", "cython<3", "cmake>=3.24.2; python_version>='3.6'"],
+    setup_requires=["setuptools_scm[toml]>=4,<8", "cython<3", "cmake>=3.24.2; python_version>='3.6'"],
     ext_modules=ext_modules
     + cythonize(
         [
