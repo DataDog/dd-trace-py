@@ -93,15 +93,18 @@ def _start_appsec_processor():
         from .appsec._processor import AppSecSpanProcessor
 
         return AppSecSpanProcessor()
-    except Exception as e:
+    except Exception:
         # DDAS-001-01
+        import traceback
+
+        traceback.print_exc()
         log.error(
             "[DDAS-001-01] "
             "AppSec could not start because of an unexpected error. No security activities will "
             "be collected. "
             "Please contact support at https://docs.datadoghq.com/help/ for help. Error details: "
             "\n%s",
-            repr(e),
+            exc_info=True,
         )
         if config._raise:
             raise
