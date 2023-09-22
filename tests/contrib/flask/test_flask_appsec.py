@@ -1,4 +1,5 @@
-from flask_login import LoginManager, UserMixin, login_user, logout_user, current_user
+import flask_login
+from flask_login import LoginManager, UserMixin, logout_user, current_user
 import json
 import logging
 
@@ -14,7 +15,7 @@ from ddtrace.appsec.trace_utils import block_request_if_user_blocked
 from ddtrace.contrib.sqlite3.patch import patch
 from ddtrace.contrib.flask_login.patch import patch as patch_login
 from ddtrace.contrib.flask_login.patch import unpatch as unpatch_login
-from ddtrace.ext import http
+from ddtrace.ext import http, user
 from ddtrace.internal import constants
 from ddtrace.internal import core
 from ddtrace.internal.compat import urlencode
@@ -37,8 +38,9 @@ _ALLOWED_USER = "111111"
 
 
 class User(UserMixin):
-    def __init__(self, id, name, email, password, is_admin=False):
+    def __init__(self, id, login, name, email, password, is_admin=False):
         self.id = id
+        self.login = login
         self.name = name
         self.email = email
         self.password = generate_password_hash(password)
@@ -64,7 +66,7 @@ TEST_WRONG_PASSWD = "hacker"
 
 # JJJ use constants
 _USERS = [
-    User(1, "john", "john@test.com", "passw0rd", False)
+    User(1, "john", "John Tester", "john@test.com", "passw0rd", False)
 ]
 
 
@@ -84,7 +86,7 @@ def login_base(email, passwd):
         return "User not found"
 
     if user.check_password(passwd):
-        login_user(user, remember=False)
+        flask_login.login_user(user, remember=False)
         return "User %s logged in successfully, session: %s" % (TEST_USER, session["_id"])
 
     return "Authentication failure"
@@ -999,67 +1001,163 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         @self.app.route("/login")
         def login():
             login_base("john@test.com", "passw0rd")
-            user = User(1, "john", "john@test.com", "passw0rd", False)
+            user = User(1, "john", "John Tester", "john@test.com", "passw0rd", False)
             return str(current_user == user)
 
         try:
             with override_global_config(dict(_appsec_enabled=True, _automatic_login_events_mode="disabled")):
+                self._aux_appsec_prepare_tracer()
                 resp = self.client.get("/login")
                 assert resp.status_code == 200
                 assert resp.data == b"True"
                 root_span = self.pop_spans()[0]
-                appsec_json = root_span.get_tag(APPSEC.JSON)
-                assert not appsec_json
+                assert not root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.track")
+                assert not root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".failure.track")
         finally:
-            try:
-                logout_user()
-            except:
-                pass
+            unpatch_login()
 
 
     def test_flask_login_events_disabled_noappsec(self):
         @self.app.route("/login")
         def login():
             login_base("john@test.com", "passw0rd")
-            user = User(1, "john", "john@test.com", "passw0rd", False)
+            user = User(1, "john", "John Tester", "john@test.com", "passw0rd", False)
             return str(current_user == user)
 
         try:
             with override_global_config(dict(_appsec_enabled=False, _automatic_login_events_mode="safe")):
+                self._aux_appsec_prepare_tracer()
                 resp = self.client.get("/login")
                 assert resp.status_code == 200
                 assert resp.data == b"True"
                 root_span = self.pop_spans()[0]
-                appsec_json = root_span.get_tag(APPSEC.JSON)
-                assert not appsec_json
+                assert not root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.track")
+                assert not root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".failure.track")
         finally:
-            try:
-                logout_user()
-            except:
-                pass
-
+            unpatch_login()
 
     def test_flask_login_sucess_extended(self):
         @self.app.route("/login")
         def login():
             login_base("john@test.com", "passw0rd")
-            user = User(1, "john", "john@test.com", "passw0rd", False)
+            user = User(1, "john", "John Tester", "john@test.com", "passw0rd", False)
             return str(current_user == user)
-
         try:
             patch_login()
             with override_global_config(dict(_appsec_enabled=True, _automatic_login_events_mode="extended")):
-                import inspect
-                print("JJJ func: %s" % inspect.getfile(login_user))
+                self._aux_appsec_prepare_tracer()
                 resp = self.client.get("/login")
                 assert resp.status_code == 200
                 assert resp.data == b"True"
                 root_span = self.pop_spans()[0]
-                appsec_json = root_span.get_tag(APPSEC.JSON)
-                assert appsec_json
+                assert root_span.get_tag(user.ID) == "john"
+                assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.track") == "true"
+                assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.auto.mode") == "extended"
+                assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.login") == "john"
+                assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.email") == "john@test.com"
+                assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.username") == "John Tester"
         finally:
-            try:
-                logout_user()
-                unpatch_login()
-            except:
-                pass
+            unpatch_login()
+
+    def test_flask_login_sucess_safe(self):
+        @self.app.route("/login")
+        def login():
+            login_base("john@test.com", "passw0rd")
+            user = User(1, "john", "John Tester", "john@test.com", "passw0rd", False)
+            return str(current_user == user)
+        try:
+            patch_login()
+            with override_global_config(dict(_appsec_enabled=True, _automatic_login_events_mode="safe")):
+                self._aux_appsec_prepare_tracer()
+                resp = self.client.get("/login")
+                assert resp.status_code == 200
+                assert resp.data == b"True"
+                root_span = self.pop_spans()[0]
+                assert root_span.get_tag(user.ID) == "1"
+                assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.track") == "true"
+                assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.auto.mode") == "safe"
+                assert not root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.login")
+                assert not root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.email")
+                assert not root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.username")
+        finally:
+            unpatch_login()
+
+    def test_flask_login_sucess_safe_is_default_if_wrong(self):
+        @self.app.route("/login")
+        def login():
+            login_base("john@test.com", "passw0rd")
+            user = User(1, "john", "John Tester", "john@test.com", "passw0rd", False)
+            return str(current_user == user)
+        try:
+            patch_login()
+            with override_global_config(dict(_appsec_enabled=True, _automatic_login_events_mode="foobar")):
+                self._aux_appsec_prepare_tracer()
+                resp = self.client.get("/login")
+                assert resp.status_code == 200
+                assert resp.data == b"True"
+                root_span = self.pop_spans()[0]
+                assert root_span.get_tag(user.ID) == "1"
+        finally:
+            unpatch_login()
+
+    def test_flask_login_sucess_safe_is_default_if_missing(self):
+        @self.app.route("/login")
+        def login():
+            login_base("john@test.com", "passw0rd")
+            user = User(1, "john", "John Tester", "john@test.com", "passw0rd", False)
+            return str(current_user == user)
+        try:
+            patch_login()
+            with override_global_config(dict(_appsec_enabled=True)):
+                self._aux_appsec_prepare_tracer()
+                resp = self.client.get("/login")
+                assert resp.status_code == 200
+                assert resp.data == b"True"
+                root_span = self.pop_spans()[0]
+                assert root_span.get_tag(user.ID) == "1"
+        finally:
+            unpatch_login()
+
+    def test_flask_login_failure_user_doesnt_exists(self):
+        @self.app.route("/login")
+        def login():
+            login_base("mike@test.com", "passw0rd")
+            user = User(1, "john", "John Tester", "john@test.com", "passw0rd", False)
+            return str(current_user != user)
+        try:
+            patch_login()
+            with override_global_config(dict(_appsec_enabled=True, _automatic_login_events_mode="extended")):
+                self._aux_appsec_prepare_tracer()
+                resp = self.client.get("/login")
+                assert resp.status_code == 200
+                assert resp.data == b"True"
+                root_span = self.pop_spans()[0]
+                assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".failure.track") == "true"
+                assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".failure." + user.ID) == "missing"
+                assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".failure." + user.EXISTS) == "false"
+                assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".failure.auto.mode") == "extended"
+        finally:
+            unpatch_login()
+
+    def test_flask_login_sucess_safe_but_user_set_login_field(self):
+        @self.app.route("/login")
+        def login():
+            login_base("john@test.com", "passw0rd")
+            user = User(1, "john", "John Tester", "john@test.com", "passw0rd", False)
+            return str(current_user == user)
+        try:
+            patch_login()
+            with override_global_config(
+                    dict(_appsec_enabled=True, _user_model_login_field="login", _automatic_login_events_mode="safe")
+            ):
+                self._aux_appsec_prepare_tracer()
+                resp = self.client.get("/login")
+                assert resp.status_code == 200
+                assert resp.data == b"True"
+                root_span = self.pop_spans()[0]
+                assert root_span.get_tag(user.ID) == "john"
+                assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.track") == "true"
+                assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.auto.mode") == "safe"
+        finally:
+            unpatch_login()
+

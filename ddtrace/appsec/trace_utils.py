@@ -112,6 +112,7 @@ def track_user_login_success_event(
     span = _track_user_login_common(tracer, True, metadata, login_events_mode, login, name, email, span)
     if not span:
         return
+    print("JJJ in set_tag: ");print(id(span))
 
     # usr.id will be set by set_user
     set_user(tracer, user_id, name, email, scope, role, session_id, propagate, span)
