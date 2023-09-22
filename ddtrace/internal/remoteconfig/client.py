@@ -34,10 +34,7 @@ from ._pubsub import PubSub
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Callable
-    from typing import MutableMapping
-    from typing import Tuple
-    from typing import Union
+    pass
 
 log = get_logger(__name__)
 
@@ -188,7 +185,7 @@ class RemoteConfigClient(object):
             language="python",
             tracer_version=tracer_version,
             service=ddtrace.config.service,
-            extra_services=list(ddtrace.config.extra_services),
+            extra_services=list(ddtrace.config.get_extra_services()),
             env=ddtrace.config.env,
             app_version=ddtrace.config.version,
             tags=[":".join(_) for _ in tags.items()],

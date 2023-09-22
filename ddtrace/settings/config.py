@@ -1,9 +1,7 @@
 from copy import deepcopy
+import multiprocessing
 import os
 import re
-from typing import List
-from typing import Optional
-from typing import Tuple
 
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import APPSEC
@@ -285,6 +283,7 @@ class Config(object):
         if self.service is None and in_azure_function_consumption_plan():
             self.service = os.environ.get("WEBSITE_SITE_NAME")
 
+        self.extra_services_queue = multiprocessing.Queue()
         self.extra_services = set()
         self.version = os.getenv("DD_VERSION", default=self.tags.get("version"))
         self.http_server = self._HTTPServerConfig()
@@ -420,9 +419,20 @@ class Config(object):
 
     def add_extra_service(self, service_name):
         if service_name != self.service:
-            self.extra_services.add(service_name)
-            if len(self.extra_services) >= 64:
-                self.extra_services.pop()
+            try:
+                self.extra_services_queue.put_nowait(service_name)
+            except Exception:
+                pass
+
+    def get_extra_services(self):
+        try:
+            while True:
+                self.extra_services.add(self.extra_services_queue.get_nowait())
+                if len(self.extra_services) >= 64:
+                    self.extra_services.pop()
+        except Exception:
+            pass
+        return self.extra_services
 
     def get_from(self, obj):
         """Retrieves the configuration for the given object.

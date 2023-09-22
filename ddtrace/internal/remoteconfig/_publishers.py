@@ -12,9 +12,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Any
     from typing import Callable
     from typing import Dict
-    from typing import List
     from typing import Optional
-    from typing import Tuple
 
     from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
     from ddtrace.internal.remoteconfig._pubsub import PubSub

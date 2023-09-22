@@ -23,10 +23,7 @@ except ImportError:
     JSONDecodeError = ValueError  # type: ignore
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Any
-    from typing import Dict
-    from typing import Mapping
-    from typing import Optional
+    pass
 
     from ddtrace import Tracer
 
