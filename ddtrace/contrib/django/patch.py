@@ -44,7 +44,7 @@ from ddtrace.settings.integration import IntegrationConfig
 
 from .. import trace_utils
 from ...appsec._constants import WAF_CONTEXT_NAMES
-from ...appsec.utils import _UserInfoRetriever
+from ...appsec._utils import _UserInfoRetriever
 from ...internal.utils import get_argument_value
 from ..trace_utils import _get_request_header_user_agent
 from ..trace_utils import _set_url_tag
