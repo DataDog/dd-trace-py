@@ -6,18 +6,26 @@ import shutil
 import sys
 import tarfile
 
+<<<<<<< HEAD
 from setuptools import Extension, find_packages, setup
 from setuptools.command.build_ext import build_ext
 from setuptools.command.build_py import build_py as BuildPyCommand
 from pkg_resources import get_build_platform
 from distutils.command.clean import clean as CleanCommand
+=======
+from setuptools import Extension, find_packages, setup  # isort: skip
+from setuptools.command.build_ext import build_ext  # isort: skip
+from setuptools.command.build_py import build_py as BuildPyCommand  # isort: skip
+from pkg_resources import get_build_platform  # isort: skip
+from distutils.command.clean import clean as CleanCommand  # isort: skip
+>>>>>>> bc10daffb (chore: pin setuptools_scm (#7005))
 
 
 try:
     # ORDER MATTERS
     # Import this after setuptools or it will fail
-    from Cython.Build import cythonize  # noqa: I100
     import Cython.Distutils
+    from Cython.Build import cythonize  # noqa: I100
 except ImportError:
     raise ImportError(
         "Failed to import Cython modules. This can happen under versions of pip older than 18 that don't "
@@ -593,8 +601,12 @@ setup(
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
     ],
+<<<<<<< HEAD
     use_scm_version={"write_to": "ddtrace/_version.py"},
     setup_requires=["setuptools_scm[toml]>=4", "cython<3", "cmake>=3.24.2; python_version>='3.6'"],
+=======
+    setup_requires=["setuptools_scm[toml]>=4,<8", "cython<3", "cmake>=3.24.2; python_version>='3.6'"],
+>>>>>>> bc10daffb (chore: pin setuptools_scm (#7005))
     ext_modules=ext_modules
     + cythonize(
         [
