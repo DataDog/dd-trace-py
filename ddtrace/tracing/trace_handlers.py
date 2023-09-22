@@ -445,6 +445,11 @@ def _on_django_func_wrapped(_unused1, _unused2, _unused3, ctx, ignored_excs):
             ctx["call"]._ignore_exception(exc)
 
 
+def _on_django_process_exception(ctx: core.ExecutionContext, should_set_traceback: bool):
+    if should_set_traceback:
+        ctx["call"].set_traceback()
+
+
 def listen():
     core.on("wsgi.block.started", _make_block_content)
     core.on("wsgi.request.prepare", _on_request_prepare)
@@ -466,6 +471,7 @@ def listen():
     core.on("django.start_response", _on_django_start_response)
     core.on("django.cache", _on_django_cache)
     core.on("django.func.wrapped", _on_django_func_wrapped)
+    core.on("django.process_exception", _on_django_process_exception)
 
     for context_name in (
         "flask.call",

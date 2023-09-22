@@ -304,13 +304,11 @@ def traced_process_exception(django, name, resource=None):
         tags = {COMPONENT: config.django.integration_name}
         with core.context_with_data(
             "django.process_exception", span_name=name, resource=resource, tags=tags, pin=pin
-        ) as ctx, ctx["call"] as span:
+        ) as ctx, ctx["call"]:
             resp = func(*args, **kwargs)
-
-            # If the response code is erroneous then grab the traceback
-            # and set an error.
-            if hasattr(resp, "status_code") and 500 <= resp.status_code < 600:
-                span.set_traceback()
+            core.dispatch(
+                "django.process_exception", ctx, hasattr(resp, "status_code") and 500 <= resp.status_code < 600
+            )
             return resp
 
     return trace_utils.with_traced_module(wrapped)(django)
@@ -393,6 +391,7 @@ def _set_block_tags(request, request_headers, span):
     from . import utils
 
     try:
+        # xxx emmett
         span.set_tag_str(http.STATUS_CODE, "403")
         span.set_tag_str(http.METHOD, request.method)
         url = utils.get_request_uri(request)
@@ -479,6 +478,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                 content = http_utils._get_blocked_template(ctype)
                 response = HttpResponse(content, content_type=ctype, status=status)
                 response.content = content
+            # xxx emmett
             utils._after_request_tags(pin, span, request, response)
             return response
 
@@ -645,6 +645,7 @@ def traced_get_asgi_application(django, pin, func, instance, args, kwargs):
     from ddtrace.contrib.asgi import TraceMiddleware
 
     def django_asgi_modifier(span, scope):
+        # xxx emmett
         span.name = schematize_url_operation("django.request", protocol="http", direction=SpanDirection.INBOUND)
 
     return TraceMiddleware(func(*args, **kwargs), integration_config=config.django, span_modifier=django_asgi_modifier)
