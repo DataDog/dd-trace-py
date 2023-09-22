@@ -114,7 +114,6 @@ def create_release_draft(dd_repo, base, rc, patch, latest_branch):
         rn_raw = generate_rn(branch)
         rn_sections_clean = create_release_notes_sections(rn_raw, branch)
         # combine the release note sections into a string in the correct order
-        import pdb; pdb.set_trace()
         rn = ""
         rn_key_order = [
             "Prelude",
@@ -164,7 +163,7 @@ def generate_rn(branch):
 def create_release_notes_sections(rn_raw, branch):
     # get anything in unreleased section in case there were updates since the last RC
     unreleased = clean_rn(rn_raw)
-    unreleased = re.split(r"(#)\1{2,}", unreleased)[1:]
+    unreleased = break_into_release_sections(unreleased)
     try:
         unreleased_sections = dict(section.split("\n\n-") for section in unreleased)
         for key in unreleased_sections.keys():
@@ -177,10 +176,11 @@ def create_release_notes_sections(rn_raw, branch):
         relevant_rns.append(unreleased_sections)
 
     rns = rn_raw.decode().split("## v")
+    # grab the sections from the RC(s)
     for rn in rns:
         if rn.startswith("%s.0" % branch):
             # cut out the version section
-            sections = re.split(r"(#)\1{2,}", rn)[1:]
+            sections = break_into_release_sections(rn)
             prelude_section = {}
             # if there is a prelude, we need to grab that separately since it has different syntax
             if sections[0].startswith(" Prelude\n\n"):
@@ -195,6 +195,10 @@ def create_release_notes_sections(rn_raw, branch):
     for key in rns_dict.keys():
         rn_sections_clean[key.lstrip()] = rns_dict[key]
     return rn_sections_clean
+
+
+def break_into_release_sections(rn):
+    return [ele for ele in re.split(r"[^#](#)\1{2}[^#]", rn)[1:] if ele != "#"]
 
 
 def create_draft_release(
