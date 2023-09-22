@@ -11,7 +11,9 @@ def set_consume_checkpoint(typ, source, carrier_get):
 
     :returns DataStreamsCtx | None
     """
+    print("[data_streams.set_consume_checkpoint]")
     if ddtrace.config._data_streams_enabled:
+        print("[data_streams.set_consume_checkpoint] enabled")
         processor = ddtrace.tracer.data_streams_processor
         processor.decode_pathway_b64(carrier_get(PROPAGATION_KEY_BASE_64))
         return processor.set_checkpoint(["type:" + typ, "topic:" + source, "direction:in", "manual_checkpoint:true"])
@@ -27,7 +29,9 @@ def set_produce_checkpoint(typ, target, carrier_set):
 
     :returns DataStreamsCtx | None
     """
+    print("[data_streams.set_produce_checkpoint]")
     if ddtrace.config._data_streams_enabled:
+        print("[data_streams.set_produce_checkpoint] enabled")
         pathway = ddtrace.tracer.data_streams_processor.set_checkpoint(
             ["type:" + typ, "topic:" + target, "direction:out", "manual_checkpoint:true"]
         )

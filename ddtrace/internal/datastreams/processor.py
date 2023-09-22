@@ -105,6 +105,7 @@ class DataStreamsProcessor(PeriodicService):
     """DataStreamsProcessor for computing, collecting and submitting data stream stats to the Datadog Agent."""
 
     def __init__(self, agent_url, interval=None, timeout=1.0, retry_attempts=3):
+        print("[DataStreamsProcessor] init")
         # type: (str, Optional[float], float, int) -> None
         if interval is None:
             interval = float(os.getenv("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
@@ -157,7 +158,9 @@ class DataStreamsProcessor(PeriodicService):
         :return: Nothing
         """
         if not self._enabled:
+            print("CHECKPOINT CREATION NOT ENABLED")
             return
+        print("CHECKPOINT CREATION ENABELD")
 
         now_ns = int(now_sec * 1e9)
 
@@ -339,6 +342,7 @@ class DataStreamsProcessor(PeriodicService):
         return ctx
 
     def set_checkpoint(self, tags, now_sec=None):
+        print("[processor.set_checkpoint]")
         if not now_sec:
             now_sec = time.time()
         if hasattr(self._current_context, "value"):
@@ -405,6 +409,7 @@ class DataStreamsCtx:
         :param edge_start_sec_override: Use this to override the starting time of an edge
         :param pathway_start_sec_override: Use this to override the starting time of a pathway
         """
+        print("[context.set_checkpoint]")
         if not now_sec:
             now_sec = time.time()
         tags = sorted(tags)
