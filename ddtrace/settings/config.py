@@ -53,7 +53,7 @@ DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT = (
     r"|secret[-_]?"
     r")key(?:[-_]?id)?"
     r"|token"
-    r"|consumer[-_]?(?:id|key|secret)"git push
+    r"|consumer[-_]?(?:id|key|secret)"
     r"|sign(?:ed|ature)?"
     r"|auth(?:entication|orization)?"
     r")"
