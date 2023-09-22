@@ -313,37 +313,9 @@ def test_flask_processexec_subprocesscommunicateshell(flask_client):
     ],
     variants={"220": flask_version >= (2, 2, 0), "": flask_version < (2, 2, 0)},
 )
-
-
 @pytest.mark.parametrize("flask_env_arg", (flask_appsec_good_rules_env,))
 @pytest.mark.skipif(PY2, reason="Python2 + flask +  + subprocesses + pytest is known to hang")
 def test_flask_processexec_subprocesscommunicatenoshell(flask_client):
     resp = flask_client.get("/executions/subcommunicatenoshell")
     assert resp.status_code == 200
     assert resp.text == "0"
-
-
-@pytest.mark.snapshot(
-    ignores=[
-        "meta._dd.appsec.waf.duration",
-        "meta._dd.appsec.waf.duration_ext",
-        "meta.flask.version",
-        "meta.http.request.headers.accept-encoding",
-        "meta.http.request.headers.user-agent",
-        "http.response.headers.content-length",
-        "http.response.headers.content-type",
-        "meta.http.useragent",
-        "meta.error.stack",
-        "metrics._dd.appsec.event_rules.loaded",
-        "metrics._dd.appsec.waf.duration",
-        "metrics._dd.appsec.waf.duration_ext",
-    ],
-    variants={"220": flask_version >= (2, 2, 0), "": flask_version < (2, 2, 0)},
-)
-@pytest.mark.parametrize("flask_env_arg", (flask_appsec_good_rules_env,))
-@pytest.mark.skipif(PY2, reason="Python2 + flask +  + subprocesses + pytest is known to hang")
-def test_flask_login_correct(flask_client):
-    resp = flask_client.get("/login")
-    assert resp.status_code == 200
-    assert resp.text == "User john logged in successfully"
-    _ = flask_client.get("/logout")

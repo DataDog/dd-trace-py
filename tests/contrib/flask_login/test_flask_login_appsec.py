@@ -1,15 +1,20 @@
-import flask_login
-from flask_login import LoginManager, UserMixin, current_user
 from flask import session
+import flask_login
+from flask_login import LoginManager
+from flask_login import UserMixin
+from flask_login import current_user
 import pytest
-from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.security import check_password_hash
+from werkzeug.security import generate_password_hash
 
 from ddtrace.appsec._constants import APPSEC
-from ddtrace.appsec.trace_utils import block_request_if_user_blocked, track_user_login_failure_event
-from ddtrace.contrib.sqlite3.patch import patch
+from ddtrace.appsec.trace_utils import block_request_if_user_blocked
+from ddtrace.appsec.trace_utils import track_user_login_failure_event
 from ddtrace.contrib.flask_login.patch import patch as patch_login
 from ddtrace.contrib.flask_login.patch import unpatch as unpatch_login
-from ddtrace.ext import http, user
+from ddtrace.contrib.sqlite3.patch import patch
+from ddtrace.ext import http
+from ddtrace.ext import user
 from tests.contrib.flask import BaseFlaskTestCase
 from tests.utils import override_global_config
 
@@ -30,7 +35,7 @@ class User(UserMixin):
         return check_password_hash(self.password, password)
 
     def __repr__(self):
-        return '<User {}>'.format(self.email)
+        return "<User {}>".format(self.email)
 
     def get_id(self):
         return self.id
@@ -42,9 +47,7 @@ TEST_EMAIL = "john@test.com"
 TEST_PASSWD = "passw0rd"
 
 # JJJ use constants
-_USERS = [
-    User(1, TEST_USER, TEST_USER_NAME, TEST_EMAIL, TEST_PASSWD, False)
-]
+_USERS = [User(1, TEST_USER, TEST_USER_NAME, TEST_EMAIL, TEST_PASSWD, False)]
 
 EMPTY_USER = User(-1, "", "", "", "", False)
 
@@ -71,13 +74,17 @@ class FlaskLoginAppSecTestCase(BaseFlaskTestCase):
         super(FlaskLoginAppSecTestCase, self).setUp()
         patch()
         # flask_login stuff
-        self.app.config['SECRET_KEY'] = '7110c8ae51a4b5af97be6534caef90e4bb9bdcb3380af008f90b23a5d1616bf319bc298105da20fe'
+        self.app.config[
+            "SECRET_KEY"
+        ] = "7110c8ae51a4b5af97be6534caef90e4bb9bdcb3380af008f90b23a5d1616bf319bc298105da20fe"
         login_manager = LoginManager(self.app)
+
         def load_user(user_id):
             for _user in _USERS:
                 if _user.id == int(user_id):
                     return _user
             return None
+
         login_manager._user_callback = load_user
 
     def _aux_appsec_prepare_tracer(self, appsec_enabled=True):
@@ -146,6 +153,7 @@ class FlaskLoginAppSecTestCase(BaseFlaskTestCase):
             self._login_base(TEST_EMAIL, TEST_PASSWD)
             _user = User(1, TEST_USER, TEST_USER_NAME, TEST_EMAIL, TEST_PASSWD, False)
             return str(current_user == _user)
+
         try:
             patch_login()
             with override_global_config(dict(_appsec_enabled=True, _automatic_login_events_mode="extended")):
@@ -169,6 +177,7 @@ class FlaskLoginAppSecTestCase(BaseFlaskTestCase):
             self._login_base(TEST_EMAIL, TEST_PASSWD)
             _user = User(1, TEST_USER, TEST_USER_NAME, TEST_EMAIL, TEST_PASSWD, False)
             return str(current_user == _user)
+
         try:
             patch_login()
             with override_global_config(dict(_appsec_enabled=True, _automatic_login_events_mode="safe")):
@@ -192,6 +201,7 @@ class FlaskLoginAppSecTestCase(BaseFlaskTestCase):
             self._login_base(TEST_EMAIL, TEST_PASSWD)
             _user = User(1, TEST_USER, TEST_USER_NAME, TEST_EMAIL, TEST_PASSWD, False)
             return str(current_user == _user)
+
         try:
             patch_login()
             with override_global_config(dict(_appsec_enabled=True, _automatic_login_events_mode="foobar")):
@@ -210,6 +220,7 @@ class FlaskLoginAppSecTestCase(BaseFlaskTestCase):
             self._login_base(TEST_EMAIL, TEST_PASSWD)
             _user = User(1, TEST_USER, TEST_USER_NAME, TEST_EMAIL, TEST_PASSWD, False)
             return str(current_user == _user)
+
         try:
             patch_login()
             with override_global_config(dict(_appsec_enabled=True)):
@@ -229,6 +240,7 @@ class FlaskLoginAppSecTestCase(BaseFlaskTestCase):
                 return self._login_base("mike@test.com", TEST_PASSWD)
             except Exception as e:
                 return "foo"
+
         try:
             patch_login()
             with override_global_config(dict(_appsec_enabled=True, _automatic_login_events_mode="extended")):
@@ -247,6 +259,7 @@ class FlaskLoginAppSecTestCase(BaseFlaskTestCase):
         @self.app.route("/login")
         def login():
             return self._login_base(TEST_EMAIL, "hacker")
+
         try:
             patch_login()
             with override_global_config(dict(_appsec_enabled=True, _automatic_login_events_mode="safe")):
@@ -267,10 +280,11 @@ class FlaskLoginAppSecTestCase(BaseFlaskTestCase):
             self._login_base(TEST_EMAIL, TEST_PASSWD)
             _user = User(1, TEST_USER, TEST_USER_NAME, TEST_EMAIL, TEST_PASSWD, False)
             return str(current_user == _user)
+
         try:
             patch_login()
             with override_global_config(
-                    dict(_appsec_enabled=True, _user_model_login_field="login", _automatic_login_events_mode="safe")
+                dict(_appsec_enabled=True, _user_model_login_field="login", _automatic_login_events_mode="safe")
             ):
                 self._aux_appsec_prepare_tracer()
                 resp = self.client.get("/login")
@@ -282,4 +296,3 @@ class FlaskLoginAppSecTestCase(BaseFlaskTestCase):
                 assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.auto.mode") == "safe"
         finally:
             unpatch_login()
-

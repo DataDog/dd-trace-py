@@ -1,18 +1,22 @@
-from ddtrace import Pin
 import flask
-from ddtrace.vendor.wrapt.importer import when_imported
-from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 import flask_login
+
+from ddtrace import Pin
 from ddtrace import config
-from ddtrace.internal import core
-from ddtrace.internal.logger import get_logger
 from ddtrace.appsec.trace_utils import track_user_login_failure_event
 from ddtrace.appsec.trace_utils import track_user_login_success_event
+from ddtrace.internal import core
+from ddtrace.internal.logger import get_logger
+from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
+from ddtrace.vendor.wrapt.importer import when_imported
+
 from .. import trace_utils
-from ..flask.wrappers import simple_call_wrapper, get_current_app
 from ...appsec.utils import _UserInfoRetriever
 from ...ext import SpanTypes
 from ...internal.utils import get_argument_value
+from ..flask.wrappers import get_current_app
+from ..flask.wrappers import simple_call_wrapper
+
 
 log = get_logger(__name__)
 
@@ -43,7 +47,6 @@ def traced_login_user(func, instance, args, kwargs):
         if hasattr(user, "is_anonymous") and user.is_anonymous:
             return
 
-
         if not isinstance(user, flask_login.UserMixin):
             log.debug(
                 "Automatic Login Events Tracking: flask_login User models not inheriting from UserMixin not supported",
@@ -58,8 +61,9 @@ def traced_login_user(func, instance, args, kwargs):
             return
         if not user_id:
             log.debug(
-                "Automatic Login Events Tracking: Could not determine user id field user for the %s user Model; " %
-                type(user) + "set DD_USER_MODEL_LOGIN_FIELD to the name of the field used for the user id or "
+                "Automatic Login Events Tracking: Could not determine user id field user for the %s user Model; "
+                % type(user)
+                + "set DD_USER_MODEL_LOGIN_FIELD to the name of the field used for the user id or "
                 "implement the get_id method for your model"
             )
             return
@@ -72,7 +76,7 @@ def traced_login_user(func, instance, args, kwargs):
                 session_id=session_key,
                 propagate=True,
                 login_events_mode=mode,
-                **user_extra
+                **user_extra,
             )
     except Exception:
         log.debug("Error while trying to trace flask_login.login_user", exc_info=True)
