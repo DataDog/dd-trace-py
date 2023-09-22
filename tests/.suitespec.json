@@ -8,6 +8,7 @@
         "$harness": [
             "riotfile.py",
             "scripts/ddtest",
+            "scripts/run-test-suite",
             "hatch.toml",
             "tests/conftest.py",
             "tests/__init__.py",
