@@ -95,6 +95,8 @@ contacting support.
 +--------------------------------------------------+---------------+----------------+
 | :ref:`flask_cache`                               | >= 0.12       | No             |
 +--------------------------------------------------+---------------+----------------+
+| :ref:`flask_login`                               | >= 2.1        | Yes [6]_       |
++--------------------------------------------------+---------------+----------------+
 | :ref:`gevent`                                    | >= 1.1        | No             |
 +--------------------------------------------------+---------------+----------------+
 | :ref:`grpc`                                      | >= 1.12.0     | Yes [5]_       |
@@ -194,6 +196,8 @@ contacting support.
        :ref:`asyncio` for more details.
 
 .. [5] ``grpc.aio`` is automatically instrumented starting with ``grpcio>=1.32.0``.
+
+.. [6] Automatically instumented if ``DD_APPSEC_ENABLED=1``.
 
 
 .. _`Instrumentation Telemetry`:

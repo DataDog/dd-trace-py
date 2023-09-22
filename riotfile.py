@@ -910,6 +910,14 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="flask_login",
+            command="pytest {cmdargs} tests/contrib/flask_login",
+            pkgs={
+                "flask": "~=0.12.0",
+                "flask-login": "~=0.6.2",
+            },
+        ),
+        Venv(
             name="mako",
             command="pytest {cmdargs} tests/contrib/mako",
             pys=select_pys(),
