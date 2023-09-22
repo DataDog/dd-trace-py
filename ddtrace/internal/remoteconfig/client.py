@@ -34,7 +34,10 @@ from ._pubsub import PubSub
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    pass
+    from typing import Callable
+    from typing import MutableMapping
+    from typing import Tuple
+    from typing import Union
 
 log = get_logger(__name__)
 

@@ -8,7 +8,8 @@ from ddtrace.internal.remoteconfig.utils import get_poll_interval_seconds
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    pass
+    from typing import Callable
+    from typing import Optional
 
     from ddtrace import Tracer
     from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector

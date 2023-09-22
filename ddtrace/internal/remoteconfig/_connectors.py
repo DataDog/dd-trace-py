@@ -4,6 +4,7 @@ import multiprocessing
 import os
 import sys
 from typing import Any
+from typing import Dict
 from typing import Mapping
 from uuid import UUID
 
@@ -18,7 +19,6 @@ log = get_logger(__name__)
 # RC payloads and the max size of a multiprocess.array was 139.002 (sys.getsizeof(data.value)) and
 # max len 138.969 (len(data.value))
 SHARED_MEMORY_SIZE = 603432
-QUEUE_MAX_SIZE = 1024
 
 SharedDataType = Mapping[str, Any]
 
@@ -40,8 +40,6 @@ class PublisherSubscriberConnector(object):
 
     def __init__(self):
         self.data = multiprocessing.Array(c_char, SHARED_MEMORY_SIZE, lock=False)
-        # Queue used only for sending message from subscribers to the publisher
-        self.queue = multiprocessing.Queue(QUEUE_MAX_SIZE)
         # Checksum attr validates if the Publisher send new data
         self.checksum = -1
         # shared_data_counter attr validates if the Subscriber send new data
@@ -80,23 +78,6 @@ class PublisherSubscriberConnector(object):
                 data_len,
             )
             self.checksum = last_checksum
-
-    def queue_put(self, value):
-        # type: (Any) -> None
-        try:
-            self.queue.put_nowait(value)
-        except Exception:
-            pass
-
-    def queue_flush(self):
-        # type: () -> list[Any]
-        result = []
-        try:
-            while True:
-                result.append(self.queue.get_nowait())
-        except Exception:
-            pass
-        return result
 
     @staticmethod
     def serialize(metadata, config_raw, shared_data_counter):

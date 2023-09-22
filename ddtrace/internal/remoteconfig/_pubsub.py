@@ -70,7 +70,8 @@ from ddtrace.internal.remoteconfig._subscribers import RemoteConfigSubscriber
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    pass
+    from typing import Any
+    from typing import Optional
 
     from ddtrace import Tracer
     from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
@@ -110,11 +111,3 @@ class PubSub(object):
     def append(self, config_content, target, config_metadata):
         # type: (Optional[Any], str, Optional[Any]) -> None
         self._publisher.append(config_content, target, config_metadata)
-
-    def queue_get(self):
-        # type: () -> list[Any]
-        return self._shared_data.queue_flush()
-
-    def queue_put(self, value):
-        # type: (Any) -> None
-        self._shared_data.queue_put(value)

@@ -2,6 +2,9 @@ from copy import deepcopy
 import multiprocessing
 import os
 import re
+from typing import List
+from typing import Optional
+from typing import Tuple
 
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import APPSEC
@@ -50,7 +53,7 @@ DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT = (
     r"|secret[-_]?"
     r")key(?:[-_]?id)?"
     r"|token"
-    r"|consumer[-_]?(?:id|key|secret)"
+    r"|consumer[-_]?(?:id|key|secret)"git push
     r"|sign(?:ed|ature)?"
     r"|auth(?:entication|orization)?"
     r")"
