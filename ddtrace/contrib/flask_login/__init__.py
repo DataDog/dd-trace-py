@@ -13,6 +13,12 @@ Note that, by default, this will be enabled if ``DD_APPSEC_ENABLED=1`` with
  to extended mode which would also store the username and email or customize the id, email and name fields to
  adapt them to your custom ``User`` model.
 
+ Also, since ``flask_login`` is a "roll your own" kind of auth system, in your main login function, where you
+ check the user password (usually with ``check_password_hash``) you must manually call
+ ``track_user_login_failure_event(tracer, user_id, exists)`` to store the correct tags for authentication failure. As
+ a helper, you can call ``flask_login.login_user`` with a user object with a ``get_id()`` returning ``-1`` to
+ automatically set the tags for a login failure where the user doesn't exist.
+
 
 Enabling
 ~~~~~~~~
