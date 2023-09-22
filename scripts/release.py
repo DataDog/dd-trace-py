@@ -8,6 +8,7 @@ from datadog_api_client import Configuration
 from datadog_api_client.v1.api.notebooks_api import NotebooksApi
 from github import Github
 import requests
+import re
 
 
 """This release notes script is built to create a release notes draft 
@@ -113,6 +114,7 @@ def create_release_draft(dd_repo, base, rc, patch, latest_branch):
         rn_raw = generate_rn(branch)
         rn_sections_clean = create_release_notes_sections(rn_raw, branch)
         # combine the release note sections into a string in the correct order
+        import pdb; pdb.set_trace()
         rn = ""
         rn_key_order = [
             "Prelude",
@@ -162,7 +164,7 @@ def generate_rn(branch):
 def create_release_notes_sections(rn_raw, branch):
     # get anything in unreleased section in case there were updates since the last RC
     unreleased = clean_rn(rn_raw)
-    unreleased = unreleased.split("###")[1:]
+    unreleased = re.split(r"(#)\1{2,}", unreleased)[1:]
     try:
         unreleased_sections = dict(section.split("\n\n-") for section in unreleased)
         for key in unreleased_sections.keys():
@@ -178,7 +180,7 @@ def create_release_notes_sections(rn_raw, branch):
     for rn in rns:
         if rn.startswith("%s.0" % branch):
             # cut out the version section
-            sections = rn.split("###")[1:]
+            sections = re.split(r"(#)\1{2,}", rn)[1:]
             prelude_section = {}
             # if there is a prelude, we need to grab that separately since it has different syntax
             if sections[0].startswith(" Prelude\n\n"):
@@ -389,7 +391,7 @@ def create_notebook(dd_repo, name, rn, base, latest_branch):
 
     print("\nNotebook created at %s\n" % nb_url)
 
-    # eliminate duplicates of handles for the slack message
+    # eliminate duplicates of handles for the slack messages
     author_slack_handles = " ".join(set(author_slack_handles))
 
     print("Message to post in #apm-python-release once deployed to staging:\n")
