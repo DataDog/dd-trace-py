@@ -527,6 +527,7 @@ class RemoteConfigClient(object):
         try:
             state = self._build_state()
             payload = json.dumps(self._build_payload(state))
+            print("RC REQ", payload)
             response = self._send_request(payload)
             if response is None:
                 return False
