@@ -5,6 +5,7 @@ on:
     branches:
       - 0.x
       - 1.x
+      - 2.x
   pull_request:
   workflow_dispatch: {}
   schedule:
@@ -49,7 +50,7 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
-  
+
       - name: Checkout system tests
         if: needs.needs-run.outputs.outcome == 'success'
         uses: actions/checkout@v3
