@@ -27,8 +27,6 @@ from ddtrace.appsec._metrics import _set_waf_updates_metric
 from ddtrace.appsec._trace_utils import _asm_manual_keep
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.constants import RUNTIME_FAMILY
-from ddtrace.contrib import trace_utils
-from ddtrace.contrib.trace_utils import _normalize_tag_name
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
@@ -121,6 +119,8 @@ _COLLECTED_REQUEST_HEADERS = {
 
 def _set_headers(span, headers, kind):
     # type: (Span, Any, str) -> None
+    from ddtrace.contrib.trace_utils import _normalize_tag_name
+
     for k in headers:
         if isinstance(k, tuple):
             key, value = k
@@ -231,6 +231,8 @@ class AppSecSpanProcessor(SpanProcessor):
 
     def on_span_start(self, span):
         # type: (Span) -> None
+        from ddtrace.contrib import trace_utils
+
         if span.span_type != SpanTypes.WEB:
             return
 
