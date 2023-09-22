@@ -33,7 +33,7 @@ The script should be run from the `scripts` directory.
 
 Required:
     BASE - The base branch you are building your release candidate, patch, or minor release off of.
-        If this is a rc1, then just specify the branch you'll create after the release is published. e.g. BASE=1.9
+        If this is a rc1, then just specify the branch you'll create after the release is published. e.g. BASE=2.9
 
 Optional:
     RC - Whether or not this is a release candidate. e.g. RC=1 or RC=0
@@ -42,15 +42,15 @@ Optional:
     NOTEBOOK - Whether or not to create a notebook in staging. Note this only works for RC1s since those are usually what we create notebooks for.  
     Default is 1 for RC1s, 0 for everything else e.g. NOTEBOOK=0 or NOTEBOOK=1
 Examples:
-Generate release notes and staging testing notebook for next release candidate version of 1.11: `BASE=1.11 RC=1 NOTEBOOK=1 python release.py`
+Generate release notes and staging testing notebook for next release candidate version of 2.11: `BASE=2.11 RC=1 python release.py`
 
-Generate release notes for next patch version of 1.13: `BASE=1.13 PATCH=1 python release.py`
+Generate release notes for next patch version of 2.13: `BASE=2.13 PATCH=1 python release.py`
 
-Generate release notes for the 1.15 release: `BASE=1.15 python release.py`
+Generate release notes for the 2.15 release: `BASE=2.15 python release.py`
 """
 
 
-def create_release_draft(dd_repo, base, rc, patch):
+def create_release_draft(dd_repo, base, rc, patch, latest_branch):
     # make sure we're up to date
     subprocess.run("git fetch", shell=True, cwd=os.pardir)
 
@@ -68,11 +68,11 @@ def create_release_draft(dd_repo, base, rc, patch):
             if other_rc_num > latest_rc_version:
                 latest_rc_version = other_rc_num
         new_rc_version = latest_rc_version + 1
-        #  if this is the first rc for this base, we want to target 1.x
+        #  if this is the first rc for this base, we want to target the latest branch
         if new_rc_version == 1:
             name = "%s.0rc1" % base
             tag = "v%s" % name
-            branch = "1.x"
+            branch = latest_branch
         # if this is the rc+1 for this base
         else:
             name = "%s.0rc%s" % (base, str(new_rc_version))
@@ -231,29 +231,26 @@ def setup_gh():
     return g.get_repo(full_name_or_id="DataDog/dd-trace-py")
 
 
-def create_notebook(dd_repo, name, rn, base, rc, patch):
+def create_notebook(dd_repo, name, rn, base, latest_branch):
     dd_api_key = os.getenv("DD_API_KEY_STAGING")
     dd_app_key = os.getenv("DD_APP_KEY_STAGING")
     if not dd_api_key or not dd_app_key:
         raise ValueError(
             "We need DD_API_KEY_STAGING and DD_APP_KEY_STAGING values. Please follow the instructions in the script."
         )
-    if rc:
-        # need to figure out which versions to compare in order to get commits
-        # if this is the first RC need to grab the last released version branch e.g base = 1.19, compare = 1.18
-        if int(name[-1]) == 1:
-            last_version = base[:-1] + str(int(base[-1]) - 1)
-        # this script does not currently create notebooks for anything other than RC1 versions
-        else:
-            print(
-                "Since this is not the RC1 for this release."
-                "Please add the release notes for this release to the notebook."
-            )
-            return
-
+    if int(name[-1]) == 1:
+        last_version = base[:-1] + str(int(base[-1]) - 1)
+    else:
+        print(
+            "Since this is not the RC1 for this release."
+            "Please add the release notes for this release to the notebook."
+        )
+        return
     commit_hashes = (
         subprocess.check_output(
-            'git log {last_version}..1.x --oneline | cut -d " " -f 1'.format(last_version=last_version),
+            'git log {last_version}..{latest_branch} --oneline | cut -d " " -f 1'.format(
+                last_version=last_version, latest_branch=latest_branch
+            ),
             shell=True,
             cwd=os.pardir,
         )
@@ -351,8 +348,8 @@ def create_notebook(dd_repo, name, rn, base, rc, patch):
         "#  Release notes to test\n-[ ] Relenv is checked: https://ddstaging.datadoghq.com/dashboard/h8c-888-v2e/python-reliability-env-dashboard \n\n%s\n<Tester> \n<PR>\n\n\n## Release Notes that will not be tested\n- <any release notes for PRs that don't need manual testing>\n\n\n"  # noqa
         % (rn)
     )
-    # grab the latest commit id on 1.x to mark the rc notebook with
-    main_branch = dd_repo.get_branch(branch="1.x")
+    # grab the latest commit id on the lastest branch to mark the rc notebook with
+    main_branch = dd_repo.get_branch(branch=latest_branch)
     commit_id = main_branch.commit
 
     # pull the cells out to be transferred into a new notebook
@@ -423,21 +420,21 @@ if __name__ == "__main__":
         .strip()
     )
 
-    #  Figure out the version of the library that you’re working on releasing grabbed with VERSION envar
     base = os.getenv("BASE")
     rc = bool(os.getenv("RC"))
     patch = bool(os.getenv("PATCH"))
+    latest_branch = base[0] + ".x"
 
     if base is None:
-        raise ValueError("Need to specify the base version with envar e.g. BASE=1.10")
+        raise ValueError("Need to specify the base version with envar e.g. BASE=2.10")
 
     dd_repo = setup_gh()
-    name, rn = create_release_draft(dd_repo, base, rc, patch)
+    name, rn = create_release_draft(dd_repo, base, rc, patch, latest_branch)
 
-    if os.getenv("NOTEBOOK", 1):
-        if rc:
+    if rc:
+        if os.getenv("NOTEBOOK", 1):
             print("Creating Notebook")
-            create_notebook(dd_repo, name, rn, base, rc, patch)
+            create_notebook(dd_repo, name, rn, base, latest_branch)
         else:
             print(
                 (
