@@ -2,14 +2,14 @@ from typing import Any
 
 import bm
 
-from ddtrace.appsec.iast._taint_tracking import OriginType
-from ddtrace.appsec.iast._taint_tracking import Source
-from ddtrace.appsec.iast._taint_tracking import TaintRange
-from ddtrace.appsec.iast._taint_tracking import contexts_reset
-from ddtrace.appsec.iast._taint_tracking import create_context
-from ddtrace.appsec.iast._taint_tracking import set_ranges
-from ddtrace.appsec.iast._taint_tracking.aspects import add_aspect
-from ddtrace.appsec.iast._taint_tracking.aspects import join_aspect
+from ddtrace.appsec._iast._taint_tracking import OriginType
+from ddtrace.appsec._iast._taint_tracking import Source
+from ddtrace.appsec._iast._taint_tracking import TaintRange
+from ddtrace.appsec._iast._taint_tracking import create_context
+from ddtrace.appsec._iast._taint_tracking import reset_context
+from ddtrace.appsec._iast._taint_tracking import set_ranges
+from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
+from ddtrace.appsec._iast._taint_tracking.aspects import join_aspect
 
 
 TAINT_ORIGIN = Source(name="sample_name", value="sample_value", origin=OriginType.PARAMETER)
@@ -50,7 +50,7 @@ def aspect_function(internal_loop, tainted):
 
 def new_request(enable_propagation):
     tainted = b"my_string".decode("ascii")
-    contexts_reset()
+    reset_context()
     create_context()
 
     if enable_propagation:

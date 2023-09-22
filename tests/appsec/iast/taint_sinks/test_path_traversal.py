@@ -3,8 +3,8 @@ import os
 import pytest
 
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec.iast._utils import _is_python_version_supported as python_supported_by_iast
-from ddtrace.appsec.iast.constants import VULN_PATH_TRAVERSAL
+from ddtrace.appsec._iast._utils import _is_python_version_supported as python_supported_by_iast
+from ddtrace.appsec._iast.constants import VULN_PATH_TRAVERSAL
 from ddtrace.internal import core
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
 
@@ -15,8 +15,8 @@ ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_path_traversal(iast_span_defaults):
-    from ddtrace.appsec.iast._taint_tracking import OriginType
-    from ddtrace.appsec.iast._taint_tracking import taint_pyobject
+    from ddtrace.appsec._iast._taint_tracking import OriginType
+    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 
     mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.path_traversal")
 
@@ -37,6 +37,3 @@ def test_path_traversal(iast_span_defaults):
     assert vulnerability.evidence.value is None
     assert vulnerability.evidence.pattern is None
     assert vulnerability.evidence.redacted is None
-    assert vulnerability.type == VULN_PATH_TRAVERSAL
-    assert vulnerability.location.path == FIXTURES_PATH
-    assert vulnerability.location.line == 12

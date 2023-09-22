@@ -17,6 +17,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from ddtrace.settings import Config
 
 from six.moves.urllib.parse import quote
+import wrapt
 
 import ddtrace
 from ddtrace import config
@@ -26,7 +27,6 @@ from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.propagation._utils import from_wsgi_header
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.tracing import trace_handlers
-from ddtrace.vendor import wrapt
 
 from ...internal import core
 
@@ -99,14 +99,14 @@ class _DDWSGIMiddlewareBase(object):
             middleware=self,
         ) as ctx:
             if core.get_item(HTTP_REQUEST_BLOCKED):
-                status, ctype, content = core.dispatch("wsgi.block.started", ctx, construct_url)[0][0]
-                start_response(str(status), [("content-type", ctype)])
+                status, headers, content = core.dispatch("wsgi.block.started", ctx, construct_url)[0][0]
+                start_response(str(status), headers)
                 closing_iterator = [content]
                 not_blocked = False
 
             def blocked_view():
-                status, ctype, content = core.dispatch("wsgi.block.started", ctx, construct_url)[0][0]
-                return content, status, [("content-type", ctype)]
+                status, headers, content = core.dispatch("wsgi.block.started", ctx, construct_url)[0][0]
+                return content, status, headers
 
             core.dispatch("wsgi.block_decided", blocked_view)
 

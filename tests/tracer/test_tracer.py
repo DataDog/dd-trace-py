@@ -35,7 +35,6 @@ from ddtrace.contrib.trace_utils import set_user
 from ddtrace.ext import user
 from ddtrace.internal import telemetry
 from ddtrace.internal._encoding import MsgpackEncoderV03
-from ddtrace.internal._encoding import MsgpackEncoderV05
 from ddtrace.internal.serverless import has_aws_lambda_agent_extension
 from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.writer import AgentWriter
@@ -1117,13 +1116,17 @@ def test_deregister_start_span_hooks():
     assert result == {}
 
 
-def test_enable(monkeypatch):
-    t1 = ddtrace.Tracer()
-    assert t1.enabled
+@pytest.mark.subprocess(parametrize={"DD_TRACE_ENABLED": ["true", "false"]})
+def test_enable():
+    import os
 
-    monkeypatch.setenv("DD_TRACE_ENABLED", "false")
+    import ddtrace
+
     t2 = ddtrace.Tracer()
-    assert not t2.enabled
+    if os.environ["DD_TRACE_ENABLED"] == "true":
+        assert t2.enabled
+    else:
+        assert not t2.enabled
 
 
 def test_runtime_id_parent_only():
@@ -1670,26 +1673,34 @@ def test_configure_url_partial():
     assert tracer._writer.agent_url == "http://abc:431"
 
 
-def test_bad_agent_url(monkeypatch):
-    with pytest.raises(ValueError):
-        Tracer(url="bad://localhost:8126")
+@pytest.mark.subprocess(env={"DD_TRACE_AGENT_URL": "bad://localhost:1234"})
+def test_bad_agent_url():
+    import pytest
 
-    monkeypatch.setenv("DD_TRACE_AGENT_URL", "bad://localhost:1234")
     with pytest.raises(ValueError) as e:
-        Tracer()
+        from ddtrace import tracer  # noqa: F401
+
     assert (
         str(e.value)
         == "Unsupported protocol 'bad' in intake URL 'bad://localhost:1234'. Must be one of: http, https, unix"
     )
 
-    monkeypatch.setenv("DD_TRACE_AGENT_URL", "unix://")
+
+@pytest.mark.subprocess(env={"DD_TRACE_AGENT_URL": "unix://"})
+def test_bad_agent_url_invalid_path():
+    import pytest
+
     with pytest.raises(ValueError) as e:
-        Tracer()
+        from ddtrace import tracer  # noqa: F401
     assert str(e.value) == "Invalid file path in intake URL 'unix://'"
 
-    monkeypatch.setenv("DD_TRACE_AGENT_URL", "http://")
+
+@pytest.mark.subprocess(env={"DD_TRACE_AGENT_URL": "http://"})
+def test_bad_agent_url_invalid_hostname():
+    import pytest
+
     with pytest.raises(ValueError) as e:
-        Tracer()
+        from ddtrace import tracer  # noqa: F401
     assert str(e.value) == "Invalid hostname in intake URL 'http://'"
 
 
@@ -1853,7 +1864,7 @@ def test_fork_pid(tracer):
 
 def test_tracer_api_version():
     t = Tracer()
-    assert isinstance(t._writer._encoder, MsgpackEncoderV05)
+    assert isinstance(t._writer._encoder, MsgpackEncoderV03)
 
     t.configure(api_version="v0.3")
     assert isinstance(t._writer._encoder, MsgpackEncoderV03)

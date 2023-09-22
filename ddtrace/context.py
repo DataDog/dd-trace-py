@@ -32,6 +32,8 @@ if TYPE_CHECKING:  # pragma: no cover
     ]
 
 
+_DD_ORIGIN_INVALID_CHARS_REGEX = re.compile(r"[^\x20-\x7E]+")
+
 log = get_logger(__name__)
 
 
@@ -64,7 +66,7 @@ class Context(object):
         self.trace_id = trace_id  # type: Optional[int]
         self.span_id = span_id  # type: Optional[int]
 
-        if dd_origin is not None:
+        if dd_origin is not None and _DD_ORIGIN_INVALID_CHARS_REGEX.search(dd_origin) is None:
             self._meta[ORIGIN_KEY] = dd_origin
         if sampling_priority is not None:
             self._metrics[SAMPLING_PRIORITY_KEY] = sampling_priority
