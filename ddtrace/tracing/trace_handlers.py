@@ -413,8 +413,8 @@ def _on_traced_get_response_pre(_, ctx: core.ExecutionContext, request, before_r
 
 
 def _on_django_finalize_response_pre(ctx, after_request_tags, request, response):
-    span = ctx["call"]
     # DEV: Always set these tags, this is where `span.resource` is set
+    span = ctx["call"]
     after_request_tags(ctx["pin"], span, request, response)
     trace_utils.set_http_meta(span, ctx["distributed_headers_config"], route=span.get_tag("http.route"))
 
@@ -456,6 +456,40 @@ def _on_django_block_request(ctx: core.ExecutionContext, metadata: Dict[str, str
     _set_url_tag(django_config, ctx["call"], url, query)
 
 
+def _on_django_after_request_headers_post(
+    _unused1,
+    _unused2,
+    request_headers,
+    response_headers,
+    span: Span,
+    django_config,
+    request,
+    body,
+    url,
+    raw_uri,
+    status,
+    response_cookies,
+):
+    trace_utils.set_http_meta(
+        span,
+        django_config,
+        method=request.method,
+        url=url,
+        raw_uri=raw_uri,
+        status_code=status,
+        query=request.META.get("QUERY_STRING", None),
+        parsed_query=request.GET,
+        request_headers=request_headers,
+        response_headers=response_headers,
+        request_cookies=request.COOKIES,
+        request_path_params=request.resolver_match.kwargs if request.resolver_match is not None else None,
+        request_body=body,
+        peer_ip=core.get_item("http.request.remote_ip", span=span),
+        headers_are_case_sensitive=core.get_item("http.request.headers_case_sensitive", span=span),
+        response_cookies=response_cookies,
+    )
+
+
 def listen():
     core.on("wsgi.block.started", _make_block_content)
     core.on("wsgi.request.prepare", _on_request_prepare)
@@ -479,6 +513,7 @@ def listen():
     core.on("django.func.wrapped", _on_django_func_wrapped)
     core.on("django.process_exception", _on_django_process_exception)
     core.on("django.block_request_callback", _on_django_block_request)
+    core.on("django.after_request_headers.post", _on_django_after_request_headers_post)
 
     for context_name in (
         "flask.call",

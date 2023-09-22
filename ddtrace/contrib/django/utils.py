@@ -12,6 +12,7 @@ import six
 from wrapt import FunctionWrapper
 import xmltodict
 
+from ddtrace import Span
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_MEASURED_KEY
@@ -300,7 +301,7 @@ def _get_request_headers(request):
     return request_headers
 
 
-def _after_request_tags(pin, span, request, response):
+def _after_request_tags(pin, span: Span, request, response):
     # Response can be None in the event that the request failed
     # We still want to set additional request tags that are resolved
     # during the request.
@@ -367,7 +368,6 @@ def _after_request_tags(pin, span, request, response):
 
             results = core.dispatch("django.after_request_headers", [])[0]
             request_headers = results[0] if results else None
-
             if not request_headers:
                 request_headers = _get_request_headers(request)
 
@@ -382,25 +382,21 @@ def _after_request_tags(pin, span, request, response):
             if raw_uri and request.META.get("QUERY_STRING"):
                 raw_uri += "?" + request.META["QUERY_STRING"]
 
-            trace_utils.set_http_meta(
+            core.dispatch(
+                "django.after_request_headers.post",
+                response.content,
+                None,
+                request_headers,
+                response_headers,
                 span,
                 config.django,
-                method=request.method,
-                url=url,
-                raw_uri=raw_uri,
-                status_code=status,
-                query=request.META.get("QUERY_STRING", None),
-                parsed_query=request.GET,
-                request_headers=request_headers,
-                response_headers=response_headers,
-                request_cookies=request.COOKIES,
-                request_path_params=request.resolver_match.kwargs if request.resolver_match is not None else None,
-                request_body=_extract_body(request),
-                peer_ip=core.get_item("http.request.remote_ip", span=span),
-                headers_are_case_sensitive=core.get_item("http.request.headers_case_sensitive", span=span),
-                response_cookies=response_cookies,
+                request,
+                _extract_body(request),
+                url,
+                raw_uri,
+                status,
+                response_cookies,
             )
-            core.dispatch("django.after_request_headers.post", response.content, None)
     finally:
         if span.resource == REQUEST_DEFAULT_RESOURCE:
             span.resource = request.method

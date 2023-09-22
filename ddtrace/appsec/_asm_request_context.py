@@ -423,7 +423,7 @@ def _on_pre_tracedrequest(ctx):
             block_request()
 
 
-def _set_headers_and_response(response, headers):
+def _set_headers_and_response(response, headers, *_):
     if config._api_security_enabled and config._appsec_enabled:
         if headers:
             # start_response was not called yet, set the HTTP response headers earlier

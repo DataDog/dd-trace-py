@@ -446,7 +446,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
         distributed_headers_config=config.django,
         distributed_headers=request_headers,
         pin=pin,
-    ) as ctx, ctx.get_item("call") as span:
+    ) as ctx, ctx.get_item("call"):
         core.dispatch(
             "django.traced_get_response.pre",
             functools.partial(_block_request_callable, request, request_headers, ctx),
@@ -476,8 +476,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                 content = http_utils._get_blocked_template(ctype)
                 response = HttpResponse(content, content_type=ctype, status=status)
                 response.content = content
-            # xxx emmett
-            utils._after_request_tags(pin, span, request, response)
+            utils._after_request_tags(pin, ctx["call"], request, response)
             return response
 
         try:
