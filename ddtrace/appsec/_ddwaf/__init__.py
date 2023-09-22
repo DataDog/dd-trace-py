@@ -78,7 +78,7 @@ if _DDWAF_LOADED:
 
     class DDWaf(object):
         def __init__(self, ruleset_map, obfuscation_parameter_key_regexp, obfuscation_parameter_value_regexp):
-            # type: (DDWaf, dict[text_type, Any], text_type, text_type) -> None
+            # type: (DDWaf, dict[text_type, Any], bytes, bytes) -> None
             config = ddwaf_config(
                 key_regex=obfuscation_parameter_key_regexp, value_regex=obfuscation_parameter_value_regexp
             )

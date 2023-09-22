@@ -103,7 +103,7 @@ def _start_appsec_processor():
             "AppSec could not start because of an unexpected error. No security activities will "
             "be collected. "
             "Please contact support at https://docs.datadoghq.com/help/ for help. Error details: "
-            "\n%s",
+            "\n",
             exc_info=True,
         )
         if config._raise:

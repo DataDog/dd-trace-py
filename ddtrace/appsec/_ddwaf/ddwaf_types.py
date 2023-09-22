@@ -318,11 +318,11 @@ class ddwaf_config(ctypes.Structure):
         max_container_size=0,
         max_container_depth=0,
         max_string_length=0,
-        key_regex="",
-        value_regex="",
+        key_regex=b"",
+        value_regex=b"",
         free_fn=ddwaf_object_free,
     ):
-        # type: (ddwaf_config, int, int, int, unicode, unicode, Optional[Any]) -> None
+        # type: (ddwaf_config, int, int, int, bytes, bytes, Optional[Any]) -> None
         self.limits.max_container_size = max_container_size
         self.limits.max_container_depth = max_container_depth
         self.limits.max_string_length = max_string_length

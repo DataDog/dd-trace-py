@@ -179,6 +179,8 @@ class Config(object):
     available and can be updated by users.
     """
 
+    extra_services_queue = multiprocessing.Queue()  # type: multiprocessing.Queue
+
     class _HTTPServerConfig(object):
         _error_statuses = "500-599"  # type: str
         _error_ranges = get_error_ranges(_error_statuses)  # type: List[Tuple[int, int]]
@@ -286,7 +288,6 @@ class Config(object):
         if self.service is None and in_azure_function_consumption_plan():
             self.service = os.environ.get("WEBSITE_SITE_NAME")
 
-        self.extra_services_queue = multiprocessing.Queue()
         self.extra_services = set()
         self.version = os.getenv("DD_VERSION", default=self.tags.get("version"))
         self.http_server = self._HTTPServerConfig()
@@ -430,7 +431,7 @@ class Config(object):
     def get_extra_services(self):
         try:
             while True:
-                self.extra_services.add(self.extra_services_queue.get_nowait())
+                self.extra_services.add(self.extra_services_queue.get(timeout=0.01))
                 if len(self.extra_services) >= 64:
                     self.extra_services.pop()
         except Exception:  # nosec
