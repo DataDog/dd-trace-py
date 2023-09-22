@@ -46,7 +46,6 @@ TEST_USER_NAME = "John Tester"
 TEST_EMAIL = "john@test.com"
 TEST_PASSWD = "passw0rd"
 
-# JJJ use constants
 _USERS = [User(1, TEST_USER, TEST_USER_NAME, TEST_EMAIL, TEST_PASSWD, False)]
 
 EMPTY_USER = User(-1, "", "", "", "", False)
