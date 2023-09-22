@@ -7,7 +7,6 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "graphql",
-    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "component": "graphql",
@@ -32,7 +31,6 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "graphql",
-       "error": 0,
        "meta": {
          "component": "graphql",
          "graphql.source": "query HELLO { hello }"
@@ -48,7 +46,6 @@
        "span_id": 3,
        "parent_id": 1,
        "type": "graphql",
-       "error": 0,
        "meta": {
          "component": "graphql",
          "graphql.source": "query HELLO { hello }"
@@ -64,7 +61,6 @@
        "span_id": 4,
        "parent_id": 1,
        "type": "graphql",
-       "error": 0,
        "meta": {
          "component": "graphql",
          "graphql.operation.name": "HELLO",
