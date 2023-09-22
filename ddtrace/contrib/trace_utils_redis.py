@@ -81,14 +81,13 @@ def _run_redis_command(span, func, args, kwargs):
         redis_command = parsed_command.split(" ")[0]
 
         result = func(*args, **kwargs)
+        if redis_command in ROW_RETURNING_COMMANDS:
+            determine_row_count(redis_command=redis_command, span=span, result=result)
         return result
     except Exception:
         if redis_command in ROW_RETURNING_COMMANDS:
             span.set_metric(db.ROWCOUNT, 0)
         raise
-    finally:
-        if redis_command in ROW_RETURNING_COMMANDS:
-            determine_row_count(redis_command=redis_command, span=span, result=result)
 
 
 @contextmanager

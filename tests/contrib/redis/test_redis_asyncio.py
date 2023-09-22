@@ -1,4 +1,5 @@
 import typing
+from unittest import mock
 
 import pytest
 import redis
@@ -75,6 +76,18 @@ async def test_basic_request(redis_client):
 async def test_unicode_request(redis_client):
     val = await redis_client.get("😐")
     assert val is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.snapshot(wait_for_num_traces=1)
+async def test_connection_error(redis_client):
+    with mock.patch.object(
+        redis.asyncio.connection.ConnectionPool,
+        "get_connection",
+        side_effect=redis.exceptions.ConnectionError("whatever"),
+    ):
+        with pytest.raises(redis.exceptions.ConnectionError):
+            await redis_client.get("foo")
 
 
 @pytest.mark.asyncio
