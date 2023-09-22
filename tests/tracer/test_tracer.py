@@ -35,7 +35,6 @@ from ddtrace.contrib.trace_utils import set_user
 from ddtrace.ext import user
 from ddtrace.internal import telemetry
 from ddtrace.internal._encoding import MsgpackEncoderV03
-from ddtrace.internal._encoding import MsgpackEncoderV05
 from ddtrace.internal.serverless import has_aws_lambda_agent_extension
 from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.writer import AgentWriter
@@ -1865,7 +1864,7 @@ def test_fork_pid(tracer):
 
 def test_tracer_api_version():
     t = Tracer()
-    assert isinstance(t._writer._encoder, MsgpackEncoderV05)
+    assert isinstance(t._writer._encoder, MsgpackEncoderV03)
 
     t.configure(api_version="v0.3")
     assert isinstance(t._writer._encoder, MsgpackEncoderV03)
