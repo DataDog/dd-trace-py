@@ -450,6 +450,12 @@ def _on_django_process_exception(ctx: core.ExecutionContext, should_set_tracebac
         ctx["call"].set_traceback()
 
 
+def _on_django_block_request(ctx: core.ExecutionContext, metadata: Dict[str, str], django_config, url: str, query: str):
+    for tk, tv in metadata.items():
+        ctx["call"].set_tag_str(tk, tv)
+    _set_url_tag(django_config, ctx["call"], url, query)
+
+
 def listen():
     core.on("wsgi.block.started", _make_block_content)
     core.on("wsgi.request.prepare", _on_request_prepare)
@@ -472,6 +478,7 @@ def listen():
     core.on("django.cache", _on_django_cache)
     core.on("django.func.wrapped", _on_django_func_wrapped)
     core.on("django.process_exception", _on_django_process_exception)
+    core.on("django.block_request_callback", _on_django_block_request)
 
     for context_name in (
         "flask.call",

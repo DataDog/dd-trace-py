@@ -387,32 +387,30 @@ def traced_load_middleware(django, pin, func, instance, args, kwargs):
     return func(*args, **kwargs)
 
 
-def _set_block_tags(request, request_headers, span):
+def _gather_block_metadata(request, request_headers, ctx: core.ExecutionContext):
     from . import utils
 
     try:
-        # xxx emmett
-        span.set_tag_str(http.STATUS_CODE, "403")
-        span.set_tag_str(http.METHOD, request.method)
+        metadata = {http.STATUS_CODE: "403", http.METHOD: request.method}
         url = utils.get_request_uri(request)
         query = request.META.get("QUERY_STRING", "")
-        _set_url_tag(config.django, span, url, query)
         if query and config.django.trace_query_string:
-            span.set_tag_str(http.QUERY_STRING, query)
+            metadata[http.QUERY_STRING] = query
         user_agent = _get_request_header_user_agent(request_headers)
         if user_agent:
-            span.set_tag_str(http.USER_AGENT, user_agent)
+            metadata[http.USER_AGENT] = user_agent
     except Exception as e:
-        log.warning("Could not set some span tags on blocked request: %s", str(e))  # noqa: G200
+        log.warning("Could not gather some metadata on blocked request: %s", str(e))  # noqa: G200
+    core.dispatch("django.block_request_callback", ctx, metadata, config.django, url, query)
 
 
-def _block_request_callable(request, request_headers, span):
+def _block_request_callable(request, request_headers, ctx: core.ExecutionContext):
     # This is used by user-id blocking to block responses. It could be called
     # at any point so it's a callable stored in the ASM context.
     from django.core.exceptions import PermissionDenied
 
     core.set_item(HTTP_REQUEST_BLOCKED, STATUS_403_TYPE_AUTO)
-    _set_block_tags(request, request_headers, span)
+    _gather_block_metadata(request, request_headers, ctx)
     raise PermissionDenied()
 
 
@@ -451,7 +449,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
     ) as ctx, ctx.get_item("call") as span:
         core.dispatch(
             "django.traced_get_response.pre",
-            functools.partial(_block_request_callable, request, request_headers, span),
+            functools.partial(_block_request_callable, request, request_headers, ctx),
             ctx,
             request,
             utils._before_request_tags,
