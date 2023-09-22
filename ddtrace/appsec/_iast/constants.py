@@ -52,3 +52,31 @@ DEFAULT_WEAK_RANDOMNESS_FUNCTIONS = {
     "weibullvariate",
     "randbytes",
 }
+
+DEFAULT_PATH_TRAVERSAL_FUNCTIONS = {
+    "glob": {"glob"},
+    "os": {
+        "mkdir",
+        "remove",
+        "rename",
+        "rmdir",
+        "listdir",
+    },
+    "pickle": {"load"},
+    "_pickle": {"load"},
+    "posix": {
+        "mkdir",
+        "remove",
+        "rename",
+        "rmdir",
+        "listdir",
+    },
+    "shutil": {
+        "copy",
+        "copytree",
+        "move",
+        "rmtree",
+    },
+    "tarfile": {"open"},
+    "zipfile": {"ZipFile"},
+}

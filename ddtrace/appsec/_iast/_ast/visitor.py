@@ -4,11 +4,13 @@ from _ast import ImportFrom
 import ast
 import copy
 import sys
+from typing import Set
 from typing import TYPE_CHECKING
 
 from six import iteritems
 
 from .._metrics import _set_metric_iast_instrumented_propagation
+from ..constants import DEFAULT_PATH_TRAVERSAL_FUNCTIONS
 from ..constants import DEFAULT_WEAK_RANDOMNESS_FUNCTIONS
 
 
@@ -96,6 +98,7 @@ class AstVisitor(ast.NodeTransformer):
             # This is a set since all functions will be replaced by taint_sink_functions
             "taint_sinks": {
                 "weak_randomness": DEFAULT_WEAK_RANDOMNESS_FUNCTIONS,
+                "path_traversal": DEFAULT_PATH_TRAVERSAL_FUNCTIONS,
                 "other": {
                     "load",
                     "run",
@@ -135,9 +138,11 @@ class AstVisitor(ast.NodeTransformer):
         self.excluded_functions = self._aspects_spec["excluded_from_patching"].get(self.module_name, {})
 
         # Sink points
-        self._taint_sink_replace_random = self._aspects_spec["taint_sinks"]["weak_randomness"]
-        self._taint_sink_replace_other = self._aspects_spec["taint_sinks"]["other"]
-        self._taint_sink_replace_any = self._taint_sink_replace_random.union(self._taint_sink_replace_other)
+        self._taint_sink_replace_any = self._merge_taint_sinks(
+            self._aspects_spec["taint_sinks"]["other"],
+            self._aspects_spec["taint_sinks"]["weak_randomness"],
+            *[functions for module, functions in self._aspects_spec["taint_sinks"]["path_traversal"].items()],
+        )
         self._taint_sink_replace_disabled = self._aspects_spec["taint_sinks"]["disabled"]
 
         self.dont_patch_these_functionsdefs = set()
@@ -159,6 +164,15 @@ class AstVisitor(ast.NodeTransformer):
             self.codetype = CODE_TYPE_SITE_PACKAGES
         elif "lib/python" in self.filename:
             self.codetype = CODE_TYPE_STDLIB
+
+    @staticmethod
+    def _merge_taint_sinks(*args_functions: Set[str]) -> Set[str]:
+        merged_set = set()
+
+        for functions in args_functions:
+            merged_set.update(functions)
+
+        return merged_set
 
     def _is_string_node(self, node):  # type: (Any) -> bool
         if PY30_37 and isinstance(node, ast.Bytes):
@@ -398,6 +412,9 @@ class AstVisitor(ast.NodeTransformer):
             func_name_node = func_member.id
             aspect = self._aspect_functions.get(func_name_node)
             if aspect:
+                # Insert original function name as first parameter
+                call_node.args = self._add_original_function_as_arg(call_node, True)
+                # Substitute function call
                 call_node.func = self._attr_node(call_node, aspect)
                 self.ast_modified = call_modified = True
             else:
@@ -425,6 +442,9 @@ class AstVisitor(ast.NodeTransformer):
                 # Move the Attribute.value to 'args'
                 new_arg = func_member.value
                 call_node.args.insert(0, new_arg)
+
+                # Insert original method as first parameter (a.b.c.method)
+                call_node.args = self._add_original_function_as_arg(call_node, False)
 
                 # Create a new Name node for the replacement and set it as node.func
                 call_node.func = self._attr_node(call_node, aspect)
