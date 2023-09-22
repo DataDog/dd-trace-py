@@ -106,7 +106,7 @@ class WAF_DATA_NAMES(object):
     REQUEST_USER_ID = "usr.id"
     RESPONSE_STATUS = "server.response.status"
     RESPONSE_HEADERS_NO_COOKIES = "server.response.headers.no_cookies"
-    RESPONSE_BODY = "http.response.body"
+    RESPONSE_BODY = "server.response.body"
     PROCESSOR_SETTINGS = "waf.context.processor"
 
 
@@ -142,7 +142,7 @@ class API_SECURITY(object):
     REQUEST_BODY = "_dd.appsec.s.req.body"
     RESPONSE_HEADERS_NO_COOKIES = "_dd.appsec.s.res.headers"
     RESPONSE_BODY = "_dd.appsec.s.res.body"
-    INTERVAL_PER_ROUTE = "_DD_API_SECURITY_INTERVAL_PER_ROUTE"
+    SAMPLE_RATE = "DD_API_SECURITY_REQUEST_SAMPLE_RATE"
     ENABLED = "_dd.appsec.api_security.enabled"
     MAX_PAYLOAD_SIZE = 0x1000000  # 16MB maximum size
 
