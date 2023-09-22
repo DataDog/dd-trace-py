@@ -77,7 +77,7 @@ def gen_pre_checks(template: dict) -> None:
     check(
         name="Run scripts/*.py tests",
         command="hatch run scripts:test",
-        paths={"scripts/*.py", "scripts/mkwheelhouse", "scripts/run-test-suite"},
+        paths={"scripts/*.py", "scripts/mkwheelhouse", "scripts/run-test-suite", "tests/.suitespec.json"},
     )
     check(
         name="Run conftest tests",
