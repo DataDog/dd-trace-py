@@ -1,4 +1,6 @@
 from ddtrace import Pin
+from ddtrace.vendor.wrapt.importer import when_imported
+import flask_login
 from ddtrace import config
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
@@ -10,6 +12,7 @@ from ...ext import SpanTypes
 from ...internal.utils import get_argument_value
 
 log = get_logger(__name__)
+
 
 def get_version():
     # type: () -> str
@@ -24,10 +27,9 @@ class _FlaskLoginUserInfoRetriever(_UserInfoRetriever):
         super(_FlaskLoginUserInfoRetriever, self).get_userid()
 
 
+@trace_utils.with_traced_module
 def traced_login_user(flask_login, pin, func, instance, args, kwargs):
-    from flask_login import UserMixin
-
-    func(*args, **kwargs)
+    ret = func(*args, **kwargs)
 
     try:
         mode = config._automatic_login_events_mode
@@ -43,7 +45,7 @@ def traced_login_user(flask_login, pin, func, instance, args, kwargs):
                 track_user_login_failure_event(pin.tracer, user_id="missing", exists=False, login_events_mode=mode)
             return
 
-        if not isinstance(user, UserMixin):
+        if not isinstance(user, flask_login.UserMixin):
             log.debug(
                 "Automatic Login Events Tracking: flask_login User models not inheriting from UserMixin not supported",
             )
@@ -61,8 +63,7 @@ def traced_login_user(flask_login, pin, func, instance, args, kwargs):
 
         with pin.tracer.trace("flask_login.login_user", span_type=SpanTypes.AUTH):
             if user.is_authenticated():
-                from flask import session
-                session_key = session.get("_id", None)
+                session_key = flask_login.session.get("_id", None)
                 track_user_login_success_event(
                     pin.tracer,
                     user_id=user_id,
@@ -77,23 +78,24 @@ def traced_login_user(flask_login, pin, func, instance, args, kwargs):
     except Exception:
         log.debug("Error while trying to trace flask_login.login_user", exc_info=True)
 
-
-
-def _patch(flask_login):
-    Pin().onto(flask_login)
-
-    trace_utils.wrap(flask_login, "login_user", traced_login_user(flask_login))
-    core.dispatch("flask_login.patch", [])
+    return ret
 
 
 def patch():
-    import flask_login
-
     if getattr(flask_login, "_datadog_patch", False):
         return
-    _patch(flask_login)
 
+    Pin().onto(flask_login)
+    Pin().onto(flask_login.utils)
+    # @when_imported("flask_login.utils")
+    # def _(m):
+    #     trace_utils.wrap(m, "login_user", traced_login_user(flask_login))
+    trace_utils.wrap(flask_login.utils, "login_user", traced_login_user(flask_login))
+    import inspect  # JJJ
+    print("JJJ login_user args: %s" % str(inspect.getargs(flask_login.utils.login_user.__code__)))  # JJJ
+    print("JJJ wrapper args: %s" % str(inspect.getargs(traced_login_user.__code__)))  # JJJ
     flask_login._datadog_patch = True
+    core.dispatch("flask_login.patch", [])
 
 
 def unpatch():
@@ -102,6 +104,5 @@ def unpatch():
     if not getattr(flask_login, "_datadog_patch", False):
         return
 
-    _unpatch(flask_login)
-
+    trace_utils.unwrap(flask_login, "login_user")
     flask_login._datadog_patch = False

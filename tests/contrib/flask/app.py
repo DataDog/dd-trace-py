@@ -57,7 +57,6 @@ def get_user(email):
     return None
 
 
-app = Flask(__name__)
 app.config['SECRET_KEY'] = '7110c8ae51a4b5af97be6534caef90e4bb9bdcb3380af008f90b23a5d1616bf319bc298105da20fe'
 login_manager = LoginManager(app)
 
@@ -150,6 +149,13 @@ def run_subcommunicatenoshell():
     return str(ret), 200
 
 
+TEST_USER = "john"
+TEST_EMAIL = "john@test.com"
+TEST_PASSWD = "passw0rd"
+TEST_WRONG_PASSWD = "hacker"
+TEST_WRONG_EMAIL = "other@other.com"
+
+
 def login_base(email, passwd):
     if current_user.is_authenticated:
         return "Already authenticated"
@@ -160,9 +166,24 @@ def login_base(email, passwd):
 
     if user.check_password(passwd):
         login_user(user, remember=True)
-        return "User %s logged in successfully, session: %s, dir(user): %s" % (TEST_USER, session["_id"], dir(user))
+        return "User %s logged in successfully" % TEST_USER
     else:
         return "Authentication failure"
+
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    return login_base(TEST_EMAIL, TEST_PASSWD)
+
+
+@app.route('/loginfail_wrong_passwd', methods=['GET', 'POST'])
+def loginfail_wrong_passwd():
+    return login_base(TEST_EMAIL, TEST_WRONG_PASSWD)
+
+
+@app.route('/loginfail_wrong_email', methods=['GET', 'POST'])
+def loginfail_wrong_email():
+    return login_base(TEST_WRONG_EMAIL, TEST_PASSWD)
 
 
 @app.route('/logout')

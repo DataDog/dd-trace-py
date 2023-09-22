@@ -1,14 +1,19 @@
+from flask_login import LoginManager, UserMixin, login_user, logout_user, current_user
 import json
 import logging
 
 from flask import Response
 from flask import request
+from flask import session
 import pytest
+from werkzeug.security import generate_password_hash, check_password_hash
 
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec.trace_utils import block_request_if_user_blocked
 from ddtrace.contrib.sqlite3.patch import patch
+from ddtrace.contrib.flask_login.patch import patch as patch_login
+from ddtrace.contrib.flask_login.patch import unpatch as unpatch_login
 from ddtrace.ext import http
 from ddtrace.internal import constants
 from ddtrace.internal import core
@@ -31,6 +36,60 @@ _BLOCKED_USER = "123456"
 _ALLOWED_USER = "111111"
 
 
+class User(UserMixin):
+    def __init__(self, id, name, email, password, is_admin=False):
+        self.id = id
+        self.name = name
+        self.email = email
+        self.password = generate_password_hash(password)
+        self.is_admin = is_admin
+
+    def set_password(self, password):
+        self.password = generate_password_hash(password)
+
+    def check_password(self, password):
+        return check_password_hash(self.password, password)
+
+    def __repr__(self):
+        return '<User {}>'.format(self.email)
+
+    def get_id(self):
+        return self.id
+
+
+TEST_USER = "john"
+TEST_EMAIL = "john@test.com"
+TEST_PASSWD = "passw0rd"
+TEST_WRONG_PASSWD = "hacker"
+
+# JJJ use constants
+_USERS = [
+    User(1, "john", "john@test.com", "passw0rd", False)
+]
+
+
+def get_user(email):
+    for user in _USERS:
+        if user.email == email:
+            return user
+    return None
+
+
+def login_base(email, passwd):
+    if current_user and current_user.is_authenticated:
+        return "Already authenticated"
+
+    user = get_user(email)
+    if user is None:
+        return "User not found"
+
+    if user.check_password(passwd):
+        login_user(user, remember=False)
+        return "User %s logged in successfully, session: %s" % (TEST_USER, session["_id"])
+
+    return "Authentication failure"
+
+
 def get_response_body(response):
     if hasattr(response, "text"):
         return response.text
@@ -45,6 +104,16 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
     def setUp(self):
         super(FlaskAppSecTestCase, self).setUp()
         patch()
+        # flask_login stuff
+        self.app.config['SECRET_KEY'] = '7110c8ae51a4b5af97be6534caef90e4bb9bdcb3380af008f90b23a5d1616bf319bc298105da20fe'
+        login_manager = LoginManager(self.app)
+        def load_user(user_id):
+            for user in _USERS:
+                if user.id == int(user_id):
+                    return user
+            return None
+        login_manager._user_callback = load_user
+
 
     def _aux_appsec_prepare_tracer(self, appsec_enabled=True):
         self.tracer._appsec_enabled = appsec_enabled
@@ -927,4 +996,70 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             )
 
     def test_flask_login_events_disabled_explicitly(self):
-        @self.app.route()
+        @self.app.route("/login")
+        def login():
+            login_base("john@test.com", "passw0rd")
+            user = User(1, "john", "john@test.com", "passw0rd", False)
+            return str(current_user == user)
+
+        try:
+            with override_global_config(dict(_appsec_enabled=True, _automatic_login_events_mode="disabled")):
+                resp = self.client.get("/login")
+                assert resp.status_code == 200
+                assert resp.data == b"True"
+                root_span = self.pop_spans()[0]
+                appsec_json = root_span.get_tag(APPSEC.JSON)
+                assert not appsec_json
+        finally:
+            try:
+                logout_user()
+            except:
+                pass
+
+
+    def test_flask_login_events_disabled_noappsec(self):
+        @self.app.route("/login")
+        def login():
+            login_base("john@test.com", "passw0rd")
+            user = User(1, "john", "john@test.com", "passw0rd", False)
+            return str(current_user == user)
+
+        try:
+            with override_global_config(dict(_appsec_enabled=False, _automatic_login_events_mode="safe")):
+                resp = self.client.get("/login")
+                assert resp.status_code == 200
+                assert resp.data == b"True"
+                root_span = self.pop_spans()[0]
+                appsec_json = root_span.get_tag(APPSEC.JSON)
+                assert not appsec_json
+        finally:
+            try:
+                logout_user()
+            except:
+                pass
+
+
+    def test_flask_login_sucess_extended(self):
+        @self.app.route("/login")
+        def login():
+            login_base("john@test.com", "passw0rd")
+            user = User(1, "john", "john@test.com", "passw0rd", False)
+            return str(current_user == user)
+
+        try:
+            patch_login()
+            with override_global_config(dict(_appsec_enabled=True, _automatic_login_events_mode="extended")):
+                import inspect
+                print("JJJ func: %s" % inspect.getfile(login_user))
+                resp = self.client.get("/login")
+                assert resp.status_code == 200
+                assert resp.data == b"True"
+                root_span = self.pop_spans()[0]
+                appsec_json = root_span.get_tag(APPSEC.JSON)
+                assert appsec_json
+        finally:
+            try:
+                logout_user()
+                unpatch_login()
+            except:
+                pass
