@@ -241,6 +241,13 @@ class Config(object):
             )
         )
         self._trace_api = os.getenv("DD_TRACE_API_VERSION")
+        if self._trace_api and self._trace_api == "v0.5":
+            log.warning(
+                "Trace payloads may be corrupted when the trace buffer size limit is reached. "
+                "This issue can be migitaged by setting ``DD_TRACE_WRITER_BUFFER_SIZE_BYTES`` "
+                "to a value large enough to encode all traces or by setting ``DD_TRACE_API_VERSION`` to ``v0.4``."
+            )
+
         self._trace_writer_buffer_size = int(
             os.getenv("DD_TRACE_WRITER_BUFFER_SIZE_BYTES", default=DEFAULT_BUFFER_SIZE)
         )

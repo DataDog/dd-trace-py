@@ -1,0 +1,4 @@
+---
+issues:
+  - |
+    There are known issues with encoding trace data using the v0.5 format. Trace payloads can be corrupted when the trace buffer size limit is reached. This issue can be migitaged by setting ``DD_TRACE_WRITER_BUFFER_SIZE_BYTES`` to a value large enough to encode all traces. Users can avoid this issue by ensuring ``DD_TRACE_API_VERSION`` is not set to ``v0.5`` (default value is v0.4).
