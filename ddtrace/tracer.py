@@ -288,11 +288,14 @@ class Tracer(object):
             self._endpoint_call_counter_span_processor,
         )
         if config._data_streams_enabled:
+            print("DATA_STREAMS ENABLED!!!")
             # Inline the import to avoid pulling in ddsketch or protobuf
             # when importing ddtrace.
             from .internal.datastreams.processor import DataStreamsProcessor
 
             self.data_streams_processor = DataStreamsProcessor(self._agent_url)
+        else:
+            print("DATA_STREAMS NOT ENABLED!!!")
 
         self._hooks = _hooks.Hooks()
         atexit.register(self._atexit)
