@@ -41,7 +41,6 @@ from ddtrace.settings.integration import IntegrationConfig
 from .. import trace_utils
 from ...internal.utils import get_argument_value
 from ..trace_utils import _get_request_header_user_agent
-from ..trace_utils import _set_url_tag
 
 
 log = get_logger(__name__)
