@@ -283,7 +283,7 @@ def _get_source_str(obj):
         source_str = obj
     elif isinstance(obj, Source):
         source_str = obj.body
-    elif isinstance(obj, Document):
+    elif isinstance(obj, Document) and obj.loc is not None:
         source_str = obj.loc.source.body
     else:
         source_str = ""
