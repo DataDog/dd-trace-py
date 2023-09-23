@@ -410,6 +410,7 @@ class Config(object):
             + r"ey[I-L][\w=-]+\.ey[I-L][\w=-]+(\.[\w.+\/=-]+)?|[\-]{5}BEGIN[a-z\s]+PRIVATE\sKEY"
             + r"[\-]{5}[^\-]+[\-]{5}END[a-z\s]+PRIVATE\sKEY|ssh-rsa\s*[a-z0-9\/\.+]{100,}",
         )
+        self.trace_methods = os.getenv("DD_TRACE_METHODS")
 
     def __getattr__(self, name):
         if name not in self._config:

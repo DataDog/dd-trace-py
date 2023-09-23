@@ -421,6 +421,13 @@ The following environment variables for the tracer are supported:
        v1.16.2: added with default of False
        v1.19.0: default changed to True
 
+   DD_TRACE_METHODS:
+     type: String
+     default: ""
+     description: Specify methods to trace. For example: ``mod.submod[method1,method2];mod.submod.Class[method1]``. Note that this setting is only compatible with ``ddtrace-run``.
+     version_added:
+       v2.1.0:
+
    DD_IAST_ENABLED:
      type: Boolean
      default: False

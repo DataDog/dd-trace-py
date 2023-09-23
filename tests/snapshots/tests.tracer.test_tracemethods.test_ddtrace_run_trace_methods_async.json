@@ -1,0 +1,92 @@
+[[
+  {
+    "name": "trace.annotation",
+    "service": null,
+    "resource": "_async_test_method",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "component": "trace",
+      "language": "python",
+      "runtime-id": "01af843670594547bc2930a61c5b1ac4"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 91177
+    },
+    "duration": 52000,
+    "start": 1695496859238726000
+  }],
+[
+  {
+    "name": "trace.annotation",
+    "service": null,
+    "resource": "_async_test_method2",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "component": "trace",
+      "language": "python",
+      "runtime-id": "01af843670594547bc2930a61c5b1ac4"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 91177
+    },
+    "duration": 30000,
+    "start": 1695496859274450000
+  }],
+[
+  {
+    "name": "trace.annotation",
+    "service": null,
+    "resource": "_Class.async_test_method",
+    "trace_id": 2,
+    "span_id": 1,
+    "parent_id": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "component": "trace",
+      "language": "python",
+      "runtime-id": "01af843670594547bc2930a61c5b1ac4"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 91177
+    },
+    "duration": 19000,
+    "start": 1695496859285605000
+  }],
+[
+  {
+    "name": "trace.annotation",
+    "service": null,
+    "resource": "_Class.async_test_method",
+    "trace_id": 3,
+    "span_id": 1,
+    "parent_id": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "component": "trace",
+      "language": "python",
+      "runtime-id": "01af843670594547bc2930a61c5b1ac4"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 91177
+    },
+    "duration": 17000,
+    "start": 1695496859296728000
+  }]]
