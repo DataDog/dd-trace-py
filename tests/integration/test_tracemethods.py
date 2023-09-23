@@ -3,6 +3,11 @@ import os
 
 import pytest
 
+from .test_integration import AGENT_VERSION
+
+
+pytestmark = pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
+
 
 def test_trace_methods_parse():
     from ddtrace.internal.tracemethods import _parse_trace_methods
@@ -79,16 +84,16 @@ class _Class:
     ddtrace_run=True,
     env=dict(
         DD_TRACE_METHODS=(
-            "tests.tracer.test_tracemethods[_test_method,_test_method2];"
-            "tests.tracer.test_tracemethods._Class[test_method,test_method2];"
-            "tests.tracer.test_tracemethods._Class.NestedClass[test_method]"
+            "tests.integration.test_tracemethods[_test_method,_test_method2];"
+            "tests.integration.test_tracemethods._Class[test_method,test_method2];"
+            "tests.integration.test_tracemethods._Class.NestedClass[test_method]"
         )
     ),
 )
 def test_ddtrace_run_trace_methods_sync():
-    from tests.tracer.test_tracemethods import _Class
-    from tests.tracer.test_tracemethods import _test_method
-    from tests.tracer.test_tracemethods import _test_method2
+    from tests.integration.test_tracemethods import _Class
+    from tests.integration.test_tracemethods import _test_method
+    from tests.integration.test_tracemethods import _test_method2
 
     _test_method()
     _test_method2()
@@ -113,8 +118,8 @@ async def _async_test_method2():
 def test_ddtrace_run_trace_methods_async(ddtrace_run_python_code_in_subprocess):
     env = os.environ.copy()
     env["DD_TRACE_METHODS"] = (
-        "tests.tracer.test_tracemethods[_async_test_method,_async_test_method2];"
-        "tests.tracer.test_tracemethods._Class[async_test_method]"
+        "tests.integration.test_tracemethods[_async_test_method,_async_test_method2];"
+        "tests.integration.test_tracemethods._Class[async_test_method]"
     )
     tests_dir = os.path.dirname(os.path.dirname(__file__))
     env["PYTHONPATH"] = os.pathsep.join([tests_dir, env.get("PYTHONPATH", "")])
@@ -122,9 +127,9 @@ def test_ddtrace_run_trace_methods_async(ddtrace_run_python_code_in_subprocess):
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(
         """
 import asyncio
-from tests.tracer.test_tracemethods import _async_test_method
-from tests.tracer.test_tracemethods import _async_test_method2
-from tests.tracer.test_tracemethods import _Class
+from tests.integration.test_tracemethods import _async_test_method
+from tests.integration.test_tracemethods import _async_test_method2
+from tests.integration.test_tracemethods import _Class
 
 async def main():
     await _async_test_method()

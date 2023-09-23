@@ -10,16 +10,16 @@
       "_dd.p.dm": "-0",
       "component": "trace",
       "language": "python",
-      "runtime-id": "03dde3ab2fff4e89bde5b4978c564c89"
+      "runtime-id": "a4c8bddf09d34941a4c54f443e872ff5"
     },
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 91176
+      "process_id": 96564
     },
-    "duration": 47000,
-    "start": 1695496858668163000
+    "duration": 51000,
+    "start": 1695501451496806000
   }],
 [
   {
@@ -33,16 +33,16 @@
       "_dd.p.dm": "-0",
       "component": "trace",
       "language": "python",
-      "runtime-id": "03dde3ab2fff4e89bde5b4978c564c89"
+      "runtime-id": "a4c8bddf09d34941a4c54f443e872ff5"
     },
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 91176
+      "process_id": 96564
     },
-    "duration": 93000,
-    "start": 1695496858693572000
+    "duration": 90000,
+    "start": 1695501451524783000
   },
      {
        "name": "trace.annotation",
@@ -54,8 +54,8 @@
        "meta": {
          "component": "trace"
        },
-       "duration": 46000,
-       "start": 1695496858693612000
+       "duration": 10000,
+       "start": 1695501451524855000
      }],
 [
   {
@@ -69,16 +69,16 @@
       "_dd.p.dm": "-0",
       "component": "trace",
       "language": "python",
-      "runtime-id": "03dde3ab2fff4e89bde5b4978c564c89"
+      "runtime-id": "a4c8bddf09d34941a4c54f443e872ff5"
     },
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 91176
+      "process_id": 96564
     },
-    "duration": 16000,
-    "start": 1695496858693694000
+    "duration": 15000,
+    "start": 1695501451524913000
   }],
 [
   {
@@ -92,16 +92,16 @@
       "_dd.p.dm": "-0",
       "component": "trace",
       "language": "python",
-      "runtime-id": "03dde3ab2fff4e89bde5b4978c564c89"
+      "runtime-id": "a4c8bddf09d34941a4c54f443e872ff5"
     },
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 91176
+      "process_id": 96564
     },
     "duration": 26000,
-    "start": 1695496858693727000
+    "start": 1695501451524947000
   },
      {
        "name": "trace.annotation",
@@ -113,8 +113,8 @@
        "meta": {
          "component": "trace"
        },
-       "duration": 5000,
-       "start": 1695496858693743000
+       "duration": 6000,
+       "start": 1695501451524963000
      }],
 [
   {
@@ -128,14 +128,14 @@
       "_dd.p.dm": "-0",
       "component": "trace",
       "language": "python",
-      "runtime-id": "03dde3ab2fff4e89bde5b4978c564c89"
+      "runtime-id": "a4c8bddf09d34941a4c54f443e872ff5"
     },
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 91176
+      "process_id": 96564
     },
-    "duration": 11000,
-    "start": 1695496858693769000
+    "duration": 12000,
+    "start": 1695501451524990000
   }]]

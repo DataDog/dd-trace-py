@@ -10,16 +10,16 @@
       "_dd.p.dm": "-0",
       "component": "trace",
       "language": "python",
-      "runtime-id": "01af843670594547bc2930a61c5b1ac4"
+      "runtime-id": "235aacae84aa4495b4c4550b8d3ad954"
     },
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 91177
+      "process_id": 96569
     },
-    "duration": 52000,
-    "start": 1695496859238726000
+    "duration": 47000,
+    "start": 1695501452080827000
   }],
 [
   {
@@ -33,16 +33,16 @@
       "_dd.p.dm": "-0",
       "component": "trace",
       "language": "python",
-      "runtime-id": "01af843670594547bc2930a61c5b1ac4"
+      "runtime-id": "235aacae84aa4495b4c4550b8d3ad954"
     },
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 91177
+      "process_id": 96569
     },
-    "duration": 30000,
-    "start": 1695496859274450000
+    "duration": 29000,
+    "start": 1695501452119379000
   }],
 [
   {
@@ -56,16 +56,16 @@
       "_dd.p.dm": "-0",
       "component": "trace",
       "language": "python",
-      "runtime-id": "01af843670594547bc2930a61c5b1ac4"
+      "runtime-id": "235aacae84aa4495b4c4550b8d3ad954"
     },
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 91177
+      "process_id": 96569
     },
-    "duration": 19000,
-    "start": 1695496859285605000
+    "duration": 18000,
+    "start": 1695501452130535000
   }],
 [
   {
@@ -79,14 +79,14 @@
       "_dd.p.dm": "-0",
       "component": "trace",
       "language": "python",
-      "runtime-id": "01af843670594547bc2930a61c5b1ac4"
+      "runtime-id": "235aacae84aa4495b4c4550b8d3ad954"
     },
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 91177
+      "process_id": 96569
     },
     "duration": 17000,
-    "start": 1695496859296728000
+    "start": 1695501452141662000
   }]]

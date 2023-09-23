@@ -1,4 +1,3 @@
-import types
 import typing
 
 import wrapt
@@ -99,7 +98,7 @@ def trace_wrapper(wrapped, instance, args, kwargs):
     from ddtrace import tracer
 
     resource = wrapped.__name__
-    if hasattr(instance, "__class__") and instance.__class__ is not types.NoneType:  # noqa: E721
+    if hasattr(instance, "__class__") and instance.__class__ is not type(None):  # noqa: E721
         resource = "%s.%s" % (instance.__class__.__name__, resource)
 
     with tracer.trace("trace.annotation", resource=resource) as span:
