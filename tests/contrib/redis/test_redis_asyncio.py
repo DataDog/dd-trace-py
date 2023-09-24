@@ -79,7 +79,7 @@ async def test_unicode_request(redis_client):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot(wait_for_num_traces=1)
+@pytest.mark.snapshot(wait_for_num_traces=1, ignores=["meta.error.stack"])
 async def test_connection_error(redis_client):
     with mock.patch.object(
         redis.asyncio.connection.ConnectionPool,
