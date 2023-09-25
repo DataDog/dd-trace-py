@@ -5,6 +5,20 @@ from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
 
 
+def assert_stack(expected):
+    stack = []
+    frame = sys._getframe(1)
+    for _ in range(len(expected)):
+        stack.append(frame)
+        frame = frame.f_back
+
+    assert [f.f_code.co_name for f in stack] == expected
+
+
+async def async_func():
+    return 42
+
+
 def test_wrap_unwrap():
     channel = []
 
@@ -84,6 +98,8 @@ def test_wrap_generator():
             yield _
 
     def g():
+        assert_stack(["g", "wrapper", "g"])
+
         for _ in range(10):
             yield _
         return
