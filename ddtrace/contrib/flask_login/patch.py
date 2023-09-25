@@ -8,14 +8,12 @@ from ddtrace.appsec.trace_utils import track_user_login_success_event
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
-from ddtrace.vendor.wrapt.importer import when_imported
 
 from .. import trace_utils
 from ...appsec.utils import _UserInfoRetriever
 from ...ext import SpanTypes
 from ...internal.utils import get_argument_value
 from ..flask.wrappers import get_current_app
-from ..flask.wrappers import simple_call_wrapper
 
 
 log = get_logger(__name__)
@@ -62,9 +60,9 @@ def traced_login_user(func, instance, args, kwargs):
         if not user_id:
             log.debug(
                 "Automatic Login Events Tracking: Could not determine user id field user for the %s user Model; "
-                % type(user)
-                + "set DD_USER_MODEL_LOGIN_FIELD to the name of the field used for the user id or "
-                "implement the get_id method for your model"
+                "set DD_USER_MODEL_LOGIN_FIELD to the name of the field used for the user id or implement the "
+                "get_id method for your model",
+                type(user),
             )
             return
 

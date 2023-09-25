@@ -8,20 +8,18 @@ from werkzeug.security import check_password_hash
 from werkzeug.security import generate_password_hash
 
 from ddtrace.appsec._constants import APPSEC
-from ddtrace.appsec.trace_utils import block_request_if_user_blocked
 from ddtrace.appsec.trace_utils import track_user_login_failure_event
 from ddtrace.contrib.flask_login.patch import patch as patch_login
 from ddtrace.contrib.flask_login.patch import unpatch as unpatch_login
 from ddtrace.contrib.sqlite3.patch import patch
-from ddtrace.ext import http
 from ddtrace.ext import user
 from tests.contrib.flask import BaseFlaskTestCase
 from tests.utils import override_global_config
 
 
 class User(UserMixin):
-    def __init__(self, id, login, name, email, password, is_admin=False):
-        self.id = id
+    def __init__(self, _id, login, name, email, password, is_admin=False):
+        self.id = _id
         self.login = login
         self.name = name
         self.email = email
@@ -235,10 +233,7 @@ class FlaskLoginAppSecTestCase(BaseFlaskTestCase):
     def test_flask_login_failure_user_doesnt_exists(self):
         @self.app.route("/login")
         def login():
-            try:
-                return self._login_base("mike@test.com", TEST_PASSWD)
-            except Exception as e:
-                return "foo"
+            return self._login_base("mike@test.com", TEST_PASSWD)
 
         try:
             patch_login()
