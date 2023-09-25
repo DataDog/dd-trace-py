@@ -161,7 +161,7 @@ set_ranges(const PyObject* str, const TaintRangeRefs& ranges, TaintRangeMapType*
 
     auto hash = get_unique_id(str);
     auto it = tx_map->find(hash);
-    auto new_tainted_object = initializer->allocate_tainted_object(ranges);
+    auto new_tainted_object = initializer->allocate_ranges_into_taint_object(ranges);
     set_fast_tainted_if_notinterned_unicode(str);
     new_tainted_object->incref();
     if (it != tx_map->end()) {
