@@ -22,11 +22,14 @@ else()
 endif(BUILD_MACOS)
 unset(BUILD_MACOS CACHE)
 
-FetchContent_Declare(
-        absl
-        URL "https://github.com/abseil/abseil-cpp/archive/refs/tags/20211102.0.zip"
-)
-FetchContent_MakeAvailable(absl)
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+    message("Debug mode is not enabled, using abseil")
+        FetchContent_Declare(
+                absl
+                URL "https://github.com/abseil/abseil-cpp/archive/refs/tags/20211102.0.zip"
+        )
+        FetchContent_MakeAvailable(absl)
+endif()
 
 include_directories(".")
 
@@ -60,5 +63,6 @@ set_target_properties(
         LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"
 )
 
-target_link_libraries(${APP_NAME} PRIVATE absl::node_hash_map)
-
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+    target_link_libraries(${APP_NAME} PRIVATE absl::node_hash_map)
+endif()
