@@ -45,7 +45,7 @@ jobs:
       DD_API_KEY: 1234567890abcdef1234567890abcdef
       CMAKE_BUILD_PARALLEL_LEVEL: 12
     steps:
-      - name: Setup python versions
+      - name: Setup python 3.9
         if: needs.needs-run.outputs.outcome == 'success'
         uses: actions/setup-python@v4
         with:
