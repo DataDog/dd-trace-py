@@ -20,6 +20,7 @@ import six
 
 import ddtrace
 from ddtrace import config
+from ddtrace.internal.atexit import register_on_exit_signal
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 
 from .._encoding import packb
@@ -68,6 +69,7 @@ log = get_logger(__name__)
 
 PROPAGATION_KEY = "dd-pathway-ctx"
 PROPAGATION_KEY_BASE_64 = "dd-pathway-ctx-base64"
+SHUTDOWN_TIMEOUT = 5
 
 """
 PathwayAggrKey uniquely identifies a pathway to aggregate stats on.
@@ -136,6 +138,7 @@ class DataStreamsProcessor(PeriodicService):
         )(self._flush_stats)
 
         self.start()
+        register_on_exit_signal(self._atexit)
 
     def on_checkpoint_creation(
         self, hash_value, parent_hash, edge_tags, now_sec, edge_latency_sec, full_pathway_latency_sec
@@ -297,6 +300,16 @@ class DataStreamsProcessor(PeriodicService):
             self._flush_stats_with_backoff(compressed)
         except Exception:
             log.error("retry limit exceeded submitting pathway stats to the Datadog agent at %s", self._agent_endpoint)
+
+    def _atexit(self):
+        try:
+            # Data streams tries to flush data on shutdown.
+            # Adding a try except here to ensure we don't crash the application if the agent is killed before
+            # the application for example.
+            self.shutdown(SHUTDOWN_TIMEOUT)
+        except Exception as e:
+            if config._data_streams_enabled:
+                log.warning("Failed to shutdown data streams processor: %s", repr(e))
 
     def shutdown(self, timeout):
         # type: (Optional[float]) -> None
