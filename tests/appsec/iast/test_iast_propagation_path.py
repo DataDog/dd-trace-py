@@ -81,17 +81,17 @@ def test_propagation_path_1_origins_2_propagations(origin1, iast_span_defaults):
     mod.propagation_path_1_source_2_prop(tainted_string_1)
 
     span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
-
+    value_encoded = str(origin1, encoding="utf-8") if type(origin1) is not str else origin1
     sources = span_report.sources
     assert len(sources) == 1
     assert sources[0].name == "path1"
     assert sources[0].origin == OriginType.PATH
-    assert sources[0].value == str(origin1, encoding="utf-8") if type(origin1) is not str else origin1
+    assert sources[0].value == value_encoded
 
     value_parts = [
         {"value": ANY},
-        {"source": 0, "value": str(origin1)},
-        {"source": 0, "value": str(origin1)},
+        {"source": 0, "value": value_encoded},
+        {"source": 0, "value": value_encoded},
         {"value": ".txt"},
     ]
     _assert_vulnerability(span_report, value_parts, "propagation_path_1_source_2_prop")
