@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING
 import attr
 from six import ensure_binary
 
-from ddtrace import config
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._capabilities import _appsec_rc_file_is_not_static
 from ddtrace.appsec._constants import APPSEC
@@ -149,6 +148,7 @@ class AppSecSpanProcessor(SpanProcessor):
 
     def __attrs_post_init__(self):
         # type: () -> None
+        from ddtrace import config
         from ddtrace.appsec._ddwaf import DDWaf
 
         try:
@@ -281,6 +281,7 @@ class AppSecSpanProcessor(SpanProcessor):
         be retrieved from the `core`. This can be used when you don't want to store
         the value in the `core` before checking the `WAF`.
         """
+        from ddtrace import config
 
         if span.span_type != SpanTypes.WEB:
             return None
