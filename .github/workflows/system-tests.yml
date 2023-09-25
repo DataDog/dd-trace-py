@@ -29,11 +29,12 @@ jobs:
     needs: needs-run
     strategy:
       matrix:
-        python-version: ['3.9', '3.12-dev']
         include:
           - weblog-variant: flask-poc
           - weblog-variant: uwsgi-poc
           - weblog-variant: django-poc
+        #   runs django-poc for 3.12
+          - weblog-variant: python3.12
       fail-fast: false
     env:
       TEST_LIBRARY: python
@@ -48,7 +49,7 @@ jobs:
         if: needs.needs-run.outputs.outcome == 'success'
         uses: actions/setup-python@v4
         with:
-          python-version: ${{matrix.python-version}}
+          python-version: '3.9'
   
       - name: Checkout system tests
         if: needs.needs-run.outputs.outcome == 'success'
