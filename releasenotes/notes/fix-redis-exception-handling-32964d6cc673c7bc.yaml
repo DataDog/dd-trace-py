@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    fix: This fix resolves an issue where ddtrace monkey patching of Redis function was raising an unexpected exception where The Redis code was raising an exception.
+    redis: Resolves ``UnboundLocalError`` raised when a traced redis command raises an exception. 
