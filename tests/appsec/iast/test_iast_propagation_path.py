@@ -61,14 +61,13 @@ def test_propagation_path_1_origin_1_propagation(origin1, iast_span_defaults):
     _assert_vulnerability(span_report, value_parts, "propagation_path_1_source_1_prop")
 
 
-@pytest.mark.skip(reason="aspect add fails when var1 + var1")
 @pytest.mark.parametrize(
     "origin1",
     [
-        ("taintsource"),
-        ("1"),
-        (b"taintsource1"),
-        (bytearray(b"taintsource1")),
+        "taintsource",
+        "1",
+        b"taintsource1",
+        bytearray(b"taintsource1"),
     ],
 )
 def test_propagation_path_1_origins_2_propagations(origin1, iast_span_defaults):
