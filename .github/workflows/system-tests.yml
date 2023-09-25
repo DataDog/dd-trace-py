@@ -5,6 +5,7 @@ on:
     branches:
       - 0.x
       - 1.x
+      - 2.x
   pull_request:
   workflow_dispatch: {}
   schedule:
@@ -30,6 +31,7 @@ jobs:
     needs: needs-run
     strategy:
       matrix:
+        python-version: ['3.9', '3.12-dev']
         include:
           - weblog-variant: flask-poc
           - weblog-variant: uwsgi-poc
@@ -44,11 +46,11 @@ jobs:
       DD_API_KEY: 1234567890abcdef1234567890abcdef
       CMAKE_BUILD_PARALLEL_LEVEL: 12
     steps:
-      - name: Setup python 3.9
+      - name: Setup python versions
         if: needs.needs-run.outputs.outcome == 'success'
         uses: actions/setup-python@v4
         with:
-          python-version: '3.9'
+          python-version: ${{matrix.python-version}}
   
       - name: Checkout system tests
         if: needs.needs-run.outputs.outcome == 'success'
