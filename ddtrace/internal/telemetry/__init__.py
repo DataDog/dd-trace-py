@@ -54,7 +54,6 @@ def _excepthook(tp, value, root_traceback):
             telemetry_writer._app_dependencies_loaded_event()
 
         telemetry_writer.app_shutdown()
-        telemetry_writer.disable()
 
     return _ORIGINAL_EXCEPTHOOK(tp, value, root_traceback)
 
