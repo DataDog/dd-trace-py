@@ -35,21 +35,21 @@ class Initializer
      *
      * @return A pointer to the created taint range map.
      */
-    TaintRangeMapType *create_tainting_map();
+    TaintRangeMapType* create_tainting_map();
 
     /**
      * Frees a taint range map.
      *
      * @param tx_map The taint range map to be freed.
      */
-    void free_tainting_map(TaintRangeMapType *tx_map);
+    void free_tainting_map(TaintRangeMapType* tx_map);
 
     /**
      * Gets the current taint range map.
      *
      * @return A pointer to the current taint range map.
      */
-    static TaintRangeMapType *get_tainting_map();
+    static TaintRangeMapType* get_tainting_map();
 
     /**
      * Clears all active taint maps.
@@ -105,7 +105,8 @@ class Initializer
      * IMPORTANT: if the returned object is not assigned to the map, you have responsibility of calling
      * release_tainted_object on it or you'll have a leak.
      *
-     * IMPORTANT2: allocate_ranges_into_taint_object moves the owner of the ranges, if you know the ranges of the original
+     * IMPORTANT2: allocate_ranges_into_taint_object moves the owner of the ranges, if you know the ranges of the
+     original
      * tainted object should be used more times, use instead allocate_ranges_into_taint_object_copy.
      *
      * @return A pointer to the allocated tainted object.
