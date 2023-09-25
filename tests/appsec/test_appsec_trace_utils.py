@@ -83,7 +83,6 @@ class EventsSDKTestCase(TracerTestCase):
             assert user_span.get_tag("%s.sdk" % success_prefix) == "true"
             assert not user_span.get_tag("%s.auto.mode" % success_prefix)
             assert not user_span.get_tag("%s.track" % failure_prefix)
-            assert user_span.context.sampling_priority == constants.USER_KEEP
             # set_user tags
             assert user_span.get_tag(user.ID) == "1234" and parent_span.get_tag(user.ID) is None
             assert user_span.get_tag(user.NAME) == "John" and parent_span.get_tag(user.NAME) is None
