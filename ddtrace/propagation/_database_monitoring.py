@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING
 from typing import Union  # noqa
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.settings.peer_service import PeerServiceConfig
 from ddtrace.vendor.sqlcommenter import generate_sql_comment as _generate_sql_comment
 
 from ..internal.utils import get_argument_value
@@ -71,11 +72,16 @@ class _DBM_Propagator(object):
             return None
 
         # set the following tags if DBM injection mode is full or service
+        peer_service_enabled = PeerServiceConfig().set_defaults_enabled
+        service_name_key = db_span.service
+        if peer_service_enabled:
+            service_name_key = db_span.get_tags().get("db.name") or db_span.service
+
         dbm_tags = {
             DBM_PARENT_SERVICE_NAME_KEY: dd_config.service,
             DBM_ENVIRONMENT_KEY: dd_config.env,
             DBM_VERSION_KEY: dd_config.version,
-            DBM_DATABASE_SERVICE_NAME_KEY: db_span.service,
+            DBM_DATABASE_SERVICE_NAME_KEY: service_name_key,
         }
 
         if dbm_config.propagation_mode == "full":
