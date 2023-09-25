@@ -3,8 +3,6 @@ name: System Tests
 on:
   push:
     branches:
-      - 0.x
-      - 1.x
       - 2.x
   pull_request:
   workflow_dispatch: {}
