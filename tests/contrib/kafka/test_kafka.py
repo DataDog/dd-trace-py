@@ -114,6 +114,9 @@ def non_auto_commit_consumer(tracer, kafka_topic):
             "enable.auto.commit": False,
         }
     )
+    tp = TopicPartition(kafka_topic, 0)
+    tp.offset = 0  # we want to read the first message
+    _consumer.commit(offsets=[tp])
     Pin.override(_consumer, tracer=tracer)
     _consumer.subscribe([kafka_topic])
     yield _consumer
@@ -477,28 +480,49 @@ if __name__ == "__main__":
 
 
 def test_data_streams_kafka_offset_monitoring_messages(dsm_processor, non_auto_commit_consumer, producer, kafka_topic):
+    def _read_single_message(consumer):
+        message = None
+        while message is None or str(message.value()) != str(PAYLOAD):
+            message = consumer.poll(1.0)
+            if message:
+                consumer.commit(asynchronous=False, message=message)
+                return message
+
     PAYLOAD = bytes("data streams", encoding="utf-8") if six.PY3 else bytes("data streams")
     consumer = non_auto_commit_consumer
     try:
         del dsm_processor._current_context.value
     except AttributeError:
         pass
-    producer.produce(kafka_topic, PAYLOAD, key="test_key_1")
-    producer.produce(kafka_topic, PAYLOAD, key="test_key_2")
-    producer.flush()
-    message = None
-
-    while message is None or str(message.value()) != str(PAYLOAD):
-        message = consumer.poll(1.0)
-        if message:
-            consumer.commit(asynchronous=False, message=message)
     buckets = dsm_processor._buckets
+    producer.produce(kafka_topic, PAYLOAD, key="test_key_1")
+    producer.flush()
+
+    _message = _read_single_message(consumer)  # noqa: F841
+
     assert len(buckets) == 1
     assert list(buckets.values())[0].latest_produce_offsets[PartitionKey(kafka_topic, 0)] > 0
-    assert list(buckets.values())[0].latest_commit_offsets[ConsumerPartitionKey("test_group", kafka_topic, 0)] > 0
+    assert consumer.committed([TopicPartition(kafka_topic, 0)])[0].offset == 1
+    assert list(buckets.values())[0].latest_commit_offsets[ConsumerPartitionKey("test_group", kafka_topic, 0)] == 0
+
+    _message = _read_single_message(consumer)  # noqa: F841
+    assert consumer.committed([TopicPartition(kafka_topic, 0)])[0].offset == 2
+    assert list(buckets.values())[0].latest_commit_offsets[ConsumerPartitionKey("test_group", kafka_topic, 0)] == 1
 
 
 def test_data_streams_kafka_offset_monitoring_offsets(dsm_processor, non_auto_commit_consumer, producer, kafka_topic):
+    def _read_single_message(consumer):
+        message = None
+        while message is None or str(message.value()) != str(PAYLOAD):
+            message = consumer.poll(1.0)
+            if message and message.offset() is not None:
+                tp = TopicPartition(message.topic(), message.partition())
+                tp.offset = message.offset() + 1
+                offsets = [tp]
+
+                consumer.commit(asynchronous=False, offsets=offsets)
+                return message
+
     consumer = non_auto_commit_consumer
     PAYLOAD = bytes("data streams", encoding="utf-8") if six.PY3 else bytes("data streams")
     try:
@@ -506,20 +530,16 @@ def test_data_streams_kafka_offset_monitoring_offsets(dsm_processor, non_auto_co
     except AttributeError:
         pass
     producer.produce(kafka_topic, PAYLOAD, key="test_key_1")
-    producer.produce(kafka_topic, PAYLOAD, key="test_key_2")
     producer.flush()
-    message = None
 
-    while message is None or str(message.value()) != str(PAYLOAD):
-        message = consumer.poll(1.0)
-        if message and message.offset() is not None:
-            tp = TopicPartition(message.topic(), message.partition())
-            tp.offset = message.offset() + 1
-            offsets = [tp]
-
-            consumer.commit(asynchronous=False, offsets=offsets)
+    _message = _read_single_message(consumer)  # noqa: F841
 
     buckets = dsm_processor._buckets
     assert len(buckets) == 1
     assert list(buckets.values())[0].latest_produce_offsets[PartitionKey(kafka_topic, 0)] > 0
-    assert list(buckets.values())[0].latest_commit_offsets[ConsumerPartitionKey("test_group", kafka_topic, 0)] > 0
+    assert consumer.committed([TopicPartition(kafka_topic, 0)])[0].offset == 1
+    assert list(buckets.values())[0].latest_commit_offsets[ConsumerPartitionKey("test_group", kafka_topic, 0)] == 0
+
+    _message = _read_single_message(consumer)  # noqa: F841
+    assert consumer.committed([TopicPartition(kafka_topic, 0)])[0].offset == 2
+    assert list(buckets.values())[0].latest_commit_offsets[ConsumerPartitionKey("test_group", kafka_topic, 0)] == 1
