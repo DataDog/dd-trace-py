@@ -622,8 +622,9 @@ class AgentWriter(HTTPWriter):
     def start(self):
         super(AgentWriter, self).start()
         try:
-            telemetry_writer._app_started_event()
-            telemetry_writer._app_dependencies_loaded_event()
+            if not telemetry_writer.started:
+                telemetry_writer._app_started_event()
+                telemetry_writer._app_dependencies_loaded_event()
 
             # appsec remote config should be enabled/started after the global tracer and configs
             # are initialized

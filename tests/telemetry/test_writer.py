@@ -143,13 +143,6 @@ import logging
 logging.basicConfig()
 
 import ddtrace.auto
-
-from ddtrace.internal.telemetry import telemetry_writer
-telemetry_writer.enable()
-telemetry_writer.reset_queues()
-telemetry_writer._app_started_event()
-telemetry_writer.periodic(force_flush=True)
-telemetry_writer.disable()
     """
 
     env = os.environ.copy()
@@ -204,10 +197,11 @@ telemetry_writer.disable()
     assert status == 0, stderr
 
     events = test_agent_session.get_events()
+    app_started_events = [event for event in events if event["request_type"] == "app-started"]
+    assert len(app_started_events) == 1
 
-    assert len(events) == 1
-    events[0]["payload"]["configuration"].sort(key=lambda c: c["name"])
-    assert events[0]["payload"]["configuration"] == [
+    app_started_events[0]["payload"]["configuration"].sort(key=lambda c: c["name"])
+    assert app_started_events[0]["payload"]["configuration"] == [
         {"name": "DD_AGENT_HOST", "origin": "unknown", "value": None},
         {"name": "DD_AGENT_PORT", "origin": "unknown", "value": None},
         {"name": "DD_APPSEC_ENABLED", "origin": "unknown", "value": False},

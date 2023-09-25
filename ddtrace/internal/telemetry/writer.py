@@ -292,7 +292,7 @@ class TelemetryWriter(PeriodicService):
     def _app_started_event(self, register_app_shutdown=True):
         # type: (bool) -> None
         """Sent when TelemetryWriter is enabled or forks"""
-        if self._forked:
+        if self._forked or self.started:
             # app-started events should only be sent by the main process
             return
         #  List of configurations to be collected
