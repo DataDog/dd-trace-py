@@ -32,7 +32,7 @@ try:
     from .ddwaf_types import py_ddwaf_update
 
     _DDWAF_LOADED = True
-except OSError:
+except BaseException:
     _DDWAF_LOADED = False
     LOGGER.warning("DDWaf features disabled. WARNING: Dynamic Library not loaded", exc_info=True)
 
