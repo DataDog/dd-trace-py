@@ -49,7 +49,7 @@ PY3 = sys.version_info[0] == 3
 try:
     from unittest import mock
 except ImportError:
-    import mock  # type: ignore
+    import mock  # type: ignore  # noqa
 
 try:
     from builtin import TimeoutError
