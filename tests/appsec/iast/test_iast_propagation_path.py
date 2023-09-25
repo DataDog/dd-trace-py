@@ -9,7 +9,7 @@ from tests.appsec.iast.aspects.conftest import _iast_patched_module
 from tests.appsec.iast.iast_utils import get_line_and_hash
 
 
-FIXTURES_PATH = "tests/appsec/iast/fixtures/propagation_path.py"
+FIXTURES_PATH = "fixtures/propagation_path.py"
 
 
 def _assert_vulnerability(span_report, value_parts, file_line_label):
@@ -61,6 +61,7 @@ def test_propagation_path_1_origin_1_propagation(origin1, iast_span_defaults):
     _assert_vulnerability(span_report, value_parts, "propagation_path_1_source_1_prop")
 
 
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 @pytest.mark.parametrize(
     "origin1",
     [
