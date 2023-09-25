@@ -489,6 +489,9 @@ class Debugger(Service):
         # type: (List[LineProbe]) -> None
         for probe in probes:
             if probe not in self._probe_registry:
+                if len(self._probe_registry) >= di_config.max_probes:
+                    log.warning("Too many active probes. Ignoring new ones.")
+                    return
                 log.debug("[%s][P: %s] Received new %s.", os.getpid(), os.getppid(), probe)
                 self._probe_registry.register(probe)
 
@@ -609,6 +612,10 @@ class Debugger(Service):
     def _wrap_functions(self, probes):
         # type: (List[FunctionProbe]) -> None
         for probe in probes:
+            if len(self._probe_registry) >= di_config.max_probes:
+                log.warning("Too many active probes. Ignoring new ones.")
+                return
+
             self._probe_registry.register(probe)
             try:
                 assert probe.module is not None  # nosec
@@ -662,9 +669,6 @@ class Debugger(Service):
     def _on_configuration(self, event, probes):
         # type: (ProbePollerEventType, Iterable[Probe]) -> None
         log.debug("[%s][P: %s] Received poller event %r with probes %r", os.getpid(), os.getppid(), event, probes)
-        if len(list(probes)) + len(self._probe_registry) > di_config.max_probes:
-            log.warning("Too many active probes. Ignoring new ones.")
-            return
 
         if event == ProbePollerEvent.STATUS_UPDATE:
             self._probe_registry.log_probes_status()

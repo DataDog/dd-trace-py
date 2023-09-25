@@ -11,10 +11,10 @@ from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import kafka as kafkax
+from ddtrace.internal import core
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import MESSAGING_SYSTEM
-from ddtrace.internal.datastreams.processor import PROPAGATION_KEY
 from ddtrace.internal.schema import schematize_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
@@ -55,9 +55,6 @@ class TracedProducer(confluent_kafka.Producer):
             else config.get("metadata.broker.list")
         )
 
-    def produce(self, topic, value=None, *args, **kwargs):
-        super(TracedProducer, self).produce(topic, value, *args, **kwargs)
-
     # in older versions of confluent_kafka, bool(Producer()) evaluates to False,
     # which makes the Pin functionality ignore it.
     def __bool__(self):
@@ -71,12 +68,6 @@ class TracedConsumer(confluent_kafka.Consumer):
         super(TracedConsumer, self).__init__(config, *args, **kwargs)
         self._group_id = config.get("group.id", "")
         self._auto_commit = asbool(config.get("enable.auto.commit", True))
-
-    def poll(self, timeout=1):
-        return super(TracedConsumer, self).poll(timeout)
-
-    def commit(self, message=None, *args, **kwargs):
-        return super(TracedConsumer, self).commit(message, args, kwargs)
 
 
 def patch():
@@ -123,6 +114,7 @@ def traced_produce(func, instance, args, kwargs):
         return func(*args, **kwargs)
 
     topic = get_argument_value(args, kwargs, 0, "topic") or ""
+    core.set_item("kafka_topic", topic)
     try:
         value = get_argument_value(args, kwargs, 1, "value")
     except ArgumentError:
@@ -131,10 +123,7 @@ def traced_produce(func, instance, args, kwargs):
     partition = kwargs.get("partition", -1)
     if config._data_streams_enabled:
         # inject data streams context
-        headers = kwargs.get("headers", {})
-        pathway = pin.tracer.data_streams_processor.set_checkpoint(["direction:out", "topic:" + topic, "type:kafka"])
-        headers[PROPAGATION_KEY] = pathway.encode()
-        kwargs["headers"] = headers
+        core.dispatch("kafka.produce.start", [instance, args, kwargs])
 
         on_delivery_kwarg = "on_delivery"
         on_delivery_arg = 5
@@ -203,11 +192,8 @@ def traced_poll(func, instance, args, kwargs):
         span.set_tag_str(kafkax.GROUP_ID, instance._group_id)
         if message is not None:
             if config._data_streams_enabled:
-                headers = {header[0]: header[1] for header in (message.headers() or [])}
-                ctx = pin.tracer.data_streams_processor.decode_pathway(headers.get(PROPAGATION_KEY, None))
-                ctx.set_checkpoint(
-                    ["direction:in", "group:" + instance._group_id, "topic:" + message.topic(), "type:kafka"]
-                )
+                core.set_item("kafka_topic", message.topic())
+                core.dispatch("kafka.consume.start", [instance, message])
                 if instance._auto_commit:
                     # it's not exactly true, but if auto commit is enabled, we consider that a message is acknowledged
                     # when it's read.
@@ -235,12 +221,16 @@ def traced_commit(func, instance, args, kwargs):
         return func(*args, **kwargs)
 
     if config._data_streams_enabled:
-        message = get_argument_value(args, kwargs, 0, "message")
-        offsets = kwargs.get("offsets", [])
+        message = get_argument_value(args, kwargs, 0, "message", True)
+        # message and offset are mutually exclusive. Only one parameter can be passed.
         if message is not None:
             offsets = [TopicPartition(message.topic(), message.partition(), offset=message.offset())]
-        for offset in offsets:
-            pin.tracer.data_streams_processor.track_kafka_commit(
-                instance._group_id, offset.topic, offset.partition, offset.offset or -1, time.time()
-            )
+        else:
+            offsets = get_argument_value(args, kwargs, 1, "offsets", True)
+
+        if offsets:
+            for offset in offsets:
+                pin.tracer.data_streams_processor.track_kafka_commit(
+                    instance._group_id, offset.topic, offset.partition, offset.offset or -1, time.time()
+                )
     return func(*args, **kwargs)

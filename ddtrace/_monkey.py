@@ -3,7 +3,7 @@ import os
 import threading
 from typing import TYPE_CHECKING
 
-from ddtrace.vendor.wrapt.importer import when_imported
+from wrapt.importer import when_imported
 
 from .internal.compat import PY2
 from .internal.logger import get_logger
@@ -210,7 +210,7 @@ def patch_all(**patch_modules):
 
     patch(raise_errors=False, **modules)
     if config._iast_enabled:
-        from ddtrace.appsec.iast._patch_modules import patch_iast
+        from ddtrace.appsec._iast._patch_modules import patch_iast
 
         patch_iast()
 
@@ -244,12 +244,10 @@ def patch(raise_errors=True, patch_modules_prefix=DEFAULT_MODULES_PREFIX, **patc
         with _LOCK:
             _PATCHED_MODULES.add(contrib)
 
-    patched_modules = _get_patched_modules()
     log.info(
-        "patched %s/%s modules (%s)",
-        len(patched_modules),
+        "Configured ddtrace instrumentation for %s integration(s). The following modules have been patched: %s",
         len(contribs),
-        ",".join(patched_modules),
+        ",".join(contribs),
     )
 
 

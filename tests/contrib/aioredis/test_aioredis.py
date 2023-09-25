@@ -3,13 +3,13 @@ import os
 
 import aioredis
 import pytest
+from wrapt import ObjectProxy
 
 from ddtrace import Pin
 from ddtrace import tracer
 from ddtrace.contrib.aioredis.patch import aioredis_version
 from ddtrace.contrib.aioredis.patch import patch
 from ddtrace.contrib.aioredis.patch import unpatch
-from ddtrace.vendor.wrapt import ObjectProxy
 from tests.utils import override_config
 
 from ..config import REDIS_CONFIG

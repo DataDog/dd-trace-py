@@ -71,7 +71,6 @@ class AiopgTestCase(AsyncioTestCase):
         assert span.name == "postgres.query"
         assert span.resource == q
         assert span.service == service
-        assert span.get_tag("sql.query") == q
         assert span.error == 0
         assert span.span_type == "sql"
         assert start <= span.start <= end
@@ -97,7 +96,6 @@ class AiopgTestCase(AsyncioTestCase):
         assert dd_span.name == "postgres.query"
         assert dd_span.resource == q
         assert dd_span.service == service
-        assert dd_span.get_tag("sql.query") == q
         assert dd_span.error == 0
         assert dd_span.span_type == "sql"
         assert dd_span.get_tag("component") == "aiopg"
@@ -119,12 +117,27 @@ class AiopgTestCase(AsyncioTestCase):
         assert span.name == "postgres.query"
         assert span.resource == q
         assert span.service == service
-        assert span.get_tag("sql.query") == q
         assert span.error == 1
         assert span.get_metric("network.destination.port") == TEST_PORT
         assert span.span_type == "sql"
         assert span.get_tag("component") == "aiopg"
         assert span.get_tag("span.kind") == "client"
+
+    @mark_asyncio
+    async def test_async_generator(self):
+        conn, tracer = await self._get_conn_and_tracer()
+        cursor = await conn.cursor()
+        q = "select 'foobarblah'"
+        await cursor.execute(q)
+        rows = []
+        async for row in cursor:
+            rows.append(row)
+
+        assert rows == [("foobarblah",)]
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.name == "postgres.query"
 
     @mark_asyncio
     def test_disabled_execute(self):
@@ -316,3 +329,26 @@ class AiopgAnalyticsTestCase(AiopgTestCase):
             spans = yield from self.trace_spans()
             self.assertEqual(len(spans), 1)
             self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
+
+    async def _test_cursor_ctx_manager(self):
+        conn, tracer = await self._get_conn_and_tracer()
+        cur = await conn.cursor()
+        t = type(cur)
+
+        async with conn.cursor() as cur:
+            assert t == type(cur), "%s != %s" % (t, type(cur))
+            await cur.execute(query="select 'blah'")
+            rows = await cur.fetchall()
+            assert len(rows) == 1
+            assert rows[0][0] == "blah"
+
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.name == "postgres.query"
+
+    @mark_asyncio
+    def test_cursor_ctx_manager(self):
+        # ensure cursors work with context managers
+        # https://github.com/DataDog/dd-trace-py/issues/228
+        yield from self._test_cursor_ctx_manager()

@@ -24,7 +24,7 @@ from ddtrace.internal.sampling import set_sampling_decision_maker
 from ddtrace.sampler import DatadogSampler
 from ddtrace.sampler import RateByServiceSampler
 from ddtrace.sampler import RateSampler
-from ddtrace.sampler import SamplingRule
+from ddtrace.sampling_rule import SamplingRule
 from ddtrace.span import Span
 
 from ..subprocesstest import run_in_subprocess
@@ -370,6 +370,45 @@ def test_sampling_rule_init_via_env():
         assert sampling_rule[1].name == "my-name"
         assert len(sampling_rule) == 2
 
+    with override_global_config(
+        dict(
+            _trace_sampling_rules='[{"sample_rate":1.0,"service":"xyz","name":"abc","resource":"def"}, \
+                {"sample_rate":0.5,"service":"my-service","name":"my-name","resource":"ghi"}]'
+        ),
+    ):
+        sampling_rule = DatadogSampler().rules
+        assert sampling_rule[0].sample_rate == 1.0, "DatadogSampler initializes from envvar containing multiple rules"
+        assert sampling_rule[0].service == "xyz"
+        assert sampling_rule[0].name == "abc"
+        assert sampling_rule[0].resource == "def"
+
+        assert sampling_rule[1].sample_rate == 0.5, "DatadogSampler initializes from envvar containing multiple rules"
+        assert sampling_rule[1].service == "my-service"
+        assert sampling_rule[1].name == "my-name"
+        assert sampling_rule[1].resource == "ghi"
+        assert len(sampling_rule) == 2
+
+    with override_global_config(
+        dict(
+            _trace_sampling_rules='\
+                [{"sample_rate":1.0,"service":"xyz","name":"abc","resource":"def","tags":{"ghi":"jkl"}}, \
+                {"sample_rate":0.5,"service":"my-service","name":"my-name","resource":"ghi"}]'
+        ),
+    ):
+        sampling_rule = DatadogSampler().rules
+        assert sampling_rule[0].sample_rate == 1.0, "DatadogSampler initializes from envvar containing multiple rules"
+        assert sampling_rule[0].service == "xyz"
+        assert sampling_rule[0].name == "abc"
+        assert sampling_rule[0].resource == "def"
+        assert sampling_rule[0].tags == {"ghi": "jkl"}
+
+        assert sampling_rule[1].sample_rate == 0.5, "DatadogSampler initializes from envvar containing multiple rules"
+        assert sampling_rule[1].service == "my-service"
+        assert sampling_rule[1].name == "my-name"
+        assert sampling_rule[1].resource == "ghi"
+        assert sampling_rule[1].tags == SamplingRule.NO_RULE
+        assert len(sampling_rule) == 2
+
     with override_global_config(dict(_trace_sampling_rules='[{"sample_rate":1.0}]')):
         sampling_rule = DatadogSampler().rules
         assert sampling_rule[0].sample_rate == 1.0, "DatadogSampler initializes from envvar with only sample_rate set"
@@ -389,6 +428,23 @@ def test_sampling_rule_init_via_env():
         assert sampling_rule[0].sample_rate == 1.0, "DatadogSampler initializes from envvar without service set"
         assert sampling_rule[0].service == SamplingRule.NO_RULE
         assert sampling_rule[0].name == "abc"
+        assert len(sampling_rule) == 1
+
+    with override_global_config(dict(_trace_sampling_rules='[{"sample_rate":1.0,"resource":"def"}]')):
+        sampling_rule = DatadogSampler().rules
+        assert sampling_rule[0].sample_rate == 1.0, "DatadogSampler initializes from envvar with only resource set"
+        assert sampling_rule[0].service == SamplingRule.NO_RULE
+        assert sampling_rule[0].name == SamplingRule.NO_RULE
+        assert sampling_rule[0].resource == "def"
+        assert len(sampling_rule) == 1
+
+    with override_global_config(dict(_trace_sampling_rules='[{"sample_rate":1.0,"tags":{"def": "def"}}]')):
+        sampling_rule = DatadogSampler().rules
+        assert sampling_rule[0].sample_rate == 1.0, "DatadogSampler initializes from envvar with only tags set"
+        assert sampling_rule[0].service == SamplingRule.NO_RULE
+        assert sampling_rule[0].name == SamplingRule.NO_RULE
+        assert sampling_rule[0].resource == SamplingRule.NO_RULE
+        assert sampling_rule[0].tags == {"def": "def"}
         assert len(sampling_rule) == 1
 
     # The following error handling tests use assertions on the json items instead of the returned string due
@@ -561,7 +617,7 @@ def test_sampling_rule_matches_exception():
     rule = SamplingRule(sample_rate=1.0, name=pattern)
     span = create_span(name="test.span")
 
-    with mock.patch("ddtrace.sampler.log") as mock_log:
+    with mock.patch("ddtrace.sampling_rule.log") as mock_log:
         assert (
             rule.matches(span) is False
         ), "SamplingRule should not match when its name pattern function throws an exception"
@@ -578,7 +634,7 @@ def test_sampling_rule_matches_exception():
     parametrize={"DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED": ["true", "false"]},
 )
 def test_sampling_rule_sample():
-    from ddtrace.sampler import SamplingRule
+    from ddtrace.sampling_rule import SamplingRule
     from ddtrace.span import Span
 
     for sample_rate in [0.01, 0.1, 0.15, 0.25, 0.5, 0.75, 0.85, 0.9, 0.95, 0.991]:
@@ -724,7 +780,7 @@ class MatchSample(SamplingRule):
     def matches(self, span):
         return True
 
-    def sample(self, span):
+    def sample(self, span, allow_false=False):
         return True
 
 
@@ -732,7 +788,7 @@ class NoMatch(SamplingRule):
     def matches(self, span):
         return False
 
-    def sample(self, span):
+    def sample(self, span, allow_false=False):
         return True
 
 
@@ -740,7 +796,7 @@ class MatchNoSample(SamplingRule):
     def matches(self, span):
         return True
 
-    def sample(self, span):
+    def sample(self, span, allow_false=False):
         return False
 
 
@@ -785,20 +841,6 @@ class MatchNoSample(SamplingRule):
                 ],
             ),
             USER_KEEP,
-            SamplingMechanism.TRACE_SAMPLING_RULE,
-            0.5,
-            None,
-        ),
-        (
-            DatadogSampler(
-                default_sample_rate=1.0,
-                rules=[
-                    NoMatch(0.5),
-                    MatchNoSample(0.5),
-                    NoMatch(0.5),
-                ],
-            ),
-            USER_REJECT,
             SamplingMechanism.TRACE_SAMPLING_RULE,
             0.5,
             None,

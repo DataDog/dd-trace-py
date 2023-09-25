@@ -183,7 +183,7 @@ class SubprocessCmdLine(object):
                 cache_key, self.env_vars, self.binary, self.arguments, self.truncated
             )
         if config._iast_enabled:
-            from ddtrace.appsec.iast.taint_sinks.command_injection import _iast_report_cmdi
+            from ddtrace.appsec._iast.taint_sinks.command_injection import _iast_report_cmdi
 
             _iast_report_cmdi(shell_args)
 

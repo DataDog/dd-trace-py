@@ -1,13 +1,11 @@
 [[
   {
     "name": "openai.request",
-    "service": "",
+    "service": null,
     "resource": "createTranslation",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
-    "type": "",
-    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "component": "openai",
@@ -25,18 +23,19 @@
       "openai.response.language": "english",
       "openai.response.text": "when I've had enough of running after.",
       "openai.user.api_key": "sk-...key>",
-      "runtime-id": "da6540c2a7284fd696d49e06e7c612cc"
+      "runtime-id": "1061c79d943c4fb2ae50fecccf14398f"
     },
     "metrics": {
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
+      "_sample_rate": 1.0,
       "_sampling_priority_v1": 1,
       "openai.organization.ratelimit.requests.remaining": 49,
       "openai.response.duration": 3.62,
       "openai.response.segments_count": 1,
-      "process_id": 93389
+      "process_id": 7755
     },
-    "duration": 2993000,
-    "start": 1686844437747480000
+    "duration": 4918689,
+    "start": 1694032243122777479
   }]]

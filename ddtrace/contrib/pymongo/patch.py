@@ -1,12 +1,12 @@
 import contextlib
 
 import pymongo
+from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.contrib import trace_utils
 from ddtrace.internal.constants import COMPONENT
-from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY

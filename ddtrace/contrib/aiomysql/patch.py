@@ -1,4 +1,5 @@
 import aiomysql
+import wrapt
 
 from ddtrace import Pin
 from ddtrace import config
@@ -6,11 +7,9 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import dbapi
-from ddtrace.ext import sql
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.utils.wrappers import unwrap
-from ddtrace.vendor import wrapt
 
 from ...ext import SpanKind
 from ...ext import SpanTypes
@@ -75,7 +74,6 @@ class AIOTracedCursor(wrapt.ObjectProxy):
             s.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
             s.set_tag(SPAN_MEASURED_KEY)
-            s.set_tag_str(sql.QUERY, resource)
             s.set_tags(pin.tags)
             s.set_tags(extra_tags)
 
