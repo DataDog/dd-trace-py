@@ -55,9 +55,6 @@ class TracedProducer(confluent_kafka.Producer):
             else config.get("metadata.broker.list")
         )
 
-    def produce(self, topic, value=None, *args, **kwargs):
-        super(TracedProducer, self).produce(topic, value, *args, **kwargs)
-
     # in older versions of confluent_kafka, bool(Producer()) evaluates to False,
     # which makes the Pin functionality ignore it.
     def __bool__(self):
@@ -71,12 +68,6 @@ class TracedConsumer(confluent_kafka.Consumer):
         super(TracedConsumer, self).__init__(config, *args, **kwargs)
         self._group_id = config.get("group.id", "")
         self._auto_commit = asbool(config.get("enable.auto.commit", True))
-
-    def poll(self, timeout=None):
-        return super(TracedConsumer, self).poll(timeout)
-
-    def commit(self, message=None, *args, **kwargs):
-        return super(TracedConsumer, self).commit(message, args, kwargs)
 
 
 def patch():
@@ -230,12 +221,16 @@ def traced_commit(func, instance, args, kwargs):
         return func(*args, **kwargs)
 
     if config._data_streams_enabled:
-        message = get_argument_value(args, kwargs, 0, "message")
-        offsets = kwargs.get("offsets", [])
+        message = get_argument_value(args, kwargs, 0, "message", True)
+        # message and offset are mutually exclusive. Only one parameter can be passed.
         if message is not None:
             offsets = [TopicPartition(message.topic(), message.partition(), offset=message.offset())]
-        for offset in offsets:
-            pin.tracer.data_streams_processor.track_kafka_commit(
-                instance._group_id, offset.topic, offset.partition, offset.offset or -1, time.time()
-            )
+        else:
+            offsets = get_argument_value(args, kwargs, 1, "offsets", True)
+
+        if offsets:
+            for offset in offsets:
+                pin.tracer.data_streams_processor.track_kafka_commit(
+                    instance._group_id, offset.topic, offset.partition, offset.offset or -1, time.time()
+                )
     return func(*args, **kwargs)
