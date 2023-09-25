@@ -27,17 +27,12 @@ def get_patterns(suite: str) -> t.Set[str]:
     >>> sorted(get_patterns("urllib3"))  # doctest: +NORMALIZE_WHITESPACE
     ['ddtrace/__init__.py', 'ddtrace/_hooks.py', 'ddtrace/_logger.py', 'ddtrace/_monkey.py', 'ddtrace/_tracing/*',
     'ddtrace/auto.py', 'ddtrace/bootstrap/*', 'ddtrace/commands/*', 'ddtrace/constants.py', 'ddtrace/context.py',
-    'ddtrace/contrib/__init__.py', 'ddtrace/contrib/_trace_utils_llm.py', 'ddtrace/contrib/trace_utils.py',
-    'ddtrace/contrib/trace_utils_async.py', 'ddtrace/contrib/urllib3/*', 'ddtrace/ext/__init__.py',
-    'ddtrace/ext/http.py', 'ddtrace/ext/net.py', 'ddtrace/ext/sql.py', 'ddtrace/ext/test.py', 'ddtrace/ext/user.py',
-    'ddtrace/filters.py', 'ddtrace/internal/*', 'ddtrace/pin.py', 'ddtrace/propagation/*', 'ddtrace/provider.py',
-    'ddtrace/py.typed', 'ddtrace/sampler.py', 'ddtrace/settings/__init__.py',
-    'ddtrace/settings/_database_monitoring.py', 'ddtrace/settings/config.py', 'ddtrace/settings/http.py',
-    'ddtrace/settings/integration.py', 'ddtrace/span.py', 'ddtrace/tracer.py', 'ddtrace/tracing/*',
-    'ddtrace/version.py', 'hatch.toml', 'pyproject.toml', 'riotfile.py', 'scripts/ddtest', 'scripts/run-test-suite',
-    'setup.cfg', 'setup.py', 'tests/.suitespec.json', 'tests/__init__.py', 'tests/conftest.py',
-    'tests/contrib/__init__.py', 'tests/contrib/patch.py', 'tests/contrib/urllib3/*',
-    'tests/snapshots/tests.contrib.urllib3.*']
+    'ddtrace/contrib/urllib3/*', 'ddtrace/filters.py', 'ddtrace/internal/*', 'ddtrace/pin.py', 'ddtrace/provider.py',
+    'ddtrace/py.typed', 'ddtrace/sampler.py', 'ddtrace/settings/__init__.py', 'ddtrace/settings/config.py',
+    'ddtrace/settings/http.py', 'ddtrace/settings/integration.py', 'ddtrace/span.py', 'ddtrace/tracer.py',
+    'ddtrace/tracing/*', 'ddtrace/version.py', 'hatch.toml', 'pyproject.toml', 'riotfile.py', 'scripts/ddtest',
+    'scripts/run-test-suite', 'setup.cfg', 'setup.py', 'tests/.suitespec.json', 'tests/__init__.py',
+    'tests/conftest.py', 'tests/contrib/urllib3/*', 'tests/snapshots/tests.contrib.urllib3.*']
     """
     compos = SUITESPEC["components"]
     if suite not in SUITESPEC["suites"]:
