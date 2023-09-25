@@ -8,14 +8,13 @@ from datadog_api_client import Configuration
 from datadog_api_client.v1.api.notebooks_api import NotebooksApi
 from github import Github
 import requests
-import re
 
 
-"""This release notes script is built to create a release notes draft 
+"""This release notes script is built to create a release notes draft
 for release candidates, patches, and minor releases.
 
 Setup:
-1. Create a Personal access token (classic), not a fine grained one, on Github: 
+1. Create a Personal access token (classic), not a fine grained one, on Github:
 https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token#creating-a-personal-access-token-classic # noqa
 2. Give the Github token repo, user, audit_log, project permissions. On the next page authorize your token for Datadog SSO.
 3. Add `export GH_TOKEN=<github token>` to your `.zhrc` file.
@@ -25,7 +24,7 @@ https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/c
 
 6. Install pandoc with `brew install pandoc`
 
-Create an activate a virtual environment, and install required packages : 
+Create an activate a virtual environment, and install required packages :
 `python -m venv venv && source venv/bin/activate && pip install pygithub requests datadog-api-client reno`
 
 
@@ -40,7 +39,7 @@ Optional:
     RC - Whether or not this is a release candidate. e.g. RC=1 or RC=0
     PATCH - Whether or not this a patch release. e.g. PATCH=1 or PATCH=0
     PRINT - Whether or not the release notes should be printed to CLI or be used to create a Github release. Default is 0 e.g. PRINT=1 or PRINT=0
-    NOTEBOOK - Whether or not to create a notebook in staging. Note this only works for RC1s since those are usually what we create notebooks for.  
+    NOTEBOOK - Whether or not to create a notebook in staging. Note this only works for RC1s since those are usually what we create notebooks for.
     Default is 1 for RC1s, 0 for everything else e.g. NOTEBOOK=0 or NOTEBOOK=1
 Examples:
 Generate release notes and staging testing notebook for next release candidate version of 2.11: `BASE=2.11 RC=1 python release.py`
@@ -400,7 +399,7 @@ def create_notebook(dd_repo, name, rn, base, latest_branch):
 
     print("Message to post in #apm-python-release once deployed to staging:\n")
     print(
-        """It's time to test the {version} release candidate! The owners of pull requests with release notes in {version} are {author_slack_handles}. 
+        """It's time to test the {version} release candidate! The owners of pull requests with release notes in {version} are {author_slack_handles}.
 Everyone mentioned here: before the end of the day tomorrow, please ensure that you've filled in the testing strategy in the release notebook {nb_url} on all release notes you're the owner of, according to the expectations here: https://datadoghq.atlassian.net/wiki/spaces/APMPY/pages/2868085694/Staging+testing+expectations+for+dd-trace-py+contributors
 You can start doing your tests immediately, using {version}.
 
