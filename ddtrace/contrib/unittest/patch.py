@@ -131,8 +131,9 @@ def _extract_suite_span(suite_identifier):
 def _update_status_item(item, status):
     existing_status = item.get_tag(test.STATUS)
     if existing_status and (status == test.Status.SKIP.value or existing_status == test.Status.FAIL.value):
-        return
+        return None
     item.set_tag_str(test.STATUS, status)
+    return None
 
 
 def _extract_suite_name_from_test_method(item):
@@ -386,10 +387,9 @@ def handle_test_wrapper(func, instance, args, kwargs):
         if not test_module_span or not test_suite_span:
             log.debug("Suite and/or module span not found for test: %s", test_name)
             return func(*args, **kwargs)
-        span = _start_test_span(instance, test_suite_span)
-        result = func(*args, **kwargs)
-        _update_status_item(test_suite_span, span.get_tag(test.STATUS))
-        span.finish()
+        with _start_test_span(instance, test_suite_span) as span:
+          result = func(*args, **kwargs)
+          _update_status_item(test_suite_span, span.get_tag(test.STATUS))
         _update_remaining_suites_and_modules(
             test_module_suite_path, test_module_path, test_module_span, test_suite_span
         )
