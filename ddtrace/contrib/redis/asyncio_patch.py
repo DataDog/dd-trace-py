@@ -34,10 +34,9 @@ async def traced_async_execute_pipeline(func, instance, args, kwargs):
 
 
 async def _run_redis_command_async(span, func, args, kwargs):
+    parsed_command = stringify_cache_args(args)
+    redis_command = parsed_command.split(" ")[0]
     try:
-        parsed_command = stringify_cache_args(args)
-        redis_command = parsed_command.split(" ")[0]
-
         result = await func(*args, **kwargs)
         if redis_command in ROW_RETURNING_COMMANDS:
             determine_row_count(redis_command=redis_command, span=span, result=result)
