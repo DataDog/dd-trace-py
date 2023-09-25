@@ -388,8 +388,8 @@ def handle_test_wrapper(func, instance, args, kwargs):
             log.debug("Suite and/or module span not found for test: %s", test_name)
             return func(*args, **kwargs)
         with _start_test_span(instance, test_suite_span) as span:
-          result = func(*args, **kwargs)
-          _update_status_item(test_suite_span, span.get_tag(test.STATUS))
+            result = func(*args, **kwargs)
+            _update_status_item(test_suite_span, span.get_tag(test.STATUS))
         _update_remaining_suites_and_modules(
             test_module_suite_path, test_module_path, test_module_span, test_suite_span
         )
